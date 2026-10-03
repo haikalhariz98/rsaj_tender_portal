@@ -16,6 +16,7 @@ import {
   recordJointValuation,
   recordMainWorks,
   recordNonCompletion,
+  recordOpeningPosition,
   recordPartyLine,
   recordValuationCalendar,
   recordWarningPost,
@@ -359,6 +360,56 @@ export function CloseWindowDrawer({ id, decisionId, today }: { id: string; decis
       reason={{ label: "On what the completion rests" }}
       submitLabel="Close the window"
       trigger={{ label: "Record completion", className: secondary }}
+    />
+  );
+}
+
+/// BD-613-41 as amended: the opening position, every figure with where it came from (stated on a certificate, or
+/// assumed with the reason). No figure is proposed.
+export function OpeningDrawer({ id, people, groups, values, existing, blocker }: { id: string; people: Option[]; groups: { group: string; label: string }[]; values: Record<string, string | null>; existing: boolean; blocker: string | null }) {
+  const SOURCE = [
+    { value: "STATED", label: "Stated on a certificate (give its reference)" },
+    { value: "ASSUMED", label: "Assumed (say why): warns on every later certificate" },
+  ];
+  const source = (g: string, label: string): Field[] => [
+    { kind: "select", name: `${g}Provenance`, label: `${label}: where it came from`, required: true, placeholder: "Choose: there is no default", options: SOURCE },
+    { kind: "text", name: `${g}Note`, label: `${label}: the certificate's reference, or why it is assumed`, required: true },
+  ];
+  const label = (g: string) => groups.find((x) => x.group === g)?.label ?? g;
+  return (
+    <RecordEditor
+      title="Opening position"
+      description="The last interim certificate issued before this system (or not from a valuation here), and the figures to date, as the next certificate continues from them. Entered once, before the first valuation raised here; corrected with a reason until then. Money as on the certificates; nil is 0.00."
+      size="xl"
+      columns={2}
+      fields={[
+        hidden("id"),
+        { kind: "text", name: "lastCertificateNumber", label: "The last interim certificate's number, as issued", required: true },
+        { kind: "number", name: "lastSequence", label: "Which interim certificate it was on this contract", required: true, min: 1 },
+        { kind: "money", name: "grossToDate", label: label("gross"), required: true },
+        ...source("gross", label("gross")),
+        { kind: "money", name: "previouslyCertified", label: label("previous"), required: true, hint: "What the next certificate deducts as previously certified." },
+        ...source("previous", label("previous")),
+        { kind: "money", name: "retentionMain", label: "Retention held: main contractor", required: true },
+        { kind: "money", name: "retentionNsc", label: "Retention held: nominated sub-contractors", required: true },
+        { kind: "money", name: "retentionNs", label: "Retention held: nominated suppliers", required: true },
+        ...source("retention", label("retention")),
+        { kind: "money", name: "releasedMain", label: "Retention released: main contractor", required: true },
+        { kind: "money", name: "releasedNsc", label: "Retention released: nominated sub-contractors", required: true },
+        { kind: "money", name: "releasedNs", label: "Retention released: nominated suppliers", required: true },
+        ...source("released", label("released")),
+        { kind: "textarea", name: "advanceRecouped", label: "Advance recouped, by certificate", hint: 'One line each: "certificate number | amount". Empty: none.' },
+        ...source("advance", label("advance")),
+        { kind: "date", name: "damagesChargedUntil", label: "Damages charged until (the first day not charged)", hint: "Empty: none charged." },
+        ...source("damages", label("damages")),
+        person("personId", "Recorded for", people),
+        ...(existing ? ([{ kind: "textarea", name: "reason", label: "Why it is corrected", required: true }] as Field[]) : []),
+      ]}
+      values={{ id, ...values }}
+      action={recordOpeningPosition}
+      submitLabel={existing ? "Correct the opening position" : "Record the opening position"}
+      submitBlock={blocker}
+      trigger={{ label: existing ? "Correct" : "Record the opening position", className: existing ? secondary : primary }}
     />
   );
 }

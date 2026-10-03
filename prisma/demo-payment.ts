@@ -359,6 +359,7 @@ export async function wipePayments(db: Db, contractIds: readonly string[]) {
   await db.nonCompletion.deleteMany({ where: byContract });
   await db.ladWarning.deleteMany({ where: byContract });
   await db.paymentCalendar.deleteMany({ where: byContract });
+  await db.openingPosition.deleteMany({ where: byContract });
 }
 
 /// The demo's payment configuration (rows by demo id), before the forms and routing sheets they name. The matrix

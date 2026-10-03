@@ -394,6 +394,7 @@ model Organisation {
   certificateKindSettings  CertificateKindSetting[]
   contractClockRules       ContractClockRule[]
   paymentCalendars         PaymentCalendar[]
+  openingPositions         OpeningPosition[]
   interimValuations        InterimValuation[]
   materialLines            MaterialLine[]
   partyLines               PartyLine[]
@@ -564,6 +565,7 @@ model Person {
   recordsHandedOver      SiteRecordsHandover[]     @relation("RecordsHandedOverBy")
   // 6.13 Part A step 3 (4c): payment and the damages chain, recorded on their behalf.
   calendarsAgreed        PaymentCalendar[]         @relation("CalendarRecordedBy")
+  openingPositions       OpeningPosition[]         @relation("OpeningRecordedBy")
   valuationsRecorded     InterimValuation[]        @relation("ValuationRecordedFor")
   retentionReleased      RetentionRelease[]        @relation("RetentionReleasedBy")
   advancesApplied        AdvancePayment[]          @relation("AdvanceAppliedBy")
@@ -3705,6 +3707,7 @@ model Contract {
   siteRecordsHandovers   SiteRecordsHandover[]
   /// 6.13 Part A step 3 (4c): interim payment and the damages chain.
   paymentCalendar        PaymentCalendar?
+  openingPosition        OpeningPosition?
   interimValuations      InterimValuation[]
   retentionReleases      RetentionRelease[]
   advancePayments        AdvancePayment[]
@@ -9159,6 +9162,51 @@ model ContractClockRule {
 }
 
 /// FR-PAY-003: the day of the month agreed with the contractor as the site valuation day.
+/// BD-613-41 as amended: a contract's position before the first interim valuation the system raises, entered once:
+/// the last interim certificate it covers, the gross certified and previously certified to date, retention held and
+/// released per tier, advance recouped by schedule number, and damages charged until. Each figure is STATED (its
+/// note names the source certificate's reference) or ASSUMED (its note the reason; ASSUMED warns on every later
+/// certificate). Corrected only with a reason and only while no valuation has been raised after it. The payment
+/// module reads it as the latest issued interim certificate.
+model OpeningPosition {
+  id                    String       @id @default(cuid())
+  organisationId        String
+  organisation          Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId            String       @unique
+  contract              Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  /// The last interim certificate it covers: its number as issued, and its sequence on the contract.
+  lastCertificateNumber String
+  lastSequence          Int
+  grossToDate           Decimal      @db.Decimal(18, 2)
+  grossProvenance       Provenance
+  grossNote             String
+  previouslyCertified   Decimal      @db.Decimal(18, 2)
+  previousProvenance    Provenance
+  previousNote          String
+  retentionMain         Decimal      @db.Decimal(18, 2)
+  retentionNsc          Decimal      @db.Decimal(18, 2)
+  retentionNs           Decimal      @db.Decimal(18, 2)
+  retentionProvenance   Provenance
+  retentionNote         String
+  releasedMain          Decimal      @db.Decimal(18, 2)
+  releasedNsc           Decimal      @db.Decimal(18, 2)
+  releasedNs            Decimal      @db.Decimal(18, 2)
+  releasedProvenance    Provenance
+  releasedNote          String
+  /// Advance recouped by schedule number: [{ sequence, amount }] (amount a decimal string).
+  advanceRecouped       Json
+  advanceProvenance     Provenance
+  advanceNote           String
+  /// The first day not charged with damages (null: none charged).
+  damagesChargedUntil   DateTime?
+  damagesProvenance     Provenance
+  damagesNote           String
+  personId              String
+  person                Person       @relation("OpeningRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt            DateTime
+  recordedOn            DateTime
+}
+
 model PaymentCalendar {
   id             String       @id @default(cuid())
   organisationId String

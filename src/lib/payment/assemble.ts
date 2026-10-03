@@ -87,6 +87,8 @@ export interface AssembleInput {
   /// earlier build's). Their figures are not in this layout, so "previously certified" cannot be read from them: a
   /// valuation refuses while one stands, and the sequence still counts them as the issue does.
   foreign: readonly { number: string | null; sequence: number | null }[];
+  /// The groups of the opening position entered as ASSUMED (BD-613-41): every later certificate warns of them.
+  openingAssumed?: readonly string[];
   /// The net of each issued adjustment of the contract sum (step 4 adds them; none before).
   adjustments: readonly Sen[];
   releases: readonly ReleaseRow[];
@@ -167,7 +169,9 @@ export function heldOnLatest(issued: readonly IssuedInterim[]): { certificateId:
 export function assembleInterim(i: AssembleInput): Assembled {
   const v = i.valuation;
   const b = i.baseline.values;
-  const sequence = i.issued.length + i.foreign.length + 1;
+  // The next sequence after every interim certificate issued (from a valuation, not from one, or the opening
+  // position), as the core's issue allocates it (the highest plus one).
+  const sequence = Math.max(0, ...i.issued.map((x) => x.sequence), ...i.foreign.map((x) => x.sequence ?? 0)) + 1;
   const faults: Finding[] = [];
   const f = (code: string, data: Record<string, string | number | null> = {}) => faults.push({ code, level: "block", data });
   for (const x of i.foreign) f("INTERIM_NOT_FROM_VALUATION", { number: x.number ?? (x.sequence == null ? null : String(x.sequence)) });
@@ -228,9 +232,13 @@ export function assembleInterim(i: AssembleInput): Assembled {
   if (result.figures) faults.push(...variationFaults({ valuedTotal: result.figures.gross, revisedSum: result.figures.newSum, unapproved: 0 }));
 
   const revised = i.baselineDamages ? frozenRateWarnings(i.decision, i.baselineDamages) : [];
+  if (i.openingAssumed?.length) revised.push({ code: "OPENING_ASSUMED", level: "warn", data: { groups: i.openingAssumed.join(", ") } });
   const warnings = [...preExecutionFaults(sequence, { ...i.preExecution, limit: i.policy.preExecutionLimit }, "warn"), ...revised];
   // BD-613-48: the certificate itself says the CNC's rate still applies where the baseline has since moved.
-  if (result.snapshot && revised.length) result.snapshot.lines.push({ key: "ladRateNote", labelEn: "Damages rate", labelMs: "Kadar ganti rugi", type: "TEXT", value: paymentFaultText(revised[0]), overridable: false });
+  const rateNote = revised.find((x) => x.code === "LAD_BASELINE_REVISED");
+  if (result.snapshot && rateNote) result.snapshot.lines.push({ key: "ladRateNote", labelEn: "Damages rate", labelMs: "Kadar ganti rugi", type: "TEXT", value: paymentFaultText(rateNote), overridable: false });
+  const openingNote = revised.find((x) => x.code === "OPENING_ASSUMED");
+  if (result.snapshot && openingNote) result.snapshot.lines.push({ key: "openingNote", labelEn: "Opening position", labelMs: "Kedudukan pembukaan", type: "TEXT", value: paymentFaultText(openingNote), overridable: false });
   const parties = v.parties.map((p) => ({ id: p.partyId, tier: (p.kind === "ASSIGNEE" ? "ASSIGNEE" : "NOMINATED") as "ASSIGNEE" | "NOMINATED", due: p.due }));
   const wf = result.figures ? waterfall(result.figures.recommended, parties, i.policy.remainder) : null;
   if (wf) faults.push(...wf.faults);

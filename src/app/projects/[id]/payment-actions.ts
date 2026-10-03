@@ -17,9 +17,10 @@ import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/mo
 import { applicationFaults } from "@/lib/payment/advance";
 import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, nextInterimSequence, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
 import { ladRoundingFaults } from "@/lib/payment/interim";
+import { OPENING_GROUPS, openingFaults, type OpeningGroup, type OpeningProvenance } from "@/lib/payment/opening";
 import { firstReleaseShare, releaseOf } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, RETENTION_RELEASES, VALUATION_TRIGGERS, type Finding, type PackItem } from "@/lib/payment/types";
 import { calendarFaults, jointFaults, openFaults } from "@/lib/payment/valuation";
@@ -176,13 +177,12 @@ export async function openInterimValuation(_prev: FormState, data: FormData): Pr
   if (r.failed || !trigger || !valuationDate) return { ok: false, errors: r.errors };
   return inContract(idOf(data), now, async (c) => {
     const p = await paymentOf(c);
-    const issued = issuedInterims(p);
     const lastIssued = p.interimValuations.filter((v) => v.certificate?.status === "ISSUED").map((v) => storedDay(v.valuationDate)).sort().at(-1) ?? null;
     const fs = openFaults({ trigger, triggerDate: claimOn ? storedDay(claimOn) : null, valuationDate: storedDay(valuationDate), today: c.today, calendarDay: p.paymentCalendar?.dayOfMonth ?? null, inProgress: !!inProgress(p), lastIssuedOn: lastIssued, baselineInForce: !!baselineOn(c.l, c.today) });
     if (fs.length) refuse("Not opened:", fs);
     const who = await recordedFor(c, personId, { act: "VALUATION" }, storedDay(valuationDate));
     const row = await c.tx.interimValuation.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, trigger, triggerDate: trigger === "CLAIM" ? claimOn : null, valuationDate, personId: who.person.id, participants: [], recordedAt: c.now, recordedOn: dayToDate(c.today) } });
-    await audit(c, "InterimValuation", row.id, `interim valuation of ${storedDay(valuationDate)}`, "CREATE", diffFields(null, { startedBy: TRIGGER_WORDS[trigger].en, claimReceivedOn: trigger === "CLAIM" ? day(claimOn) : null, valuationDay: storedDay(valuationDate), forInterimCertificate: issued.length + 1, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "InterimValuation", row.id, `interim valuation of ${storedDay(valuationDate)}`, "CREATE", diffFields(null, { startedBy: TRIGGER_WORDS[trigger].en, claimReceivedOn: trigger === "CLAIM" ? day(claimOn) : null, valuationDay: storedDay(valuationDate), forInterimCertificate: nextInterimSequence(p), recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
 }
@@ -445,15 +445,94 @@ export async function releaseRetention(_prev: FormState, data: FormData): Promis
   });
 }
 
+// ------------------------------------------------------------------ the opening position (BD-613-41 as amended)
+
+/**
+ * A contract's opening position, entered once before the first valuation the system raises (or corrected, with a
+ * reason, until one is raised): the last interim certificate it covers and the figures to date, each stated on a
+ * certificate (its reference) or assumed (the reason). The payment module reads it as the latest issued interim.
+ */
+export async function recordOpeningPosition(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const lastCertificateNumber = r.text("lastCertificateNumber", "The last interim certificate's number", { max: 120 });
+  const lastSequence = r.int("lastSequence", "Which interim certificate it was", { min: 1 });
+  const m = (name: string, label: string) => {
+    const v = r.money(name, label, { required: true });
+    return v == null ? null : parseSen(v);
+  };
+  const grossToDate = m("grossToDate", "Gross certified to date");
+  const previouslyCertified = m("previouslyCertified", "Previously certified to date");
+  const tiers = (prefix: string, label: string) => {
+    const [a, b, c] = [m(`${prefix}Main`, `${label}: main contractor`), m(`${prefix}Nsc`, `${label}: nominated sub-contractors`), m(`${prefix}Ns`, `${label}: nominated suppliers`)];
+    return a == null || b == null || c == null ? null : { MAIN: a, NSC: b, NS: c };
+  };
+  const retention = tiers("retention", "Retention held");
+  const released = tiers("released", "Retention released");
+  const advanceRecouped = readSchedule(r, String(data.get("advanceRecouped") ?? ""), "advanceRecouped");
+  const chargedUntil = r.date("damagesChargedUntil", "Damages charged until");
+  const provenance = Object.fromEntries(OPENING_GROUPS.map((g) => [g, { provenance: r.choice(`${g}Provenance`, "Where it came from", ["STATED", "ASSUMED"] as const), note: r.text(`${g}Note`, "Its source or reason", { max: 500 }) }])) as Record<OpeningGroup, { provenance: OpeningProvenance | null; note: string }>;
+  const personId = r.text("personId", "Recorded for", { required: true });
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inContract(idOf(data), now, async (c) => {
+    const p = await paymentOf(c);
+    if (p.openingPosition) await c.tx.$queryRaw`SELECT id FROM "OpeningPosition" WHERE id = ${p.openingPosition.id} FOR UPDATE`;
+    const input = { lastCertificateNumber, lastSequence, grossToDate, previouslyCertified, retention, released, advanceRecouped, damagesChargedUntil: chargedUntil ? storedDay(chargedUntil) : null, provenance };
+    const fs = openingFaults(input, { valuationRaised: p.interimValuations.some((v) => v.status === "RAISED" || v.certificateId != null), existing: !!p.openingPosition, reason, foreignSequences: p.certificates.map((x) => x.sequence ?? 0) });
+    if (fs.length) refuse("Not recorded:", fs);
+    const who = await recordedFor(c, personId, { principalOrSo: true }, c.today);
+    const prov = (g: OpeningGroup) => ({ [`${g}Provenance`]: provenance[g].provenance!, [`${g}Note`]: provenance[g].note.trim() });
+    const v = {
+      lastCertificateNumber: lastCertificateNumber.trim(),
+      lastSequence: lastSequence!,
+      grossToDate: money(grossToDate!),
+      previouslyCertified: money(previouslyCertified!),
+      retentionMain: money(retention!.MAIN), retentionNsc: money(retention!.NSC), retentionNs: money(retention!.NS),
+      releasedMain: money(released!.MAIN), releasedNsc: money(released!.NSC), releasedNs: money(released!.NS),
+      advanceRecouped: advanceRecouped.map((x) => ({ sequence: x.sequence, amount: money(x.amount) })) as unknown as Prisma.InputJsonValue,
+      damagesChargedUntil: chargedUntil,
+      ...prov("gross"), ...prov("previous"), ...prov("retention"), ...prov("released"), ...prov("advance"), ...prov("damages"),
+      personId: who.person.id,
+      recordedAt: c.now,
+      recordedOn: dayToDate(c.today),
+    } as Omit<Prisma.OpeningPositionUncheckedCreateInput, "organisationId" | "contractId">;
+    const before = p.openingPosition;
+    const row = await c.tx.openingPosition.upsert({ where: { contractId: c.l.contract.id }, update: v, create: { organisationId: c.l.org.id, contractId: c.l.contract.id, ...v } });
+    // The trail in words: each figure with where it came from ("Stated on …" / "Assumed: …"), never a code.
+    const src = (pv: string | null | undefined, note: string | null | undefined) => (pv ? `${pv === "STATED" ? "Stated on" : "Assumed:"} ${note ?? ""}` : null);
+    const words = (x: typeof before | (typeof v & { advanceRecouped: unknown })) =>
+      x
+        ? {
+            lastCertificateCovered: `${x.lastCertificateNumber} (interim certificate ${x.lastSequence})`,
+            grossCertifiedToDate: String(x.grossToDate),
+            grossSource: src(x.grossProvenance as string, x.grossNote as string),
+            previouslyCertifiedToDate: String(x.previouslyCertified),
+            previouslyCertifiedSource: src(x.previousProvenance as string, x.previousNote as string),
+            retentionHeld: `${String(x.retentionMain)} / ${String(x.retentionNsc)} / ${String(x.retentionNs)}`,
+            retentionSource: src(x.retentionProvenance as string, x.retentionNote as string),
+            retentionReleased: `${String(x.releasedMain)} / ${String(x.releasedNsc)} / ${String(x.releasedNs)}`,
+            releasedSource: src(x.releasedProvenance as string, x.releasedNote as string),
+            advanceRecoupedBySchedule: ((x.advanceRecouped as { sequence: number; amount: string }[]) ?? []).map((a) => `interim certificate ${a.sequence}: ${a.amount}`).join("; ") || "none",
+            advanceSource: src(x.advanceProvenance as string, x.advanceNote as string),
+            damagesChargedUntil: x.damagesChargedUntil ? storedDay(x.damagesChargedUntil as Date) : "none charged",
+            damagesSource: src(x.damagesProvenance as string, x.damagesNote as string),
+          }
+        : null;
+    await audit(c, "OpeningPosition", row.id, "opening position", before ? "UPDATE" : "CREATE", diffFields(words(before), { ...words(v as never)!, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }), reason.trim());
+    return { ok: true };
+  });
+}
+
 // ------------------------------------------------------------------ the advance payment (FR-PAY-001, 002; B2)
 
 /// Schedule rows as "certificate number | amount" lines.
-function readSchedule(r: FormReader, raw: string): { sequence: number; amount: Sen }[] {
+function readSchedule(r: FormReader, raw: string, field = "schedule"): { sequence: number; amount: Sen }[] {
   const out: { sequence: number; amount: Sen }[] = [];
   for (const [n, line] of linesOf(raw).entries()) {
     const [s, a] = line.split("|").map((x) => x.trim());
     if (!s || !/^\d{1,3}$/.test(s) || !a || !/^\d+(\.\d{1,2})?$/.test(a.replace(/,/g, ""))) {
-      r.reject("schedule", `Line ${n + 1}: write it as "certificate number | amount".`);
+      r.reject(field, `Line ${n + 1}: write it as "certificate number | amount".`);
       continue;
     }
     out.push({ sequence: Number.parseInt(s, 10), amount: parseSen(a) });

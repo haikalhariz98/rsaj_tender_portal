@@ -16,16 +16,18 @@ import { frozenRateWarnings, ladLine } from "@/lib/lad/charge";
 import { decisionFaults, replacementFaults, warningFaults } from "@/lib/lad/non-completion";
 import { formatMoney, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type Assembled } from "@/lib/payment/assemble";
-import { ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
+import { OPENING_GROUP_WORDS, ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
+import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, VALUATION_TRIGGERS, type Finding } from "@/lib/payment/types";
 import { issueClockFrom, openFaults } from "@/lib/payment/valuation";
+import { OPENING_GROUPS } from "@/lib/payment/opening";
 import { PARTY_KIND_WORDS } from "@/lib/supervision/labels";
 
 import {
   AdvanceDrawer,
+  OpeningDrawer,
   CalendarDrawer,
   CloseWindowDrawer,
   DeductionDrawer,
@@ -136,6 +138,74 @@ export function PaymentsPanel({ l, v, people, today, section, page }: { l: Loade
   }
 }
 
+/// BD-613-41 as amended: the contract's opening position, the way out where earlier interim certificates were not
+/// raised from a valuation here. Entered once, before the first valuation the system raises.
+function OpeningCard({ l, v, people, today }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null }) {
+  const o = v.p.openingPosition;
+  const raised = v.p.interimValuations.some((x) => x.status === "RAISED" || x.certificateId != null);
+  const foreign = uncoveredForeign(v.p);
+  if (!o && raised && foreign.length === 0) return null;
+  const blocker = zone(today) ?? (raised ? paymentFaultText({ code: "OPENING_CLOSED", level: "block" }) : null);
+  const tag = (pv: string, note: string) => (
+    <span className="flex flex-col items-start gap-1">
+      <ProvenanceBadge value={pv} />
+      <span className={sub}>{pv === "STATED" ? `Stated on ${note}` : `Assumed: ${note}`}</span>
+    </span>
+  );
+  const fig = (value: string, pv: string, note: string) => (
+    <span className="flex flex-col items-start gap-1">
+      <span>{value}</span>
+      {tag(pv, note)}
+    </span>
+  );
+  const tiers = (a: { toString(): string }, b: { toString(): string }, c: { toString(): string }) => `${formatMoney(senFromDecimal(a))} main contractor, ${formatMoney(senFromDecimal(b))} nominated sub-contractors, ${formatMoney(senFromDecimal(c))} nominated suppliers`;
+  const rows = (o?.advanceRecouped as { sequence: number; amount: string }[] | undefined) ?? [];
+  const values = o
+    ? {
+        lastCertificateNumber: o.lastCertificateNumber,
+        lastSequence: String(o.lastSequence),
+        grossToDate: o.grossToDate.toString(),
+        previouslyCertified: o.previouslyCertified.toString(),
+        retentionMain: o.retentionMain.toString(), retentionNsc: o.retentionNsc.toString(), retentionNs: o.retentionNs.toString(),
+        releasedMain: o.releasedMain.toString(), releasedNsc: o.releasedNsc.toString(), releasedNs: o.releasedNs.toString(),
+        advanceRecouped: rows.map((r) => `${r.sequence} | ${r.amount}`).join("\n"),
+        damagesChargedUntil: o.damagesChargedUntil ? day(o.damagesChargedUntil) : null,
+        ...Object.fromEntries(OPENING_GROUPS.flatMap((g) => [[`${g}Provenance`, (o as unknown as Record<string, string>)[`${g}Provenance`]], [`${g}Note`, (o as unknown as Record<string, string>)[`${g}Note`]]])),
+      }
+    : {};
+  return (
+    <Card>
+      <CardHeader
+        icon={<ClipboardIcon size={17} />}
+        title="Opening position"
+        subtitle="Where interim certificates were issued before this system (or not from a valuation here): the last one, and the figures to date, each stated on a certificate or assumed with a reason. Entered once, before the first valuation raised here; the next certificate continues from it."
+        actions={<OpeningDrawer id={l.contract.id} people={people} groups={OPENING_GROUPS.map((g) => ({ group: g, label: OPENING_GROUP_WORDS[g].en }))} values={values} existing={!!o} blocker={blocker} />}
+      />
+      <CardBody>
+        {foreign.length > 0 && <Callout tone="warn" title="Interim certificates issued here without a valuation">{`${foreign.map((x) => x.number ?? `interim certificate ${x.sequence}`).join(", ")}: record the opening position covering ${foreign.length === 1 ? "it" : "them"} before the next valuation is raised.`}</Callout>}
+        {o ? (
+          <KeyValues
+            columns={2}
+            items={[
+              { label: "The last interim certificate it covers", value: `${o.lastCertificateNumber} (interim certificate ${o.lastSequence})` },
+              { label: OPENING_GROUP_WORDS.gross.en, value: fig(formatMoney(senFromDecimal(o.grossToDate)), o.grossProvenance, o.grossNote) },
+              { label: OPENING_GROUP_WORDS.previous.en, value: fig(formatMoney(senFromDecimal(o.previouslyCertified)), o.previousProvenance, o.previousNote) },
+              { label: OPENING_GROUP_WORDS.retention.en, value: fig(tiers(o.retentionMain, o.retentionNsc, o.retentionNs), o.retentionProvenance, o.retentionNote) },
+              { label: OPENING_GROUP_WORDS.released.en, value: fig(tiers(o.releasedMain, o.releasedNsc, o.releasedNs), o.releasedProvenance, o.releasedNote) },
+              { label: OPENING_GROUP_WORDS.advance.en, value: fig(rows.length ? rows.map((r) => `interim certificate ${r.sequence}: ${formatMoney(parseSen(r.amount))}`).join("; ") : "None", o.advanceProvenance, o.advanceNote) },
+              { label: OPENING_GROUP_WORDS.damages.en, value: fig(o.damagesChargedUntil ? `The first day not charged: ${formatDate(day(o.damagesChargedUntil))}` : "None charged", o.damagesProvenance, o.damagesNote) },
+              { label: "Recorded", value: `${formatDate(day(o.recordedOn))}, for ${o.person.name}` },
+            ]}
+          />
+        ) : (
+          <p className="text-[13px] text-ink-3">Not recorded: the first interim certificate raised here is interim certificate 1, with nothing previously certified.</p>
+        )}
+        {o && <p className={`${sub} mt-3`}>An advance granted before this system is recorded as recouped here, not continued: apply for its remaining recoupment as an advance here if it is still being recouped.</p>}
+      </CardBody>
+    </Card>
+  );
+}
+
 function ValuationsSection({ l, v, people, today, page }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; page: number }) {
   const c = l.contract;
   const p = v.p;
@@ -167,6 +237,8 @@ function ValuationsSection({ l, v, people, today, page }: { l: LoadedContract; v
           )}
         </CardBody>
       </Card>
+
+      <OpeningCard l={l} v={v} people={people} today={today} />
 
       {v.current?.status === "OPEN" ? <CurrentValuation l={l} v={v} today={today} formSet={formSet} /> : null}
 
@@ -403,7 +475,7 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
               { label: "Terms", value: <span className="flex flex-col items-start gap-1"><span>{terms}</span>{b?.retentionSource && <span className={sub}>{`From the baseline: ${SOURCE_WORDS[b.retentionSource]?.en.toLowerCase() ?? "recorded"}`}</span>}</span> },
               { label: "Held on the latest issued certificate", value: held ? `${formatMoney(held.held.MAIN + held.held.NSC + held.held.NS)} (${(["MAIN", "NSC", "NS"] as const).map((t) => `${TIER_WORDS[t].en.toLowerCase()} ${formatMoney(held.held[t])}`).join(", ")})` : dim("None held: no interim certificate is issued") },
               { label: "The first release's share", value: pct ? <span className="flex flex-col items-start gap-1"><span>{`${pct}% of what is held`}</span><ProvenanceBadge value={v.cfg.policy?.firstReleaseProvenance ?? null} /></span> : <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><span className={sub}>The first release is refused until Configuration › Post-award sets it.</span></span> },
-              { label: "At the cap", value: <span className="flex flex-col items-start gap-1"><span>Where the three together pass the cap, the cap is shared pro rata to what each would hold; the leftover sen go by the payment waterfall's rule ({v.cfg.policy?.waterfallRemainder ? REMAINDER_WORDS[v.cfg.policy.waterfallRemainder].en.toLowerCase() : "not set: refused when sen are left over"}).</span><ProvenanceBadge value="ASSUMED" /></span> },
+              { label: "At the cap", value: <span className="flex flex-col items-start gap-1"><span>Where the three together pass the cap, the cap is shared pro rata to what each would hold; the leftover sen go by the payment waterfall&apos;s rule ({v.cfg.policy?.waterfallRemainder ? REMAINDER_WORDS[v.cfg.policy.waterfallRemainder].en.toLowerCase() : "not set: refused when sen are left over"}).</span><ProvenanceBadge value="ASSUMED" /></span> },
               { label: "As-built drawings", value: handed ? `Handed over ${formatDate(day(v.p.siteRecordsHandovers.at(-1)!.handedOverOn))}` : dim("Not handed over (Site › Site records)") },
             ]}
           />

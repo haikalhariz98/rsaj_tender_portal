@@ -177,3 +177,22 @@ describe("BD-613-48 (FREEZE): the damages rate and date are the decision's and i
     expect(none.faults.map((f) => f.code)).toContain("LAD_RATE_NOT_SET");
   });
 });
+
+describe("BD-613-41 as amended: continuing from an opening position", () => {
+  it("the next certificate follows the position's sequence and deducts its previously certified", async () => {
+    const { openingAsIssued } = await import("./opening");
+    const o = openingAsIssued({ id: "op1", lastSequence: 7, grossToDate: s("300000.00"), previouslyCertified: s("270000.00"), retention: { MAIN: s("30000.00"), NSC: 0n, NS: 0n }, released: { MAIN: 0n, NSC: 0n, NS: 0n }, damagesChargedUntil: null });
+    const a = assembleInterim({ ...INPUT, issued: [o], foreign: [], openingAssumed: ["Damages charged until"] });
+    expect(a.sequence).toBe(8);
+    expect(a.result.snapshot!.lines.find((l) => l.key === "previous")?.value).toBe("270000.00");
+    expect(a.warnings.map((w) => w.code)).toContain("OPENING_ASSUMED");
+    expect(a.result.snapshot!.lines.find((l) => l.key === "openingNote")?.value).toMatch(/Damages charged until/);
+  });
+  it("an interim certificate not raised from a valuation and not covered still refuses, naming the way out", async () => {
+    const { paymentFaultText } = await import("./labels");
+    const a = assembleInterim({ ...INPUT, foreign: [{ number: "IPC/2026/0009", sequence: 9 }] });
+    const f = a.faults.find((x) => x.code === "INTERIM_NOT_FROM_VALUATION")!;
+    expect(paymentFaultText(f)).toMatch(/record the contract's opening position/);
+    expect(a.sequence).toBe(10);
+  });
+});

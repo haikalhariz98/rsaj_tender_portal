@@ -10,6 +10,7 @@ import { formatSen } from "@/lib/money";
 
 import type { AdvanceParty, ContractClock, ContractorAnswer, Finding, KeyedDeductionKind, NonCompletionOutcome, NonCompletionScope, PackItem, PaymentRouteFigure, RetentionRelease, RetentionTier, ValuationStatus, ValuationTrigger, WaterfallRemainder } from "./types";
 import type { MaterialVerdict } from "./materials";
+import type { OpeningGroup } from "./opening";
 
 export interface Words {
   en: string;
@@ -76,6 +77,15 @@ export const OUTCOME_WORDS: Readonly<Record<NonCompletionOutcome, Words>> = {
 export const SCOPE_WORDS: Readonly<Record<NonCompletionScope, Words>> = {
   WHOLE: w("The whole of the works", "Keseluruhan kerja"),
   SECTION: w("A section of the works", "Satu bahagian kerja"),
+};
+
+export const OPENING_GROUP_WORDS: Readonly<Record<OpeningGroup, Words>> = {
+  gross: w("Gross certified to date", "Nilai kasar diperakui setakat ini"),
+  previous: w("Previously certified to date", "Telah diperakui setakat ini"),
+  retention: w("Retention held", "Wang tahanan dipegang"),
+  released: w("Retention released", "Wang tahanan dilepaskan"),
+  advance: w("Advance recouped", "Pendahuluan dipulihkan"),
+  damages: w("Damages charged until", "Ganti rugi dikenakan sehingga"),
 };
 
 export const CLOCK_WORDS: Readonly<Record<ContractClock, Words>> = {
@@ -253,11 +263,36 @@ export function paymentFaultWords(f: Finding): Words {
       return w(`A cover note is not evidence of insurance without its premium receipt: record the receipt on ${s(d.policies, "the policy")} (the award's Securities tab).`, `Nota perlindungan bukan bukti insurans tanpa resit premium: rekodkan resit pada ${s(d.policies, "polisi")}.`);
     case "PERKESO_NOT_RECORDED":
       return w("Before the contract is signed, the certificate carries the contractor's social security (PERKESO) registration number: record it on a verified policy.", "Sebelum kontrak ditandatangani, perakuan membawa nombor pendaftaran PERKESO kontraktor.");
+    case "OPENING_CLOSED":
+      return w("A valuation has been raised after the opening position: it is not entered or corrected now (the certificates since rest on it).", "Penilaian telah dibangkitkan selepas kedudukan pembukaan: ia tidak boleh diubah lagi.");
+    case "OPENING_REASON_REQUIRED":
+      return w("Say why the opening position is corrected.", "Nyatakan sebab kedudukan pembukaan dibetulkan.");
+    case "OPENING_NUMBER_REQUIRED":
+      return w("Give the last interim certificate's number, as issued.", "Nyatakan nombor perakuan interim terakhir.");
+    case "OPENING_SEQUENCE_REQUIRED":
+      return w("Give which interim certificate it was on this contract (1 or more).", "Nyatakan perakuan interim keberapa (1 atau lebih).");
+    case "OPENING_DOES_NOT_COVER":
+      return w(`The opening position stops at interim certificate ${s(d.last, "its last")}, but interim certificate ${s(d.uncovered, "a later one")} is issued here without a valuation: the position must cover it.`, `Kedudukan pembukaan mesti meliputi perakuan interim ${s(d.uncovered, "terkemudian")}.`);
+    case "OPENING_FIGURE_REQUIRED":
+      return w(`Give ${(OPENING_GROUP_WORDS[d.group as OpeningGroup]?.en ?? "the figure").toLowerCase()}, not below nothing (nil is 0.00).`, `Nyatakan ${(OPENING_GROUP_WORDS[d.group as OpeningGroup]?.ms ?? "angka itu").toLowerCase()}.`);
+    case "OPENING_RELEASED_ABOVE_HELD":
+      return w("More retention is released than is held on a tier.", "Wang tahanan dilepaskan melebihi yang dipegang.");
+    case "OPENING_ADVANCE_ROW_INVALID":
+      return w(`Each advance row is a certificate number from 1 up to the last one covered (${s(d.last, "the last")}) and an amount above nothing.`, "Setiap baris pendahuluan ialah nombor perakuan dan amaun melebihi sifar.");
+    case "OPENING_PROVENANCE_REQUIRED":
+      return w(`Say where ${(OPENING_GROUP_WORDS[d.group as OpeningGroup]?.en ?? "the figure").toLowerCase()} came from: stated on a certificate, or assumed.`, "Nyatakan sumber angka itu.");
+    case "OPENING_SOURCE_REQUIRED":
+      return w(`${OPENING_GROUP_WORDS[d.group as OpeningGroup]?.en ?? "The figure"} is stated: give the reference of the certificate it is stated on.`, "Nyatakan rujukan perakuan sumbernya.");
+    case "OPENING_ASSUMPTION_REASON_REQUIRED":
+      return w(`${OPENING_GROUP_WORDS[d.group as OpeningGroup]?.en ?? "The figure"} is assumed: say why, and on what.`, "Nyatakan sebab angka itu diandaikan.");
+    case "OPENING_NOT_RECONCILED":
+      return w(`Previously certified to date (${money(d.entered)}) is not the gross to date less the retention held net (${money(d.expected)}): shown as entered.`, "Telah diperakui setakat ini tidak sepadan dengan nilai kasar tolak wang tahanan bersih.");
+    case "OPENING_ASSUMED":
+      return w(`This certificate continues from an opening position in which some figures are assumed, not stated on a certificate: ${s(d.groups, "some")}.`, `Perakuan ini bersambung daripada kedudukan pembukaan dengan angka andaian: ${s(d.groups, "sebahagian")}.`);
     case "SEQUENCE_MOVED":
       return w(`This certificate's figures were worked out as interim certificate ${s(d.expected, "its number")}, but it would issue as ${s(d.allocated, "another")}: another was issued meanwhile. Void it and raise the valuation again.`, "Perakuan lain telah dikeluarkan sementara itu. Batalkan dan bangkitkan semula.");
     case "INTERIM_NOT_FROM_VALUATION":
-      return w(`Interim certificate ${s(d.number, "already issued")} was not raised from a valuation here, so what it certified cannot be carried into this one as previously certified. Its figures are not in the valuation's layout; record the earlier interim payments through valuations, or certify this one outside the system.`, `Perakuan interim ${s(d.number, "terdahulu")} tidak dibangkitkan daripada penilaian di sini, jadi amaun yang diperakui tidak boleh dibawa ke hadapan.`);
-    // ------------------------------------------------ the valuation
+      return w(`Interim certificate ${s(d.number, "already issued")} was not raised from a valuation here, so what it certified cannot be carried into this one as previously certified. The way out: record the contract's opening position (Payments › Valuations) covering it — the last certificate, the gross and previously certified to date, retention, advance recouped and damages charged, each stated on a certificate or assumed with a reason.`, `Perakuan interim ${s(d.number, "terdahulu")} tidak dibangkitkan daripada penilaian di sini. Rekodkan kedudukan pembukaan kontrak yang meliputinya.`);
     case "NO_BASELINE":
       return w("No baseline version is in force today: a valuation reads the contract's baseline (confirm it under Baseline).", "Tiada versi garis dasar berkuat kuasa hari ini.");
     case "VALUATION_IN_PROGRESS":

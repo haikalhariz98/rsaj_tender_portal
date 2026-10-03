@@ -19,6 +19,8 @@ import type { ContractPartyKind } from "@/lib/supervision/types";
 
 import { readJudgedUnder, type AssembleInput, type IssuedInterim, type ValuationIn } from "./assemble";
 import { EXECUTED_STATUSES } from "./eligibility";
+import { OPENING_GROUP_WORDS } from "./labels";
+import { assumedGroups, openingAsIssued, type OpeningProvenance } from "./opening";
 import type { KeyedDeductionKind, PackItem, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
@@ -48,6 +50,7 @@ export const paymentInclude = {
   ladWarnings: { include: { person: { select: { name: true } }, certificate: { select: certSelect } }, orderBy: { recordedAt: "asc" as const } },
   nonCompletions: { include: { person: { select: { name: true } }, certificate: { select: certSelect } }, orderBy: [{ decidedOn: "asc" as const }, { recordedAt: "asc" as const }] },
   pendingDeductions: { include: { valuation: { select: { id: true, certificate: { select: { status: true } } } }, person: { select: { name: true } } }, orderBy: { paidOn: "asc" as const } },
+  openingPosition: { include: { person: { select: { name: true } } } },
   certificates: { where: { kind: "INTERIM_PAYMENT" as const, status: "ISSUED" as const, interimValuation: { is: null } }, select: { number: true, sequence: true }, orderBy: { sequence: "asc" as const } },
   contractParties: { orderBy: [{ kind: "asc" as const }, { recordedAt: "asc" as const }] as { kind?: "asc"; recordedAt?: "asc" }[] },
   siteRecordsHandovers: { where: { recordsSet: "AS_BUILT" as const }, orderBy: { handedOverOn: "asc" as const } },
@@ -88,6 +91,23 @@ export const live = (c: { status: string } | null | undefined) => !!c && c.statu
 
 /// The interim certificates issued, as issued, oldest first.
 export function issuedInterims(p: PaymentRows): IssuedInterim[] {
+  const opening = p.openingPosition ? [openingAsIssued(openingOf(p.openingPosition))] : [];
+  return [...opening, ...valuationInterims(p)].sort((a, b) => a.sequence - b.sequence);
+}
+
+/// The opening position's figures in sen (BD-613-41).
+export const openingOf = (o: NonNullable<PaymentRows["openingPosition"]>) => ({
+  id: o.id,
+  lastSequence: o.lastSequence,
+  grossToDate: senFromDecimal(o.grossToDate),
+  previouslyCertified: senFromDecimal(o.previouslyCertified),
+  retention: { MAIN: senFromDecimal(o.retentionMain), NSC: senFromDecimal(o.retentionNsc), NS: senFromDecimal(o.retentionNs) },
+  released: { MAIN: senFromDecimal(o.releasedMain), NSC: senFromDecimal(o.releasedNsc), NS: senFromDecimal(o.releasedNs) },
+  damagesChargedUntil: day(o.damagesChargedUntil),
+});
+
+/// The interim certificates issued from valuations here, as issued.
+function valuationInterims(p: PaymentRows): IssuedInterim[] {
   return p.interimValuations
     .filter((v) => v.certificate?.status === "ISSUED")
     .map((v) => {
@@ -103,7 +123,13 @@ export const inProgress = (p: PaymentRows) => p.interimValuations.find((v) => v.
 
 /// The sequence the valuation in progress was (or will be) assembled as: every interim certificate issued on the
 /// contract, from a valuation or not, plus one; null where none is in progress.
-export const inProgressSequenceOf = (p: PaymentRows): number | null => (inProgress(p) ? issuedInterims(p).length + p.certificates.length + 1 : null);
+export const inProgressSequenceOf = (p: PaymentRows): number | null => (inProgress(p) ? nextInterimSequence(p) : null);
+
+/// The next interim sequence: the highest issued (from a valuation, not from one, or the opening position) plus one.
+export const nextInterimSequence = (p: PaymentRows): number => Math.max(0, ...issuedInterims(p).map((x) => x.sequence), ...p.certificates.map((c) => c.sequence ?? 0)) + 1;
+
+/// Interim certificates issued that no valuation raised and the opening position does not cover (BD-613-41).
+export const uncoveredForeign = (p: PaymentRows) => p.certificates.filter((c) => !p.openingPosition || (c.sequence ?? 0) > p.openingPosition.lastSequence);
 
 /// The non-completion decision in force (code review run 2 item 6: one live at a time; a replaced or void one is not).
 export const liveDecisionOf = (p: PaymentRows) => liveDecision(p.nonCompletions.map((d) => ({ ...d, certificateStatus: d.certificate?.status ?? null })));
@@ -178,7 +204,8 @@ export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentC
       remainderProvenance: (pol?.waterfallProvenance ?? null) as Provenance | null,
     },
     issued: issuedInterims(p),
-    foreign: p.certificates,
+    foreign: uncoveredForeign(p),
+    openingAssumed: p.openingPosition ? assumedGroups({ gross: { provenance: p.openingPosition.grossProvenance as OpeningProvenance }, previous: { provenance: p.openingPosition.previousProvenance as OpeningProvenance }, retention: { provenance: p.openingPosition.retentionProvenance as OpeningProvenance }, released: { provenance: p.openingPosition.releasedProvenance as OpeningProvenance }, advance: { provenance: p.openingPosition.advanceProvenance as OpeningProvenance }, damages: { provenance: p.openingPosition.damagesProvenance as OpeningProvenance } }).map((g) => OPENING_GROUP_WORDS[g].en) : [],
     // Step 4 (FR-PAD-003) adds the issued adjustments of the contract sum: none can be issued before it.
     adjustments: [],
     releases: p.retentionReleases.map((r) => ({ main: senFromDecimal(r.main), nsc: senFromDecimal(r.nsc), ns: senFromDecimal(r.ns), releasedOn: storedDay(r.releasedOn) })),

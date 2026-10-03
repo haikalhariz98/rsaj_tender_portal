@@ -47,6 +47,7 @@ export const RECORD_TYPE_WORDS: Readonly<Record<string, Words>> = {
   CertificateKindSetting: w("Certificate form and routing sheet", "Borang dan helaian laluan perakuan"),
   ContractClockRule: w("Contract clock", "Jam kontrak"),
   PaymentCalendar: w("Valuation calendar", "Kalendar penilaian"),
+  OpeningPosition: w("Opening position", "Kedudukan pembukaan"),
   InterimValuation: w("Interim valuation", "Penilaian interim"),
   MaterialLine: w("Materials on site", "Bahan di tapak"),
   PartyLine: w("Nominated party or assignee on a valuation", "Pihak dinamakan atau pemegang serah hak pada penilaian"),
@@ -65,7 +66,7 @@ export const SUPERVISION_ENTITIES = ["ContractSoAssignment", "SoDelegation", "Po
 
 /// The record types 6.13's interim payment and damages chain write to the contract's trail (each registered above),
 /// with a certificate's approval route and its steps (614-C4), written under the certificate's label.
-export const PAYMENT_ENTITIES = ["PaymentCalendar", "InterimValuation", "MaterialLine", "PartyLine", "ValuationDeduction", "RetentionRelease", "AdvancePayment", "FinancePayment", "LadWarning", "NonCompletion", "ApprovalInstance", "ApprovalStep"] as const;
+export const PAYMENT_ENTITIES = ["PaymentCalendar", "OpeningPosition", "InterimValuation", "MaterialLine", "PartyLine", "ValuationDeduction", "RetentionRelease", "AdvancePayment", "FinancePayment", "LadWarning", "NonCompletion", "ApprovalInstance", "ApprovalStep"] as const;
 
 /// A company-estimate event as the trail names it ("Company estimate · copy retained"): the words the
 /// product's writers use (6.2), by kind.

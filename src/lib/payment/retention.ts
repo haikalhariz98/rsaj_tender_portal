@@ -20,7 +20,7 @@
 
 import { decimalText } from "@/lib/format";
 import type { Sen } from "@/lib/money";
-import { pctOfSen, ratioOfSen } from "@/lib/securities/money";
+import { pctOfSen } from "@/lib/securities/money";
 
 import type { Finding, RetentionTier, WaterfallRemainder } from "./types";
 

@@ -38,3 +38,11 @@ export async function issueRefusal(tx: Tx, l: LoadedContract, cert: { id: string
   }
   return fs.length ? paymentRefusal("Not issued:", fs) : null;
 }
+
+/// The highest interim sequence the contract's opening position covers (BD-613-41: the core allocates the next one
+/// after it), or 0. Any other kind: 0.
+export async function sequenceFloor(tx: Tx, l: LoadedContract, kind: string): Promise<number> {
+  if (kind !== "INTERIM_PAYMENT") return 0;
+  const o = await tx.openingPosition.findUnique({ where: { contractId: l.contract.id }, select: { lastSequence: true } });
+  return o?.lastSequence ?? 0;
+}
