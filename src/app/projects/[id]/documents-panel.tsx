@@ -14,21 +14,21 @@ const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err",
 /**
  * The contract's Documents tab (6.14 increment 1, plan §5): every certificate of the contract, by kind and
  * where it stands, newest first, paged. Each opens on its own page. Certificates are raised by the
- * post-award modules (6.13); none is raised from here.
+ * post-award modules (6.13), not built yet, and the tab says so (gaps stay honest); none is raised from here.
  */
 export async function DocumentsPanel({ contractId, page }: { contractId: string; page: number }) {
   const { rows, total } = await certificatesOfContract(contractId, page);
   const pages = Math.ceil(total / CERTIFICATES_PAGE);
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<FilesIcon size={17} />} title="Certificates" subtitle="Every certificate of this contract, newest first. Each is raised by the post-award module it belongs to (supervision, payment, variations), and signed, numbered and distributed on its own page." divided={false} />
+      <CardHeader icon={<FilesIcon size={17} />} title="Certificates" subtitle="Every certificate of this contract, newest first; each is signed, numbered and distributed on its own page. Nothing in the system raises a certificate yet: the valuations, variations and delegations that raise them are not built." divided={false} />
       <DataList
         flat
         selectable={false}
         exportName="certificates"
         searchPlaceholder="Search by kind or number"
         emptyTitle="No certificates yet"
-        emptyBody="A certificate appears here when a post-award module raises one on this contract."
+        emptyBody="None is raised on this contract. Nothing in the system raises a certificate yet."
         filters={[{ key: "status", label: "Where it stands", order: CERTIFICATE_STATUSES.map((s) => STATUS_WORDS[s].en) }]}
         rowAction={{ label: "Open", hrefTemplate: `/projects/${contractId}/certificates/{id}` }}
         rowOpens
