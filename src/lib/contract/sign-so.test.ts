@@ -48,3 +48,12 @@ describe("the act writes the assignment it resolved (source)", () => {
     expect(body).toMatch(/audit\(c, "ContractSoAssignment"/);
   });
 });
+
+describe("BD-613-9 ruling: the refusal's words", () => {
+  it("says 'S.O. not resolved', names the matrix, says in words that its S.O. rows are missing, never the key", () => {
+    const t = contractFaultWords(signFaults({ ...clear, so: { ok: false, matrix: "Demo limits, issue 1", why: "NO_RULE" } })[0]);
+    expect(t.en).toMatch(/^S\.O\. not resolved: the approval matrix in force \(Demo limits, issue 1\) has no Superintending Officer rows/);
+    expect(t.ms).toMatch(/^P\.P\. tidak ditentukan/);
+    for (const x of [t.en, t.ms]) expect(x).not.toMatch(/superintending_officer|NO_RULE/);
+  });
+});

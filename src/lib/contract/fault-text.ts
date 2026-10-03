@@ -152,9 +152,10 @@ export function contractFaultWords(f: Finding): Words {
     case "SIGNATORY_NOT_RESOLVED":
       return SIGNATORY_TEXT[String(d.fault)] ?? w("The contract agreement's signatory is not resolved on the approval matrix.", "Penandatangan perjanjian kontrak tidak diselesaikan.");
     case "SO_UNRESOLVED":
+      // BD-613-9 ruling: "S.O. not resolved", naming the matrix, saying in words that its S.O. rows are missing.
       return w(
-        `${d.matrix ? `The approval matrix in force (${d.matrix})` : "The approval matrix in force"} gives no single Superintending Officer at this contract's sum and method, so nobody would supervise the contract this signature executes. Add or settle its Superintending Officer rows under Configuration › Approval matrix.`,
-        `${d.matrix ? `Matriks kelulusan yang berkuat kuasa (${d.matrix})` : "Matriks kelulusan yang berkuat kuasa"} tidak memberi seorang Pegawai Penguasa pada jumlah dan kaedah kontrak ini, jadi tiada sesiapa akan menyelia kontrak yang dilaksanakan oleh tandatangan ini. Tambah atau selesaikan baris Pegawai Penguasa di Konfigurasi › Matriks kelulusan.`,
+        `S.O. not resolved: ${d.matrix ? `the approval matrix in force (${d.matrix})` : "the approval matrix in force"} has no Superintending Officer rows that give a single office at this contract's sum and method, so nobody would supervise the contract this signature executes. Add or settle its Superintending Officer rows under Configuration › Approval matrix.`,
+        `P.P. tidak ditentukan: ${d.matrix ? `matriks kelulusan yang berkuat kuasa (${d.matrix})` : "matriks kelulusan yang berkuat kuasa"} tiada baris Pegawai Penguasa yang memberi satu jawatan pada jumlah dan kaedah kontrak ini, jadi tiada sesiapa akan menyelia kontrak yang dilaksanakan oleh tandatangan ini. Tambah atau selesaikan baris Pegawai Penguasa di Konfigurasi › Matriks kelulusan.`,
       );
     case "BASELINE_INCOMPLETE":
       return w(`The baseline still lacks ${d.count ?? "some"} value${d.count === 1 ? "" : "s"}. See Baseline.`, `Garis dasar masih kurang ${d.count ?? "beberapa"} nilai.`);
