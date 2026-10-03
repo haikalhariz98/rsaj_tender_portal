@@ -59,6 +59,14 @@ export const RECORD_TYPE_WORDS: Readonly<Record<string, Words>> = {
   NonCompletion: w("Non-completion decision", "Keputusan kerja tidak siap"),
   ApprovalInstance: w("Approval route", "Laluan kelulusan"),
   ApprovalStep: w("Approval step", "Langkah kelulusan"),
+  // 6.13 Part A step 4: variations and the adjustment of the contract sum.
+  Variation: w("Variation", "Perubahan kerja"),
+  CommitteeDecision: w("Matter tabled at a committee", "Perkara dibentangkan kepada jawatankuasa"),
+  VariationInstruction: w("The S.O.'s instruction", "Arahan P.P."),
+  VariationMeasurement: w("Measured item", "Butiran diukur"),
+  DayworkRecord: w("Daywork", "Kerja harian"),
+  VariationCertificate: w("Variation Order Certificate", "Perakuan Perubahan Kerja"),
+  SumAdjustment: w("Adjustment of the contract sum", "Pelarasan harga kontrak"),
 };
 
 /// The record types 6.13's supervision writes to the contract's trail (each registered above).
@@ -67,6 +75,10 @@ export const SUPERVISION_ENTITIES = ["ContractSoAssignment", "SoDelegation", "Po
 /// The record types 6.13's interim payment and damages chain write to the contract's trail (each registered above),
 /// with a certificate's approval route and its steps (614-C4), written under the certificate's label.
 export const PAYMENT_ENTITIES = ["PaymentCalendar", "OpeningPosition", "InterimValuation", "MaterialLine", "PartyLine", "ValuationDeduction", "RetentionRelease", "AdvancePayment", "FinancePayment", "LadWarning", "NonCompletion", "ApprovalInstance", "ApprovalStep"] as const;
+
+/// The record types 6.13's variations and adjustments write to the contract's trail (each registered above), with a
+/// variation's approval route and its steps and the matters tabled from it, written under the contract's label.
+export const VARIATION_ENTITIES = ["Variation", "ApprovalInstance", "ApprovalStep", "CommitteeDecision", "VariationInstruction", "VariationMeasurement", "DayworkRecord", "VariationCertificate", "SumAdjustment", "ContractSoAssignment"] as const;
 
 /// A company-estimate event as the trail names it ("Company estimate · copy retained"): the words the
 /// product's writers use (6.2), by kind.

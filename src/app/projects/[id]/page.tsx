@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES } from "@/lib/audit/entity-labels";
+import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES, VARIATION_ENTITIES } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
 
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
@@ -318,6 +318,8 @@ const ENTITY_LABEL: Record<string, string> = {
   ...Object.fromEntries(SUPERVISION_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
   // 6.13 Part A step 3: interim payment, the damages chain, and a certificate's approval route.
   ...Object.fromEntries(PAYMENT_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
+  // 6.13 Part A step 4: variations, the matters tabled from them, and the adjustment of the contract sum.
+  ...Object.fromEntries(VARIATION_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
 };
 function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null }) {
   // Known codes in words; real values (LHDN, PS) as they are; a code without words never shown.

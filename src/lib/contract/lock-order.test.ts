@@ -19,7 +19,9 @@ const ACTIONS = "src/app/projects/[id]/actions.ts";
 const SUPERVISION = "src/app/projects/[id]/supervision-actions.ts";
 /// 6.13 Part A step 3 (stricter: the scans extended to every new act): interim payment and the damages chain.
 const PAYMENT = "src/app/projects/[id]/payment-actions.ts";
-const CONTRACT_ACT_FILES = [ACTIONS, SUPERVISION, PAYMENT];
+/// 6.13 Part A step 4 (stricter: the scans extended to every new act): variations and the adjustment of the contract sum.
+const VARIATION = "src/app/projects/[id]/variation-actions.ts";
+const CONTRACT_ACT_FILES = [ACTIONS, SUPERVISION, PAYMENT, VARIATION];
 
 /// Each exported action's body, by name.
 function actions(src: string): Map<string, string> {
@@ -76,6 +78,7 @@ describe("one lock order (withLockedContract)", () => {
       [ACTIONS]: ["InsurancePolicy", "IssuedCopy", "CustodyItem"],
       [SUPERVISION]: ["SoDelegation", "WorkProgramme", "SiteDiaryEntry", "ContractParty"],
       [PAYMENT]: ["InterimValuation", "LadWarning", "NonCompletion"],
+      [VARIATION]: ["Variation"],
     };
     for (const file of CONTRACT_ACT_FILES) {
       const src = read(file);
