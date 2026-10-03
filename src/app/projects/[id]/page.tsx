@@ -3,7 +3,7 @@ import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_EN
 import { notFound } from "next/navigation";
 
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
-import { AwardIcon, BuildingIcon, CheckIcon, ClockIcon, FileIcon, FilesIcon, ShieldIcon, ToolsIcon, UsersIcon } from "@/components/icons";
+import { AwardIcon, BuildingIcon, CheckIcon, ClockIcon, FileIcon, FilesIcon, ShieldIcon, ToolsIcon, UsersIcon, WalletIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
@@ -35,6 +35,7 @@ import { BaselinePanel } from "./baseline-panel";
 import { DocumentsPanel } from "./documents-panel";
 import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
 import { FormationPanel, FORMATION_SECTIONS, type FormationSection } from "./formation-panels";
+import { PAYMENT_SECTIONS, PaymentsPanel, PaymentSummaryCard, paymentView, type PaymentSection, type PaymentView } from "./payment-panels";
 import { OnSiteCard, SITE_SECTIONS, SitePanel, supervisionView, TeamPanel, type SiteSection, type SupervisionView } from "./supervision-panels";
 
 export const dynamic = "force-dynamic";
@@ -65,14 +66,17 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
     // 6.13 Part A: the contract's supervision, read once for the Overview, Team and Site tabs.
     supervisionView(l, today),
   ]);
+  // 6.13 Part A step 3: interim payment and the damages chain, for the Overview and the Payments tab.
+  const payments = await paymentView(l, today);
   const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));
   const phase = facts?.phase ?? status;
   const formationSection = (FORMATION_SECTIONS.find((s) => s.id === section)?.id ?? "assembly") as FormationSection;
   const siteSection = (SITE_SECTIONS.find((s) => s.id === section)?.id ?? "start") as SiteSection;
+  const paymentSection = (PAYMENT_SECTIONS.find((s) => s.id === section)?.id ?? "valuations") as PaymentSection;
   const pageNo = Math.max(0, Number.parseInt(page ?? "0", 10) || 0);
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} facts={facts} today={today} supervision={supervision} /> },
+    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} facts={facts} today={today} supervision={supervision} payments={payments} /> },
     {
       id: "formation",
       label: "Formation",
@@ -92,6 +96,17 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
       section: siteSection,
       lazy: true,
       panel: tab === "site" ? <SitePanel l={l} v={supervision} people={peopleOptions} today={today} section={siteSection} page={pageNo} /> : null,
+    },
+    // 6.13 Part A step 3: valuations and their certificates, retention, the advance and liquidated damages.
+    {
+      id: "payments",
+      label: "Payments",
+      icon: <WalletIcon size={15} />,
+      count: payments.p.interimValuations.length,
+      sections: [...PAYMENT_SECTIONS],
+      section: paymentSection,
+      lazy: true,
+      panel: tab === "payments" ? <PaymentsPanel l={l} v={payments} people={peopleOptions} today={today} section={paymentSection} page={pageNo} /> : null,
     },
     { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: c.securities.length + c.policies.length, panel: <SecuritiesPanel l={l} people={peopleOptions} today={today} /> },
     // 6.14 increment 1 (plan §5): every certificate of the contract, by kind and status.
@@ -135,7 +150,7 @@ type Facts = NonNullable<Awaited<ReturnType<typeof signingFacts>>>;
 
 // ------------------------------------------------------------------ overview
 
-async function OverviewPanel({ l, facts, today, supervision }: { l: LoadedContract; facts: Facts | null; today: string | null; supervision: SupervisionView }) {
+async function OverviewPanel({ l, facts, today, supervision, payments }: { l: LoadedContract; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView }) {
   const c = l.contract;
   const status = c.status as ContractStatus;
   const snap = readFormationSnapshot(c.formationSnapshot);
@@ -169,6 +184,7 @@ async function OverviewPanel({ l, facts, today, supervision }: { l: LoadedContra
         </Card>
       )}
       <OnSiteCard l={l} v={supervision} />
+      <PaymentSummaryCard l={l} v={payments} />
       <Card>
         <CardHeader icon={<FileIcon size={17} />} title="The contract" subtitle="As awarded, numbered at issue, and as it is being formed." />
         <CardBody>

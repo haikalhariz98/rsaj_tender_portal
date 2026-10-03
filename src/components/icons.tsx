@@ -319,3 +319,11 @@ export const PrinterIcon = (p: IconProps) => (
     <path d="M7 14h10v7H7z" />
   </Icon>
 );
+
+/// 6.13 Part A step 3: the contract's Payments tab (a wallet).
+export const WalletIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M19 7V5a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2" />
+    <path d="M3 6v12a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-2" />
+  </Icon>
+);
