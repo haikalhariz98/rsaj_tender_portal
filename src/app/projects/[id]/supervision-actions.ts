@@ -310,7 +310,7 @@ export async function submitProgramme(_prev: FormState, data: FormData): Promise
     const revision = revs.reduce((m, x) => Math.max(m, x.revision), 0) + 1;
     const row = await c.tx.workProgramme.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, revision, kind, submittedOn, directionId: directionId ?? null, note, recordedAt: c.now } });
     for (const p of points) await c.tx.programmePoint.create({ data: { organisationId: c.l.org.id, programmeId: row.id, day: dayToDate(p.day), plannedPct: p.plannedPct } });
-    await audit(c, "WorkProgramme", row.id, `programme revision ${revision}`, "CREATE", diffFields(null, { programme: PROGRAMME_KIND_WORDS[kind].en, revision, submittedOn: storedDay(submittedOn), plannedProgress: points.map((p) => `${p.day}: ${p.plannedPct}%`).join("; "), answersDirection: directionId ? "yes" : null }), note);
+    await audit(c, "WorkProgramme", row.id, `programme revision ${revision}`, "CREATE", diffFields(null, { programme: PROGRAMME_KIND_WORDS[kind].en, revision, submittedOn: storedDay(submittedOn), plannedProgress: points.map((p) => `${p.plannedPct}% by ${p.day}`).join("; "), answersDirection: directionId ? "yes" : null }), note);
     return { ok: true };
   });
 }
@@ -492,7 +492,7 @@ export async function endorseDiary(_prev: FormState, data: FormData): Promise<Fo
     const fs = endorseFaults({ possessionOn: day(s.possession?.possessionOn), visitedOn: storedDay(visitedOn), coversFrom: from, coversTo: to, today: c.today, entriesInCover: s.siteDiaryEntries.filter((x) => storedDay(x.day) >= from && storedDay(x.day) <= to).length });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.diaryEndorsement.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, role, personId: person.id, visitedOn, coversFrom, coversTo, note, recordedAt: c.now } });
-    await audit(c, "DiaryEndorsement", row.id, `site diary endorsed ${storedDay(visitedOn)}`, "CREATE", diffFields(null, { endorsedAs: ENDORSER_WORDS[role].en, endorsedBy: person.name, visitedOn: storedDay(visitedOn), covers: `${from} to ${to}`, recordedOnBehalf: ON_BEHALF }), note);
+    await audit(c, "DiaryEndorsement", row.id, `site diary endorsed ${storedDay(visitedOn)}`, "CREATE", diffFields(null, { endorsedAs: ENDORSER_WORDS[role].en, endorsedBy: person.name, visitedOn: storedDay(visitedOn), coversFrom: from, coversTo: to, recordedOnBehalf: ON_BEHALF }), note);
     return { ok: true };
   });
 }
@@ -560,7 +560,7 @@ export async function recordDirection(_prev: FormState, data: FormData): Promise
     const fs = onSiteFaults({ possessionOn: day(s.possession?.possessionOn), on: d, today: c.today, note });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.programmeDirection.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, cause, directedOn: on, personId: who.person.id, note, recordedAt: c.now } });
-    await audit(c, "ProgrammeDirection", row.id, `direction ${d}`, "CREATE", diffFields(null, { calledForBy: CAUSE_WORDS[cause].en, directedOn: d, directedBy: who.person.name, direction: note, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "ProgrammeDirection", row.id, `direction ${d}`, "CREATE", diffFields(null, { calledForBy: CAUSE_WORDS[cause].en, directedOn: d, directedBy: who.person.name, directionGiven: note, recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
 }
@@ -631,7 +631,7 @@ export async function recordParty(_prev: FormState, data: FormData): Promise<For
     const fs = partyFaults({ executed: isExecuted(c.l.contract.status as ContractStatus), kind, name, sum: sen, others: s.contractParties.map((p) => ({ kind: p.kind, name: p.name, retired: p.retiredOn != null })) });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.contractParty.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, kind, name: name.trim(), sum: sen == null ? null : senToDecimalString(sen), directPayment: direct == null ? null : direct === "yes", provenance: provenance ?? null, note, recordedAt: c.now } });
-    await audit(c, "ContractParty", row.id, `${PARTY_KIND_WORDS[kind].en.toLowerCase()} ${name.trim()}`, "CREATE", diffFields(null, { party: PARTY_KIND_WORDS[kind].en, name: name.trim(), partySum: sen == null ? null : senToDecimalString(sen), paidDirect: direct ?? null, provenance: provenance ?? null }), note);
+    await audit(c, "ContractParty", row.id, `${PARTY_KIND_WORDS[kind].en.toLowerCase()} ${name.trim()}`, "CREATE", diffFields(null, { partyType: PARTY_KIND_WORDS[kind].en, name: name.trim(), partySum: sen == null ? null : senToDecimalString(sen), paidDirect: direct ?? null, provenance: provenance ?? null }), note);
     return { ok: true };
   });
 }

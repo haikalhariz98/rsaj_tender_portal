@@ -27,7 +27,26 @@ export const RECORD_TYPE_WORDS: Readonly<Record<string, Words>> = {
   InsurancePolicy: w("Insurance policy", "Polisi insurans"),
   AwardTermCorrection: w("Award's recorded terms corrected", "Terma yang direkodkan diperbetulkan"),
   EstimateEvent: w("Company estimate event", "Peristiwa anggaran syarikat"),
+  // 6.13 Part A: supervising the contract.
+  PostAwardPolicy: w("Post-award policy", "Dasar selepas setuju terima"),
+  ContractSoAssignment: w("Superintending Officer", "Pegawai Penguasa"),
+  SoDelegation: w("Delegation to a representative", "Perwakilan kepada wakil"),
+  Possession: w("Possession of site", "Milik tapak"),
+  WorkProgramme: w("Work programme", "Program kerja"),
+  ProgressRecord: w("Progress", "Kemajuan"),
+  SiteDiaryEntry: w("Site diary", "Diari tapak"),
+  DiaryEndorsement: w("Site diary endorsed", "Diari tapak disahkan"),
+  SiteMeeting: w("Special site meeting", "Mesyuarat tapak khas"),
+  ComplianceObservation: w("Compliance observation", "Pemerhatian pematuhan"),
+  ProgrammeDirection: w("Direction on the programme", "Arahan mengenai program"),
+  PendingDeduction: w("Deduction awaiting a certificate", "Potongan menunggu perakuan"),
+  EarlyActionDecision: w("Early action", "Tindakan awal"),
+  ContractParty: w("Nominated party or assignee", "Pihak dinamakan atau pemegang serah hak"),
+  SiteRecordsHandover: w("Site records handed over", "Rekod tapak diserahkan"),
 };
+
+/// The record types 6.13's supervision writes to the contract's trail (each registered above).
+export const SUPERVISION_ENTITIES = ["ContractSoAssignment", "SoDelegation", "Possession", "WorkProgramme", "ProgressRecord", "SiteDiaryEntry", "DiaryEndorsement", "SiteMeeting", "ComplianceObservation", "ProgrammeDirection", "PendingDeduction", "EarlyActionDecision", "ContractParty", "SiteRecordsHandover"] as const;
 
 /// A company-estimate event as the trail names it ("Company estimate · copy retained"): the words the
 /// product's writers use (6.2), by kind.
