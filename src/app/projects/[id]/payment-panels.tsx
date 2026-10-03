@@ -17,13 +17,13 @@ import { decisionFaults, replacementFaults, warningFaults } from "@/lib/lad/non-
 import { formatMoney, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type Assembled } from "@/lib/payment/assemble";
 import { OPENING_GROUP_WORDS, ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, openingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, VALUATION_TRIGGERS, type Finding } from "@/lib/payment/types";
 import { issueClockFrom, openFaults } from "@/lib/payment/valuation";
 import { pendingAdvanceFaults } from "@/lib/payment/advance";
-import { OPENING_GROUPS } from "@/lib/payment/opening";
+import { OPENING_GROUPS, openingClosed, openingReconciles } from "@/lib/payment/opening";
 import { PARTY_KIND_WORDS } from "@/lib/supervision/labels";
 
 import {
@@ -143,7 +143,8 @@ export function PaymentsPanel({ l, v, people, today, section, page }: { l: Loade
 /// raised from a valuation here. Entered once, before the first valuation the system raises.
 function OpeningCard({ l, v, people, today }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null }) {
   const o = v.p.openingPosition;
-  const raised = v.p.interimValuations.some((x) => x.status === "RAISED" || x.certificateId != null);
+  const raised = openingClosed(v.p.interimValuations.map((x) => ({ certificateStatus: x.certificate?.status ?? null })));
+  const rec = o ? openingReconciles(openingOf(o)) : [];
   const foreign = uncoveredForeign(v.p);
   if (!o && raised && foreign.length === 0) return null;
   const blocker = zone(today) ?? (raised ? paymentFaultText({ code: "OPENING_CLOSED", level: "block" }) : null);
@@ -184,6 +185,7 @@ function OpeningCard({ l, v, people, today }: { l: LoadedContract; v: PaymentVie
       />
       <CardBody>
         {foreign.length > 0 && <Callout tone="warn" title="Interim certificates issued here without a valuation">{`${foreign.map((x) => x.number ?? `interim certificate ${x.sequence}`).join(", ")}: record the opening position covering ${foreign.length === 1 ? "it" : "them"} before the next valuation is raised.`}</Callout>}
+        {rec.length > 0 && <Callout tone="warn" title="Said, not refused">{say(rec)}</Callout>}
         {o ? (
           <KeyValues
             columns={2}
@@ -636,7 +638,7 @@ function DamagesSection({ l, v, people, today }: { l: LoadedContract; v: Payment
           icon={<FileIcon size={17} />}
           title="Non-completion decisions"
           subtitle="The latest decision governs. Until the extension-of-time module, the decision records the entitlement itself; that module's record replaces it and never rewrites an issued certificate."
-          actions={<NonCompletionDrawer id={c.id} people={people} outcomes={opts(NON_COMPLETION_OUTCOMES, OUTCOME_WORDS)} scopes={opts(NON_COMPLETION_SCOPES, SCOPE_WORDS)} sections={(v.baseline?.values.sections ?? []).map((s) => ({ value: s.ref, label: s.description || s.ref }))} pack={PACK_ITEMS.map((item) => ({ item, label: PACK_WORDS[item].en }))} blocker={decisionBlock ?? (liveRow ? say(replacementFaults({ live: { ...liveRow, certificateStatus: liveRow.certificate?.status ?? null }, replacesId: liveRow.id, reason: "x" })) : null)} windowFrom={completion ? dayPlus(completion, 1) : null} replaces={liveRow ? { id: liveRow.id, text: `${OUTCOME_WORDS[liveRow.outcome].en}, decided ${formatDate(day(liveRow.decidedOn))}` } : null} />}
+          actions={<NonCompletionDrawer id={c.id} people={people} outcomes={opts(NON_COMPLETION_OUTCOMES, OUTCOME_WORDS)} scopes={opts(NON_COMPLETION_SCOPES, SCOPE_WORDS)} sections={(v.baseline?.values.sections ?? []).map((s) => ({ value: s.ref, label: s.description || s.ref }))} pack={PACK_ITEMS.map((item) => ({ item, label: PACK_WORDS[item].en }))} blocker={decisionBlock ?? (liveRow ? say(replacementFaults({ live: { ...liveRow, certificateStatus: liveRow.certificate?.status ?? null }, replacesId: liveRow.id, reason: "x", valuationInProgress: v.current ? `interim valuation of ${formatDate(day(v.current.valuationDate))}` : null })) : null)} windowFrom={completion ? dayPlus(completion, 1) : null} replaces={liveRow ? { id: liveRow.id, text: `${OUTCOME_WORDS[liveRow.outcome].en}, decided ${formatDate(day(liveRow.decidedOn))}` } : null} />}
           divided={v.p.nonCompletions.length > 0}
         />
         {latestWarning && !latestWarning.postedOn && <CardBody className="border-b border-line/70"><p className={sub}>Damages are imposed only once the warning letter is issued and posted.</p></CardBody>}

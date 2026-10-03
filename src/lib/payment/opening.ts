@@ -139,3 +139,8 @@ export function releaseState(rows: readonly { kind: string; main: Sen; nsc: Sen;
   };
   return { already: { first: !!first || !!fromOpening, balance: rows.some((r) => r.kind === "RELEASED_BALANCE") }, firstReleased };
 }
+
+/// BD-613-50 (the lead's ruling under BD-613-41's intent, "the certificates since rest on it"): the opening position
+/// closes once a certificate not void has been raised from a valuation after it; a draft that was voided rests on
+/// nothing and does not close it.
+export const openingClosed = (valuations: readonly { certificateStatus: string | null }[]): boolean => valuations.some((v) => v.certificateStatus != null && v.certificateStatus !== "VOID");

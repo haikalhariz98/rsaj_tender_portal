@@ -89,6 +89,8 @@ export interface AssembleInput {
   foreign: readonly { number: string | null; sequence: number | null }[];
   /// The groups of the opening position entered as ASSUMED (BD-613-41): every later certificate warns of them.
   openingAssumed?: readonly string[];
+  /// The opening position does not reconcile while figures in it are assumed (residual SHOULD 1): said on the certificate.
+  openingUnreconciled?: Finding | null;
   /// The net of each issued adjustment of the contract sum (step 4 adds them; none before).
   adjustments: readonly Sen[];
   releases: readonly ReleaseRow[];
@@ -233,12 +235,13 @@ export function assembleInterim(i: AssembleInput): Assembled {
 
   const revised = i.baselineDamages ? frozenRateWarnings(i.decision, i.baselineDamages) : [];
   if (i.openingAssumed?.length) revised.push({ code: "OPENING_ASSUMED", level: "warn", data: { groups: i.openingAssumed.join(", ") } });
+  if (i.openingUnreconciled) revised.push(i.openingUnreconciled);
   const warnings = [...preExecutionFaults(sequence, { ...i.preExecution, limit: i.policy.preExecutionLimit }, "warn"), ...revised];
   // BD-613-48: the certificate itself says the CNC's rate still applies where the baseline has since moved.
   const rateNote = revised.find((x) => x.code === "LAD_BASELINE_REVISED");
   if (result.snapshot && rateNote) result.snapshot.lines.push({ key: "ladRateNote", labelEn: "Damages rate", labelMs: "Kadar ganti rugi", type: "TEXT", value: paymentFaultText(rateNote), overridable: false });
-  const openingNote = revised.find((x) => x.code === "OPENING_ASSUMED");
-  if (result.snapshot && openingNote) result.snapshot.lines.push({ key: "openingNote", labelEn: "Opening position", labelMs: "Kedudukan pembukaan", type: "TEXT", value: paymentFaultText(openingNote), overridable: false });
+  const openingNotes = revised.filter((x) => x.code === "OPENING_ASSUMED" || x.code === "OPENING_NOT_RECONCILED_ASSUMED");
+  if (result.snapshot && openingNotes.length) result.snapshot.lines.push({ key: "openingNote", labelEn: "Opening position", labelMs: "Kedudukan pembukaan", type: "TEXT", value: openingNotes.map((x) => paymentFaultText(x)).join(" "), overridable: false });
   const parties = v.parties.map((p) => ({ id: p.partyId, tier: (p.kind === "ASSIGNEE" ? "ASSIGNEE" : "NOMINATED") as "ASSIGNEE" | "NOMINATED", due: p.due }));
   const wf = result.figures ? waterfall(result.figures.recommended, parties, i.policy.remainder) : null;
   if (wf) faults.push(...wf.faults);

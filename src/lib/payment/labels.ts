@@ -291,6 +291,8 @@ export function paymentFaultWords(f: Finding): Words {
       return w(`${OPENING_GROUP_WORDS[d.group as OpeningGroup]?.en ?? "The figure"} is assumed: say why, and on what.`, "Nyatakan sebab angka itu diandaikan.");
     case "OPENING_NOT_RECONCILED":
       return w(`Previously certified to date (${money(d.entered)}) is not the gross to date less the retention held net (${money(d.expected)}): shown as entered.`, "Telah diperakui setakat ini tidak sepadan dengan nilai kasar tolak wang tahanan bersih.");
+    case "OPENING_NOT_RECONCILED_ASSUMED":
+      return w(`The opening position this certificate continues from does not reconcile (previously certified ${money(d.entered)}, where gross less retention held net is ${money(d.expected)}), and figures in it are assumed: shown as entered.`, "Kedudukan pembukaan tidak sepadan dan mengandungi angka andaian.");
     case "OPENING_ASSUMED":
       return w(`This certificate continues from an opening position in which some figures are assumed, not stated on a certificate: ${s(d.groups, "some")}.`, `Perakuan ini bersambung daripada kedudukan pembukaan dengan angka andaian: ${s(d.groups, "sebahagian")}.`);
     case "SEQUENCE_MOVED":
@@ -385,6 +387,8 @@ export function paymentFaultWords(f: Finding): Words {
       return w("The decision named is not the one in force: only the decision in force is replaced.", "Keputusan yang dinamakan bukan yang berkuat kuasa.");
     case "REPLACE_REASON_REQUIRED":
       return w("Say why the decision in force is replaced.", "Nyatakan sebab keputusan itu diganti.");
+    case "DECISION_VALUATION_IN_PROGRESS":
+      return w(`The ${s(d.valuation, "valuation in progress")} was worked out on the decision in force: issue or void its certificate (or withdraw it) before the decision is replaced.`, `${s(d.valuation, "Penilaian semasa")} dikira atas keputusan berkuat kuasa: keluarkan atau batalkan perakuannya dahulu.`);
     case "EARLIER_CNC_OPEN":
       return w("The decision in force has a Certificate of Non-Completion still open (not issued, not void): issue or void it before deciding again.", "Perakuan Kerja Tidak Siap bagi keputusan berkuat kuasa masih terbuka: keluarkan atau batalkannya dahulu.");
     case "NO_DATE_FOR_COMPLETION":

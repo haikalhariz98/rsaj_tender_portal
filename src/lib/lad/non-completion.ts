@@ -153,7 +153,7 @@ export function liveDecision<T extends DecisionRow>(rows: readonly T[]): T | nul
 
 /// A further decision: only as an explicit replacement of the live one, with its reason, and never while the live
 /// one's Certificate of Non-Completion is still open (not issued, not void).
-export function replacementFaults(i: { live: DecisionRow | null; replacesId: string | null; reason: string }): Finding[] {
+export function replacementFaults(i: { live: DecisionRow | null; replacesId: string | null; reason: string; valuationInProgress?: string | null }): Finding[] {
   const out: Finding[] = [];
   const f = (code: string, data: Record<string, string | number | null> = {}) => out.push({ code, level: "block", data });
   if (!i.live) {
@@ -161,6 +161,8 @@ export function replacementFaults(i: { live: DecisionRow | null; replacesId: str
     return out;
   }
   if (i.live.certificateStatus != null && i.live.certificateStatus !== "ISSUED" && i.live.certificateStatus !== "VOID") f("EARLIER_CNC_OPEN");
+  // Residual SHOULD 2: a valuation in progress was assembled on the decision in force; it is not replaced under it.
+  if (i.valuationInProgress) f("DECISION_VALUATION_IN_PROGRESS", { valuation: i.valuationInProgress });
   if (!i.replacesId) f("DECISION_ALREADY_LIVE");
   else if (i.replacesId !== i.live.id) f("REPLACES_NOT_LIVE");
   else if (!i.reason.trim()) f("REPLACE_REASON_REQUIRED");

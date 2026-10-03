@@ -16,17 +16,18 @@ import { decisionFaults, postFaults, replacementFaults, warningFaults, type Pack
 import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
 import { applicationFaults, pendingAdvanceFaults } from "@/lib/payment/advance";
 import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
-import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
+import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentFaultText, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
 import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, nextInterimSequence, pendingAdvancesOf, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
 import { ladRoundingFaults } from "@/lib/payment/interim";
-import { OPENING_GROUPS, openingFaults, type OpeningGroup, type OpeningProvenance } from "@/lib/payment/opening";
+import { OPENING_GROUPS, openingClosed, openingFaults, openingReconciles, type OpeningGroup, type OpeningProvenance } from "@/lib/payment/opening";
 import { firstReleaseShare, releaseOf } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, RETENTION_RELEASES, VALUATION_TRIGGERS, type Finding, type PackItem } from "@/lib/payment/types";
 import { calendarFaults, jointFaults, openFaults } from "@/lib/payment/valuation";
 import { capacityFor, capacityText, type ActNeed, type Capacity } from "@/lib/supervision/authority";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 import { supervisionRefusal } from "@/lib/supervision/labels";
+import { formatDate } from "@/lib/format";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -480,7 +481,7 @@ export async function recordOpeningPosition(_prev: FormState, data: FormData): P
     const p = await paymentOf(c);
     if (p.openingPosition) await c.tx.$queryRaw`SELECT id FROM "OpeningPosition" WHERE id = ${p.openingPosition.id} FOR UPDATE`;
     const input = { lastCertificateNumber, lastSequence, grossToDate, previouslyCertified, retention, released, advanceRecouped, damagesChargedUntil: chargedUntil ? storedDay(chargedUntil) : null, provenance };
-    const fs = openingFaults(input, { valuationRaised: p.interimValuations.some((v) => v.status === "RAISED" || v.certificateId != null), existing: !!p.openingPosition, reason, foreignSequences: p.certificates.map((x) => x.sequence ?? 0) });
+    const fs = openingFaults(input, { valuationRaised: openingClosed(p.interimValuations.map((v) => ({ certificateStatus: v.certificate?.status ?? null }))), existing: !!p.openingPosition, reason, foreignSequences: p.certificates.map((x) => x.sequence ?? 0) });
     if (fs.length) refuse("Not recorded:", fs);
     const who = await recordedFor(c, personId, { principalOrSo: true }, c.today);
     const prov = (g: OpeningGroup) => ({ [`${g}Provenance`]: provenance[g].provenance!, [`${g}Note`]: provenance[g].note.trim() });
@@ -520,7 +521,9 @@ export async function recordOpeningPosition(_prev: FormState, data: FormData): P
             damagesSource: src(x.damagesProvenance as string, x.damagesNote as string),
           }
         : null;
-    await audit(c, "OpeningPosition", row.id, "opening position", before ? "UPDATE" : "CREATE", diffFields(words(before), { ...words(v as never)!, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }), reason.trim());
+    // Residual SHOULD 1: whether it reconciles is said, not refused, and kept with it.
+    const rec = openingReconciles({ grossToDate: grossToDate!, previouslyCertified: previouslyCertified!, retention: retention!, released: released! });
+    await audit(c, "OpeningPosition", row.id, "opening position", before ? "UPDATE" : "CREATE", diffFields(words(before), { ...words(v as never)!, reconciles: rec.length ? paymentFaultText(rec[0]) : "yes: previously certified is the gross less the retention held net", recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }), reason.trim());
     return { ok: true };
   });
 }
@@ -694,7 +697,8 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
     const b = baselineOn(c.l, c.today);
     // One live decision a contract: a further one replaces it explicitly, with its reason (code review run 2 item 6).
     const live = liveDecisionOf(p);
-    const rf = replacementFaults({ live, replacesId, reason: replaceReason });
+    const prog = inProgress(p);
+    const rf = replacementFaults({ live, replacesId, reason: replaceReason, valuationInProgress: live && prog ? `interim valuation of ${formatDate(storedDay(prog.valuationDate))}` : null });
     if (rf.length) refuse("Not recorded:", rf);
     if (live) await c.tx.$queryRaw`SELECT id FROM "NonCompletion" WHERE id = ${live.id} FOR UPDATE`;
     const warning = [...p.ladWarnings].reverse().find((x) => x.certificate.status !== "VOID") ?? null;

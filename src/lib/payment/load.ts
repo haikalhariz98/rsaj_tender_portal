@@ -20,8 +20,8 @@ import type { ContractPartyKind } from "@/lib/supervision/types";
 import { readJudgedUnder, type AssembleInput, type IssuedInterim, type ValuationIn } from "./assemble";
 import { EXECUTED_STATUSES } from "./eligibility";
 import { OPENING_GROUP_WORDS } from "./labels";
-import { assumedGroups, openingAsIssued, openingReleaseRow, releaseState, type OpeningProvenance } from "./opening";
-import type { KeyedDeductionKind, PackItem, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
+import { assumedGroups, openingAsIssued, openingReconciles, openingReleaseRow, releaseState, type OpeningProvenance } from "./opening";
+import type { Finding, KeyedDeductionKind, PackItem, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const pct = (v: { toString(): string } | null | undefined) => {
@@ -205,6 +205,7 @@ export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentC
     },
     issued: issuedInterims(p),
     foreign: uncoveredForeign(p),
+    openingUnreconciled: openingUnreconciledOf(p),
     openingAssumed: p.openingPosition ? assumedGroups({ gross: { provenance: p.openingPosition.grossProvenance as OpeningProvenance }, previous: { provenance: p.openingPosition.previousProvenance as OpeningProvenance }, retention: { provenance: p.openingPosition.retentionProvenance as OpeningProvenance }, released: { provenance: p.openingPosition.releasedProvenance as OpeningProvenance }, advance: { provenance: p.openingPosition.advanceProvenance as OpeningProvenance }, damages: { provenance: p.openingPosition.damagesProvenance as OpeningProvenance } }).map((g) => OPENING_GROUP_WORDS[g].en) : [],
     // Step 4 (FR-PAD-003) adds the issued adjustments of the contract sum: none can be issued before it.
     adjustments: [],
@@ -228,3 +229,13 @@ export const releaseStateOf = (p: PaymentRows) =>
 /// Advances applied for whose certificate is neither issued nor void, named (residual MUST 3).
 export const pendingAdvancesOf = (p: PaymentRows) =>
   p.advancePayments.filter((a) => a.certificate.status !== "ISSUED" && a.certificate.status !== "VOID").map((a) => ({ label: `the advance to ${a.party === "MAIN" ? "the main contractor" : (a.contractParty?.name ?? "a nominated sub-contractor")} of ${formatSen(senFromDecimal(a.amount))}` }));
+
+/// Residual SHOULD 1: an opening position that does not reconcile, while figures in it are assumed, is said on every
+/// later certificate (null otherwise).
+export function openingUnreconciledOf(p: PaymentRows): Finding | null {
+  const o = p.openingPosition;
+  if (!o) return null;
+  const assumed = [o.grossProvenance, o.previousProvenance, o.retentionProvenance, o.releasedProvenance].some((x) => x === "ASSUMED");
+  const r = openingReconciles(openingOf(o));
+  return assumed && r.length ? { code: "OPENING_NOT_RECONCILED_ASSUMED", level: "warn", data: r[0].data ?? {} } : null;
+}
