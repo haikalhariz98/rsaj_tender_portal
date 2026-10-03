@@ -5,6 +5,7 @@
 
 import { someoneCanAct } from "@/lib/authority/absence";
 import { KIND_WORDS } from "@/lib/certificate/labels";
+import { EVENT_WORDS } from "@/lib/variation/labels";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { exerciseRouteMatter } from "@/lib/method/approval";
@@ -38,6 +39,9 @@ export async function loadWorklist() {
         specialPermission: { select: { exercise: { select: { id: true, reference: true } }, party: { select: { name: true, vendorId: true } } } },
         // 6.13 Part A step 3 (614-C4): a certificate's route, decided on the certificate's page.
         certificate: { select: { id: true, kind: true, number: true, contract: { select: { id: true, number: true, award: { select: { awardeeName: true, exercise: { select: { requisition: { select: { sectionUnitCode: true, requestingUnitCode: true } } } } } } } } } },
+        // 6.13 Part A step 4 (614-C4): a variation's route, decided on the variation's page.
+        variation: { select: { id: true, reference: true, contract: { select: { id: true, number: true, award: { select: { awardeeName: true, exercise: { select: { requisition: { select: { sectionUnitCode: true, requestingUnitCode: true } } } } } } } } } },
+        variationApproval: { select: { event: true } },
       },
     }),
     db.orgUnit.findMany({ where: { organisationId: org.id } }),
@@ -50,9 +54,11 @@ export async function loadWorklist() {
   const unitOf = new Map<string, string>();
   const items: QueueStep[] = [];
   for (const r of routes) {
-    const req = r.requisition ?? r.exercise?.requisition ?? r.certificate?.contract.award.exercise.requisition ?? null;
+    const req = r.requisition ?? r.exercise?.requisition ?? r.certificate?.contract.award.exercise.requisition ?? r.variation?.contract.award.exercise.requisition ?? null;
     if (req) unitOf.set(r.id, req.sectionUnitCode || req.requestingUnitCode);
-    const matter = r.certificate?.id
+    const matter = r.variation?.id
+      ? { label: `${r.variation.contract.number} · ${r.variation.contract.award.awardeeName} · Variation ${r.variation.reference ?? ""}`.trim(), kind: r.variationApproval ? EVENT_WORDS[r.variationApproval.event].en : "Variation", href: `/projects/${r.variation.contract.id}/variations/${r.variation.id}?tab=approval` }
+      : r.certificate?.id
       ? { label: `${r.certificate.contract.number} · ${r.certificate.contract.award.awardeeName}`, kind: KIND_WORDS[r.certificate.kind].en, href: `/projects/${r.certificate.contract.id}/certificates/${r.certificate.id}?tab=routing` }
       : r.award && r.exercise
         ? { label: `${r.award.reference} · ${r.award.awardeeName}`, kind: "Appointment", href: `/awards/${r.award.id}?tab=approval` }

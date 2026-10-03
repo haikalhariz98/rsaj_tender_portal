@@ -315,7 +315,8 @@ const RAW_ALLOW: Readonly<Record<string, RegExp>> = {
   [`${P(REPO)} › withLockedCertificate`]: /^\$queryRaw`SELECT id FROM "Certificate" WHERE id = \$\{certificateId\} FOR UPDATE`$/,
   [`${W_} › onCopy`]: /^\$queryRaw`SELECT id FROM "IssuedCopy" WHERE id = \$\{copyId\} FOR UPDATE`$/,
   // 6.13 Part A step 3 (614-C4): escalating a certificate's route takes its chain's locks, in the one order (each a lock, never a write).
-  [`${P("src/app/approvals/actions.ts")} › escalateStep`]: /^\$queryRaw`SELECT id FROM "(Requisition|SourcingExercise|Award|Contract|Certificate|Supplier|SupplierApplication|StandingRequest|SpecialPermission)" WHERE id = \$\{[\w.]+\} FOR UPDATE`$/,
+  // 6.13 Part A step 4 (614-C4, the allow-list extended as designed): and a variation's route, Contract then Variation.
+  [`${P("src/app/approvals/actions.ts")} › escalateStep`]: /^\$queryRaw`SELECT id FROM "(Requisition|SourcingExercise|Award|Contract|Certificate|Variation|Supplier|SupplierApplication|StandingRequest|SpecialPermission)" WHERE id = \$\{[\w.]+\} FOR UPDATE`$/,
 };
 const TABLE_ALT = CERT_TABLES.join("|");
 const WRITE_SQL = new RegExp(`\\b(UPDATE|INSERT\\s+INTO|DELETE\\s+FROM|MERGE\\s+INTO|TRUNCATE(?:\\s+TABLE)?|COPY|ALTER\\s+TABLE|DROP\\s+TABLE)\\s+(?:ONLY\\s+)?(?:\\\\?["\`]?\\w+\\\\?["\`]?\\s*\\.\\s*)?\\\\?["'\`]?(${TABLE_ALT})\\\\?["'\`]?(?![\\w])`, "gi");
