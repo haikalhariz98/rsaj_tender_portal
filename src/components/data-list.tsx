@@ -19,6 +19,7 @@ import { provenanceLabel, ProvenanceBadge } from "@/components/ui/provenance";
 import { Select } from "@/components/ui/select";
 import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 import { formatRM } from "@/lib/format";
+import { compareSenOrNone, formatMoney, senToDecimalString } from "@/lib/money";
 import { needsPaging, PAGE_SIZES } from "@/lib/paging";
 
 /**
@@ -32,7 +33,10 @@ import { needsPaging, PAGE_SIZES } from "@/lib/paging";
 export type Cell =
   | { kind: "stack"; title: string; sub?: string; monoSub?: boolean }
   | { kind: "text"; text: string; dim?: boolean }
-  | { kind: "money"; value: number | null }
+  | { kind: "money"; value: number | null; sen?: never }
+  /// Money in sen, as an integer's decimal string (a bigint does not travel to the client as a cell): shown and sorted
+  /// exactly, never through a float (run 3 residual C3). Prefer it for new columns.
+  | { kind: "money"; sen: string | null; value?: never }
   | { kind: "badge"; text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }
   | { kind: "chip"; text: string; tone?: "ok" | "warn" | "err" | "info" | "brand" }
   | { kind: "person"; name: string; sub?: string }
@@ -203,6 +207,7 @@ function cellText(cell: Cell | undefined): string {
     case "chip":
       return cell.text;
     case "money":
+      if (cell.sen !== undefined) return cell.sen == null ? "" : senToDecimalString(BigInt(cell.sen));
       return cell.value == null ? "" : String(cell.value);
     case "person":
       return cell.name;
@@ -219,6 +224,12 @@ function cellText(cell: Cell | undefined): string {
   }
 }
 
+
+/// A money cell's sen, for an exact sort: undefined where the cell is not money in sen, null where it holds none.
+function senOf(cell: Cell | undefined): bigint | null | undefined {
+  if (!cell || cell.kind !== "money" || cell.sen === undefined) return undefined;
+  return cell.sen == null ? null : BigInt(cell.sen);
+}
 
 const dash = <span className="text-ink-4">—</span>;
 
@@ -247,6 +258,7 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
     case "text":
       return <span className={cx("block", line, cell.dim ? "text-ink-3" : "text-ink")}>{cell.text}</span>;
     case "money":
+      if (cell.sen !== undefined) return cell.sen == null ? dash : <span className="font-semibold tabular-nums">{formatMoney(BigInt(cell.sen))}</span>;
       return cell.value == null ? (
         dash
       ) : (
@@ -426,6 +438,13 @@ export function DataList({
     if (sort) {
       const { key, dir } = sort;
       out = [...out].sort((a, b) => {
+        // Money in sen sorts as the integer it is (none first), unless the row gives its own key.
+        const as = senOf(a.cells[key]);
+        const bs = senOf(b.cells[key]);
+        if (a.sortKeys?.[key] == null && b.sortKeys?.[key] == null && as !== undefined && bs !== undefined) {
+          const cmp = compareSenOrNone(as, bs);
+          return dir === "asc" ? cmp : -cmp;
+        }
         const av = a.sortKeys?.[key] ?? cellText(a.cells[key]);
         const bv = b.sortKeys?.[key] ?? cellText(b.cells[key]);
         const cmp =

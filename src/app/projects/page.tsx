@@ -69,11 +69,12 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
         ...(["EXECUTED", "STAMPED", "ACTIVE"].includes(status) ? ["executed"] : []),
       ],
       search: [r.award.exercise.title, r.number, r.award.awardeeName, r.award.reference, PHASE_WORDS[phase].en].join(" "),
-      sortKeys: { sum: Number(r.contractSum.toString()), contract: r.award.exercise.title },
+      sortKeys: { contract: r.award.exercise.title },
       cells: {
         contract: { kind: "link", text: r.award.exercise.title, href: `/projects/${r.id}`, sub: `Contract ${r.number}` },
         contractor: { kind: "text", text: r.award.awardeeName },
-        sum: { kind: "money", value: Number(r.contractSum.toString()) },
+        // Money in sen, shown and sorted exactly by the list (never a float).
+        sum: { kind: "money", sen: senFromDecimal(r.contractSum).toString() },
         phase: inDelay.has(r.id) ? { kind: "chips", items: [{ text: PHASE_WORDS[phase].en, ...(TONE[PHASE_TONE[phase]] ? { tone: TONE[PHASE_TONE[phase]] } : {}) }, { text: "In Delay", tone: "err", ...(delay.assumed.has(r.id) ? { provenance: "ASSUMED" as const } : {}) }] } : { kind: "badge", text: PHASE_WORDS[phase].en, tone: TONE[PHASE_TONE[phase]] },
         dates: { kind: "stack", title: r.contractDate ? `Contract Date ${formatDate(storedDay(r.contractDate))}` : "Not signed", sub: completion ? `Completion ${formatDate(storedDay(completion))}` : "Completion date not set until possession" },
       },
@@ -181,12 +182,11 @@ function CommencedCard({ rows, exposure, page, today }: { rows: Commenced[]; exp
     return {
       id: v.id,
       search: [v.reference ?? "", v.description, v.contract.number, v.contract.award.exercise.title, v.contract.award.awardeeName].join(" "),
-      // Money sorts on its sen, zero-padded (an estimate here is above nothing): never a float.
-      sortKeys: { estimate: senFromDecimal(v.estimate).toString().padStart(20, "0"), age: age ?? 0 },
+      sortKeys: { age: age ?? 0 },
       cells: {
         variation: { kind: "link", text: v.reference ? `Variation ${v.reference}` : "Variation (not yet numbered)", href: `/projects/${v.contract.id}/variations/${v.id}`, sub: v.description },
         contract: { kind: "stack", title: v.contract.award.exercise.title, sub: `Contract ${v.contract.number} · ${v.contract.award.awardeeName}` },
-        estimate: { kind: "text", text: formatMoney(senFromDecimal(v.estimate)) },
+        estimate: { kind: "money", sen: senFromDecimal(v.estimate).toString() },
         age: { kind: "stack", title: age == null ? "Time zone not set" : `${age} ${age === 1 ? "day" : "days"}`, sub: `Commenced ${formatDate(storedDay(v.commencedOn!))}` },
       },
     };

@@ -1,8 +1,12 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
   addSen,
   compareSen,
+  compareSenOrNone,
   formatSen,
   MoneyFormatError,
   parseSen,
@@ -149,5 +153,27 @@ describe("fitsMoneyColumn: the Decimal(18, 2) a money column holds", () => {
     expect(fitsMoneyColumn(-MONEY_COLUMN_MAX_SEN)).toBe(true);
     expect(fitsMoneyColumn(-MONEY_COLUMN_MAX_SEN - 1n)).toBe(false);
     expect(fitsMoneyColumn(0n)).toBe(true);
+  });
+});
+
+describe("run 3 residual C3: a list sorts money in sen exactly", () => {
+  it("compares sen as integers, none first, where a float would tie", () => {
+    // 2^53 + 1 sen and 2^53 sen are equal as floats; as sen they are not.
+    const big = 9_007_199_254_740_993n;
+    expect(Number(big) === Number(big - 1n)).toBe(true);
+    expect(compareSenOrNone(big - 1n, big)).toBe(-1);
+    expect(compareSenOrNone(big, big - 1n)).toBe(1);
+    expect(compareSenOrNone(big, big)).toBe(0);
+    expect(compareSenOrNone(null, 0n)).toBe(-1);
+    expect(compareSenOrNone(0n, null)).toBe(1);
+    expect(compareSenOrNone(null, null)).toBe(0);
+    const sums = ["48000000", "-100", "7500001", "48000001"].map(BigInt);
+    expect([...sums].sort(compareSenOrNone).map(String)).toEqual(["-100", "7500001", "48000000", "48000001"]);
+  });
+  it("the contract list's money is sen in the cell, never a Number()", () => {
+    const src = readFileSync(path.join(__dirname, "../app/projects/page.tsx"), "utf8");
+    expect(src).not.toMatch(/Number\(/);
+    expect(src).toContain('sum: { kind: "money", sen: senFromDecimal(r.contractSum).toString() }');
+    expect(src).toContain('estimate: { kind: "money", sen: senFromDecimal(v.estimate).toString() }');
   });
 });

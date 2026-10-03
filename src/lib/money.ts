@@ -131,3 +131,9 @@ export function formatMoney(sen: Sen, currency = "RM"): string {
   const full = formatSen(sen, currency);
   return sen % 100n === 0n ? full.slice(0, -3) : full;
 }
+
+/// Two amounts in sen or none, compared exactly for a list's sort (none first): never through a float (run 3 residual C3).
+export function compareSenOrNone(a: Sen | null, b: Sen | null): -1 | 0 | 1 {
+  if (a == null || b == null) return a == null && b == null ? 0 : a == null ? -1 : 1;
+  return compareSen(a, b);
+}
