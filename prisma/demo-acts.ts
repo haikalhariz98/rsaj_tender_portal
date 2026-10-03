@@ -303,8 +303,8 @@ export async function at<T>(when: string, fn: () => Promise<T>): Promise<T> {
 }
 
 /// A route handler's act (the committee's vote API) at its instant: a refusal (not 2xx) stops the load.
-export async function actRoute(when: string, what: string, handler: () => Promise<Response>): Promise<unknown> {
-  idsOn = true;
+export async function actRoute(when: string, what: string, handler: () => Promise<Response>, opts: { ids?: boolean } = {}): Promise<unknown> {
+  idsOn = opts.ids ?? true;
   try {
     const r = await onDemoClock(when, handler);
     const body = await r.json();
