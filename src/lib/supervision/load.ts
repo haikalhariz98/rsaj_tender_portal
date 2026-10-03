@@ -45,7 +45,7 @@ export const supervisionInclude = {
   siteMeetings: { include: { chair: { select: { name: true } } }, orderBy: { heldOn: "asc" as const } },
   complianceObservations: { include: { person: { select: { name: true } } }, orderBy: { observedOn: "asc" as const } },
   programmeDirections: { include: { person: { select: { name: true } } }, orderBy: { directedOn: "asc" as const } },
-  pendingDeductions: { include: { person: { select: { name: true } }, policy: { select: { id: true, kind: true, policyNo: true } } }, orderBy: { paidOn: "asc" as const } },
+  pendingDeductions: { include: { person: { select: { name: true } }, policy: { select: { id: true, kind: true, policyNo: true } }, valuation: { select: { certificate: { select: { status: true, number: true, sequence: true } } } } }, orderBy: { paidOn: "asc" as const } },
   earlyActionDecisions: { include: { person: { select: { name: true } } }, orderBy: { decidedOn: "asc" as const } },
   contractParties: { orderBy: [{ kind: "asc" as const }, { recordedAt: "asc" as const }] as { kind?: "asc"; recordedAt?: "asc" }[] },
   siteRecordsHandovers: { include: { person: { select: { name: true } } }, orderBy: { handedOverOn: "asc" as const } },

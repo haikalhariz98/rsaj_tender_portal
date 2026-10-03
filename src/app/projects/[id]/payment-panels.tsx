@@ -6,7 +6,6 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { applyOverrides } from "@/lib/certificate/override";
-import { readComputedSnapshot } from "@/lib/certificate/snapshot";
 import { KIND_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
 import type { CertificateStatus } from "@/lib/certificate/types";
 import { SOURCE_WORDS } from "@/lib/contract/labels";
@@ -58,7 +57,6 @@ const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const dim = (t: string) => <span className="text-ink-4">{t}</span>;
 const say = (fs: readonly Finding[]) => (fs.length ? fs.map(paymentFaultText).join(" ") : null);
 const opts = <K extends string>(keys: readonly K[], words: Readonly<Record<K, { en: string }>>): Option[] => keys.map((k) => ({ value: k, label: words[k].en }));
-const money = (v: Sen | null | undefined) => (v == null ? dim("Not computed") : formatMoney(v));
 const row = "flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6";
 const sub = "block text-[12.5px] break-words text-ink-3";
 const head = "flex flex-wrap items-center gap-2 text-[13.5px] font-semibold break-words text-ink";
@@ -170,7 +168,7 @@ function ValuationsSection({ l, v, people, today, page }: { l: LoadedContract; v
         </CardBody>
       </Card>
 
-      {v.current?.status === "OPEN" ? <CurrentValuation l={l} v={v} people={people} today={today} formSet={formSet} /> : null}
+      {v.current?.status === "OPEN" ? <CurrentValuation l={l} v={v} today={today} formSet={formSet} /> : null}
 
       <Card className="overflow-hidden">
         <CardHeader icon={<WalletIcon size={17} />} title="Valuations and their certificates" subtitle="Newest first. A valuation raises its interim payment certificate, which goes for approval, is signed and issued from the certificate." actions={<OpenValuationDrawer id={c.id} people={people} today={today} triggers={opts(VALUATION_TRIGGERS, TRIGGER_WORDS)} blocker={openBlocker} warning={null} />} divided={all.length > 0} />
@@ -217,7 +215,7 @@ function ValuationsSection({ l, v, people, today, page }: { l: LoadedContract; v
   );
 }
 
-function CurrentValuation({ l, v, people, today, formSet }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; formSet: boolean }) {
+function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: PaymentView; today: string | null; formSet: boolean }) {
   const c = l.contract;
   const x = v.current!;
   const a = v.assembled;

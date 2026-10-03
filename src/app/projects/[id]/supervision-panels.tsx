@@ -586,7 +586,7 @@ function OversightSection({ l, v, people, today }: { l: LoadedContract; v: Super
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title="Premiums paid by the employer" subtitle="Each waits as a deduction for the next interim certificate." actions={<SelfHelpDrawer id={c.id} people={people} policies={policies} today={today} blocker={zone(today) ?? (policies.length ? null : "No insurance policy is on this contract.")} />} divided={v.s.pendingDeductions.length > 0} />
+        <CardHeader icon={<ShieldIcon size={17} />} title="Premiums paid by the employer" subtitle="Each is deducted on the next interim certificate raised." actions={<SelfHelpDrawer id={c.id} people={people} policies={policies} today={today} blocker={zone(today) ?? (policies.length ? null : "No insurance policy is on this contract.")} />} divided={v.s.pendingDeductions.length > 0} />
         {v.s.pendingDeductions.length === 0 ? (
           <EmptyState size="sm" title="None recorded">The employer has paid no premium for the contractor.</EmptyState>
         ) : (
@@ -596,7 +596,13 @@ function OversightSection({ l, v, people, today }: { l: LoadedContract; v: Super
                 <span className="min-w-0">
                   <span className={head}>
                     {formatMoney(senFromDecimal(x.amount))}
-                    <Chip tone="warn">Awaiting the next interim certificate</Chip>
+                    {(() => {
+                      // 6.13 Part A step 3: a premium is taken by the certificate its valuation raised; a void one frees it again.
+                      const status = x.valuation?.certificate?.status ?? null;
+                      if (!status || status === "VOID") return <Chip tone="warn">Awaiting the next interim certificate</Chip>;
+                      if (status === "ISSUED") return <Chip tone="ok">{`Deducted on interim certificate ${x.valuation?.certificate?.number ?? ""}`.trim()}</Chip>;
+                      return <Chip tone="info">On an interim certificate not yet issued</Chip>;
+                    })()}
                   </span>
                   <span className={sub}>{[DEDUCTION_KIND_WORDS[x.kind].en, x.policy ? `${INSURANCE_KIND_LABEL[x.policy.kind]}${x.policy.policyNo ? ` ${x.policy.policyNo}` : ""}` : null, `paid ${formatDate(day(x.paidOn))}`, x.extendedTo ? `cover to ${formatDate(day(x.extendedTo))}` : null, `decided by ${x.person.name}`].filter(Boolean).join(" · ")}</span>
                   <span className={sub}>{x.note}</span>
