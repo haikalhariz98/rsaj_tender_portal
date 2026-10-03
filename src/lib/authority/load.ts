@@ -94,6 +94,7 @@ export async function loadIssue(
     ruleKey: r.ruleKey,
     domain: r.domain,
     method: r.method,
+    contractTypeCode: r.contractTypeCode,
     cond: r.cond,
     minValue: num(r.minValue),
     maxValue: num(r.maxValue),

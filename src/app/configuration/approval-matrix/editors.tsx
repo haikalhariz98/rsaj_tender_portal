@@ -207,7 +207,7 @@ export function EditMatrix({ matrix, routes }: { matrix: MatrixValues; routes: {
   );
 }
 
-function ruleFields(offices: { code: string; nameEn: string }[]): Field[] {
+function ruleFields(offices: { code: string; nameEn: string }[], contractTypes: { code: string; nameEn: string }[] = []): Field[] {
   const officeOptions = offices.map((o) => ({ value: o.code, label: o.nameEn }));
   return [
     { kind: "hidden", name: "authorityMatrixId" },
@@ -235,6 +235,16 @@ function ruleFields(offices: { code: string; nameEn: string }[]): Field[] {
       label: "Sourcing method key",
       mono: true,
       hint: "Leave empty to apply whatever the method.",
+    },
+    {
+      // FR-APR-002 (6.13 Part A step 1): a row may be confined to a contract type.
+      kind: "select",
+      name: "contractTypeCode",
+      label: "Contract type",
+      placeholder: "Any contract type",
+      options: contractTypes.map((t) => ({ value: t.code, label: t.nameEn })),
+      orphanLabel: "A contract type no longer configured",
+      hint: "Empty: the rule applies whatever the contract type. A rule for one type is preferred to one for any type.",
     },
     { kind: "money", name: "minValue", label: "From value" },
     { kind: "money", name: "maxValue", label: "To value" },
@@ -330,15 +340,17 @@ const RULE_SHOW_WHEN = { coreChainReason: { name: "generateCoreChain", in: ["no"
 export function AddRule({
   matrixId,
   offices,
+  contractTypes = [],
 }: {
   matrixId: string;
   offices: { code: string; nameEn: string }[];
+  contractTypes?: { code: string; nameEn: string }[];
 }) {
   return (
     <RecordEditor
       title="Add a rule"
       description="Who proposes, who recommends and who approves, at one band of value."
-      fields={ruleFields(offices)}
+      fields={ruleFields(offices, contractTypes)}
       values={{ authorityMatrixId: matrixId }}
       action={saveRule}
       showWhen={RULE_SHOW_WHEN}
@@ -354,6 +366,7 @@ export interface RuleValues {
   ruleKey: string;
   domain: string;
   method: string | null;
+  contractTypeCode?: string | null;
   minValue: number | null;
   maxValue: number | null;
   followsBoundarySwitch: boolean | null;
@@ -378,15 +391,17 @@ export function EditRule({
   rule,
   matrixId,
   offices,
+  contractTypes = [],
 }: {
   rule: RuleValues;
   matrixId: string;
   offices: { code: string; nameEn: string }[];
+  contractTypes?: { code: string; nameEn: string }[];
 }) {
   return (
     <RecordEditor
       title={`Edit ${rule.labelEn}`}
-      fields={[{ kind: "hidden", name: "id" }, ...ruleFields(offices)]}
+      fields={[{ kind: "hidden", name: "id" }, ...ruleFields(offices, contractTypes)]}
       action={saveRule}
       showWhen={RULE_SHOW_WHEN}
       trigger={{ label: "Edit rule", iconOnly: <PencilIcon size={15} />, className: iconButtonClass("sm") }}
@@ -399,6 +414,7 @@ export function EditRule({
         labelMs: rule.labelMs,
         domain: rule.domain,
         method: rule.method,
+        contractTypeCode: rule.contractTypeCode ?? null,
         minValue: rule.minValue == null ? null : String(rule.minValue),
         maxValue: rule.maxValue == null ? null : String(rule.maxValue),
         followsBoundarySwitch: rule.followsBoundarySwitch == null ? null : rule.followsBoundarySwitch ? "yes" : "no",

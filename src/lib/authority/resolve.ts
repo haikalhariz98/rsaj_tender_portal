@@ -108,6 +108,7 @@ export function boundaryRuleFault(
       o.ruleKey !== rule.ruleKey &&
       o.domain === rule.domain &&
       (o.method ?? null) === (rule.method ?? null) &&
+      (o.contractTypeCode ?? null) === (rule.contractTypeCode ?? null) &&
       (o.cond ?? null) === (rule.cond ?? null) &&
       o.followsBoundarySwitch != null &&
       o.followsBoundarySwitch !== rule.followsBoundarySwitch &&
@@ -166,17 +167,22 @@ function cite(clause: string | null | undefined): { clause?: string; en: string;
  * How specific a rule is. The most specific matching row wins, so a row banded on
  * both contract value and percentage beats one banded on percentage alone.
  * Gap rows are pushed to the bottom: an assumed route is a last resort.
+ *
+ * FR-APR-002 (6.13 Part A step 1): a row confined to a contract type ranks between a
+ * row confined to a method and one confined to a condition. The weights were doubled
+ * to fit it, so every earlier ordering and every tie stands as it was.
  */
 export function specificity(rule: Rule): number {
   let score = 0;
-  if (rule.contractValueMin != null || rule.contractValueMax != null) score += 16;
-  if (rule.pctMin != null || rule.pctMax != null) score += 8;
-  if (rule.minValue != null || rule.maxValue != null) score += 4;
+  if (rule.contractValueMin != null || rule.contractValueMax != null) score += 32;
+  if (rule.pctMin != null || rule.pctMax != null) score += 16;
+  if (rule.minValue != null || rule.maxValue != null) score += 8;
   // A row confined to a method is more specific than one that applies to any method.
   // Without this the two tie, and the tie was settled silently by row order.
-  if (rule.method != null) score += 2;
+  if (rule.method != null) score += 4;
+  if (rule.contractTypeCode != null) score += 2;
   if (rule.cond != null) score += 1;
-  if (rule.isGap) score -= 32;
+  if (rule.isGap) score -= 64;
   return score;
 }
 
@@ -208,6 +214,7 @@ export function rulesTiedWith(rule: Rule, others: readonly Rule[]): Rule[] {
       !o.isGap &&
       o.domain === rule.domain &&
       (o.method ?? null) === (rule.method ?? null) &&
+      (o.contractTypeCode ?? null) === (rule.contractTypeCode ?? null) &&
       (o.cond ?? null) === (rule.cond ?? null) &&
       specificity(o) === specificity(rule) &&
       bandsMeet(o.minValue, o.maxValue, rule.minValue, rule.maxValue, sen) &&
@@ -265,6 +272,10 @@ function candidateRules(matrix: Matrix, q: ResolveQuery): { rules: Rule[]; undec
     // A row confined to a method applies only when that method is asked for; a row
     // with no method applies whatever the method.
     if (r.method != null && (method == null || r.method !== method)) return false;
+
+    // FR-APR-002: a row confined to a contract type applies only to that type; a row with
+    // none applies whatever the type (and ranks below one that names it).
+    if (r.contractTypeCode != null && (q.contractTypeCode == null || r.contractTypeCode !== q.contractTypeCode)) return false;
 
     // A conditional row applies only to its condition. A general row is suppressed
     // when a conditional sibling exists for the condition actually asked about.

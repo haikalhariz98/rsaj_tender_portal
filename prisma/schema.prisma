@@ -666,6 +666,11 @@ model AuthorityRule {
   /// Sourcing method the row is confined to. Null means it applies whatever the method.
   method String?
 
+  /// FR-APR-002 (carried from 6.9 to 6.13 Part A step 1): the contract type (ContractType.code) the row is
+  /// confined to. Null means it applies whatever the type. A row confined to a type is more specific than one
+  /// for any type, as a row confined to a method is.
+  contractTypeCode String?
+
   /// Extra discriminator for rows that differ only by circumstance.
   cond String?
 

@@ -83,6 +83,9 @@ export default async function ApprovalMatrixPage({
   const reference = await loadReferenceData(ORGANISATION_CODE);
   const fundingRoutes = activeOn(reference.fundingRoutes, on);
   const sourcingMethods = activeOn(reference.sourcingMethods, on);
+  // FR-APR-002: the contract types a rule may be confined to, by their names.
+  const contractTypeOptions = activeOn(reference.contractTypes, on).map((t) => ({ code: t.code, nameEn: t.nameEn }));
+  const contractTypeName = (code: string) => reference.contractTypes.find((t) => t.code === code)?.nameEn ?? "A contract type no longer configured";
 
   /// A rule's `method` is an authority-matrix key, and `authorityMethodKey` is what
   /// binds a configured sourcing method to it. Where the customer has named the
@@ -268,7 +271,7 @@ export default async function ApprovalMatrixPage({
               }}
               routes={funderRoutes}
             />
-            <AddRule matrixId={matrixId} offices={offices} />
+            <AddRule matrixId={matrixId} offices={offices} contractTypes={contractTypeOptions} />
             <DiscardDraft id={matrixId} label={selected.label} />
             <IssueDraft
               id={matrixId}
@@ -576,7 +579,7 @@ export default async function ApprovalMatrixPage({
                     <li key={x.key} className="flex flex-wrap items-start gap-2">
                       <span className="min-w-0 flex-1 break-words">{x.text}</span>
                       {editable && x.rule && ruleRows[x.rule.ruleKey] && (
-                        <RuleActions rule={x.rule} row={ruleRows[x.rule.ruleKey]} matrixId={matrixId} offices={offices} />
+                        <RuleActions rule={x.rule} row={ruleRows[x.rule.ruleKey]} matrixId={matrixId} offices={offices} contractTypes={contractTypeOptions} />
                       )}
                     </li>
                   ))}
@@ -731,6 +734,7 @@ export default async function ApprovalMatrixPage({
                           </Td>
                           <Td label="Method" className="align-top text-[13px] text-ink-2 [overflow-wrap:normal]">
                             {rule.method ? methodName(rule.method) : "Any method"}
+                            {rule.contractTypeCode && <div className="mt-1 text-[12.5px] break-words text-ink-3">{`Contract type: ${contractTypeName(rule.contractTypeCode)}`}</div>}
                           </Td>
                           <Td label="Route" className="align-top">
                             <RuleChain steps={chainFor(rule)} />
@@ -796,6 +800,7 @@ export default async function ApprovalMatrixPage({
                                 row={ruleRows[rule.ruleKey]}
                                 matrixId={matrixId}
                                 offices={offices}
+                                contractTypes={contractTypeOptions}
                               />
                             </Td>
                           )}
@@ -913,11 +918,13 @@ function RuleActions({
   row,
   matrixId,
   offices,
+  contractTypes,
 }: {
   rule: Rule;
   row: { id: string } | undefined;
   matrixId: string;
   offices: { code: string; nameEn: string }[];
+  contractTypes: { code: string; nameEn: string }[];
 }) {
   if (!row) return null;
   return (
@@ -925,11 +932,13 @@ function RuleActions({
       <EditRule
         matrixId={matrixId}
         offices={offices}
+        contractTypes={contractTypes}
         rule={{
           id: row.id,
           ruleKey: rule.ruleKey,
           domain: rule.domain,
           method: rule.method,
+          contractTypeCode: rule.contractTypeCode ?? null,
           minValue: rule.minValue,
           maxValue: rule.maxValue,
           followsBoundarySwitch: rule.followsBoundarySwitch,

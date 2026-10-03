@@ -395,6 +395,8 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
     ruleKey,
     domain: r.text("domain", "Matter", { required: true, max: 60 }),
     method: r.optionalText("method"),
+    // FR-APR-002: a field the form never sent is kept as stored.
+    contractTypeCode: data.has("contractTypeCode") ? r.optionalText("contractTypeCode") : (before?.contractTypeCode ?? null),
     // The rule drawer does not carry the variation bands or the condition. A field the
     // form never sent is kept as stored rather than written as empty — otherwise every
     // save of a variation rule would quietly strip the band it routes on.
@@ -445,6 +447,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
       labelEn: x.labelEn,
       domain: x.domain,
       method: x.method ?? null,
+      contractTypeCode: x.contractTypeCode ?? null,
       cond: x.cond ?? null,
       isGap: x.isGap,
       minValue: x.minValue == null ? null : Number(x.minValue.toString()),

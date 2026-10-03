@@ -65,6 +65,7 @@ export async function GET(request: Request) {
     const query: ResolveQuery = {
       domain,
       method: params.get("method"),
+      contractTypeCode: params.get("contractType"),
       cond: params.get("cond"),
       value,
       pctRatio: pct,

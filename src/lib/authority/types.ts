@@ -31,6 +31,8 @@ export interface Rule {
   domain: string;
   method: string | null;
   cond: string | null;
+  /// FR-APR-002: the contract type the row is confined to (ContractType.code). Null or absent: any type.
+  contractTypeCode?: string | null;
   minValue: number | null;
   maxValue: number | null;
   /// Band on a percentage, each edge its Decimal(9,4) string (ADR 0024 Amendment 1): judged exactly against a
@@ -175,6 +177,8 @@ export interface ApprovalStep {
 export interface ResolveQuery {
   domain: string;
   method?: string | null;
+  /// FR-APR-002: the matter's contract type (the exercise's ContractType.code), where rows are confined by it.
+  contractTypeCode?: string | null;
   cond?: string | null;
   /// Value of the matter being authorised.
   value?: number | null;
