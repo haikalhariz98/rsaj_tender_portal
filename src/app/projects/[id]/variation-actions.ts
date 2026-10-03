@@ -15,6 +15,8 @@ import { sittingPermits } from "@/lib/committee/meeting";
 import { lockSittingIn } from "@/lib/committee/sittings";
 import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { CertificateRefusal, openCertificate } from "@/lib/certificate/write";
+import { raiseFormFault } from "@/lib/certificate/form-needs";
+import { KIND_WORDS } from "@/lib/certificate/labels";
 import { contractLabel, withLockedContract } from "@/lib/contract/repo";
 import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { decimalText, formatDate } from "@/lib/format";
@@ -180,7 +182,9 @@ const clockOf = async (c: Ctx, clock: "ORAL_CONFIRM" | "ORAL_OBJECTION" | "DAYWO
 /// The form a kind prints on: refused where it is not set (the setting named).
 async function formOf(c: Ctx, kind: "SO_INSTRUCTION" | "VARIATION" | "SUM_ADJUSTMENT") {
   const s = await c.tx.certificateKindSetting.findUnique({ where: { organisationId_kind: { organisationId: c.l.org.id, kind } }, select: { templateId: true, routingTypeId: true } });
-  if (!s?.templateId) refuse("Not raised:", [{ code: "FORM_NOT_SET", level: "block", data: { kind } }]);
+  // Intake 1 (BD-613-96): the raise's one form rule (TEMPLATE_NOT_SET, naming the need and where it is chosen).
+  const noForm = raiseFormFault(s?.templateId ? { id: s.templateId } : null, KIND_WORDS[kind]);
+  if (noForm) refuse("Not raised:", [noForm]);
   return { templateId: s!.templateId!, routingTypeId: s!.routingTypeId ?? null };
 }
 

@@ -18,6 +18,8 @@
  * Pure.
  */
 
+import { raiseFormFault } from "@/lib/certificate/form-needs";
+import { KIND_WORDS } from "@/lib/certificate/labels";
 import type { Sen } from "@/lib/money";
 import type { Day, Finding, NonCompletionOutcome, NonCompletionScope, PackItem } from "@/lib/payment/types";
 import { PACK_ITEMS } from "@/lib/payment/types";
@@ -46,7 +48,9 @@ export function warningFaults(i: WarningInput): Finding[] {
   if (!i.extendedCompletion) f("EXTENDED_COMPLETION_REQUIRED");
   else if (i.dateForCompletion && i.extendedCompletion < i.dateForCompletion) f("EXTENDED_BEFORE_COMPLETION", { day: i.dateForCompletion });
   if (i.liveWarning) f("WARNING_ALREADY_LIVE");
-  if (!i.formSet) f("FORM_NOT_SET", { form: "warning" });
+  // Intake 1 (BD-613-96, against accepted Part A): the raise's one form rule (TEMPLATE_NOT_SET, naming the need).
+  const noForm = raiseFormFault(i.formSet ? { id: "set" } : null, KIND_WORDS.LAD_WARNING);
+  if (noForm) out.push(noForm);
   return out;
 }
 
@@ -131,7 +135,8 @@ export function decisionFaults(i: DecisionInput): Finding[] {
     const a = i.pack.find((p) => p.item === item);
     if (!a || !a.text.trim()) f(a?.notRequired ? "PACK_NOT_REQUIRED_REASON" : "PACK_ITEM_REQUIRED", { item });
   }
-  if (!i.formSet) f("FORM_NOT_SET", { form: "nonCompletion" });
+  const noForm = raiseFormFault(i.formSet ? { id: "set" } : null, KIND_WORDS.NON_COMPLETION);
+  if (noForm) out.push(noForm);
   return out;
 }
 

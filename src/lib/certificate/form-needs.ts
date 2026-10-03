@@ -53,6 +53,19 @@ export function formNeedFault(t: FormOf | null, need: Words, setAt: SetAt = "POS
   return null;
 }
 
+/**
+ * 6.14 increment 2 intake 1 (BD-613-96): the form check every raise act makes. Only TEMPLATE_NOT_SET refuses at raise; a
+ * form chosen with no text is the certificate page's not-ready callout and refuses at the first signature and at issue
+ * (BD-614-23, OD-2 A). Part A's raise acts go through it too (its FORM_NOT_SET retired), so every kind's raise says the
+ * same thing, naming the need and where its form is chosen.
+ */
+export function raiseFormFault(form: { id: string } | null, need: Words, setAt: SetAt = "POST_AWARD"): Finding | null {
+  return form ? null : formNeedFault(null, need, setAt);
+}
+
+/// A certificate kind's raise refused for want of its form (a screen's blocker says what the act would).
+export const noFormFault = (kind: CertificateKind): Finding => raiseFormFault(null, KIND_WORDS[kind])!;
+
 export type NeedState = "NOT_SET" | "BODY_EMPTY" | "READY";
 
 export interface FormNeed {

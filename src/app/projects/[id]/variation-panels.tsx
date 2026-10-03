@@ -10,6 +10,7 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { adjustmentFaults } from "@/lib/adjustment/ppjhk";
 import { STATUS_TONE as CERT_TONE, STATUS_WORDS as CERT_WORDS } from "@/lib/certificate/labels";
+import { noFormFault } from "@/lib/certificate/form-needs";
 import type { CertificateStatus } from "@/lib/certificate/types";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { storedDay, daysFrom } from "@/lib/dates";
@@ -183,7 +184,7 @@ function AdjustmentsSection({ l, v, people, today }: { l: LoadedContract; v: Var
   const inProg = adjustmentInProgress(v.adjustments);
   // The act's own rule on what does not depend on the drawer's answers: one at a time, the form set.
   const pre = adjustmentFaults({ triggers: ["VARIATION"], lines: [], ordersAdjusted: [], ordersIssued: [], inProgress: inProg ? `The adjustment${inProg.certificate.number ? ` ${inProg.certificate.number}` : ""}` : null, original: v.original ?? 1n, prior: [] }).filter((f) => f.code === "ADJUSTMENT_IN_PROGRESS");
-  const blocker = !today ? "Set the organisation's time zone first." : l.contract.status === "CANCELLED" ? "The contract is cancelled: it is kept as it was." : pre.length ? pre.map(variationFaultText).join(" ") : !v.formSet("SUM_ADJUSTMENT") ? variationFaultText({ code: "FORM_NOT_SET", level: "block", data: { kind: "SUM_ADJUSTMENT" } }) : null;
+  const blocker = !today ? "Set the organisation's time zone first." : l.contract.status === "CANCELLED" ? "The contract is cancelled: it is kept as it was." : pre.length ? pre.map(variationFaultText).join(" ") : !v.formSet("SUM_ADJUSTMENT") ? variationFaultText(noFormFault("SUM_ADJUSTMENT")) : null;
   const issued = v.issued;
   return (
     <div className="flex flex-col gap-6">

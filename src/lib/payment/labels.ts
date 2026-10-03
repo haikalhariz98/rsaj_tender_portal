@@ -6,6 +6,7 @@
  */
 
 import { formatDate } from "@/lib/format";
+import { templateNotSetWords } from "@/lib/certificate/form-needs";
 import { formatSen } from "@/lib/money";
 
 import type { AdvanceParty, ContractClock, ContractorAnswer, Finding, KeyedDeductionKind, NonCompletionOutcome, NonCompletionScope, PackItem, PaymentRouteFigure, RetentionRelease, RetentionTier, ValuationStatus, ValuationTrigger, WaterfallRemainder } from "./types";
@@ -355,10 +356,9 @@ export function paymentFaultWords(f: Finding): Words {
       return w("A nominated party's line carries its value to date (it feeds the gross).", "Baris pihak dinamakan membawa nilainya setakat ini.");
     case "PARTY_VALUE_NOT_EXPECTED":
       return w("An assignee's line carries only what is due to it on this certificate.", "Baris pemegang serah hak hanya membawa amaun kena dibayar.");
-    case "FORM_NOT_SET": {
-      const k = KIND_FORM[String(d.kind ?? d.form)] ?? KIND_FORM.INTERIM_PAYMENT;
-      return w(`No form is set for ${k.en} under Configuration › Post-award: it is not raised without the form it prints on.`, `Tiada borang ditetapkan bagi ${k.ms} di Konfigurasi › Selepas setuju terima.`);
-    }
+    // Intake 1 (BD-613-96): Part A's FORM_NOT_SET retired; the raise's one form rule names the need and where it is set.
+    case "TEMPLATE_NOT_SET":
+      return templateNotSetWords(d);
     case "ROUTING_SHEET_NOT_SET": {
       const k = KIND_FORM[String(d.kind)] ?? KIND_FORM.NON_COMPLETION;
       return w(`No routing sheet is set for ${k.en} under Configuration › Post-award: its review chain (endorsed, checked, verified, recommended) is enforced on the sheet, so it is not raised without one.`, `Tiada helaian laluan ditetapkan bagi ${k.ms} di Konfigurasi › Selepas setuju terima.`);

@@ -19,6 +19,7 @@ import { historyEntityLabel, RECORD_TYPE_WORDS, VARIATION_ENTITIES } from "@/lib
 import { REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import type { RejectionKind } from "@/lib/authority/rejection";
 import { STATUS_WORDS as CERT_WORDS } from "@/lib/certificate/labels";
+import { noFormFault } from "@/lib/certificate/form-needs";
 import { applyOverrides } from "@/lib/certificate/override";
 import { readComputedSnapshot } from "@/lib/certificate/snapshot";
 import type { CertificateStatus } from "@/lib/certificate/types";
@@ -389,7 +390,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
 function InstructionPanel({ l, v, f, vv, people, today, blockedBy }: PanelProps & { blockedBy: string | null }) {
   const ins = liveInstructionRow(v);
   const form = scheduleFormOf(v.agreedRateExists, { withAgreedRate: vv.policy?.scheduleFormAgreedRate ?? null, withoutAgreedRate: vv.policy?.scheduleFormNoAgreedRate ?? null });
-  const insBlocker = blockedBy ?? (today ? say(instructionFaults({ v: f, funderConsentRequired: v.funderConsentRequired, consent: consentOf(v).state, agreedRateExists: v.agreedRateExists, scheduleForm: form, description: v.description, oralIssuedOn: null, today })) : null) ?? (!vv.formSet("SO_INSTRUCTION") ? variationFaultText({ code: "FORM_NOT_SET", level: "block", data: { kind: "SO_INSTRUCTION" } }) : null);
+  const insBlocker = blockedBy ?? (today ? say(instructionFaults({ v: f, funderConsentRequired: v.funderConsentRequired, consent: consentOf(v).state, agreedRateExists: v.agreedRateExists, scheduleForm: form, description: v.description, oralIssuedOn: null, today })) : null) ?? (!vv.formSet("SO_INSTRUCTION") ? variationFaultText(noFormFault("SO_INSTRUCTION")) : null);
   const commenceBlocker = blockedBy ?? (today ? say(commenceFaults({ v: f, on: today, today, soDecidedOn: day(v.soDecidedOn), supporterCapable: true })) : null);
   const confirm = ins ? clockReading(day(ins.confirmDueOn), day(ins.contractorConfirmedOn)) : null;
   const objection = ins ? clockReading(day(ins.objectionDueOn), day(ins.objectedOn)) : null;
@@ -515,7 +516,7 @@ async function OrderPanel({ l, v, f, vv, people, blockedBy }: Omit<PanelProps, "
   const order = liveOrderRow(v);
   const lines = ins ? standingMeasurements(v, ins.id) : [];
   const clauses = (await db.clauseText.findMany({ where: { organisationId: l.org.id, retiredOn: null }, orderBy: [{ sortOrder: "asc" }, { titleEn: "asc" }], select: { id: true, titleEn: true } })).map((c) => ({ value: c.id, label: c.titleEn }));
-  const raiseBlocker = blockedBy ?? say(orderFaults({ v: f, instructionIssued: ins?.certificate.status === "ISSUED", orderLive: !!order, lines: lines.length, description: ins?.description ?? "", instructionDescription: ins?.description ?? "", clauseChosen: true })) ?? (!vv.formSet("VARIATION") ? variationFaultText({ code: "FORM_NOT_SET", level: "block", data: { kind: "VARIATION" } }) : null);
+  const raiseBlocker = blockedBy ?? say(orderFaults({ v: f, instructionIssued: ins?.certificate.status === "ISSUED", orderLive: !!order, lines: lines.length, description: ins?.description ?? "", instructionDescription: ins?.description ?? "", clauseChosen: true })) ?? (!vv.formSet("VARIATION") ? variationFaultText(noFormFault("VARIATION")) : null);
   const coverage = order ? orderApprovalFaults({ v: f, net: orderNetOf(order), agreedRateTotal: BigInt((order.judgedUnder as { agreedRateTotal?: string } | null)?.agreedRateTotal ?? "0") }) : [];
   const dispute = order ? disputeOf(order) : null;
   const adjustedOn = order?.adjustmentLines.map((x) => ({ number: x.sumAdjustment.certificate.number, status: x.sumAdjustment.certificate.status })).find((c) => c.status !== "VOID") ?? null;

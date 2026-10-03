@@ -7,8 +7,7 @@
 
 import { formatDate } from "@/lib/format";
 import { kindFaultWords } from "@/lib/certificate/kinds";
-import { KIND_WORDS } from "@/lib/certificate/labels";
-import type { CertificateKind } from "@/lib/certificate/types";
+import { templateNotSetWords } from "@/lib/certificate/form-needs";
 import { formatSen } from "@/lib/money";
 import { supervisionFaultWords } from "@/lib/supervision/labels";
 
@@ -335,8 +334,9 @@ export function variationFaultWords(f: Finding): Words {
       return kindFaultWords(f);
     case "SO_UNRESOLVED":
       return supervisionFaultWords(f);
-    case "FORM_NOT_SET":
-      return w(`The form a ${lowerFirst((KIND_WORDS[d.kind as CertificateKind] ?? w("certificate", "")).en)} prints on is not set: set it under Configuration › Post-award controls.`, `Borang ${lowerFirst((KIND_WORDS[d.kind as CertificateKind] ?? w("perakuan", "perakuan")).ms)} belum ditetapkan: tetapkan di Konfigurasi › Kawalan selepas setuju terima.`);
+    // Intake 1 (BD-613-96): Part A's FORM_NOT_SET retired; the raise's one form rule names the need and where it is set.
+    case "TEMPLATE_NOT_SET":
+      return templateNotSetWords(d);
     case "NO_BASELINE":
       return w("No baseline version of the contract is in force today: confirm the baseline on the contract's Baseline tab first.", "Tiada versi garis dasar kontrak berkuat kuasa hari ini.");
     case "NOT_EXECUTED":

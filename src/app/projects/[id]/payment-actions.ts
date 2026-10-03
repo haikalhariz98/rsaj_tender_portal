@@ -11,6 +11,9 @@ import type { Tx } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
 import type { ComputedSnapshot } from "@/lib/certificate/snapshot";
 import { CertificateRefusal, openCertificate } from "@/lib/certificate/write";
+import { raiseFormFault } from "@/lib/certificate/form-needs";
+import { KIND_WORDS } from "@/lib/certificate/labels";
+import type { CertificateKind } from "@/lib/certificate/types";
 import { contractLabel, withLockedContract, type LoadedContract } from "@/lib/contract/repo";
 import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { decisionFaults, postFaults, replacementFaults, warningFaults, type PackAnswer } from "@/lib/lad/non-completion";
@@ -352,7 +355,9 @@ export async function removeValuationDeduction(_prev: FormState, data: FormData)
 /// The kind's form, or the refusal naming the setting.
 function formFor(cfg: PaymentConfig, kind: string, sheetRequired = false) {
   const s = kindSettingOf(cfg, kind);
-  if (!s?.templateId) refuse("Not raised:", [{ code: "FORM_NOT_SET", level: "block", data: { kind } }]);
+  // Intake 1 (BD-613-96): the raise's one form rule (TEMPLATE_NOT_SET, naming the need and where it is chosen).
+  const noForm = raiseFormFault(s?.templateId ? { id: s.templateId } : null, KIND_WORDS[kind as CertificateKind]);
+  if (noForm) refuse("Not raised:", [noForm]);
   if (sheetRequired && !s?.routingTypeId) refuse("Not raised:", [{ code: "ROUTING_SHEET_NOT_SET", level: "block", data: { kind } }]);
   return { templateId: s!.templateId!, routingTypeId: s!.routingTypeId ?? null };
 }

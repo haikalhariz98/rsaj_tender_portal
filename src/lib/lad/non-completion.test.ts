@@ -13,7 +13,7 @@ describe("the warning letter (FR-LAD-003)", () => {
   const ok = { dateForCompletion: "2026-06-30", rate: parseSen("269.38"), eotClause: "Clause 43", ladClause: "Clause 40", extendedCompletion: "2026-06-30", liveWarning: false, formSet: true };
   it("carries the clauses, the extended date and the baseline's rate", () => {
     expect(codes(warningFaults(ok))).toEqual([]);
-    expect(codes(warningFaults({ ...ok, rate: null, eotClause: "", ladClause: " ", extendedCompletion: null, formSet: false }))).toEqual(["LAD_RATE_NOT_SET", "CLAUSE_REQUIRED", "CLAUSE_REQUIRED", "EXTENDED_COMPLETION_REQUIRED", "FORM_NOT_SET"]);
+    expect(codes(warningFaults({ ...ok, rate: null, eotClause: "", ladClause: " ", extendedCompletion: null, formSet: false }))).toEqual(["LAD_RATE_NOT_SET", "CLAUSE_REQUIRED", "CLAUSE_REQUIRED", "EXTENDED_COMPLETION_REQUIRED", "TEMPLATE_NOT_SET"]);
     expect(codes(warningFaults({ ...ok, extendedCompletion: "2026-06-29" }))).toEqual(["EXTENDED_BEFORE_COMPLETION"]);
   });
   it("by registered post, with its consignment reference, once, after it is issued", () => {

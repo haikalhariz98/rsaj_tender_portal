@@ -8,6 +8,7 @@ import { readIssuedAdjustments } from "@/lib/adjustment/ppjhk";
 import { KeyValues } from "@/components/ui/stat";
 import { applyOverrides } from "@/lib/certificate/override";
 import { KIND_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
+import { noFormFault } from "@/lib/certificate/form-needs";
 import type { CertificateStatus } from "@/lib/certificate/types";
 import { SOURCE_WORDS } from "@/lib/contract/labels";
 import type { LoadedContract } from "@/lib/contract/repo";
@@ -301,7 +302,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
   const x = v.current!;
   const a = v.assembled;
   const label = `Valuation of ${formatDate(day(x.valuationDate))}`;
-  const blocker = zone(today) ?? (!formSet ? paymentFaultText({ code: "FORM_NOT_SET", level: "block", data: { kind: "INTERIM_PAYMENT" } }) : v.refused ? v.refused.message : a ? say(a.faults) : "The figures cannot be worked out today: no baseline version is in force.");
+  const blocker = zone(today) ?? (!formSet ? paymentFaultText(noFormFault("INTERIM_PAYMENT")) : v.refused ? v.refused.message : a ? say(a.faults) : "The figures cannot be worked out today: no baseline version is in force.");
   const parties = v.p.contractParties.filter((pt) => !pt.retiredOn);
   const fig = a?.result.figures ?? null;
   // The issue clock (Configuration › Post-award), from the valuation day, or from the claim where one started it.
@@ -546,7 +547,7 @@ function AdvanceSection({ l, v, people }: { l: LoadedContract; v: PaymentView; p
   const nscs = v.p.contractParties.filter((pt) => pt.kind === "NOMINATED_SUBCONTRACTOR" && !pt.retiredOn).map((pt) => ({ value: pt.id, label: pt.name }));
   const formSet = !!kindSettingOf(v.cfg, "ADVANCE_PAYMENT")?.templateId;
   const inProg = inProgressSequenceOf(v.p);
-  const blocker = !formSet ? paymentFaultText({ code: "FORM_NOT_SET", level: "block", data: { kind: "ADVANCE_PAYMENT" } }) : inProg != null ? paymentFaultText({ code: "ADVANCE_VALUATION_IN_PROGRESS", level: "block", data: { sequence: inProg } }) : guarantees.length === 0 ? "No Advance Payment Guarantee is lodged: lodge and verify it on the award's Securities tab first." : null;
+  const blocker = !formSet ? paymentFaultText(noFormFault("ADVANCE_PAYMENT")) : inProg != null ? paymentFaultText({ code: "ADVANCE_VALUATION_IN_PROGRESS", level: "block", data: { sequence: inProg } }) : guarantees.length === 0 ? "No Advance Payment Guarantee is lodged: lodge and verify it on the award's Securities tab first." : null;
   return (
     <div className="flex flex-col gap-6">
       <Callout tone="info" title="No documented advance payment procedure (B2)">
