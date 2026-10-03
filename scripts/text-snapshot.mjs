@@ -20,7 +20,6 @@ const ROUTES = [
   "/projects",
   "/suppliers",
   "/documents",
-  "/reports",
   "/supplier",
   "/supplier/opportunities",
   "/supplier/bids",
