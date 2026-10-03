@@ -102,13 +102,16 @@ describe("single writers", () => {
   // As ruled (6.12 condition, changed at 6.13 Part A step 2): the possession act now exists, so the scan names it.
   it("nothing in 6.12 writes ACTIVE: only 6.13's possession act does", () => {
     expect(read(ACTIONS)).not.toMatch(/"ACTIVE"/);
+    // Review 9 (stricter): every function of every source file under src/app and src/lib, exported or not, by the
+    // lexer's own attribution; a status written as ACTIVE anywhere else fails.
     const writers: string[] = [];
-    for (const f of files("src/app")) {
-      const s = read(f);
-      if (!s.startsWith('"use server"')) continue;
-      for (const [name, body] of actions(s)) if (/status: "ACTIVE"/.test(body)) writers.push(`${f} › ${name}`);
+    for (const f of [...files("src/app"), ...files("src/lib")]) {
+      const src = read(f);
+      const sp = spans(lex(src));
+      for (const m of src.matchAll(/\bstatus\s*:\s*["'`]ACTIVE["'`]/g)) writers.push(`${f} › ${enclosingFn(sp, m.index!)}`);
     }
-    expect(writers).toEqual([`${P(SUPERVISION)} › recordPossession`]);
+    // Its write and its audit's after-value, both in recordPossession, and nowhere else.
+    expect(writers).toEqual([`${P(SUPERVISION)} › recordPossession`, `${P(SUPERVISION)} › recordPossession`]);
     const body = actions(read(SUPERVISION)).get("recordPossession")!;
     expect(body).toMatch(/contractTransition\(k\.status as ContractStatus, "ACTIVE", \{ act: "POSSESSION" \}\)/);
     expect(body).toMatch(/contract\.updateMany\(\{ where: \{ id: k\.id, status: "STAMPED" \}, data: \{ status: "ACTIVE" \} \}\)/);
