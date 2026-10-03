@@ -17,14 +17,14 @@ import { certificateFieldLabel, certificateFieldValues, mergeFields } from "@/li
 import { BLOCK_KIND_WORDS, CERT_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, OFFICE_RULE_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
 import { applyOverrides, type Effective } from "@/lib/certificate/override";
 import { loadCertificate, signedOf, templateNow, type LoadedCertificate } from "@/lib/certificate/repo";
-import { pinFaults, readRevision, type TemplateRevision } from "@/lib/certificate/revision";
+import { pinRefusals, readRevision, type TemplateRevision } from "@/lib/certificate/revision";
 import { type Sheet } from "@/lib/certificate/routing-sheet";
 import { RoutingSheetView } from "@/components/certificate/routing-sheet";
 import { nextBlock } from "@/lib/certificate/signature";
 import { readComputedSnapshot } from "@/lib/certificate/snapshot";
 import type { Block, CertificateStatus, DeliveryMethod } from "@/lib/certificate/types";
 import { isPersonRule } from "@/lib/certificate/types";
-import { certifiesMoney, sheetOf } from "@/lib/certificate/write";
+import { certifiesMoney, pinContextOf, sheetOf } from "@/lib/certificate/write";
 import { historyFieldLabel, historyValue } from "@/lib/contract/history-words";
 import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -92,7 +92,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
 
   const tabs = [
     { id: "figures", label: "Figures", icon: <FileIcon size={15} />, panel: <FiguresPanel l={l} figures={figures} people={peopleOptions} /> },
-    { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? pinBlocker(form, cert.kind) : null} people={peopleOptions} today={today} officeName={officeName} /> },
+    { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? pinBlocker(form, cert) : null} people={peopleOptions} today={today} officeName={officeName} /> },
     { id: "routing", label: "Routing sheet", icon: <RouteIcon size={15} />, panel: <RoutingPanel l={l} sheet={sheet} people={peopleOptions} today={today} /> },
     { id: "distribution", label: "Distribution", icon: <InboxIcon size={15} />, count: cert.copies.length, panel: <DistributionPanel l={l} today={today} /> },
     { id: "print", label: "Print", icon: <PrinterIcon size={15} />, panel: <PrintPanel l={l} figures={figures} revision={pinned} formBody={form ? { en: form.bodyEn, ms: form.bodyMs, name: form.nameEn } : null} /> },
@@ -158,8 +158,8 @@ function signingBlocker(sheet: Sheet): string | null {
   return reasons.length ? reasons.join(" ") : null;
 }
 
-function pinBlocker(form: Awaited<ReturnType<typeof templateNow>>, kind: LoadedCertificate["cert"]["kind"]): string | null {
-  const fs = pinFaults(form, mergeFields(kind), fieldsNamed);
+function pinBlocker(form: Awaited<ReturnType<typeof templateNow>>, cert: LoadedCertificate["cert"]): string | null {
+  const fs = pinRefusals(form, mergeFields(cert.kind), fieldsNamed, pinContextOf(cert));
   return fs.length ? refusalText("The first signature is refused:", fs) : null;
 }
 

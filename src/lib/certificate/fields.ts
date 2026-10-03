@@ -62,6 +62,24 @@ export function certificateFieldLabel(key: string): string {
   return key.startsWith(FIGURE_PREFIX) ? "A figure" : "A field";
 }
 
+/**
+ * What a field needs to have a value when the certificate is issued (6.14 inc 1 fix M-2), so the first
+ * signature can refuse a form that could never issue rather than pin it:
+ * - DATING_BLOCK: the certificate's date is the dating block's act, so the form needs a block that dates it;
+ * - BASELINE: the pinned baseline version must hold the value (the Contract Date is null before execution);
+ * - FIGURE: the certificate's frozen figures must carry the figure with a value (6.13 fills
+ *   KIND_FIGURE_KEYS; the rule is in place for the day it does);
+ * - ALWAYS: the contract, the organisation, the kind, and the number and sequence the issue allocates.
+ */
+export type FieldNeed = { need: "ALWAYS" } | { need: "DATING_BLOCK" } | { need: "BASELINE"; key: "contractDate" } | { need: "FIGURE"; key: string };
+
+export function fieldNeed(field: string): FieldNeed {
+  if (field === "certificate.date") return { need: "DATING_BLOCK" };
+  if (field === "contract.date") return { need: "BASELINE", key: "contractDate" };
+  if (field.startsWith(FIGURE_PREFIX)) return { need: "FIGURE", key: field.slice(FIGURE_PREFIX.length) };
+  return { need: "ALWAYS" };
+}
+
 /// Every bound field is one the certificate fills: no form carries an input for any of them.
 export const BOUND_FIELDS: readonly string[] = CERTIFICATE_MERGE_FIELDS.map((f) => f.key);
 

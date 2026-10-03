@@ -5,6 +5,7 @@
  * and a later revision of the form never alters it (ADR 0008 keeps issued text frozen as well). Pure.
  */
 
+import { fieldNeed } from "./fields";
 import type { Block, DistributionRow, Finding } from "./types";
 
 export interface TemplateRevision {
@@ -75,6 +76,44 @@ export function pinFaults(t: TemplateNow | null, allowed: ReadonlySet<string>, f
   const unknown = [...new Set(bodies.flatMap(fieldsNamed))].filter((k) => !allowed.has(k));
   if (unknown.length) out.push({ code: "UNKNOWN_FIELDS", level: "block", data: { form, fields: unknown.map((u) => `{{${u}}}`).join(", ") } });
   return out;
+}
+
+/// What the certificate brings to the pin: the values its form's fields would be filled from at issue.
+export interface PinContext {
+  /// The pinned baseline version's Contract Date. Null: the version holds none (before execution).
+  contractDate: string | null;
+  /// The certificate's frozen figures, as they will be issued (overrides applied). Null: it carries none.
+  figures: readonly { key: string; value: string | null }[] | null;
+}
+
+/**
+ * Why a form, whole and decided, could still never issue on this certificate (6.14 inc 1 fix M-2): its text
+ * names a field that would have no value at issue. A pinned revision is never edited and the figures and the
+ * baseline version are frozen by then, so such a gap would leave the certificate no exit but voiding; it is
+ * refused at the first signature instead, naming the field. The rule is the field's `fieldNeed`, so a figure
+ * field (once 6.13 lists them) is held to its frozen value the same way.
+ */
+export function unfillableFaults(t: TemplateNow, ctx: PinContext, allowed: ReadonlySet<string>, fieldsNamed: (body: string) => string[]): Finding[] {
+  const bodies = [t.bodyEn, t.bodyMs].filter((b): b is string => b != null && b.trim() !== "");
+  // A field the certificate does not fill at all is UNKNOWN_FIELDS's (pinFaults), not this rule's.
+  const named = [...new Set(bodies.flatMap(fieldsNamed))].filter((k) => allowed.has(k));
+  const out: Finding[] = [];
+  const form = t.nameEn;
+  const noValue: string[] = [];
+  for (const k of named) {
+    const n = fieldNeed(k);
+    if (n.need === "DATING_BLOCK" && !t.blocks.some((b) => b.datesCertificate)) out.push({ code: "DATE_FIELD_NO_DATING_BLOCK", level: "block", data: { form } });
+    if (n.need === "BASELINE" && ctx[n.key] == null) noValue.push(`{{${k}}}`);
+    if (n.need === "FIGURE" && !ctx.figures?.some((f) => f.key === n.key && f.value != null && f.value !== "")) noValue.push(`{{${k}}}`);
+  }
+  if (noValue.length) out.push({ code: "FIELD_NO_VALUE", level: "block", data: { form, fields: noValue.join(", ") } });
+  return out;
+}
+
+/// Everything the first signature refuses a form for: the form's own gaps, then a field it could never fill.
+export function pinRefusals(t: TemplateNow | null, allowed: ReadonlySet<string>, fieldsNamed: (body: string) => string[], ctx: PinContext): Finding[] {
+  const own = pinFaults(t, allowed, fieldsNamed);
+  return t ? [...own, ...unfillableFaults(t, ctx, allowed, fieldsNamed)] : own;
 }
 
 /// A pinned revision read back from JSON, or null.

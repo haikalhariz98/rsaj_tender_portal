@@ -132,7 +132,7 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
   const { snapshotFaults } = await import("../src/lib/certificate/snapshot");
   const { applyOverrides, overrideFaults } = await import("../src/lib/certificate/override");
   const { templateNow, routingTypeNow, officeHolders, blockOf } = await import("../src/lib/certificate/repo");
-  const { pinFaults, pinRevision } = await import("../src/lib/certificate/revision");
+  const { pinRefusals, pinRevision } = await import("../src/lib/certificate/revision");
   const { freezeRoutingType, typeFaults, routingSheet, receivedFaults, checkFaults } = await import("../src/lib/certificate/routing-sheet");
   const { signFaults, allSigned } = await import("../src/lib/certificate/signature");
   const { copiesFor, despatchFaults, acknowledgeFaults } = await import("../src/lib/certificate/distribution");
@@ -271,7 +271,9 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
   /// Record the blocks of a form in order, each judged as the signature act judges it; the last issues.
   async function sign(certId: string, kind: Kind, templateId: string, plan: { order: number; person?: { id: string; name: string; isActive: boolean }; name?: string; ic?: string; on: string; decision?: "SUPPORTED" | "NOT_SUPPORTED"; refused?: string }[], computed: typeof interim | null, issue: { despatch: { code: string; method: "BY_HAND" | "REGISTERED_POST" | "COLLECTION"; on: string; ack?: string }[] } | null) {
     const form = (await templateNow(templateId))!;
-    fail(`${certId} pin`, pinFaults(form, mergeFields(kind), fieldsNamed));
+    const cert = (await db.certificate.findUniqueOrThrow({ where: { id: certId }, include: { baseline: true, overrides: true } }))!;
+    const { pinContextOf } = await import("../src/lib/certificate/write");
+    fail(`${certId} pin`, pinRefusals(form, mergeFields(kind), fieldsNamed, pinContextOf(cert)));
     const rev = pinRevision(form, plan[0].on);
     await db.certificate.update({ where: { id: certId }, data: { templateRevision: rev as never, pinnedAt: at(`${plan[0].on}T04:00`) } });
     const signed: { blockOrder: number; personId: string | null; name: string; signedOn: string; refused: boolean; decision: "SUPPORTED" | "NOT_SUPPORTED" | null }[] = [];

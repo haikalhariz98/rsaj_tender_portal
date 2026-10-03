@@ -31,7 +31,7 @@ import { renderIssue } from "./issue";
 import { CERT_WORDS, CHECK_KIND_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, ON_BEHALF, STATUS_WORDS } from "./labels";
 import { applyOverrides, overrideFaults } from "./override";
 import { certificateLabel, checksOf, liveBondOf, officeHolders, officeName, routesOf, routingTypeNow, signedOf, templateNow, type LoadedCertificate } from "./repo";
-import { pinFaults, pinRevision, readRevision, type TemplateRevision } from "./revision";
+import { pinRefusals, pinRevision, readRevision, type PinContext, type TemplateRevision } from "./revision";
 import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
 import { nextSequence } from "./sequence";
 import { allSigned, maskedIc, signFaults, type SignInput } from "./signature";
@@ -92,6 +92,13 @@ export function sheetOf(cert: LoadedCertificate["cert"], today: string): Sheet |
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const r = snap?.routingRatio;
   return routingSheet({ type, receivedOn: day(cert.routingReceivedOn), routes: routesOf(cert.approvalInstances), checks: checksOf(cert.routingChecks), ratio: r ? { num: parseSen(r.num), den: parseSen(r.den) } : null, today });
+}
+
+/// What the certificate brings to the pin (M-2): its pinned baseline version's Contract Date and its frozen figures.
+export function pinContextOf(cert: Pick<LoadedCertificate["cert"], "baseline" | "computedSnapshot" | "overrides">): PinContext {
+  const snap = readComputedSnapshot(cert.computedSnapshot);
+  const f = snap ? applyOverrides(snap, cert.overrides) : null;
+  return { contractDate: day(cert.baseline.contractDate), figures: f ? [...f.lines, ...f.totals].map((x) => ({ key: x.key, value: x.value })) : null };
 }
 
 /// Whether the certificate's figures certify money (an instruction-only delegate may not sign it, FR-PAY-017).
@@ -246,7 +253,8 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
   const pinning = !rev;
   if (!rev) {
     const t = await templateNow(cert.templateId, c.tx);
-    const fs = pinFaults(t, mergeFields(cert.kind), fieldsNamed);
+    // M-2: nothing is pinned that could never issue: a field the text prints must have its value at issue.
+    const fs = pinRefusals(t, mergeFields(cert.kind), fieldsNamed, pinContextOf(cert));
     if (fs.length) refuse("Not recorded:", fs);
     rev = pinRevision(t!, c.today);
   }
