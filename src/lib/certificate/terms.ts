@@ -142,17 +142,58 @@ export function searchVariants(query: string, terms: readonly Term[]): string[] 
 /**
  * BD-614-33 as ruled: a term's wording changed keeps each replaced wording (per language) as an alias of the same
  * term, so frozen text in the old wording is still found by the term's other wordings (FR-CRT-011, ADR 0008). The
- * aliases after the edit: those given, plus each replaced canonical wording not already a wording of the term.
+ * aliases after the edit: those given, less any the edit made the term's own wording (residual S-2: promoting an alias
+ * to the canonical wording takes it out of the aliases, rather than refusing it as an alias equal to the wording),
+ * plus each replaced canonical wording not already a wording of the term.
  */
 export function aliasesKeeping(before: Pick<Term, "canonicalEn" | "canonicalMs"> | null, after: Term): string[] {
-  const out = [...after.aliases];
-  if (!before) return out;
+  if (!before) return [...after.aliases];
+  const was = [before.canonicalEn, before.canonicalMs].filter((v): v is string => !!v?.trim()).map(norm);
+  const became = [after.canonicalEn, after.canonicalMs].filter((v): v is string => !!v?.trim()).map(norm).filter((v) => !was.includes(v));
+  const out = after.aliases.filter((a) => !became.includes(norm(a)));
   const has = (v: string) => [after.canonicalEn, after.canonicalMs, ...out].some((x) => x != null && norm(x) === norm(v));
   for (const old of [before.canonicalEn, before.canonicalMs]) if (old?.trim() && !has(old)) out.push(old.trim());
   return out;
 }
 
+/// Residual S-2: the aliases an edit takes away. A wording that stays on the term as its canonical wording is not
+/// removed (a search still finds it), so it never asks for a reason.
+export function removedAliases(before: readonly string[], after: Term): string[] {
+  const canon = [after.canonicalEn, after.canonicalMs].filter((v): v is string => !!v?.trim()).map(norm);
+  return before.filter((a) => !after.aliases.includes(a) && !canon.includes(norm(a)));
+}
+
 /// Code review BD-614-33: of the aliases an edit removes, those an issued certificate's frozen text still says (whole words).
+/// The save reads the same rule in the database (`wholeWordPattern`), selecting only the certificates' numbers.
 export function removedAliasesInUse(removed: readonly string[], texts: readonly { label: string; text: string }[]): { alias: string; certificates: string[] }[] {
   return removed.map((alias) => ({ alias, certificates: texts.filter((t) => wordAt(normText(t.text), alias) >= 0).map((t) => t.label) })).filter((x) => x.certificates.length > 0);
+}
+
+/**
+ * `wordAt`'s rule as a Postgres regular expression, matched case-insensitively (`~*`) against a frozen text: the wording
+ * (normalised as `wordAt` normalises it), its spaces matching any run of white space (`wordAt` reads the text with white
+ * space collapsed), not inside a longer word (no letter or digit, `[:alnum:]`, either side). Every character Postgres's
+ * advanced expressions treat as special is escaped, so a wording is matched literally. Null: an empty wording.
+ */
+export function wholeWordPattern(wording: string): string | null {
+  const v = normText(wording);
+  if (!v) return null;
+  const body = v
+    .split(" ")
+    .map((part) => part.replace(/[\\^$.|?*+()[\]{}]/g, "\\$&"))
+    .join("\\s+");
+  return `(^|[^[:alnum:]])${body}([^[:alnum:]]|$)`;
+}
+
+/// How many certificates the in-use warning names before "and N more".
+export const ALIAS_USE_SHOWN = 10;
+
+/// The in-use warning for removed aliases: each with the certificates named (up to ALIAS_USE_SHOWN) and "and N more".
+export function aliasesInUseText(inUse: readonly { alias: string; numbers: readonly string[]; total: number }[]): string {
+  const one = inUse.length === 1 && inUse[0].total === 1;
+  const each = inUse.map((u) => {
+    const more = u.total - u.numbers.length;
+    return `"${u.alias}" is still in the text of ${u.numbers.join(", ")}${more > 0 ? ` and ${more} more` : ""}`;
+  });
+  return `${each.join("; ")}: without it a search by the term's other wordings no longer finds ${one ? "it" : "them"}. Say why it is removed.`;
 }

@@ -8,7 +8,8 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import { otherUsesOf, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
 import { correctionFaults } from "@/lib/certificate/corrections";
 import { certificateFaultWords } from "@/lib/certificate/fault-text";
-import { aliasesKeeping, removedAliasesInUse, termSaveFaults, type Term } from "@/lib/certificate/terms";
+import { aliasesInUseText, aliasesKeeping, removedAliases, termSaveFaults, type Term } from "@/lib/certificate/terms";
+import { aliasInUse } from "@/lib/certificate/term-use";
 import type { Finding } from "@/lib/certificate/types";
 import { db } from "@/lib/db";
 import { exerciseOrg } from "@/lib/method/repo";
@@ -80,7 +81,7 @@ export async function saveCorrection(_prev: FormState, data: FormData): Promise<
     for (const t of added) await tx.textCorrectionForm.create({ data: { organisationId: orgId, correctionId: row.id, templateId: t } });
     const names = async (ids: readonly string[]) => (await tx.documentTemplate.findMany({ where: { id: { in: [...ids] } }, select: { nameEn: true }, orderBy: { nameEn: "asc" } })).map((t) => t.nameEn).join(", ");
     const changes = diffFields(before ? { asMisprinted: before.fromText, asItShouldRead: before.toText, appliesTo: await names(before.forms.map((f) => f.templateId)), provenance: before.provenance } : null, { asMisprinted: fromText, asItShouldRead: toText, appliesTo: await names(templateIds), provenance });
-    if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "TextCorrection", entityId: row.id, entityLabel: `Typing correction: ${fromText}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
+    if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "TextCorrection", entityId: row.id, entityLabel: `Typing correction: ${fromText}`, reason: String(data.get("reason") ?? "").trim().slice(0, 2000) }, before ? "UPDATE" : "CREATE", changes);
     return { ok: true };
   });
 }
@@ -129,12 +130,17 @@ export async function saveTerm(_prev: FormState, data: FormData): Promise<FormSt
     const fs = termSaveFaults(term, others);
     if (fs.length) return { ok: false, message: words(fs) };
     // BD-614-33 as ruled: removing an alias an issued certificate's frozen text still says warns, and asks for a reason.
-    const reason = String(data.get("reason") ?? "").trim();
-    const removed = (before?.aliases.map((a) => a.alias) ?? []).filter((a) => !term.aliases.includes(a));
+    // Residual S-2: capped as removeTerm caps it; a wording promoted to the canonical one is not removed.
+    const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
+    const removed = removedAliases(before?.aliases.map((a) => a.alias) ?? [], term);
     if (removed.length && !reason) {
-      const docs = await tx.certificateDocument.findMany({ where: { organisationId: orgId, certificate: { status: "ISSUED" }, OR: removed.map((a) => ({ renderedText: { contains: a, mode: "insensitive" as const } })) }, select: { renderedText: true, certificate: { select: { number: true } } } });
-      const inUse = removedAliasesInUse(removed, docs.map((d) => ({ label: d.certificate.number ?? "a certificate", text: d.renderedText })));
-      if (inUse.length) return { ok: false, errors: { reason: `${inUse.map((u) => `"${u.alias}" is still in the text of ${[...new Set(u.certificates)].join(", ")}`).join("; ")}: without it a search by the term's other wordings no longer finds ${inUse.length === 1 && new Set(inUse[0].certificates).size === 1 ? "it" : "them"}. Say why it is removed.` } };
+      // Residual consider: matched in the database by whole words, only the numbers read, capped with "and N more".
+      const inUse: Awaited<ReturnType<typeof aliasInUse>>[] = [];
+      for (const a of removed) {
+        const u = await aliasInUse(tx, orgId, a);
+        if (u.total > 0) inUse.push(u);
+      }
+      if (inUse.length) return { ok: false, errors: { reason: aliasesInUseText(inUse) } };
     }
     const row = before
       ? await tx.term.update({ where: { id: before.id }, data: { canonicalEn, canonicalMs, provenance, notes } })
