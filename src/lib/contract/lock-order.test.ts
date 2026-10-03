@@ -377,6 +377,8 @@ const DEMO_WRITERS: string[] = [
   "prisma/demo-contracts.ts › loadContractsDemo",
   "prisma/demo-contracts.ts › wipeContractFormation",
   "prisma/demo-contracts.ts › writeVersion",
+  // 6.13 Part A: demo_con3's possession (its POSSESSION version and the move to active).
+  "prisma/demo-supervision.ts › loadSupervisionDemo",
 ].map(P);
 
 describe("the scan catches each evasion (self-tests)", () => {

@@ -6,6 +6,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { checkAwards, loadAwards, loadAwardSetup, reportAwardRefusal, wipeAwards } from "./demo-award";
 import { checkContractsDemo, configureContractsDemo, loadContractsDemo } from "./demo-contracts";
 import { checkCertificatesDemo, configureCertificatesDemo, loadCertificatesDemo, wipeCertificatesConfig } from "./demo-certificates";
+import { checkSupervisionDemo, configureSupervisionDemo, loadSupervisionDemo, wipeSupervisionConfig } from "./demo-supervision";
 import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments } from "./demo-documents";
 import { checkScope, loadScope, loadScopeExercises, loadScopeSitting, SCOPE_ENTITIES, scopeWipeDependents, screenHoldingsOnDemo, wipeScope } from "./demo-scope";
 import { loadSittingTrail } from "./demo-sitting-trail";
@@ -523,6 +524,8 @@ async function wipe() {
   await db.notificationRule.deleteMany({ where: demo });
   // 6.14: the routing sheet types, checks, targets, blocks and recipients, once every certificate and award sheet has gone.
   await wipeCertificatesConfig(db);
+  // 6.13 Part A: the delegation forms' blocks and recipients, and the post-award controls.
+  await wipeSupervisionConfig(db);
   await db.documentTemplate.deleteMany({ where: demo });
   // A demo class that a real document was filed under stays: documents are never removed.
   const keptClasses = await db.documentClass.findMany({ where: { ...demo, documents: { some: {} } }, select: { nameEn: true } });
@@ -1226,6 +1229,8 @@ async function load() {
   // 6.12: the three numbered contracts formed, each act judged by the product's own rules as it is
   // written, nothing dated after the load day (X-10); read back through the product's own readings.
   if (await configureContractsDemo(db, organisationId)) {
+    // 6.13 Part A: the S.O. rows first, as the employer's signature resolves the S.O. from them.
+    await configureSupervisionDemo(db, organisationId);
     await loadContractsDemo(db, organisationId);
     await checkContractsDemo(db);
     // 6.14 increment 1: forms, routing sheet types and five certificates on demo_con3, each act judged by
@@ -1233,6 +1238,9 @@ async function load() {
     await configureCertificatesDemo(db, organisationId);
     await loadCertificatesDemo(db, organisationId);
     await checkCertificatesDemo(db);
+    // 6.13 Part A run 1: demo_con3's supervision, possessed and In Delay (after the certificates, which read it stamped).
+    await loadSupervisionDemo(db, organisationId);
+    await checkSupervisionDemo(db);
   }
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");

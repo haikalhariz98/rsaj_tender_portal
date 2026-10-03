@@ -217,7 +217,7 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
         <CardHeader
           icon={<UsersIcon size={17} />}
           title="Representatives"
-          subtitle={`The S.O.'s delegations, each made by its letter pair${variant ? ` (${VARIANT_WORDS[variant].en.toLowerCase()})` : ""} and in force from the letter's date until revoked.`}
+          subtitle={`The S.O.'s delegations, each in force from its letter's date until revoked. Letters: ${variant ? VARIANT_WORDS[variant].en : "not set for this contract type"}.`}
           actions={<DelegationDrawer id={c.id} people={people} kinds={opts(DELEGATE_KINDS, DELEGATE_KIND_WORDS)} acts={opts(SUPERVISION_ACTS, ACT_WORDS)} letters={variant ? VARIANT_WORDS[variant].en : "not set for this contract type"} blocker={delegateBlocker} />}
           divided={v.s.soDelegations.length > 0}
         />

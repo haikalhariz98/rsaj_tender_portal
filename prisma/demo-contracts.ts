@@ -25,6 +25,7 @@ import { createHash } from "node:crypto";
 
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { wipeCertificates } from "./demo-certificates";
+import { wipeSupervision } from "./demo-supervision";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 
 type Db = PrismaClient;
@@ -314,6 +315,10 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
     await con3.writeVersion({ ...con3.draft, contractDate }, "EXECUTED", signedAt, "version 1");
     audit("ContractSignature", `${P}ksg_con3_r`, `${label} · signed for the employer`, "CREATE", signedAt, diffFields(null, { party: "RSAJ", signedBy: s.person.name, office: s.signatory.roleLabel, rule: s.signatory.ruleLabel, delegated: s.delegationId ? "yes" : "no", recordedOnBehalf: ON_BEHALF }));
     audit("Contract", id, label, "UPDATE", signedAt, diffFields({ status: "LEGALLY_ENDORSED", contractDate: null }, { status: "EXECUTED", contractDate, contractDateSource: "the day of the recorded signature act" }));
+    // 6.13 Part A: the signature resolves the Superintending Officer, as the act does (demo_yso_con3).
+    if (s.so?.state !== "RESOLVED" || !s.soMatrix) throw new Error("con3: the Superintending Officer did not resolve");
+    await db.contractSoAssignment.create({ data: { id: `${P}yso_con3`, organisationId, contractId: id, roleCode: s.so.roleCode, roleLabel: s.so.roleLabel, reason: "EXECUTION", matrixLabel: s.soMatrix.label, ruleKey: s.so.ruleKey, ruleLabel: s.so.ruleLabel, clause: s.so.clause, contractValue: (await db.contract.findUniqueOrThrow({ where: { id }, select: { contractSum: true } })).contractSum, regime: (await loadContract(id))!.ex.regime, warnings: s.so.notes.map((n) => n.messageEn), effectiveOn: day(contractDate), recordedAt: at(signedAt) } });
+    audit("ContractSoAssignment", `${P}yso_con3`, `${label} · Superintending Officer resolved`, "CREATE", signedAt, diffFields(null, { office: s.so.roleLabel, resolvedFrom: `${s.soMatrix.label}: ${s.so.ruleLabel} (${s.so.clause})`, resolvedBy: "the employer's signature", effectiveOn: contractDate, assumption: s.so.notes.map((n) => n.messageEn).join(" ") || null }));
 
     // The Integrity Pact briefing at signing.
     fail("con3 briefing", briefingFaults({ status: "EXECUTED", exists: false, participants: 2, attendees: 1, heldOn: contractDate, today: contractDate }));
@@ -417,6 +422,8 @@ export async function checkContractsDemo(db: Db) {
 /// The formation records of the contracts given, children first, and the trail written under their labels.
 export async function wipeContractFormation(db: Db, organisationId: string, contracts: readonly { id: string; number: string }[]) {
   if (!contracts.length) return;
+  // 6.13 Part A: the contracts' supervision first (a delegation names its letters, possession its baseline version).
+  await wipeSupervision(db, contracts.map((c) => c.id));
   // 6.14: the contracts' certificates first (a certificate's copy is an IssuedCopy, and it pins a baseline version).
   await wipeCertificates(db, contracts.map((c) => c.id));
   const byContract = { contractId: { in: contracts.map((c) => c.id) } };

@@ -17,6 +17,7 @@ import { contractLabel, withLockedContract, type LoadedContract } from "@/lib/co
 import { contractTransition, isExecuted } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf, dayToDate, storedDay } from "@/lib/dates";
+import { formatDate } from "@/lib/format";
 import { amountOf, parseSen, senToDecimalString } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { parsePercent } from "@/lib/securities/money";
@@ -396,7 +397,7 @@ export async function recordProgress(_prev: FormState, data: FormData): Promise<
     const fs = progressFaults({ possessionOn: day(s.possession?.possessionOn), day: d, today: c.today, pct, exists: rows.some((x) => x.day === d), earlier, later, parsed });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.progressRecord.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, day: on, actualPct: pct, recordedByPersonId: who.person.id, note, recordedAt: c.now } });
-    await audit(c, "ProgressRecord", row.id, `progress on ${d}`, "CREATE", diffFields(null, { day: d, actualProgress: `${pct}%`, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }), note);
+    await audit(c, "ProgressRecord", row.id, `progress on ${formatDate(d)}`, "CREATE", diffFields(null, { day: d, actualProgress: `${pct}%`, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }), note);
     return { ok: true };
   });
 }
@@ -420,7 +421,7 @@ export async function recordDiaryEntry(_prev: FormState, data: FormData): Promis
     const fs = entryFaults({ possessionOn: day(s.possession?.possessionOn), day: d, today: c.today, exists: s.siteDiaryEntries.some((x) => storedDay(x.day) === d), entry, backdatedReason });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.siteDiaryEntry.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, day: on, weather, entry, officerPersonId: who.person.id, backdatedReason: d < c.today ? backdatedReason.trim() : "", recordedAt: c.now, recordedOn: dayToDate(c.today) } });
-    await audit(c, "SiteDiaryEntry", row.id, `site diary ${d}`, "CREATE", diffFields(null, { day: d, weather: weather || null, responsibleOfficer: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, writtenOn: c.today, exception: d < c.today ? backdatedReason.trim() : null, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "SiteDiaryEntry", row.id, `site diary ${formatDate(d)}`, "CREATE", diffFields(null, { day: d, weather: weather || null, responsibleOfficer: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, writtenOn: c.today, exception: d < c.today ? backdatedReason.trim() : null, recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
 }
@@ -448,7 +449,7 @@ export async function attestDiary(_prev: FormState, data: FormData): Promise<For
     if (fs.length) refuse("Not recorded:", fs);
     const moved = who === "OFFICER" ? await c.tx.siteDiaryEntry.updateMany({ where: { id: e.id, officerAttestedOn: null }, data: { officerAttestedOn: on } }) : await c.tx.siteDiaryEntry.updateMany({ where: { id: e.id, agentAttestedOn: null }, data: { agentAttestedOn: on, agentName: agentName.trim() } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(c, "SiteDiaryEntry", e.id, `site diary ${storedDay(e.day)}`, "UPDATE", diffFields({ attestedBy: null }, { attestedBy: who === "OFFICER" ? `${e.officer.name} (responsible officer)` : `${agentName.trim()} (the contractor's agent)`, attestedOn: storedDay(on), recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "SiteDiaryEntry", e.id, `site diary ${formatDate(storedDay(e.day))}`, "UPDATE", diffFields({ attestedBy: null }, { attestedBy: who === "OFFICER" ? `${e.officer.name} (responsible officer)` : `${agentName.trim()} (the contractor's agent)`, attestedOn: storedDay(on), recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
 }
@@ -466,7 +467,7 @@ export async function disputeDiary(_prev: FormState, data: FormData): Promise<Fo
     if (fs.length) refuse("Not recorded:", fs);
     const moved = await c.tx.siteDiaryEntry.updateMany({ where: { id: e.id, disagreement: "" }, data: { disagreement: disagreement.trim(), escalatedOn: dayToDate(c.today) } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(c, "SiteDiaryEntry", e.id, `site diary ${storedDay(e.day)}`, "UPDATE", diffFields({ disagreement: null }, { disagreement: disagreement.trim(), escalatedToTheSo: c.today }));
+    await audit(c, "SiteDiaryEntry", e.id, `site diary ${formatDate(storedDay(e.day))}`, "UPDATE", diffFields({ disagreement: null }, { disagreement: disagreement.trim(), escalatedToTheSo: c.today }));
     return { ok: true };
   });
 }
@@ -492,7 +493,7 @@ export async function endorseDiary(_prev: FormState, data: FormData): Promise<Fo
     const fs = endorseFaults({ possessionOn: day(s.possession?.possessionOn), visitedOn: storedDay(visitedOn), coversFrom: from, coversTo: to, today: c.today, entriesInCover: s.siteDiaryEntries.filter((x) => storedDay(x.day) >= from && storedDay(x.day) <= to).length });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.diaryEndorsement.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, role, personId: person.id, visitedOn, coversFrom, coversTo, note, recordedAt: c.now } });
-    await audit(c, "DiaryEndorsement", row.id, `site diary endorsed ${storedDay(visitedOn)}`, "CREATE", diffFields(null, { endorsedAs: ENDORSER_WORDS[role].en, endorsedBy: person.name, visitedOn: storedDay(visitedOn), coversFrom: from, coversTo: to, recordedOnBehalf: ON_BEHALF }), note);
+    await audit(c, "DiaryEndorsement", row.id, `site diary endorsed ${formatDate(storedDay(visitedOn))}`, "CREATE", diffFields(null, { endorsedAs: ENDORSER_WORDS[role].en, endorsedBy: person.name, visitedOn: storedDay(visitedOn), coversFrom: from, coversTo: to, recordedOnBehalf: ON_BEHALF }), note);
     return { ok: true };
   });
 }
@@ -518,7 +519,7 @@ export async function recordSiteMeeting(_prev: FormState, data: FormData): Promi
     const fs = meetingFaults({ inDelay: reading.state === "IN_DELAY", heldOn: d, today: c.today, minutes, attendees });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.siteMeeting.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, heldOn, chairPersonId: who.person.id, attendees, minutes, inDelayReading: reading as unknown as Prisma.InputJsonValue, recordedAt: c.now } });
-    await audit(c, "SiteMeeting", row.id, `special meeting ${d}`, "CREATE", diffFields(null, { heldOn: d, chairedBy: who.person.name, attendees: attendees.join("; "), calledBy: "the In Delay classification", recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "SiteMeeting", row.id, `special meeting ${formatDate(d)}`, "CREATE", diffFields(null, { heldOn: d, chairedBy: who.person.name, attendees: attendees.join("; "), calledBy: "the In Delay classification", recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
 }
@@ -539,7 +540,7 @@ export async function recordObservation(_prev: FormState, data: FormData): Promi
     const fs = onSiteFaults({ possessionOn: day(s.possession?.possessionOn), on: d, today: c.today, note });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.complianceObservation.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, area, observedOn: on, personId: who.person.id, note, recordedAt: c.now } });
-    await audit(c, "ComplianceObservation", row.id, `observation ${d}`, "CREATE", diffFields(null, { about: AREA_WORDS[area].en, observedOn: d, observedBy: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, observation: note, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "ComplianceObservation", row.id, `observation ${formatDate(d)}`, "CREATE", diffFields(null, { about: AREA_WORDS[area].en, observedOn: d, observedBy: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, observation: note, recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
 }
@@ -560,7 +561,7 @@ export async function recordDirection(_prev: FormState, data: FormData): Promise
     const fs = onSiteFaults({ possessionOn: day(s.possession?.possessionOn), on: d, today: c.today, note });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.programmeDirection.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, cause, directedOn: on, personId: who.person.id, note, recordedAt: c.now } });
-    await audit(c, "ProgrammeDirection", row.id, `direction ${d}`, "CREATE", diffFields(null, { calledForBy: CAUSE_WORDS[cause].en, directedOn: d, directedBy: who.person.name, directionGiven: note, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "ProgrammeDirection", row.id, `direction ${formatDate(d)}`, "CREATE", diffFields(null, { calledForBy: CAUSE_WORDS[cause].en, directedOn: d, directedBy: who.person.name, directionGiven: note, recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
 }
@@ -607,7 +608,7 @@ export async function recordEarlyAction(_prev: FormState, data: FormData): Promi
     const fs = earlyActionFaults({ possessed: !!s.possession, branches, reason, on: d, today: c.today });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.earlyActionDecision.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, decidedOn: on, branches, personId: who.person.id, reason, recordedAt: c.now } });
-    await audit(c, "EarlyActionDecision", row.id, `early action ${d}`, "CREATE", diffFields(null, { actions: branches.map((b) => BRANCH_WORDS[b].en).join("; "), decidedOn: d, decidedBy: who.person.name, recordedOnBehalf: ON_BEHALF }), reason);
+    await audit(c, "EarlyActionDecision", row.id, `early action ${formatDate(d)}`, "CREATE", diffFields(null, { actions: branches.map((b) => BRANCH_WORDS[b].en).join("; "), decidedOn: d, decidedBy: who.person.name, recordedOnBehalf: ON_BEHALF }), reason);
     return { ok: true };
   });
 }
