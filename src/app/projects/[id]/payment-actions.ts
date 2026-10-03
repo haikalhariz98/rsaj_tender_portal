@@ -574,7 +574,7 @@ export async function recordWarningPost(_prev: FormState, data: FormData): Promi
 
 /// The four pack items as posted: each written, or marked not required (its text then the reason).
 function readPack(data: FormData): PackAnswer[] {
-  return PACK_ITEMS.map((item: PackItem) => ({ item, text: String(data.get(`pack_${item}`) ?? "").trim().slice(0, 4000), notRequired: data.get(`pack_${item}_notRequired`) === "on" || data.get(`pack_${item}_notRequired`) === "true" }));
+  return PACK_ITEMS.map((item: PackItem) => ({ item, text: String(data.get(`pack_${item}`) ?? "").trim().slice(0, 4000), notRequired: data.get(`pack_${item}_notRequired`) != null }));
 }
 
 /**
