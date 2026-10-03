@@ -5,6 +5,11 @@
 
 import { formatDate } from "@/lib/format";
 
+import type { DelayReading } from "./delay";
+import type { DelegationState } from "./delegation";
+import type { EntryState } from "./diary";
+import type { startRuleReading } from "./possession";
+import type { BRANCH_OPENS } from "./records";
 import type { ComplianceArea, ContractPartyKind, DelegateKind, DelegationVariant, DiaryEndorser, DirectionCause, EarlyActionBranch, Finding, PendingDeductionKind, ProgrammeDecision, ProgrammeKind, SiteRecordsSet, SoAssignmentReason, SupervisionAct } from "./types";
 
 export interface Words {
@@ -93,6 +98,62 @@ export const RECORDS_SET_WORDS: Readonly<Record<SiteRecordsSet, Words>> = {
   PIPE_LOG: w("Pipe log", "Log paip"),
   AS_BUILT: w("As-built drawings", "Lukisan siap bina"),
 };
+
+// ------------------------------------------------------------------ readings shown on the contract
+
+export const DELEGATION_STATE_WORDS: Readonly<Record<DelegationState, Words>> = {
+  LETTER_NOT_ISSUED: w("Letter not issued: not yet in force", "Surat belum dikeluarkan: belum berkuat kuasa"),
+  IN_FORCE: w("In force", "Berkuat kuasa"),
+  REVOKED: w("Revoked", "Dibatalkan"),
+  LETTER_VOID: w("Letter void: not in force", "Surat terbatal: tidak berkuat kuasa"),
+};
+export const DELEGATION_STATE_TONE: Readonly<Record<DelegationState, "ok" | "warn" | "neutral">> = { LETTER_NOT_ISSUED: "warn", IN_FORCE: "ok", REVOKED: "neutral", LETTER_VOID: "neutral" };
+
+export const ENTRY_STATE_WORDS: Readonly<Record<EntryState, Words>> = {
+  COMPLETE: w("Attested by both", "Disahkan oleh kedua-dua pihak"),
+  AWAITING_OFFICER: w("Awaiting the responsible officer's attestation", "Menunggu pengesahan pegawai bertanggungjawab"),
+  AWAITING_AGENT: w("Awaiting the contractor's agent's attestation", "Menunggu pengesahan ejen kontraktor"),
+  AWAITING_BOTH: w("Not yet attested", "Belum disahkan"),
+  DISPUTED: w("Disputed: escalated to the S.O.", "Dipertikaikan: dirujuk kepada P.P."),
+};
+export const ENTRY_STATE_TONE: Readonly<Record<EntryState, "ok" | "warn" | "err" | "neutral">> = { COMPLETE: "ok", AWAITING_OFFICER: "warn", AWAITING_AGENT: "warn", AWAITING_BOTH: "warn", DISPUTED: "err" };
+
+export const START_RULE_WORDS: Readonly<Record<ReturnType<typeof startRuleReading>, Words>> = {
+  SECURITIES_FIRST: w("Work starts once the bond and the required insurance are verified", "Kerja bermula setelah bon dan insurans yang diperlukan disahkan"),
+  WITHOUT_SECURITIES: w("This contract type starts work without its securities", "Jenis kontrak ini memulakan kerja tanpa jaminannya"),
+  NOT_SET: w("Not set for this contract type", "Tidak ditetapkan bagi jenis kontrak ini"),
+};
+
+/// Where an early-action branch goes, in words (never a module number).
+export const BRANCH_OPENS_WORDS: Readonly<Record<(typeof BRANCH_OPENS)[EarlyActionBranch], Words>> = {
+  PART_B: w("opens with extensions of time and termination, which this version does not record yet", "dibuka bersama lanjutan masa dan penamatan, yang belum direkodkan oleh versi ini"),
+  LAD_CHAIN: w("opens with the liquidated-damages chain, which arrives with the interim payment certificate", "dibuka bersama rantaian ganti rugi tertentu, yang tiba bersama perakuan bayaran interim"),
+};
+
+const pct = (v: string | null) => (v == null ? "none recorded" : `${v}%`);
+
+/// The In Delay reading in words, with what it was judged on.
+export function delayWords(r: DelayReading): { title: Words; detail: Words; tone: "err" | "ok" | "warn" | "neutral" } {
+  switch (r.state) {
+    case "IN_DELAY":
+      return r.why === "LAPSED"
+        ? { tone: "err", title: w("In Delay", "Dalam Kelewatan"), detail: w(`The date for completion, ${formatDate(r.dateForCompletion)}, has passed with the work incomplete (latest progress ${pct(r.actualPct)}).`, `Tarikh siap, ${formatDate(r.dateForCompletion)}, telah berlalu dan kerja belum siap (kemajuan terkini ${pct(r.actualPct)}).`) }
+        : { tone: "err", title: w("In Delay", "Dalam Kelewatan"), detail: w(`On ${formatDate(r.day)} actual progress was ${r.actualPct}% against ${r.plannedPct}% planned: below ${r.policyPct}% of the plan.`, `Pada ${formatDate(r.day)} kemajuan sebenar ${r.actualPct}% berbanding ${r.plannedPct}% dirancang: di bawah ${r.policyPct}% daripada rancangan.`) };
+    case "ON_TRACK":
+      return { tone: "ok", title: w("Not in delay", "Tidak dalam kelewatan"), detail: w(`On ${formatDate(r.day)} actual progress was ${r.actualPct}% against ${r.plannedPct}% planned: not below ${r.policyPct}% of the plan.`, `Pada ${formatDate(r.day)} kemajuan sebenar ${r.actualPct}% berbanding ${r.plannedPct}% dirancang: tidak di bawah ${r.policyPct}% daripada rancangan.`) };
+    case "NOT_SET":
+      return { tone: "warn", title: w("Not judged: the percentage is not set", "Tidak dinilai: peratusan belum ditetapkan"), detail: w("The share of planned progress below which a contract is In Delay is not set under Configuration › Post-award. It is never assumed.", "Peratusan kemajuan dirancang yang menjadikan kontrak Dalam Kelewatan belum ditetapkan di Konfigurasi › Selepas setuju terima.") };
+    case "NOT_JUDGED": {
+      const why: Record<typeof r.why, Words> = {
+        NOT_POSSESSED: w("Possession of site is not recorded.", "Milik tapak belum direkodkan."),
+        NO_PROGRAMME: w("No work programme is approved.", "Tiada program kerja diluluskan."),
+        NO_PROGRESS: w("No progress is recorded.", "Tiada kemajuan direkodkan."),
+        BEFORE_PROGRAMME: w("The latest progress is before the approved programme's first point.", "Kemajuan terkini sebelum titik pertama program yang diluluskan."),
+      };
+      return { tone: "neutral", title: w("Not judged", "Tidak dinilai"), detail: why[r.why] };
+    }
+  }
+}
 
 const day = (v: unknown) => (typeof v === "string" ? formatDate(v) : "that day");
 

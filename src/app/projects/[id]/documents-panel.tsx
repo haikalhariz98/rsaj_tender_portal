@@ -14,21 +14,21 @@ const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err",
 /**
  * The contract's Documents tab (6.14 increment 1, plan §5): every certificate of the contract, by kind and
  * where it stands, newest first, paged. Each opens on its own page. Certificates are raised by the
- * post-award modules (6.13), not built yet, and the tab says so (gaps stay honest); none is raised from here.
+ * post-award modules (6.13: a delegation's letters so far), and the tab says what raises them (gaps stay honest); none is raised from here.
  */
 export async function DocumentsPanel({ contractId, page }: { contractId: string; page: number }) {
   const { rows, total } = await certificatesOfContract(contractId, page);
   const pages = Math.ceil(total / CERTIFICATES_PAGE);
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<FilesIcon size={17} />} title="Certificates" subtitle="Every certificate of this contract, newest first; each is signed, numbered and distributed on its own page. Nothing in the system raises a certificate yet: the valuations, variations and delegations that raise them are not built." divided={false} />
+      <CardHeader icon={<FilesIcon size={17} />} title="Certificates" subtitle="Every certificate of this contract, newest first; each is signed, numbered and distributed on its own page. A delegation to a representative raises its letters under Team; the valuations and variations that raise the others are not built yet." divided={false} />
       <DataList
         flat
         selectable={false}
         exportName="certificates"
         searchPlaceholder="Search by kind or number"
         emptyTitle="No certificates yet"
-        emptyBody="None is raised on this contract. Nothing in the system raises a certificate yet."
+        emptyBody="None is raised on this contract. A delegation under Team raises its letters."
         filters={[{ key: "status", label: "Where it stands", order: CERTIFICATE_STATUSES.map((s) => STATUS_WORDS[s].en) }]}
         rowAction={{ label: "Open", hrefTemplate: `/projects/${contractId}/certificates/{id}` }}
         rowOpens

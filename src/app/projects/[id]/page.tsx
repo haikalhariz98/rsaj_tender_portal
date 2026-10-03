@@ -3,7 +3,7 @@ import { historyEntityLabel, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES } from "@/l
 import { notFound } from "next/navigation";
 
 import { ReadinessGateList } from "@/components/contract/readiness-gate";
-import { AwardIcon, CheckIcon, ClockIcon, FileIcon, FilesIcon, ShieldIcon, ToolsIcon } from "@/components/icons";
+import { AwardIcon, BuildingIcon, CheckIcon, ClockIcon, FileIcon, FilesIcon, ShieldIcon, ToolsIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
@@ -35,6 +35,7 @@ import { BaselinePanel } from "./baseline-panel";
 import { DocumentsPanel } from "./documents-panel";
 import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
 import { FormationPanel, FORMATION_SECTIONS, type FormationSection } from "./formation-panels";
+import { OnSiteCard, SITE_SECTIONS, SitePanel, supervisionView, TeamPanel, type SiteSection, type SupervisionView } from "./supervision-panels";
 
 export const dynamic = "force-dynamic";
 
@@ -55,19 +56,23 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
   const c = l.contract;
   const status = c.status as ContractStatus;
   const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
-  const [people, history, facts, certificates] = await Promise.all([
+  const [people, history, facts, certificates, supervision] = await Promise.all([
     db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     contractHistory(l),
     today ? signingFacts(l, null, today) : Promise.resolve(null),
     // 6.14 increment 1: the contract's certificates, counted for the Documents tab.
     db.certificate.count({ where: { contractId: c.id } }),
+    // 6.13 Part A: the contract's supervision, read once for the Overview, Team and Site tabs.
+    supervisionView(l, today),
   ]);
   const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));
   const phase = facts?.phase ?? status;
   const formationSection = (FORMATION_SECTIONS.find((s) => s.id === section)?.id ?? "assembly") as FormationSection;
+  const siteSection = (SITE_SECTIONS.find((s) => s.id === section)?.id ?? "start") as SiteSection;
+  const pageNo = Math.max(0, Number.parseInt(page ?? "0", 10) || 0);
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} facts={facts} today={today} /> },
+    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} facts={facts} today={today} supervision={supervision} /> },
     {
       id: "formation",
       label: "Formation",
@@ -77,9 +82,20 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
       panel: tab === "formation" && facts ? <FormationPanel l={l} section={formationSection} facts={facts} people={peopleOptions} today={today} /> : null,
     },
     { id: "baseline", label: "Baseline", icon: <FileIcon size={15} />, count: c.baselines.filter((b) => b.version != null).length, lazy: true, panel: tab === "baseline" && facts ? <BaselinePanel l={l} facts={facts} timeZone={l.org.timeZone} /> : null },
+    // 6.13 Part A: who supervises the contract, and what happens on site.
+    { id: "team", label: "Team", icon: <UsersIcon size={15} />, count: supervision.s.soDelegations.length + supervision.s.contractParties.length, lazy: true, panel: tab === "team" ? <TeamPanel l={l} v={supervision} people={peopleOptions} today={today} /> : null },
+    {
+      id: "site",
+      label: "Site",
+      icon: <BuildingIcon size={15} />,
+      sections: [...SITE_SECTIONS],
+      section: siteSection,
+      lazy: true,
+      panel: tab === "site" ? <SitePanel l={l} v={supervision} people={peopleOptions} today={today} section={siteSection} page={pageNo} /> : null,
+    },
     { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: c.securities.length + c.policies.length, panel: <SecuritiesPanel l={l} people={peopleOptions} today={today} /> },
     // 6.14 increment 1 (plan §5): every certificate of the contract, by kind and status.
-    { id: "documents", label: "Documents", icon: <FilesIcon size={15} />, count: certificates, lazy: true, panel: tab === "documents" ? <DocumentsPanel contractId={c.id} page={Math.max(0, Number.parseInt(page ?? "0", 10) || 0)} /> : null },
+    { id: "documents", label: "Documents", icon: <FilesIcon size={15} />, count: certificates, lazy: true, panel: tab === "documents" ? <DocumentsPanel contractId={c.id} page={pageNo} /> : null },
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel entries={history.entries} total={history.total} timeZone={l.org.timeZone} /> },
   ];
 
@@ -119,7 +135,7 @@ type Facts = NonNullable<Awaited<ReturnType<typeof signingFacts>>>;
 
 // ------------------------------------------------------------------ overview
 
-async function OverviewPanel({ l, facts, today }: { l: LoadedContract; facts: Facts | null; today: string | null }) {
+async function OverviewPanel({ l, facts, today, supervision }: { l: LoadedContract; facts: Facts | null; today: string | null; supervision: SupervisionView }) {
   const c = l.contract;
   const status = c.status as ContractStatus;
   const snap = readFormationSnapshot(c.formationSnapshot);
@@ -152,6 +168,7 @@ async function OverviewPanel({ l, facts, today }: { l: LoadedContract; facts: Fa
           <CardHeader icon={<ToolsIcon size={17} />} title="Not started" subtitle="The contract is numbered. Preparing it freezes what it is formed under and builds the baseline's draft." actions={<StartPreparationDrawer id={c.id} blocker={start.blocker} frozen={start.frozen} />} />
         </Card>
       )}
+      <OnSiteCard l={l} v={supervision} />
       <Card>
         <CardHeader icon={<FileIcon size={17} />} title="The contract" subtitle="As awarded, numbered at issue, and as it is being formed." />
         <CardBody>

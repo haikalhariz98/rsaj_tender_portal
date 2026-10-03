@@ -117,6 +117,34 @@ export function delayOn(s: SupervisionRows, i: { today: string; dateForCompletio
   });
 }
 
+/**
+ * In Delay for a page of contracts (the Projects list), in three batched reads: their possession, their programme
+ * revisions with points, and their progress. The same rule as the contract's own reading. Only a possessed
+ * contract is read; the rest are absent from the map.
+ */
+export async function delayReadingsOf(organisationId: string, rows: readonly { id: string; dateForCompletion: Date | null }[], today: string, client: Tx = db): Promise<Map<string, DelayReading>> {
+  const out = new Map<string, DelayReading>();
+  const possessions = await client.possession.findMany({ where: { organisationId, contractId: { in: rows.map((r) => r.id) } }, select: { contractId: true, possessionOn: true } });
+  const ids = possessions.map((p) => p.contractId);
+  if (!ids.length) return out;
+  const [policy, programmes, progress] = await Promise.all([
+    loadPostAwardPolicy(organisationId, client),
+    client.workProgramme.findMany({ where: { contractId: { in: ids } }, include: { points: { orderBy: { day: "asc" } } }, orderBy: { revision: "asc" } }),
+    client.progressRecord.findMany({ where: { contractId: { in: ids } }, orderBy: { day: "asc" }, select: { contractId: true, day: true, actualPct: true } }),
+  ]);
+  for (const p of possessions) {
+    const revs = programmes.filter((x) => x.contractId === p.contractId).map((x) => ({ revision: x.revision, submittedOn: storedDay(x.submittedOn), scrutinisedOn: day(x.scrutinisedOn), reasonable: x.reasonable, decision: x.decision as ProgrammeDecision | null, decidedOn: day(x.decidedOn), points: x.points.map((pt) => ({ day: storedDay(pt.day), plannedPct: pt.plannedPct.toString() })) }));
+    const prog = programmeInForce(revs, today);
+    const latest = progress.filter((x) => x.contractId === p.contractId && storedDay(x.day) <= today).at(-1) ?? null;
+    const completion = rows.find((r) => r.id === p.contractId)?.dateForCompletion ?? null;
+    out.set(
+      p.contractId,
+      inDelay({ today, possessed: storedDay(p.possessionOn) <= today, dateForCompletion: day(completion), programme: prog ? prog.points : null, latest: latest ? { day: storedDay(latest.day), actualPct: latest.actualPct.toString() } : null, policyPct: policy?.inDelayProgressPct?.toString() ?? null }),
+    );
+  }
+  return out;
+}
+
 /// The organisation's post-award policy (one row; unset where none).
 export async function loadPostAwardPolicy(organisationId: string, client: Tx = db) {
   return client.postAwardPolicy.findUnique({ where: { organisationId } });

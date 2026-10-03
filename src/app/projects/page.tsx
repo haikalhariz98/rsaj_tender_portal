@@ -8,8 +8,9 @@ import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
 import { CONTRACT_PAGE, endorsedPhases, listContracts } from "@/lib/contract/load";
 import { CONTRACT_PHASES, type ContractPhase } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
-import { storedDay } from "@/lib/dates";
+import { dayOf, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
+import { delayReadingsOf } from "@/lib/supervision/load";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,9 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   const ready = [...derived.values()].filter((x) => x === "READY_TO_SIGN").length;
   const awaiting = [...derived.values()].filter((x) => x === "AWAITING_CONDITIONS").length;
   const pages = Math.ceil(data.total / CONTRACT_PAGE);
+  // 6.13 Part A (FR-SUP-010): In Delay, derived for this page's possessed contracts, never stored.
+  const today = data.org?.timeZone ? dayOf(new Date(), data.org.timeZone) : null;
+  const delays = data.org && today ? await delayReadingsOf(data.org.id, data.rows, today) : new Map();
 
   const rows: Row[] = data.rows.map((r) => {
     const status = r.status as ContractStatus;
@@ -44,6 +48,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
         ...(["IN_PREPARATION", "RETURNED_FOR_AMENDMENT", "PENDING_LEGAL_ENDORSEMENT", "LEGALLY_ENDORSED"].includes(status) ? ["forming"] : []),
         ...(phase === "READY_TO_SIGN" ? ["ready"] : []),
         ...(["EXECUTED", "STAMPED", "ACTIVE"].includes(status) ? ["executed"] : []),
+        ...(delays.get(r.id)?.state === "IN_DELAY" ? ["delay"] : []),
       ],
       search: [r.award.exercise.title, r.number, r.award.awardeeName, r.award.reference, PHASE_WORDS[phase].en].join(" "),
       sortKeys: { sum: Number(r.contractSum.toString()), contract: r.award.exercise.title },
@@ -51,7 +56,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
         contract: { kind: "link", text: r.award.exercise.title, href: `/projects/${r.id}`, sub: `Contract ${r.number}` },
         contractor: { kind: "text", text: r.award.awardeeName },
         sum: { kind: "money", value: Number(r.contractSum.toString()) },
-        phase: { kind: "badge", text: PHASE_WORDS[phase].en, tone: TONE[PHASE_TONE[phase]] },
+        phase: delays.get(r.id)?.state === "IN_DELAY" ? { kind: "chips", items: [{ text: PHASE_WORDS[phase].en, ...(TONE[PHASE_TONE[phase]] ? { tone: TONE[PHASE_TONE[phase]] } : {}) }, { text: "In Delay", tone: "err" }] } : { kind: "badge", text: PHASE_WORDS[phase].en, tone: TONE[PHASE_TONE[phase]] },
         dates: { kind: "stack", title: r.contractDate ? `Contract Date ${formatDate(storedDay(r.contractDate))}` : "Not signed", sub: completion ? `Completion ${formatDate(storedDay(completion))}` : "Completion date not set until possession" },
       },
     };
@@ -65,7 +70,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
         meta={[`${data.counts.preparing} in preparation`, `${data.counts.returned} returned for amendment`, `${data.counts.legal} with the legal office`, `${awaiting} awaiting conditions`, `${ready} ready to sign`, `${data.counts.executed} executed`]}
       />
       <Callout tone="info" className="mb-6" title="Still to come here">
-        Contract administration after signature arrives with the later modules: possession of site, supervision and site records, variations, extensions of time and liquidated damages (post-award lifecycle); valuations, interim certificates, retention and the payment waterfall (certificates); completion, defects and the final account. Each contract&apos;s baseline here is what they will read.
+        Possession of site, supervision and site records are recorded on each contract&apos;s Team and Site tabs. Still to come: variations, extensions of time and liquidated damages; valuations, interim certificates, retention and the payment waterfall; completion, defects and the final account. Each contract&apos;s baseline here is what they will read.
       </Callout>
       <Card className="overflow-hidden">
         <CardHeader icon={<FileIcon size={17} />} title="Contracts" subtitle="Newest number first. A contract appears here when its award's instrument is issued." divided={false} />
@@ -81,6 +86,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
             { id: "forming", label: "Being formed" },
             { id: "ready", label: "Ready to sign" },
             { id: "executed", label: "Executed" },
+            { id: "delay", label: "In Delay" },
           ]}
           filters={[{ key: "phase", label: "Where it stands", order: CONTRACT_PHASES.map((x) => PHASE_WORDS[x].en) }]}
           rowAction={{ label: "Open", hrefTemplate: "/projects/{id}" }}

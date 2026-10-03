@@ -46,9 +46,11 @@ describe("the printed sheet's labels stay off the screens (S-2)", () => {
       expect(w.en, c).not.toMatch(/key "certificate"|kunci "certificate"/);
     }
   });
-  it("the contract's Documents tab names no module number and says nothing raises a certificate yet (S-3)", () => {
+  // Changed at 6.13 Part A step 2 as the facts changed: a delegation now raises its letters, so the tab says what
+  // raises a certificate and what is not built yet, rather than that nothing does.
+  it("the contract's Documents tab names no module number and says what raises a certificate and what is not built (S-3)", () => {
     const src = code(read("src/app/projects/[id]/documents-panel.tsx"));
-    expect(src).toMatch(/Nothing in the system raises a certificate yet/);
+    expect(src).toMatch(/A delegation to a representative raises its letters under Team; the valuations and variations that raise the others are not built yet/);
     expect(src).not.toMatch(/\b6\.1\d\b|post-award module/);
   });
 });
