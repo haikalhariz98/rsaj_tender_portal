@@ -32,7 +32,9 @@ describe("(a) only a certificate form takes blocks and recipients", () => {
     // DELEGATION_LETTER and DELEGATION_NOTICE kinds), so they are a certificate form's own use, not another module's.
     // 6.13 Part A step 3 (faithful, the same reading): the form each certificate kind prints on (CertificateKindSetting)
     // is a certificate form's own use too.
-    const certificateOwn = ["signatureBlocks", "distributionRows", "certificates", "certificateDocuments", "routingSheetTypes", "policiesDelegationLetterConventional", "policiesDelegationNoticeConventional", "policiesDelegationLetterDesignBuild", "policiesDelegationNoticeDesignBuild", "kindSettings"];
+    // 6.14 increment 2 (faithful, the same reading): the printed form's fields and the typing corrections naming a form
+    // are 6.14's own fidelity metadata, not another module's document.
+    const certificateOwn = ["signatureBlocks", "distributionRows", "certificates", "certificateDocuments", "routingSheetTypes", "policiesDelegationLetterConventional", "policiesDelegationNoticeConventional", "policiesDelegationLetterDesignBuild", "policiesDelegationNoticeDesignBuild", "kindSettings", "printedFields", "correctionForms"];
     expect(relations.filter((r) => !certificateOwn.includes(r)).sort()).toEqual(Object.keys(TEMPLATE_OTHER_USES).sort());
   });
   it("the acts refuse a block or a recipient on such a template, and never move its version", () => {

@@ -231,6 +231,58 @@ export function certificateFaultWords(f: Finding): Words {
       return w("The certificate cannot move there from where it stands.", "Perakuan tidak boleh berpindah ke situ.");
     case "CONTRACT_CANCELLED":
       return w("The contract is cancelled: its certificates are kept as they were.", "Kontrak dibatalkan: perakuannya dikekalkan.");
+    // ------------------------------------------------ increment 2: terms, at the first signature
+    case "UNKNOWN_TERM":
+      return w(`The form ${s(d.form, "")} cites the term ${s(d.terms, "")}, which is not in the glossary, so its text cannot be printed. Add the term under Configuration › Templates, Terms, or take it out of the text.`, `Borang ${s(d.form, "")} memetik istilah ${s(d.terms, "")} yang tiada dalam glosari. Tambah istilah itu di Konfigurasi › Templat, Istilah, atau keluarkan daripada teks.`);
+    case "TERM_NO_WORDING":
+      return w(`The form ${s(d.form, "")} cites ${s(d.terms, "a term")}, which has no wording in that language, so the text would print a blank. Give the term its wording under Configuration › Templates, Terms.`, `Borang ${s(d.form, "")} memetik ${s(d.terms, "istilah")} yang tiada perkataan dalam bahasa itu. Berikan perkataannya di Konfigurasi › Templat, Istilah.`);
+    // ------------------------------------------------ increment 2: saving a printed field, a correction, a term
+    case "PRINTED_KEY":
+      return w("Give the printed field a code in small letters, digits and underscores, starting with a letter.", "Berikan kod medan bercetak dalam huruf kecil, digit dan garis bawah, bermula dengan huruf.");
+    case "PRINTED_KEY_TAKEN":
+      return w("Another printed field on this form already has that code.", "Medan bercetak lain pada borang ini sudah menggunakan kod itu.");
+    case "PRINTED_LABEL":
+      return w("Give the field's label as the form prints it.", "Berikan label medan seperti dicetak pada borang.");
+    case "PRINTED_BOUND_NEEDS_VALUE":
+      return w("A field the portal fills names the value it prints. Choose one, or mark the field as completed by hand.", "Medan yang diisi oleh portal menamakan nilai yang dicetaknya. Pilih satu, atau tandakan medan itu diisi dengan tangan.");
+    case "PRINTED_VALUE_UNKNOWN":
+      return w("That is not a value the portal fills on a certificate or its routing sheet.", "Itu bukan nilai yang diisi oleh portal pada perakuan atau helaian penghalaannya.");
+    case "PRINTED_UNBOUND_HAS_VALUE":
+      return w("A field completed by hand on the paper names no value: the portal leaves it blank.", "Medan yang diisi dengan tangan tidak menamakan nilai: portal membiarkannya kosong.");
+    case "PRINTED_ORDER":
+      return w("Give the field's place on the form as a whole number from 0.", "Berikan kedudukan medan pada borang sebagai nombor bulat dari 0.");
+    case "PAGE_COUNT":
+      return w(`Give the printed form's pages as a whole number from 1 to ${s(d.max, "999")}, or leave it blank where it is not recorded.`, `Berikan bilangan muka surat borang bercetak sebagai nombor bulat dari 1 hingga ${s(d.max, "999")}, atau biarkan kosong.`);
+    case "CORRECTION_FROM_REQUIRED":
+      return w("Give the words as the form misprints them.", "Berikan perkataan seperti tersalah cetak pada borang.");
+    case "CORRECTION_TO_REQUIRED":
+      return w("Give the words as they should read.", "Berikan perkataan seperti sepatutnya dibaca.");
+    case "CORRECTION_SPACES":
+      return w("Start and end the words with a letter, not a space: a correction matches the words exactly.", "Mulakan dan akhiri perkataan dengan huruf, bukan ruang: pembetulan memadankan perkataan dengan tepat.");
+    case "CORRECTION_TOO_LONG":
+      return w(`A correction is at most ${s(d.max, "200")} characters each way: it corrects a typing error, not a passage.`, `Pembetulan paling banyak ${s(d.max, "200")} aksara: ia membetulkan kesilapan menaip, bukan petikan.`);
+    case "CORRECTION_SAME":
+      return w("The words read the same before and after: there is nothing to correct.", "Perkataan sama sebelum dan selepas: tiada yang dibetulkan.");
+    case "CORRECTION_BRACES":
+      return w("A correction never touches a merge field: leave out the braces.", "Pembetulan tidak menyentuh medan gabungan: keluarkan tanda kurung.");
+    case "CORRECTION_FORMS_REQUIRED":
+      return w("Choose the forms the correction applies to: it never applies to every form by default.", "Pilih borang yang terlibat dengan pembetulan: ia tidak terpakai kepada semua borang secara lalai.");
+    case "CORRECTION_TAKEN":
+      return w(`Another correction already corrects "${s(d.from, "those words")}" on one of those forms: change that one instead.`, `Pembetulan lain sudah membetulkan "${s(d.from, "perkataan itu")}" pada salah satu borang itu: ubah pembetulan itu.`);
+    case "TERM_CODE":
+      return w("Give the term a code in small letters, digits and underscores, starting with a letter: a form cites it by that code.", "Berikan kod istilah dalam huruf kecil, digit dan garis bawah, bermula dengan huruf: borang memetiknya dengan kod itu.");
+    case "TERM_CODE_TAKEN":
+      return w("Another term already has that code.", "Istilah lain sudah menggunakan kod itu.");
+    case "TERM_CANONICAL_REQUIRED":
+      return w("Give the term's wording in at least one language: that is what a form prints.", "Berikan perkataan istilah dalam sekurang-kurangnya satu bahasa: itulah yang dicetak oleh borang.");
+    case "TERM_ALIAS_EMPTY":
+      return w("An alias is not blank: leave out an empty line.", "Alias tidak kosong: keluarkan baris kosong.");
+    case "TERM_ALIAS_IS_CANONICAL":
+      return w("An alias is another wording: one of them is the term's own wording already.", "Alias ialah perkataan lain: salah satunya sudah perkataan istilah itu sendiri.");
+    case "TERM_ALIAS_REPEATED":
+      return w("An alias is listed twice.", "Alias disenaraikan dua kali.");
+    case "TERM_WORDING_TAKEN":
+      return w(`One of those wordings already belongs to the term ${s(d.term, "another term")}, so a search for it would not know which concept is meant.`, `Salah satu perkataan itu sudah milik istilah ${s(d.term, "lain")}, jadi carian tidak tahu konsep yang dimaksudkan.`);
     default:
       return w("Refused.", "Ditolak.");
   }

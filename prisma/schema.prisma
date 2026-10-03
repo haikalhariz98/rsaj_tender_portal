@@ -390,6 +390,12 @@ model Organisation {
   earlyActionDecisions     EarlyActionDecision[]
   contractParties          ContractParty[]
   siteRecordsHandovers     SiteRecordsHandover[]
+  // 6.14 increment 2: printed-form fidelity, typing corrections and terms.
+  formFields               FormField[]
+  textCorrections          TextCorrection[]
+  textCorrectionForms      TextCorrectionForm[]
+  terms                    Term[]
+  termAliases              TermAlias[]
   // 6.13 Part A step 3 (4c): interim payment and the damages chain.
   certificateKindSettings  CertificateKindSetting[]
   contractClockRules       ContractClockRule[]
@@ -1371,6 +1377,11 @@ model DocumentTemplate {
   policiesDelegationNoticeDesignBuild  PostAwardPolicy[] @relation("PolicyDelegationNoticeDesignBuild")
   /// 6.13 Part A step 3: the form each certificate kind prints on (certificate forms).
   kindSettings                         CertificateKindSetting[]
+  /// 6.14 increment 2 (FR-CRT-001): the printed form's page count. Null: not recorded, and the fidelity line says so.
+  pageCount                            Int?
+  /// 6.14 increment 2: the printed form's fields with their label pairs, and the typing corrections that apply to it.
+  printedFields                        FormField[]
+  correctionForms                      TextCorrectionForm[]
 
   @@unique([organisationId, code])
 }
@@ -8608,6 +8619,97 @@ model AwardRoutingSheet {
   startedAt      DateTime
   receivedOn         DateTime?
   receivedRecordedAt DateTime?
+}
+
+// ------------------------------------------------------------------ 6.14 increment 2: printed-form fidelity, corrections, terms
+
+/// A field of a printed form (FR-CRT-001, 002): the form's own label pair, and either the value the system fills it
+/// with (bound: never an input on any screen) or nothing (printed blank, completed by hand on the paper). The
+/// customer's; ships empty. Pinned with the form at a certificate's first signature (OD-2 A); a routing sheet freezes
+/// its printed form's labels when it starts. CHECK: bound exactly when it names a value.
+model FormField {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  templateId     String
+  template       DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  key         String
+  labelEn     String
+  labelMs     String?
+  bound       Boolean
+  /// The value a bound field prints: a certificate's bound field or its routing sheet's (printed.ts).
+  computedKey String?
+  sortOrder   Int     @default(0)
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+
+  @@unique([templateId, key])
+}
+
+/// A typing error in a controlled form, corrected when a certificate's text is rendered, the form code and revision
+/// unchanged (FR-CRT-010). The customer's document-control decision; ships empty. Applies only to the forms it names.
+model TextCorrection {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  fromText String
+  toText   String
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+
+  forms TextCorrectionForm[]
+
+  @@index([organisationId])
+}
+
+/// A form a correction applies to.
+model TextCorrectionForm {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  correctionId   String
+  correction     TextCorrection   @relation(fields: [correctionId], references: [id], onDelete: Cascade)
+  templateId     String
+  template       DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([correctionId, templateId])
+  @@index([templateId])
+}
+
+/// One concept's canonical wording (FR-CRT-011): a form cites it as {{term:code}} and prints the wording in its
+/// language. The customer's glossary; ships empty. CHECK: at least one wording.
+model Term {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  code        String
+  canonicalEn String?
+  canonicalMs String?
+
+  provenance Provenance @default(ASSUMED)
+  notes      String     @default("")
+
+  aliases TermAlias[]
+
+  @@unique([organisationId, code])
+}
+
+/// Another wording of a term the source documents use, kept for search (FR-CRT-011): a search for either finds both.
+model TermAlias {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  termId         String
+  term           Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  alias String
+
+  @@unique([termId, alias])
 }
 
 // ------------------------------------------------------------------ 6.13 Part A: supervision (4b, FR-SUP)
