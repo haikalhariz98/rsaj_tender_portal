@@ -27,6 +27,10 @@ export interface FigureLine {
   value: string | null;
   /// Whether the owning module allows an officer to override it (with a justification) in DRAFT.
   overridable: boolean;
+  /// The lowest an override may set it to, and why (a money line only): the part of the figure the owning module
+  /// does not let an officer correct (6.13 Part A, code review run 2 item 3: the premiums the employer paid that
+  /// this certificate recovers). Absent: no floor.
+  floor?: { value: string; en: string; ms: string };
 }
 
 export interface FigureTotal {
@@ -70,6 +74,8 @@ export function snapshotFaults(s: ComputedSnapshot): Finding[] {
     seen.add(k);
   }
   for (const l of s.lines) if (l.value != null && valueFault(l.type, l.value)) f("FIELD_VALUE", { key: l.key, type: l.type });
+  // A floor is on an overridable money line, a money string, never above the line itself.
+  for (const l of s.lines) if (l.floor && (l.type !== "MONEY" || !l.overridable || valueFault("MONEY", l.floor.value) || l.value == null || parseSen(l.floor.value) > parseSen(l.value))) f("FIELD_VALUE", { key: l.key, type: l.type });
   const money = new Set(s.lines.filter((l) => l.type === "MONEY").map((l) => l.key));
   const before = new Set<string>();
   for (const t of s.totals) {

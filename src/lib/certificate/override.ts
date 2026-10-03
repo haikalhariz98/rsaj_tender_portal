@@ -147,6 +147,7 @@ export function overrideFaults(i: OverrideInput): { faults: Finding[]; normalise
   const normalised = normaliseValue(line.type, i.value);
   if (normalised == null) f("OVERRIDE_VALUE", { type: line.type });
   else if (normalised === line.value) f("SAME_AS_NOW");
+  else if (line.floor && line.type === "MONEY" && parseSen(normalised) < parseSen(line.floor.value)) f("OVERRIDE_BELOW_FLOOR", { floor: line.floor.value, why: line.floor.en });
   if (!i.justification.trim()) f("JUSTIFICATION_REQUIRED");
   if (!i.personKnown) f("PERSON_REQUIRED");
   return { faults, normalised, computed: line.computed };
