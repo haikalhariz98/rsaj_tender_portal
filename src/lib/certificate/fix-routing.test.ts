@@ -60,3 +60,22 @@ describe("R-6: the award's sheet closes once the appointment route is decided", 
     expect(latestRouteState([])).toBe("NONE");
   });
 });
+
+describe("a recalled route is its own state (6.14 residual)", () => {
+  it("never read as waiting for a decision, nor as decided", () => {
+    const recalled = route("r1", "2026-09-10", "RECALLED", [null]);
+    expect(latestRouteState([recalled])).toBe("RECALLED");
+    expect(codes(awardSheetFaults(false, "RECALLED"))).toEqual([]);
+    expect(latestRouteState([recalled, route("r2", "2026-09-20", "PENDING", [null])])).toBe("PENDING");
+  });
+  it("the signing refusal and the page's blocker say recalled, never waiting", async () => {
+    const { readFileSync } = await import("node:fs");
+    const w = readFileSync(`${process.cwd()}/src/lib/certificate/write.ts`, "utf8");
+    expect(w).toMatch(/if \(sheet\.routeState === "RECALLED"\) fs\.push\(\.\.\.one\("ROUTE_RECALLED"\)\);/);
+    const page = readFileSync(`${process.cwd()}/src/app/projects/[id]/certificates/[certId]/page.tsx`, "utf8");
+    expect(page).toMatch(/sheet\.routeState === "RECALLED"\) reasons\.push\("Its approval route was recalled/);
+    const { certificateFaultWords } = await import("./fault-text");
+    expect(certificateFaultWords({ code: "ROUTE_RECALLED", level: "block" }).en).toMatch(/recalled before a decision/);
+    expect(certificateFaultWords({ code: "ROUTE_RECALLED", level: "block" }).en).not.toMatch(/waiting/);
+  });
+});

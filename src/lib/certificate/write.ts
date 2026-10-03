@@ -228,6 +228,7 @@ export async function proceedToSigning(c: CertCtx) {
     if (sheet.routeState === "NONE") fs.push(...one("ROUTE_NOT_OPENED"));
     if (sheet.routeState === "PENDING") fs.push(...one("ROUTE_PENDING"));
     if (sheet.routeState === "REJECTED") fs.push(...one("ROUTE_REJECTED"));
+    if (sheet.routeState === "RECALLED") fs.push(...one("ROUTE_RECALLED"));
     const open = sheet.current.checks.filter((x) => !x.recorded).map((x) => x.def.labelEn);
     if (open.length) fs.push(...one("CHECKS_OUTSTANDING", { checks: open.join(", ") }));
     if (fs.length) refuse("Not sent to signing:", fs);

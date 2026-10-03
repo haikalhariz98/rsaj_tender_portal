@@ -209,7 +209,8 @@ export interface Sheet {
   /// Every check of the current iteration is recorded.
   checksDone: boolean;
   /// The current iteration's route: none, pending, approved or refused.
-  routeState: "NONE" | "PENDING" | "APPROVED" | "REJECTED";
+  /// RECALLED: the latest route was withdrawn before a decision (it waits for nobody; a new route goes on).
+  routeState: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | "RECALLED";
   target: Target;
   verdict: Verdict;
   /// OQ-17: the stages' printed days, where every stage prints them, and whether that differs from the total.
@@ -234,7 +235,7 @@ const inOrder = (routes: readonly RouteRow[]) => [...routes].sort((a, b) => (a.o
 /// Where the latest route stands: none, pending, approved or refused.
 export function latestRouteState(routes: readonly RouteRow[]): Sheet["routeState"] {
   const last = inOrder(routes).at(-1);
-  return !last ? "NONE" : last.status === "APPROVED" ? "APPROVED" : last.status === "REJECTED" ? "REJECTED" : "PENDING";
+  return !last ? "NONE" : last.status === "APPROVED" ? "APPROVED" : last.status === "REJECTED" ? "REJECTED" : last.status === "RECALLED" ? "RECALLED" : "PENDING";
 }
 
 export function routingSheet(i: SheetInput): Sheet {

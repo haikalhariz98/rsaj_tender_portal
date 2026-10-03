@@ -31,7 +31,7 @@ export function RoutingSheetView({ sheet, headerAction, checkAction, open, route
             columns={2}
             items={[
               { label: "Received", value: sheet.date1 ? formatDate(sheet.date1) : dim("Not recorded") },
-              { label: "Approved", value: sheet.date2 ? formatDate(sheet.date2) : dim(sheet.routeState === "NONE" ? "No approval route open yet" : "Not approved yet") },
+              { label: "Approved", value: sheet.date2 ? formatDate(sheet.date2) : dim(sheet.routeState === "NONE" ? "No approval route open yet" : sheet.routeState === "RECALLED" ? "Not approved: its route was recalled" : "Not approved yet") },
               { label: "Elapsed against the target", value: verdictText(sheet) },
               { label: "The stages' printed days", value: sheet.parts ? `${days(sheet.parts.sum)}${sheet.parts.differs && sheet.target.state === "SET" ? `: the form prints a total of ${sheet.target.days}, which differs from the sum of its parts (both shown)` : ""}` : dim("Not printed per stage") },
             ]}

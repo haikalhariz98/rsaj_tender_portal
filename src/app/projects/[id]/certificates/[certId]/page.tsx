@@ -154,6 +154,7 @@ function signingBlocker(sheet: Sheet): string | null {
   if (sheet.routeState === "NONE") reasons.push("No approval route is open for it: the module that raised it opens one.");
   if (sheet.routeState === "PENDING") reasons.push("Its approval route is waiting for a decision.");
   if (sheet.routeState === "REJECTED") reasons.push("Its approval route was refused: it goes on only on a resubmitted route.");
+  if (sheet.routeState === "RECALLED") reasons.push("Its approval route was recalled before a decision: it goes on only on a new route.");
   const open = sheet.current.checks.filter((c) => !c.recorded).map((c) => c.def.labelEn);
   if (open.length) reasons.push(`Still to record in this round: ${open.join(", ")}.`);
   return reasons.length ? reasons.join(" ") : null;
