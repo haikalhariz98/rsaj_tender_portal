@@ -58,6 +58,17 @@ const ENTITIES = new Set([
   "HolidayCalendar",
   "HolidayCalendarYear",
   "PublicHoliday",
+  // 6.14: a form's signature blocks and distribution list, and the routing sheet types, their checks and targets
+  // (increment 1 offered their History but the set did not name them, so it read empty); increment 2's printed
+  // fields, typing corrections and terms.
+  "FormSignatureBlock",
+  "FormDistribution",
+  "RoutingSheetType",
+  "RoutingCheckDef",
+  "RoutingTarget",
+  "FormField",
+  "TextCorrection",
+  "Term",
 ]);
 
 /// Entities whose configuration key is not part of what their history shows (the name is); older rows carry it.
