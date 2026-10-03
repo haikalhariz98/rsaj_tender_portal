@@ -166,7 +166,7 @@ export function supervisionFaultWords(f: Finding): Words {
   switch (f.code) {
     // ------------------------------------------------ the S.O.
     case "SO_UNRESOLVED":
-      return w(`No superintending-officer rule on the approval matrix${d.matrix ? ` (${String(d.matrix)})` : ""} gives this contract an S.O. at its value and regime, or the rules that match disagree. Record the rule on the approval matrix; the S.O. is never keyed.`, `Tiada peraturan Pegawai Penguasa pada matriks kelulusan yang menentukan P.P. bagi kontrak ini. Rekodkan peraturan itu pada matriks kelulusan.`);
+      return w(`No superintending-officer rule on the approval matrix${d.matrix ? ` (${String(d.matrix)})` : ""} gives this contract an S.O. at its value and method, or the rules that match disagree. Record the rule on the approval matrix; the S.O. is never keyed.`, `Tiada peraturan Pegawai Penguasa pada matriks kelulusan yang menentukan P.P. bagi kontrak ini. Rekodkan peraturan itu pada matriks kelulusan.`);
     case "NOT_EXECUTED":
       return w("The contract is not executed yet: its S.O. is resolved at the employer's signature.", "Kontrak belum dilaksanakan: P.P. ditentukan semasa tandatangan majikan.");
     case "ALREADY_RESOLVED":
