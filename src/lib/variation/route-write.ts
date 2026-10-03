@@ -311,7 +311,7 @@ async function openApplication(c: VariationCtx, v: VariationRow) {
 async function sendRefused(c: VariationCtx, v: VariationRow, a: VariationRow["approvals"][number], kind: RejectionKind, returnToSeq: number | null, reason: string) {
   if (kind === "RETURN_TO_STEP") {
     const next = await openSuccessor(c.tx, { organisationId: c.l.org.id, routeLabel: routeLabel(c, v) }, a.approvalInstance.id, returnToSeq!, dayToDate(c.today));
-    await c.tx.variationApproval.create({ data: { organisationId: c.l.org.id, variationId: v.id, event: a.event, approvalInstanceId: next, value: a.value, reading: a.reading as Prisma.InputJsonValue, sentByPersonId: a.sentByPersonId, sentOn: a.sentOn, sentAt: a.sentAt } });
+    await c.tx.variationApproval.create({ data: { organisationId: c.l.org.id, variationId: v.id, event: a.event, approvalInstanceId: next, value: a.value, reading: a.reading as Prisma.InputJsonValue, sentByPersonId: a.sentByPersonId, sentOn: dayToDate(c.today), sentAt: c.now } });
     return;
   }
   if (kind === "TERMINATE") {

@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { parseSen } from "@/lib/money";
 
-import { approvedValue, closeFaults, commenceFaults, commencedPending, cumulativeApproved, fieldFaults, newSumOf, originFaults, pendingValueRoutes, priorValueOf, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, stageOf, submitFaults, type ApplicationFields, type OriginFacts, type RouteFact, type VariationFacts } from "./application";
+import { approvedValue, closeFaults, commenceFaults, commencedPending, cumulativeApproved, fieldFaults, latestRoute, newSumOf, originFaults, pendingValueRoutes, priorValueOf, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, stageOf, submitFaults, type ApplicationFields, type OriginFacts, type RouteFact, type VariationFacts } from "./application";
 
 /**
  * A variation from origination to approval (FR-VAR-001–006, 008, 013, 014, 024; VO-660 §3.5–3.6). Invented fixtures.
@@ -184,5 +187,17 @@ describe("OD-A7 A: the S.O. after an issued adjustment", () => {
     expect(soAfterAdjustment(true, { roleCode: "FD" }, resolved, "M")).toMatchObject({ state: "MOVE", resolution: { roleCode: "CEO" } });
     expect(soAfterAdjustment(true, { roleCode: "FD" }, null, "M")).toMatchObject({ state: "REFUSE", faults: [{ code: "SO_UNRESOLVED" }] });
     expect(soAfterAdjustment(true, { roleCode: "FD" }, { state: "SO_UNRESOLVED", errors: [] }, "M")).toMatchObject({ state: "REFUSE" });
+  });
+});
+
+describe("run 3 review SHOULD 3: the latest route is never ambiguous", () => {
+  it("routes are loaded by the day opened, then the instant sent, then id; a successor opened the same day reads as the latest", () => {
+    const load = readFileSync(path.join(__dirname, "load.ts"), "utf8");
+    expect(load).toContain('orderBy: [{ approvalInstance: { openedAt: "asc" as const } }, { sentAt: "asc" as const }, { id: "asc" as const }]');
+    // The successor is stamped with its own act's instant, never the refused route's.
+    expect(readFileSync(path.join(__dirname, "route-write.ts"), "utf8")).toContain("sentOn: dayToDate(c.today), sentAt: c.now } });");
+    const refused = route("PRIOR", "REJECTED", "90000.00", "2026-05-01");
+    const successor = { ...route("PRIOR", "PENDING", "90000.00", "2026-05-01"), id: "successor" };
+    expect(latestRoute(v({ routes: [refused, successor] }), "PRIOR")?.id).toBe("successor");
   });
 });

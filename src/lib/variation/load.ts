@@ -34,7 +34,9 @@ export const variationInclude = {
   applicationCertificate: { select: certSelect },
   approvals: {
     include: { sentBy: name, approvalInstance: { include: { steps: { orderBy: { sequence: "asc" as const } } } } },
-    orderBy: [{ sentAt: "asc" as const }],
+    // Run 3 review SHOULD 3: the day each route opened, then the instant it was sent (a successor is stamped with its
+    // own act's instant), then its id: never ambiguous, even for a return to a step on the day it was sent.
+    orderBy: [{ approvalInstance: { openedAt: "asc" as const } }, { sentAt: "asc" as const }, { id: "asc" as const }],
   },
   matters: { include: matterInclude, orderBy: { tabledAt: "asc" as const } },
   instructions: { include: { certificate: { select: certSelect }, person: name }, orderBy: { recordedAt: "asc" as const } },
