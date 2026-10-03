@@ -22,7 +22,7 @@ import { assembleInputOf, baselineOn, decisionOf, inProgress, issuedInterims, ki
 import { materialVerdict } from "@/lib/payment/materials";
 import { releaseOf, retentionReading } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, VALUATION_TRIGGERS, type Finding } from "@/lib/payment/types";
-import { openFaults } from "@/lib/payment/valuation";
+import { issueClockFrom, openFaults } from "@/lib/payment/valuation";
 import { PARTY_KIND_WORDS } from "@/lib/supervision/labels";
 
 import {
@@ -225,6 +225,10 @@ function CurrentValuation({ l, v, people, today, formSet }: { l: LoadedContract;
   const blocker = zone(today) ?? (!formSet ? paymentFaultText({ code: "FORM_NOT_SET", level: "block", data: { kind: "INTERIM_PAYMENT" } }) : a ? say(a.faults) : "The figures cannot be worked out today: no baseline version is in force.");
   const parties = v.p.contractParties.filter((pt) => !pt.retiredOn);
   const fig = a?.result.figures ?? null;
+  // The issue clock (Configuration › Post-award), from the valuation day, or from the claim where one started it.
+  const from = issueClockFrom(x.trigger, x.triggerDate ? storedDay(x.triggerDate) : null, storedDay(x.valuationDate));
+  const clock = v.cfg.clocks.find((k) => k.clock === "CERT_ISSUE") ?? null;
+  const due = clock ? (clock.unit === "DAYS" ? formatDate(dayPlus(from, clock.length)) : clock.unit === "WEEKS" ? formatDate(dayPlus(from, clock.length * 7)) : `${clock.length} months after ${formatDate(from)}`) : null;
   return (
     <Card className="overflow-hidden">
       <CardHeader
@@ -260,6 +264,7 @@ function CurrentValuation({ l, v, people, today, formSet }: { l: LoadedContract;
                 </span>
               ),
             },
+            { label: "Certificate due by", value: due ? <span className="flex flex-col items-start gap-1"><span>{due}</span><ProvenanceBadge value={clock!.provenance} /></span> : <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><span className={sub}>How long after a valuation its certificate is due is not set under Configuration › Post-award.</span></span> },
           ]}
         />
       </CardBody>

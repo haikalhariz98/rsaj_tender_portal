@@ -3,7 +3,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
-import { savePostAwardPolicy } from "./actions";
+import { saveClockRule, saveKindSetting, savePaymentPolicy, savePostAwardPolicy } from "./actions";
 
 /**
  * The Post-award controls drawer. No field carries a default: an unset field is not set, and the screen says
@@ -43,6 +43,82 @@ export function EditPostAwardPolicy({ values, forms }: { values: Record<string, 
       reason={{ label: "Why the controls are changed" }}
       submitLabel="Save controls"
       trigger={{ label: "Edit controls", className: buttonClass("primary", "sm") }}
+    />
+  );
+}
+
+const pctField = (name: string, label: string, hint: string): Field => ({ kind: "text", name, label, hint });
+
+/// The interim payment controls (6.13 Part A step 3). Each ships unset; the screen says what an unset one stops.
+export function EditPaymentPolicy({ values, figures, remainders }: { values: Record<string, string | null>; figures: Option[]; remainders: Option[] }) {
+  return (
+    <RecordEditor
+      title="Interim payment controls"
+      description="How an interim certificate is worked out and routed. Each setting starts unset, and a contract's own figure (from its baseline) wins where it has one."
+      size="lg"
+      columns={2}
+      fields={[
+        pctField("unfixedMaterialsDefaultPct", "Allowance on unfixed materials (%)", "Where the contract states none. Unset: a materials line is refused, naming this setting."),
+        provenance("unfixedMaterialsProvenance", "Where the allowance came from"),
+        pctField("firstReleasePct", "First release of retention (%)", "The share released at practical completion. Unset: the first release is refused, naming this setting."),
+        provenance("firstReleaseProvenance", "Where the release came from"),
+        { kind: "select", name: "paymentRouteFigure", label: "The figure an interim certificate is routed on", placeholder: "Not set", options: figures, hint: "Unset: an interim certificate cannot be sent for approval." },
+        provenance("paymentRouteProvenance", "Where that came from"),
+        { kind: "select", name: "waterfallRemainder", label: "Where the sen of a pro-rata split go", placeholder: "Not set", options: remainders, hint: "Unset: a certificate that cannot pay every party in full is refused." },
+        provenance("waterfallProvenance", "Where that came from"),
+        { kind: "number", name: "preExecutionInterimLimit", label: "Interim certificates that may issue before the contract is signed", min: 0, hint: "Unset: none issues before the contract is executed." },
+        provenance("preExecutionProvenance", "Where the number came from"),
+      ]}
+      values={values}
+      action={savePaymentPolicy}
+      reason={{ label: "Why the controls are changed" }}
+      submitLabel="Save controls"
+      trigger={{ label: "Edit", className: buttonClass("secondary", "sm") }}
+    />
+  );
+}
+
+/// The form a certificate kind prints on and the routing sheet it goes on.
+export function EditKindSetting({ kind, label, values, forms, sheets }: { kind: string; label: string; values: Record<string, string | null>; forms: Option[]; sheets: Option[] }) {
+  return (
+    <RecordEditor
+      title={label}
+      description="The form this certificate prints on, and the routing sheet it goes on before it is signed. Without a form it cannot be raised."
+      fields={[
+        { kind: "hidden", name: "certificateKind" },
+        form("templateId", "Form", forms),
+        { kind: "select", name: "routingTypeId", label: "Routing sheet", placeholder: sheets.length ? "None: no routing sheet" : "No routing sheets configured", options: sheets },
+        { kind: "select", name: "provenance", label: "Where these came from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
+        { kind: "textarea", name: "notes", label: "Notes" },
+      ]}
+      values={{ ...values, certificateKind: kind }}
+      action={saveKindSetting}
+      reason={{ label: "Why it is changed" }}
+      submitLabel="Save"
+      trigger={{ label: "Edit", className: buttonClass("ghost", "sm") }}
+    />
+  );
+}
+
+/// A contract clock: its length, unit and where it came from. Saved empty, it is removed (with the reason).
+export function EditClockRule({ clock, label, values }: { clock: string; label: string; values: Record<string, string | null> }) {
+  return (
+    <RecordEditor
+      title={label}
+      description="How long the clock runs. Leave the length empty to remove it: the screens then say it is not set."
+      columns={2}
+      fields={[
+        { kind: "hidden", name: "clock" },
+        { kind: "number", name: "length", label: "Length", min: 1 },
+        { kind: "select", name: "unit", label: "Unit", placeholder: "Choose", options: [{ value: "DAYS", label: "Calendar days" }, { value: "WEEKS", label: "Weeks" }, { value: "MONTHS", label: "Months" }] },
+        provenance("provenance", "Where it came from"),
+        { kind: "textarea", name: "notes", label: "Notes" },
+      ]}
+      values={{ ...values, clock }}
+      action={saveClockRule}
+      reason={{ label: "Why it is changed" }}
+      submitLabel="Save"
+      trigger={{ label: "Edit", className: buttonClass("ghost", "sm") }}
     />
   );
 }

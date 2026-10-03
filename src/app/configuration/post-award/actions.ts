@@ -154,6 +154,7 @@ export async function saveKindSetting(_prev: FormState, data: FormData): Promise
     if (templateId && !template) return { ok: false, errors: { templateId: "Choose a form configured under Templates." } } as FormState;
     const type = routingTypeId ? await tx.routingSheetType.findFirst({ where: { id: routingTypeId, organisationId: o.id }, select: { id: true, labelEn: true, subject: true, certificateKind: true, retiredOn: true } }) : null;
     if (routingTypeId && !type) return { ok: false, errors: { routingTypeId: "Choose a routing sheet configured under Routing sheets." } } as FormState;
+    if (type?.retiredOn) return { ok: false, errors: { routingTypeId: "That routing sheet is retired: choose one in use." } } as FormState;
     if (type && (type.subject !== "CERTIFICATE" || (type.certificateKind != null && type.certificateKind !== kind))) return { ok: false, errors: { routingTypeId: "That routing sheet is for another kind of document." } } as FormState;
     const before = await tx.certificateKindSetting.findUnique({ where: { organisationId_kind: { organisationId: o.id, kind } }, include: { template: { select: { nameEn: true } }, routingType: { select: { labelEn: true } } } });
     const row = await tx.certificateKindSetting.upsert({ where: { organisationId_kind: { organisationId: o.id, kind } }, update: { templateId: template?.id ?? null, routingTypeId: type?.id ?? null, provenance, notes }, create: { organisationId: o.id, kind, templateId: template?.id ?? null, routingTypeId: type?.id ?? null, provenance, notes } });
