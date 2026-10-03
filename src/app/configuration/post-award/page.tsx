@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { decimalText } from "@/lib/format";
 import { BuildingIcon, ClockIcon, FileIcon, WalletIcon } from "@/components/icons";
 import { HistoryButton } from "@/components/history-drawer";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,6 @@ const CLOCK_UNSET: Readonly<Record<ContractClock, string>> = {
   CERT_ISSUE: "A valuation shows no date its certificate is due by: the screen says the clock is not set.",
 };
 const UNIT_WORDS = { DAYS: "calendar days", WEEKS: "weeks", MONTHS: "months" } as const;
-const plain = (v: { toString(): string } | null | undefined) => (v == null ? null : v.toString().replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, ""));
 
 export const dynamic = "force-dynamic";
 
@@ -73,9 +73,9 @@ export default async function PostAwardControlsPage() {
     db.routingSheetType.findMany({ where: { organisationId: org.id, subject: "CERTIFICATE", retiredOn: null }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], select: { id: true, labelEn: true, certificateKind: true } }),
   ]);
   const formName = (id: string | null | undefined) => (id ? (templates.find((t) => t.id === id)?.nameEn ?? "A form no longer configured") : null);
-  const pct = p?.inDelayProgressPct == null ? null : p.inDelayProgressPct.toString().replace(/\.?0+$/, "");
-  const materials = plain(p?.unfixedMaterialsDefaultPct);
-  const firstRelease = plain(p?.firstReleasePct);
+  const pct = decimalText(p?.inDelayProgressPct);
+  const materials = decimalText(p?.unfixedMaterialsDefaultPct);
+  const firstRelease = decimalText(p?.firstReleasePct);
   const kindOf = (k: string) => kinds.find((x) => x.kind === k) ?? null;
   const clockOf = (k: string) => clocks.find((x) => x.clock === k) ?? null;
   const unset =
