@@ -119,7 +119,7 @@ describe("BD-614-33 as ruled: a replaced wording stays as an alias", () => {
     expect(aliasesKeeping(before, { ...before })).toEqual([]);
   });
   it("removing an alias an issued certificate's text still says is found, by whole words", async () => {
-    const { removedAliasesInUse } = await import("./terms");
+    const { removedAliasesInUse } = await import("./terms.oracle");
     expect(removedAliasesInUse(["S.O.", "P.P."], [{ label: "DEMO/CERT/1", text: "The S.O. delegates." }, { label: "DEMO/CERT/2", text: "Approval." }])).toEqual([{ alias: "S.O.", certificates: ["DEMO/CERT/1"] }]);
   });
 });

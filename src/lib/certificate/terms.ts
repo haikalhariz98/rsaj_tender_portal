@@ -99,7 +99,7 @@ export function termSaveFaults(t: Term, others: readonly Term[]): Finding[] {
 export const SEARCH_VARIANTS_MAX = 12;
 
 /// Text as compared: Unicode-normalised (NFC), whitespace collapsed.
-const normText = (s: string) => s.normalize("NFC").trim().replace(/\s+/g, " ");
+export const normText = (s: string) => s.normalize("NFC").trim().replace(/\s+/g, " ");
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
@@ -163,11 +163,9 @@ export function removedAliases(before: readonly string[], after: Term): string[]
   return before.filter((a) => !after.aliases.includes(a) && !canon.includes(norm(a)));
 }
 
-/// Code review BD-614-33: of the aliases an edit removes, those an issued certificate's frozen text still says (whole words).
-/// The save reads the same rule in the database (`wholeWordPattern`), selecting only the certificates' numbers.
-export function removedAliasesInUse(removed: readonly string[], texts: readonly { label: string; text: string }[]): { alias: string; certificates: string[] }[] {
-  return removed.map((alias) => ({ alias, certificates: texts.filter((t) => wordAt(normText(t.text), alias) >= 0).map((t) => t.label) })).filter((x) => x.certificates.length > 0);
-}
+/// Code review BD-614-33: the save reads which issued certificates still say a removed alias in the database
+/// (`wholeWordPattern`, term-use.ts). 614b-C2: the in-memory reading of the same rule is `terms.oracle.ts`, used only
+/// by the tests as the parity oracle of that pattern, so no tested rule sits here beside the one in use.
 
 /**
  * `wordAt`'s rule as a Postgres regular expression, matched case-insensitively (`~*`) against a frozen text: the wording
