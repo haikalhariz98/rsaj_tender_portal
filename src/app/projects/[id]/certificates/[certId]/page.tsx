@@ -17,11 +17,11 @@ import { KeyValues } from "@/components/ui/stat";
 import { certificateDateOf } from "@/lib/certificate/date";
 import { distributionState } from "@/lib/certificate/distribution";
 import { certificateFaultText, refusalText } from "@/lib/certificate/fault-text";
-import { certificateFieldLabel, certificateFieldValues, mergeFields } from "@/lib/certificate/fields";
+import { certificateFieldValues, mergeFields } from "@/lib/certificate/fields";
 import { BLOCK_KIND_WORDS, CERT_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, OFFICE_RULE_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
 import { applyOverrides, routingRatioOf, type Effective } from "@/lib/certificate/override";
 import { loadCertificate, routesOf, signedOf, templateNow, type LoadedCertificate } from "@/lib/certificate/repo";
-import { pinRefusals, readRevision, type TemplateRevision } from "@/lib/certificate/revision";
+import { pinRefusals, readRevision, type TemplateNow, type TemplateRevision } from "@/lib/certificate/revision";
 import { type Sheet } from "@/lib/certificate/routing-sheet";
 import { RoutingSheetView } from "@/components/certificate/routing-sheet";
 import { nextBlock } from "@/lib/certificate/signature";
@@ -40,7 +40,11 @@ import { ratioPercentText } from "@/lib/percent-band";
 import { isSulitField } from "@/lib/sulit-fields";
 import { isSupervisedRule, type SupervisedRule } from "@/lib/supervision/blocks";
 import { loadPostAwardPolicy, supervisedHoldersOn } from "@/lib/supervision/load";
-import { fieldsNamed, renderWith } from "@/lib/templates/merge";
+import { fieldsNamed } from "@/lib/templates/merge";
+import { renderText } from "@/lib/certificate/issue";
+import { fidelityLine, labelPair, printedRows } from "@/lib/certificate/printed";
+import { sheetFieldValues } from "@/lib/certificate/sheet-words";
+import { freezeTerms, termCodesIn } from "@/lib/certificate/terms";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { isMandatoryAct } from "@/components/ui/act";
@@ -155,7 +159,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
     { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? pinBlocker(form, cert) : null} people={peopleOptions} today={today} officeName={officeName} supervised={supervised} reResolveUnset={reResolveUnset} /> },
     { id: "routing", label: "Routing sheet", icon: <RouteIcon size={15} />, panel: <RoutingPanel l={l} sheet={sheet} people={peopleOptions} today={today} roles={roles} /> },
     { id: "distribution", label: "Distribution", icon: <InboxIcon size={15} />, count: cert.copies.length, panel: <DistributionPanel l={l} today={today} /> },
-    { id: "print", label: "Print", icon: <PrinterIcon size={15} />, panel: <PrintPanel l={l} figures={figures} revision={pinned} formBody={form ? { en: form.bodyEn, ms: form.bodyMs, name: form.nameEn } : null} /> },
+    { id: "print", label: "Print", icon: <PrinterIcon size={15} />, panel: <PrintPanel l={l} figures={figures} revision={pinned} form={form} sheet={sheet} /> },
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: historyTotal, panel: <HistoryPanel entries={history} total={historyTotal} timeZone={l.org.timeZone} /> },
   ];
 
@@ -191,6 +195,12 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
           </Callout>
         )}
         {l.contract.status === "CANCELLED" && <Callout tone="warn" title="The contract is cancelled">Its certificates are kept as they were; nothing more is recorded on them.</Callout>}
+        {/* 6.14 increment 2 (FR-CRT-012): a draft whose form could not be signed on yet says so from the start, by the first signature's own rule. */}
+        {(status === "DRAFT" || status === "IN_ROUTING") && cert.templateId && pinBlocker(form, cert) && (
+          <Callout tone="warn" title="Its form is not ready to be signed on">
+            {`${pinBlocker(form, cert)} It may still be routed; nothing is signed on it until this is put right.`}
+          </Callout>
+        )}
         {status === "VOID" && (
           <Callout tone="warn" title="Void">
             {cert.voidReason} It was never numbered, so it leaves no gap.
@@ -591,23 +601,31 @@ function DistributionPanel({ l, today }: { l: LoadedCertificate; today: string |
 
 // ------------------------------------------------------------------ print
 
-function PrintPanel({ l, figures, revision, formBody }: { l: LoadedCertificate; figures: Effective | null; revision: TemplateRevision | null; formBody: { en: string | null; ms: string | null; name: string } | null }) {
+function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificate; figures: Effective | null; revision: TemplateRevision | null; form: TemplateNow | null; sheet: Sheet | null }) {
   const cert = l.cert;
   if (cert.status === "ISSUED" && cert.documents.length) {
+    // 6.14 increment 2: the fidelity line and the printed fields, as the issue froze them.
+    const snap = (cert.issueSnapshot ?? {}) as { form?: { pageCount?: number | null }; corrected?: number; printed?: IssuedPrinted[] };
     return (
       <div className="flex flex-col gap-6">
         {cert.documents.map((d) => (
           <Card key={d.id}>
-            <CardHeader icon={<PrinterIcon size={17} />} title={d.language === "MS" ? "Malay text, as issued" : "English text, as issued"} subtitle={`${d.templateName}${d.templateFormCode ? ` · ${d.templateFormCode}` : ""}${d.templateRevisionDate ? ` · revision ${formatDate(day(d.templateRevisionDate))}` : ""} · form version ${d.templateBodyVersion} · frozen ${formatOrgDateTime(d.frozenAt, l.org.timeZone)}`} />
+            <CardHeader icon={<PrinterIcon size={17} />} title={d.language === "MS" ? "Malay text, as issued" : "English text, as issued"} subtitle={`${fidelityLine({ name: d.templateName, formCode: d.templateFormCode, revisionDate: day(d.templateRevisionDate), pageCount: snap.form?.pageCount ?? null, bodyVersion: d.templateBodyVersion }, snap.corrected ?? 0).en} · frozen ${formatOrgDateTime(d.frozenAt, l.org.timeZone)}`} />
             <CardBody>
               <div className="flex flex-col gap-3 text-[13.5px] whitespace-pre-line text-ink">{d.renderedText.split("\n\n").map((p, i) => <p key={i}>{p}</p>)}</div>
             </CardBody>
           </Card>
         ))}
+        <PrintedFieldsCard title="Printed fields, as issued" rows={snap.printed === undefined ? null : snap.printed.map((p) => ({ key: p.key, label: labelPair(p), value: p.valueEn, bound: p.bound }))} none={snap.printed === undefined ? "Issued before printed fields were recorded with a certificate." : "Its form has no printed fields."} />
       </div>
     );
   }
-  const body = revision ? { en: revision.bodyEn, ms: revision.bodyMs, name: revision.nameEn } : formBody;
+  // Pinned: the form as signed under; a draft: the form as it stands, with the corrections and terms as they stand.
+  const body = revision
+    ? { en: revision.bodyEn, ms: revision.bodyMs, name: revision.nameEn, corrections: revision.corrections ?? [], terms: revision.terms ?? [], fields: revision.fields ?? [], identity: { name: revision.nameEn, formCode: revision.formCode, revisionDate: revision.revisionDate, pageCount: revision.pageCount ?? null, bodyVersion: revision.bodyVersion } }
+    : form
+      ? { en: form.bodyEn, ms: form.bodyMs, name: form.nameEn, corrections: form.corrections ?? [], terms: freezeTerms(termCodesIn([...fieldsNamed(form.bodyEn), ...fieldsNamed(form.bodyMs)]), form.terms ?? []), fields: form.fields ?? [], identity: { name: form.nameEn, formCode: form.formCode, revisionDate: form.revisionDate, pageCount: form.pageCount ?? null, bodyVersion: form.bodyVersion } }
+      : null;
   const texts = body ? ([["MS", body.ms], ["EN", body.en]] as const).filter(([, b]) => b && b.trim()) : [];
   if (!body || texts.length === 0) {
     return (
@@ -618,32 +636,53 @@ function PrintPanel({ l, figures, revision, formBody }: { l: LoadedCertificate; 
     );
   }
   const b = cert.baseline;
-  const values = (lang: "EN" | "MS") =>
-    certificateFieldValues({
+  const values = (lang: "EN" | "MS") => ({
+    ...certificateFieldValues({
       lang,
       organisationName: ORGANISATION_NAME,
       contract: { number: l.contract.number, title: l.ex.title, contractorName: l.award.awardeeName },
       baseline: { contractSum: b.contractSum.toString(), contractDate: day(b.contractDate), completionPeriod: b.completionPeriod, completionUnit: b.completionUnit },
       certificate: { kind: cert.kind, number: null, sequence: null, date: day(cert.certificateDate) },
       figures: figures ?? { lines: [], totals: [] },
-    });
-  const keys = mergeFields(cert.kind);
+    }),
+    // Before issue the number and the date are not yet the certificate's: said so in the text, never invented.
+    "certificate.number": "(number allocated on issue)",
+    "certificate.sequence": "(on issue)",
+    ...(cert.certificateDate ? {} : { "certificate.date": "(the day of the authorising signature)" }),
+  });
+  const rendered = texts.map(([lang, text]) => ({ lang, r: renderText(text!, lang, cert.kind, values(lang), body.corrections, body.terms) }));
+  const corrected = new Set(rendered.flatMap((x) => x.r.corrected)).size;
+  const printed = printedRows(body.fields, { ...values("EN"), ...sheetFieldValues(sheet, "EN") }, "EN");
   return (
     <div className="flex flex-col gap-6">
-      {texts.map(([lang, text]) => {
-        // Before issue the number and the date are not yet the certificate's: said so in the text, never invented.
-        const v = { ...values(lang), "certificate.number": "(number allocated on issue)", "certificate.sequence": "(on issue)", ...(cert.certificateDate ? {} : { "certificate.date": "(the day of the authorising signature)" }) };
-        const r = renderWith(text!, v, { has: (k) => keys.has(k), label: (k) => certificateFieldLabel(k) });
-        return (
-          <Card key={lang}>
-            <CardHeader icon={<PrinterIcon size={17} />} title={lang === "MS" ? "Malay text" : "English text"} subtitle={`${body.name}${revision ? ", as pinned" : ", as the form stands now"}`} actions={<Badge tone="warn">{CERT_WORDS.draftNotIssued.en}</Badge>} />
-            <CardBody>
-              <div className="flex flex-col gap-3 text-[13.5px] whitespace-pre-line text-ink-2">{r.paragraphs.map((p, i) => <p key={i}>{p}</p>)}</div>
-            </CardBody>
-          </Card>
-        );
-      })}
+      {rendered.map(({ lang, r }) => (
+        <Card key={lang}>
+          <CardHeader icon={<PrinterIcon size={17} />} title={lang === "MS" ? "Malay text" : "English text"} subtitle={`${fidelityLine(body.identity, corrected).en}${revision ? ", as pinned" : ", as the form stands now"}`} actions={<Badge tone="warn">{CERT_WORDS.draftNotIssued.en}</Badge>} />
+          <CardBody>
+            <div className="flex flex-col gap-3 text-[13.5px] whitespace-pre-line text-ink-2">{r.paragraphs.map((p, i) => <p key={i}>{p}</p>)}</div>
+          </CardBody>
+        </Card>
+      ))}
+      <PrintedFieldsCard title={revision ? "Printed fields, as pinned" : "Printed fields, as the form stands now"} rows={printed.map((p) => ({ key: p.key, label: p.labelPair, value: p.value, bound: p.bound }))} none="Its form has no printed fields." />
     </div>
+  );
+}
+
+type IssuedPrinted = { key: string; labelEn: string; labelMs: string | null; bound: boolean; valueEn: string | null; valueMs: string | null };
+
+/// The printed form's fields under the form's own labels: the value the portal fills, or "completed by hand".
+function PrintedFieldsCard({ title, rows, none }: { title: string; rows: { key: string; label: string; value: string | null; bound: boolean }[] | null; none: string }) {
+  return (
+    <Card>
+      <CardHeader icon={<FileIcon size={17} />} title={title} subtitle="Under the printed form's own labels." />
+      <CardBody>
+        {!rows || rows.length === 0 ? (
+          <p className="text-[13px] text-ink-3">{none}</p>
+        ) : (
+          <KeyValues columns={2} items={rows.map((r) => ({ label: r.label, value: !r.bound ? dim("Completed by hand on the paper") : r.value ? r.value : dim("Nothing to print yet") }))} />
+        )}
+      </CardBody>
+    </Card>
   );
 }
 
