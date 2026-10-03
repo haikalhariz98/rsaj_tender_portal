@@ -20,9 +20,9 @@ import { FormReader } from "@/lib/validate";
  * Typing corrections (FR-CRT-010) and terms with their aliases (FR-CRT-011), 6.14 increment 2. Both ship empty:
  * correcting a controlled form is the customer's document-control decision (§13.10), and the glossary is theirs.
  *
- * Every write runs in one transaction that first takes the organisation's row FOR NO KEY UPDATE (so two saves of
- * the glossary or the corrections are judged one after the other against each other's rows, and nothing that
- * merely references the organisation waits), then, for a correction, every form it names or named FOR UPDATE in
+ * Every write runs in one transaction that first takes the organisation's row FOR UPDATE, as the other configuration
+ * acts do (so two saves of the glossary or the corrections are judged one after the other against each other's
+ * rows), then, for a correction, every form it names or named FOR UPDATE in
  * id order (so a certificate pinning one of those forms, which reads it FOR SHARE, sees the corrections before or
  * after the change, never half of it). Each is audited with its before and after in the same transaction; a
  * removal asks for a reason. Nothing here moves a form's version (the code and revision stay the form's, FR-CRT-010)
@@ -39,7 +39,7 @@ async function inGlossary(fn: (tx: Tx, orgId: string) => Promise<FormState>): Pr
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const res = await db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR NO KEY UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
     return fn(tx, o.id);
   });
   if (res.ok) revalidatePath(PATH);
