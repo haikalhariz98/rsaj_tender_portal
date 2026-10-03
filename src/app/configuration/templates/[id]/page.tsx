@@ -12,7 +12,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { notACertificateFormText, notAPrintedFormText, otherUsesOf, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
-import { boundFieldWords, labelPair, PRINTABLE_FIELDS } from "@/lib/certificate/printed";
+import { boundFieldWords, isSheetField, labelPair, PRINTABLE_FIELDS } from "@/lib/certificate/printed";
 import { BLOCK_KIND_WORDS, CONDITION_WORDS, OFFICE_RULE_WORDS } from "@/lib/certificate/labels";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -47,7 +47,8 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
   const notAForm = uses.length ? notACertificateFormText(uses).en : null;
   const undecided = t.signatureBlocks.filter((b) => b.delegable == null).length;
   // 6.14 increment 2: the values a printed field may print, in the product's words (EN; MS kept beside them).
-  const printable = [...PRINTABLE_FIELDS].map((k) => ({ value: k, label: boundFieldWords(k).en }));
+  // Code review M-1: a routing sheet's value is offered with the note that it needs a routing type.
+  const printable = [...PRINTABLE_FIELDS].map((k) => ({ value: k, label: isSheetField(k) ? `${boundFieldWords(k).en} (routing sheet: only on a certificate with a routing type)` : boundFieldWords(k).en }));
   const notAPrinted = uses.length ? notAPrintedFormText(uses).en : null;
   const yesNo = (b: boolean | null, yes: string, no: string, unset: string) => (b == null ? unset : b ? yes : no);
 

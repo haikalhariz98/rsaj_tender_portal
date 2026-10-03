@@ -105,6 +105,12 @@ export function printedRows(fields: readonly PrintedField[], values: Readonly<Re
   return inPrintedOrder(fields).map((p) => ({ key: p.key, label: labelIn(p, lang), labelPair: labelPair(p), bound: p.bound, value: p.bound && p.computedKey ? (values[p.computedKey] ?? "") : null }));
 }
 
+/// Code review M-1: a bound field with nothing to print, at issue, refuses it (never issued blank).
+export function printedBlankFaults(form: string, rows: readonly { labelEn: string; labelMs: string | null; bound: boolean; valueEn: string | null; valueMs: string | null }[]): Finding[] {
+  const blank = rows.filter((r) => r.bound && (!r.valueEn?.trim() || !r.valueMs?.trim())).map((r) => labelPair(r));
+  return blank.length ? [{ code: "PRINTED_VALUE_EMPTY", level: "block", data: { form, fields: blank.join(", ") } }] : [];
+}
+
 /// The printed label pair a form gives a bound value (the first field bound to it in printed order), or null.
 export function printedLabelOf(fields: readonly PrintedField[], key: string): { en: string; ms: string | null } | null {
   const p = inPrintedOrder(fields).find((x) => x.bound && x.computedKey === key);
@@ -164,6 +170,7 @@ export const PRINT_WORDS = {
   underLabels: w("Under the printed form's own labels.", "Di bawah label borang bercetak itu sendiri."),
   byHand: w("Completed by hand on the paper", "Diisi dengan tangan di atas kertas"),
   nothingYet: w("Nothing to print yet", "Belum ada untuk dicetak"),
+  printedBlank: w("Printed blank", "Dicetak kosong"),
   noneRecorded: w("No printed fields were recorded with its issue.", "Tiada medan bercetak direkodkan bersama pengeluarannya."),
   noneOnForm: w("Its form has no printed fields.", "Borangnya tiada medan bercetak."),
   pinnedSuffix: w("as pinned", "seperti disematkan"),

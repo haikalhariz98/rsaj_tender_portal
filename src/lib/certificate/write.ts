@@ -33,7 +33,7 @@ import { renderIssue } from "./issue";
 import { CERT_WORDS, CHECK_KIND_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, ON_BEHALF, STATUS_WORDS } from "./labels";
 import { applyOverrides, overrideFaults, routingRatioOf } from "./override";
 import { certificateLabel, checksOf, liveBondOf, officeHolders, officeName, routesOf, routingTypeNow, signedOf, templateNow, type LoadedCertificate } from "./repo";
-import { inPrintedOrder, printedRows } from "./printed";
+import { inPrintedOrder, printedBlankFaults, printedRows } from "./printed";
 import { pinRefusals, pinRevision, readRevision, type PinContext, type TemplateRevision } from "./revision";
 import { sheetFieldValues } from "./sheet-words";
 import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
@@ -104,10 +104,12 @@ export function sheetOf(cert: LoadedCertificate["cert"], today: string): Sheet |
 }
 
 /// What the certificate brings to the pin (M-2): its pinned baseline version's Contract Date and its frozen figures.
-export function pinContextOf(cert: Pick<LoadedCertificate["cert"], "baseline" | "computedSnapshot" | "overrides">): PinContext {
+export function pinContextOf(cert: LoadedCertificate["cert"], today: string | null = null): PinContext {
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const f = snap ? applyOverrides(snap, cert.overrides) : null;
-  return { contractDate: day(cert.baseline.contractDate), figures: f ? [...f.lines, ...f.totals].map((x) => ({ key: x.key, value: x.value })) : null };
+  // Code review M-1: a sheet value is filled only on a certificate with a routing type, from its sheet once it starts.
+  const sheet = today ? sheetOf(cert, today) : null;
+  return { contractDate: day(cert.baseline.contractDate), figures: f ? [...f.lines, ...f.totals].map((x) => ({ key: x.key, value: x.value })) : null, routed: cert.routingTypeId != null, sheet: sheet ? sheetFieldValues(sheet, "EN") : null };
 }
 
 /// Whether the certificate's figures certify money (an instruction-only delegate may not sign it, FR-PAY-017).
@@ -281,7 +283,7 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
     if (cert.templateId) await c.tx.$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${cert.templateId} FOR SHARE`;
     const t = await templateNow(cert.templateId, c.tx);
     // M-2: nothing is pinned that could never issue: a field the text prints must have its value at issue.
-    const fs = pinRefusals(t, mergeFields(cert.kind), fieldsNamed, pinContextOf(cert));
+    const fs = pinRefusals(t, mergeFields(cert.kind), fieldsNamed, pinContextOf(cert, c.today));
     if (fs.length) refuse("Not recorded:", fs);
     rev = pinRevision(t!, c.today);
   }
@@ -394,6 +396,9 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   const printedEn = printedIn("EN");
   const printedMs = printedIn("MS");
   const printed = inPrintedOrder(rev.fields ?? []).map((f, i) => ({ key: f.key, labelEn: f.labelEn, labelMs: f.labelMs, bound: f.bound, valueEn: printedEn[i].value, valueMs: printedMs[i].value }));
+  // Code review M-1: a field the portal fills is never issued blank.
+  const blank = printedBlankFaults(rev.nameEn, printed);
+  if (blank.length) refuse("Not issued:", blank);
   for (const t of r.texts) {
     await c.tx.certificateDocument.create({ data: { organisationId: c.l.org.id, certificateId: cert.id, templateId: rev.templateId, templateCode: rev.code, templateName: rev.nameEn, templateFormCode: rev.formCode, templateRevisionDate: rev.revisionDate ? dayToDate(rev.revisionDate) : null, templateBodyVersion: rev.bodyVersion, language: t.language, fields: values(t.language) as Prisma.InputJsonValue, renderedText: t.text, frozenAt: c.now } });
   }

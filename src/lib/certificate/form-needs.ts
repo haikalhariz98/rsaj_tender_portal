@@ -23,12 +23,10 @@ export interface FormOf {
   bodyMs: string | null;
 }
 
-const hasText = (t: FormOf) => !!(t.bodyEn?.trim() || t.bodyMs?.trim());
-
 /// The refusal a module raises where it needs a form: none chosen (naming the need), or chosen with no text (naming the form).
 export function formNeedFault(t: FormOf | null, need: Words): Finding | null {
   if (!t) return { code: "TEMPLATE_NOT_SET", level: "block", data: { need: need.en } };
-  if (!hasText(t)) return { code: "TEMPLATE_BODY_EMPTY", level: "block", data: { form: t.nameEn } };
+  if (!(t.bodyEn?.trim() || t.bodyMs?.trim())) return { code: "TEMPLATE_BODY_EMPTY", level: "block", data: { form: t.nameEn } };
   return null;
 }
 
@@ -43,7 +41,11 @@ export interface FormNeed {
   state: NeedState;
 }
 
-const stateOf = (t: FormOf | null): NeedState => (!t ? "NOT_SET" : hasText(t) ? "READY" : "BODY_EMPTY");
+/// The state, by the one rule: no fault ready; otherwise the fault says which.
+const stateOf = (t: FormOf | null): NeedState => {
+  const f = formNeedFault(t, w("", ""));
+  return !f ? "READY" : f.code === "TEMPLATE_NOT_SET" ? "NOT_SET" : "BODY_EMPTY";
+};
 
 /// The delegation pair is chosen per contract-type variant on the post-award controls, not per kind.
 const PER_VARIANT: readonly CertificateKind[] = ["DELEGATION_LETTER", "DELEGATION_NOTICE"];

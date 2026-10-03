@@ -275,7 +275,8 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
   /// Record the blocks of a form in order, each judged as the signature act judges it; the last issues.
   async function sign(certId: string, kind: Kind, templateId: string, plan: { order: number; person?: { id: string; name: string; isActive: boolean }; name?: string; ic?: string; on: string; decision?: "SUPPORTED" | "NOT_SUPPORTED"; refused?: string }[], computed: typeof interim | null, issue: { despatch: { code: string; method: "BY_HAND" | "REGISTERED_POST" | "COLLECTION"; on: string; ack?: string }[] } | null) {
     const form = (await templateNow(templateId))!;
-    const cert = (await db.certificate.findUniqueOrThrow({ where: { id: certId }, include: { baseline: true, overrides: true } }))!;
+    const { certificateInclude } = await import("../src/lib/certificate/repo");
+    const cert = (await db.certificate.findUniqueOrThrow({ where: { id: certId }, include: certificateInclude }))!;
     const { pinContextOf } = await import("../src/lib/certificate/write");
     fail(`${certId} pin`, pinRefusals(form, mergeFields(kind), fieldsNamed, pinContextOf(cert)));
     const rev = pinRevision(form, plan[0].on);

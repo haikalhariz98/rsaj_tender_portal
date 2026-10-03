@@ -156,7 +156,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
 
   const tabs = [
     { id: "figures", label: "Figures", icon: <FileIcon size={15} />, panel: <FiguresPanel l={l} figures={figures} people={peopleOptions} today={today} /> },
-    { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? pinBlocker(form, cert) : null} people={peopleOptions} today={today} officeName={officeName} supervised={supervised} reResolveUnset={reResolveUnset} /> },
+    { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? pinBlocker(form, cert, today) : null} people={peopleOptions} today={today} officeName={officeName} supervised={supervised} reResolveUnset={reResolveUnset} /> },
     { id: "routing", label: "Routing sheet", icon: <RouteIcon size={15} />, panel: <RoutingPanel l={l} sheet={sheet} people={peopleOptions} today={today} roles={roles} /> },
     { id: "distribution", label: "Distribution", icon: <InboxIcon size={15} />, count: cert.copies.length, panel: <DistributionPanel l={l} today={today} /> },
     { id: "print", label: "Print", icon: <PrinterIcon size={15} />, panel: <PrintPanel l={l} figures={figures} revision={pinned} form={form} sheet={sheet} /> },
@@ -196,9 +196,9 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
         )}
         {l.contract.status === "CANCELLED" && <Callout tone="warn" title="The contract is cancelled">Its certificates are kept as they were; nothing more is recorded on them.</Callout>}
         {/* 6.14 increment 2 (FR-CRT-012): a draft whose form could not be signed on yet says so from the start, by the first signature's own rule. */}
-        {(status === "DRAFT" || status === "IN_ROUTING") && cert.templateId && pinBlocker(form, cert) && (
+        {(status === "DRAFT" || status === "IN_ROUTING") && pinBlocker(form, cert, today) && (
           <Callout tone="warn" title={PRINT_WORDS.notReadyTitle.en}>
-            {`${pinBlocker(form, cert)} ${PRINT_WORDS.notReadyTail.en}`}
+            {`${pinBlocker(form, cert, today)} ${PRINT_WORDS.notReadyTail.en}`}
           </Callout>
         )}
         {status === "VOID" && (
@@ -235,8 +235,8 @@ function signingBlocker(sheet: Sheet): string | null {
   return reasons.length ? reasons.join(" ") : null;
 }
 
-function pinBlocker(form: Awaited<ReturnType<typeof templateNow>>, cert: LoadedCertificate["cert"]): string | null {
-  const fs = pinRefusals(form, mergeFields(cert.kind), fieldsNamed, pinContextOf(cert));
+function pinBlocker(form: Awaited<ReturnType<typeof templateNow>>, cert: LoadedCertificate["cert"], today: string | null): string | null {
+  const fs = pinRefusals(form, mergeFields(cert.kind), fieldsNamed, pinContextOf(cert, today));
   return fs.length ? refusalText("The first signature is refused:", fs) : null;
 }
 
@@ -616,7 +616,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
             </CardBody>
           </Card>
         ))}
-        <PrintedFieldsCard title={PRINT_WORDS.asIssued.en} rows={snap.printed === undefined ? null : snap.printed.map((p) => ({ key: p.key, label: labelPair(p), value: p.valueEn, bound: p.bound }))} none={snap.printed === undefined ? PRINT_WORDS.noneRecorded.en : PRINT_WORDS.noneOnForm.en} />
+        <PrintedFieldsCard title={PRINT_WORDS.asIssued.en} rows={snap.printed === undefined ? null : snap.printed.map((p) => ({ key: p.key, label: labelPair(p), value: p.valueEn, bound: p.bound }))} none={snap.printed === undefined ? PRINT_WORDS.noneRecorded.en : PRINT_WORDS.noneOnForm.en} issued />
       </div>
     );
   }
@@ -671,7 +671,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
 type IssuedPrinted = { key: string; labelEn: string; labelMs: string | null; bound: boolean; valueEn: string | null; valueMs: string | null };
 
 /// The printed form's fields under the form's own labels: the value the portal fills, or "completed by hand".
-function PrintedFieldsCard({ title, rows, none }: { title: string; rows: { key: string; label: string; value: string | null; bound: boolean }[] | null; none: string }) {
+function PrintedFieldsCard({ title, rows, none, issued = false }: { title: string; rows: { key: string; label: string; value: string | null; bound: boolean }[] | null; none: string; /** An issued document: a bound field with no value printed blank (never "not yet"). */ issued?: boolean }) {
   return (
     <Card>
       <CardHeader icon={<FileIcon size={17} />} title={title} subtitle={PRINT_WORDS.underLabels.en} />
@@ -679,7 +679,7 @@ function PrintedFieldsCard({ title, rows, none }: { title: string; rows: { key: 
         {!rows || rows.length === 0 ? (
           <p className="text-[13px] text-ink-3">{none}</p>
         ) : (
-          <KeyValues columns={2} items={rows.map((r) => ({ label: r.label, value: !r.bound ? dim(PRINT_WORDS.byHand.en) : r.value ? r.value : dim(PRINT_WORDS.nothingYet.en) }))} />
+          <KeyValues columns={2} items={rows.map((r) => ({ label: r.label, value: !r.bound ? dim(PRINT_WORDS.byHand.en) : r.value ? r.value : dim(issued ? PRINT_WORDS.printedBlank.en : PRINT_WORDS.nothingYet.en) }))} />
         )}
       </CardBody>
     </Card>

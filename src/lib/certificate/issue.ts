@@ -16,6 +16,8 @@ import { renderWith, renderedText, type MergeWhitelist, type Rendered } from "@/
 
 import { applyCorrections, type Correction } from "./corrections";
 import { certificateFieldLabel, mergeFields, type Lang } from "./fields";
+import { formNeedFault } from "./form-needs";
+import { w } from "./labels";
 import type { TemplateRevision } from "./revision";
 import { isTermField, termCodeOf, termValues, type FrozenTerm } from "./terms";
 import type { CertificateKind, Finding } from "./types";
@@ -47,8 +49,10 @@ export function renderIssue(rev: TemplateRevision, kind: CertificateKind, values
     ["EN", rev.bodyEn],
   ];
   const present = bodies.filter(([, b]) => b != null && b.trim() !== "");
-  if (present.length === 0) {
-    faults.push({ code: "TEMPLATE_BODY_EMPTY", level: "block", data: { form: rev.nameEn } });
+  // FR-CRT-012: the one rule (form-needs.ts) decides a form with no text.
+  const empty = formNeedFault({ id: rev.templateId, nameEn: rev.nameEn, bodyEn: rev.bodyEn, bodyMs: rev.bodyMs }, w("This certificate's form", "Borang perakuan ini"));
+  if (empty || present.length === 0) {
+    faults.push(empty ?? { code: "TEMPLATE_BODY_EMPTY", level: "block", data: { form: rev.nameEn } });
     return { texts, faults, corrected: 0 };
   }
   const unknown = new Set<string>();
