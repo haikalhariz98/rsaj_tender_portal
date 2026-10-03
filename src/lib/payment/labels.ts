@@ -229,6 +229,10 @@ export function paymentFaultWords(f: Finding): Words {
       return w(`An advance is applied for and not yet issued or void (${s(d.advances, "an advance")}): its recoupment schedule is still open, so no valuation is opened until it is issued or void.`, `Pendahuluan telah dipohon dan belum dikeluarkan atau dibatalkan (${s(d.advances, "pendahuluan")}): tiada penilaian dibuka sehingga ia dikeluarkan atau dibatalkan.`);
     case "ADVANCE_SCHEDULE_PASSED":
       return w(`The advance's schedule recoups on interim certificate ${s(d.rows, "some")}, at or before interim certificate ${s(d.limit, "the last")} already issued or in progress: those rows would never be recouped. Void it and apply again with a schedule after it.`, `Jadual pendahuluan memulihkan pada perakuan interim ${s(d.rows, "tertentu")} yang telah dikeluarkan atau dalam proses.`);
+    case "ADJUSTMENTS_MOVED":
+      return w(`The adjustments of the contract sum this certificate's new sum was read from are no longer the ones issued${Number(d.added) ? ` (${String(d.added)} issued since)` : ""}: it would certify against a sum that is no longer the revised one. Void it and raise the valuation again.`, "Pelarasan harga kontrak yang dikeluarkan telah berubah sejak perakuan ini dibangkitkan. Batalkan dan bangkitkan semula penilaian.");
+    case "VARIATION_PENDING_NOT_VALUABLE":
+      return w(`Variation work commenced pending approval is not valued until its variation is approved: ${String(d.variations ?? "")}. Keep it out of the main contractor's works to date.`, "Kerja perubahan yang dimulakan sementara menunggu kelulusan tidak dinilai sehingga diluluskan.");
     case "ADVANCES_MOVED":
       return w(`The advances this certificate's recoupment was worked out from are no longer the ones issued${d.added ? ` (issued since: ${String(d.added)})` : ""}${Number(d.gone) ? ` (${String(d.gone)} no longer issued)` : ""}: a scheduled recoupment would be skipped for good. Void it and raise the valuation again.`, "Pendahuluan yang dikeluarkan telah berubah sejak perakuan ini dibangkitkan. Batalkan dan bangkitkan semula penilaian.");
     case "SCHEDULE_NOT_BALANCED":

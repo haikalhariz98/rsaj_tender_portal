@@ -25,3 +25,14 @@ export function variationFaults(i: { valuedTotal: Sen; revisedSum: Sen; unapprov
   if (i.valuedTotal > i.revisedSum) out.push({ code: "VOC_REQUIRED", level: "block", data: { valued: i.valuedTotal.toString(), revised: i.revisedSum.toString() } });
   return out;
 }
+
+/// FR-PAD-003 (6.13 Part A step 4): the issued adjustments of the contract sum a certificate read its new sum from, and
+/// those issued now: any difference refuses its issue (it would certify against a sum no longer the revised one). Both
+/// orders: an adjustment issued after the certificate was raised, or (never by the product) one no longer issued.
+export function adjustmentsMovedFaults(readAtRaising: readonly string[], issuedNow: readonly string[]): Finding[] {
+  const was = new Set(readAtRaising);
+  const now = new Set(issuedNow);
+  const added = issuedNow.filter((id) => !was.has(id)).length;
+  const gone = readAtRaising.filter((id) => !now.has(id)).length;
+  return added || gone ? [{ code: "ADJUSTMENTS_MOVED", level: "block", data: { added, gone } }] : [];
+}

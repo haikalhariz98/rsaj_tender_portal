@@ -26,11 +26,12 @@ export const KIND_ROUTE_DOMAIN: Readonly<Record<CertificateKind, string | null>>
   ADVANCE_PAYMENT: "advance_payment",
   LAD_WARNING: null,
   NON_COMPLETION: "non_completion",
-  // Step 4 (variations and the adjustment of the contract sum) routes these.
+  // Step 4: the application and the order are approved on the variation's own routes (its page), the instruction
+  // goes by its routing type; the adjustment of the contract sum routes here, on the configured gap rule (FR-PAD-006).
   VARIATION_APPLICATION: null,
   SO_INSTRUCTION: null,
   VARIATION: null,
-  SUM_ADJUSTMENT: null,
+  SUM_ADJUSTMENT: "sum_adjustment",
 };
 
 export type RouteFigure = { state: "SET"; figure: PaymentRouteFigure; value: Sen } | { state: "NOT_SET" } | { state: "NOT_COMPUTED" };

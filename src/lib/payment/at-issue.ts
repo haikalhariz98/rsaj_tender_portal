@@ -19,7 +19,8 @@ import { advanceIssueFaults, advancesMovedFaults } from "./advance";
 import { readJudgedUnder } from "./assemble";
 import { preExecutionFaults } from "./eligibility";
 import { paymentRefusal } from "./labels";
-import { inProgressSequenceOf, loadPayment, nextInterimSequence, preExecutionFacts } from "./load";
+import { inProgressSequenceOf, issuedAdjustmentsOf, loadPayment, nextInterimSequence, preExecutionFacts } from "./load";
+import { adjustmentsMovedFaults } from "./variation-check";
 import type { Finding } from "./types";
 
 /// The refusal's text where the certificate may not issue as `sequence`; null where it may.
@@ -43,6 +44,10 @@ export async function issueRefusal(tx: Tx, l: LoadedContract, cert: { id: string
     // The advances its recoupment was worked out from must still be the issued set (code review run 2, item 2).
     const issued = await tx.advancePayment.findMany({ where: { contractId: l.contract.id, certificate: { is: { status: "ISSUED" } } }, select: { id: true, party: true, amount: true, contractParty: { select: { name: true } } } });
     fs.push(...advancesMovedFaults(j.advancesRead ?? [], issued.map((a) => ({ id: a.id, label: `the advance to ${a.party === "MAIN" ? "the main contractor" : (a.contractParty?.name ?? "a nominated sub-contractor")} of ${formatMoney(senFromDecimal(a.amount))}` }))));
+    // 6.13 Part A step 4 (FR-PAD-003): the issued adjustments of the contract sum its new sum was read from must still
+    // be the issued set (one issued since would leave this certificate on the earlier sum).
+    const adjusted = issuedAdjustmentsOf(await loadPayment(l.contract.id, tx));
+    fs.push(...adjustmentsMovedFaults(j.adjustmentsRead ?? [], adjusted.map((a) => a.id)));
   }
   return fs.length ? paymentRefusal("Not issued:", fs) : null;
 }

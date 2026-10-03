@@ -15,6 +15,7 @@ import { decimalText } from "@/lib/format";
 import { db } from "@/lib/db";
 import type { Decision } from "@/lib/lad/charge";
 import { liveDecision } from "@/lib/lad/non-completion";
+import { issuedNet } from "@/lib/adjustment/ppjhk";
 import { formatSen, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import type { ContractPartyKind } from "@/lib/supervision/types";
 
@@ -51,6 +52,10 @@ export const paymentInclude = {
   certificates: { where: { kind: "INTERIM_PAYMENT" as const, status: "ISSUED" as const, interimValuation: { is: null } }, select: { number: true, sequence: true }, orderBy: { sequence: "asc" as const } },
   contractParties: { orderBy: [{ kind: "asc" as const }, { recordedAt: "asc" as const }] as { kind?: "asc"; recordedAt?: "asc" }[] },
   siteRecordsHandovers: { where: { recordsSet: "AS_BUILT" as const }, orderBy: { handedOverOn: "asc" as const } },
+  // 6.13 Part A step 4 (FR-PAD-003): the adjustments of the contract sum, of which only the issued are read.
+  sumAdjustments: { select: { id: true, certificate: { select: { status: true, issuedAt: true, issueSnapshot: true } } } },
+  // FR-PAY-008: variation work commenced pending approval is not valued until approved (said on the valuation).
+  variations: { where: { commencedOn: { not: null }, status: "SUPPORTED" as const, exemption: null }, select: { id: true, reference: true, estimate: true, approvals: { select: { event: true, approvalInstance: { select: { status: true } } } } } },
 };
 
 export type PaymentRows = Awaited<ReturnType<typeof readRows>>;
@@ -204,8 +209,10 @@ export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentC
     foreign: uncoveredForeign(p),
     openingUnreconciled: openingUnreconciledOf(p),
     openingAssumed: p.openingPosition ? assumedGroups({ gross: { provenance: p.openingPosition.grossProvenance as OpeningProvenance }, previous: { provenance: p.openingPosition.previousProvenance as OpeningProvenance }, retention: { provenance: p.openingPosition.retentionProvenance as OpeningProvenance }, released: { provenance: p.openingPosition.releasedProvenance as OpeningProvenance }, advance: { provenance: p.openingPosition.advanceProvenance as OpeningProvenance }, damages: { provenance: p.openingPosition.damagesProvenance as OpeningProvenance } }).map((g) => OPENING_GROUP_WORDS[g].en) : [],
-    // Step 4 (FR-PAD-003) adds the issued adjustments of the contract sum: none can be issued before it.
-    adjustments: [],
+    // FR-PAD-003: the revised sum read only from the issued adjustments of the contract sum (their nets), never a variation.
+    adjustments: issuedAdjustmentsOf(p).map((a) => a.net),
+    adjustmentIds: issuedAdjustmentsOf(p).map((a) => a.id),
+    commencedPending: commencedPendingOf(p),
     // The opening position's release first (MUST 1: never clawed back), then the system's.
     releases: [...openingReleaseRow(p.openingPosition ? openingOf(p.openingPosition).released : null), ...p.retentionReleases.map((r) => ({ main: senFromDecimal(r.main), nsc: senFromDecimal(r.nsc), ns: senFromDecimal(r.ns), releasedOn: storedDay(r.releasedOn) }))],
     advances: issuedAdvances(p),
@@ -236,3 +243,14 @@ export function openingUnreconciledOf(p: PaymentRows): Finding | null {
   const r = openingReconciles(openingOf(o));
   return assumed && r.length ? { code: "OPENING_NOT_RECONCILED_ASSUMED", level: "warn", data: r[0].data ?? {} } : null;
 }
+
+/// FR-PAD-003: the issued adjustments of the contract sum, oldest first, each with the net it moved the sum by.
+export const issuedAdjustmentsOf = (p: Pick<PaymentRows, "sumAdjustments">) =>
+  p.sumAdjustments
+    .filter((a) => a.certificate.status === "ISSUED")
+    .sort((a, b) => (a.certificate.issuedAt?.getTime() ?? 0) - (b.certificate.issuedAt?.getTime() ?? 0))
+    .map((a) => ({ id: a.id, net: issuedNet(a.certificate.issueSnapshot) ?? 0n }));
+
+/// FR-PAY-008: variations commenced pending approval and not yet approved (named, with their estimate).
+export const commencedPendingOf = (p: Pick<PaymentRows, "variations">) =>
+  p.variations.filter((v) => !v.approvals.some((a) => a.event === "PRIOR" && a.approvalInstance.status === "APPROVED")).map((v) => ({ reference: v.reference ?? "a variation not yet numbered", estimate: senFromDecimal(v.estimate) }));

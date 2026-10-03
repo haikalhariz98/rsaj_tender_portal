@@ -39,6 +39,11 @@ export function routeValueOf(kind: string, figures: ReturnType<typeof applyOverr
     const v = total("advanceAmount");
     return v == null ? one("ROUTE_FIGURE_NOT_COMPUTED") : { value: v, figure: "the advance's amount" };
   }
+  if (kind === "SUM_ADJUSTMENT") {
+    // FR-PAD-006: routed on the size of the adjustment, either way (its direction is on the certificate).
+    const v = total("net13");
+    return v == null ? one("ROUTE_FIGURE_NOT_COMPUTED") : { value: v < 0n ? -v : v, figure: "the total nett adjustment" };
+  }
   return { value: contractSum, figure: "the contract sum" };
 }
 

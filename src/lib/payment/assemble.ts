@@ -91,8 +91,12 @@ export interface AssembleInput {
   openingAssumed?: readonly string[];
   /// The opening position does not reconcile while figures in it are assumed (residual SHOULD 1): said on the certificate.
   openingUnreconciled?: Finding | null;
-  /// The net of each issued adjustment of the contract sum (step 4 adds them; none before).
+  /// The net of each issued adjustment of the contract sum (FR-PAD-003), and which they are (frozen with the
+  /// certificate; its issue refuses if the issued set has moved since: ADJUSTMENTS_MOVED).
   adjustments: readonly Sen[];
+  adjustmentIds?: readonly string[];
+  /// FR-PAY-008: variations commenced pending approval and not yet approved: not valued, said on the valuation.
+  commencedPending?: readonly { reference: string; estimate: Sen }[];
   releases: readonly ReleaseRow[];
   /// Advances whose certificate is issued, with their schedules (recouped is read from `issued` here).
   advances: readonly Omit<LiveAdvance, "recouped">[];
@@ -122,6 +126,8 @@ export interface JudgedUnder {
   recoupments: { advanceId: string; party: "MAIN" | "NSC"; recoup: string; balanceAfter: string }[];
   /// The issued advances read at raising (the issue refuses if that set has moved: ADVANCES_MOVED).
   advancesRead?: string[];
+  /// The issued adjustments of the contract sum read at raising (the issue refuses if that set has moved: ADJUSTMENTS_MOVED).
+  adjustmentsRead?: string[];
   parties: { partyId: string; name: string; kind: ContractPartyKind; value: string | null; due: string }[];
   pendingDeductionIds: string[];
   preExecution: { limit: number | null; provenance: Provenance | null };
@@ -237,6 +243,9 @@ export function assembleInterim(i: AssembleInput): Assembled {
   if (i.openingAssumed?.length) revised.push({ code: "OPENING_ASSUMED", level: "warn", data: { groups: i.openingAssumed.join(", ") } });
   if (i.openingUnreconciled) revised.push(i.openingUnreconciled);
   const warnings = [...preExecutionFaults(sequence, { ...i.preExecution, limit: i.policy.preExecutionLimit }, "warn"), ...revised];
+  // FR-PAY-008: work done on a variation commenced pending approval is not valued until it is approved (said, not refused:
+  // the main contractor's works are one figure to date, BD-613-33, so what it holds is the valuer's to keep out).
+  if (i.commencedPending?.length) warnings.push({ code: "VARIATION_PENDING_NOT_VALUABLE", level: "warn", data: { variations: i.commencedPending.map((x) => `${x.reference} (estimated ${formatMoney(x.estimate)})`).join("; ") } });
   // BD-613-48: the certificate itself says the CNC's rate still applies where the baseline has since moved.
   const rateNote = revised.find((x) => x.code === "LAD_BASELINE_REVISED");
   if (result.snapshot && rateNote) result.snapshot.lines.push({ key: "ladRateNote", labelEn: "Damages rate", labelMs: "Kadar ganti rugi", type: "TEXT", value: paymentFaultWords(rateNote).en, valueMs: paymentFaultWords(rateNote).ms, overridable: false });
@@ -262,6 +271,7 @@ export function assembleInterim(i: AssembleInput): Assembled {
         lad: lad.state === "CHARGED" ? { state: lad.state, from: lad.from, to: lad.to, until: lad.until, days: lad.days, rate: str(lad.rate), amount: str(lad.amount), reason: null } : { state: lad.state, from: null, to: null, until: null, days: null, rate: null, amount: null, reason: lad.state === "EXCUSED" ? lad.reason : null },
         recoupments: rec.lines.filter((l) => l.recoup > 0n).map((l) => ({ advanceId: l.id, party: l.party, recoup: str(l.recoup), balanceAfter: str(l.balanceAfter) })),
         advancesRead: i.advances.map((a) => a.id),
+        adjustmentsRead: [...(i.adjustmentIds ?? [])],
         parties: v.parties.map((p) => ({ partyId: p.partyId, name: p.name, kind: p.kind, value: p.value == null ? null : str(p.value), due: str(p.due) })),
         pendingDeductionIds: pending.map((p) => p.id),
         preExecution: { limit: i.policy.preExecutionLimit, provenance: i.policy.preExecutionProvenance },
