@@ -417,9 +417,10 @@ export async function loadLifecycleDemo(db: Db, organisationId: string) {
 
   // ------------------------------------------------ the documents the acts need on file
   let docN = 0;
-  const doc = async (title: string, purpose: DemoDoc["attachments"][number]["purpose"], when: string, lines: string[]) => {
+  /// `on`: another owner than the contract (an instruction's sketch, FR-VAR-015), with how the trail names it.
+  const doc = async (title: string, purpose: DemoDoc["attachments"][number]["purpose"], when: string, lines: string[], on?: { owner: DemoDoc["attachments"][number]["owner"]; label: string }) => {
     const k = ++docN;
-    const d: DemoDoc = { id: `${P}ldoc${k}`, title, classId: `${P}dc1`, className: "Contract documents", classification: "INTERNAL", createdAt: when, versions: [{ id: `${P}ldoc${k}v1`, n: 1, bytes: demoPdf(lines), mediaType: "application/pdf", filename: `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`, receivedOn: when.slice(0, 10), storedAt: when }], attachments: [{ id: `${P}ldoc${k}a1`, purpose, owner: { contractId: id }, ownerLabel: `Contract ${CON_NO} · ${AWARDEE.name}`, versionId: `${P}ldoc${k}v1`, at: when }] };
+    const d: DemoDoc = { id: `${P}ldoc${k}`, title, classId: `${P}dc1`, className: "Contract documents", classification: "INTERNAL", createdAt: when, versions: [{ id: `${P}ldoc${k}v1`, n: 1, bytes: demoPdf(lines), mediaType: "application/pdf", filename: `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`, receivedOn: when.slice(0, 10), storedAt: when }], attachments: [{ id: `${P}ldoc${k}a1`, purpose, owner: on?.owner ?? { contractId: id }, ownerLabel: on?.label ?? `Contract ${CON_NO} · ${AWARDEE.name}`, versionId: `${P}ldoc${k}v1`, at: when }] };
     await (await writeDemoDocs(db, organisationId, [d], `${P}ldocau${k}_`, people.chen)).flush();
   };
 
@@ -572,6 +573,9 @@ export async function loadLifecycleDemo(db: Db, organisationId: string) {
   for (const st of r1.steps.filter((x) => !x.committeeCode)) await act("2026-07-17T10:00", `approved by ${st.roleCode}`, V.decideVariationApprovalStep, { id, variationId: av, stepId: st.id, decision: "DONE", personId: holderOf[st.roleCode ?? ""].id, decidedOn: "2026-07-17", receivedOn: "2026-07-16", reason: "" });
   await sign((await db.variation.findUniqueOrThrow({ where: { id: av } })).applicationCertificateId!, "2026-07-17", soBlock("2026-07-17"), "2026-07-17");
   await instruct(av, "2026-07-20", avText);
+  // FR-VAR-015: the chambers' sketch, attached to the S.O.'s Instruction through the document store.
+  const avIns = await db.variationInstruction.findFirstOrThrow({ where: { variationId: av }, include: { certificate: { select: { number: true } }, variation: { select: { reference: true } } } });
+  await doc("Air valve chambers at chainages 1+200 and 1+850, sketch", "INSTRUCTION_SKETCH", "2026-07-20T03:00", ["Sketch (demo)", "Air valve chambers at chainages 1+200 and 1+850", "Plan and section, not to scale."], { owner: { variationInstructionId: avIns.id }, label: `Contract ${CON_NO} · variation ${avIns.variation.reference} · the S.O.'s instruction ${avIns.certificate.number}` });
   await measure(ps, "2026-07-27", psText, [
     { ref: "PS1", description: "Premix reinstatement, 50 mm, including base", qty: "84.000", unit: "m2", rate: "62.50", bq: "6.1", records: "Measured with the district engineer's representative (demo)." },
     { ref: "PS2", description: "Road markings renewed", qty: "1.000", unit: "item", rate: "1120.00", bq: "6.4" },
