@@ -43,7 +43,7 @@ calendar days ASSUMED, shown, question to RSAJ; OD-4 A projection; OD-5 A data o
 Conditions: ADRs 0022, 0023; computed-field overrides only in DRAFT, refused from IN_ROUTING, totals never overridable; snapshots
 hold money as decimal strings; routing-target bands use the exact-ratio helper (test "20.00% → 2 weeks, 20.01% → 6 weeks"); the
 §13.4 pre-award routing sheet (CPD/DFA/PRE T-QUO) in inc 1 as a RoutingSheetType over the award route, award tests unchanged
-(logged departure); inc 2 review queue shows a Callout naming 6.15b.
+(logged departure); inc 2 review queue shows a Callout naming the vendor portal (sign-in) in words [amended 2026-10-04, BD-614-31: was "naming 6.15b"; no module numbers on screen].
 
 ## 6.13 Post-award lifecycle
 Part A approved with conditions; Part B scope and questions approved in outline — the full Part B plan returns for a go at its step 0.
