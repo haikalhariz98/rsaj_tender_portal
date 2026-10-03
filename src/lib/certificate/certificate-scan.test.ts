@@ -34,7 +34,7 @@ function files(dir: string): string[] {
   });
 }
 
-const SOURCES = [...files("src/app"), ...files("src/lib"), ...files("prisma")].map((file) => ({ file, src: read(file) }));
+const SOURCES = [...files("src/app"), ...files("src/components"), ...files("src/lib"), ...files("prisma")].map((file) => ({ file, src: read(file) }));
 
 /// Each exported action's body, by name.
 function actions(src: string): Map<string, string> {
@@ -162,15 +162,20 @@ describe("FR-CRT-002: no form posts a bound field", () => {
 // ------------------------------------------------------------------ 6.14 inc 1 fix R-8: the write scan, airtight
 //
 // The checks above credit a write to its file and find a protected key by a regular expression on the call's
-// text. Here, as 6.12's re-review scan does for the contract: every write that can reach a certificate's rows
-// (a Prisma write on the model however spaced or broken, a nested write through another model, the status
-// helper's patch, raw SQL however built) in every non-test source under src/app, src/lib and prisma is
-// credited to its true enclosing function and must be on a per-function allow-list; its data must be an
-// inline object literal whose keys the scan reads (quoted, shorthand or plain; a spread only where the helper
-// is built on one; never a computed key); and each protected key (the date, the status, ISSUED's number,
-// sequence and snapshot, the frozen routing type, the pinned form, the received day, the void) has its own
-// named writers. moveTo's status is a literal and its patch an inline literal whose keys are judged per
-// status. The pre-award sheet's acts are held to the award's lock order as the certificate's are.
+// text. Here, as 6.12's re-review scan does for the contract, over every non-test source under src/app,
+// src/components, src/lib and prisma: every Prisma 7 write op on a certificate-family model (however spaced,
+// broken, optionally chained or called on a destructured handle) is credited to its true enclosing function and
+// must be on a per-function allow-list, its data an inline literal whose keys the scan reads (quoted, shorthand
+// or plain; a spread only where the helper is built on one; never a computed key; no nested write inside), each
+// protected key with its own named writers. A model handle not followed directly by `.op(` (an alias, a
+// bracketed op, a handle passed on or destructured) is flagged. Inside any Prisma write, every relation the
+// schema types as a certificate-family model is read: a write key anywhere inside it, or a value the scan cannot
+// read, is flagged. moveTo is called directly by name only, its status a literal from its one function and its
+// patch judged per status. Raw SQL is read with comments blanked and strings kept, whole across lines: a write on
+// a certificate table however quoted or schema-qualified (UPDATE, INSERT, DELETE, MERGE, TRUNCATE, COPY, ALTER,
+// DROP), an interpolated table, Prisma.raw and any raw call with a non-template argument are flagged; in a file
+// naming a certificate table as an SQL identifier, any raw call must be allow-listed by function and exact text.
+// Limit (stated, not claimed away): a write on another model whose data is a variable is not seen into here.
 
 const CERT_MODELS = ["certificate", "certificateSignature", "certificateOverride", "certificateDocument", "routingCheck", "awardRoutingSheet"];
 const CERT_TABLES = ["Certificate", "CertificateSignature", "CertificateOverride", "CertificateDocument", "RoutingCheck", "AwardRoutingSheet"];
@@ -278,11 +283,45 @@ interface CertWrite {
   problem: string | null;
 }
 
-const WRITE_SQL = new RegExp(`\\b(UPDATE|INSERT\\s+INTO|DELETE\\s+FROM)\\s+(?:ONLY\\s+)?\\\\?["'\`]?(${CERT_TABLES.join("|")})\\\\?["'\`]?(?![\\w])`, "i");
-const SQL_VAR_TABLE = /\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+\\?["'`]?\$\{/i;
+/// Every Prisma 7 operation on a model delegate: the writes, and the reads a handle may be followed by.
+const WRITE_OPS = ["create", "createMany", "createManyAndReturn", "update", "updateMany", "updateManyAndReturn", "upsert", "delete", "deleteMany"];
+const READ_OPS = ["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count", "aggregate", "groupBy"];
+/// A relation's write keys, at any depth inside a relation object.
+const NESTED_WRITE = /\b(create|createMany|update|updateMany|upsert|delete|deleteMany|connectOrCreate|connect|disconnect|set)\s*:/;
+
+/// Every relation field, on any model, whose type is a certificate-family model, read from the schema; and the
+/// ones whose name another model also uses for a relation to something else (judged only under a family write).
+function familyRelations(): { names: string[]; ambiguous: string[] } {
+  const schema = read("prisma/schema.prisma");
+  const models = [...schema.matchAll(/^model (\w+) \{([\s\S]*?)^\}/gm)].map((x) => ({ name: x[1], body: x[2] }));
+  const modelNames = new Set(models.map((x) => x.name));
+  const fam = new Set<string>();
+  const other = new Set<string>();
+  for (const x of models)
+    for (const line of x.body.split("\n")) {
+      const t = /^\s+(\w+)\s+(\w+)/.exec(line);
+      if (t && modelNames.has(t[2])) (CERT_TABLES.includes(t[2]) ? fam : other).add(t[1]);
+    }
+  return { names: [...fam].filter((n) => !other.has(n)).sort(), ambiguous: [...fam].filter((n) => other.has(n)).sort() };
+}
+const FAMILY = familyRelations();
+
+/// Raw SQL allowed by "file › function" and its exact text: the certificate's lock, and a copy's lock after it.
+const RAW_ALLOW: Readonly<Record<string, RegExp>> = {
+  [`${P(REPO)} › withLockedCertificate`]: /^\$queryRaw`SELECT id FROM "Certificate" WHERE id = \$\{certificateId\} FOR UPDATE`$/,
+  [`${W_} › onCopy`]: /^\$queryRaw`SELECT id FROM "IssuedCopy" WHERE id = \$\{copyId\} FOR UPDATE`$/,
+};
+const TABLE_ALT = CERT_TABLES.join("|");
+const WRITE_SQL = new RegExp(`\\b(UPDATE|INSERT\\s+INTO|DELETE\\s+FROM|MERGE\\s+INTO|TRUNCATE(?:\\s+TABLE)?|COPY|ALTER\\s+TABLE|DROP\\s+TABLE)\\s+(?:ONLY\\s+)?(?:\\\\?["\`]?\\w+\\\\?["\`]?\\s*\\.\\s*)?\\\\?["'\`]?(${TABLE_ALT})\\\\?["'\`]?(?![\\w])`, "gi");
+const SQL_VAR_TABLE = /\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM|MERGE\s+INTO)\s+(?:\w+\s*\.\s*)?\\?["'`]?\$\{/gi;
+/// A certificate table named as an SQL identifier ("Certificate", double-quoted, as Postgres needs a mixed-case
+/// name) inside a string or template: not a JS string whose text is the bare word (an audit entity, a label).
+const SQL_IDENT = new RegExp(`\\\\?"(${TABLE_ALT})\\\\?"(?![\\w])`, "g");
+const namesTableIn = (text: string, m: string) => [...text.matchAll(SQL_IDENT)].some((x) => m[x.index!] !== '"');
 
 export function scanCertificateWrites(files: readonly { file: string; src: string }[], allow: CertAllow, demo = false): CertWrite[] {
   const out: CertWrite[] = [];
+  const MODEL = CERT_MODELS.join("|");
   for (const { file, src } of files) {
     const m = lex(src);
     const sp = spans(m);
@@ -290,8 +329,9 @@ export function scanCertificateWrites(files: readonly { file: string; src: strin
     const at = (i: number) => `${file} › ${fnAt(i)}`;
     const push = (i: number, op: string, problem: string | null) => out.push({ where: at(i), op, problem });
 
-    // (1) A Prisma write on a certificate model, however spaced or broken across lines.
-    for (const x of m.matchAll(new RegExp(`\\.\\s*(${CERT_MODELS.join("|")})\\s*\\.\\s*(update|updateMany|upsert|create|createMany|createManyAndReturn|delete|deleteMany)\\s*\\(`, "g"))) {
+    // (1) A Prisma write on a certificate model, however spaced, broken across lines or optionally chained; the
+    // handle may be any receiver or a bare (destructured) name.
+    for (const x of m.matchAll(new RegExp(`(?<![\\w$])(${MODEL})\\s*\\??\\.\\s*(${WRITE_OPS.join("|")})\\s*\\(`, "g"))) {
       const op = `${x[1]}.${x[2]}`;
       const where = at(x.index!);
       if (demo) {
@@ -318,6 +358,7 @@ export function scanCertificateWrites(files: readonly { file: string; src: strin
           const o = objectKeys(src, m, v);
           if (o.computed) problem = `${k} has a computed key`;
           else if (o.spreads.some((s) => !r!.spread?.test(s))) problem = `${k} has a spread`;
+          else if (NESTED_WRITE.test(m.slice(v + 1, closing(m, v)))) problem = `${k} holds a nested write`;
           else {
             const bad = o.keys.filter((key) => PROTECTED[key] && !PROTECTED[key].includes(where));
             if (bad.length && x[1] === "certificate") problem = `writes ${bad.join(", ")}`;
@@ -327,12 +368,38 @@ export function scanCertificateWrites(files: readonly { file: string; src: strin
       push(x.index!, op, problem);
     }
 
-    // (2) A nested write through another model, or the model's handle taken by name.
-    for (const x of src.matchAll(/["']?\b(certificate|certificates|signatures|overrides|routingChecks|routingCheck|awardRoutingSheet|routingSheet)["']?\s*:\s*\{\s*["']?(create|createMany|update|updateMany|upsert|delete|deleteMany|connectOrCreate|set)["']?\s*:/g)) {
-      if (m[x.index!] === " " && src[x.index!] !== " ") continue; // inside a string or comment
-      push(x.index!, `nested ${x[1]}.${x[2]}`, "a nested write");
+    // (2) A model handle not followed directly by `.op(`: an alias, a bracketed operation, an optional chain to
+    // something else, a handle passed on; and a handle destructured off a client.
+    if (!demo) {
+      for (const x of m.matchAll(new RegExp(`\\.\\s*(${MODEL})\\b`, "g"))) {
+        const rest = m.slice(x.index! + x[0].length);
+        const direct = new RegExp(`^\\s*\\??\\.\\s*(${[...WRITE_OPS, ...READ_OPS].join("|")})\\s*\\(`).test(rest);
+        const property = /^\s*\??\.\s*[A-Za-z_$]/.test(rest) && !new RegExp(`^\\s*\\??\\.\\s*(${[...WRITE_OPS, ...READ_OPS].join("|")})\\b`).test(rest);
+        if (!direct && !property && !HANDLE_EXEMPT[`${at(x.index!)} ${x[1]}`]) push(x.index!, `${x[1]} handle`, "the model handle taken");
+      }
+      for (const x of m.matchAll(new RegExp(`\\{[^{}]*(?<![\\w$.])(${MODEL})\\b[^{}]*\\}\\s*=(?![=>])`, "g"))) push(x.index!, `${x[1]} destructured`, "the model handle taken");
+      for (const x of src.matchAll(new RegExp(`\\[\\s*["'\`](${MODEL}|${WRITE_OPS.join("|")})["'\`]\\s*\\]`, "g"))) if (m[x.index!] === "[") push(x.index!, `${x[1]} by name`, "the model taken by name");
     }
-    for (const x of src.matchAll(new RegExp(`\\[\\s*["'\`](${CERT_MODELS.join("|")})["'\`]\\s*\\]`, "g"))) push(x.index!, `${x[1]} by name`, "the model taken by name");
+
+    // (3) A nested write through any relation to a certificate-family model, at any depth inside its object, or
+    // a relation given a value the scan cannot read (a variable): inside the arguments of any Prisma write.
+    for (const x of m.matchAll(new RegExp(`(?<![\\w$])(\\w+)\\s*\\??\\.\\s*(${WRITE_OPS.join("|")})\\s*\\(`, "g"))) {
+      const open = x.index! + x[0].length - 1;
+      const close = closing(m, open);
+      const names = CERT_MODELS.includes(x[1]) ? [...FAMILY.names, ...FAMILY.ambiguous] : FAMILY.names;
+      const re = new RegExp(`(?<![\\w$.])(["']?)(${names.join("|")})\\1\\s*:`, "g");
+      const seg = src.slice(open, close + 1);
+      for (const k of seg.matchAll(re)) {
+        const i = open + k.index!;
+        if (k[1] ? m[i] !== k[1] : m[i] === " ") continue; // inside a string or comment (a quoted key keeps its quote in the lexed text)
+        let v = i + k[0].length;
+        while (/\s/.test(m[v])) v++;
+        if (m[v] === "{") {
+          const inner = m.slice(v + 1, closing(m, v));
+          if (NESTED_WRITE.test(inner)) push(i, `nested ${k[2]}`, "a nested write");
+        } else if (!/^(true|false)\b/.test(m.slice(v))) push(i, `nested ${k[2]}`, "nested data the scan cannot read");
+      }
+    }
 
     // (3) The certificate's status helper: its status a literal from its own mover, its patch an inline literal judged per status.
     if (file === W_ && !demo) {
@@ -363,24 +430,44 @@ export function scanCertificateWrites(files: readonly { file: string; src: strin
       }
     }
 
-    // (4) Raw SQL writing a certificate table, however it is built (a tagged template, Prisma.sql, a string in a
-    // variable), raw SQL with an interpolated table, and a raw call the scan cannot read.
-    const lines = src.split("\n");
-    let offset = 0;
-    for (const line of lines) {
-      const t = line.trim();
-      if (!/^(\/\/|\*|\/\*)/.test(t)) {
-        const w = WRITE_SQL.exec(line);
-        if (w) push(offset + w.index, "raw SQL", "raw SQL writes a certificate table");
-        const v = SQL_VAR_TABLE.exec(line);
-        if (v) push(offset + v.index, "raw SQL", "raw SQL with an interpolated table");
+    // (3b) moveTo is called directly, by name, and never aliased, passed on, bound, called through .call or exported.
+    if (!demo && file === W_)
+      for (const x of m.matchAll(/\bmoveTo\b/g)) {
+        const before = m.slice(0, x.index!).replace(/\s+$/, "");
+        const after = m.slice(x.index! + "moveTo".length);
+        const exported = /\bexport\s+(async\s+)?function\s*$/.test(before);
+        const definition = /\bfunction\s*$/.test(before) && !exported;
+        const direct = /^\s*\(/.test(after) && !before.endsWith(".") && !/\bfunction\s*$/.test(before);
+        if (!definition && !direct) push(x.index!, "moveTo aliased", "moveTo not called directly");
       }
-      offset += line.length + 1;
+
+    // (4) Raw SQL. The text with comments blanked, read whole (a statement may span lines): a write on a
+    // certificate table however qualified or quoted, a write whose table is interpolated, Prisma.raw anywhere;
+    // and, in a file that names a certificate table, any raw call not allow-listed by its function and text.
+    const text = lex(src, { only: "comments" });
+    for (const w of text.matchAll(WRITE_SQL)) push(w.index!, "raw SQL", "raw SQL writes a certificate table");
+    for (const w of text.matchAll(SQL_VAR_TABLE)) push(w.index!, "raw SQL", "raw SQL with an interpolated table");
+    for (const x of m.matchAll(/\bPrisma\s*\.\s*raw\s*\(/g)) push(x.index!, "Prisma.raw", "raw SQL the scan cannot read");
+    const namesTable = namesTableIn(text, m);
+    for (const x of m.matchAll(/\$(executeRaw|queryRaw)(Unsafe)?\s*([`(])/g)) {
+      if (x[3] === "(" || x[2]) {
+        push(x.index!, `$${x[1]}${x[2] ?? ""}(…)`, "raw SQL the scan cannot read");
+        continue;
+      }
+      if (!namesTable || demo) continue;
+      const end = src.indexOf("`", x.index! + x[0].length);
+      const call = src.slice(x.index!, end + 1);
+      const rule = RAW_ALLOW[at(x.index!)];
+      if (!rule || !rule.test(call)) push(x.index!, `$${x[1]}`, "raw SQL in a file naming a certificate table, not allow-listed");
     }
-    for (const x of m.matchAll(/\$(executeRaw|queryRaw)(Unsafe)?\s*\(/g)) push(x.index!, `$${x[1]}${x[2] ?? ""}(…)`, "raw SQL the scan cannot read");
   }
   return out;
 }
+
+/// Model-handle-like property reads that are not a Prisma handle, by "file › function name" (none may write).
+const HANDLE_EXEMPT: Readonly<Record<string, string>> = {
+  "src/app/configuration/tender-documents/page.tsx › TenderDocumentsConfigurationPage certificate": "UNSET.certificate: a word map's entry, not a client",
+};
 
 describe("every write that can reach a certificate's rows (R-8)", () => {
   const product = SOURCES.filter((s) => !s.file.startsWith("prisma"));
@@ -487,18 +574,71 @@ describe("the write scan catches each evasion (self-tests)", () => {
     expect(one(`${fnHead("sendForRouting")}  await moveTo(c, "IN_ROUTING", { routingSnapshot: frozen });\n}\n`)).toEqual([]);
   });
   it("a nested write through another model, or the model taken by name", () => {
-    expect(one(`${fnHead("x")}  await tx.contract.update({ where: { id }, data: { certificates: { updateMany: { where: {}, data: { status: "ISSUED" } } } } });\n}\n`)).toEqual(["x · nested certificates.updateMany · a nested write"]);
+    expect(one(`${fnHead("x")}  await tx.contract.update({ where: { id }, data: { certificates: { updateMany: { where: {}, data: { status: "ISSUED" } } } } });\n}\n`)).toEqual(["x · nested certificates · a nested write"]);
     expect(one(`${fnHead("x")}  await tx["certificate"].updateMany({ where: {}, data: {} });\n}\n`)).toEqual(["x · certificate by name · the model taken by name"]);
   });
   it("raw SQL however built: a tagged template, Prisma.sql, a string in a variable, an interpolated table, an unreadable call", () => {
-    expect(one(`${fnHead("x")}  await tx.$executeRaw\`UPDATE "Certificate" SET status = 'ISSUED'\`;\n}\n`)).toEqual(["x · raw SQL · raw SQL writes a certificate table"]);
+    expect(one(`${fnHead("x")}  await tx.$executeRaw\`UPDATE "Certificate" SET status = 'ISSUED'\`;\n}\n`)).toEqual(["x · raw SQL · raw SQL writes a certificate table", "x · $executeRaw · raw SQL in a file naming a certificate table, not allow-listed"]);
     expect(one(`${fnHead("x")}  const q = Prisma.sql\`UPDATE "Certificate" SET "certificateDate" = NOW()\`;\n  await tx.$executeRaw(q);\n}\n`)).toEqual(["x · raw SQL · raw SQL writes a certificate table", "x · $executeRaw(…) · raw SQL the scan cannot read"]);
     expect(one(`${fnHead("x")}  const q = "DELETE FROM \\"RoutingCheck\\" WHERE 1 = 1";\n  await tx.$executeRawUnsafe(q);\n}\n`)).toEqual(["x · raw SQL · raw SQL writes a certificate table", "x · $executeRawUnsafe(…) · raw SQL the scan cannot read"]);
     expect(one(`${fnHead("x")}  await tx.$executeRawUnsafe(\`update "\${t}" set status = 'ISSUED'\`);\n}\n`)).toEqual(["x · raw SQL · raw SQL with an interpolated table", "x · $executeRawUnsafe(…) · raw SQL the scan cannot read"]);
-    expect(one(`${fnHead("x")}  await tx.$executeRaw\`INSERT INTO "CertificateSignature" (id) VALUES (1)\`;\n}\n`)).toEqual(["x · raw SQL · raw SQL writes a certificate table"]);
+    expect(one(`${fnHead("x")}  await tx.$executeRaw\`INSERT INTO "CertificateSignature" (id) VALUES (1)\`;\n}\n`)).toEqual(["x · raw SQL · raw SQL writes a certificate table", "x · $executeRaw · raw SQL in a file naming a certificate table, not allow-listed"]);
   });
   it("nothing is flagged in comments, strings naming a model, a where clause or a lock's SELECT … FOR UPDATE", () => {
-    const src = `${fnHead("recordRoutingReceived")}  // tx.certificate.updateMany({ data: { certificateDate } })\n  // UPDATE "Certificate" SET x = 1\n  const s = "tx.certificate.updateMany(";\n  await c.tx.$queryRaw\`SELECT id FROM "Certificate" WHERE id = \${id} FOR UPDATE\`;\n  await c.tx.certificate.updateMany({ where: { id, status: "IN_ROUTING", certificateDate: null }, data: { routingReceivedOn: d, routingReceivedRecordedAt: c.now } });\n}\n`;
+    const src = `${fnHead("recordRoutingReceived")}  // tx.certificate.updateMany({ data: { certificateDate } })\n  // UPDATE "Certificate" SET x = 1\n  const s = "tx.certificate.updateMany(";\n  await c.tx.certificate.updateMany({ where: { id, status: "IN_ROUTING", certificateDate: null }, data: { routingReceivedOn: d, routingReceivedRecordedAt: c.now } });\n}\n`;
     expect(one(src)).toEqual([]);
+    // The certificate's own lock, in the one function and with the one text allowed; the same lock anywhere else is flagged.
+    const lock = "export async function withLockedCertificate(certificateId, fn) {\n  await tx.$queryRaw`SELECT id FROM \"Certificate\" WHERE id = ${certificateId} FOR UPDATE`;\n}\n";
+    expect(one(lock, P(REPO))).toEqual([]);
+    expect(one(lock.replace("withLockedCertificate", "lockAgain"), P(REPO))).toEqual(["lockAgain · $queryRaw · raw SQL in a file naming a certificate table, not allow-listed"]);
+  });
+});
+
+describe("the re-review's evasions are each caught (R-8 residual)", () => {
+  const h = (n: string) => `export async function ${n}(c) {\n`;
+  /// Each evasion, and the problem the scan must name for it.
+  const CASES: Record<string, [string, RegExp]> = {
+    updateManyAndReturn: [`${h("x")}  await c.tx.certificate.updateManyAndReturn({ where: { id }, data: { status: "ISSUED" } });\n}\n`, /certificate\.updateManyAndReturn · not on the allow-list/],
+    alias: [`${h("x")}  const t = c.tx.certificate;\n  await t.updateMany({ where: { id }, data: { status: "ISSUED" } });\n}\n`, /certificate handle · the model handle taken/],
+    destructure: [`${h("x")}  const { certificate } = c.tx;\n  await certificate.updateMany({ where: { id }, data: { status: "ISSUED" } });\n}\n`, /certificate destructured · the model handle taken/],
+    optionalChain: [`${h("x")}  await c.tx.certificate?.updateMany({ where: { id }, data: { status: "ISSUED" } });\n}\n`, /certificate\.updateMany · not on the allow-list/],
+    bracketOp: [`${h("x")}  await c.tx.certificate["updateMany"]({ where: { id }, data: { status: "ISSUED" } });\n}\n`, /certificate handle · the model handle taken/],
+    nestedSecondKey: [`${h("x")}  await tx.contract.update({ where: { id }, data: { certificates: { disconnect: [], updateMany: { where: {}, data: { status: "ISSUED" } } } } });\n}\n`, /nested certificates · a nested write/],
+    nestedVar: [`${h("x")}  await tx.contract.update({ where: { id }, data: { certificates: nested } });\n}\n`, /nested certificates · nested data the scan cannot read/],
+    nestedOtherRel: [`${h("x")}  await tx.person.update({ where: { id }, data: { certificateSignatures: { create: { x: 1 } } } });\n}\n`, /nested certificateSignatures · a nested write/],
+    nestedAwardSheets: [`${h("x")}  await tx.routingSheetType.update({ where: { id }, data: { awardSheets: { updateMany: { where: {}, data: { receivedOn: d } } } } });\n}\n`, /nested awardSheets · a nested write/],
+    rawMultiline: [`${h("x")}  await tx.$executeRaw\`UPDATE\n    "Certificate" SET status = 'ISSUED'\`;\n}\n`, /raw SQL writes a certificate table/],
+    rawSchema: [`${h("x")}  await tx.$executeRaw\`UPDATE public."Certificate" SET status = 'ISSUED'\`;\n}\n`, /raw SQL writes a certificate table/],
+    rawPrismaRaw: [`${h("x")}  await tx.$executeRaw\`\${Prisma.raw(q)}\`;\n}\n`, /Prisma\.raw · raw SQL the scan cannot read/],
+    rawConcat: [`${h("x")}  const q = Prisma.sql\`UPDATE \` ;\n  await tx.$executeRaw\`\${q} "Certificate" SET status = 'ISSUED'\`;\n}\n`, /\$executeRaw · raw SQL in a file naming a certificate table, not allow-listed/],
+    moveAlias: [`${h("correctCertificateDate")}  const go = moveTo;\n  await go(c, "ISSUED", { number: "1" });\n}\n`, /moveTo aliased · moveTo not called directly/],
+    moveCall: [`${h("correctCertificateDate")}  await moveTo.call(null, c, "ISSUED", { number: "1" });\n}\n`, /moveTo aliased · moveTo not called directly/],
+    merge: [`${h("x")}  await tx.$executeRaw\`MERGE INTO "Certificate" c USING x ON true WHEN MATCHED THEN UPDATE SET status = 'ISSUED'\`;\n}\n`, /raw SQL writes a certificate table/],
+  };
+  it.each(Object.entries(CASES))("%s", (_name, [src, problem]) => {
+    const found = scanCertificateWrites([{ file: W_, src }], CERT_ALLOW).filter((w) => w.problem).map((w) => `${w.op} · ${w.problem}`);
+    expect(found.some((f) => problem.test(f)), found.join(" | ") || "nothing flagged").toBe(true);
+  });
+  it("more of the same: the other write ops, a handle passed on, exported or bound moveTo, other relations, a quoted relation, TRUNCATE", () => {
+    const flags = (src: string, file = W_) => scanCertificateWrites([{ file, src }], CERT_ALLOW).filter((w) => w.problem).map((w) => `${w.op} · ${w.problem}`);
+    for (const op of ["createManyAndReturn", "upsert", "delete", "deleteMany", "createMany"]) expect(flags(`${h("x")}  await tx.routingCheck.${op}({ where: {} });\n}\n`).join("|"), op).toMatch(/not on the allow-list/);
+    expect(flags(`${h("x")}  await helper(c.tx.certificateSignature);\n}\n`).join("|")).toMatch(/certificateSignature handle · the model handle taken/);
+    expect(flags(`${h("x")}  const f = c.tx.awardRoutingSheet.update;\n  await f({ where: {}, data: {} });\n}\n`).join("|")).toMatch(/awardRoutingSheet handle · the model handle taken/);
+    expect(flags("export async function moveTo(c, to) {\n  await c.tx.certificate.updateMany({ where: { id }, data: { status: to } });\n}\n").join("|")).toMatch(/moveTo not called directly/);
+    expect(flags(`${h("issue")}  await moveTo.bind(null)(c, "ISSUED");\n}\n`).join("|")).toMatch(/moveTo not called directly/);
+    expect(flags(`${h("x")}  await tx.organisation.update({ where: { id }, data: { "routingChecks": { deleteMany: {} } } });\n}\n`).join("|")).toMatch(/nested routingChecks · a nested write/);
+    expect(flags(`${h("x")}  await tx.delegation.update({ where: { id }, data: { certificateSignatures: { set: [] } } });\n}\n`).join("|")).toMatch(/nested certificateSignatures · a nested write/);
+    expect(flags(`${h("x")}  await tx.certificate.create({ data: { documents: { create: [] } } });\n}\n`).join("|")).toMatch(/a nested write|not on the allow-list/);
+    expect(flags(`${h("x")}  await tx.$executeRaw\`TRUNCATE "RoutingCheck"\`;\n}\n`).join("|")).toMatch(/raw SQL writes a certificate table/);
+    expect(flags(`${h("x")}  await tx.$executeRaw\`DELETE FROM "public"."AwardRoutingSheet"\`;\n}\n`).join("|")).toMatch(/raw SQL writes a certificate table/);
+  });
+  it("an award's own documents and a contract's own signatures are not a certificate's (the names other models also use)", () => {
+    const flags = (src: string) => scanCertificateWrites([{ file: P("src/app/awards/actions.ts"), src }], CERT_ALLOW).filter((w) => w.problem);
+    expect(flags(`${h("issueAward")}  await tx.award.update({ where: { id }, data: { documents: { create: [] }, signatures: { create: [] } } });\n}\n`)).toEqual([]);
+    expect(FAMILY.ambiguous).toEqual(["documents", "signatures"]);
+    for (const n of ["certificates", "certificateSignatures", "certificateOverrides", "certificateDocuments", "awardRoutingSheets", "awardSheets", "routingChecks", "routingSheet", "certificate", "overrides"]) expect(FAMILY.names, n).toContain(n);
+  });
+  it("the status helper is not exported", () => {
+    expect(read(WRITE)).not.toMatch(/export\s+(async\s+)?function\s+moveTo\b|export\s*\{[^}]*\bmoveTo\b/);
   });
 });

@@ -7,14 +7,20 @@
  */
 
 /// The source with string, comment, regex and template text blanked to spaces (lengths and newlines kept).
-export function lex(src: string): string {
+/// `only: "comments"` blanks the comments alone and keeps the text of strings, templates and regexes (6.14 inc 1
+/// residual: raw SQL is read in its strings, never in its comments).
+export function lex(src: string, opts: { only?: "comments" } = {}): string {
   const out = src.split("");
   const n = src.length;
   const tpl: number[] = [];
   let depth = 0;
   let prev = "";
-  const blank = (a: number, b: number) => {
+  const keepText = opts.only === "comments";
+  const blankComment = (a: number, b: number) => {
     for (let k = a; k < b; k++) if (out[k] !== "\n") out[k] = " ";
+  };
+  const blank = (a: number, b: number) => {
+    if (!keepText) blankComment(a, b);
   };
   const template = (from: number): number => {
     let j = from;
@@ -30,7 +36,7 @@ export function lex(src: string): string {
         depth++;
         return j + 2;
       }
-      if (out[j] !== "\n") out[j] = " ";
+      if (out[j] !== "\n" && !keepText) out[j] = " ";
       j++;
     }
     return n;
@@ -42,14 +48,14 @@ export function lex(src: string): string {
     if (ch === "/" && nx === "/") {
       const e = src.indexOf("\n", i);
       const end = e === -1 ? n : e;
-      blank(i, end);
+      blankComment(i, end);
       i = end;
       continue;
     }
     if (ch === "/" && nx === "*") {
       const e = src.indexOf("*/", i + 2);
       const end = e === -1 ? n : e + 2;
-      blank(i, end);
+      blankComment(i, end);
       i = end;
       continue;
     }
