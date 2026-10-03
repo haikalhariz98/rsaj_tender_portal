@@ -14,6 +14,8 @@
 import { daysFrom } from "@/lib/dates";
 import { bandFor, type ExactRatio } from "@/lib/percent-band";
 
+import type { SheetLabels } from "./printed";
+
 import type { CertificateKind, Finding, Provenance, RoutingCheckKind, RoutingSubject } from "./types";
 
 export interface CheckDef {
@@ -49,6 +51,18 @@ export interface RoutingTypeSnapshot {
   targets: TargetRow[];
   /// The organisation's day it was frozen.
   frozenOn: string;
+  /// 6.14 increment 2: the printed sheet the type names, with the labels its fields give the sheet's own values,
+  /// frozen with the type (BD-614-3). Null: the type names no printed sheet. Absent: frozen before increment 2.
+  printedForm?: PrintedSheet | null;
+}
+
+/// A routing sheet type's printed sheet (the document tracking form): its identity and its printed labels.
+export interface PrintedSheet {
+  name: string;
+  formCode: string;
+  revisionDate: string | null;
+  pageCount: number | null;
+  labels: SheetLabels;
 }
 
 export interface TypeNow {
@@ -63,6 +77,8 @@ export interface TypeNow {
   retiredOn: string | null;
   checks: readonly CheckDef[];
   targets: readonly TargetRow[];
+  /// 6.14 increment 2: the printed sheet as it stands. Optional: a type read without it names none.
+  printedForm?: PrintedSheet | null;
 }
 
 export function freezeRoutingType(t: TypeNow, frozenOn: string): RoutingTypeSnapshot {
@@ -78,6 +94,7 @@ export function freezeRoutingType(t: TypeNow, frozenOn: string): RoutingTypeSnap
     checks: [...t.checks].sort((a, b) => a.order - b.order).map((c) => ({ ...c })),
     targets: t.targets.map((x) => ({ ...x })),
     frozenOn,
+    printedForm: t.printedForm ? { ...t.printedForm, labels: { ...t.printedForm.labels } } : null,
   };
 }
 

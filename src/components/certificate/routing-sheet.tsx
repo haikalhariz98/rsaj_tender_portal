@@ -7,7 +7,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { KeyValues } from "@/components/ui/stat";
 import { CERT_WORDS, CHECK_KIND_WORDS } from "@/lib/certificate/labels";
 import type { CheckDef, Sheet } from "@/lib/certificate/routing-sheet";
-import { verdictText } from "@/lib/certificate/sheet-words";
+import { printedSheetWords, verdictText } from "@/lib/certificate/sheet-words";
 import { formatDate } from "@/lib/format";
 
 /**
@@ -22,6 +22,8 @@ const dim = (t: string) => <span className="text-ink-4">{t}</span>;
 const days = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
 
 export function RoutingSheetView({ sheet, headerAction, checkAction, open, routeNote, stepAction }: { sheet: Sheet; headerAction?: ReactNode; checkAction: (def: CheckDef) => ReactNode; open: boolean; routeNote: string; /** 6.13 Part A step 3 (614-C4): the act on a route's waiting step (deciding it, escalating it), where the caller has one. */ stepAction?: (routeId: string, sequence: number) => ReactNode }) {
+  // 6.14 increment 2: the printed sheet and its labels, as frozen with the type (the form's labels beside the product's words).
+  const printed = printedSheetWords(sheet.type);
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -34,6 +36,8 @@ export function RoutingSheetView({ sheet, headerAction, checkAction, open, route
               { label: "Approved", value: sheet.date2 ? formatDate(sheet.date2) : dim(sheet.routeState === "NONE" ? "No approval route open yet" : sheet.routeState === "RECALLED" ? "Not approved: its route was recalled" : "Not approved yet") },
               { label: "Elapsed against the target", value: verdictText(sheet) },
               { label: "The stages' printed days", value: sheet.parts ? `${days(sheet.parts.sum)}${sheet.parts.differs && sheet.target.state === "SET" ? `: the form prints a total of ${sheet.target.days}, which differs from the sum of its parts (both shown)` : ""}` : dim("Not printed per stage") },
+              { label: "Printed sheet", value: printed.labels ? printed.form.en : dim(printed.form.en) },
+              ...(printed.labels ? [{ label: "Its printed labels", value: printed.labels.en }] : []),
             ]}
           />
         </CardBody>

@@ -33,7 +33,9 @@ import { renderIssue } from "./issue";
 import { CERT_WORDS, CHECK_KIND_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, ON_BEHALF, STATUS_WORDS } from "./labels";
 import { applyOverrides, overrideFaults, routingRatioOf } from "./override";
 import { certificateLabel, checksOf, liveBondOf, officeHolders, officeName, routesOf, routingTypeNow, signedOf, templateNow, type LoadedCertificate } from "./repo";
+import { inPrintedOrder, printedRows } from "./printed";
 import { pinRefusals, pinRevision, readRevision, type PinContext, type TemplateRevision } from "./revision";
+import { sheetFieldValues } from "./sheet-words";
 import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
 import { nextSequence } from "./sequence";
 import { issueRefusal, sequenceFloor } from "@/lib/payment/at-issue";
@@ -386,6 +388,12 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   };
   const r = renderIssue(rev, cert.kind, values, labelOfField);
   if (r.faults.length) refuse("Not issued:", r.faults);
+  // 6.14 increment 2: the printed form's fields with the values they print, in each language, frozen with the issue.
+  const sheet = sheetOf(cert, c.today);
+  const printedIn = (lang: Lang) => printedRows(rev.fields ?? [], { ...values(lang), ...sheetFieldValues(sheet, lang) }, lang);
+  const printedEn = printedIn("EN");
+  const printedMs = printedIn("MS");
+  const printed = inPrintedOrder(rev.fields ?? []).map((f, i) => ({ key: f.key, labelEn: f.labelEn, labelMs: f.labelMs, bound: f.bound, valueEn: printedEn[i].value, valueMs: printedMs[i].value }));
   for (const t of r.texts) {
     await c.tx.certificateDocument.create({ data: { organisationId: c.l.org.id, certificateId: cert.id, templateId: rev.templateId, templateCode: rev.code, templateName: rev.nameEn, templateFormCode: rev.formCode, templateRevisionDate: rev.revisionDate ? dayToDate(rev.revisionDate) : null, templateBodyVersion: rev.bodyVersion, language: t.language, fields: values(t.language) as Prisma.InputJsonValue, renderedText: t.text, frozenAt: c.now } });
   }
@@ -397,7 +405,10 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
     number,
     sequence,
     certificateDate,
-    form: { name: rev.nameEn, formCode: rev.formCode, revisionDate: rev.revisionDate, bodyVersion: rev.bodyVersion, pinnedOn: rev.pinnedOn },
+    form: { name: rev.nameEn, formCode: rev.formCode, revisionDate: rev.revisionDate, bodyVersion: rev.bodyVersion, pinnedOn: rev.pinnedOn, pageCount: rev.pageCount ?? null },
+    // 6.14 increment 2: how many typing corrections changed the form's words (FR-CRT-010), and the printed fields as printed.
+    corrected: r.corrected,
+    printed,
     baseline: { version: b.version, reason: b.reason },
     figures: { overridden: figures.overridden, lines: figures.lines.map((l) => ({ key: l.key, value: l.value, computed: l.computed })), totals: figures.totals.map((t) => ({ key: t.key, value: t.value, computed: t.computed })) },
     copies: plan.copies.map((p) => ({ copyNo: p.copyNo, recipient: p.recipientName, addressedTo: p.addressedTo, mandatory: p.mandatory, ackRequired: p.ackRequired, isOriginal: p.isOriginal })),

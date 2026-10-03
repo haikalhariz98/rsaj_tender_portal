@@ -19,7 +19,9 @@ import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { holdersFor } from "@/lib/requisition/holders";
 
 import { KIND_WORDS } from "./labels";
+import { sheetLabelsOf, type PrintedField } from "./printed";
 import type { TemplateNow } from "./revision";
+import type { Term } from "./terms";
 import type { CheckDef, RecordedCheck, RouteRow, TypeNow } from "./routing-sheet";
 import type { OfficeHolders } from "./signature";
 import type { Block, CertificateKind, DistributionRow, SignedBlock } from "./types";
@@ -80,9 +82,17 @@ export async function templateNow(templateId: string | null, client: Tx = db): P
   if (!templateId) return null;
   const t = await client.documentTemplate.findUnique({
     where: { id: templateId },
-    include: { signatureBlocks: { orderBy: { blockOrder: "asc" } }, distributionRows: { orderBy: [{ sortOrder: "asc" }, { recipientCode: "asc" }] } },
+    include: {
+      signatureBlocks: { orderBy: { blockOrder: "asc" } },
+      distributionRows: { orderBy: [{ sortOrder: "asc" }, { recipientCode: "asc" }] },
+      // 6.14 increment 2: the printed form and the corrections that apply to it.
+      printedFields: { orderBy: [{ sortOrder: "asc" }, { key: "asc" }] },
+      correctionForms: { include: { correction: { select: { fromText: true, toText: true } } } },
+    },
   });
   if (!t) return null;
+  // The organisation's terms, for {{term:code}} (frozen at the pin, only those the text cites).
+  const terms = await client.term.findMany({ where: { organisationId: t.organisationId }, orderBy: { code: "asc" }, include: { aliases: { orderBy: { alias: "asc" } } } });
   return {
     id: t.id,
     code: t.code,
@@ -95,8 +105,18 @@ export async function templateNow(templateId: string | null, client: Tx = db): P
     bodyMs: t.bodyMs,
     blocks: t.signatureBlocks.map(blockOf),
     distribution: t.distributionRows.map(rowOf),
+    pageCount: t.pageCount,
+    fields: t.printedFields.map(printedFieldOf),
+    corrections: t.correctionForms.map((f) => ({ fromText: f.correction.fromText, toText: f.correction.toText })),
+    terms: terms.map(termOf),
   };
 }
+
+/// A printed field as the rules read it.
+export const printedFieldOf = (f: { key: string; labelEn: string; labelMs: string | null; bound: boolean; computedKey: string | null; sortOrder: number }): PrintedField => ({ key: f.key, labelEn: f.labelEn, labelMs: f.labelMs, bound: f.bound, computedKey: f.computedKey, sortOrder: f.sortOrder });
+
+/// A term with its aliases as the rules read it.
+export const termOf = (t: { code: string; canonicalEn: string | null; canonicalMs: string | null; aliases: readonly { alias: string }[] }): Term => ({ code: t.code, canonicalEn: t.canonicalEn, canonicalMs: t.canonicalMs, aliases: t.aliases.map((a) => a.alias) });
 
 export const blockOf = (b: { blockOrder: number; blockKind: Block["blockKind"]; labelEn: string; labelMs: string | null; datesCertificate: boolean; officeRule: Block["officeRule"]; officeCode: string | null; delegable: boolean | null; carriesDecision: boolean; refusalAllowed: boolean }): Block => ({
   blockOrder: b.blockOrder,
@@ -125,7 +145,7 @@ export const rowOf = (r: { recipientCode: string; labelEn: string; labelMs: stri
 /// A routing sheet type as it stands now, with the office names its checks name.
 export async function routingTypeNow(typeId: string | null, client: Tx = db): Promise<TypeNow | null> {
   if (!typeId) return null;
-  const t = await client.routingSheetType.findUnique({ where: { id: typeId }, include: { checks: { orderBy: { order: "asc" } }, targets: true } });
+  const t = await client.routingSheetType.findUnique({ where: { id: typeId }, include: { checks: { orderBy: { order: "asc" } }, targets: true, template: { select: { id: true, nameEn: true, formCode: true, revisionDate: true, pageCount: true, printedFields: { orderBy: [{ sortOrder: "asc" }, { key: "asc" }] } } } } });
   if (!t) return null;
   const codes = t.checks.map((c) => c.officeCode).filter((c): c is string => c != null);
   const roles = codes.length ? await client.authorityRole.findMany({ where: { organisationId: t.organisationId, code: { in: codes } }, select: { code: true, nameEn: true } }) : [];
@@ -141,6 +161,8 @@ export async function routingTypeNow(typeId: string | null, client: Tx = db): Pr
     retiredOn: t.retiredOn ? storedDay(t.retiredOn) : null,
     checks: t.checks.map((c): CheckDef => ({ order: c.order, kind: c.kind, labelEn: c.labelEn, labelMs: c.labelMs, officeCode: c.officeCode, officeLabel: roles.find((r) => r.code === c.officeCode)?.nameEn ?? null, targetDays: c.targetDays })),
     targets: t.targets.map((x) => ({ pctMin: x.pctMin?.toString() ?? null, pctMax: x.pctMax?.toString() ?? null, targetDays: x.targetDays, provenance: x.provenance })),
+    // 6.14 increment 2: the printed sheet (the document tracking form) with its labels, frozen with the type when a sheet starts.
+    printedForm: t.template ? { name: t.template.nameEn, formCode: t.template.formCode, revisionDate: t.template.revisionDate ? storedDay(t.template.revisionDate) : null, pageCount: t.template.pageCount, labels: sheetLabelsOf(t.template.printedFields.map(printedFieldOf)) } : null,
   };
 }
 

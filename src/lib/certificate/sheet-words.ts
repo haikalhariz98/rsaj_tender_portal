@@ -11,7 +11,11 @@
  * are the form's own (increment 2's label pairs), never the product's.
  */
 
+import { formatDay } from "@/lib/award/fields";
+import { daysFrom } from "@/lib/dates";
+
 import { CERT_WORDS, w, type Words } from "./labels";
+import { fidelityLine, labelPair, SHEET_FIELD_WORDS, SHEET_FIELDS } from "./printed";
 import type { Sheet } from "./routing-sheet";
 
 const cap = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
@@ -63,4 +67,37 @@ export function verdictText(sheet: Pick<Sheet, "target" | "type" | "verdict">): 
     case "NOT_MEASURED":
       return `${v.elapsed == null ? "Open" : days(v.elapsed)}. ${target}, so it is not judged met or over.`;
   }
+}
+
+/**
+ * 6.14 increment 2: the printed sheet a routing sheet stands next to (the document tracking form), as frozen with
+ * its type, and the printed label pair each of its own values carries there. The product's words ("Received",
+ * "Approved") stay the screen's; the form's labels are shown beside them only where configured.
+ */
+export function printedSheetWords(type: Pick<Sheet["type"], "printedForm">): { form: Words; labels: Words | null } {
+  const p = type.printedForm;
+  if (p === undefined) return { form: w("Started before printed sheets were frozen with their type: none is recorded for it", "Dimulakan sebelum helaian bercetak dibekukan bersama jenisnya: tiada direkodkan"), labels: null };
+  if (p === null) return { form: w("No printed sheet is named for its type", "Tiada helaian bercetak dinamakan bagi jenisnya"), labels: null };
+  const f = fidelityLine({ name: p.name, formCode: p.formCode, revisionDate: p.revisionDate, pageCount: p.pageCount, bodyVersion: 0 }, 0);
+  // The form's version is a certificate form's; a printed sheet is named by its code, revision and pages only.
+  const strip = (s: string) => s.replace(/ · (form version|versi borang) 0$/, "");
+  const pairs = SHEET_FIELDS.flatMap((k) => {
+    const l = p.labels[k];
+    return l ? [{ en: `${SHEET_FIELD_WORDS[k].en}: ${labelPair({ labelEn: l.en, labelMs: l.ms })}`, ms: `${SHEET_FIELD_WORDS[k].ms}: ${labelPair({ labelEn: l.en, labelMs: l.ms })}` }] : [];
+  });
+  return { form: w(strip(f.en), strip(f.ms)), labels: pairs.length ? w(pairs.map((x) => x.en).join("; "), pairs.map((x) => x.ms).join("; ")) : w("No printed labels configured for its values", "Tiada label bercetak ditetapkan bagi nilainya") };
+}
+
+/// The values a printed field bound to a routing sheet's own value prints, in the form's language; empty where the
+/// certificate has no sheet or the value is not there yet (never invented).
+export function sheetFieldValues(sheet: Pick<Sheet, "type" | "date1" | "date2" | "target"> | null, lang: "EN" | "MS"): Record<string, string> {
+  if (!sheet) return {};
+  const d = (n: number) => (lang === "MS" ? `${n} hari` : `${n} ${n === 1 ? "day" : "days"}`);
+  return {
+    "sheet.type": lang === "MS" ? (sheet.type.labelMs ?? sheet.type.labelEn) : sheet.type.labelEn,
+    "sheet.received": formatDay(sheet.date1, lang),
+    "sheet.approved": formatDay(sheet.date2, lang),
+    "sheet.elapsed": sheet.date1 && sheet.date2 ? d(daysFrom(sheet.date1, sheet.date2)) : "",
+    "sheet.target": sheet.target.state === "SET" ? d(sheet.target.days) : "",
+  };
 }

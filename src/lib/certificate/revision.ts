@@ -5,7 +5,12 @@
  * and a later revision of the form never alters it (ADR 0008 keeps issued text frozen as well). Pure.
  */
 
+import { fieldsNamed as namedIn } from "@/lib/templates/merge";
+
+import type { Correction } from "./corrections";
 import { fieldNeed } from "./fields";
+import { inPrintedOrder, type PrintedField } from "./printed";
+import { freezeTerms, isTermField, termCodesIn, termFaults, type FrozenTerm, type Term } from "./terms";
 import type { Block, DistributionRow, Finding } from "./types";
 
 export interface TemplateRevision {
@@ -23,6 +28,12 @@ export interface TemplateRevision {
   distribution: DistributionRow[];
   /// The organisation's day it was pinned.
   pinnedOn: string;
+  /// 6.14 increment 2: the printed form's page count and fields (label pairs, bindings), and the typing corrections
+  /// and terms its text is rendered with, frozen with it (OD-2 A). Absent on a form pinned before increment 2: none.
+  pageCount?: number | null;
+  fields?: PrintedField[];
+  corrections?: Correction[];
+  terms?: FrozenTerm[];
 }
 
 export interface TemplateNow {
@@ -37,6 +48,12 @@ export interface TemplateNow {
   bodyMs: string | null;
   blocks: readonly Block[];
   distribution: readonly DistributionRow[];
+  /// 6.14 increment 2: the printed form, the corrections that apply to this form, and the organisation's terms.
+  /// Optional: a form read without them has none.
+  pageCount?: number | null;
+  fields?: readonly PrintedField[];
+  corrections?: readonly Correction[];
+  terms?: readonly Term[];
 }
 
 /// The revision to pin from the form as it stands, blocks in printed order and rows in list order.
@@ -54,6 +71,11 @@ export function pinRevision(t: TemplateNow, pinnedOn: string): TemplateRevision 
     blocks: [...t.blocks].sort((a, b) => a.blockOrder - b.blockOrder).map((b) => ({ ...b })),
     distribution: [...t.distribution].sort((a, b) => a.sortOrder - b.sortOrder || a.recipientCode.localeCompare(b.recipientCode)).map((d) => ({ ...d })),
     pinnedOn,
+    pageCount: t.pageCount ?? null,
+    fields: inPrintedOrder(t.fields ?? []).map((f) => ({ ...f })),
+    // In a fixed order, so two pins of one list are equal; the order never changes the text (corrections.ts).
+    corrections: [...(t.corrections ?? [])].sort((a, b) => (a.fromText < b.fromText ? -1 : a.fromText > b.fromText ? 1 : 0)).map((c) => ({ fromText: c.fromText, toText: c.toText })),
+    terms: freezeTerms(termCodesIn([t.bodyEn, t.bodyMs].flatMap((b) => namedIn(b))), t.terms ?? []),
   };
 }
 
@@ -73,8 +95,11 @@ export function pinFaults(t: TemplateNow | null, allowed: ReadonlySet<string>, f
   if (t.distribution.length === 0) out.push({ code: "NO_DISTRIBUTION_LIST", level: "block", data: { form } });
   const bodies = [t.bodyEn, t.bodyMs].filter((b): b is string => b != null && b.trim() !== "");
   if (bodies.length === 0) out.push({ code: "TEMPLATE_BODY_EMPTY", level: "block", data: { form } });
-  const unknown = [...new Set(bodies.flatMap(fieldsNamed))].filter((k) => !allowed.has(k));
+  // A term ({{term:code}}, increment 2) is judged by the terms configured, not the kind's field list.
+  const unknown = [...new Set(bodies.flatMap(fieldsNamed))].filter((k) => !allowed.has(k) && !isTermField(k));
   if (unknown.length) out.push({ code: "UNKNOWN_FIELDS", level: "block", data: { form, fields: unknown.map((u) => `{{${u}}}`).join(", ") } });
+  const texts = ([["EN", t.bodyEn], ["MS", t.bodyMs]] as const).filter(([, b]) => b != null && b.trim() !== "").map(([lang, b]) => ({ lang, fields: fieldsNamed(b!) }));
+  out.push(...termFaults(texts, t.terms ?? [], form));
   return out;
 }
 
@@ -96,7 +121,9 @@ export interface PinContext {
 export function unfillableFaults(t: TemplateNow, ctx: PinContext, allowed: ReadonlySet<string>, fieldsNamed: (body: string) => string[]): Finding[] {
   const bodies = [t.bodyEn, t.bodyMs].filter((b): b is string => b != null && b.trim() !== "");
   // A field the certificate does not fill at all is UNKNOWN_FIELDS's (pinFaults), not this rule's.
-  const named = [...new Set(bodies.flatMap(fieldsNamed))].filter((k) => allowed.has(k));
+  // Increment 2: a printed field bound to a value is held to it as a field the text names is.
+  const printed = (t.fields ?? []).filter((f) => f.bound && f.computedKey).map((f) => f.computedKey!);
+  const named = [...new Set([...bodies.flatMap(fieldsNamed), ...printed])].filter((k) => allowed.has(k));
   const out: Finding[] = [];
   const form = t.nameEn;
   const noValue: string[] = [];
