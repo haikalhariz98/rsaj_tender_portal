@@ -6,6 +6,10 @@ import { ON_BEHALF_HINT } from "@/lib/documents/labels";
 
 import {
   acknowledgeCertificateCopy,
+  chooseCertificateRouteRejection,
+  decideCertificateRouteStep,
+  recordCertificatePayment,
+  sendCertificateForApproval,
   correctCertificateDay,
   despatchCertificateCopy,
   overrideCertificateFigure,
@@ -186,6 +190,83 @@ export function VoidDrawer({ certId, blocker }: { certId: string; blocker: strin
       cancelLabel="Keep the certificate"
       submitBlock={blocker}
       trigger={{ label: "Void", className: ghost }}
+    />
+  );
+}
+
+// ------------------------------------------------------------------ the approval route (6.13 Part A step 3, 614-C4)
+
+export function SendForApprovalDrawer({ certId, figure, people, blocker, again }: { certId: string; figure: string; people: Option[]; blocker: string | null; again: boolean }) {
+  return (
+    <RecordEditor
+      title={again ? "Send for approval again" : "Send for approval"}
+      description={`Opens its approval route on the approval matrix in force today, routed on ${figure}. The figures go as they stand (any override included) and freeze: nothing is overridden while the route waits or once it is approved. Where it has a routing sheet, the sheet starts too. Name who sends it: recorded on their behalf, not signed, and they may not decide it.`}
+      fields={[hidden("certId"), person("personId", "Sent by", people)]}
+      values={{ certId }}
+      action={sendCertificateForApproval}
+      submitLabel={again ? "Send again" : "Send for approval"}
+      submitBlock={blocker}
+      trigger={{ label: again ? "Send for approval again" : "Send for approval", className: primary }}
+    />
+  );
+}
+
+export function DecideRouteStepDrawer({ certId, stepId, roleLabel, act, done, people, today }: { certId: string; stepId: string; roleLabel: string; act: string; done: string; people: Option[]; today: string | null }) {
+  return (
+    <RecordEditor
+      title={`Record ${roleLabel}'s decision`}
+      description={`The ${act.toLowerCase()} step of the certificate's approval route. Name who decided: recorded on their behalf, not signed. They must hold the office for the contract's department, or a delegation of it, and may not be who sent it for approval.`}
+      fields={[
+        hidden("certId"),
+        hidden("stepId"),
+        { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: "Refused" }] },
+        { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: people },
+        { kind: "date", name: "receivedOn", label: "Received on", hint: "The day it reached them. Optional: not recorded is shown as such." },
+        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was sent for approval." },
+        { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
+      ]}
+      values={{ certId, stepId, decidedOn: today }}
+      action={decideCertificateRouteStep}
+      submitLabel="Record decision"
+      trigger={{ label: "Record decision", className: primary, ariaLabel: `Record ${roleLabel}'s decision` }}
+      size="md"
+    />
+  );
+}
+
+export function ChooseRejectionDrawer({ certId, offered, steps, people }: { certId: string; offered: Option[]; steps: Option[]; people: Option[] }) {
+  return (
+    <RecordEditor
+      title="Where the refusal sends it"
+      description="Nothing configured decides where a refused certificate goes, so the officer chooses: back to whoever raised it (it may be sent again on a new route), back to an earlier step (a new route continues from it), or the certificate ends (it is voided with the refusal as its reason). Recorded on the named officer's behalf."
+      fields={[
+        hidden("certId"),
+        { kind: "select", name: "goesTo", label: "Where it goes", required: true, placeholder: "Choose", options: offered },
+        { kind: "select", name: "returnToSeq", label: "Back to the step", placeholder: steps.length ? "Choose, for a return to a step" : "No earlier step", options: steps },
+        person("personId", "Chosen by", people),
+        { kind: "textarea", name: "reason", label: "Why it goes there", required: true },
+      ]}
+      values={{ certId }}
+      action={chooseCertificateRouteRejection}
+      submitLabel="Record where it goes"
+      showWhen={{ returnToSeq: { name: "goesTo", in: ["RETURN_TO_STEP"] } }}
+      trigger={{ label: "Choose where it goes", className: primary }}
+      size="md"
+    />
+  );
+}
+
+export function FinancePaymentDrawer({ certId, amount, people, today, blocker }: { certId: string; amount: string; people: Option[]; today: string | null; blocker: string | null }) {
+  return (
+    <RecordEditor
+      title="Paid by Finance"
+      description={`What Finance returns once it has paid the certificate: its batch number and the day paid. The amount is the certificate's own (${amount}), never keyed.`}
+      fields={[hidden("certId"), { kind: "text", name: "batchNo", label: "Batch number", required: true }, { kind: "date", name: "paidOn", label: "Paid on", required: true }, person("personId", "Recorded for", people), { kind: "textarea", name: "note", label: "Note" }]}
+      values={{ certId, paidOn: today }}
+      action={recordCertificatePayment}
+      submitLabel="Record the payment"
+      submitBlock={blocker}
+      trigger={{ label: "Record Finance's payment", className: secondary }}
     />
   );
 }

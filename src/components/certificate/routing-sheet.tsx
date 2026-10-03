@@ -21,7 +21,7 @@ import { formatDate } from "@/lib/format";
 const dim = (t: string) => <span className="text-ink-4">{t}</span>;
 const days = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
 
-export function RoutingSheetView({ sheet, headerAction, checkAction, open, routeNote }: { sheet: Sheet; headerAction?: ReactNode; checkAction: (def: CheckDef) => ReactNode; open: boolean; routeNote: string }) {
+export function RoutingSheetView({ sheet, headerAction, checkAction, open, routeNote, stepAction }: { sheet: Sheet; headerAction?: ReactNode; checkAction: (def: CheckDef) => ReactNode; open: boolean; routeNote: string; /** 6.13 Part A step 3 (614-C4): the act on a route's waiting step (deciding it, escalating it), where the caller has one. */ stepAction?: (routeId: string, sequence: number) => ReactNode }) {
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -67,7 +67,10 @@ export function RoutingSheetView({ sheet, headerAction, checkAction, open, route
                       <span className="block text-[13.5px] font-semibold break-words text-ink">{s.actingRoleLabel ?? s.roleLabel}</span>
                       <span className="block text-[12.5px] break-words text-ink-3">{s.decidedOn ? `${s.decidedByName ?? "Decided"}, ${formatDate(s.decidedOn)}` : s.receivedOn ? `Received ${formatDate(s.receivedOn)}, waiting` : "Waiting"}</span>
                     </span>
-                    <Chip tone={s.decision === "DONE" ? "ok" : s.decision === "REJECTED" ? "err" : undefined}>{s.decision === "DONE" ? "Done" : s.decision === "REJECTED" ? "Refused" : "Pending"}</Chip>
+                    <span className="flex shrink-0 flex-wrap items-center gap-2">
+                      {s.decision === "PENDING" && stepAction ? stepAction(it.route!.id, s.sequence) : null}
+                      <Chip tone={s.decision === "DONE" ? "ok" : s.decision === "REJECTED" ? "err" : undefined}>{s.decision === "DONE" ? "Done" : s.decision === "REJECTED" ? "Refused" : "Pending"}</Chip>
+                    </span>
                   </li>
                 ))
               ) : (

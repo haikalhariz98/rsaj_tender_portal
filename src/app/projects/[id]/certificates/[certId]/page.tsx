@@ -41,7 +41,17 @@ import { isSupervisedRule, type SupervisedRule } from "@/lib/supervision/blocks"
 import { loadPostAwardPolicy, supervisedHoldersOn } from "@/lib/supervision/load";
 import { fieldsNamed, renderWith } from "@/lib/templates/merge";
 
-import { AcknowledgeDrawer, CheckDrawer, CorrectDateDrawer, DespatchDrawer, OverrideDrawer, ReceivedDrawer, SendForRoutingDrawer, SendToSigningDrawer, SignatureDrawer, VoidDrawer } from "./editors";
+import { EscalateDrawer } from "@/app/approvals/editors";
+import { actLabel, isMandatoryAct } from "@/components/ui/act";
+import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
+import { latestCertificateRoute, refusalKindText } from "@/lib/certificate/route-write";
+import { paymentFaultText } from "@/lib/payment/labels";
+import { PAID_FIGURE } from "@/lib/payment/finance";
+import { KIND_ROUTE_DOMAIN } from "@/lib/payment/route";
+import { routeValueOf, submitStateFaults } from "@/lib/payment/route-state";
+import { RECOMMENDING_ACT } from "@/lib/supervision/blocks";
+
+import { AcknowledgeDrawer, CheckDrawer, ChooseRejectionDrawer, CorrectDateDrawer, DecideRouteStepDrawer, DespatchDrawer, FinancePaymentDrawer, OverrideDrawer, ReceivedDrawer, SendForApprovalDrawer, SendForRoutingDrawer, SendToSigningDrawer, SignatureDrawer, VoidDrawer } from "./editors";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +84,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const figures = snap ? applyOverrides(snap, cert.overrides) : null;
+  const figuresNow = figures;
   const pinned = readRevision(cert.templateRevision);
   const form = pinned ? null : await templateNow(cert.templateId);
   const blocks: Block[] = pinned ? pinned.blocks : (form?.blocks ?? []).slice().sort((a, b) => a.blockOrder - b.blockOrder);
@@ -84,15 +95,17 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
     ? Object.fromEntries(
         await Promise.all(
           supervisedRules.map(async (r) => {
-            const h = await supervisedHoldersOn(l, r, today);
-            return [r, { soLabel: h.soLabel, names: h.holders ? h.holders.holderIds.map((id) => people.find((p) => p.id === id)?.name ?? "someone not active on record") : null }] as const;
+            const h = await supervisedHoldersOn(l, r, today, undefined, cert.kind);
+            return [r, { soLabel: h.soLabel, names: h.holders ? h.holders.holderIds.map((id) => people.find((p) => p.id === id)?.name ?? "someone not active on record") : null, recommends: RECOMMENDING_ACT[cert.kind] != null }] as const;
           }),
         ),
       )
     : {};
   const reResolveUnset = supervisedRules.includes("SO") && ((await loadPostAwardPolicy(l.org.id))?.soReResolve ?? null) == null;
   const dateNow = certificateDateOf(blocks, signedOf(cert));
-  const ids = [cert.id, ...cert.signatures.map((s) => s.id), ...cert.overrides.map((o) => o.id), ...cert.routingChecks.map((r) => r.id), ...cert.copies.map((c) => c.id)];
+  const paid = await db.financePayment.findUnique({ where: { certificateId: cert.id }, include: { person: { select: { name: true } } } });
+  // 614-C4: the route and its steps are the certificate's trail too, and Finance's payment of it.
+  const ids = [cert.id, ...cert.signatures.map((s) => s.id), ...cert.overrides.map((o) => o.id), ...cert.routingChecks.map((r) => r.id), ...cert.copies.map((c) => c.id), ...cert.approvalInstances.flatMap((i) => [i.id, ...i.steps.map((x) => x.id)]), ...(paid ? [paid.id] : [])];
   const [history, historyTotal] = await Promise.all([
     db.auditEntry.findMany({ where: { organisationId: l.org.id, entityId: { in: ids } }, orderBy: { at: "desc" }, take: HISTORY_PAGE }),
     db.auditEntry.count({ where: { organisationId: l.org.id, entityId: { in: ids } } }),
@@ -102,7 +115,19 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   // The header's next act, judged by the act's own rules.
   let action: React.ReactNode = null;
   let actionNote: string | null = null;
-  if (status === "DRAFT" && cert.routingTypeId) action = <SendForRoutingDrawer certId={cert.id} typeLabel={cert.routingType?.labelEn ?? "its type"} blocker={today ? null : "Set the organisation's time zone first."} />;
+  // 6.13 Part A step 3 (614-C4): a certificate a post-award module raised opens its own approval route here, as the
+  // module's act judges it (its state, and the figure it is routed on).
+  const domain = KIND_ROUTE_DOMAIN[cert.kind];
+  const latest = latestCertificateRoute(cert.approvalInstances);
+  const submitState = domain ? submitStateFaults({ domain, status, latest: latest ? { status: latest.status, applied: latest.rejectionApplied, choices: latest.rejectionChoices } : null }) : [];
+  const routable = !!domain && submitState.length === 0;
+  if (routable) {
+    const policy = await loadPostAwardPolicy(l.org.id);
+    const v = routeValueOf(cert.kind, figuresNow, policy?.paymentRouteFigure ?? null, parseSen(cert.baseline.contractSum.toString()));
+    const blocker = !today ? "Set the organisation's time zone first." : Array.isArray(v) ? v.map(paymentFaultText).join(" ") : null;
+    actionNote = blocker;
+    action = <SendForApprovalDrawer certId={cert.id} figure={Array.isArray(v) ? "its figure" : `${v.figure} (${formatMoney(v.value)})`} people={peopleOptions} blocker={blocker} again={!!latest} />;
+  } else if (status === "DRAFT" && cert.routingTypeId) action = <SendForRoutingDrawer certId={cert.id} typeLabel={cert.routingType?.labelEn ?? "its type"} blocker={today ? null : "Set the organisation's time zone first."} />;
   else if (status === "DRAFT") {
     // 614-C1: the act's own rule: a money-bearing kind needs its latest approval route approved.
     const routes = routesOf(cert.approvalInstances);
@@ -117,9 +142,9 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   }
 
   const tabs = [
-    { id: "figures", label: "Figures", icon: <FileIcon size={15} />, panel: <FiguresPanel l={l} figures={figures} people={peopleOptions} /> },
+    { id: "figures", label: "Figures", icon: <FileIcon size={15} />, panel: <FiguresPanel l={l} figures={figures} people={peopleOptions} today={today} /> },
     { id: "signatures", label: "Signatures", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === "SIGNING" ? pinBlocker(form, cert) : null} people={peopleOptions} today={today} officeName={officeName} supervised={supervised} reResolveUnset={reResolveUnset} /> },
-    { id: "routing", label: "Routing sheet", icon: <RouteIcon size={15} />, panel: <RoutingPanel l={l} sheet={sheet} people={peopleOptions} today={today} /> },
+    { id: "routing", label: "Routing sheet", icon: <RouteIcon size={15} />, panel: <RoutingPanel l={l} sheet={sheet} people={peopleOptions} today={today} roles={roles} /> },
     { id: "distribution", label: "Distribution", icon: <InboxIcon size={15} />, count: cert.copies.length, panel: <DistributionPanel l={l} today={today} /> },
     { id: "print", label: "Print", icon: <PrinterIcon size={15} />, panel: <PrintPanel l={l} figures={figures} revision={pinned} formBody={form ? { en: form.bodyEn, ms: form.bodyMs, name: form.nameEn } : null} /> },
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: historyTotal, panel: <HistoryPanel entries={history} total={historyTotal} timeZone={l.org.timeZone} /> },
@@ -207,9 +232,11 @@ function figureText(type: string, value: string | null): string {
   return value;
 }
 
-function FiguresPanel({ l, figures, people }: { l: LoadedCertificate; figures: Effective | null; people: Option[] }) {
+function FiguresPanel({ l, figures, people, today }: { l: LoadedCertificate; figures: Effective | null; people: Option[]; today: string | null }) {
   const cert = l.cert;
   const draft = cert.status === "DRAFT";
+  // 614-C4: figures that went for approval on a route still waiting or approved are frozen (the core's rule).
+  const routeOpen = cert.approvalInstances.some((i) => i.status === "PENDING" || i.status === "APPROVED");
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const ratio = snap ? routingRatioOf(snap, figures) : null;
   if (!figures || !snap) {
@@ -241,7 +268,7 @@ function FiguresPanel({ l, figures, people }: { l: LoadedCertificate; figures: E
             <span className="flex shrink-0 flex-wrap items-center gap-2">
               <span className="tabular-nums text-[13.5px] text-ink">{figureText(f.type, f.value)}</span>
               {f.override && <Chip tone="warn">{CERT_WORDS.overridden.en}</Chip>}
-              {draft && f.overridable && <OverrideDrawer certId={cert.id} fieldKey={f.key} label={f.labelEn} computed={figureText(f.type, f.computed)} people={people} />}
+              {draft && f.overridable && (routeOpen ? <Blocked label="Override" reason={certificateFaultText({ code: "OVERRIDE_ROUTE_OPEN", level: "block" })} /> : <OverrideDrawer certId={cert.id} fieldKey={f.key} label={f.labelEn} computed={figureText(f.type, f.computed)} people={people} />)}
             </span>
           </li>
         ))}
@@ -255,6 +282,7 @@ function FiguresPanel({ l, figures, people }: { l: LoadedCertificate; figures: E
           </li>
         ))}
       </ul>
+      <FinanceCard l={l} people={people} today={today} />
       {snap.routingRatio && (
         <CardBody className="border-t border-line/70">
           {/* 614-C5: the ratio from the figures as they stand, overrides included: the one the routing target is judged on. */}
@@ -265,18 +293,50 @@ function FiguresPanel({ l, figures, people }: { l: LoadedCertificate; figures: E
   );
 }
 
+/// FR-PAY-019: Finance's payment of an issued payment certificate (INT-07's manual adapter), in its figures.
+async function FinanceCard({ l, people, today }: { l: LoadedCertificate; people: Option[]; today: string | null }) {
+  const cert = l.cert;
+  const key = PAID_FIGURE[cert.kind];
+  if (!key) return null;
+  const paid = await db.financePayment.findUnique({ where: { certificateId: cert.id }, include: { person: { select: { name: true } } } });
+  const snap = cert.issueSnapshot as { issuedOn?: string; figures?: { lines?: { key: string; value: string | null }[]; totals?: { key: string; value: string | null }[] } } | null;
+  const v = [...(snap?.figures?.totals ?? []), ...(snap?.figures?.lines ?? [])].find((x) => x.key === key)?.value ?? null;
+  const issued = cert.status === "ISSUED";
+  const blocker = !today ? "Set the organisation's time zone first." : null;
+  return (
+    <CardBody className="border-t border-line/70">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <span className="min-w-0">
+          <span className="block text-[13.5px] font-semibold text-ink">Paid by Finance</span>
+          <span className="block text-[12.5px] break-words text-ink-3">
+            {paid ? `${formatMoney(parseSen(paid.amount.toString()))}, batch ${paid.batchNo}, paid ${formatDate(day(paid.paidOn))}; recorded for ${paid.person.name} (on their behalf, not signed).` : issued ? "Not recorded yet: Finance returns its batch number and the day paid." : "Once issued, it goes to Accounts and Finance; the payment is recorded here."}
+          </span>
+        </span>
+        {!paid && issued && v != null && <FinancePaymentDrawer certId={cert.id} amount={formatMoney(parseSen(v))} people={people} today={today} blocker={blocker} />}
+      </div>
+    </CardBody>
+  );
+}
+
 // ------------------------------------------------------------------ signatures
 
 interface SupervisedToday {
   soLabel: string | null;
   /// Who holds the block today; null: nobody can.
   names: string[] | null;
+  /// Whether this kind's recommending officer is resolved (an interim certificate's is, BD-613-13).
+  recommends?: boolean;
 }
 
 /// Who holds a supervised block today, in words (the S.O.'s office is shown by its name, never its code).
 function supervisedText(rule: SupervisedRule, t: SupervisedToday | undefined): string {
   if (!t) return "";
-  if (rule === "RECOMMENDING_OFFICER") return " Who recommends is not resolved by this version: nobody is assumed.";
+  if (rule === "RECOMMENDING_OFFICER") {
+    // BD-613-13, resolved at step 3: on an interim certificate, a representative whose delegation covers valuation.
+    if (!t.soLabel) return " No Superintending Officer is recorded for this contract today: see Team.";
+    if (!t.recommends) return " Who recommends this kind of certificate is not resolved: nobody is assumed.";
+    return t.names?.length ? ` Today: ${t.names.join(", ")} (a representative whose delegation covers valuing work for interim payment).` : " A representative whose delegation covers valuing work for interim payment recommends it: none is in force today (see Team).";
+  }
   if (!t.soLabel) return " No Superintending Officer is recorded for this contract today: see Team.";
   if (!t.names?.length) return rule === "SO_REP" ? " No Principal S.O. Representative's delegation is in force today: see Team." : ` Nobody holds the office (${t.soLabel}) today.`;
   return rule === "SO" ? ` Today: ${t.soLabel}, held by ${t.names.join(", ")}.` : ` Today: ${t.names.join(", ")}.`;
@@ -372,34 +432,99 @@ function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, toda
 
 // ------------------------------------------------------------------ routing sheet
 
-function RoutingPanel({ l, sheet, people, today }: { l: LoadedCertificate; sheet: Sheet | null; people: Option[]; today: string | null }) {
+async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCertificate; sheet: Sheet | null; people: Option[]; today: string | null; roles: { code: string; nameEn: string }[] }) {
   const cert = l.cert;
   const status = cert.status as CertificateStatus;
-  if (!cert.routingTypeId) {
+  // 614-C4: a step of the certificate's open route is decided here (Approvals lists it and links here).
+  const routes = [...cert.approvalInstances].sort((a, b) => (a.openedAt.getTime() === b.openedAt.getTime() ? a.createdAt.getTime() - b.createdAt.getTime() : a.openedAt.getTime() - b.openedAt.getTime()));
+  const latest = routes.at(-1) ?? null;
+  const live = status === "DRAFT" || status === "IN_ROUTING";
+  const stepAction = (routeId: string, sequence: number) => {
+    const inst = routes.find((r) => r.id === routeId);
+    const step = inst?.steps.find((x) => x.sequence === sequence);
+    if (!inst || !step || inst.status !== "PENDING" || step.decision !== "PENDING" || !live) return null;
+    const earlierDone = inst.steps.filter((x) => x.sequence < step.sequence).every((x) => x.decision === "DONE");
     return (
-      <Card>
-        <CardHeader icon={<RouteIcon size={17} />} title="Routing sheet" />
-        <EmptyState size="sm" title="No routing sheet">{CERT_WORDS.noRoute.en}. It goes from its draft straight to signing.</EmptyState>
-      </Card>
+      <span className="flex flex-wrap items-center gap-2">
+        {step.roleCode && <EscalateDrawer stepId={step.id} office={step.actingRoleLabel ?? step.roleLabel} mandatory={isMandatoryAct(step.act)} people={people} />}
+        {earlierDone ? <DecideRouteStepDrawer certId={cert.id} stepId={step.id} roleLabel={step.actingRoleLabel ?? step.roleLabel} act={ACT_LABEL[step.act] ?? "Acts"} done={ACT_DONE_LABEL[step.act] ?? "Done"} people={people} today={today} /> : <Blocked label="Record decision" reason="Steps are decided in order: the step before is not done." />}
+      </span>
+    );
+  };
+  const choice = latest && latest.status === "REJECTED" && !latest.rejectionApplied && latest.rejectionChoices.length > 0 && live ? latest : null;
+  const choiceCard = choice ? (
+    <Callout tone="warn" title="Refused: where it goes is the officer's choice" action={<ChooseRejectionDrawer certId={cert.id} offered={choice.rejectionChoices.map((k) => ({ value: k, label: refusalKindText(k) }))} steps={choice.steps.filter((x) => x.sequence < (choice.steps.find((y) => y.decision === "REJECTED")?.sequence ?? 0)).map((x) => ({ value: String(x.sequence), label: `${x.sequence}. ${x.roleLabel}` }))} people={people} />}>
+      {`Refused${choice.rejectionReason ? `: ${choice.rejectionReason}` : ""}. Nothing configured decides where a refused certificate goes, so the officer chooses.`}
+    </Callout>
+  ) : null;
+  if (!cert.routingTypeId) {
+    if (routes.length === 0) {
+      return (
+        <Card>
+          <CardHeader icon={<RouteIcon size={17} />} title="Routing sheet" />
+          <EmptyState size="sm" title="No routing sheet">{KIND_ROUTE_DOMAIN[cert.kind] ? "This certificate has no routing sheet. Its approval route opens on the approval matrix when it is sent for approval (the header's button); its steps are decided here." : `${CERT_WORDS.noRoute.en}. It goes from its draft straight to signing.`}</EmptyState>
+        </Card>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-6">
+        {choiceCard}
+        {[...routes].reverse().map((r, n) => (
+          <ApprovalRouteCard key={r.id} route={r} title={routes.length === 1 ? "Approval route" : n === 0 ? "Approval route, the latest" : `Approval route ${routes.length - n}`} stepAction={stepAction} officeName={(code) => roles.find((x) => x.code === code)?.nameEn ?? null} />
+        ))}
+      </div>
     );
   }
   if (!sheet) {
     return (
       <Card>
         <CardHeader icon={<RouteIcon size={17} />} title="Routing sheet" subtitle={cert.routingType?.labelEn} />
-        <EmptyState size="sm" title="Not started">The sheet starts when the certificate is sent for routing: its type, checks and targets are frozen then.</EmptyState>
+        <EmptyState size="sm" title="Not started">{KIND_ROUTE_DOMAIN[cert.kind] ? "The sheet starts when the certificate is sent for approval: its type, checks and targets are frozen then, and its approval route opens on the matrix." : "The sheet starts when the certificate is sent for routing: its type, checks and targets are frozen then."}</EmptyState>
       </Card>
     );
   }
   const open = status === "IN_ROUTING";
   return (
-    <RoutingSheetView
-      sheet={sheet}
-      open={open}
-      headerAction={open ? <ReceivedDrawer certId={cert.id} today={today} current={sheet.date1} /> : undefined}
-      checkAction={(def) => <CheckDrawer certId={cert.id} defOrder={def.order} label={def.labelEn} office={def.officeLabel} people={people} today={today} blocker={sheet.date1 ? null : "Record the day it was received first."} />}
-      routeNote="No approval route opened for this round: the module that raised the certificate opens it on the approval matrix."
-    />
+    <div className="flex flex-col gap-6">
+      {choiceCard}
+      <RoutingSheetView
+        sheet={sheet}
+        open={open}
+        headerAction={open ? <ReceivedDrawer certId={cert.id} today={today} current={sheet.date1} /> : undefined}
+        checkAction={(def) => <CheckDrawer certId={cert.id} defOrder={def.order} label={def.labelEn} office={def.officeLabel} people={people} today={today} blocker={sheet.date1 ? null : "Record the day it was received first."} />}
+        stepAction={stepAction}
+        routeNote={KIND_ROUTE_DOMAIN[cert.kind] ? "No approval route opened for this round: it opens on the approval matrix when the certificate is sent for approval (the header's button)." : "No approval route opened for this round: the module that raised the certificate opens it on the approval matrix."}
+      />
+    </div>
+  );
+}
+
+/// One approval route of a certificate with no routing sheet: its rule, its steps in order, each decided here.
+function ApprovalRouteCard({ route, title, stepAction, officeName }: { route: LoadedCertificate["cert"]["approvalInstances"][number]; title: string; stepAction: (routeId: string, sequence: number) => React.ReactNode; officeName: (code: string) => string | null }) {
+  const state = route.status === "APPROVED" ? { text: "Approved", tone: "ok" as const } : route.status === "REJECTED" ? { text: "Refused", tone: "err" as const } : route.status === "RECALLED" ? { text: "Recalled", tone: "warn" as const } : { text: "Waiting for a decision", tone: "info" as const };
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader icon={<RouteIcon size={17} />} title={title} subtitle={`${route.ruleLabel ?? "Its rule"}${route.ruleClause ? ` (${route.ruleClause})` : ""}, ${route.matrixLabel ?? "the approval matrix"}; routed on ${route.value == null ? "no value" : formatMoney(parseSen(route.value.toString()))}; opened ${formatDate(day(route.openedAt))}.`} actions={<Badge tone={state.tone}>{state.text}</Badge>} divided />
+      <ul className="divide-y divide-line/70">
+        {route.steps.map((st) => (
+          <li key={st.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+            <span className="min-w-0">
+              <span className="block text-[13.5px] font-semibold break-words text-ink">{`${st.sequence}. ${st.actingRoleLabel ?? st.roleLabel}`} <span className="font-normal text-ink-3">{`· ${actLabel(st.act)}`}</span></span>
+              <span className="block text-[12.5px] break-words text-ink-3">
+                {st.decision === "PENDING" ? (route.status === "PENDING" ? "Waiting" : "Not decided: the route closed.") : `${st.decision === "DONE" ? "Done" : "Refused"} · ${st.decidedByName ?? "Not recorded"} · ${formatDate(day(st.decidedOn))}${st.receivedOn ? ` · received ${formatDate(day(st.receivedOn))}` : ""}${st.reason ? ` · “${st.reason}”` : ""} · recorded on their behalf, not signed`}
+              </span>
+              {st.escalation && <span className="block text-[12.5px] break-words text-amber-800">{`Escalated from ${officeName(st.roleCode ?? "") ?? st.roleLabel}: ${st.escalationReason ?? ""}`}</span>}
+            </span>
+            <span className="flex shrink-0 flex-wrap items-center gap-2">{st.decision !== "PENDING" ? <Chip tone={st.decision === "DONE" ? "ok" : "err"}>{st.decision === "DONE" ? "Done" : "Refused"}</Chip> : stepAction(route.id, st.sequence)}</span>
+          </li>
+        ))}
+      </ul>
+      {route.status === "REJECTED" && route.rejectionApplied && (
+        <CardBody className="border-t border-line/70">
+          <p className="text-[12.5px] text-ink-3">{`Refused: ${refusalKindText(route.rejectionApplied)}.`}</p>
+        </CardBody>
+      )}
+    </Card>
   );
 }
 
