@@ -225,6 +225,10 @@ export function paymentFaultWords(f: Finding): Words {
       return w(`Interim valuation ${s(d.sequence, "in progress")} is being valued or its certificate is not yet issued, and its recoupment was fixed from the advances issued when it was worked out: apply for the advance once its certificate is issued or void.`, `Penilaian interim ${s(d.sequence, "semasa")} masih dalam proses: mohon pendahuluan selepas perakuannya dikeluarkan atau dibatalkan.`);
     case "SCHEDULE_ON_VALUATION_IN_PROGRESS":
       return w(`The schedule names interim certificate ${s(d.sequence, "in progress")} or an earlier one, already worked out without this advance: recoupment starts after it.`, `Jadual menamakan perakuan interim ${s(d.sequence, "semasa")} atau lebih awal.`);
+    case "ADVANCE_PENDING":
+      return w(`An advance is applied for and not yet issued or void (${s(d.advances, "an advance")}): its recoupment schedule is still open, so no valuation is opened until it is issued or void.`, `Pendahuluan telah dipohon dan belum dikeluarkan atau dibatalkan (${s(d.advances, "pendahuluan")}): tiada penilaian dibuka sehingga ia dikeluarkan atau dibatalkan.`);
+    case "ADVANCE_SCHEDULE_PASSED":
+      return w(`The advance's schedule recoups on interim certificate ${s(d.rows, "some")}, at or before interim certificate ${s(d.limit, "the last")} already issued or in progress: those rows would never be recouped. Void it and apply again with a schedule after it.`, `Jadual pendahuluan memulihkan pada perakuan interim ${s(d.rows, "tertentu")} yang telah dikeluarkan atau dalam proses.`);
     case "ADVANCES_MOVED":
       return w(`The advances this certificate's recoupment was worked out from are no longer the ones issued${d.added ? ` (issued since: ${String(d.added)})` : ""}${Number(d.gone) ? ` (${String(d.gone)} no longer issued)` : ""}: a scheduled recoupment would be skipped for good. Void it and raise the valuation again.`, "Pendahuluan yang dikeluarkan telah berubah sejak perakuan ini dibangkitkan. Batalkan dan bangkitkan semula penilaian.");
     case "SCHEDULE_NOT_BALANCED":

@@ -27,7 +27,8 @@ export interface ApplicationInput {
   /// The guarantee named: its kind, status, expiry and value, as the register holds it. Null: none named.
   guarantee: { kind: string; status: string; expiresOn: Day | null; effectiveFrom: Day; value: Sen } | null;
   schedule: readonly ScheduleRow[];
-  /// Interim certificates already issued on the contract: a schedule row may not fall on one of them.
+  /// The highest interim certificate sequence issued on the contract (from a valuation, not from one, or the opening
+  /// position's last): a schedule row may not fall on it or before it (code review run 2 residual MUST 2).
   issuedInterims: number;
   /// A live advance for the same party (not void): one at a time.
   liveForParty: boolean;
@@ -105,4 +106,19 @@ export function advancesMovedFaults(readAtRaising: readonly string[], issuedNow:
   const gone = readAtRaising.filter((id) => !now.has(id));
   if (!added.length && !gone.length) return [];
   return [{ code: "ADVANCES_MOVED", level: "block", data: { added: added.join("; ") || null, gone: gone.length } }];
+}
+
+/// Code review run 2 residual MUST 3 (the other order): an advance applied for but not yet issued or void holds the
+/// recoupment schedule open, so no interim valuation is opened meanwhile (it would be assembled without it and its
+/// row skipped for good). Names each.
+export function pendingAdvanceFaults(pending: readonly { label: string }[]): Finding[] {
+  return pending.length ? [{ code: "ADVANCE_PENDING", level: "block", data: { advances: pending.map((a) => a.label).join("; ") } }] : [];
+}
+
+/// At the advance certificate's issue: no schedule row may fall on or before the highest interim sequence issued or
+/// in progress (it would never be recouped). Refused, naming the rows.
+export function advanceIssueFaults(schedule: readonly ScheduleRow[], highestIssued: number, inProgress: number | null): Finding[] {
+  const limit = Math.max(highestIssued, inProgress ?? 0);
+  const passed = schedule.filter((r) => r.sequence <= limit).map((r) => r.sequence);
+  return passed.length ? [{ code: "ADVANCE_SCHEDULE_PASSED", level: "block", data: { rows: passed.join(", "), limit } }] : [];
 }

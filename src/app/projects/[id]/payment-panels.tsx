@@ -17,11 +17,12 @@ import { decisionFaults, replacementFaults, warningFaults } from "@/lib/lad/non-
 import { formatMoney, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type Assembled } from "@/lib/payment/assemble";
 import { OPENING_GROUP_WORDS, ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, VALUATION_TRIGGERS, type Finding } from "@/lib/payment/types";
 import { issueClockFrom, openFaults } from "@/lib/payment/valuation";
+import { pendingAdvanceFaults } from "@/lib/payment/advance";
 import { OPENING_GROUPS } from "@/lib/payment/opening";
 import { PARTY_KIND_WORDS } from "@/lib/supervision/labels";
 
@@ -212,7 +213,7 @@ function ValuationsSection({ l, v, people, today, page }: { l: LoadedContract; v
   const cal = p.paymentCalendar;
   // The opening act's own rule, on what does not depend on the drawer's answers.
   const state = today ? openFaults({ trigger: "CLAIM", triggerDate: today, valuationDate: today, today, calendarDay: cal?.dayOfMonth ?? null, inProgress: !!v.current, lastIssuedOn: null, baselineInForce: !!v.baseline }).filter((f) => f.code === "VALUATION_IN_PROGRESS" || f.code === "NO_BASELINE") : [];
-  const openBlocker = zone(today) ?? say(state);
+  const openBlocker = zone(today) ?? say([...state, ...pendingAdvanceFaults(pendingAdvancesOf(p))]);
   const all = [...p.interimValuations].reverse();
   const pages = Math.max(1, Math.ceil(all.length / VALUATION_PAGE));
   const pg = Math.min(page, pages - 1);

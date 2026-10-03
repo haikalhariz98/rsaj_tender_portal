@@ -14,7 +14,7 @@ import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import type { Decision } from "@/lib/lad/charge";
 import { liveDecision } from "@/lib/lad/non-completion";
-import { parseSen, senFromDecimal, type Sen } from "@/lib/money";
+import { formatSen, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import type { ContractPartyKind } from "@/lib/supervision/types";
 
 import { readJudgedUnder, type AssembleInput, type IssuedInterim, type ValuationIn } from "./assemble";
@@ -224,3 +224,7 @@ export const packOf = (json: unknown): { item: PackItem; text: string; notRequir
 /// What has been released already (the system's records and the opening position's), for the release act and its preview.
 export const releaseStateOf = (p: PaymentRows) =>
   releaseState(p.retentionReleases.map((r) => ({ kind: r.kind, main: senFromDecimal(r.main), nsc: senFromDecimal(r.nsc), ns: senFromDecimal(r.ns) })), p.openingPosition ? openingOf(p.openingPosition).released : null);
+
+/// Advances applied for whose certificate is neither issued nor void, named (residual MUST 3).
+export const pendingAdvancesOf = (p: PaymentRows) =>
+  p.advancePayments.filter((a) => a.certificate.status !== "ISSUED" && a.certificate.status !== "VOID").map((a) => ({ label: `the advance to ${a.party === "MAIN" ? "the main contractor" : (a.contractParty?.name ?? "a nominated sub-contractor")} of ${formatSen(senFromDecimal(a.amount))}` }));

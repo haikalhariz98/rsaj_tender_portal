@@ -15,15 +15,23 @@ import type { Tx } from "@/lib/audit/record";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { formatMoney, senFromDecimal } from "@/lib/money";
 
-import { advancesMovedFaults } from "./advance";
+import { advanceIssueFaults, advancesMovedFaults } from "./advance";
 import { readJudgedUnder } from "./assemble";
 import { preExecutionFaults } from "./eligibility";
 import { paymentRefusal } from "./labels";
-import { preExecutionFacts } from "./load";
+import { inProgressSequenceOf, loadPayment, nextInterimSequence, preExecutionFacts } from "./load";
 import type { Finding } from "./types";
 
 /// The refusal's text where the certificate may not issue as `sequence`; null where it may.
 export async function issueRefusal(tx: Tx, l: LoadedContract, cert: { id: string; kind: string }, sequence: number): Promise<string | null> {
+  if (cert.kind === "ADVANCE_PAYMENT") {
+    // Residual MUST 3: no row on or before the interim sequence issued or in progress.
+    const adv = await tx.advancePayment.findUnique({ where: { certificateId: cert.id }, select: { schedule: { select: { sequence: true, amount: true } } } });
+    if (!adv) return null;
+    const p = await loadPayment(l.contract.id, tx);
+    const fs = advanceIssueFaults(adv.schedule.map((r) => ({ sequence: r.sequence, amount: senFromDecimal(r.amount) })), nextInterimSequence(p) - 1, inProgressSequenceOf(p));
+    return fs.length ? paymentRefusal("Not issued:", fs) : null;
+  }
   if (cert.kind !== "INTERIM_PAYMENT") return null;
   const v = await tx.interimValuation.findUnique({ where: { certificateId: cert.id }, select: { judgedUnder: true } });
   const j = readJudgedUnder(v?.judgedUnder);

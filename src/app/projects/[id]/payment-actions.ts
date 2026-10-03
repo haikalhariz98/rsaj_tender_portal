@@ -14,10 +14,10 @@ import { contractLabel, withLockedContract, type LoadedContract } from "@/lib/co
 import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { decisionFaults, postFaults, replacementFaults, warningFaults, type PackAnswer } from "@/lib/lad/non-completion";
 import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
-import { applicationFaults } from "@/lib/payment/advance";
+import { applicationFaults, pendingAdvanceFaults } from "@/lib/payment/advance";
 import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, nextInterimSequence, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, nextInterimSequence, pendingAdvancesOf, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
 import { ladRoundingFaults } from "@/lib/payment/interim";
 import { OPENING_GROUPS, openingFaults, type OpeningGroup, type OpeningProvenance } from "@/lib/payment/opening";
@@ -179,6 +179,8 @@ export async function openInterimValuation(_prev: FormState, data: FormData): Pr
     const p = await paymentOf(c);
     const lastIssued = p.interimValuations.filter((v) => v.certificate?.status === "ISSUED").map((v) => storedDay(v.valuationDate)).sort().at(-1) ?? null;
     const fs = openFaults({ trigger, triggerDate: claimOn ? storedDay(claimOn) : null, valuationDate: storedDay(valuationDate), today: c.today, calendarDay: p.paymentCalendar?.dayOfMonth ?? null, inProgress: !!inProgress(p), lastIssuedOn: lastIssued, baselineInForce: !!baselineOn(c.l, c.today) });
+    // Residual MUST 3: an advance applied for and not yet issued or void holds its schedule open.
+    fs.push(...pendingAdvanceFaults(pendingAdvancesOf(p)));
     if (fs.length) refuse("Not opened:", fs);
     const who = await recordedFor(c, personId, { act: "VALUATION" }, storedDay(valuationDate));
     const row = await c.tx.interimValuation.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, trigger, triggerDate: trigger === "CLAIM" ? claimOn : null, valuationDate, personId: who.person.id, participants: [], recordedAt: c.now, recordedOn: dayToDate(c.today) } });
@@ -561,7 +563,8 @@ export async function applyAdvancePayment(_prev: FormState, data: FormData): Pro
       amount: parseSen(amount),
       guarantee: security ? { kind: security.kind, status: security.status, effectiveFrom: storedDay(security.effectiveFrom), expiresOn: day(security.expiresOn), value: senFromDecimal(security.value) } : null,
       schedule,
-      issuedInterims: issuedInterims(p).length,
+      // Residual MUST 2: the highest interim sequence issued (an opening position at 7 covers 1..7).
+      issuedInterims: nextInterimSequence(p) - 1,
       liveForParty: p.advancePayments.some((a) => a.party === party && (party === "MAIN" || a.partyId === partyId) && a.certificate.status !== "VOID"),
       inProgressSequence: inProgressSequenceOf(p),
       today: c.today,
