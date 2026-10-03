@@ -239,12 +239,13 @@ export async function recordPossession(_prev: FormState, data: FormData): Promis
     const k = c.l.contract;
     const s = await supervisionOf(c);
     const day0 = storedDay(on);
-    const who = await recordedFor(c, s, personId, { principalOrSo: true }, c.today);
     const gate = await contractGate(c.l, c.tx);
     const type = c.l.ex.contractTypeCode ? await c.tx.contractType.findFirst({ where: { organisationId: c.l.org.id, code: c.l.ex.contractTypeCode }, select: { nameEn: true, startRequiresSecurities: true } }) : null;
     const { versions, draft } = baselineRows(k);
+    // The contract's own state first (stamped, not yet possessed), then who it is recorded for.
     const fs = possessionFaults({ status: k.status, possessed: !!s.possession, versions: versions.length, on: day0, today: c.today, datedOn: day(k.contractDate), startRequiresSecurities: type?.startRequiresSecurities ?? null, typeName: type?.nameEn ?? null, gate: gate.items });
     if (fs.length) refuse("Not recorded:", fs);
+    const who = await recordedFor(c, s, personId, { principalOrSo: true }, c.today);
     // The POSSESSION version: the latest version with the Date of Possession added, derived again.
     const prior = latestVersion(versions)!;
     const inputs = frozenInputsOf(k);
