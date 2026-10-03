@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { supervisionFaultWords } from "./labels";
-import { possessionFaults, startRuleReading } from "./possession";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+import { possessionFaults, soFromOf, startRuleReading } from "./possession";
 
 /**
  * FR-SUP-005 with BD-612-22 (ruled at 6.13 planning): the contract type's start-of-work behaviour.
@@ -14,7 +17,7 @@ const met = [
   { key: "BOND", state: "MET", detail: [] },
   { key: "INSURANCE", state: "MET", detail: [] },
 ];
-const ok = { status: "STAMPED", possessed: false, versions: 2, on: "2026-10-01", today: "2026-10-03", datedOn: "2026-09-30", startRequiresSecurities: true as boolean | null, typeName: "Works", gate: met };
+const ok = { status: "STAMPED", possessed: false, versions: 2, on: "2026-10-01", today: "2026-10-03", datedOn: "2026-09-30", startRequiresSecurities: true as boolean | null, typeName: "Works", gate: met, soFrom: "2026-09-01" as string | null }; // fixture: an S.O. in force well before, so each other refusal stands alone
 const codes = (x: Parameters<typeof possessionFaults>[0]) => possessionFaults(x).map((f) => f.code);
 
 describe("the start-of-work behaviour", () => {
@@ -50,11 +53,31 @@ describe("the act's other refusals", () => {
 });
 
 describe("review 1: never before the first S.O. assignment takes effect", () => {
-  it("before it, refused naming the day; on it, allowed; no S.O. at all, refused; not asked, as before", () => {
+  it("before it, refused naming the day; on it, allowed; no S.O. at all, refused; in force before, allowed", () => {
     expect(possessionFaults({ ...ok, on: "2026-10-01", soFrom: "2026-10-02" }).map((f) => f.code)).toEqual(["BEFORE_SO"]);
     expect(possessionFaults({ ...ok, on: "2026-10-01", soFrom: "2026-10-02" })[0].data).toEqual({ day: "2026-10-02" });
     expect(possessionFaults({ ...ok, on: "2026-10-02", soFrom: "2026-10-02" })).toEqual([]);
     expect(possessionFaults({ ...ok, soFrom: null }).map((f) => f.code)).toEqual(["NO_SO"]);
     expect(possessionFaults(ok)).toEqual([]);
+  });
+});
+
+describe("6.13A residual D2: every caller asks when the S.O. takes effect", () => {
+  it("soFromOf is the earliest assignment's effective day; none, null", () => {
+    expect(soFromOf([])).toBeNull();
+    expect(soFromOf([{ effectiveOn: "2026-10-05" }, { effectiveOn: "2026-09-30" }, { effectiveOn: "2026-10-01" }])).toBe("2026-09-30");
+  });
+  it("the act and the Site tab's preview both pass soFrom from the S.O. assignments (so the drawer is never offered where the act refuses NO_SO)", () => {
+    const root = path.join(__dirname, "../../..");
+    for (const f of ["src/app/projects/[id]/supervision-actions.ts", "src/app/projects/[id]/supervision-panels.tsx"]) {
+      const src = readFileSync(path.join(root, f), "utf8");
+      const calls = src.match(/possessionFaults\(\{[^\n]*\}\)/g) ?? [];
+      expect(calls.length).toBe(1);
+      expect(calls[0]).toMatch(/soFrom/);
+      expect(src).toMatch(/soFromOf\([a-z.]*soAssignments\.map/);
+    }
+  });
+  it("the preview with no S.O. says NO_SO, the act's own refusal", () => {
+    expect(codes({ ...ok, soFrom: soFromOf([]) })).toEqual(["NO_SO"]);
   });
 });

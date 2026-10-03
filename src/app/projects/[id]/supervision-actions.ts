@@ -26,7 +26,7 @@ import { delegationFaults, latestActDay, revokeFaults } from "@/lib/supervision/
 import { attestFaults, disputeFaults, endorseFaults, entryFaults } from "@/lib/supervision/diary";
 import { ACT_WORDS, AREA_WORDS, BRANCH_WORDS, CAUSE_WORDS, DELEGATE_KIND_WORDS, ENDORSER_WORDS, PARTY_KIND_WORDS, PROGRAMME_DECISION_WORDS, PROGRAMME_KIND_WORDS, RECORDS_SET_WORDS, supervisionRefusal, VARIANT_WORDS } from "@/lib/supervision/labels";
 import { actsByPerson, delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, methodKeyOf, revisionsOf, soOfficeOn, type SupervisionRows } from "@/lib/supervision/load";
-import { possessionFaults, startRuleReading } from "@/lib/supervision/possession";
+import { possessionFaults, soFromOf, startRuleReading } from "@/lib/supervision/possession";
 import { decideFaults, openRevision, pointFaults, scrutinyFaults, submitFaults, type PointIn } from "@/lib/supervision/programme";
 import { earlyActionFaults, handoverFaults, meetingFaults, onSiteFaults, partyFaults, progressFaults, retirePartyFaults, selfHelpFaults } from "@/lib/supervision/records";
 import { resolveActFaults, resolveSo, soFaults } from "@/lib/supervision/so";
@@ -251,7 +251,7 @@ export async function recordPossession(_prev: FormState, data: FormData): Promis
     const { versions, draft } = baselineRows(k);
     // The contract's own state first (stamped, not yet possessed), then who it is recorded for.
     // Review 1 backstop: never before the first S.O. assignment takes effect.
-    const soFrom = s.soAssignments.length ? s.soAssignments.map((a) => storedDay(a.effectiveOn)).sort()[0] : null;
+    const soFrom = soFromOf(s.soAssignments.map((a) => ({ effectiveOn: storedDay(a.effectiveOn) })));
     const fs = possessionFaults({ status: k.status, possessed: !!s.possession, versions: versions.length, on: day0, today: c.today, datedOn: day(k.contractDate), startRequiresSecurities: type?.startRequiresSecurities ?? null, typeName: type?.nameEn ?? null, gate: gate.items, soFrom });
     if (fs.length) refuse("Not recorded:", fs);
     // Review 7: who may record it is judged on the possession day.

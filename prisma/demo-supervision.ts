@@ -81,7 +81,7 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
   const { storedDay } = await import("../src/lib/dates");
   const { capacityFor } = await import("../src/lib/supervision/authority");
   const { delegationFaults } = await import("../src/lib/supervision/delegation");
-  const { possessionFaults, startRuleReading } = await import("../src/lib/supervision/possession");
+  const { possessionFaults, soFromOf, startRuleReading } = await import("../src/lib/supervision/possession");
   const { submitFaults, pointFaults, scrutinyFaults, decideFaults } = await import("../src/lib/supervision/programme");
   const { progressFaults, meetingFaults, onSiteFaults, partyFaults } = await import("../src/lib/supervision/records");
   const { entryFaults, attestFaults, endorseFaults } = await import("../src/lib/supervision/diary");
@@ -140,7 +140,7 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
     await recordedFor(people.chen.id, { principalOrSo: true }, possessionOn);
     const gate = await contractGate(l);
     const { versions, draft } = baselineRows(l.contract);
-    fail("possession", possessionFaults({ status: l.contract.status, possessed: false, versions: versions.length, on: possessionOn, today: possessionOn, datedOn: storedDay(l.contract.contractDate!), startRequiresSecurities: type.startRequiresSecurities, typeName: type.nameEn, gate: gate.items }));
+    fail("possession", possessionFaults({ status: l.contract.status, possessed: false, versions: versions.length, on: possessionOn, today: possessionOn, datedOn: storedDay(l.contract.contractDate!), startRequiresSecurities: type.startRequiresSecurities, typeName: type.nameEn, gate: gate.items, soFrom: soFromOf([{ effectiveOn: storedDay(assignment.effectiveOn) }]) }));
     const prior = latestVersion(versions)!;
     const inputs = frozenInputsOf(l.contract);
     const before = valuesOf(prior);

@@ -25,7 +25,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { delegationFaults, delegationState } from "@/lib/supervision/delegation";
 import { entryState, missingDays } from "@/lib/supervision/diary";
 import { delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, methodKeyOf, revisionsOf, soOfficeOn } from "@/lib/supervision/load";
-import { possessionFaults, startRuleReading } from "@/lib/supervision/possession";
+import { possessionFaults, soFromOf, startRuleReading } from "@/lib/supervision/possession";
 import { openRevision, programmeInForce } from "@/lib/supervision/programme";
 import { BRANCH_OPENS } from "@/lib/supervision/records";
 import { reResolveReading, resolveSo, soFaults } from "@/lib/supervision/so";
@@ -333,7 +333,7 @@ async function StartSection({ l, v, people, today }: { l: LoadedContract; v: Sup
   let possessionBlocker: string | null = zone(today);
   if (!pos && today && !possessionBlocker) {
     const gate = await contractGate(l);
-    possessionBlocker = say(possessionFaults({ status: c.status, possessed: false, versions: v.versions, on: today, today, datedOn: day(c.contractDate), startRequiresSecurities: v.type?.startRequiresSecurities ?? null, typeName: v.type?.nameEn ?? null, gate: gate.items }));
+    possessionBlocker = say(possessionFaults({ status: c.status, possessed: false, versions: v.versions, on: today, today, datedOn: day(c.contractDate), startRequiresSecurities: v.type?.startRequiresSecurities ?? null, typeName: v.type?.nameEn ?? null, gate: gate.items, soFrom: soFromOf(v.s.soAssignments.map((a) => ({ effectiveOn: storedDay(a.effectiveOn) }))) }));
   }
   const revs = revisionsOf(v.s);
   const open = openRevision(revs);

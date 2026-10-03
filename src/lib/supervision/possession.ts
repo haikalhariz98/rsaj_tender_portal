@@ -32,9 +32,10 @@ export function possessionFaults(i: {
   datedOn: Day | null;
   startRequiresSecurities: boolean | null;
   typeName: string | null;
-  /// The first S.O. assignment's effective day (review 1): no possession before anyone supervises the site.
-  /// Null: no S.O. at all. Absent: not asked (a caller from before the review).
-  soFrom?: Day | null;
+  /// The first S.O. assignment's effective day (review 1; `soFromOf`): no possession before anyone supervises the
+  /// site. Null: no S.O. at all. Required (6.13A residual D2): every caller, the act and the Site tab's preview,
+  /// asks, so the drawer is never offered where the act would refuse.
+  soFrom: Day | null;
   gate: readonly GateItemFacts[];
 }): Finding<PossessionFault>[] {
   const out: Finding<PossessionFault>[] = [];
@@ -45,7 +46,7 @@ export function possessionFaults(i: {
   if (i.on > i.today) f("FUTURE_DATE", { day: i.on });
   if (i.datedOn && i.on < i.datedOn) f("BEFORE_CONTRACT_DATE", { day: i.datedOn });
   if (i.soFrom === null) f("NO_SO");
-  else if (i.soFrom !== undefined && i.on < i.soFrom) f("BEFORE_SO", { day: i.soFrom });
+  else if (i.on < i.soFrom) f("BEFORE_SO", { day: i.soFrom });
   if (i.startRequiresSecurities == null) f("START_RULE_NOT_SET", { type: i.typeName });
   else if (i.startRequiresSecurities) {
     for (const key of ["BOND", "INSURANCE"]) {
@@ -54,6 +55,11 @@ export function possessionFaults(i: {
     }
   }
   return out;
+}
+
+/// The day the first S.O. assignment takes effect (the earliest effective day); null: none.
+export function soFromOf(assignments: readonly { effectiveOn: Day }[]): Day | null {
+  return assignments.reduce<Day | null>((m, a) => (m == null || a.effectiveOn < m ? a.effectiveOn : m), null);
 }
 
 /// What the possession record freezes about its start-of-work rule.
