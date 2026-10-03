@@ -18,6 +18,8 @@ import { FormReader } from "@/lib/validate";
 /// The certificate kinds the payment and damages chain, and the variations and adjustments, raise (each needs its
 /// form; a routing sheet is optional).
 const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION", "VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT"] as const;
+/// The kinds that take no routing sheet: approved on the variation's own routes, or going by none.
+const NO_SHEET_KINDS = ["VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION"] as const;
 
 /**
  * Post-award controls (6.13 Part A): the In Delay percentage, whether the S.O. follows the contract sum across a
@@ -159,6 +161,9 @@ export async function saveKindSetting(_prev: FormState, data: FormData): Promise
     if (routingTypeId && !type) return { ok: false, errors: { routingTypeId: "Choose a routing sheet configured under Routing sheets." } } as FormState;
     if (type?.retiredOn) return { ok: false, errors: { routingTypeId: "That routing sheet is retired: choose one in use." } } as FormState;
     if (type && (type.subject !== "CERTIFICATE" || (type.certificateKind != null && type.certificateKind !== kind))) return { ok: false, errors: { routingTypeId: "That routing sheet is for another kind of document." } } as FormState;
+    // 6.13 Part A step 4: the variation's application, instruction and order are approved on the variation's own routes
+    // (or go by no route), so none goes on a routing sheet, whose approval would be read from a route it never has.
+    if (type && (NO_SHEET_KINDS as readonly string[]).includes(kind)) return { ok: false, errors: { routingTypeId: "This certificate is approved on its variation's own routes: it takes no routing sheet." } } as FormState;
     const before = await tx.certificateKindSetting.findUnique({ where: { organisationId_kind: { organisationId: o.id, kind } }, include: { template: { select: { nameEn: true } }, routingType: { select: { labelEn: true } } } });
     const row = await tx.certificateKindSetting.upsert({ where: { organisationId_kind: { organisationId: o.id, kind } }, update: { templateId: template?.id ?? null, routingTypeId: type?.id ?? null, provenance, notes }, create: { organisationId: o.id, kind, templateId: template?.id ?? null, routingTypeId: type?.id ?? null, provenance, notes } });
     const changes = diffFields(before ? { form: before.template?.nameEn ?? null, routingSheet: before.routingType?.labelEn ?? null, provenance: before.provenance, notes: before.notes } : null, { form: template?.nameEn ?? null, routingSheet: type?.labelEn ?? null, provenance, notes });

@@ -79,15 +79,15 @@ export function EditPaymentPolicy({ values, figures, remainders }: { values: Rec
 }
 
 /// The form a certificate kind prints on and the routing sheet it goes on.
-export function EditKindSetting({ kind, label, values, forms, sheets }: { kind: string; label: string; values: Record<string, string | null>; forms: Option[]; sheets: Option[] }) {
+export function EditKindSetting({ kind, label, values, forms, sheets, noSheet = false }: { kind: string; label: string; values: Record<string, string | null>; forms: Option[]; sheets: Option[]; noSheet?: boolean }) {
   return (
     <RecordEditor
       title={label}
-      description="The form this certificate prints on, and the routing sheet it goes on before it is signed. Without a form it cannot be raised."
+      description={noSheet ? "The form this certificate prints on. It is approved on its variation's own routes, so it takes no routing sheet. Without a form it cannot be raised." : "The form this certificate prints on, and the routing sheet it goes on before it is signed. Without a form it cannot be raised."}
       fields={[
         { kind: "hidden", name: "certificateKind" },
         form("templateId", "Form", forms),
-        { kind: "select", name: "routingTypeId", label: "Routing sheet", placeholder: sheets.length ? "None: no routing sheet" : "No routing sheets configured", options: sheets },
+        ...(noSheet ? [] : [{ kind: "select", name: "routingTypeId", label: "Routing sheet", placeholder: sheets.length ? "None: no routing sheet" : "No routing sheets configured", options: sheets } as Field]),
         { kind: "select", name: "provenance", label: "Where these came from", required: true, placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}

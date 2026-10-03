@@ -228,12 +228,12 @@ export default async function PostAwardControlsPage() {
               items={VARIATION_KINDS.map((k) => {
                 const x = kindOf(k);
                 const sheetsFor = sheets.filter((t) => t.certificateKind == null || t.certificateKind === k).map((t) => ({ value: t.id, label: t.labelEn }));
-                const sheet = x?.routingType ? `${x.routingType.labelEn}${x.routingType.retiredOn ? " (retired: choose one in use)" : ""}` : "No routing sheet";
+                const sheet = k !== "SUM_ADJUSTMENT" ? "Approved on the variation's own routes (no routing sheet)" : x?.routingType ? `${x.routingType.labelEn}${x.routingType.retiredOn ? " (retired: choose one in use)" : ""}` : "No routing sheet";
                 return {
                   label: (
                     <span className="flex flex-wrap items-center justify-between gap-2">
                       <span>{KIND_WORDS[k].en}</span>
-                      <EditKindSetting kind={k} label={KIND_WORDS[k].en} values={{ templateId: x?.templateId ?? null, routingTypeId: x?.routingTypeId ?? null, provenance: x?.provenance ?? null, notes: x?.notes ?? "" }} forms={forms} sheets={sheetsFor} />
+                      <EditKindSetting kind={k} label={KIND_WORDS[k].en} values={{ templateId: x?.templateId ?? null, routingTypeId: x?.routingTypeId ?? null, provenance: x?.provenance ?? null, notes: x?.notes ?? "" }} forms={forms} sheets={sheetsFor} noSheet={k !== "SUM_ADJUSTMENT"} />
                     </span>
                   ),
                   value: <Setting value={x?.templateId ? `${formName(x.templateId)} · ${sheet}` : null} provenance={x?.provenance} unset="It cannot be raised: the refusal names this setting." />,
