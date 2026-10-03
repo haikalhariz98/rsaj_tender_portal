@@ -5,9 +5,11 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
-import { blockFaults, blockPinChanged, configFaultText, distributionFaultsOf, nextFormVersion, notACertificateFormText, otherUsesOf, rowPinChanged, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
+import { blockFaults, blockPinChanged, configFaultText, distributionFaultsOf, nextFormVersion, notACertificateFormText, notAPrintedFormText, otherUsesOf, rowPinChanged, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
 import { BLOCK_KIND_WORDS, CONDITION_WORDS, OFFICE_RULE_WORDS } from "@/lib/certificate/labels";
-import { blockOf, rowOf } from "@/lib/certificate/repo";
+import { certificateFaultWords } from "@/lib/certificate/fault-text";
+import { boundFieldWords, pageCountFaults, printedFieldFaults, printedFieldPinChanged, type PrintedField } from "@/lib/certificate/printed";
+import { blockOf, printedFieldOf, rowOf } from "@/lib/certificate/repo";
 import { DISTRIBUTION_CONDITIONS, SIGNATURE_BLOCK_KINDS, SIGNATURE_OFFICE_RULES, type Block, type DistributionRow } from "@/lib/certificate/types";
 import { db } from "@/lib/db";
 import { exerciseOrg } from "@/lib/method/repo";
@@ -20,6 +22,8 @@ import { FormReader } from "@/lib/validate";
  * transaction; a removal asks for a reason. A certificate pins the form at its first signature, so nothing
  * here moves a certificate already signing; and every change here is a new version of the form
  * (`bumpFormVersion`), so the version a certificate names always means one set of blocks and recipients.
+ * Increment 2 adds the printed form (page count, printed fields with their label pairs), pinned and versioned
+ * the same way.
  */
 
 const NO_ORG: FormState = { ok: false, message: "No organisation is configured. Run npm run setup first." };
@@ -171,6 +175,81 @@ export async function removeDistributionRow(_prev: FormState, data: FormData): P
     await tx.formDistribution.delete({ where: { id: row.id } });
     await writeAudit(tx, { organisationId: t.organisationId, entity: "FormDistribution", entityId: row.id, entityLabel: `${t.nameEn} · ${row.labelEn}`, reason }, "DELETE", snapshotFields(rowWords(rowOf(row))));
     await bumpFormVersion(tx, t, `Recipient removed: ${row.labelEn}`);
+    return { ok: true };
+  });
+}
+
+// ------------------------------------------------------------------ 6.14 increment 2: the printed form
+
+const fieldWords = (p: PrintedField) => ({ code: p.key, label: p.labelEn, labelMalay: p.labelMs, filled: p.bound && p.computedKey ? `by the portal: ${boundFieldWords(p.computedKey).en}` : "by hand on the paper", order: p.sortOrder });
+
+/**
+ * The printed form's page count (FR-CRT-001). Any template may record it; on a certificate form it is pinned with
+ * the form, so a change is a new version of the form (as a block's is); a template another module uses never moves.
+ */
+export async function savePageCount(_prev: FormState, data: FormData): Promise<FormState> {
+  const r = new FormReader(data);
+  const templateId = r.text("templateId", "Template", { required: true });
+  const pageCount = r.int("pageCount", "Pages", { min: 1 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  const fs = pageCountFaults(pageCount);
+  if (fs.length) return { ok: false, errors: { pageCount: certificateFaultWords(fs[0]).en } };
+  return onTemplate(templateId, async (tx, t) => {
+    const before = await tx.documentTemplate.findUnique({ where: { id: t.id }, select: { pageCount: true } });
+    if ((before?.pageCount ?? null) === pageCount) return { ok: true };
+    await tx.documentTemplate.update({ where: { id: t.id }, data: { pageCount } });
+    await writeAudit(tx, { organisationId: t.organisationId, entity: "DocumentTemplate", entityId: t.id, entityLabel: t.nameEn, reason: String(data.get("reason") ?? "") }, "UPDATE", diffFields({ printedPages: before?.pageCount ?? null }, { printedPages: pageCount }));
+    await bumpFormVersion(tx, t, `Printed pages: ${pageCount ?? "not recorded"}`);
+    return { ok: true };
+  });
+}
+
+/// A printed field with its label pair, bound to a value the portal fills or left for the pen (FR-CRT-001, 002).
+export async function savePrintedField(_prev: FormState, data: FormData): Promise<FormState> {
+  const r = new FormReader(data);
+  const templateId = r.text("templateId", "Template", { required: true });
+  const id = r.optionalText("id");
+  const filled = r.choice("filled", "How it is filled", ["PORTAL", "HAND"] as const, { required: true });
+  const v: PrintedField = {
+    key: r.text("key", "Code", { required: true, max: 60 }),
+    labelEn: r.text("labelEn", "Label, as printed", { required: true, max: 200 }),
+    labelMs: r.optionalText("labelMs"),
+    bound: filled === "PORTAL",
+    computedKey: filled === "PORTAL" ? r.optionalText("computedKey") : null,
+    sortOrder: r.int("sortOrder", "Place on the form", { min: 0 }) ?? 0,
+  };
+  const provenance = r.choice("provenance", "Where it came from", PROVENANCE, { required: true });
+  const notes = r.text("notes", "Notes", { max: 2000 });
+  if (r.failed || !provenance || !filled) return { ok: false, errors: r.errors };
+  return onTemplate(templateId, async (tx, t) => {
+    if (t.uses.length) return { ok: false, message: notAPrintedFormText(t.uses).en };
+    const rows = await tx.formField.findMany({ where: { templateId: t.id } });
+    const before = id ? rows.find((x) => x.id === id) : null;
+    if (id && !before) return { ok: false, message: "That field is no longer on this form." };
+    const fs = printedFieldFaults(v, rows.filter((x) => x.id !== id).map(printedFieldOf));
+    if (fs.length) return { ok: false, message: fs.map((f) => certificateFaultWords(f).en).join(" ") };
+    const write = { ...v, provenance, notes };
+    const row = before ? await tx.formField.update({ where: { id: before.id }, data: write }) : await tx.formField.create({ data: { organisationId: t.organisationId, templateId: t.id, ...write } });
+    const changes = diffFields(before ? { ...fieldWords(printedFieldOf(before)), provenance: before.provenance } : null, { ...fieldWords(v), provenance });
+    if (changes.length) {
+      await writeAudit(tx, { organisationId: t.organisationId, entity: "FormField", entityId: row.id, entityLabel: `${t.nameEn} · ${v.labelEn}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
+      if (printedFieldPinChanged(before ? printedFieldOf(before) : null, v)) await bumpFormVersion(tx, t, `Printed field ${before ? "changed" : "added"}: ${v.labelEn}`);
+    }
+    return { ok: true };
+  });
+}
+
+export async function removePrintedField(_prev: FormState, data: FormData): Promise<FormState> {
+  const templateId = String(data.get("templateId") ?? "");
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
+  if (!reason) return { ok: false, errors: { reason: "Say why the field comes off the form." } };
+  return onTemplate(templateId, async (tx, t) => {
+    const row = await tx.formField.findFirst({ where: { id, templateId: t.id } });
+    if (!row) return { ok: false, message: "That field is no longer on this form." };
+    await tx.formField.delete({ where: { id: row.id } });
+    await writeAudit(tx, { organisationId: t.organisationId, entity: "FormField", entityId: row.id, entityLabel: `${t.nameEn} · ${row.labelEn}`, reason }, "DELETE", snapshotFields(fieldWords(printedFieldOf(row))));
+    await bumpFormVersion(tx, t, `Printed field removed: ${row.labelEn}`);
     return { ok: true };
   });
 }

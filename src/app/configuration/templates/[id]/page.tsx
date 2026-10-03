@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { HistoryButton } from "@/components/history-drawer";
 import { RecordCrumb } from "@/components/shell/record-crumb";
-import { FilesIcon, InboxIcon, ToolsIcon } from "@/components/icons";
+import { FilesIcon, InboxIcon, PrinterIcon, ToolsIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Blocked } from "@/components/ui/blocked";
@@ -11,20 +11,22 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
-import { notACertificateFormText, otherUsesOf, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
+import { notACertificateFormText, notAPrintedFormText, otherUsesOf, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
+import { boundFieldWords, labelPair, PRINTABLE_FIELDS } from "@/lib/certificate/printed";
 import { BLOCK_KIND_WORDS, CONDITION_WORDS, OFFICE_RULE_WORDS } from "@/lib/certificate/labels";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 
-import { AddBlock, AddRecipient, EditBlock, EditRecipient, RemoveBlock, RemoveRecipient } from "./editors";
+import { AddBlock, AddPrintedField, AddRecipient, EditBlock, EditPageCount, EditPrintedField, EditRecipient, RemoveBlock, RemovePrintedField, RemoveRecipient } from "./editors";
 
 export const dynamic = "force-dynamic";
 
 const USE_COUNTS = Object.fromEntries(Object.keys(TEMPLATE_OTHER_USES).map((k) => [k, true])) as Record<keyof typeof TEMPLATE_OTHER_USES, true>;
 
 /**
- * One form's signature blocks and distribution list (6.14 increment 1, FR-CRT-001, 004, 006). The text and the
+ * One form's signature blocks and distribution list (6.14 increment 1, FR-CRT-001, 004, 006), and its printed
+ * form: page count and printed fields with their label pairs (increment 2). The text and the
  * form's identity are edited on Configuration › Templates; here, its printed signature order and who receives
  * it. Everything ships empty. A certificate pins the form (text, blocks and list) at its first signature.
  */
@@ -34,7 +36,7 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
   if (!org) notFound();
   const t = await db.documentTemplate.findFirst({
     where: { id, organisationId: org.id },
-    include: { signatureBlocks: { orderBy: { blockOrder: "asc" } }, distributionRows: { orderBy: [{ sortOrder: "asc" }, { recipientCode: "asc" }] }, _count: { select: { certificates: true, ...USE_COUNTS } } },
+    include: { signatureBlocks: { orderBy: { blockOrder: "asc" } }, distributionRows: { orderBy: [{ sortOrder: "asc" }, { recipientCode: "asc" }] }, printedFields: { orderBy: [{ sortOrder: "asc" }, { key: "asc" }] }, _count: { select: { certificates: true, ...USE_COUNTS } } },
   });
   if (!t) notFound();
   const roles = await db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true } });
@@ -44,6 +46,9 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
   const uses = otherUsesOf(t._count as unknown as Record<string, number>);
   const notAForm = uses.length ? notACertificateFormText(uses).en : null;
   const undecided = t.signatureBlocks.filter((b) => b.delegable == null).length;
+  // 6.14 increment 2: the values a printed field may print, in the product's words (EN; MS kept beside them).
+  const printable = [...PRINTABLE_FIELDS].map((k) => ({ value: k, label: boundFieldWords(k).en }));
+  const notAPrinted = uses.length ? notAPrintedFormText(uses).en : null;
   const yesNo = (b: boolean | null, yes: string, no: string, unset: string) => (b == null ? unset : b ? yes : no);
 
   return (
@@ -53,8 +58,8 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
         eyebrow={<Link href="/configuration/templates">Templates</Link>}
         title={t.nameEn}
         badge={undecided ? <Badge tone="warn" dot>{`${undecided} block${undecided === 1 ? "" : "s"} undecided`}</Badge> : undefined}
-        subtitle="Signature order and distribution list, pinned at a certificate's first signature."
-        meta={[t.formCode || "No form code", t.revisionDate ? `Revision ${formatDate(t.revisionDate)}` : "No revision date", notAForm ? `Version ${t.bodyVersion} (its text)` : `Version ${t.bodyVersion} (its text, signature blocks and distribution list)`, `${t._count.certificates} certificate${t._count.certificates === 1 ? "" : "s"} printed on it`]}
+        subtitle="Signature order, distribution list and printed form, pinned at a certificate's first signature."
+        meta={[t.formCode || "No form code", t.revisionDate ? `Revision ${formatDate(t.revisionDate)}` : "No revision date", notAForm ? `Version ${t.bodyVersion} (its text)` : `Version ${t.bodyVersion} (its text, signature blocks, distribution list and printed form)`, t.pageCount == null ? "Printed pages not recorded" : `${t.pageCount} printed page${t.pageCount === 1 ? "" : "s"}`, `${t._count.certificates} certificate${t._count.certificates === 1 ? "" : "s"} printed on it`]}
       />
       <div className="flex flex-col gap-6">
         {notAForm && <Callout tone="info" title="Not a certificate form">{notAForm}</Callout>}
@@ -135,6 +140,53 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
                         <HistoryButton iconOnly entity="FormDistribution" entityId={d.id} label={d.labelEn} />
                         <EditRecipient templateId={t.id} row={d} />
                         <RemoveRecipient templateId={t.id} id={d.id} label={d.labelEn} />
+                      </RowActions>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+        <Card className="overflow-hidden">
+          <CardHeader
+            icon={<PrinterIcon size={17} />}
+            title="Printed form"
+            subtitle={`${t.pageCount == null ? "Its pages are not recorded" : `${t.pageCount} printed page${t.pageCount === 1 ? "" : "s"}`}. Each printed field carries the form's own label, and is filled by the portal from the certificate or its routing sheet (never typed in) or left blank for the pen. Where this form is a routing sheet's printed sheet, its labels for the received and approved days show beside the portal's words.`}
+            actions={
+              <span className="flex flex-wrap items-center gap-2">
+                <EditPageCount templateId={t.id} pageCount={t.pageCount} />
+                {notAPrinted ? <Blocked label="Add field" reason={notAPrinted} /> : <AddPrintedField templateId={t.id} values={printable} />}
+              </span>
+            }
+            divided={t.printedFields.length === 0}
+          />
+          {t.printedFields.length === 0 ? (
+            <EmptyState size="sm" title="No printed fields">The printed form&apos;s labels are not recorded: a certificate on it prints its text alone, and a routing sheet on it shows the portal&apos;s words.</EmptyState>
+          ) : (
+            <Table minWidth={640}>
+              <colgroup>
+                <col />
+                <col style={{ width: 130 }} />
+                <ActionsCol icons={2} labelled={1} />
+              </colgroup>
+              <THead>
+                <Th>Field</Th>
+                <Th>Source</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {t.printedFields.map((f) => (
+                  <Tr key={f.id}>
+                    <Td label="Field">
+                      <CellStack title={labelPair(f)} sub={f.bound && f.computedKey ? `Filled by the portal: ${boundFieldWords(f.computedKey).en}` : "Completed by hand on the paper"} />
+                    </Td>
+                    <Td label="Source"><ProvenanceBadge value={f.provenance} /></Td>
+                    <Td>
+                      <RowActions>
+                        <HistoryButton iconOnly entity="FormField" entityId={f.id} label={f.labelEn} />
+                        <EditPrintedField templateId={t.id} values={printable} row={f} />
+                        <RemovePrintedField templateId={t.id} id={f.id} label={f.labelEn} />
                       </RowActions>
                     </Td>
                   </Tr>

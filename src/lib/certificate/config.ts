@@ -171,3 +171,13 @@ export function rowPinChanged(before: DistributionRow | null, after: Distributio
   const pin = (r: DistributionRow | null) => (r ? JSON.stringify([r.recipientCode, r.labelEn, r.labelMs, r.mandatory, r.ackRequired, r.condition, r.isOriginal, r.sortOrder]) : null);
   return pin(before) !== pin(after);
 }
+
+/// 6.14 increment 2: a template used elsewhere takes no printed fields either (its page count may still be recorded).
+export function notAPrintedFormText(uses: readonly string[]): { en: string; ms: string } {
+  const en = uses.map((u) => TEMPLATE_OTHER_USES[u]?.en ?? "another document").join(", ");
+  const ms = uses.map((u) => TEMPLATE_OTHER_USES[u]?.ms ?? "dokumen lain").join(", ");
+  return {
+    en: `This template prints ${en}, which render their own text, so it takes no printed fields here. Its page count may still be recorded.`,
+    ms: `Templat ini mencetak ${ms}, yang memaparkan teksnya sendiri, jadi ia tidak mengambil medan bercetak di sini. Bilangan muka suratnya masih boleh direkodkan.`,
+  };
+}

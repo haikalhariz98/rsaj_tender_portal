@@ -4,7 +4,7 @@ import { buttonClass } from "@/components/ui/button";
 import { BLOCK_KIND_WORDS, CONDITION_WORDS, OFFICE_RULE_WORDS } from "@/lib/certificate/labels";
 import { DISTRIBUTION_CONDITIONS, SIGNATURE_BLOCK_KINDS, SIGNATURE_OFFICE_RULES } from "@/lib/certificate/types";
 
-import { removeDistributionRow, removeSignatureBlock, saveDistributionRow, saveSignatureBlock } from "../form-actions";
+import { removeDistributionRow, removePrintedField, removeSignatureBlock, saveDistributionRow, savePageCount, savePrintedField, saveSignatureBlock } from "../form-actions";
 
 /**
  * A form's signature blocks and distribution list (6.14 increment 1). No field carries a default: whether a
@@ -141,6 +141,82 @@ export function RemoveRecipient({ templateId, id, label }: { templateId: string;
       values={{ templateId, id }}
       destructive={{ reasonLabel: "Why it comes off" }}
       action={removeDistributionRow}
+      submitLabel="Take it off"
+      cancelLabel="Keep it"
+      trigger={{ label: "Remove", className: ghost, ariaLabel: `Remove ${label}` }}
+    />
+  );
+}
+
+// ------------------------------------------------------------------ 6.14 increment 2: the printed form
+
+export function EditPageCount({ templateId, pageCount }: { templateId: string; pageCount: number | null }) {
+  return (
+    <RecordEditor
+      title="Printed pages"
+      description="How many pages the printed form runs to, so a generated certificate can be checked against it. Blank: not recorded, and the certificate says so."
+      fields={[{ kind: "hidden", name: "templateId" }, { kind: "number", name: "pageCount", label: "Pages", min: 1, placeholder: "Not recorded" }]}
+      values={{ templateId, pageCount: pageCount == null ? null : String(pageCount) }}
+      action={savePageCount}
+      trigger={{ label: "Edit pages", className: ghost }}
+    />
+  );
+}
+
+function printedFields(values: Option[]): Field[] {
+  return [
+    { kind: "hidden", name: "templateId" },
+    { kind: "hidden", name: "id" },
+    { kind: "text", name: "key", label: "Code", required: true, mono: true, hint: "Small letters, digits and underscores, unique on the form." },
+    { kind: "text", name: "labelEn", label: "Label, as printed", required: true, hint: "The form's own wording for the field." },
+    { kind: "text", name: "labelMs", label: "Label (Malay), as printed" },
+    { kind: "select", name: "filled", label: "How it is filled", required: true, placeholder: "Choose", options: [{ value: "PORTAL", label: "By the portal, from the certificate or its routing sheet (never typed in)" }, { value: "HAND", label: "By hand on the paper (left blank)" }] },
+    { kind: "select", name: "computedKey", label: "The value it prints", placeholder: "Choose", options: values },
+    { kind: "number", name: "sortOrder", label: "Place on the form", min: 0 },
+    PROVENANCE,
+    { kind: "textarea", name: "notes", label: "Notes" },
+  ];
+}
+
+const printedShow = { computedKey: { name: "filled", in: ["PORTAL"] } };
+
+export function AddPrintedField({ templateId, values }: { templateId: string; values: Option[] }) {
+  return (
+    <RecordEditor
+      title="Add a printed field"
+      description="A field of the printed form under its own label. A certificate pins the form at its first signature: a change here never moves one already signing."
+      fields={printedFields(values)}
+      values={{ templateId }}
+      showWhen={printedShow}
+      action={savePrintedField}
+      submitLabel="Add field"
+      trigger={{ label: "Add field", icon: true }}
+    />
+  );
+}
+
+export function EditPrintedField({ templateId, values, row }: { templateId: string; values: Option[]; row: { id: string; key: string; labelEn: string; labelMs: string | null; bound: boolean; computedKey: string | null; sortOrder: number; provenance: string; notes: string } }) {
+  return (
+    <RecordEditor
+      title={`Edit ${row.labelEn}`}
+      fields={printedFields(values)}
+      values={{ templateId, id: row.id, key: row.key, labelEn: row.labelEn, labelMs: row.labelMs, filled: row.bound ? "PORTAL" : "HAND", computedKey: row.computedKey, sortOrder: String(row.sortOrder), provenance: row.provenance, notes: row.notes }}
+      showWhen={printedShow}
+      action={savePrintedField}
+      trigger={{ label: `Edit ${row.labelEn}`, iconOnly: <PencilIcon size={15} /> }}
+    />
+  );
+}
+
+export function RemovePrintedField({ templateId, id, label }: { templateId: string; id: string; label: string }) {
+  return (
+    <RecordEditor
+      title={`Take ${label} off the form`}
+      description="Certificates already pinned to the form keep it."
+      fields={[{ kind: "hidden", name: "templateId" }, { kind: "hidden", name: "id" }]}
+      values={{ templateId, id }}
+      destructive={{ reasonLabel: "Why it comes off" }}
+      action={removePrintedField}
       submitLabel="Take it off"
       cancelLabel="Keep it"
       trigger={{ label: "Remove", className: ghost, ariaLabel: `Remove ${label}` }}

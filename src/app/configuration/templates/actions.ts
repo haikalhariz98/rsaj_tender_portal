@@ -13,6 +13,7 @@ import { templateFieldRefusals } from "@/lib/tender-docs/fields";
 import { WINDOW_FIELD_KEYS } from "@/lib/window/fields";
 import { EVALUATION_FIELD_KEYS } from "@/lib/evaluation/instrument";
 import { ANY_CERTIFICATE_FIELD } from "@/lib/certificate/fields";
+import { isTermField, termCodeOf } from "@/lib/certificate/terms";
 import { FormReader } from "@/lib/validate";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
@@ -82,12 +83,14 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
   // fills is refused; each instrument re-checks its own whitelist when it is issued or frozen.
   // A configured clause may be cited as {{clause:code}} (FR-DOC-011, 6.4 increment 2).
   const clauseCodes = (await db.clauseText.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((c) => c.code);
+  // 6.14 increment 2 (FR-CRT-011): a term in the glossary may be cited as {{term:code}}; one not in it is refused here.
+  const termCodes = new Set((await db.term.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((t) => t.code));
   for (const k of ["bodyMs", "bodyEn"] as const) {
     const awardUnknown = new Set(v[k] ? renderTemplate(v[k]!, {}).unknown : []);
     // 6.5: the window's instruments (notice, letter of invitation, addendum) fill their own fields;
     // 6.8: so do the evaluation report and the Kertas Cadangan (each re-checks its own whitelist when frozen).
     // 6.14: a certificate's form fills the certificate's own fields (each certificate re-checks its kind's list when pinned and issued).
-    const unknown = (v[k] ? templateFieldRefusals(fieldsNamed(v[k]), (f) => !awardUnknown.has(f) || WINDOW_FIELD_KEYS.has(f), clauseCodes) : []).filter((u) => !EVALUATION_FIELD_KEYS.has(u)).filter((u) => !ANY_CERTIFICATE_FIELD.has(u));
+    const unknown = (v[k] ? templateFieldRefusals(fieldsNamed(v[k]), (f) => !awardUnknown.has(f) || WINDOW_FIELD_KEYS.has(f), clauseCodes) : []).filter((u) => !EVALUATION_FIELD_KEYS.has(u)).filter((u) => !ANY_CERTIFICATE_FIELD.has(u)).filter((u) => !(isTermField(u) && termCodes.has(termCodeOf(u))));
     if (unknown.length) r.reject(k, `The portal does not fill ${unknown.map((u) => `{{${u}}}`).join(", ")}. Use the merge fields listed below.`);
   }
   if (v.bodyMs && v.bodyEn && !v.primaryLanguage) r.reject("primaryLanguage", "With text in both languages, say which is issued first.");
