@@ -1,0 +1,777 @@
+diff -rU0 before/awards__demo_aw5__tab__history.txt after/awards__demo_aw5__tab__history.txt
+--- before/awards__demo_aw5__tab__history.txt	2026-10-03 01:30:40.219658018 +0000
++++ after/awards__demo_aw5__tab__history.txt	2026-10-03 01:30:40.224305226 +0000
+@@ -372,46 +371,0 @@
+-Created
+-Return
+-DEMO/AWD/0005/2026 · return
+-16 Sep 2026
+-Opened
+-:
+-Yes
+-Changed
+-Award
+-DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
+-16 Sep 2026
+-Status
+-:
+-Approved, not issued
+-→
+-Issued
+-Issued at
+-:
+-—
+-→
+-16 Sep 2026
+-Signed by
+-:
+-—
+-→
+-Imran Hakim
+-Signed on
+-:
+-—
+-→
+-16 Sep 2026
+-Signatory office
+-:
+-—
+-→
+-Head of Department
+-Recorded
+-:
+-—
+-→
+-not signed
+-Contract number
+-:
+-—
+-→
+-XI202600799
+@@ -437,32 +390,0 @@
+-Changed
+-Copy
+-DEMO/AWD/0005/2026 · copy to Implementing department
+-16 Sep 2026
+-Method
+-:
+-—
+-→
+-By hand
+-Despatched on
+-:
+-—
+-→
+-16 Sep 2026
+-Acknowledged on
+-:
+-—
+-→
+-16 Sep 2026
+-Created
+-Handover
+-DEMO/AWD/0005/2026 · case handed over
+-16 Sep 2026
+-From
+-:
+-Pre-contract Section
+-To
+-:
+-Post-contract Section
+-On
+-:
+-16 Sep 2026
+@@ -488,0 +411,13 @@
++Handover
++DEMO/AWD/0005/2026 · case handed over
++16 Sep 2026
++From
++:
++Pre-contract Section
++To
++:
++Post-contract Section
++On
++:
++16 Sep 2026
++Created
+@@ -552,0 +488,65 @@
++Created
++Return
++DEMO/AWD/0005/2026 · return
++16 Sep 2026
++Opened
++:
++Yes
++Changed
++Award
++DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
++16 Sep 2026
++Status
++:
++Approved, not issued
++→
++Issued
++Issued at
++:
++—
++→
++16 Sep 2026
++Signed by
++:
++—
++→
++Imran Hakim
++Signed on
++:
++—
++→
++16 Sep 2026
++Signatory office
++:
++—
++→
++Head of Department
++Recorded
++:
++—
++→
++not signed
++Contract number
++:
++—
++→
++XI202600799
++Changed
++Copy
++DEMO/AWD/0005/2026 · copy to Implementing department
++16 Sep 2026
++Method
++:
++—
++→
++By hand
++Despatched on
++:
++—
++→
++16 Sep 2026
++Acknowledged on
++:
++—
++→
++16 Sep 2026
+@@ -582,0 +583,18 @@
++Award
++DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
++14 Sep 2026
++Status
++:
++Awaiting approval
++→
++Approved, not issued
++Changed
++Approval route
++DEMO/AWD/0005/2026 · appointment route
++14 Sep 2026
++Status
++:
++In progress
++→
++Approved
++Changed
+@@ -611,18 +628,0 @@
+-Changed
+-Approval route
+-DEMO/AWD/0005/2026 · appointment route
+-14 Sep 2026
+-Status
+-:
+-In progress
+-→
+-Approved
+-Changed
+-Award
+-DEMO/AWD/0005/2026 · Contoh Supplies Enterprise
+-14 Sep 2026
+-Status
+-:
+-Awaiting approval
+-→
+-Approved, not issued
+diff -rU0 before/configuration__templates.txt after/configuration__templates.txt
+--- before/configuration__templates.txt	2026-10-03 01:30:40.220456759 +0000
++++ after/configuration__templates.txt	2026-10-03 01:30:40.225576238 +0000
+@@ -27 +27 @@
+-Text in Malay and English, version 1 · issued in Malay
++Text in Malay and English, version 1 (its text) · issued in Malay
+@@ -61 +61 @@
+-Surat Akuan Pembida Berjaya · Text in Malay, version 1
++Surat Akuan Pembida Berjaya · Text in Malay, version 1 (its text)
+@@ -72 +72 @@
+-Text in English, version 1
++Text in English, version 1 (its text)
+@@ -83 +83 @@
+-Pemberitahuan Perlantikan (ringkas) · Text in Malay, version 1
++Pemberitahuan Perlantikan (ringkas) · Text in Malay, version 1 (its text)
+@@ -94 +94 @@
+-Pemberitahuan Perlantikan (lanjutan) · Text in Malay, version 1
++Pemberitahuan Perlantikan (lanjutan) · Text in Malay, version 1 (its text)
+@@ -105 +105 @@
+-Text in English, version 1
++Text in English, version 1 (its text)
+@@ -116 +116 @@
+-Text in English, version 1
++Text in English, version 1 (its text)
+@@ -127 +127 @@
+-Text in English, version 1
++Text in English, version 1 (its text)
+@@ -138 +138 @@
+-Text in English, version 1
++Text in English, version 1 (its text)
+@@ -149 +149 @@
+-Text in English, version 1
++Text in English, version 1 (its text)
+@@ -160 +160 @@
+-Text in English, version 1
++Text in English, version 1 (its text)
+@@ -171 +171 @@
+-Text in English, version 1
++Text in English, version 1 (its text)
+@@ -182 +182 @@
+-Text in English, version 1
++Text in English, version 1 (its text)
+@@ -193 +193 @@
+-Text in English, version 1
++Text in English, version 1 (its text)
+@@ -204 +204 @@
+-Text in English, version 1
++Text in English, version 1 (its text)
+@@ -216 +216 @@
+-Perakuan interim demo · Text in Malay and English, version 1 · issued in Malay · 4 signature blocks, 5 recipients
++Perakuan interim demo · Text in Malay and English, version 1 (its text, signature blocks and distribution list) · issued in Malay · 4 signature blocks, 5 recipients
+@@ -227 +227 @@
+-Surat perwakilan kuasa demo · Text in English, version 1 · 1 signature block, 2 recipients
++Surat perwakilan kuasa demo · Text in English, version 1 (its text, signature blocks and distribution list) · 1 signature block, 2 recipients
+@@ -238 +238 @@
+-Arahan perubahan kerja demo · Text in English, version 1 · 2 signature blocks, 5 recipients
++Arahan perubahan kerja demo · Text in English, version 1 (its text, signature blocks and distribution list) · 2 signature blocks, 5 recipients
+diff -rU0 before/projects__demo_con3__certificates__demo_hct1__tab__history.txt after/projects__demo_con3__certificates__demo_hct1__tab__history.txt
+--- before/projects__demo_con3__certificates__demo_hct1__tab__history.txt	2026-10-03 01:30:40.220815393 +0000
++++ after/projects__demo_con3__certificates__demo_hct1__tab__history.txt	2026-10-03 01:30:40.225966563 +0000
+@@ -29 +29 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 2
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 3
+@@ -45 +45 @@
+-Accounts and finance (demo)
++Contract file (demo)
+@@ -48 +48 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 3
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 1
+@@ -64 +64 @@
+-Contract file (demo)
++The contractor (original)
+@@ -67 +67 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 1
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 2
+@@ -83 +83 @@
+-The contractor (original)
++Accounts and finance (demo)
+@@ -252 +252 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Checked by the section
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Verified by contracts
+@@ -256 +256 @@
+-Checked by the section
++Verified by contracts
+@@ -262 +262 @@
+-Eng Siew Mei
++Chen Wei Ling
+@@ -271 +271 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Verified by contracts
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Checked by the section
+@@ -275 +275 @@
+-Verified by contracts
++Checked by the section
+@@ -281 +281 @@
+-Chen Wei Ling
++Eng Siew Mei
+@@ -328 +328 @@
+-Certificate computed amount
++As computed
+@@ -332 +332 @@
+-Certificate override amount
++Overridden to
+diff -rU0 before/projects__demo_con3__tab__history.txt after/projects__demo_con3__tab__history.txt
+--- before/projects__demo_con3__tab__history.txt	2026-10-03 01:30:40.221611011 +0000
++++ after/projects__demo_con3__tab__history.txt	2026-10-03 01:30:40.226739118 +0000
+@@ -170 +170 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Advance payment certificate · Recommended by
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Recommended by
+@@ -191,19 +190,0 @@
+-Certificate
+-Contract XI202600799 · Contoh Supplies Enterprise · Letter of delegation
+-02 Oct 2026
+-Certificate
+-:
+-Letter of delegation
+-Stage
+-:
+-Draft
+-Baseline version
+-:
+-version 2
+-Figures
+-:
+-none
+-Routed
+-:
+-No
+-Created
+@@ -211 +192 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · Recommended by
++Contract XI202600799 · Contoh Supplies Enterprise · Advance payment certificate · Recommended by
+@@ -231 +212 @@
+-Changed
++Created
+@@ -233 +214 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate
++Contract XI202600799 · Contoh Supplies Enterprise · Letter of delegation
+@@ -234,0 +216,3 @@
++Certificate
++:
++Letter of delegation
+@@ -237,3 +221,10 @@
+-On its routing sheet
+-→
+-Being signed
++Draft
++Baseline version
++:
++version 2
++Figures
++:
++none
++Routed
++:
++No
+@@ -260,0 +252,9 @@
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate
++02 Oct 2026
++Stage
++:
++On its routing sheet
++→
++Being signed
++Changed
++Certificate
+@@ -292,9 +291,0 @@
+-Changed
+-Controlled copy
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 1
+-02 Oct 2026
+-Acknowledged on
+-:
+-—
+-→
+-02 Oct 2026
+@@ -321,0 +313,9 @@
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate DEMO/CERT/00231 · copy 1
++02 Oct 2026
++Acknowledged on
++:
++—
++→
++02 Oct 2026
++Changed
++Controlled copy
+@@ -408,0 +409,22 @@
++Controlled copy
++Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 2
++01 Oct 2026
++Copy no
++:
++2
++Recipient
++:
++The contractor
++Addressed to
++:
++Contoh Supplies Enterprise, 5 Contoh Road, Demo North
++Stamp
++:
++CONTROLLED COPY (demo) / SALINAN TERKAWAL (demo)
++Method
++:
++By hand
++Despatched on
++:
++01 Oct 2026
++Created
+@@ -451,22 +472,0 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · controlled copy 2
+-01 Oct 2026
+-Copy no
+-:
+-2
+-Recipient
+-:
+-The contractor
+-Addressed to
+-:
+-Contoh Supplies Enterprise, 5 Contoh Road, Demo North
+-Stamp
+-:
+-CONTROLLED COPY (demo) / SALINAN TERKAWAL (demo)
+-Method
+-:
+-By hand
+-Despatched on
+-:
+-01 Oct 2026
+-Created
+-Controlled copy
+@@ -514 +514 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · original: contract
++Contract XI202600799 · Contoh Supplies Enterprise · original: policy
+@@ -518 +518 @@
+-The signed Contract Document
++Insurance policy
+@@ -527 +527 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · original: policy
++Contract XI202600799 · Contoh Supplies Enterprise · original: contract
+@@ -531 +531 @@
+-Insurance policy
++The signed Contract Document
+@@ -548,2 +548,2 @@
+-Certificate
+-Contract XI202600799 · Contoh Supplies Enterprise · Advance payment certificate
++Contract
++Contract XI202600799 · Contoh Supplies Enterprise
+@@ -551 +551 @@
+-Stage
++Status
+@@ -553 +553 @@
+-Draft
++Executed
+@@ -555 +555,11 @@
+-Being signed
++Stamped, fully executed
++Stamped on
++:
++—
++→
++01 Oct 2026
++Stamping ref
++:
++—
++→
++DEMO-STAMP-2026-0001
+@@ -576,12 +586,2 @@
+-Contract
+-Contract XI202600799 · Contoh Supplies Enterprise
+-01 Oct 2026
+-Status
+-:
+-Executed
+-→
+-Stamped, fully executed
+-Stamped on
+-:
+-—
+-→
++Certificate
++Contract XI202600799 · Contoh Supplies Enterprise · Advance payment certificate
+@@ -589 +589 @@
+-Stamping ref
++Stage
+@@ -591 +591 @@
+-—
++Draft
+@@ -593 +593 @@
+-DEMO-STAMP-2026-0001
++Being signed
+@@ -653,10 +652,0 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · approval route
+-30 Sep 2026
+-Route
+-:
+-Head of Contract & Procurement → Finance Director
+-Routed on
+-:
+-An invented demo trail, not routed by the approval matrix
+-Created
+-Record
+@@ -679,0 +670,10 @@
++Created
++Record
++Contract XI202600799 · Contoh Supplies Enterprise · Interim payment certificate · approval route
++30 Sep 2026
++Route
++:
++Head of Contract & Procurement → Finance Director
++Routed on
++:
++An invented demo trail, not routed by the approval matrix
+@@ -720 +720 @@
+-Certificate computed amount
++As computed
+@@ -724 +724 @@
+-Certificate override amount
++Overridden to
+@@ -772,22 +771,0 @@
+-Signature
+-Contract XI202600799 · Contoh Supplies Enterprise · signed for the employer
+-30 Sep 2026
+-Party
+-:
+-For the employer
+-Signed by
+-:
+-Imran Hakim
+-Office
+-:
+-Head of Department
+-Rule
+-:
+-Contract agreement, up to RM300,000
+-Delegated
+-:
+-No
+-Recorded on behalf
+-:
+-recorded on behalf of, not signed
+-Created
+@@ -826,0 +805,22 @@
++Contract XI202600799 · Contoh Supplies Enterprise · signed for the employer
++30 Sep 2026
++Party
++:
++For the employer
++Signed by
++:
++Imran Hakim
++Office
++:
++Head of Department
++Rule
++:
++Contract agreement, up to RM300,000
++Delegated
++:
++No
++Recorded on behalf
++:
++recorded on behalf of, not signed
++Created
++Signature
+@@ -885,0 +886,9 @@
++Contract
++Contract XI202600799 · Contoh Supplies Enterprise
++29 Sep 2026
++Status
++:
++With the legal office
++→
++Legally endorsed
++Changed
+@@ -914,12 +923,3 @@
+-Changed
+-Contract
+-Contract XI202600799 · Contoh Supplies Enterprise
+-29 Sep 2026
+-Status
+-:
+-With the legal office
+-→
+-Legally endorsed
+-Changed
+-Contract
+-Contract XI202600799 · Contoh Supplies Enterprise
++Created
++Record
++Contract XI202600799 · Contoh Supplies Enterprise · Sent for legal review
+@@ -927 +927 @@
+-Status
++Purpose
+@@ -929,3 +929,13 @@
+-In preparation
+-→
+-With the legal office
++Sent for legal review
++Document
++:
++Contract Document for legal review, iteration 1, XI202600799
++Version
++:
++1
++Fingerprint
++:
++eb77d562ff76ffd165201a117683988bda3e31228eb5eca237d67676a3ec8999
++Attached to
++:
++Contract XI202600799 · Contoh Supplies Enterprise
+@@ -948,3 +958,3 @@
+-Created
+-Record
+-Contract XI202600799 · Contoh Supplies Enterprise · Sent for legal review
++Changed
++Contract
++Contract XI202600799 · Contoh Supplies Enterprise
+@@ -952,13 +962 @@
+-Purpose
+-:
+-Sent for legal review
+-Document
+-:
+-Contract Document for legal review, iteration 1, XI202600799
+-Version
+-:
+-1
+-Fingerprint
+-:
+-eb77d562ff76ffd165201a117683988bda3e31228eb5eca237d67676a3ec8999
+-Attached to
++Status
+@@ -966 +964,3 @@
+-Contract XI202600799 · Contoh Supplies Enterprise
++In preparation
++→
++With the legal office
+@@ -982 +982 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · check front loading
++Contract XI202600799 · Contoh Supplies Enterprise · check arithmetic
+@@ -998,0 +999,44 @@
++Created
++Rate compared
++Contract XI202600799 · Contoh Supplies Enterprise · rate 3.2
++25 Sep 2026
++Item ref
++:
++3.2
++Provisional
++:
++Yes
++Tendered rate
++:
++150.00
++Created
++Rate compared
++Contract XI202600799 · Contoh Supplies Enterprise · rate 1.1
++25 Sep 2026
++Item ref
++:
++1.1
++Provisional
++:
++No
++Tendered rate
++:
++900.00
++Created
++Arithmetic correction
++Contract XI202600799 · Contoh Supplies Enterprise · correction 2.1
++25 Sep 2026
++Item ref
++:
++2.1
++Tendered line amount
++:
++1250.00
++SULIT · not restricted until sign-in
++Corrected line amount
++:
++1205.00
++SULIT · not restricted until sign-in
++Reason
++:
++Quantity times rate extended wrongly on the priced schedule.
+@@ -1039 +1083 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · check arithmetic
++Contract XI202600799 · Contoh Supplies Enterprise · check front loading
+@@ -1057,44 +1100,0 @@
+-Rate compared
+-Contract XI202600799 · Contoh Supplies Enterprise · rate 3.2
+-25 Sep 2026
+-Item ref
+-:
+-3.2
+-Provisional
+-:
+-Yes
+-Tendered rate
+-:
+-150.00
+-Created
+-Rate compared
+-Contract XI202600799 · Contoh Supplies Enterprise · rate 1.1
+-25 Sep 2026
+-Item ref
+-:
+-1.1
+-Provisional
+-:
+-No
+-Tendered rate
+-:
+-900.00
+-Created
+-Arithmetic correction
+-Contract XI202600799 · Contoh Supplies Enterprise · correction 2.1
+-25 Sep 2026
+-Item ref
+-:
+-2.1
+-Tendered line amount
+-:
+-1250.00
+-SULIT · not restricted until sign-in
+-Corrected line amount
+-:
+-1205.00
+-SULIT · not restricted until sign-in
+-Reason
+-:
+-Quantity times rate extended wrongly on the priced schedule.
+-Created
+@@ -1121 +1121 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · reconciliation drawings
++Contract XI202600799 · Contoh Supplies Enterprise · reconciliation tender table document
+@@ -1140 +1140 @@
+-Contract XI202600799 · Contoh Supplies Enterprise · reconciliation tender table document
++Contract XI202600799 · Contoh Supplies Enterprise · reconciliation drawings
+@@ -1211 +1211 @@
+-DEMO/AWD/0005/2026 · workmens compensation policy
++DEMO/AWD/0005/2026 · public liability policy
+@@ -1235 +1235 @@
+-DEMO/AWD/0005/2026 · public liability policy
++DEMO/AWD/0005/2026 · workmens compensation policy
+@@ -1259 +1259 @@
+-DEMO/AWD/0005/2026 · public liability policy
++DEMO/AWD/0005/2026 · workmens compensation policy
+@@ -1263 +1263 @@
+-Public liability insurance
++Workmen's compensation insurance
+@@ -1269 +1269 @@
+-SIB/PL/2026/301
++SIB/WC/2026/302
+@@ -1272 +1272 @@
+-20000.00
++3600.00
+@@ -1287 +1287 @@
+-—
++DEMO-SOCSO-0005
+@@ -1305 +1305 @@
+-DEMO/AWD/0005/2026 · workmens compensation policy
++DEMO/AWD/0005/2026 · public liability policy
+@@ -1309 +1309 @@
+-Workmen's compensation insurance
++Public liability insurance
+@@ -1315 +1315 @@
+-SIB/WC/2026/302
++SIB/PL/2026/301
+@@ -1318 +1318 @@
+-3600.00
++20000.00
+@@ -1333 +1333 @@
+-DEMO-SOCSO-0005
++—
