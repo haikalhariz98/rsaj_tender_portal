@@ -405,6 +405,14 @@ model Organisation {
   financePayments          FinancePayment[]
   ladWarnings              LadWarning[]
   nonCompletions           NonCompletion[]
+  // 6.13 Part A step 4 (4d): variations and the adjustment of the contract sum.
+  variations               Variation[]
+  variationApprovals       VariationApproval[]
+  variationInstructions    VariationInstruction[]
+  variationMeasurements    VariationMeasurement[]
+  dayworkRecords           DayworkRecord[]
+  variationCertificates    VariationCertificate[]
+  sumAdjustments           SumAdjustment[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -570,6 +578,19 @@ model Person {
   retentionReleased      RetentionRelease[]        @relation("RetentionReleasedBy")
   advancesApplied        AdvancePayment[]          @relation("AdvanceAppliedBy")
   financePaymentsRecorded FinancePayment[]         @relation("FinancePaymentBy")
+  // 6.13 Part A step 4 (4d): variations and the adjustment of the contract sum, recorded on their behalf.
+  variationsOriginated   Variation[]               @relation("VariationOriginator")
+  variationsReviewed     Variation[]               @relation("VariationReviewer")
+  variationsPassedOn     Variation[]               @relation("VariationPrincipal")
+  variationsDecided      Variation[]               @relation("VariationSoDecision")
+  variationsCommenced    Variation[]               @relation("VariationCommencedSupport")
+  variationsClosed       Variation[]               @relation("VariationClosedBy")
+  variationRoutesSent    VariationApproval[]       @relation("VariationRouteSentBy")
+  instructionsRecorded   VariationInstruction[]    @relation("InstructionRecordedBy")
+  measurementsRecorded   VariationMeasurement[]    @relation("MeasurementRecordedBy")
+  dayworkRecorded        DayworkRecord[]           @relation("DayworkRecordedBy")
+  variationCertsRaised   VariationCertificate[]    @relation("VariationCertificateBy")
+  sumAdjustmentsRaised   SumAdjustment[]           @relation("SumAdjustmentBy")
   ladWarningsRecorded    LadWarning[]              @relation("LadWarningBy")
   nonCompletionsDecided  NonCompletion[]           @relation("NonCompletionBy")
   routesSubmitted        ApprovalInstance[]        @relation("RouteSubmittedBy")
@@ -877,6 +898,8 @@ model Committee {
   meetings            Meeting[]
   notApprovedOutcomes NotApprovedOutcome[]
   openings            Opening[]
+  /// 6.13 Part A step 4 (FR-VAR-009): the organisations whose funder's consent this body decides.
+  funderConsentPolicies PostAwardPolicy[]
 
   @@unique([organisationId, code])
 }
@@ -1039,6 +1062,12 @@ model CommitteeDecision {
   tabledByPersonId String?
   tabledBy         Person?   @relation("TabledBy", fields: [tabledByPersonId], references: [id], onDelete: Restrict)
   tabledAt         DateTime?
+
+  /// 6.13 Part A step 4 (FR-VAR-009, 010, 013; FR-PAD-004): the variation a VARIATION matter decides on, tabled from
+  /// the variation's own record (its committee step's recommendation or approval, or the funder's consent): a typed
+  /// key, set only on a VARIATION matter (CHECK in the migration).
+  variationId String?
+  variation   Variation? @relation(fields: [variationId], references: [id], onDelete: SetNull)
 
   /// A matter that cannot be decided while this one is pending.
   dependsOnDecisionId String?
@@ -2536,6 +2565,11 @@ model ApprovalInstance {
   /// followed by a successor (ADR 0009), so a certificate may carry several.
   certificateId         String?
   certificate           Certificate?      @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  /// 6.13 Part A step 4 (614-C4, FR-VAR-008): the variation this route approves (a VARIATION matter): its prior
+  /// approval, an increase, the use of agreed rates, or a re-measurement (VariationApproval says which).
+  variationId           String?
+  variation             Variation?        @relation(fields: [variationId], references: [id], onDelete: Restrict)
+  variationApproval     VariationApproval?
   /// 6.13 Part A step 3: who sent a certificate's route (recorded on their behalf, not signed); the self-approval
   /// check bars them from deciding it. Null on every other route.
   submittedByPersonId   String?
@@ -2647,6 +2681,7 @@ model ApprovalInstance {
   @@index([awardId])
   @@index([supplierApplicationId])
   @@index([certificateId])
+  @@index([variationId])
 }
 
 /// One step of a persisted route, and who discharged it.
@@ -3713,6 +3748,9 @@ model Contract {
   advancePayments        AdvancePayment[]
   ladWarnings            LadWarning[]
   nonCompletions         NonCompletion[]
+  /// 6.13 Part A step 4 (4d): variations and the adjustment of the contract sum.
+  variations             Variation[]
+  sumAdjustments         SumAdjustment[]
 
   @@unique([organisationId, number])
 }
@@ -5186,6 +5224,8 @@ model ClauseText {
   bodyVersion Int     @default(1)
   /// Whether every agreement must carry it. Null: not set, and a pack cannot be submitted.
   mandatoryInAgreements Boolean?
+  /// 6.13 Part A step 4 (FR-VAR-020): Variation Order Certificates valued under this clause.
+  variationCertificates VariationCertificate[]
 
   governingSource String     @default("")
   provenance      Provenance @default(ASSUMED)
@@ -8304,6 +8344,12 @@ model Certificate {
   nonCompletion      NonCompletion?
   financePayment     FinancePayment?
   retentionReleasesRead RetentionRelease[]
+  /// 6.13 Part A step 4 (4d): the variation record this certificate is the application, instruction or order of,
+  /// and the adjustment of the contract sum it certifies.
+  variationApplication  Variation?            @relation("VariationApplication")
+  variationInstruction  VariationInstruction?
+  variationCertificate  VariationCertificate?
+  sumAdjustment         SumAdjustment?
 
   @@unique([organisationId, number])
   @@unique([contractId, kind, sequence])
@@ -8697,6 +8743,24 @@ model PostAwardPolicy {
   /// Unset refuses every certificate before execution.
   preExecutionInterimLimit    Int?
   preExecutionProvenance      Provenance?
+
+  /// 6.13 Part A step 4 (4d). OD-A2: what a variation's percentage is of (this variation alone, or every approved
+  /// variation to date with it), and the sum it is taken over (the original contract sum, or the revised sum: the
+  /// original plus the issued adjustments), which is also the contract value its band is read at. Unset refuses
+  /// sending a variation for approval, naming the setting.
+  variationPctBasis           VariationPctBasis?
+  variationBase               VariationBase?
+  variationProvenance         Provenance?
+  /// OD-A5 (FR-VAR-007): the schedule form a variation produces where an agreed rate exists, and where none does.
+  /// Unset: the variation's schedule form is "not set", and its instruction is refused naming the setting.
+  scheduleFormAgreedRate      VariationScheduleForm?
+  scheduleFormNoAgreedRate    VariationScheduleForm?
+  scheduleFormProvenance      Provenance?
+  /// FR-VAR-009: the committee whose quorate decision (agree or disagree, per member) is the funder's consent to a
+  /// variation affecting a funder's assets. Unset: such a variation's consent cannot be tabled, naming the setting.
+  funderConsentCommitteeId    String?
+  funderConsentCommittee      Committee?          @relation(fields: [funderConsentCommitteeId], references: [id], onDelete: SetNull)
+  funderConsentProvenance     Provenance?
 
   notes String @default("")
 }
@@ -9472,4 +9536,352 @@ model NonCompletion {
   replaces           NonCompletion?       @relation("NonCompletionReplaces", fields: [replacesId], references: [id], onDelete: Restrict)
   replacedBy         NonCompletion?       @relation("NonCompletionReplaces")
   replaceReason      String               @default("")
+}
+
+// ------------------------------------------------------------------ 6.13 Part A step 4 (4d): variations and price adjustment
+
+/// OD-A2: a variation's percentage is of this variation alone, or of every approved variation to date with it.
+enum VariationPctBasis {
+  THIS_VARIATION
+  CUMULATIVE
+}
+
+/// OD-A2: the sum a variation's percentage is taken over, and the contract value its band is read at.
+enum VariationBase {
+  ORIGINAL
+  REVISED
+}
+
+/// FR-VAR-007 (OD-A5): the schedule form a variation produces: the agreed-price schedule, the measured schedule,
+/// or both (a pure union of the two).
+enum VariationScheduleForm {
+  AGREED_PRICE
+  MEASURED
+  BOTH
+}
+
+/// FR-VAR-001: who originated the variation: the implementing department (reviewed by an S.O.'s Representative),
+/// or an S.O.'s Representative directly.
+enum VariationOrigin {
+  DEPARTMENT
+  SO_REPRESENTATIVE
+}
+
+/// FR-VAR-004 (§8.7): the four exemptions from prior approval. An exempt variation goes straight to the S.O.'s
+/// instruction, without the committee or the approval tiers.
+enum VariationExemption {
+  REDUCTION
+  PC_SUM
+  PROVISIONAL_SUM
+  REMEASUREMENT
+}
+
+/// Where a variation stands, as stored; the rest of its stage (with the S.O., awaiting approval, approved,
+/// instructed, certified) is read from its records, never stored twice.
+enum VariationStatus {
+  DRAFT
+  SUBMITTED
+  SUPPORTED
+  CLOSED
+}
+
+/// FR-VAR-008, FR-PAD-004: the separate approvals a variation may need, each its own route.
+enum VariationEvent {
+  PRIOR
+  INCREASE
+  AGREED_RATE
+  REMEASUREMENT
+}
+
+/// FR-VAR-018: where a measured item's rate comes from.
+enum VariationRateSource {
+  CONTRACT_RATE
+  AGREED_RATE
+}
+
+/// An addition to the contract sum, or an omission from it.
+enum AdjustmentDirection {
+  ADDITION
+  OMISSION
+}
+
+/// FR-PAD-002: the section of the adjustment certificate a line is in: 1.1 variation-driven, 1.2 other.
+enum AdjustmentSection {
+  VARIATION
+  OTHER
+}
+
+/// A variation of the works (FR-VAR-001–024): originated, applied for (the application, VO-660, a certificate),
+/// decided by the S.O., approved on its own routes (prior approval, an increase, agreed rates, a re-measurement;
+/// FR-VAR-008) unless exempt (FR-VAR-004), instructed (the S.O.'s instruction, a certificate), measured, and
+/// certified (the Variation Order Certificate, VO-663). The contract sum moves only by an issued adjustment
+/// certificate (FR-PAD-003). Its figures are worked out, never keyed: the cumulative and the new sum (FR-VAR-003,
+/// 024), the percentage on the configured basis (OD-A2), its edge wording (OD-A3).
+model Variation {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  /// From the `variation` numbering series, when it is submitted (or, exempt, when it is recorded).
+  reference String?
+  status    VariationStatus @default(DRAFT)
+
+  /// FR-VAR-001: the path it was originated on, and by whom (recorded on their behalf, not signed).
+  origin             VariationOrigin
+  originatorPersonId String
+  originator         Person          @relation("VariationOriginator", fields: [originatorPersonId], references: [id], onDelete: Restrict)
+  originatorName     String
+  /// FR-VAR-001: the department path's review by an S.O.'s Representative, before it is submitted.
+  reviewedByPersonId String?
+  reviewedBy         Person?         @relation("VariationReviewer", fields: [reviewedByPersonId], references: [id], onDelete: Restrict)
+  reviewedOn         DateTime?
+  reviewNote         String          @default("")
+  /// FR-VAR-002: a Specialist representative's confirmation that the allocation is available, and the Principal
+  /// Representative it passed through. Null: not answered.
+  allocationConfirmed Boolean?
+  allocationNote      String         @default("")
+  principalPersonId   String?
+  principal           Person?        @relation("VariationPrincipal", fields: [principalPersonId], references: [id], onDelete: Restrict)
+  principalOn         DateTime?
+
+  /// FR-VAR-003: the variation itself.
+  description       String
+  reason            String
+  /// The estimated amount: above nothing for an addition, below it for a reduction (omission).
+  estimate          Decimal             @db.Decimal(18, 2)
+  exemption         VariationExemption?
+  periodImplication Boolean?
+  /// FR-VAR-009: whether it affects a funder's assets, so needs the funder's consent before its instruction.
+  funderConsentRequired Boolean?
+  /// FR-VAR-006: whether a negotiated agreed rate already exists.
+  agreedRateExists  Boolean?
+
+  /// The application (VO-660), opened when submitted. None for an exempt variation.
+  applicationCertificateId String?      @unique
+  applicationCertificate   Certificate? @relation("VariationApplication", fields: [applicationCertificateId], references: [id], onDelete: Restrict)
+  submittedOn              DateTime?
+  submittedAt              DateTime?
+  /// What the application was worked out on when submitted (the contract sum, the cumulative, the new sum), frozen.
+  applicationReading       Json?
+
+  /// FR-VAR-005: the S.O.'s decision, with a value cap where supported, and where not supported sent where its
+  /// destination said (or the officer chose).
+  soDecision          SignatureDecision?
+  soDecisionCap       Decimal?           @db.Decimal(18, 2)
+  soDecidedByPersonId String?
+  soDecidedBy         Person?            @relation("VariationSoDecision", fields: [soDecidedByPersonId], references: [id], onDelete: Restrict)
+  soDecidedOn         DateTime?
+  soDecisionNote      String             @default("")
+
+  /// FR-VAR-014: work commenced pending approval, on the support of the S.O. or an S.O.'s Representative.
+  commencedOn               DateTime?
+  commencedSupportPersonId  String?
+  commencedSupport          Person?   @relation("VariationCommencedSupport", fields: [commencedSupportPersonId], references: [id], onDelete: Restrict)
+  commencedNote             String    @default("")
+
+  closedOn          DateTime?
+  closedReason      String    @default("")
+  closedByPersonId  String?
+  closedBy          Person?   @relation("VariationClosedBy", fields: [closedByPersonId], references: [id], onDelete: Restrict)
+
+  recordedOn DateTime
+  recordedAt DateTime
+
+  approvals        VariationApproval[]
+  approvalRoutes   ApprovalInstance[]
+  matters          CommitteeDecision[]
+  instructions     VariationInstruction[]
+  measurements     VariationMeasurement[]
+  dayworkRecords   DayworkRecord[]
+  orders           VariationCertificate[]
+
+  @@unique([organisationId, reference])
+  @@index([contractId])
+}
+
+/// One approval a variation needs (FR-VAR-008, FR-PAD-004), on its own route on the matrix, with the reading it was
+/// resolved on frozen when it was sent: the basis and base as set, the base amount, the ratio's two amounts, the
+/// percentage shown and its edge wording (OD-A2, OD-A3). Never read live again.
+model VariationApproval {
+  id                 String           @id @default(cuid())
+  organisationId     String
+  organisation       Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  variationId        String
+  variation          Variation        @relation(fields: [variationId], references: [id], onDelete: Restrict)
+  event              VariationEvent
+  approvalInstanceId String           @unique
+  approvalInstance   ApprovalInstance @relation(fields: [approvalInstanceId], references: [id], onDelete: Restrict)
+  value              Decimal          @db.Decimal(18, 2)
+  reading            Json
+  sentByPersonId     String
+  sentBy             Person           @relation("VariationRouteSentBy", fields: [sentByPersonId], references: [id], onDelete: Restrict)
+  sentOn             DateTime
+  sentAt             DateTime
+
+  @@index([variationId])
+}
+
+/// The S.O.'s instruction (FR-VAR-015, 016), a certificate dated by the S.O.'s signature: never before the
+/// variation's approval (or its exemption, and the funder's consent where it needs one). Its description is the
+/// heading every measured item is under (FR-VAR-017) and the Variation Order Certificate repeats (FR-VAR-020).
+/// The oral-instruction loop's two clocks are frozen when each day is recorded.
+model VariationInstruction {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  variationId    String
+  variation      Variation    @relation(fields: [variationId], references: [id], onDelete: Restrict)
+  certificateId  String       @unique
+  certificate    Certificate  @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  description    String
+  /// The schedule form it produces (OD-A5), as the configured rule gave it.
+  scheduleForm   VariationScheduleForm
+  oralIssuedOn          DateTime?
+  /// The day the contractor's written confirmation is due back by (ORAL_CONFIRM), frozen. Null: the clock was not set.
+  confirmDueOn          DateTime?
+  contractorConfirmedOn DateTime?
+  confirmationMatches   Boolean?
+  /// The day an objection is due by (ORAL_OBJECTION, from the confirmation's receipt), frozen. Null: not set.
+  objectionDueOn        DateTime?
+  objectedOn            DateTime?
+  objectionNote         String    @default("")
+  personId       String
+  person         Person       @relation("InstructionRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+
+  measurements   VariationMeasurement[]
+  orders         VariationCertificate[]
+
+  @@index([variationId])
+}
+
+/// One measured item of an instructed variation (FR-VAR-017, 018): under the instruction's heading exactly, one item
+/// each (never merged), its rate from the contract (citing the item, with any percentage adjustment) or an agreed
+/// rate (approved on its own route first). The amount is worked out, half up to the sen, once.
+model VariationMeasurement {
+  id             String               @id @default(cuid())
+  organisationId String
+  organisation   Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  variationId    String
+  variation      Variation            @relation(fields: [variationId], references: [id], onDelete: Restrict)
+  instructionId  String
+  instruction    VariationInstruction @relation(fields: [instructionId], references: [id], onDelete: Restrict)
+  heading        String
+  itemRef        String
+  description    String
+  rateSource     VariationRateSource
+  /// The contract item a contract rate is taken from (the bill or schedule of rates).
+  bqItemRef      String               @default("")
+  quantity       Decimal              @db.Decimal(18, 3)
+  unit           String
+  baseRate       Decimal              @db.Decimal(18, 2)
+  /// The contract's percentage adjustment applied to the rate, where it has one (above or below). Null: none.
+  adjustmentPct  Decimal?             @db.Decimal(9, 4)
+  amount         Decimal              @db.Decimal(18, 2)
+  direction      AdjustmentDirection
+  measuredOn     DateTime
+  /// FR-VAR-017: work to be covered up, measured during execution with detailed records.
+  coveredUp      Boolean
+  recordsNote    String               @default("")
+  personId       String
+  person         Person               @relation("MeasurementRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+  removedAt      DateTime?
+  removedReason  String               @default("")
+
+  @@index([instructionId])
+}
+
+/// A daywork record (FR-VAR-019): labour and plant time checked and agreed with the contractor the same day, and
+/// the contractor's substantiation (vouchers, receipts, wage books, timesheets) due within its clock, frozen.
+model DayworkRecord {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  variationId    String
+  variation      Variation    @relation(fields: [variationId], references: [id], onDelete: Restrict)
+  workedOn       DateTime
+  description    String
+  agreedOn       DateTime?
+  agreedWith     String       @default("")
+  /// DAYWORK_SUBSTANTIATION from the day worked, frozen when recorded. Null: the clock was not set.
+  substantiationDueOn      DateTime?
+  substantiationReceivedOn DateTime?
+  personId       String
+  person         Person       @relation("DayworkRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+
+  @@index([variationId])
+}
+
+/// The Variation Order Certificate (VO-663, FR-VAR-020–023): the measured variation certified, addition or omission,
+/// citing its instruction, under the valuation clause chosen; its description identical to the instruction's. What it
+/// was worked out from is frozen with it.
+model VariationCertificate {
+  id               String               @id @default(cuid())
+  organisationId   String
+  organisation     Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  variationId      String
+  variation        Variation            @relation(fields: [variationId], references: [id], onDelete: Restrict)
+  instructionId    String
+  instruction      VariationInstruction @relation(fields: [instructionId], references: [id], onDelete: Restrict)
+  certificateId    String               @unique
+  certificate      Certificate          @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  description      String
+  direction        AdjustmentDirection
+  valuationClauseId String?
+  valuationClause   ClauseText?         @relation(fields: [valuationClauseId], references: [id], onDelete: Restrict)
+  /// The clause's title as read when raised.
+  valuationClauseTitle String
+  judgedUnder      Json
+  personId         String
+  person           Person               @relation("VariationCertificateBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt       DateTime
+
+  adjustmentLines  SumAdjustmentLine[]
+
+  @@index([variationId])
+}
+
+/// The Certificate of Adjustment of Contract Sum (FR-PAD-001–007): the master record of the contract sum's movement.
+/// Interim and final certificates read the revised sum only from issued ones (FR-PAD-003).
+model SumAdjustment {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  certificateId  String       @unique
+  certificate    Certificate  @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  /// What it was worked out on: the issued adjustments before it (by id), the contract type's triggers, frozen.
+  judgedUnder    Json
+  personId       String
+  person         Person       @relation("SumAdjustmentBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+
+  lines SumAdjustmentLine[]
+
+  @@index([contractId])
+}
+
+/// One line of an adjustment certificate: 1.1 a variation's issued certificate, or 1.2 another adjustment by its
+/// trigger, with the basis of its calculation (FR-PAD-002, 005).
+model SumAdjustmentLine {
+  id                     String                @id @default(cuid())
+  sumAdjustmentId        String
+  sumAdjustment          SumAdjustment         @relation(fields: [sumAdjustmentId], references: [id], onDelete: Cascade)
+  section                AdjustmentSection
+  trigger                SumAdjustmentTrigger
+  variationCertificateId String?
+  variationCertificate   VariationCertificate? @relation(fields: [variationCertificateId], references: [id], onDelete: Restrict)
+  reference              String
+  description            String
+  direction              AdjustmentDirection
+  amount                 Decimal               @db.Decimal(18, 2)
+  basis                  String                @default("")
+  sortOrder              Int
+
+  @@index([sumAdjustmentId])
 }
