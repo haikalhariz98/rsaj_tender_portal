@@ -45,3 +45,7 @@ its own face, and those are known.
   conditions added"), and the founder's end-of-build list carries it (item 17).
 - Rules out: guessing the annex columns, a party typed as free text on each certificate, and a nominated or assignee
   total keyed directly on a certificate rather than computed from its parties.
+
+## Amendments
+
+**Amendment 1 (2026-10-04, 6.13 Part B step 0 go with changes, BD-613-79, 80; written at Part B run 0, built in run 3).** Part B's nominated-party module builds beyond the totals without replacing them: prime cost sums reconciled to the baseline, the nominated package and its procurement as recorded (FR-NSC-003–005 partly met, OD-B11), the nomination and its letters, the objection and its determination, the sub-contract with its bond to the contractor, supply orders, the set-off ledger (categories 1 and 2 applied, 3 held, revisions linked) and protective direct payments. The direct-payment flag is frozen at 6.4's pack freeze; a contract whose pack predates it records it once, STATED from the tender documents, correctable once with a reason until a payment instruction or direct payment reads it (BD-613-80). Certificates still carry each party's totals only as printed (§2), and "Payment annexes A1–A3 not available: totals only" still stands until B1.
