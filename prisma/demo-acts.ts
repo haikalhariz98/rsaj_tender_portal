@@ -8,7 +8,11 @@
  *
  * - The clock. Every act reads the server's clock once on entry (`new Date()`); here `new Date()` and `Date.now()`
  *   answer the act's instant (written as the organisation's local time, Kuala Lumpur), so the act's day, its stamps
- *   and the trail's `at` are the demo's. Outside `act()` the clock is the real one.
+ *   and the trail's `at` are the demo's. Date is swapped only while an act runs (and `instanceof Date` holds for any
+ *   date, whichever constructor made it); outside `act()` it is the real one. A column Prisma stamps itself
+ *   (`@updatedAt`) keeps the real instant: the demo's dates are its acts' own columns and the trail's `at`.
+ * - Raw SQL: no act the demo runs inserts a row by raw SQL (the only raw insert, a document's bytes, belongs to an
+ *   upload, which the demo writes as rows with demo ids); every row the acts make goes through the client below.
  * - Demo ids. Every row an act creates (and every row it creates nested in it) is given a `demo_` id from the
  *   sub-prefix of its model below, so the wipe finds it exactly; the approval routes take the claimed numbered range
  *   `demo_ai131`–`159` (their steps `demo_as<n>_<sequence>`), committee matters `demo_d60`–`79`, sittings
@@ -59,8 +63,22 @@ class DemoDate extends RealDate {
   static now() {
     return fixed ?? RealDate.now();
   }
+  /// Any date is a Date, whichever constructor made it (a row read before the act, a driver's own).
+  static [Symbol.hasInstance](x: unknown) {
+    return x instanceof RealDate;
+  }
 }
-globalThis.Date = DemoDate as DateConstructor;
+/// The demo's clock is in place only while an act runs; outside it, Date is the real one.
+async function onDemoClock<T>(when: string, fn: () => Promise<T>): Promise<T> {
+  fixed = kl(when).getTime();
+  globalThis.Date = DemoDate as unknown as DateConstructor;
+  try {
+    return await fn();
+  } finally {
+    globalThis.Date = RealDate;
+    fixed = null;
+  }
+}
 
 /// A local time in Kuala Lumpur ("2026-06-09T10:00", UTC+8, no daylight saving) as the instant.
 export const kl = (local: string) => new RealDate(RealDate.parse(`${local}:00.000+08:00`));
@@ -269,39 +287,30 @@ export async function act(when: string, what: string, action: Action, fields: Re
     if (v == null) continue;
     for (const x of Array.isArray(v) ? v : [v]) form.append(k, x);
   }
-  fixed = kl(when).getTime();
   idsOn = opts.ids ?? true;
   try {
-    const r = await action({ ok: false }, form);
+    const r = await onDemoClock(when, () => action({ ok: false }, form));
     if (!r.ok) throw new Error(`Demo act refused (${what}, ${when}): ${r.message ?? ""} ${r.errors ? JSON.stringify(r.errors) : ""}`.trim());
     return r;
   } finally {
-    fixed = null;
     idsOn = false;
   }
 }
 
 /// Run lib code (a reader or a pure rule needing "today") at an instant, without creating rows.
 export async function at<T>(when: string, fn: () => Promise<T>): Promise<T> {
-  fixed = kl(when).getTime();
-  try {
-    return await fn();
-  } finally {
-    fixed = null;
-  }
+  return onDemoClock(when, fn);
 }
 
 /// A route handler's act (the committee's vote API) at its instant: a refusal (not 2xx) stops the load.
 export async function actRoute(when: string, what: string, handler: () => Promise<Response>): Promise<unknown> {
-  fixed = kl(when).getTime();
   idsOn = true;
   try {
-    const r = await handler();
+    const r = await onDemoClock(when, handler);
     const body = await r.json();
     if (!r.ok) throw new Error(`Demo act refused (${what}, ${when}): ${JSON.stringify(body)}`);
     return body;
   } finally {
-    fixed = null;
     idsOn = false;
   }
 }

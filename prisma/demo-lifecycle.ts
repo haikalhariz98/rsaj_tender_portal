@@ -8,7 +8,7 @@
  * - Before the contract (written as the award's own demo writes them, the acts of those modules not being the point
  *   here): requisition demo_rq41 approved on demo_ai131, exercise demo_sx22 determined by 6.3's own functions, the
  *   Tender Board's award at sitting demo_mt20 (matter demo_d60, its votes demo_vt60_*), appointment route demo_ai132,
- *   award demo_aw13 (DEMO/AWD/0008/2026) issued and returned, its bond, guarantee and policies verified, contract
+ *   award demo_aw13 (numbered from the award series) issued and returned, its bond, guarantee and policies verified, contract
  *   demo_con13 numbered DEMO/KP/T/005/2026.
  * - From its formation on, every step is the product's own act (prisma/demo-acts.ts), called with the form its
  *   drawer posts at the instant the story says, each refusing as it would on the screen: formation, legal review,
@@ -53,7 +53,8 @@ const AWARDEE = { name: "Syarikat Contoh Pembinaan Sdn Bhd", reg: "DEMO-0013-X",
 const TITLE = "Raw water main renewal, Sungai Demo";
 const REQ_REF = "DEMO/REQ/0043/2026";
 const SX_REF = "DEMO/SX/0022/2026";
-const AWD_REF = "DEMO/AWD/0008/2026";
+/// Numbered from the award series when the award is made (loadLifecycleAward), in the order the story makes it.
+let AWD_REF = "";
 const CON_NO = "DEMO/KP/T/005/2026";
 
 // ------------------------------------------------------------------ configuration
@@ -226,7 +227,7 @@ export async function loadLifecycleSetup(db: Db, organisationId: string): Promis
   await db.sourcingExercise.create({ data: { id: SX, organisationId, reference: SX_REF, requisitionId: RQ, title: TITLE, estimatedValue: value, sourcingMethodCode: "open_tender", status: "DOCUMENTS_IN_PREPARATION", contractBasisCode: "bq", createdAt: day("2026-04-20") } });
   await db.exerciseScopePart.create({ data: { id: `${SX}p1`, exerciseId: SX, deliverableKind: "MEASURED_CONSTRUCTION", amount: value, description: TITLE, sortOrder: 1 } });
   // The series move past what the demo took (never back).
-  for (const [id, next] of [[`${P}n1`, 44], [`${P}n5`, 23], [`${P}n7`, 9], [`${P}n2`, 6]] as const) {
+  for (const [id, next] of [[`${P}n1`, 44], [`${P}n5`, 23], [`${P}n2`, 6]] as const) {
     const s = await db.numberingSeries.findUniqueOrThrow({ where: { id } });
     if (s.nextSerial < next) await db.numberingSeries.update({ where: { id }, data: { nextSerial: next } });
   }
@@ -279,6 +280,9 @@ export async function loadLifecycleAward(db: Db, organisationId: string): Promis
   claimNumbered("Meeting", 20);
   claimNumbered("CommitteeDecision", 60);
 
+  // The award's reference from the award series, as the award is made (never typed): the register stays continuous.
+  const { issueReference } = await import("../src/lib/numbering/issue");
+  AWD_REF = await issueReference(db as never, organisationId, "award", day("2026-05-08"));
   await db.award.create({
     data: {
       id: AW, organisationId, reference: AWD_REF, exerciseId: SX, status: "APPROVED", instrumentKind: "LETTER_OF_ACCEPTANCE", awardeeName: AWARDEE.name, awardeeRegistrationNo: AWARDEE.reg, awardeeAddress: AWARDEE.address,
