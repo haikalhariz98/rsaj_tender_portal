@@ -29,3 +29,26 @@ export function citeStepFaults(matters: readonly MatterFact[], domain: string, c
   if (!mine.some((m) => m.outcome === "CARRIED" || m.outcome === "NOT_CARRIED")) return [{ code: "NOT_DECIDED_YET", level: "block" }];
   return [];
 }
+
+/// A matter tabled from a variation, as a post-award screen says it (6.13 acceptance S-1).
+export interface MatterLineIn {
+  withdrawn: boolean;
+  outcome: MatterFact["outcome"];
+  meetingId: string;
+  meetingReference: string;
+  committeeName: string;
+}
+
+/**
+ * Acceptance S-1 (the founder's direction; 6.17 OD-4 B): a post-award screen says where a matter was tabled and the
+ * committee's outcome only (carried, not carried, deferred, withdrawn, or not decided yet), linked to the sitting,
+ * whose decision record is the one place members' votes are named. It takes no votes, so it cannot name a voter. Pure.
+ */
+export function matterLine(m: MatterLineIn): { reference: string; committee: string; outcome: string; href: string } {
+  const outcome = m.withdrawn ? "withdrawn" : m.outcome === "CARRIED" ? "carried" : m.outcome === "NOT_CARRIED" ? "not carried" : m.outcome === "DEFERRED" ? "deferred" : "not decided yet";
+  return { reference: m.meetingReference, committee: m.committeeName, outcome, href: `/committees/${m.meetingId}?tab=agenda` };
+}
+
+/// The matter, as loaded, read for its line (never its votes).
+export const matterLineOf = (m: { withdrawnAt: Date | null; outcome: string; meetingId: string; meeting: { reference: string; committee: { nameEn: string } } }) =>
+  matterLine({ withdrawn: !!m.withdrawnAt, outcome: m.outcome as MatterFact["outcome"], meetingId: m.meetingId, meetingReference: m.meeting.reference, committeeName: m.meeting.committee.nameEn });
