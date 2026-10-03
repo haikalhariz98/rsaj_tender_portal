@@ -71,6 +71,8 @@ function writes(models: string[], ops = "update|updateMany|upsert|create|createM
 
 const P = (f: string) => path.normalize(f);
 const DEMO = P("prisma/demo-certificates.ts");
+/// 6.13 Part A: the supervision demo opens a delegation's letter pair as drafts, as the delegation act does.
+const DEMO_SUPERVISION = P("prisma/demo-supervision.ts");
 
 describe("one lock order (withLockedCertificate)", () => {
   it("withLockedCertificate takes the contract's chain first, then the certificate", () => {
@@ -110,7 +112,7 @@ describe("single writers", () => {
   const CORE = ["certificate", "certificateSignature", "certificateOverride", "certificateDocument", "routingCheck"];
 
   it("a certificate's rows are written only by the core's helpers (and the demo's own loader and wipe)", () => {
-    const where = [...new Set(writes(CORE).filter((x) => !x.where.startsWith(DEMO)).map((x) => x.where.split(" › ")[0]))].sort();
+    const where = [...new Set(writes(CORE).filter((x) => !x.where.startsWith(DEMO) && !x.where.startsWith(DEMO_SUPERVISION)).map((x) => x.where.split(" › ")[0]))].sort();
     // The pre-award routing sheet's checks are written by its own helper beside the core's.
     expect(where).toEqual([P(WRITE), P("src/lib/certificate/award-sheet.ts")].sort());
   });
@@ -505,7 +507,7 @@ describe("every write that can reach a certificate's rows (R-8)", () => {
 });
 
 /// The demo's certificate writers, named one by one: invented data loaded and wiped, never the product's acts.
-const CERT_DEMO_WRITERS: string[] = ["prisma/demo-certificates.ts › check", "prisma/demo-certificates.ts › loadCertificatesDemo", "prisma/demo-certificates.ts › move", "prisma/demo-certificates.ts › open", "prisma/demo-certificates.ts › sign", "prisma/demo-certificates.ts › wipeAwardRoutingSheets", "prisma/demo-certificates.ts › wipeCertificates"].map(P);
+const CERT_DEMO_WRITERS: string[] = ["prisma/demo-certificates.ts › check", "prisma/demo-certificates.ts › loadCertificatesDemo", "prisma/demo-certificates.ts › move", "prisma/demo-certificates.ts › open", "prisma/demo-certificates.ts › sign", "prisma/demo-certificates.ts › wipeAwardRoutingSheets", "prisma/demo-certificates.ts › wipeCertificates", "prisma/demo-supervision.ts › loadSupervisionDemo"].map(P);
 
 describe("the pre-award sheet's acts keep the award's lock order (R-8)", () => {
   it("every act runs inside inAwardSheet, which is withLockedAward, and reads the clock once on entry", () => {
