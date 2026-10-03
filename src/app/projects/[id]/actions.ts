@@ -501,6 +501,13 @@ export async function recordRsajSignature(_prev: FormState, data: FormData): Pro
     await writeVersion(c, exec, "EXECUTED", "", { from: prior ? `version ${prior.version}` : "draft" });
     await audit(c, "ContractSignature", row.id, "signed for the employer", "CREATE", diffFields(null, { party: "RSAJ", signedBy: s.person.name, office: sig.roleLabel, rule: sig.ruleLabel, delegated: s.delegationId ? "yes" : "no", recordedOnBehalf: ON_BEHALF }));
     await audit(c, "Contract", k.id, "", "UPDATE", diffFields({ status: k.status, contractDate: null }, { status: "EXECUTED", contractDate, contractDateSource: "the day of the recorded signature act" }));
+    // 6.13 Part A (FR-SUP-001, against accepted 6.12): the S.O. this signature resolved, effective from the Contract Date.
+    if (s.so?.state === "RESOLVED" && s.soMatrix) {
+      const so = await c.tx.contractSoAssignment.create({
+        data: { organisationId: c.l.org.id, contractId: k.id, roleCode: s.so.roleCode, roleLabel: s.so.roleLabel, reason: "EXECUTION", matrixLabel: s.soMatrix.label, ruleKey: s.so.ruleKey, ruleLabel: s.so.ruleLabel, clause: s.so.clause, contractValue: k.contractSum, regime: c.l.ex.regime, warnings: s.so.notes.map((n) => n.messageEn) as Prisma.InputJsonValue, effectiveOn: dayToDate(contractDate), recordedAt: now },
+      });
+      await audit(c, "ContractSoAssignment", so.id, "Superintending Officer resolved", "CREATE", diffFields(null, { office: s.so.roleLabel, resolvedFrom: `${s.soMatrix.label}: ${s.so.ruleLabel} (${s.so.clause})`, resolvedBy: "the employer's signature", effectiveOn: contractDate, assumption: s.so.notes.map((n) => n.messageEn).join(" ") || null }));
+    }
     return { ok: true };
   });
 }

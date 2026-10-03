@@ -154,5 +154,9 @@
   "special_permission": {
     "en": "Special permission",
     "ms": "Kebenaran khas"
+  },
+  "superintending_officer": {
+    "en": "Superintending Officer",
+    "ms": "Pegawai Penguasa"
   }
 }

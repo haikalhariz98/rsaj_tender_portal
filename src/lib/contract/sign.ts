@@ -73,7 +73,8 @@ export type SignFault =
   | "SIGNATORY_NOT_RESOLVED"
   | "SIGNER"
   | "BASELINE_INCOMPLETE"
-  | "CONTRACTOR_SIGNED_LATER";
+  | "CONTRACTOR_SIGNED_LATER"
+  | "SO_UNRESOLVED";
 
 export interface SignInputs {
   status: ContractStatus;
@@ -96,6 +97,12 @@ export interface SignInputs {
   signer: readonly SignerFault[];
   /// The baseline's blocking findings (FR-CON-014): the executed version cannot be incomplete.
   baselineBlocks: number;
+  /**
+   * 6.13 Part A (FR-SUP-001, against accepted 6.12): the S.O. the matrix in force gives at the contract's value and
+   * regime, resolved by this signature. Not resolved: refused, naming the matrix, as nobody would supervise the
+   * contract it executes. Absent: not asked (a caller from before 6.13).
+   */
+  so?: { ok: true } | { ok: false; matrix: string | null; why: string } | null;
   /// The organisation's day of the act: the Contract Date it would give.
   today: string;
 }
@@ -120,6 +127,7 @@ export function signFaults(i: SignInputs): Finding<SignFault>[] {
   else if (i.signatory && !i.signatory.ok) out.push({ code: "SIGNATORY_NOT_RESOLVED", level: "block", data: { fault: i.signatory.fault } });
   for (const f of i.signer) out.push({ code: "SIGNER", level: "block", data: { fault: f } });
   if (i.baselineBlocks > 0) out.push({ code: "BASELINE_INCOMPLETE", level: "block", data: { count: i.baselineBlocks } });
+  if (i.issueInForce !== false && i.so && !i.so.ok) out.push({ code: "SO_UNRESOLVED", level: "block", data: { matrix: i.so.matrix, why: i.so.why } });
   return out;
 }
 

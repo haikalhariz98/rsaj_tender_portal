@@ -129,7 +129,7 @@ function latestValues(c: Ctx) {
 // ------------------------------------------------------------------ the S.O. (FR-SUP-001)
 
 /**
- * Resolve the S.O. of a contract executed before supervision was recorded (or whose execution found none): the
+ * Resolve the S.O. of a contract executed before supervision was recorded (the signature resolves it since): the
  * office the matrix in force today gives at the contract's value and regime, effective from today.
  */
 export async function resolveSuperintendingOfficer(_prev: FormState, data: FormData): Promise<FormState> {

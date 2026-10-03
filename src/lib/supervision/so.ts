@@ -75,7 +75,7 @@ export function soOn<T extends AssignmentRow>(rows: readonly T[], day: Day): T |
 export type ResolveActFault = "NOT_EXECUTED" | "ALREADY_RESOLVED" | "SO_UNRESOLVED";
 
 /**
- * The one-off "Resolve S.O." for a contract executed before 6.13 (or one whose execution found no S.O.):
+ * The one-off "Resolve S.O." for a contract executed before 6.13 (the signature resolves it from then on):
  * only an executed contract with no S.O. yet.
  */
 export function resolveActFaults(i: { executed: boolean; assignments: number }): Finding<ResolveActFault>[] {

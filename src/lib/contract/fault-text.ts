@@ -151,6 +151,11 @@ export function contractFaultWords(f: Finding): Words {
       return w("No approval matrix is issued and in force today, so the contract agreement's signatory cannot be resolved and nobody may sign for the employer. Issue one under Configuration › Approval matrix.", "Tiada matriks kelulusan yang dikeluarkan dan berkuat kuasa hari ini, jadi penandatangan perjanjian kontrak tidak dapat ditentukan. Keluarkan satu di Konfigurasi › Matriks kelulusan.");
     case "SIGNATORY_NOT_RESOLVED":
       return SIGNATORY_TEXT[String(d.fault)] ?? w("The contract agreement's signatory is not resolved on the approval matrix.", "Penandatangan perjanjian kontrak tidak diselesaikan.");
+    case "SO_UNRESOLVED":
+      return w(
+        `${d.matrix ? `The approval matrix in force (${d.matrix})` : "The approval matrix in force"} gives no single Superintending Officer at this contract's sum and method, so nobody would supervise the contract this signature executes. Add or settle its Superintending Officer rows under Configuration › Approval matrix.`,
+        `${d.matrix ? `Matriks kelulusan yang berkuat kuasa (${d.matrix})` : "Matriks kelulusan yang berkuat kuasa"} tidak memberi seorang Pegawai Penguasa pada jumlah dan kaedah kontrak ini, jadi tiada sesiapa akan menyelia kontrak yang dilaksanakan oleh tandatangan ini. Tambah atau selesaikan baris Pegawai Penguasa di Konfigurasi › Matriks kelulusan.`,
+      );
     case "BASELINE_INCOMPLETE":
       return w(`The baseline still lacks ${d.count ?? "some"} value${d.count === 1 ? "" : "s"}. See Baseline.`, `Garis dasar masih kurang ${d.count ?? "beberapa"} nilai.`);
 

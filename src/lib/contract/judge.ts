@@ -11,6 +11,7 @@ import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { senFromDecimal, senToDecimalString } from "@/lib/money";
 import { commitmentFault } from "@/lib/requisition/commitment";
+import { resolveSo, type SoResolution } from "@/lib/supervision/so";
 
 import { baselineFaults, latestVersion, type BaselineValues } from "./baseline";
 import { readySince } from "./contract-date";
@@ -85,6 +86,8 @@ export async function signingFacts(l: LoadedContract, personId: string | null, t
     delegationId = check.delegationId;
   }
   const bl = baselineBlocks(c);
+  // 6.13 Part A (against accepted 6.12): the S.O. this signature resolves, on the issue in force, at the sum it executes.
+  const so: SoResolution | null = f.issue ? resolveSo(f.issue.matrix, { contractValue: Number(senToDecimalString(sum)), regime: l.ex.regime, contractTypeCode: l.ex.contractTypeCode }) : null;
   const inputs: SignInputs = {
     status,
     gate,
@@ -99,6 +102,7 @@ export async function signingFacts(l: LoadedContract, personId: string | null, t
     signer,
     baselineBlocks: bl.blocks,
     today,
+    so: so == null ? null : so.state === "RESOLVED" ? { ok: true } : { ok: false, matrix: f.issue?.label ?? null, why: so.errors.map((e) => e.code).join(",") || "NO_RULE" },
   };
   const policies = c.policies.filter((p) => p.status === "VERIFIED");
   const since = readySince([
@@ -110,5 +114,5 @@ export async function signingFacts(l: LoadedContract, personId: string | null, t
     // An attachment's instant, read as the organisation's day (never UTC's).
     ...liveOf(c, "COMPANY_RESOLUTION").map((a) => dayOf(a.attachedAt, l.org.timeZone)),
   ]);
-  return { inputs, faults: signFaults(inputs), signatory, person, delegationId, gate, form, readySince: since, phase: phaseOf(status, gate, resolutionLive), baseline: bl };
+  return { inputs, faults: signFaults(inputs), signatory, person, delegationId, gate, form, readySince: since, phase: phaseOf(status, gate, resolutionLive), baseline: bl, so, soMatrix: f.issue ? { label: f.issue.label } : null };
 }
