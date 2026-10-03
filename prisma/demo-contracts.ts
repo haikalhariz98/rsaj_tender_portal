@@ -97,7 +97,7 @@ interface Ctx {
 
 export async function loadContractsDemo(db: Db, organisationId: string) {
   const { diffFields } = await import("../src/lib/audit/diff");
-  const { formationCheckLabel, reconciliationLabel } = await import("../src/lib/audit/entity-labels");
+  const { custodyItemLabel, formationCheckLabel, reconciliationLabel } = await import("../src/lib/audit/entity-labels");
   const { maskIc } = await import("../src/lib/award/mask");
   const { buildBaseline, baselineFaults, changedFields, derive, enteredFaults } = await import("../src/lib/contract/baseline");
   const { applicableChecks, completeFaults, formationFaults, reconciliationFaults, amendmentFaults } = await import("../src/lib/contract/formation");
@@ -315,10 +315,10 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
     await con3.writeVersion({ ...con3.draft, contractDate }, "EXECUTED", signedAt, "version 1");
     audit("ContractSignature", `${P}ksg_con3_r`, `${label} · signed for the employer`, "CREATE", signedAt, diffFields(null, { party: "RSAJ", signedBy: s.person.name, office: s.signatory.roleLabel, rule: s.signatory.ruleLabel, delegated: s.delegationId ? "yes" : "no", recordedOnBehalf: ON_BEHALF }));
     audit("Contract", id, label, "UPDATE", signedAt, diffFields({ status: "LEGALLY_ENDORSED", contractDate: null }, { status: "EXECUTED", contractDate, contractDateSource: "the day of the recorded signature act" }));
-    // 6.13 Part A: the signature resolves the Superintending Officer, as the act does (demo_yso_con3).
+    // 6.13 Part A: the signature resolves the Superintending Officer, as the act does (demo_wso_con3).
     if (s.so?.state !== "RESOLVED" || !s.soMatrix) throw new Error("con3: the Superintending Officer did not resolve");
-    await db.contractSoAssignment.create({ data: { id: `${P}yso_con3`, organisationId, contractId: id, roleCode: s.so.roleCode, roleLabel: s.so.roleLabel, reason: "EXECUTION", matrixLabel: s.soMatrix.label, ruleKey: s.so.ruleKey, ruleLabel: s.so.ruleLabel, clause: s.so.clause, contractValue: (await db.contract.findUniqueOrThrow({ where: { id }, select: { contractSum: true } })).contractSum, regime: (await loadContract(id))!.ex.regime, warnings: s.so.notes.map((n) => n.messageEn), effectiveOn: day(contractDate), recordedAt: at(signedAt) } });
-    audit("ContractSoAssignment", `${P}yso_con3`, `${label} · Superintending Officer resolved`, "CREATE", signedAt, diffFields(null, { office: s.so.roleLabel, resolvedFrom: `${s.soMatrix.label}: ${s.so.ruleLabel} (${s.so.clause})`, resolvedBy: "the employer's signature", effectiveOn: contractDate, assumption: s.so.notes.map((n) => n.messageEn).join(" ") || null }));
+    await db.contractSoAssignment.create({ data: { id: `${P}wso_con3`, organisationId, contractId: id, roleCode: s.so.roleCode, roleLabel: s.so.roleLabel, reason: "EXECUTION", matrixLabel: s.soMatrix.label, ruleKey: s.so.ruleKey, ruleLabel: s.so.ruleLabel, clause: s.so.clause, contractValue: (await db.contract.findUniqueOrThrow({ where: { id }, select: { contractSum: true } })).contractSum, regime: (await loadContract(id))!.ex.regime, warnings: s.so.notes.map((n) => n.messageEn), effectiveOn: day(contractDate), recordedAt: at(signedAt) } });
+    audit("ContractSoAssignment", `${P}wso_con3`, `${label} · Superintending Officer resolved`, "CREATE", signedAt, diffFields(null, { office: s.so.roleLabel, resolvedFrom: `${s.soMatrix.label}: ${s.so.ruleLabel} (${s.so.clause})`, resolvedBy: "the employer's signature", effectiveOn: contractDate, assumption: s.so.notes.map((n) => n.messageEn).join(" ") || null }));
 
     // The Integrity Pact briefing at signing.
     fail("con3 briefing", briefingFaults({ status: "EXECUTED", exists: false, participants: 2, attendees: 1, heldOn: contractDate, today: contractDate }));
@@ -353,10 +353,10 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
     // Custody: the signed contract and the liability policy, the contract out for copying and back.
     fail("con3 custody", registerFaults({ kind: "CONTRACT", executed: true, location: "Contract & Procurement strongroom (demo)", onContract: true, registered: false }));
     await db.custodyItem.create({ data: { id: `${P}kst_con3_1`, organisationId, contractId: id, kind: "CONTRACT", location: "Contract & Procurement strongroom (demo)", custodianPersonId: people.chen.id, recordedAt: at("2026-10-01T04:00") } });
-    audit("CustodyItem", `${P}kst_con3_1`, `${label} · original: contract`, "CREATE", "2026-10-01T04:00", diffFields(null, { kind: "CONTRACT", location: "Contract & Procurement strongroom (demo)", custodian: people.chen.name }));
+    audit("CustodyItem", `${P}kst_con3_1`, `${label} · ${custodyItemLabel("CONTRACT")}`, "CREATE", "2026-10-01T04:00", diffFields(null, { kind: "CONTRACT", location: "Contract & Procurement strongroom (demo)", custodian: people.chen.name }));
     const pl = l.contract.policies.find((p) => p.kind === "PUBLIC_LIABILITY")!;
     await db.custodyItem.create({ data: { id: `${P}kst_con3_2`, organisationId, contractId: id, kind: "POLICY", policyId: pl.id, location: "Contract & Procurement strongroom (demo)", custodianPersonId: people.chen.id, recordedAt: at("2026-10-01T04:00") } });
-    audit("CustodyItem", `${P}kst_con3_2`, `${label} · original: policy`, "CREATE", "2026-10-01T04:00", diffFields(null, { kind: "POLICY", location: "Contract & Procurement strongroom (demo)", custodian: people.chen.name }));
+    audit("CustodyItem", `${P}kst_con3_2`, `${label} · ${custodyItemLabel("POLICY")}`, "CREATE", "2026-10-01T04:00", diffFields(null, { kind: "POLICY", location: "Contract & Procurement strongroom (demo)", custodian: people.chen.name }));
     fail("con3 out", movementFaults([], "OUT", stampedOn, stampedOn));
     await db.custodyMovement.create({ data: { id: `${P}kmv_con3_1`, organisationId, itemId: `${P}kst_con3_1`, direction: "OUT", personId: people.daniel.id, on: day(stampedOn), purpose: "Copies made for distribution", recordedAt: at("2026-10-01T04:30") } });
     fail("con3 in", movementFaults([{ direction: "OUT", personId: people.daniel.id, personName: people.daniel.name, on: stampedOn }], "IN", stampedOn, stampedOn));

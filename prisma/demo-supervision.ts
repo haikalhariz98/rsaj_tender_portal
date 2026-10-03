@@ -4,22 +4,22 @@
  *
  * - Configuration: two Superintending Officer rows on the demo matrix (demo_rule60 up to RM300,000,
  *   demo_rule61 above it, by the contract's value, both following the boundary switch); two delegation forms, a letter (demo_dt33) and
- *   its notification (demo_dt34), each signed by the S.O. (blocks demo_ysb*, recipients demo_yfd*); the
- *   post-award controls (demo_ypa1: In Delay below 75% of the plan, the S.O.'s re-resolution left unset, the
+ *   its notification (demo_dt34), each signed by the S.O. (blocks demo_wsb*, recipients demo_wfd*); the
+ *   post-award controls (demo_wpa1: In Delay below 75% of the plan, the S.O.'s re-resolution left unset, the
  *   conventional letters set and the design-and-build ones not; only where the organisation has none of its
  *   own); demo_con3's contract type uses the conventional letters.
- * - demo_con3 (stamped 1 Oct 2026; its S.O. resolved by the employer's signature, demo_yso_con3): a Principal
- *   Representative delegated on 1 Oct, its letter pair open as drafts (demo_ydl1, certificates demo_yct1–2);
- *   possession on 2 Oct (demo_ypo1), with its POSSESSION baseline version (demo_ybl_con3, sections
- *   demo_ysn*), the contract active; programme revision 1 submitted, scrutinised and approved (demo_ypg1,
- *   points demo_ypp*); progress on 2 Oct below the line (demo_ypr1), so the contract is In Delay; a special
- *   meeting (demo_ymt1); the day's diary, the officer's attestation recorded and the agent's awaited
- *   (demo_ysd1), endorsed on a visit (demo_yen1); a safety observation (demo_yob1); a direction on the
- *   programme awaiting its revision (demo_ydi1); a nominated sub-contractor (demo_ypt1). The delegation's scope
- *   rows are demo_yds*.
+ * - demo_con3 (stamped 1 Oct 2026; its S.O. resolved by the employer's signature, demo_wso_con3): a Principal
+ *   Representative delegated on 1 Oct, its letter pair open as drafts (demo_wdl1, certificates demo_wlt1–2);
+ *   possession on 2 Oct (demo_wpo1), with its POSSESSION baseline version (demo_wbl_con3, sections
+ *   demo_wsn*), the contract active; programme revision 1 submitted, scrutinised and approved (demo_wpg1,
+ *   points demo_wpn*); progress on 2 Oct below the line (demo_wpr1), so the contract is In Delay; a special
+ *   meeting (demo_wmt1); the day's diary, the officer's attestation recorded and the agent's awaited
+ *   (demo_wsd1), endorsed on a visit (demo_wen1); a safety observation (demo_wob1); a direction on the
+ *   programme awaiting its revision (demo_wdi1); a nominated sub-contractor (demo_qpt1). The delegation's scope
+ *   rows are demo_wds*.
  * - Every act is judged by the product's own rule before its rows are written (X-10 c); nothing is dated after
- *   the load day (X-10 a). Trail demo_yau*.
- * - Ids: the demo_y family above, demo_rule60–61, demo_dt33–34, grepped free; the wipe matches each exactly.
+ *   the load day (X-10 a). Trail demo_wtr*.
+ * - Ids: the demo_w family (and demo_qpt) above, demo_rule60–61, demo_dt33–34, grepped free; the wipe matches each exactly.
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
@@ -52,9 +52,9 @@ export async function configureSupervisionDemo(db: Db, organisationId: string) {
       { id: `${P}dt34`, ...base, code: "demo_so_delegation_notice", nameEn: "Demo notification of delegation (S.O.)", nameMs: "Pemberitahuan perwakilan kuasa demo (P.P.)", formCode: "DEMO-S-02", revisionDate: day("2025-06-01"), bodyEn: NOTICE_EN, sortOrder: 34 },
     ],
   });
-  const block = (n: number, templateId: string) => ({ id: `${P}ysb${n}`, organisationId, templateId, blockOrder: 1, blockKind: "AUTHORISING" as const, labelEn: "Superintending Officer", labelMs: "Pegawai Penguasa", officeRule: "SO" as const, officeCode: null, delegable: false, datesCertificate: true, provenance: "ASSUMED" as const, notes: "Invented for the demo." });
+  const block = (n: number, templateId: string) => ({ id: `${P}wsb${n}`, organisationId, templateId, blockOrder: 1, blockKind: "AUTHORISING" as const, labelEn: "Superintending Officer", labelMs: "Pegawai Penguasa", officeRule: "SO" as const, officeCode: null, delegable: false, datesCertificate: true, provenance: "ASSUMED" as const, notes: "Invented for the demo." });
   await db.formSignatureBlock.createMany({ data: [block(1, `${P}dt33`), block(2, `${P}dt34`)] });
-  const row = (n: number, templateId: string, code: string, labelEn: string, labelMs: string, isOriginal: boolean, sortOrder: number) => ({ id: `${P}yfd${n}`, organisationId, templateId, recipientCode: code, labelEn, labelMs, mandatory: true, ackRequired: isOriginal, condition: "NONE" as const, isOriginal, sortOrder, provenance: "ASSUMED" as const, notes: "Invented for the demo." });
+  const row = (n: number, templateId: string, code: string, labelEn: string, labelMs: string, isOriginal: boolean, sortOrder: number) => ({ id: `${P}wfd${n}`, organisationId, templateId, recipientCode: code, labelEn, labelMs, mandatory: true, ackRequired: isOriginal, condition: "NONE" as const, isOriginal, sortOrder, provenance: "ASSUMED" as const, notes: "Invented for the demo." });
   await db.formDistribution.createMany({
     data: [
       row(1, `${P}dt33`, "demo_delegate", "The representative (original)", "Wakil (asal)", true, 1),
@@ -66,7 +66,7 @@ export async function configureSupervisionDemo(db: Db, organisationId: string) {
   // The organisation's own controls, where it has them, are left as they are.
   if (!(await db.postAwardPolicy.findUnique({ where: { organisationId } }))) {
     await db.postAwardPolicy.create({
-      data: { id: `${P}ypa1`, organisationId, inDelayProgressPct: "75", inDelayProvenance: "ASSUMED", soReResolve: null, delegationLetterConventionalId: `${P}dt33`, delegationNoticeConventionalId: `${P}dt34`, delegationFormsProvenance: "ASSUMED", notes: "Invented for the demo: 75% is not any customer's figure." },
+      data: { id: `${P}wpa1`, organisationId, inDelayProgressPct: "75", inDelayProvenance: "ASSUMED", soReResolve: null, delegationLetterConventionalId: `${P}dt33`, delegationNoticeConventionalId: `${P}dt34`, delegationFormsProvenance: "ASSUMED", notes: "Invented for the demo: 75% is not any customer's figure." },
     });
   }
 }
@@ -99,8 +99,8 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
   const l0 = (await loadContract(CON))!;
   if (l0.contract.status !== "STAMPED") throw new Error(`demo supervision: ${CON} is ${l0.contract.status}, not stamped`);
   const contract = contractLabel({ number: l0.contract.number, award: { awardeeName: l0.award.awardeeName } });
-  const audit = (entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") => audits.push({ id: `${P}yau${++n}`, organisationId, entity, entityId, entityLabel: `${contract} · ${suffix}`, action, at: at(when), changes, reason, unattributed: true });
-  const assignment = await db.contractSoAssignment.findUniqueOrThrow({ where: { id: `${P}yso_con3` } });
+  const audit = (entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") => audits.push({ id: `${P}wtr${++n}`, organisationId, entity, entityId, entityLabel: `${contract} · ${suffix}`, action, at: at(when), changes, reason, unattributed: true });
+  const assignment = await db.contractSoAssignment.findUniqueOrThrow({ where: { id: `${P}wso_con3` } });
   /// The S.O. office on a day, as `soOfficeOn` reads it.
   const soOffice = async (on: string) => {
     const h = await officeHolders(l0, assignment.roleCode, on);
@@ -122,14 +122,14 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
     fail("delegation", delegationFaults({ kind: "PRINCIPAL", grantorId: people.chen.id, delegate: people.daniel, competencyConfirmed: true, competencyNote: "x", scope: [...scope] }, { so: await soOffice(on), delegations: [], today: on, variant: "CONVENTIONAL", typeName: type.nameEn, forms: { letter: `${P}dt33`, notice: `${P}dt34` } }));
     const versions = baselineRows(l0.contract).versions.map((b) => ({ ...b, recordedOn: b.recordedOn ? storedDay(b.recordedOn) : null }));
     const b = baselineFor(versions, on)!;
-    for (const [id, kind, templateId] of [[`${P}yct1`, "DELEGATION_LETTER", `${P}dt33`], [`${P}yct2`, "DELEGATION_NOTICE", `${P}dt34`]] as const) {
+    for (const [id, kind, templateId] of [[`${P}wlt1`, "DELEGATION_LETTER", `${P}dt33`], [`${P}wlt2`, "DELEGATION_NOTICE", `${P}dt34`]] as const) {
       await db.certificate.create({ data: { id, organisationId, contractId: CON, kind, templateId, routingTypeId: null, baselineId: b.id, openedAt: at(`${on}T02:00`), openedOn: day(on) } });
       audit("Certificate", id, KIND_WORDS[kind].en, "CREATE", `${on}T02:00`, diffFields(null, { certificate: KIND_WORDS[kind].en, stage: STATUS_WORDS.DRAFT.en, baselineVersion: `version ${b.version}`, figures: "none", routed: "no" }));
     }
     await db.soDelegation.create({
-      data: { id: `${P}ydl1`, organisationId, contractId: CON, assignmentId: assignment.id, kind: "PRINCIPAL", delegatePersonId: people.daniel.id, delegateName: people.daniel.name, grantorPersonId: people.chen.id, grantorName: people.chen.name, competencyConfirmed: true, competencyNote: "Ten years supervising pipe-laying works of this size (demo).", variant: "CONVENTIONAL", letterCertificateId: `${P}yct1`, noticeCertificateId: `${P}yct2`, recordedAt: at(`${on}T02:00`), recordedOn: day(on), scope: { create: scope.map((act, i) => ({ id: `${P}yds${i + 1}`, organisationId, act })) } },
+      data: { id: `${P}wdl1`, organisationId, contractId: CON, assignmentId: assignment.id, kind: "PRINCIPAL", delegatePersonId: people.daniel.id, delegateName: people.daniel.name, grantorPersonId: people.chen.id, grantorName: people.chen.name, competencyConfirmed: true, competencyNote: "Ten years supervising pipe-laying works of this size (demo).", variant: "CONVENTIONAL", letterCertificateId: `${P}wlt1`, noticeCertificateId: `${P}wlt2`, recordedAt: at(`${on}T02:00`), recordedOn: day(on), scope: { create: scope.map((act, i) => ({ id: `${P}wds${i + 1}`, organisationId, act })) } },
     });
-    audit("SoDelegation", `${P}ydl1`, `delegation to ${people.daniel.name}`, "CREATE", `${on}T02:00`, diffFields(null, { representative: people.daniel.name, representativeType: DELEGATE_KIND_WORDS.PRINCIPAL.en, delegatedBy: `${people.chen.name}, as ${assignment.roleLabel}`, competency: "Ten years supervising pipe-laying works of this size (demo).", scope: scope.map((a) => ACT_WORDS[a].en).join("; "), letters: VARIANT_WORDS.CONVENTIONAL.en, inForceFrom: "the letter's date, once issued", recordedOnBehalf: ON_BEHALF }));
+    audit("SoDelegation", `${P}wdl1`, `delegation to ${people.daniel.name}`, "CREATE", `${on}T02:00`, diffFields(null, { representative: people.daniel.name, representativeType: DELEGATE_KIND_WORDS.PRINCIPAL.en, delegatedBy: `${people.chen.name}, as ${assignment.roleLabel}`, competency: "Ten years supervising pipe-laying works of this size (demo).", scope: scope.map((a) => ACT_WORDS[a].en).join("; "), letters: VARIANT_WORDS.CONVENTIONAL.en, inForceFrom: "the letter's date, once issued", recordedOnBehalf: ON_BEHALF }));
   }
 
   // ------------------------------------------------ possession, 2 Oct: the POSSESSION version, the contract active
@@ -149,14 +149,14 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
     const version = (prior.version ?? 0) + 1;
     const when = `${possessionOn}T01:00`;
     completion = after.dateForCompletion;
-    await db.contractBaseline.create({ data: { id: `${P}ybl_con3`, organisationId, contractId: CON, version, reason: "POSSESSION", correctionReason: "", recordedAt: at(when), recordedOn: day(possessionOn), ...rowOf(after), entered: (prior.entered ?? {}) as never, snapshot: { ...(draft?.snapshot as object), possession: judgedUnder } as never } });
-    for (const [i, s] of sectionRows(after, organisationId).entries()) await db.contractSection.create({ data: { ...s, id: `${P}ysn${i + 1}`, baselineId: `${P}ybl_con3` } });
-    audit("ContractBaseline", `${P}ybl_con3`, `baseline version ${version}`, "CREATE", when, diffFields(null, { version, reason: "POSSESSION", changed: changedFields(before, after).join(", ") || "nothing" }));
-    await db.possession.create({ data: { id: `${P}ypo1`, organisationId, contractId: CON, possessionOn: day(possessionOn), recordedByPersonId: people.chen.id, baselineId: `${P}ybl_con3`, judgedUnder: judgedUnder as never, note: "Site handed over at the reservoir gate (demo).", recordedAt: at(when), recordedOn: day(possessionOn) } });
-    audit("Possession", `${P}ypo1`, "possession of site", "CREATE", when, diffFields(null, { possessionOn, dateForCompletion: after.dateForCompletion, recordedFor: `${people.chen.name}, as ${assignment.roleLabel}`, startOfWork: judgedUnder.startOfWork === "WITHOUT_SECURITIES" ? "this contract type starts without its securities" : "the bond and the required insurance verified", recordedOnBehalf: ON_BEHALF }), "Site handed over at the reservoir gate (demo).");
+    await db.contractBaseline.create({ data: { id: `${P}wbl_con3`, organisationId, contractId: CON, version, reason: "POSSESSION", correctionReason: "", recordedAt: at(when), recordedOn: day(possessionOn), ...rowOf(after), entered: (prior.entered ?? {}) as never, snapshot: { ...(draft?.snapshot as object), possession: judgedUnder } as never } });
+    for (const [i, s] of sectionRows(after, organisationId).entries()) await db.contractSection.create({ data: { ...s, id: `${P}wsn${i + 1}`, baselineId: `${P}wbl_con3` } });
+    audit("ContractBaseline", `${P}wbl_con3`, `baseline version ${version}`, "CREATE", when, diffFields(null, { version, reason: "POSSESSION", changed: changedFields(before, after).join(", ") || "nothing" }));
+    await db.possession.create({ data: { id: `${P}wpo1`, organisationId, contractId: CON, possessionOn: day(possessionOn), recordedByPersonId: people.chen.id, baselineId: `${P}wbl_con3`, judgedUnder: judgedUnder as never, note: "Site handed over at the reservoir gate (demo).", recordedAt: at(when), recordedOn: day(possessionOn) } });
+    audit("Possession", `${P}wpo1`, "possession of site", "CREATE", when, diffFields(null, { possessionOn, dateForCompletion: after.dateForCompletion, recordedFor: `${people.chen.name}, as ${assignment.roleLabel}`, startOfWork: judgedUnder.startOfWork === "WITHOUT_SECURITIES" ? "this contract type starts without its securities" : "the bond and the required insurance verified", recordedOnBehalf: ON_BEHALF }), "Site handed over at the reservoir gate (demo).");
     if (contractTransition("STAMPED", "ACTIVE", { act: "POSSESSION" })) throw new Error("demo possession: STAMPED → ACTIVE refused");
     await db.contract.update({ where: { id: CON }, data: { status: "ACTIVE" } });
-    audits.push({ id: `${P}yau${++n}`, organisationId, entity: "Contract", entityId: CON, entityLabel: contract, action: "UPDATE", at: at(when), changes: diffFields({ status: "STAMPED" }, { status: "ACTIVE" }), reason: "", unattributed: true });
+    audits.push({ id: `${P}wtr${++n}`, organisationId, entity: "Contract", entityId: CON, entityLabel: contract, action: "UPDATE", at: at(when), changes: diffFields({ status: "STAMPED" }, { status: "ACTIVE" }), reason: "", unattributed: true });
   }
 
   // ------------------------------------------------ the programme: submitted and scrutinised 1–2 Oct, approved 2 Oct
@@ -167,24 +167,24 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
   ];
   {
     fail("programme submitted", [...submitFaults({ executed: true, submittedOn: "2026-10-02", today: "2026-10-02", openRevision: null }), ...pointFaults(points, possessionOn)]);
-    await db.workProgramme.create({ data: { id: `${P}ypg1`, organisationId, contractId: CON, revision: 1, kind: "WORK_PROGRAMME", submittedOn: day("2026-10-02"), note: "", recordedAt: at("2026-10-02T02:00"), points: { create: points.map((p, i) => ({ id: `${P}ypp${i + 1}`, organisationId, day: day(p.day), plannedPct: p.plannedPct })) } } });
-    audit("WorkProgramme", `${P}ypg1`, "programme revision 1", "CREATE", "2026-10-02T02:00", diffFields(null, { programme: PROGRAMME_KIND_WORDS.WORK_PROGRAMME.en, revision: 1, submittedOn: "2026-10-02", plannedProgress: points.map((p) => `${p.plannedPct}% by ${p.day}`).join("; ") }));
+    await db.workProgramme.create({ data: { id: `${P}wpg1`, organisationId, contractId: CON, revision: 1, kind: "WORK_PROGRAMME", submittedOn: day("2026-10-02"), note: "", recordedAt: at("2026-10-02T02:00"), points: { create: points.map((p, i) => ({ id: `${P}wpn${i + 1}`, organisationId, day: day(p.day), plannedPct: p.plannedPct })) } } });
+    audit("WorkProgramme", `${P}wpg1`, "programme revision 1", "CREATE", "2026-10-02T02:00", diffFields(null, { programme: PROGRAMME_KIND_WORDS.WORK_PROGRAMME.en, revision: 1, submittedOn: "2026-10-02", plannedProgress: points.map((p) => `${p.plannedPct}% by ${p.day}`).join("; ") }));
     const rev = { revision: 1, submittedOn: "2026-10-02", scrutinisedOn: null, reasonable: null, decision: null, decidedOn: null };
     await recordedFor(people.chen.id, { act: "PROGRAMME_SCRUTINY" }, "2026-10-02");
     fail("programme scrutiny", scrutinyFaults(rev, { on: "2026-10-02", today: "2026-10-02", reasonable: true, note: "" }));
     await recordedFor(people.chen.id, { principalOrSo: true }, "2026-10-02");
     fail("programme decision", decideFaults({ ...rev, scrutinisedOn: "2026-10-02", reasonable: true }, { decision: "APPROVED", on: "2026-10-02", today: "2026-10-02", note: "", points: points.length }));
-    await db.workProgramme.update({ where: { id: `${P}ypg1` }, data: { scrutinisedByPersonId: people.chen.id, scrutinisedOn: day("2026-10-02"), reasonable: true, scrutinyNote: "", decision: "APPROVED", decidedByPersonId: people.chen.id, decidedOn: day("2026-10-02"), decisionNote: "", decidedAt: at("2026-10-02T04:00") } });
-    audit("WorkProgramme", `${P}ypg1`, "programme revision 1", "UPDATE", "2026-10-02T03:00", diffFields({ scrutinisedOn: null }, { scrutinisedOn: "2026-10-02", scrutinisedBy: `${people.chen.name}, as ${assignment.roleLabel}`, reasonableAndRealistic: "yes", recordedOnBehalf: ON_BEHALF }));
-    audit("WorkProgramme", `${P}ypg1`, "programme revision 1", "UPDATE", "2026-10-02T04:00", diffFields({ programmeDecision: null }, { programmeDecision: PROGRAMME_DECISION_WORDS.APPROVED.en, decidedOn: "2026-10-02", decidedBy: `${people.chen.name}, as ${assignment.roleLabel}`, recordedOnBehalf: ON_BEHALF }));
+    await db.workProgramme.update({ where: { id: `${P}wpg1` }, data: { scrutinisedByPersonId: people.chen.id, scrutinisedOn: day("2026-10-02"), reasonable: true, scrutinyNote: "", decision: "APPROVED", decidedByPersonId: people.chen.id, decidedOn: day("2026-10-02"), decisionNote: "", decidedAt: at("2026-10-02T04:00") } });
+    audit("WorkProgramme", `${P}wpg1`, "programme revision 1", "UPDATE", "2026-10-02T03:00", diffFields({ scrutinisedOn: null }, { scrutinisedOn: "2026-10-02", scrutinisedBy: `${people.chen.name}, as ${assignment.roleLabel}`, reasonableAndRealistic: "yes", recordedOnBehalf: ON_BEHALF }));
+    audit("WorkProgramme", `${P}wpg1`, "programme revision 1", "UPDATE", "2026-10-02T04:00", diffFields({ programmeDecision: null }, { programmeDecision: PROGRAMME_DECISION_WORDS.APPROVED.en, decidedOn: "2026-10-02", decidedBy: `${people.chen.name}, as ${assignment.roleLabel}`, recordedOnBehalf: ON_BEHALF }));
   }
 
   // ------------------------------------------------ progress on 2 Oct: 0.5% against 1% planned, below 75% of it
   {
     await recordedFor(people.chen.id, { act: "PROGRESS" }, "2026-10-02");
     fail("progress", progressFaults({ possessionOn, day: "2026-10-02", today: "2026-10-02", pct: "0.5", exists: false, earlier: null, later: null, parsed: parsePercent("0.5") }));
-    await db.progressRecord.create({ data: { id: `${P}ypr1`, organisationId, contractId: CON, day: day("2026-10-02"), actualPct: "0.5", recordedByPersonId: people.chen.id, note: "Mobilisation slower than planned (demo).", recordedAt: at("2026-10-02T08:00") } });
-    audit("ProgressRecord", `${P}ypr1`, "progress on 02 Oct 2026", "CREATE", "2026-10-02T08:00", diffFields(null, { day: "2026-10-02", actualProgress: "0.5%", recordedFor: `${people.chen.name}, as ${assignment.roleLabel}`, recordedOnBehalf: ON_BEHALF }), "Mobilisation slower than planned (demo).");
+    await db.progressRecord.create({ data: { id: `${P}wpr1`, organisationId, contractId: CON, day: day("2026-10-02"), actualPct: "0.5", recordedByPersonId: people.chen.id, note: "Mobilisation slower than planned (demo).", recordedAt: at("2026-10-02T08:00") } });
+    audit("ProgressRecord", `${P}wpr1`, "progress on 02 Oct 2026", "CREATE", "2026-10-02T08:00", diffFields(null, { day: "2026-10-02", actualProgress: "0.5%", recordedFor: `${people.chen.name}, as ${assignment.roleLabel}`, recordedOnBehalf: ON_BEHALF }), "Mobilisation slower than planned (demo).");
   }
   const reading = inDelay({ today: "2026-10-02", possessed: true, dateForCompletion: completion, programme: points, latest: { day: "2026-10-02", actualPct: "0.5" }, policyPct: "75" });
   if (reading.state !== "IN_DELAY") throw new Error(`demo supervision: expected In Delay on 2 Oct, read ${reading.state}`);
@@ -195,36 +195,36 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
     const minutes = "The contractor will add a second excavation crew from 5 October and report progress weekly (demo).";
     await recordedFor(people.chen.id, { soOnly: true }, "2026-10-02");
     fail("special meeting", meetingFaults({ inDelay: true, heldOn: "2026-10-02", today: "2026-10-02", minutes, attendees }));
-    await db.siteMeeting.create({ data: { id: `${P}ymt1`, organisationId, contractId: CON, heldOn: day("2026-10-02"), chairPersonId: people.chen.id, attendees, minutes, inDelayReading: reading as never, recordedAt: at("2026-10-02T09:00") } });
-    audit("SiteMeeting", `${P}ymt1`, "special meeting 02 Oct 2026", "CREATE", "2026-10-02T09:00", diffFields(null, { heldOn: "2026-10-02", chairedBy: people.chen.name, attendees: attendees.join("; "), calledBy: "the In Delay classification", recordedOnBehalf: ON_BEHALF }));
+    await db.siteMeeting.create({ data: { id: `${P}wmt1`, organisationId, contractId: CON, heldOn: day("2026-10-02"), chairPersonId: people.chen.id, attendees, minutes, inDelayReading: reading as never, recordedAt: at("2026-10-02T09:00") } });
+    audit("SiteMeeting", `${P}wmt1`, "special meeting 02 Oct 2026", "CREATE", "2026-10-02T09:00", diffFields(null, { heldOn: "2026-10-02", chairedBy: people.chen.name, attendees: attendees.join("; "), calledBy: "the In Delay classification", recordedOnBehalf: ON_BEHALF }));
 
     const entry = "Site possessed at 09:00. Contractor's site office set up; survey of the pipe route begun from chainage 0. Two labourers, one excavator (demo).";
     await recordedFor(people.chen.id, { act: "DIARY" }, "2026-10-02");
     fail("diary", entryFaults({ possessionOn, day: "2026-10-02", today: "2026-10-02", exists: false, entry, backdatedReason: "" }));
     fail("diary attested", attestFaults({ who: "OFFICER", already: false, day: "2026-10-02", on: "2026-10-02", today: "2026-10-02", agentName: "" }));
-    await db.siteDiaryEntry.create({ data: { id: `${P}ysd1`, organisationId, contractId: CON, day: day("2026-10-02"), weather: "Fine, afternoon showers", entry, officerPersonId: people.chen.id, backdatedReason: "", officerAttestedOn: day("2026-10-02"), recordedAt: at("2026-10-02T09:30"), recordedOn: day("2026-10-02") } });
-    audit("SiteDiaryEntry", `${P}ysd1`, "site diary 02 Oct 2026", "CREATE", "2026-10-02T09:30", diffFields(null, { day: "2026-10-02", weather: "Fine, afternoon showers", responsibleOfficer: `${people.chen.name}, as ${assignment.roleLabel}`, writtenOn: "2026-10-02", recordedOnBehalf: ON_BEHALF }));
-    audit("SiteDiaryEntry", `${P}ysd1`, "site diary 02 Oct 2026", "UPDATE", "2026-10-02T10:00", diffFields({ attestedBy: null }, { attestedBy: `${people.chen.name} (responsible officer)`, attestedOn: "2026-10-02", recordedOnBehalf: ON_BEHALF }));
+    await db.siteDiaryEntry.create({ data: { id: `${P}wsd1`, organisationId, contractId: CON, day: day("2026-10-02"), weather: "Fine, afternoon showers", entry, officerPersonId: people.chen.id, backdatedReason: "", officerAttestedOn: day("2026-10-02"), recordedAt: at("2026-10-02T09:30"), recordedOn: day("2026-10-02") } });
+    audit("SiteDiaryEntry", `${P}wsd1`, "site diary 02 Oct 2026", "CREATE", "2026-10-02T09:30", diffFields(null, { day: "2026-10-02", weather: "Fine, afternoon showers", responsibleOfficer: `${people.chen.name}, as ${assignment.roleLabel}`, writtenOn: "2026-10-02", recordedOnBehalf: ON_BEHALF }));
+    audit("SiteDiaryEntry", `${P}wsd1`, "site diary 02 Oct 2026", "UPDATE", "2026-10-02T10:00", diffFields({ attestedBy: null }, { attestedBy: `${people.chen.name} (responsible officer)`, attestedOn: "2026-10-02", recordedOnBehalf: ON_BEHALF }));
 
     fail("endorsement", endorseFaults({ possessionOn, visitedOn: "2026-10-02", coversFrom: "2026-10-02", coversTo: "2026-10-02", today: "2026-10-02", entriesInCover: 1 }));
-    await db.diaryEndorsement.create({ data: { id: `${P}yen1`, organisationId, contractId: CON, role: "SUPERIOR_OFFICER", personId: people.aisyah.id, visitedOn: day("2026-10-02"), coversFrom: day("2026-10-02"), coversTo: day("2026-10-02"), note: "", recordedAt: at("2026-10-02T10:30") } });
-    audit("DiaryEndorsement", `${P}yen1`, "site diary endorsed 02 Oct 2026", "CREATE", "2026-10-02T10:30", diffFields(null, { endorsedAs: ENDORSER_WORDS.SUPERIOR_OFFICER.en, endorsedBy: people.aisyah.name, visitedOn: "2026-10-02", coversFrom: "2026-10-02", coversTo: "2026-10-02", recordedOnBehalf: ON_BEHALF }));
+    await db.diaryEndorsement.create({ data: { id: `${P}wen1`, organisationId, contractId: CON, role: "SUPERIOR_OFFICER", personId: people.aisyah.id, visitedOn: day("2026-10-02"), coversFrom: day("2026-10-02"), coversTo: day("2026-10-02"), note: "", recordedAt: at("2026-10-02T10:30") } });
+    audit("DiaryEndorsement", `${P}wen1`, "site diary endorsed 02 Oct 2026", "CREATE", "2026-10-02T10:30", diffFields(null, { endorsedAs: ENDORSER_WORDS.SUPERIOR_OFFICER.en, endorsedBy: people.aisyah.name, visitedOn: "2026-10-02", coversFrom: "2026-10-02", coversTo: "2026-10-02", recordedOnBehalf: ON_BEHALF }));
 
     const obs = "Open trench at chainage 40 left unbarricaded over lunch; the contractor's agent was told (demo).";
     await recordedFor(people.chen.id, { act: "OBSERVATION" }, "2026-10-02");
     fail("observation", onSiteFaults({ possessionOn, on: "2026-10-02", today: "2026-10-02", note: obs }));
-    await db.complianceObservation.create({ data: { id: `${P}yob1`, organisationId, contractId: CON, area: "SAFETY", observedOn: day("2026-10-02"), personId: people.chen.id, note: obs, recordedAt: at("2026-10-02T11:00") } });
-    audit("ComplianceObservation", `${P}yob1`, "observation 02 Oct 2026", "CREATE", "2026-10-02T11:00", diffFields(null, { about: AREA_WORDS.SAFETY.en, observedOn: "2026-10-02", observedBy: `${people.chen.name}, as ${assignment.roleLabel}`, observation: obs, recordedOnBehalf: ON_BEHALF }));
+    await db.complianceObservation.create({ data: { id: `${P}wob1`, organisationId, contractId: CON, area: "SAFETY", observedOn: day("2026-10-02"), personId: people.chen.id, note: obs, recordedAt: at("2026-10-02T11:00") } });
+    audit("ComplianceObservation", `${P}wob1`, "observation 02 Oct 2026", "CREATE", "2026-10-02T11:00", diffFields(null, { about: AREA_WORDS.SAFETY.en, observedOn: "2026-10-02", observedBy: `${people.chen.name}, as ${assignment.roleLabel}`, observation: obs, recordedOnBehalf: ON_BEHALF }));
 
     const dir = "Review the date for completion against the slow mobilisation and submit a revised programme within 14 days (demo).";
     await recordedFor(people.chen.id, { principalOrSo: true }, "2026-10-02");
     fail("direction", onSiteFaults({ possessionOn, on: "2026-10-02", today: "2026-10-02", note: dir }));
-    await db.programmeDirection.create({ data: { id: `${P}ydi1`, organisationId, contractId: CON, cause: "OTHER_DELAY", directedOn: day("2026-10-02"), personId: people.chen.id, note: dir, recordedAt: at("2026-10-02T11:30") } });
-    audit("ProgrammeDirection", `${P}ydi1`, "direction 02 Oct 2026", "CREATE", "2026-10-02T11:30", diffFields(null, { calledForBy: CAUSE_WORDS.OTHER_DELAY.en, directedOn: "2026-10-02", directedBy: people.chen.name, directionGiven: dir, recordedOnBehalf: ON_BEHALF }));
+    await db.programmeDirection.create({ data: { id: `${P}wdi1`, organisationId, contractId: CON, cause: "OTHER_DELAY", directedOn: day("2026-10-02"), personId: people.chen.id, note: dir, recordedAt: at("2026-10-02T11:30") } });
+    audit("ProgrammeDirection", `${P}wdi1`, "direction 02 Oct 2026", "CREATE", "2026-10-02T11:30", diffFields(null, { calledForBy: CAUSE_WORDS.OTHER_DELAY.en, directedOn: "2026-10-02", directedBy: people.chen.name, directionGiven: dir, recordedOnBehalf: ON_BEHALF }));
 
     fail("party", partyFaults({ executed: true, kind: "NOMINATED_SUBCONTRACTOR", name: "Syarikat Demo Elektrik", sum: 2_500_000n, others: [] }));
-    await db.contractParty.create({ data: { id: `${P}ypt1`, organisationId, contractId: CON, kind: "NOMINATED_SUBCONTRACTOR", name: "Syarikat Demo Elektrik", sum: "25000.00", directPayment: false, provenance: "ASSUMED", note: "The pump-house electrical works (demo).", recordedAt: at("2026-10-01T06:00") } });
-    audit("ContractParty", `${P}ypt1`, `${PARTY_KIND_WORDS.NOMINATED_SUBCONTRACTOR.en.toLowerCase()} Syarikat Demo Elektrik`, "CREATE", "2026-10-01T06:00", diffFields(null, { partyType: PARTY_KIND_WORDS.NOMINATED_SUBCONTRACTOR.en, name: "Syarikat Demo Elektrik", partySum: "25000.00", paidDirect: "no", provenance: "ASSUMED" }), "The pump-house electrical works (demo).");
+    await db.contractParty.create({ data: { id: `${P}qpt1`, organisationId, contractId: CON, kind: "NOMINATED_SUBCONTRACTOR", name: "Syarikat Demo Elektrik", sum: "25000.00", directPayment: false, provenance: "ASSUMED", note: "The pump-house electrical works (demo).", recordedAt: at("2026-10-01T06:00") } });
+    audit("ContractParty", `${P}qpt1`, `${PARTY_KIND_WORDS.NOMINATED_SUBCONTRACTOR.en.toLowerCase()} Syarikat Demo Elektrik`, "CREATE", "2026-10-01T06:00", diffFields(null, { partyType: PARTY_KIND_WORDS.NOMINATED_SUBCONTRACTOR.en, name: "Syarikat Demo Elektrik", partySum: "25000.00", paidDirect: "no", provenance: "ASSUMED" }), "The pump-house electrical works (demo).");
   }
 
   await db.auditEntry.createMany({ data: audits });
@@ -272,7 +272,7 @@ export async function wipeSupervision(db: Db, contractIds: readonly string[]) {
 /// The supervision configuration the demo created (rows by demo id; the S.O. rows go with the demo matrix).
 export async function wipeSupervisionConfig(db: Db) {
   const sub = (s: string) => ({ id: { startsWith: `${P}${s}` } });
-  await db.postAwardPolicy.deleteMany({ where: sub("ypa") });
-  await db.formDistribution.deleteMany({ where: sub("yfd") });
-  await db.formSignatureBlock.deleteMany({ where: sub("ysb") });
+  await db.postAwardPolicy.deleteMany({ where: sub("wpa") });
+  await db.formDistribution.deleteMany({ where: sub("wfd") });
+  await db.formSignatureBlock.deleteMany({ where: sub("wsb") });
 }
