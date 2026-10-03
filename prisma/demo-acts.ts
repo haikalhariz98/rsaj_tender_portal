@@ -34,6 +34,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "../src/generated/prisma/client";
 
+import { demoInstant, onDemoClock, RealDate } from "./demo-clock";
+
 // ------------------------------------------------------------------ next/cache outside Next
 
 const STUB = "data:text/javascript," + encodeURIComponent("export function revalidatePath() {}\nexport function revalidateTag() {}\nexport function refresh() {}\n");
@@ -53,36 +55,7 @@ const STUBBED = new Set(["next/cache"]);
 
 // ------------------------------------------------------------------ the clock
 
-const RealDate = Date;
-let fixed: number | null = null;
-class DemoDate extends RealDate {
-  constructor(...args: unknown[]) {
-    if (args.length === 0 && fixed != null) super(fixed);
-    else super(...(args as []));
-  }
-  static now() {
-    return fixed ?? RealDate.now();
-  }
-  /// Any date is a Date, whichever constructor made it (a row read before the act, a driver's own).
-  static [Symbol.hasInstance](x: unknown) {
-    return x instanceof RealDate;
-  }
-}
-/// The demo's clock is in place only while an act runs; outside it, Date is the real one.
-async function onDemoClock<T>(when: string, fn: () => Promise<T>): Promise<T> {
-  fixed = kl(when).getTime();
-  globalThis.Date = DemoDate as unknown as DateConstructor;
-  try {
-    return await fn();
-  } finally {
-    globalThis.Date = RealDate;
-    fixed = null;
-  }
-}
-
-/// A local time in Kuala Lumpur ("2026-06-09T10:00", UTC+8, no daylight saving) as the instant.
-export const kl = (local: string) => new RealDate(RealDate.parse(`${local}:00.000+08:00`));
-
+// The demo's clock lives in demo-clock.ts (no side effect on import, so it is tested on its own).
 // ------------------------------------------------------------------ demo ids
 
 const P = "demo_";
@@ -203,7 +176,7 @@ const rows = (x: unknown): Row[] => (Array.isArray(x) ? (x as Row[]) : x && type
 function inject(model: string, data: Row | undefined) {
   if (!data) return;
   if (data.id == null) data.id = demoIdFor(model);
-  for (const f of SCHEMA.stamped[model] ?? []) if (data[f] == null && fixed != null) data[f] = new RealDate(fixed);
+  for (const f of SCHEMA.stamped[model] ?? []) if (data[f] == null && demoInstant() != null) data[f] = new RealDate(demoInstant()!);
   children(model, data, data.id as string);
 }
 
@@ -287,13 +260,14 @@ export async function act(when: string, what: string, action: Action, fields: Re
     if (v == null) continue;
     for (const x of Array.isArray(v) ? v : [v]) form.append(k, x);
   }
+  const outerIds = idsOn;
   idsOn = opts.ids ?? true;
   try {
     const r = await onDemoClock(when, () => action({ ok: false }, form));
     if (!r.ok) throw new Error(`Demo act refused (${what}, ${when}): ${r.message ?? ""} ${r.errors ? JSON.stringify(r.errors) : ""}`.trim());
     return r;
   } finally {
-    idsOn = false;
+    idsOn = outerIds;
   }
 }
 
@@ -304,6 +278,7 @@ export async function at<T>(when: string, fn: () => Promise<T>): Promise<T> {
 
 /// A route handler's act (the committee's vote API) at its instant: a refusal (not 2xx) stops the load.
 export async function actRoute(when: string, what: string, handler: () => Promise<Response>, opts: { ids?: boolean } = {}): Promise<unknown> {
+  const outerIds = idsOn;
   idsOn = opts.ids ?? true;
   try {
     const r = await onDemoClock(when, handler);
@@ -311,6 +286,6 @@ export async function actRoute(when: string, what: string, handler: () => Promis
     if (!r.ok) throw new Error(`Demo act refused (${what}, ${when}): ${JSON.stringify(body)}`);
     return body;
   } finally {
-    idsOn = false;
+    idsOn = outerIds;
   }
 }
