@@ -24,7 +24,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 import { baselineOn } from "@/lib/payment/load";
 import { loadRoster } from "@/lib/people/load";
-import { percentLabel, percentLabelText, variationReading } from "@/lib/variation/percent";
+import { percentLabel, percentLabelText, variationReading, type Reading } from "@/lib/variation/percent";
 import { capacityFor, capacityText, type ActNeed, type Capacity } from "@/lib/supervision/authority";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 import { supervisionRefusal } from "@/lib/supervision/labels";
@@ -35,7 +35,7 @@ import { BASE_WORDS, BASIS_WORDS, DIRECTION_WORDS, EVENT_WORDS, EXEMPTION_WORDS,
 import { adjustmentInProgress, CONSENT_DOMAIN, consentOf, factsOf, issuedAdjustments, liveInstructionRow, liveOrderRow, loadAdjustments, loadVariations, matterFactsOf, orderNetOf, ordersAdjusted, standingMeasurements, type VariationRow } from "@/lib/variation/load";
 import { dayworkFaults, measuredAmount, measurementFaults, parseQuantity, parseSignedPercent, removeMeasurementFaults } from "@/lib/variation/measure";
 import { applicationFigures, orderFaults, orderFigures } from "@/lib/variation/order";
-import { applicationPercents, edgesOf } from "@/lib/variation/route";
+import { applicationPercents, orderBands } from "@/lib/variation/route";
 import { tableStepFaults } from "@/lib/variation/tabling";
 import { chooseVariationRejection, citeVariationDecision, decideVariationStep, matrixToday, sendVariationRoute, VariationRefusal, variationLabel, type VariationCtx } from "@/lib/variation/route-write";
 import { ADJUSTMENT_DIRECTIONS, ADJUSTMENT_TRIGGERS, RATE_SOURCES, SO_DECISIONS, VARIATION_EVENTS, VARIATION_EXEMPTIONS, VARIATION_ORIGINS, type AdjustmentTrigger, type Finding, type VariationEvent, type VariationExemption } from "@/lib/variation/types";
@@ -821,14 +821,23 @@ export async function raiseVariationOrder(_prev: FormState, data: FormData): Pro
     const facts = all.map(factsOf);
     const self = facts.find((x) => x.id === v.id)!;
     const cumulative = cumulativeApproved(facts, null);
+    // Acceptance S-5: labelled on the bands of its own approved prior-approval route as frozen with it (a funding
+    // override's included); exempt or unrouted, on the issued matrix's variation bands; the certificate says which.
     const m = await matrixToday(c);
-    const edges = m ? edgesOf(m.issue.matrix.rules, "vo") : [];
+    const prior = [...v.approvals].filter((a) => a.event === "PRIOR" && a.approvalInstance.status === "APPROVED").at(-1) ?? null;
+    const bands = orderBands({
+      prior: prior ? { edges: (prior.reading as Reading | null)?.edges, matrixLabel: prior.approvalInstance.matrixLabel, overrideLabel: prior.approvalInstance.fundingOverrideApplied ? prior.approvalInstance.overrideMatrixLabel : null } : null,
+      exempt: v.exemption != null,
+      issuedRules: m?.issue.matrix.rules ?? [],
+      issuedLabel: m?.issue.label ?? null,
+    });
+    const edges = bands.edges;
     const policy = await policyOf(c);
     const adjustments = issuedAdjustments(await loadAdjustments(c.l.contract.id, c.tx));
     const den = policy?.variationBase === "REVISED" ? adjustments.reduce((a, x) => a + x.net, baseline.values.contractSum) : baseline.values.contractSum;
     const cumPct = den > 0n ? percentLabelText(percentLabel({ num: cumulative, den }, edges)) : { en: "Not read: the contract sum is nothing", ms: "Tidak dibaca" };
     const linesIn = lines.map((x) => ({ itemRef: x.itemRef, description: x.description, particulars: `${decimalText(x.quantity)} ${x.unit} at ${formatMoney(senFromDecimal(x.baseRate))}${x.adjustmentPct ? `, adjusted ${decimalText(x.adjustmentPct)}%` : ""}${x.rateSource === "AGREED_RATE" ? " (agreed rate)" : x.bqItemRef ? ` (${x.bqItemRef})` : ""}`, amount: senFromDecimal(x.amount), direction: x.direction as "ADDITION" | "OMISSION" }));
-    const o = orderFigures({ computedOn: c.today, original: baseline.values.contractSum, reference: v.reference!, instruction: { number: ins!.certificate.number ?? "", date: day(ins!.certificate.certificateDate) }, description, clauseTitle: clause!.titleEn, exemption: v.exemption ? EXEMPTION_WORDS[v.exemption as VariationExemption] : null, lines: linesIn, approved: approvedValue(self), cumulative, cumulativePct: cumPct });
+    const o = orderFigures({ computedOn: c.today, original: baseline.values.contractSum, reference: v.reference!, instruction: { number: ins!.certificate.number ?? "", date: day(ins!.certificate.certificateDate) }, description, clauseTitle: clause!.titleEn, exemption: v.exemption ? EXEMPTION_WORDS[v.exemption as VariationExemption] : null, lines: linesIn, approved: approvedValue(self), cumulative, cumulativePct: cumPct, cumulativeBands: bands.words });
     const agreedRateTotal = lines.filter((x) => x.rateSource === "AGREED_RATE").reduce((a, x) => a + (x.direction === "ADDITION" ? senFromDecimal(x.amount) : 0n), 0n);
     // Approved on the variation's own routes (its approval of record), so never on a routing sheet.
     const certId = await openCertificate(c.tx, c.l, { kind: "VARIATION", templateId: kind.templateId, routingTypeId: null, sectionId: null, computed: o.snapshot }, c.now, c.today);

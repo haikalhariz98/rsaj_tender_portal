@@ -7,8 +7,8 @@ import { DAL_FIXTURE } from "@/lib/authority/dal-fixture";
 import type { Matrix, Rule } from "@/lib/authority/types";
 import { parseSen } from "@/lib/money";
 
-import { variationReading } from "./percent";
-import { applicationPercents, edgesOf, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel, sentLabelOf } from "./route";
+import { percentLabel, percentLabelText, variationReading } from "./percent";
+import { applicationPercents, edgesOf, orderBands, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel, sentLabelOf } from "./route";
 
 /**
  * A variation's route on the matrix (FR-VAR-011, 012, 010, FR-PAD-004; ADR 0024 Amendment 1), on the spec's worked
@@ -161,5 +161,49 @@ describe("run 3 residual C1: a route sent before its label was frozen says so", 
   });
   it("not frozen: read now on the rows given, and marked not frozen", () => {
     expect(sentLabelOf(reading, rows, "vo")).toEqual({ en: "more than 10.00%", ms: "lebih daripada 10.00%", frozen: false });
+  });
+});
+
+describe("acceptance S-5: the order's cumulative percentage is labelled on its prior approval route's bands", () => {
+  // Issued `vo` rows: an edge at 10%. A funding override's `vo` rows: an edge at 15%, frozen with the prior route.
+  const issued = [{ domain: "vo", pctMin: null, pctMax: "10" }, { domain: "vo", pctMin: "10", pctMax: null }];
+  const den = S("750000.00");
+  const label = (num: bigint, edges: readonly string[]) => percentLabelText(percentLabel({ num, den }, edges)).en;
+  const underOverride = { edges: ["15"], matrixLabel: "Demo limits, issue 1", overrideLabel: "Funder limits, issue 2" };
+
+  it("a cumulative exactly on the override's edge reads on it, and a sen above it reads above it; the certificate names the override", () => {
+    const b = orderBands({ prior: underOverride, exempt: false, issuedRules: issued, issuedLabel: "Demo limits, issue 1" });
+    expect(b.edges).toEqual(["15"]);
+    expect(label(S("112500.00"), b.edges)).toBe("15.00%");
+    expect(label(S("112500.01"), b.edges)).toBe("more than 15.00%");
+    // On the issued rows a sen above 10% would read "more than 10.00%"; on the override's it is plain.
+    expect(label(S("75000.01"), b.edges)).toBe("10.00%");
+    expect(label(S("75000.01"), edgesOf(issued, "vo"))).toBe("more than 10.00%");
+    expect(b.words.en).toBe("The bands of this variation's prior approval route (Funder limits, issue 2, the funding override)");
+    expect(b.words.ms).toMatch(/^Jalur laluan kelulusan terdahulu .*Funder limits, issue 2, penggantian sumber pembiayaan\)$/);
+  });
+
+  it("no override: the route's own matrix, by its label", () => {
+    expect(orderBands({ prior: { ...underOverride, edges: ["10"], overrideLabel: null }, exempt: false, issuedRules: issued, issuedLabel: "x" }).words.en).toBe("The bands of this variation's prior approval route (Demo limits, issue 1)");
+  });
+
+  it("an exempt variation reads the issued matrix's variation bands, and says so", () => {
+    const b = orderBands({ prior: null, exempt: true, issuedRules: issued, issuedLabel: "Demo limits, issue 1" });
+    expect(b.edges).toEqual(["10"]);
+    expect(label(S("75000.01"), b.edges)).toBe("more than 10.00%");
+    expect(b.words.en).toBe("The issued matrix's variation bands (Demo limits, issue 1; exempt from prior approval)");
+    expect(b.words.ms).toBe("Jalur perubahan kerja matriks yang dikeluarkan (Demo limits, issue 1; dikecualikan daripada kelulusan terdahulu)");
+  });
+
+  it("unrouted, or a route sent before its edges were frozen: the issued bands, said so", () => {
+    expect(orderBands({ prior: null, exempt: false, issuedRules: issued, issuedLabel: "L" }).words.en).toBe("The issued matrix's variation bands (L; no prior approval route)");
+    expect(orderBands({ prior: { matrixLabel: "L", overrideLabel: null }, exempt: false, issuedRules: issued, issuedLabel: "L" }).words.en).toBe("The issued matrix's variation bands (L; its prior approval's bands were not frozen with it)");
+  });
+
+  it("the route freezes its domain's edges with its reading, and the order reads them", () => {
+    expect(readFileSync(path.join(__dirname, "route-write.ts"), "utf8")).toContain("const reading: Reading = { ...i.reading, domain, label, edges: edgesOf(src.matrix.rules, domain) };");
+    const act = readFileSync(path.join(__dirname, "../../app/projects/[id]/variation-actions.ts"), "utf8");
+    expect(act).toContain("edges: (prior.reading as Reading | null)?.edges");
+    expect(act).toContain("cumulativeBands: bands.words");
   });
 });

@@ -107,6 +107,8 @@ export interface OrderFiguresInput {
   approved: Sen;
   cumulative: Sen;
   cumulativePct: Bilingual;
+  /// Which bands the cumulative percentage was read against (acceptance S-5).
+  cumulativeBands: Bilingual;
 }
 
 export interface OrderTotals {
@@ -142,6 +144,7 @@ export function orderFigures(i: OrderFiguresInput): { snapshot: ComputedSnapshot
     m("approved", "Approved value of this variation (prior approval and increases)", "Nilai diluluskan perubahan kerja ini (kelulusan terdahulu dan tambahan)", i.approved),
     m("cumulative", "Cumulative approved variations to date", "Kumulatif perubahan kerja diluluskan setakat ini", i.cumulative),
     text("cumulativePct", "Cumulative percentage", "Peratus kumulatif", i.cumulativePct.en, i.cumulativePct.ms),
+    text("cumulativeBands", "Percentage read against", "Peratus dibaca berdasarkan", i.cumulativeBands.en, i.cumulativeBands.ms),
   ];
   const totals: FigureTotal[] = [t("net", "Net value of this variation", "Nilai bersih perubahan kerja ini", [["additions", 1], ["omissions", -1]])];
   return { snapshot: { version: 1, computedOn: i.computedOn, rule: { en: "Variation Order Certificate: the measured additions less the measured omissions", ms: "Perakuan Perubahan Kerja: penambahan diukur tolak pengurangan diukur" }, lines, totals, routingRatio: null }, totals: tot };

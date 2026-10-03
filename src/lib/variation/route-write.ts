@@ -56,7 +56,7 @@ import { EVENT_WORDS, variationRefusal } from "./labels";
 import { refusalKinds, variationRefusalOutcome } from "./application";
 import { factsOf, matterRecordOf, type VariationRow } from "./load";
 import { ratioOf, type Reading } from "./percent";
-import { regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel } from "./route";
+import { edgesOf, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel } from "./route";
 import type { Finding, VariationEvent } from "./types";
 
 /// A refusal: rolls the transaction back. `errors` names a field where the refusal is about one.
@@ -167,7 +167,7 @@ export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: Se
   });
   // The percentage's label against the edges of the domain this route is resolved on, frozen with its reading.
   const label = routePercentLabel(src.matrix.rules, domain, ratioOf(i.reading));
-  const reading: Reading = { ...i.reading, domain, label };
+  const reading: Reading = { ...i.reading, domain, label, edges: edgesOf(src.matrix.rules, domain) };
   const appr = await c.tx.variationApproval.create({ data: { organisationId: c.l.org.id, variationId: v.id, event: i.event, approvalInstanceId: inst.id, value: senToDecimalString(i.value), reading: reading as unknown as Prisma.InputJsonValue, sentByPersonId: i.submittedBy.id, sentOn: on, sentAt: c.now } });
   await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalInstance", entityId: inst.id, entityLabel: routeLabel(c, v), reason: "" }, "CREATE",
     diffFields(null, {

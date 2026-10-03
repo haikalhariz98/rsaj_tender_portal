@@ -103,3 +103,26 @@ export function sentLabelOf(r: Reading, rules: readonly Pick<Rule, "domain" | "p
   if (r.label) return { ...r.label, frozen: true };
   return { ...routePercentLabel(rules, r.domain ?? domain, ratioOf(r)), frozen: false };
 }
+
+/**
+ * Acceptance S-5: the bands a Variation Order Certificate's cumulative percentage is labelled on, and the words that
+ * say which. The variation's own approved prior-approval route, as frozen with it (its domain's edges on the matrix it
+ * was resolved on, a funding override's included); exempt from prior approval, or with no prior approval route (or
+ * one sent before its edges were frozen), the issued matrix's variation (`vo`) bands, said so. Pure.
+ */
+export function orderBands(i: {
+  /// The approved prior-approval route's frozen reading and its matrix labels, or null.
+  prior: { edges?: readonly string[]; matrixLabel: string | null; overrideLabel: string | null } | null;
+  exempt: boolean;
+  /// The issued matrix today and its label (null: none issued).
+  issuedRules: readonly Pick<Rule, "domain" | "pctMin" | "pctMax">[];
+  issuedLabel: string | null;
+}): { edges: string[]; words: { en: string; ms: string } } {
+  if (!i.exempt && i.prior?.edges) {
+    const on = i.prior.overrideLabel ? { en: `${i.prior.overrideLabel}, the funding override`, ms: `${i.prior.overrideLabel}, penggantian sumber pembiayaan` } : { en: i.prior.matrixLabel ?? "its matrix", ms: i.prior.matrixLabel ?? "matriksnya" };
+    return { edges: [...i.prior.edges], words: { en: `The bands of this variation's prior approval route (${on.en})`, ms: `Jalur laluan kelulusan terdahulu perubahan kerja ini (${on.ms})` } };
+  }
+  const why = i.exempt ? { en: "exempt from prior approval", ms: "dikecualikan daripada kelulusan terdahulu" } : i.prior ? { en: "its prior approval's bands were not frozen with it", ms: "jalur kelulusan terdahulunya tidak dibekukan bersamanya" } : { en: "no prior approval route", ms: "tiada laluan kelulusan terdahulu" };
+  const label = i.issuedLabel ?? "none issued";
+  return { edges: edgesOf(i.issuedRules, "vo"), words: { en: `The issued matrix's variation bands (${label}; ${why.en})`, ms: `Jalur perubahan kerja matriks yang dikeluarkan (${label}; ${why.ms})` } };
+}

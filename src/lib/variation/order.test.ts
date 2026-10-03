@@ -32,7 +32,7 @@ describe("the order's figures (VO-663, FR-VAR-020)", () => {
     { itemRef: "V1/2", description: "Valve DN300", particulars: "1 no at RM84,600.00", amount: S("84600.00"), direction: "ADDITION" as const },
     { itemRef: "V1/3", description: "Omitted thrust block", particulars: "1 no at RM1,100.00", amount: S("1100.00"), direction: "OMISSION" as const },
   ];
-  const o = orderFigures({ computedOn: "2026-06-20", original: S("750000.00"), reference: "VO/2026/0001", instruction: { number: "DEMO/CERT/00300", date: "2026-05-20" }, description: "Additional valve chamber", clauseTitle: "Valuation of variations", exemption: null, lines, approved: S("90000.00"), cumulative: S("65000.00"), cumulativePct: { en: "20.67%", ms: "20.67%" } });
+  const o = orderFigures({ computedOn: "2026-06-20", original: S("750000.00"), reference: "VO/2026/0001", instruction: { number: "DEMO/CERT/00300", date: "2026-05-20" }, description: "Additional valve chamber", clauseTitle: "Valuation of variations", exemption: null, lines, approved: S("90000.00"), cumulative: S("65000.00"), cumulativePct: { en: "20.67%", ms: "20.67%" }, cumulativeBands: { en: "The bands of this variation's prior approval route (Demo limits, issue 1)", ms: "Jalur laluan kelulusan terdahulu perubahan kerja ini (Demo limits, issue 1)" } });
   it("net = additions 90,600.00 − omissions 1,100.00 = 89,500.00, an addition", () => {
     expect(o.totals).toEqual({ additions: S("90600.00"), omissions: S("1100.00"), net: S("89500.00"), direction: "ADDITION" });
     expect(snapshotFaults(o.snapshot)).toEqual([]);

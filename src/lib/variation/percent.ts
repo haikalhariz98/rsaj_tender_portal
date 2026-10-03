@@ -53,6 +53,10 @@ export interface Reading {
   /// labelled against that domain's own band edges (OD-A3 A). Screens and the trail read these, never re-label.
   domain?: string;
   label?: { en: string; ms: string };
+  /// Frozen with it too (acceptance S-5): the band edges of that domain on the matrix the route was resolved on (the
+  /// override's under a funding override), so a later figure of this variation (its order's cumulative) is labelled on
+  /// the same bands.
+  edges?: string[];
 }
 
 export type ReadingResult = { ok: true; reading: Reading; ratio: ExactRatio } | { ok: false; faults: Finding[] };
