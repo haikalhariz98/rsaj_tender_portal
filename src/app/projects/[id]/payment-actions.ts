@@ -19,7 +19,7 @@ import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
 import { assembleInputOf, baselineOn, inProgress, issuedInterims, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
-import { releaseOf } from "@/lib/payment/retention";
+import { firstReleaseShare, releaseOf } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, RETENTION_RELEASES, VALUATION_TRIGGERS, type Finding, type PackItem } from "@/lib/payment/types";
 import { calendarFaults, jointFaults, openFaults } from "@/lib/payment/valuation";
 import { capacityFor, capacityText, type ActNeed, type Capacity } from "@/lib/supervision/authority";
@@ -427,7 +427,7 @@ export async function releaseRetention(_prev: FormState, data: FormData): Promis
     const first = p.retentionReleases.find((x) => x.kind === "RELEASED_FIRST") ?? null;
     const balance = p.retentionReleases.find((x) => x.kind === "RELEASED_BALANCE") ?? null;
     const policy = (await configOf(c)).policy;
-    const pct = policy?.firstReleasePct == null ? null : policy.firstReleasePct.toString().replace(/\.?0+$/, "");
+    const pct = firstReleaseShare(policy?.firstReleasePct);
     const handover = p.siteRecordsHandovers.at(-1) ?? null;
     const rel = releaseOf({ kind: release, held: held!.held, already: { first: !!first, balance: !!balance }, firstReleasePct: pct, asBuiltHandedOver: !!handover, makingGoodIssued: false, firstReleased: first ? { MAIN: senFromDecimal(first.main), NSC: senFromDecimal(first.nsc), NS: senFromDecimal(first.ns) } : { MAIN: 0n, NSC: 0n, NS: 0n } });
     if (rel.faults.length) refuse("Not released:", rel.faults);

@@ -16,6 +16,7 @@
  * Pure: sen as bigint, percentages as decimal strings, no float anywhere.
  */
 
+import { decimalText } from "@/lib/format";
 import type { Sen } from "@/lib/money";
 import { pctOfSen, ratioOfSen } from "@/lib/securities/money";
 
@@ -133,3 +134,7 @@ export function releaseOf(i: ReleaseInput): { faults: Finding[]; amounts: Tiers 
   if (faults.length) return { faults, amounts: null };
   return { faults, amounts: { MAIN: i.held!.MAIN - i.firstReleased.MAIN, NSC: i.held!.NSC - i.firstReleased.NSC, NS: i.held!.NS - i.firstReleased.NS } };
 }
+
+/// The first release's share as the release act and the Payments tab both read it from the stored Decimal(9,4)
+/// (50.0000 → "50"); null where Configuration › Post-award has not set it.
+export const firstReleaseShare = (stored: { toString(): string } | null | undefined): string | null => decimalText(stored);

@@ -88,6 +88,15 @@ export function formatValueBand(min: number | null, max: number | null): string 
   return `${compactRM(min)} – ${compactRM(max)}`;
 }
 
+/// A stored Decimal as written for a person, without the fractional zeros: 50.0000 → "50", 12.5000 → "12.5",
+/// 100 → "100", 0.0500 → "0.05". Only zeros after the point go: a Decimal's own text has none for a whole number
+/// ("50"), so stripping zeros from the end of that would read 50 as 5. Null stays null.
+export function decimalText(v: { toString(): string } | string | null | undefined): string | null {
+  if (v == null) return null;
+  const s = v.toString();
+  return s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s;
+}
+
 /// A percentage band, for variations: "≤ 20%", "20% – 50%", "> 50%".
 /// A percentage band as its edges are stored (Decimal(9,4) strings, ADR 0024 Amendment 1), with the side the
 /// issue's switch puts an edge on: true (min, max] reads "≤ 10%" and "> 10%"; false [min, max) reads "< 10%"

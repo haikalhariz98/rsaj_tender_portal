@@ -11,7 +11,7 @@ import type { CertificateStatus } from "@/lib/certificate/types";
 import { SOURCE_WORDS } from "@/lib/contract/labels";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { dayPlus, storedDay } from "@/lib/dates";
-import { formatDate } from "@/lib/format";
+import { decimalText, formatDate } from "@/lib/format";
 import { ladLine } from "@/lib/lad/charge";
 import { decisionFaults, warningFaults } from "@/lib/lad/non-completion";
 import { formatMoney, parseSen, senFromDecimal, type Sen } from "@/lib/money";
@@ -19,7 +19,7 @@ import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type As
 import { ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
 import { assembleInputOf, baselineOn, decisionOf, inProgress, issuedInterims, kindSettingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
-import { releaseOf, retentionReading } from "@/lib/payment/retention";
+import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, VALUATION_TRIGGERS, type Finding } from "@/lib/payment/types";
 import { issueClockFrom, openFaults } from "@/lib/payment/valuation";
 import { PARTY_KIND_WORDS } from "@/lib/supervision/labels";
@@ -379,7 +379,7 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
   const held = heldOnLatest(v.issued);
   const first = v.p.retentionReleases.find((x) => x.kind === "RELEASED_FIRST") ?? null;
   const balance = v.p.retentionReleases.find((x) => x.kind === "RELEASED_BALANCE") ?? null;
-  const pct = v.cfg.policy?.firstReleasePct == null ? null : v.cfg.policy.firstReleasePct.toString().replace(/\.?0+$/, "");
+  const pct = firstReleaseShare(v.cfg.policy?.firstReleasePct);
   const handed = v.p.siteRecordsHandovers.length > 0;
   const releaseBlock = (kind: "RELEASED_FIRST" | "RELEASED_BALANCE") => {
     if (!held) return paymentFaultText({ code: "NO_ISSUED_INTERIM", level: "block" });
@@ -429,7 +429,7 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
               <li key={r.id} className={row}>
                 <span className="min-w-0">
                   <span className={head}>{`${RELEASE_WORDS[r.kind].en} · ${formatMoney(senFromDecimal(r.main) + senFromDecimal(r.nsc) + senFromDecimal(r.ns))}`}</span>
-                  <span className={sub}>{`${formatDate(day(r.releasedOn))}, from interim certificate ${r.basisCertificate.sequence ?? ""} (${r.basisCertificate.number ?? "not numbered"})${r.pct ? `, ${r.pct.toString().replace(/\.?0+$/, "")}% of what it held` : ""}; recorded for ${r.person.name}`}</span>
+                  <span className={sub}>{`${formatDate(day(r.releasedOn))}, from interim certificate ${r.basisCertificate.sequence ?? ""} (${r.basisCertificate.number ?? "not numbered"})${r.pct ? `, ${decimalText(r.pct)}% of what it held` : ""}; recorded for ${r.person.name}`}</span>
                 </span>
               </li>
             ))}
