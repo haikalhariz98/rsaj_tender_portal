@@ -20,6 +20,7 @@ import { resolveUnderFunder, type FunderContext } from "@/lib/method/approval";
 import { amountOf, senToDecimalString, type Sen } from "@/lib/money";
 import type { ExactRatio } from "@/lib/percent-band";
 
+import { percentLabel, percentLabelText } from "./percent";
 import type { Finding, VariationEvent } from "./types";
 
 /// The matrix domain each event routes on (an exhaustive map), in the tender regime; a re-measurement in the
@@ -68,3 +69,7 @@ export function resolveVariationRoute(ctx: FunderContext, q: VariationRouteQuery
 
 /// The band edges a domain's rows state (for OD-A3's label): every percentage edge of the matrix's rows on it.
 export const edgesOf = (rules: readonly Pick<Rule, "domain" | "pctMin" | "pctMax">[], domain: string): string[] => [...new Set(rules.filter((r) => r.domain === domain).flatMap((r) => [r.pctMin, r.pctMax]).filter((e): e is string => e != null))];
+
+/// OD-A3 A, as frozen with a route (run 3 review MUST 2): the percentage labelled against the band edges of the domain
+/// the route is actually resolved on (an increase, agreed rates and a re-measurement have their own rows).
+export const routePercentLabel = (rules: readonly Pick<Rule, "domain" | "pctMin" | "pctMax">[], domain: string, ratio: ExactRatio): { en: string; ms: string } => percentLabelText(percentLabel(ratio, edgesOf(rules, domain)));

@@ -55,7 +55,7 @@ import { EVENT_WORDS, variationRefusal } from "./labels";
 import { refusalKinds } from "./application";
 import { factsOf, matterRecordOf, type VariationRow } from "./load";
 import { ratioOf, type Reading } from "./percent";
-import { regimeOf, resolveVariationRoute, routeDomainOf } from "./route";
+import { regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel } from "./route";
 import type { Finding, VariationEvent } from "./types";
 
 /// A refusal: rolls the transaction back. `errors` names a field where the refusal is about one.
@@ -112,7 +112,7 @@ export interface SendInput {
 }
 
 /// Resolve and open the route (the act has judged `sendFaults` and the reading on the locked rows).
-export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: SendInput): Promise<string> {
+export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: SendInput): Promise<{ id: string; label: { en: string; ms: string } }> {
   const m = await matrixToday(c);
   if (!m) return refuse("Not sent for approval:", [{ code: "NO_MATRIX", level: "block", data: { day: c.today } }]);
   const contractValue = BigInt(i.reading.den);
@@ -162,13 +162,17 @@ export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: Se
       },
     },
   });
-  const appr = await c.tx.variationApproval.create({ data: { organisationId: c.l.org.id, variationId: v.id, event: i.event, approvalInstanceId: inst.id, value: senToDecimalString(i.value), reading: i.reading as unknown as Prisma.InputJsonValue, sentByPersonId: i.submittedBy.id, sentOn: on, sentAt: c.now } });
+  // The percentage's label against the edges of the domain this route is resolved on, frozen with its reading.
+  const label = routePercentLabel(src.matrix.rules, domain, ratioOf(i.reading));
+  const reading: Reading = { ...i.reading, domain, label };
+  const appr = await c.tx.variationApproval.create({ data: { organisationId: c.l.org.id, variationId: v.id, event: i.event, approvalInstanceId: inst.id, value: senToDecimalString(i.value), reading: reading as unknown as Prisma.InputJsonValue, sentByPersonId: i.submittedBy.id, sentOn: on, sentAt: c.now } });
   await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalInstance", entityId: inst.id, entityLabel: routeLabel(c, v), reason: "" }, "CREATE",
     diffFields(null, {
       approval: EVENT_WORDS[i.event].en,
       matrix: m.issue.label,
       rule: rule.labelEn,
       routedOn: senToDecimalString(i.value),
+      readAs: label.en,
       readOver: senToDecimalString(contractValue),
       route: r.resolution.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "),
       fundingOverrideApplied: src.override != null,
@@ -176,7 +180,7 @@ export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: Se
       recordedOnBehalf: "not signed",
     }));
   void appr;
-  return inst.id;
+  return { id: inst.id, label };
 }
 
 export interface DecideInput {

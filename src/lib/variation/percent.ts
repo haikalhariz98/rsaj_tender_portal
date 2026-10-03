@@ -49,6 +49,10 @@ export interface Reading {
   cumulative: boolean;
   cumulativeApproved: string;
   value: string;
+  /// Frozen when the route is sent (run 3 review MUST 2): the matrix domain it was routed on, and the percentage as
+  /// labelled against that domain's own band edges (OD-A3 A). Screens and the trail read these, never re-label.
+  domain?: string;
+  label?: { en: string; ms: string };
 }
 
 export type ReadingResult = { ok: true; reading: Reading; ratio: ExactRatio } | { ok: false; faults: Finding[] };

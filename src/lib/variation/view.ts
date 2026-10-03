@@ -14,7 +14,8 @@ import { loadPostAwardPolicy } from "@/lib/supervision/load";
 
 import { cumulativeApproved } from "./application";
 import { factsOf, issuedAdjustments, loadAdjustments, loadVariations } from "./load";
-import { edgesOf } from "./route";
+import { ratioOf, type Reading } from "./percent";
+import { edgesOf, routePercentLabel } from "./route";
 
 export async function variationView(l: LoadedContract, today: string | null) {
   const [all, adjustments, policy, kinds, issue] = await Promise.all([
@@ -32,9 +33,13 @@ export async function variationView(l: LoadedContract, today: string | null) {
   const cumulative = cumulativeApproved(facts, null);
   // The sum the percentage is taken over, as set (null: not set, or no baseline in force).
   const base = policy?.variationBase === "REVISED" ? revised : policy?.variationBase === "ORIGINAL" ? original : null;
+  // The prior approval's bands (`vo`), for a reading made now; a sent route reads its own frozen label, or its own
+  // domain's edges (`labelOf`), never vo's for an increase, agreed rates or a re-measurement.
   const edges = issue ? edgesOf(issue.matrix.rules, "vo") : [];
+  const rules = issue?.matrix.rules ?? [];
+  const labelOf = (r: Reading, domain: string) => r.label ?? routePercentLabel(rules, r.domain ?? domain, ratioOf(r));
   const formSet = (k: string) => !!kinds.find((x) => x.kind === k)?.templateId;
-  return { all, facts, adjustments, issued, policy, baseline, original, revised, cumulative, base, edges, formSet, matrixLabel: issue?.label ?? null };
+  return { all, facts, adjustments, issued, policy, baseline, original, revised, cumulative, base, edges, labelOf, formSet, matrixLabel: issue?.label ?? null };
 }
 
 export type VariationView = Awaited<ReturnType<typeof variationView>>;

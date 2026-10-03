@@ -5,7 +5,7 @@ import type { Matrix, Rule } from "@/lib/authority/types";
 import { parseSen } from "@/lib/money";
 
 import { variationReading } from "./percent";
-import { edgesOf, regimeOf, resolveVariationRoute, routeDomainOf } from "./route";
+import { edgesOf, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel } from "./route";
 
 /**
  * A variation's route on the matrix (FR-VAR-011, 012, 010, FR-PAD-004; ADR 0024 Amendment 1), on the spec's worked
@@ -98,5 +98,18 @@ describe("the domains a variation's matters are on", () => {
   it("every event's domain, and the funder's consent, and nothing else", async () => {
     const { VARIATION_DOMAINS } = await import("./domains");
     expect([...VARIATION_DOMAINS].sort()).toEqual([...new Set([...Object.values((await import("./route")).EVENT_DOMAIN), "vo_funder_consent"])].sort());
+  });
+});
+
+describe("run 3 review MUST 2: the label frozen with a route reads its own domain's edges (OD-A3 A)", () => {
+  it("a re-measurement at 30.004% of RM1,000,000 reads \"more than 30.00%\" on the re-measurement rows", () => {
+    expect(routePercentLabel(MATRIX.rules, "remeasurement", { num: S("300040.00"), den: S("1000000.00") })).toEqual({ en: "more than 30.00%", ms: "lebih daripada 30.00%" });
+  });
+  it("exactly 30.00% is on the edge, and a domain with no 30% edge never reads one beside it", () => {
+    expect(routePercentLabel(MATRIX.rules, "remeasurement", { num: S("300000.00"), den: S("1000000.00") }).en).toBe("30.00%");
+    expect(routePercentLabel(MATRIX.rules, "vo_agreed_rate", { num: S("300040.00"), den: S("1000000.00") }).en).toBe("30.00%");
+  });
+  it("75,000.01 of 750,000.00 on the variation rows reads \"more than 10.00%\", never \"10.00%\"", () => {
+    expect(routePercentLabel(MATRIX.rules, "vo", { num: S("75000.01"), den: S("750000.00") }).en).toBe("more than 10.00%");
   });
 });

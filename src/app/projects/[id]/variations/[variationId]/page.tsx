@@ -41,7 +41,7 @@ import { adjustmentInProgress, consentOf, disputeOf, factsOf, liveInstructionRow
 import { citeStepFaults, tableStepFaults } from "@/lib/variation/tabling";
 import { dayworkFlags, measurementFaults } from "@/lib/variation/measure";
 import { orderApprovalFaults, orderFaults } from "@/lib/variation/order";
-import { percentLabel, percentLabelText, ratioOf, variationReading, type Reading } from "@/lib/variation/percent";
+import { percentLabel, percentLabelText, variationReading, type Reading } from "@/lib/variation/percent";
 import { ADJUSTMENT_DIRECTIONS, RATE_SOURCES, SO_DECISIONS, VARIATION_EVENTS, VARIATION_EXEMPTIONS, VARIATION_ORIGINS, type VariationEvent, type VariationExemption } from "@/lib/variation/types";
 import { variationView, type VariationView } from "@/lib/variation/view";
 
@@ -337,7 +337,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
       };
       const extra = (
         <CardBody className="border-b border-line/70">
-          <p className="text-[12.5px] break-words text-ink-3">{`${EVENT_WORDS[a.event as VariationEvent].en}: ${formatMoney(senFromDecimal(a.value))}, read as ${percentLabelText(percentLabel(ratioOf(reading), vv.edges)).en} of ${formatMoney(BigInt(reading.den))} (${BASIS_WORDS[reading.basis].en.toLowerCase()}, over ${BASE_WORDS[reading.base].en.toLowerCase()}), frozen when sent ${formatDate(day(a.sentOn))} by ${a.sentBy.name} (recorded on their behalf, not signed).`}</p>
+          <p className="text-[12.5px] break-words text-ink-3">{`${EVENT_WORDS[a.event as VariationEvent].en}: ${formatMoney(senFromDecimal(a.value))}, read as ${vv.labelOf(reading, inst.domain).en} of ${formatMoney(BigInt(reading.den))} (${BASIS_WORDS[reading.basis].en.toLowerCase()}, over ${BASE_WORDS[reading.base].en.toLowerCase()}), frozen when sent ${formatDate(day(a.sentOn))} by ${a.sentBy.name} (recorded on their behalf, not signed).`}</p>
           {v.matters.filter((m) => m.domain === inst.domain).map((m) => {
             const r = matterRecordOf(m);
             return <p key={m.id} className="mt-1 text-[12.5px] break-words text-ink-3">{`Tabled at ${m.meeting.reference} (${m.meeting.committee.nameEn}): ${m.withdrawnAt ? "withdrawn" : r ? `${r.outcome === "CARRIED" ? "carried" : r.outcome === "NOT_CARRIED" ? "not carried" : "deferred"}${r.votes.length ? `, ${r.votes.map((x) => `${x.name} ${x.choice === "SETUJU" ? "agrees" : "disagrees"}${x.comment ? ` (“${x.comment}”)` : ""}`).join("; ")}` : ""}` : "not decided yet"}.`}</p>;

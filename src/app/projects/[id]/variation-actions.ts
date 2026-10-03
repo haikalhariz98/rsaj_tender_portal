@@ -449,8 +449,8 @@ export async function sendVariationForApproval(_prev: FormState, data: FormData)
       const moved = await c.tx.variation.updateMany({ where: { id: v.id, status: "SUPPORTED" }, data: { applicationReading: snap as unknown as Prisma.InputJsonValue } });
       if (moved.count !== 1) return CHANGED;
     }
-    await sendVariationRoute(c, v, { event, value: value!, reading, submittedBy: sender });
-    await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ sentFor: null }, { sentFor: EVENT_WORDS[event].en, value: money(value!), readAs: percentLabelText(percentLabel({ num: BigInt(reading.num), den: BigInt(reading.den) }, [])).en, readOver: money(BigInt(reading.den)), basis: BASIS_WORDS[reading.basis].en, base: BASE_WORDS[reading.base].en, sentBy: sender.name, recordedOnBehalf: ON_BEHALF }));
+    const sent = await sendVariationRoute(c, v, { event, value: value!, reading, submittedBy: sender });
+    await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ sentFor: null }, { sentFor: EVENT_WORDS[event].en, value: money(value!), readAs: sent.label.en, readOver: money(BigInt(reading.den)), basis: BASIS_WORDS[reading.basis].en, base: BASE_WORDS[reading.base].en, sentBy: sender.name, recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
 }
