@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { draftSigningFaults } from "@/lib/certificate/kinds";
 import { historyEntityLabel } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
 
@@ -15,11 +16,11 @@ import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { certificateDateOf } from "@/lib/certificate/date";
 import { distributionState } from "@/lib/certificate/distribution";
-import { refusalText } from "@/lib/certificate/fault-text";
+import { certificateFaultText, refusalText } from "@/lib/certificate/fault-text";
 import { certificateFieldLabel, certificateFieldValues, mergeFields } from "@/lib/certificate/fields";
 import { BLOCK_KIND_WORDS, CERT_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, OFFICE_RULE_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
 import { applyOverrides, type Effective } from "@/lib/certificate/override";
-import { loadCertificate, signedOf, templateNow, type LoadedCertificate } from "@/lib/certificate/repo";
+import { loadCertificate, routesOf, signedOf, templateNow, type LoadedCertificate } from "@/lib/certificate/repo";
 import { pinRefusals, readRevision, type TemplateRevision } from "@/lib/certificate/revision";
 import { type Sheet } from "@/lib/certificate/routing-sheet";
 import { RoutingSheetView } from "@/components/certificate/routing-sheet";
@@ -87,7 +88,13 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   let action: React.ReactNode = null;
   let actionNote: string | null = null;
   if (status === "DRAFT" && cert.routingTypeId) action = <SendForRoutingDrawer certId={cert.id} typeLabel={cert.routingType?.labelEn ?? "its type"} blocker={today ? null : "Set the organisation's time zone first."} />;
-  else if (status === "DRAFT") action = <SendToSigningDrawer certId={cert.id} routed={false} blocker={today ? null : "Set the organisation's time zone first."} />;
+  else if (status === "DRAFT") {
+    // 614-C1: the act's own rule: a money-bearing kind needs its latest approval route approved.
+    const routes = routesOf(cert.approvalInstances);
+    const money = draftSigningFaults(cert.kind, routes.length ? routes[routes.length - 1].status : null);
+    actionNote = money.length ? money.map(certificateFaultText).join(" ") : null;
+    action = money.length ? <Blocked label="Send to signing" reason={actionNote!} primary noteId={NOTE_ID} /> : <SendToSigningDrawer certId={cert.id} routed={false} blocker={today ? null : "Set the organisation's time zone first."} />;
+  }
   else if (status === "IN_ROUTING" && sheet) {
     const blocker = signingBlocker(sheet);
     actionNote = blocker;

@@ -34,6 +34,7 @@ import { certificateLabel, checksOf, liveBondOf, officeHolders, officeName, rout
 import { pinRefusals, pinRevision, readRevision, type PinContext, type TemplateRevision } from "./revision";
 import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
 import { nextSequence } from "./sequence";
+import { draftSigningFaults } from "./kinds";
 import { allSigned, maskedIc, signFaults, type SignInput } from "./signature";
 import { readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
 import { certificateTransition } from "./status";
@@ -221,6 +222,10 @@ export async function proceedToSigning(c: CertCtx) {
   const s = statusOf(c);
   if (s === "DRAFT") {
     if (cert.routingTypeId) refuse("Not sent to signing:", one("ROUTED"));
+    // 614-C1: a money-bearing kind needs its latest approval route approved, whatever its routing type.
+    const routes = routesOf(cert.approvalInstances);
+    const fs = draftSigningFaults(cert.kind as CertificateKind, routes.length ? routes[routes.length - 1].status : null);
+    if (fs.length) refuse("Not sent to signing:", fs);
   } else if (s === "IN_ROUTING") {
     const sheet = sheetOf(cert, c.today)!;
     const fs: Finding[] = [];

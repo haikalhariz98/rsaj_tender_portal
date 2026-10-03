@@ -369,6 +369,13 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
   const c4 = `${P}hct4`;
   const advance = { ...interim, computedOn: "2026-10-01", rule: { en: "Demo advance (invented; no advance procedure is documented)", ms: "Pendahuluan demo (rekaan)" }, lines: [{ key: "advance", labelEn: "Advance", labelMs: "Pendahuluan", type: "MONEY" as const, value: "3600.00", overridable: false }], totals: [] };
   await open({ id: c4, kind: "ADVANCE_PAYMENT", templateId: `${P}dt30`, routingTypeId: null, openedAt: "2026-10-01T02:00", computed: advance as never });
+  // 614-C1 (6.13 Part A step 1): a money-bearing kind is signed only on an approved route, whatever its routing
+  // type; this one has no routing sheet, so its route is approved before it goes to signing.
+  await route(c4, "ADVANCE_PAYMENT", { id: `${P}hri3`, openedOn: "2026-10-01", createdAt: "2026-10-01T02:30", status: "APPROVED", supersedes: null, steps: [{ seq: 1, roleCode: "HOD_CP", roleLabel: "Head of Contract & Procurement", act: "R", person: people.chen, decision: "DONE", on: "2026-10-01" }, { seq: 2, roleCode: "FD", roleLabel: "Finance Director", act: "A", person: people.bala, decision: "DONE", on: "2026-10-01" }] }, "3600.00");
+  {
+    const { draftSigningFaults } = await import("../src/lib/certificate/kinds");
+    fail("hct4 to signing", draftSigningFaults("ADVANCE_PAYMENT", "APPROVED"));
+  }
   await move(c4, "ADVANCE_PAYMENT", "DRAFT", "SIGNING", "2026-10-01T03:00");
   await sign(c4, "ADVANCE_PAYMENT", `${P}dt30`, [{ order: 1, person: people.chen, on: "2026-10-02", decision: "SUPPORTED" }], advance as never, null);
 
