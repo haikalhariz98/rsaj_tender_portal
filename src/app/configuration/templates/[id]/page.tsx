@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { HistoryButton } from "@/components/history-drawer";
+import { RecordCrumb } from "@/components/shell/record-crumb";
 import { FilesIcon, InboxIcon, ToolsIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -40,6 +41,7 @@ export default async function TemplateFormPage(props: PageProps<"/configuration/
 
   return (
     <>
+      <RecordCrumb label={t.nameEn} />
       <PageHeader
         eyebrow={<Link href="/configuration/templates">Templates</Link>}
         title={t.nameEn}
