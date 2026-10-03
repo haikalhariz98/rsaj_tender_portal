@@ -69,6 +69,33 @@ const ENTITIES = new Set([
   "FormField",
   "TextCorrection",
   "Term",
+  // Found by the history-entities scan (6.14 inc 2, BD-614-34 as ruled): every entity a Configuration History button
+  // asks for, from the other configuration screens, which the set did not name, so their History read empty.
+  "AppointmentLetterVariant",
+  "ApprovedIssuer",
+  "AwardPolicy",
+  "ClassificationTaxonomy",
+  "ClauseText",
+  "ConditionPrecedentKind",
+  "ContractDocumentPart",
+  "ContractPolicy",
+  "ControlledCopyRecipient",
+  "DistributionRecipient",
+  "EvaluationAspect",
+  "EvaluationModel",
+  "EvaluationPolicy",
+  "InsuranceRequirement",
+  "JustificationReason",
+  "LiabilityBand",
+  "MethodChecklistItem",
+  "OpeningPolicy",
+  "RateSchedule",
+  "RegistrationBody",
+  "RegistrationValue",
+  "StandingReason",
+  "SupplierDocumentType",
+  "SupplierListValue",
+  "SupplierPolicy",
 ]);
 
 /// Entities whose configuration key is not part of what their history shows (the name is); older rows carry it.
