@@ -93,13 +93,14 @@ authority and first-offence period; CIDB/MOF lists as seed. 6.12: OD-3 (B8); WC 
 
 **Build order (amended):** DataList SULIT guard and the 6.2 OD-8 list close-out (now) → Phase 2 rest → 6.15a → 6.12 → 6.14 inc 1 →
 6.13 Part A → 6.14 inc 2 → 6.13 Part B → Phase 6 (6.16 → 6.17 inc 1 → 6.17 inc 2; Phase 6 acceptance = 6.17 inc 2).
+[2026-10-04, founder: 6.17 Reporting is removed from this build. Remaining order: 6.14 inc 2 → 6.13 Part B → 6.16 → the founder's held questions. The 6.17 rulings below are kept as the record and are not built; ADRs 0027/0028 are unclaimed. Re-homed at 6.14 inc 2 step 0, 613A-C3.]
 **ADRs:** 0026 (6.16), 0027 reports as live read models, 0028 case extract (6.17); the full 6.13 Part B plan takes 0029 and up.
 
 ## DataList SULIT guard — lands now, one design-system commit
 The gap is live: `/sourcing` and `/requisitions` show the department-estimate value (SULIT per 6.2 OD-8) in plain, exportable columns,
 and the dashboard shows it too. A column flag `sulit: true` puts the SULIT chip ("not restricted until sign-in") in the header and
 removes Export from that list (search, filters, sort stay). No audited client export before sign-in; files that must leave are built
-on the server and recorded (6.17 §4). Test keyed on a SULIT-field registry (requisition and exercise estimated values, company estimate,
+on the server and recorded (6.17 §4; 6.17 is out of this build, so no such server-built export exists yet: a SULIT list has no export at all). Test keyed on a SULIT-field registry (requisition and exercise estimated values, company estimate,
 opening prices, corrected prices, scores, cprPercent): a source scan over `src/app` fails if any reaches a DataList row unflagged; a
 component test checks a flagged column means no Export button. Dashboard value chipped in the same commit.
 
@@ -120,6 +121,7 @@ CertificateKind reaches every list/total in its own commit, test proves a filed 
 any contract reaches a stage (FR-FIN-014); standard gates.
 
 ## 6.17 Reporting — approve with conditions
+[OUT OF SCOPE: removed from this build by the founder, 2026-10-04. Kept as the record; nothing below is built. The deferrals that named 6.17 read "reporting not in this build" (FR-APR-018 targets and ageing reports; NFR-AUD-003 / NFR-SEC-001 report parts; savings).]
 OD-1 A (FR-APR-018 partial S); OD-2 A new ApprovalTarget per step; OD-3 A (savings off `/reports` until sign-in: count and links only);
 OD-4 B (named votes on the committee's own report page and Board export only); OD-5 A; OD-6 A; OD-7 switch null; OD-8 A live queries;
 OD-9 A (no budget year → ask); OD-10 as listed, question to the Head of C&P.

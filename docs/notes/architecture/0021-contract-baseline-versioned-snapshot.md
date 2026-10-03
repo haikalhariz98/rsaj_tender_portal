@@ -33,7 +33,8 @@ nobody stated reads as zero.
    the Appendix over the bill; a value with no source is null and reads "Not set", never 0. The policy values it was built under
    (the band's retention and DLP answers, the type's behaviours, the Appendix's pack version, the interim-minimum floor and
    percentage) are frozen in `snapshot` with their provenance.
-3. **Read through one accessor.** `baselineFor(versions, day)` returns the version in force on a day; 6.13, 6.14, 6.16 and 6.17
+3. **Read through one accessor.** `baselineFor(versions, day)` returns the version in force on a day; 6.13, 6.14 and 6.16 (6.17, also named
+   here when written, is out of this build since 2026-10-04)
    read the baseline only through it and pin the version a certificate read. A correction after a certificate has pinned a
    version never rewrites that certificate.
 4. **Later facts are events, not edits.** Possession, extensions of time and adjustments to the sum are 6.13's records; where they

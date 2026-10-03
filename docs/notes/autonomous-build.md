@@ -72,7 +72,7 @@ reference data and notifications.
 3. **Phase 3 — vendor portal:** 6.15 (replaces the supplier "not built" pages).
 4. **Phase 4 — post-award core:** 6.12, 6.13 (contract baseline first), 6.14.
 5. **Phase 5 — post-award completion** (rest of 6.13).
-6. **Phase 6 — performance and reporting:** 6.16, 6.17.
+6. **Phase 6 — performance and reporting:** 6.16, 6.17. [2026-10-04, founder: 6.17 Reporting removed from this build; Phase 6 is 6.16 only.]
 
 Within a phase, one module at a time: plan it against the spec's requirement table, get
 the product-owner's go, build, verify, get the product-owner's acceptance, commit, move
