@@ -62,6 +62,12 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   // 6.12 ruling Q2 (BD-612-24): with the contract sum it gives the selected tender's corrected total (6.8's correctedPrice).
   // Not "arithmeticVariance", the function's name, which the whole-word scan would find in every caller.
   { field: "arithmeticVarianceAmount", what: "the arithmetic corrections' variance against the tendered figures, in a check's completion trail (6.12 Q2)" },
+  // 6.14 inc 1 fix R-7: a certificate's figures as the trail names them: an override's computed and overridden
+  // figures, and the amount a recommending block supported up to. Not the bare words "computed", "overridden"
+  // or "cap", which the whole-word scan would find everywhere.
+  { field: "certificateComputedAmount", what: "a certificate figure as computed, in an override's trail (6.14)" },
+  { field: "certificateOverrideAmount", what: "a certificate figure as overridden, in an override's trail (6.14)" },
+  { field: "signatureSupportedUpTo", what: "the amount a certificate's recommending block supported up to, in a signature's trail (6.14)" },
 ];
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History

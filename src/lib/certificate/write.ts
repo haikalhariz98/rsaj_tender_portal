@@ -159,6 +159,7 @@ export async function openCertificate(tx: Tx, l: LoadedContract, o: OpenInput, n
 // ------------------------------------------------------------------ figures
 
 /// Override a computed figure (FR-CRT-003): DRAFT only, never a total, with a justification and a named Person.
+/// Both figures go to the trail under their SULIT keys (sulit-fields.ts): History chips them, the export withholds them.
 export async function overrideField(c: CertCtx, fieldKey: string, value: string, justification: string, personId: string) {
   const cert = c.l.cert;
   const snap = readComputedSnapshot(cert.computedSnapshot);
@@ -169,7 +170,7 @@ export async function overrideField(c: CertCtx, fieldKey: string, value: string,
   const line = snap!.lines.find((l) => l.key === fieldKey)!;
   const row = await c.tx.certificateOverride.create({ data: { organisationId: c.l.org.id, certificateId: cert.id, fieldKey, computed: r.computed ?? "", overridden: r.normalised!, justification, personId: person!.id, personName: person!.name, recordedAt: c.now } });
   const shown = (v: string | null) => (line.type === "MONEY" ? money(v) : v);
-  await audit(c, "CertificateOverride", row.id, `${labelOf(c)} · ${line.labelEn}`, "CREATE", diffFields(null, { figure: line.labelEn, asComputed: shown(r.computed), overriddenTo: shown(r.normalised), recordedFor: person!.name, recordedOnBehalf: ON_BEHALF }), justification);
+  await audit(c, "CertificateOverride", row.id, `${labelOf(c)} · ${line.labelEn}`, "CREATE", diffFields(null, { figure: line.labelEn, certificateComputedAmount: shown(r.computed), certificateOverrideAmount: shown(r.normalised), recordedFor: person!.name, recordedOnBehalf: ON_BEHALF }), justification);
 }
 
 // ------------------------------------------------------------------ the routing sheet
@@ -304,7 +305,7 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
     office,
     underDelegation: r.delegationId ? "yes" : null,
     answer: input.decision ? DECISION_WORDS[input.decision].en : null,
-    cap: money(input.decisionCap),
+    signatureSupportedUpTo: money(input.decisionCap),
     refusedToSign: input.refused ? "yes" : null,
     refusal: input.refused ? input.refusalNote.trim() : null,
     icNumber: sig.icMasked,

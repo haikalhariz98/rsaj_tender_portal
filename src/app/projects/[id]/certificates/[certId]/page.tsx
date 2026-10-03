@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CheckIcon, ClockIcon, FileIcon, InboxIcon, PrinterIcon, RouteIcon, ToolsIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
-import { Badge, Chip } from "@/components/ui/badge";
+import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { Blocked } from "@/components/ui/blocked";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -32,6 +32,7 @@ import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { formatSen as formatMoney, parseSen } from "@/lib/money";
 import { ORGANISATION_NAME } from "@/lib/org";
 import { ratioPercentText } from "@/lib/percent-band";
+import { isSulitField } from "@/lib/sulit-fields";
 import { fieldsNamed, renderWith } from "@/lib/templates/merge";
 
 import { AcknowledgeDrawer, CheckDrawer, CorrectDateDrawer, DespatchDrawer, OverrideDrawer, ReceivedDrawer, SendForRoutingDrawer, SendToSigningDrawer, SignatureDrawer, VoidDrawer } from "./editors";
@@ -459,6 +460,9 @@ function PrintPanel({ l, figures, revision, formBody }: { l: LoadedCertificate; 
 const ACTION_LABEL = { CREATE: "Created", UPDATE: "Changed", DELETE: "Removed" } as const;
 const ENTITY_LABEL: Record<string, string> = { Certificate: "Certificate", CertificateSignature: "Signature", CertificateOverride: "Override", RoutingCheck: "Routing check", IssuedCopy: "Copy" };
 
+/// A SULIT field's value (an override's figures, a supported-up-to amount) shown with the chip (R-7).
+const chipped = (field: string, value: string | null, entity: string) => (isSulitField(field) && value ? <SulitValue>{historyValue(field, value, formatDate, entity)}</SulitValue> : historyValue(field, value, formatDate, entity));
+
 function HistoryPanel({ entries, total, timeZone }: { entries: { id: string; entity: string; entityLabel: string; action: "CREATE" | "UPDATE" | "DELETE"; at: Date; reason: string; changes: unknown }[]; total: number; timeZone: string | null }) {
   return (
     <Card className="overflow-hidden">
@@ -481,8 +485,8 @@ function HistoryPanel({ entries, total, timeZone }: { entries: { id: string; ent
                   .filter((ch) => !/(Code|Key|Id)$/.test(ch.field))
                   .map((ch) => (
                     <li key={ch.field}>
-                      {historyFieldLabel(ch.field, e.entity)}: {(e.action === "UPDATE" || ch.before != null) && <>{historyValue(ch.field, ch.before, formatDate, e.entity)} → </>}
-                      <span className="text-ink-2">{historyValue(ch.field, e.action === "DELETE" ? ch.before : ch.after, formatDate, e.entity)}</span>
+                      {historyFieldLabel(ch.field, e.entity)}: {(e.action === "UPDATE" || ch.before != null) && <>{chipped(ch.field, ch.before, e.entity)} → </>}
+                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entity)}</span>
                     </li>
                   ))}
               </ul>

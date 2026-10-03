@@ -212,7 +212,7 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
     const r = overrideFaults({ status: "DRAFT", snapshot: interim, current: applyOverrides(interim, []), fieldKey: "materialsOnSite", value: "1350.00", justification: "Two deliveries were not yet on site at the valuation (demo)", personKnown: true });
     fail("hct1 override", r.faults);
     await db.certificateOverride.create({ data: { id: `${P}hov1`, organisationId, certificateId: c1, fieldKey: "materialsOnSite", computed: r.computed!, overridden: r.normalised!, justification: "Two deliveries were not yet on site at the valuation (demo)", personId: people.chen.id, personName: people.chen.name, recordedAt: at("2026-09-30T04:00") } });
-    audit("CertificateOverride", `${P}hov1`, `${label("INTERIM_PAYMENT")} · Materials on site`, "CREATE", "2026-09-30T04:00", diffFields(null, { figure: "Materials on site", asComputed: "RM1,500.00", overriddenTo: "RM1,350.00", recordedFor: people.chen.name, recordedOnBehalf: ON_BEHALF }), "Two deliveries were not yet on site at the valuation (demo)");
+    audit("CertificateOverride", `${P}hov1`, `${label("INTERIM_PAYMENT")} · Materials on site`, "CREATE", "2026-09-30T04:00", diffFields(null, { figure: "Materials on site", certificateComputedAmount: "RM1,500.00", certificateOverrideAmount: "RM1,350.00", recordedFor: people.chen.name, recordedOnBehalf: ON_BEHALF }), "Two deliveries were not yet on site at the valuation (demo)");
   }
   // Sent for routing: the type frozen; DATE (1) the same day.
   const t1 = freezeRoutingType((await routingTypeNow(`${P}hrt1`))!, "2026-09-30");
