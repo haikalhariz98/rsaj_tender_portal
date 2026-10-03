@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { parseSen } from "@/lib/money";
+
 import { DAL_FIXTURE } from "./dal-fixture";
 import { resolveApproval } from "./resolve";
 import type { ResolveQuery } from "./types";
@@ -11,6 +13,10 @@ import type { ResolveQuery } from "./types";
  * RM80,000), and both are asserted. Each chain is read as a routing sheet reads it:
  * office and act, in order.
  */
+
+/// ADR 0024 Amendment 1 (6.13 Part A step 1): a percentage is the exact ratio of two amounts. Examples 7–9 and 12
+/// change their input shape only (12% as 90,000.00 / 750,000.00, …); every expectation is unchanged.
+const ratio = (num: string, den: string) => ({ num: parseSen(num), den: parseSen(den) });
 
 const trace = (q: ResolveQuery) => {
   const r = resolveApproval(DAL_FIXTURE, q);
@@ -61,7 +67,7 @@ describe("§6.9.3 worked routing examples", () => {
   });
 
   it("7. VO of 12% on a RM750,000 tender contract → VOC MR (non-delegable) → CEO A: contract above RM300K up to RM1M, VO above 10% up to 15% (§3.1.4.4 item 7c(ii))", () => {
-    const { r, chain } = trace({ domain: "vo", method: "tender", pct: 12, contractValue: 750_000 });
+    const { r, chain } = trace({ domain: "vo", method: "tender", pctRatio: ratio("90000.00", "750000.00"), contractValue: 750_000 });
     noErrors(r);
     expect(chain).toEqual(["VOC:MR", "CEO:A"]);
     expect(r.rule?.clause).toBe("§3.1.4.4 item 7c(ii)");
@@ -69,14 +75,14 @@ describe("§6.9.3 worked routing examples", () => {
   });
 
   it("8. VO of 12% on a RM2,400,000 tender contract → CEO A: the same percentage, a different cell (§3.1.4.4 item 7b(ii))", () => {
-    const { r, chain } = trace({ domain: "vo", method: "tender", pct: 12, contractValue: 2_400_000 });
+    const { r, chain } = trace({ domain: "vo", method: "tender", pctRatio: ratio("288000.00", "2400000.00"), contractValue: 2_400_000 });
     noErrors(r);
     expect(chain).toEqual(["VOC:MR", "CEO:A"]);
     expect(r.rule?.clause).toBe("§3.1.4.4 item 7b(ii)");
   });
 
   it("9. VO of 12% on a RM180,000 quotation contract → Head of Division A, and no MR at that band (§3.1.4.3 item 5c)", () => {
-    const { r, chain } = trace({ domain: "vo", method: "quotation", pct: 12, contractValue: 180_000 });
+    const { r, chain } = trace({ domain: "vo", method: "quotation", pctRatio: ratio("21600.00", "180000.00"), contractValue: 180_000 });
     noErrors(r);
     expect(chain).toEqual(["HODIV:A"]);
     expect(chain.some((s) => s.startsWith("VOC:"))).toBe(false);
@@ -101,10 +107,10 @@ describe("§6.9.3 worked routing examples", () => {
   });
 
   it("12. Waiver of 40% of an LAD amount, tender regime → Tender Board Committee A; at 25% → CEO A — a percentage of the LAD, not the contract sum (§3.1.4.4 item 12)", () => {
-    const above = trace({ domain: "lad_waiver", method: "tender", pct: 40, contractValue: 9_000_000 });
+    const above = trace({ domain: "lad_waiver", method: "tender", pctRatio: ratio("3232.56", "8081.40"), contractValue: 9_000_000 });
     noErrors(above.r);
     expect(above.chain).toEqual(["TBC:A"]);
-    const within = trace({ domain: "lad_waiver", method: "tender", pct: 25, contractValue: 9_000_000 });
+    const within = trace({ domain: "lad_waiver", method: "tender", pctRatio: ratio("2020.35", "8081.40"), contractValue: 9_000_000 });
     noErrors(within.r);
     expect(within.chain).toEqual(["CEO:A"]);
   });

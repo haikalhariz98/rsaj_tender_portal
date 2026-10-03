@@ -12,6 +12,8 @@ import type {
 } from "./types";
 import { MANDATORY_ACTS } from "./types";
 import { senFromAmount } from "@/lib/money";
+import { comparePercent, inPercentBandExact, onPercent, type ExactRatio } from "@/lib/percent-band";
+import { parsePercent } from "@/lib/securities/money";
 import { ACT_RANK, generateChain } from "./core-routing";
 import { AS_ENTERED_INFO, coreFaultWarning, NO_LONGER_CONFIGURED, notDecidedWarning, type Words } from "./core-routing-labels";
 
@@ -117,15 +119,22 @@ export function boundaryRuleFault(
   return meets ? "BOUNDARY_SWITCH_DISAGREES" : null;
 }
 
-/// Percentage bands are plain (min, max] — the D3 boundary rule is about ringgit.
-export function inPercentBand(
-  pct: number | null | undefined,
-  min: number | null,
-  max: number | null,
-): boolean {
-  if (min == null && max == null) return true;
-  if (pct == null) return false;
-  return (min == null || pct > min) && (max == null || pct <= max);
+/**
+ * Whether an exact ratio falls in a rule's percentage band (ADR 0024 Amendment 1, 6.13 Part A step 1).
+ *
+ * The ratio is two amounts (`num / den`), the edges their Decimal(9,4) strings, and the comparison is in
+ * integers (`src/lib/percent-band.ts`): no float, no rounding before judging. Which side of an edge a value
+ * exactly on it falls is the issue's switch, `boundaryInclusive`: true reads the band as (min, max], false as
+ * [min, max). With the side not decided (null), a ratio exactly on one of the band's edges is EDGE_UNDECIDED:
+ * it is in neither band, and the route says so; every other ratio still has its band.
+ *
+ * An unbanded rule matches whatever the ratio; a banded rule needs a ratio.
+ */
+export function pctBandMatch(ratio: ExactRatio | null | undefined, min: string | null, max: string | null, side: boolean | null): "IN" | "OUT" | "EDGE_UNDECIDED" {
+  if (min == null && max == null) return "IN";
+  if (ratio == null) return "OUT";
+  if (side == null && [min, max].some((e) => e != null && onPercent(ratio, e))) return "EDGE_UNDECIDED";
+  return inPercentBandExact(ratio, min, max, side ?? true) ? "IN" : "OUT";
 }
 
 /// Which sourcing regime a value falls into.
@@ -171,19 +180,18 @@ export function specificity(rule: Rule): number {
   return score;
 }
 
-/// Two (min, max] bands share at least one value. Null is unbounded on that side.
+/// Two half-open bands share at least one value. Null is unbounded on that side.
 /// Half-open bands that merely touch do not share a value, whichever way the boundary
-/// switch is set — the switch moves one exact figure, and it moves it for both.
-function bandsMeet(
-  aMin: number | null,
-  aMax: number | null,
-  bMin: number | null,
-  bMax: number | null,
-): boolean {
-  const aBelowB = aMax != null && bMin != null && aMax <= bMin;
-  const bBelowA = bMax != null && aMin != null && bMax <= aMin;
+/// switch is set — the switch moves one exact figure, and it moves it for both. Compared
+/// exactly (ADR 0024 Amendment 1): money in sen, a percentage in ten-thousandths.
+function bandsMeet<T>(aMin: T | null, aMax: T | null, bMin: T | null, bMax: T | null, exact: (v: T) => bigint): boolean {
+  const le = (x: T, y: T) => exact(x) <= exact(y);
+  const aBelowB = aMax != null && bMin != null && le(aMax, bMin);
+  const bBelowA = bMax != null && aMin != null && le(bMax, aMin);
   return !aBelowB && !bBelowA;
 }
+const sen = (v: number) => senFromAmount(v);
+const tenThousandths = (v: string) => parsePercent(v);
 
 /**
  * Rules that would tie with `rule` for some matter: same matter, method and
@@ -202,9 +210,9 @@ export function rulesTiedWith(rule: Rule, others: readonly Rule[]): Rule[] {
       (o.method ?? null) === (rule.method ?? null) &&
       (o.cond ?? null) === (rule.cond ?? null) &&
       specificity(o) === specificity(rule) &&
-      bandsMeet(o.minValue, o.maxValue, rule.minValue, rule.maxValue) &&
-      bandsMeet(o.pctMin, o.pctMax, rule.pctMin, rule.pctMax) &&
-      bandsMeet(o.contractValueMin, o.contractValueMax, rule.contractValueMin, rule.contractValueMax),
+      bandsMeet(o.minValue, o.maxValue, rule.minValue, rule.maxValue, sen) &&
+      bandsMeet(o.pctMin, o.pctMax, rule.pctMin, rule.pctMax, tenThousandths) &&
+      bandsMeet(o.contractValueMin, o.contractValueMax, rule.contractValueMin, rule.contractValueMax, sen),
   );
 }
 
@@ -244,12 +252,14 @@ export function approverAct(rule: Pick<Rule, "approverMandatory">): AuthorityAct
   return rule.approverMandatory ? "MA" : "A";
 }
 
-function candidateRules(matrix: Matrix, q: ResolveQuery): Rule[] {
+/// The rules that match a matter, and the percentage edges a ratio sat exactly on with the side undecided.
+function candidateRules(matrix: Matrix, q: ResolveQuery): { rules: Rule[]; undecidedEdges: string[] } {
   const { policy, rules } = matrix;
   const method = q.method ?? null;
   const cond = q.cond ?? null;
+  const undecidedEdges = new Set<string>();
 
-  return rules.filter((r) => {
+  const matched = rules.filter((r) => {
     if (r.domain !== q.domain) return false;
 
     // A row confined to a method applies only when that method is asked for; a row
@@ -273,9 +283,12 @@ function candidateRules(matrix: Matrix, q: ResolveQuery): Rule[] {
     ) {
       return false;
     }
-    if ((r.pctMin != null || r.pctMax != null) && !inPercentBand(q.pct, r.pctMin, r.pctMax)) {
+    const pct = pctBandMatch(q.pctRatio, r.pctMin, r.pctMax, policy.boundaryInclusive);
+    if (pct === "EDGE_UNDECIDED") {
+      for (const e of [r.pctMin, r.pctMax]) if (e != null && q.pctRatio && comparePercent(q.pctRatio, e) === 0) undecidedEdges.add(e);
       return false;
     }
+    if (pct === "OUT") return false;
     if (
       (r.minValue != null || r.maxValue != null) &&
       !inBand(q.value, r.minValue, r.maxValue, policy, r.followsBoundarySwitch)
@@ -285,6 +298,7 @@ function candidateRules(matrix: Matrix, q: ResolveQuery): Rule[] {
 
     return true;
   });
+  return { rules: matched, undecidedEdges: [...undecidedEdges] };
 }
 
 function roleName(matrix: Matrix, code: string): { en: string; ms: string } {
@@ -303,8 +317,21 @@ export function resolveApproval(matrix: Matrix, query: ResolveQuery): Resolution
   const warnings: ResolutionWarning[] = [];
   const regime = regimeFor(query.value, matrix.policy);
 
-  const matches = candidateRules(matrix, query).sort((a, b) => specificity(b) - specificity(a));
+  const candidates = candidateRules(matrix, query);
+  const matches = candidates.rules.sort((a, b) => specificity(b) - specificity(a));
   const rule = matches[0] ?? null;
+
+  // ADR 0024 Amendment 1: a ratio exactly on a percentage edge, with the side undecided, is in no band there.
+  // Whatever else matched, the route is not one anybody can rely on until the side is decided.
+  for (const edge of candidates.undecidedEdges) {
+    const shown = edge.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+    warnings.push({
+      code: "EDGE_UNDECIDED",
+      level: "err",
+      messageEn: `The percentage is exactly ${shown}%, a band edge, and the approval matrix has not decided which side of an edge such a value falls. Decide it on the issue before relying on this route.`,
+      messageMs: `Peratusan tepat ${shown}%, iaitu had jalur, dan matriks kelulusan belum menetapkan di sebelah mana nilai sedemikian jatuh. Tetapkannya pada keluaran sebelum bergantung pada laluan ini.`,
+    });
+  }
 
   // Two rules that match equally well: which one routes is down to row order, which
   // is not a decision anybody took. Resolve by the first, but say it is a guess.

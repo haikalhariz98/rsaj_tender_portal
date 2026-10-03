@@ -89,11 +89,15 @@ export function formatValueBand(min: number | null, max: number | null): string 
 }
 
 /// A percentage band, for variations: "≤ 20%", "20% – 50%", "> 50%".
-export function formatPercentBand(min: number | null, max: number | null): string | null {
+/// A percentage band as its edges are stored (Decimal(9,4) strings, ADR 0024 Amendment 1), with the side the
+/// issue's switch puts an edge on: true (min, max] reads "≤ 10%" and "> 10%"; false [min, max) reads "< 10%"
+/// and "≥ 10%".
+export function formatPercentBand(min: string | null, max: string | null, upperInclusive = true): string | null {
+  const t = (v: string) => v.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
   if (min == null && max == null) return null;
-  if (min == null) return `≤ ${max}%`;
-  if (max == null) return `> ${min}%`;
-  return `${min}% – ${max}%`;
+  if (min == null) return `${upperInclusive ? "≤" : "<"} ${t(max!)}%`;
+  if (max == null) return `${upperInclusive ? ">" : "≥"} ${t(min)}%`;
+  return `${t(min)}% – ${t(max)}%`;
 }
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

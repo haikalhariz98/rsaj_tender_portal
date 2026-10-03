@@ -399,6 +399,11 @@ export default async function ApprovalMatrixPage({
                   ),
                 },
                 {
+                  // ADR 0024 Amendment 1 (6.13 Part A step 1): percentage band edges follow the same switch.
+                  label: "A percentage exactly on a band edge",
+                  value: <span>{matrix.policy.boundaryInclusive ? "Falls in the band the edge closes: up to and including it (a variation of exactly 10.00% sits in the band ending at 10%)." : "Falls in the band the edge opens: from it upwards (a variation of exactly 10.00% sits in the band starting at 10%)."} Judged on the exact ratio of the two amounts, never a rounded figure.</span>,
+                },
+                {
                   label: "Boundary ruling",
                   value: (
                     <span className="flex flex-col items-start gap-1">
@@ -432,8 +437,8 @@ export default async function ApprovalMatrixPage({
                 {matrix.policy.boundaryInclusive ? "quotation" : "tender"}
               </span>{" "}
               band under the current setting — a different committee, a different approver and a
-              different award instrument from the other reading. Only this exact value is
-              affected; every other band edge is unaffected.
+              different award instrument from the other reading. Among the ringgit bands only this
+              exact value is affected; a percentage band edge follows the same setting.
             </Callout>
           </CardBody>
         </Card>
@@ -688,7 +693,7 @@ export default async function ApprovalMatrixPage({
                     {rules.map((rule, r) => {
                       // A rule is banded either by ringgit or by percentage of the
                       // contract sum; variations use the latter.
-                      const pct = formatPercentBand(rule.pctMin, rule.pctMax);
+                      const pct = formatPercentBand(rule.pctMin, rule.pctMax, matrix.policy.boundaryInclusive);
                       const band = pct ?? formatValueBand(rule.minValue, rule.maxValue);
                       const contract =
                         !pct && (rule.contractValueMin != null || rule.contractValueMax != null)

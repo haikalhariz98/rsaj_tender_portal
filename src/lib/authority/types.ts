@@ -1,3 +1,5 @@
+import type { ExactRatio } from "@/lib/percent-band";
+
 /// The DAL authority grammar. Fixed by the manual.
 export type AuthorityAct = "P" | "JP" | "R" | "JR" | "MR" | "MJR" | "A" | "MA";
 
@@ -31,8 +33,11 @@ export interface Rule {
   cond: string | null;
   minValue: number | null;
   maxValue: number | null;
-  pctMin: number | null;
-  pctMax: number | null;
+  /// Band on a percentage, each edge its Decimal(9,4) string (ADR 0024 Amendment 1): judged exactly against a
+  /// ratio of two amounts, never as a float. Which side of an edge a value exactly on it falls is the issue's
+  /// switch (`Policy.boundaryInclusive`).
+  pctMin: string | null;
+  pctMax: string | null;
   contractValueMin: number | null;
   contractValueMax: number | null;
   /// Whether this rule's edges follow the issue's boundary switch where an edge equals
@@ -100,7 +105,8 @@ export interface Policy {
   boundaryValue: number;
   /// See spec decision D3. True => a value exactly equal to `boundaryValue` sits in
   /// the LOWER band ("melebihi" / exceeding). False => it sits in the upper band
-  /// (the `>= RM300,000.00` flowchart reading).
+  /// (the `>= RM300,000.00` flowchart reading). ADR 0024 Amendment 1: a percentage band
+  /// edge follows the same side (true: (min, max]; false: [min, max)).
   boundaryInclusive: boolean;
   quotationFloor: number;
   tenderFloor: number;
@@ -143,7 +149,8 @@ export interface ResolutionWarning {
     | "BOUNDARY_SWITCH_UNDECIDED"
     | "CORE_NOT_CHECKED"
     | "CORE_CHAIN_FAULT"
-    | "CORE_AS_ENTERED";
+    | "CORE_AS_ENTERED"
+    | "EDGE_UNDECIDED";
   level: WarningLevel;
   messageEn: string;
   messageMs: string;
@@ -171,8 +178,10 @@ export interface ResolveQuery {
   cond?: string | null;
   /// Value of the matter being authorised.
   value?: number | null;
-  /// Percentage, where the row is banded by percentage (variation orders).
-  pct?: number | null;
+  /// The percentage, where the row is banded by percentage (a variation's sum over the contract sum, a waiver
+  /// over the damages), as the exact ratio of the two amounts (ADR 0024 Amendment 1). The float `pct` is retired:
+  /// 0.07 × 100 is 7.000000000000001 in binary, and a value exactly on an edge must land where the edge says.
+  pctRatio?: ExactRatio | null;
   /// Value of the parent contract, where that is banded separately from the matter.
   contractValue?: number | null;
   /// Role codes currently absent, for the upward-reversion rule.

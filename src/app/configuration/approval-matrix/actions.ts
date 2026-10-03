@@ -74,7 +74,7 @@ const n = (x: unknown) => (x == null ? null : Number(String(x)));
 function bandsOf(x: RuleRow): Rule {
   return {
     ruleKey: x.ruleKey, labelEn: x.labelEn, domain: x.domain, method: x.method ?? null, cond: x.cond ?? null, isGap: x.isGap,
-    minValue: n(x.minValue), maxValue: n(x.maxValue), pctMin: n(x.pctMin), pctMax: n(x.pctMax),
+    minValue: n(x.minValue), maxValue: n(x.maxValue), pctMin: x.pctMin == null ? null : String(x.pctMin), pctMax: x.pctMax == null ? null : String(x.pctMax),
     contractValueMin: n(x.contractValueMin), contractValueMax: n(x.contractValueMax), followsBoundarySwitch: x.followsBoundarySwitch ?? null,
   } as Rule;
 }
@@ -449,8 +449,9 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
       isGap: x.isGap,
       minValue: x.minValue == null ? null : Number(x.minValue.toString()),
       maxValue: x.maxValue == null ? null : Number(x.maxValue.toString()),
-      pctMin: x.pctMin == null ? null : Number(x.pctMin.toString()),
-      pctMax: x.pctMax == null ? null : Number(x.pctMax.toString()),
+      // ADR 0024 Amendment 1: percentage edges as decimal strings, compared exactly.
+      pctMin: x.pctMin == null ? null : x.pctMin.toString(),
+      pctMax: x.pctMax == null ? null : x.pctMax.toString(),
       contractValueMin: x.contractValueMin == null ? null : Number(x.contractValueMin.toString()),
       contractValueMax: x.contractValueMax == null ? null : Number(x.contractValueMax.toString()),
       followsBoundarySwitch: x.followsBoundarySwitch ?? null,

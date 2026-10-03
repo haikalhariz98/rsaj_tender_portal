@@ -87,7 +87,7 @@ const K = 1_000;
 const M = 1_000_000;
 
 /// B.6/B.7 variation bands: the tender regime is two-dimensional (contract value × VO %).
-const voTender = (key: string, cvMin: number, cvMax: number | null, pctMin: number | null, pctMax: number | null, approver: string, clause: string) =>
+const voTender = (key: string, cvMin: number, cvMax: number | null, pctMin: string | null, pctMax: string | null, approver: string, clause: string) =>
   rule({ ruleKey: key, domain: "vo", method: "tender", contractValueMin: cvMin, contractValueMax: cvMax, pctMin, pctMax, recommenders: [{ roleCode: "VOC", act: "MR" }], approverCode: approver, committeeCode: "VOC", committeeAct: "MR", clause });
 
 export const DAL_FIXTURE: Matrix = {
@@ -143,9 +143,9 @@ export const DAL_FIXTURE: Matrix = {
     rule({ ruleKey: "OS_ABOVE_300K", domain: "appointment", method: "open_selective", minValue: 300 * K, approverCode: "TBC", committeeCode: "TBC", committeeAct: "A", clause: "§3.1.4.2 item 2" }),
 
     // B.6 §3.1.4.3 item 5 Quotation VO: one dimension, and no MR up to 20%.
-    rule({ ruleKey: "Q_VO_UP_TO_20", domain: "vo", method: "quotation", pctMax: 20, approverCode: "HODIV", clause: "§3.1.4.3 item 5c" }),
-    rule({ ruleKey: "Q_VO_20_TO_50", domain: "vo", method: "quotation", pctMin: 20, pctMax: 50, recommenders: [{ roleCode: "VOC", act: "MR" }], approverCode: "FD", committeeCode: "VOC", committeeAct: "MR", clause: "§3.1.4.3 item 5b" }),
-    rule({ ruleKey: "Q_VO_ABOVE_50", domain: "vo", method: "quotation", pctMin: 50, recommenders: [{ roleCode: "VOC", act: "MR" }], approverCode: "CEO", committeeCode: "VOC", committeeAct: "MR", clause: "§3.1.4.3 item 5a" }),
+    rule({ ruleKey: "Q_VO_UP_TO_20", domain: "vo", method: "quotation", pctMax: "20", approverCode: "HODIV", clause: "§3.1.4.3 item 5c" }),
+    rule({ ruleKey: "Q_VO_20_TO_50", domain: "vo", method: "quotation", pctMin: "20", pctMax: "50", recommenders: [{ roleCode: "VOC", act: "MR" }], approverCode: "FD", committeeCode: "VOC", committeeAct: "MR", clause: "§3.1.4.3 item 5b" }),
+    rule({ ruleKey: "Q_VO_ABOVE_50", domain: "vo", method: "quotation", pctMin: "50", recommenders: [{ roleCode: "VOC", act: "MR" }], approverCode: "CEO", committeeCode: "VOC", committeeAct: "MR", clause: "§3.1.4.3 item 5a" }),
 
     // B.7 §3.1.4.4 item 5 Signing of the Letter of Acceptance, by contract value.
     rule({ ruleKey: "SIGN_300K_TO_1M", domain: "signing", method: "tender", contractValueMin: 300 * K, contractValueMax: 1 * M, recommenders: [{ roleCode: "CP", act: "R" }], approverCode: "HODIV", clause: "§3.1.4.4 item 5c" }),
@@ -153,23 +153,23 @@ export const DAL_FIXTURE: Matrix = {
     rule({ ruleKey: "SIGN_ABOVE_3M", domain: "signing", method: "tender", contractValueMin: 3 * M, recommenders: [{ roleCode: "CP", act: "R" }], approverCode: "CEO", clause: "§3.1.4.4 item 5a" }),
 
     // B.7 §3.1.4.4 item 7 Tender VO: nine cells, contract value × VO percentage.
-    voTender("T_VO_A_I", 3 * M, null, 30, null, "TBC", "§3.1.4.4 item 7a(i)"),
-    voTender("T_VO_A_II", 3 * M, null, null, 30, "CEO", "§3.1.4.4 item 7a(ii)"),
-    voTender("T_VO_B_I", 1 * M, 3 * M, 30, null, "TBC", "§3.1.4.4 item 7b(i)"),
-    voTender("T_VO_B_II", 1 * M, 3 * M, 10, 30, "CEO", "§3.1.4.4 item 7b(ii)"),
-    voTender("T_VO_B_III", 1 * M, 3 * M, null, 10, "FD", "§3.1.4.4 item 7b(iii)"),
-    voTender("T_VO_C_I", 300 * K, 1 * M, 15, null, "TBC", "§3.1.4.4 item 7c(i)"),
-    voTender("T_VO_C_II", 300 * K, 1 * M, 10, 15, "CEO", "§3.1.4.4 item 7c(ii)"),
-    voTender("T_VO_C_III", 300 * K, 1 * M, 5, 10, "FD", "§3.1.4.4 item 7c(iii)"),
-    voTender("T_VO_C_IV", 300 * K, 1 * M, null, 5, "HODIV", "§3.1.4.4 item 7c(iv)"),
+    voTender("T_VO_A_I", 3 * M, null, "30", null, "TBC", "§3.1.4.4 item 7a(i)"),
+    voTender("T_VO_A_II", 3 * M, null, null, "30", "CEO", "§3.1.4.4 item 7a(ii)"),
+    voTender("T_VO_B_I", 1 * M, 3 * M, "30", null, "TBC", "§3.1.4.4 item 7b(i)"),
+    voTender("T_VO_B_II", 1 * M, 3 * M, "10", "30", "CEO", "§3.1.4.4 item 7b(ii)"),
+    voTender("T_VO_B_III", 1 * M, 3 * M, null, "10", "FD", "§3.1.4.4 item 7b(iii)"),
+    voTender("T_VO_C_I", 300 * K, 1 * M, "15", null, "TBC", "§3.1.4.4 item 7c(i)"),
+    voTender("T_VO_C_II", 300 * K, 1 * M, "10", "15", "CEO", "§3.1.4.4 item 7c(ii)"),
+    voTender("T_VO_C_III", 300 * K, 1 * M, "5", "10", "FD", "§3.1.4.4 item 7c(iii)"),
+    voTender("T_VO_C_IV", 300 * K, 1 * M, null, "5", "HODIV", "§3.1.4.4 item 7c(iv)"),
 
     // B.7 §3.1.4.4 item 10 Delay and extension of time.
     rule({ ruleKey: "EOT_FIN_NOT_AUTHORITY", domain: "eot", method: "tender", cond: "financial_not_authority", recommenders: [{ roleCode: "VOC", act: "MR" }], approverCode: "TBC", committeeCode: "VOC", committeeAct: "MR", clause: "§3.1.4.4 item 10a(i)" }),
     rule({ ruleKey: "EOT_FIN_AUTHORITY", domain: "eot", method: "tender", cond: "financial_authority", recommenders: [{ roleCode: "VOC", act: "MR" }], approverCode: "CEO", committeeCode: "VOC", committeeAct: "MR", clause: "§3.1.4.4 item 10a(ii)" }),
 
     // B.7 §3.1.4.4 item 12 Waiver of LAD: a percentage of the LAD amount, not of the contract sum.
-    rule({ ruleKey: "LAD_WAIVER_ABOVE_30", domain: "lad_waiver", method: "tender", pctMin: 30, approverCode: "TBC", committeeCode: "TBC", committeeAct: "A", clause: "§3.1.4.4 item 12a" }),
-    rule({ ruleKey: "LAD_WAIVER_UP_TO_30", domain: "lad_waiver", method: "tender", pctMax: 30, approverCode: "CEO", clause: "§3.1.4.4 item 12b" }),
+    rule({ ruleKey: "LAD_WAIVER_ABOVE_30", domain: "lad_waiver", method: "tender", pctMin: "30", approverCode: "TBC", committeeCode: "TBC", committeeAct: "A", clause: "§3.1.4.4 item 12a" }),
+    rule({ ruleKey: "LAD_WAIVER_UP_TO_30", domain: "lad_waiver", method: "tender", pctMax: "30", approverCode: "CEO", clause: "§3.1.4.4 item 12b" }),
 
     // B.7 §3.1.4.4 item 13 Termination (conflicts with SK008 §7.5.1 — decision D2).
     rule({ ruleKey: "TERMINATION", domain: "termination", method: "tender", proposerCode: "CP", recommenders: [{ roleCode: "HODIV", act: "R" }], approverCode: "CEO", clause: "§3.1.4.4 item 13" }),

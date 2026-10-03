@@ -1,6 +1,7 @@
 import { loadMatrix, NoActiveMatrixError } from "@/lib/authority/load";
 import { resolveApproval } from "@/lib/authority/resolve";
 import type { ResolveQuery } from "@/lib/authority/types";
+import { ratioOfPercent, type ExactRatio } from "@/lib/percent-band";
 import { loadReferenceData } from "@/lib/reference/load";
 import { findFundingRoute, fundingPosture, overridesAuthority } from "@/lib/reference/vocabulary";
 
@@ -15,11 +16,12 @@ function amountOrNull(raw: string | null): number | null | "bad" {
   return Number(cleaned);
 }
 
-/// A percentage: non-negative, plain decimal.
-function percentOrNull(raw: string | null): number | null | "bad" {
+/// A percentage: non-negative, at most four decimal places, read exactly as a ratio (ADR 0024 Amendment 1),
+/// never as a float: "7" is 7,000,000 / 100,000,000, judged in integers against each band edge.
+function percentOrNull(raw: string | null): ExactRatio | null | "bad" {
   if (raw == null || raw.trim() === "") return null;
-  if (!/^\d+(\.\d+)?$/.test(raw.trim())) return "bad";
-  return Number(raw.trim());
+  if (!/^\d{1,6}(\.\d{1,4})?$/.test(raw.trim())) return "bad";
+  return ratioOfPercent(raw.trim());
 }
 
 /**
@@ -48,7 +50,7 @@ export async function GET(request: Request) {
     );
   }
   if (pct === "bad") {
-    return Response.json({ error: "pct must be a non-negative number" }, { status: 400 });
+    return Response.json({ error: "pct must be a non-negative percentage, to at most four decimal places" }, { status: 400 });
   }
 
   const organisationCode = params.get("org") ?? ORGANISATION_CODE;
@@ -65,7 +67,7 @@ export async function GET(request: Request) {
       method: params.get("method"),
       cond: params.get("cond"),
       value,
-      pct,
+      pctRatio: pct,
       contractValue,
       absentRoleCodes: params.getAll("absent").filter(Boolean),
       actorRoleCode: params.get("actor"),

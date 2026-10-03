@@ -112,9 +112,11 @@ describe("the boundary between regimes is configurable", () => {
   });
 });
 
+// ADR 0024 Amendment 1 (6.13 Part A step 1): the percentage is the exact ratio of two amounts (5% as RM5,000.00 of
+// RM100,000.00, 20% as RM20,000.00 of RM100,000.00). Input shape only; every expectation is unchanged.
 describe("percentage bands", () => {
   it("routes a small variation on its percentage alone", () => {
-    const result = resolveApproval(matrix, { domain: "variation", pct: 5 });
+    const result = resolveApproval(matrix, { domain: "variation", pctRatio: { num: 5_000_00n, den: 100_000_00n } });
     expect(result.rule?.ruleKey).toBe("VAR_SMALL");
     expect(result.approverCode).toBe("DIRECTOR");
   });
@@ -122,7 +124,7 @@ describe("percentage bands", () => {
   it("prefers the rule that also bands on the parent contract value", () => {
     const result = resolveApproval(matrix, {
       domain: "variation",
-      pct: 20,
+      pctRatio: { num: 20_000_00n, den: 100_000_00n },
       contractValue: 5_000_000,
     });
     expect(result.rule?.ruleKey).toBe("VAR_LARGE_ON_BIG_CONTRACT");
@@ -132,7 +134,7 @@ describe("percentage bands", () => {
   it("falls through when the contract is too small for the specific rule", () => {
     const result = resolveApproval(matrix, {
       domain: "variation",
-      pct: 20,
+      pctRatio: { num: 20_000_00n, den: 100_000_00n },
       contractValue: 200_000,
     });
     expect(result.rule).toBeNull();

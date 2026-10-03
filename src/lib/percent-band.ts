@@ -74,6 +74,12 @@ export function bandFor<B extends { pctMin: string | null; pctMax: string | null
   return { state: "IN", band: hits[0] };
 }
 
+/// A percentage typed as its decimal string ("12.5"), as the exact ratio it states (12.5% = 125,000 / 1,000,000):
+/// for a caller that has a percentage rather than two amounts (the routing simulator). No float on the way.
+export function ratioOfPercent(pct: string): ExactRatio {
+  return { num: parsePercent(pct), den: TEN_THOUSANDTHS_PER_UNIT };
+}
+
 /// The ratio as a percentage to `places` decimals, rounded half up, for display only (never judged).
 export function ratioPercentText(r: ExactRatio, places = 2): string {
   if (r.den <= 0n) throw new RatioError("A ratio's denominator must be above zero.");

@@ -5,10 +5,12 @@ import type { AuthorityAct, CoreLevel, Matrix, Provenance, Rule } from "./types"
 import { pinnedIssue } from "./decided-step";
 import { issuedInForce } from "./issue";
 
-/// Prisma returns Decimal for money and percentage columns. Bands are compared, not
-/// accumulated, so a number is safe here — every DAL threshold is well inside 2^53.
+/// Prisma returns Decimal for money columns. Money bands are compared in exact sen by the
+/// resolver, not accumulated, so a number is safe here — every DAL threshold is well inside 2^53.
 const num = (value: { toString(): string } | null): number | null =>
   value == null ? null : amountOf(value);
+/// A percentage band edge as its Decimal(9,4) string (ADR 0024 Amendment 1): never a float.
+const pctEdge = (value: { toString(): string } | null): string | null => (value == null ? null : value.toString());
 
 export class NoActiveMatrixError extends Error {
   constructor() {
@@ -95,8 +97,8 @@ export async function loadIssue(
     cond: r.cond,
     minValue: num(r.minValue),
     maxValue: num(r.maxValue),
-    pctMin: num(r.pctMin),
-    pctMax: num(r.pctMax),
+    pctMin: pctEdge(r.pctMin),
+    pctMax: pctEdge(r.pctMax),
     contractValueMin: num(r.contractValueMin),
     contractValueMax: num(r.contractValueMax),
     followsBoundarySwitch: r.followsBoundarySwitch,

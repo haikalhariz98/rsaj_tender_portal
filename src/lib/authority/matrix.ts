@@ -55,8 +55,9 @@ export function toRule(seed: SeedRule): Rule {
     cond: seed.cond ?? null,
     minValue: seed.min ?? null,
     maxValue: seed.max ?? null,
-    pctMin: seed.pctMin ?? null,
-    pctMax: seed.pctMax ?? null,
+    // ADR 0024 Amendment 1: an edge is its decimal string, judged exactly.
+    pctMin: seed.pctMin == null ? null : String(seed.pctMin),
+    pctMax: seed.pctMax == null ? null : String(seed.pctMax),
     contractValueMin: seed.cvMin ?? null,
     contractValueMax: seed.cvMax ?? null,
     followsBoundarySwitch: seed.followsBoundarySwitch ?? null,

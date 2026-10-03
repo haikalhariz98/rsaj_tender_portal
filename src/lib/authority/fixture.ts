@@ -124,13 +124,13 @@ export const TEST_MATRIX: Matrix = {
     rule({
       ruleKey: "VAR_SMALL",
       domain: "variation",
-      pctMax: 10,
+      pctMax: "10",
       approverCode: "DIRECTOR",
     }),
     rule({
       ruleKey: "VAR_LARGE_ON_BIG_CONTRACT",
       domain: "variation",
-      pctMin: 10,
+      pctMin: "10",
       contractValueMin: 1_000_000,
       recommenders: [{ roleCode: "PANEL", act: "MR" }],
       approverCode: "CHIEF",
