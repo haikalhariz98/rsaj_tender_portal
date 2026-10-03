@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import type { Prisma } from "@/generated/prisma/client";
-import { adjustmentFaults, adjustmentSnapshot, type AdjustmentLineIn } from "@/lib/adjustment/ppjhk";
+import { AdjustmentNetMissing, adjustmentFaults, adjustmentSnapshot, type AdjustmentLineIn } from "@/lib/adjustment/ppjhk";
 import { diffFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import { REJECTION_KINDS, rejectionSnapshot, type RejectionKind } from "@/lib/authority/rejection";
@@ -17,7 +17,7 @@ import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { CertificateRefusal, openCertificate } from "@/lib/certificate/write";
 import { contractLabel, withLockedContract } from "@/lib/contract/repo";
 import { dayOf, dayToDate, storedDay } from "@/lib/dates";
-import { formatDate } from "@/lib/format";
+import { decimalText, formatDate } from "@/lib/format";
 import { formatMoney, parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -85,6 +85,7 @@ async function inContract(id: string, now: Date, fn: (c: Ctx) => Promise<FormSta
   } catch (e) {
     if (e instanceof Refusal) return e.state;
     if (e instanceof VariationRefusal || e instanceof CertificateRefusal) return { ok: false, message: e.message, ...(e.errors ? { errors: e.errors } : {}) };
+    if (e instanceof AdjustmentNetMissing) return { ok: false, message: e.message };
     throw e;
   }
   if (result?.ok) {
@@ -829,7 +830,7 @@ export async function raiseVariationOrder(_prev: FormState, data: FormData): Pro
     const adjustments = issuedAdjustments(await loadAdjustments(c.l.contract.id, c.tx));
     const den = policy?.variationBase === "REVISED" ? adjustments.reduce((a, x) => a + x.net, baseline.values.contractSum) : baseline.values.contractSum;
     const cumPct = den > 0n ? percentLabelText(percentLabel({ num: cumulative, den }, edges)) : { en: "Not read: the contract sum is nothing", ms: "Tidak dibaca" };
-    const linesIn = lines.map((x) => ({ itemRef: x.itemRef, description: x.description, particulars: `${x.quantity.toString()} ${x.unit} at ${formatMoney(senFromDecimal(x.baseRate))}${x.adjustmentPct ? `, adjusted ${x.adjustmentPct.toString()}%` : ""}${x.rateSource === "AGREED_RATE" ? " (agreed rate)" : x.bqItemRef ? ` (${x.bqItemRef})` : ""}`, amount: senFromDecimal(x.amount), direction: x.direction as "ADDITION" | "OMISSION" }));
+    const linesIn = lines.map((x) => ({ itemRef: x.itemRef, description: x.description, particulars: `${decimalText(x.quantity)} ${x.unit} at ${formatMoney(senFromDecimal(x.baseRate))}${x.adjustmentPct ? `, adjusted ${decimalText(x.adjustmentPct)}%` : ""}${x.rateSource === "AGREED_RATE" ? " (agreed rate)" : x.bqItemRef ? ` (${x.bqItemRef})` : ""}`, amount: senFromDecimal(x.amount), direction: x.direction as "ADDITION" | "OMISSION" }));
     const o = orderFigures({ computedOn: c.today, original: baseline.values.contractSum, reference: v.reference!, instruction: { number: ins!.certificate.number ?? "", date: day(ins!.certificate.certificateDate) }, description, clauseTitle: clause!.titleEn, exemption: v.exemption ? EXEMPTION_WORDS[v.exemption as VariationExemption] : null, lines: linesIn, approved: approvedValue(self), cumulative, cumulativePct: cumPct });
     const agreedRateTotal = lines.filter((x) => x.rateSource === "AGREED_RATE").reduce((a, x) => a + (x.direction === "ADDITION" ? senFromDecimal(x.amount) : 0n), 0n);
     // Approved on the variation's own routes (its approval of record), so never on a routing sheet.

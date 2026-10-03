@@ -5,7 +5,7 @@
  */
 
 import type { Tx } from "@/lib/audit/record";
-import { issuedNet } from "@/lib/adjustment/ppjhk";
+import { issuedAdjustmentsFrom } from "@/lib/adjustment/ppjhk";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { parseSen, senFromDecimal, type Sen } from "@/lib/money";
@@ -139,12 +139,7 @@ export async function loadAdjustments(contractId: string, client: Tx = db): Prom
 }
 
 /// The issued adjustments, oldest first, with the net each moved the sum by (FR-PAD-003: the only source of the revised sum).
-export function issuedAdjustments(rows: readonly AdjustmentRow[]): { id: string; certificateId: string; number: string | null; net: Sen; issuedAt: Date | null }[] {
-  return rows
-    .filter((a) => a.certificate.status === "ISSUED")
-    .map((a) => ({ id: a.id, certificateId: a.certificate.id, number: a.certificate.number, net: issuedNet(a.certificate.issueSnapshot) ?? 0n, issuedAt: a.certificate.issuedAt }))
-    .sort((a, b) => (a.issuedAt?.getTime() ?? 0) - (b.issuedAt?.getTime() ?? 0));
-}
+export const issuedAdjustments = (rows: readonly AdjustmentRow[]) => issuedAdjustmentsFrom(rows);
 
 /// An adjustment in progress (raised, neither issued nor void): one at a time per contract.
 export const adjustmentInProgress = (rows: readonly AdjustmentRow[]) => rows.find((a) => a.certificate.status !== "ISSUED" && a.certificate.status !== "VOID") ?? null;

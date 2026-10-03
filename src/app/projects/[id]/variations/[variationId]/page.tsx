@@ -26,7 +26,7 @@ import { historyFieldLabel, historyValue } from "@/lib/contract/history-words";
 import { contractLabel, loadContract, type LoadedContract } from "@/lib/contract/repo";
 import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { formatDate, formatOrgDateTime } from "@/lib/format";
+import { decimalText, formatDate, formatOrgDateTime } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -480,7 +480,7 @@ function MeasurementPanel({ l, v, people, today, blockedBy }: { l: LoadedContrac
                   {m.coveredUp && <Chip>Covered up</Chip>}
                   {m.removedAt && <Chip tone="warn">Removed</Chip>}
                 </span>
-                <span className="block text-[12.5px] break-words text-ink-3">{`${m.quantity.toString()} ${m.unit} at ${formatMoney(senFromDecimal(m.baseRate))}${m.adjustmentPct ? `, adjusted ${m.adjustmentPct.toString()}%` : ""}${m.bqItemRef ? ` (${m.bqItemRef})` : ""} · ${DIRECTION_WORDS[m.direction].en.toLowerCase()} ${formatMoney(senFromDecimal(m.amount))} · measured ${formatDate(storedDay(m.measuredOn))} for ${m.person.name}${m.recordsNote ? ` · ${m.recordsNote}` : ""}${m.removedAt ? ` · removed: ${m.removedReason}` : ""}`}</span>
+                <span className="block text-[12.5px] break-words text-ink-3">{`${decimalText(m.quantity)} ${m.unit} at ${formatMoney(senFromDecimal(m.baseRate))}${m.adjustmentPct ? `, adjusted ${decimalText(m.adjustmentPct)}%` : ""}${m.bqItemRef ? ` (${m.bqItemRef})` : ""} · ${DIRECTION_WORDS[m.direction].en.toLowerCase()} ${formatMoney(senFromDecimal(m.amount))} · measured ${formatDate(storedDay(m.measuredOn))} for ${m.person.name}${m.recordsNote ? ` · ${m.recordsNote}` : ""}${m.removedAt ? ` · removed: ${m.removedReason}` : ""}`}</span>
               </span>
               {!m.removedAt && <RemoveMeasurementDrawer id={l.contract.id} variationId={v.id} measurementId={m.id} label={`item ${m.itemRef}`} blocker={blockedBy ?? (orderLive ? variationFaultText({ code: "ORDER_RAISED", level: "block" }) : null)} />}
             </li>

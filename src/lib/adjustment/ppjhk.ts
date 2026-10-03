@@ -184,3 +184,33 @@ export function issuedNet(snapshot: unknown): Sen | null {
   const v = f?.totals?.find((x) => x.key === "net13")?.value ?? null;
   return v == null ? null : parseSen(v);
 }
+
+/// An issued adjustment whose net cannot be read back from its issue: refused by name, never read as nothing.
+export class AdjustmentNetMissing extends Error {
+  readonly code = "ADJUSTMENT_NET_MISSING";
+  constructor(readonly number: string | null) {
+    super(`The issued adjustment of the contract sum${number ? ` ${number}` : ""} has no net frozen with its issue, so the revised sum cannot be read: nothing was saved. Report it: its issue record is incomplete.`);
+    this.name = "AdjustmentNetMissing";
+  }
+}
+
+export interface IssuedAdjustmentRow {
+  id: string;
+  certificate: { id?: string; number?: string | null; status: string; issuedAt: Date | null; issueSnapshot: unknown };
+}
+
+/**
+ * FR-PAD-003, the one reading of the issued adjustments of the contract sum (the variations' and the payments'
+ * modules both read this): oldest issued first, each with the net it moved the sum by, as frozen at its issue. A net
+ * that cannot be read refuses (AdjustmentNetMissing) rather than count as nothing. Pure.
+ */
+export function issuedAdjustmentsFrom(rows: readonly IssuedAdjustmentRow[]): { id: string; certificateId: string | null; number: string | null; net: Sen; issuedAt: Date | null }[] {
+  return rows
+    .filter((a) => a.certificate.status === "ISSUED")
+    .map((a) => {
+      const net = issuedNet(a.certificate.issueSnapshot);
+      if (net == null) throw new AdjustmentNetMissing(a.certificate.number ?? null);
+      return { id: a.id, certificateId: a.certificate.id ?? null, number: a.certificate.number ?? null, net, issuedAt: a.certificate.issuedAt };
+    })
+    .sort((a, b) => (a.issuedAt?.getTime() ?? 0) - (b.issuedAt?.getTime() ?? 0) || a.id.localeCompare(b.id));
+}

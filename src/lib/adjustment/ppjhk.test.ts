@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { snapshotFaults, totalsFrom } from "@/lib/certificate/snapshot";
 import { parseSen } from "@/lib/money";
 
-import { adjustmentFaults, adjustmentFigures, adjustmentSnapshot, issuedNet, type AdjustmentLineIn } from "./ppjhk";
+import { AdjustmentNetMissing, adjustmentFaults, adjustmentFigures, adjustmentSnapshot, issuedAdjustmentsFrom, issuedNet, type AdjustmentLineIn } from "./ppjhk";
 
 /**
  * The Certificate of Adjustment of Contract Sum (§8.8, FR-PAD-001–003, 005). The spec's worked example: section 1.1
@@ -61,5 +61,17 @@ describe("what refuses an adjustment (FR-PAD-001, 002, 003, 005)", () => {
     expect(codes(adjustmentFaults({ ...base, triggers: [...base.triggers], inProgress: "the one in draft" }))).toEqual(["ADJUSTMENT_IN_PROGRESS"]);
     expect(codes(adjustmentFaults({ ...base, triggers: [...base.triggers], lines: [] }))).toEqual(["NO_LINES"]);
     expect(codes(adjustmentFaults({ ...base, triggers: [...base.triggers], original: S("100.00"), lines: [line({ direction: "OMISSION", amount: S("100.00") })] }))).toEqual(["REVISED_NOT_POSITIVE"]);
+  });
+});
+
+describe("run 3 review: the one reading of the issued adjustments refuses a net it cannot read", () => {
+  const row = (id: string, status: string, net: string | null, issuedAt: string) => ({ id, certificate: { id: `c-${id}`, number: `N-${id}`, status, issuedAt: new Date(issuedAt), issueSnapshot: net == null ? { figures: { totals: [] } } : { figures: { totals: [{ key: "net13", value: net }] } } } });
+  it("issued ones only, oldest first, each with its frozen net", () => {
+    const r = issuedAdjustmentsFrom([row("b", "ISSUED", "-100.00", "2026-09-02"), row("a", "ISSUED", "57773.67", "2026-09-01"), row("d", "DRAFT", null, "2026-09-03")]);
+    expect(r.map((x) => [x.id, x.net])).toEqual([["a", 5_777_367n], ["b", -10_000n]]);
+  });
+  it("an issued one with no net frozen is refused by name, never read as nothing", () => {
+    expect(() => issuedAdjustmentsFrom([row("x", "ISSUED", null, "2026-09-01")])).toThrow(AdjustmentNetMissing);
+    expect(() => issuedAdjustmentsFrom([row("x", "ISSUED", null, "2026-09-01")])).toThrow(/N-x/);
   });
 });

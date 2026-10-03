@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
+import { AdjustmentNetMissing } from "@/lib/adjustment/ppjhk";
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields, type FieldChange } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
@@ -79,6 +80,7 @@ async function inContract(id: string, now: Date, fn: (c: Ctx) => Promise<FormSta
   } catch (e) {
     if (e instanceof Refusal) return e.state;
     if (e instanceof CertificateRefusal) return { ok: false, message: e.message };
+    if (e instanceof AdjustmentNetMissing) return { ok: false, message: e.message };
     throw e;
   }
   if (result?.ok) {
