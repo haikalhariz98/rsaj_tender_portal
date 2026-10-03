@@ -33,7 +33,7 @@ import { historyFieldLabel, historyValue } from "@/lib/contract/history-words";
 import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
-import { formatSen as formatMoney, parseSen } from "@/lib/money";
+import { formatSen as formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { ORGANISATION_NAME } from "@/lib/org";
 import { ratioPercentText } from "@/lib/percent-band";
 import { isSulitField } from "@/lib/sulit-fields";
@@ -439,6 +439,9 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
   const routes = [...cert.approvalInstances].sort((a, b) => (a.openedAt.getTime() === b.openedAt.getTime() ? a.createdAt.getTime() - b.createdAt.getTime() : a.openedAt.getTime() - b.openedAt.getTime()));
   const latest = routes.at(-1) ?? null;
   const live = status === "DRAFT" || status === "IN_ROUTING";
+  // BD-613-40 (approved with condition): a guarantee below the advance warns, never refuses, and the warning is
+  // shown where the approving office decides, not only on the contract.
+  const apgShort = cert.kind === "ADVANCE_PAYMENT" ? await advanceGuaranteeShortfall(cert.id) : null;
   const stepAction = (routeId: string, sequence: number) => {
     const inst = routes.find((r) => r.id === routeId);
     const step = inst?.steps.find((x) => x.sequence === sequence);
@@ -446,11 +449,13 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
     const earlierDone = inst.steps.filter((x) => x.sequence < step.sequence).every((x) => x.decision === "DONE");
     return (
       <span className="flex flex-wrap items-center gap-2">
+        {apgShort && step.act === "A" && <Chip tone="warn">{apgShort}</Chip>}
         {step.roleCode && <EscalateDrawer stepId={step.id} office={step.actingRoleLabel ?? step.roleLabel} mandatory={isMandatoryAct(step.act)} people={people} />}
         {earlierDone ? <DecideRouteStepDrawer certId={cert.id} stepId={step.id} roleLabel={step.actingRoleLabel ?? step.roleLabel} act={ACT_LABEL[step.act] ?? "Acts"} done={ACT_DONE_LABEL[step.act] ?? "Done"} people={people} today={today} /> : <Blocked label="Record decision" reason="Steps are decided in order: the step before is not done." />}
       </span>
     );
   };
+  const apgCard = apgShort ? <Callout tone="warn" title="The guarantee is below the advance">{`${apgShort}. No rule states the cover required, so it is said, not refused; the approving office decides with it in view.`}</Callout> : null;
   const choice = latest && latest.status === "REJECTED" && !latest.rejectionApplied && latest.rejectionChoices.length > 0 && live ? latest : null;
   const choiceCard = choice ? (
     <Callout tone="warn" title="Refused: where it goes is the officer's choice" action={<ChooseRejectionDrawer certId={cert.id} offered={choice.rejectionChoices.map((k) => ({ value: k, label: refusalKindText(k) }))} steps={choice.steps.filter((x) => x.sequence < (choice.steps.find((y) => y.decision === "REJECTED")?.sequence ?? 0)).map((x) => ({ value: String(x.sequence), label: `${x.sequence}. ${x.roleLabel}` }))} people={people} />}>
@@ -468,6 +473,7 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
     }
     return (
       <div className="flex flex-col gap-6">
+        {apgCard}
         {choiceCard}
         {[...routes].reverse().map((r, n) => (
           <ApprovalRouteCard key={r.id} route={r} title={routes.length === 1 ? "Approval route" : n === 0 ? "Approval route, the latest" : `Approval route ${routes.length - n}`} stepAction={stepAction} officeName={(code) => roles.find((x) => x.code === code)?.nameEn ?? null} />
@@ -486,6 +492,7 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
   const open = status === "IN_ROUTING";
   return (
     <div className="flex flex-col gap-6">
+      {apgCard}
       {choiceCard}
       <RoutingSheetView
         sheet={sheet}
@@ -497,6 +504,15 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
       />
     </div>
   );
+}
+
+/// An advance certificate's guarantee shortfall, in words (null where the guarantee covers it or none is read).
+async function advanceGuaranteeShortfall(certId: string): Promise<string | null> {
+  const a = await db.advancePayment.findUnique({ where: { certificateId: certId }, select: { amount: true, security: { select: { value: true, instrumentRef: true } } } });
+  if (!a) return null;
+  const amount = senFromDecimal(a.amount);
+  const cover = senFromDecimal(a.security.value);
+  return cover < amount ? `Guarantee ${a.security.instrumentRef || ""} ${formatMoney(cover)} is below the advance ${formatMoney(amount)}`.replace("  ", " ") : null;
 }
 
 /// One approval route of a certificate with no routing sheet: its rule, its steps in order, each decided here.
