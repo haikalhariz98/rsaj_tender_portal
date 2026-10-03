@@ -29,7 +29,7 @@ import { lockSupplierRow, SUPPLIER_APPLICATION_FACTS_SELECT, SUPPLIER_DOCUMENT_F
 import { EXTENSION_FACTS_SELECT, exerciseOfExtension, exerciseOfWithdrawal, extensionLabel, lockEnvelopeRows, lockExtensionRows, lockWithdrawalRows, WITHDRAWAL_FACTS_SELECT, withdrawalLabel } from "@/lib/bids/lock";
 
 import { reliedOn, type OwnerFacts, type Reliance } from "./attach";
-import { addendumFacts, awardFacts, bqVersionFacts, contractFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, supplierApplicationFacts, supplierDocumentFacts, tenderPackPartFacts, VARIATION_INSTRUCTION_FACTS_SELECT, variationInstructionFacts, variationInstructionLabel, withdrawalFacts } from "./owner-facts";
+import { addendumFacts, awardFacts, CANCELLATION_OWNER_SELECT, cancellationOwnerFacts, cancellationOwnerLabel, bqVersionFacts, contractFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, supplierApplicationFacts, supplierDocumentFacts, tenderPackPartFacts, VARIATION_INSTRUCTION_FACTS_SELECT, variationInstructionFacts, variationInstructionLabel, withdrawalFacts } from "./owner-facts";
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
@@ -365,6 +365,29 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         });
       });
     }
+    case "standingEvent": {
+      // 6.15 (615-C2): the supplier row first (the supplier-only path, src/lib/suppliers/lock.ts), then the event.
+      const supplierId = (await db.standingEvent.findUnique({ where: { id: ref.id }, select: { supplierId: true } }))?.supplierId ?? null;
+      if (!supplierId) return null;
+      return db.$transaction(async (tx) => {
+        const org = await documentOrg(tx);
+        if (!org || !(await lockSupplierRow(tx, supplierId))) return null;
+        await tx.$queryRaw`SELECT id FROM "StandingEvent" WHERE id = ${ref.id} FOR UPDATE`;
+        const e = await tx.standingEvent.findFirst({ where: { id: ref.id, organisationId: org.id, supplierId }, select: CANCELLATION_OWNER_SELECT });
+        if (!e) return null;
+        const facts = cancellationOwnerFacts(e);
+        return fn(tx, {
+          ref,
+          organisationId: org.id,
+          today: org.today,
+          label: cancellationOwnerLabel(e),
+          facts,
+          paths: [`/suppliers/${supplierId}`, "/suppliers"],
+          // The body's notice is attached for the record; nothing stands on it.
+          reliance: () => null,
+        });
+      });
+    }
     case "delegation":
       return db.$transaction(async (tx) => {
         const org = await documentOrg(tx);
@@ -389,7 +412,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
 }
 
 /// Which owner an attachment belongs to.
-export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null; openingId?: string | null; evaluationId?: string | null; evaluationMeetingId?: string | null; evaluationBidderId?: string | null; supplierDocumentId?: string | null; supplierApplicationId?: string | null; contractId?: string | null; variationInstructionId?: string | null }): OwnerRef | null {
+export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null; openingId?: string | null; evaluationId?: string | null; evaluationMeetingId?: string | null; evaluationBidderId?: string | null; supplierDocumentId?: string | null; supplierApplicationId?: string | null; contractId?: string | null; variationInstructionId?: string | null; standingEventId?: string | null }): OwnerRef | null {
   if (a.meetingId) return { kind: "meeting", id: a.meetingId };
   if (a.exerciseId) return { kind: "exercise", id: a.exerciseId };
   if (a.awardId) return { kind: "award", id: a.awardId };
@@ -408,5 +431,6 @@ export function ownerOf(a: { meetingId: string | null; exerciseId: string | null
   if (a.supplierApplicationId) return { kind: "supplierApplication", id: a.supplierApplicationId };
   if (a.contractId) return { kind: "contract", id: a.contractId };
   if (a.variationInstructionId) return { kind: "variationInstruction", id: a.variationInstructionId };
+  if (a.standingEventId) return { kind: "standingEvent", id: a.standingEventId };
   return null;
 }

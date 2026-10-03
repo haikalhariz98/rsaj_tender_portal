@@ -108,6 +108,7 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   PROGRAMME: "Work programme as submitted",
   DIARY_PHOTO: "Site diary photograph",
   INSTRUCTION_SKETCH: "Plan or sketch for the S.O.'s instruction",
+  REGISTRATION_CANCELLATION_NOTICE: "Registration body's notice of cancellation",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",
@@ -203,6 +204,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   CONTRACT_EXECUTED: "The contract is executed and keeps what it was executed on.",
   INSTRUCTION_VOID: "The instruction is void and keeps what it has.",
   VARIATION_CLOSED: "The variation is closed and its instruction keeps what it has.",
+  CANCELLATION_WITHDRAWN: "The cancellation was withdrawn as recorded in error and keeps what it has.",
 };
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {

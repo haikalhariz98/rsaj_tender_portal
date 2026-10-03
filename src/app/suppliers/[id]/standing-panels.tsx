@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
+import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { RouteSteps } from "@/app/sourcing/[id]/route-steps";
 import { ClipboardIcon, LinkIcon, ScaleIcon, ShieldIcon } from "@/components/icons";
 import { isMandatoryAct } from "@/components/ui/act";
@@ -20,6 +21,7 @@ import { ACT_DONE_LABEL } from "@/lib/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
+import { recordCancellationFaults } from "@/lib/suppliers/cancellation";
 import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, withdrawRequestFaults, type RequestFacts } from "@/lib/suppliers/blacklist";
 import { documentStates } from "@/lib/suppliers/documents";
 import { isEligibilitySnapshot } from "@/lib/suppliers/eligibility";
@@ -35,7 +37,7 @@ import { eligibilityOf, standingEventFacts } from "@/lib/suppliers/standing-repo
 import { blocking, type Finding } from "@/lib/suppliers/types";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 
-import { DecideRouteStepDrawer, GrantPermissionDrawer, LinkAwardDrawer, LinkPartyDrawer, PermissionDrawer, ReinstateDrawer, RecordStandingDrawer, RequestBlacklistDrawer, RequestLiftDrawer, SuspendDrawer, WithdrawRequestDrawer } from "./standing-editors";
+import { DecideRouteStepDrawer, GrantPermissionDrawer, LinkAwardDrawer, LinkPartyDrawer, PermissionDrawer, RecordCancellationDrawer, ReinstateDrawer, RecordStandingDrawer, RequestBlacklistDrawer, RequestLiftDrawer, SuspendDrawer, WithdrawCancellationDrawer, WithdrawRequestDrawer } from "./standing-editors";
 
 type Option = { value: string; label: string };
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
@@ -110,6 +112,9 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
   };
   const awards = s.awards.filter((a) => a.status === "CANCELLED" && a.cancelConsequence === "CANCEL_AND_BLACKLIST").map((a) => ({ value: a.id, label: `${a.reference} · ${a.awardeeName}` }));
   const since = reading.blacklist ?? reading.cancellation ?? reading.suspension;
+  // 615-C2: the registration bodies a cancellation may be recorded from (a retired one still names an old registration).
+  const bodies = (await db.registrationBody.findMany({ where: { organisationId: l.org.id }, orderBy: { labelEn: "asc" }, select: { id: true, labelEn: true, retiredOn: true } })).map((b) => ({ value: b.id, label: `${asHeading(b.labelEn)}${b.retiredOn ? " (retired)" : ""}` }));
+  const cancelBlocker = bodies.length === 0 ? "No registration body is configured (Configuration › Supplier register)." : first(recordCancellationFaults({ bodyId: "x", reference: "x", effectiveOn: today, personActive: true }, { today, status: s.status, registeredOn: day(s.registeredOn), reading, bodyConfigured: true }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -122,6 +127,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
             <span className="flex flex-wrap items-center gap-2">
               {reading.suspension ? <ReinstateDrawer supplierId={s.id} checklist={checklist.map((c) => ({ value: c.documentId, label: `${docLabel(c.documentId)}: ${c.typeLabel} now ${DOCUMENT_STATE_LABEL[c.state].en.toLowerCase()}` }))} people={people} today={today} blocker={reading.standing === "BLACKLISTED" ? supplierFaultText({ code: "BLACKLISTED", level: "block" }) : null} /> : <SuspendDrawer supplierId={s.id} reasons={reasonsFor("SUSPEND")} documents={s.documents.filter((d) => !d.renewedBy).map((d) => ({ value: d.id, label: docLabel(d.id) }))} people={people} today={today} blocker={suspendBlocker} />}
               {reading.standing === "BLACKLISTED" ? <RequestLiftDrawer supplierId={s.id} people={people} blocker={liftBlocker} /> : <RequestBlacklistDrawer supplierId={s.id} reasons={reasonsFor("BLACKLIST")} awards={awards} fromAward={fromAward && awards.some((a) => a.value === fromAward) ? fromAward : null} people={people} blocker={blacklistBlocker} />}
+              <RecordCancellationDrawer supplierId={s.id} bodies={bodies} people={people} today={today} blocker={cancelBlocker} />
             </span>
           }
         />
@@ -171,20 +177,31 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
       )}
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title="Recorded" subtitle="Every suspension, reinstatement, blacklisting and lifting, newest first. Nothing here is edited or removed." divided={s.standingEvents.length === 0} />
+        <CardHeader icon={<ShieldIcon size={17} />} title="Recorded" subtitle="Every suspension, reinstatement, blacklisting, lifting and registration cancelled, newest first. Nothing here is edited or removed: a cancellation recorded in error is withdrawn, with why, and stays listed." divided={s.standingEvents.length === 0} />
         {s.standingEvents.length === 0 ? (
-          <EmptyState size="sm" title="Nothing recorded">The supplier has not been suspended or blacklisted.</EmptyState>
+          <EmptyState size="sm" title="Nothing recorded">The supplier has not been suspended or blacklisted, and no cancellation of its registration is recorded.</EmptyState>
         ) : (
           <ul className="divide-y divide-line/70">
             {s.standingEvents.map((e) => (
               <li key={e.id} className="flex flex-col gap-1 px-5 py-3 text-[13px] sm:px-6">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={e.kind === "REINSTATE" || e.kind === "BLACKLIST_LIFT" ? "ok" : "err"}>{STANDING_EVENT_LABEL[e.kind].en}</Badge>
+                  <Badge tone={e.withdrawnAt ? "neutral" : e.kind === "REINSTATE" || e.kind === "BLACKLIST_LIFT" ? "ok" : "err"}>{STANDING_EVENT_LABEL[e.kind].en}</Badge>
+                  {e.withdrawnAt && <Chip tone="neutral">Withdrawn: recorded in error</Chip>}
                   <span className="text-ink-2">from {formatDate(storedDay(e.effectiveOn))}{e.kind === "BLACKLIST" ? (e.endsOn ? ` (${e.offenceNo === 1 ? "first offence" : `offence ${e.offenceNo}`}, ${e.periodMonths} months) · ${blacklistEndWords(storedDay(e.endsOn)).en}` : ` until further notice (offence ${e.offenceNo})`) : ""} · {e.recordedBy.name}, recorded on their behalf, not signed</span>
                 </div>
                 {e.reasonSnapshot && <p className="text-ink-2">{e.reasonSnapshot}</p>}
                 {e.flaggedDocumentIds.length > 0 && <p className="text-[12.5px] text-ink-3">For: {e.flaggedDocumentIds.map(docLabel).join(", ")}</p>}
                 {e.note && <p className="text-[12.5px] break-words text-ink-3">“{e.note}”</p>}
+                {e.kind === "REGISTRATION_CANCELLED" && (
+                  <>
+                    {e.withdrawnAt ? (
+                      <p className="text-[12.5px] break-words text-ink-3">Withdrawn by {e.withdrawnBy?.name ?? "a person no longer on record"}, on their behalf, {formatOrgDay(e.withdrawnAt, l.org.timeZone)}: “{e.withdrawnReason}”. The supplier&apos;s standing does not read it.</p>
+                    ) : (
+                      <span className="flex flex-wrap items-center gap-2"><WithdrawCancellationDrawer eventId={e.id} people={people} /></span>
+                    )}
+                    <OwnerAttachments owner={{ kind: "standingEvent", id: e.id }} title="The body's notice" subtitle="The registration body's notice of the cancellation, as received." only={["REGISTRATION_CANCELLATION_NOTICE"]} required={{ REGISTRATION_CANCELLATION_NOTICE: !e.withdrawnAt }} />
+                  </>
+                )}
               </li>
             ))}
           </ul>

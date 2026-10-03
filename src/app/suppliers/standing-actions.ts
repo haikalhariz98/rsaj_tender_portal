@@ -8,6 +8,7 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
+import { CANCELLATION_REFERENCE_MAX, recordCancellationFaults, withdrawCancellationFaults } from "@/lib/suppliers/cancellation";
 import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, withdrawRequestFaults, type RequestFacts } from "@/lib/suppliers/blacklist";
 import { documentStates } from "@/lib/suppliers/documents";
 import { BLACKLIST_MATTER, REQUEST_KIND_LABEL, STANDING_REFUSED_DECIDED_BY, standingWords } from "@/lib/suppliers/labels";
@@ -22,14 +23,15 @@ import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
 
 /**
- * A supplier's standing (FR-VND-010, FR-TRM-017, plan 6.15 §4.2, increment a2): suspended by an officer
+ * A supplier's standing (FR-VND-010, FR-TRM-017, plan 6.15 §4.2, increment a2; FR-ADV-010 and 615-C2): suspended by an officer
  * with a reason from the list and the documents it is for; reinstated once each of those stands again,
  * with the checklist answered and a note; blacklisted, or its blacklisting lifted, only on a route on
  * `supplier_blacklist` (OD-8 A) and recorded once that route has approved it, the period computed then
  * from the policy and frozen. Suspension on lapse is derived on read (OD-7 A) and never written. Every
  * act locks the supplier row first (supplier-only path), then the request it changes; re-reads the
  * standing under the lock; audits in the same transaction; names its person "recorded on behalf of,
- * not signed". Events are append-only.
+ * not signed". Events are append-only: the one update is the withdrawal of a registration cancelled recorded in error
+ * (615-C2), which writes only its three withdrawal columns and keeps the row.
  */
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
@@ -278,5 +280,72 @@ export async function withdrawStandingRequest(_prev: FormState, data: FormData):
     await audit(tx, l.org.id, SUPPLIER_ENTITY.standingRequest, req.id, standingLabel(l, req.kind === "BLACKLIST" ? "Blacklisting asked for" : "Lifting asked for"), "UPDATE",
       diffFields({ withdrawn: null }, { withdrawn: "Withdrawn: not recorded", withdrawnBy: person!.name, recordedOnBehalf: "not signed" }), reason);
     return { ok: true, message: "Withdrawn. Nothing is recorded from it; another may be asked for." };
+  });
+}
+
+// ------------------------------------------------------------------ a registration cancelled (615-C2, BD-613-91)
+
+/**
+ * Record a registration body's cancellation of the supplier's registration (FR-ADV-010; ADR 0019 Amendment 1): a fact, with
+ * the body (its label frozen), the body's reference and the day it takes effect. No route. The only writer of
+ * REGISTRATION_CANCELLED (cancellation-scan.test.ts). The body's notice is attached on the record afterwards.
+ */
+export async function recordRegistrationCancelled(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = stampNow();
+  const supplierId = String(data.get("supplierId") ?? "");
+  const r = new FormReader(data);
+  const bodyId = r.optionalText("cancellingBodyId");
+  const reference = r.text("externalReference", "The body's reference", { required: true, max: CANCELLATION_REFERENCE_MAX });
+  const effective = r.date("effectiveOn", "Takes effect on", { required: true });
+  const personId = r.text("personId", "Recorded by", { required: true });
+  const note = r.text("note", "Note", { max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inSupplier(supplierId, async (tx, l) => {
+    if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
+    const { reading, status, s } = await lockedStanding(tx, l);
+    const body = bodyId ? await tx.registrationBody.findFirst({ where: { id: bodyId, organisationId: l.org.id }, select: { id: true, labelEn: true } }) : null;
+    const person = await activePerson(tx, l.org.id, personId);
+    const effectiveOn = effective ? storedDay(effective) : null;
+    const fs = recordCancellationFaults({ bodyId, reference, effectiveOn, personActive: !!person }, { today: l.org.today, status, registeredOn: day(s.registeredOn), reading, bodyConfigured: bodyId ? !!body : null });
+    if (blocking(fs).length) return refuse(fs, "Not recorded:");
+    const ref = reference.trim();
+    const e = await tx.standingEvent.create({ data: { organisationId: l.org.id, supplierId, kind: "REGISTRATION_CANCELLED", cancellingBodyId: body!.id, bodyLabelSnapshot: body!.labelEn, externalReference: ref, reasonSnapshot: `Cancelled by ${body!.labelEn} (${ref})`, effectiveOn: dayToDate(effectiveOn!), note, recordedByPersonId: person!.id, recordedAt: now } });
+    await audit(tx, l.org.id, SUPPLIER_ENTITY.standingEvent, e.id, standingLabel(l, "Registration cancelled"), "CREATE",
+      diffFields(null, { standing: "Registration cancelled", cancelledBy: body!.labelEn, bodyReference: ref, effectiveOn: effectiveOn!, note: note || null, recordedBy: person!.name, recordedOnBehalf: "not signed" }), note);
+    return { ok: true, message: `Recorded: the registration is cancelled from ${formatDate(effectiveOn!)}, by ${body!.labelEn} (${ref}). Attach the body's notice on the record. The notice to the supplier is shown, not sent.` };
+  });
+}
+
+/**
+ * Withdraw a registration cancelled that was recorded in error (615-C2, BD-613-91): with the reason and the officer, audited;
+ * the row is kept and shown withdrawn, and the standing rule reads it as never recorded. A cancellation that stood is not
+ * withdrawn: the supplier registers again.
+ */
+export async function withdrawRegistrationCancelled(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = stampNow();
+  const eventId = String(data.get("eventId") ?? "");
+  const r = new FormReader(data);
+  const personId = r.text("personId", "Withdrawn by", { required: true });
+  const reason = String(data.get("reason") ?? "").trim();
+  if (r.failed) return { ok: false, errors: r.errors };
+  const found = await db.standingEvent.findUnique({ where: { id: eventId }, select: { supplierId: true } });
+  if (!found) return GONE;
+  return inSupplier(found.supplierId, async (tx, l) => {
+    if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
+    await tx.$queryRaw`SELECT id FROM "StandingEvent" WHERE id = ${eventId} FOR UPDATE`;
+    const ev = await tx.standingEvent.findFirst({ where: { id: eventId, supplierId: l.supplier.id }, select: { id: true, kind: true, withdrawnAt: true, effectiveOn: true, bodyLabelSnapshot: true, externalReference: true } });
+    const { reading } = await lockedStanding(tx, l);
+    const person = await activePerson(tx, l.org.id, personId);
+    const fs = withdrawCancellationFaults({ reason, personActive: !!person }, { today: l.org.today, event: ev ? { kind: ev.kind, withdrawn: ev.withdrawnAt != null } : null });
+    if (blocking(fs).length) {
+      const reasonFault = fs.find((f) => f.code === "CANCELLATION_WITHDRAW_REASON_REQUIRED");
+      const rest = blocking(fs).filter((f) => f !== reasonFault);
+      return rest.length ? refuse(rest, "Not withdrawn:") : { ok: false, errors: { reason: refuse([reasonFault!], "").message!.trim() } };
+    }
+    const moved = await tx.standingEvent.updateMany({ where: { id: ev!.id, kind: "REGISTRATION_CANCELLED", withdrawnAt: null }, data: { withdrawnAt: now, withdrawnReason: reason, withdrawnByPersonId: person!.id } });
+    if (moved.count !== 1) throw new Refusal(CHANGED);
+    await audit(tx, l.org.id, SUPPLIER_ENTITY.standingEvent, ev!.id, standingLabel(l, "Registration cancelled"), "UPDATE",
+      diffFields({ withdrawn: null, standing: standingWords(reading).en }, { withdrawn: `Withdrawn: recorded in error (the cancellation by ${ev!.bodyLabelSnapshot}, ${ev!.externalReference}, from ${formatDate(storedDay(ev!.effectiveOn))})`, standing: null, withdrawnBy: person!.name, recordedOnBehalf: "not signed" }), reason);
+    return { ok: true, message: "Withdrawn as recorded in error. It stays on the record, marked withdrawn with why; the supplier's standing no longer reads it." };
   });
 }

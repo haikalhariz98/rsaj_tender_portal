@@ -281,3 +281,38 @@ describe("6.13 Part A acceptance S-2: the S.O.'s Instruction is an owner, everyw
     expect(sql).toHaveLength(1);
   });
 });
+
+describe("615-C2: a registration cancelled is an owner, everywhere at once (X-6)", () => {
+  it("its key is counted by one_owner and its purpose pairs with it", () => {
+    expect(latestCheck("DocumentAttachment_one_owner")).toMatch(/"standingEventId"(, "\w+")*\) = 1/);
+    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/\("purpose" = 'REGISTRATION_CANCELLATION_NOTICE' AND "standingEventId" IS NOT NULL\)/);
+    // The owners before it still pair with theirs.
+    expect(latestCheck("DocumentAttachment_purpose_owner")).toMatch(/\("purpose" = 'INSTRUCTION_SKETCH' AND "variationInstructionId" IS NOT NULL\)/);
+    expect(OWNER_COLUMN.standingEvent).toBe("standingEventId");
+    expect(PURPOSE_OWNER.REGISTRATION_CANCELLATION_NOTICE).toBe("standingEvent");
+  });
+
+  it("REGISTRATION_CANCELLATION_NOTICE arrived alone in its own migration, before the migration that rebuilt the CHECKs with it", () => {
+    const own = migrations.filter((d) => /ALTER TYPE "AttachmentPurpose" ADD VALUE 'REGISTRATION_CANCELLATION_NOTICE'/.test(readFileSync(join(migrationsDir, d, "migration.sql"), "utf8")));
+    const used = migrations.filter((d) => d !== own[0] && readFileSync(join(migrationsDir, d, "migration.sql"), "utf8").includes("'REGISTRATION_CANCELLATION_NOTICE'"));
+    expect(own).toEqual(["20261003600101_attachment_purpose_registration_cancellation_notice"]);
+    expect(used[0]).toBe("20261003600102_registration_cancelled_writer");
+    // Any later mention is a rebuild of the owner CHECKs from the full owner list (a later owner's migration).
+    for (const u of used.slice(1)) expect(readFileSync(join(migrationsDir, u, "migration.sql"), "utf8"), u).toMatch(/ADD CONSTRAINT "DocumentAttachment_purpose_owner"/);
+    const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    expect(sql).toHaveLength(1);
+  });
+
+  it("the writer's CHECKs: a cancellation names its body and reference; withdrawn only a cancellation, with all three and a reason; the pre-check", () => {
+    const sql = readFileSync(join(migrationsDir, "20261003600102_registration_cancelled_writer", "migration.sql"), "utf8");
+    expect(sql).toMatch(/"StandingEvent_cancellation_source"\s+CHECK \(\("kind" = 'REGISTRATION_CANCELLED'\) = \("cancellingBodyId" IS NOT NULL\)/);
+    expect(sql).toMatch(/length\(btrim\("externalReference"\)\) > 0/);
+    expect(sql).toMatch(/"StandingEvent_withdrawn"\s+CHECK \(\("withdrawnAt" IS NULL\) = \("withdrawnByPersonId" IS NULL\)/);
+    expect(sql).toMatch(/"withdrawnAt" IS NULL OR \("kind" = 'REGISTRATION_CANCELLED' AND length\(btrim\("withdrawnReason"\)\) > 0\)/);
+    expect(sql).toMatch(/SELECT CAST\(\(SELECT 'Pre-check failed: [^']*' WHERE EXISTS \(SELECT 1 FROM "StandingEvent" WHERE "kind" = 'REGISTRATION_CANCELLED'\)\) AS INTEGER\);/);
+    // The pre-check comes before any change.
+    expect(sql.indexOf("SELECT CAST")).toBeLessThan(sql.indexOf("ALTER TABLE"));
+    // No semicolon inside a comment (the WASM engine splits on every one).
+    for (const line of sql.split("\n").filter((l) => l.trim().startsWith("--"))) expect(line).not.toContain(";");
+  });
+});

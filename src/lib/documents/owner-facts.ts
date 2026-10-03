@@ -169,5 +169,11 @@ export const VARIATION_INSTRUCTION_FACTS_SELECT = {
 } as const;
 type InstructionRow = { certificate: { status: string; number: string | null }; variation: { status: string; reference: string | null; contract: { status: ContractStatus; number: string; award: { awardeeName: string } } } };
 export const variationInstructionFacts = (i: InstructionRow): OwnerFacts => ({ kind: "variationInstruction", contractStatus: i.variation.contract.status, certificateStatus: i.certificate.status, variationClosed: i.variation.status === "CLOSED" });
+/// 6.15 (615-C2): what a standing event (a registration cancelled) is judged and named by.
+export const CANCELLATION_OWNER_SELECT = { kind: true, withdrawnAt: true, bodyLabelSnapshot: true, externalReference: true, supplierId: true, supplier: { select: { reference: true } } } as const;
+type CancellationRow = { kind: string; withdrawnAt: Date | null; bodyLabelSnapshot: string; externalReference: string; supplierId: string; supplier: { reference: string } };
+export const cancellationOwnerFacts = (e: CancellationRow): OwnerFacts => ({ kind: "standingEvent", cancellation: e.kind === "REGISTRATION_CANCELLED", withdrawn: e.withdrawnAt != null });
+export const cancellationOwnerLabel = (e: CancellationRow) =>
+  e.kind === "REGISTRATION_CANCELLED" ? `${e.supplier.reference} · Registration cancelled by ${e.bodyLabelSnapshot} (${e.externalReference})` : `${e.supplier.reference} · A standing record`;
 export const variationInstructionLabel = (i: InstructionRow) =>
   `Contract ${i.variation.contract.number} · variation ${i.variation.reference ?? "(not yet numbered)"} · the S.O.'s instruction ${i.certificate.number ?? "(not yet numbered)"}`;

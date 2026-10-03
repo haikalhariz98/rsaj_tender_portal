@@ -4,7 +4,7 @@ import { buttonClass } from "@/components/ui/button";
 import { ON_BEHALF_HINT } from "@/lib/documents/labels";
 
 import { grantSpecialPermission, linkAwardToSupplier, linkPartyToSupplier, recordSpecialPermission, decidePermissionStep } from "../link-actions";
-import { decideStandingStep, liftBlacklisting, recordBlacklisting, reinstateSupplier, requestBlacklisting, requestBlacklistLift, suspendSupplier, withdrawStandingRequest } from "../standing-actions";
+import { decideStandingStep, liftBlacklisting, recordBlacklisting, recordRegistrationCancelled, reinstateSupplier, requestBlacklisting, requestBlacklistLift, suspendSupplier, withdrawRegistrationCancelled, withdrawStandingRequest } from "../standing-actions";
 
 /**
  * The supplier record's a2 drawers (6.15a): standing, links and special permission. No field carries a
@@ -138,6 +138,48 @@ export function WithdrawRequestDrawer({ requestId, what, people }: { requestId: 
       action={withdrawStandingRequest}
       submitLabel="Withdraw it"
       trigger={{ label: "Withdraw", className: ghost }}
+    />
+  );
+}
+
+// ------------------------------------------------------------------ a registration cancelled (615-C2)
+
+/// Record a registration body's cancellation of the supplier's registration: a fact, from the body's notice. No route.
+export function RecordCancellationDrawer({ supplierId, bodies, people, today, blocker }: { supplierId: string; bodies: Option[]; people: Option[]; today: string | null; blocker: string | null }) {
+  if (blocker) return <Blocked label="Record a registration cancelled" reason={blocker} />;
+  return (
+    <RecordEditor
+      title="Record a registration cancelled"
+      description="A registration body has cancelled the supplier's registration: record it as the body's notice states it. It bars the supplier from a sale, a bid and an award while it stands. Attach the notice on the record once it is saved. Recorded in error, it is withdrawn with why, never deleted. The notice to the supplier is shown on the record, not sent."
+      fields={[
+        hidden("supplierId"),
+        { kind: "select", name: "cancellingBodyId", label: "Cancelled by", required: true, placeholder: "Choose", options: bodies, hint: bodies.length ? undefined : "No registration body is configured (Configuration › Supplier register)." },
+        { kind: "text", name: "externalReference", label: "The body's reference", required: true, hint: "As on its notice." },
+        { kind: "date", name: "effectiveOn", label: "Takes effect on", required: true, hint: "As the notice states; not after today, nor before the supplier was registered." },
+        { kind: "textarea", name: "note", label: "Note" },
+        person("Recorded by", people),
+      ]}
+      values={{ supplierId, effectiveOn: today }}
+      action={recordRegistrationCancelled}
+      submitLabel="Record it"
+      trigger={{ label: "Record a registration cancelled", className: secondary }}
+    />
+  );
+}
+
+/// Withdraw a registration cancelled that was recorded in error: the reason is kept with it.
+export function WithdrawCancellationDrawer({ eventId, people }: { eventId: string; people: Option[] }) {
+  return (
+    <RecordEditor
+      title="Withdraw the cancellation: recorded in error"
+      description="Only for a record made in error (another supplier's notice, a misread one). It stays on the record, marked withdrawn, with why, and the supplier's standing no longer reads it. A cancellation that stood is not withdrawn: the supplier registers again."
+      fields={[hidden("eventId"), person("Withdrawn by", people)]}
+      values={{ eventId }}
+      destructive={{ reasonLabel: "Why it was recorded in error" }}
+      cancelLabel="Keep it"
+      action={withdrawRegistrationCancelled}
+      submitLabel="Withdraw it"
+      trigger={{ label: "Withdraw: recorded in error", className: ghost }}
     />
   );
 }

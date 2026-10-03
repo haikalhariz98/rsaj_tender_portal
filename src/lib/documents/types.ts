@@ -58,7 +58,8 @@ export type AttachmentPurpose =
   | "AS_BUILT"
   | "PROGRAMME"
   | "DIARY_PHOTO"
-  | "INSTRUCTION_SKETCH";
+  | "INSTRUCTION_SKETCH"
+  | "REGISTRATION_CANCELLATION_NOTICE";
 
 export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "SIGNED_MINUTES",
@@ -99,12 +100,13 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "PROGRAMME",
   "DIARY_PHOTO",
   "INSTRUCTION_SKETCH",
+  "REGISTRATION_CANCELLATION_NOTICE",
 ];
 
 /// The owners a document can be attached to. New owners arrive by migration with their
 /// module (MatterKind precedent); each is a typed key on DocumentAttachment.
-export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening" | "evaluation" | "evaluationMeeting" | "evaluationBidder" | "supplierDocument" | "supplierApplication" | "contract" | "variationInstruction";
-export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction"];
+export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening" | "evaluation" | "evaluationMeeting" | "evaluationBidder" | "supplierDocument" | "supplierApplication" | "contract" | "variationInstruction" | "standingEvent";
+export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction", "standingEvent"];
 
 /// Which owner each purpose belongs to. The migration's CHECK says the same.
 export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
@@ -151,10 +153,12 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   DIARY_PHOTO: "contract",
   // 6.13 Part A acceptance S-2 (FR-VAR-015): the S.O.'s Instruction's plans or sketches.
   INSTRUCTION_SKETCH: "variationInstruction",
+  // 6.15 (615-C2): a registration body's notice of cancellation, on the record of the cancellation.
+  REGISTRATION_CANCELLATION_NOTICE: "standingEvent",
 };
 
 /// The column on DocumentAttachment that names each owner.
-export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId" | "evaluationId" | "evaluationMeetingId" | "evaluationBidderId" | "supplierDocumentId" | "supplierApplicationId" | "contractId" | "variationInstructionId";
+export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId" | "evaluationId" | "evaluationMeetingId" | "evaluationBidderId" | "supplierDocumentId" | "supplierApplicationId" | "contractId" | "variationInstructionId" | "standingEventId";
 export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   meeting: "meetingId",
   exercise: "exerciseId",
@@ -174,6 +178,7 @@ export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   supplierApplication: "supplierApplicationId",
   contract: "contractId",
   variationInstruction: "variationInstructionId",
+  standingEvent: "standingEventId",
 };
 
 /// Purposes attached only by their owner's own act, never from the shared attach choice: a

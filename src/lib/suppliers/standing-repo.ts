@@ -18,8 +18,8 @@ import type { RegistrationValueKind } from "./types";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
-export function standingEventFacts(e: { id: string; kind: string; effectiveOn: Date; endsOn: Date | null; offenceNo: number | null; reasonSnapshot: string; reinstatesEventId: string | null; liftsEventId: string | null; flaggedDocumentIds: string[] }): StandingEventFacts {
-  return { id: e.id, kind: e.kind as StandingEventKind, effectiveOn: storedDay(e.effectiveOn), endsOn: day(e.endsOn), offenceNo: e.offenceNo, reasonLabel: e.reasonSnapshot, reinstatesEventId: e.reinstatesEventId, liftsEventId: e.liftsEventId, flaggedDocumentIds: e.flaggedDocumentIds };
+export function standingEventFacts(e: { id: string; kind: string; effectiveOn: Date; endsOn: Date | null; offenceNo: number | null; reasonSnapshot: string; reinstatesEventId: string | null; liftsEventId: string | null; flaggedDocumentIds: string[]; withdrawnAt: Date | null }): StandingEventFacts {
+  return { id: e.id, kind: e.kind as StandingEventKind, effectiveOn: storedDay(e.effectiveOn), endsOn: day(e.endsOn), offenceNo: e.offenceNo, reasonLabel: e.reasonSnapshot, reinstatesEventId: e.reinstatesEventId, liftsEventId: e.liftsEventId, flaggedDocumentIds: e.flaggedDocumentIds, withdrawn: e.withdrawnAt != null };
 }
 
 /// The policy's switches as the rules read them.

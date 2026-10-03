@@ -86,7 +86,10 @@ export type OwnerFacts =
   | { kind: "contract"; status: ContractStatus; legalSubmitted: boolean; contractorSigned: boolean; returnComments?: readonly { versionId: string; documentId: string; live: boolean }[] }
   /// 6.13 Part A acceptance S-2 (FR-VAR-015): the S.O.'s Instruction of a variation, with its contract's status, its
   /// certificate's and whether its variation is closed. Its plans or sketches may follow its issue (not required at it).
-  | { kind: "variationInstruction"; contractStatus: ContractStatus; certificateStatus: string; variationClosed: boolean };
+  | { kind: "variationInstruction"; contractStatus: ContractStatus; certificateStatus: string; variationClosed: boolean }
+  /// 6.15 (615-C2, BD-613-91): a supplier's standing event; only a registration cancelled takes a notice. Withdrawn as
+  /// recorded in error, it keeps what it has. Nothing stands on the notice (it is the body's, attached for the record).
+  | { kind: "standingEvent"; cancellation: boolean; withdrawn: boolean };
 
 /// 6.8: where an evaluation version stands (the Prisma enum's values).
 export type EvaluationState = "OPEN" | "ISSUED" | "SUPERSEDED" | "CANCELLED";
@@ -188,7 +191,8 @@ export type OwnerExit =
   | "CONTRACT_NOT_ACTIVE"
   | "CONTRACT_EXECUTED"
   | "INSTRUCTION_VOID"
-  | "VARIATION_CLOSED";
+  | "VARIATION_CLOSED"
+  | "CANCELLATION_WITHDRAWN";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -212,6 +216,8 @@ export function purposeFits(purpose: AttachmentPurpose, owner: OwnerFacts): bool
   // 6.5: a publication's proof belongs to an advertised window; an attendance sheet to any window.
   if (owner.kind === "exercise" && purpose === "PUBLICATION_PROOF") return owner.window?.path === "ADVERTISED";
   if (owner.kind === "exercise" && purpose === "ATTENDANCE_SHEET") return owner.window != null;
+  // 615-C2: of the standing events, only a registration cancelled takes the body's notice.
+  if (owner.kind === "standingEvent") return owner.cancellation;
   return true;
 }
 
@@ -307,6 +313,9 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       if (owner.contractStatus === "CANCELLED") return { state: "FROZEN", exit: "CONTRACT_CANCELLED" };
       if (owner.certificateStatus === "VOID") return { state: "FROZEN", exit: "INSTRUCTION_VOID" };
       return owner.variationClosed ? { state: "FROZEN", exit: "VARIATION_CLOSED" } : { state: "OPEN" };
+    case "standingEvent":
+      // 615-C2: open while the record stands; withdrawn as recorded in error, it keeps what it has.
+      return owner.withdrawn ? { state: "FROZEN", exit: "CANCELLATION_WITHDRAWN" } : { state: "OPEN" };
   }
 }
 

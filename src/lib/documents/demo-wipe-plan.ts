@@ -68,6 +68,8 @@ export interface PlanAttachment {
   contractId?: string | null;
   /// 6.13 (FR-VAR-015): an S.O.'s Instruction, which goes with its contract (`removedInstructionIds`).
   variationInstructionId?: string | null;
+  /// 6.15 (615-C2): a registration cancelled, which goes with its supplier (`removedStandingEventIds`).
+  standingEventId?: string | null;
 }
 
 export interface PlanDocument {
@@ -105,6 +107,8 @@ export interface WipeSide {
   removedContractIds?: ReadonlySet<string>;
   /// 6.13: S.O.'s Instructions removed with their contract.
   removedInstructionIds?: ReadonlySet<string>;
+  /// 615-C2: standing events removed with their supplier.
+  removedStandingEventIds?: ReadonlySet<string>;
 }
 
 /**
@@ -144,7 +148,7 @@ export interface DocumentWipePlan {
 
 /// Whether an attachment's record is demo data or removed with it.
 export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
-  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null, a.tenderPackPartId ?? null, a.addendumId ?? null, a.bidWithdrawalId ?? null, a.validityExtensionId ?? null, a.openingId ?? null, a.evaluationId ?? null, a.evaluationMeetingId ?? null, a.evaluationBidderId ?? null, a.supplierDocumentId ?? null, a.supplierApplicationId ?? null, a.contractId ?? null, a.variationInstructionId ?? null].filter((k): k is string => k != null);
+  const keys = [a.meetingId, a.exerciseId, a.awardId, a.delegationId, a.specificationPanelId ?? null, a.bqVersionId ?? null, a.tenderPackPartId ?? null, a.addendumId ?? null, a.bidWithdrawalId ?? null, a.validityExtensionId ?? null, a.openingId ?? null, a.evaluationId ?? null, a.evaluationMeetingId ?? null, a.evaluationBidderId ?? null, a.supplierDocumentId ?? null, a.supplierApplicationId ?? null, a.contractId ?? null, a.variationInstructionId ?? null, a.standingEventId ?? null].filter((k): k is string => k != null);
   // An attachment has exactly one owner (a CHECK); a row with none is never the demo's.
   if (keys.length === 0) return false;
   return keys.every(
@@ -161,7 +165,8 @@ export function onDemoSide(a: PlanAttachment, side: WipeSide): boolean {
       ((a.bidWithdrawalId === k || a.validityExtensionId === k || a.openingId === k || a.evaluationId === k || a.evaluationMeetingId === k || a.evaluationBidderId === k) && (side.removedBidRecordIds?.has(k) ?? false)) ||
       ((a.supplierDocumentId === k || a.supplierApplicationId === k) && (side.removedSupplierRecordIds?.has(k) ?? false)) ||
       (a.contractId === k && (side.removedContractIds?.has(k) ?? false)) ||
-      (a.variationInstructionId === k && (side.removedInstructionIds?.has(k) ?? false)),
+      (a.variationInstructionId === k && (side.removedInstructionIds?.has(k) ?? false)) ||
+      (a.standingEventId === k && (side.removedStandingEventIds?.has(k) ?? false)),
   );
 }
 

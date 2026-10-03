@@ -33,7 +33,8 @@ describe("the barred suppliers, as the standing rule derives them (residual 1)",
     expect(w.OR).toEqual([
       { standingEvents: { some: { kind: "BLACKLIST", effectiveOn: { lte: T }, OR: [{ endsOn: null }, { endsOn: { gt: T } }], NOT: { liftedBy: { is: { effectiveOn: { lte: T } } } } } } },
       { standingEvents: { some: { kind: "SUSPEND", effectiveOn: { lte: T }, NOT: { reinstatedBy: { is: { effectiveOn: { lte: T } } } } } } },
-      { standingEvents: { some: { kind: "REGISTRATION_CANCELLED", effectiveOn: { lte: T } } } },
+      // 615-C2 (stricter, flagged 6.15): a cancellation withdrawn as recorded in error does not bar.
+      { standingEvents: { some: { kind: "REGISTRATION_CANCELLED", effectiveOn: { lte: T }, withdrawnAt: null } } },
     ]);
   });
   it("the exclusive end: on its endsOn a first offence no longer bars (endsOn > the day)", () => {

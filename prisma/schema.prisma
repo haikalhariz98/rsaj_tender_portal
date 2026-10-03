@@ -547,6 +547,8 @@ model Person {
   standingRequested    StandingRequest[]   @relation("StandingRequestedBy")
   standingWithdrawn    StandingRequest[]   @relation("StandingWithdrawnBy")
   standingRecorded     StandingEvent[]     @relation("StandingRecordedBy")
+  /// 615-C2: registration cancellations this person withdrew as recorded in error.
+  cancellationsWithdrawn StandingEvent[]   @relation("CancellationWithdrawnBy")
   permissionsRequested SpecialPermission[] @relation("PermissionRequestedBy")
   permissionsGranted   SpecialPermission[] @relation("PermissionGrantedBy")
   /// 6.12: formation acts, recorded on their behalf.
@@ -4140,6 +4142,8 @@ enum AttachmentPurpose {
   DIARY_PHOTO
   /// 6.13 (FR-VAR-015): a plan or sketch accompanying the S.O.'s Instruction, on the instruction. Not required at issue.
   INSTRUCTION_SKETCH
+  /// 6.15 (615-C2, BD-613-91): a registration body's notice cancelling a supplier's registration, on the record of it.
+  REGISTRATION_CANCELLATION_NOTICE
 }
 
 enum DocumentAccessKind {
@@ -4310,6 +4314,9 @@ model DocumentAttachment {
   /// 6.13 Part A acceptance S-2 (FR-VAR-015): the S.O.'s Instruction of a variation (its plans or sketches).
   variationInstructionId String?
   variationInstruction   VariationInstruction? @relation(fields: [variationInstructionId], references: [id], onDelete: Restrict)
+  /// 6.15 (615-C2): a registration cancelled, as recorded (the body's notice).
+  standingEventId        String?
+  standingEvent          StandingEvent?        @relation(fields: [standingEventId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -4333,6 +4340,7 @@ model DocumentAttachment {
   @@index([supplierApplicationId])
   @@index([contractId])
   @@index([variationInstructionId])
+  @@index([standingEventId])
   @@index([versionId])
 }
 
@@ -5199,6 +5207,8 @@ model RegistrationBody {
   /// 6.15 (FR-VND-003): the body's values (grades, categories, codes) and the document types it issues.
   values        RegistrationValue[]
   documentTypes SupplierDocumentType[]
+  /// 615-C2: the supplier registrations this body cancelled, as recorded.
+  cancellations StandingEvent[]
 
   @@unique([organisationId, code])
 }
@@ -7629,6 +7639,21 @@ model StandingEvent {
   recordedByPersonId String
   recordedBy         Person            @relation("StandingRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
   recordedAt         DateTime
+  /// 615-C2 (BD-613-91, ADR 0019 Amendment 1): a registration cancelled is a registration body's fact, recorded with the
+  /// body (its label frozen) and the body's reference; CHECK StandingEvent_cancellation_source. Null and empty for every
+  /// other kind.
+  cancellingBodyId    String?
+  cancellingBody      RegistrationBody? @relation(fields: [cancellingBodyId], references: [id], onDelete: Restrict)
+  bodyLabelSnapshot   String            @default("")
+  externalReference   String            @default("")
+  /// 615-C2: a cancellation recorded in error, withdrawn with a reason by a named officer; the row is kept and read as
+  /// never in effect. Only a REGISTRATION_CANCELLED row, all three together (CHECK StandingEvent_withdrawn).
+  withdrawnAt         DateTime?
+  withdrawnReason     String            @default("")
+  withdrawnByPersonId String?
+  withdrawnBy         Person?           @relation("CancellationWithdrawnBy", fields: [withdrawnByPersonId], references: [id], onDelete: Restrict)
+  /// The body's notice (REGISTRATION_CANCELLATION_NOTICE), through the document store.
+  attachments         DocumentAttachment[]
 
   @@index([supplierId])
 }

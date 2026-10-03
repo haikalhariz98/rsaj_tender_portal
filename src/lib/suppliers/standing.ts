@@ -13,7 +13,8 @@
  *   so: "Active — lapse rule not set; a mandatory document has expired" (never quietly suspended, never
  *   quietly clean). Set to false, it stays ACTIVE with the expiry noted.
  *
- * An event takes effect on its effective day; one dated later is not yet in effect. Pure.
+ * An event takes effect on its effective day; one dated later is not yet in effect. A registration cancelled that was
+ * withdrawn as recorded in error (615-C2) is read as never recorded: not in effect, not scheduled. Pure.
  */
 
 import { addDays } from "@/lib/securities/period";
@@ -40,6 +41,8 @@ export interface StandingEventFacts {
   reinstatesEventId: string | null;
   liftsEventId: string | null;
   flaggedDocumentIds: readonly string[];
+  /// 615-C2: a registration cancelled withdrawn as recorded in error. Absent: not withdrawn.
+  withdrawn?: boolean;
 }
 
 export interface StandingPolicy {
@@ -70,7 +73,9 @@ export function standing(
   policy: StandingPolicy,
   on: string,
 ): StandingReading {
-  const inEffect = events.filter((e) => e.effectiveOn <= on);
+  // 615-C2: a cancellation withdrawn as recorded in error never stood.
+  const live = events.filter((e) => !e.withdrawn);
+  const inEffect = live.filter((e) => e.effectiveOn <= on);
   const ended = (id: string, by: "reinstatesEventId" | "liftsEventId") => inEffect.some((e) => e[by] === id);
   const latest = (xs: StandingEventFacts[]) => [...xs].sort((a, b) => b.effectiveOn.localeCompare(a.effectiveOn) || b.id.localeCompare(a.id))[0] ?? null;
 
@@ -82,7 +87,7 @@ export function standing(
   const notes: Finding<StandingNote>[] = [];
   const over = latest(blacklistings.filter((e) => e.endsOn != null && on >= e.endsOn));
   if (!blacklist && over) notes.push({ code: "BLACKLIST_ENDED", level: "info", data: { lastDay: addDays(over.endsOn!, -1), freeFrom: over.endsOn } });
-  const scheduled = events.find((e) => e.effectiveOn > on && (e.kind === "SUSPEND" || e.kind === "BLACKLIST" || e.kind === "REGISTRATION_CANCELLED"));
+  const scheduled = live.find((e) => e.effectiveOn > on && (e.kind === "SUSPEND" || e.kind === "BLACKLIST" || e.kind === "REGISTRATION_CANCELLED"));
   if (scheduled) notes.push({ code: "SCHEDULED", level: "info", data: { kind: scheduled.kind, effectiveOn: scheduled.effectiveOn } });
 
   const read = (s: Standing): StandingReading => ({ standing: s, blacklist, suspension, cancellation, lapsed, notes });

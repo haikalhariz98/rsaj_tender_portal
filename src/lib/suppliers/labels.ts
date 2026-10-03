@@ -15,6 +15,7 @@ import type { ConfigFault } from "./config";
 import type { QueueState, ReviewFault } from "./review";
 import type { VendorCodeFault } from "@/lib/integration/vendor-master";
 import type { BlacklistFault } from "./blacklist";
+import type { CancellationFault } from "./cancellation";
 import type { ConditionKind, ConditionRow, Result, Verdict } from "./eligibility";
 import type { BandFault, ExpiryBand } from "./expiry";
 import type { LinkFault } from "./link";
@@ -170,7 +171,7 @@ export const ERP_NOT_SYNCED = w("Approved, not in the finance system", "Dilulusk
 const TYPE_STATE = (s: unknown) => DOCUMENT_STATE_LABEL[s as DocumentState] ?? w("not standing", "tidak berdiri");
 const SETTINGS = w("Configuration › Supplier register", "Konfigurasi › Daftar pembekal");
 
-type AnyFault = IdentityFault | LodgeFault | VerifyFault | ReviewFault | ConfigFault | VendorCodeFault | BandFault | BlacklistFault | SuspendFault | ReinstateFault | SaleFault | LinkFault | PermissionFault | StandingNote;
+type AnyFault = IdentityFault | LodgeFault | VerifyFault | ReviewFault | ConfigFault | VendorCodeFault | BandFault | BlacklistFault | SuspendFault | ReinstateFault | SaleFault | LinkFault | PermissionFault | StandingNote | CancellationFault;
 
 const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Words> = {
   // identity (FR-VND-001)
@@ -302,6 +303,15 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   WITHDRAW_ROUTE_REFUSED: () => w("Its route refused it: it is already closed.", "Laluannya menolaknya: ia sudah ditutup."),
   WITHDRAW_REASON_REQUIRED: () => w("Say why it is withdrawn: it is kept with the request.", "Nyatakan sebab ia ditarik balik: ia disimpan bersama permohonan."),
   EFFECTIVE_REQUIRED: () => w("Give the day it takes effect.", "Nyatakan tarikh ia berkuat kuasa."),
+  // 615-C2 (BD-613-91): a registration body's cancellation, and its withdrawal when recorded in error.
+  CANCELLATION_NEEDS_REGISTRATION: () => w("Only a registered supplier's registration can be recorded as cancelled.", "Hanya pendaftaran pembekal berdaftar boleh direkodkan sebagai dibatalkan."),
+  ALREADY_CANCELLED: (d) => w(`A cancellation of the registration is already recorded (in effect since ${day(d.since)}). If it was recorded in error, withdraw it first.`, `Pembatalan pendaftaran sudah direkodkan (berkuat kuasa sejak ${day(d.since)}). Jika ia direkodkan secara tersilap, tarik baliknya dahulu.`),
+  CANCELLING_BODY_REQUIRED: () => w("Choose the registration body that cancelled it.", "Pilih badan pendaftaran yang membatalkannya."),
+  CANCELLING_BODY_NOT_CONFIGURED: () => w("That registration body is not configured (Configuration › Supplier register).", "Badan pendaftaran itu tidak dikonfigurasi (Konfigurasi › Daftar pembekal)."),
+  CANCELLATION_REFERENCE_REQUIRED: () => w("Give the body's reference for the cancellation, as on its notice.", "Nyatakan rujukan badan bagi pembatalan, seperti pada notisnya."),
+  NOT_A_CANCELLATION: () => w("Only a registration cancelled is withdrawn here; the other standing records are ended by their own acts.", "Hanya pembatalan pendaftaran ditarik balik di sini; rekod kedudukan lain ditamatkan melalui tindakan masing-masing."),
+  CANCELLATION_ALREADY_WITHDRAWN: () => w("It is already withdrawn.", "Ia sudah ditarik balik."),
+  CANCELLATION_WITHDRAW_REASON_REQUIRED: () => w("Say why it was recorded in error: it is kept with the record.", "Nyatakan mengapa ia direkodkan secara tersilap: ia disimpan bersama rekod."),
   EFFECTIVE_IN_FUTURE: () => w("The day it takes effect cannot be after today: record it on the day.", "Tarikh berkuat kuasa tidak boleh selepas hari ini: rekodkan pada hari itu."),
   EFFECTIVE_BEFORE_DECISION: (d) => w(`It cannot take effect before its route approved it (${day(d.approvedOn)}).`, `Ia tidak boleh berkuat kuasa sebelum laluannya meluluskan (${day(d.approvedOn)}).`),
   EFFECTIVE_BEFORE_REGISTRATION: (d) => w(`It cannot take effect before the supplier was registered (${day(d.registeredOn)}).`, `Ia tidak boleh berkuat kuasa sebelum pembekal didaftarkan (${day(d.registeredOn)}).`),

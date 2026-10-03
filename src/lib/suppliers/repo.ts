@@ -100,7 +100,7 @@ const supplierInclude = {
     },
   },
   // a2: standing (recorded acts and requests with their routes), and what is linked to the supplier.
-  standingEvents: { orderBy: [{ effectiveOn: "desc" as const }, { recordedAt: "desc" as const }], include: { recordedBy: { select: { id: true, name: true } } } },
+  standingEvents: { orderBy: [{ effectiveOn: "desc" as const }, { recordedAt: "desc" as const }], include: { recordedBy: { select: { id: true, name: true } }, withdrawnBy: { select: { id: true, name: true } } } },
   standingRequests: {
     orderBy: { requestedAt: "desc" as const },
     include: {
@@ -149,7 +149,7 @@ const listedSupplier = {
   erpVendorCode: true,
   documents: { select: { id: true, typeId: true, typeLabelSnapshot: true, lodgedOn: true, issuedOn: true, validFrom: true, expiresOn: true, notApplicable: true, verification: true, verifiedOn: true, supersedesId: true } },
   // a2: standing is derived from these, never stored.
-  standingEvents: { select: { id: true, kind: true, effectiveOn: true, endsOn: true, offenceNo: true, reasonSnapshot: true, reinstatesEventId: true, liftsEventId: true, flaggedDocumentIds: true } },
+  standingEvents: { select: { id: true, kind: true, effectiveOn: true, endsOn: true, offenceNo: true, reasonSnapshot: true, reinstatesEventId: true, liftsEventId: true, flaggedDocumentIds: true, withdrawnAt: true } },
 } satisfies Prisma.SupplierSelect;
 
 const OPEN_APPLICATION = { status: { in: ["RECEIVED" as const, "RESUBMISSION_REQUESTED" as const] }, lapsedRecordedAt: null };
@@ -181,7 +181,8 @@ export function barredSupplierWhere(organisationId: string, today: string, autoS
     OR: [
       { standingEvents: { some: { kind: "BLACKLIST", effectiveOn: { lte: T }, OR: [{ endsOn: null }, { endsOn: { gt: T } }], NOT: { liftedBy: { is: { effectiveOn: { lte: T } } } } } } },
       { standingEvents: { some: { kind: "SUSPEND", effectiveOn: { lte: T }, NOT: { reinstatedBy: { is: { effectiveOn: { lte: T } } } } } } },
-      { standingEvents: { some: { kind: "REGISTRATION_CANCELLED", effectiveOn: { lte: T } } } },
+      // 615-C2: a cancellation withdrawn as recorded in error never stood.
+      { standingEvents: { some: { kind: "REGISTRATION_CANCELLED", effectiveOn: { lte: T }, withdrawnAt: null } } },
       ...(autoSuspendOnLapse === true ? [{ documents: { some: lapsedMandatoryWhere(today) } }] : []),
     ],
   };
