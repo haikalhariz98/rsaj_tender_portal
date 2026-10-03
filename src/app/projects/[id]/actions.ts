@@ -8,6 +8,7 @@ import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { custodyItemLabel, formationCheckLabel, reconciliationLabel } from "@/lib/audit/entity-labels";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
+import { assignmentToMove } from "@/lib/supervision/so";
 import { applyTerm, AWARD_TERM_WORDS, AWARD_TERMS, awardCorrectionFaults, correctedColumns, TERM_FIELD, termSource, termText, type AwardTermColumns, type TermInput } from "@/lib/contract/award-correction";
 import { applyEntered, baselineFaults, buildBaseline, changedFields, derive, ENTERED_GROUPS, enteredFaults, latestVersion, type BaselineValues, type EnteredGroup, type EnteredProvenance, type EnteredValues } from "@/lib/contract/baseline";
 import { correctableFaults, groupChange } from "@/lib/contract/baseline-entry";
@@ -550,6 +551,13 @@ export async function correctContractDate(_prev: FormState, data: FormData): Pro
     const base = currentBaseline(k)!;
     await writeVersion(c, { ...base, contractDate: storedDay(proposed) }, "CORRECTION", reason, { correctedField: "contractDate" });
     await audit(c, "Contract", k.id, "", "UPDATE", diffFields({ contractDate: current }, { contractDate: proposed, correctedFrom: day(k.contractDateCorrectedFrom ?? k.contractDate) }), reason);
+    // 6.13 Part A review 1: the S.O. assignment that took effect on the Contract Date moves with it, in this transaction.
+    const assignments = await c.tx.contractSoAssignment.findMany({ where: { contractId: k.id }, select: { id: true, reason: true, effectiveOn: true, roleLabel: true } });
+    const moving = assignmentToMove(assignments.map((a) => ({ ...a, effectiveOn: storedDay(a.effectiveOn) })), current, storedDay(proposed));
+    if (moving) {
+      await c.tx.contractSoAssignment.update({ where: { id: moving.id }, data: { effectiveOn: proposed } });
+      await audit(c, "ContractSoAssignment", moving.id, "Superintending Officer resolved", "UPDATE", diffFields({ effectiveOn: moving.effectiveOn }, { effectiveOn: storedDay(proposed), movedWith: "the corrected Contract Date" }), reason);
+    }
     return { ok: true };
   });
 }

@@ -87,7 +87,7 @@ export async function signingFacts(l: LoadedContract, personId: string | null, t
   }
   const bl = baselineBlocks(c);
   // 6.13 Part A (against accepted 6.12): the S.O. this signature resolves, on the issue in force, at the sum it executes.
-  const so: SoResolution | null = f.issue ? resolveSo(f.issue.matrix, { contractValue: Number(senToDecimalString(sum)), regime: l.ex.regime, contractTypeCode: l.ex.contractTypeCode }) : null;
+  const so: SoResolution | null = f.issue ? resolveSo(f.issue.matrix, { contractValue: Number(senToDecimalString(sum)), method: f.facts.method?.authorityMethodKey ?? null, contractTypeCode: l.ex.contractTypeCode }) : null;
   const inputs: SignInputs = {
     status,
     gate,

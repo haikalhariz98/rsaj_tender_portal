@@ -4,7 +4,7 @@ import { DAL_FIXTURE } from "@/lib/authority/dal-fixture";
 import type { Matrix, Rule } from "@/lib/authority/types";
 
 import { supervisionFaultWords } from "./labels";
-import { reResolveReading, resolveActFaults, resolveSo, SO_DOMAIN, soFaults, soOn } from "./so";
+import { assignmentToMove, reResolveReading, resolveActFaults, resolveSo, SO_DOMAIN, soFaults, soOn } from "./so";
 
 /**
  * FOR TESTS ONLY (never seeded, never imported by the product): the specification's FR-SUP-001 bands as
@@ -38,7 +38,7 @@ const SO_MATRIX: Matrix = { ...DAL_FIXTURE, rules: [...DAL_FIXTURE.rules, ...SO_
  * - No row → SO_UNRESOLVED, naming the matrix.
  */
 
-const tender = (v: number) => resolveSo(SO_MATRIX, { contractValue: v, regime: "tender", contractTypeCode: null });
+const tender = (v: number) => resolveSo(SO_MATRIX, { contractValue: v, method: "tender", contractTypeCode: null });
 
 describe("the worked examples", () => {
   it("RSAJ/KP/T/02/2026 at RM1,077,508.60 resolves to the Functional Director", () => {
@@ -47,12 +47,12 @@ describe("the worked examples", () => {
   it("RM300,000.00 is the Head of Division under both D3 settings", () => {
     for (const boundaryInclusive of [true, false]) {
       const m = { ...SO_MATRIX, policy: { ...SO_MATRIX.policy, boundaryInclusive } };
-      const regime = boundaryInclusive ? "quotation" : "tender";
-      expect(resolveSo(m, { contractValue: 300_000, regime, contractTypeCode: null }), String(boundaryInclusive)).toMatchObject({ state: "RESOLVED", roleCode: "HODIV" });
+      const method = boundaryInclusive ? "quotation" : "tender";
+      expect(resolveSo(m, { contractValue: 300_000, method, contractTypeCode: null }), String(boundaryInclusive)).toMatchObject({ state: "RESOLVED", roleCode: "HODIV" });
     }
   });
   it("the quotation regime is the Head of Division throughout", () => {
-    for (const v of [15_000, 100_000, 299_999.99]) expect(resolveSo(SO_MATRIX, { contractValue: v, regime: "quotation", contractTypeCode: null })).toMatchObject({ roleCode: "HODIV" });
+    for (const v of [15_000, 100_000, 299_999.99]) expect(resolveSo(SO_MATRIX, { contractValue: v, method: "quotation", contractTypeCode: null })).toMatchObject({ roleCode: "HODIV" });
   });
   it("the bands' edges: RM1,000,000.00 is the Head of Division, a sen above the Functional Director; above RM3 million the CEO", () => {
     expect(tender(1_000_000)).toMatchObject({ roleCode: "HODIV" });
@@ -61,7 +61,7 @@ describe("the worked examples", () => {
     expect(tender(3_000_000.01)).toMatchObject({ roleCode: "CEO" });
   });
   it("no row: SO_UNRESOLVED, refused, naming the matrix", () => {
-    const r = resolveSo(DAL_FIXTURE, { contractValue: 1_077_508.6, regime: "tender", contractTypeCode: null });
+    const r = resolveSo(DAL_FIXTURE, { contractValue: 1_077_508.6, method: "tender", contractTypeCode: null });
     expect(r.state).toBe("SO_UNRESOLVED");
     const f = soFaults(r, "Demo limits, issue 1");
     expect(f.map((x) => x.code)).toEqual(["SO_UNRESOLVED"]);
@@ -86,9 +86,40 @@ describe("the office in force on a day, and every holder kept", () => {
     expect(resolveActFaults({ executed: true, assignments: 1 }).map((f) => f.code)).toEqual(["ALREADY_RESOLVED"]);
     expect(resolveActFaults({ executed: true, assignments: 0 })).toEqual([]);
   });
+  it("review 1: the one-off resolution is recorded with its reason (it takes effect from the Contract Date)", () => {
+    expect(resolveActFaults({ executed: true, assignments: 0, reason: "  " }).map((f) => f.code)).toEqual(["REASON_REQUIRED"]);
+    expect(resolveActFaults({ executed: true, assignments: 0, reason: "Executed before supervision was recorded." })).toEqual([]);
+  });
   it("OD-A7: the re-resolve switch reads on, off or not set (never 'no' for unset)", () => {
     expect(reResolveReading(null).state).toBe("NOT_SET");
     expect(reResolveReading(true).state).toBe("ON");
     expect(reResolveReading(false).state).toBe("OFF");
+  });
+});
+
+describe("review 4: the S.O. is resolved on the method's authority key, as every engine caller passes it", () => {
+  const direct = so({ ruleKey: "SO_DIRECT", method: "direct", approverCode: "FD", clause: "test" });
+  const m: Matrix = { ...DAL_FIXTURE, rules: [...DAL_FIXTURE.rules, direct] };
+  it("a row confined to a method key applies to that key only", () => {
+    expect(resolveSo(m, { contractValue: 10_000, method: "direct", contractTypeCode: null })).toMatchObject({ state: "RESOLVED", ruleKey: "SO_DIRECT" });
+    expect(resolveSo(m, { contractValue: 10_000, method: "tender", contractTypeCode: null }).state).toBe("SO_UNRESOLVED");
+    expect(resolveSo(m, { contractValue: 10_000, method: null, contractTypeCode: null }).state).toBe("SO_UNRESOLVED");
+  });
+});
+
+describe("review 1: correcting the Contract Date moves the assignment that took effect on it", () => {
+  const rows = [
+    { id: "x", reason: "EXECUTION", effectiveOn: "2026-09-30" },
+    { id: "y", reason: "RE_RESOLVED", effectiveOn: "2026-12-01" },
+  ];
+  it("the signature's (or the one-off resolution's) assignment on the old Contract Date moves", () => {
+    expect(assignmentToMove(rows, "2026-09-30", "2026-09-28")?.id).toBe("x");
+    expect(assignmentToMove([{ id: "z", reason: "RESOLVED", effectiveOn: "2026-09-30" }], "2026-09-30", "2026-09-28")?.id).toBe("z");
+  });
+  it("a later assignment never moves; nothing on the old day, or no change, moves nothing", () => {
+    expect(assignmentToMove([rows[1]], "2026-12-01", "2026-11-30")).toBeNull();
+    expect(assignmentToMove(rows, "2026-10-01", "2026-09-28")).toBeNull();
+    expect(assignmentToMove(rows, "2026-09-30", "2026-09-30")).toBeNull();
+    expect(assignmentToMove(rows, null, "2026-09-30")).toBeNull();
   });
 });

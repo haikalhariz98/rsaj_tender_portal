@@ -145,6 +145,11 @@ export async function delayReadingsOf(organisationId: string, rows: readonly { i
   return out;
 }
 
+/// The exercise's sourcing method's authority key (review 4): what the S.O.'s rows are confined by, as every engine caller reads it.
+export async function methodKeyOf(l: LoadedContract, client: Tx = db): Promise<string | null> {
+  return (await client.sourcingMethod.findFirst({ where: { organisationId: l.org.id, code: l.ex.sourcingMethodCode }, select: { authorityMethodKey: true } }))?.authorityMethodKey ?? null;
+}
+
 /// The organisation's post-award policy (one row; unset where none).
 export async function loadPostAwardPolicy(organisationId: string, client: Tx = db) {
   return client.postAwardPolicy.findUnique({ where: { organisationId } });

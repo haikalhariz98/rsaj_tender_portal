@@ -14,7 +14,7 @@
 
 import type { Day, Finding } from "./types";
 
-export type PossessionFault = "NOT_STAMPED" | "ALREADY_POSSESSED" | "FUTURE_DATE" | "BEFORE_CONTRACT_DATE" | "START_RULE_NOT_SET" | "SECURITIES_NOT_MET" | "NO_BASELINE_VERSION";
+export type PossessionFault = "NOT_STAMPED" | "ALREADY_POSSESSED" | "FUTURE_DATE" | "BEFORE_CONTRACT_DATE" | "START_RULE_NOT_SET" | "SECURITIES_NOT_MET" | "NO_BASELINE_VERSION" | "NO_SO" | "BEFORE_SO";
 
 export interface GateItemFacts {
   key: string;
@@ -32,6 +32,9 @@ export function possessionFaults(i: {
   datedOn: Day | null;
   startRequiresSecurities: boolean | null;
   typeName: string | null;
+  /// The first S.O. assignment's effective day (review 1): no possession before anyone supervises the site.
+  /// Null: no S.O. at all. Absent: not asked (a caller from before the review).
+  soFrom?: Day | null;
   gate: readonly GateItemFacts[];
 }): Finding<PossessionFault>[] {
   const out: Finding<PossessionFault>[] = [];
@@ -41,6 +44,8 @@ export function possessionFaults(i: {
   if (i.versions === 0) f("NO_BASELINE_VERSION");
   if (i.on > i.today) f("FUTURE_DATE", { day: i.on });
   if (i.datedOn && i.on < i.datedOn) f("BEFORE_CONTRACT_DATE", { day: i.datedOn });
+  if (i.soFrom === null) f("NO_SO");
+  else if (i.soFrom !== undefined && i.on < i.soFrom) f("BEFORE_SO", { day: i.soFrom });
   if (i.startRequiresSecurities == null) f("START_RULE_NOT_SET", { type: i.typeName });
   else if (i.startRequiresSecurities) {
     for (const key of ["BOND", "INSURANCE"]) {

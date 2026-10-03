@@ -25,7 +25,7 @@ import { capacityFor, capacityText, type ActNeed, type Capacity } from "@/lib/su
 import { delegationFaults, revokeFaults } from "@/lib/supervision/delegation";
 import { attestFaults, disputeFaults, endorseFaults, entryFaults } from "@/lib/supervision/diary";
 import { ACT_WORDS, AREA_WORDS, BRANCH_WORDS, CAUSE_WORDS, DELEGATE_KIND_WORDS, ENDORSER_WORDS, PARTY_KIND_WORDS, PROGRAMME_DECISION_WORDS, PROGRAMME_KIND_WORDS, RECORDS_SET_WORDS, supervisionRefusal, VARIANT_WORDS } from "@/lib/supervision/labels";
-import { delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, revisionsOf, soOfficeOn, type SupervisionRows } from "@/lib/supervision/load";
+import { delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, methodKeyOf, revisionsOf, soOfficeOn, type SupervisionRows } from "@/lib/supervision/load";
 import { possessionFaults, startRuleReading } from "@/lib/supervision/possession";
 import { decideFaults, openRevision, pointFaults, scrutinyFaults, submitFaults, type PointIn } from "@/lib/supervision/programme";
 import { earlyActionFaults, handoverFaults, meetingFaults, onSiteFaults, partyFaults, progressFaults, retirePartyFaults, selfHelpFaults } from "@/lib/supervision/records";
@@ -135,22 +135,27 @@ function latestValues(c: Ctx) {
  */
 export async function resolveSuperintendingOfficer(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const reason = r.text("reason", "Why it is recorded now", { required: true, max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
   return inContract(idOf(data), now, async (c) => {
     const k = c.l.contract;
     const s = await supervisionOf(c);
-    const fs = resolveActFaults({ executed: isExecuted(k.status as ContractStatus), assignments: s.soAssignments.length });
+    const fs = resolveActFaults({ executed: isExecuted(k.status as ContractStatus), assignments: s.soAssignments.length, reason });
     if (fs.length) refuse("Not resolved:", fs);
-    const issue = await loadIssue(ORGANISATION_CODE, dayToDate(c.today), undefined, null, c.tx);
-    if (!issue) return { ok: false, message: "No approval matrix is in force today: the S.O. is resolved from it. Issue one under Configuration › Approval matrix." };
+    // Review 1: from the Contract Date, on the matrix in force that day, so no day of the contract is without an S.O.
+    const from = day(k.contractDate)!;
+    const issue = await loadIssue(ORGANISATION_CODE, dayToDate(from), undefined, null, c.tx);
+    if (!issue) return { ok: false, message: `No approval matrix was in force on the Contract Date (${formatDate(from)}): the S.O. is resolved from it. Issue one under Configuration › Approval matrix.` };
     const latest = latestValues(c);
     const value = latest ? amountOf(senToDecimalString(latest.values.contractSum)) : amountOf(k.contractSum);
-    const r = resolveSo(issue.matrix, { contractValue: value, regime: c.l.ex.regime, contractTypeCode: c.l.ex.contractTypeCode });
-    if (r.state !== "RESOLVED") return refuse("Not resolved:", soFaults(r, issue.label));
-    if (r.state !== "RESOLVED") return GONE;
+    const res = resolveSo(issue.matrix, { contractValue: value, method: await methodKeyOf(c.l, c.tx), contractTypeCode: c.l.ex.contractTypeCode });
+    if (res.state !== "RESOLVED") return refuse("Not resolved:", soFaults(res, issue.label));
+    const valueText = senToDecimalString(parseSen(String(value.toFixed(2))));
     const row = await c.tx.contractSoAssignment.create({
-      data: { organisationId: c.l.org.id, contractId: k.id, roleCode: r.roleCode, roleLabel: r.roleLabel, reason: "RESOLVED", matrixLabel: issue.label, ruleKey: r.ruleKey, ruleLabel: r.ruleLabel, clause: r.clause, contractValue: senToDecimalString(parseSen(String(value.toFixed(2)))), regime: c.l.ex.regime, warnings: r.notes.map((n) => n.messageEn) as Prisma.InputJsonValue, effectiveOn: dayToDate(c.today), recordedAt: c.now },
+      data: { organisationId: c.l.org.id, contractId: k.id, roleCode: res.roleCode, roleLabel: res.roleLabel, reason: "RESOLVED", matrixLabel: issue.label, ruleKey: res.ruleKey, ruleLabel: res.ruleLabel, clause: res.clause, contractValue: valueText, regime: c.l.ex.regime, warnings: res.notes.map((n) => n.messageEn) as Prisma.InputJsonValue, effectiveOn: dayToDate(from), recordedAt: c.now },
     });
-    await audit(c, "ContractSoAssignment", row.id, "Superintending Officer resolved", "CREATE", diffFields(null, { office: r.roleLabel, resolvedFrom: `${issue.label}: ${r.ruleLabel} (${r.clause})`, contractValue: senToDecimalString(parseSen(String(value.toFixed(2)))), effectiveOn: c.today, assumption: r.notes.map((n) => n.messageEn).join(" ") || null }));
+    await audit(c, "ContractSoAssignment", row.id, "Superintending Officer resolved", "CREATE", diffFields(null, { office: res.roleLabel, resolvedFrom: `${issue.label}: ${res.ruleLabel} (${res.clause})`, contractValue: valueText, effectiveOn: from, effectiveFromTheContractDate: "yes", recordedOn: c.today, assumption: res.notes.map((n) => n.messageEn).join(" ") || null }), reason.trim());
     return { ok: true };
   });
 }
@@ -243,9 +248,12 @@ export async function recordPossession(_prev: FormState, data: FormData): Promis
     const type = c.l.ex.contractTypeCode ? await c.tx.contractType.findFirst({ where: { organisationId: c.l.org.id, code: c.l.ex.contractTypeCode }, select: { nameEn: true, startRequiresSecurities: true } }) : null;
     const { versions, draft } = baselineRows(k);
     // The contract's own state first (stamped, not yet possessed), then who it is recorded for.
-    const fs = possessionFaults({ status: k.status, possessed: !!s.possession, versions: versions.length, on: day0, today: c.today, datedOn: day(k.contractDate), startRequiresSecurities: type?.startRequiresSecurities ?? null, typeName: type?.nameEn ?? null, gate: gate.items });
+    // Review 1 backstop: never before the first S.O. assignment takes effect.
+    const soFrom = s.soAssignments.length ? s.soAssignments.map((a) => storedDay(a.effectiveOn)).sort()[0] : null;
+    const fs = possessionFaults({ status: k.status, possessed: !!s.possession, versions: versions.length, on: day0, today: c.today, datedOn: day(k.contractDate), startRequiresSecurities: type?.startRequiresSecurities ?? null, typeName: type?.nameEn ?? null, gate: gate.items, soFrom });
     if (fs.length) refuse("Not recorded:", fs);
-    const who = await recordedFor(c, s, personId, { principalOrSo: true }, c.today);
+    // Review 7: who may record it is judged on the possession day.
+    const who = await recordedFor(c, s, personId, { principalOrSo: true }, day0);
     // The POSSESSION version: the latest version with the Date of Possession added, derived again.
     const prior = latestVersion(versions)!;
     const inputs = frozenInputsOf(k);

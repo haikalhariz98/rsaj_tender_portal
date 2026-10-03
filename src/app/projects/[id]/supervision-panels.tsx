@@ -23,7 +23,7 @@ import { amountOf, formatMoney, senFromDecimal, senToDecimalString } from "@/lib
 import { ORGANISATION_CODE } from "@/lib/org";
 import { delegationFaults, delegationState } from "@/lib/supervision/delegation";
 import { entryState, missingDays } from "@/lib/supervision/diary";
-import { delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, revisionsOf, soOfficeOn } from "@/lib/supervision/load";
+import { delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, methodKeyOf, revisionsOf, soOfficeOn } from "@/lib/supervision/load";
 import { possessionFaults, startRuleReading } from "@/lib/supervision/possession";
 import { openRevision, programmeInForce } from "@/lib/supervision/programme";
 import { BRANCH_OPENS } from "@/lib/supervision/records";
@@ -149,12 +149,14 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
   const names = new Map(people.map((p) => [p.value, p.label]));
   const nameOf = (id: string) => names.get(id) ?? "someone not active on record";
   // The one-off resolution, previewed from the same rule the act runs.
-  let resolve: { office: string | null; blocker: string | null } | null = null;
+  let resolve: { office: string | null; blocker: string | null; from: string } | null = null;
   if (executed && v.s.soAssignments.length === 0 && today) {
-    const issue = await loadIssue(ORGANISATION_CODE, dayToDate(today), undefined, null);
+    // From the Contract Date, on the matrix in force that day (review 1), the same reading the act makes.
+    const from = day(c.contractDate)!;
+    const issue = await loadIssue(ORGANISATION_CODE, dayToDate(from), undefined, null);
     const value = amountOf(v.values ? senToDecimalString(v.values.contractSum) : c.contractSum.toString());
-    const r = issue ? resolveSo(issue.matrix, { contractValue: value, regime: l.ex.regime, contractTypeCode: l.ex.contractTypeCode }) : null;
-    resolve = !issue ? { office: null, blocker: "No approval matrix is in force today: the S.O. is resolved from it. Issue one under Configuration › Approval matrix." } : r!.state === "RESOLVED" ? { office: r!.roleLabel, blocker: null } : { office: null, blocker: say(soFaults(r!, issue.label)) };
+    const r = issue ? resolveSo(issue.matrix, { contractValue: value, method: await methodKeyOf(l), contractTypeCode: l.ex.contractTypeCode }) : null;
+    resolve = !issue ? { office: null, blocker: `No approval matrix was in force on the Contract Date (${formatDate(from)}): the S.O. is resolved from it. Issue one under Configuration › Approval matrix.`, from } : r!.state === "RESOLVED" ? { office: r!.roleLabel, blocker: null, from } : { office: null, blocker: say(soFaults(r!, issue.label)), from };
   }
   const reResolve = reResolveReading(v.policy?.soReResolve ?? null);
   const variant = (v.type?.delegationVariant ?? null) as DelegationVariant | null;
@@ -172,7 +174,7 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
           icon={<UsersIcon size={17} />}
           title="Superintending Officer"
           subtitle="An office, not a person: resolved from the approval matrix at the contract's sum and method. Whoever holds the office on a day is the S.O. that day."
-          actions={resolve ? <ResolveSoDrawer id={c.id} blocker={resolve.blocker} office={resolve.office} /> : undefined}
+          actions={resolve ? <ResolveSoDrawer id={c.id} blocker={resolve.blocker} office={resolve.office} from={formatDate(resolve.from)} /> : undefined}
           divided={v.s.soAssignments.length > 0}
         />
         {v.s.soAssignments.length === 0 ? (

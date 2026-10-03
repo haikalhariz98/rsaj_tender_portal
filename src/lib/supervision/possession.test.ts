@@ -48,3 +48,13 @@ describe("the act's other refusals", () => {
     expect(codes({ ...ok, versions: 0 })).toEqual(["NO_BASELINE_VERSION"]);
   });
 });
+
+describe("review 1: never before the first S.O. assignment takes effect", () => {
+  it("before it, refused naming the day; on it, allowed; no S.O. at all, refused; not asked, as before", () => {
+    expect(possessionFaults({ ...ok, on: "2026-10-01", soFrom: "2026-10-02" }).map((f) => f.code)).toEqual(["BEFORE_SO"]);
+    expect(possessionFaults({ ...ok, on: "2026-10-01", soFrom: "2026-10-02" })[0].data).toEqual({ day: "2026-10-02" });
+    expect(possessionFaults({ ...ok, on: "2026-10-02", soFrom: "2026-10-02" })).toEqual([]);
+    expect(possessionFaults({ ...ok, soFrom: null }).map((f) => f.code)).toEqual(["NO_SO"]);
+    expect(possessionFaults(ok)).toEqual([]);
+  });
+});

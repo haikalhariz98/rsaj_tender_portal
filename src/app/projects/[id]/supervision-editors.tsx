@@ -44,14 +44,15 @@ const choose = (name: string, label: string, options: Option[], hint?: string): 
 
 // ------------------------------------------------------------------ the S.O. and delegation
 
-export function ResolveSoDrawer({ id, blocker, office }: { id: string; blocker: string | null; office: string | null }) {
+export function ResolveSoDrawer({ id, blocker, office, from }: { id: string; blocker: string | null; office: string | null; from: string }) {
   return (
     <RecordEditor
       title="Resolve the Superintending Officer"
-      description="For a contract executed before supervision was recorded: the office the approval matrix in force today gives at this contract's sum and method, effective from today. A contract executed since resolves it at the employer's signature."
-      fields={[hidden("id"), { kind: "readonly", name: "office", label: "The matrix gives", text: office ?? "No single office: see why beside the button" }]}
+      description={`For a contract executed before supervision was recorded: the office the approval matrix in force on the Contract Date gives at this contract's sum and method, taking effect from the Contract Date (${from}) so that no day of the contract is without an S.O. A contract executed since resolves it at the employer's signature.`}
+      fields={[hidden("id"), { kind: "readonly", name: "office", label: "The matrix gives", text: office ?? "No single office: see why beside the button" }, { kind: "readonly", name: "from", label: "Takes effect from", text: from }]}
       values={{ id }}
       action={resolveSuperintendingOfficer}
+      reason={{ label: "Why it is recorded now, from the Contract Date" }}
       submitLabel="Resolve"
       submitBlock={blocker}
       trigger={{ label: "Resolve the S.O.", className: primary }}

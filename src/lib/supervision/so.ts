@@ -1,6 +1,6 @@
 /**
  * The Superintending Officer of a contract (FR-SUP-001, §7.2). The S.O. is an office, resolved from the approval
- * matrix's `superintending_officer` rows by the contract's value and regime (and type, where a row is confined to
+ * matrix's `superintending_officer` rows by the contract's value and method key (and type, where a row is confined to
  * one), never keyed: "a role rather than a post". Which office is the customer's configuration (Rule 1: the
  * bands RM300K / 1M / 3M are matrix rows, never code). The resolution is recorded with the rule and clause it
  * came from, and every holder is kept (append-only assignments; the office in force on a day is the latest
@@ -22,8 +22,9 @@ export const SO_DOMAIN = "superintending_officer";
 export interface SoQuery {
   /// The contract's value (the sum it was executed at, or the revised sum where re-resolved).
   contractValue: number;
-  /// The regime the exercise was let in ("tender", "quotation"), as the rows are confined by method.
-  regime: string | null;
+  /// The exercise's sourcing method's `authorityMethodKey` (review 4), as every other caller of the engine passes it:
+  /// the rows are confined by that key. Null: a method with no key, and only rows for any method apply.
+  method: string | null;
   /// The contract type, where rows are confined by it (FR-APR-002).
   contractTypeCode: string | null;
 }
@@ -33,7 +34,7 @@ export type SoResolution =
   | { state: "SO_UNRESOLVED"; errors: ResolutionWarning[] };
 
 export function resolveSo(matrix: Matrix, q: SoQuery): SoResolution {
-  const r = resolveApproval(matrix, { domain: SO_DOMAIN, method: q.regime, contractTypeCode: q.contractTypeCode, contractValue: q.contractValue });
+  const r = resolveApproval(matrix, { domain: SO_DOMAIN, method: q.method, contractTypeCode: q.contractTypeCode, contractValue: q.contractValue });
   const errors = r.warnings.filter((w) => w.level === "err");
   if (!r.rule || !r.approverCode || errors.length) return { state: "SO_UNRESOLVED", errors };
   const role = matrix.roles[r.approverCode];
@@ -72,16 +73,28 @@ export function soOn<T extends AssignmentRow>(rows: readonly T[], day: Day): T |
   return best;
 }
 
-export type ResolveActFault = "NOT_EXECUTED" | "ALREADY_RESOLVED" | "SO_UNRESOLVED";
+export type ResolveActFault = "NOT_EXECUTED" | "ALREADY_RESOLVED" | "SO_UNRESOLVED" | "REASON_REQUIRED";
 
 /**
- * The one-off "Resolve S.O." for a contract executed before 6.13 (the signature resolves it from then on):
- * only an executed contract with no S.O. yet.
+ * The one-off "Resolve S.O." for a contract executed before 6.13 (the signature resolves it from then on): only
+ * an executed contract with no S.O. yet, with the reason it is recorded late. It takes effect from the Contract
+ * Date (review 1), so no day of the contract is left without an S.O.
  */
-export function resolveActFaults(i: { executed: boolean; assignments: number }): Finding<ResolveActFault>[] {
+export function resolveActFaults(i: { executed: boolean; assignments: number; reason?: string }): Finding<ResolveActFault>[] {
   if (!i.executed) return [{ code: "NOT_EXECUTED", level: "block" }];
   if (i.assignments > 0) return [{ code: "ALREADY_RESOLVED", level: "block" }];
+  if (i.reason !== undefined && !i.reason.trim()) return [{ code: "REASON_REQUIRED", level: "block" }];
   return [];
+}
+
+/**
+ * Correcting the Contract Date (6.12's act) moves the S.O. assignment that took effect on it: the signature's, or
+ * the one-off resolution's, which both take effect from the Contract Date. Null: none took effect on it (a later
+ * assignment never moves). Pure.
+ */
+export function assignmentToMove<T extends { id: string; reason: string; effectiveOn: Day }>(rows: readonly T[], oldContractDate: Day | null, newContractDate: Day): T | null {
+  if (!oldContractDate || oldContractDate === newContractDate) return null;
+  return rows.find((r) => (r.reason === "EXECUTION" || r.reason === "RESOLVED") && r.effectiveOn === oldContractDate) ?? null;
 }
 
 /**
