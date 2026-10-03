@@ -20,8 +20,10 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-/// Grouping matches the prototype exactly — note that Documents sits under Supply
-/// base, not Insight, and Insight holds Reports alone.
+/// Grouping matches the prototype — note that Documents sits under Supply base. The
+/// prototype's Insight group held Reports alone; reporting is not in this build (the
+/// founder removed it on 2026-10-04, 613A-C3), so neither the group nor the entry is
+/// shown: the sidebar promises no module that will not be built.
 export const STAFF_NAV: NavGroup[] = [
   {
     label: "Overview",
@@ -55,10 +57,6 @@ export const STAFF_NAV: NavGroup[] = [
       { href: "/suppliers", label: "Suppliers", icon: "building", built: true },
       { href: "/documents", label: "Documents", icon: "files" },
     ],
-  },
-  {
-    label: "Insight",
-    items: [{ href: "/reports", label: "Reports", icon: "chart" }],
   },
   {
     label: "Administration",
