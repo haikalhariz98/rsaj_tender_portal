@@ -103,6 +103,10 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   RECONCILIATION: "Signed reconciliation record",
   SIGNED_CONTRACT: "Signed Contract Document",
   STAMPING_CERTIFICATE: "Stamping certificate",
+  PIPE_LOG: "Pipe log",
+  AS_BUILT: "As-built drawings",
+  PROGRAMME: "Work programme as submitted",
+  DIARY_PHOTO: "Site diary photograph",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",
@@ -194,6 +198,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   LEGALLY_ENDORSED: "The legal office endorsed the contract on what was sent, which is kept as it was.",
   LEGAL_NOT_SUBMITTED: "The legal office's comments are kept once the contract has been sent for review.",
   CONTRACT_NOT_EXECUTED: "This is kept once the contract is executed, by the RSAJ signature on the Formation tab.",
+  CONTRACT_NOT_ACTIVE: "This is kept from possession of site, recorded on the contract's Site tab.",
   CONTRACT_EXECUTED: "The contract is executed and keeps what it was executed on.",
 };
 

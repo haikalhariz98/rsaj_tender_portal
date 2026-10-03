@@ -373,6 +373,23 @@ model Organisation {
   routingChecks            RoutingCheck[]
   awardRoutingSheets       AwardRoutingSheet[]
   awardTermCorrections     AwardTermCorrection[]
+  postAwardPolicy          PostAwardPolicy?
+  soAssignments            ContractSoAssignment[]
+  soDelegations            SoDelegation[]
+  soDelegationScopes       SoDelegationScope[]
+  possessions              Possession[]
+  workProgrammes           WorkProgramme[]
+  programmePoints          ProgrammePoint[]
+  progressRecords          ProgressRecord[]
+  siteDiaryEntries         SiteDiaryEntry[]
+  diaryEndorsements        DiaryEndorsement[]
+  siteMeetings             SiteMeeting[]
+  complianceObservations   ComplianceObservation[]
+  programmeDirections      ProgrammeDirection[]
+  pendingDeductions        PendingDeduction[]
+  earlyActionDecisions     EarlyActionDecision[]
+  contractParties          ContractParty[]
+  siteRecordsHandovers     SiteRecordsHandover[]
 }
 
 /// A human being. Identity, deliberately separate from authentication: a committee
@@ -516,6 +533,21 @@ model Person {
   certificateSignatures  CertificateSignature[]    @relation("CertificateSignedBy")
   certificateOverrides   CertificateOverride[]     @relation("CertificateOverriddenBy")
   routingChecks          RoutingCheck[]            @relation("RoutingCheckedBy")
+  // 6.13 Part A (4b): supervision, recorded on their behalf.
+  soDelegationsHeld      SoDelegation[]            @relation("SoDelegate")
+  soDelegationsGranted   SoDelegation[]            @relation("SoDelegationGrantor")
+  possessionsRecorded    Possession[]              @relation("PossessionRecordedBy")
+  programmesScrutinised  WorkProgramme[]           @relation("ProgrammeScrutinisedBy")
+  programmesDecided      WorkProgramme[]           @relation("ProgrammeDecidedBy")
+  progressRecorded       ProgressRecord[]          @relation("ProgressRecordedBy")
+  diaryEntriesKept       SiteDiaryEntry[]          @relation("DiaryOfficer")
+  diaryEndorsements      DiaryEndorsement[]        @relation("DiaryEndorsedBy")
+  siteMeetingsChaired    SiteMeeting[]             @relation("SiteMeetingChair")
+  observationsMade       ComplianceObservation[]   @relation("ObservationBy")
+  directionsGiven        ProgrammeDirection[]      @relation("DirectionBy")
+  deductionsRecorded     PendingDeduction[]        @relation("PendingDeductionBy")
+  earlyActionsDecided    EarlyActionDecision[]     @relation("EarlyActionBy")
+  recordsHandedOver      SiteRecordsHandover[]     @relation("RecordsHandedOverBy")
 }
 
 /// Who holds an authority office, and when.
@@ -1278,6 +1310,11 @@ model DocumentTemplate {
   certificates         Certificate[]
   certificateDocuments CertificateDocument[]
   routingSheetTypes    RoutingSheetType[]
+  /// 6.13 (FR-SUP-003): the delegation letter pair's forms, per variant (certificate forms).
+  policiesDelegationLetterConventional PostAwardPolicy[] @relation("PolicyDelegationLetterConventional")
+  policiesDelegationNoticeConventional PostAwardPolicy[] @relation("PolicyDelegationNoticeConventional")
+  policiesDelegationLetterDesignBuild  PostAwardPolicy[] @relation("PolicyDelegationLetterDesignBuild")
+  policiesDelegationNoticeDesignBuild  PostAwardPolicy[] @relation("PolicyDelegationNoticeDesignBuild")
 
   @@unique([organisationId, code])
 }
@@ -2112,6 +2149,10 @@ model ContractType {
   /// which of FR-PAD-001's five triggers a contract of this type may adjust its sum by. Empty: not set, and the
   /// adjustment certificate refuses naming the setting (6.13 step 4).
   sumAdjustmentTriggers       SumAdjustmentTrigger[] @default([])
+  /// 6.13 (FR-SUP-003): which pair of delegation letters a contract of this type takes: conventional
+  /// (Appendix A/1 and A/2) or design and build and turnkey (B/1 and B/2). Null: not set, and a delegation is
+  /// refused naming the setting.
+  delegationVariant           DelegationVariant?
 
   /// The numbering series (NumberingSeries.key) a contract of this type is numbered
   /// from when its award is issued (FR-CON-002, 6.11). Null: not set, and issue refuses.
@@ -2126,6 +2167,12 @@ model ContractType {
 
   @@unique([organisationId, code])
   @@index([organisationId, sortOrder])
+}
+
+/// FR-SUP-003 (SK005 §7.3.1, §7.3.3): the delegation letter pair a contract type takes.
+enum DelegationVariant {
+  CONVENTIONAL
+  DESIGN_AND_BUILD
 }
 
 /// FR-PAD-001's five triggers of a contract-sum adjustment (SK013): a closed product vocabulary, rendered by label.
@@ -3606,6 +3653,21 @@ model Contract {
   certificates    Certificate[]
   /// 612-C1: the award's recorded terms corrected after issue.
   awardTermCorrections AwardTermCorrection[]
+  /// 6.13 Part A (4b): supervision.
+  soAssignments          ContractSoAssignment[]
+  soDelegations          SoDelegation[]
+  possession             Possession?
+  workProgrammes         WorkProgramme[]
+  progressRecords        ProgressRecord[]
+  siteDiaryEntries       SiteDiaryEntry[]
+  diaryEndorsements      DiaryEndorsement[]
+  siteMeetings           SiteMeeting[]
+  complianceObservations ComplianceObservation[]
+  programmeDirections    ProgrammeDirection[]
+  pendingDeductions      PendingDeduction[]
+  earlyActionDecisions   EarlyActionDecision[]
+  contractParties        ContractParty[]
+  siteRecordsHandovers   SiteRecordsHandover[]
 
   @@unique([organisationId, number])
 }
@@ -3767,6 +3829,8 @@ model InsurancePolicy {
   createdAt DateTime @default(now())
 
   custodyItem CustodyItem?
+  /// 6.13 (FR-SUP-013): premiums the employer paid on it by self-help, waiting for the next interim.
+  pendingDeductions PendingDeduction[]
 }
 
 // ---------------------------------------------------------- Phase 1 close-out
@@ -3970,6 +4034,14 @@ enum AttachmentPurpose {
   SIGNED_CONTRACT
   /// 6.12 (FR-CON-011): the stamping certificate's scan, on the contract.
   STAMPING_CERTIFICATE
+  /// 6.13 (FR-SUP-009): the pipe log, kept current on the contract; versioned, handed over.
+  PIPE_LOG
+  /// 6.13 (FR-SUP-009): the as-built drawings, on the contract; versioned, handed over.
+  AS_BUILT
+  /// 6.13 (FR-SUP-006): the contractor's work programme (or service schedule) as submitted, on the contract.
+  PROGRAMME
+  /// 6.13 (FR-SUP-007): a photograph supporting a site diary day, on the contract.
+  DIARY_PHOTO
 }
 
 enum DocumentAccessKind {
@@ -7868,6 +7940,8 @@ model ContractBaseline {
   certificates Certificate[]
   /// 612-C1: the correction of the award's recorded terms that wrote this version.
   awardTermCorrection AwardTermCorrection?
+  /// 6.13 (FR-SUP-005): the possession of site that wrote this version.
+  possession          Possession?
 
   @@unique([contractId, version])
   @@index([contractId])
@@ -8173,6 +8247,9 @@ model Certificate {
   copies            IssuedCopy[]
   approvalInstances ApprovalInstance[]
   routingChecks     RoutingCheck[]
+  /// 6.13 (FR-SUP-003): the delegation this certificate is the letter, or the notification, of.
+  delegationAsLetter SoDelegation? @relation("DelegationLetter")
+  delegationAsNotice SoDelegation? @relation("DelegationNotice")
 
   @@unique([organisationId, number])
   @@unique([contractId, kind, sequence])
@@ -8423,4 +8500,468 @@ model AwardRoutingSheet {
   startedAt      DateTime
   receivedOn         DateTime?
   receivedRecordedAt DateTime?
+}
+
+// ------------------------------------------------------------------ 6.13 Part A: supervision (4b, FR-SUP)
+
+/// Why an S.O. assignment row exists (FR-SUP-001, §7.2: every holder kept).
+enum SoAssignmentReason {
+  /// Resolved by the employer's signature (the execution hook).
+  EXECUTION
+  /// Resolved by the one-off act, for a contract executed before 6.13.
+  RESOLVED
+  /// Re-resolved after the revised contract sum crossed a band (OD-A7, where the switch says so).
+  RE_RESOLVED
+}
+
+/// FR-SUP-003: the delegate's type, which drives the delegation's scope.
+enum DelegateKind {
+  PRINCIPAL
+  SPECIALIST
+  SPECIALIST_QS
+}
+
+/// An act a delegate may be recorded for (FR-SUP-004): the delegation's scope lists them.
+enum SupervisionAct {
+  DIARY
+  PROGRAMME_SCRUTINY
+  PROGRESS
+  OBSERVATION
+  CONTRACTOR_COMMUNICATION
+  INSTRUCTION
+  VALUATION
+  VARIATION_APPLICATION
+}
+
+/// FR-SUP-006: a works programme, or an annual contract's service and maintenance implementation schedule.
+enum ProgrammeKind {
+  WORK_PROGRAMME
+  SERVICE_SCHEDULE
+}
+
+/// FR-SUP-006: the Principal S.O. Representative's decision on a submitted programme.
+enum ProgrammeDecision {
+  APPROVED
+  RETURNED
+}
+
+/// FR-SUP-008: who endorses the diary at a site visit.
+enum DiaryEndorser {
+  SUPERIOR_OFFICER
+  SUPERINTENDING_OFFICER
+}
+
+/// FR-SUP-014: what a compliance observation is about.
+enum ComplianceArea {
+  MATERIAL_QUALITY
+  WORKMANSHIP
+  AUTHORITY_COMPLIANCE
+  WORKER_WELFARE
+  SAFETY
+  INSURANCE
+  WAGES
+  OSHA
+}
+
+/// FR-SUP-012: what calls for a revised programme.
+enum DirectionCause {
+  VARIATION
+  LOCAL_AUTHORITY_DELAY
+  OTHER_DELAY
+}
+
+/// A deduction waiting for the next interim certificate (FR-SUP-013).
+enum PendingDeductionKind {
+  INSURANCE_PREMIUM
+}
+
+/// FR-SUP-015: the S.O.'s early action, a branch of each.
+enum EarlyActionBranch {
+  EXTEND_TIME
+  IMPOSE_LAD
+  TERMINATE
+}
+
+/// B1 (OD-A8 A, ADR 0025): a party paid through the contract's certificates.
+enum ContractPartyKind {
+  NOMINATED_SUBCONTRACTOR
+  NOMINATED_SUPPLIER
+  ASSIGNEE
+}
+
+/// FR-SUP-009: a controlled set of site records handed over.
+enum SiteRecordsSet {
+  PIPE_LOG
+  AS_BUILT
+}
+
+/// How this customer administers contracts after award (6.13). One per organisation; every value unset until
+/// set, each with where it came from; an unset value refuses or warns at the act it governs, naming the setting.
+/// Ships empty. Later steps add their own columns (payment, variations).
+model PostAwardPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  /// FR-SUP-010: a contract is In Delay where actual progress is below this percentage of the approved
+  /// programme's planned progress. Null: not set, and In Delay reads "not judged" (NOT_SET).
+  inDelayProgressPct        Decimal?    @db.Decimal(9, 4)
+  inDelayProvenance         Provenance?
+  /// OD-A7: whether the S.O. is re-resolved when an issued adjustment moves the contract sum across a band.
+  /// Null: not decided, and the contract and each later S.O. block warn.
+  soReResolve               Boolean?
+  soReResolveProvenance     Provenance?
+  /// FR-SUP-003: the forms the delegation letter (A/1, B/1) and its notification (A/2, B/2) print on, per variant.
+  /// Null: not set, and a delegation of that variant is refused naming the setting.
+  delegationLetterConventionalId String?
+  delegationLetterConventional   DocumentTemplate? @relation("PolicyDelegationLetterConventional", fields: [delegationLetterConventionalId], references: [id], onDelete: SetNull)
+  delegationNoticeConventionalId String?
+  delegationNoticeConventional   DocumentTemplate? @relation("PolicyDelegationNoticeConventional", fields: [delegationNoticeConventionalId], references: [id], onDelete: SetNull)
+  delegationLetterDesignBuildId  String?
+  delegationLetterDesignBuild    DocumentTemplate? @relation("PolicyDelegationLetterDesignBuild", fields: [delegationLetterDesignBuildId], references: [id], onDelete: SetNull)
+  delegationNoticeDesignBuildId  String?
+  delegationNoticeDesignBuild    DocumentTemplate? @relation("PolicyDelegationNoticeDesignBuild", fields: [delegationNoticeDesignBuildId], references: [id], onDelete: SetNull)
+  delegationFormsProvenance      Provenance?
+
+  notes String @default("")
+}
+
+/// The Superintending Officer of a contract (FR-SUP-001): an office resolved from the approval matrix's
+/// `superintending_officer` rows by contract value and regime, never keyed. Append-only (§7.2): the office in
+/// force on a day is the latest row effective on or before it; every earlier holder is kept.
+model ContractSoAssignment {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  roleCode      String
+  roleLabel     String
+  reason        SoAssignmentReason
+  /// What it was resolved on, as it stood: the issue, the rule and its clause, the value and the regime.
+  matrixLabel   String
+  ruleKey       String
+  ruleLabel     String
+  clause        String
+  contractValue Decimal @db.Decimal(18, 2)
+  regime        String?
+  /// The resolution's warnings that did not refuse it (a known gap, an undecided chain), in words.
+  warnings      Json
+  /// The organisation's day it holds from, and when it was recorded.
+  effectiveOn   DateTime
+  recordedAt    DateTime
+
+  delegations SoDelegation[]
+
+  @@index([contractId])
+}
+
+/// A delegation of the S.O.'s authority to a representative (FR-SUP-002–004): the competency confirmation, the
+/// delegate's type and scope, and the letter pair it is made by (Part A's first certificates, through the 6.14
+/// core). In force from the letter's date until revoked. No sub-delegation: a delegate never delegates.
+model SoDelegation {
+  id             String               @id @default(cuid())
+  organisationId String
+  organisation   Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract             @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  assignmentId   String
+  assignment     ContractSoAssignment @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+
+  kind               DelegateKind
+  delegatePersonId   String
+  delegatePerson     Person @relation("SoDelegate", fields: [delegatePersonId], references: [id], onDelete: Restrict)
+  delegateName       String
+  /// The S.O. who delegates, recorded on their behalf (not signed): a holder of the assignment's office.
+  grantorPersonId    String
+  grantorPerson      Person @relation("SoDelegationGrantor", fields: [grantorPersonId], references: [id], onDelete: Restrict)
+  grantorName        String
+  /// FR-SUP-002: the S.O.'s recorded satisfaction with the delegate's ability and experience (CHECK true).
+  competencyConfirmed Boolean
+  competencyNote     String
+  /// FR-SUP-003: the letter pair as frozen from the contract type when it was made.
+  variant            DelegationVariant
+  letterCertificateId String     @unique
+  letterCertificate   Certificate @relation("DelegationLetter", fields: [letterCertificateId], references: [id], onDelete: Restrict)
+  noticeCertificateId String     @unique
+  noticeCertificate   Certificate @relation("DelegationNotice", fields: [noticeCertificateId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime
+  recordedOn         DateTime
+  revokedOn          DateTime?
+  revokeReason       String    @default("")
+  revokedAt          DateTime?
+
+  scope SoDelegationScope[]
+
+  @@index([contractId])
+}
+
+/// One act within a delegation's scope (FR-SUP-004).
+model SoDelegationScope {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  delegationId   String
+  delegation     SoDelegation @relation(fields: [delegationId], references: [id], onDelete: Restrict)
+  act            SupervisionAct
+
+  @@unique([delegationId, act])
+}
+
+/// Possession of site (FR-SUP-005): recorded once; writes the POSSESSION baseline version and moves the contract
+/// to ACTIVE (the only act that does). What it was judged under is frozen with it.
+model Possession {
+  id                 String           @id @default(cuid())
+  organisationId     String
+  organisation       Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId         String           @unique
+  contract           Contract         @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  possessionOn       DateTime
+  recordedByPersonId String
+  recordedBy         Person           @relation("PossessionRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  /// The POSSESSION version it wrote.
+  baselineId         String           @unique
+  baseline           ContractBaseline @relation(fields: [baselineId], references: [id], onDelete: Restrict)
+  /// The type's start-of-work behaviour as read, and the bond and policies as judged (BD-612-22).
+  judgedUnder        Json
+  note               String           @default("")
+  recordedAt         DateTime
+  recordedOn         DateTime
+}
+
+/// A revision of the contractor's programme (FR-SUP-006, 012): submitted, scrutinised by the S.O.
+/// Representative, then approved or returned for revision by the Principal S.O. Representative. The approved
+/// programme in force is the latest approved revision; a revision replaces it only when approved.
+model WorkProgramme {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract        @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  revision       Int
+  kind           ProgrammeKind
+  submittedOn    DateTime
+  /// The direction it answers, where one called for it (FR-SUP-012).
+  directionId    String?
+  direction      ProgrammeDirection? @relation(fields: [directionId], references: [id], onDelete: Restrict)
+  note           String          @default("")
+  recordedAt     DateTime
+
+  scrutinisedByPersonId String?
+  scrutinisedBy         Person?   @relation("ProgrammeScrutinisedBy", fields: [scrutinisedByPersonId], references: [id], onDelete: Restrict)
+  scrutinisedOn         DateTime?
+  /// Whether it reflects a reasonable and realistic sequence with reasonable commencement and completion dates.
+  reasonable            Boolean?
+  scrutinyNote          String    @default("")
+
+  decision            ProgrammeDecision?
+  decidedByPersonId   String?
+  decidedBy           Person?   @relation("ProgrammeDecidedBy", fields: [decidedByPersonId], references: [id], onDelete: Restrict)
+  decidedOn           DateTime?
+  decisionNote        String    @default("")
+  decidedAt           DateTime?
+
+  points ProgrammePoint[]
+
+  @@unique([contractId, revision])
+}
+
+/// A point of a programme's planned progress: by the day, this percentage of the works (FR-SUP-010).
+model ProgrammePoint {
+  id             String        @id @default(cuid())
+  organisationId String
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  programmeId    String
+  programme      WorkProgramme @relation(fields: [programmeId], references: [id], onDelete: Restrict)
+  day            DateTime
+  plannedPct     Decimal       @db.Decimal(9, 4)
+
+  @@unique([programmeId, day])
+}
+
+/// Actual physical progress recorded on a day (FR-SUP-010).
+model ProgressRecord {
+  id                 String       @id @default(cuid())
+  organisationId     String
+  organisation       Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId         String
+  contract           Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  day                DateTime
+  actualPct          Decimal      @db.Decimal(9, 4)
+  recordedByPersonId String
+  recordedBy         Person       @relation("ProgressRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  note               String       @default("")
+  recordedAt         DateTime
+
+  @@unique([contractId, day])
+}
+
+/// The daily site diary (FR-SUP-007): one entry a day from commencement to completion, complete only with both
+/// attestations (the responsible officer and the contractor's agent, who meet at the end of the day). A
+/// disagreement is recorded on the entry and escalated to the S.O. An entry for an earlier day needs a recorded
+/// exception.
+model SiteDiaryEntry {
+  id                String       @id @default(cuid())
+  organisationId    String
+  organisation      Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId        String
+  contract          Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  day               DateTime
+  weather           String       @default("")
+  entry             String       @db.Text
+  officerPersonId   String
+  officer           Person       @relation("DiaryOfficer", fields: [officerPersonId], references: [id], onDelete: Restrict)
+  officerAttestedOn DateTime?
+  agentName         String       @default("")
+  agentAttestedOn   DateTime?
+  disagreement      String       @default("")
+  escalatedOn       DateTime?
+  /// An entry for a day before the one it was written on: the recorded exception (required, CHECK).
+  backdatedReason   String       @default("")
+  recordedAt        DateTime
+  recordedOn        DateTime
+
+  @@unique([contractId, day])
+}
+
+/// An endorsement of the diary at a site visit (FR-SUP-008), over the days it covers.
+model DiaryEndorsement {
+  id             String        @id @default(cuid())
+  organisationId String
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract      @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  role           DiaryEndorser
+  personId       String
+  person         Person        @relation("DiaryEndorsedBy", fields: [personId], references: [id], onDelete: Restrict)
+  visitedOn      DateTime
+  coversFrom     DateTime
+  coversTo       DateTime
+  note           String        @default("")
+  recordedAt     DateTime
+}
+
+/// A special meeting chaired by the S.O. after an In Delay classification (FR-SUP-011), with its minutes.
+model SiteMeeting {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  heldOn         DateTime
+  chairPersonId  String
+  chair          Person       @relation("SiteMeetingChair", fields: [chairPersonId], references: [id], onDelete: Restrict)
+  attendees      String[]
+  minutes        String       @db.Text
+  /// The In Delay reading that called it, as it stood on the day.
+  inDelayReading Json
+  recordedAt     DateTime
+}
+
+/// A compliance observation (FR-SUP-014).
+model ComplianceObservation {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract       @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  area           ComplianceArea
+  observedOn     DateTime
+  personId       String
+  person         Person         @relation("ObservationBy", fields: [personId], references: [id], onDelete: Restrict)
+  note           String
+  recordedAt     DateTime
+}
+
+/// A direction to review the completion date and submit a revised programme (FR-SUP-012).
+model ProgrammeDirection {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract       @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  cause          DirectionCause
+  directedOn     DateTime
+  personId       String
+  person         Person         @relation("DirectionBy", fields: [personId], references: [id], onDelete: Restrict)
+  note           String
+  recordedAt     DateTime
+
+  programmes WorkProgramme[]
+}
+
+/// A sum the employer paid on the contractor's behalf, waiting for the next interim certificate's deduction
+/// block (FR-SUP-013 self-help on insurance; FR-PAY-011). Read by the interim certificate (6.13 step 3).
+model PendingDeduction {
+  id             String               @id @default(cuid())
+  organisationId String
+  organisation   Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract             @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  kind           PendingDeductionKind
+  policyId       String?
+  policy         InsurancePolicy?     @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  amount         Decimal              @db.Decimal(18, 2)
+  paidOn         DateTime
+  extendedTo     DateTime?
+  personId       String
+  person         Person               @relation("PendingDeductionBy", fields: [personId], references: [id], onDelete: Restrict)
+  note           String
+  recordedAt     DateTime
+}
+
+/// The S.O.'s early-action decision (FR-SUP-015): one or more branches, each opening its module.
+model EarlyActionDecision {
+  id             String              @id @default(cuid())
+  organisationId String
+  organisation   Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract            @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  decidedOn      DateTime
+  branches       EarlyActionBranch[]
+  personId       String
+  person         Person              @relation("EarlyActionBy", fields: [personId], references: [id], onDelete: Restrict)
+  reason         String
+  recordedAt     DateTime
+}
+
+/// A party paid through the contract's certificates (B1, OD-A8 A, ADR 0025): totals only until the annexes
+/// arrive. Never deleted once a certificate could carry it; retired with a reason.
+model ContractParty {
+  id             String            @id @default(cuid())
+  organisationId String
+  organisation   Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract          @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  kind           ContractPartyKind
+  name           String
+  /// The sub-contract (or assigned) sum, where stated. Null: not stated.
+  sum            Decimal?          @db.Decimal(18, 2)
+  /// Whether it is paid direct. Null: not answered.
+  directPayment  Boolean?
+  provenance     Provenance?
+  note           String            @default("")
+  recordedAt     DateTime
+  retiredOn      DateTime?
+  retireReason   String            @default("")
+}
+
+/// A controlled set of site records handed to the Implementing Department (FR-SUP-009), the versions pinned.
+model SiteRecordsHandover {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract       @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  recordsSet     SiteRecordsSet
+  handedOverOn   DateTime
+  toLabel        String
+  receivedByName String
+  personId       String
+  person         Person         @relation("RecordsHandedOverBy", fields: [personId], references: [id], onDelete: Restrict)
+  /// The versions handed over: id, document title, version number, fingerprint.
+  pinnedVersions Json
+  note           String         @default("")
+  recordedAt     DateTime
 }

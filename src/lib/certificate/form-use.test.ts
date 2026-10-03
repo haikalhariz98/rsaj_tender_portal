@@ -28,7 +28,9 @@ describe("(a) only a certificate form takes blocks and recipients", () => {
   it("every relation DocumentTemplate has to another module's document is listed (the list cannot go stale)", () => {
     const model = /^model DocumentTemplate \{([\s\S]*?)^\}/m.exec(read("prisma/schema.prisma"))![1];
     const relations = [...model.matchAll(/^\s+(\w+)\s+([A-Z]\w+)\[\]/gm)].map((m) => m[1]);
-    const certificateOwn = ["signatureBlocks", "distributionRows", "certificates", "certificateDocuments", "routingSheetTypes"];
+    // 6.13 Part A step 2 (faithful): the post-award policy's delegation letter forms are certificate forms (the
+    // DELEGATION_LETTER and DELEGATION_NOTICE kinds), so they are a certificate form's own use, not another module's.
+    const certificateOwn = ["signatureBlocks", "distributionRows", "certificates", "certificateDocuments", "routingSheetTypes", "policiesDelegationLetterConventional", "policiesDelegationNoticeConventional", "policiesDelegationLetterDesignBuild", "policiesDelegationNoticeDesignBuild"];
     expect(relations.filter((r) => !certificateOwn.includes(r)).sort()).toEqual(Object.keys(TEMPLATE_OTHER_USES).sort());
   });
   it("the acts refuse a block or a recipient on such a template, and never move its version", () => {

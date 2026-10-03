@@ -53,7 +53,11 @@ export type AttachmentPurpose =
   | "LEGAL_COMMENTS"
   | "RECONCILIATION"
   | "SIGNED_CONTRACT"
-  | "STAMPING_CERTIFICATE";
+  | "STAMPING_CERTIFICATE"
+  | "PIPE_LOG"
+  | "AS_BUILT"
+  | "PROGRAMME"
+  | "DIARY_PHOTO";
 
 export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "SIGNED_MINUTES",
@@ -89,6 +93,10 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "RECONCILIATION",
   "SIGNED_CONTRACT",
   "STAMPING_CERTIFICATE",
+  "PIPE_LOG",
+  "AS_BUILT",
+  "PROGRAMME",
+  "DIARY_PHOTO",
 ];
 
 /// The owners a document can be attached to. New owners arrive by migration with their
@@ -134,6 +142,11 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   RECONCILIATION: "contract",
   SIGNED_CONTRACT: "contract",
   STAMPING_CERTIFICATE: "contract",
+  // 6.13 Part A (4b): the contract's site records.
+  PIPE_LOG: "contract",
+  AS_BUILT: "contract",
+  PROGRAMME: "contract",
+  DIARY_PHOTO: "contract",
 };
 
 /// The column on DocumentAttachment that names each owner.

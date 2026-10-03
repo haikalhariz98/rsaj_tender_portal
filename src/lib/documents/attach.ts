@@ -182,6 +182,7 @@ export type OwnerExit =
   | "LEGALLY_ENDORSED"
   | "LEGAL_NOT_SUBMITTED"
   | "CONTRACT_NOT_EXECUTED"
+  | "CONTRACT_NOT_ACTIVE"
   | "CONTRACT_EXECUTED";
 
 export type AttachFault =
@@ -323,6 +324,14 @@ function contractOwnerState(purpose: AttachmentPurpose, owner: Extract<OwnerFact
     case "SIGNED_CONTRACT":
     case "STAMPING_CERTIFICATE":
       return executed ? { state: "OPEN" } : { state: "NOT_READY", exit: "CONTRACT_NOT_EXECUTED" };
+    // 6.13 (FR-SUP-006): the programme is submitted once the contract is executed.
+    case "PROGRAMME":
+      return executed ? { state: "OPEN" } : { state: "NOT_READY", exit: "CONTRACT_NOT_EXECUTED" };
+    // 6.13 (FR-SUP-007, 009): the site's records are kept from possession of site.
+    case "PIPE_LOG":
+    case "AS_BUILT":
+    case "DIARY_PHOTO":
+      return s === "ACTIVE" ? { state: "OPEN" } : { state: "NOT_READY", exit: "CONTRACT_NOT_ACTIVE" };
     default:
       return { state: "OPEN" };
   }
