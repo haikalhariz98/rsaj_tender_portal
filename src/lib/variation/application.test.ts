@@ -12,7 +12,7 @@ import { approvedValue, closeFaults, commenceFaults, commencedPending, cumulativ
  */
 
 const S = parseSen;
-const route = (event: RouteFact["event"], status: string, value: string, openedOn = "2026-05-01", applied: string | null = null, choices: string[] = []): RouteFact => ({ id: `${event}-${status}-${openedOn}`, event, status, value: S(value), applied, choices, openedOn });
+const route = (event: RouteFact["event"], status: string, value: string, openedOn = "2026-05-01", applied: string | null = null, choices: string[] = []): RouteFact => ({ id: `${event}-${status}-${openedOn}`, event, status, value: S(value), applied, choices, openedOn, sentAt: `${openedOn}T01:00:00.000Z` });
 const v = (x: Partial<VariationFacts> = {}): VariationFacts => ({ id: "v1", status: "SUPPORTED", exemption: null, estimate: S("90000.00"), soDecision: "SUPPORTED", soDecisionCap: null, routes: [], instructions: [], orders: [], commencedOn: null, ...x });
 const fields = (x: Partial<ApplicationFields> = {}): ApplicationFields => ({ description: "Additional valve chamber", reason: "Found on site", estimate: S("90000.00"), exemption: null, periodImplication: false, agreedRateExists: false, funderConsentRequired: false, ...x });
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
@@ -199,5 +199,18 @@ describe("run 3 review SHOULD 3: the latest route is never ambiguous", () => {
     const refused = route("PRIOR", "REJECTED", "90000.00", "2026-05-01");
     const successor = { ...route("PRIOR", "PENDING", "90000.00", "2026-05-01"), id: "successor" };
     expect(latestRoute(v({ routes: [refused, successor] }), "PRIOR")?.id).toBe("successor");
+  });
+  it("residual C2: the latest is read by (day opened, instant sent, id) itself, whatever order the rows come in", () => {
+    const refused = { ...route("PRIOR", "REJECTED", "90000.00", "2026-10-03"), id: "b-refused", sentAt: "2026-10-03T04:25:00.000Z" };
+    const successor = { ...route("PRIOR", "PENDING", "90000.00", "2026-10-03"), id: "a-successor", sentAt: "2026-10-03T04:37:00.000Z" };
+    const older = { ...route("PRIOR", "REJECTED", "90000.00", "2026-10-01"), id: "z-older", sentAt: "2026-10-01T09:00:00.000Z" };
+    // Out of order, the successor first: the later instant wins although its id sorts first.
+    expect(latestRoute(v({ routes: [successor, refused, older] }), "PRIOR")?.id).toBe("a-successor");
+    expect(latestRoute(v({ routes: [older, successor, refused] }), "PRIOR")?.id).toBe("a-successor");
+    // A later day wins over a later instant's id; on one instant, the id decides.
+    expect(latestRoute(v({ routes: [{ ...older, openedOn: "2026-10-04" }, successor] }), "PRIOR")?.id).toBe("z-older");
+    const tie = { ...successor, id: "c-tie" };
+    expect(latestRoute(v({ routes: [tie, successor] }), "PRIOR")?.id).toBe("c-tie");
+    expect(latestRoute(v({ routes: [successor, tie] }), "PRIOR")?.id).toBe("c-tie");
   });
 });

@@ -16,7 +16,7 @@ import { percentLabel, percentLabelText, variationReading } from "./percent";
  */
 
 const S = parseSen;
-const route = (event: RouteFact["event"], status: string, value: string): RouteFact => ({ id: `${event}-${status}`, event, status, value: S(value), applied: null, choices: [], openedOn: "2026-05-01" });
+const route = (event: RouteFact["event"], status: string, value: string): RouteFact => ({ id: `${event}-${status}`, event, status, value: S(value), applied: null, choices: [], openedOn: "2026-05-01", sentAt: "2026-05-01T01:00:00.000Z" });
 const v = (x: Partial<VariationFacts> = {}): VariationFacts => ({ id: "a", status: "SUPPORTED", exemption: null, estimate: S("90000.00"), soDecision: "SUPPORTED", soDecisionCap: null, routes: [], instructions: [], orders: [], commencedOn: null, ...x });
 const A = v({ routes: [route("PRIOR", "APPROVED", "90000.00"), route("INCREASE", "REJECTED", "10000.00")], instructions: [{ id: "i", certificateStatus: "ISSUED" }], orders: [{ id: "o", certificateStatus: "DRAFT", net: S("100000.00") }] });
 const steps = [{ sequence: 1, roleCode: "VOC" }, { sequence: 2, roleCode: "CEO" }];

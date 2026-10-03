@@ -7,7 +7,7 @@ import { addMonths, clockReading, consentFaults, dueOn, instructionFaults, instr
 
 /** The S.O.'s instruction and the oral loop (FR-VAR-009, 015, 016; OD-A5). Invented fixtures. */
 
-const v = (x: Partial<VariationFacts> = {}): VariationFacts => ({ id: "v1", status: "SUPPORTED", exemption: null, estimate: parseSen("90000.00"), soDecision: "SUPPORTED", soDecisionCap: null, routes: [{ id: "r", event: "PRIOR", status: "APPROVED", value: parseSen("90000.00"), applied: null, choices: [], openedOn: "2026-05-01" }], instructions: [], orders: [], commencedOn: null, ...x });
+const v = (x: Partial<VariationFacts> = {}): VariationFacts => ({ id: "v1", status: "SUPPORTED", exemption: null, estimate: parseSen("90000.00"), soDecision: "SUPPORTED", soDecisionCap: null, routes: [{ id: "r", event: "PRIOR", status: "APPROVED", value: parseSen("90000.00"), applied: null, choices: [], openedOn: "2026-05-01", sentAt: "2026-05-01T01:00:00.000Z" }], instructions: [], orders: [], commencedOn: null, ...x });
 const i = (x: Partial<InstructionInput> = {}): InstructionInput => ({ v: v(), funderConsentRequired: false, consent: "NONE", agreedRateExists: false, scheduleForm: "MEASURED", description: "Additional valve chamber at CH 1+200", oralIssuedOn: null, today: "2026-06-01", ...x });
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
 

@@ -9,7 +9,7 @@ import { applicationFigures, orderApprovalFaults, orderFaults, orderFigures, ord
 /** The application (VO-660) and the order (VO-663): their figures, and what each needs before it is signed. */
 
 const S = parseSen;
-const r = (event: RouteFact["event"], status: string, value: string): RouteFact => ({ id: `${event}${status}${value}`, event, status, value: S(value), applied: null, choices: [], openedOn: "2026-05-01" });
+const r = (event: RouteFact["event"], status: string, value: string): RouteFact => ({ id: `${event}${status}${value}`, event, status, value: S(value), applied: null, choices: [], openedOn: "2026-05-01", sentAt: "2026-05-01T01:00:00.000Z" });
 const v = (x: Partial<VariationFacts> = {}): VariationFacts => ({ id: "v1", status: "SUPPORTED", exemption: null, estimate: S("90000.00"), soDecision: "SUPPORTED", soDecisionCap: null, routes: [r("PRIOR", "APPROVED", "90000.00")], instructions: [{ id: "i", certificateStatus: "ISSUED" }], orders: [], commencedOn: null, ...x });
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
 const tot = (snap: ReturnType<typeof applicationFigures>, key: string) => totalsFrom(snap, new Map(snap.lines.map((l) => [l.key, l.value]))).get(key);

@@ -74,8 +74,9 @@ export function factsOf(v: VariationRow): VariationFacts {
     value: senFromDecimal(a.value),
     applied: a.approvalInstance.rejectionApplied,
     choices: a.approvalInstance.rejectionChoices,
-    // Oldest first as sent (the sort that reads the latest is stable, so two sent on one day keep their order).
+    // Oldest first as loaded; the latest is read by (day opened, instant sent, id) in application.ts, not by this order.
     openedOn: storedDay(a.approvalInstance.openedAt),
+    sentAt: a.sentAt.toISOString(),
   }));
   return {
     id: v.id,

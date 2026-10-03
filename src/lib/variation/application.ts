@@ -36,6 +36,8 @@ export interface RouteFact {
   applied: string | null;
   choices: readonly string[];
   openedOn: Day;
+  /// The instant it was sent (ISO), a successor stamped with its own act's instant: the tie-break within a day.
+  sentAt: string;
 }
 
 export interface VariationFacts {
@@ -54,7 +56,10 @@ export interface VariationFacts {
 }
 
 const live = (s: string) => s !== "VOID";
-const latest = <T extends { openedOn: Day }>(xs: readonly T[]): T | null => [...xs].sort((a, b) => a.openedOn.localeCompare(b.openedOn)).at(-1) ?? null;
+/// Residual C2: the latest by the day it opened, then the instant it was sent, then its id: a total order of its own,
+/// never resting on the order the rows were loaded in.
+const latest = <T extends { openedOn: Day; sentAt: string; id: string }>(xs: readonly T[]): T | null =>
+  [...xs].sort((a, b) => a.openedOn.localeCompare(b.openedOn) || a.sentAt.localeCompare(b.sentAt) || a.id.localeCompare(b.id)).at(-1) ?? null;
 
 /// The routes of one event, oldest first, and the latest.
 export const routesOf = (v: Pick<VariationFacts, "routes">, e: VariationEvent) => v.routes.filter((r) => r.event === e);
