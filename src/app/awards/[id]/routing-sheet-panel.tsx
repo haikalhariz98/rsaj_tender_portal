@@ -83,7 +83,7 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
             trigger={received ? { label: "Correct the received day", className: ghost } : { label: "Record the received day", className: secondary }}
           />
         ) : (
-          <Blocked label="Record the received day" reason={refusalText("Closed:", closed)} />
+          <Blocked label={received ? "Correct the received day" : "Record the received day"} reason={refusalText("Closed:", closed)} />
         )
       }
       checkAction={(def) => (
