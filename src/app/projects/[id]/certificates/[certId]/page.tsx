@@ -42,7 +42,7 @@ import { isSupervisedRule, type SupervisedRule } from "@/lib/supervision/blocks"
 import { loadPostAwardPolicy, supervisedHoldersOn } from "@/lib/supervision/load";
 import { fieldsNamed } from "@/lib/templates/merge";
 import { renderText } from "@/lib/certificate/issue";
-import { fidelityLine, labelPair, printedRows } from "@/lib/certificate/printed";
+import { fidelityLine, labelPair, PRINT_WORDS, printedRows } from "@/lib/certificate/printed";
 import { sheetFieldValues } from "@/lib/certificate/sheet-words";
 import { freezeTerms, termCodesIn } from "@/lib/certificate/terms";
 
@@ -197,8 +197,8 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
         {l.contract.status === "CANCELLED" && <Callout tone="warn" title="The contract is cancelled">Its certificates are kept as they were; nothing more is recorded on them.</Callout>}
         {/* 6.14 increment 2 (FR-CRT-012): a draft whose form could not be signed on yet says so from the start, by the first signature's own rule. */}
         {(status === "DRAFT" || status === "IN_ROUTING") && cert.templateId && pinBlocker(form, cert) && (
-          <Callout tone="warn" title="Its form is not ready to be signed on">
-            {`${pinBlocker(form, cert)} It may still be routed; nothing is signed on it until this is put right.`}
+          <Callout tone="warn" title={PRINT_WORDS.notReadyTitle.en}>
+            {`${pinBlocker(form, cert)} ${PRINT_WORDS.notReadyTail.en}`}
           </Callout>
         )}
         {status === "VOID" && (
@@ -616,7 +616,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
             </CardBody>
           </Card>
         ))}
-        <PrintedFieldsCard title="Printed fields, as issued" rows={snap.printed === undefined ? null : snap.printed.map((p) => ({ key: p.key, label: labelPair(p), value: p.valueEn, bound: p.bound }))} none={snap.printed === undefined ? "No printed fields were recorded with its issue." : "Its form has no printed fields."} />
+        <PrintedFieldsCard title={PRINT_WORDS.asIssued.en} rows={snap.printed === undefined ? null : snap.printed.map((p) => ({ key: p.key, label: labelPair(p), value: p.valueEn, bound: p.bound }))} none={snap.printed === undefined ? PRINT_WORDS.noneRecorded.en : PRINT_WORDS.noneOnForm.en} />
       </div>
     );
   }
@@ -657,13 +657,13 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
     <div className="flex flex-col gap-6">
       {rendered.map(({ lang, r }) => (
         <Card key={lang}>
-          <CardHeader icon={<PrinterIcon size={17} />} title={lang === "MS" ? "Malay text" : "English text"} subtitle={`${fidelityLine(body.identity, corrected).en} · ${revision ? "as pinned" : "as the form stands now"}`} actions={<Badge tone="warn">{CERT_WORDS.draftNotIssued.en}</Badge>} />
+          <CardHeader icon={<PrinterIcon size={17} />} title={lang === "MS" ? "Malay text" : "English text"} subtitle={`${fidelityLine(body.identity, corrected).en} · ${revision ? PRINT_WORDS.pinnedSuffix.en : PRINT_WORDS.nowSuffix.en}`} actions={<Badge tone="warn">{CERT_WORDS.draftNotIssued.en}</Badge>} />
           <CardBody>
             <div className="flex flex-col gap-3 text-[13.5px] whitespace-pre-line text-ink-2">{r.paragraphs.map((p, i) => <p key={i}>{p}</p>)}</div>
           </CardBody>
         </Card>
       ))}
-      <PrintedFieldsCard title={revision ? "Printed fields, as pinned" : "Printed fields, as the form stands now"} rows={printed.map((p) => ({ key: p.key, label: p.labelPair, value: p.value, bound: p.bound }))} none="Its form has no printed fields." />
+      <PrintedFieldsCard title={revision ? PRINT_WORDS.asPinned.en : PRINT_WORDS.asNow.en} rows={printed.map((p) => ({ key: p.key, label: p.labelPair, value: p.value, bound: p.bound }))} none={PRINT_WORDS.noneOnForm.en} />
     </div>
   );
 }
@@ -674,12 +674,12 @@ type IssuedPrinted = { key: string; labelEn: string; labelMs: string | null; bou
 function PrintedFieldsCard({ title, rows, none }: { title: string; rows: { key: string; label: string; value: string | null; bound: boolean }[] | null; none: string }) {
   return (
     <Card>
-      <CardHeader icon={<FileIcon size={17} />} title={title} subtitle="Under the printed form's own labels." />
+      <CardHeader icon={<FileIcon size={17} />} title={title} subtitle={PRINT_WORDS.underLabels.en} />
       <CardBody>
         {!rows || rows.length === 0 ? (
           <p className="text-[13px] text-ink-3">{none}</p>
         ) : (
-          <KeyValues columns={2} items={rows.map((r) => ({ label: r.label, value: !r.bound ? dim("Completed by hand on the paper") : r.value ? r.value : dim("Nothing to print yet") }))} />
+          <KeyValues columns={2} items={rows.map((r) => ({ label: r.label, value: !r.bound ? dim(PRINT_WORDS.byHand.en) : r.value ? r.value : dim(PRINT_WORDS.nothingYet.en) }))} />
         )}
       </CardBody>
     </Card>

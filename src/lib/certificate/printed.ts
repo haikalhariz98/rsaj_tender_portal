@@ -155,3 +155,19 @@ export function fidelityLine(f: FormIdentity, correctionsApplied: number): Words
   ];
   return w(en.filter(Boolean).join(" · "), ms.filter(Boolean).join(" · "));
 }
+
+/// The certificate page's words for the printed form (EN+MS; the screen renders `.en`).
+export const PRINT_WORDS = {
+  asIssued: w("Printed fields, as issued", "Medan bercetak, seperti dikeluarkan"),
+  asPinned: w("Printed fields, as pinned", "Medan bercetak, seperti disematkan"),
+  asNow: w("Printed fields, as the form stands now", "Medan bercetak, seperti borang kini"),
+  underLabels: w("Under the printed form's own labels.", "Di bawah label borang bercetak itu sendiri."),
+  byHand: w("Completed by hand on the paper", "Diisi dengan tangan di atas kertas"),
+  nothingYet: w("Nothing to print yet", "Belum ada untuk dicetak"),
+  noneRecorded: w("No printed fields were recorded with its issue.", "Tiada medan bercetak direkodkan bersama pengeluarannya."),
+  noneOnForm: w("Its form has no printed fields.", "Borangnya tiada medan bercetak."),
+  pinnedSuffix: w("as pinned", "seperti disematkan"),
+  nowSuffix: w("as the form stands now", "seperti borang kini"),
+  notReadyTitle: w("Its form is not ready to be signed on", "Borangnya belum sedia untuk ditandatangani"),
+  notReadyTail: w("It may still be routed; nothing is signed on it until this is put right.", "Ia masih boleh dihalakan; tiada apa ditandatangani padanya sehingga ini dibetulkan."),
+} as const;

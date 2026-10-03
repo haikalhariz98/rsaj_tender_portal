@@ -181,7 +181,7 @@ export async function removeDistributionRow(_prev: FormState, data: FormData): P
 
 // ------------------------------------------------------------------ 6.14 increment 2: the printed form
 
-const fieldWords = (p: PrintedField) => ({ code: p.key, label: p.labelEn, labelMalay: p.labelMs, filled: p.bound && p.computedKey ? `by the portal: ${boundFieldWords(p.computedKey).en}` : "by hand on the paper", order: p.sortOrder });
+const fieldWords = (p: PrintedField) => ({ label: p.labelEn, labelMalay: p.labelMs, filled: p.bound && p.computedKey ? `by the portal: ${boundFieldWords(p.computedKey).en}` : "by hand on the paper", order: p.sortOrder });
 
 /**
  * The printed form's page count (FR-CRT-001). Any template may record it; on a certificate form it is pinned with
