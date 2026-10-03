@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { decimalText } from "@/lib/format";
 import { notFound } from "next/navigation";
 
 import { HistoryButton } from "@/components/history-drawer";
@@ -20,11 +21,7 @@ import { BandDrawer, BandSetDrawer, CriterionDrawer, DiscardDraftDrawer, FactorD
 export const dynamic = "force-dynamic";
 
 /// A stored decimal as typed: trailing zeros after the point dropped, never those of a whole number.
-const num = (v: { toString(): string } | null) => {
-  if (v == null) return "";
-  const s = v.toString();
-  return s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s;
-};
+const num = (v: { toString(): string } | null) => decimalText(v) ?? "";
 const tri = (v: boolean | null) => (v == null ? null : v ? "yes" : "no");
 const dash = <span className="text-ink-3">—</span>;
 
