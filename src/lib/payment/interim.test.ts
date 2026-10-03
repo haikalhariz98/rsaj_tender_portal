@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyOverrides } from "@/lib/certificate/override";
+import { applyOverrides, overrideFaults } from "@/lib/certificate/override";
 import { snapshotFaults, totalsFrom } from "@/lib/certificate/snapshot";
 import { ladLine } from "@/lib/lad/charge";
 import { parseSen, senToDecimalString, type Sen } from "@/lib/money";
@@ -182,5 +182,35 @@ describe("property: the certificate always balances (seeded, the same every run)
       expect(totals.get("recommended")).toBe(senToDecimalString(f.recommended));
       expect(snapshotFaults(r.snapshot)).toEqual([]);
     }
+  });
+});
+
+describe("the premiums line: an override never undoes the premiums the employer paid (code review run 2, item 3)", () => {
+  // Premiums 1,200.00 on the worked example: 1,000.00 the employer paid (tied to this certificate at raising) and
+  // 200.00 keyed on the valuation. Only the keyed 200.00 may be corrected.
+  const r = interimCertificate({ ...WORKED, premiumsPending: s("1000.00") });
+  const snap = r.snapshot!;
+  const now = applyOverrides(snap, []);
+  const at = (value: string) => overrideFaults({ status: "DRAFT", snapshot: snap, current: now, fieldKey: "premiums", value, justification: "Keyed twice", personKnown: true });
+  it("the line carries the floor, and the snapshot is sound", () => {
+    expect(snap.lines.find((l) => l.key === "premiums")?.floor?.value).toBe("1000.00");
+    expect(snapshotFaults(snap)).toEqual([]);
+  });
+  it("below the employer's premiums refused, naming them; exactly on them, or between, accepted", () => {
+    expect(at("999.99").faults).toEqual([{ code: "OVERRIDE_BELOW_FLOOR", level: "block", data: { floor: "1000.00", why: expect.stringMatching(/premiums the employer paid/) } }]);
+    expect(at("0.00").faults.map((f) => f.code)).toEqual(["OVERRIDE_BELOW_FLOOR"]);
+    expect(at("1000.00").faults).toEqual([]);
+    expect(at("1100.00").faults).toEqual([]);
+  });
+  it("with nothing pending, no floor: the keyed premiums may be corrected to nil", () => {
+    const plain = interimCertificate(WORKED).snapshot!;
+    expect(plain.lines.find((l) => l.key === "premiums")?.floor).toBeUndefined();
+    expect(overrideFaults({ status: "DRAFT", snapshot: plain, current: applyOverrides(plain, []), fieldKey: "premiums", value: "0.00", justification: "Keyed in error", personKnown: true }).faults).toEqual([]);
+  });
+  it("a floor above its line, or on a line not overridable, is not a sound snapshot", () => {
+    const bad = { ...snap, lines: snap.lines.map((l) => (l.key === "premiums" ? { ...l, floor: { value: "1200.01", en: "x", ms: "x" } } : l)) };
+    expect(snapshotFaults(bad).map((f) => f.code)).toContain("FIELD_VALUE");
+    const notOver = { ...snap, lines: snap.lines.map((l) => (l.key === "mainWorks" ? { ...l, floor: { value: "1.00", en: "x", ms: "x" } } : l)) };
+    expect(snapshotFaults(notOver).map((f) => f.code)).toContain("FIELD_VALUE");
   });
 });

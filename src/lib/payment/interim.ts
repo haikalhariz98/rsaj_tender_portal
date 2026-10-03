@@ -51,6 +51,9 @@ export interface InterimInput {
   advance: { main: Sen; nsc: Sen };
   /// Keyed (or recorded elsewhere and read): premiums and social security, wages, non-compliance, the others (≤ 3).
   premiums: Sen;
+  /// Of `premiums`, what the employer paid and this certificate recovers (tied to it at raising): an override of the
+  /// premiums line may correct only the keyed part, never below this (code review run 2, item 3).
+  premiumsPending?: Sen;
   wages: Sen;
   nonCompliance: Sen;
   others: readonly { label: string; amount: Sen }[];
@@ -144,7 +147,10 @@ export function interimCertificate(i: InterimInput): InterimResult {
     ...ladLines,
     m("advanceMain", "Advance recouped: main contractor", "Bayaran pendahuluan dipulihkan: kontraktor utama", i.advance.main),
     m("advanceNsc", "Advance recouped: nominated sub-contractors", "Bayaran pendahuluan dipulihkan: subkontraktor dinamakan", i.advance.nsc),
-    m("premiums", "Insurance premiums and social security paid by the employer", "Premium insurans dan PERKESO dibayar oleh majikan", i.premiums, true),
+    {
+      ...m("premiums", "Insurance premiums and social security paid by the employer", "Premium insurans dan PERKESO dibayar oleh majikan", i.premiums, true),
+      ...((i.premiumsPending ?? 0n) > 0n ? { floor: { value: senToDecimalString(i.premiumsPending!), en: "the premiums the employer paid and this certificate recovers (recorded under Site); only the keyed part may be corrected", ms: "premium yang dibayar oleh majikan dan dipulihkan oleh perakuan ini" } } : {}),
+    },
     m("wages", "Workers' wages paid by the employer", "Upah pekerja dibayar oleh majikan", i.wages, true),
     m("nonCompliance", "Costs of the contractor's failure to comply with instructions", "Kos kegagalan kontraktor mematuhi arahan", i.nonCompliance, true),
     ...others,
