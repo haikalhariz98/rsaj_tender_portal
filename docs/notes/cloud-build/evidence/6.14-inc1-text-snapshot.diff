@@ -1,0 +1,3178 @@
+diff -rU0 before/awards__demo_aw1__tab__approval.txt after/awards__demo_aw1__tab__approval.txt
+--- before/awards__demo_aw1__tab__approval.txt	2026-10-03 00:05:50.912410090 +0000
++++ after/awards__demo_aw1__tab__approval.txt	2026-10-03 00:05:50.971978848 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw1__tab__conditions.txt after/awards__demo_aw1__tab__conditions.txt
+--- before/awards__demo_aw1__tab__conditions.txt	2026-10-03 00:05:50.912594650 +0000
++++ after/awards__demo_aw1__tab__conditions.txt	2026-10-03 00:05:50.972232317 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw1__tab__distribution.txt after/awards__demo_aw1__tab__distribution.txt
+--- before/awards__demo_aw1__tab__distribution.txt	2026-10-03 00:05:50.912500653 +0000
++++ after/awards__demo_aw1__tab__distribution.txt	2026-10-03 00:05:50.972084512 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw1__tab__history.txt after/awards__demo_aw1__tab__history.txt
+--- before/awards__demo_aw1__tab__history.txt	2026-10-03 00:05:50.912685776 +0000
++++ after/awards__demo_aw1__tab__history.txt	2026-10-03 00:05:50.972350699 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw1__tab__instrument.txt after/awards__demo_aw1__tab__instrument.txt
+--- before/awards__demo_aw1__tab__instrument.txt	2026-10-03 00:05:50.912455142 +0000
++++ after/awards__demo_aw1__tab__instrument.txt	2026-10-03 00:05:50.972033550 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw1__tab__overview.txt after/awards__demo_aw1__tab__overview.txt
+--- before/awards__demo_aw1__tab__overview.txt	2026-10-03 00:05:50.912361719 +0000
++++ after/awards__demo_aw1__tab__overview.txt	2026-10-03 00:05:50.971925623 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw1__tab__return.txt after/awards__demo_aw1__tab__return.txt
+--- before/awards__demo_aw1__tab__return.txt	2026-10-03 00:05:50.912543380 +0000
++++ after/awards__demo_aw1__tab__return.txt	2026-10-03 00:05:50.972172848 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw1__tab__routing.txt after/awards__demo_aw1__tab__routing.txt
+--- before/awards__demo_aw1__tab__routing.txt	2026-10-03 00:05:50.923300575 +0000
++++ after/awards__demo_aw1__tab__routing.txt	2026-10-03 00:05:50.986983212 +0000
+@@ -31,0 +32 @@
++Routing sheet
+@@ -34,61 +35,5 @@
+-The award
+-Letter of Acceptance. The band, method and contract type are the exercise's, shown as it records them.
+-Exercise
+-DEMO/SX/0010/2026 · Pumping station refurbishment
+-Requisition
+-DEMO/REQ/0027/2026
+-Method
+-Open tender
+-Contract type
+-Works
+-Band
+-Tender band
+-Awardee
+-Demo Civil Works Sdn Bhd
+-DEMO-0001-X
+-Address
+-1 Demo Road, Demo City
+-On the supplier register
+-DEMO/SUP/0005/2026 · Demo Civil Works Sdn Bhd
+-Standing on the register
+-Blacklisted
+-Blacklisted since 25 Sep 2026 (False declaration in a bid; last blacklisted day 24 Sep 2031, free from 25 Sep 2031) — an award is not refused by the product: rule not set.
+-Awarded value
+-RM1,240,000
+-Exercise's estimate
+-RM1,300,000
+-Completion period
+-18 months
+-Stated start date
+-02 Nov 2026
+-Completion
+-02 May 2028
+-Regulated utility works?
+-No
+-Contract and commitment
+-The contract number is given when the instrument is issued. The commitment number comes from the finance system and is typed in here.
+-Contract number
+-Drawn from its contract type's series on issue
+-Contract sum
+-On issue
+-Case handed over
+-On issue
+-Commitment number
+-Not recorded
+-The letter's terms
+-Per award, with where they came from. Never defaulted.
+-Observed
+-Liquidated damages
+-RM800 per day
+-Workmen's compensation
+-As a percentage of the contract sum
+-Retention
+-5%, limited to 5% of the sum
+-Defects liability period
+-12 months
+-Terms band
+-Not applicable in this band
+-Appointment-letter variant
+-Not applicable
+-If work does not commence
+-Not applicable
++Routing sheet
++The pre-award routing sheet around the appointment route: DATE (1), its internal checks, the route's own steps and DATE (2), and the elapsed time against the sheet's target.
++Start the routing sheet
++Not started
++No routing sheet is kept for this award yet.
+@@ -96 +40,0 @@
+-@title: Seen in practice, not written down
+diff -rU0 before/awards__demo_aw1__tab__securities.txt after/awards__demo_aw1__tab__securities.txt
+--- before/awards__demo_aw1__tab__securities.txt	2026-10-03 00:05:50.912637951 +0000
++++ after/awards__demo_aw1__tab__securities.txt	2026-10-03 00:05:50.972297469 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw2__tab__approval.txt after/awards__demo_aw2__tab__approval.txt
+--- before/awards__demo_aw2__tab__approval.txt	2026-10-03 00:05:50.914313714 +0000
++++ after/awards__demo_aw2__tab__approval.txt	2026-10-03 00:05:50.974517546 +0000
+@@ -38,0 +39 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw2__tab__conditions.txt after/awards__demo_aw2__tab__conditions.txt
+--- before/awards__demo_aw2__tab__conditions.txt	2026-10-03 00:05:50.914490826 +0000
++++ after/awards__demo_aw2__tab__conditions.txt	2026-10-03 00:05:50.974737053 +0000
+@@ -38,0 +39 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw2__tab__distribution.txt after/awards__demo_aw2__tab__distribution.txt
+--- before/awards__demo_aw2__tab__distribution.txt	2026-10-03 00:05:50.914402906 +0000
++++ after/awards__demo_aw2__tab__distribution.txt	2026-10-03 00:05:50.974632084 +0000
+@@ -38,0 +39 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw2__tab__history.txt after/awards__demo_aw2__tab__history.txt
+--- before/awards__demo_aw2__tab__history.txt	2026-10-03 00:05:50.914579708 +0000
++++ after/awards__demo_aw2__tab__history.txt	2026-10-03 00:05:50.974843184 +0000
+@@ -38,0 +39 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw2__tab__instrument.txt after/awards__demo_aw2__tab__instrument.txt
+--- before/awards__demo_aw2__tab__instrument.txt	2026-10-03 00:05:50.914360338 +0000
++++ after/awards__demo_aw2__tab__instrument.txt	2026-10-03 00:05:50.974579280 +0000
+@@ -38,0 +39 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw2__tab__overview.txt after/awards__demo_aw2__tab__overview.txt
+--- before/awards__demo_aw2__tab__overview.txt	2026-10-03 00:05:50.914270046 +0000
++++ after/awards__demo_aw2__tab__overview.txt	2026-10-03 00:05:50.974463470 +0000
+@@ -38,0 +39 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw2__tab__return.txt after/awards__demo_aw2__tab__return.txt
+--- before/awards__demo_aw2__tab__return.txt	2026-10-03 00:05:50.914447584 +0000
++++ after/awards__demo_aw2__tab__return.txt	2026-10-03 00:05:50.974684214 +0000
+@@ -38,0 +39 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw2__tab__routing.txt after/awards__demo_aw2__tab__routing.txt
+--- before/awards__demo_aw2__tab__routing.txt	2026-10-03 00:05:50.923350037 +0000
++++ after/awards__demo_aw2__tab__routing.txt	2026-10-03 00:05:50.987035588 +0000
+@@ -38,0 +39 @@
++Routing sheet
+@@ -41,58 +42,5 @@
+-The award
+-Letter of Acceptance. The band, method and contract type are the exercise's, shown as it records them.
+-Exercise
+-DEMO/SX/0011/2026 · Trunk main renewal, Zone C
+-Requisition
+-DEMO/REQ/0028/2026
+-Method
+-Open tender
+-Contract type
+-Works
+-Band
+-Tender band
+-Awardee
+-Contoh Pipeline Sdn Bhd
+-DEMO-0002-X
+-Address
+-2 Contoh Street, Demo City
+-On the supplier register
+-Not linked: link the award from the supplier's record
+-Awarded value
+-RM1,650,000
+-Exercise's estimate
+-RM1,700,000
+-Completion period
+-20 months
+-Stated start date
+-16 Nov 2026
+-Completion
+-16 Jul 2028
+-Regulated utility works?
+-Yes
+-Contract and commitment
+-The contract number is given when the instrument is issued. The commitment number comes from the finance system and is typed in here.
+-Contract number
+-Drawn from its contract type's series on issue
+-Contract sum
+-On issue
+-Case handed over
+-On issue
+-Commitment number
+-Not recorded
+-The letter's terms
+-Per award, with where they came from. Never defaulted.
+-Observed
+-Liquidated damages
+-RM1,000 per day
+-Workmen's compensation
+-As a percentage of the contract sum
+-Retention
+-5%, limited to 5% of the sum
+-Defects liability period
+-12 months
+-Terms band
+-Not applicable in this band
+-Appointment-letter variant
+-Not applicable
+-If work does not commence
+-Not applicable
++Routing sheet
++The pre-award routing sheet around the appointment route: DATE (1), its internal checks, the route's own steps and DATE (2), and the elapsed time against the sheet's target.
++Start the routing sheet
++Not started
++No routing sheet is kept for this award yet.
+@@ -100 +47,0 @@
+-@title: Seen in practice, not written down
+diff -rU0 before/awards__demo_aw2__tab__securities.txt after/awards__demo_aw2__tab__securities.txt
+--- before/awards__demo_aw2__tab__securities.txt	2026-10-03 00:05:50.914533563 +0000
++++ after/awards__demo_aw2__tab__securities.txt	2026-10-03 00:05:50.974789796 +0000
+@@ -38,0 +39 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw3__tab__approval.txt after/awards__demo_aw3__tab__approval.txt
+--- before/awards__demo_aw3__tab__approval.txt	2026-10-03 00:05:50.913917477 +0000
++++ after/awards__demo_aw3__tab__approval.txt	2026-10-03 00:05:50.973942352 +0000
+@@ -29,0 +30 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw3__tab__conditions.txt after/awards__demo_aw3__tab__conditions.txt
+--- before/awards__demo_aw3__tab__conditions.txt	2026-10-03 00:05:50.914122544 +0000
++++ after/awards__demo_aw3__tab__conditions.txt	2026-10-03 00:05:50.974278258 +0000
+@@ -29,0 +30 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw3__tab__distribution.txt after/awards__demo_aw3__tab__distribution.txt
+--- before/awards__demo_aw3__tab__distribution.txt	2026-10-03 00:05:50.914025007 +0000
++++ after/awards__demo_aw3__tab__distribution.txt	2026-10-03 00:05:50.974057154 +0000
+@@ -29,0 +30 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw3__tab__history.txt after/awards__demo_aw3__tab__history.txt
+--- before/awards__demo_aw3__tab__history.txt	2026-10-03 00:05:50.914223512 +0000
++++ after/awards__demo_aw3__tab__history.txt	2026-10-03 00:05:50.974407748 +0000
+@@ -29,0 +30 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw3__tab__instrument.txt after/awards__demo_aw3__tab__instrument.txt
+--- before/awards__demo_aw3__tab__instrument.txt	2026-10-03 00:05:50.913968289 +0000
++++ after/awards__demo_aw3__tab__instrument.txt	2026-10-03 00:05:50.973996905 +0000
+@@ -29,0 +30 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw3__tab__overview.txt after/awards__demo_aw3__tab__overview.txt
+--- before/awards__demo_aw3__tab__overview.txt	2026-10-03 00:05:50.882186173 +0000
++++ after/awards__demo_aw3__tab__overview.txt	2026-10-03 00:05:50.973889112 +0000
+@@ -29,0 +30 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw3__tab__return.txt after/awards__demo_aw3__tab__return.txt
+--- before/awards__demo_aw3__tab__return.txt	2026-10-03 00:05:50.914070809 +0000
++++ after/awards__demo_aw3__tab__return.txt	2026-10-03 00:05:50.974211947 +0000
+@@ -29,0 +30 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw3__tab__routing.txt after/awards__demo_aw3__tab__routing.txt
+--- before/awards__demo_aw3__tab__routing.txt	2026-10-03 00:05:50.923394046 +0000
++++ after/awards__demo_aw3__tab__routing.txt	2026-10-03 00:05:50.987091558 +0000
+@@ -29,0 +30 @@
++Routing sheet
+@@ -32,63 +33,5 @@
+-The award
+-Letter of Acceptance. The band, method and contract type are the exercise's, shown as it records them.
+-Exercise
+-DEMO/SX/0012/2026 · Reservoir rehabilitation
+-Requisition
+-DEMO/REQ/0029/2026
+-Method
+-Open tender
+-Contract type
+-Works
+-Band
+-Tender band
+-Awardee
+-Sampel Engineering Sdn Bhd
+-DEMO-0003-X
+-Address
+-3 Sampel Avenue, Demo City
+-On the supplier register
+-DEMO/SUP/0007/2026 · Sampel Engineering Sdn Bhd
+-Standing on the register
+-Active
+-Awarded value
+-RM2,700,000
+-Exercise's estimate
+-RM2,800,000
+-Completion period
+-24 months
+-Stated start date
+-15 Oct 2026
+-Completion
+-15 Oct 2028
+-Regulated utility works?
+-No
+-Contract and commitment
+-The contract number is given when the instrument is issued. The commitment number comes from the finance system and is typed in here.
+-Contract number
+-DEMO/KP/T/004/2026
+-Returned for amendment
+-The year in the number is the year it was issued, 2026 — assumed to be the year the contract starts, to be confirmed.
+-Open the contract
+-Contract sum
+-RM2,700,000
+-Case handed over
+-17 Sep 2026 · from Pre-contract Section to Post-contract Section
+-Commitment number
+-Not recorded
+-The letter's terms
+-Per award, with where they came from. Never defaulted.
+-Observed
+-Liquidated damages
+-RM1,500 per day
+-Workmen's compensation
+-On the wages of employees not covered by social security
+-Retention
+-5%, limited to 5% of the sum
+-Defects liability period
+-12 months
+-Terms band
+-Not applicable in this band
+-Appointment-letter variant
+-Not applicable
+-If work does not commence
+-Not applicable
++Routing sheet
++The pre-award routing sheet around the appointment route: DATE (1), its internal checks, the route's own steps and DATE (2), and the elapsed time against the sheet's target.
++Start the routing sheet
++Not started
++No routing sheet is kept for this award yet.
+@@ -96 +38,0 @@
+-@title: Seen in practice, not written down
+diff -rU0 before/awards__demo_aw3__tab__securities.txt after/awards__demo_aw3__tab__securities.txt
+--- before/awards__demo_aw3__tab__securities.txt	2026-10-03 00:05:50.914170881 +0000
++++ after/awards__demo_aw3__tab__securities.txt	2026-10-03 00:05:50.974341293 +0000
+@@ -29,0 +30 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw4__tab__approval.txt after/awards__demo_aw4__tab__approval.txt
+--- before/awards__demo_aw4__tab__approval.txt	2026-10-03 00:05:50.913568329 +0000
++++ after/awards__demo_aw4__tab__approval.txt	2026-10-03 00:05:50.973508012 +0000
+@@ -43,0 +44 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw4__tab__conditions.txt after/awards__demo_aw4__tab__conditions.txt
+--- before/awards__demo_aw4__tab__conditions.txt	2026-10-03 00:05:50.913755061 +0000
++++ after/awards__demo_aw4__tab__conditions.txt	2026-10-03 00:05:50.973724383 +0000
+@@ -43,0 +44 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw4__tab__distribution.txt after/awards__demo_aw4__tab__distribution.txt
+--- before/awards__demo_aw4__tab__distribution.txt	2026-10-03 00:05:50.913659440 +0000
++++ after/awards__demo_aw4__tab__distribution.txt	2026-10-03 00:05:50.973612167 +0000
+@@ -43,0 +44 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw4__tab__history.txt after/awards__demo_aw4__tab__history.txt
+--- before/awards__demo_aw4__tab__history.txt	2026-10-03 00:05:50.913864368 +0000
++++ after/awards__demo_aw4__tab__history.txt	2026-10-03 00:05:50.973832387 +0000
+@@ -43,0 +44 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw4__tab__instrument.txt after/awards__demo_aw4__tab__instrument.txt
+--- before/awards__demo_aw4__tab__instrument.txt	2026-10-03 00:05:50.913610953 +0000
++++ after/awards__demo_aw4__tab__instrument.txt	2026-10-03 00:05:50.973559604 +0000
+@@ -43,0 +44 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw4__tab__overview.txt after/awards__demo_aw4__tab__overview.txt
+--- before/awards__demo_aw4__tab__overview.txt	2026-10-03 00:05:50.913525865 +0000
++++ after/awards__demo_aw4__tab__overview.txt	2026-10-03 00:05:50.973452936 +0000
+@@ -43,0 +44 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw4__tab__return.txt after/awards__demo_aw4__tab__return.txt
+--- before/awards__demo_aw4__tab__return.txt	2026-10-03 00:05:50.913709734 +0000
++++ after/awards__demo_aw4__tab__return.txt	2026-10-03 00:05:50.973665338 +0000
+@@ -43,0 +44 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw4__tab__routing.txt after/awards__demo_aw4__tab__routing.txt
+--- before/awards__demo_aw4__tab__routing.txt	2026-10-03 00:05:50.923436474 +0000
++++ after/awards__demo_aw4__tab__routing.txt	2026-10-03 00:05:50.987158412 +0000
+@@ -43,0 +44 @@
++Routing sheet
+@@ -46,66 +47,5 @@
+-The award
+-Work indent and appointment letter. The band, method and contract type are the exercise's, shown as it records them.
+-Exercise
+-DEMO/SX/0013/2026 · Meter chamber upgrades
+-Requisition
+-DEMO/REQ/0030/2026
+-Method
+-Open quotation
+-Contract type
+-Works
+-Band
+-Quotation band
+-Awardee
+-Demo Meter Services Sdn Bhd
+-DEMO-0004-X
+-Address
+-4 Demo Lane, Demo North
+-On the supplier register
+-Not linked: link the award from the supplier's record
+-Awarded value
+-RM180,000
+-Exercise's estimate
+-RM200,000
+-Completion period
+-16 weeks
+-Stated start date
+-21 Sep 2026
+-Completion
+-11 Jan 2027
+-Regulated utility works?
+-No
+-Contract and commitment
+-The contract number is given when the instrument is issued. The commitment number comes from the finance system and is typed in here.
+-Contract number
+-XI202600812
+-Legally endorsed
+-Open the contract
+-Contract sum
+-RM180,000
+-Case handed over
+-19 Sep 2026 · from Pre-contract Section to Post-contract Section
+-Commitment number
+-XI202600812
+-The indent's · typed in by an officer
+-Indent validity
+-Expired · expires 28 Sep 2026 (10 days from receipt)
+-Valid through its expiry day (the day of receipt plus the validity days): an assumed reading of the rule.
+-Commencement
+-Not commenced by 26 Sep 2026
+-The letter's terms
+-Per award, with where they came from. Never defaulted.
+-Assumed
+-Liquidated damages
+-RM250 per day
+-Workmen's compensation
+-As a percentage of the contract sum
+-Retention
+-5%, limited to 5% of the sum
+-Defects liability period
+-12 months
+-Terms band
+-Extended terms
+-Appointment-letter variant
+-Extended appointment letter
+-If work does not commence
+-Cancellation, with blacklisting recommended
++Routing sheet
++The pre-award routing sheet around the appointment route: DATE (1), its internal checks, the route's own steps and DATE (2), and the elapsed time against the sheet's target.
++Start the routing sheet
++Not started
++No routing sheet is kept for this award yet.
+@@ -113 +52,0 @@
+-@title: A working default, awaiting sign-off
+diff -rU0 before/awards__demo_aw4__tab__securities.txt after/awards__demo_aw4__tab__securities.txt
+--- before/awards__demo_aw4__tab__securities.txt	2026-10-03 00:05:50.913809871 +0000
++++ after/awards__demo_aw4__tab__securities.txt	2026-10-03 00:05:50.973776617 +0000
+@@ -43,0 +44 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw5__tab__approval.txt after/awards__demo_aw5__tab__approval.txt
+--- before/awards__demo_aw5__tab__approval.txt	2026-10-03 00:05:50.913203340 +0000
++++ after/awards__demo_aw5__tab__approval.txt	2026-10-03 00:05:50.972979056 +0000
+@@ -27,0 +28 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw5__tab__conditions.txt after/awards__demo_aw5__tab__conditions.txt
+--- before/awards__demo_aw5__tab__conditions.txt	2026-10-03 00:05:50.913377003 +0000
++++ after/awards__demo_aw5__tab__conditions.txt	2026-10-03 00:05:50.973253204 +0000
+@@ -27,0 +28 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw5__tab__distribution.txt after/awards__demo_aw5__tab__distribution.txt
+--- before/awards__demo_aw5__tab__distribution.txt	2026-10-03 00:05:50.913289471 +0000
++++ after/awards__demo_aw5__tab__distribution.txt	2026-10-03 00:05:50.973082051 +0000
+@@ -27,0 +28 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw5__tab__history.txt after/awards__demo_aw5__tab__history.txt
+--- before/awards__demo_aw5__tab__history.txt	2026-10-03 00:05:50.913476784 +0000
++++ after/awards__demo_aw5__tab__history.txt	2026-10-03 00:05:50.973385686 +0000
+@@ -27,0 +28 @@
++Routing sheet
+@@ -738 +739 @@
+-Record
++Routing check
+@@ -757 +758 @@
+-Record
++Routing check
+@@ -776 +777 @@
+-Record
++Routing sheet
+diff -rU0 before/awards__demo_aw5__tab__instrument.txt after/awards__demo_aw5__tab__instrument.txt
+--- before/awards__demo_aw5__tab__instrument.txt	2026-10-03 00:05:50.913246561 +0000
++++ after/awards__demo_aw5__tab__instrument.txt	2026-10-03 00:05:50.973031407 +0000
+@@ -27,0 +28 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw5__tab__overview.txt after/awards__demo_aw5__tab__overview.txt
+--- before/awards__demo_aw5__tab__overview.txt	2026-10-03 00:05:50.913157706 +0000
++++ after/awards__demo_aw5__tab__overview.txt	2026-10-03 00:05:50.972927155 +0000
+@@ -27,0 +28 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw5__tab__return.txt after/awards__demo_aw5__tab__return.txt
+--- before/awards__demo_aw5__tab__return.txt	2026-10-03 00:05:50.913333435 +0000
++++ after/awards__demo_aw5__tab__return.txt	2026-10-03 00:05:50.973166766 +0000
+@@ -27,0 +28 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw5__tab__routing.txt after/awards__demo_aw5__tab__routing.txt
+--- before/awards__demo_aw5__tab__routing.txt	2026-10-03 00:05:50.923479254 +0000
++++ after/awards__demo_aw5__tab__routing.txt	2026-10-03 00:05:50.987211126 +0000
+@@ -27,0 +28 @@
++Routing sheet
+@@ -30,65 +31,25 @@
+-The award
+-Work indent and appointment letter. The band, method and contract type are the exercise's, shown as it records them.
+-Exercise
+-DEMO/SX/0014/2026 · Valve keys and chamber covers
+-Requisition
+-DEMO/REQ/0031/2026
+-Method
+-Open quotation
+-Contract type
+-Supply
+-Band
+-Quotation band
+-Awardee
+-Contoh Supplies Enterprise
+-DEMO-0005-X
+-Address
+-5 Contoh Road, Demo North
+-On the supplier register
+-Not linked: link the award from the supplier's record
+-Awarded value
+-RM36,000
+-Exercise's estimate
+-RM40,000
+-Completion period
+-8 weeks
+-Stated start date
+-21 Sep 2026
+-Completion
+-16 Nov 2026
+-Regulated utility works?
+-No
+-Contract and commitment
+-The contract number is given when the instrument is issued. The commitment number comes from the finance system and is typed in here.
+-Contract number
+-XI202600799
+-Stamped, fully executed
+-Open the contract
+-Contract sum
+-RM36,000
+-Case handed over
+-16 Sep 2026 · from Pre-contract Section to Post-contract Section
+-Commitment number
+-XI202600799
+-The indent's · typed in by an officer
+-Indent validity
+-Used — work commenced 22 Sep 2026, before it expired on 25 Sep 2026
+-Commencement
+-Commenced 22 Sep 2026
+-The letter's terms
+-Per award, with where they came from. Never defaulted.
+-Assumed
+-Liquidated damages
+-RM100 per day
+-Workmen's compensation
+-As a percentage of the contract sum
+-Retention
+-Not asked by its terms band
+-Defects liability period
+-0 months
+-Terms band
+-Short-form terms
+-Appointment-letter variant
+-Short-form appointment letter
+-If work does not commence
+-Cancellation, with blacklisting recommended
++Demo pre-award routing sheet
++Frozen when the sheet started, 24 Aug 2026. Calendar days (assumed, a question to the customer).
++Correct DATE (1)
++DATE (1): received
++24 Aug 2026
++DATE (2): approved
++14 Sep 2026
++Elapsed against the target
++21 days against 21 days: met.
++The stages' printed days
++Not printed per stage
++First submission
++Received 24 Aug 2026 · decided 14 Sep 2026 · 21 days
++Proposal checked by the section
++Checked by Eng Siew Mei, 07 Sep 2026
++Recorded
++Proposal verified by contracts
++Verified by Chen Wei Ling, 08 Sep 2026
++Recorded
++Quotation Committee
++Quotation Committee, 11 Sep 2026
++Done
++Chief Executive
++Aisyah Rahman, 14 Sep 2026
++Done
+@@ -96 +56,0 @@
+-@title: A working default, awaiting sign-off
+diff -rU0 before/awards__demo_aw5__tab__securities.txt after/awards__demo_aw5__tab__securities.txt
+--- before/awards__demo_aw5__tab__securities.txt	2026-10-03 00:05:50.913424538 +0000
++++ after/awards__demo_aw5__tab__securities.txt	2026-10-03 00:05:50.973322158 +0000
+@@ -27,0 +28 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw6__tab__approval.txt after/awards__demo_aw6__tab__approval.txt
+--- before/awards__demo_aw6__tab__approval.txt	2026-10-03 00:05:50.912774681 +0000
++++ after/awards__demo_aw6__tab__approval.txt	2026-10-03 00:05:50.972464596 +0000
+@@ -25,0 +26 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw6__tab__conditions.txt after/awards__demo_aw6__tab__conditions.txt
+--- before/awards__demo_aw6__tab__conditions.txt	2026-10-03 00:05:50.913013343 +0000
++++ after/awards__demo_aw6__tab__conditions.txt	2026-10-03 00:05:50.972732569 +0000
+@@ -25,0 +26 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw6__tab__distribution.txt after/awards__demo_aw6__tab__distribution.txt
+--- before/awards__demo_aw6__tab__distribution.txt	2026-10-03 00:05:50.912914068 +0000
++++ after/awards__demo_aw6__tab__distribution.txt	2026-10-03 00:05:50.972594182 +0000
+@@ -25,0 +26 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw6__tab__history.txt after/awards__demo_aw6__tab__history.txt
+--- before/awards__demo_aw6__tab__history.txt	2026-10-03 00:05:50.913113787 +0000
++++ after/awards__demo_aw6__tab__history.txt	2026-10-03 00:05:50.972872084 +0000
+@@ -25,0 +26 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw6__tab__instrument.txt after/awards__demo_aw6__tab__instrument.txt
+--- before/awards__demo_aw6__tab__instrument.txt	2026-10-03 00:05:50.912838274 +0000
++++ after/awards__demo_aw6__tab__instrument.txt	2026-10-03 00:05:50.972529908 +0000
+@@ -25,0 +26 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw6__tab__overview.txt after/awards__demo_aw6__tab__overview.txt
+--- before/awards__demo_aw6__tab__overview.txt	2026-10-03 00:05:50.912729838 +0000
++++ after/awards__demo_aw6__tab__overview.txt	2026-10-03 00:05:50.972407647 +0000
+@@ -25,0 +26 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw6__tab__return.txt after/awards__demo_aw6__tab__return.txt
+--- before/awards__demo_aw6__tab__return.txt	2026-10-03 00:05:50.912957978 +0000
++++ after/awards__demo_aw6__tab__return.txt	2026-10-03 00:05:50.972658798 +0000
+@@ -25,0 +26 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw6__tab__routing.txt after/awards__demo_aw6__tab__routing.txt
+--- before/awards__demo_aw6__tab__routing.txt	2026-10-03 00:05:50.923521974 +0000
++++ after/awards__demo_aw6__tab__routing.txt	2026-10-03 00:05:50.987262238 +0000
+@@ -25,0 +26 @@
++Routing sheet
+@@ -28,57 +29,5 @@
+-The award
+-Letter of Acceptance. The band, method and contract type are the exercise's, shown as it records them.
+-Exercise
+-DEMO/SX/0010/2026 · Pumping station refurbishment
+-Requisition
+-DEMO/REQ/0027/2026
+-Method
+-Open tender
+-Contract type
+-Works
+-Band
+-Tender band
+-Awardee
+-Sampel Builders Sdn Bhd
+-DEMO-0006-X
+-Address
+-6 Demo Road, Demo City
+-On the supplier register
+-Not linked: link the award from the supplier's record
+-Awarded value
+-RM1,260,000
+-Exercise's estimate
+-RM1,300,000
+-Completion period
+-18 months
+-Stated start date
+-Not set
+-Completion
+-Not known until the start date is set
+-Regulated utility works?
+-Not answered
+-Contract and commitment
+-The contract number is given when the instrument is issued. The commitment number comes from the finance system and is typed in here.
+-Contract number
+-Drawn from its contract type's series on issue
+-Contract sum
+-On issue
+-Case handed over
+-On issue
+-Commitment number
+-Not recorded
+-The letter's terms
+-Per award, with where they came from. Never defaulted.
+-Liquidated damages
+-Not set
+-Workmen's compensation
+-How it is calculated is not set — set it in Edit terms
+-Retention
+-Not set
+-Defects liability period
+-Not set
+-Terms band
+-Not applicable in this band
+-Appointment-letter variant
+-Not applicable
+-If work does not commence
+-Not applicable
++Routing sheet
++The pre-award routing sheet around the appointment route: DATE (1), its internal checks, the route's own steps and DATE (2), and the elapsed time against the sheet's target.
++Start the routing sheet
++Not started
++No routing sheet is kept for this award yet.
+diff -rU0 before/awards__demo_aw6__tab__securities.txt after/awards__demo_aw6__tab__securities.txt
+--- before/awards__demo_aw6__tab__securities.txt	2026-10-03 00:05:50.913063335 +0000
++++ after/awards__demo_aw6__tab__securities.txt	2026-10-03 00:05:50.972789213 +0000
+@@ -25,0 +26 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw7.txt after/awards__demo_aw7.txt
+--- before/awards__demo_aw7.txt	2026-10-03 00:05:50.884612140 +0000
++++ after/awards__demo_aw7.txt	2026-10-03 00:05:50.931989941 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw7__tab__approval.txt after/awards__demo_aw7__tab__approval.txt
+--- before/awards__demo_aw7__tab__approval.txt	2026-10-03 00:05:50.912064795 +0000
++++ after/awards__demo_aw7__tab__approval.txt	2026-10-03 00:05:50.971486891 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw7__tab__conditions.txt after/awards__demo_aw7__tab__conditions.txt
+--- before/awards__demo_aw7__tab__conditions.txt	2026-10-03 00:05:50.912270688 +0000
++++ after/awards__demo_aw7__tab__conditions.txt	2026-10-03 00:05:50.971753302 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw7__tab__distribution.txt after/awards__demo_aw7__tab__distribution.txt
+--- before/awards__demo_aw7__tab__distribution.txt	2026-10-03 00:05:50.912172480 +0000
++++ after/awards__demo_aw7__tab__distribution.txt	2026-10-03 00:05:50.971611519 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw7__tab__history.txt after/awards__demo_aw7__tab__history.txt
+--- before/awards__demo_aw7__tab__history.txt	2026-10-03 00:05:50.882903259 +0000
++++ after/awards__demo_aw7__tab__history.txt	2026-10-03 00:05:50.971871406 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw7__tab__instrument.txt after/awards__demo_aw7__tab__instrument.txt
+--- before/awards__demo_aw7__tab__instrument.txt	2026-10-03 00:05:50.912124930 +0000
++++ after/awards__demo_aw7__tab__instrument.txt	2026-10-03 00:05:50.971557221 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw7__tab__overview.txt after/awards__demo_aw7__tab__overview.txt
+--- before/awards__demo_aw7__tab__overview.txt	2026-10-03 00:05:50.912023088 +0000
++++ after/awards__demo_aw7__tab__overview.txt	2026-10-03 00:05:50.971222799 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw7__tab__return.txt after/awards__demo_aw7__tab__return.txt
+--- before/awards__demo_aw7__tab__return.txt	2026-10-03 00:05:50.912225271 +0000
++++ after/awards__demo_aw7__tab__return.txt	2026-10-03 00:05:50.971669649 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/awards__demo_aw7__tab__routing.txt after/awards__demo_aw7__tab__routing.txt
+--- before/awards__demo_aw7__tab__routing.txt	2026-10-03 00:05:50.923563461 +0000
++++ after/awards__demo_aw7__tab__routing.txt	2026-10-03 00:05:50.987315575 +0000
+@@ -31,0 +32 @@
++Routing sheet
+@@ -34,73 +35,5 @@
+-The award
+-Letter of Acceptance. The band, method and contract type are the exercise's, shown as it records them.
+-Exercise
+-DEMO/SX/0016/2026 · Reservoir inlet main and inlet works, Demo Heights
+-Requisition
+-DEMO/REQ/0038/2026
+-Method
+-Open tender
+-Contract type
+-Works
+-Band
+-Tender band
+-Awardee
+-Contoh Bina Sdn Bhd
+-201001000101 (000101-A)
+-Address
+-8 Jalan Contoh, 00000 Demo City
+-On the supplier register
+-DEMO/SUP/0001/2026 · Contoh Bina Sdn Bhd
+-Standing on the register
+-Active
+-Awarded value
+-RM612,450.30
+-Exercise's estimate
+-RM640,000
+-Completion period
+-12 months
+-Stated start date
+-Not set
+-Completion
+-Not known until the start date is set
+-Regulated utility works?
+-Yes
+-The tender answered: Yes
+-Contract and commitment
+-The contract number is given when the instrument is issued. The commitment number comes from the finance system and is typed in here.
+-Contract number
+-Drawn from its contract type's series on issue
+-Contract sum
+-On issue
+-Case handed over
+-On issue
+-Commitment number
+-Not recorded
+-The letter's terms
+-Opened from the tender Appendix (documents version 1). A term stated otherwise needs a reason.
+-Assumed
+-Liquidated damages
+-RM306.23 per day
+-The tender Appendix states: RM306.23 per day: 0.05% of the awarded sum a day
+-Workmen's compensation
+-How it is calculated is not set — set it in Edit terms
+-Retention
+-Not set
+-Defects liability period
+-18 months
+-The tender Appendix states: 12 months
+-Differs from the tender Appendix
+-Why: Invented for the demo: the tenderer offered an 18-month defects liability period at tender clarification, and the evaluation accepted it.
+-Terms band
+-Not applicable in this band
+-Appointment-letter variant
+-Not applicable
+-If work does not commence
+-Not applicable
+-Works insurance beyond the price, from the tender Appendix
+-RM61,245.03 (10% of the awarded sum)
+-Third-party and workmen's compensation minimums, from the tender Appendix
+-RM500,000
+-·
+-RM250,000
+-Permitted insurance excess, from the tender Appendix
+-RM5,000
++Routing sheet
++The pre-award routing sheet around the appointment route: DATE (1), its internal checks, the route's own steps and DATE (2), and the elapsed time against the sheet's target.
++Start the routing sheet
++Not started
++No routing sheet is kept for this award yet.
+@@ -108 +40,0 @@
+-@title: A working default, awaiting sign-off
+diff -rU0 before/awards__demo_aw7__tab__securities.txt after/awards__demo_aw7__tab__securities.txt
+--- before/awards__demo_aw7__tab__securities.txt	2026-10-03 00:05:50.912316192 +0000
++++ after/awards__demo_aw7__tab__securities.txt	2026-10-03 00:05:50.971811380 +0000
+@@ -31,0 +32 @@
++Routing sheet
+diff -rU0 before/configuration__routing-sheets.txt after/configuration__routing-sheets.txt
+--- before/configuration__routing-sheets.txt	2026-10-03 00:05:50.923237224 +0000
++++ after/configuration__routing-sheets.txt	2026-10-03 00:05:50.986932646 +0000
+@@ -1,3 +1,56 @@
+-# /configuration/routing-sheets (404)
+-404
+-This page could not be found.
++# /configuration/routing-sheets (200)
++Routing sheets
++Each CPD/DFA sheet's checks, and the targets elapsed days are judged against.
++Types in use
++3
++Each starts a sheet on a certificate or an award
++Without a target
++0
++Every type has a target
++Band edge undecided
++2
++Only a percentage exactly on an edge is affected
++Types
++3
++Open a type for its checks and targets. A sheet freezes its type when it starts: a change here never moves a running sheet.
++Add type
++Type
++Drawn over
++Source
++Actions
++Type
++Demo interim certificate routing sheet
++Helaian penghalaan perakuan interim demo · 2 checks · 1 target · 1 sheet on it
++Drawn over
++Interim payment certificate
++Source
++Assumed
++Type
++Demo variation routing sheet (quotation)
++Helaian penghalaan perubahan kerja demo (sebut harga) · 2 checks · 2 targets · 1 sheet on it
++Drawn over
++Variation order
++Source
++Assumed
++Type
++Demo pre-award routing sheet
++Helaian penghalaan pra-award demo · 2 checks · 1 target · 1 sheet on it
++Drawn over
++An award's appointment route (pre-award sheet)
++Source
++Assumed
++@title: A working default, awaiting sign-off
++@aria-label: History of Demo interim certificate routing sheet
++@title: History
++@aria-label: Edit Demo interim certificate routing sheet
++@title: Edit Demo interim certificate routing sheet
++@title: A working default, awaiting sign-off
++@aria-label: History of Demo variation routing sheet (quotation)
++@title: History
++@aria-label: Edit Demo variation routing sheet (quotation)
++@title: Edit Demo variation routing sheet (quotation)
++@title: A working default, awaiting sign-off
++@aria-label: History of Demo pre-award routing sheet
++@title: History
++@aria-label: Edit Demo pre-award routing sheet
++@title: Edit Demo pre-award routing sheet
+diff -rU0 before/configuration__routing-sheets__demo_hrt1.txt after/configuration__routing-sheets__demo_hrt1.txt
+--- before/configuration__routing-sheets__demo_hrt1.txt	2026-10-03 00:05:50.923822515 +0000
++++ after/configuration__routing-sheets__demo_hrt1.txt	2026-10-03 00:05:50.987623218 +0000
+@@ -1,3 +1,75 @@
+-# /configuration/routing-sheets/demo_hrt1 (404)
+-404
+-This page could not be found.
++# /configuration/routing-sheets/demo_hrt1 (200)
++Routing sheets
++Demo interim certificate routing sheet
++Helaian penghalaan perakuan interim demo
++•
++Interim payment certificate
++•
++No printed sheet chosen
++History
++Retire
++How elapsed time is judged
++Calendar days from DATE (1), the day received, to DATE (2), the day the approving step decided (assumed; a question to the customer).
++A percentage exactly on a band's edge
++Not decided: such a value has no target (every other value has one)
++The stages' printed days
++17 days, against a printed total of 21: both are shown on each sheet
++Where it came from
++Assumed
++Notes
++Invented: 21 days printed as the total, its stages printing 10 and 7 (both shown).
++Checks
++The sheet's internal steps, recorded in this order before the approval matrix's own steps. Each round of a resubmission records them again.
++Add check
++Check
++Recorded by
++Actions
++Check
++1. Checked by the section
++Checked by · Disemak oleh seksyen · 10 days printed
++Recorded by
++Section Head, Pre-contract
++Remove
++Check
++2. Verified by contracts
++Verified by · Disahkan oleh kontrak · 7 days printed
++Recorded by
++Head of Contract & Procurement
++Remove
++Targets
++The ICC target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures.
++Add target
++Band
++Target
++Source
++Actions
++Band
++Whatever the percentage
++Invented.
++Target
++21 days
++Source
++Assumed
++Remove
++@aria-label: History of Demo interim certificate routing sheet
++@title: History
++@aria-label: Edit Demo interim certificate routing sheet
++@title: Edit Demo interim certificate routing sheet
++@aria-label: Retire Demo interim certificate routing sheet
++@title: A working default, awaiting sign-off
++@aria-label: History of Checked by the section
++@title: History
++@aria-label: Edit Checked by the section
++@title: Edit Checked by the section
++@aria-label: Remove Checked by the section
++@aria-label: History of Verified by contracts
++@title: History
++@aria-label: Edit Verified by contracts
++@title: Edit Verified by contracts
++@aria-label: Remove Verified by contracts
++@title: A working default, awaiting sign-off
++@aria-label: History of Target
++@title: History
++@aria-label: Edit the target
++@title: Edit the target
++@aria-label: Remove the target
+diff -rU0 before/configuration__routing-sheets__demo_hrt2.txt after/configuration__routing-sheets__demo_hrt2.txt
+--- before/configuration__routing-sheets__demo_hrt2.txt	2026-10-03 00:05:50.923864225 +0000
++++ after/configuration__routing-sheets__demo_hrt2.txt	2026-10-03 00:05:50.987686102 +0000
+@@ -1,3 +1,89 @@
+-# /configuration/routing-sheets/demo_hrt2 (404)
+-404
+-This page could not be found.
++# /configuration/routing-sheets/demo_hrt2 (200)
++Routing sheets
++Demo variation routing sheet (quotation)
++Helaian penghalaan perubahan kerja demo (sebut harga)
++•
++Variation order
++•
++No printed sheet chosen
++History
++Retire
++How elapsed time is judged
++Calendar days from DATE (1), the day received, to DATE (2), the day the approving step decided (assumed; a question to the customer).
++A percentage exactly on a band's edge
++Falls in the band it closes (up to and including the edge)
++The stages' printed days
++Not printed for every stage
++Where it came from
++Assumed
++Notes
++Invented bands: two weeks up to 20%, six weeks above; a value on the edge falls in the band it closes (assumed).
++Checks
++The sheet's internal steps, recorded in this order before the approval matrix's own steps. Each round of a resubmission records them again.
++Add check
++Check
++Recorded by
++Actions
++Check
++1. Checked by the section
++Checked by · Disemak oleh seksyen
++Recorded by
++Section Head, Pre-contract
++Remove
++Check
++2. Verified by contracts
++Verified by · Disahkan oleh kontrak
++Recorded by
++Head of Contract & Procurement
++Remove
++Targets
++The ICC target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures.
++Add target
++Band
++Target
++Source
++Actions
++Band
++Up to and including 20%
++Invented.
++Target
++14 days
++Source
++Assumed
++Remove
++Band
++Above 20%
++Invented.
++Target
++42 days
++Source
++Assumed
++Remove
++@aria-label: History of Demo variation routing sheet (quotation)
++@title: History
++@aria-label: Edit Demo variation routing sheet (quotation)
++@title: Edit Demo variation routing sheet (quotation)
++@aria-label: Retire Demo variation routing sheet (quotation)
++@title: A working default, awaiting sign-off
++@aria-label: History of Checked by the section
++@title: History
++@aria-label: Edit Checked by the section
++@title: Edit Checked by the section
++@aria-label: Remove Checked by the section
++@aria-label: History of Verified by contracts
++@title: History
++@aria-label: Edit Verified by contracts
++@title: Edit Verified by contracts
++@aria-label: Remove Verified by contracts
++@title: A working default, awaiting sign-off
++@aria-label: History of Target
++@title: History
++@aria-label: Edit the target
++@title: Edit the target
++@aria-label: Remove the target
++@title: A working default, awaiting sign-off
++@aria-label: History of Target
++@title: History
++@aria-label: Edit the target
++@title: Edit the target
++@aria-label: Remove the target
+diff -rU0 before/configuration__routing-sheets__demo_hrt3.txt after/configuration__routing-sheets__demo_hrt3.txt
+--- before/configuration__routing-sheets__demo_hrt3.txt	2026-10-03 00:05:50.923907015 +0000
++++ after/configuration__routing-sheets__demo_hrt3.txt	2026-10-03 00:05:50.987740338 +0000
+@@ -1,3 +1,75 @@
+-# /configuration/routing-sheets/demo_hrt3 (404)
+-404
+-This page could not be found.
++# /configuration/routing-sheets/demo_hrt3 (200)
++Routing sheets
++Demo pre-award routing sheet
++Helaian penghalaan pra-award demo
++•
++An award's appointment route (pre-award sheet)
++•
++No printed sheet chosen
++History
++Retire
++How elapsed time is judged
++Calendar days from DATE (1), the day received, to DATE (2), the day the approving step decided (assumed; a question to the customer).
++A percentage exactly on a band's edge
++Not decided: such a value has no target (every other value has one)
++The stages' printed days
++Not printed for every stage
++Where it came from
++Assumed
++Notes
++Invented: 21 days.
++Checks
++The sheet's internal steps, recorded in this order before the approval matrix's own steps. Each round of a resubmission records them again.
++Add check
++Check
++Recorded by
++Actions
++Check
++1. Proposal checked by the section
++Checked by · Kertas disemak oleh seksyen
++Recorded by
++Section Head, Pre-contract
++Remove
++Check
++2. Proposal verified by contracts
++Verified by · Kertas disahkan oleh kontrak
++Recorded by
++Head of Contract & Procurement
++Remove
++Targets
++The ICC target, in calendar days: one for every percentage, or one per band of the exact percentage handed in with a certificate's figures.
++Add target
++Band
++Target
++Source
++Actions
++Band
++Whatever the percentage
++Invented.
++Target
++21 days
++Source
++Assumed
++Remove
++@aria-label: History of Demo pre-award routing sheet
++@title: History
++@aria-label: Edit Demo pre-award routing sheet
++@title: Edit Demo pre-award routing sheet
++@aria-label: Retire Demo pre-award routing sheet
++@title: A working default, awaiting sign-off
++@aria-label: History of Proposal checked by the section
++@title: History
++@aria-label: Edit Proposal checked by the section
++@title: Edit Proposal checked by the section
++@aria-label: Remove Proposal checked by the section
++@aria-label: History of Proposal verified by contracts
++@title: History
++@aria-label: Edit Proposal verified by contracts
++@title: Edit Proposal verified by contracts
++@aria-label: Remove Proposal verified by contracts
++@title: A working default, awaiting sign-off
++@aria-label: History of Target
++@title: History
++@aria-label: Edit the target
++@title: Edit the target
++@aria-label: Remove the target
+diff -rU0 before/configuration__templates.txt after/configuration__templates.txt
+--- before/configuration__templates.txt	2026-10-03 00:05:50.879737361 +0000
++++ after/configuration__templates.txt	2026-10-03 00:05:50.929478723 +0000
+@@ -16 +16 @@
+-A generated form has to stand next to the printed one it replaces, so each carries its form code and revision.
++A generated form has to stand next to the printed one it replaces, so each carries its form code and revision. Open a template for its signature blocks in printed order and its distribution list.
+@@ -216 +216 @@
+-Perakuan interim demo · Text in Malay and English, version 1 · issued in Malay
++Perakuan interim demo · Text in Malay and English, version 1 · issued in Malay · 4 signature blocks, 5 recipients
+@@ -227 +227 @@
+-Surat perwakilan kuasa demo · Text in English, version 1
++Surat perwakilan kuasa demo · Text in English, version 1 · 1 signature block, 2 recipients
+@@ -238 +238 @@
+-Arahan perubahan kerja demo · Text in English, version 1
++Arahan perubahan kerja demo · Text in English, version 1 · 2 signature blocks, 5 recipients
+diff -rU0 before/configuration__templates__demo_dt2.txt after/configuration__templates__demo_dt2.txt
+--- before/configuration__templates__demo_dt2.txt	2026-10-03 00:05:50.923604317 +0000
++++ after/configuration__templates__demo_dt2.txt	2026-10-03 00:05:50.987366843 +0000
+@@ -1,3 +1,25 @@
+-# /configuration/templates/demo_dt2 (404)
+-404
+-This page could not be found.
++# /configuration/templates/demo_dt2 (200)
++Templates
++Interim payment certificate
++Signature order and distribution list, pinned at a certificate's first signature.
++•
++DEMO-F-014
++•
++Revision 01 Jun 2025
++•
++Text version 0
++•
++0 certificates printed on it
++Signature blocks
++In printed order. A later block is refused until every earlier one is recorded; the block marked as dating the certificate gives it its date.
++Add block
++Not set
++No blocks: nothing printed on this form can be signed, so no certificate on it goes past its draft.
++Distribution list
++Who receives the issued certificate. A conditional row is resolved from the contract on the day of issue; a mandatory copy not sent leaves the certificate not distributed.
++Add recipient
++Not set
++No recipients: a certificate on this form could reach nobody, so its first signature is refused.
++The form's text and merge fields are edited on
++Templates
++.
+diff -rU0 before/configuration__templates__demo_dt3.txt after/configuration__templates__demo_dt3.txt
+--- before/configuration__templates__demo_dt3.txt	2026-10-03 00:05:50.923645808 +0000
++++ after/configuration__templates__demo_dt3.txt	2026-10-03 00:05:50.987418280 +0000
+@@ -1,3 +1,25 @@
+-# /configuration/templates/demo_dt3 (404)
+-404
+-This page could not be found.
++# /configuration/templates/demo_dt3 (200)
++Templates
++Approval routing sheet
++Signature order and distribution list, pinned at a certificate's first signature.
++•
++DEMO-F-022
++•
++No revision date
++•
++Text version 0
++•
++0 certificates printed on it
++Signature blocks
++In printed order. A later block is refused until every earlier one is recorded; the block marked as dating the certificate gives it its date.
++Add block
++Not set
++No blocks: nothing printed on this form can be signed, so no certificate on it goes past its draft.
++Distribution list
++Who receives the issued certificate. A conditional row is resolved from the contract on the day of issue; a mandatory copy not sent leaves the certificate not distributed.
++Add recipient
++Not set
++No recipients: a certificate on this form could reach nobody, so its first signature is refused.
++The form's text and merge fields are edited on
++Templates
++.
+diff -rU0 before/configuration__templates__demo_dt30.txt after/configuration__templates__demo_dt30.txt
+--- before/configuration__templates__demo_dt30.txt	2026-10-03 00:05:50.923691067 +0000
++++ after/configuration__templates__demo_dt30.txt	2026-10-03 00:05:50.987469265 +0000
+@@ -1,3 +1,137 @@
+-# /configuration/templates/demo_dt30 (404)
+-404
+-This page could not be found.
++# /configuration/templates/demo_dt30 (200)
++Templates
++Demo interim certificate
++Signature order and distribution list, pinned at a certificate's first signature.
++•
++DEMO-C-01
++•
++Revision 01 Jun 2025
++•
++Text version 1
++•
++2 certificates printed on it
++Signature blocks
++In printed order. A later block is refused until every earlier one is recorded; the block marked as dating the certificate gives it its date.
++Add block
++Block
++Source
++Actions
++Block
++1. Recommended by
++Disyorkan oleh · Recommends · Head of Contract & Procurement · a delegate may sign · carries supported / not supported
++Source
++Assumed
++Remove
++Block
++2. Certified by
++Dates it
++Diperakui oleh · Authorises · Finance Director · never a delegate
++Source
++Assumed
++Remove
++Block
++3. Received by the contractor
++Diterima oleh kontraktor · The contractor · The contractor's signatory · a delegate may sign · a refusal is recorded
++Source
++Assumed
++Remove
++Block
++4. Witnessed by
++Disaksikan oleh · Witness · A witness · a delegate may sign
++Source
++Assumed
++Remove
++Distribution list
++Who receives the issued certificate. A conditional row is resolved from the contract on the day of issue; a mandatory copy not sent leaves the certificate not distributed.
++Add recipient
++Recipient
++Source
++Actions
++Recipient
++The contractor (original)
++Original
++Kontraktor (asal) · Mandatory · acknowledgement asked for · Always
++Source
++Assumed
++Remove
++Recipient
++Accounts and finance (demo)
++Akaun dan kewangan (demo) · Mandatory · acknowledgement asked for · Always
++Source
++Assumed
++Remove
++Recipient
++Contract file (demo)
++Fail kontrak (demo) · Mandatory · Always
++Source
++Assumed
++Remove
++Recipient
++The implementing department (demo)
++Jabatan pelaksana (demo) · Optional · Always
++Source
++Assumed
++Remove
++Recipient
++The guarantor
++Penjamin · Mandatory · acknowledgement asked for · Only where a performance bond is live (its guarantor)
++Source
++Assumed
++Remove
++The form's text and merge fields are edited on
++Templates
++.
++@title: A working default, awaiting sign-off
++@aria-label: History of Recommended by
++@title: History
++@aria-label: Edit Recommended by
++@title: Edit Recommended by
++@aria-label: Remove Recommended by
++@title: A working default, awaiting sign-off
++@aria-label: History of Certified by
++@title: History
++@aria-label: Edit Certified by
++@title: Edit Certified by
++@aria-label: Remove Certified by
++@title: A working default, awaiting sign-off
++@aria-label: History of Received by the contractor
++@title: History
++@aria-label: Edit Received by the contractor
++@title: Edit Received by the contractor
++@aria-label: Remove Received by the contractor
++@title: A working default, awaiting sign-off
++@aria-label: History of Witnessed by
++@title: History
++@aria-label: Edit Witnessed by
++@title: Edit Witnessed by
++@aria-label: Remove Witnessed by
++@title: A working default, awaiting sign-off
++@aria-label: History of The contractor (original)
++@title: History
++@aria-label: Edit The contractor (original)
++@title: Edit The contractor (original)
++@aria-label: Remove The contractor (original)
++@title: A working default, awaiting sign-off
++@aria-label: History of Accounts and finance (demo)
++@title: History
++@aria-label: Edit Accounts and finance (demo)
++@title: Edit Accounts and finance (demo)
++@aria-label: Remove Accounts and finance (demo)
++@title: A working default, awaiting sign-off
++@aria-label: History of Contract file (demo)
++@title: History
++@aria-label: Edit Contract file (demo)
++@title: Edit Contract file (demo)
++@aria-label: Remove Contract file (demo)
++@title: A working default, awaiting sign-off
++@aria-label: History of The implementing department (demo)
++@title: History
++@aria-label: Edit The implementing department (demo)
++@title: Edit The implementing department (demo)
++@aria-label: Remove The implementing department (demo)
++@title: A working default, awaiting sign-off
++@aria-label: History of The guarantor
++@title: History
++@aria-label: Edit The guarantor
++@title: Edit The guarantor
++@aria-label: Remove The guarantor
+diff -rU0 before/configuration__templates__demo_dt31.txt after/configuration__templates__demo_dt31.txt
+--- before/configuration__templates__demo_dt31.txt	2026-10-03 00:05:50.923734102 +0000
++++ after/configuration__templates__demo_dt31.txt	2026-10-03 00:05:50.987518810 +0000
+@@ -1,3 +1,65 @@
+-# /configuration/templates/demo_dt31 (404)
+-404
+-This page could not be found.
++# /configuration/templates/demo_dt31 (200)
++Templates
++Demo letter of delegation
++Signature order and distribution list, pinned at a certificate's first signature.
++•
++DEMO-C-02
++•
++Revision 01 Jun 2025
++•
++Text version 1
++•
++1 certificate printed on it
++Signature blocks
++In printed order. A later block is refused until every earlier one is recorded; the block marked as dating the certificate gives it its date.
++Add block
++Block
++Source
++Actions
++Block
++1. Delegated by
++Dates it
++Diwakilkan oleh · Authorises · Chief Executive · never a delegate
++Source
++Assumed
++Remove
++Distribution list
++Who receives the issued certificate. A conditional row is resolved from the contract on the day of issue; a mandatory copy not sent leaves the certificate not distributed.
++Add recipient
++Recipient
++Source
++Actions
++Recipient
++The delegate (original)
++Original
++Penerima perwakilan (asal) · Mandatory · acknowledgement asked for · Always
++Source
++Assumed
++Remove
++Recipient
++Contract file (demo)
++Fail kontrak (demo) · Mandatory · Always
++Source
++Assumed
++Remove
++The form's text and merge fields are edited on
++Templates
++.
++@title: A working default, awaiting sign-off
++@aria-label: History of Delegated by
++@title: History
++@aria-label: Edit Delegated by
++@title: Edit Delegated by
++@aria-label: Remove Delegated by
++@title: A working default, awaiting sign-off
++@aria-label: History of The delegate (original)
++@title: History
++@aria-label: Edit The delegate (original)
++@title: Edit The delegate (original)
++@aria-label: Remove The delegate (original)
++@title: A working default, awaiting sign-off
++@aria-label: History of Contract file (demo)
++@title: History
++@aria-label: Edit Contract file (demo)
++@title: Edit Contract file (demo)
++@aria-label: Remove Contract file (demo)
+diff -rU0 before/configuration__templates__demo_dt32.txt after/configuration__templates__demo_dt32.txt
+--- before/configuration__templates__demo_dt32.txt	2026-10-03 00:05:50.923777724 +0000
++++ after/configuration__templates__demo_dt32.txt	2026-10-03 00:05:50.987570550 +0000
+@@ -1,3 +1,113 @@
+-# /configuration/templates/demo_dt32 (404)
+-404
+-This page could not be found.
++# /configuration/templates/demo_dt32 (200)
++Templates
++Demo variation order
++Signature order and distribution list, pinned at a certificate's first signature.
++•
++DEMO-C-03
++•
++Revision 01 Jun 2025
++•
++Text version 1
++•
++1 certificate printed on it
++Signature blocks
++In printed order. A later block is refused until every earlier one is recorded; the block marked as dating the certificate gives it its date.
++Add block
++Block
++Source
++Actions
++Block
++1. Recommended by
++Disyorkan oleh · Recommends · Head of Contract & Procurement · a delegate may sign · carries supported / not supported
++Source
++Assumed
++Remove
++Block
++2. Ordered by
++Dates it
++Diarahkan oleh · Authorises · Chief Executive · never a delegate
++Source
++Assumed
++Remove
++Distribution list
++Who receives the issued certificate. A conditional row is resolved from the contract on the day of issue; a mandatory copy not sent leaves the certificate not distributed.
++Add recipient
++Recipient
++Source
++Actions
++Recipient
++The contractor (original)
++Original
++Kontraktor (asal) · Mandatory · acknowledgement asked for · Always
++Source
++Assumed
++Remove
++Recipient
++Accounts and finance (demo)
++Akaun dan kewangan (demo) · Mandatory · acknowledgement asked for · Always
++Source
++Assumed
++Remove
++Recipient
++Contract file (demo)
++Fail kontrak (demo) · Mandatory · Always
++Source
++Assumed
++Remove
++Recipient
++The implementing department (demo)
++Jabatan pelaksana (demo) · Optional · Always
++Source
++Assumed
++Remove
++Recipient
++The guarantor
++Penjamin · Mandatory · acknowledgement asked for · Only where a performance bond is live (its guarantor)
++Source
++Assumed
++Remove
++The form's text and merge fields are edited on
++Templates
++.
++@title: A working default, awaiting sign-off
++@aria-label: History of Recommended by
++@title: History
++@aria-label: Edit Recommended by
++@title: Edit Recommended by
++@aria-label: Remove Recommended by
++@title: A working default, awaiting sign-off
++@aria-label: History of Ordered by
++@title: History
++@aria-label: Edit Ordered by
++@title: Edit Ordered by
++@aria-label: Remove Ordered by
++@title: A working default, awaiting sign-off
++@aria-label: History of The contractor (original)
++@title: History
++@aria-label: Edit The contractor (original)
++@title: Edit The contractor (original)
++@aria-label: Remove The contractor (original)
++@title: A working default, awaiting sign-off
++@aria-label: History of Accounts and finance (demo)
++@title: History
++@aria-label: Edit Accounts and finance (demo)
++@title: Edit Accounts and finance (demo)
++@aria-label: Remove Accounts and finance (demo)
++@title: A working default, awaiting sign-off
++@aria-label: History of Contract file (demo)
++@title: History
++@aria-label: Edit Contract file (demo)
++@title: Edit Contract file (demo)
++@aria-label: Remove Contract file (demo)
++@title: A working default, awaiting sign-off
++@aria-label: History of The implementing department (demo)
++@title: History
++@aria-label: Edit The implementing department (demo)
++@title: Edit The implementing department (demo)
++@aria-label: Remove The implementing department (demo)
++@title: A working default, awaiting sign-off
++@aria-label: History of The guarantor
++@title: History
++@aria-label: Edit The guarantor
++@title: Edit The guarantor
++@aria-label: Remove The guarantor
+diff -rU0 before/projects__demo_con1.txt after/projects__demo_con1.txt
+--- before/projects__demo_con1.txt	2026-10-03 00:05:50.920530570 +0000
++++ after/projects__demo_con1.txt	2026-10-03 00:05:50.982726995 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con1__tab__baseline.txt after/projects__demo_con1__tab__baseline.txt
+--- before/projects__demo_con1__tab__baseline.txt	2026-10-03 00:05:50.881827767 +0000
++++ after/projects__demo_con1__tab__baseline.txt	2026-10-03 00:05:50.983043259 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con1__tab__documents.txt after/projects__demo_con1__tab__documents.txt
+--- before/projects__demo_con1__tab__documents.txt	2026-10-03 00:05:50.921966028 +0000
++++ after/projects__demo_con1__tab__documents.txt	2026-10-03 00:05:50.984447923 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+@@ -22,37 +24,4 @@
+-The contract
+-As awarded, numbered at issue, and as it is being formed.
+-Contract number
+-DEMO/KP/T/004/2026
+-The year in the number is the year it was issued, 2026 — assumed to be the year the contract starts, to be confirmed.
+-Contractor
+-Sampel Engineering Sdn Bhd
+-Contract sum
+-RM2,700,000
+-The Letter of Acceptance's sum (assumed: corrections do not change it).
+-Arithmetic corrections
+-None recorded
+-Contract Date
+-Not signed: the day of the signature act, never typed
+-Stamped
+-Not recorded
+-Formed under
+-Bill of quantities; legal review by Demo Legal Office; frozen 25 Sep 2026
+-Award
+-DEMO/AWD/0003/2026
+-Ready to sign?
+-The readiness gate, as the award shows it. Preparation continues while it is red.
+-Gate not met
+-Instrument returned signed
+-Not met
+-Performance bond lodged and verified
+-Met
+-Every required policy lodged and verified
+-Not lodged: Public liability, Workmen's compensation. Lodged, not verified: Works insurance. Workmen's compensation is calculated on uncovered wages, so its sum cannot be checked: it counts as met only once the check of the declared wages is recorded, on the contract's Securities tab.
+-Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+-Not met
+-The award's conditions
+-Before work starts, each with the day it is needed by. Recorded on the award.
+-Safe method statement approved
+-needed by 10 Oct 2026 · not met · a delay gives no extension of time
+-Regulator's works permit
+-DEMO/PERMIT/2026/41 · needed by 12 Oct 2026 · met 28 Sep 2026
++Certificates
++Every certificate of this contract, newest first. Each is raised by the post-award module it belongs to (supervision, payment, variations), and signed, numbered and distributed on its own page.
++No certificates yet
++A certificate appears here when a post-award module raises one on this contract.
+diff -rU0 before/projects__demo_con1__tab__formation&section__assembly.txt after/projects__demo_con1__tab__formation&section__assembly.txt
+--- before/projects__demo_con1__tab__formation&section__assembly.txt	2026-10-03 00:05:50.920573820 +0000
++++ after/projects__demo_con1__tab__formation&section__assembly.txt	2026-10-03 00:05:50.982778821 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con1__tab__formation&section__checks.txt after/projects__demo_con1__tab__formation&section__checks.txt
+--- before/projects__demo_con1__tab__formation&section__checks.txt	2026-10-03 00:05:50.920616966 +0000
++++ after/projects__demo_con1__tab__formation&section__checks.txt	2026-10-03 00:05:50.982831768 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con1__tab__formation&section__copies.txt after/projects__demo_con1__tab__formation&section__copies.txt
+--- before/projects__demo_con1__tab__formation&section__copies.txt	2026-10-03 00:05:50.920761024 +0000
++++ after/projects__demo_con1__tab__formation&section__copies.txt	2026-10-03 00:05:50.982992501 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con1__tab__formation&section__legal.txt after/projects__demo_con1__tab__formation&section__legal.txt
+--- before/projects__demo_con1__tab__formation&section__legal.txt	2026-10-03 00:05:50.920672390 +0000
++++ after/projects__demo_con1__tab__formation&section__legal.txt	2026-10-03 00:05:50.982885260 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con1__tab__formation&section__signing.txt after/projects__demo_con1__tab__formation&section__signing.txt
+--- before/projects__demo_con1__tab__formation&section__signing.txt	2026-10-03 00:05:50.920717198 +0000
++++ after/projects__demo_con1__tab__formation&section__signing.txt	2026-10-03 00:05:50.982940266 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con1__tab__history.txt after/projects__demo_con1__tab__history.txt
+--- before/projects__demo_con1__tab__history.txt	2026-10-03 00:05:50.920886461 +0000
++++ after/projects__demo_con1__tab__history.txt	2026-10-03 00:05:50.983165040 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con1__tab__securities.txt after/projects__demo_con1__tab__securities.txt
+--- before/projects__demo_con1__tab__securities.txt	2026-10-03 00:05:50.920807444 +0000
++++ after/projects__demo_con1__tab__securities.txt	2026-10-03 00:05:50.983108306 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con2.txt after/projects__demo_con2.txt
+--- before/projects__demo_con2.txt	2026-10-03 00:05:50.920931702 +0000
++++ after/projects__demo_con2.txt	2026-10-03 00:05:50.983223229 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con2__tab__baseline.txt after/projects__demo_con2__tab__baseline.txt
+--- before/projects__demo_con2__tab__baseline.txt	2026-10-03 00:05:50.921346592 +0000
++++ after/projects__demo_con2__tab__baseline.txt	2026-10-03 00:05:50.983534295 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con2__tab__documents.txt after/projects__demo_con2__tab__documents.txt
+--- before/projects__demo_con2__tab__documents.txt	2026-10-03 00:05:50.922009259 +0000
++++ after/projects__demo_con2__tab__documents.txt	2026-10-03 00:05:50.984502642 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+@@ -22,35 +24,4 @@
+-The contract
+-As awarded, numbered at issue, and as it is being formed.
+-Contract number
+-XI202600812
+-Contractor
+-Demo Meter Services Sdn Bhd
+-Contract sum
+-RM180,000
+-The Letter of Acceptance's sum (assumed: corrections do not change it).
+-Arithmetic corrections
+-None recorded
+-Contract Date
+-Not signed: the day of the signature act, never typed
+-Stamped
+-Not recorded
+-Formed under
+-Bill of quantities; legal review by Demo Legal Office; frozen 24 Sep 2026
+-Award
+-DEMO/AWD/0004/2026
+-Ready to sign?
+-The readiness gate, as the award shows it. Preparation continues while it is red.
+-Gate not met
+-Instrument returned signed
+-Not met
+-Performance bond lodged and verified
+-No verified performance bond covers the required amount.
+-Not met
+-Every required policy lodged and verified
+-Not lodged: Works insurance, Public liability, Workmen's compensation.
+-Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+-Not met
+-The award's conditions
+-Before work starts, each with the day it is needed by. Recorded on the award.
+-None recorded
+-The award records none.
++Certificates
++Every certificate of this contract, newest first. Each is raised by the post-award module it belongs to (supervision, payment, variations), and signed, numbered and distributed on its own page.
++No certificates yet
++A certificate appears here when a post-award module raises one on this contract.
+diff -rU0 before/projects__demo_con2__tab__formation&section__assembly.txt after/projects__demo_con2__tab__formation&section__assembly.txt
+--- before/projects__demo_con2__tab__formation&section__assembly.txt	2026-10-03 00:05:50.920973872 +0000
++++ after/projects__demo_con2__tab__formation&section__assembly.txt	2026-10-03 00:05:50.983275586 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con2__tab__formation&section__checks.txt after/projects__demo_con2__tab__formation&section__checks.txt
+--- before/projects__demo_con2__tab__formation&section__checks.txt	2026-10-03 00:05:50.921017710 +0000
++++ after/projects__demo_con2__tab__formation&section__checks.txt	2026-10-03 00:05:50.983330760 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con2__tab__formation&section__copies.txt after/projects__demo_con2__tab__formation&section__copies.txt
+--- before/projects__demo_con2__tab__formation&section__copies.txt	2026-10-03 00:05:50.921303507 +0000
++++ after/projects__demo_con2__tab__formation&section__copies.txt	2026-10-03 00:05:50.983484652 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con2__tab__formation&section__legal.txt after/projects__demo_con2__tab__formation&section__legal.txt
+--- before/projects__demo_con2__tab__formation&section__legal.txt	2026-10-03 00:05:50.921063524 +0000
++++ after/projects__demo_con2__tab__formation&section__legal.txt	2026-10-03 00:05:50.983380928 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con2__tab__formation&section__signing.txt after/projects__demo_con2__tab__formation&section__signing.txt
+--- before/projects__demo_con2__tab__formation&section__signing.txt	2026-10-03 00:05:50.921236776 +0000
++++ after/projects__demo_con2__tab__formation&section__signing.txt	2026-10-03 00:05:50.983431282 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con2__tab__history.txt after/projects__demo_con2__tab__history.txt
+--- before/projects__demo_con2__tab__history.txt	2026-10-03 00:05:50.921454469 +0000
++++ after/projects__demo_con2__tab__history.txt	2026-10-03 00:05:50.983649861 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con2__tab__securities.txt after/projects__demo_con2__tab__securities.txt
+--- before/projects__demo_con2__tab__securities.txt	2026-10-03 00:05:50.921396597 +0000
++++ after/projects__demo_con2__tab__securities.txt	2026-10-03 00:05:50.983584492 +0000
+@@ -19,0 +20,2 @@
++Documents
++0
+diff -rU0 before/projects__demo_con3.txt after/projects__demo_con3.txt
+--- before/projects__demo_con3.txt	2026-10-03 00:05:50.921508657 +0000
++++ after/projects__demo_con3.txt	2026-10-03 00:05:50.983706759 +0000
+@@ -19,0 +20,2 @@
++Documents
++5
+diff -rU0 before/projects__demo_con3__certificates__demo_hct1.txt after/projects__demo_con3__certificates__demo_hct1.txt
+--- before/projects__demo_con3__certificates__demo_hct1.txt	2026-10-03 00:05:50.917689380 +0000
++++ after/projects__demo_con3__certificates__demo_hct1.txt	2026-10-03 00:05:50.984608623 +0000
+@@ -1,3 +1,47 @@
+-# /projects/demo_con3/certificates/demo_hct1 (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct1 (200)
++Contract XI202600799
++Interim payment certificate DEMO/CERT/00231
++Issued
++Valve keys and chamber covers
++•
++Number DEMO/CERT/00231
++•
++Interim payment certificate 1 on this contract
++•
++Dated 02 Oct 2026
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Figures
++Signatures
++4
++Routing sheet
++Distribution
++4
++Print
++History
++18
++Figures
++Demo valuation: retention on work executed only (invented), computed 30 Sep 2026. Frozen: nothing is overridden after the draft.
++Overridden
++Work executed
++RM12,000.00
++Less retention (5% of work executed)
++RM600.00
++Materials on site
++Computed: RM1,500.00. Overridden for Chen Wei Ling: Two deliveries were not yet on site at the valuation (demo)
++RM1,350.00
++Overridden
++Less previously certified
++RM0.00
++Gross valuation
++Recomputed from the lines as they stand; as computed: RM13,500.00.
++RM13,350.00
++Net valuation
++Recomputed from the lines as they stand; as computed: RM12,900.00.
++RM12,750.00
++Amount due
++Recomputed from the lines as they stand; as computed: RM12,900.00.
++RM12,750.00
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct1__tab__distribution.txt after/projects__demo_con3__certificates__demo_hct1__tab__distribution.txt
+--- before/projects__demo_con3__certificates__demo_hct1__tab__distribution.txt	2026-10-03 00:05:50.922213204 +0000
++++ after/projects__demo_con3__certificates__demo_hct1__tab__distribution.txt	2026-10-03 00:05:50.984776962 +0000
+@@ -1,3 +1,48 @@
+-# /projects/demo_con3/certificates/demo_hct1?tab=distribution (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct1?tab=distribution (200)
++Contract XI202600799
++Interim payment certificate DEMO/CERT/00231
++Issued
++Valve keys and chamber covers
++•
++Number DEMO/CERT/00231
++•
++Interim payment certificate 1 on this contract
++•
++Dated 02 Oct 2026
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Figures
++Signatures
++4
++Routing sheet
++Distribution
++4
++Print
++History
++18
++Distribution
++The pinned list, resolved on the day of issue into addressed copies.
++Distributed · 1 acknowledgement outstanding
++1. The contractor (original)
++Original
++Mandatory
++Addressed to The contractor (original) · By hand, 02 Oct 2026 · acknowledged 02 Oct 2026
++Done
++2. Accounts and finance (demo)
++Mandatory
++Addressed to Accounts and finance (demo) · By hand, 02 Oct 2026 · acknowledgement awaited
++Record acknowledgement
++3. Contract file (demo)
++Mandatory
++Addressed to Contract file (demo) · By hand, 02 Oct 2026
++Done
++4. The implementing department (demo)
++Optional
++Addressed to The implementing department (demo) · Not sent
++Record sending
++Not sent, as the list says: The guarantor (no performance bond was live on the day of issue).
++@aria-label: Certificate
++@aria-label: Record acknowledgement of Accounts and finance (demo)
++@aria-label: Record sending The implementing department (demo)
+diff -rU0 before/projects__demo_con3__certificates__demo_hct1__tab__print.txt after/projects__demo_con3__certificates__demo_hct1__tab__print.txt
+--- before/projects__demo_con3__certificates__demo_hct1__tab__print.txt	2026-10-03 00:05:50.922258437 +0000
++++ after/projects__demo_con3__certificates__demo_hct1__tab__print.txt	2026-10-03 00:05:50.984829620 +0000
+@@ -1,3 +1,39 @@
+-# /projects/demo_con3/certificates/demo_hct1?tab=print (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct1?tab=print (200)
++Contract XI202600799
++Interim payment certificate DEMO/CERT/00231
++Issued
++Valve keys and chamber covers
++•
++Number DEMO/CERT/00231
++•
++Interim payment certificate 1 on this contract
++•
++Dated 02 Oct 2026
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Figures
++Signatures
++4
++Routing sheet
++Distribution
++4
++Print
++History
++18
++Malay text, as issued
++Demo interim certificate · DEMO-C-01 · revision 01 Jun 2025 · text version 1 · frozen 02 Oct 2026 · 17:00
++Your organisation
++Perakuan bayaran interim 1 · DEMO/CERT/00231
++Kontrak XI202600799: Valve keys and chamber covers. Kontraktor: Contoh Supplies Enterprise. Harga kontrak RM36,000.00; Tarikh Kontrak 30 September 2026.
++Jumlah dalam penilaian yang dilampirkan diperakui kena dibayar kepada kontraktor di bawah kontrak (teks demo, rekaan).
++Bertarikh 2 Oktober 2026.
++English text, as issued
++Demo interim certificate · DEMO-C-01 · revision 01 Jun 2025 · text version 1 · frozen 02 Oct 2026 · 17:00
++Your organisation
++Interim payment certificate 1 · DEMO/CERT/00231
++Contract XI202600799: Valve keys and chamber covers. Contractor: Contoh Supplies Enterprise. Contract sum RM36,000.00; Contract Date 30 September 2026.
++The sum shown in the valuation attached is certified as due to the contractor under the contract (demo text, invented).
++Dated 2 October 2026.
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct1__tab__routing.txt after/projects__demo_con3__certificates__demo_hct1__tab__routing.txt
+--- before/projects__demo_con3__certificates__demo_hct1__tab__routing.txt	2026-10-03 00:05:50.922168150 +0000
++++ after/projects__demo_con3__certificates__demo_hct1__tab__routing.txt	2026-10-03 00:05:50.984723395 +0000
+@@ -1,3 +1,63 @@
+-# /projects/demo_con3/certificates/demo_hct1?tab=routing (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct1?tab=routing (200)
++Contract XI202600799
++Interim payment certificate DEMO/CERT/00231
++Issued
++Valve keys and chamber covers
++•
++Number DEMO/CERT/00231
++•
++Interim payment certificate 1 on this contract
++•
++Dated 02 Oct 2026
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Figures
++Signatures
++4
++Routing sheet
++Distribution
++4
++Print
++History
++18
++Demo interim certificate routing sheet
++Frozen when the sheet started, 30 Sep 2026. Calendar days (assumed, a question to the customer).
++DATE (1): received
++30 Sep 2026
++DATE (2): approved
++02 Oct 2026
++Elapsed against the target
++2 days against 21 days: met.
++The stages' printed days
++17 days: the form prints a total of 21, which differs from the sum of its parts (both shown)
++First submission
++Received 30 Sep 2026 · decided 01 Oct 2026 · 1 day
++Checked by the section
++Checked by Eng Siew Mei, 30 Sep 2026
++Recorded
++Verified by contracts
++Verified by Chen Wei Ling, 30 Sep 2026
++Recorded
++Head of Contract & Procurement
++Chen Wei Ling, 01 Oct 2026
++Done
++Finance Director
++Bala Krishnan, 01 Oct 2026
++Refused
++Resubmission 1
++Received 01 Oct 2026 · decided 02 Oct 2026 · 1 day
++Checked by the section
++Checked by Eng Siew Mei, 01 Oct 2026 · Resubmitted with the delivery orders
++Recorded
++Verified by contracts
++Verified by Chen Wei Ling, 01 Oct 2026
++Recorded
++Head of Contract & Procurement
++Chen Wei Ling, 02 Oct 2026
++Done
++Finance Director
++Bala Krishnan, 02 Oct 2026
++Done
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt after/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt
+--- before/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt	2026-10-03 00:05:50.922113381 +0000
++++ after/projects__demo_con3__certificates__demo_hct1__tab__signatures.txt	2026-10-03 00:05:50.984661906 +0000
+@@ -1,3 +1,49 @@
+-# /projects/demo_con3/certificates/demo_hct1?tab=signatures (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct1?tab=signatures (200)
++Contract XI202600799
++Interim payment certificate DEMO/CERT/00231
++Issued
++Valve keys and chamber covers
++•
++Number DEMO/CERT/00231
++•
++Interim payment certificate 1 on this contract
++•
++Dated 02 Oct 2026
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Figures
++Signatures
++4
++Routing sheet
++Distribution
++4
++Print
++History
++18
++Signatures
++In the printed order of Demo interim certificate (DEMO-C-01), as pinned at the first signature on 02 Oct 2026. A later revision of the form does not move it. Recorded on behalf of, not signed.
++Correct the date
++1. Recommended by
++Recommends
++Chen Wei Ling, Head of Contract & Procurement · Supported · signed 02 Oct 2026
++Recorded
++2. Certified by
++Authorises
++Dates the certificate
++Bala Krishnan, Finance Director · signed 02 Oct 2026
++Recorded
++3. Received by the contractor
++The contractor
++Demo Contractor's signatory · IC ••••••••1234 · signed 02 Oct 2026
++Recorded
++4. Witnessed by
++Witness
++Demo witness · signed 02 Oct 2026
++Recorded
++Certificate date
++02 Oct 2026
++Certifies money
++Yes: a delegate with instruction authority only does not sign it
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct2.txt after/projects__demo_con3__certificates__demo_hct2.txt
+--- before/projects__demo_con3__certificates__demo_hct2.txt	2026-10-03 00:05:50.922304447 +0000
++++ after/projects__demo_con3__certificates__demo_hct2.txt	2026-10-03 00:05:50.984908776 +0000
+@@ -1,3 +1,32 @@
+-# /projects/demo_con3/certificates/demo_hct2 (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct2 (200)
++Contract XI202600799
++Variation order
++On its routing sheet
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Send to signing
++Void
++No approval route is open for it: the module that raised it opens one. Still to record in this round: Verified by contracts.
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++4
++Figures
++Demo variation valuation (invented), computed 02 Oct 2026. Frozen: nothing is overridden after the draft.
++Value of the variation
++RM7,200.00
++The variation against the contract sum: 20.00% (RM7,200.00 of RM36,000.00; judged on the exact amounts, never the rounded figure).
++@title: No approval route is open for it: the module that raised it opens one. Still to record in this round: Verified by contracts.
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct2__tab__distribution.txt after/projects__demo_con3__certificates__demo_hct2__tab__distribution.txt
+--- before/projects__demo_con3__certificates__demo_hct2__tab__distribution.txt	2026-10-03 00:05:50.922443028 +0000
++++ after/projects__demo_con3__certificates__demo_hct2__tab__distribution.txt	2026-10-03 00:05:50.985062766 +0000
+@@ -1,3 +1,31 @@
+-# /projects/demo_con3/certificates/demo_hct2?tab=distribution (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct2?tab=distribution (200)
++Contract XI202600799
++Variation order
++On its routing sheet
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Send to signing
++Void
++No approval route is open for it: the module that raised it opens one. Still to record in this round: Verified by contracts.
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++4
++Distribution
++Copies are made from the pinned list when the certificate is issued.
++Not issued yet
++Nothing goes out before issue.
++@title: No approval route is open for it: the module that raised it opens one. Still to record in this round: Verified by contracts.
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct2__tab__print.txt after/projects__demo_con3__certificates__demo_hct2__tab__print.txt
+--- before/projects__demo_con3__certificates__demo_hct2__tab__print.txt	2026-10-03 00:05:50.922485052 +0000
++++ after/projects__demo_con3__certificates__demo_hct2__tab__print.txt	2026-10-03 00:05:50.985118711 +0000
+@@ -1,3 +1,34 @@
+-# /projects/demo_con3/certificates/demo_hct2?tab=print (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct2?tab=print (200)
++Contract XI202600799
++Variation order
++On its routing sheet
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Send to signing
++Void
++No approval route is open for it: the module that raised it opens one. Still to record in this round: Verified by contracts.
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++4
++English text
++Demo variation order, as the form stands now
++Draft — not issued
++Your organisation
++Variation order · (number allocated on issue)
++Contract XI202600799 with Contoh Supplies Enterprise: the variation described in the schedule is ordered (demo text, invented).
++Dated (the day of the authorising signature).
++@title: No approval route is open for it: the module that raised it opens one. Still to record in this round: Verified by contracts.
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct2__tab__routing.txt after/projects__demo_con3__certificates__demo_hct2__tab__routing.txt
+--- before/projects__demo_con3__certificates__demo_hct2__tab__routing.txt	2026-10-03 00:05:50.922395499 +0000
++++ after/projects__demo_con3__certificates__demo_hct2__tab__routing.txt	2026-10-03 00:05:50.985012152 +0000
+@@ -1,3 +1,48 @@
+-# /projects/demo_con3/certificates/demo_hct2?tab=routing (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct2?tab=routing (200)
++Contract XI202600799
++Variation order
++On its routing sheet
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Send to signing
++Void
++No approval route is open for it: the module that raised it opens one. Still to record in this round: Verified by contracts.
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++4
++Demo variation routing sheet (quotation)
++Frozen when the sheet started, 02 Oct 2026. Calendar days (assumed, a question to the customer).
++Correct DATE (1)
++DATE (1): received
++02 Oct 2026
++DATE (2): approved
++No approval route open yet
++Elapsed against the target
++Open: 1 day so far against 14 days (up to 20%, for this percentage).
++The stages' printed days
++Not printed per stage
++First submission
++Received 02 Oct 2026
++Checked by the section
++Checked by Eng Siew Mei, 02 Oct 2026
++Recorded
++Verified by contracts
++Verified by: Head of Contract & Procurement
++Record
++No approval route opened for this round: the module that raised the certificate opens it on the approval matrix.
++@title: No approval route is open for it: the module that raised it opens one. Still to record in this round: Verified by contracts.
++@aria-label: Certificate
++@aria-label: Record Verified by contracts
+diff -rU0 before/projects__demo_con3__certificates__demo_hct2__tab__signatures.txt after/projects__demo_con3__certificates__demo_hct2__tab__signatures.txt
+--- before/projects__demo_con3__certificates__demo_hct2__tab__signatures.txt	2026-10-03 00:05:50.922354388 +0000
++++ after/projects__demo_con3__certificates__demo_hct2__tab__signatures.txt	2026-10-03 00:05:50.984961056 +0000
+@@ -1,3 +1,46 @@
+-# /projects/demo_con3/certificates/demo_hct2?tab=signatures (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct2?tab=signatures (200)
++Contract XI202600799
++Variation order
++On its routing sheet
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Send to signing
++Void
++No approval route is open for it: the module that raised it opens one. Still to record in this round: Verified by contracts.
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++4
++Signatures
++In the printed order of Demo variation order as it stands now. The first signature pins the form: its order and recipients do not move after it. Recorded on behalf of, not signed.
++1. Recommended by
++Recommends
++Head of Contract & Procurement. Or a delegate of the whole office.
++Record
++Signatures open once the certificate is sent to signing.
++2. Ordered by
++Authorises
++Dates the certificate
++Chief Executive. Never a delegate.
++Record
++Signatures open once the certificate is sent to signing.
++Certificate date
++Set when signed: the day of the authorising signature, never typed
++Certifies money
++Yes: a delegate with instruction authority only does not sign it
++@title: No approval route is open for it: the module that raised it opens one. Still to record in this round: Verified by contracts.
++@aria-label: Certificate
++@title: Signatures open once the certificate is sent to signing.
++@title: Signatures open once the certificate is sent to signing.
+diff -rU0 before/projects__demo_con3__certificates__demo_hct3.txt after/projects__demo_con3__certificates__demo_hct3.txt
+--- before/projects__demo_con3__certificates__demo_hct3.txt	2026-10-03 00:05:50.922531278 +0000
++++ after/projects__demo_con3__certificates__demo_hct3.txt	2026-10-03 00:05:50.985168636 +0000
+@@ -1,3 +1,29 @@
+-# /projects/demo_con3/certificates/demo_hct3 (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct3 (200)
++Contract XI202600799
++Letter of delegation
++Draft
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Send to signing
++Void
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++1
++Figures
++As the module that raised it computed them.
++No figures
++This certificate carries no computed figures (a letter or a notice).
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct3__tab__distribution.txt after/projects__demo_con3__certificates__demo_hct3__tab__distribution.txt
+--- before/projects__demo_con3__certificates__demo_hct3__tab__distribution.txt	2026-10-03 00:05:50.922672009 +0000
++++ after/projects__demo_con3__certificates__demo_hct3__tab__distribution.txt	2026-10-03 00:05:50.986291385 +0000
+@@ -1,3 +1,29 @@
+-# /projects/demo_con3/certificates/demo_hct3?tab=distribution (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct3?tab=distribution (200)
++Contract XI202600799
++Letter of delegation
++Draft
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Send to signing
++Void
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++1
++Distribution
++Copies are made from the pinned list when the certificate is issued.
++Not issued yet
++Nothing goes out before issue.
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct3__tab__print.txt after/projects__demo_con3__certificates__demo_hct3__tab__print.txt
+--- before/projects__demo_con3__certificates__demo_hct3__tab__print.txt	2026-10-03 00:05:50.922714897 +0000
++++ after/projects__demo_con3__certificates__demo_hct3__tab__print.txt	2026-10-03 00:05:50.986342831 +0000
+@@ -1,3 +1,32 @@
+-# /projects/demo_con3/certificates/demo_hct3?tab=print (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct3?tab=print (200)
++Contract XI202600799
++Letter of delegation
++Draft
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Send to signing
++Void
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++1
++English text
++Demo letter of delegation, as the form stands now
++Draft — not issued
++Your organisation
++Letter of delegation under contract XI202600799 (Valve keys and chamber covers) with Contoh Supplies Enterprise.
++The powers named in the schedule are delegated as it states (demo text, invented).
++Dated (the day of the authorising signature).
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct3__tab__routing.txt after/projects__demo_con3__certificates__demo_hct3__tab__routing.txt
+--- before/projects__demo_con3__certificates__demo_hct3__tab__routing.txt	2026-10-03 00:05:50.922619692 +0000
++++ after/projects__demo_con3__certificates__demo_hct3__tab__routing.txt	2026-10-03 00:05:50.986240175 +0000
+@@ -1,3 +1,29 @@
+-# /projects/demo_con3/certificates/demo_hct3?tab=routing (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct3?tab=routing (200)
++Contract XI202600799
++Letter of delegation
++Draft
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Send to signing
++Void
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++1
++Routing sheet
++No routing sheet
++No approval route: this certificate is not routed through the approval matrix
++. It goes from its draft straight to signing.
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct3__tab__signatures.txt after/projects__demo_con3__certificates__demo_hct3__tab__signatures.txt
+--- before/projects__demo_con3__certificates__demo_hct3__tab__signatures.txt	2026-10-03 00:05:50.922574722 +0000
++++ after/projects__demo_con3__certificates__demo_hct3__tab__signatures.txt	2026-10-03 00:05:50.985218700 +0000
+@@ -1,3 +1,38 @@
+-# /projects/demo_con3/certificates/demo_hct3?tab=signatures (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct3?tab=signatures (200)
++Contract XI202600799
++Letter of delegation
++Draft
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Send to signing
++Void
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++1
++Signatures
++In the printed order of Demo letter of delegation as it stands now. The first signature pins the form: its order and recipients do not move after it. Recorded on behalf of, not signed.
++1. Delegated by
++Authorises
++Dates the certificate
++Chief Executive. Never a delegate.
++Record
++Signatures open once the certificate is sent to signing.
++Certificate date
++Set when signed: the day of the authorising signature, never typed
++Certifies money
++No
++@aria-label: Certificate
++@title: Signatures open once the certificate is sent to signing.
+diff -rU0 before/projects__demo_con3__certificates__demo_hct4.txt after/projects__demo_con3__certificates__demo_hct4.txt
+--- before/projects__demo_con3__certificates__demo_hct4.txt	2026-10-03 00:05:50.922755097 +0000
++++ after/projects__demo_con3__certificates__demo_hct4.txt	2026-10-03 00:05:50.986405888 +0000
+@@ -1,3 +1,28 @@
+-# /projects/demo_con3/certificates/demo_hct4 (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct4 (200)
++Contract XI202600799
++Advance payment certificate
++Being signed
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Void
++Figures
++Signatures
++1
++Routing sheet
++Distribution
++0
++Print
++History
++3
++Figures
++Demo advance (invented; no advance procedure is documented), computed 01 Oct 2026. Frozen: nothing is overridden after the draft.
++Advance
++RM3,600.00
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct4__tab__distribution.txt after/projects__demo_con3__certificates__demo_hct4__tab__distribution.txt
+--- before/projects__demo_con3__certificates__demo_hct4__tab__distribution.txt	2026-10-03 00:05:50.922887750 +0000
++++ after/projects__demo_con3__certificates__demo_hct4__tab__distribution.txt	2026-10-03 00:05:50.986561630 +0000
+@@ -1,3 +1,28 @@
+-# /projects/demo_con3/certificates/demo_hct4?tab=distribution (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct4?tab=distribution (200)
++Contract XI202600799
++Advance payment certificate
++Being signed
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Void
++Figures
++Signatures
++1
++Routing sheet
++Distribution
++0
++Print
++History
++3
++Distribution
++Copies are made from the pinned list when the certificate is issued.
++Not issued yet
++Nothing goes out before issue.
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct4__tab__print.txt after/projects__demo_con3__certificates__demo_hct4__tab__print.txt
+--- before/projects__demo_con3__certificates__demo_hct4__tab__print.txt	2026-10-03 00:05:50.922930003 +0000
++++ after/projects__demo_con3__certificates__demo_hct4__tab__print.txt	2026-10-03 00:05:50.986612919 +0000
+@@ -1,3 +1,40 @@
+-# /projects/demo_con3/certificates/demo_hct4?tab=print (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct4?tab=print (200)
++Contract XI202600799
++Advance payment certificate
++Being signed
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Void
++Figures
++Signatures
++1
++Routing sheet
++Distribution
++0
++Print
++History
++3
++Malay text
++Demo interim certificate, as pinned
++Draft — not issued
++Your organisation
++Perakuan bayaran pendahuluan (on issue) · (number allocated on issue)
++Kontrak XI202600799: Valve keys and chamber covers. Kontraktor: Contoh Supplies Enterprise. Harga kontrak RM36,000.00; Tarikh Kontrak 30 September 2026.
++Jumlah dalam penilaian yang dilampirkan diperakui kena dibayar kepada kontraktor di bawah kontrak (teks demo, rekaan).
++Bertarikh (the day of the authorising signature).
++English text
++Demo interim certificate, as pinned
++Draft — not issued
++Your organisation
++Advance payment certificate (on issue) · (number allocated on issue)
++Contract XI202600799: Valve keys and chamber covers. Contractor: Contoh Supplies Enterprise. Contract sum RM36,000.00; Contract Date 30 September 2026.
++The sum shown in the valuation attached is certified as due to the contractor under the contract (demo text, invented).
++Dated (the day of the authorising signature).
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct4__tab__routing.txt after/projects__demo_con3__certificates__demo_hct4__tab__routing.txt
+--- before/projects__demo_con3__certificates__demo_hct4__tab__routing.txt	2026-10-03 00:05:50.922844145 +0000
++++ after/projects__demo_con3__certificates__demo_hct4__tab__routing.txt	2026-10-03 00:05:50.986508622 +0000
+@@ -1,3 +1,28 @@
+-# /projects/demo_con3/certificates/demo_hct4?tab=routing (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct4?tab=routing (200)
++Contract XI202600799
++Advance payment certificate
++Being signed
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Void
++Figures
++Signatures
++1
++Routing sheet
++Distribution
++0
++Print
++History
++3
++Routing sheet
++No routing sheet
++No approval route: this certificate is not routed through the approval matrix
++. It goes from its draft straight to signing.
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct4__tab__signatures.txt after/projects__demo_con3__certificates__demo_hct4__tab__signatures.txt
+--- before/projects__demo_con3__certificates__demo_hct4__tab__signatures.txt	2026-10-03 00:05:50.922801557 +0000
++++ after/projects__demo_con3__certificates__demo_hct4__tab__signatures.txt	2026-10-03 00:05:50.986457453 +0000
+@@ -1,3 +1,52 @@
+-# /projects/demo_con3/certificates/demo_hct4?tab=signatures (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct4?tab=signatures (200)
++Contract XI202600799
++Advance payment certificate
++Being signed
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++Date set when signed
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Void
++Figures
++Signatures
++1
++Routing sheet
++Distribution
++0
++Print
++History
++3
++Signatures
++In the printed order of Demo interim certificate (DEMO-C-01), as pinned at the first signature on 02 Oct 2026. A later revision of the form does not move it. Recorded on behalf of, not signed.
++1. Recommended by
++Recommends
++Chen Wei Ling, Head of Contract & Procurement · Supported · signed 02 Oct 2026
++Recorded
++2. Certified by
++Authorises
++Dates the certificate
++Finance Director. Never a delegate.
++Record
++3. Received by the contractor
++The contractor
++The contractor's signatory. Recorded from the paper, on the day it was signed.
++Record
++Signatures follow the printed order: "Certified by" is recorded first.
++4. Witnessed by
++Witness
++A witness. Recorded from the paper, on the day it was signed.
++Record
++Signatures follow the printed order: "Certified by" is recorded first.
++Certificate date
++Set when signed: the day of the authorising signature, never typed
++Certifies money
++Yes: a delegate with instruction authority only does not sign it
++@aria-label: Certificate
++@aria-label: Record Certified by
++@title: Signatures follow the printed order: "Certified by" is recorded first.
++@title: Signatures follow the printed order: "Certified by" is recorded first.
+diff -rU0 before/projects__demo_con3__certificates__demo_hct5.txt after/projects__demo_con3__certificates__demo_hct5.txt
+--- before/projects__demo_con3__certificates__demo_hct5.txt	2026-10-03 00:05:50.922974256 +0000
++++ after/projects__demo_con3__certificates__demo_hct5.txt	2026-10-03 00:05:50.986663380 +0000
+@@ -1,3 +1,30 @@
+-# /projects/demo_con3/certificates/demo_hct5 (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct5 (200)
++Contract XI202600799
++Contract sum adjustment
++Void
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++No form chosen
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Void
++Raised on the wrong contract (demo).
++It was never numbered, so it leaves no gap.
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++2
++Figures
++As the module that raised it computed them.
++No figures
++This certificate carries no computed figures (a letter or a notice).
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct5__tab__distribution.txt after/projects__demo_con3__certificates__demo_hct5__tab__distribution.txt
+--- before/projects__demo_con3__certificates__demo_hct5__tab__distribution.txt	2026-10-03 00:05:50.923126127 +0000
++++ after/projects__demo_con3__certificates__demo_hct5__tab__distribution.txt	2026-10-03 00:05:50.986826920 +0000
+@@ -1,3 +1,30 @@
+-# /projects/demo_con3/certificates/demo_hct5?tab=distribution (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct5?tab=distribution (200)
++Contract XI202600799
++Contract sum adjustment
++Void
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++No form chosen
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Void
++Raised on the wrong contract (demo).
++It was never numbered, so it leaves no gap.
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++2
++Distribution
++Copies are made from the pinned list when the certificate is issued.
++Not issued yet
++Nothing goes out before issue.
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct5__tab__print.txt after/projects__demo_con3__certificates__demo_hct5__tab__print.txt
+--- before/projects__demo_con3__certificates__demo_hct5__tab__print.txt	2026-10-03 00:05:50.923173607 +0000
++++ after/projects__demo_con3__certificates__demo_hct5__tab__print.txt	2026-10-03 00:05:50.986881079 +0000
+@@ -1,3 +1,29 @@
+-# /projects/demo_con3/certificates/demo_hct5?tab=print (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct5?tab=print (200)
++Contract XI202600799
++Contract sum adjustment
++Void
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++No form chosen
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Void
++Raised on the wrong contract (demo).
++It was never numbered, so it leaves no gap.
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++2
++Print
++No text
++No form is chosen for this certificate.
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct5__tab__routing.txt after/projects__demo_con3__certificates__demo_hct5__tab__routing.txt
+--- before/projects__demo_con3__certificates__demo_hct5__tab__routing.txt	2026-10-03 00:05:50.923063182 +0000
++++ after/projects__demo_con3__certificates__demo_hct5__tab__routing.txt	2026-10-03 00:05:50.986777282 +0000
+@@ -1,3 +1,30 @@
+-# /projects/demo_con3/certificates/demo_hct5?tab=routing (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct5?tab=routing (200)
++Contract XI202600799
++Contract sum adjustment
++Void
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++No form chosen
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Void
++Raised on the wrong contract (demo).
++It was never numbered, so it leaves no gap.
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++2
++Routing sheet
++No routing sheet
++No approval route: this certificate is not routed through the approval matrix
++. It goes from its draft straight to signing.
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__certificates__demo_hct5__tab__signatures.txt after/projects__demo_con3__certificates__demo_hct5__tab__signatures.txt
+--- before/projects__demo_con3__certificates__demo_hct5__tab__signatures.txt	2026-10-03 00:05:50.923018881 +0000
++++ after/projects__demo_con3__certificates__demo_hct5__tab__signatures.txt	2026-10-03 00:05:50.986723982 +0000
+@@ -1,3 +1,34 @@
+-# /projects/demo_con3/certificates/demo_hct5?tab=signatures (404)
+-404
+-This page could not be found.
++# /projects/demo_con3/certificates/demo_hct5?tab=signatures (200)
++Contract XI202600799
++Contract sum adjustment
++Void
++Valve keys and chamber covers
++•
++Allocated on issue
++•
++No form chosen
++•
++Baseline version 2
++•
++Contoh Supplies Enterprise
++Void
++Raised on the wrong contract (demo).
++It was never numbered, so it leaves no gap.
++Figures
++Signatures
++0
++Routing sheet
++Distribution
++0
++Print
++History
++2
++Signatures
++No form is chosen for this certificate: the module that raised it chooses one. Recorded on behalf of, not signed.
++No signature blocks
++Nothing to sign until a form is chosen.
++Certificate date
++This form has no block that dates it
++Certifies money
++No
++@aria-label: Certificate
+diff -rU0 before/projects__demo_con3__tab__baseline.txt after/projects__demo_con3__tab__baseline.txt
+--- before/projects__demo_con3__tab__baseline.txt	2026-10-03 00:05:50.868450833 +0000
++++ after/projects__demo_con3__tab__baseline.txt	2026-10-03 00:05:50.984203083 +0000
+@@ -19,0 +20,2 @@
++Documents
++5
+diff -rU0 before/projects__demo_con3__tab__documents.txt after/projects__demo_con3__tab__documents.txt
+--- before/projects__demo_con3__tab__documents.txt	2026-10-03 00:05:50.922051455 +0000
++++ after/projects__demo_con3__tab__documents.txt	2026-10-03 00:05:50.984554597 +0000
+@@ -19,0 +20,2 @@
++Documents
++5
+@@ -22,37 +24,81 @@
+-The contract
+-As awarded, numbered at issue, and as it is being formed.
+-Contract number
+-XI202600799
+-Contractor
+-Contoh Supplies Enterprise
+-Contract sum
+-RM36,000
+-The Letter of Acceptance's sum (assumed: corrections do not change it).
+-Arithmetic corrections
+-−RM45
+-SULIT · not restricted until sign-in
+-Against the tendered figures: shown, not applied.
+-Contract Date
+-30 Sep 2026
+-The day the signature for the employer was recorded.
+-Stamped
+-01 Oct 2026 · reference DEMO-STAMP-2026-0001
+-Formed under
+-Bill of quantities; legal review by Demo Legal Office; frozen 24 Sep 2026
+-Award
+-DEMO/AWD/0005/2026
+-Ready to sign?
+-The readiness gate, as the award shows it. Preparation continues while it is red.
+-Gate met
+-Instrument returned signed
+-Met
+-Performance bond lodged and verified
+-No bond required: Short-form terms: no performance bond is asked below the extended terms band (demo policy).
+-Met
+-Every required policy lodged and verified
+-Sums insured are not yet compared with the tender Appendix's minimums or the award's own insurance terms: each policy is judged lodged and verified only.
+-Met
+-The award's conditions
+-Before work starts, each with the day it is needed by. Recorded on the award.
+-None recorded
+-The award records none.
++Certificates
++Every certificate of this contract, newest first. Each is raised by the post-award module it belongs to (supervision, payment, variations), and signed, numbered and distributed on its own page.
++Where it stands
++Any where it stands
++Draft
++On its routing sheet
++Being signed
++Issued
++Void
++Letter of delegation
++Allocated on issue
++Where it stands
++Draft
++Dated
++Set when signed
++Distribution
++Not issued
++Variation order
++Allocated on issue
++Where it stands
++On its routing sheet
++Dated
++Set when signed
++Distribution
++Not issued
++Contract sum adjustment
++Allocated on issue
++Where it stands
++Void
++Dated
++Never dated
++Distribution
++Not issued
++Advance payment certificate
++Allocated on issue
++Where it stands
++Being signed
++Dated
++Set when signed
++Distribution
++Not issued
++Interim payment certificate 1
++DEMO/CERT/00231
++Where it stands
++Issued
++Dated
++02 Oct 2026
++Distribution
++Sent · 1 acknowledgement awaited
++Certificate
++▲
++Where it stands
++▲
++Dated
++Distribution
++Actions
++Letter of delegation
++Allocated on issue
++Draft
++Set when signed
++Not issued
++Variation order
++Allocated on issue
++On its routing sheet
++Set when signed
++Not issued
++Contract sum adjustment
++Allocated on issue
++Void
++Never dated
++Not issued
++Advance payment certificate
++Allocated on issue
++Being signed
++Set when signed
++Not issued
++Interim payment certificate 1
++DEMO/CERT/00231
++Issued
++02 Oct 2026
++Sent · 1 acknowledgement awaited
+@@ -59,0 +106,42 @@
++@placeholder: Search by kind or number
++@aria-label: Search this list
++@aria-label: Where it stands
++@aria-label: Row density
++@aria-label: Comfortable rows
++@title: Comfortable rows
++@aria-label: Compact rows
++@title: Compact rows
++@aria-label: Download this view as CSV
++@title: Download this view as CSV
++@title: Draft
++@aria-label: Open
++@title: Open
++@title: On its routing sheet
++@aria-label: Open
++@title: Open
++@title: Void
++@aria-label: Open
++@title: Open
++@title: Being signed
++@aria-label: Open
++@title: Open
++@title: Issued
++@aria-label: Open
++@title: Open
++@title: Certificate
++@title: Where it stands
++@title: Draft
++@aria-label: Open
++@title: Open
++@title: On its routing sheet
++@aria-label: Open
++@title: Open
++@title: Void
++@aria-label: Open
++@title: Open
++@title: Being signed
++@aria-label: Open
++@title: Open
++@title: Issued
++@aria-label: Open
++@title: Open
+diff -rU0 before/projects__demo_con3__tab__formation&section__assembly.txt after/projects__demo_con3__tab__formation&section__assembly.txt
+--- before/projects__demo_con3__tab__formation&section__assembly.txt	2026-10-03 00:05:50.921551449 +0000
++++ after/projects__demo_con3__tab__formation&section__assembly.txt	2026-10-03 00:05:50.983763329 +0000
+@@ -19,0 +20,2 @@
++Documents
++5
+diff -rU0 before/projects__demo_con3__tab__formation&section__checks.txt after/projects__demo_con3__tab__formation&section__checks.txt
+--- before/projects__demo_con3__tab__formation&section__checks.txt	2026-10-03 00:05:50.921593040 +0000
++++ after/projects__demo_con3__tab__formation&section__checks.txt	2026-10-03 00:05:50.983812103 +0000
+@@ -19,0 +20,2 @@
++Documents
++5
+diff -rU0 before/projects__demo_con3__tab__formation&section__copies.txt after/projects__demo_con3__tab__formation&section__copies.txt
+--- before/projects__demo_con3__tab__formation&section__copies.txt	2026-10-03 00:05:50.921747961 +0000
++++ after/projects__demo_con3__tab__formation&section__copies.txt	2026-10-03 00:05:50.984144641 +0000
+@@ -19,0 +20,2 @@
++Documents
++5
+diff -rU0 before/projects__demo_con3__tab__formation&section__legal.txt after/projects__demo_con3__tab__formation&section__legal.txt
+--- before/projects__demo_con3__tab__formation&section__legal.txt	2026-10-03 00:05:50.921635582 +0000
++++ after/projects__demo_con3__tab__formation&section__legal.txt	2026-10-03 00:05:50.984018846 +0000
+@@ -19,0 +20,2 @@
++Documents
++5
+diff -rU0 before/projects__demo_con3__tab__formation&section__signing.txt after/projects__demo_con3__tab__formation&section__signing.txt
+--- before/projects__demo_con3__tab__formation&section__signing.txt	2026-10-03 00:05:50.921691413 +0000
++++ after/projects__demo_con3__tab__formation&section__signing.txt	2026-10-03 00:05:50.984073930 +0000
+@@ -19,0 +20,2 @@
++Documents
++5
+diff -rU0 before/projects__demo_con3__tab__history.txt after/projects__demo_con3__tab__history.txt
+--- before/projects__demo_con3__tab__history.txt	2026-10-03 00:05:50.921860479 +0000
++++ after/projects__demo_con3__tab__history.txt	2026-10-03 00:05:50.984324612 +0000
+@@ -19,0 +20,2 @@
++Documents
++5
+@@ -82 +84 @@
+-Record
++Certificate
+@@ -116 +118 @@
+-Record
++Certificate signature
+@@ -132 +134 @@
+-Record
++Certificate signature
+@@ -148 +150 @@
+-Record
++Certificate signature
+@@ -167 +169 @@
+-Record
++Certificate signature
+@@ -189 +191 @@
+-Record
++Certificate
+@@ -208 +210 @@
+-Record
++Certificate signature
+@@ -230 +232 @@
+-Record
++Routing check
+@@ -249 +251 @@
+-Record
++Certificate
+@@ -258 +260 @@
+-Record
++Certificate
+@@ -267 +269 @@
+-Record
++Certificate
+@@ -291 +293 @@
+-Record
++Certificate
+@@ -347 +349 @@
+-Record
++Routing check
+@@ -366 +368 @@
+-Record
++Routing check
+@@ -388 +390 @@
+-Record
++Certificate
+@@ -473 +475 @@
+-Record
++Certificate
+@@ -546 +548 @@
+-Record
++Certificate
+@@ -593 +595 @@
+-Record
++Certificate
+@@ -612 +614 @@
+-Record
++Routing check
+@@ -631 +633 @@
+-Record
++Routing check
+@@ -679 +681 @@
+-Record
++Certificate
+@@ -688 +690 @@
+-Record
++Certificate
+@@ -712 +714 @@
+-Record
++Certificate figure overridden
+@@ -749 +751 @@
+-Record
++Certificate
+diff -rU0 before/projects__demo_con3__tab__securities.txt after/projects__demo_con3__tab__securities.txt
+--- before/projects__demo_con3__tab__securities.txt	2026-10-03 00:05:50.921791670 +0000
++++ after/projects__demo_con3__tab__securities.txt	2026-10-03 00:05:50.984258590 +0000
+@@ -19,0 +20,2 @@
++Documents
++5
