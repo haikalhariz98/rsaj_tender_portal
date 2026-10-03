@@ -75,6 +75,18 @@ describe("increment 2's configuration has one writer each", () => {
     });
     expect(writers).toEqual([`${FORM} › savePageCount`]);
   });
+  it("the scan catches every Prisma write op, a spread or not, outside the allowed acts (stricter)", () => {
+    const w = (src: string) => scanFidelityWrites([{ file: "src/app/x.ts", src }]).map((x) => x.op);
+    expect(w("async function f(tx) {\n  await tx.term.createMany({ data: [] });\n}\n")).toEqual(["term.createMany"]);
+    expect(w("async function f(tx) {\n  await tx.formField.updateManyAndReturn({ where: {}, data: { ...x } });\n}\n")).toEqual(["formField.updateManyAndReturn"]);
+    expect(w("async function f(tx) {\n  await tx.textCorrectionForm.createManyAndReturn({ data: rows });\n}\n")).toEqual(["textCorrectionForm.createManyAndReturn"]);
+  });
+  it("no raw SQL writes a printed field, a correction, a term, or a template's page count (stricter)", () => {
+    const RAW = /\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM|MERGE\s+INTO)\s+\\?"(FormField|TextCorrection|TextCorrectionForm|Term|TermAlias)\\?"|UPDATE\s+\\?"DocumentTemplate\\?"[^`;]*\bpageCount\b/i;
+    expect(product.filter(({ src }) => RAW.test(lex(src, { only: "comments" }))).map((p) => p.file)).toEqual([]);
+    expect(RAW.test('await tx.$executeRaw`UPDATE "DocumentTemplate" SET "pageCount" = 3`')).toBe(true);
+    expect(RAW.test('await tx.$executeRaw`DELETE FROM "TermAlias"`')).toBe(true);
+  });
   it("the scan catches an evasion: an alias, a bracketed op, a write elsewhere", () => {
     const w = (src: string) => scanFidelityWrites([{ file: "src/app/x.ts", src }]).map((x) => x.op);
     expect(w("async function f(tx) {\n  const t = tx.term;\n  await t.create({ data: {} });\n}\n")).toContain("term handle taken");
@@ -114,6 +126,28 @@ describe("increment 2's lock order", () => {
   });
   it("the pin reads the form FOR SHARE after the certificate's lock: the one order with the configuration's FOR UPDATE", () => {
     expect(body(read("src/lib/certificate/write.ts"), "recordSignature")).toMatch(/if \(cert\.templateId\) await c\.tx\.\$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = \$\{cert\.templateId\} FOR SHARE`;\s*const t = await templateNow\(cert\.templateId, c\.tx\);/);
+  });
+  it("per function (stricter): wherever one function locks both, the organisation's row comes before the form", () => {
+    for (const f of walk("src")) {
+      const src = read(f);
+      const m = lex(src, { only: "comments" });
+      for (const sp of spans(lex(src))) {
+        const body = m.slice(sp.from, sp.to);
+        const org = body.search(/FROM "Organisation" WHERE id = [^`]*FOR UPDATE/);
+        const form = body.search(/FROM "DocumentTemplate" WHERE id = [^`]*FOR (UPDATE|SHARE)/);
+        if (org >= 0 && form >= 0) expect(org < form, `${f} › ${sp.name}`).toBe(true);
+      }
+    }
+  });
+  it("S-3: a template's save reads the terms its text cites under the organisation's lock, then locks the form", () => {
+    const save = body(read("src/app/configuration/templates/actions.ts"), "saveTemplate");
+    const org = save.search(/await tx\.\$queryRaw`SELECT id FROM "Organisation" WHERE id = \$\{orgId\} FOR UPDATE`/);
+    const terms = save.indexOf("await tx.term.findMany(");
+    const form = save.search(/await tx\.\$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = \$\{id\} FOR UPDATE`/);
+    expect(org).toBeGreaterThan(0);
+    expect(terms).toBeGreaterThan(org);
+    expect(form).toBeGreaterThan(terms);
+    expect(save).not.toMatch(/\bdb\.term\./);
   });
   it("nothing locks a form and then the organisation: the organisation's row comes first wherever both are locked", () => {
     for (const f of walk("src")) {

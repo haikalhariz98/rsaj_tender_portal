@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
-import { auditedCreate, writeAudit } from "@/lib/audit/record";
+import { writeAudit } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { renderTemplate } from "@/lib/award/merge";
@@ -83,14 +83,14 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
   // fills is refused; each instrument re-checks its own whitelist when it is issued or frozen.
   // A configured clause may be cited as {{clause:code}} (FR-DOC-011, 6.4 increment 2).
   const clauseCodes = (await db.clauseText.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((c) => c.code);
-  // 6.14 increment 2 (FR-CRT-011): a term in the glossary may be cited as {{term:code}}; one not in it is refused here.
-  const termCodes = new Set((await db.term.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((t) => t.code));
+  // 6.14 increment 2 (FR-CRT-011): a term in the glossary may be cited as {{term:code}}; one not in it is refused, judged
+  // inside the write's transaction under the organisation's lock (code review S-3), as removeTerm judges a citation.
   for (const k of ["bodyMs", "bodyEn"] as const) {
     const awardUnknown = new Set(v[k] ? renderTemplate(v[k]!, {}).unknown : []);
     // 6.5: the window's instruments (notice, letter of invitation, addendum) fill their own fields;
     // 6.8: so do the evaluation report and the Kertas Cadangan (each re-checks its own whitelist when frozen).
     // 6.14: a certificate's form fills the certificate's own fields (each certificate re-checks its kind's list when pinned and issued).
-    const unknown = (v[k] ? templateFieldRefusals(fieldsNamed(v[k]), (f) => !awardUnknown.has(f) || WINDOW_FIELD_KEYS.has(f), clauseCodes) : []).filter((u) => !EVALUATION_FIELD_KEYS.has(u)).filter((u) => !ANY_CERTIFICATE_FIELD.has(u)).filter((u) => !(isTermField(u) && termCodes.has(termCodeOf(u))));
+    const unknown = (v[k] ? templateFieldRefusals(fieldsNamed(v[k]), (f) => !awardUnknown.has(f) || WINDOW_FIELD_KEYS.has(f), clauseCodes) : []).filter((u) => !EVALUATION_FIELD_KEYS.has(u)).filter((u) => !ANY_CERTIFICATE_FIELD.has(u)).filter((u) => !isTermField(u));
     if (unknown.length) r.reject(k, `The portal does not fill ${unknown.map((u) => `{{${u}}}`).join(", ")}. Use the merge fields listed below.`);
   }
   if (v.bodyMs && v.bodyEn && !v.primaryLanguage) r.reject("primaryLanguage", "With text in both languages, say which is issued first.");
@@ -106,27 +106,37 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
   };
   const write = { ...v, provenance: v.provenance! };
 
-  if (!id) {
-    const created = { ...write, bodyVersion: write.bodyMs || write.bodyEn ? 1 : 0 };
-    await auditedCreate(ctx, created, (tx) =>
-      tx.documentTemplate.create({ data: { organisationId: orgId, ...created } }),
-    );
-  } else {
+  // One transaction, in the configuration's lock order: the organisation's row, then the form (code review S-3). The
+  // terms the text cites are read under the organisation's lock, which removeTerm also takes, so a term cannot be
+  // removed between this check and this write.
+  const res = await db.$transaction(async (tx): Promise<FormState> => {
+    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${orgId} FOR UPDATE`;
+    const termCodes = new Set((await tx.term.findMany({ where: { organisationId: orgId }, select: { code: true } })).map((t) => t.code));
+    const errors: Record<string, string> = {};
+    for (const k of ["bodyMs", "bodyEn"] as const) {
+      const missing = [...new Set(fieldsNamed(write[k]).filter(isTermField).map(termCodeOf))].filter((c) => !termCodes.has(c));
+      if (missing.length) errors[k] = `The portal does not fill ${missing.map((c) => `{{term:${c}}}`).join(", ")}: no such term is in the glossary. Add it on the Terms tab, or use the merge fields listed below.`;
+    }
+    if (Object.keys(errors).length) return { ok: false, errors };
+    if (!id) {
+      const created = { ...write, bodyVersion: write.bodyMs || write.bodyEn ? 1 : 0 };
+      const row = await tx.documentTemplate.create({ data: { organisationId: orgId, ...created } });
+      await writeAudit(tx, { ...ctx, entityId: row.id }, "CREATE", diffFields(null, created));
+      return { ok: true };
+    }
     // The row is locked and re-read inside the write, so two saves never both take the
     // same next version: a changed body is a new version, which an issued document names.
-    const gone = await db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${id} FOR UPDATE`;
-      const before = await tx.documentTemplate.findUnique({ where: { id } });
-      if (!before) return true;
-      const bodyChanged = (before.bodyMs ?? null) !== write.bodyMs || (before.bodyEn ?? null) !== write.bodyEn || (before.primaryLanguage ?? null) !== write.primaryLanguage;
-      const versioned = { ...write, bodyVersion: bodyChanged ? before.bodyVersion + 1 : before.bodyVersion };
-      await tx.documentTemplate.update({ where: { id }, data: versioned });
-      const changes = diffFields(before, versioned);
-      if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: id }, "UPDATE", changes);
-      return false;
-    });
-    if (gone) return { ok: false, message: "That template no longer exists." };
-  }
+    await tx.$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${id} FOR UPDATE`;
+    const before = await tx.documentTemplate.findUnique({ where: { id } });
+    if (!before) return { ok: false, message: "That template no longer exists." };
+    const bodyChanged = (before.bodyMs ?? null) !== write.bodyMs || (before.bodyEn ?? null) !== write.bodyEn || (before.primaryLanguage ?? null) !== write.primaryLanguage;
+    const versioned = { ...write, bodyVersion: bodyChanged ? before.bodyVersion + 1 : before.bodyVersion };
+    await tx.documentTemplate.update({ where: { id }, data: versioned });
+    const changes = diffFields(before, versioned);
+    if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: id }, "UPDATE", changes);
+    return { ok: true };
+  });
+  if (!res.ok) return res;
 
   revalidatePath(PATH);
   return { ok: true };
