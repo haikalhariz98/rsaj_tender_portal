@@ -1,0 +1,179 @@
+Only in snap-after: committees__demo_mt13.txt
+Only in snap-before: configuration__contracts.txt
+Only in snap-after: configuration__invitation.txt
+diff -ru snap-before/projects.txt snap-after/projects.txt
+--- snap-before/projects.txt	2026-10-03 05:23:25.366263157 +0000
++++ snap-after/projects.txt	2026-10-03 05:50:12.334358680 +0000
+@@ -14,7 +14,9 @@
+ •
+ 1 executed
+ •
+-1 In Delay (assumed reading)
++1 In Delay
++, 1 on the straight-line reading
++Assumed
+ Still to come here
+ Possession of site, supervision and site records are recorded on each contract's Team and Site tabs. Still to come: variations, extensions of time and liquidated damages; valuations, interim certificates, retention and the payment waterfall; completion, defects and the final account. Each contract's baseline here is what they will read.
+ Contracts
+@@ -39,7 +41,7 @@
+ Stamped, fully executed
+ Active
+ Cancelled — number kept as a gap
+-Active · In Delay (assumed reading)
++Active · In Delay (Assumed)
+ Meter chamber upgrades
+ Contract XI202600812
+ Contractor
+@@ -70,7 +72,8 @@
+ RM36,000
+ Where it stands
+ Active
+-In Delay (assumed reading)
++In Delay
++Assumed
+ Dates
+ Contract Date 30 Sep 2026
+ Completion 27 Nov 2026
+@@ -102,9 +105,11 @@
+ Contoh Supplies Enterprise
+ RM36,000
+ Active
+-In Delay (assumed reading)
++In Delay
++Assumed
+ Contract Date 30 Sep 2026
+ Completion 27 Nov 2026
++@title: A working default, awaiting sign-off
+ @aria-label: View
+ @placeholder: Search by title, number or contractor
+ @aria-label: Search this list
+@@ -123,7 +128,8 @@
+ @aria-label: Open
+ @title: Open
+ @title: Active
+-@title: In Delay (assumed reading)
++@title: In Delay
++@title: A working default, awaiting sign-off
+ @aria-label: Open
+ @title: Open
+ @title: Contract
+@@ -136,6 +142,7 @@
+ @aria-label: Open
+ @title: Open
+ @title: Active
+-@title: In Delay (assumed reading)
++@title: In Delay
++@title: A working default, awaiting sign-off
+ @aria-label: Open
+ @title: Open
+Only in snap-before: projects__demo_con1.txt
+Only in snap-before: projects__demo_con10.txt
+Only in snap-before: projects__demo_con10__tab__formation.txt
+Only in snap-before: projects__demo_con11.txt
+Only in snap-before: projects__demo_con11__tab__formation.txt
+Only in snap-before: projects__demo_con12.txt
+Only in snap-before: projects__demo_con12__tab__baseline.txt
+Only in snap-before: projects__demo_con12__tab__formation.txt
+diff -ru snap-before/projects__demo_con2__tab__site&section__start.txt snap-after/projects__demo_con2__tab__site&section__start.txt
+--- snap-before/projects__demo_con2__tab__site&section__start.txt	2026-10-03 05:24:16.850266217 +0000
++++ snap-after/projects__demo_con2__tab__site&section__start.txt	2026-10-03 05:50:35.242360042 +0000
+@@ -38,11 +38,8 @@
+ The contractor's programme is recorded here when it is submitted.
+ Progress
+ Not judged. Possession of site is not recorded.
+-Assumed
+-Planned progress between the approved programme's points is read on a straight line.
+ Record progress
+ None recorded
+ Actual progress is recorded here, a day at a time.
+ @aria-label: Contract
+ @aria-label: Site sections
+-@title: A working default, awaiting sign-off
+diff -ru snap-before/projects__view__delay.txt snap-after/projects__view__delay.txt
+--- snap-before/projects__view__delay.txt	2026-10-03 05:24:09.142265759 +0000
++++ snap-after/projects__view__delay.txt	2026-10-03 05:50:30.210359743 +0000
+@@ -14,11 +14,14 @@
+ •
+ 1 executed
+ •
+-1 In Delay (assumed reading)
++1 In Delay
++, 1 on the straight-line reading
++Assumed
+ Still to come here
+ Possession of site, supervision and site records are recorded on each contract's Team and Site tabs. Still to come: variations, extensions of time and liquidated damages; valuations, interim certificates, retention and the payment waterfall; completion, defects and the final account. Each contract's baseline here is what they will read.
+ Contracts In Delay
+-Every contract In Delay today, judged across all of them, newest number first. Planned progress between the approved programme's points is read on a straight line. (assumed)
++Every contract In Delay today, judged across all of them, newest number first. Planned progress between the approved programme's points is read on a straight line.
++Assumed
+ All contracts
+ All records
+ All records
+@@ -39,7 +42,7 @@
+ Stamped, fully executed
+ Active
+ Cancelled — number kept as a gap
+-Active · In Delay (assumed reading)
++Active · In Delay (Assumed)
+ Valve keys and chamber covers
+ Contract XI202600799
+ Contractor
+@@ -48,7 +51,8 @@
+ RM36,000
+ Where it stands
+ Active
+-In Delay (assumed reading)
++In Delay
++Assumed
+ Dates
+ Contract Date 30 Sep 2026
+ Completion 27 Nov 2026
+@@ -66,9 +70,12 @@
+ Contoh Supplies Enterprise
+ RM36,000
+ Active
+-In Delay (assumed reading)
++In Delay
++Assumed
+ Contract Date 30 Sep 2026
+ Completion 27 Nov 2026
++@title: A working default, awaiting sign-off
++@title: A working default, awaiting sign-off
+ @aria-label: View
+ @placeholder: Search by title, number or contractor
+ @aria-label: Search this list
+@@ -81,13 +88,15 @@
+ @aria-label: Download this view as CSV
+ @title: Download this view as CSV
+ @title: Active
+-@title: In Delay (assumed reading)
++@title: In Delay
++@title: A working default, awaiting sign-off
+ @aria-label: Open
+ @title: Open
+ @title: Contract
+ @title: Contract sum
+ @title: Where it stands
+ @title: Active
+-@title: In Delay (assumed reading)
++@title: In Delay
++@title: A working default, awaiting sign-off
+ @aria-label: Open
+ @title: Open
+Only in snap-after: sourcing__demo_sx15__tab__bids.txt
+Only in snap-after: sourcing__demo_sx16.txt
+Only in snap-after: sourcing__demo_sx16__tab__award.txt
+Only in snap-after: sourcing__demo_sx16__tab__bids.txt
+Only in snap-after: sourcing__demo_sx16__tab__history.txt
+Only in snap-after: sourcing__demo_sx16__tab__invitation&section__addenda.txt
+Only in snap-after: sourcing__demo_sx16__tab__invitation&section__briefing.txt
+Only in snap-after: sourcing__demo_sx16__tab__invitation&section__sales.txt
+Only in snap-after: sourcing__demo_sx16__tab__invitation&section__window.txt
+Only in snap-after: sourcing__demo_sx17__tab__invitation&section__sales.txt
+Only in snap-after: sourcing__demo_sx18__tab__bids.txt
+Only in snap-after: sourcing__demo_sx18__tab__invitation&section__sales.txt
+Only in snap-after: sourcing__demo_sx1__tab__scope&section__estimate.txt
+Only in snap-after: sourcing__demo_sx20__tab__award.txt
+Only in snap-after: sourcing__demo_sx20__tab__bids.txt
+Only in snap-after: sourcing__demo_sx5.txt
+Only in snap-after: sourcing__demo_sx5__edit.txt
