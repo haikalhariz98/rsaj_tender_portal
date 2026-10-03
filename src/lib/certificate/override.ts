@@ -113,6 +113,9 @@ export interface OverrideInput {
   justification: string;
   /// The named Person is on record and active.
   personKnown: boolean;
+  /// 6.13 Part A step 3 (614-C4): an approval route is open on the figures (pending or approved). They went for
+  /// approval as they stood: nothing is overridden under it.
+  routeOpen?: boolean;
 }
 
 /// Why an override is refused. Empty: it may be recorded. `normalised` is the value to store.
@@ -121,6 +124,10 @@ export function overrideFaults(i: OverrideInput): { faults: Finding[]; normalise
   const f = (code: string, data: Record<string, string | number | null> = {}) => faults.push({ code, level: "block", data });
   if (i.status !== "DRAFT") {
     f("OVERRIDE_NOT_IN_DRAFT", { status: i.status });
+    return { faults, normalised: null, computed: null };
+  }
+  if (i.routeOpen) {
+    f("OVERRIDE_ROUTE_OPEN");
     return { faults, normalised: null, computed: null };
   }
   if (!i.snapshot || !i.current) {

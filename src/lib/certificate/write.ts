@@ -36,6 +36,7 @@ import { certificateLabel, checksOf, liveBondOf, officeHolders, officeName, rout
 import { pinRefusals, pinRevision, readRevision, type PinContext, type TemplateRevision } from "./revision";
 import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
 import { nextSequence } from "./sequence";
+import { issueRefusal } from "@/lib/payment/at-issue";
 import { draftSigningFaults } from "./kinds";
 import { allSigned, maskedIc, signFaults, type SignInput } from "./signature";
 import { readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
@@ -169,7 +170,9 @@ export async function overrideField(c: CertCtx, fieldKey: string, value: string,
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const current = snap ? applyOverrides(snap, cert.overrides) : null;
   const person = await c.tx.person.findFirst({ where: { id: personId, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
-  const r = overrideFaults({ status: statusOf(c), snapshot: snap, current, fieldKey, value, justification, personKnown: !!person });
+  // 614-C4 (6.13 Part A step 3): figures that went for approval on a route still pending or approved are frozen.
+  const routeOpen = cert.approvalInstances.some((i) => i.status === "PENDING" || i.status === "APPROVED");
+  const r = overrideFaults({ status: statusOf(c), snapshot: snap, current, fieldKey, value, justification, personKnown: !!person, routeOpen });
   if (r.faults.length) refuse("Not overridden:", r.faults);
   const line = snap!.lines.find((l) => l.key === fieldKey)!;
   const row = await c.tx.certificateOverride.create({ data: { organisationId: c.l.org.id, certificateId: cert.id, fieldKey, computed: r.computed ?? "", overridden: r.normalised!, justification, personId: person!.id, personName: person!.name, recordedAt: c.now } });
@@ -274,7 +277,7 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
   const block = rev.blocks.find((b) => b.blockOrder === input.blockOrder);
   const person = block && isPersonRule(block.officeRule) && input.personId ? await c.tx.person.findFirst({ where: { id: input.personId, organisationId: c.l.org.id }, select: { id: true, name: true, isActive: true } }) : null;
   // A named office's holders on the day; the S.O.'s blocks read the contract's supervision (6.13 Part A, BD-613-13).
-  const supervised = block && isSupervisedRule(block.officeRule) ? await supervisedHoldersOn(c.l, block.officeRule, c.today, c.tx) : null;
+  const supervised = block && isSupervisedRule(block.officeRule) ? await supervisedHoldersOn(c.l, block.officeRule, c.today, c.tx, cert.kind as CertificateKind) : null;
   const holders = block?.officeRule === "NAMED_OFFICE" && block.officeCode ? await officeHolders(c.l, block.officeCode, c.today, c.tx) : (supervised?.holders ?? null);
   const signed = signedOf(cert);
   const snap = readComputedSnapshot(cert.computedSnapshot);
@@ -348,6 +351,11 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   }
   const issued = await c.tx.certificate.findMany({ where: { contractId: c.l.contract.id, status: "ISSUED" }, select: { kind: true, sequence: true } });
   const sequence = nextSequence(issued, cert.kind);
+  // 6.13 Part A step 3 (FR-PAY-014 as ruled): the raising module judges the certificate on the sequence allocated
+  // here, under the contract's lock (an interim certificate before the contract is signed; the sequence its figures
+  // were worked out for). A refusal rolls the whole signature back.
+  const refusal = await issueRefusal(c.tx, c.l, cert, sequence);
+  if (refusal) throw new CertificateRefusal(refusal);
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const figures = snap ? applyOverrides(snap, cert.overrides) : { lines: [], totals: [], overridden: false };
   const b = cert.baseline;

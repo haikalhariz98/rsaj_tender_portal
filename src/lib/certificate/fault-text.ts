@@ -30,6 +30,8 @@ export function certificateFaultWords(f: Finding): Words {
     // ------------------------------------------------ overrides
     case "OVERRIDE_NOT_IN_DRAFT":
       return w(`A computed figure is overridden only while the certificate is a draft. This one is ${STATUS_WORDS[d.status as CertificateStatus]?.en.toLowerCase() ?? "past its draft"}: its figures are frozen as they were sent on. If a figure is wrong, void it and raise it again.`, `Angka yang dikira hanya boleh diganti semasa perakuan masih draf. Angkanya kini dibekukan. Jika angka salah, batalkan dan bangkitkan semula.`);
+    case "OVERRIDE_ROUTE_OPEN":
+      return w("Its figures went for approval on a route that is waiting for a decision or approved: they are frozen as they were sent. If a figure is wrong, refuse the route (or void the certificate) and raise it again.", "Angkanya telah dihantar untuk kelulusan: ia dibekukan seperti dihantar. Jika angka salah, tolak laluan itu (atau batalkan perakuan) dan bangkitkan semula.");
     case "NO_FIGURES":
       return w("This certificate carries no computed figures, so there is nothing to override.", "Perakuan ini tiada angka yang dikira.");
     case "TOTAL_NOT_OVERRIDABLE":

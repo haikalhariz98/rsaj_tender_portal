@@ -9,6 +9,10 @@ import { DELIVERY_METHODS, SIGNATURE_DECISIONS } from "@/lib/certificate/types";
 import { acknowledgeCopy, CertificateRefusal, correctCertificateDate, despatchCopy, overrideField, proceedToSigning, recordCheck, recordRoutingReceived, recordSignature, sendForRouting, voidCertificate, type CertCtx } from "@/lib/certificate/write";
 import { dayOf, storedDay } from "@/lib/dates";
 import { parseSen, senToDecimalString } from "@/lib/money";
+import { REJECTION_KINDS } from "@/lib/authority/rejection";
+import { chooseCertificateRejection, decideCertificateStep } from "@/lib/certificate/route-write";
+import { recordFinancePayment } from "@/lib/payment/finance-write";
+import { submitForApproval } from "@/lib/payment/route-open";
 import { FormReader } from "@/lib/validate";
 
 /**
@@ -140,4 +144,53 @@ export async function voidCertificateAct(_prev: FormState, data: FormData): Prom
   const now = toSecond(new Date());
   const reason = String(data.get("reason") ?? "").slice(0, 2000);
   return inCertificate(certOf(data), now, (c) => voidCertificate(c, reason));
+}
+
+// ------------------------------------------------------------------ the approval route (6.13 Part A step 3, 614-C4)
+
+/// Send a certificate raised by a post-award module for approval: its route resolved on the matrix (FR-PAY-016).
+export async function sendCertificateForApproval(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const personId = r.text("personId", "Sent by", { required: true });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inCertificate(certOf(data), now, (c) => submitForApproval(c, personId));
+}
+
+/// A named Person's decision on a step of the certificate's open route (614-C4: decided here, under the lock order).
+export async function decideCertificateRouteStep(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const stepId = r.text("stepId", "Step", { required: true });
+  const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
+  const personId = r.text("personId", "Decided by", { required: true });
+  const on = r.date("decidedOn", "Decided on", { required: true });
+  const received = r.date("receivedOn", "Received on");
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
+  return inCertificate(certOf(data), now, (c) => decideCertificateStep(c, { stepId, decision, personId, decidedOn: storedDay(on), receivedOn: received ? storedDay(received) : null, reason }));
+}
+
+/// Where a refused route goes, where its refusal decided nothing (CO-5): the officer's choice, on a named Person's behalf.
+export async function chooseCertificateRouteRejection(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const kind = r.choice("goesTo", "Where it goes", REJECTION_KINDS);
+  const seq = r.int("returnToSeq", "Step", { min: 1 });
+  const personId = r.optionalText("personId");
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inCertificate(certOf(data), now, (c) => chooseCertificateRejection(c, { kind: kind ?? null, returnToSeq: seq ?? null, personId, reason }));
+}
+
+/// Finance's payment of an issued payment certificate (FR-PAY-019, INT-07's manual adapter).
+export async function recordCertificatePayment(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = toSecond(new Date());
+  const r = new FormReader(data);
+  const batchNo = r.text("batchNo", "Batch number", { required: true, max: 60 });
+  const paidOn = r.date("paidOn", "Paid on", { required: true });
+  const personId = r.text("personId", "Recorded for", { required: true });
+  const note = r.text("note", "Note", { max: 2000 });
+  if (r.failed || !paidOn) return { ok: false, errors: r.errors };
+  return inCertificate(certOf(data), now, (c) => recordFinancePayment(c, { batchNo, paidOn: storedDay(paidOn), personId, note }));
 }

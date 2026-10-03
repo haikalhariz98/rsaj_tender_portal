@@ -7,6 +7,7 @@
 import type { Tx } from "@/lib/audit/record";
 import { officeHolders } from "@/lib/certificate/repo";
 import type { OfficeHolders } from "@/lib/certificate/signature";
+import type { CertificateKind } from "@/lib/certificate/types";
 import { baselineFor } from "@/lib/contract/baseline";
 import type { LoadedContract } from "@/lib/contract/repo";
 import type { BaselineReason } from "@/lib/contract/types";
@@ -84,11 +85,11 @@ export async function soOfficeOn(l: LoadedContract, s: SupervisionRows, on: stri
  * contract's supervision: the S.O. office's holders (and those acting in it), or its Principal Representatives
  * in force. Null: nobody can (no S.O. on the day, or a rule not yet resolved).
  */
-export async function supervisedHoldersOn(l: LoadedContract, rule: SupervisedRule, on: string, client: Tx = db): Promise<{ holders: OfficeHolders | null; soLabel: string | null }> {
+export async function supervisedHoldersOn(l: LoadedContract, rule: SupervisedRule, on: string, client: Tx = db, kind: CertificateKind | null = null): Promise<{ holders: OfficeHolders | null; soLabel: string | null }> {
   const s = await loadSupervision(l.contract.id, client);
   const a = soOn(s.soAssignments.map((x) => ({ ...x, effectiveOn: storedDay(x.effectiveOn) })), on);
   if (!a) return { holders: null, soLabel: null };
-  return { holders: supervisedHolders(rule, await officeHolders(l, a.roleCode, on, client), delegationFactsOf(s), on), soLabel: a.roleLabel };
+  return { holders: supervisedHolders(rule, await officeHolders(l, a.roleCode, on, client), delegationFactsOf(s), on, kind), soLabel: a.roleLabel };
 }
 
 /// The programme revisions as the rules read them.

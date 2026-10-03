@@ -11,8 +11,8 @@
  * module gives the committee a certificate's key), is refused, naming why. Pure.
  */
 
-import { resolveApproval } from "@/lib/authority/resolve";
-import type { Matrix, Resolution } from "@/lib/authority/types";
+import type { Matrix, Resolution, ResolutionWarning } from "@/lib/authority/types";
+import { resolveUnderFunder, type FunderContext } from "@/lib/method/approval";
 import { amountOf, senToDecimalString, type Sen } from "@/lib/money";
 import type { CertificateKind } from "@/lib/certificate/types";
 
@@ -49,15 +49,31 @@ export interface CertificateRouteQuery {
   /// The sourcing method's authority key (as the S.O. and every engine caller read it).
   method: string | null;
   contractTypeCode: string | null;
+  /// Offices whose holders are all away on the day: the engine reverts upward (FR-APR-010).
+  absentRoleCodes?: readonly string[];
 }
 
-export type CertificateRoute = { ok: true; resolution: Resolution } | { ok: false; faults: Finding[] };
+export type CertificateRoute = { ok: true; resolution: Resolution; source: "DAL" | "OVERRIDE"; overrideIssue: { id: string; label: string } | null; warnings: ResolutionWarning[] } | { ok: false; faults: Finding[] };
 
+/// On the organisation's own matrix (the tests' form): no funder supersedes it.
 export function resolveCertificateRoute(matrix: Matrix, q: CertificateRouteQuery, matrixLabel: string): CertificateRoute {
+  return resolveCertificateRouteUnder({ dal: matrix, override: null, supersedes: false }, q, matrixLabel, () => false);
+}
+
+/**
+ * Under the requisition's funding route (a funder's rule set supersedes where it has a rule, as 6.1 partitions it),
+ * with the absence rule, and the self-approval rule applied to whoever sends it: where the sender holds the
+ * approving office, the engine escalates it (`actorRoleCode`), as the appointment's route does.
+ */
+export function resolveCertificateRouteUnder(ctx: FunderContext, q: CertificateRouteQuery, matrixLabel: string, senderHolds: (roleCode: string) => boolean): CertificateRoute {
   // The money to the engine through the one bridge (ruling C6): it turns it straight back into sen to compare.
-  const r = resolveApproval(matrix, { domain: q.domain, method: q.method, contractTypeCode: q.contractTypeCode, value: amountOf(senToDecimalString(q.value)), contractValue: amountOf(senToDecimalString(q.contractValue)) });
+  const query = { domain: q.domain, method: q.method, contractTypeCode: q.contractTypeCode, value: amountOf(senToDecimalString(q.value)), contractValue: amountOf(senToDecimalString(q.contractValue)), absentRoleCodes: [...(q.absentRoleCodes ?? [])] };
+  let r = resolveUnderFunder(ctx, query);
+  const approver = r.resolution.approverCode;
+  if (approver && senderHolds(approver)) r = resolveUnderFunder(ctx, { ...query, actorRoleCode: approver });
+  const res = r.resolution;
   const errors = r.warnings.filter((w) => w.level === "err");
-  if (!r.rule || errors.length || r.chain.length === 0) return { ok: false, faults: [{ code: "ROUTE_UNRESOLVED", level: "block", data: { matrix: matrixLabel, domain: q.domain, why: errors.map((e) => e.messageEn).join(" ") || null } }] };
-  if (r.chain.some((s) => s.committeeCode)) return { ok: false, faults: [{ code: "ROUTE_HAS_COMMITTEE", level: "block", data: { matrix: matrixLabel, rule: r.rule.labelEn } }] };
-  return { ok: true, resolution: r };
+  if (!res.rule || errors.length || res.chain.length === 0) return { ok: false, faults: [{ code: "ROUTE_UNRESOLVED", level: "block", data: { matrix: matrixLabel, domain: q.domain, why: errors.map((e) => e.messageEn).join(" ") || null } }] };
+  if (res.chain.some((s) => s.committeeCode)) return { ok: false, faults: [{ code: "ROUTE_HAS_COMMITTEE", level: "block", data: { matrix: matrixLabel, rule: res.rule.labelEn } }] };
+  return { ok: true, resolution: res, source: r.source, overrideIssue: r.overrideIssue, warnings: r.warnings };
 }
