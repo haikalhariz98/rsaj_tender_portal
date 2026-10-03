@@ -135,17 +135,16 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
   const { snapshotFaults } = await import("../src/lib/certificate/snapshot");
   const { applyOverrides, overrideFaults } = await import("../src/lib/certificate/override");
   const { templateNow, routingTypeNow, officeHolders, blockOf } = await import("../src/lib/certificate/repo");
-  const { pinRefusals, pinRevision } = await import("../src/lib/certificate/revision");
+  const { pinRevision } = await import("../src/lib/certificate/revision");
   const { freezeRoutingType, typeFaults, routingSheet, receivedFaults, checkFaults } = await import("../src/lib/certificate/routing-sheet");
   const { signFaults, allSigned } = await import("../src/lib/certificate/signature");
   const { copiesFor, despatchFaults, acknowledgeFaults } = await import("../src/lib/certificate/distribution");
-  const { certificateFieldValues, mergeFields } = await import("../src/lib/certificate/fields");
+  const { certificateFieldValues } = await import("../src/lib/certificate/fields");
   const { renderIssue } = await import("../src/lib/certificate/issue");
   const { certificateTransition } = await import("../src/lib/certificate/status");
   const { nextSequence } = await import("../src/lib/certificate/sequence");
   const { KIND_WORDS, STATUS_WORDS } = await import("../src/lib/certificate/labels");
   const { issueReference } = await import("../src/lib/numbering/issue");
-  const { fieldsNamed } = await import("../src/lib/templates/merge");
   const { awardSheetOf } = await import("../src/lib/certificate/award-sheet");
   const { loadAward } = await import("../src/lib/award/repo");
   const { ORGANISATION_NAME } = await import("../src/lib/org");
@@ -277,8 +276,9 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
     const form = (await templateNow(templateId))!;
     const { certificateInclude } = await import("../src/lib/certificate/repo");
     const cert = (await db.certificate.findUniqueOrThrow({ where: { id: certId }, include: certificateInclude }))!;
-    const { pinContextOf } = await import("../src/lib/certificate/write");
-    fail(`${certId} pin`, pinRefusals(form, mergeFields(kind), fieldsNamed, pinContextOf(cert)));
+    // The act's own function, on the day the first block is signed (6.14 inc 2 residual M-1).
+    const { pinCheck } = await import("../src/lib/certificate/write");
+    fail(`${certId} pin`, pinCheck(form, cert, plan[0].on));
     const rev = pinRevision(form, plan[0].on);
     await db.certificate.update({ where: { id: certId }, data: { templateRevision: rev as never, pinnedAt: at(`${plan[0].on}T04:00`) } });
     const signed: { blockOrder: number; personId: string | null; name: string; signedOn: string; refused: boolean; decision: "SUPPORTED" | "NOT_SUPPORTED" | null }[] = [];

@@ -23,20 +23,20 @@ import { issueReference, NumberingError } from "@/lib/numbering/issue";
 import { ORGANISATION_NAME } from "@/lib/org";
 import { isSupervisedRule } from "@/lib/supervision/blocks";
 import { supervisedHoldersOn } from "@/lib/supervision/load";
-import { fieldsNamed } from "@/lib/templates/merge";
 
 import { certificateDateOf, dateAtIssue, dateCorrectionFaults, earliestCorrectionDay } from "./date";
 import { acknowledgeFaults, copiesFor, despatchFaults } from "./distribution";
 import { refusalText } from "./fault-text";
-import { certificateFieldValues, figureField, mergeFields, type Lang } from "./fields";
+import { certificateFieldValues, figureField, type Lang } from "./fields";
 import { renderIssue } from "./issue";
 import { CERT_WORDS, CHECK_KIND_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, ON_BEHALF, STATUS_WORDS } from "./labels";
-import { applyOverrides, overrideFaults, routingRatioOf } from "./override";
-import { certificateLabel, checksOf, liveBondOf, officeHolders, officeName, routesOf, routingTypeNow, signedOf, templateNow, type LoadedCertificate } from "./repo";
+import { applyOverrides, overrideFaults } from "./override";
+import { certificateLabel, liveBondOf, officeHolders, officeName, routesOf, routingTypeNow, signedOf, templateNow, type LoadedCertificate } from "./repo";
 import { correctionsWords, inPrintedOrder, printedBlankFaults, printedRows } from "./printed";
-import { pinRefusals, pinRevision, readRevision, type PinContext, type TemplateRevision } from "./revision";
+import { pinCheck, pinContextOf, sheetOf } from "./pin-context";
+import { pinRevision, readRevision, type TemplateRevision } from "./revision";
 import { sheetFieldValues } from "./sheet-words";
-import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
+import { checkFaults, freezeRoutingType, receivedFaults, routeBounds, typeFaults } from "./routing-sheet";
 import { nextSequence } from "./sequence";
 import { issueRefusal, sequenceFloor } from "@/lib/payment/at-issue";
 import { afterCertificateIssue, approvalOfRecordFaults, variationIssueRefusal } from "@/lib/variation/at-certificate";
@@ -93,24 +93,8 @@ async function moveTo(c: CertCtx, to: CertificateStatus, extra: Prisma.Certifica
   if (moved.count !== 1) throw new CertificateRefusal(CHANGED);
 }
 
-/// The routing sheet as it stands, on the certificate's frozen type.
-export function sheetOf(cert: LoadedCertificate["cert"], today: string): Sheet | null {
-  const type = readRoutingSnapshot(cert.routingSnapshot);
-  if (!type) return null;
-  const snap = readComputedSnapshot(cert.computedSnapshot);
-  // 614-C5: the ratio from the figures as they were sent for routing, overrides included (none is made after).
-  const ratio = snap ? routingRatioOf(snap, applyOverrides(snap, cert.overrides)) : null;
-  return routingSheet({ type, receivedOn: day(cert.routingReceivedOn), routes: routesOf(cert.approvalInstances), checks: checksOf(cert.routingChecks), ratio, today });
-}
-
-/// What the certificate brings to the pin (M-2): its pinned baseline version's Contract Date and its frozen figures.
-export function pinContextOf(cert: LoadedCertificate["cert"], today: string | null = null): PinContext {
-  const snap = readComputedSnapshot(cert.computedSnapshot);
-  const f = snap ? applyOverrides(snap, cert.overrides) : null;
-  // Code review M-1: a sheet value is filled only on a certificate with a routing type, from its sheet once it starts.
-  const sheet = today ? sheetOf(cert, today) : null;
-  return { contractDate: day(cert.baseline.contractDate), figures: f ? [...f.lines, ...f.totals].map((x) => ({ key: x.key, value: x.value })) : null, routed: cert.routingTypeId != null, sheet: sheet ? sheetFieldValues(sheet, "EN") : null };
-}
+// The routing sheet and the pin's context, drawn from the row: pure, in pin-context.ts (the page's preview calls the same).
+export { pinCheck, pinContextOf, sheetOf };
 
 /// Whether the certificate's figures certify money (an instruction-only delegate may not sign it, FR-PAY-017).
 export const certifiesMoney = (s: ComputedSnapshot | null): boolean => !!s && (s.lines.some((l) => l.type === "MONEY") || s.totals.length > 0);
@@ -283,7 +267,7 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
     if (cert.templateId) await c.tx.$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${cert.templateId} FOR SHARE`;
     const t = await templateNow(cert.templateId, c.tx);
     // M-2: nothing is pinned that could never issue: a field the text prints must have its value at issue.
-    const fs = pinRefusals(t, mergeFields(cert.kind), fieldsNamed, pinContextOf(cert, c.today));
+    const fs = pinCheck(t, cert, c.today);
     if (fs.length) refuse("Not recorded:", fs);
     rev = pinRevision(t!, c.today);
   }

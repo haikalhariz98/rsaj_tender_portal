@@ -17,18 +17,18 @@ import { KeyValues } from "@/components/ui/stat";
 import { certificateDateOf } from "@/lib/certificate/date";
 import { distributionState } from "@/lib/certificate/distribution";
 import { certificateFaultText, refusalText } from "@/lib/certificate/fault-text";
-import { certificateFieldValues, mergeFields } from "@/lib/certificate/fields";
+import { certificateFieldValues } from "@/lib/certificate/fields";
 import { BLOCK_KIND_WORDS, CERT_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, OFFICE_RULE_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
 import { applyOverrides, routingRatioOf, type Effective } from "@/lib/certificate/override";
 import { loadCertificate, routesOf, signedOf, templateNow, type LoadedCertificate } from "@/lib/certificate/repo";
-import { pinRefusals, readRevision, type TemplateNow, type TemplateRevision } from "@/lib/certificate/revision";
+import { readRevision, type TemplateNow, type TemplateRevision } from "@/lib/certificate/revision";
 import { type Sheet } from "@/lib/certificate/routing-sheet";
 import { RoutingSheetView } from "@/components/certificate/routing-sheet";
 import { nextBlock } from "@/lib/certificate/signature";
 import { readComputedSnapshot } from "@/lib/certificate/snapshot";
 import type { Block, CertificateStatus, DeliveryMethod } from "@/lib/certificate/types";
 import { isPersonRule } from "@/lib/certificate/types";
-import { certifiesMoney, pinContextOf, sheetOf } from "@/lib/certificate/write";
+import { certifiesMoney, pinCheck, sheetOf } from "@/lib/certificate/write";
 import { historyFieldLabel, historyValue } from "@/lib/contract/history-words";
 import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -236,7 +236,7 @@ function signingBlocker(sheet: Sheet): string | null {
 }
 
 function pinBlocker(form: Awaited<ReturnType<typeof templateNow>>, cert: LoadedCertificate["cert"], today: string | null): string | null {
-  const fs = pinRefusals(form, mergeFields(cert.kind), fieldsNamed, pinContextOf(cert, today));
+  const fs = pinCheck(form, cert, today);
   return fs.length ? refusalText("The first signature is refused:", fs) : null;
 }
 

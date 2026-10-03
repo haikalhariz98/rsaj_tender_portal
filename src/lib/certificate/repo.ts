@@ -22,7 +22,7 @@ import { KIND_WORDS } from "./labels";
 import { sheetLabelsOf, type PrintedField } from "./printed";
 import type { TemplateNow } from "./revision";
 import type { Term } from "./terms";
-import type { CheckDef, RecordedCheck, RouteRow, TypeNow } from "./routing-sheet";
+import type { CheckDef, TypeNow } from "./routing-sheet";
 import type { OfficeHolders } from "./signature";
 import type { Block, CertificateKind, DistributionRow, SignedBlock } from "./types";
 
@@ -170,18 +170,8 @@ export async function routingTypeNow(typeId: string | null, client: Tx = db): Pr
 export const signedOf = (cert: Pick<CertificateRow, "signatures">): SignedBlock[] =>
   cert.signatures.map((s) => ({ blockOrder: s.blockOrder, personId: s.personId, name: s.name, signedOn: storedDay(s.signedOn), refused: s.refused, decision: s.decision }));
 
-/// The routes as the sheet reads them (the organisation's day each opened).
-type RouteRowIn = { id: string; status: string; openedAt: Date; createdAt: Date; steps: readonly { sequence: number; roleLabel: string; actingRoleLabel: string | null; act: string; committeeCode: string | null; decision: string; decidedByName: string | null; decidedOn: Date | null; receivedOn: Date | null }[] };
-export const routesOf = (instances: readonly RouteRowIn[]): RouteRow[] =>
-  instances.map((i) => ({
-    id: i.id,
-    status: i.status,
-    openedOn: storedDay(i.openedAt),
-    createdAt: i.createdAt,
-    steps: i.steps.map((s) => ({ sequence: s.sequence, roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, act: s.act, committeeCode: s.committeeCode, decision: s.decision, decidedByName: s.decidedByName, decidedOn: s.decidedOn ? storedDay(s.decidedOn) : null, receivedOn: s.receivedOn ? storedDay(s.receivedOn) : null })),
-  }));
-
-export const checksOf = (rows: readonly { iteration: number; defOrder: number; personName: string; on: Date; note: string }[]): RecordedCheck[] => rows.map((c) => ({ iteration: c.iteration, defOrder: c.defOrder, personName: c.personName, on: storedDay(c.on), note: c.note }));
+/// The routes and checks as the sheet reads them: pure, in sheet-rows.ts.
+export { checksOf, routesOf } from "./sheet-rows";
 
 /**
  * Who holds an office on a day, for the contract's requisition unit (the nearest unit with a holder, else

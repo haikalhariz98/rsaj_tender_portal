@@ -67,9 +67,13 @@ describe("M-2: every caller judges the pin by pinRefusals, never the form's own 
   it("the signature act, the page's blocker and the demo", async () => {
     const { readFileSync } = await import("node:fs");
     const read = (p: string) => readFileSync(`${process.cwd()}/${p}`, "utf8");
+    // 6.14 inc 2 residual M-1 (stricter): all three call the one function, pinCheck, which is pinRefusals on the
+    // certificate's own context; none judges the pin a second way.
     for (const p of ["src/lib/certificate/write.ts", "src/app/projects/[id]/certificates/[certId]/page.tsx", "prisma/demo-certificates.ts"]) {
-      expect(read(p), p).toMatch(/pinRefusals\(/);
+      expect(read(p), p).toMatch(/\bpinCheck\(/);
+      expect(read(p), p).not.toMatch(/\bpinRefusals\(/);
       expect(read(p), p).not.toMatch(/\bpinFaults\(/);
     }
+    expect(read("src/lib/certificate/pin-context.ts")).toMatch(/return pinRefusals\(t, mergeFields\(cert\.kind as CertificateKind\), fieldsNamed, pinContextOf\(cert, today\)\);/);
   });
 });
