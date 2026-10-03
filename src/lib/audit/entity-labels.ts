@@ -43,10 +43,29 @@ export const RECORD_TYPE_WORDS: Readonly<Record<string, Words>> = {
   EarlyActionDecision: w("Early action", "Tindakan awal"),
   ContractParty: w("Nominated party or assignee", "Pihak dinamakan atau pemegang serah hak"),
   SiteRecordsHandover: w("Site records handed over", "Rekod tapak diserahkan"),
+  // 6.13 Part A step 3: interim payment and the damages chain.
+  CertificateKindSetting: w("Certificate form and routing sheet", "Borang dan helaian laluan perakuan"),
+  ContractClockRule: w("Contract clock", "Jam kontrak"),
+  PaymentCalendar: w("Valuation calendar", "Kalendar penilaian"),
+  InterimValuation: w("Interim valuation", "Penilaian interim"),
+  MaterialLine: w("Materials on site", "Bahan di tapak"),
+  PartyLine: w("Nominated party or assignee on a valuation", "Pihak dinamakan atau pemegang serah hak pada penilaian"),
+  ValuationDeduction: w("Deduction on a valuation", "Potongan pada penilaian"),
+  RetentionRelease: w("Retention released", "Wang tahanan dilepaskan"),
+  AdvancePayment: w("Advance payment", "Bayaran pendahuluan"),
+  FinancePayment: w("Paid by Finance", "Dibayar oleh Kewangan"),
+  LadWarning: w("Warning of liquidated damages", "Amaran ganti rugi tertentu"),
+  NonCompletion: w("Non-completion decision", "Keputusan kerja tidak siap"),
+  ApprovalInstance: w("Approval route", "Laluan kelulusan"),
+  ApprovalStep: w("Approval step", "Langkah kelulusan"),
 };
 
 /// The record types 6.13's supervision writes to the contract's trail (each registered above).
 export const SUPERVISION_ENTITIES = ["ContractSoAssignment", "SoDelegation", "Possession", "WorkProgramme", "ProgressRecord", "SiteDiaryEntry", "DiaryEndorsement", "SiteMeeting", "ComplianceObservation", "ProgrammeDirection", "PendingDeduction", "EarlyActionDecision", "ContractParty", "SiteRecordsHandover"] as const;
+
+/// The record types 6.13's interim payment and damages chain write to the contract's trail (each registered above),
+/// with a certificate's approval route and its steps (614-C4), written under the certificate's label.
+export const PAYMENT_ENTITIES = ["PaymentCalendar", "InterimValuation", "MaterialLine", "PartyLine", "ValuationDeduction", "RetentionRelease", "AdvancePayment", "FinancePayment", "LadWarning", "NonCompletion", "ApprovalInstance", "ApprovalStep"] as const;
 
 /// A company-estimate event as the trail names it ("Company estimate · copy retained"): the words the
 /// product's writers use (6.2), by kind.

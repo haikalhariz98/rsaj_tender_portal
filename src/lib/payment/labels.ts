@@ -298,6 +298,10 @@ export function paymentFaultWords(f: Finding): Words {
       const k = KIND_FORM[String(d.kind ?? d.form)] ?? KIND_FORM.INTERIM_PAYMENT;
       return w(`No form is set for ${k.en} under Configuration › Post-award: it is not raised without the form it prints on.`, `Tiada borang ditetapkan bagi ${k.ms} di Konfigurasi › Selepas setuju terima.`);
     }
+    case "ROUTING_SHEET_NOT_SET": {
+      const k = KIND_FORM[String(d.kind)] ?? KIND_FORM.NON_COMPLETION;
+      return w(`No routing sheet is set for ${k.en} under Configuration › Post-award: its review chain (endorsed, checked, verified, recommended) is enforced on the sheet, so it is not raised without one.`, `Tiada helaian laluan ditetapkan bagi ${k.ms} di Konfigurasi › Selepas setuju terima.`);
+    }
     case "NOT_BELOW_MINIMUM":
       return w("Only a valuation below its minimum is held to the next cycle.", "Hanya penilaian di bawah minimum ditangguhkan.");
     case "CLOSE_REASON_REQUIRED":

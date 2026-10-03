@@ -17,7 +17,9 @@ const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8");
 const ACTIONS = "src/app/projects/[id]/actions.ts";
 /// 6.13 Part A: supervising the contract, its own module of acts under the same lock order.
 const SUPERVISION = "src/app/projects/[id]/supervision-actions.ts";
-const CONTRACT_ACT_FILES = [ACTIONS, SUPERVISION];
+/// 6.13 Part A step 3 (stricter: the scans extended to every new act): interim payment and the damages chain.
+const PAYMENT = "src/app/projects/[id]/payment-actions.ts";
+const CONTRACT_ACT_FILES = [ACTIONS, SUPERVISION, PAYMENT];
 
 /// Each exported action's body, by name.
 function actions(src: string): Map<string, string> {
@@ -73,6 +75,7 @@ describe("one lock order (withLockedContract)", () => {
     const DOMAIN: Record<string, readonly string[]> = {
       [ACTIONS]: ["InsurancePolicy", "IssuedCopy", "CustodyItem"],
       [SUPERVISION]: ["SoDelegation", "WorkProgramme", "SiteDiaryEntry", "ContractParty"],
+      [PAYMENT]: ["InterimValuation", "LadWarning", "NonCompletion"],
     };
     for (const file of CONTRACT_ACT_FILES) {
       const src = read(file);

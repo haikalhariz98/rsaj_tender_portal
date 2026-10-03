@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { draftSigningFaults } from "@/lib/certificate/kinds";
-import { historyEntityLabel } from "@/lib/audit/entity-labels";
+import { historyEntityLabel, RECORD_TYPE_WORDS } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
 
 import { CheckIcon, ClockIcon, FileIcon, InboxIcon, PrinterIcon, RouteIcon, ToolsIcon } from "@/components/icons";
@@ -512,7 +512,7 @@ function PrintPanel({ l, figures, revision, formBody }: { l: LoadedCertificate; 
 // ------------------------------------------------------------------ history
 
 const ACTION_LABEL = { CREATE: "Created", UPDATE: "Changed", DELETE: "Removed" } as const;
-const ENTITY_LABEL: Record<string, string> = { Certificate: "Certificate", CertificateSignature: "Signature", CertificateOverride: "Override", RoutingCheck: "Routing check", IssuedCopy: "Copy" };
+const ENTITY_LABEL: Record<string, string> = { Certificate: "Certificate", CertificateSignature: "Signature", CertificateOverride: "Override", RoutingCheck: "Routing check", IssuedCopy: "Copy", ApprovalInstance: RECORD_TYPE_WORDS.ApprovalInstance.en, ApprovalStep: RECORD_TYPE_WORDS.ApprovalStep.en, FinancePayment: RECORD_TYPE_WORDS.FinancePayment.en };
 
 /// A SULIT field's value (an override's figures, a supported-up-to amount) shown with the chip (R-7).
 const chipped = (field: string, value: string | null, entity: string) => (isSulitField(field) && value ? <SulitValue>{historyValue(field, value, formatDate, entity)}</SulitValue> : historyValue(field, value, formatDate, entity));
