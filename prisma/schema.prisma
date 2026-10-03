@@ -9161,12 +9161,11 @@ model ContractClockRule {
   @@unique([organisationId, clock])
 }
 
-/// FR-PAY-003: the day of the month agreed with the contractor as the site valuation day.
 /// BD-613-41 as amended: a contract's position before the first interim valuation the system raises, entered once:
 /// the last interim certificate it covers, the gross certified and previously certified to date, retention held and
 /// released per tier, advance recouped by schedule number, and damages charged until. Each figure is STATED (its
 /// note names the source certificate's reference) or ASSUMED (its note the reason; ASSUMED warns on every later
-/// certificate). Corrected only with a reason and only while no valuation has been raised after it. The payment
+/// certificate). Corrected only with a reason and only until a certificate not void has been raised after it (BD-613-50). The payment
 /// module reads it as the latest issued interim certificate.
 model OpeningPosition {
   id                    String       @id @default(cuid())
@@ -9207,6 +9206,7 @@ model OpeningPosition {
   recordedOn            DateTime
 }
 
+/// FR-PAY-003: the day of the month agreed with the contractor as the site valuation day.
 model PaymentCalendar {
   id             String       @id @default(cuid())
   organisationId String
