@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { snapshotFaults, totalsFrom } from "@/lib/certificate/snapshot";
 import { parseSen } from "@/lib/money";
 
-import { AdjustmentNetMissing, adjustmentFaults, adjustmentFigures, adjustmentSnapshot, issuedAdjustmentsFrom, issuedNet, type AdjustmentLineIn } from "./ppjhk";
+import { AdjustmentNetMissing, adjustmentFaults, adjustmentFigures, adjustmentSnapshot, issuedAdjustmentsFrom, issuedNet, readIssuedAdjustments, type AdjustmentLineIn } from "./ppjhk";
 
 /**
  * The Certificate of Adjustment of Contract Sum (§8.8, FR-PAD-001–003, 005). The spec's worked example: section 1.1
@@ -73,5 +73,22 @@ describe("run 3 review: the one reading of the issued adjustments refuses a net 
   it("an issued one with no net frozen is refused by name, never read as nothing", () => {
     expect(() => issuedAdjustmentsFrom([row("x", "ISSUED", null, "2026-09-01")])).toThrow(AdjustmentNetMissing);
     expect(() => issuedAdjustmentsFrom([row("x", "ISSUED", null, "2026-09-01")])).toThrow(/N-x/);
+  });
+});
+
+describe("run 3 residual M1: a screen's reading refuses by name, without throwing", () => {
+  const row = (id: string, net: string | null) => ({ id, certificate: { id: `c-${id}`, number: `N-${id}`, status: "ISSUED", issuedAt: new Date("2026-09-01"), issueSnapshot: { figures: { totals: net == null ? [] : [{ key: "net13", value: net }] } } } });
+  it("readable: the same list as the acts read", () => {
+    const r = readIssuedAdjustments([row("a", "100.00")]);
+    expect(r.ok && r.issued.map((x) => x.net)).toEqual([10_000n]);
+  });
+  it("unreadable: refused, naming the certificate and its id", () => {
+    const r = readIssuedAdjustments([row("a", "100.00"), row("x", null)]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.refused.number).toBe("N-x");
+      expect(r.refused.certificateId).toBe("c-x");
+      expect(r.refused.message).toMatch(/N-x has no net frozen with its issue/);
+    }
   });
 });

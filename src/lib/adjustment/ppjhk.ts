@@ -188,7 +188,7 @@ export function issuedNet(snapshot: unknown): Sen | null {
 /// An issued adjustment whose net cannot be read back from its issue: refused by name, never read as nothing.
 export class AdjustmentNetMissing extends Error {
   readonly code = "ADJUSTMENT_NET_MISSING";
-  constructor(readonly number: string | null) {
+  constructor(readonly number: string | null, readonly certificateId: string | null = null) {
     super(`The issued adjustment of the contract sum${number ? ` ${number}` : ""} has no net frozen with its issue, so the revised sum cannot be read: nothing was saved. Report it: its issue record is incomplete.`);
     this.name = "AdjustmentNetMissing";
   }
@@ -209,8 +209,37 @@ export function issuedAdjustmentsFrom(rows: readonly IssuedAdjustmentRow[]): { i
     .filter((a) => a.certificate.status === "ISSUED")
     .map((a) => {
       const net = issuedNet(a.certificate.issueSnapshot);
-      if (net == null) throw new AdjustmentNetMissing(a.certificate.number ?? null);
+      if (net == null) throw new AdjustmentNetMissing(a.certificate.number ?? null, a.certificate.id ?? null);
       return { id: a.id, certificateId: a.certificate.id ?? null, number: a.certificate.number ?? null, net, issuedAt: a.certificate.issuedAt };
     })
     .sort((a, b) => (a.issuedAt?.getTime() ?? 0) - (b.issuedAt?.getTime() ?? 0) || a.id.localeCompare(b.id));
+}
+
+export type IssuedAdjustment = ReturnType<typeof issuedAdjustmentsFrom>[number];
+
+/// What a screen reads: the issued adjustments, or why they cannot be read, naming the certificate (run 3 residual M1).
+export type IssuedAdjustmentsRead =
+  | { ok: true; issued: IssuedAdjustment[] }
+  | { ok: false; refused: { number: string | null; certificateId: string | null; message: string } };
+
+/**
+ * The same reading as `issuedAdjustmentsFrom`, for a screen: a net that cannot be read is returned as a refusal naming
+ * its certificate (the screen says so in place of the figures read over it), never thrown into a page and never read
+ * as nothing. Pure.
+ */
+export function readIssuedAdjustments(rows: readonly IssuedAdjustmentRow[]): IssuedAdjustmentsRead {
+  try {
+    return { ok: true, issued: issuedAdjustmentsFrom(rows) };
+  } catch (e) {
+    if (!(e instanceof AdjustmentNetMissing)) throw e;
+    const named = e.number ? ` ${e.number}` : "";
+    return {
+      ok: false,
+      refused: {
+        number: e.number,
+        certificateId: e.certificateId,
+        message: `The issued adjustment of the contract sum${named} has no net frozen with its issue, so the revised contract sum and every figure read over it are not shown. Report it: its issue record is incomplete.`,
+      },
+    };
+  }
 }

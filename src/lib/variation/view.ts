@@ -13,8 +13,9 @@ import { baselineOn } from "@/lib/payment/load";
 import { loadPostAwardPolicy } from "@/lib/supervision/load";
 
 import { cumulativeApproved } from "./application";
-import { factsOf, issuedAdjustments, loadAdjustments, loadVariations } from "./load";
+import { factsOf, loadAdjustments, loadVariations } from "./load";
 import { ratioOf, type Reading } from "./percent";
+import { positionOf } from "./position";
 import { edgesOf, routePercentLabel } from "./route";
 
 export async function variationView(l: LoadedContract, today: string | null) {
@@ -27,19 +28,18 @@ export async function variationView(l: LoadedContract, today: string | null) {
   ]);
   const facts = all.map(factsOf);
   const baseline = today ? baselineOn(l, today) : null;
-  const issued = issuedAdjustments(adjustments);
   const original = baseline?.values.contractSum ?? null;
-  const revised = original == null ? null : issued.reduce((a, x) => a + x.net, original);
+  // The issued adjustments, the revised sum and the sum the percentage is taken over (null: not set, no baseline in
+  // force, or refused); an issued adjustment whose net cannot be read is `refused`, naming it, never a thrown page.
+  const { issued, revised, base, refused } = positionOf({ original, adjustments, variationBase: policy?.variationBase ?? null });
   const cumulative = cumulativeApproved(facts, null);
-  // The sum the percentage is taken over, as set (null: not set, or no baseline in force).
-  const base = policy?.variationBase === "REVISED" ? revised : policy?.variationBase === "ORIGINAL" ? original : null;
   // The prior approval's bands (`vo`), for a reading made now; a sent route reads its own frozen label, or its own
   // domain's edges (`labelOf`), never vo's for an increase, agreed rates or a re-measurement.
   const edges = issue ? edgesOf(issue.matrix.rules, "vo") : [];
   const rules = issue?.matrix.rules ?? [];
   const labelOf = (r: Reading, domain: string) => r.label ?? routePercentLabel(rules, r.domain ?? domain, ratioOf(r));
   const formSet = (k: string) => !!kinds.find((x) => x.kind === k)?.templateId;
-  return { all, facts, adjustments, issued, policy, baseline, original, revised, cumulative, base, edges, labelOf, formSet, matrixLabel: issue?.label ?? null };
+  return { all, facts, adjustments, issued, refused, policy, baseline, original, revised, cumulative, base, edges, labelOf, formSet, matrixLabel: issue?.label ?? null };
 }
 
 export type VariationView = Awaited<ReturnType<typeof variationView>>;

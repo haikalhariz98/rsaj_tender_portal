@@ -4,6 +4,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
+import { readIssuedAdjustments } from "@/lib/adjustment/ppjhk";
 import { KeyValues } from "@/components/ui/stat";
 import { applyOverrides } from "@/lib/certificate/override";
 import { KIND_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
@@ -26,6 +27,7 @@ import { pendingAdvanceFaults } from "@/lib/payment/advance";
 import { OPENING_GROUPS, openingClosed, openingReconciles } from "@/lib/payment/opening";
 import { PARTY_KIND_WORDS } from "@/lib/supervision/labels";
 
+import { AdjustmentRefusedCallout } from "./adjustment-refused";
 import {
   AdvanceDrawer,
   OpeningDrawer,
@@ -79,10 +81,14 @@ export type PaymentSection = (typeof PAYMENT_SECTIONS)[number]["id"];
 export async function paymentView(l: LoadedContract, today: string | null) {
   const [p, cfg] = await Promise.all([loadPayment(l.contract.id), loadPaymentConfig(l.org.id)]);
   const current = inProgress(p);
-  const facts = current?.status === "OPEN" && today ? await preExecutionFacts(l) : null;
+  // Run 3 residual M1: an issued adjustment whose net cannot be read is said by name in place of the valuation's
+  // figures (they are read over the revised sum), never thrown into the page.
+  const adjustments = readIssuedAdjustments(p.sumAdjustments);
+  const refused = adjustments.ok ? null : adjustments.refused;
+  const facts = current?.status === "OPEN" && today && !refused ? await preExecutionFacts(l) : null;
   const input = current?.status === "OPEN" && today && facts ? assembleInputOf(l, p, cfg, current, today, facts) : null;
   const assembled = input ? assembleInterim(input) : null;
-  return { p, cfg, current, assembled, issued: issuedInterims(p), baseline: today ? baselineOn(l, today) : null };
+  return { p, cfg, current, assembled, refused, issued: issuedInterims(p), baseline: today ? baselineOn(l, today) : null };
 }
 export type PaymentView = Awaited<ReturnType<typeof paymentView>>;
 
@@ -295,7 +301,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
   const x = v.current!;
   const a = v.assembled;
   const label = `Valuation of ${formatDate(day(x.valuationDate))}`;
-  const blocker = zone(today) ?? (!formSet ? paymentFaultText({ code: "FORM_NOT_SET", level: "block", data: { kind: "INTERIM_PAYMENT" } }) : a ? say(a.faults) : "The figures cannot be worked out today: no baseline version is in force.");
+  const blocker = zone(today) ?? (!formSet ? paymentFaultText({ code: "FORM_NOT_SET", level: "block", data: { kind: "INTERIM_PAYMENT" } }) : v.refused ? v.refused.message : a ? say(a.faults) : "The figures cannot be worked out today: no baseline version is in force.");
   const parties = v.p.contractParties.filter((pt) => !pt.retiredOn);
   const fig = a?.result.figures ?? null;
   // The issue clock (Configuration › Post-award), from the valuation day, or from the claim where one started it.
@@ -317,6 +323,11 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
         }
         divided
       />
+      {v.refused && (
+        <CardBody className="border-b border-line/70">
+          <AdjustmentRefusedCallout l={l} refused={v.refused} />
+        </CardBody>
+      )}
       {a && a.warnings.length > 0 && (
         <CardBody className="border-b border-line/70">
           <Callout tone="warn" title="Said, not refused">{say(a.warnings)}</Callout>

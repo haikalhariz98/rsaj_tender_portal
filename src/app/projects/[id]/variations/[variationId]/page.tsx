@@ -45,6 +45,7 @@ import { percentLabel, percentLabelText, variationReading, type Reading } from "
 import { ADJUSTMENT_DIRECTIONS, RATE_SOURCES, SO_DECISIONS, VARIATION_EVENTS, VARIATION_EXEMPTIONS, VARIATION_ORIGINS, type VariationEvent, type VariationExemption } from "@/lib/variation/types";
 import { variationView, type VariationView } from "@/lib/variation/view";
 
+import { AdjustmentRefusedCallout } from "../../adjustment-refused";
 import {
   ChooseVariationRefusalDrawer,
   CiteCommitteeDrawer,
@@ -108,9 +109,10 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
     fields: { description: v.description, reason: v.reason, estimate: senFromDecimal(v.estimate), exemption: v.exemption as VariationExemption | null, periodImplication: v.periodImplication, agreedRateExists: v.agreedRateExists, funderConsentRequired: v.funderConsentRequired },
     origin: { origin: v.origin as "DEPARTMENT", originatorCapacity: v.origin === "SO_REPRESENTATIVE" ? rep(cap(v.originatorPersonId, today)) : null, reviewerCapacity: rep(cap(v.reviewedByPersonId, day(v.reviewedOn))), reviewRecorded: !!v.reviewedByPersonId && !!v.reviewedOn, allocationConfirmed: v.allocationConfirmed, principalRecorded: !!principal },
   });
-  const readingNow = (event: VariationEvent, value: bigint) => (vv.original == null ? null : variationReading({ basis: vv.policy?.variationPctBasis ?? null, base: vv.policy?.variationBase ?? null, original: vv.original, adjustments: vv.issued.map((a) => a.net), cumulativeApproved: cumulativeApproved(vv.facts, v.id), event, value, approvedSoFar: approvedValue(f) }));
+  // Run 3 residual M1: with an issued adjustment unreadable, nothing is read over the issued adjustments (said above).
+  const readingNow = (event: VariationEvent, value: bigint) => (vv.original == null || vv.refused ? null : variationReading({ basis: vv.policy?.variationPctBasis ?? null, base: vv.policy?.variationBase ?? null, original: vv.original, adjustments: vv.issued.map((a) => a.net), cumulativeApproved: cumulativeApproved(vv.facts, v.id), event, value, approvedSoFar: approvedValue(f) }));
   const priorReading = v.exemption == null ? readingNow("PRIOR", priorValueOf(f)) : null;
-  const submitBlocker = blockedBy ?? say([...submitFs, ...(priorReading && !priorReading.ok ? priorReading.faults : [])]);
+  const submitBlocker = blockedBy ?? vv.refused?.message ?? say([...submitFs, ...(priorReading && !priorReading.ok ? priorReading.faults : [])]);
   const destinationSet = !!(await db.rejectionDestination.findFirst({ where: { organisationId: l.org.id, domain: "vo", kind: { in: ["RETURN_TO_ORIGINATOR", "TERMINATE"] } }, select: { id: true } }));
 
   let action: React.ReactNode = null;
@@ -170,6 +172,7 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
       />
       <div className="mb-6 flex flex-col gap-3">
         {!today && <Callout tone="warn" title="The organisation's time zone is not set">Every act on a variation records the organisation&apos;s day: none is assumed to be UTC.</Callout>}
+        {vv.refused && <AdjustmentRefusedCallout l={l} refused={vv.refused} />}
         {cancelled && <Callout tone="warn" title="The contract is cancelled">Its variations are kept as they were; nothing more is recorded on them.</Callout>}
         {stage === "CLOSED" && <Callout tone="warn" title="Closed">{`${v.closedReason} (${formatDate(day(v.closedOn))}).`}</Callout>}
         {commencedPending(f) && <Callout tone="warn" title="Commenced pending approval">{`Work commenced on ${formatDate(day(v.commencedOn))} on the support of ${v.commencedSupport?.name ?? "the S.O."}. Its estimate (${formatMoney(f.estimate)}) is in the contract's exposure until it is approved, and its work is not valued until then.`}</Callout>}
@@ -293,7 +296,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
     return { e, fs };
   });
   const open = judged.filter((x) => x.fs.length === 0);
-  const sendBlocker = blockedBy ?? (open.length ? null : say(judged.find((x) => x.e === (v.exemption === "REMEASUREMENT" ? "REMEASUREMENT" : "PRIOR"))!.fs));
+  const sendBlocker = blockedBy ?? vv.refused?.message ?? (open.length ? null : say(judged.find((x) => x.e === (v.exemption === "REMEASUREMENT" ? "REMEASUREMENT" : "PRIOR"))!.fs));
   const pend = pendingRoute(f);
   const choice = awaitingChoice(f);
   const consent = consentOf(v);
