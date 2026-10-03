@@ -30,6 +30,11 @@ export const HISTORY_CODE_WORDS: Readonly<Record<string, string>> = Object.fromE
     INDENT_NUMBER: "The indent's own number",
     AMOUNT_PER_DAY: "An amount a day",
     PERCENT_OF_SUM_PER_DAY: "A percentage of the contract sum a day",
+    // 6.13 Part A step 3 (614-C4): a certificate's approval route and its steps, written under the contract's label.
+    PENDING: "Waiting for a decision",
+    APPROVED: "Approved",
+    REJECTED: "Refused",
+    DONE: "Done",
   }),
 ]);
 
