@@ -23,7 +23,7 @@ import { issueReference, NumberingError } from "@/lib/numbering/issue";
 import { ORGANISATION_NAME } from "@/lib/org";
 import { fieldsNamed } from "@/lib/templates/merge";
 
-import { certificateDateOf, dateCorrectionFaults, earliestCorrectionDay } from "./date";
+import { certificateDateOf, dateAtIssue, dateCorrectionFaults, earliestCorrectionDay } from "./date";
 import { acknowledgeFaults, copiesFor, despatchFaults } from "./distribution";
 import { refusalText } from "./fault-text";
 import { certificateFieldValues, figureField, mergeFields, type Lang } from "./fields";
@@ -256,7 +256,9 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
   const holders = block?.officeRule === "NAMED_OFFICE" && block.officeCode ? await officeHolders(c.l, block.officeCode, c.today, c.tx) : null;
   const signed = signedOf(cert);
   const snap = readComputedSnapshot(cert.computedSnapshot);
-  const r = signFaults(rev.blocks, signed, input, { status: "SIGNING", today: c.today, person, holders, valueBearing: certifiesMoney(snap) });
+  // R-10: no block is signed before the certificate was opened, or before its route was approved where it has one.
+  const approvedOn = sheetOf(cert, c.today)?.date2 ?? null;
+  const r = signFaults(rev.blocks, signed, input, { status: "SIGNING", today: c.today, person, holders, valueBearing: certifiesMoney(snap), openedOn: storedDay(cert.openedOn), approvedOn });
   if (r.faults.length) refuse("Not recorded:", r.faults);
   const office = block!.officeRule === "NAMED_OFFICE" ? await officeName(c.l.org.id, block!.officeCode, c.tx) : null;
   const personBlock = isPersonRule(block!.officeRule);
@@ -304,7 +306,9 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
     recordedOnBehalf: ON_BEHALF,
   }));
   const after = [...signed, { blockOrder: block!.blockOrder, personId: sig.personId, name: sig.name, signedOn: r.signedOn!, refused: sig.refused, decision: sig.decision }];
-  if (allSigned(rev.blocks, after)) await issue(c, rev, after.find((s) => s.blockOrder === rev!.blocks.find((b) => b.datesCertificate)?.blockOrder)?.signedOn ?? day(cert.certificateDate));
+  // M-1: issued with the certificate's date as read under the lock (carrying any correction made while it was
+  // being signed), or this act's day where this act is the dating block's.
+  if (allSigned(rev.blocks, after)) await issue(c, rev, dateAtIssue(dates ? r.signedOn! : null, day(cert.certificateDate)));
 }
 
 /// The last signature: number, sequence, frozen text, copies and the issue snapshot, under the contract's lock.
@@ -360,13 +364,17 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   await audit(c, "Certificate", cert.id, `${labelOf(c)} ${number}`, "UPDATE", diffFields({ stage: STATUS_WORDS.SIGNING.en, number: null }, { stage: STATUS_WORDS.ISSUED.en, number, ordinal: `${KIND_WORDS[cert.kind].en} ${sequence} on this contract`, certificateDate, copies: plan.copies.length, notSent: plan.skipped.map((s) => s.recipientName).join(", ") || null }));
 }
 
-/// Correct the certificate's date to an earlier day, with a reason (as 6.12 OD-1 A). The issued text keeps the day it was issued with.
+/**
+ * Correct the certificate's date to an earlier day, with a reason (as 6.12 OD-1 A), only while it is being
+ * signed (R-9): the last signature then issues it with the corrected day (M-1). Issued, it is final (ADR 0022
+ * §3); void, it stays as it was. Never before the certificate was opened or its route approved.
+ */
 export async function correctCertificateDate(c: CertCtx, proposed: string, reason: string) {
   const cert = c.l.cert;
   const rev = readRevision(cert.templateRevision);
-  const fs = dateCorrectionFaults({ current: day(cert.certificateDate), proposed, reason, today: c.today, earliestAllowed: rev ? earliestCorrectionDay(rev.blocks, signedOf(cert)) : null });
+  const fs = dateCorrectionFaults({ status: statusOf(c), current: day(cert.certificateDate), proposed, reason, today: c.today, earliestAllowed: rev ? earliestCorrectionDay(rev.blocks, signedOf(cert)) : null, openedOn: storedDay(cert.openedOn), approvedOn: sheetOf(cert, c.today)?.date2 ?? null });
   if (fs.length) refuse("Not corrected:", fs);
-  const moved = await c.tx.certificate.updateMany({ where: { id: cert.id, status: cert.status }, data: { certificateDate: dayToDate(proposed), certificateDateCorrectedFrom: cert.certificateDateCorrectedFrom ?? cert.certificateDate, certificateDateCorrectionReason: reason } });
+  const moved = await c.tx.certificate.updateMany({ where: { id: cert.id, status: "SIGNING" }, data: { certificateDate: dayToDate(proposed), certificateDateCorrectedFrom: cert.certificateDateCorrectedFrom ?? cert.certificateDate, certificateDateCorrectionReason: reason } });
   if (moved.count !== 1) throw new CertificateRefusal(CHANGED);
   await audit(c, "Certificate", cert.id, labelOf(c), "UPDATE", diffFields({ certificateDate: day(cert.certificateDate) }, { certificateDate: proposed, correctedFrom: day(cert.certificateDateCorrectedFrom ?? cert.certificateDate) }), reason);
 }

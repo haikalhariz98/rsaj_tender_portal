@@ -250,7 +250,7 @@ function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, toda
         icon={<ToolsIcon size={17} />}
         title="Signatures"
         subtitle={`${subtitle} ${CERT_WORDS.onBehalf.en}.`}
-        actions={cert.certificateDate && (status === "SIGNING" || status === "ISSUED") ? <CorrectDateDrawer certId={cert.id} current={formatDate(day(cert.certificateDate))} /> : undefined}
+        actions={cert.certificateDate && status === "SIGNING" ? <CorrectDateDrawer certId={cert.id} current={formatDate(day(cert.certificateDate))} /> : undefined}
         divided={blocks.length > 0}
       />
       {blocks.length === 0 ? (

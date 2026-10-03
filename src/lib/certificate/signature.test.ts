@@ -13,7 +13,7 @@ const TODAY = "2026-09-30";
 const ro = { id: "p-ro", name: "Recommending Officer A", isActive: true };
 const so = { id: "p-so", name: "Superintending Officer B", isActive: true };
 const holders = (ids: string[], delegates: { personId: string; delegationId: string; instructionOnly: boolean }[] = []) => ({ holderIds: ids, delegates });
-const ctx = (over: Partial<SignContext> = {}): SignContext => ({ status: "SIGNING", today: TODAY, person: ro, holders: holders([ro.id]), valueBearing: true, ...over });
+const ctx = (over: Partial<SignContext> = {}): SignContext => ({ status: "SIGNING", today: TODAY, person: ro, holders: holders([ro.id]), valueBearing: true, openedOn: "2026-09-01", approvedOn: null, ...over });
 const input = (blockOrder: number, over: Partial<SignInput> = {}): SignInput => ({ blockOrder, name: "", icNumber: "", signedOn: null, refused: false, refusalNote: "", decision: null, decisionCap: null, ...over });
 const signed = (blockOrder: number, over: Partial<SignedBlock> = {}): SignedBlock => ({ blockOrder, personId: null, name: "x", signedOn: "2026-09-29", refused: false, decision: null, ...over });
 const codes = (r: { faults: { code: string }[] }) => r.faults.map((f) => f.code);

@@ -10,7 +10,10 @@
  * - SO, SO_REP, RECOMMENDING_OFFICER: the person the contract's supervision resolves for that day (6.13,
  *   FR-SUP-001), on the same terms. With no supervision recorded for the contract, nobody signs it.
  * - CONTRACTOR, WITNESS: a named outsider, on the day they signed the paper; a contractor's refusal is
- *   recorded where the block allows it (FR-VAR-022), and it does not hold up the blocks after it.
+ *   recorded where the block allows it (FR-VAR-022), and it does not hold up the blocks after it. That day
+ *   is never in the future, never before a block already recorded, never before the certificate was opened,
+ *   and never before its route was approved where it has one (6.14 inc 1 fix R-10): nobody signs a
+ *   certificate before it exists or before it may be signed.
  * A block whose `delegable` is not decided refuses everyone: whether a delegate may sign it is the
  * customer's to say, and holding the office is not assumed to answer it.
  */
@@ -38,6 +41,10 @@ export interface SignContext {
   holders: OfficeHolders | null;
   /// The certificate certifies money (an instruction-only delegate may not sign it).
   valueBearing: boolean;
+  /// The organisation's day the certificate was opened: no block is signed before it.
+  openedOn: string;
+  /// The day its approval route was approved, where it has a routing sheet: no block is signed before it.
+  approvedOn: string | null;
 }
 
 export interface SignInput {
@@ -148,6 +155,8 @@ export function signFaults(blocks: readonly Block[], signed: readonly SignedBloc
   else {
     if (input.signedOn > ctx.today) f("FUTURE_DATE", { day: input.signedOn });
     if (latestEarlier && input.signedOn < latestEarlier) f("BEFORE_EARLIER", { day: latestEarlier });
+    if (input.signedOn < ctx.openedOn) f("BEFORE_OPENED", { day: ctx.openedOn });
+    if (ctx.approvedOn && input.signedOn < ctx.approvedOn) f("BEFORE_APPROVED", { day: ctx.approvedOn });
   }
   return out(null, input.signedOn);
 }

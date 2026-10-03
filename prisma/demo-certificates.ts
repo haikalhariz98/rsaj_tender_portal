@@ -279,7 +279,7 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
     for (const [i, s] of plan.entries()) {
       const b = rev.blocks.find((x) => x.blockOrder === s.order)!;
       const holders = b.officeRule === "NAMED_OFFICE" ? await officeHolders(l, b.officeCode!, s.on) : null;
-      const r = signFaults(rev.blocks, signed, { blockOrder: s.order, name: s.name ?? "", icNumber: s.ic ?? "", signedOn: s.person ? null : s.on, refused: !!s.refused, refusalNote: s.refused ?? "", decision: s.decision ?? null, decisionCap: null }, { status: "SIGNING", today: s.on, person: s.person ?? null, holders, valueBearing: !!computed });
+      const r = signFaults(rev.blocks, signed, { blockOrder: s.order, name: s.name ?? "", icNumber: s.ic ?? "", signedOn: s.person ? null : s.on, refused: !!s.refused, refusalNote: s.refused ?? "", decision: s.decision ?? null, decisionCap: null }, { status: "SIGNING", today: s.on, person: s.person ?? null, holders, valueBearing: !!computed, openedOn: storedDay((await db.certificate.findUniqueOrThrow({ where: { id: certId }, select: { openedOn: true } })).openedOn), approvedOn: certId === c1 ? (await sheetOf1()).date2 : null });
       fail(`${certId} block ${s.order}`, r.faults);
       const id = `${certId.replace("hct", "hsg")}_${s.order}`;
       const { maskIc } = await import("../src/lib/award/mask");

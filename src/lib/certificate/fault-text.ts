@@ -60,6 +60,10 @@ export function certificateFaultWords(f: Finding): Words {
       return w(`The form ${s(d.form, "")} names ${s(d.fields, "a field")}, which a certificate does not fill. Use the certificate's merge fields under Configuration › Templates.`, `Borang ${s(d.form, "")} menamakan ${s(d.fields, "medan")} yang tidak diisi oleh perakuan.`);
     case "MISSING_FIELDS":
       return w(`Not issued: the text needs ${s(d.fields, "a value")}, and this certificate has none for it. A certificate never goes out with a blank where a figure belongs: void it and raise it again with the figure.`, `Tidak dikeluarkan: teks memerlukan ${s(d.fields, "nilai")} yang tiada pada perakuan ini.`);
+    case "DATE_FIELD_NO_DATING_BLOCK":
+      return w(`The form ${s(d.form, "")} prints the certificate's date, but none of its signature blocks dates the certificate, so its text could never be issued. Mark the block whose signature dates it under Configuration › Templates.`, `Borang ${s(d.form, "")} mencetak tarikh perakuan, tetapi tiada blok tandatangannya yang menentukan tarikh itu, jadi teksnya tidak boleh dikeluarkan. Tandakan blok itu di Konfigurasi › Templat.`);
+    case "FIELD_NO_VALUE":
+      return w(`The form ${s(d.form, "")} prints ${s(d.fields, "a field")}, which this certificate has no value for (its baseline version or its figures do not hold it), so its text could never be issued. Nothing is pinned: put the form's text right under Configuration › Templates, or void the certificate and raise it again once the value exists.`, `Borang ${s(d.form, "")} mencetak ${s(d.fields, "medan")} yang tiada nilai pada perakuan ini, jadi teksnya tidak boleh dikeluarkan. Tiada yang disematkan: betulkan teks borang di Konfigurasi › Templat, atau batalkan perakuan dan bangkitkan semula apabila nilai itu wujud.`);
     case "SERIES_MISSING":
       return w("No numbering series for certificates is configured, so no number can be given. Add the Certificates series under Configuration › Numbering.", "Tiada siri penomboran bagi perakuan dikonfigurasikan. Tambah siri Perakuan di Konfigurasi › Penomboran.");
     case "SERIES_INVALID":
@@ -103,6 +107,10 @@ export function certificateFaultWords(f: Finding): Words {
       return w(`${s(d.name, "That person")}'s delegation gives instruction authority only, and this certificate certifies money, so they do not sign "${s(d.block, "this block")}".`, `Perwakilan ${s(d.name, "orang itu")} hanya bagi arahan, dan perakuan ini memperakui wang.`);
     case "BEFORE_EARLIER":
       return w(`Not before ${day(d.day)}, the day an earlier block was recorded.`, `Tidak sebelum ${day(d.day)}, hari blok terdahulu direkodkan.`);
+    case "BEFORE_OPENED":
+      return w(`Not before ${day(d.day)}, the day the certificate was opened.`, `Tidak sebelum ${day(d.day)}, hari perakuan dibuka.`);
+    case "BEFORE_APPROVED":
+      return w(`Not before ${day(d.day)}, the day its approval route was approved: nobody signs it before it may be signed.`, `Tidak sebelum ${day(d.day)}, hari laluan kelulusannya diluluskan.`);
     case "NAME_REQUIRED":
       return w(`"${s(d.block, "This block")}" needs the full name of who signed it.`, `"${s(d.block, "Blok ini")}" memerlukan nama penuh penandatangan.`);
     case "IC_FORMAT":
@@ -116,6 +124,8 @@ export function certificateFaultWords(f: Finding): Words {
       return w("The certificate is not dated yet: its date is the day of the authorising signature.", "Perakuan belum bertarikh.");
     case "NOT_EARLIER":
       return w(`A correction moves the date to an earlier day than ${day(d.day)}, never later.`, `Pembetulan memindahkan tarikh ke hari lebih awal daripada ${day(d.day)}.`);
+    case "ISSUED_DATE_FINAL":
+      return w("The certificate is issued: its date went out in its text and is final. A wrong date is put right by a later certificate.", "Perakuan telah dikeluarkan: tarikhnya keluar bersama teksnya dan muktamad. Tarikh yang salah dibetulkan oleh perakuan kemudian.");
     case "REASON_REQUIRED":
       return w("Give the reason.", "Berikan sebab.");
     // ------------------------------------------------ distribution
@@ -158,6 +168,12 @@ export function certificateFaultWords(f: Finding): Words {
       return w(`Not before ${day(d.day)}, the day the check before it was recorded.`, `Tidak sebelum ${day(d.day)}.`);
     case "AFTER_CHECKS":
       return w(`The day received is not after ${day(d.day)}, the day the first check was recorded.`, `Hari diterima tidak selepas ${day(d.day)}, hari semakan pertama direkodkan.`);
+    case "AFTER_ROUTE_OPENED":
+      return w(`The day received is not after ${day(d.day)}, the day its approval route opened: the document is received before it is routed.`, `Hari diterima tidak selepas ${day(d.day)}, hari laluan kelulusannya dibuka.`);
+    case "AFTER_DECISION":
+      return w(`The day received is not after ${day(d.day)}, the day a decision was recorded on its route.`, `Hari diterima tidak selepas ${day(d.day)}, hari keputusan direkodkan pada laluannya.`);
+    case "AWARD_ROUTE_DECIDED":
+      return w(`The appointment route is ${d.state === "REJECTED" ? "refused" : "approved"}: the routing sheet records the paper's way to that decision, so nothing more is recorded on it. A resubmitted route opens a new round.`, `Laluan pelantikan telah ${d.state === "REJECTED" ? "ditolak" : "diluluskan"}: helaian penghalaan merekodkan perjalanan kertas hingga keputusan itu, jadi tiada lagi yang direkodkan padanya.`);
     // ------------------------------------------------ opening
     case "NO_BASELINE":
       return w("The contract's baseline has no version in force today, so a certificate has nothing to read. Confirm the baseline on the contract's Baseline tab.", "Garis dasar kontrak tiada versi berkuat kuasa hari ini. Sahkan garis dasar di tab Garis dasar kontrak.");

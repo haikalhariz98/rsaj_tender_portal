@@ -25,7 +25,7 @@ describe("the certificate's date (FR-CRT-005)", () => {
     expect(certificateDateOf(INTERIM_BLOCKS.map((b) => ({ ...b, datesCertificate: false })), [])).toEqual({ state: "NO_DATING_BLOCK" });
   });
   it("a correction (as 6.12 OD-1 A): earlier only, with a reason, never future, never before an earlier block", () => {
-    const base = { current: "2026-09-30", proposed: "2026-09-29", reason: "Signed on paper the day before", today: "2026-10-02", earliestAllowed: "2026-09-28" };
+    const base = { status: "SIGNING" as const, current: "2026-09-30", proposed: "2026-09-29", reason: "Signed on paper the day before", today: "2026-10-02", earliestAllowed: "2026-09-28", openedOn: "2026-09-01", approvedOn: null };
     expect(dateCorrectionFaults(base)).toEqual([]);
     expect(codes(dateCorrectionFaults({ ...base, proposed: "2026-09-30" }))).toEqual(["NOT_EARLIER"]);
     expect(codes(dateCorrectionFaults({ ...base, proposed: "2026-09-27" }))).toEqual(["BEFORE_EARLIER"]);
