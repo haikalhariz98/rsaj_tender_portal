@@ -92,8 +92,9 @@ export interface Baseline {
     insuranceExcess: Sen | null;
     /// What a works policy must cover beyond the awarded sum: the uplift, resolved.
     worksUplift: { kind: "AMOUNT"; sen: Sen } | { kind: "PERCENT"; pct: string; sen: Sen } | null;
-    /// The works figure the Appendix governs: the awarded sum plus the uplift; null without an uplift.
-    worksMinimum?: Sen | null;
+    /// The works figure the Appendix governs: the awarded sum plus the uplift; null without an uplift. Required
+    /// (6.13A residual): the one derivation every reader takes (`appendixInsured`, `appendixMinimum`).
+    worksMinimum: Sen | null;
   };
   /// Sectional completion carries its own damages per section, which the award's single
   /// figure cannot state: they stay the Appendix's.
@@ -139,7 +140,7 @@ export interface AwardTerms {
 
 /// The figure the Appendix governs for an insurance field; null where it states none.
 export function appendixInsured(field: SumField, b: Baseline): Sen | null {
-  return field === "worksInsured" ? (b.insurance.worksMinimum ?? null) : field === "liabilityInsured" ? b.insurance.tplMinimum : b.insurance.wcMinimum;
+  return field === "worksInsured" ? b.insurance.worksMinimum : field === "liabilityInsured" ? b.insurance.tplMinimum : b.insurance.wcMinimum;
 }
 
 /// The months a DLP baseline states: none is 0.

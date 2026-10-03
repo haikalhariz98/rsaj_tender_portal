@@ -5,8 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import { parseSen } from "@/lib/money";
 import type { InsuranceKind } from "@/lib/securities/insurance";
+import { worksInsuredSum } from "@/lib/tender-docs/appendix";
 
-import { baselineOf, type FrozenTender } from "./appendix-baseline";
+import { appendixInsured, baselineOf, type FrozenTender } from "./appendix-baseline";
 import { gateDetailText, GATE_ITEM_NOTE, sumDetailText } from "./gate-words";
 import { appendixMinimum, governingSum, governingSums, INSURED_KINDS, SUM_COLUMN, sumFindings, type AwardSums } from "./insurance-terms";
 import { readinessGate } from "./readiness";
@@ -47,8 +48,8 @@ const NONE: AwardSums = { WORKS: null, PUBLIC_LIABILITY: null, WORKMENS_COMPENSA
 
 describe("which figure governs each kind", () => {
   it("the award states nothing: the Appendix's minimum governs, with its source (the works: the sum plus the uplift, half up)", () => {
-    expect(appendixMinimum("WORKS", B, AWARDED)).toBe(RM("1185259.46"));
-    expect(governingSums(NONE, B, AWARDED)).toEqual({
+    expect(appendixMinimum("WORKS", B)).toBe(RM("1185259.46"));
+    expect(governingSums(NONE, B)).toEqual({
       WORKS: { state: "APPENDIX", sen: RM("1185259.46") },
       PUBLIC_LIABILITY: { state: "APPENDIX", sen: RM("2000000") },
       WORKMENS_COMPENSATION: { state: "APPENDIX", sen: RM("500000") },
@@ -56,23 +57,23 @@ describe("which figure governs each kind", () => {
   });
   it("an uplift stated as an amount", () => {
     const b = baselineOf({ packVersion: 1, frozenOn: null, appendix: { ...APPENDIX, worksInsuranceUpliftKind: "AMOUNT", worksInsuranceUpliftAmount: RM("50000"), worksInsuranceUpliftPct: null }, regulated: null }, AWARDED);
-    expect(governingSum("WORKS", null, b, AWARDED)).toEqual({ state: "APPENDIX", sen: RM("1127508.60") });
+    expect(governingSum("WORKS", null, b)).toEqual({ state: "APPENDIX", sen: RM("1127508.60") });
   });
   it("the award's figure governs above the Appendix's, and below it too, shown with both figures", () => {
-    expect(governingSum("PUBLIC_LIABILITY", RM("2500000"), B, AWARDED)).toEqual({ state: "AWARD", sen: RM("2500000"), appendix: RM("2000000"), belowAppendix: false });
-    expect(governingSum("PUBLIC_LIABILITY", RM("1500000"), B, AWARDED)).toEqual({ state: "AWARD", sen: RM("1500000"), appendix: RM("2000000"), belowAppendix: true });
+    expect(governingSum("PUBLIC_LIABILITY", RM("2500000"), B)).toEqual({ state: "AWARD", sen: RM("2500000"), appendix: RM("2000000"), belowAppendix: false });
+    expect(governingSum("PUBLIC_LIABILITY", RM("1500000"), B)).toEqual({ state: "AWARD", sen: RM("1500000"), appendix: RM("2000000"), belowAppendix: true });
   });
   it("exactly the Appendix's figure is not below it", () => {
-    expect(governingSum("WORKMENS_COMPENSATION", RM("500000"), B, AWARDED)).toMatchObject({ belowAppendix: false });
-    expect(governingSum("WORKMENS_COMPENSATION", RM("499999.99"), B, AWARDED)).toMatchObject({ belowAppendix: true });
+    expect(governingSum("WORKMENS_COMPENSATION", RM("500000"), B)).toMatchObject({ belowAppendix: false });
+    expect(governingSum("WORKMENS_COMPENSATION", RM("499999.99"), B)).toMatchObject({ belowAppendix: true });
   });
   it("no Appendix: the award's figure governs alone; with none, nothing governs (never 0)", () => {
-    expect(governingSum("WORKS", RM("900000"), null, AWARDED)).toEqual({ state: "AWARD", sen: RM("900000"), appendix: null, belowAppendix: false });
-    expect(governingSum("WORKS", null, null, AWARDED)).toEqual({ state: "NOT_STATED" });
+    expect(governingSum("WORKS", RM("900000"), null)).toEqual({ state: "AWARD", sen: RM("900000"), appendix: null, belowAppendix: false });
+    expect(governingSum("WORKS", null, null)).toEqual({ state: "NOT_STATED" });
   });
   it("an Appendix that states no uplift states no works minimum", () => {
     const b = baselineOf({ packVersion: 1, frozenOn: null, appendix: { ...APPENDIX, worksInsuranceUpliftKind: null, worksInsuranceUpliftPct: null }, regulated: null }, AWARDED);
-    expect(governingSum("WORKS", null, b, AWARDED)).toEqual({ state: "NOT_STATED" });
+    expect(governingSum("WORKS", null, b)).toEqual({ state: "NOT_STATED" });
   });
   it("one column per kind, every kind listed", () => {
     expect(Object.keys(SUM_COLUMN)).toEqual([...INSURED_KINDS]);
@@ -82,7 +83,7 @@ describe("which figure governs each kind", () => {
 const p = (kind: InsuranceKind, sumInsured: string, status = "VERIFIED", substitutesFor: InsuranceKind | null = null) => ({ kind, substitutesFor, status, sumInsured: RM(sumInsured) });
 
 describe("each verified policy against the governing figure", () => {
-  const gov = governingSums(NONE, B, AWARDED);
+  const gov = governingSums(NONE, B);
   it("one sen short is short; exactly on the figure is met", () => {
     expect(sumFindings(["WORKS"], gov, [p("CAR", "1185259.45", "VERIFIED", "WORKS")])).toEqual([{ kind: "WORKS", state: "SHORT", governing: { state: "APPENDIX", sen: RM("1185259.46") }, insured: RM("1185259.45") }]);
     expect(sumFindings(["WORKS"], gov, [p("CAR", "1185259.46", "VERIFIED", "WORKS")])).toEqual([]);
@@ -95,10 +96,10 @@ describe("each verified policy against the governing figure", () => {
     expect(sumFindings(["WORKS"], gov, [p("PUBLIC_LIABILITY", "1")])).toEqual([]);
   });
   it("a required kind nothing states a figure for is said, not judged", () => {
-    expect(sumFindings(["WORKMENS_COMPENSATION"], governingSums(NONE, null, AWARDED), [p("WORKMENS_COMPENSATION", "1")])).toEqual([{ kind: "WORKMENS_COMPENSATION", state: "NOT_STATED" }]);
+    expect(sumFindings(["WORKMENS_COMPENSATION"], governingSums(NONE, null), [p("WORKMENS_COMPENSATION", "1")])).toEqual([{ kind: "WORKMENS_COMPENSATION", state: "NOT_STATED" }]);
   });
   it("the award's figure below the Appendix's governs: a policy meeting it passes", () => {
-    const g = governingSums({ ...NONE, PUBLIC_LIABILITY: RM("1500000") }, B, AWARDED);
+    const g = governingSums({ ...NONE, PUBLIC_LIABILITY: RM("1500000") }, B);
     expect(sumFindings(["PUBLIC_LIABILITY"], g, [p("PUBLIC_LIABILITY", "1500000")])).toEqual([]);
     expect(sumFindings(["PUBLIC_LIABILITY"], g, [p("PUBLIC_LIABILITY", "1499999.99")])[0]).toMatchObject({ state: "SHORT", governing: { state: "AWARD" } });
   });
@@ -115,7 +116,7 @@ describe("the readiness gate blocks signing on a shortfall", () => {
     policies: [{ kind: "CAR" as InsuranceKind, substitutesFor: "WORKS" as InsuranceKind | null, status: "VERIFIED" }],
     wcBasis: null,
   };
-  const insured = (sum: string) => ({ governing: governingSums(NONE, B, AWARDED), policies: [p("CAR", sum, "VERIFIED", "WORKS")] });
+  const insured = (sum: string) => ({ governing: governingSums(NONE, B), policies: [p("CAR", sum, "VERIFIED", "WORKS")] });
   const ins = (x: object) => readinessGate({ ...base, ...x }).items.find((i) => i.key === "INSURANCE")!;
   it("short: not met, the detail naming the kind and both figures, and the gate not ready", () => {
     const r = readinessGate({ ...base, insured: insured("1185259.45") });
@@ -129,7 +130,7 @@ describe("the readiness gate blocks signing on a shortfall", () => {
     expect(ins({ insured: insured("1185259.46") }).state).toBe("MET");
   });
   it("nothing stated: met as before, saying it was not compared", () => {
-    const item = ins({ insured: { governing: governingSums(NONE, null, AWARDED), policies: [p("CAR", "1", "VERIFIED", "WORKS")] } });
+    const item = ins({ insured: { governing: governingSums(NONE, null), policies: [p("CAR", "1", "VERIFIED", "WORKS")] } });
     expect(item.state).toBe("MET");
     expect(gateDetailText(item, "")).toBe("Works insurance: neither the award nor a tender Appendix states a sum insured, so it is not compared.");
   });
@@ -153,5 +154,23 @@ describe("every caller of the gate passes the governing sums (no reading skips t
     expect(read("src/app/awards/[id]/page.tsx")).toMatch(/awardReadiness\(award, ev\.requiredBond, requirements, ev\.appendix\?\.baseline \?\? null\)/);
     expect(read("src/lib/contract/load.ts")).toMatch(/frozenTenderOf\(l\.ex\.id/);
     expect(read("src/lib/contract/load.ts")).toMatch(/frozenTendersOf\(rows\.map/);
+  });
+});
+
+describe("6.13A residual: one function derives the works figure", () => {
+  it("appendixMinimum reads the baseline's worksMinimum, which baselineOf derived through worksInsuredSum, for many awarded sums", () => {
+    for (const v of ["0.01", "1", "999.99", "1077508.60", "1077508.65", "2500000", "33333333.33"]) {
+      for (const appendix of [APPENDIX, { ...APPENDIX, worksInsuranceUpliftKind: "AMOUNT" as const, worksInsuranceUpliftAmount: RM("50000"), worksInsuranceUpliftPct: null }, { ...APPENDIX, worksInsuranceUpliftPct: "12.345" }]) {
+        const b = baselineOf({ packVersion: 1, frozenOn: null, appendix, regulated: null }, RM(v));
+        const derived = worksInsuredSum(RM(v), { kind: appendix.worksInsuranceUpliftKind, amount: appendix.worksInsuranceUpliftAmount, pct: appendix.worksInsuranceUpliftPct });
+        expect(b.insurance.worksMinimum, v).toBe(derived);
+        expect(appendixMinimum("WORKS", b), v).toBe(b.insurance.worksMinimum);
+        expect(appendixInsured("worksInsured", b), v).toBe(b.insurance.worksMinimum);
+      }
+    }
+  });
+  it("no other arithmetic on the uplift in the governing figure", () => {
+    const src = readFileSync(path.join(__dirname, "insurance-terms.ts"), "utf8");
+    expect(src).not.toMatch(/worksUplift/);
   });
 });

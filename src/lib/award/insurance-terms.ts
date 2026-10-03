@@ -20,7 +20,7 @@
 import type { Sen } from "@/lib/money";
 import { countsAs, type InsuranceKind } from "@/lib/securities/insurance";
 
-import type { Baseline } from "./appendix-baseline";
+import { appendixInsured, type Baseline, type SumField } from "./appendix-baseline";
 
 /// The kinds the award states a sum insured for, in the order the screens list them.
 export const INSURED_KINDS = ["WORKS", "PUBLIC_LIABILITY", "WORKMENS_COMPENSATION"] as const;
@@ -37,29 +37,28 @@ export type Governing =
   | { state: "APPENDIX"; sen: Sen }
   | { state: "NOT_STATED" };
 
-/// The Appendix's minimum for a kind; null where it states none (or no Appendix was frozen).
-export function appendixMinimum(kind: InsuredKind, b: Baseline | null, awardedValue: Sen): Sen | null {
-  if (!b) return null;
-  switch (kind) {
-    case "WORKS":
-      return b.insurance.worksUplift ? awardedValue + b.insurance.worksUplift.sen : null;
-    case "PUBLIC_LIABILITY":
-      return b.insurance.tplMinimum;
-    case "WORKMENS_COMPENSATION":
-      return b.insurance.wcMinimum;
-  }
+/// The baseline field that carries each kind's Appendix figure.
+const FIELD_OF = { WORKS: "worksInsured", PUBLIC_LIABILITY: "liabilityInsured", WORKMENS_COMPENSATION: "wcInsured" } as const satisfies Record<InsuredKind, SumField>;
+
+/**
+ * The Appendix's minimum for a kind; null where it states none (or no Appendix was frozen). One derivation (6.13A
+ * residual): the figure `appendixInsured` reads from the baseline, whose works figure `baselineOf` derived once
+ * (the awarded sum plus the uplift, `worksInsuredSum`) against the awarded sum it was built for.
+ */
+export function appendixMinimum(kind: InsuredKind, b: Baseline | null): Sen | null {
+  return b ? appendixInsured(FIELD_OF[kind], b) : null;
 }
 
 /// The figure that governs one kind.
-export function governingSum(kind: InsuredKind, award: Sen | null, b: Baseline | null, awardedValue: Sen): Governing {
-  const a = appendixMinimum(kind, b, awardedValue);
+export function governingSum(kind: InsuredKind, award: Sen | null, b: Baseline | null): Governing {
+  const a = appendixMinimum(kind, b);
   if (award != null) return { state: "AWARD", sen: award, appendix: a, belowAppendix: a != null && award < a };
   if (a != null) return { state: "APPENDIX", sen: a };
   return { state: "NOT_STATED" };
 }
 
-export const governingSums = (award: AwardSums, b: Baseline | null, awardedValue: Sen): Record<InsuredKind, Governing> =>
-  Object.fromEntries(INSURED_KINDS.map((k) => [k, governingSum(k, award[k], b, awardedValue)])) as Record<InsuredKind, Governing>;
+export const governingSums = (award: AwardSums, b: Baseline | null): Record<InsuredKind, Governing> =>
+  Object.fromEntries(INSURED_KINDS.map((k) => [k, governingSum(k, award[k], b)])) as Record<InsuredKind, Governing>;
 
 export const isInsuredKind = (k: string): k is InsuredKind => (INSURED_KINDS as readonly string[]).includes(k);
 

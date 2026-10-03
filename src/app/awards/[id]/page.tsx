@@ -223,7 +223,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const tenderTexts = ev.appendix ? (Object.fromEntries(BASELINE_FIELDS.map((k) => [k, tenderTermText(k, ev.appendix!.baseline)])) as Record<BaselineField, string | null>) : null;
   // 64-C4-b: the tender Appendix's insurance minimum for each kind, in words, for the form's hints.
   const minimumText = (k: InsuredKind) => {
-    const m = appendixMinimum(k, ev.appendix?.baseline ?? null, senFromDecimal(award.awardedValue));
+    const m = appendixMinimum(k, ev.appendix?.baseline ?? null);
     return m == null ? null : formatMoney(m);
   };
   const insuranceMinimums = ev.appendix ? { works: minimumText("WORKS"), liability: minimumText("PUBLIC_LIABILITY"), wc: minimumText("WORKMENS_COMPENSATION") } : null;
@@ -611,7 +611,7 @@ function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, p
               { label: "Terms band", value: ex.termsBandKey ? (l.ex.bandSnapshot as { terms?: { label?: string } } | null)?.terms?.label ?? "As recorded on the exercise" : ex.termsState === "NONE_IN_REGIME" ? "Not applicable in this band" : notSet() },
               { label: "Appointment-letter variant", value: kind === "LETTER_OF_ACCEPTANCE" ? "Not applicable" : award.variantName ?? (ev.variant?.state === "SELECTED" ? ev.variant.variant.nameEn : notSet(ev.variant ? awardFindingText({ code: ev.variant.state === "NONE" ? "VARIANT_NONE" : ev.variant.state === "AMBIGUOUS" ? "VARIANT_AMBIGUOUS" : "TERMS_NOT_SET", level: "block" }) : NOT_SET)) },
               { label: "If work does not commence", value: kind === "LETTER_OF_ACCEPTANCE" ? "Not applicable" : ev.consequence ? NON_COMMENCEMENT_LABEL[ev.consequence] : notSet() },
-              ...INSURED_KINDS.map((k) => ({ label: `${INSURANCE_KIND_LABEL[k]}, sum insured`, value: <GoverningSum g={governingSum(k, awardSumsOf(award)[k], ev.appendix?.baseline ?? null, senFromDecimal(award.awardedValue))} reason={{ WORKS: award.worksInsuredDiffersReason, PUBLIC_LIABILITY: award.liabilityInsuredDiffersReason, WORKMENS_COMPENSATION: award.wcInsuredDiffersReason }[k]} issued={award.issuedAt != null} /> })),
+              ...INSURED_KINDS.map((k) => ({ label: `${INSURANCE_KIND_LABEL[k]}, sum insured`, value: <GoverningSum g={governingSum(k, awardSumsOf(award)[k], ev.appendix?.baseline ?? null)} reason={{ WORKS: award.worksInsuredDiffersReason, PUBLIC_LIABILITY: award.liabilityInsuredDiffersReason, WORKMENS_COMPENSATION: award.wcInsuredDiffersReason }[k]} issued={award.issuedAt != null} /> })),
               ...(ev.appendix ? tenderInsurance(ev.appendix.baseline) : []),
             ]}
           />

@@ -55,6 +55,6 @@ export function awardReadiness(award: ReadinessAward, requiredBond: RequiredBond
     policies: policies.map((p) => ({ kind: p.kind as InsuranceKind, substitutesFor: p.substitutesFor as InsuranceKind | null, status: p.status })),
     wcBasis: award.wcBasis as WcBasis | null,
     wcCheckRecorded: wcCheckRecordedOn(policies),
-    insured: { governing: governingSums(awardSumsOf(award), tender, senFromDecimal(award.awardedValue)), policies: policies.map((p) => ({ kind: p.kind as InsuranceKind, substitutesFor: p.substitutesFor as InsuranceKind | null, status: p.status, sumInsured: senFromDecimal(p.sumInsured) })) },
+    insured: { governing: governingSums(awardSumsOf(award), tender), policies: policies.map((p) => ({ kind: p.kind as InsuranceKind, substitutesFor: p.substitutesFor as InsuranceKind | null, status: p.status, sumInsured: senFromDecimal(p.sumInsured) })) },
   });
 }
