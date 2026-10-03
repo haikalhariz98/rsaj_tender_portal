@@ -138,7 +138,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
         )}
         {cert.baseline.reason !== "EXECUTED" && cert.baseline.reason !== "POSSESSION" && (
           <Callout tone="info" title="Read from a baseline before execution">
-            {`This certificate reads baseline version ${cert.baseline.version}, recorded ${formatDate(day(cert.baseline.recordedOn))}, before the contract was executed (FR-PAY-014 allows the first certificates then). A later version never changes it.`}
+            {`This certificate reads baseline version ${cert.baseline.version}, recorded ${formatDate(day(cert.baseline.recordedOn))}, before the contract was executed (the first certificates may be raised before it is). A later version never changes it.`}
           </Callout>
         )}
       </div>

@@ -30,6 +30,15 @@ describe("every certificate refusal is worded", () => {
     expect(w.ms.trim()).not.toBe("");
     expect(w.en).not.toMatch(/\b[A-Z]{2,}_[A-Z_]+\b/);
   });
+  it.each([...codes])("%s names no spec requirement or module number, in either language (spec IDs stay in comments)", (code) => {
+    const w = certificateFaultWords({ code, level: "block", data: { rule: "SO", block: "Superintending Officer" } });
+    for (const t of [w.en, w.ms]) expect(t).not.toMatch(/\b(?:N?FR|OD|ADR)[- ][A-Z0-9-]+|\(6\.\d+/);
+  });
+  it("the supervision refusal says what is missing in both languages", () => {
+    const w = certificateFaultWords({ code: "SUPERVISION_NOT_RECORDED", level: "block", data: { rule: "SO", block: "Superintending Officer" } });
+    expect(w.en).toMatch(/Superintending Officer's appointment/);
+    expect(w.ms).toMatch(/pelantikan Pegawai Penguasa/);
+  });
   it("a refusal standing on the pinned form names the real exit, never 'set it'", () => {
     const w = certificateFaultWords({ code: "DELEGABLE_NOT_SET", level: "block", data: { block: "Superintending Officer" } });
     expect(w.en).toMatch(/Void it and raise it again/);
