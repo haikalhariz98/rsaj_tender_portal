@@ -178,3 +178,9 @@ export const PRINT_WORDS = {
   notReadyTitle: w("Its form is not ready to be signed on", "Borangnya belum sedia untuk ditandatangani"),
   notReadyTail: w("It may still be routed; nothing is signed on it until this is put right.", "Ia masih boleh dihalakan; tiada apa ditandatangani padanya sehingga ini dibetulkan."),
 } as const;
+
+/// The typing corrections a text was rendered with, in words: "CERTICATE → CERTIFICATE; PARTICAL → PARTIAL".
+export function correctionsWords(cs: readonly { fromText: string; toText: string }[]): Words {
+  const list = cs.map((c) => `${c.fromText} → ${c.toText}`).join("; ");
+  return w(`Typing corrections applied (the form code and revision unchanged): ${list}`, `Pembetulan ejaan digunakan (kod borang dan semakan tidak berubah): ${list}`);
+}

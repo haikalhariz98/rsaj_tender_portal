@@ -34,14 +34,28 @@ export function whitelistFor(kind: CertificateKind, terms: readonly FrozenTerm[]
 }
 
 /// One body in one language: corrected, then filled (terms included). Shared by the issue and the page's preview.
-export function renderText(body: string, lang: Lang, kind: CertificateKind, values: Readonly<Record<string, string>>, corrections: readonly Correction[], terms: readonly FrozenTerm[]): Rendered & { corrected: string[] } {
+export function renderText(body: string, lang: Lang, kind: CertificateKind, values: Readonly<Record<string, string>>, corrections: readonly Correction[], terms: readonly FrozenTerm[]): Rendered & { corrected: string[]; applied: AppliedCorrection[] } {
   const c = applyCorrections(body, corrections);
   const r = renderWith(c.text, { ...termValues(terms, lang), ...values }, whitelistFor(kind, terms));
-  return { ...r, corrected: c.applied.map((a) => a.fromText) };
+  return { ...r, corrected: c.applied.map((a) => a.fromText), applied: c.applied.map((a) => ({ ...(a.id ? { id: a.id } : {}), fromText: a.fromText, toText: a.toText })) };
 }
 
+/// A correction that changed a text's words: its record and its wrong and right wording (BD-614-26 as ruled).
+export interface AppliedCorrection {
+  id?: string;
+  fromText: string;
+  toText: string;
+}
+
+/// The corrections that applied across texts, each once, in the order first applied.
+export const distinctApplied = (lists: readonly (readonly AppliedCorrection[])[]): AppliedCorrection[] => {
+  const out: AppliedCorrection[] = [];
+  for (const l of lists) for (const a of l) if (!out.some((x) => x.fromText === a.fromText)) out.push(a);
+  return out;
+};
+
 /// The text in each language the pinned form has, why it cannot be issued (empty: it can), and how many corrections changed its words.
-export function renderIssue(rev: TemplateRevision, kind: CertificateKind, values: (lang: Lang) => Record<string, string>, labelOf: (key: string) => string = certificateFieldLabel): { texts: FrozenText[]; faults: Finding[]; corrected: number } {
+export function renderIssue(rev: TemplateRevision, kind: CertificateKind, values: (lang: Lang) => Record<string, string>, labelOf: (key: string) => string = certificateFieldLabel): { texts: FrozenText[]; faults: Finding[]; corrected: number; applied: AppliedCorrection[] } {
   const faults: Finding[] = [];
   const texts: FrozenText[] = [];
   const bodies: [Lang, string | null][] = [
@@ -53,19 +67,20 @@ export function renderIssue(rev: TemplateRevision, kind: CertificateKind, values
   const empty = formNeedFault({ id: rev.templateId, nameEn: rev.nameEn, bodyEn: rev.bodyEn, bodyMs: rev.bodyMs }, w("This certificate's form", "Borang perakuan ini"));
   if (empty || present.length === 0) {
     faults.push(empty ?? { code: "TEMPLATE_BODY_EMPTY", level: "block", data: { form: rev.nameEn } });
-    return { texts, faults, corrected: 0 };
+    return { texts, faults, corrected: 0, applied: [] };
   }
   const unknown = new Set<string>();
   const missing = new Set<string>();
-  const corrected = new Set<string>();
+  const applied: AppliedCorrection[][] = [];
   for (const [lang, body] of present) {
     const r = renderText(body!, lang, kind, values(lang), rev.corrections ?? [], rev.terms ?? []);
     r.unknown.forEach((u) => unknown.add(u));
     r.missing.forEach((m) => missing.add(m));
-    r.corrected.forEach((x) => corrected.add(x));
+    applied.push(r.applied);
     texts.push({ language: lang, text: renderedText(r) });
   }
   if (unknown.size) faults.push({ code: "UNKNOWN_FIELDS", level: "block", data: { form: rev.nameEn, fields: [...unknown].map((u) => `{{${u}}}`).join(", ") } });
   if (missing.size) faults.push({ code: "MISSING_FIELDS", level: "block", data: { fields: [...missing].map((k) => (isTermField(k) ? `the term ${termCodeOf(k)}` : labelOf(k))).join(", ") } });
-  return { texts, faults, corrected: corrected.size };
+  const all = distinctApplied(applied);
+  return { texts, faults, corrected: all.length, applied: all };
 }

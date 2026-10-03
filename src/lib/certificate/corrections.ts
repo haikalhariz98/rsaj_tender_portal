@@ -20,6 +20,8 @@
 import type { Finding } from "./types";
 
 export interface Correction {
+  /// The correction's record (BD-614-26 as ruled: a pin and an issue record which applied). Absent in fixtures.
+  id?: string;
   fromText: string;
   toText: string;
 }
@@ -27,7 +29,7 @@ export interface Correction {
 export interface Corrected {
   text: string;
   /// Each correction that changed something, with how many times, in the order first applied.
-  applied: { fromText: string; toText: string; count: number }[];
+  applied: { id?: string; fromText: string; toText: string; count: number }[];
 }
 
 const FIELD = /\{\{[^{}]*\}\}/g;
@@ -38,7 +40,7 @@ export function applyCorrections(body: string, corrections: readonly Correction[
   if (usable.length === 0) return { text: body, applied: [] };
   // Longest first, then by the text itself, so the winner at a place never depends on the list's order.
   const byLength = [...usable].sort((a, b) => b.fromText.length - a.fromText.length || (a.fromText < b.fromText ? -1 : a.fromText > b.fromText ? 1 : 0));
-  const counts = new Map<string, { fromText: string; toText: string; count: number }>();
+  const counts = new Map<string, { id?: string; fromText: string; toText: string; count: number }>();
   const fix = (segment: string): string => {
     let out = "";
     let i = 0;
@@ -47,7 +49,7 @@ export function applyCorrections(body: string, corrections: readonly Correction[
       if (hit) {
         out += hit.toText;
         i += hit.fromText.length;
-        const k = counts.get(hit.fromText) ?? { fromText: hit.fromText, toText: hit.toText, count: 0 };
+        const k = counts.get(hit.fromText) ?? { ...(hit.id ? { id: hit.id } : {}), fromText: hit.fromText, toText: hit.toText, count: 0 };
         k.count += 1;
         counts.set(hit.fromText, k);
       } else {

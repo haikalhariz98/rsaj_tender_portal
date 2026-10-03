@@ -76,7 +76,7 @@ export function pinRevision(t: TemplateNow, pinnedOn: string): TemplateRevision 
     pageCount: t.pageCount ?? null,
     fields: inPrintedOrder(t.fields ?? []).map((f) => ({ ...f })),
     // In a fixed order, so two pins of one list are equal; the order never changes the text (corrections.ts).
-    corrections: [...(t.corrections ?? [])].sort((a, b) => (a.fromText < b.fromText ? -1 : a.fromText > b.fromText ? 1 : 0)).map((c) => ({ fromText: c.fromText, toText: c.toText })),
+    corrections: [...(t.corrections ?? [])].sort((a, b) => (a.fromText < b.fromText ? -1 : a.fromText > b.fromText ? 1 : 0)).map((c) => ({ ...(c.id ? { id: c.id } : {}), fromText: c.fromText, toText: c.toText })),
     terms: freezeTerms(termCodesIn([t.bodyEn, t.bodyMs].flatMap((b) => namedIn(b))), t.terms ?? []),
   };
 }

@@ -87,7 +87,7 @@ export async function templateNow(templateId: string | null, client: Tx = db): P
       distributionRows: { orderBy: [{ sortOrder: "asc" }, { recipientCode: "asc" }] },
       // 6.14 increment 2: the printed form and the corrections that apply to it.
       printedFields: { orderBy: [{ sortOrder: "asc" }, { key: "asc" }] },
-      correctionForms: { include: { correction: { select: { fromText: true, toText: true } } } },
+      correctionForms: { include: { correction: { select: { id: true, fromText: true, toText: true } } } },
     },
   });
   if (!t) return null;
@@ -107,7 +107,7 @@ export async function templateNow(templateId: string | null, client: Tx = db): P
     distribution: t.distributionRows.map(rowOf),
     pageCount: t.pageCount,
     fields: t.printedFields.map(printedFieldOf),
-    corrections: t.correctionForms.map((f) => ({ fromText: f.correction.fromText, toText: f.correction.toText })),
+    corrections: t.correctionForms.map((f) => ({ id: f.correction.id, fromText: f.correction.fromText, toText: f.correction.toText })),
     terms: terms.map(termOf),
   };
 }

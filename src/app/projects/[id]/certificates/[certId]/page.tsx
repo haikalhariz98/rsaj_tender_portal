@@ -41,8 +41,8 @@ import { isSulitField } from "@/lib/sulit-fields";
 import { isSupervisedRule, type SupervisedRule } from "@/lib/supervision/blocks";
 import { loadPostAwardPolicy, supervisedHoldersOn } from "@/lib/supervision/load";
 import { fieldsNamed } from "@/lib/templates/merge";
-import { renderText } from "@/lib/certificate/issue";
-import { fidelityLine, labelPair, PRINT_WORDS, printedRows } from "@/lib/certificate/printed";
+import { distinctApplied, renderText } from "@/lib/certificate/issue";
+import { correctionsWords, fidelityLine, labelPair, PRINT_WORDS, printedRows } from "@/lib/certificate/printed";
 import { sheetFieldValues } from "@/lib/certificate/sheet-words";
 import { freezeTerms, termCodesIn } from "@/lib/certificate/terms";
 
@@ -605,7 +605,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
   const cert = l.cert;
   if (cert.status === "ISSUED" && cert.documents.length) {
     // 6.14 increment 2: the fidelity line and the printed fields, as the issue froze them.
-    const snap = (cert.issueSnapshot ?? {}) as { form?: { pageCount?: number | null }; corrected?: number; printed?: IssuedPrinted[] };
+    const snap = (cert.issueSnapshot ?? {}) as { form?: { pageCount?: number | null }; corrected?: number; corrections?: { fromText: string; toText: string }[]; printed?: IssuedPrinted[] };
     return (
       <div className="flex flex-col gap-6">
         {cert.documents.map((d) => (
@@ -613,6 +613,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
             <CardHeader icon={<PrinterIcon size={17} />} title={d.language === "MS" ? "Malay text, as issued" : "English text, as issued"} subtitle={`${fidelityLine({ name: d.templateName, formCode: d.templateFormCode, revisionDate: day(d.templateRevisionDate), pageCount: snap.form?.pageCount ?? null, bodyVersion: d.templateBodyVersion }, snap.corrected ?? 0).en} · frozen ${formatOrgDateTime(d.frozenAt, l.org.timeZone)}`} />
             <CardBody>
               <div className="flex flex-col gap-3 text-[13.5px] whitespace-pre-line text-ink">{d.renderedText.split("\n\n").map((p, i) => <p key={i}>{p}</p>)}</div>
+              {snap.corrections && snap.corrections.length > 0 && <p className="mt-4 text-[12.5px] break-words text-ink-3">{correctionsWords(snap.corrections).en}</p>}
             </CardBody>
           </Card>
         ))}
@@ -651,7 +652,8 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
     ...(cert.certificateDate ? {} : { "certificate.date": "(the day of the authorising signature)" }),
   });
   const rendered = texts.map(([lang, text]) => ({ lang, r: renderText(text!, lang, cert.kind, values(lang), body.corrections, body.terms) }));
-  const corrected = new Set(rendered.flatMap((x) => x.r.corrected)).size;
+  const applied = distinctApplied(rendered.map((x) => x.r.applied));
+  const corrected = applied.length;
   const printed = printedRows(body.fields, { ...values("EN"), ...sheetFieldValues(sheet, "EN") }, "EN");
   return (
     <div className="flex flex-col gap-6">
@@ -660,6 +662,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
           <CardHeader icon={<PrinterIcon size={17} />} title={lang === "MS" ? "Malay text" : "English text"} subtitle={`${fidelityLine(body.identity, corrected).en} · ${revision ? PRINT_WORDS.pinnedSuffix.en : PRINT_WORDS.nowSuffix.en}`} actions={<Badge tone="warn">{CERT_WORDS.draftNotIssued.en}</Badge>} />
           <CardBody>
             <div className="flex flex-col gap-3 text-[13.5px] whitespace-pre-line text-ink-2">{r.paragraphs.map((p, i) => <p key={i}>{p}</p>)}</div>
+            {r.applied.length > 0 && <p className="mt-4 text-[12.5px] break-words text-ink-3">{correctionsWords(r.applied).en}</p>}
           </CardBody>
         </Card>
       ))}

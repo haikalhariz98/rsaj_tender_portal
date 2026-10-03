@@ -33,7 +33,7 @@ import { renderIssue } from "./issue";
 import { CERT_WORDS, CHECK_KIND_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, ON_BEHALF, STATUS_WORDS } from "./labels";
 import { applyOverrides, overrideFaults, routingRatioOf } from "./override";
 import { certificateLabel, checksOf, liveBondOf, officeHolders, officeName, routesOf, routingTypeNow, signedOf, templateNow, type LoadedCertificate } from "./repo";
-import { inPrintedOrder, printedBlankFaults, printedRows } from "./printed";
+import { correctionsWords, inPrintedOrder, printedBlankFaults, printedRows } from "./printed";
 import { pinRefusals, pinRevision, readRevision, type PinContext, type TemplateRevision } from "./revision";
 import { sheetFieldValues } from "./sheet-words";
 import { checkFaults, freezeRoutingType, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
@@ -342,6 +342,8 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
     signedOn: r.signedOn,
     datesTheCertificate: dates ? "yes" : null,
     formPinned: pinning ? `${rev.nameEn}${rev.formCode ? ` (${rev.formCode})` : ""}, form version ${rev.bodyVersion}` : null,
+    // BD-614-26 as ruled: the pin records which typing corrections it froze with the form.
+    typingCorrectionsPinned: pinning && rev.corrections?.length ? correctionsWords(rev.corrections).en : null,
     recordedOnBehalf: ON_BEHALF,
   }));
   const after = [...signed, { blockOrder: block!.blockOrder, personId: sig.personId, name: sig.name, signedOn: r.signedOn!, refused: sig.refused, decision: sig.decision }];
@@ -413,6 +415,8 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
     form: { name: rev.nameEn, formCode: rev.formCode, revisionDate: rev.revisionDate, bodyVersion: rev.bodyVersion, pinnedOn: rev.pinnedOn, pageCount: rev.pageCount ?? null },
     // 6.14 increment 2: how many typing corrections changed the form's words (FR-CRT-010), and the printed fields as printed.
     corrected: r.corrected,
+    // BD-614-26 as ruled: which corrections changed the words (their record, wrong and right wording).
+    corrections: r.applied,
     printed,
     baseline: { version: b.version, reason: b.reason },
     figures: { overridden: figures.overridden, lines: figures.lines.map((l) => ({ key: l.key, value: l.value, computed: l.computed })), totals: figures.totals.map((t) => ({ key: t.key, value: t.value, computed: t.computed })) },

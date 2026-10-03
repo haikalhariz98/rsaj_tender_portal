@@ -60,3 +60,22 @@ describe("S-4: one rule for no form and no text (formNeedFault)", () => {
     expect(src.match(/bodyEn\?\.trim\(\)/g)?.length).toBe(1);
   });
 });
+
+describe("BD-614-26 as ruled: a pin and an issue record which corrections applied", () => {
+  const form: TemplateNow = { ...FORM, fields: [], bodyEn: "INTERIM CERTICATE for {{contract.number}}. PARTICAL.", corrections: [{ id: "c1", fromText: "CERTICATE", toText: "CERTIFICATE" }, { id: "c2", fromText: "PARTICAL", toText: "PARTIAL" }, { id: "c3", fromText: "BORAD", toText: "BOARD" }] };
+  it("the pin keeps every correction on the form with its record; the issue names those that changed words", () => {
+    const rev = pinRevision(form, "2026-10-01");
+    expect(rev.corrections).toEqual([{ id: "c3", fromText: "BORAD", toText: "BOARD" }, { id: "c1", fromText: "CERTICATE", toText: "CERTIFICATE" }, { id: "c2", fromText: "PARTICAL", toText: "PARTIAL" }]);
+    const r = renderIssue(rev, "INTERIM_PAYMENT", () => ({ "contract.number": "DEMO/1" }));
+    expect(r.texts[0].text).toBe("INTERIM CERTIFICATE for DEMO/1. PARTIAL.");
+    expect(r.applied).toEqual([{ id: "c1", fromText: "CERTICATE", toText: "CERTIFICATE" }, { id: "c2", fromText: "PARTICAL", toText: "PARTIAL" }]);
+    expect(r.corrected).toBe(2);
+  });
+  it("the Print tab and the pin's trail name them in words", async () => {
+    const { correctionsWords } = await import("./printed");
+    expect(correctionsWords([{ fromText: "CERTICATE", toText: "CERTIFICATE" }]).en).toBe("Typing corrections applied (the form code and revision unchanged): CERTICATE → CERTIFICATE");
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync("src/lib/certificate/write.ts", "utf8")).toMatch(/corrections: r\.applied,/);
+    expect(readFileSync("src/lib/certificate/write.ts", "utf8")).toMatch(/typingCorrectionsPinned: pinning && rev\.corrections\?\.length \? correctionsWords\(rev\.corrections\)\.en : null/);
+  });
+});
