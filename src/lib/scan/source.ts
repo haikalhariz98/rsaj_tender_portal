@@ -1,7 +1,7 @@
 /**
- * A small lexer for source scans (6.14 increment 1): the same functions 6.12's lock-order scan defines in
- * its own test (src/lib/contract/lock-order.test.ts), lifted unchanged so other scans can share them
- * without importing a test file. `lex` blanks strings, comments, regular expressions and template text
+ * A small lexer for source scans (6.14 increment 1): the functions 6.12's lock-order scan first defined in
+ * its own test, lifted unchanged so every scan shares one copy without importing a test file (614-C2: 6.12's
+ * copy is gone; src/lib/contract/lock-order.test.ts imports these). `lex` blanks strings, comments, regular expressions and template text
  * (lengths and newlines kept); `spans` finds every named function's body; `enclosingFn` names the
  * innermost function a position is inside. Used by tests only.
  */
