@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { closing, enclosingFn, lex, spans } from "@/lib/scan/source";
+import { closing, enclosingFn, lex, rawCalls, spans } from "@/lib/scan/source";
 
 import { BOUND_FIELDS } from "./fields";
 
@@ -60,10 +60,11 @@ function writes(models: string[], ops = "update|updateMany|upsert|create|createM
       }
       out.push({ where: `${file} › ${enclosingFn(sp, x.index!)}`, op: `${x[1]}.${x[2]}`, text: src.slice(x.index!, e + 1) });
     }
-    // Raw SQL writing the tables.
-    for (const x of m.matchAll(/\$(?:executeRaw|queryRaw)(?:Unsafe)?\s*[`(]/g)) {
-      const s = src.slice(x.index!, src.indexOf("`", x.index! + x[0].length) + 1 || undefined);
-      if (/\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+"?(Certificate|CertificateSignature|CertificateOverride|CertificateDocument|RoutingCheck)"?/i.test(s)) out.push({ where: `${file} › ${enclosingFn(sp, x.index!)}`, op: "raw SQL", text: s });
+    // Raw SQL writing the tables. 614b-C3 (stricter): every raw call, its type argument read by depth (rawCalls).
+    for (const c of rawCalls(m)) {
+      if (c.opener !== "`") continue;
+      const s = src.slice(c.at, src.indexOf("`", c.openAt + 1) + 1 || undefined);
+      if (/\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+"?(Certificate|CertificateSignature|CertificateOverride|CertificateDocument|RoutingCheck)"?/i.test(s)) out.push({ where: `${file} › ${enclosingFn(sp, c.at)}`, op: "raw SQL", text: s });
     }
   }
   return out;
@@ -464,17 +465,24 @@ export function scanCertificateWrites(files: readonly { file: string; src: strin
     for (const x of m.matchAll(/\bPrisma\s*\.\s*raw\s*\(/g)) push(x.index!, "Prisma.raw", "raw SQL the scan cannot read");
     const namesTable = namesTableIn(text, m);
     // 6.14 inc 2 fix (stricter): a raw call with a type argument (`$queryRaw<T>\`…\``) is read too, never skipped.
-    // Residual consider: a nested type argument (`$queryRaw<Array<Entry>>\`…\``) too: the argument runs up to the backtick or parenthesis.
-    for (const x of m.matchAll(/\$(executeRaw|queryRaw)(Unsafe)?\s*(?:<[^`(]*>)?\s*([`(])/g)) {
-      if (x[3] === "(" || x[2]) {
-        push(x.index!, `$${x[1]}${x[2] ?? ""}(…)`, "raw SQL the scan cannot read");
+    // Residual consider: a nested type argument (`$queryRaw<Array<Entry>>\`…\``) too.
+    // 614b-C3 (stricter): the type argument is read by angle-bracket depth with the shared lexer (rawCalls), so one holding a
+    // parenthesis, an arrow or a string with ">" is read whole; a raw method taken without being called cannot be read.
+    for (const c of rawCalls(m)) {
+      const name = `$${c.method}${c.unsafe ? "Unsafe" : ""}`;
+      if (c.opener == null) {
+        push(c.at, name, "raw SQL the scan cannot read");
+        continue;
+      }
+      if (c.opener === "(" || c.unsafe) {
+        push(c.at, `${name}(…)`, "raw SQL the scan cannot read");
         continue;
       }
       if (!namesTable || demo) continue;
-      const end = src.indexOf("`", x.index! + x[0].length);
-      const call = src.slice(x.index!, end + 1);
-      const rule = RAW_ALLOW[at(x.index!)];
-      if (!rule || !rule.test(call)) push(x.index!, `$${x[1]}`, "raw SQL in a file naming a certificate table, not allow-listed");
+      const end = src.indexOf("`", c.openAt + 1);
+      const call = src.slice(c.at, end + 1);
+      const rule = RAW_ALLOW[at(c.at)];
+      if (!rule || !rule.test(call)) push(c.at, `$${c.method}`, "raw SQL in a file naming a certificate table, not allow-listed");
     }
   }
   return out;
@@ -644,6 +652,33 @@ describe("the re-review's evasions are each caught (R-8 residual)", () => {
     expect(flags(`${h("x")}  await c.tx.$queryRaw<Array<Entry>>\`SELECT id FROM "Certificate"\`;\n}\n`)).toContain("raw SQL in a file naming a certificate table, not allow-listed");
     expect(flags(`${h("x")}  await c.tx.$queryRaw<Map<string, Array<{ id: string }>>>\`SELECT id FROM "Certificate"\`;\n}\n`)).toContain("raw SQL in a file naming a certificate table, not allow-listed");
     expect(flags(`${h("x")}  await c.tx.$queryRawUnsafe<Array<Entry>>(q);\n}\n`)).toContain("raw SQL the scan cannot read");
+  });
+  it("614b-C3 (stricter): a type argument is read by angle-bracket depth: parentheses, a nested generic, an arrow and a string with \">\" inside it", () => {
+    const flags = (src: string) => scanCertificateWrites([{ file: W_, src }], CERT_ALLOW).filter((w) => w.problem).map((w) => `${w.op} · ${w.problem}`);
+    // A call with a nested generic and a parenthesised argument list: read, and flagged as one the scan cannot read.
+    expect(flags(`${h("x")}  await c.tx.$queryRaw<Array<ReturnType<typeof f>>>(Prisma.sql\`SELECT id FROM "Certificate"\`);\n}\n`)).toContain("$queryRaw(…) · raw SQL the scan cannot read");
+    // A type argument holding a parenthesis: read, and its tagged template judged against the allow-list.
+    expect(flags(`${h("x")}  await c.tx.$queryRaw<{ n: (number | null) }[]>\`SELECT count(*) AS n FROM "Certificate"\`;\n}\n`)).toContain("$queryRaw · raw SQL in a file naming a certificate table, not allow-listed");
+    // A string type holding ">" (and an arrow) in the type argument: neither closes it.
+    expect(flags(`${h("x")}  await c.tx.$queryRaw<{ k: ">"; f: () => void }[]>\`SELECT id FROM "Certificate"\`;\n}\n`)).toContain("$queryRaw · raw SQL in a file naming a certificate table, not allow-listed");
+    // A raw method taken without being called.
+    expect(flags(`${h("x")}  const q = c.tx.$executeRaw;\n  await q\`UPDATE x SET y = 1\`;\n}\n`)).toContain("$executeRaw · raw SQL the scan cannot read");
+  });
+  it("614b-C3: the shared reader finds each raw call, its type argument read whole", () => {
+    const one = (src: string) => rawCalls(lex(src)).map((c) => `${c.method}${c.unsafe ? "Unsafe" : ""} ${c.opener ?? "none"}`);
+    expect(one("tx.$queryRaw<Array<ReturnType<typeof f>>>(q)")).toEqual(["queryRaw ("]);
+    expect(one("tx.$queryRaw<{ n: (number | null) }[]>`SELECT 1`")).toEqual(["queryRaw `"]);
+    expect(one('tx.$queryRaw<{ k: ">" }[]>`SELECT 1`')).toEqual(["queryRaw `"]);
+    expect(one("tx.$executeRawUnsafe<{ f: () => void }>(q)")).toEqual(["executeRawUnsafe ("]);
+    expect(one("const q = tx.$executeRaw;")).toEqual(["executeRaw none"]);
+    expect(one("tx.$queryRaw<Array<x>`SELECT 1`")).toEqual(["queryRaw none"]);
+    // The pattern this replaces skipped a type argument holding a parenthesis (a parenthesised union, a function type) and a raw
+    // method taken without a call: it stopped the type argument at the first backtick or parenthesis.
+    const old = (src: string) => [...lex(src).matchAll(/\$(executeRaw|queryRaw)(Unsafe)?\s*(?:<[^`(]*>)?\s*([`(])/g)].length;
+    for (const src of ["tx.$queryRaw<{ n: (number | null) }[]>`SELECT 1`", "tx.$executeRawUnsafe<{ f: () => void }>(q)", "const q = tx.$executeRaw;"]) {
+      expect(old(src), src).toBe(0);
+      expect(one(src), src).toHaveLength(1);
+    }
   });
   it("more of the same: the other write ops, a handle passed on, exported or bound moveTo, other relations, a quoted relation, TRUNCATE", () => {
     const flags = (src: string, file = W_) => scanCertificateWrites([{ file, src }], CERT_ALLOW).filter((w) => w.problem).map((w) => `${w.op} · ${w.problem}`);

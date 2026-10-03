@@ -115,6 +115,54 @@ export function closing(m: string, open: number): number {
   return m.length - 1;
 }
 
+/**
+ * 614b-C3: the end of a type argument list opened at `open` (a `<`), read by angle-bracket depth on lexed text, so a
+ * type argument holding parentheses, backticks in a string type or a nested generic is read whole. An arrow's `>`
+ * (`=>`, in a function type) does not close a bracket. Strings are already blanked by `lex`, so a `>` inside a string
+ * type never counts. -1 when the brackets never balance.
+ */
+export function typeArgumentsEnd(m: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < m.length; i++) {
+    if (m[i] === "<") depth++;
+    else if (m[i] === ">" && m[i - 1] !== "=" && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/// One raw SQL call as the scans read it: where it starts, which client method, and what follows its type argument.
+export interface RawCall {
+  at: number;
+  method: "queryRaw" | "executeRaw";
+  unsafe: boolean;
+  /// The character after the method and its type argument: "`" a tagged template, "(" a call; null when it is neither
+  /// (the method taken without being called, or a type argument that never closes), which no scan can read.
+  opener: "`" | "(" | null;
+  /// The index of that opener (or where it was looked for).
+  openAt: number;
+}
+
+/// 614b-C3: every `$queryRaw` / `$executeRaw` (and their Unsafe forms) on lexed text, its type argument read by depth.
+export function rawCalls(m: string): RawCall[] {
+  const out: RawCall[] = [];
+  for (const x of m.matchAll(/\$(executeRaw|queryRaw)(Unsafe)?\b/g)) {
+    let p = x.index! + x[0].length;
+    while (p < m.length && /\s/.test(m[p])) p++;
+    if (m[p] === "<") {
+      const end = typeArgumentsEnd(m, p);
+      if (end < 0) {
+        out.push({ at: x.index!, method: x[1] as RawCall["method"], unsafe: !!x[2], opener: null, openAt: p });
+        continue;
+      }
+      p = end + 1;
+      while (p < m.length && /\s/.test(m[p])) p++;
+    }
+    const opener = m[p] === "`" || m[p] === "(" ? (m[p] as "`" | "(") : null;
+    out.push({ at: x.index!, method: x[1] as RawCall["method"], unsafe: !!x[2], opener, openAt: p });
+  }
+  return out;
+}
+
 const KEYWORDS = new Set(["if", "for", "while", "switch", "catch", "function", "return", "with", "do", "else", "new", "typeof", "await", "yield", "super", "import"]);
 
 /// Every named function's body span: declarations, object-literal and class methods, named arrows and function expressions.
