@@ -16,8 +16,11 @@ describe("the Suspend refusal names the standing (fix S-4)", () => {
     expect(f.map((x) => supplierFaultText(x))).toEqual(["The supplier is blacklisted (since 24 Sep 2026): a suspension adds nothing."]);
   });
 
-  it("registration cancelled: says so, never 'blacklisted or cancelled'", () => {
+  // Changed as ruled (6.13 Part B Run 0 fix round S-1, BD-613-105(c), flagged 6.15a): a registration cancelled no longer
+  // refuses a suspension, so there is no refusal to word; it is never worded as "blacklisted" either.
+  it("registration cancelled: no refusal at all (S-1: recorded in either order), and never 'blacklisted'", () => {
     const f = suspendFaults(ask, ctx([ev({ id: "c", kind: "REGISTRATION_CANCELLED", effectiveOn: "2026-09-30" })]));
-    expect(f.map((x) => supplierFaultText(x))).toEqual(["The supplier's registration is cancelled (since 30 Sep 2026): a suspension adds nothing."]);
+    expect(f).toEqual([]);
+    expect(f.map((x) => supplierFaultText(x)).join(" ")).not.toMatch(/blacklisted/);
   });
 });

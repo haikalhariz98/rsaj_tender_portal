@@ -317,9 +317,8 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   EFFECTIVE_BEFORE_REGISTRATION: (d) => w(`It cannot take effect before the supplier was registered (${day(d.registeredOn)}).`, `Ia tidak boleh berkuat kuasa sebelum pembekal didaftarkan (${day(d.registeredOn)}).`),
   EFFECTIVE_BEFORE_SUSPENSION: (d) => w(`It cannot take effect before the suspension did (${day(d.since)}).`, `Ia tidak boleh berkuat kuasa sebelum penggantungan (${day(d.since)}).`),
   ALREADY_SUSPENDED: (d) => w(`The supplier is already suspended (since ${day(d.since)}).`, `Pembekal sudah digantung (sejak ${day(d.since)}).`),
-  ALREADY_BARRED: (d) => d.standing === "CANCELLED"
-    ? w(`The supplier's registration is cancelled${d.since ? ` (since ${day(d.since)})` : ""}: a suspension adds nothing.`, `Pendaftaran pembekal dibatalkan${d.since ? ` (sejak ${day(d.since)})` : ""}: penggantungan tidak menambah apa-apa.`)
-    : w(`The supplier is blacklisted${d.since ? ` (since ${day(d.since)})` : ""}: a suspension adds nothing.`, `Pembekal disenaraihitamkan${d.since ? ` (sejak ${day(d.since)})` : ""}: penggantungan tidak menambah apa-apa.`),
+  // S-1 (Run 0 fix round): only a blacklisting refuses a suspension now; a cancellation is recorded beside one.
+  ALREADY_BARRED: (d) => w(`The supplier is blacklisted${d.since ? ` (since ${day(d.since)})` : ""}: a suspension adds nothing.`, `Pembekal disenaraihitamkan${d.since ? ` (sejak ${day(d.since)})` : ""}: penggantungan tidak menambah apa-apa.`),
   DOCUMENT_NOT_ON_FILE: () => w("A document named is not on this supplier's file.", "Dokumen yang dinamakan tiada dalam fail pembekal ini."),
   NOT_SUSPENDED: () => w("No suspension of this supplier is in effect.", "Tiada penggantungan pembekal ini yang berkuat kuasa."),
   BLACKLISTED: () => w("The supplier is blacklisted: a blacklisting is not reinstated, it is lifted on its own route.", "Pembekal disenaraihitamkan: senarai hitam tidak dipulihkan, ia ditarik balik melalui laluannya sendiri."),

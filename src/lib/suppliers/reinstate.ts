@@ -40,8 +40,10 @@ export function suspendFaults(
   if (!ctx.today) return [{ code: "TIME_ZONE_UNSET", level: "block" }];
   if (ctx.status !== "REGISTERED") out.push({ code: "STANDING_NEEDS_REGISTRATION", level: "block" });
   else if (ctx.reading.suspension) out.push({ code: "ALREADY_SUSPENDED", level: "block", data: { since: ctx.reading.suspension.effectiveOn } });
-  // fix S-4: the refusal names the standing in effect, and since when.
-  else if (ctx.reading.standing === "BLACKLISTED" || ctx.reading.standing === "CANCELLED") out.push({ code: "ALREADY_BARRED", level: "block", data: { standing: ctx.reading.standing, since: (ctx.reading.blacklist ?? ctx.reading.cancellation)?.effectiveOn ?? null } });
+  // fix S-4: the refusal names the standing in effect, and since when. 6.13 Part B Run 0 fix round S-1 (BD-613-105(c)): a
+  // registration cancelled does not refuse a suspension. They are facts from different sources (the body's, the
+  // organisation's) and are recorded in either order; withdrawing one never touches the other.
+  else if (ctx.reading.standing === "BLACKLISTED") out.push({ code: "ALREADY_BARRED", level: "block", data: { standing: ctx.reading.standing, since: ctx.reading.blacklist?.effectiveOn ?? null } });
   if (!i.reasonId) out.push({ code: "REASON_REQUIRED", level: "block" });
   else if (!ctx.reason || ctx.reason.appliesTo !== "SUSPEND") out.push({ code: "REASON_NOT_FOR_SUSPENSION", level: "block" });
   else if (ctx.reason.retiredOn && ctx.reason.retiredOn <= ctx.today) out.push({ code: "REASON_RETIRED", level: "block" });
