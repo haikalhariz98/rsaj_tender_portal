@@ -1,5 +1,6 @@
 "use server";
 
+import { tablingOf } from "@/lib/matter/tabling";
 import { actStatusFault, actStatusText, type ContractAct } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { revalidatePath } from "next/cache";
@@ -40,7 +41,6 @@ import { adjustmentInProgress, CONSENT_DOMAIN, consentOf, factsOf, issuedAdjustm
 import { dayworkFaults, measuredAmount, measurementFaults, parseQuantity, parseSignedPercent, removeMeasurementFaults } from "@/lib/variation/measure";
 import { applicationFigures, orderFaults, orderFigures } from "@/lib/variation/order";
 import { applicationPercents, orderBands } from "@/lib/variation/route";
-import { tableStepFaults } from "@/lib/variation/tabling";
 import { applicationFormNow, chooseVariationRejection, citeVariationDecision, decideVariationStep, matrixToday, sendVariationRoute, VariationRefusal, variationLabel, type VariationCtx } from "@/lib/variation/route-write";
 import { ADJUSTMENT_DIRECTIONS, ADJUSTMENT_TRIGGERS, RATE_SOURCES, SO_DECISIONS, VARIATION_EVENTS, VARIATION_EXEMPTIONS, VARIATION_ORIGINS, type AdjustmentTrigger, type Finding, type VariationEvent, type VariationExemption } from "@/lib/variation/types";
 import { FormReader } from "@/lib/validate";
@@ -533,6 +533,8 @@ export async function tableVariationMatter(_prev: FormState, data: FormData): Pr
     if (!s) fieldError("meetingId", "That sitting no longer exists.");
     if (v.status !== "SUPPORTED") refuse("Not tabled:", [{ code: "NOT_SUPPORTED_YET", level: "block", data: { status: v.status } }]);
     if (!sittingPermits(s!.meeting.status, "TABLE")) refuse("Not tabled:", [{ code: "SITTING_FROZEN", level: "block" }]);
+    // 6.13 Part B run 1a (ADR 0029 §3): the one tabling rule for a matter tabled from its record, with its typed keys.
+    const tabledFrom = tablingOf({ kind: "VARIATION", id: v.id, reference: v.reference }, matterFactsOf(v));
     let domain: string;
     let act: "A" | "MR" | "R" | "P" | "JP" | "JR" | "MJR" | "MA";
     let amount: string | null;
@@ -542,7 +544,7 @@ export async function tableVariationMatter(_prev: FormState, data: FormData): Pr
       const step = open?.approvalInstance.steps.find((st) => st.decision === "PENDING" && st.committeeCode === s!.meeting.committee.code) ?? null;
       if (!open || !step) refuse("Not tabled:", [{ code: open ? "OTHER_COMMITTEE" : "NOT_COMMITTEE_STEP", level: "block" }]);
       const inst = open!.approvalInstance;
-      const tf = tableStepFaults(matterFactsOf(v), inst.domain, step!.committeeCode!);
+      const tf = tabledFrom.tableFaults(inst.domain, step!.committeeCode!);
       if (tf.length) refuse("Not tabled:", tf);
       domain = inst.domain;
       act = step!.act as typeof act;
@@ -564,7 +566,7 @@ export async function tableVariationMatter(_prev: FormState, data: FormData): Pr
     const tabling = checkTabling({ secretariatRoleCode: code, tabledByPersonId, holderIdsOnDate: secretariatHoldersOn(s!.roster, code, s!.today).map((h) => h.id), tablingDay: s!.today });
     if (!tabling.ok) return tabling.fault === "NOT_TABLED" || tabling.fault === "NOT_SECRETARIAT_HOLDER" ? { ok: false, errors: { tabledByPersonId: TABLING_FAULT_MESSAGE[tabling.fault] } } : { ok: false, message: `Nothing was saved: ${TABLING_FAULT_MESSAGE[tabling.fault]}` };
     const sequence = s!.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
-    const row = await c.tx.committeeDecision.create({ data: { meetingId: s!.meeting.id, subject, domain, matterKind: "VARIATION", matterRef: v.reference, variationId: v.id, amount, act, tabledByPersonId, tabledAt: dayToDate(s!.today!), sequence } });
+    const row = await c.tx.committeeDecision.create({ data: { meetingId: s!.meeting.id, subject, domain, ...tabledFrom.keys, amount, act, tabledByPersonId, tabledAt: dayToDate(s!.today!), sequence } });
     await audit(c, "CommitteeDecision", row.id, `${vLabel(c, v)} · ${purpose === "STEP" ? "tabled for its approval" : "tabled for the funder's consent"}`, "CREATE", diffFields(null, { matter: subject, sitting: s!.meeting.reference, committee: s!.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s!.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s!.today!), recordedOnBehalf: "yes" }));
     return { ok: true, message: `Tabled at ${s!.meeting.reference}. It is decided there, at the sitting; cite its decision here once it is decided.` };
   }, ["/committees", `/committees/${meetingId}`]);

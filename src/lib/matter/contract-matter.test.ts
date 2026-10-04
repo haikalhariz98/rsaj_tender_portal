@@ -71,7 +71,10 @@ describe("no writer before run 1b (single-writer scan)", () => {
     for (const { file, src } of sources) {
       const m = lex(src);
       if (/\.contractMatter\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\b/.test(m)) found.push(`${file}: contractMatter write`);
-      if (/\bcontractMatterId\s*:/.test(m)) found.push(`${file}: contractMatterId set`);
+      // The one named exception: tablingOf's keys builder names the key for a CONTRACT matter's committee matter (a pure
+      // value; tabling.test.ts holds that no act passes it a CONTRACT matter before run 1b).
+      const keyBuilder = path.normalize("src/lib/matter/tabling.ts");
+      if (/\bcontractMatterId\s*:/.test(m) && !(file === keyBuilder && (m.match(/\bcontractMatterId\s*:/g) ?? []).length === 2 && /matterKind: "CONTRACT"; matterRef: string \| null; contractMatterId: string/.test(src))) found.push(`${file}: contractMatterId set`);
       for (const c of rawCalls(m)) {
         const text = rawCallText(src, m, c);
         if (text === null) found.push(`${file}: an unreadable raw call`);

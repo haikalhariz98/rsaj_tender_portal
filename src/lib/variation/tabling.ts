@@ -5,29 +5,22 @@
  * has decided. Pure.
  */
 
+import { citeFaults, tableFaults, type MatterFact } from "@/lib/matter/tabling";
+
 import type { Finding } from "./types";
 
-export interface MatterFact {
-  withdrawn: boolean;
-  /// The route's domain the matter was tabled for.
-  domain: string;
-  committeeCode: string;
-  outcome: "PENDING" | "DEFERRED" | "CARRIED" | "NOT_CARRIED";
-}
-
-const forStep = (m: MatterFact, domain: string, committeeCode: string) => !m.withdrawn && m.domain === domain && m.committeeCode === committeeCode;
+// 6.13 Part B run 1a (ADR 0029 §3, against accepted Part A): the rule is the one every matter tabled from its record
+// follows (`tablingOf`, src/lib/matter/tabling.ts); these keep the variation's names, and their tests, unchanged.
+export type { MatterFact };
 
 /// Tabling the step's matter: refused while one stands waiting for the committee (tabled and pending, or deferred).
 export function tableStepFaults(matters: readonly MatterFact[], domain: string, committeeCode: string): Finding[] {
-  return matters.some((m) => forStep(m, domain, committeeCode) && (m.outcome === "PENDING" || m.outcome === "DEFERRED")) ? [{ code: "ALREADY_TABLED", level: "block" }] : [];
+  return tableFaults(matters, domain, committeeCode);
 }
 
 /// Citing the step: there must be a matter tabled for it, and the committee must have decided it.
 export function citeStepFaults(matters: readonly MatterFact[], domain: string, committeeCode: string): Finding[] {
-  const mine = matters.filter((m) => forStep(m, domain, committeeCode));
-  if (!mine.length) return [{ code: "NOT_TABLED_YET", level: "block" }];
-  if (!mine.some((m) => m.outcome === "CARRIED" || m.outcome === "NOT_CARRIED")) return [{ code: "NOT_DECIDED_YET", level: "block" }];
-  return [];
+  return citeFaults(matters, domain, committeeCode);
 }
 
 /// A matter tabled from a variation, as a post-award screen says it (6.13 acceptance S-1).
