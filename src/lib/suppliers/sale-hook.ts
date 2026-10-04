@@ -28,6 +28,7 @@ export async function registerAtSale(tx: Tx, org: { id: string; timeZone: string
   const e = await eligibilityOf(vendorId, exerciseId, org, tx);
   const s = await tx.supplier.findUniqueOrThrow({ where: { id: vendorId }, select: { status: true } });
   const standingRow = e?.eligibility.rows.find((r) => r.kind === "STANDING");
-  const check = saleStandingCheck({ status: s.status, standing: (e?.snapshot.standing ?? "NOT_REGISTERED") as never, lapseRuleNotSet: standingRow?.reason === "LAPSE_RULE_NOT_SET" }, { registerRequiredForSale: policy.registerRequiredForSale });
+  // Run 0 fix round (consider): the registration check reads the cancellation itself, also under a blacklisting.
+  const check = saleStandingCheck({ status: s.status, standing: (e?.snapshot.standing ?? "NOT_REGISTERED") as never, lapseRuleNotSet: standingRow?.reason === "LAPSE_RULE_NOT_SET", cancelled: e?.reading.cancellation != null }, { registerRequiredForSale: policy.registerRequiredForSale });
   return { linked: true, check, snapshot: e ? { ...e.snapshot, check: { registration: check.registrationCheck, suspension: check.suspensionCheck } } : null };
 }

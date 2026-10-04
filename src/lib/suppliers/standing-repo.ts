@@ -61,7 +61,7 @@ export async function standingOf(supplierId: string, organisationId: string, tod
  * registration requirements over its window (advertisement day to the closing's organisation day), its
  * restriction, and any special permission granted to a party of the exercise linked to it.
  */
-export async function eligibilityOf(supplierId: string, exerciseId: string, org: { id: string; timeZone: string | null; today: string }, client: Tx = db): Promise<{ eligibility: Eligibility; snapshot: EligibilitySnapshot } | null> {
+export async function eligibilityOf(supplierId: string, exerciseId: string, org: { id: string; timeZone: string | null; today: string }, client: Tx = db): Promise<{ eligibility: Eligibility; snapshot: EligibilitySnapshot; reading: StandingReading } | null> {
   const policy = await supplierPolicyOf(org.id, client);
   const st = await standingOf(supplierId, org.id, org.today, client, policy);
   if (!st) return null;
@@ -91,7 +91,7 @@ export async function eligibilityOf(supplierId: string, exerciseId: string, org:
     permissions: permissions.map((p) => ({ requirementId: p.requirementId, relaxes: p.relaxes })),
     on: org.today,
   });
-  return { eligibility: e, snapshot: { judgedOn: org.today, supplierId, supplierReference: supplier.reference, standing: st.reading.standing, verdict: e.verdict, rows: e.rows } };
+  return { eligibility: e, snapshot: { judgedOn: org.today, supplierId, supplierReference: supplier.reference, standing: st.reading.standing, verdict: e.verdict, rows: e.rows }, reading: st.reading };
 }
 
 /// Judge a linked bidder's eligibility at its envelope's opening, its supplier row locked last.

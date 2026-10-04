@@ -21,7 +21,9 @@ export interface SaleCheck {
 }
 
 export function saleStandingCheck(
-  supplier: { status: string; standing: Standing; lapseRuleNotSet: boolean } | null,
+  /// `cancelled`: a registration cancelled in effect (the reading's cancellation), read from the fact itself, not from the
+  /// standing's ranking, so it is seen also under a blacklisting that ranks above it (Run 0 fix round consider).
+  supplier: { status: string; standing: Standing; lapseRuleNotSet: boolean; cancelled: boolean } | null,
   policy: { registerRequiredForSale: boolean | null },
 ): SaleCheck {
   if (!supplier) {
@@ -31,12 +33,14 @@ export function saleStandingCheck(
   const findings: Finding<SaleFault>[] = [];
   const registered = supplier.status === "REGISTERED";
   if (!registered) findings.push({ code: "SALE_NOT_REGISTERED", level: "block" });
-  // A cancelled registration fails the registration check; a suspension or blacklisting the suspension check.
-  const cancelled = registered && supplier.standing === "CANCELLED";
+  // A cancelled registration fails the registration check (from the cancellation itself, also under a blacklisting); a
+  // suspension or blacklisting the suspension check. A cancellation alone leaves the suspension check not made.
+  const cancelled = registered && supplier.cancelled;
   const isBarred = registered && barred(supplier.standing);
+  const otherBar = isBarred && supplier.standing !== "CANCELLED";
   if (isBarred) findings.push({ code: "BARRED", level: "block", data: { standing: supplier.standing } });
   if (registered && !isBarred && supplier.lapseRuleNotSet) findings.push({ code: "LAPSE_RULE_NOT_SET", level: "warn" });
-  return { registrationCheck: registered && !cancelled ? "CLEAR" : "FAILED", suspensionCheck: !registered || cancelled ? "NOT_CHECKED" : isBarred ? "FAILED" : "CLEAR", findings };
+  return { registrationCheck: registered && !cancelled ? "CLEAR" : "FAILED", suspensionCheck: !registered ? "NOT_CHECKED" : otherBar ? "FAILED" : cancelled ? "NOT_CHECKED" : "CLEAR", findings };
 }
 
 /**

@@ -7,14 +7,15 @@ import { saleStandingCheck } from "./sale";
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
 
 describe("the register's checks at a sale (FR-ADV-010, OD-5)", () => {
-  const active = { status: "REGISTERED", standing: "ACTIVE" as const, lapseRuleNotSet: false };
+  // Run 0 fix round (faithful, flagged 6.15a): the cancellation is now read from its own fact (`cancelled`), set to agree.
+  const active = { status: "REGISTERED", standing: "ACTIVE" as const, lapseRuleNotSet: false, cancelled: false };
 
   it("linked and in good standing: both checks clear", () => {
     expect(saleStandingCheck(active, { registerRequiredForSale: null })).toEqual({ registrationCheck: "CLEAR", suspensionCheck: "CLEAR", findings: [] });
   });
 
   it("linked and its registration cancelled: refused, the registration check failed", () => {
-    const c = saleStandingCheck({ ...active, standing: "CANCELLED" }, { registerRequiredForSale: null });
+    const c = saleStandingCheck({ ...active, standing: "CANCELLED", cancelled: true }, { registerRequiredForSale: null });
     expect(c).toEqual({ registrationCheck: "FAILED", suspensionCheck: "NOT_CHECKED", findings: [{ code: "BARRED", level: "block", data: { standing: "CANCELLED" } }] });
   });
 
@@ -24,8 +25,17 @@ describe("the register's checks at a sale (FR-ADV-010, OD-5)", () => {
     expect(c.findings).toEqual([{ code: "BARRED", level: "block", data: { standing: s } }]);
   });
 
+  it("Run 0 fix round (consider): cancelled and also blacklisted: the registration check fails too, read from the cancellation", () => {
+    const c = saleStandingCheck({ ...active, standing: "BLACKLISTED", cancelled: true }, { registerRequiredForSale: null });
+    expect(c).toEqual({ registrationCheck: "FAILED", suspensionCheck: "FAILED", findings: [{ code: "BARRED", level: "block", data: { standing: "BLACKLISTED" } }] });
+    // Blacklisted alone: as before.
+    expect(saleStandingCheck({ ...active, standing: "BLACKLISTED" }, { registerRequiredForSale: null })).toMatchObject({ registrationCheck: "CLEAR", suspensionCheck: "FAILED" });
+    // Cancelled with a suspension beneath it (CANCELLED ranks above SUSPENDED): as a cancellation alone.
+    expect(saleStandingCheck({ ...active, standing: "CANCELLED", cancelled: true }, { registerRequiredForSale: null })).toMatchObject({ registrationCheck: "FAILED", suspensionCheck: "NOT_CHECKED" });
+  });
+
   it("linked to a supplier not registered: refused, the registration check failed", () => {
-    expect(saleStandingCheck({ status: "APPLICANT", standing: "NOT_REGISTERED", lapseRuleNotSet: false }, { registerRequiredForSale: false })).toEqual({ registrationCheck: "FAILED", suspensionCheck: "NOT_CHECKED", findings: [{ code: "SALE_NOT_REGISTERED", level: "block" }] });
+    expect(saleStandingCheck({ status: "APPLICANT", standing: "NOT_REGISTERED", lapseRuleNotSet: false, cancelled: false }, { registerRequiredForSale: false })).toEqual({ registrationCheck: "FAILED", suspensionCheck: "NOT_CHECKED", findings: [{ code: "SALE_NOT_REGISTERED", level: "block" }] });
   });
 
   it("linked, active with its lapse rule unset: clear, with the rule named", () => {
