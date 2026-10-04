@@ -91,7 +91,13 @@ export type OwnerFacts =
   | { kind: "variationInstruction"; contractStatus: ContractStatus; certificateStatus: string; variationClosed: boolean }
   /// 6.15 (615-C2, BD-613-91): a supplier's standing event; only a registration cancelled takes a notice. Withdrawn as
   /// recorded in error, it keeps what it has. Nothing stands on the notice (it is the body's, attached for the record).
-  | { kind: "standingEvent"; cancellation: boolean; withdrawn: boolean };
+  | { kind: "standingEvent"; cancellation: boolean; withdrawn: boolean }
+  /// 6.13 Part B run 1b (FR-EOT-001): a delay notice, with its contract's status. Its scan may follow the record.
+  | { kind: "delayNotice"; contractStatus: ContractStatus }
+  /// 6.13 Part B run 1b (FR-EOT-005, 006): an EOT claim, with its contract's status, whether it is determined or closed
+  /// (it then stands on what it was determined with) and whether it is a weather claim (only one keeps meteorological
+  /// records).
+  | { kind: "eotClaim"; contractStatus: ContractStatus; determined: boolean; closed: boolean; isWeather: boolean };
 
 /// 6.8: where an evaluation version stands (the Prisma enum's values).
 export type EvaluationState = "OPEN" | "ISSUED" | "SUPERSEDED" | "CANCELLED";
@@ -196,7 +202,11 @@ export type OwnerExit =
   | "CONTRACT_EXECUTED"
   | "INSTRUCTION_VOID"
   | "VARIATION_CLOSED"
-  | "CANCELLATION_WITHDRAWN";
+  | "CANCELLATION_WITHDRAWN"
+  /// 6.13 Part B run 1b: an EOT claim determined or closed keeps what it was determined with; only a weather claim keeps
+  /// meteorological records.
+  | "EOT_CLAIM_DETERMINED"
+  | "EOT_NOT_WEATHER";
 
 export type AttachFault =
   | "PURPOSE_NOT_FOR_OWNER"
@@ -325,6 +335,17 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): Owner
     case "standingEvent":
       // 615-C2: open while the record stands; withdrawn as recorded in error, it keeps what it has.
       return owner.withdrawn ? { state: "FROZEN", exit: "CANCELLATION_WITHDRAWN" } : { state: "OPEN" };
+    case "delayNotice":
+      // BD-613-115: the EOT family's row first; then the notice keeps its scan whenever it arrives (FR-EOT-001).
+      return contractTableState(purpose, owner.contractStatus) ?? { state: "OPEN" };
+    case "eotClaim": {
+      // BD-613-115: the EOT family's row first; then the claim's own rule (6.13 Part B run 1b, FR-EOT-005, 006).
+      const table = contractTableState(purpose, owner.contractStatus);
+      if (table) return table;
+      if (owner.determined || owner.closed) return { state: "FROZEN", exit: "EOT_CLAIM_DETERMINED" };
+      if (purpose === "METEOROLOGICAL_RECORD" && !owner.isWeather) return { state: "FROZEN", exit: "EOT_NOT_WEATHER" };
+      return { state: "OPEN" };
+    }
   }
 }
 
@@ -346,6 +367,10 @@ export const CONTRACT_PURPOSE_FAMILY = {
   AS_BUILT: "SUPERVISION",
   DIARY_PHOTO: "SUPERVISION",
   INSTRUCTION_SKETCH: "VARIATION",
+  // 6.13 Part B run 1b: the delay notice and the EOT claim's papers read EOT.
+  DELAY_NOTICE: "EOT",
+  METEOROLOGICAL_RECORD: "EOT",
+  EOT_CALCULATION: "EOT",
 } as const satisfies Partial<Record<AttachmentPurpose, ContractAct>>;
 
 /**
@@ -360,7 +385,9 @@ function contractTableState(purpose: AttachmentPurpose, status: ContractStatus):
   const f = actStatusFault(act, status);
   if (!f) return null;
   if (f.code === "CONTRACT_CANCELLED") return { state: "FROZEN", exit: "CONTRACT_CANCELLED" };
-  if (f.code === "NOT_EXECUTED") return { state: "NOT_READY", exit: "CONTRACT_NOT_EXECUTED" };
+  // 6.13 Part B run 1b: a family not recorded before execution (EOT) says so in the table's words (exitWords); no family
+  // before Part B reached this, each being allowed before execution.
+  if (f.code === "NOT_EXECUTED") return { state: "NOT_READY", exit: "CONTRACT_NOT_EXECUTED", act, status };
   return { state: "FROZEN", exit: "CONTRACT_STATE", act, status };
 }
 

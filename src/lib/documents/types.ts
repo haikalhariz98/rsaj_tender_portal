@@ -59,7 +59,10 @@ export type AttachmentPurpose =
   | "PROGRAMME"
   | "DIARY_PHOTO"
   | "INSTRUCTION_SKETCH"
-  | "REGISTRATION_CANCELLATION_NOTICE";
+  | "REGISTRATION_CANCELLATION_NOTICE"
+  | "DELAY_NOTICE"
+  | "METEOROLOGICAL_RECORD"
+  | "EOT_CALCULATION";
 
 export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "SIGNED_MINUTES",
@@ -101,12 +104,15 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "DIARY_PHOTO",
   "INSTRUCTION_SKETCH",
   "REGISTRATION_CANCELLATION_NOTICE",
+  "DELAY_NOTICE",
+  "METEOROLOGICAL_RECORD",
+  "EOT_CALCULATION",
 ];
 
 /// The owners a document can be attached to. New owners arrive by migration with their
 /// module (MatterKind precedent); each is a typed key on DocumentAttachment.
-export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening" | "evaluation" | "evaluationMeeting" | "evaluationBidder" | "supplierDocument" | "supplierApplication" | "contract" | "variationInstruction" | "standingEvent";
-export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction", "standingEvent"];
+export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening" | "evaluation" | "evaluationMeeting" | "evaluationBidder" | "supplierDocument" | "supplierApplication" | "contract" | "variationInstruction" | "standingEvent" | "delayNotice" | "eotClaim";
+export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction", "standingEvent", "delayNotice", "eotClaim"];
 
 /// Which owner each purpose belongs to. The migration's CHECK says the same.
 export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
@@ -155,10 +161,15 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   INSTRUCTION_SKETCH: "variationInstruction",
   // 6.15 (615-C2): a registration body's notice of cancellation, on the record of the cancellation.
   REGISTRATION_CANCELLATION_NOTICE: "standingEvent",
+  // 6.13 Part B run 1b (FR-EOT-001, 005, 006): the delay notice's scan; the EOT claim's meteorological records and the
+  // calculation of its proposed period.
+  DELAY_NOTICE: "delayNotice",
+  METEOROLOGICAL_RECORD: "eotClaim",
+  EOT_CALCULATION: "eotClaim",
 };
 
 /// The column on DocumentAttachment that names each owner.
-export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId" | "evaluationId" | "evaluationMeetingId" | "evaluationBidderId" | "supplierDocumentId" | "supplierApplicationId" | "contractId" | "variationInstructionId" | "standingEventId";
+export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId" | "evaluationId" | "evaluationMeetingId" | "evaluationBidderId" | "supplierDocumentId" | "supplierApplicationId" | "contractId" | "variationInstructionId" | "standingEventId" | "delayNoticeId" | "eotClaimId";
 export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   meeting: "meetingId",
   exercise: "exerciseId",
@@ -179,6 +190,8 @@ export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   contract: "contractId",
   variationInstruction: "variationInstructionId",
   standingEvent: "standingEventId",
+  delayNotice: "delayNoticeId",
+  eotClaim: "eotClaimId",
 };
 
 /// Purposes attached only by their owner's own act, never from the shared attach choice: a

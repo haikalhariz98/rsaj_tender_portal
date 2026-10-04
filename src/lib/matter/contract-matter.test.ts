@@ -66,6 +66,20 @@ function files(dir: string): string[] {
   });
 }
 
+/// A raw call's text writes ContractMatter: it names the table and inserts, updates or deletes. Run 1b C3 (flagged against
+/// run 1a): a row lock (`FOR UPDATE`, `FOR NO KEY UPDATE`, `FOR SHARE`) is a read, not a write, so it is taken out first.
+const rawWritesMatter = (text: string) => /"ContractMatter"/.test(text) && /\b(INSERT|UPDATE|DELETE)\b/i.test(text.replace(/\bFOR\s+(?:NO\s+KEY\s+)?(?:UPDATE|SHARE)\b/gi, ""));
+
+describe("the raw-write test (self-test, run 1b C3)", () => {
+  it("a lock is a read; an update, insert or delete of ContractMatter is a write", () => {
+    expect(rawWritesMatter(`SELECT id FROM "ContractMatter" WHERE id = $1 FOR UPDATE`)).toBe(false);
+    expect(rawWritesMatter(`SELECT id FROM "ContractMatter" WHERE id = $1 FOR NO KEY UPDATE`)).toBe(false);
+    expect(rawWritesMatter(`UPDATE "ContractMatter" SET "closedAt" = now()`)).toBe(true);
+    expect(rawWritesMatter(`SELECT id FROM "ContractMatter" FOR UPDATE; UPDATE "ContractMatter" SET x = 1`)).toBe(true);
+    expect(rawWritesMatter(`DELETE FROM "ContractMatter"`)).toBe(true);
+  });
+});
+
 describe("no writer before run 1b (single-writer scan)", () => {
   const sources = [...files("src/app"), ...files("src/lib"), ...files("prisma")].map((file) => ({ file, src: readFileSync(path.join(ROOT, file), "utf8") }));
   it("no product code or demo writes ContractMatter, nor sets a route's or a committee matter's contractMatterId", () => {
@@ -80,7 +94,7 @@ describe("no writer before run 1b (single-writer scan)", () => {
       for (const c of rawCalls(m)) {
         const text = rawCallText(src, m, c);
         if (text === null) found.push(`${file}: an unreadable raw call`);
-        else if (/"ContractMatter"/.test(text) && /\b(INSERT|UPDATE|DELETE)\b/i.test(text)) found.push(`${file}: raw write to ContractMatter`);
+        else if (rawWritesMatter(text)) found.push(`${file}: raw write to ContractMatter`);
       }
     }
     expect(found).toEqual([]);

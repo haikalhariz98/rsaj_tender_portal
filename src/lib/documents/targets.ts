@@ -37,6 +37,8 @@ export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   contract: "Contract",
   variationInstruction: "S.O.'s instruction (variation)",
   standingEvent: "Supplier's registration cancelled",
+  delayNotice: "Delay notice",
+  eotClaim: "Extension-of-time claim",
 };
 
 /// Where an owner's own screen is, for a link from a document to the record it is on.
@@ -85,6 +87,11 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
     // 6.15 (615-C2): a registration cancelled is on its supplier's Standing tab; the third argument is the supplier's id.
     case "standingEvent":
       return exerciseId ? `/suppliers/${exerciseId}?tab=standing` : "/suppliers";
+    // 6.13 Part B run 1b: a delay notice and an EOT claim are on their contract's Time tab (phase B); the third argument is
+    // the contract's id.
+    case "delayNotice":
+    case "eotClaim":
+      return exerciseId ? `/projects/${exerciseId}?tab=time` : "/projects";
   }
 }
 

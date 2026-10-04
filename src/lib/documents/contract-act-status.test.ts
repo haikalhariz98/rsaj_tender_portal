@@ -18,13 +18,19 @@ import { ATTACHMENT_PURPOSES, PURPOSE_OWNER, type AttachmentPurpose } from "./ty
  * store give the same answer for each purpose in each state.
  */
 
-const CONTRACT_PURPOSES = ATTACHMENT_PURPOSES.filter((p) => PURPOSE_OWNER[p] === "contract" || PURPOSE_OWNER[p] === "variationInstruction");
+/// 6.13 Part B run 1b (flagged against run 1a, stricter): the delay notice's and the EOT claim's purposes are a contract's too.
+const CONTRACT_OWNERS = ["contract", "variationInstruction", "delayNotice", "eotClaim"];
+const CONTRACT_PURPOSES = ATTACHMENT_PURPOSES.filter((p) => CONTRACT_OWNERS.includes(PURPOSE_OWNER[p]));
 const SITE: readonly AttachmentPurpose[] = ["PIPE_LOG", "AS_BUILT", "DIARY_PHOTO"];
 
 const factsFor = (p: AttachmentPurpose, status: ContractStatus): OwnerFacts =>
   PURPOSE_OWNER[p] === "variationInstruction"
     ? { kind: "variationInstruction", contractStatus: status, certificateStatus: "ISSUED", variationClosed: false }
-    : { kind: "contract", status, legalSubmitted: true, contractorSigned: false };
+    : PURPOSE_OWNER[p] === "delayNotice"
+      ? { kind: "delayNotice", contractStatus: status }
+      : PURPOSE_OWNER[p] === "eotClaim"
+        ? { kind: "eotClaim", contractStatus: status, determined: false, closed: false, isWeather: true }
+        : { kind: "contract", status, legalSubmitted: true, contractorSigned: false };
 
 describe("BD-613-115: a contract's attachments read the act x status table first", () => {
   it("every purpose a contract (or its instruction) keeps names its owning family", () => {
@@ -32,6 +38,18 @@ describe("BD-613-115: a contract's attachments read the act x status table first
     for (const p of ["COMPANY_RESOLUTION", "LEGAL_SUBMISSION", "LEGAL_COMMENTS", "RECONCILIATION", "SIGNED_CONTRACT", "STAMPING_CERTIFICATE"] as const) expect(CONTRACT_PURPOSE_FAMILY[p], p).toBe("FORMATION");
     for (const p of ["PROGRAMME", "PIPE_LOG", "AS_BUILT", "DIARY_PHOTO"] as const) expect(CONTRACT_PURPOSE_FAMILY[p], p).toBe("SUPERVISION");
     expect(CONTRACT_PURPOSE_FAMILY.INSTRUCTION_SKETCH).toBe("VARIATION");
+    for (const p of ["DELAY_NOTICE", "METEOROLOGICAL_RECORD", "EOT_CALCULATION"] as const) expect(CONTRACT_PURPOSE_FAMILY[p], p).toBe("EOT");
+  });
+
+  it("run 1b: the EOT claim keeps its papers until it is determined or closed; meteorological records only on a weather claim", () => {
+    const claim = (o: Partial<Extract<OwnerFacts, { kind: "eotClaim" }>> = {}): OwnerFacts => ({ kind: "eotClaim", contractStatus: "ACTIVE", determined: false, closed: false, isWeather: true, ...o });
+    expect(ownerState("METEOROLOGICAL_RECORD", claim())).toEqual({ state: "OPEN" });
+    expect(ownerState("EOT_CALCULATION", claim({ isWeather: false }))).toEqual({ state: "OPEN" });
+    expect(ownerState("METEOROLOGICAL_RECORD", claim({ isWeather: false }))).toEqual({ state: "FROZEN", exit: "EOT_NOT_WEATHER" });
+    expect(ownerState("EOT_CALCULATION", claim({ determined: true }))).toEqual({ state: "FROZEN", exit: "EOT_CLAIM_DETERMINED" });
+    expect(ownerState("METEOROLOGICAL_RECORD", claim({ closed: true }))).toEqual({ state: "FROZEN", exit: "EOT_CLAIM_DETERMINED" });
+    expect(ownerState("DELAY_NOTICE", { kind: "delayNotice", contractStatus: "ACTIVE" })).toEqual({ state: "OPEN" });
+    expect(ownerState("DELAY_NOTICE", { kind: "delayNotice", contractStatus: "CANCELLED" })).toEqual({ state: "FROZEN", exit: "CONTRACT_CANCELLED" });
   });
 
   it("wherever the family's row refuses, the purpose is not open, in the table's words (cancelled keeps its own)", () => {

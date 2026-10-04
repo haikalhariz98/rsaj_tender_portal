@@ -111,6 +111,9 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   DIARY_PHOTO: "Site diary photograph",
   INSTRUCTION_SKETCH: "Plan or sketch for the S.O.'s instruction",
   REGISTRATION_CANCELLATION_NOTICE: "Registration body's notice of cancellation",
+  DELAY_NOTICE: "Notice of delay (or the S.O.'s direction)",
+  METEOROLOGICAL_RECORD: "Meteorological records",
+  EOT_CALCULATION: "How the proposed period was calculated",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",
@@ -209,6 +212,8 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   INSTRUCTION_VOID: "The instruction is void and keeps what it has.",
   VARIATION_CLOSED: "The variation is closed and its instruction keeps what it has.",
   CANCELLATION_WITHDRAWN: "The cancellation was withdrawn as recorded in error and keeps what it has.",
+  EOT_CLAIM_DETERMINED: "The extension-of-time claim is determined (or closed) and keeps what it was determined with.",
+  EOT_NOT_WEATHER: "Meteorological records are kept only on a weather claim.",
 };
 
 /**
@@ -216,7 +221,7 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
  * (actStatusText), so the attach screen, the owner page and the store's refusal say what every other act says.
  */
 export function exitWords(x: { exit: OwnerExit; act?: ContractAct; status?: ContractStatus }): string {
-  if (x.exit === "CONTRACT_STATE" && x.act && x.status) {
+  if ((x.exit === "CONTRACT_STATE" || x.exit === "CONTRACT_NOT_EXECUTED") && x.act && x.status) {
     const f = actStatusFault(x.act, x.status);
     if (f) return actStatusText(f);
   }

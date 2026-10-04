@@ -12,7 +12,7 @@ import { detachFault, ownerState, purposeFits, reliedOn, reliedOnAttachment, rep
 import { isLive } from "./evidence";
 import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, exitWords, FINGERPRINT_STATEMENT } from "./labels";
 import { effectiveCap } from "./limits";
-import { addendumFacts, awardFacts, CANCELLATION_OWNER_SELECT, cancellationOwnerFacts, cancellationOwnerLabel, bqVersionFacts, contractFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, supplierApplicationFacts, supplierDocumentFacts, tenderPackPartFacts, VARIATION_INSTRUCTION_FACTS_SELECT, variationInstructionFacts, variationInstructionLabel, withdrawalFacts } from "./owner-facts";
+import { addendumFacts, awardFacts, CANCELLATION_OWNER_SELECT, cancellationOwnerFacts, cancellationOwnerLabel, bqVersionFacts, contractFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, supplierApplicationFacts, supplierDocumentFacts, tenderPackPartFacts, VARIATION_INSTRUCTION_FACTS_SELECT, variationInstructionFacts, variationInstructionLabel, withdrawalFacts, DELAY_NOTICE_FACTS_SELECT, delayNoticeFacts, delayNoticeLabel, EOT_CLAIM_FACTS_SELECT, eotClaimFacts, eotClaimLabel } from "./owner-facts";
 import { SUPPLIER_APPLICATION_FACTS_SELECT, SUPPLIER_DOCUMENT_FACTS_SELECT, supplierApplicationLabel, supplierDocumentLabel } from "@/lib/suppliers/lock";
 import { CONTRACT_FACTS_SELECT, contractLabel } from "@/lib/contract/repo";
 import { PACK_PART_FACTS_SELECT, packPartLabel } from "@/lib/tender-docs/owner";
@@ -115,6 +115,14 @@ export async function readOwner(ref: OwnerRef): Promise<{ facts: OwnerFacts; lab
       const e = await db.standingEvent.findFirst({ where: { id: ref.id, organisationId: org.id }, select: CANCELLATION_OWNER_SELECT });
       return e ? { facts: cancellationOwnerFacts(e), label: cancellationOwnerLabel(e) } : null;
     }
+    case "delayNotice": {
+      const n = await db.delayNotice.findFirst({ where: { id: ref.id, organisationId: org.id }, select: DELAY_NOTICE_FACTS_SELECT });
+      return n ? { facts: delayNoticeFacts(n), label: delayNoticeLabel(n) } : null;
+    }
+    case "eotClaim": {
+      const c = await db.eotClaim.findFirst({ where: { id: ref.id, organisationId: org.id }, select: EOT_CLAIM_FACTS_SELECT });
+      return c ? { facts: eotClaimFacts(c), label: eotClaimLabel(c) } : null;
+    }
   }
 }
 
@@ -193,7 +201,7 @@ export async function documentDrawer(documentId: string) {
         orderBy: { versionNo: "desc" },
         select: {
           ...versionSelect,
-          attachments: { select: { id: true, purpose: true, attachedAt: true, detachedAt: true, detachReason: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, meeting: { select: { reference: true } }, exercise: { select: { reference: true } }, award: { select: { reference: true } }, delegation: { select: { fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } }, specificationPanel: { select: { exerciseId: true, exercise: { select: { reference: true } } } }, bqVersionId: true, bqVersion: { select: { versionNo: true, exerciseId: true, exercise: { select: { reference: true } } } }, tenderPackPartId: true, tenderPackPart: { select: PACK_PART_FACTS_SELECT }, addendumId: true, addendum: { select: ADDENDUM_FACTS_SELECT }, bidWithdrawalId: true, bidWithdrawal: { select: WITHDRAWAL_FACTS_SELECT }, validityExtensionId: true, validityExtension: { select: EXTENSION_FACTS_SELECT }, openingId: true, opening: { select: OPENING_FACTS_SELECT }, evaluationId: true, evaluation: { select: EVALUATION_FACTS_SELECT }, evaluationMeetingId: true, evaluationMeeting: { select: EVALUATION_MEETING_FACTS_SELECT }, evaluationBidderId: true, evaluationBidder: { select: EVALUATION_BIDDER_FACTS_SELECT }, supplierDocumentId: true, supplierDocument: { select: SUPPLIER_DOCUMENT_FACTS_SELECT }, supplierApplicationId: true, supplierApplication: { select: SUPPLIER_APPLICATION_FACTS_SELECT }, contractId: true, contract: { select: CONTRACT_FACTS_SELECT }, variationInstructionId: true, variationInstruction: { select: VARIATION_INSTRUCTION_FACTS_SELECT }, standingEventId: true, standingEvent: { select: CANCELLATION_OWNER_SELECT } } },
+          attachments: { select: { id: true, purpose: true, attachedAt: true, detachedAt: true, detachReason: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, meeting: { select: { reference: true } }, exercise: { select: { reference: true } }, award: { select: { reference: true } }, delegation: { select: { fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } }, specificationPanel: { select: { exerciseId: true, exercise: { select: { reference: true } } } }, bqVersionId: true, bqVersion: { select: { versionNo: true, exerciseId: true, exercise: { select: { reference: true } } } }, tenderPackPartId: true, tenderPackPart: { select: PACK_PART_FACTS_SELECT }, addendumId: true, addendum: { select: ADDENDUM_FACTS_SELECT }, bidWithdrawalId: true, bidWithdrawal: { select: WITHDRAWAL_FACTS_SELECT }, validityExtensionId: true, validityExtension: { select: EXTENSION_FACTS_SELECT }, openingId: true, opening: { select: OPENING_FACTS_SELECT }, evaluationId: true, evaluation: { select: EVALUATION_FACTS_SELECT }, evaluationMeetingId: true, evaluationMeeting: { select: EVALUATION_MEETING_FACTS_SELECT }, evaluationBidderId: true, evaluationBidder: { select: EVALUATION_BIDDER_FACTS_SELECT }, supplierDocumentId: true, supplierDocument: { select: SUPPLIER_DOCUMENT_FACTS_SELECT }, supplierApplicationId: true, supplierApplication: { select: SUPPLIER_APPLICATION_FACTS_SELECT }, contractId: true, contract: { select: CONTRACT_FACTS_SELECT }, variationInstructionId: true, variationInstruction: { select: VARIATION_INSTRUCTION_FACTS_SELECT }, standingEventId: true, standingEvent: { select: CANCELLATION_OWNER_SELECT }, delayNoticeId: true, delayNotice: { select: DELAY_NOTICE_FACTS_SELECT }, eotClaimId: true, eotClaim: { select: EOT_CLAIM_FACTS_SELECT } } },
           accessEvents: { orderBy: { at: "desc" }, take: 50, select: { id: true, kind: true, reasonCode: true, at: true } },
         },
       },
@@ -209,7 +217,7 @@ export async function documentDrawer(documentId: string) {
   const ids = [d.id, ...d.versions.map((v) => v.id), ...d.versions.flatMap((v) => v.attachments.map((a) => a.id)), ...d.holds.map((h) => h.id)];
   const history = await db.auditEntry.findMany({ where: { organisationId: org.id, entityId: { in: ids } }, orderBy: { at: "desc" }, take: 200 });
   const ownerLabel = (a: (typeof d.versions)[number]["attachments"][number]) =>
-    a.meeting?.reference ?? a.exercise?.reference ?? a.award?.reference ?? (a.delegation ? `Delegation · ${a.delegation.fromPerson.name} to ${a.delegation.toPerson.name}` : a.specificationPanel ? `${a.specificationPanel.exercise.reference} · Specification panel` : a.bqVersion ? `${a.bqVersion.exercise.reference} · Bill of quantities, version ${a.bqVersion.versionNo}` : a.tenderPackPart ? packPartLabel(a.tenderPackPart) : a.addendum ? addendumLabel(a.addendum) : a.bidWithdrawal ? withdrawalLabel(a.bidWithdrawal) : a.validityExtension ? extensionLabel(a.validityExtension) : a.opening ? openingLabel(a.opening) : a.evaluation ? evaluationLabel(a.evaluation) : a.evaluationMeeting ? evaluationMeetingLabel(a.evaluationMeeting) : a.evaluationBidder ? evaluationBidderLabel(a.evaluationBidder) : a.supplierDocument ? supplierDocumentLabel(a.supplierDocument) : a.supplierApplication ? supplierApplicationLabel(a.supplierApplication) : a.contract ? contractLabel(a.contract) : a.variationInstruction ? variationInstructionLabel(a.variationInstruction) : a.standingEvent ? cancellationOwnerLabel(a.standingEvent) : "A record");
+    a.meeting?.reference ?? a.exercise?.reference ?? a.award?.reference ?? (a.delegation ? `Delegation · ${a.delegation.fromPerson.name} to ${a.delegation.toPerson.name}` : a.specificationPanel ? `${a.specificationPanel.exercise.reference} · Specification panel` : a.bqVersion ? `${a.bqVersion.exercise.reference} · Bill of quantities, version ${a.bqVersion.versionNo}` : a.tenderPackPart ? packPartLabel(a.tenderPackPart) : a.addendum ? addendumLabel(a.addendum) : a.bidWithdrawal ? withdrawalLabel(a.bidWithdrawal) : a.validityExtension ? extensionLabel(a.validityExtension) : a.opening ? openingLabel(a.opening) : a.evaluation ? evaluationLabel(a.evaluation) : a.evaluationMeeting ? evaluationMeetingLabel(a.evaluationMeeting) : a.evaluationBidder ? evaluationBidderLabel(a.evaluationBidder) : a.supplierDocument ? supplierDocumentLabel(a.supplierDocument) : a.supplierApplication ? supplierApplicationLabel(a.supplierApplication) : a.contract ? contractLabel(a.contract) : a.variationInstruction ? variationInstructionLabel(a.variationInstruction) : a.standingEvent ? cancellationOwnerLabel(a.standingEvent) : a.delayNotice ? delayNoticeLabel(a.delayNotice) : a.eotClaim ? eotClaimLabel(a.eotClaim) : "A record");
   const hrefOf = (a: (typeof d.versions)[number]["attachments"][number]) =>
     a.meetingId ? ownerHref("meeting", a.meetingId)
       : a.exerciseId ? ownerHref("exercise", a.exerciseId)
@@ -230,6 +238,8 @@ export async function documentDrawer(documentId: string) {
       : a.contractId ? ownerHref("contract", a.contractId)
       : a.variationInstructionId && a.variationInstruction ? ownerHref("variationInstruction", a.variationInstructionId, `${a.variationInstruction.variation.contractId}/variations/${a.variationInstruction.variation.id}`)
       : a.standingEventId && a.standingEvent ? ownerHref("standingEvent", a.standingEventId, a.standingEvent.supplierId)
+      : a.delayNoticeId && a.delayNotice ? ownerHref("delayNotice", a.delayNoticeId, a.delayNotice.contractId)
+      : a.eotClaimId && a.eotClaim ? ownerHref("eotClaim", a.eotClaimId, a.eotClaim.contractId)
       : "/documents";
   return {
     id: d.id,
@@ -435,6 +445,24 @@ export async function attachTargetsOf(kind: OwnerRef["kind"]) {
         db.variationInstruction.count({ where }),
       ]);
       return { records: attachTargets(rows.map((i) => ({ id: i.id, label: variationInstructionLabel(i), href: ownerHref("variationInstruction", i.id, `${i.variation.contractId}/variations/${i.variation.id}`), facts: variationInstructionFacts(i) }))), total };
+    }
+    case "delayNotice": {
+      // 6.13 Part B run 1b: delay notices of contracts not cancelled, newest first.
+      const where = { organisationId: org.id, contract: { status: { not: "CANCELLED" as const } } };
+      const [rows, total] = await Promise.all([
+        db.delayNotice.findMany({ where, orderBy: [{ recordedAt: "desc" }, { id: "asc" }], take, select: { id: true, ...DELAY_NOTICE_FACTS_SELECT } }),
+        db.delayNotice.count({ where }),
+      ]);
+      return { records: attachTargets(rows.map((n) => ({ id: n.id, label: delayNoticeLabel(n), href: ownerHref("delayNotice", n.id, n.contractId), facts: delayNoticeFacts(n) }))), total };
+    }
+    case "eotClaim": {
+      // 6.13 Part B run 1b: EOT claims not yet determined or closed, of contracts not cancelled, newest first.
+      const where = { organisationId: org.id, entitlement: null, matter: { closedAt: null }, contract: { status: { not: "CANCELLED" as const } } };
+      const [rows, total] = await Promise.all([
+        db.eotClaim.findMany({ where, orderBy: [{ recordedAt: "desc" }, { id: "asc" }], take, select: { id: true, ...EOT_CLAIM_FACTS_SELECT } }),
+        db.eotClaim.count({ where }),
+      ]);
+      return { records: attachTargets(rows.map((c) => ({ id: c.id, label: eotClaimLabel(c), href: ownerHref("eotClaim", c.id, c.contractId), facts: eotClaimFacts(c) }))), total };
     }
   }
 }

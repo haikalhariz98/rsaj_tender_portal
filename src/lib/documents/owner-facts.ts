@@ -175,5 +175,15 @@ type CancellationRow = { kind: string; withdrawnAt: Date | null; bodyLabelSnapsh
 export const cancellationOwnerFacts = (e: CancellationRow): OwnerFacts => ({ kind: "standingEvent", cancellation: e.kind === "REGISTRATION_CANCELLED", withdrawn: e.withdrawnAt != null });
 export const cancellationOwnerLabel = (e: CancellationRow) =>
   e.kind === "REGISTRATION_CANCELLED" ? `${e.supplier.reference} · Registration cancelled by ${e.bodyLabelSnapshot} (${e.externalReference})` : `${e.supplier.reference} · A standing record`;
+/// 6.13 Part B run 1b (FR-EOT-001): what a delay notice is judged and named by.
+export const DELAY_NOTICE_FACTS_SELECT = { contractId: true, receivedOn: true, path: true, contract: { select: { status: true, number: true, award: { select: { awardeeName: true } } } } } as const;
+type DelayNoticeRow = { contractId: string; receivedOn: Date; path: string; contract: { status: ContractStatus; number: string; award: { awardeeName: string } } };
+export const delayNoticeFacts = (n: DelayNoticeRow): OwnerFacts => ({ kind: "delayNotice", contractStatus: n.contract.status });
+export const delayNoticeLabel = (n: DelayNoticeRow) => `Contract ${n.contract.number} · ${n.path === "SO_DIRECTION" ? "the S.O.'s direction to give reasons" : "notice of delay"} received ${n.receivedOn.toISOString().slice(0, 10)}`;
+/// 6.13 Part B run 1b (FR-EOT-005, 006): what an EOT claim is judged and named by.
+export const EOT_CLAIM_FACTS_SELECT = { contractId: true, entitlement: true, isWeather: true, matter: { select: { reference: true, closedAt: true } }, contract: { select: { status: true, number: true, award: { select: { awardeeName: true } } } } } as const;
+type EotClaimRow = { contractId: string; entitlement: string | null; isWeather: boolean; matter: { reference: string | null; closedAt: Date | null }; contract: { status: ContractStatus; number: string; award: { awardeeName: string } } };
+export const eotClaimFacts = (c: EotClaimRow): OwnerFacts => ({ kind: "eotClaim", contractStatus: c.contract.status, determined: c.entitlement != null, closed: c.matter.closedAt != null, isWeather: c.isWeather });
+export const eotClaimLabel = (c: EotClaimRow) => `Contract ${c.contract.number} · extension-of-time claim ${c.matter.reference ?? "(not yet numbered)"}`;
 export const variationInstructionLabel = (i: InstructionRow) =>
   `Contract ${i.variation.contract.number} · variation ${i.variation.reference ?? "(not yet numbered)"} · the S.O.'s instruction ${i.certificate.number ?? "(not yet numbered)"}`;

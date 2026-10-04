@@ -1,0 +1,16 @@
+# Run 1b C3 (the schema of time and damages; the document store's two new owners, flagged). The first run (12:07Z) failed two scans: the certificate scan read LadWaiver's relation named appliedOn as a certificate relation (renamed appliedOnCertificate), and the matter scan read a FOR UPDATE lock as a write (fixed with a self-test). A second run's typecheck ran out of the 8 GB heap after the client was regenerated (suite 547 / 8,553 green). This is the third run. 2026-10-04T12:18:28Z
+## npm run check (NODE_OPTIONS=--max-old-space-size=12500: a cold typecheck after the client is regenerated runs out of the session default 8 GB heap from C3 on)
+> perolehan@0.1.0 check
+> npm run typecheck && npm run lint
+> perolehan@0.1.0 typecheck
+> next typegen && tsc --noEmit
+Generating route types...
+✓ Types generated successfully
+> perolehan@0.1.0 lint
+> eslint && node scripts/check-ui.mjs
+UI scaffolding check passed.
+exit: 0
+## full suite
+ Test Files  547 passed (547)
+      Tests  8553 passed (8553)
+exit: 0

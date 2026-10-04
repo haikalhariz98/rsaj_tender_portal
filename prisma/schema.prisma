@@ -414,6 +414,16 @@ model Organisation {
   // 6.13 Part A step 4 (4d): variations and the adjustment of the contract sum.
   variations               Variation[]
   contractMatters          ContractMatter[]
+  // 6.13 Part B run 1b: time and damages.
+  delayNotices             DelayNotice[]
+  eotClaims                EotClaim[]
+  eotClaimNotices          EotClaimNotice[]
+  eotReasons               EotReason[]
+  extensionsOfTime         ExtensionOfTime[]
+  lossExpenseClaims        LossExpenseClaim[]
+  periodExtensions         PeriodExtension[]
+  periodAgreements         PeriodAgreement[]
+  ladWaivers               LadWaiver[]
   variationApprovals       VariationApproval[]
   variationInstructions    VariationInstruction[]
   variationMeasurements    VariationMeasurement[]
@@ -595,6 +605,16 @@ model Person {
   variationsCommenced    Variation[]               @relation("VariationCommencedSupport")
   variationsClosed       Variation[]               @relation("VariationClosedBy")
   contractMattersRecorded ContractMatter[]         @relation("ContractMatterRecordedBy")
+  // 6.13 Part B run 1b: time and damages, recorded on their behalf.
+  delayNoticesRecorded   DelayNotice[]             @relation("DelayNoticeRecordedFor")
+  eotClaimsRecorded      EotClaim[]                @relation("EotClaimRecordedBy")
+  eotClaimsDetermined    EotClaim[]                @relation("EotClaimDeterminedBy")
+  extensionsRaised       ExtensionOfTime[]         @relation("ExtensionOfTimeRaisedBy")
+  lossExpenseRecorded    LossExpenseClaim[]        @relation("LossExpenseRecordedBy")
+  lossExpenseValued      LossExpenseClaim[]        @relation("LossExpenseValuedBy")
+  periodExtensionsRecorded PeriodExtension[]       @relation("PeriodExtensionRecordedBy")
+  periodAgreementsRaised PeriodAgreement[]         @relation("PeriodAgreementRaisedBy")
+  ladWaiversRecorded     LadWaiver[]               @relation("LadWaiverRecordedBy")
   variationRoutesSent    VariationApproval[]       @relation("VariationRouteSentBy")
   instructionsRecorded   VariationInstruction[]    @relation("InstructionRecordedBy")
   measurementsRecorded   VariationMeasurement[]    @relation("MeasurementRecordedBy")
@@ -3710,6 +3730,9 @@ model AwardCondition {
   requiredBy  DateTime?
   satisfiedOn DateTime?
   note        String                 @default("")
+
+  /// 6.13 Part B run 1b (carry-in, FR-AWD-014): EOT claims whose delay was put down to this condition.
+  eotClaimsExcluded EotClaim[]
 }
 
 /// The contract shell created at issue (ADR 0007). 4a extends it.
@@ -3795,6 +3818,11 @@ model Contract {
   /// 6.13 Part A step 4 (4d): variations and the adjustment of the contract sum.
   variations             Variation[]
   matters                ContractMatter[]
+  /// 6.13 Part B run 1b: time and damages.
+  delayNotices           DelayNotice[]
+  eotClaims              EotClaim[]
+  lossExpenseClaims      LossExpenseClaim[]
+  periodExtensions       PeriodExtension[]
   sumAdjustments         SumAdjustment[]
 
   @@unique([organisationId, number])
@@ -4176,6 +4204,12 @@ enum AttachmentPurpose {
   INSTRUCTION_SKETCH
   /// 6.15 (615-C2, BD-613-91): a registration body's notice cancelling a supplier's registration, on the record of it.
   REGISTRATION_CANCELLATION_NOTICE
+  /// 6.13 Part B run 1b (FR-EOT-001): the contractor's written notice of delay (or the S.O.'s direction), on the notice.
+  DELAY_NOTICE
+  /// 6.13 Part B run 1b (FR-EOT-005): the meteorological records proving exceptional weather, on the EOT claim.
+  METEOROLOGICAL_RECORD
+  /// 6.13 Part B run 1b (FR-EOT-006 (a)): how the proposed period was calculated (bar charts or other), on the EOT claim.
+  EOT_CALCULATION
 }
 
 enum DocumentAccessKind {
@@ -4349,6 +4383,12 @@ model DocumentAttachment {
   /// 6.15 (615-C2): a registration cancelled, as recorded (the body's notice).
   standingEventId        String?
   standingEvent          StandingEvent?        @relation(fields: [standingEventId], references: [id], onDelete: Restrict)
+  /// 6.13 Part B run 1b (FR-EOT-001): a delay notice (the notice itself).
+  delayNoticeId          String?
+  delayNotice            DelayNotice?          @relation(fields: [delayNoticeId], references: [id], onDelete: Restrict)
+  /// 6.13 Part B run 1b (FR-EOT-005, 006): an EOT claim (the meteorological records, the calculation of the period).
+  eotClaimId             String?
+  eotClaim               EotClaim?             @relation(fields: [eotClaimId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -4368,6 +4408,8 @@ model DocumentAttachment {
   @@index([evaluationId])
   @@index([evaluationMeetingId])
   @@index([evaluationBidderId])
+  @@index([delayNoticeId])
+  @@index([eotClaimId])
   @@index([supplierDocumentId])
   @@index([supplierApplicationId])
   @@index([contractId])
@@ -7752,6 +7794,10 @@ enum BaselineReason {
   EXECUTED
   POSSESSION
   CORRECTION
+  /// 6.13 Part B run 1b (ADR 0030, ADR 0021 Amendment 2): written only by the EOT certificate's issue hook.
+  EXTENSION_OF_TIME
+  /// 6.13 Part B run 1b (ADR 0030, ADR 0021 Amendment 2): written only by the period agreement's issue hook.
+  PERIOD_EXTENSION
 }
 
 enum AssemblyPartState {
@@ -8108,6 +8154,9 @@ model ContractBaseline {
   awardTermCorrection AwardTermCorrection?
   /// 6.13 (FR-SUP-005): the possession of site that wrote this version.
   possession          Possession?
+  /// 6.13 Part B run 1b (ADR 0030): the extension of time or period agreement whose issue wrote this version.
+  extensionOfTime     ExtensionOfTime? @relation("ExtensionOfTimeVersion")
+  periodAgreement     PeriodAgreement? @relation("PeriodAgreementVersion")
 
   @@unique([contractId, version])
   @@index([contractId])
@@ -8441,6 +8490,11 @@ model Certificate {
   variationInstruction  VariationInstruction?
   variationCertificate  VariationCertificate?
   sumAdjustment         SumAdjustment?
+  /// 6.13 Part B run 1b: the extension of time or period agreement this certificate is the certificate of, and the
+  /// LAD waiver applied on it.
+  extensionOfTime       ExtensionOfTime?
+  periodAgreement       PeriodAgreement?
+  ladWaiverApplied      LadWaiver?            @relation("LadWaiverAppliedOn")
 
   @@unique([organisationId, number])
   @@unique([contractId, kind, sequence])
@@ -9172,6 +9226,8 @@ model WorkProgramme {
   decidedAt           DateTime?
 
   points ProgrammePoint[]
+  /// 6.13 Part B run 1b (FR-EOT-004): the EOT claims assessed against this revision.
+  eotClaims EotClaim[]
 
   @@unique([contractId, revision])
 }
@@ -9806,6 +9862,9 @@ model NonCompletion {
   replaces           NonCompletion?       @relation("NonCompletionReplaces", fields: [replacesId], references: [id], onDelete: Restrict)
   replacedBy         NonCompletion?       @relation("NonCompletionReplaces")
   replaceReason      String               @default("")
+
+  /// 6.13 Part B run 1b (FR-LAD-009): the waivers of the damages it charges.
+  waivers            LadWaiver[]
 }
 
 // ------------------------------------------------------------------ 6.13 Part A step 4 (4d): variations and price adjustment
@@ -9936,10 +9995,289 @@ model ContractMatter {
   recordedAt     DateTime
 
   routes    ApprovalInstance[]  @relation("ContractMatterRoutes")
+  /// 6.13 Part B run 1b: the domain record the matter is the route of (one of them).
+  eotClaim         EotClaim?
+  periodExtension  PeriodExtension?
+  lossExpenseClaim LossExpenseClaim?
+  ladWaiver        LadWaiver?
   decisions CommitteeDecision[]
 
   @@unique([organisationId, reference])
   @@index([contractId])
+}
+
+// ------------------------------------------------------------------ 6.13 Part B run 1b: time and damages
+
+/// FR-EOT-001: how a delay notice came: the contractor's written notice, or the S.O.'s direction to give reasons.
+enum DelayNoticePath {
+  CONTRACTOR_NOTICE
+  SO_DIRECTION
+}
+
+/// FR-EOT-002: the entitlement test's answer.
+enum EotEntitlement {
+  ENTITLED
+  NOT_ENTITLED
+}
+
+/// FR-EOT-003: the best-endeavours test's answer (PARTIAL: a partial extension, the un-extended period stated).
+enum BestEndeavours {
+  FULL
+  PARTIAL
+  NONE
+}
+
+/// FR-EOT-007: the cause of an EOT's financial impact, which picks its route (never its value).
+enum FinancialImpact {
+  NONE
+  AUTHORITY_REQUIREMENT
+  OTHER
+}
+
+/// FR-EOT-008: whether a reason's extension runs with others (a concurrent group, counted at its longest) or adds.
+enum ReasonConcurrency {
+  CONCURRENT
+  CONSECUTIVE
+}
+
+/// FR-EOT-001: a delay notice: the contractor's written notice of the causes of delay, or the S.O.'s direction to a
+/// contractor behind schedule to give reasons. Timestamped (`receivedAt`); its scan is attached (DELAY_NOTICE). No clock:
+/// "immediately" carries no day count.
+model DelayNotice {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract        @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  path           DelayNoticePath
+  cause          String
+  occurredOn     DateTime
+  receivedOn     DateTime
+  receivedAt     DateTime
+  /// Who it is recorded for (the S.O., or a representative), on their behalf, not signed.
+  personId       String
+  person         Person          @relation("DelayNoticeRecordedFor", fields: [personId], references: [id], onDelete: Restrict)
+  note           String          @default("")
+  recordedAt     DateTime
+
+  claims      EotClaimNotice[]
+  attachments DocumentAttachment[]
+
+  @@index([contractId])
+}
+
+/// The delay notices an EOT claim rests on.
+model EotClaimNotice {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  claimId        String
+  claim          EotClaim     @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  noticeId       String
+  notice         DelayNotice  @relation(fields: [noticeId], references: [id], onDelete: Restrict)
+
+  @@unique([claimId, noticeId])
+}
+
+/// FR-EOT-001–008: an extension-of-time claim, decided on its contract matter's route (ADR 0029). Its scope (the whole
+/// works or a section of the baseline), its ground, the approved programme revision the actual delay is assessed
+/// against (FR-EOT-004), the weather answers (FR-EOT-005), the five-item pack (FR-EOT-006), the financial impact that
+/// picks its route (FR-EOT-007), and the S.O.'s determination: entitled or not (FR-EOT-002) and best endeavours
+/// (FR-EOT-003). A condition of the award excluding an EOT pre-answers "not a ground" (FR-AWD-014); overriding it needs
+/// a reason.
+model EotClaim {
+  id                      String             @id @default(cuid())
+  organisationId          String
+  organisation            Organisation       @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matterId                String             @unique
+  matter                  ContractMatter     @relation(fields: [matterId], references: [id], onDelete: Restrict)
+  contractId              String
+  contract                Contract           @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  scope                   NonCompletionScope
+  sectionRef              String?
+  groundClause            String
+  cause                   String
+  programmeId             String
+  programme               WorkProgramme      @relation(fields: [programmeId], references: [id], onDelete: Restrict)
+  financialImpact         FinancialImpact
+  proposedDays            Int
+  isWeather               Boolean
+  exceptional             Boolean?
+  earthworksDays          Int?
+  actualDelayDays         Int?
+  /// The five items of FR-EOT-006, each answered or not required with its reason.
+  pack                    Json
+  canComplete             Boolean?
+  estimatedCompletion     DateTime?
+  excludedByConditionId   String?
+  excludedByCondition     AwardCondition?    @relation(fields: [excludedByConditionId], references: [id], onDelete: Restrict)
+  exclusionOverrideReason String             @default("")
+  entitlement             EotEntitlement?
+  entitlementReason       String             @default("")
+  bestEndeavours          BestEndeavours?
+  determinedOn            DateTime?
+  determinedByPersonId    String?
+  determinedBy            Person?            @relation("EotClaimDeterminedBy", fields: [determinedByPersonId], references: [id], onDelete: Restrict)
+  personId                String
+  person                  Person             @relation("EotClaimRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt              DateTime
+
+  notices           EotClaimNotice[]
+  reasons           EotReason[]
+  extensions        ExtensionOfTime[]
+  lossExpenseClaims LossExpenseClaim[]
+  attachments       DocumentAttachment[]
+
+  @@index([contractId])
+}
+
+/// FR-EOT-008: a row of the EOT certificate's reason table: the reason, its clause, the delay's days (`delayUntil` the
+/// first day not delayed), the extension it earns, and whether it runs concurrently (in its group) or consecutively.
+model EotReason {
+  id             String            @id @default(cuid())
+  organisationId String
+  organisation   Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  claimId        String
+  claim          EotClaim          @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  clause         String
+  reason         String
+  delayFrom      DateTime
+  delayUntil     DateTime
+  extensionDays  Int
+  concurrency    ReasonConcurrency
+  group          String?
+  sortOrder      Int               @default(0)
+
+  @@index([claimId])
+}
+
+/// FR-EOT-008: the extension of time a certificate grants (its certificate's figures), OD-B6 A: the officer states the
+/// days granted; the reasons' computed days are shown beside them (assumed). The previous and new dates for completion
+/// of its scope; its issue writes the EXTENSION_OF_TIME baseline version (`baselineId`). One live (not void) certificate
+/// a claim, held in lib (BD-613-135).
+model ExtensionOfTime {
+  id                 String            @id @default(cuid())
+  organisationId     String
+  organisation       Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  certificateId      String            @unique
+  certificate        Certificate       @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  claimId            String
+  claim              EotClaim          @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  grantedDays        Int
+  computedDays       Int
+  previousCompletion DateTime
+  newCompletion      DateTime
+  unextendedNote     String            @default("")
+  baselineId         String?           @unique
+  baseline           ContractBaseline? @relation("ExtensionOfTimeVersion", fields: [baselineId], references: [id], onDelete: Restrict)
+  /// FR-EOT-009: the policies whose cover ends before the new date, offered for the S.O.'s self-help (frozen at raise).
+  insuranceOffered   Json
+  personId           String
+  person             Person            @relation("ExtensionOfTimeRaisedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt         DateTime
+
+  @@index([claimId])
+}
+
+/// FR-EOT-006, OD-B20: a loss-and-expense claim: claimed (from an EOT claim's pack or on its own), valued, then sent on
+/// its contract matter's route. Only an approved one enters a 1.2 adjustment line (run 1b C11).
+model LossExpenseClaim {
+  id               String          @id @default(cuid())
+  organisationId   String
+  organisation     Organisation    @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId       String
+  contract         Contract        @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  claimId          String?
+  claim            EotClaim?       @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  claimed          Decimal         @db.Decimal(18, 2)
+  valued           Decimal?        @db.Decimal(18, 2)
+  basis            String          @default("")
+  valuedOn         DateTime?
+  valuedByPersonId String?
+  valuedBy         Person?         @relation("LossExpenseValuedBy", fields: [valuedByPersonId], references: [id], onDelete: Restrict)
+  matterId         String?         @unique
+  matter           ContractMatter? @relation(fields: [matterId], references: [id], onDelete: Restrict)
+  personId         String
+  person           Person          @relation("LossExpenseRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt       DateTime
+
+  @@index([contractId])
+}
+
+/// FR-EOT-011, 012: an extension of the contract period (a term contract), decided on its contract matter's route: the
+/// four cumulative preconditions and the SPAN Act's compliance, each answered before evaluation (any false refuses the
+/// send; nothing is assumed), the current and new expiry, the financial impact if any.
+model PeriodExtension {
+  id                      String         @id @default(cuid())
+  organisationId          String
+  organisation            Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matterId                String         @unique
+  matter                  ContractMatter @relation(fields: [matterId], references: [id], onDelete: Restrict)
+  contractId              String
+  contract                Contract       @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  priorAgreement          Boolean
+  termsRetained           Boolean
+  ratesRetained           Boolean
+  performanceSatisfactory Boolean
+  spanConfirmed           Boolean
+  currentExpiry           DateTime
+  newExpiry               DateTime
+  financialImpact         Decimal?       @db.Decimal(18, 2)
+  reason                  String
+  personId                String
+  person                  Person         @relation("PeriodExtensionRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt              DateTime
+
+  agreements PeriodAgreement[]
+
+  @@index([contractId])
+}
+
+/// FR-EOT-013: the supplementary agreement extending the contract period (its certificate, bilateral); its issue writes
+/// the PERIOD_EXTENSION baseline version. One live (not void) agreement an extension, held in lib (BD-613-135).
+model PeriodAgreement {
+  id             String            @id @default(cuid())
+  organisationId String
+  organisation   Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  certificateId  String            @unique
+  certificate    Certificate       @relation(fields: [certificateId], references: [id], onDelete: Restrict)
+  extensionId    String
+  extension      PeriodExtension   @relation(fields: [extensionId], references: [id], onDelete: Restrict)
+  baselineId     String?           @unique
+  baseline       ContractBaseline? @relation("PeriodAgreementVersion", fields: [baselineId], references: [id], onDelete: Restrict)
+  personId       String
+  person         Person            @relation("PeriodAgreementRaisedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+
+  @@index([extensionId])
+}
+
+/// FR-LAD-008, 009 (OD-B7, BD-613-75): a waiver of the damages a decision charges, decided on its contract matter's
+/// route at the exact ratio waived ÷ LAD amount. The LAD amount is the decision's damages charged and chargeable to
+/// `asOf`, less credits, frozen when sent with what it was read from (`basis`); applying it on a basis that has moved is
+/// refused (LAD_BASIS_MOVED) and it is sent again. Applied once, on the certificate it reaches (`appliedOnCertificateId`).
+model LadWaiver {
+  id                     String         @id @default(cuid())
+  organisationId         String
+  organisation           Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  matterId               String         @unique
+  matter                 ContractMatter @relation(fields: [matterId], references: [id], onDelete: Restrict)
+  decisionId             String
+  decision               NonCompletion  @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  ladAmount              Decimal        @db.Decimal(18, 2)
+  waived                 Decimal        @db.Decimal(18, 2)
+  asOf                   DateTime
+  basis                  Json
+  waiverLetterRef        String         @default("")
+  reason                 String
+  appliedOnCertificateId String?        @unique
+  appliedOnCertificate   Certificate?   @relation("LadWaiverAppliedOn", fields: [appliedOnCertificateId], references: [id], onDelete: Restrict)
+  appliedAt              DateTime?
+  personId               String
+  person                 Person         @relation("LadWaiverRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt             DateTime
+
+  @@index([decisionId])
 }
 
 model Variation {

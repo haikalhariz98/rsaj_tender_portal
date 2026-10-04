@@ -106,6 +106,8 @@ export const REASON_WORDS: Readonly<Record<BaselineReason, Words>> = {
   EXECUTED: w("At execution: the Contract Date added", "Semasa pelaksanaan: Tarikh Kontrak ditambah"),
   POSSESSION: w("At possession of site", "Semasa milik tapak"),
   CORRECTION: w("Corrected", "Diperbetulkan"),
+  EXTENSION_OF_TIME: w("By an extension of time", "Melalui lanjutan masa"),
+  PERIOD_EXTENSION: w("By an extension of the contract period", "Melalui lanjutan tempoh kontrak"),
 };
 
 export const CUSTODY_KIND_WORDS: Readonly<Record<CustodyItemKind, Words>> = {

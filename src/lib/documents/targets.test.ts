@@ -103,6 +103,8 @@ describe("the kinds offered for a received document", () => {
     // 6.12 (faithful update, flagged): and a contract's formation papers.
     // 6.13 Part A acceptance S-2 (faithful update, flagged): and an S.O.'s Instruction's plans or sketches.
     // 615-C2 (faithful update, flagged 6.15): and a registration cancelled's notice.
-    expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction", "standingEvent"]);
+    // 6.13 Part B run 1b (faithful update, flagged against the document store): and a delay notice's scan and an EOT
+    // claim's meteorological records and calculation.
+    expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction", "standingEvent", "delayNotice", "eotClaim"]);
   });
 });

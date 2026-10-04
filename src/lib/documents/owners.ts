@@ -29,7 +29,7 @@ import { lockSupplierRow, SUPPLIER_APPLICATION_FACTS_SELECT, SUPPLIER_DOCUMENT_F
 import { EXTENSION_FACTS_SELECT, exerciseOfExtension, exerciseOfWithdrawal, extensionLabel, lockEnvelopeRows, lockExtensionRows, lockWithdrawalRows, WITHDRAWAL_FACTS_SELECT, withdrawalLabel } from "@/lib/bids/lock";
 
 import { reliedOn, type OwnerFacts, type Reliance } from "./attach";
-import { addendumFacts, awardFacts, CANCELLATION_OWNER_SELECT, cancellationOwnerFacts, cancellationOwnerLabel, bqVersionFacts, contractFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, supplierApplicationFacts, supplierDocumentFacts, tenderPackPartFacts, VARIATION_INSTRUCTION_FACTS_SELECT, variationInstructionFacts, variationInstructionLabel, withdrawalFacts } from "./owner-facts";
+import { addendumFacts, awardFacts, CANCELLATION_OWNER_SELECT, cancellationOwnerFacts, cancellationOwnerLabel, bqVersionFacts, contractFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, supplierApplicationFacts, supplierDocumentFacts, tenderPackPartFacts, VARIATION_INSTRUCTION_FACTS_SELECT, variationInstructionFacts, variationInstructionLabel, withdrawalFacts, DELAY_NOTICE_FACTS_SELECT, delayNoticeFacts, delayNoticeLabel, EOT_CLAIM_FACTS_SELECT, eotClaimFacts, eotClaimLabel } from "./owner-facts";
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
@@ -333,6 +333,48 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
         });
       });
     }
+    case "delayNotice": {
+      // 6.13 Part B run 1b: the contract first (`withLockedContract`, the canonical order), then the notice.
+      const pre = await db.delayNotice.findUnique({ where: { id: ref.id }, select: { contractId: true } });
+      if (!pre) return null;
+      return withLockedContract(pre.contractId, async (tx, l) => {
+        await tx.$queryRaw`SELECT id FROM "DelayNotice" WHERE id = ${ref.id} FOR UPDATE`;
+        const n = await tx.delayNotice.findFirst({ where: { id: ref.id, organisationId: l.org.id, contractId: pre.contractId }, select: DELAY_NOTICE_FACTS_SELECT });
+        if (!n) return null;
+        return fn(tx, {
+          ref,
+          organisationId: l.org.id,
+          today: l.org.today,
+          label: delayNoticeLabel(n),
+          facts: delayNoticeFacts(n),
+          paths: [`/projects/${n.contractId}`],
+          // The notice is the record's evidence; no act stands on its scan.
+          reliance: () => null,
+        });
+      });
+    }
+    case "eotClaim": {
+      // 6.13 Part B run 1b: the contract first, then the claim's matter (the first domain row), then the claim.
+      const pre = await db.eotClaim.findUnique({ where: { id: ref.id }, select: { contractId: true, matterId: true } });
+      if (!pre) return null;
+      return withLockedContract(pre.contractId, async (tx, l) => {
+        await tx.$queryRaw`SELECT id FROM "ContractMatter" WHERE id = ${pre.matterId} FOR UPDATE`;
+        await tx.$queryRaw`SELECT id FROM "EotClaim" WHERE id = ${ref.id} FOR UPDATE`;
+        const c = await tx.eotClaim.findFirst({ where: { id: ref.id, organisationId: l.org.id, contractId: pre.contractId }, select: EOT_CLAIM_FACTS_SELECT });
+        if (!c) return null;
+        return fn(tx, {
+          ref,
+          organisationId: l.org.id,
+          today: l.org.today,
+          label: eotClaimLabel(c),
+          facts: eotClaimFacts(c),
+          paths: [`/projects/${c.contractId}`],
+          // Determination reads the live meteorological record (FR-EOT-005); once determined the claim is frozen, so no
+          // detach can reach a record a determination stood on.
+          reliance: () => null,
+        });
+      });
+    }
     case "supplierDocument":
     case "supplierApplication": {
       // 6.15: the supplier row first, then the document or application (src/lib/suppliers/lock.ts).
@@ -412,7 +454,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
 }
 
 /// Which owner an attachment belongs to.
-export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null; openingId?: string | null; evaluationId?: string | null; evaluationMeetingId?: string | null; evaluationBidderId?: string | null; supplierDocumentId?: string | null; supplierApplicationId?: string | null; contractId?: string | null; variationInstructionId?: string | null; standingEventId?: string | null }): OwnerRef | null {
+export function ownerOf(a: { meetingId: string | null; exerciseId: string | null; awardId: string | null; delegationId: string | null; specificationPanelId?: string | null; bqVersionId?: string | null; tenderPackPartId?: string | null; addendumId?: string | null; bidWithdrawalId?: string | null; validityExtensionId?: string | null; openingId?: string | null; evaluationId?: string | null; evaluationMeetingId?: string | null; evaluationBidderId?: string | null; supplierDocumentId?: string | null; supplierApplicationId?: string | null; contractId?: string | null; variationInstructionId?: string | null; standingEventId?: string | null; delayNoticeId?: string | null; eotClaimId?: string | null }): OwnerRef | null {
   if (a.meetingId) return { kind: "meeting", id: a.meetingId };
   if (a.exerciseId) return { kind: "exercise", id: a.exerciseId };
   if (a.awardId) return { kind: "award", id: a.awardId };
@@ -432,5 +474,7 @@ export function ownerOf(a: { meetingId: string | null; exerciseId: string | null
   if (a.contractId) return { kind: "contract", id: a.contractId };
   if (a.variationInstructionId) return { kind: "variationInstruction", id: a.variationInstructionId };
   if (a.standingEventId) return { kind: "standingEvent", id: a.standingEventId };
+  if (a.delayNoticeId) return { kind: "delayNotice", id: a.delayNoticeId };
+  if (a.eotClaimId) return { kind: "eotClaim", id: a.eotClaimId };
   return null;
 }

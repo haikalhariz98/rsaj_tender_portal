@@ -46,8 +46,10 @@ export const CONTRACT_STATUSES: readonly ContractStatus[] = [
 
 export type BaselineSource = "APPENDIX" | "AWARD" | "BQ" | "DERIVED" | "ENTERED";
 export const BASELINE_SOURCES: readonly BaselineSource[] = ["APPENDIX", "AWARD", "BQ", "DERIVED", "ENTERED"];
-export type BaselineReason = "CONFIRMED" | "EXECUTED" | "POSSESSION" | "CORRECTION";
-export const BASELINE_REASONS: readonly BaselineReason[] = ["CONFIRMED", "EXECUTED", "POSSESSION", "CORRECTION"];
+/// 6.13 Part B run 1b (ADR 0030, ADR 0021 Amendment 2): EXTENSION_OF_TIME and PERIOD_EXTENSION, each written only by its
+/// certificate's issue hook.
+export type BaselineReason = "CONFIRMED" | "EXECUTED" | "POSSESSION" | "CORRECTION" | "EXTENSION_OF_TIME" | "PERIOD_EXTENSION";
+export const BASELINE_REASONS: readonly BaselineReason[] = ["CONFIRMED", "EXECUTED", "POSSESSION", "CORRECTION", "EXTENSION_OF_TIME", "PERIOD_EXTENSION"];
 export type AssemblyPartState = "READY" | "CANCELLED_BY_ALTERNATIVE";
 export type ReconciliationComparison = "TENDER_DOCUMENT" | "TENDER_TABLE_DOCUMENT" | "DRAWINGS";
 export const RECONCILIATION_COMPARISONS: readonly ReconciliationComparison[] = ["TENDER_DOCUMENT", "TENDER_TABLE_DOCUMENT", "DRAWINGS"];
