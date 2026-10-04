@@ -81,3 +81,28 @@ describe("the oracle is imported only by tests (614b-C2)", () => {
     expect(/terms\.oracle/.test(lex("// see terms.oracle.ts\nconst x = 1;", { only: "comments" }))).toBe(false);
   });
 });
+
+describe("614b-C1, carried: in Postgres a non-breaking space is not white space (run 0 verify case 3)", () => {
+  // The run 0 verify ran the real aliasInUse query on this corpus in Postgres (C.UTF-8): it disagreed with the oracle on
+  // 26 of 4,000 pairs, every one a non-breaking space between the words of a multi-word alias, and on none once those
+  // were plain spaces. JavaScript's \s includes U+00A0, so the translation above cannot show it. Here \s is read as
+  // Postgres reads it ([[:space:]]: ASCII white space only), pinning the gap: when 614b-C1 normalises the frozen text,
+  // or the pattern, this expectation turns red and is to be replaced by full agreement. Read this way, the corpus gives
+  // the same 26 disagreements Postgres gave.
+  const pgLike = (pattern: string) => new RegExp(pattern.replaceAll("[:alnum:]", "\\p{L}\\p{N}").replaceAll("\\s+", "[ \\t\\n\\r\\f\\v]+"), "iu");
+  it("the only disagreements are a non-breaking space between the words of a multi-word alias", () => {
+    const disagree: { alias: string; text: string }[] = [];
+    for (const alias of PARITY_ALIASES) {
+      const re = pgLike(wholeWordPattern(alias)!);
+      for (const text of parityCorpus()) if (re.test(text) !== saysAlias(text, alias)) disagree.push({ alias, text });
+    }
+    expect(disagree.length).toBe(26);
+    for (const d of disagree) {
+      expect(d.alias, d.text).toContain(" ");
+      expect(d.text, d.alias).toContain(" ");
+      // With each non-breaking space a plain space, they agree.
+      const plain = d.text.replace(/ /g, " ");
+      expect(pgLike(wholeWordPattern(d.alias)!).test(plain), d.text).toBe(saysAlias(plain, d.alias));
+    }
+  });
+});
