@@ -268,3 +268,10 @@ export function enclosingFn(sp: readonly { name: string; from: number; to: numbe
   for (const s of sp) if (s.from <= at && at <= s.to && (!best || s.to - s.from < best.to - best.from)) best = s;
   return best?.name ?? "(top level)";
 }
+
+/// "use server" as a module directive however it is written: either quote, after a BOM, blank lines or comments.
+/// Lifted unchanged from lock-order.test.ts (residual round, S-3a) so the act-status scan reads the same modules.
+export function isServerModule(src: string): boolean {
+  const head = src.replace(/^\ufeff/, "").replace(/^(?:\s+|\/\/[^\n]*\n?|\/\*[\s\S]*?\*\/)*/, "");
+  return /^(["'])use server\1/.test(head);
+}

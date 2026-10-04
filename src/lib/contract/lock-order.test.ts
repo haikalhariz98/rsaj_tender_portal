@@ -4,7 +4,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 // 614-C2: the one lexer every source scan shares (6.14 lifted it unchanged from this file).
-import { closing, enclosingFn, lex, rawCallText, rawCalls, spans } from "@/lib/scan/source";
+// Residual round (S-3a): isServerModule lives with the lexer, so the act-status scan reads server modules the same way.
+import { closing, enclosingFn, isServerModule, lex, rawCallText, rawCalls, spans } from "@/lib/scan/source";
 
 /**
  * The canonical lock order for every post-award write (rulings, 6.12 conditions): Requisition →
@@ -335,12 +336,6 @@ export function scanWrites(files: readonly Source[], allow: Allow): Write[] {
 }
 
 const SCANNED: Source[] = [...files("src/app"), ...files("src/lib"), ...files("prisma")].map((file) => ({ file, src: read(file) }));
-
-/// "use server" as a module directive however it is written: either quote, after a BOM, blank lines or comments.
-export function isServerModule(src: string): boolean {
-  const head = src.replace(/^﻿/, "").replace(/^(?:\s+|\/\/[^\n]*\n?|\/\*[\s\S]*?\*\/)*/, "");
-  return /^(["'])use server\1/.test(head);
-}
 
 describe("every write that can reach a contract, a baseline version or its sections (R-7, M-1)", () => {
   const product = SCANNED.filter((s) => !s.file.startsWith("prisma"));

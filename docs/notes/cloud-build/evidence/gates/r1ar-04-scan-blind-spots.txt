@@ -1,0 +1,14 @@
+# Run 1a residual round, commit 4 (S-3: the scan's blind spots, and recordOutcome gated). 2026-10-04T10:01:34Z
+(a first run at 09:58Z failed: lint on the self-test's template text, and 6.8's lock-order pin on recordOutcome's paths; both fixed, this is the rerun)
+## npm run check
+✓ Types generated successfully
+
+> perolehan@0.1.0 lint
+> eslint && node scripts/check-ui.mjs
+
+UI scaffolding check passed.
+exit: 0
+## full suite
+ Test Files  546 passed (546)
+      Tests  8541 passed (8541)
+exit: 0

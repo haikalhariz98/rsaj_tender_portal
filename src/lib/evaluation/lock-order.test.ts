@@ -29,12 +29,18 @@ describe("the outcome of an appointment matter locks the exercise before the sit
     const repo = read("src", "lib", "method", "repo.ts");
     inOrder(between(repo, "export async function withLockedRequisitionForSourcing", "\n}\n"), ['FROM "Requisition"', 'FROM "SourcingExercise"']);
   });
-  it("an appointment matter on an exercise takes that path; any other matter the sitting's alone", () => {
+  // Residual round (S-3d, stricter): a variation's matter takes its contract's path (the contract's chain, then the
+  // variation, then the sitting, as tableVariationMatter does), asking VARIATION's row (act-status-scan.test.ts).
+  it("an appointment matter on an exercise takes that path; a variation's matter its contract's; any other matter the sitting's alone", () => {
     const rec = between(committee, "export async function recordOutcome(", "\n}\n");
     expect(rec).toMatch(/const exerciseId = await appointmentExerciseOf\(decisionId\);/);
-    expect(rec).toMatch(/return exerciseId \? inSittingAfterExercise\(meetingId, exerciseId, run\) : inSitting\(meetingId, run\);/);
-    // The exercise locked is the matter's own, judged before anything is written.
+    expect(rec).toMatch(/const variation = exerciseId \? null : await variationMatterOf\(decisionId\);/);
+    expect(rec).toMatch(/return exerciseId \? inSittingAfterExercise\(meetingId, exerciseId, run\) : variation \? inSittingAfterContract\(meetingId, variation, run\) : inSitting\(meetingId, run\);/);
+    // The exercise and the variation locked are the matter's own, judged before anything is written.
     expect(rec.indexOf("decision.exerciseId !== exerciseId")).toBeLessThan(rec.indexOf("tx.committeeDecision.updateMany("));
+    expect(rec.indexOf("decision.variationId !== (variation?.id ?? null)")).toBeLessThan(rec.indexOf("tx.committeeDecision.updateMany("));
+    const wrap = between(committee, "async function inSittingAfterContract(", "\n}\n");
+    inOrder(wrap, ["withLockedContract(", 'actStatusFault("VARIATION"', 'FROM "Variation"', "lockSittingIn("]);
   });
   it("the evaluations are locked last, in the loop-back, which locks nothing of the exercise's itself", () => {
     const loop = between(committee, "async function loopBack(", "\n}\n");

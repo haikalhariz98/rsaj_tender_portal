@@ -1,0 +1,37 @@
+
+ RUN  v4.1.10 /home/user/repo
+
+ ❯ src/lib/contract/act-status-scan.test.ts (13 tests | 1 failed) 628ms
+     × S-3d: a committee's outcome on a variation's matter asks VARIATION's row under the contract's lock (committees/actions.ts) 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/contract/act-status-scan.test.ts > S3: every way into a contract's records asks the table, or is named with its reason > S-3d: a committee's outcome on a variation's matter asks VARIATION's row under the contract's lock (committees/actions.ts)
+AssertionError: expected [ …(3) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "recordOutcome does not route a variation's matter through inSittingAfterContract",
++   "recordOutcome does not check, under the locks, that the matter is still the variation's",
++   "no inSittingAfterContract",
++ ]
+
+ ❯ src/lib/contract/act-status-scan.test.ts:298:74
+    296|
+    297|   it("S-3d: a committee's outcome on a variation's matter asks VARIATI…
+    298|     expect(outcomeGateFaults(ALL.get("src/app/committees/actions.ts")!…
+       |                                                                          ^
+    299|   });
+    300|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 passed (13)
+   Start at  09:57:39
+   Duration  1.32s (transform 134ms, setup 0ms, import 536ms, tests 628ms, environment 0ms)
+

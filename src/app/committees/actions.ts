@@ -17,6 +17,9 @@ import { lockOpeningRows } from "@/lib/opening/lock";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { lockWindowRow } from "@/lib/window/lock";
+import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
+import { withLockedContract } from "@/lib/contract/repo";
+import type { ContractStatus } from "@/lib/contract/types";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -147,6 +150,31 @@ async function inSittingAfterExercise(meetingId: string, exerciseId: string, fn:
     if (said) return said;
     throw e;
   }
+  if (result?.ok) refresh(meetingId);
+  return result ?? GONE;
+}
+
+/// A variation's matter's variation and its contract, read without a lock, to know what to lock (residual round, S-3d).
+async function variationMatterOf(decisionId: string): Promise<{ id: string; contractId: string } | null> {
+  const found = await db.committeeDecision.findUnique({ where: { id: decisionId }, select: { variation: { select: { id: true, contractId: true } } } });
+  return found?.variation ?? null;
+}
+
+/**
+ * Code re-review S-3d (residual round): a committee's outcome on a variation's matter is a variation act. The contract's
+ * chain is locked first (withLockedContract) and VARIATION's row asked under it (ADR 0031), then the variation, then
+ * the sitting: the order tableVariationMatter takes, so no two acts take these locks in opposite orders. A cancelled
+ * contract keeps its variations' words.
+ */
+async function inSittingAfterContract(meetingId: string, variation: { id: string; contractId: string }, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState> {
+  const roster = await loadRoster(ORGANISATION_CODE);
+  const result = await withLockedContract(variation.contractId, async (tx, l): Promise<FormState | null> => {
+    const refused = actStatusFault("VARIATION", l.contract.status as ContractStatus);
+    if (refused) return { ok: false, message: refused.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: its variations are kept as they were, and their matters are not decided." : actStatusText(refused) };
+    await tx.$queryRaw`SELECT id FROM "Variation" WHERE id = ${variation.id} FOR UPDATE`;
+    const s = await lockSittingIn(tx, meetingId, roster);
+    return s ? fn(tx, s) : null;
+  });
   if (result?.ok) refresh(meetingId);
   return result ?? GONE;
 }
@@ -588,6 +616,7 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
   const meetingId = await meetingOf(decisionId);
   if (!meetingId) return { ok: false, message: "That matter no longer exists." };
   const exerciseId = await appointmentExerciseOf(decisionId);
+  const variation = exerciseId ? null : await variationMatterOf(decisionId);
 
   const r = new FormReader(data);
   const outcome = r.choice("outcome", "Outcome", ["CARRIED", "NOT_CARRIED", "DEFERRED"] as const, { required: true });
@@ -604,6 +633,8 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
     if (decision.withdrawnAt) return { ok: false, message: "The matter was withdrawn from the agenda: nothing is recorded on it." };
     // M-2: the exercise locked before the sitting is the matter's own (read again under the locks).
     if (decision.domain === APPOINTMENT_DOMAIN && decision.exerciseId !== exerciseId) return { ok: false, message: "The matter changed while this was being saved. Reload and try again." };
+    // S-3d: the variation whose contract was locked and asked is still the matter's (read again under the locks).
+    if (decision.variationId !== (variation?.id ?? null)) return { ok: false, message: "The matter changed while this was being saved. Reload and try again." };
 
     const assessment = s.assessment.matters[decisionId];
     const check = checkOutcome(
@@ -653,7 +684,7 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
     const said = outcome === "NOT_CARRIED" && decision.domain === APPOINTMENT_DOMAIN && decision.exerciseId ? await loopBack(tx, s, decision.exerciseId, decisionId, chosen ?? null, now) : null;
     return said ? { ok: true, message: said } : { ok: true };
   };
-  return exerciseId ? inSittingAfterExercise(meetingId, exerciseId, run) : inSitting(meetingId, run);
+  return exerciseId ? inSittingAfterExercise(meetingId, exerciseId, run) : variation ? inSittingAfterContract(meetingId, variation, run) : inSitting(meetingId, run);
 }
 
 /**
