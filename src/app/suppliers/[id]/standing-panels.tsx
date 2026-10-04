@@ -25,7 +25,7 @@ import { judgedWhileCancelled, notRevisitedWords, openingJudgedOf, recordCancell
 import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, withdrawRequestFaults, type RequestFacts } from "@/lib/suppliers/blacklist";
 import { documentStates } from "@/lib/suppliers/documents";
 import { isEligibilitySnapshot } from "@/lib/suppliers/eligibility";
-import { asHeading, blacklistEndWords, CHECK_STATE_LABEL, eventReasonWords, CONDITION_LABEL, DOCUMENT_STATE_LABEL, conditionWords, RELAXES_LABEL, REQUEST_KIND_LABEL, RESULT_LABEL, RESULT_TONE, STANDING_EVENT_LABEL, standingTone, standingWords, supplierFaultText, VERDICT_LABEL, VERDICT_TONE } from "@/lib/suppliers/labels";
+import { asHeading, blacklistEndWords, cancellationEndedWords, CHECK_STATE_LABEL, eventReasonWords, CONDITION_LABEL, DOCUMENT_STATE_LABEL, conditionWords, RELAXES_LABEL, REQUEST_KIND_LABEL, RESULT_LABEL, RESULT_TONE, STANDING_EVENT_LABEL, standingTone, standingWords, supplierFaultText, VERDICT_LABEL, VERDICT_TONE } from "@/lib/suppliers/labels";
 import { sameNumber } from "@/lib/suppliers/link";
 import { eligibilityFindingOf } from "@/lib/suppliers/opening-hook";
 import { grantFaults, specialPermissionFaults } from "@/lib/suppliers/permission";
@@ -190,7 +190,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
                   <Badge tone={e.withdrawnAt ? "neutral" : e.kind === "REINSTATE" || e.kind === "BLACKLIST_LIFT" ? "ok" : "err"}>{STANDING_EVENT_LABEL[e.kind].en}</Badge>
                   {e.withdrawnAt && <Chip tone="neutral">Withdrawn: recorded in error</Chip>}
                   {/* M-1: a cancellation that stood, ended by the supplier registering again (standing's own rule). */}
-                  {e.kind === "REGISTRATION_CANCELLED" && !e.withdrawnAt && cancellationEnded(day(s.registeredOn), storedDay(e.effectiveOn)) && <Chip tone="neutral">{`Ended: registered again on ${formatDate(day(s.registeredOn))}`}</Chip>}
+                  {e.kind === "REGISTRATION_CANCELLED" && !e.withdrawnAt && cancellationEnded(day(s.registeredOn), storedDay(e.effectiveOn)) && <Chip tone="neutral">{cancellationEndedWords(storedDay(e.effectiveOn), day(s.registeredOn)).en}</Chip>}
                   <span className="text-ink-2">from {formatDate(storedDay(e.effectiveOn))}{e.kind === "BLACKLIST" ? (e.endsOn ? ` (${e.offenceNo === 1 ? "first offence" : `offence ${e.offenceNo}`}, ${e.periodMonths} months) · ${blacklistEndWords(storedDay(e.endsOn)).en}` : ` until further notice (offence ${e.offenceNo})`) : ""} · {e.recordedBy.name}, recorded on their behalf, not signed</span>
                 </div>
                 {/* BD-613-105(e) / S-3: a cancellation's line is composed from its body and reference at read, never stored. */}

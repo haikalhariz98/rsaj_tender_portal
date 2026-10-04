@@ -11,7 +11,7 @@ import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { CANCELLATION_REFERENCE_MAX, judgedWhileCancelled, notRevisitedWords, openingJudgedOf, recordCancellationFaults, withdrawCancellationFaults, type OpeningJudged } from "@/lib/suppliers/cancellation";
 import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, withdrawRequestFaults, type RequestFacts } from "@/lib/suppliers/blacklist";
 import { documentStates } from "@/lib/suppliers/documents";
-import { BLACKLIST_MATTER, REQUEST_KIND_LABEL, STANDING_REFUSED_DECIDED_BY, standingWords } from "@/lib/suppliers/labels";
+import { BLACKLIST_MATTER, REQUEST_KIND_LABEL, STANDING_REFUSED_DECIDED_BY, standingWords, withdrawnWords } from "@/lib/suppliers/labels";
 import { reinstatementChecklist, reinstatementFaults, suspendFaults } from "@/lib/suppliers/reinstate";
 import { documentFacts, typeFacts } from "@/lib/suppliers/repo";
 import { standingEventFacts, standingOf, supplierPolicyOf } from "@/lib/suppliers/standing-repo";
@@ -355,11 +355,12 @@ export async function withdrawRegistrationCancelled(_prev: FormState, data: Form
     // already ended) the field is left out rather than written as an empty change.
     const after = (await lockedStanding(tx, l)).reading;
     const [was, standingAfter] = [standingWords(reading).en, standingWords(after).en];
+    const nowWords = was !== standingAfter ? standingWords(after) : null;
     // S-4: the openings that judged the supplier cancelled while the record stood are named, and not revisited.
     const judged = judgedWhileCancelled(await openingsJudged(tx, l.supplier.id), storedDay(ev!.effectiveOn));
     const notRevisited = notRevisitedWords(judged);
     await audit(tx, l.org.id, SUPPLIER_ENTITY.standingEvent, ev!.id, standingLabel(l, "Registration cancelled"), "UPDATE",
       diffFields({ withdrawn: null, ...(was !== standingAfter ? { standing: was } : {}) }, { withdrawn: `Withdrawn: recorded in error (the cancellation by ${ev!.bodyLabelSnapshot}, ${ev!.externalReference}, from ${formatDate(storedDay(ev!.effectiveOn))})`, ...(was !== standingAfter ? { standing: standingAfter } : {}), withdrawnBy: person!.name, recordedOnBehalf: "not signed", notRevisited: notRevisited.en }), reason);
-    return { ok: true, message: `Withdrawn as recorded in error. It stays on the record, marked withdrawn with why; the supplier's standing no longer reads it${was !== standingAfter ? ` (now ${standingAfter.toLowerCase()})` : ""}. ${notRevisited.en}` };
+    return { ok: true, message: withdrawnWords(nowWords, notRevisited).en };
   });
 }

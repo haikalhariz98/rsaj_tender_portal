@@ -330,7 +330,7 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   MANDATORY_EXPIRED: (d) => w(`A mandatory document has expired (${d.types}); the policy does not suspend on lapse.`, `Dokumen wajib telah tamat tempoh (${d.types}); polisi tidak menggantung kerana luput.`),
   BLACKLIST_ENDED: (d) => w(`A first-offence blacklisting has ended: last blacklisted day ${day(d.lastDay)} · free from ${day(d.freeFrom)}.`, `Senarai hitam kesalahan pertama telah tamat: hari terakhir disenarai hitam ${day(d.lastDay)} · bebas mulai ${day(d.freeFrom)}.`),
   // M-1 (BD-613-108): a cancellation that stood, ended by the supplier registering again.
-  CANCELLATION_ENDED: (d) => w(`The registration cancelled from ${day(d.since)} ended when the supplier registered again on ${day(d.registeredOn)}.`, `Pendaftaran yang dibatalkan mulai ${day(d.since)} tamat apabila pembekal berdaftar semula pada ${day(d.registeredOn)}.`),
+  CANCELLATION_ENDED: (d) => cancellationEndedWords(d.since, d.registeredOn),
   CANCELLED_NEW_APPLICATION_ONLY: (d) => {
     const by = d.body ? ` by ${d.body}${d.reference ? ` (${d.reference})` : ""}` : "";
     const byMs = d.body ? ` oleh ${d.body}${d.reference ? ` (${d.reference})` : ""}` : "";
@@ -401,6 +401,36 @@ export const STANDING_EVENT_LABEL: Readonly<Record<StandingEventKind, Words>> = 
   BLACKLIST_LIFT: w("Blacklisting lifted", "Senarai hitam ditarik balik"),
   REGISTRATION_CANCELLED: w("Registration cancelled", "Pendaftaran dibatalkan"),
 };
+
+/// M-1 (BD-613-108): a cancellation ended by the supplier registering again: the CANCELLATION_ENDED note's words, also the
+/// Recorded card's chip on that cancellation (Run 1a, Should 2: one source, English and Malay).
+export function cancellationEndedWords(since: unknown, registeredOn: unknown): Words {
+  return w(`The registration cancelled from ${day(since)} ended when the supplier registered again on ${day(registeredOn)}.`, `Pendaftaran yang dibatalkan mulai ${day(since)} tamat apabila pembekal berdaftar semula pada ${day(registeredOn)}.`);
+}
+
+/// Run 1a (Should 2): an application's approval, as the act returns it. `again`: a cancellation the new registration ends.
+export function approvedWords(kind: string, again: { since: string } | null, today: string): Words {
+  const what =
+    kind !== "NEW" ? w("the application is approved", "permohonan diluluskan")
+    : again ? w(`the supplier is registered again from ${day(today)}; the registration cancelled from ${day(again.since)} no longer stands`, `pembekal berdaftar semula mulai ${day(today)}; pendaftaran yang dibatalkan mulai ${day(again.since)} tidak lagi berkuat kuasa`)
+    : w("the supplier is registered", "pembekal didaftarkan");
+  return w(`Approved: ${what.en}. The notice to the supplier is shown, not sent.`, `Diluluskan: ${what.ms}. Notis kepada pembekal dipaparkan, tidak dihantar.`);
+}
+
+/// Run 1a (Should 2): a cancellation withdrawn as recorded in error, as the act returns it. `now`: the standing it changed
+/// to (null where it did not change); `notRevisited`: what is not revisited (notRevisitedWords).
+export function withdrawnWords(now: Words | null, notRevisited: Words): Words {
+  return w(
+    `Withdrawn as recorded in error. It stays on the record, marked withdrawn with why; the supplier's standing no longer reads it${now ? ` (now ${now.en.toLowerCase()})` : ""}. ${notRevisited.en}`,
+    `Ditarik balik kerana direkodkan secara tersilap. Ia kekal dalam rekod, ditanda ditarik balik beserta sebabnya; kedudukan pembekal tidak lagi membacanya${now ? ` (kini ${now.ms.toLowerCase()})` : ""}. ${notRevisited.ms}`,
+  );
+}
+
+/// Run 1a (Should 2): the withdrawal drawer's way back for a cancellation that stood.
+export const NEW_APPLICATION_WAY_BACK = w(
+  "A cancellation that stood is not withdrawn: the supplier registers again, by a new application on the Applications tab, which ends it once approved.",
+  "Pembatalan yang telah berkuat kuasa tidak ditarik balik: pembekal mendaftar semula melalui permohonan baharu di tab Permohonan, yang menamatkannya setelah diluluskan.",
+);
 
 /**
  * BD-613-105(e) / S-3 (Run 0 fix round): a registration cancelled's reason line, composed at read from the body's label as

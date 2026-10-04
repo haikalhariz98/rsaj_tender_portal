@@ -61,10 +61,13 @@ describe("the withdrawal act and drawer (source)", () => {
   });
   it("S-4: the message and the audit carry the not-revisited words; the drawer is given them by the panel", () => {
     expect(body).toMatch(/notRevisited: notRevisited\.en/);
-    expect(body).toMatch(/\$\{notRevisited\.en\}` \};/);
+    // Run 1a (Should 2, faithful): the message comes from withdrawnWords, which ends with the not-revisited words in each
+    // language (run1a-words.test.ts pins the text).
+    expect(body).toMatch(/message: withdrawnWords\(nowWords, notRevisited\)\.en \};/);
     const panel = readFileSync("src/app/suppliers/[id]/standing-panels.tsx", "utf8");
     expect(panel).toMatch(/<WithdrawCancellationDrawer eventId=\{e\.id\} people=\{people\} notRevisited=\{notRevisitedWords\(judgedWhileCancelled\(openings, storedDay\(e\.effectiveOn\)\)\)\.en\} \/>/);
     const drawer = readFileSync("src/app/suppliers/[id]/standing-editors.tsx", "utf8");
-    expect(drawer).toMatch(/\$\{notRevisited\} A cancellation that stood is not withdrawn: the supplier registers again, by a new application/);
+    // Run 1a (Should 2, faithful): the way back's sentence from labels.ts, after the not-revisited words as before.
+    expect(drawer).toMatch(/\$\{notRevisited\} \$\{NEW_APPLICATION_WAY_BACK\.en\}/);
   });
 });

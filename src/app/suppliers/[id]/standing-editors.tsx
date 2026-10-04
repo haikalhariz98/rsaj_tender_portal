@@ -2,6 +2,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { Blocked } from "@/components/ui/blocked";
 import { buttonClass } from "@/components/ui/button";
 import { ON_BEHALF_HINT } from "@/lib/documents/labels";
+import { NEW_APPLICATION_WAY_BACK } from "@/lib/suppliers/labels";
 
 import { grantSpecialPermission, linkAwardToSupplier, linkPartyToSupplier, recordSpecialPermission, decidePermissionStep } from "../link-actions";
 import { decideStandingStep, liftBlacklisting, recordBlacklisting, recordRegistrationCancelled, reinstateSupplier, requestBlacklisting, requestBlacklistLift, suspendSupplier, withdrawRegistrationCancelled, withdrawStandingRequest } from "../standing-actions";
@@ -172,7 +173,7 @@ export function WithdrawCancellationDrawer({ eventId, people, notRevisited }: { 
   return (
     <RecordEditor
       title="Withdraw the cancellation: recorded in error"
-      description={`Only for a record made in error (another supplier's notice, a misread one). It stays on the record, marked withdrawn, with why, and the supplier's standing no longer reads it. ${notRevisited} A cancellation that stood is not withdrawn: the supplier registers again, by a new application on the Applications tab, which ends it once approved.`}
+      description={`Only for a record made in error (another supplier's notice, a misread one). It stays on the record, marked withdrawn, with why, and the supplier's standing no longer reads it. ${notRevisited} ${NEW_APPLICATION_WAY_BACK.en}`}
       fields={[hidden("eventId"), person("Withdrawn by", people)]}
       values={{ eventId }}
       destructive={{ reasonLabel: "Why it was recorded in error" }}
