@@ -1,8 +1,8 @@
 "use server";
 
-import { actStatusFault, actStatusText, certificateAct } from "@/lib/contract/act-status";
+import { actStatusFault, actStatusText, certificateAct, certificatePhase, type CertificatePhase } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
-import type { CertificateKind } from "@/lib/certificate/types";
+import type { CertificateKind, CertificateStatus } from "@/lib/certificate/types";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -33,14 +33,16 @@ const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zo
 const CANCELLED: FormState = { ok: false, message: "The contract is cancelled: its certificates are kept as they were." };
 
 /// Lock, refuse a cancelled contract or an unset zone, then run the act.
-async function inCertificate(certId: string, now: Date, fn: (c: CertCtx) => Promise<void>): Promise<FormState> {
+async function inCertificate(certId: string, now: Date, phase: CertificatePhase | "BY_STATUS", fn: (c: CertCtx) => Promise<void>): Promise<FormState> {
   let contractId: string | undefined;
   let result: FormState | null;
   try {
     result = await withLockedCertificate(certId, async (tx, l) => {
       contractId = l.contract.id;
-      // ADR 0031 (run 1a): the one act × status table, by the certificate's kind, CANCELLED first (its words as before).
-      const refused = actStatusFault(certificateAct(l.cert.kind as CertificateKind), l.contract.status as ContractStatus);
+      // ADR 0031 (run 1a): the one act × status table, by the certificate's kind and the act's phase (BD-613-114: before
+      // the issue the kind's family, after it the CERTIFICATE row; the void by where the certificate stands), CANCELLED
+      // first (its words as before).
+      const refused = actStatusFault(certificateAct(l.cert.kind as CertificateKind, phase === "BY_STATUS" ? certificatePhase(l.cert.status as CertificateStatus) : phase), l.contract.status as ContractStatus);
       if (refused) return refused.code === "CONTRACT_CANCELLED" ? CANCELLED : { ok: false, message: actStatusText(refused) };
       const today = dayOf(now, l.org.timeZone);
       if (!today) return NO_ZONE;
@@ -63,7 +65,7 @@ const certOf = (data: FormData) => String(data.get("certId") ?? "");
 
 export async function sendCertificateForRouting(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
-  return inCertificate(certOf(data), now, (c) => sendForRouting(c));
+  return inCertificate(certOf(data), now, "PRE_ISSUE", (c) => sendForRouting(c));
 }
 
 export async function recordCertificateReceived(_prev: FormState, data: FormData): Promise<FormState> {
@@ -71,7 +73,7 @@ export async function recordCertificateReceived(_prev: FormState, data: FormData
   const r = new FormReader(data);
   const received = r.date("receivedOn", "Received on", { required: true });
   if (r.failed || !received) return { ok: false, errors: r.errors };
-  return inCertificate(certOf(data), now, (c) => recordRoutingReceived(c, storedDay(received)));
+  return inCertificate(certOf(data), now, "PRE_ISSUE", (c) => recordRoutingReceived(c, storedDay(received)));
 }
 
 export async function recordCertificateCheck(_prev: FormState, data: FormData): Promise<FormState> {
@@ -82,12 +84,12 @@ export async function recordCertificateCheck(_prev: FormState, data: FormData): 
   const on = r.date("on", "On", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || defOrder == null || !on) return { ok: false, errors: r.errors };
-  return inCertificate(certOf(data), now, (c) => recordCheck(c, defOrder, personId, storedDay(on), note));
+  return inCertificate(certOf(data), now, "PRE_ISSUE", (c) => recordCheck(c, defOrder, personId, storedDay(on), note));
 }
 
 export async function sendCertificateToSigning(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
-  return inCertificate(certOf(data), now, (c) => proceedToSigning(c));
+  return inCertificate(certOf(data), now, "PRE_ISSUE", (c) => proceedToSigning(c));
 }
 
 export async function recordCertificateSignature(_prev: FormState, data: FormData): Promise<FormState> {
@@ -103,7 +105,7 @@ export async function recordCertificateSignature(_prev: FormState, data: FormDat
   const decision = r.choice("decision", "Answer", SIGNATURE_DECISIONS);
   const cap = r.money("decisionCap", "Supported up to");
   if (r.failed || blockOrder == null) return { ok: false, errors: r.errors };
-  return inCertificate(certOf(data), now, (c) =>
+  return inCertificate(certOf(data), now, "PRE_ISSUE", (c) =>
     recordSignature(c, { blockOrder, personId: personId || null, name, icNumber, signedOn: signedOn ? storedDay(signedOn) : null, refused: refused === "yes", refusalNote, decision: decision ?? null, decisionCap: cap ? senToDecimalString(parseSen(cap)) : null }),
   );
 }
@@ -116,7 +118,7 @@ export async function overrideCertificateFigure(_prev: FormState, data: FormData
   const justification = r.text("justification", "Justification", { required: true, max: 4000 });
   const personId = r.text("personId", "Recorded for", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inCertificate(certOf(data), now, (c) => overrideField(c, fieldKey, value, justification, personId));
+  return inCertificate(certOf(data), now, "PRE_ISSUE", (c) => overrideField(c, fieldKey, value, justification, personId));
 }
 
 export async function correctCertificateDay(_prev: FormState, data: FormData): Promise<FormState> {
@@ -125,7 +127,7 @@ export async function correctCertificateDay(_prev: FormState, data: FormData): P
   const proposed = r.date("correctedDay", "Corrected day", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed || !proposed) return { ok: false, errors: r.errors };
-  return inCertificate(certOf(data), now, (c) => correctCertificateDate(c, storedDay(proposed), reason));
+  return inCertificate(certOf(data), now, "PRE_ISSUE", (c) => correctCertificateDate(c, storedDay(proposed), reason));
 }
 
 export async function despatchCertificateCopy(_prev: FormState, data: FormData): Promise<FormState> {
@@ -135,7 +137,7 @@ export async function despatchCertificateCopy(_prev: FormState, data: FormData):
   const method = r.choice("method", "How it went", DELIVERY_METHODS, { required: true });
   const on = r.date("despatchedOn", "Sent on", { required: true });
   if (r.failed || !method || !on) return { ok: false, errors: r.errors };
-  return inCertificate(certOf(data), now, (c) => despatchCopy(c, copyId, method, storedDay(on)));
+  return inCertificate(certOf(data), now, "POST_ISSUE", (c) => despatchCopy(c, copyId, method, storedDay(on)));
 }
 
 export async function acknowledgeCertificateCopy(_prev: FormState, data: FormData): Promise<FormState> {
@@ -144,13 +146,13 @@ export async function acknowledgeCertificateCopy(_prev: FormState, data: FormDat
   const copyId = r.text("copyId", "Copy", { required: true });
   const on = r.date("acknowledgedOn", "Acknowledged on", { required: true });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inCertificate(certOf(data), now, (c) => acknowledgeCopy(c, copyId, storedDay(on)));
+  return inCertificate(certOf(data), now, "POST_ISSUE", (c) => acknowledgeCopy(c, copyId, storedDay(on)));
 }
 
 export async function voidCertificateAct(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
   const reason = String(data.get("reason") ?? "").slice(0, 2000);
-  return inCertificate(certOf(data), now, (c) => voidCertificate(c, reason));
+  return inCertificate(certOf(data), now, "BY_STATUS", (c) => voidCertificate(c, reason));
 }
 
 // ------------------------------------------------------------------ the approval route (6.13 Part A step 3, 614-C4)
@@ -161,7 +163,7 @@ export async function sendCertificateForApproval(_prev: FormState, data: FormDat
   const r = new FormReader(data);
   const personId = r.text("personId", "Sent by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inCertificate(certOf(data), now, (c) => submitForApproval(c, personId));
+  return inCertificate(certOf(data), now, "PRE_ISSUE", (c) => submitForApproval(c, personId));
 }
 
 /// A named Person's decision on a step of the certificate's open route (614-C4: decided here, under the lock order).
@@ -175,7 +177,7 @@ export async function decideCertificateRouteStep(_prev: FormState, data: FormDat
   const received = r.date("receivedOn", "Received on");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
-  return inCertificate(certOf(data), now, (c) => decideCertificateStep(c, { stepId, decision, personId, decidedOn: storedDay(on), receivedOn: received ? storedDay(received) : null, reason }));
+  return inCertificate(certOf(data), now, "PRE_ISSUE", (c) => decideCertificateStep(c, { stepId, decision, personId, decidedOn: storedDay(on), receivedOn: received ? storedDay(received) : null, reason }));
 }
 
 /// Where a refused route goes, where its refusal decided nothing (CO-5): the officer's choice, on a named Person's behalf.
@@ -187,7 +189,7 @@ export async function chooseCertificateRouteRejection(_prev: FormState, data: Fo
   const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inCertificate(certOf(data), now, (c) => chooseCertificateRejection(c, { kind: kind ?? null, returnToSeq: seq ?? null, personId, reason }));
+  return inCertificate(certOf(data), now, "PRE_ISSUE", (c) => chooseCertificateRejection(c, { kind: kind ?? null, returnToSeq: seq ?? null, personId, reason }));
 }
 
 /// Finance's payment of an issued payment certificate (FR-PAY-019, INT-07's manual adapter).
@@ -199,5 +201,5 @@ export async function recordCertificatePayment(_prev: FormState, data: FormData)
   const personId = r.text("personId", "Recorded for", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !paidOn) return { ok: false, errors: r.errors };
-  return inCertificate(certOf(data), now, (c) => recordFinancePayment(c, { batchNo, paidOn: storedDay(paidOn), personId, note }));
+  return inCertificate(certOf(data), now, "POST_ISSUE", (c) => recordFinancePayment(c, { batchNo, paidOn: storedDay(paidOn), personId, note }));
 }

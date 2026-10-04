@@ -107,7 +107,7 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
       // A cancelled contract's certificates are kept as they were (read under the contract's lock, code review run 2 item 5).
       // ADR 0031 (run 1a, BD-613-99): what /approvals allows on a contract's route is what the one act × status table
       // allows the act the route belongs to; it restates nothing. A cancelled contract keeps its words as before.
-      const certRefused = inst.certificate?.kind ? actStatusFault(certificateAct(inst.certificate?.kind as CertificateKind), inst.certificate?.contract.status as ContractStatus) : null;
+      const certRefused = inst.certificate?.kind ? actStatusFault(certificateAct(inst.certificate?.kind as CertificateKind, "PRE_ISSUE"), inst.certificate?.contract.status as ContractStatus) : null;
       if (certRefused) return { ok: false, message: certRefused.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: its certificates are kept as they were, and their routes are not escalated." : actStatusText(certRefused) };
       const variationRefused = inst.variation?.contract ? actStatusFault("VARIATION", inst.variation?.contract.status as ContractStatus) : null;
       if (variationRefused) return { ok: false, message: variationRefused.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: its variations are kept as they were, and their routes are not escalated." : actStatusText(variationRefused) };

@@ -43,6 +43,7 @@ import { issueRefusal, sequenceFloor } from "@/lib/payment/at-issue";
 import { afterCertificateIssue, approvalOfRecordFaults, variationIssueRefusal } from "@/lib/variation/at-certificate";
 import { variationRefusal } from "@/lib/variation/labels";
 import { draftSigningFaults } from "./kinds";
+import { voidFaults } from "./void";
 import { allSigned, maskedIc, signFaults, type SignInput } from "./signature";
 import { readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
 import { certificateTransition } from "./status";
@@ -472,8 +473,9 @@ export async function acknowledgeCopy(c: CertCtx, copyId: string, on: string) {
 export async function voidCertificate(c: CertCtx, reason: string) {
   const cert = c.l.cert;
   const s = statusOf(c);
-  const t = certificateTransition(s, "VOID");
-  if (t) refuse("Not voided:", one(t));
+  // BD-613-114's condition: an issued certificate whose issue wrote the contract's status is refused by name first.
+  const vf = voidFaults(cert.kind as CertificateKind, s);
+  if (vf.length) refuse("Not voided:", vf);
   if (!reason.trim()) throw new CertificateRefusal(refusalText("Not voided:", one("VOID_REASON_REQUIRED")), { reason: "Say why the certificate is void." });
   if (cert.approvalInstances.some((i) => i.status === "PENDING")) refuse("Not voided:", one("VOID_ROUTE_PENDING"));
   await moveTo(c, "VOID", { voidReason: reason.trim(), voidedAt: c.now });

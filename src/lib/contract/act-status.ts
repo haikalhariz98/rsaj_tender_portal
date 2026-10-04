@@ -18,7 +18,7 @@
  * - Part B's acts are not recorded before execution.
  */
 
-import type { CertificateKind } from "@/lib/certificate/types";
+import type { CertificateKind, CertificateStatus } from "@/lib/certificate/types";
 
 import { CONTRACT_STATUS_WORDS } from "./labels";
 import type { StatusWriter } from "./status";
@@ -41,7 +41,8 @@ export const CONTRACT_ACTS = [
   "DAMAGES",
   "VARIATION",
   "SUM_ADJUSTMENT",
-  // 6.14: a certificate's own acts (routing, signing, copies, void, payment), for every kind not named below.
+  // 6.14: a certificate's acts after its issue (despatch, acknowledgement, copies, payment recording); before its issue a
+  // certificate reads its kind's family (certificateAct, BD-613-114).
   "CERTIFICATE",
   // 6.13 Part B.
   "EOT",
@@ -175,12 +176,90 @@ export const WRITER_ROW_EXCEPTIONS: Readonly<Partial<Record<ContractAct, { state
   },
 };
 
-/// The acts on a certificate read its kind: the terminated contract's final payment certificate its own route; the
-/// termination's two notices the case; every other kind the certificate's acts.
-export function certificateAct(kind: CertificateKind): ContractAct {
-  if (kind === "TERMINATED_FINAL") return "TERMINATED_FINAL_ROUTE";
-  if (kind === "TERMINATION" || kind === "TERMINATION_INTENT") return "TERMINATION_CASE";
-  return "CERTIFICATE";
+/// When a certificate's act happens: before its issue (prepare, route, sign, issue) or after it (despatch,
+/// acknowledgement, copies, payment recording). BD-613-114 as confirmed with its condition.
+export const CERTIFICATE_PHASES = ["PRE_ISSUE", "POST_ISSUE"] as const;
+export type CertificatePhase = (typeof CERTIFICATE_PHASES)[number];
+
+/// The phase a certificate is in: after the issue once issued; a void certificate was never issued.
+export const certificatePhase = (s: CertificateStatus): CertificatePhase => (s === "ISSUED" ? "POST_ISSUE" : "PRE_ISSUE");
+
+/// The state each kind's issue writes (ADR 0031): the CPC practically complete, the CMGD making good complete, the
+/// termination terminated, the final certificate final certificate issued; no other kind writes one. The writers land
+/// with runs 2, 4 and 5 (STATUS_WRITTEN_BY).
+export const KIND_ISSUE_WRITES = {
+  DELEGATION_LETTER: null,
+  DELEGATION_NOTICE: null,
+  INTERIM_PAYMENT: null,
+  ADVANCE_PAYMENT: null,
+  LAD_WARNING: null,
+  NON_COMPLETION: null,
+  VARIATION_APPLICATION: null,
+  SO_INSTRUCTION: null,
+  VARIATION: null,
+  SUM_ADJUSTMENT: null,
+  EOT: null,
+  CONTRACT_PERIOD_AGREEMENT: null,
+  PARTIAL_OCCUPATION: null,
+  PRACTICAL_COMPLETION: PC,
+  SCHEDULE_OF_DEFECTS: null,
+  MAKING_GOOD_DEFECTS: MGC,
+  TERMINATION_INTENT: null,
+  TERMINATION: T,
+  TERMINATED_FINAL: null,
+  NOMINATION_LETTER: null,
+  FINAL: FCI,
+} as const satisfies Record<CertificateKind, ContractStatus | null>;
+
+/**
+ * The family a certificate's act reads (BD-613-114 as confirmed with its condition). Before its issue, the kind's own
+ * family: the EOT certificate reads EOT, the CPC COMPLETION, the CMGD MAKING_GOOD, the final certificate FINAL_ACCOUNT
+ * (until run 5 names its acts), Part A's kinds the family that raised them. After its issue, the CERTIFICATE row in
+ * whatever state the issue left the contract; the termination's own certificates read their case (or the terminated
+ * final payment's route), which TERMINATED allows (BD-613-120). Exhaustive: a new kind is a type error.
+ */
+export function certificateAct(kind: CertificateKind, phase: CertificatePhase): ContractAct {
+  const pre = (family: ContractAct, after: ContractAct = "CERTIFICATE"): ContractAct => (phase === "PRE_ISSUE" ? family : after);
+  switch (kind) {
+    case "DELEGATION_LETTER":
+    case "DELEGATION_NOTICE":
+      return pre("SUPERVISION");
+    case "INTERIM_PAYMENT":
+      return pre("VALUATION");
+    case "ADVANCE_PAYMENT":
+      return pre("ADVANCE_PAYMENT");
+    case "LAD_WARNING":
+    case "NON_COMPLETION":
+      return pre("DAMAGES");
+    case "VARIATION_APPLICATION":
+    case "SO_INSTRUCTION":
+    case "VARIATION":
+      return pre("VARIATION");
+    case "SUM_ADJUSTMENT":
+      return pre("SUM_ADJUSTMENT");
+    case "EOT":
+      return pre("EOT");
+    case "CONTRACT_PERIOD_AGREEMENT":
+      return pre("PERIOD_EXTENSION");
+    case "PARTIAL_OCCUPATION":
+    case "PRACTICAL_COMPLETION":
+      return pre("COMPLETION");
+    case "SCHEDULE_OF_DEFECTS":
+      return pre("DEFECTS");
+    case "MAKING_GOOD_DEFECTS":
+      return pre("MAKING_GOOD");
+    case "TERMINATION_INTENT":
+    case "TERMINATION":
+      return pre("TERMINATION_CASE", "TERMINATION_CASE");
+    case "TERMINATED_FINAL":
+      return pre("TERMINATED_FINAL_ROUTE", "TERMINATED_FINAL_ROUTE");
+    case "NOMINATION_LETTER":
+      return pre("NOMINATED");
+    case "FINAL":
+      return pre("FINAL_ACCOUNT");
+  }
+  const _never: never = kind;
+  return _never;
 }
 
 export type ActStatusFault = "CONTRACT_CANCELLED" | "NOT_EXECUTED" | "CONTRACT_TERMINATED" | "CONTRACT_CLOSED" | "NOT_IN_STATUS";

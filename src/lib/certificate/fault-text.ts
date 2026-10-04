@@ -7,6 +7,8 @@
 
 import { formatDate } from "@/lib/format";
 import { formatSen, parseSen } from "@/lib/money";
+import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
+import type { ContractStatus } from "@/lib/contract/types";
 
 import { raisedWithoutFormWords, templateNotSetWords } from "./form-needs";
 import { kindFaultWords } from "./kinds";
@@ -237,6 +239,11 @@ export function certificateFaultWords(f: Finding): Words {
       return w("Say why the certificate is void.", "Nyatakan sebab perakuan dibatalkan.");
     case "VOID_ROUTE_PENDING":
       return w("Its approval route is still waiting for a decision. Refuse it on the route first (Approvals), then void the certificate.", "Laluan kelulusannya masih menunggu. Tolak dahulu, kemudian batalkan.");
+    case "VOID_WOULD_UNDO_STATUS": {
+      // BD-613-114's condition: the status an issue wrote is not undone by a void (deferred to the run that decides how).
+      const st = CONTRACT_STATUS_WORDS[d.status as ContractStatus] ?? { en: "where it stands", ms: "keadaannya" };
+      return w(`Its issue made the contract ${st.en.toLowerCase()}, and no act undoes that yet: an issued certificate that wrote where the contract stands is not voided.`, `Pengeluarannya menjadikan kontrak ${st.ms.toLowerCase()}, dan belum ada tindakan yang membatalkannya: perakuan dikeluarkan yang menetapkan keadaan kontrak tidak dibatalkan.`);
+    }
     case "ISSUED_IS_FINAL":
       return w("An issued certificate is final: it is corrected only by a later certificate.", "Perakuan yang dikeluarkan adalah muktamad.");
     case "VOID_IS_FINAL":

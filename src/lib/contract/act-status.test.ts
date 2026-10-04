@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { CERTIFICATE_KINDS } from "@/lib/certificate/types";
 import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 
-import { ACT_STATUS, actStatusFault, actStatusWords, certificateAct, CONTRACT_ACTS, statusCalloutTitle, type ContractAct } from "./act-status";
+import { ACT_STATUS, actStatusFault, actStatusWords, CERTIFICATE_PHASES, certificateAct, CONTRACT_ACTS, statusCalloutTitle, type ContractAct } from "./act-status";
 import { bodyOf, TODAY_ACTS, TODAY_STATUSES, todayAnswer } from "./act-status-pin.fixture";
 import { CONTRACT_TRANSITIONS, contractTransition, isExecuted, STATUS_WRITTEN_BY } from "./status";
 import { CONTRACT_STATUSES, type ContractStatus } from "./types";
@@ -58,7 +58,9 @@ describe("Part A's answers, unchanged for the nine statuses that existed", () =>
     it(`${file}: each act's answer is the pinned one`, () => {
       for (const a of acts) {
         const mapped = ACT_OF[a];
-        const kinds: ContractAct[] = mapped === "BY_KIND" ? [...new Set(CERTIFICATE_KINDS.filter((k) => !["TERMINATION_INTENT", "TERMINATION", "TERMINATED_FINAL"].includes(k)).map(certificateAct))] : [mapped];
+        // Run 1a fix round (BD-613-114): a certificate's act reads its kind and phase. The kinds raised before Part B (those
+        // listed before EOT), in both phases, give the pinned answer; Part B's kinds are raised from run 1b on.
+        const kinds: ContractAct[] = mapped === "BY_KIND" ? [...new Set(CERTIFICATE_KINDS.slice(0, CERTIFICATE_KINDS.indexOf("EOT")).flatMap((k) => CERTIFICATE_PHASES.map((p) => certificateAct(k, p))))] : [mapped];
         for (const act of kinds) for (const s of TODAY_STATUSES) expect(ACT_STATUS[act][s] === "ALLOWED" ? "ALLOWED" : "CANCELLED", `${a} ${act} ${s}`).toBe(todayAnswer(s));
       }
     });
@@ -73,10 +75,13 @@ describe("BD-613-99: in TERMINATED exactly these acts are allowed", () => {
     for (const a of CONTRACT_ACTS.filter((x) => !allowedIn("TERMINATED").includes(x))) expect(actStatusFault(a, "TERMINATED")?.code, a).toBe("CONTRACT_TERMINATED");
   });
   it("the TERMINATED_FINAL certificate's acts read TERMINATED_FINAL_ROUTE; the termination's own notices read the case", () => {
-    expect(certificateAct("TERMINATED_FINAL")).toBe("TERMINATED_FINAL_ROUTE");
-    expect(certificateAct("TERMINATION")).toBe("TERMINATION_CASE");
-    expect(certificateAct("TERMINATION_INTENT")).toBe("TERMINATION_CASE");
-    for (const k of CERTIFICATE_KINDS.filter((x) => !["TERMINATED_FINAL", "TERMINATION", "TERMINATION_INTENT"].includes(x))) expect(certificateAct(k), k).toBe("CERTIFICATE");
+    // Run 1a fix round (BD-613-114): in both phases; every other kind's phases are in certificate-act.test.ts.
+    for (const p of CERTIFICATE_PHASES) {
+      expect(certificateAct("TERMINATED_FINAL", p)).toBe("TERMINATED_FINAL_ROUTE");
+      expect(certificateAct("TERMINATION", p)).toBe("TERMINATION_CASE");
+      expect(certificateAct("TERMINATION_INTENT", p)).toBe("TERMINATION_CASE");
+    }
+    for (const k of CERTIFICATE_KINDS.filter((x) => !["TERMINATED_FINAL", "TERMINATION", "TERMINATION_INTENT"].includes(x))) expect(certificateAct(k, "POST_ISSUE"), k).toBe("CERTIFICATE");
   });
 });
 
@@ -177,7 +182,7 @@ describe("every act, and /approvals, read the table (source)", () => {
   for (const [file, acts] of Object.entries(TODAY_ACTS)) {
     it(`${file}: the wrapper asks the table; each act names its act`, () => {
       const src = readFileSync(file, "utf8");
-      expect(src).toMatch(/const refused = actStatusFault\((act|certificateAct\(l\.cert\.kind as CertificateKind\)), l\.contract\.status as ContractStatus\);/);
+      expect(src).toMatch(/const refused = actStatusFault\((act|certificateAct\(l\.cert\.kind as CertificateKind, phase === "BY_STATUS" \? certificatePhase\(l\.cert\.status as CertificateStatus\) : phase\)), l\.contract\.status as ContractStatus\);/);
       for (const a of acts) {
         const mapped = ACT_OF[a];
         if (mapped === "BY_KIND") expect(bodyOf(src, a), a).toMatch(/\binCertificate\(/);
@@ -187,7 +192,7 @@ describe("every act, and /approvals, read the table (source)", () => {
   }
   it("/approvals reads the same table for a certificate's and a variation's route", () => {
     const src = readFileSync("src/app/approvals/actions.ts", "utf8");
-    expect(src).toMatch(/actStatusFault\(certificateAct\(inst\.certificate\?\.kind as CertificateKind\), inst\.certificate\?\.contract\.status as ContractStatus\)/);
+    expect(src).toMatch(/actStatusFault\(certificateAct\(inst\.certificate\?\.kind as CertificateKind, "PRE_ISSUE"\), inst\.certificate\?\.contract\.status as ContractStatus\)/);
     expect(src).toMatch(/actStatusFault\("VARIATION", inst\.variation\?\.contract\.status as ContractStatus\)/);
   });
 });
@@ -202,7 +207,7 @@ describe("the screens say what the acts would (source, screen–act agreement)",
   });
   it("the certificate page asks the table for its certificate's kind, as its acts do", () => {
     const page = readFileSync("src/app/projects/[id]/certificates/[certId]/page.tsx", "utf8");
-    expect(page).toMatch(/actStatusFault\(certificateAct\(cert\.kind as CertificateKind\), l\.contract\.status as ContractStatus\)/);
+    expect(page).toMatch(/actStatusFault\(certificateAct\(cert\.kind as CertificateKind, certificatePhase\(cert\.status as CertificateStatus\)\), l\.contract\.status as ContractStatus\)/);
   });
   it("the contract page's banner for a terminated or closed contract is the table's own words", () => {
     const page = readFileSync("src/app/projects/[id]/page.tsx", "utf8");

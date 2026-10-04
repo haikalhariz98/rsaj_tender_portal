@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { CertificateKind } from "@/lib/certificate/types";
 import type { ContractStatus } from "@/lib/contract/types";
-import { actStatusFault, actStatusText, statusCalloutTitle, certificateAct } from "@/lib/contract/act-status";
+import { actStatusFault, actStatusText, statusCalloutTitle, certificateAct, certificatePhase } from "@/lib/contract/act-status";
 import { draftSigningFaults } from "@/lib/certificate/kinds";
 import { historyEntityLabel, RECORD_TYPE_WORDS } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
@@ -89,7 +89,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   const l = await loadCertificate(certId);
   if (!l || l.contract.id !== id) notFound();
   const cert = l.cert;
-  const certStatusRefused = actStatusFault(certificateAct(cert.kind as CertificateKind), l.contract.status as ContractStatus);
+  const certStatusRefused = actStatusFault(certificateAct(cert.kind as CertificateKind, certificatePhase(cert.status as CertificateStatus)), l.contract.status as ContractStatus);
   const status = cert.status as CertificateStatus;
   const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
   const [people, roles] = await Promise.all([
