@@ -24,7 +24,7 @@ const req = (o: Partial<RequirementFacts> = {}): RequirementFacts => ({ id: "rq1
 
 const base = (o: Partial<EligibilityInput> = {}): EligibilityInput => ({
   supplier: { status: "REGISTERED" },
-  standing: standing({ status: "REGISTERED" }, [], [], { autoSuspendOnLapse: null }, "2026-10-01"),
+  standing: standing({ status: "REGISTERED", registeredOn: null }, [], [], { autoSuspendOnLapse: null }, "2026-10-01"),
   requirements: [req()],
   typesOfBody: { [BODY_WORKS]: [TYPES.works.id], [BODY_SUPPLY]: [TYPES.supply.id] },
   docs: [worksCert(), statusCert],
@@ -106,9 +106,9 @@ describe("eligibility, condition by condition (FR-VND-011, FR-ADV-010)", () => {
   });
 
   it("suspended or blacklisted fails; a lapse with its rule unset is not assessed", () => {
-    const suspended = standing({ status: "REGISTERED" }, [{ id: "s", kind: "SUSPEND", effectiveOn: "2026-09-01", endsOn: null, offenceNo: null, reasonLabel: "x", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null }], [], { autoSuspendOnLapse: null }, "2026-10-01");
+    const suspended = standing({ status: "REGISTERED", registeredOn: null }, [{ id: "s", kind: "SUSPEND", effectiveOn: "2026-09-01", endsOn: null, offenceNo: null, reasonLabel: "x", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null }], [], { autoSuspendOnLapse: null }, "2026-10-01");
     expect(row(eligibility(base({ standing: suspended })), "STANDING")).toMatchObject({ result: "FAIL", reason: "BARRED", data: { standing: "SUSPENDED" } });
-    const lapsed = standing({ status: "REGISTERED" }, [], [{ typeLabel: "Tax clearance", state: "EXPIRED" }], { autoSuspendOnLapse: null }, "2026-10-01");
+    const lapsed = standing({ status: "REGISTERED", registeredOn: null }, [], [{ typeLabel: "Tax clearance", state: "EXPIRED" }], { autoSuspendOnLapse: null }, "2026-10-01");
     expect(row(eligibility(base({ standing: lapsed })), "STANDING")).toMatchObject({ result: "NOT_ASSESSED", reason: "LAPSE_RULE_NOT_SET" });
   });
 

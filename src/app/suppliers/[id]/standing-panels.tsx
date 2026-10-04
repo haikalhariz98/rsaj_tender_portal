@@ -32,7 +32,7 @@ import { grantFaults, specialPermissionFaults } from "@/lib/suppliers/permission
 import { reinstatementChecklist, suspendFaults } from "@/lib/suppliers/reinstate";
 import { documentFacts, type LoadedSupplier, type SupplierConfig } from "@/lib/suppliers/repo";
 import { supplierHolders } from "@/lib/suppliers/route";
-import type { StandingReading } from "@/lib/suppliers/standing";
+import { cancellationEnded, type StandingReading } from "@/lib/suppliers/standing";
 import { eligibilityOf, standingEventFacts } from "@/lib/suppliers/standing-repo";
 import { blocking, type Finding } from "@/lib/suppliers/types";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
@@ -187,6 +187,8 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={e.withdrawnAt ? "neutral" : e.kind === "REINSTATE" || e.kind === "BLACKLIST_LIFT" ? "ok" : "err"}>{STANDING_EVENT_LABEL[e.kind].en}</Badge>
                   {e.withdrawnAt && <Chip tone="neutral">Withdrawn: recorded in error</Chip>}
+                  {/* M-1: a cancellation that stood, ended by the supplier registering again (standing's own rule). */}
+                  {e.kind === "REGISTRATION_CANCELLED" && !e.withdrawnAt && cancellationEnded(day(s.registeredOn), storedDay(e.effectiveOn)) && <Chip tone="neutral">{`Ended: registered again on ${formatDate(day(s.registeredOn))}`}</Chip>}
                   <span className="text-ink-2">from {formatDate(storedDay(e.effectiveOn))}{e.kind === "BLACKLIST" ? (e.endsOn ? ` (${e.offenceNo === 1 ? "first offence" : `offence ${e.offenceNo}`}, ${e.periodMonths} months) · ${blacklistEndWords(storedDay(e.endsOn)).en}` : ` until further notice (offence ${e.offenceNo})`) : ""} · {e.recordedBy.name}, recorded on their behalf, not signed</span>
                 </div>
                 {/* BD-613-105(e) / S-3: a cancellation's line is composed from its body and reference at read, never stored. */}

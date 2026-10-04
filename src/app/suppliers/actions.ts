@@ -27,13 +27,13 @@ import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { lodgeFaults, verifyFaults } from "@/lib/suppliers/documents";
 import { applicationFaults, contactFaults, normaliseRegistrationNo, receiptFaults } from "@/lib/suppliers/identity";
 import type { DocumentState } from "@/lib/suppliers/documents";
-import { APPLICATION_KIND_LABEL, CHANNEL_LABEL, DOCUMENT_STATE_LABEL, OUTCOME_LABEL, REGISTRATION_MATTER, REGISTRATION_REFUSED_DECIDED_BY, SUPPLIER_DECIDER_TEXT, supplierFaultText, VERIFICATION_LABEL } from "@/lib/suppliers/labels";
+import { APPLICATION_KIND_LABEL, CHANNEL_LABEL, DOCUMENT_STATE_LABEL, OUTCOME_LABEL, REGISTRATION_MATTER, REGISTRATION_REFUSED_DECIDED_BY, SUPPLIER_DECIDER_TEXT, SUPPLIER_STATUS_LABEL, supplierFaultText, VERIFICATION_LABEL } from "@/lib/suppliers/labels";
 import { supplierApplicationLabel, supplierDocumentLabel, supplierOfApplication, supplierOfDocument } from "@/lib/suppliers/lock";
 import { documentFacts, loadSupplierConfig, supplierOrg, typeFacts } from "@/lib/suppliers/repo";
 import { approveFaults, decisionFaults, decisionSnapshot, fileFacts, isOpen, lapseFaults, openApplicationFaults, submitFaults, type FileFacts } from "@/lib/suppliers/review";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 import { standingOf } from "@/lib/suppliers/standing-repo";
-import { APPLICATION_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_SERIES_KEY, VERIFICATION_STATES, type ApplicationKind, type Finding, type RegistrationValueKind } from "@/lib/suppliers/types";
+import { APPLICATION_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_SERIES_KEY, VERIFICATION_STATES, type ApplicationKind, type Finding, type RegistrationValueKind, type SupplierStatus } from "@/lib/suppliers/types";
 import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 
@@ -212,10 +212,12 @@ export async function openApplication(_prev: FormState, data: FormData): Promise
   return inSupplier(supplierId, async (tx, l) => {
     const open = await tx.supplierApplication.findFirst({ where: { supplierId, status: { in: ["RECEIVED", "RESUBMISSION_REQUESTED"] }, lapsedRecordedAt: null }, select: { id: true } });
     const person = await activePerson(tx, l.org.id, personId);
-    // FR-TRM-017 (fix S-2): the blacklisting in effect, read on the locked supplier row.
+    // FR-TRM-017 (fix S-2): the blacklisting in effect, read on the locked supplier row. M-1: and the cancellation in
+    // effect, which allows a new registration (the way back) and refuses a renewal or an upgrade.
     const st = l.org.today ? await standingOf(supplierId, l.org.id, l.org.today, tx) : null;
     const blacklist = st?.reading.blacklist ?? null;
-    const fs: Finding[] = [...openApplicationFaults(kind, l.supplier.status as "APPLICANT" | "REGISTERED" | "REJECTED", !!open, blacklist), ...receiptFaults({ receivedOn, channel, declarationSignedOn, recorderActive: !!person }, l.org.today)];
+    const cancellation = st?.reading.cancellation ?? null;
+    const fs: Finding[] = [...openApplicationFaults(kind, l.supplier.status as "APPLICANT" | "REGISTERED" | "REJECTED", !!open, blacklist, cancellation), ...receiptFaults({ receivedOn, channel, declarationSignedOn, recorderActive: !!person }, l.org.today)];
     if (epaymentFormReceivedOn && l.org.today && epaymentFormReceivedOn > l.org.today) fs.push({ code: "IN_FUTURE", level: "block" });
     if (blocking(fs).length) return refusal(fs);
     const app = await tx.supplierApplication.create({
@@ -414,7 +416,7 @@ export async function verifyDocument(_prev: FormState, data: FormData): Promise<
 // ------------------------------------------------------------------ the decision (FR-VND-007, OD-2 A)
 
 /// The application's file as approval judges it, read under the supplier's lock.
-async function fileOf(tx: Tx, l: LockedSupplier, a: { status: FileFacts["status"]; lapsedRecordedAt: Date | null; resubmitBy: Date | null; declarationSignedOn: Date | null; routes: { status: string }[]; attachments: { purpose: string; detachedAt: Date | null; version: { withdrawnAt: Date | null } }[] }) {
+async function fileOf(tx: Tx, l: LockedSupplier, a: { kind: string; status: FileFacts["status"]; lapsedRecordedAt: Date | null; resubmitBy: Date | null; declarationSignedOn: Date | null; routes: { status: string }[]; attachments: { purpose: string; detachedAt: Date | null; version: { withdrawnAt: Date | null } }[] }) {
   const [types, docs, st] = await Promise.all([
     tx.supplierDocumentType.findMany({ where: { organisationId: l.org.id } }),
     tx.supplierDocument.findMany({ where: { supplierId: l.supplier.id } }),
@@ -422,7 +424,7 @@ async function fileOf(tx: Tx, l: LockedSupplier, a: { status: FileFacts["status"
     l.org.today ? standingOf(l.supplier.id, l.org.id, l.org.today, tx) : Promise.resolve(null),
   ]);
   const f = fileFacts(
-    { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((x) => x.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist: st?.reading.blacklist ?? null },
+    { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((x) => x.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist: st?.reading.blacklist ?? null, kind: a.kind as ApplicationKind, supplierStatus: l.supplier.status as SupplierStatus, cancellation: st?.reading.cancellation ?? null },
     types.map(typeFacts),
     docs.map(documentFacts),
     l.org.today ?? "0000-01-01",
@@ -586,11 +588,19 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
     const dec = await tx.applicationDecision.create({ data: { organisationId: l.org.id, applicationId: a.id, outcome: "APPROVE", decidedByPersonId: person!.id, decidedOn: on, decidedAt: now, policySnapshot: snap as unknown as Prisma.InputJsonValue } });
     await audit(tx, l.org.id, SUPPLIER_ENTITY.decision, dec.id, supplierApplicationLabel(a), "CREATE", diffFields(null, { outcome: OUTCOME_LABEL.APPROVE.en, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", judgedUnder: snap.mandatory.map((m) => `${m.type}: ${DOCUMENT_STATE_LABEL[m.state as DocumentState].en}`).join("; ") || "No mandatory document type" }));
     await audit(tx, l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ status: a.status }, { status: "APPROVED" }));
-    if (a.kind === "NEW" && l.supplier.status !== "REGISTERED") {
+    // M-1 (BD-613-108): a first registration sets the registration day, also for a supplier whose registration was
+    // cancelled (the way back): its registeredOn moves to today, after the day the cancellation took effect (approveFaults
+    // refused the very day), so the standing reads the cancellation as ended. The audit records the row as it was.
+    let again: { since: string } | null = null;
+    if (a.kind === "NEW") {
+      const before = await tx.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { registeredOn: true } });
+      again = l.supplier.status === "REGISTERED" && f.cancellation ? { since: f.cancellation.effectiveOn } : null;
       await tx.supplier.update({ where: { id: supplierId }, data: { status: "REGISTERED", registeredOn: dayToDate(today) } });
-      await audit(tx, l.org.id, SUPPLIER_ENTITY.supplier, supplierId, label(l.supplier, l.supplier.registeredName), "UPDATE", diffFields({ status: "Applicant", registeredOn: null }, { status: "Registered", registeredOn: today }));
+      await audit(tx, l.org.id, SUPPLIER_ENTITY.supplier, supplierId, label(l.supplier, l.supplier.registeredName), "UPDATE",
+        diffFields({ status: SUPPLIER_STATUS_LABEL[l.supplier.status as SupplierStatus]?.en ?? l.supplier.status, registeredOn: day(before.registeredOn) }, { status: "Registered", registeredOn: today, ...(again ? { cancellationEnded: `The registration cancelled from ${formatDate(again.since)} no longer stands` } : {}) }));
     }
-    return { ok: true, message: `Approved: ${a.kind === "NEW" ? "the supplier is registered" : "the application is approved"}. The notice to the supplier is shown, not sent.` };
+    const what = a.kind !== "NEW" ? "the application is approved" : again ? `the supplier is registered again from ${formatDate(today)}; the registration cancelled from ${formatDate(again.since)} no longer stands` : "the supplier is registered";
+    return { ok: true, message: `Approved: ${what}. The notice to the supplier is shown, not sent.` };
   });
 }
 

@@ -18,7 +18,7 @@ import { standing, type StandingEventFacts } from "./standing";
  */
 
 const event = (endsOn: string | null): StandingEventFacts => ({ id: "b", kind: "BLACKLIST", effectiveOn: "2026-10-01", endsOn, offenceNo: 1, reasonLabel: "False declaration", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null });
-const read = (endsOn: string | null, on: string) => standing({ status: "REGISTERED" }, [event(endsOn)], [], { autoSuspendOnLapse: null }, on);
+const read = (endsOn: string | null, on: string) => standing({ status: "REGISTERED", registeredOn: null }, [event(endsOn)], [], { autoSuspendOnLapse: null }, on);
 
 describe("a first-offence blacklisting's end is exclusive (S-1)", () => {
   it("worked example: effective 2026-10-01 for 60 months stores 2031-10-01", () => {

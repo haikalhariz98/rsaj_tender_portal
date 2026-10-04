@@ -8,7 +8,7 @@ import { standing, type StandingEventFacts } from "./standing";
 
 const ev = (o: Partial<StandingEventFacts> & Pick<StandingEventFacts, "id" | "kind">): StandingEventFacts => ({ effectiveOn: "2026-09-24", endsOn: null, offenceNo: null, reasonLabel: "A reason", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null, ...o });
 const ask = { reasonId: "r", effectiveOn: "2026-10-02", personActive: true, flaggedDocumentIds: [] };
-const ctx = (events: StandingEventFacts[]) => ({ today: "2026-10-02", status: "REGISTERED", registeredOn: "2026-01-01", reading: standing({ status: "REGISTERED" }, events, [], { autoSuspendOnLapse: null }, "2026-10-02"), reason: { appliesTo: "SUSPEND" as const, retiredOn: null }, documentIds: [] });
+const ctx = (events: StandingEventFacts[]) => ({ today: "2026-10-02", status: "REGISTERED", registeredOn: "2026-01-01", reading: standing({ status: "REGISTERED", registeredOn: null }, events, [], { autoSuspendOnLapse: null }, "2026-10-02"), reason: { appliesTo: "SUSPEND" as const, retiredOn: null }, documentIds: [] });
 
 describe("the Suspend refusal names the standing (fix S-4)", () => {
   it("blacklisted: says blacklisted, since its day", () => {

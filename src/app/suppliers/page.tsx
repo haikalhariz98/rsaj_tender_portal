@@ -57,7 +57,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     [...suppliers, ...expiring, ...standingSuppliers].map((s) => {
       const docs = s.documents.map(documentFacts);
       const states = today ? documentStates(cfg.typeFacts, docs, today) : [];
-      const st = today ? standing({ status: s.status as SupplierStatus }, s.standingEvents.map(standingEventFacts), states.filter((x) => x.mandatory).map((x) => ({ typeLabel: x.type.label, state: x.state })), { autoSuspendOnLapse: p?.autoSuspendOnLapse ?? null }, today) : null;
+      const st = today ? standing({ status: s.status as SupplierStatus, registeredOn: day(s.registeredOn) }, s.standingEvents.map(standingEventFacts), states.filter((x) => x.mandatory).map((x) => ({ typeLabel: x.type.label, state: x.state })), { autoSuspendOnLapse: p?.autoSuspendOnLapse ?? null }, today) : null;
       // The band of each type's document in force (a renewal counts once verified).
       const expiring = today ? states.filter((x) => x.effective && !x.effective.notApplicable && x.effective.expiresOn && typeExpires.get(x.type.id) !== false).map((x) => ({ type: x.type.label, doc: x.effective!, pending: !!x.pending, upcoming: x.upcoming?.validFrom ?? null, ...expiryBand(x.effective!.expiresOn, today, bands) })) : [];
       return [s.id, { states, standing: st, expiring, worst: worstBand(expiring.map((e) => e.band).filter((b) => b !== "NONE")) }] as const;

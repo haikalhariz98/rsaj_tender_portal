@@ -299,8 +299,10 @@ class Acts {
     const types = await this.db.supplierDocumentType.findMany({ where: { organisationId: this.org } });
     const docs = await this.db.supplierDocument.findMany({ where: { supplierId: a.supplierId } });
     // FR-TRM-017 (fix S-2): a blacklisting in effect stops the approval, as the action reads it.
-    const blacklist = (await this.reading(a.supplierId, today)).reading.blacklist;
-    const f = fileFacts({ status: a.status as never, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: a.resubmitBy ? a.resubmitBy.toISOString().slice(0, 10) : null, routePending: a.routes.some((r) => r.status === "PENDING"), declarationSignedOn: a.declarationSignedOn ? a.declarationSignedOn.toISOString().slice(0, 10) : null, declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist }, types.map(typeFacts), docs.map(documentFacts), today);
+    // M-1: and the cancellation in effect, as the action reads it (the kind asked again at approval).
+    const { reading } = await this.reading(a.supplierId, today);
+    const blacklist = reading.blacklist;
+    const f = fileFacts({ kind: a.kind as never, supplierStatus: a.supplier.status as never, cancellation: reading.cancellation, status: a.status as never, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: a.resubmitBy ? a.resubmitBy.toISOString().slice(0, 10) : null, routePending: a.routes.some((r) => r.status === "PENDING"), declarationSignedOn: a.declarationSignedOn ? a.declarationSignedOn.toISOString().slice(0, 10) : null, declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist }, types.map(typeFacts), docs.map(documentFacts), today);
     return { a, f, types };
   }
 
@@ -536,8 +538,8 @@ class Acts {
     const { openApplicationFaults } = await import("../src/lib/suppliers/review");
     const { receiptFaults } = await import("../src/lib/suppliers/identity");
     const sup = await this.db.supplier.findUniqueOrThrow({ where: { id: supplierId }, include: { applications: { where: { status: { in: ["RECEIVED", "RESUBMISSION_REQUESTED"] }, lapsedRecordedAt: null } } } });
-    const blacklist = (await this.reading(supplierId, this.dayOf(when))).reading.blacklist;
-    refuse(`opening a renewal for ${supplierId}`, [...openApplicationFaults("RENEWAL", sup.status as never, sup.applications.length > 0, blacklist), ...receiptFaults({ receivedOn, channel: "POST", declarationSignedOn, recorderActive: true }, this.dayOf(when))]);
+    const { reading } = await this.reading(supplierId, this.dayOf(when));
+    refuse(`opening a renewal for ${supplierId}`, [...openApplicationFaults("RENEWAL", sup.status as never, sup.applications.length > 0, reading.blacklist, reading.cancellation), ...receiptFaults({ receivedOn, channel: "POST", declarationSignedOn, recorderActive: true }, this.dayOf(when))]);
     await this.db.supplierApplication.create({ data: { id: appId, organisationId: this.org, supplierId, kind: "RENEWAL", receivedOn: dayToDate(receivedOn), channel: "POST", recordedByPersonId: OFFICER.id, recordedAt: when, declarationSignedOn: dayToDate(declarationSignedOn), createdAt: when } });
     this.entry("SupplierApplication", appId, `${sup.reference} · Application received ${formatDate(receivedOn)}`, "CREATE", when, diffFields(null, { kind: "Renewal of registration", receivedOn, channel: "By post", recordedBy: OFFICER.name, recordedOnBehalf: "not signed", declarationSignedOn }));
   }

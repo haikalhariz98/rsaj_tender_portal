@@ -16,7 +16,7 @@ import { standing, type StandingEventFacts } from "./standing";
 
 const ev = (o: Partial<StandingEventFacts> & Pick<StandingEventFacts, "id" | "kind">): StandingEventFacts => ({ effectiveOn: "2026-09-24", endsOn: null, offenceNo: null, reasonLabel: "False declaration in a bid", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null, ...o });
 const on = "2026-10-02";
-const read = (events: StandingEventFacts[], mandatory: { typeLabel: string; state: "VALID" | "EXPIRED" }[] = [], auto: boolean | null = null) => standing({ status: "REGISTERED" }, events, mandatory, { autoSuspendOnLapse: auto }, on);
+const read = (events: StandingEventFacts[], mandatory: { typeLabel: string; state: "VALID" | "EXPIRED" }[] = [], auto: boolean | null = null) => standing({ status: "REGISTERED", registeredOn: null }, events, mandatory, { autoSuspendOnLapse: auto }, on);
 
 describe("the awardee's standing on an award (fix S-3)", () => {
   it("blacklisted: the standing, since when, why and to when, and that the award is not refused", () => {
@@ -42,8 +42,8 @@ describe("the awardee's standing on an award (fix S-3)", () => {
 
   it("boundary: on the free-from day the blacklisting no longer warns", () => {
     const events = [ev({ id: "b", kind: "BLACKLIST", offenceNo: 1, effectiveOn: "2021-10-02", endsOn: "2026-10-02" })];
-    expect(awardStanding(standing({ status: "REGISTERED" }, events, [], { autoSuspendOnLapse: null }, "2026-10-01"), formatDate).warning).not.toBeNull();
-    expect(awardStanding(standing({ status: "REGISTERED" }, events, [], { autoSuspendOnLapse: null }, "2026-10-02"), formatDate).warning).toBeNull();
+    expect(awardStanding(standing({ status: "REGISTERED", registeredOn: null }, events, [], { autoSuspendOnLapse: null }, "2026-10-01"), formatDate).warning).not.toBeNull();
+    expect(awardStanding(standing({ status: "REGISTERED", registeredOn: null }, events, [], { autoSuspendOnLapse: null }, "2026-10-02"), formatDate).warning).toBeNull();
   });
 
   it("the award's record, form and route step show it; nothing in the award's acts refuses on it (source)", () => {

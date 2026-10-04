@@ -46,13 +46,13 @@ describe("a2's words: both languages, never a code", () => {
 
 describe("OD-7 A, the wording as ruled", () => {
   it("an active supplier with an expired mandatory document and the lapse rule unset reads exactly so, in amber", () => {
-    const r = standing({ status: "REGISTERED" }, [], [{ typeLabel: "Tax clearance", state: "EXPIRED" }], { autoSuspendOnLapse: null }, "2026-10-01");
+    const r = standing({ status: "REGISTERED", registeredOn: null }, [], [{ typeLabel: "Tax clearance", state: "EXPIRED" }], { autoSuspendOnLapse: null }, "2026-10-01");
     expect(standingWords(r).en).toBe("Active — lapse rule not set; a mandatory document has expired");
     expect(standingTone(r)).toBe("warn");
   });
   it("otherwise the standing's own label", () => {
-    expect(standingWords(standing({ status: "REGISTERED" }, [], [], { autoSuspendOnLapse: null }, "2026-10-01")).en).toBe("Active");
-    expect(standingWords(standing({ status: "REGISTERED" }, [], [{ typeLabel: "Tax clearance", state: "EXPIRED" }], { autoSuspendOnLapse: true }, "2026-10-01")).en).toBe("Suspended on lapse");
+    expect(standingWords(standing({ status: "REGISTERED", registeredOn: null }, [], [], { autoSuspendOnLapse: null }, "2026-10-01")).en).toBe("Active");
+    expect(standingWords(standing({ status: "REGISTERED", registeredOn: null }, [], [{ typeLabel: "Tax clearance", state: "EXPIRED" }], { autoSuspendOnLapse: true }, "2026-10-01")).en).toBe("Suspended on lapse");
   });
 });
 

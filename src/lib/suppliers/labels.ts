@@ -328,6 +328,14 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   LAPSE_RULE_NOT_SET: (d) => w(`Active — lapse rule not set; a mandatory document has expired${d.types ? ` (${d.types})` : ""}. Whether that suspends the supplier is set under ${SETTINGS.en}, Standing.`, `Aktif — peraturan luput belum ditetapkan; dokumen wajib telah tamat tempoh${d.types ? ` (${d.types})` : ""}. Sama ada itu menggantung pembekal ditetapkan di ${SETTINGS.ms}, Kedudukan.`),
   MANDATORY_EXPIRED: (d) => w(`A mandatory document has expired (${d.types}); the policy does not suspend on lapse.`, `Dokumen wajib telah tamat tempoh (${d.types}); polisi tidak menggantung kerana luput.`),
   BLACKLIST_ENDED: (d) => w(`A first-offence blacklisting has ended: last blacklisted day ${day(d.lastDay)} · free from ${day(d.freeFrom)}.`, `Senarai hitam kesalahan pertama telah tamat: hari terakhir disenarai hitam ${day(d.lastDay)} · bebas mulai ${day(d.freeFrom)}.`),
+  // M-1 (BD-613-108): a cancellation that stood, ended by the supplier registering again.
+  CANCELLATION_ENDED: (d) => w(`The registration cancelled from ${day(d.since)} ended when the supplier registered again on ${day(d.registeredOn)}.`, `Pendaftaran yang dibatalkan mulai ${day(d.since)} tamat apabila pembekal berdaftar semula pada ${day(d.registeredOn)}.`),
+  CANCELLED_NEW_APPLICATION_ONLY: (d) => {
+    const by = d.body ? ` by ${d.body}${d.reference ? ` (${d.reference})` : ""}` : "";
+    const byMs = d.body ? ` oleh ${d.body}${d.reference ? ` (${d.reference})` : ""}` : "";
+    return w(`The supplier's registration is cancelled (since ${day(d.since)}${by}): a renewal or an upgrade is not opened or approved while it stands. The way back is a new registration: open a first registration (a new application), which, once approved, ends the cancellation.`, `Pendaftaran pembekal dibatalkan (sejak ${day(d.since)}${byMs}): pembaharuan atau naik taraf tidak dibuka atau diluluskan selagi ia berkuat kuasa. Jalan kembali ialah pendaftaran baharu: buka pendaftaran baharu (permohonan baharu), yang setelah diluluskan menamatkan pembatalan itu.`);
+  },
+  CANCELLED_APPROVE_FROM: (d) => w(`The registration was cancelled from ${day(d.since)}: a new registration ends it only from a later day, so it is approved from ${day(d.from)}.`, `Pendaftaran dibatalkan mulai ${day(d.since)}: pendaftaran baharu menamatkannya hanya dari hari kemudian, jadi ia diluluskan mulai ${day(d.from)}.`),
   SCHEDULED: (d) => w(`${STANDING_EVENT_LABEL[d.kind as StandingEventKind]?.en ?? "A change"} takes effect on ${day(d.effectiveOn)}.`, `${STANDING_EVENT_LABEL[d.kind as StandingEventKind]?.ms ?? "Satu perubahan"} berkuat kuasa pada ${day(d.effectiveOn)}.`),
   // a2: the sale (FR-ADV-010, OD-5)
   SALE_NOT_REGISTERED: () => w("Not sold: the purchaser's supplier is not registered.", "Tidak dijual: pembekal pembeli tidak berdaftar."),

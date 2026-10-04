@@ -15,7 +15,7 @@ import { barred, standing, type StandingEventFacts } from "./standing";
 const on = "2026-10-02";
 const ev = (o: Partial<StandingEventFacts> & Pick<StandingEventFacts, "id" | "kind">): StandingEventFacts => ({ effectiveOn: "2026-10-01", endsOn: null, offenceNo: null, reasonLabel: "", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null, ...o });
 const clean = [{ typeLabel: "Works board certificate", state: "VALID" as const }];
-const read = (events: StandingEventFacts[]) => standing({ status: "REGISTERED" }, events, clean, { autoSuspendOnLapse: null }, on);
+const read = (events: StandingEventFacts[]) => standing({ status: "REGISTERED", registeredOn: null }, events, clean, { autoSuspendOnLapse: null }, on);
 
 const ok: CancellationInput = { bodyId: "body1", reference: "WB/2026/118", effectiveOn: "2026-10-01", personActive: true };
 const ctx = (o: Partial<CancellationContext> = {}): CancellationContext => ({ today: on, status: "REGISTERED", registeredOn: "2025-01-15", reading: read([]), bodyConfigured: true, ...o });

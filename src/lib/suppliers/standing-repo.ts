@@ -44,7 +44,7 @@ export type SupplierPolicyFacts = Awaited<ReturnType<typeof supplierPolicyOf>>;
 /// Where one supplier stands on `today`, from its events and its mandatory documents.
 export async function standingOf(supplierId: string, organisationId: string, today: string, client: Tx = db, policy?: SupplierPolicyFacts): Promise<{ reading: StandingReading; status: string } | null> {
   const [s, types, pol] = await Promise.all([
-    client.supplier.findFirst({ where: { id: supplierId, organisationId }, select: { status: true, documents: true, standingEvents: true } }),
+    client.supplier.findFirst({ where: { id: supplierId, organisationId }, select: { status: true, registeredOn: true, documents: true, standingEvents: true } }),
     client.supplierDocumentType.findMany({ where: { organisationId } }),
     policy ? Promise.resolve(policy) : supplierPolicyOf(organisationId, client),
   ]);
@@ -52,7 +52,8 @@ export async function standingOf(supplierId: string, organisationId: string, tod
   const mandatory = documentStates(types.map(typeFacts), s.documents.map(documentFacts), today)
     .filter((x) => x.mandatory)
     .map((x) => ({ typeLabel: x.type.label, state: x.state }));
-  return { reading: standing({ status: s.status }, s.standingEvents.map(standingEventFacts), mandatory, { autoSuspendOnLapse: pol.autoSuspendOnLapse }, today), status: s.status };
+  // M-1: the registration day ends a cancellation it is later than.
+  return { reading: standing({ status: s.status, registeredOn: day(s.registeredOn) }, s.standingEvents.map(standingEventFacts), mandatory, { autoSuspendOnLapse: pol.autoSuspendOnLapse }, today), status: s.status };
 }
 
 /**

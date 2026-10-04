@@ -17,7 +17,7 @@ const old = doc({ id: "w1", typeId: TYPES.works.id, issuedOn: "2025-07-01", vali
 const upgrade = doc({ id: "w2", typeId: TYPES.works.id, supersedesId: "w1", lodgedOn: "2026-09-30", issuedOn: "2026-09-30", validFrom: "2026-11-01", expiresOn: "2028-10-31", verification: "VERIFIED", verifiedOn: "2026-10-01" });
 const input = (on: string): EligibilityInput => ({
   supplier: { status: "REGISTERED" },
-  standing: standing({ status: "REGISTERED" }, [], [], { autoSuspendOnLapse: null }, on),
+  standing: standing({ status: "REGISTERED", registeredOn: null }, [], [], { autoSuspendOnLapse: null }, on),
   requirements: [{ id: "rq1", bodyCode: BODY_WORKS, bodyLabel: "Works board", qualifiers: "", alternativeGroup: 1, structured: { grade: { rank: 7, label: "Grade G7" }, categories: [] } }],
   typesOfBody: { [BODY_WORKS]: [TYPES.works.id] },
   docs: [old, upgrade],

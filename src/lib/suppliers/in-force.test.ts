@@ -28,7 +28,7 @@ describe("the document in force on a day (fix M-3)", () => {
     expect(s).toMatchObject({ state: "EXPIRED", effective: { id: "a" }, upcoming: { id: "b" } });
     // With the lapse rule set, a mandatory type in that state suspends on lapse.
     const mandatory = documentStates([{ ...TYPES.works, mandatoryAtRegistration: true }], [old, renewal], "2026-10-01").map((x) => ({ typeLabel: x.type.label, state: x.state }));
-    expect(standing({ status: "REGISTERED" }, [], mandatory, { autoSuspendOnLapse: true }, "2026-10-01").standing).toBe("SUSPENDED_ON_LAPSE");
+    expect(standing({ status: "REGISTERED", registeredOn: null }, [], mandatory, { autoSuspendOnLapse: true }, "2026-10-01").standing).toBe("SUSPENDED_ON_LAPSE");
   });
 
   it("boundary: the day before the renewal starts it is still upcoming; on its first day it is in force", () => {

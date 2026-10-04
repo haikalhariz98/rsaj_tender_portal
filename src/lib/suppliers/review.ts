@@ -12,6 +12,7 @@
  */
 
 import { isDay } from "@/lib/dates";
+import { addDays } from "@/lib/securities/period";
 
 import { documentState, stands, type DocumentState } from "./documents";
 import type { ApplicationKind, ApplicationOutcome, ApplicationStatus, DocumentFacts, DocumentTypeFacts, Finding, SupplierStatus } from "./types";
@@ -52,12 +53,34 @@ export type ReviewFault =
   | "KIND_REQUIRED"
   | "KIND_NOT_FOR_STATUS"
   | "BLACKLISTED_NO_APPLICATION"
-  | "BLACKLISTED_NOT_APPROVED";
+  | "BLACKLISTED_NOT_APPROVED"
+  | "CANCELLED_NEW_APPLICATION_ONLY"
+  | "CANCELLED_APPROVE_FROM";
 
 /// A blacklisting in effect on the day, as the review rules name it (FR-TRM-017). Null: none in effect.
 export type BlacklistInEffect = { effectiveOn: string; endsOn: string | null; reasonLabel: string };
 
 const blacklistData = (b: BlacklistInEffect) => ({ since: b.effectiveOn, endsOn: b.endsOn, reason: b.reasonLabel });
+
+/// M-1 (6.13 Part B Run 0 fix round): the registration cancelled in effect on the day, as the standing reads it (one ended by
+/// a later registration is not in effect). Null: none.
+export type CancellationInEffect = { effectiveOn: string; cancelledBy: { body: string; reference: string } | null };
+
+const cancellationData = (c: CancellationInEffect) => ({ since: c.effectiveOn, body: c.cancelledBy?.body ?? null, reference: c.cancelledBy?.reference ?? null });
+
+/**
+ * M-1 (BD-613-108, ADR 0019 Amendment 1's "the supplier registers again"): which kind of application a supplier may have.
+ * A first registration (NEW) for a supplier not registered, or for one whose registration is cancelled (the way back); a
+ * renewal or upgrade for one registered and not cancelled. While a cancellation is in effect a renewal or an upgrade is
+ * refused, naming the exit: a new application. Asked when an application opens and again when it is approved, so one
+ * opened before the cancellation was recorded is not approved under it.
+ */
+export function applicationKindFaults(kind: ApplicationKind, supplierStatus: SupplierStatus, cancellation: CancellationInEffect | null): Finding<ReviewFault>[] {
+  const cancelled = supplierStatus === "REGISTERED" && cancellation != null;
+  if (cancelled) return kind === "NEW" ? [] : [{ code: "CANCELLED_NEW_APPLICATION_ONLY", level: "block", data: { kind, ...cancellationData(cancellation!) } }];
+  if ((kind === "NEW") !== (supplierStatus !== "REGISTERED")) return [{ code: "KIND_NOT_FOR_STATUS", level: "block", data: { kind } }];
+  return [];
+}
 
 /// One mandatory type as approval reads it.
 export interface MandatoryStanding {
@@ -80,6 +103,11 @@ export interface FileFacts {
   typesConfigured: number;
   /// FR-TRM-017 (6.15a fix S-2): the blacklisting in effect on the day, read from the standing; null: none.
   blacklist: BlacklistInEffect | null;
+  /// M-1: what the application is for, the supplier's status and the cancellation in effect on the day (null: none), so
+  /// approval asks again which kind the supplier may have (applicationKindFaults).
+  kind: ApplicationKind;
+  supplierStatus: SupplierStatus;
+  cancellation: CancellationInEffect | null;
 }
 
 /**
@@ -94,6 +122,10 @@ export function approveFaults(f: Omit<FileFacts, "routePending">, today: string 
   if (!isOpen(f)) return [{ code: "DECIDED", level: "block" }];
   if (lapseState(f, today) === "LAPSED") return [{ code: "LAPSED", level: "block", data: { resubmitBy: f.resubmitBy } }];
   if (f.blacklist) out.push({ code: "BLACKLISTED_NOT_APPROVED", level: "block", data: blacklistData(f.blacklist) });
+  // M-1: the kind asked again on the day; and a new registration ends a cancellation only when it is later than the day the
+  // cancellation took effect (standing's rule: registeredOn after effectiveOn), so it is not approved on that very day.
+  out.push(...applicationKindFaults(f.kind, f.supplierStatus, f.cancellation));
+  if (f.kind === "NEW" && f.supplierStatus === "REGISTERED" && f.cancellation && today <= f.cancellation.effectiveOn) out.push({ code: "CANCELLED_APPROVE_FROM", level: "block", data: { ...cancellationData(f.cancellation), from: addDays(f.cancellation.effectiveOn, 1) } });
   if (!f.declarationSignedOn) out.push({ code: "DECLARATION_DAY_REQUIRED", level: "block" });
   if (!f.declarationScanned) out.push({ code: "DECLARATION_SCAN_REQUIRED", level: "block" });
   if (f.typesConfigured === 0) out.push({ code: "TYPES_NOT_SET", level: "block" });
@@ -163,13 +195,14 @@ export function lapseFaults(f: Pick<FileFacts, "status" | "lapsedRecordedAt" | "
 }
 
 /// Opening a further application for a supplier on the register: none open already; a first registration
-/// (NEW) only for a supplier not registered (one rejected may apply again), a renewal or upgrade only for one
-/// registered, and never while a blacklisting is in effect (FR-TRM-017, fix S-2), naming it.
-export function openApplicationFaults(kind: ApplicationKind | null, supplierStatus: SupplierStatus, open: boolean, blacklist: BlacklistInEffect | null): Finding<ReviewFault>[] {
+/// (NEW) only for a supplier not registered (one rejected may apply again) or whose registration is cancelled (M-1:
+/// the way back), a renewal or upgrade only for one registered and not cancelled (applicationKindFaults), and never
+/// while a blacklisting is in effect (FR-TRM-017, fix S-2), naming it.
+export function openApplicationFaults(kind: ApplicationKind | null, supplierStatus: SupplierStatus, open: boolean, blacklist: BlacklistInEffect | null, cancellation: CancellationInEffect | null): Finding<ReviewFault>[] {
   const out: Finding<ReviewFault>[] = [];
   if (open) out.push({ code: "ALREADY_OPEN", level: "block" });
   if (!kind) out.push({ code: "KIND_REQUIRED", level: "block" });
-  else if ((kind === "NEW") !== (supplierStatus !== "REGISTERED")) out.push({ code: "KIND_NOT_FOR_STATUS", level: "block", data: { kind } });
+  else out.push(...applicationKindFaults(kind, supplierStatus, cancellation));
   if (blacklist && kind !== "NEW") out.push({ code: "BLACKLISTED_NO_APPLICATION", level: "block", data: blacklistData(blacklist) });
   return out;
 }
@@ -179,7 +212,7 @@ export function openApplicationFaults(kind: ApplicationKind | null, supplierStat
  * mandatory type's state from the supplier's documents. A retired type is neither required nor asked.
  */
 export function fileFacts(
-  app: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy" | "routePending" | "declarationSignedOn" | "declarationScanned" | "blacklist">,
+  app: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy" | "routePending" | "declarationSignedOn" | "declarationScanned" | "blacklist" | "kind" | "supplierStatus" | "cancellation">,
   types: readonly DocumentTypeFacts[],
   docs: readonly DocumentFacts[],
   today: string,

@@ -14,7 +14,10 @@
  *   quietly clean). Set to false, it stays ACTIVE with the expiry noted.
  *
  * An event takes effect on its effective day; one dated later is not yet in effect. A registration cancelled that was
- * withdrawn as recorded in error (615-C2) is read as never recorded: not in effect, not scheduled. Pure.
+ * withdrawn as recorded in error (615-C2) is read as never recorded: not in effect, not scheduled. M-1 (6.13 Part B Run 0
+ * fix round, BD-613-108; ADR 0019 Amendment 1): a registration cancelled that stood ends when the supplier registers again,
+ * that is when its registeredOn (set by a new application's approval) is after the day the cancellation took effect
+ * (`cancellationEnded`); it is then not in effect, and the reading notes that it ended. Pure.
  */
 
 import { addDays } from "@/lib/securities/period";
@@ -54,7 +57,14 @@ export interface StandingPolicy {
   autoSuspendOnLapse: boolean | null;
 }
 
-export type StandingNote = "LAPSE_RULE_NOT_SET" | "MANDATORY_EXPIRED" | "BLACKLIST_ENDED" | "SCHEDULED";
+export type StandingNote = "LAPSE_RULE_NOT_SET" | "MANDATORY_EXPIRED" | "BLACKLIST_ENDED" | "SCHEDULED" | "CANCELLATION_ENDED";
+
+/**
+ * M-1 (BD-613-108): whether a registration cancelled from `effectiveOn` has been ended by the supplier registering again.
+ * Ended when the registration day is after the day it took effect (strictly: a registration on that very day is not after
+ * it, and approval refuses one then, CANCELLED_APPROVE_FROM). With no registration day known it is never ended.
+ */
+export const cancellationEnded = (registeredOn: string | null, effectiveOn: string): boolean => registeredOn != null && registeredOn > effectiveOn;
 
 export interface StandingReading {
   standing: Standing;
@@ -72,7 +82,8 @@ export interface StandingReading {
 export const barred = (s: Standing) => s === "BLACKLISTED" || s === "CANCELLED" || s === "SUSPENDED" || s === "SUSPENDED_ON_LAPSE";
 
 export function standing(
-  supplier: { status: "APPLICANT" | "REGISTERED" | "REJECTED" },
+  /// M-1: the supplier's registration day (null: none recorded), which ends a cancellation it is later than.
+  supplier: { status: "APPLICANT" | "REGISTERED" | "REJECTED"; registeredOn: string | null },
   events: readonly StandingEventFacts[],
   mandatory: readonly { typeLabel: string; state: DocumentState }[],
   policy: StandingPolicy,
@@ -87,11 +98,15 @@ export function standing(
   const blacklistings = inEffect.filter((e) => e.kind === "BLACKLIST" && !ended(e.id, "liftsEventId"));
   const blacklist = latest(blacklistings.filter((e) => e.endsOn == null || on < e.endsOn));
   const suspension = latest(inEffect.filter((e) => e.kind === "SUSPEND" && !ended(e.id, "reinstatesEventId")));
-  const cancellation = latest(inEffect.filter((e) => e.kind === "REGISTRATION_CANCELLED"));
+  const cancellations = inEffect.filter((e) => e.kind === "REGISTRATION_CANCELLED");
+  const cancellation = latest(cancellations.filter((e) => !cancellationEnded(supplier.registeredOn, e.effectiveOn)));
   const lapsed = mandatory.filter((m) => m.state === "EXPIRED").map((m) => m.typeLabel);
   const notes: Finding<StandingNote>[] = [];
   const over = latest(blacklistings.filter((e) => e.endsOn != null && on >= e.endsOn));
   if (!blacklist && over) notes.push({ code: "BLACKLIST_ENDED", level: "info", data: { lastDay: addDays(over.endsOn!, -1), freeFrom: over.endsOn } });
+  // M-1: a cancellation that stood and was ended by a later registration is said, never silently dropped.
+  const endedCancellation = cancellation ? null : latest(cancellations.filter((e) => cancellationEnded(supplier.registeredOn, e.effectiveOn)));
+  if (endedCancellation) notes.push({ code: "CANCELLATION_ENDED", level: "info", data: { since: endedCancellation.effectiveOn, registeredOn: supplier.registeredOn } });
   const scheduled = live.find((e) => e.effectiveOn > on && (e.kind === "SUSPEND" || e.kind === "BLACKLIST" || e.kind === "REGISTRATION_CANCELLED"));
   if (scheduled) notes.push({ code: "SCHEDULED", level: "info", data: { kind: scheduled.kind, effectiveOn: scheduled.effectiveOn } });
 

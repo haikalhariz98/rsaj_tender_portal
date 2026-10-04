@@ -13,6 +13,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import type { DocumentFacts, DocumentTypeFacts, Provenance, RegistrationValueKind, SupplierListKind, VerificationState } from "./types";
 import { SUPPLIER_EXPIRY_EVENT } from "./expiry";
 import { REGISTRATION_NO_FORMAT_KEY } from "./types";
+import { cancellationEnded } from "./standing";
 
 export const supplierOrg = exerciseOrg;
 export type SupplierOrg = NonNullable<Awaited<ReturnType<typeof supplierOrg>>>;
@@ -146,6 +147,8 @@ const listedSupplier = {
   registeredName: true,
   registrationNo: true,
   status: true,
+  // M-1: the registration day ends a cancellation it is later than.
+  registeredOn: true,
   erpVendorCode: true,
   documents: { select: { id: true, typeId: true, typeLabelSnapshot: true, lodgedOn: true, issuedOn: true, validFrom: true, expiresOn: true, notApplicable: true, verification: true, verifiedOn: true, supersedesId: true } },
   // a2: standing is derived from these, never stored.
@@ -173,7 +176,7 @@ export function inForceDocumentWhere(today: string): Prisma.SupplierDocumentWher
  * by a reinstatement in effect), a registration cancelled, or, where the lapse rule is set to suspend, a
  * mandatory document in force that has expired.
  */
-export function barredSupplierWhere(organisationId: string, today: string, autoSuspendOnLapse: boolean | null): Prisma.SupplierWhereInput {
+export function barredSupplierWhere(organisationId: string, today: string, autoSuspendOnLapse: boolean | null, cancelledIds: readonly string[]): Prisma.SupplierWhereInput {
   const T = dayToDate(today);
   return {
     organisationId,
@@ -181,11 +184,22 @@ export function barredSupplierWhere(organisationId: string, today: string, autoS
     OR: [
       { standingEvents: { some: { kind: "BLACKLIST", effectiveOn: { lte: T }, OR: [{ endsOn: null }, { endsOn: { gt: T } }], NOT: { liftedBy: { is: { effectiveOn: { lte: T } } } } } } },
       { standingEvents: { some: { kind: "SUSPEND", effectiveOn: { lte: T }, NOT: { reinstatedBy: { is: { effectiveOn: { lte: T } } } } } } },
-      // 615-C2: a cancellation withdrawn as recorded in error never stood.
-      { standingEvents: { some: { kind: "REGISTRATION_CANCELLED", effectiveOn: { lte: T }, withdrawnAt: null } } },
+      // 615-C2: a cancellation withdrawn as recorded in error never stood. M-1: nor one ended by a later registration, which a
+      // query cannot compare across the two rows, so the suppliers are named by `cancelledSupplierIds`, by standing's own rule.
+      { id: { in: [...cancelledIds] } },
       ...(autoSuspendOnLapse === true ? [{ documents: { some: lapsedMandatoryWhere(today) } }] : []),
     ],
   };
+}
+
+/**
+ * M-1 (BD-613-108): the registered suppliers with a registration cancelled in effect on `today`, read from the whole register:
+ * each live (not withdrawn) cancellation taken effect, kept only where the supplier has not registered again since
+ * (`cancellationEnded`, the standing rule's own test, never restated in SQL).
+ */
+export async function cancelledSupplierIds(organisationId: string, today: string, client: Tx = db): Promise<string[]> {
+  const rows = await client.standingEvent.findMany({ where: { organisationId, kind: "REGISTRATION_CANCELLED", withdrawnAt: null, effectiveOn: { lte: dayToDate(today) }, supplier: { status: "REGISTERED" } }, select: { supplierId: true, effectiveOn: true, supplier: { select: { registeredOn: true } } } });
+  return [...new Set(rows.filter((r) => !cancellationEnded(r.supplier.registeredOn ? storedDay(r.supplier.registeredOn) : null, storedDay(r.effectiveOn))).map((r) => r.supplierId))].sort();
 }
 
 /// A mandatory document in force that has expired (the day after its expiry day).
@@ -217,7 +231,7 @@ export async function listSuppliers(page = 0, today: string | null = null, horiz
   const total = await client.supplier.count({ where });
   const at = Math.min(Math.max(0, page), Math.max(0, Math.ceil(total / SUPPLIERS_PAGE) - 1));
   const expiringDoc: Prisma.SupplierDocumentWhereInput | null = today ? { ...inForceDocumentWhere(today), organisationId: org.id, expiresOn: horizon ? { not: null, lte: dayToDate(horizon) } : { not: null } } : null;
-  const barredWhere = today ? barredSupplierWhere(org.id, today, autoSuspendOnLapse) : null;
+  const barredWhere = today ? barredSupplierWhere(org.id, today, autoSuspendOnLapse, await cancelledSupplierIds(org.id, today, client)) : null;
   const openRequest: Prisma.SupplierWhereInput = { organisationId: org.id, standingRequests: { some: { event: { is: null }, withdrawnAt: null } } };
   const lapseUnset: Prisma.SupplierWhereInput | null = today && autoSuspendOnLapse !== true ? { organisationId: org.id, status: "REGISTERED", documents: { some: lapsedMandatoryWhere(today) } } : null;
   const standingWhere: Prisma.SupplierWhereInput | null = barredWhere ? { organisationId: org.id, OR: [barredWhere, openRequest, ...(lapseUnset ? [lapseUnset] : [])] } : null;

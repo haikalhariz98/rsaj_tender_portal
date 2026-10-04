@@ -62,7 +62,7 @@ describe("a cancellation's reason line, composed at read (BD-613-105(e), S-3)", 
 describe("the award's standing warning names the body, in English and Malay (S-3)", () => {
   const ev = (o: Partial<StandingEventFacts> = {}): StandingEventFacts => ({ ...standingEventFacts(row()), ...o });
   it("the worked example", () => {
-    const r = standing({ status: "REGISTERED" }, [ev()], [], { autoSuspendOnLapse: null }, "2026-10-04");
+    const r = standing({ status: "REGISTERED", registeredOn: null }, [ev()], [], { autoSuspendOnLapse: null }, "2026-10-04");
     expect(awardStanding(r, day).warning).toEqual({
       en: "Registration cancelled since 04 Oct 2026 (Cancelled by the Demo Companies Registry (VERIFY/2026/118)) — an award is not refused by the product: rule not set.",
       ms: "Pendaftaran dibatalkan sejak 04 Oct 2026 (Dibatalkan oleh the Demo Companies Registry (VERIFY/2026/118)) — anugerah tidak ditolak oleh sistem: peraturan belum ditetapkan.",

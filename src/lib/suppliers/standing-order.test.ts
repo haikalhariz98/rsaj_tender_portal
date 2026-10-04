@@ -20,7 +20,7 @@ const today = "2026-10-03";
 const base = { endsOn: null, offenceNo: null, reinstatesEventId: null, liftsEventId: null, withdrawn: false, cancelledBy: null } as const;
 const suspension: StandingEventFacts = { ...base, id: "s", kind: "SUSPEND", effectiveOn: "2026-10-01", reasonLabel: "Documents not in order", flaggedDocumentIds: ["d1"] };
 const cancellation: StandingEventFacts = { ...base, id: "c", kind: "REGISTRATION_CANCELLED", effectiveOn: "2026-10-02", reasonLabel: "", flaggedDocumentIds: [], cancelledBy: { body: "the works board", reference: "WB/2026/118" } };
-const read = (events: StandingEventFacts[]) => standing({ status: "REGISTERED" }, events, [], { autoSuspendOnLapse: null }, today);
+const read = (events: StandingEventFacts[]) => standing({ status: "REGISTERED", registeredOn: null }, events, [], { autoSuspendOnLapse: null }, today);
 
 const suspendAsk = { reasonId: "r", effectiveOn: "2026-10-01", personActive: true, flaggedDocumentIds: ["d1"] };
 const suspendCtx = (events: StandingEventFacts[]) => ({ today, status: "REGISTERED", registeredOn: "2025-01-15", reading: read(events), reason: { appliesTo: "SUSPEND" as const, retiredOn: null }, documentIds: ["d1"] });

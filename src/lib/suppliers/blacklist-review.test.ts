@@ -23,20 +23,23 @@ const file: FileFacts = {
   mandatoryNotSet: [],
   typesConfigured: 1,
   blacklist: null,
+  kind: "RENEWAL",
+  supplierStatus: "REGISTERED",
+  cancellation: null,
 };
 
 describe("a blacklisting in effect stops a renewal or upgrade (FR-TRM-017, fix S-2)", () => {
   it("opening a renewal or an upgrade is refused, naming the blacklisting", () => {
     for (const kind of ["RENEWAL", "UPGRADE"] as const) {
-      const fs = openApplicationFaults(kind, "REGISTERED", false, blacklist);
+      const fs = openApplicationFaults(kind, "REGISTERED", false, blacklist, null);
       expect(fs).toEqual([{ code: "BLACKLISTED_NO_APPLICATION", level: "block", data: { since: "2026-09-24", endsOn: "2031-09-24", reason: "False declaration in a bid" } }]);
       expect(supplierFaultText(fs[0])).toBe("A blacklisting is in effect (since 24 Sep 2026, False declaration in a bid; last blacklisted day 23 Sep 2031, free from 24 Sep 2031): a renewal or upgrade is not opened while it stands.");
     }
   });
 
   it("until further notice reads so; with none in effect the renewal opens", () => {
-    expect(supplierFaultText(openApplicationFaults("RENEWAL", "REGISTERED", false, { ...blacklist, endsOn: null })[0])).toContain("; until further notice)");
-    expect(openApplicationFaults("RENEWAL", "REGISTERED", false, null)).toEqual([]);
+    expect(supplierFaultText(openApplicationFaults("RENEWAL", "REGISTERED", false, { ...blacklist, endsOn: null }, null)[0])).toContain("; until further notice)");
+    expect(openApplicationFaults("RENEWAL", "REGISTERED", false, null, null)).toEqual([]);
   });
 
   it("approving, and sending for approval, an open application is refused the same way", () => {
@@ -49,16 +52,18 @@ describe("a blacklisting in effect stops a renewal or upgrade (FR-TRM-017, fix S
 
   it("boundary: on the last blacklisted day refused; on the free-from day the reading carries no blacklisting", () => {
     const ev = { id: "b", kind: "BLACKLIST" as const, effectiveOn: "2026-09-24", endsOn: "2031-09-24", offenceNo: 1, reasonLabel: "False declaration in a bid", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null };
-    const on = (d: string) => standing({ status: "REGISTERED" }, [ev], [], { autoSuspendOnLapse: null }, d).blacklist;
+    const on = (d: string) => standing({ status: "REGISTERED", registeredOn: null }, [ev], [], { autoSuspendOnLapse: null }, d).blacklist;
     expect(on("2031-09-23")).not.toBeNull();
-    expect(openApplicationFaults("RENEWAL", "REGISTERED", false, on("2031-09-23")).map((f) => f.code)).toEqual(["BLACKLISTED_NO_APPLICATION"]);
+    expect(openApplicationFaults("RENEWAL", "REGISTERED", false, on("2031-09-23"), null).map((f) => f.code)).toEqual(["BLACKLISTED_NO_APPLICATION"]);
     expect(on("2031-09-24")).toBeNull();
-    expect(openApplicationFaults("RENEWAL", "REGISTERED", false, on("2031-09-24"))).toEqual([]);
+    expect(openApplicationFaults("RENEWAL", "REGISTERED", false, on("2031-09-24"), null)).toEqual([]);
   });
 
   it("the actions read the blacklisting from the standing under the lock (source)", () => {
     const text = readFileSync("src/app/suppliers/actions.ts", "utf8");
-    expect(text).toMatch(/openApplicationFaults\(kind, [^)]*, !!open, blacklist\)/);
+    // Stricter (6.13 Part B Run 0 fix round M-1, flagged 6.15a): the cancellation in effect is passed too, read the same way.
+    expect(text).toMatch(/openApplicationFaults\(kind, [^)]*, !!open, blacklist, cancellation\)/);
+    expect(text).toMatch(/const cancellation = st\?\.reading\.cancellation \?\? null;/);
     expect(text).toMatch(/blacklist: st\?\.reading\.blacklist \?\? null/);
   });
 });
