@@ -7,6 +7,7 @@
 
 import { formatDate } from "@/lib/format";
 import { templateNotSetWords } from "@/lib/certificate/form-needs";
+import { ladFaultWords } from "@/lib/lad/labels";
 import { formatSen } from "@/lib/money";
 
 import type { AdvanceParty, ContractClock, ContractorAnswer, Finding, KeyedDeductionKind, NonCompletionOutcome, NonCompletionScope, PackItem, PaymentRouteFigure, RetentionRelease, RetentionTier, ValuationStatus, ValuationTrigger, WaterfallRemainder } from "./types";
@@ -450,7 +451,9 @@ export function paymentFaultWords(f: Finding): Words {
     case "PERSON_REQUIRED":
       return w("Name who it is recorded for: someone on record and active.", "Namakan pegawai yang direkodkan.");
     default:
-      return w("Refused.", "Ditolak.");
+      // 6.13 Part B run 1b (flagged against Part A, a code Part A never gave): the damages chain's run 1b codes are
+      // lad/labels.ts's; any other still fails closed in words.
+      return ladFaultWords(f) ?? w("Refused.", "Ditolak.");
   }
 }
 

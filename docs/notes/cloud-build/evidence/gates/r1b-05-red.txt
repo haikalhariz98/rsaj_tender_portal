@@ -1,0 +1,19 @@
+# Run 1b C5 (the damages rules and the both-orders tests): red, the tests written before the rules. 2026-10-04T12:44:17Z
+ FAIL  src/lib/lad/accrual.test.ts [ src/lib/lad/accrual.test.ts ]
+Error: Cannot find module './accrual' imported from /home/user/repo/src/lib/lad/accrual.test.ts
+ FAIL  src/lib/lad/basis.test.ts [ src/lib/lad/basis.test.ts ]
+Error: Cannot find module './basis' imported from /home/user/repo/src/lib/lad/basis.test.ts
+ FAIL  src/lib/lad/both-orders.test.ts [ src/lib/lad/both-orders.test.ts ]
+Error: Cannot find module './basis' imported from /home/user/repo/src/lib/lad/both-orders.test.ts
+ FAIL  src/lib/lad/credit.test.ts [ src/lib/lad/credit.test.ts ]
+Error: Cannot find module './credit' imported from /home/user/repo/src/lib/lad/credit.test.ts
+ FAIL  src/lib/lad/frozen.test.ts [ src/lib/lad/frozen.test.ts ]
+Error: Cannot find module './frozen' imported from /home/user/repo/src/lib/lad/frozen.test.ts
+ FAIL  src/lib/lad/scopes.test.ts [ src/lib/lad/scopes.test.ts ]
+Error: Cannot find module './scopes' imported from /home/user/repo/src/lib/lad/scopes.test.ts
+ FAIL  src/lib/lad/segments.test.ts [ src/lib/lad/segments.test.ts ]
+Error: Cannot find module './segments' imported from /home/user/repo/src/lib/lad/segments.test.ts
+ FAIL  src/lib/lad/waiver.test.ts [ src/lib/lad/waiver.test.ts ]
+Error: Cannot find module './waiver' imported from /home/user/repo/src/lib/lad/waiver.test.ts
+ Test Files  8 failed | 4 passed (12)
+      Tests  29 passed (29)

@@ -1,0 +1,16 @@
+# Run 1b C5 (the damages rules and the both-orders tests; red in r1b-05-red.txt). PROCESS MISS, recorded: the first gate run (12:50Z) failed two tests (the certificate scan read a data key named certificate as the model's handle; payment's wording scan found the run's new codes worded as Refused), and the gate script then exited 0, so the commit was made on it (f140cab). It was amended, unpushed, with the fixes (the data keys renamed eotNumber and issuedNumber; paymentFaultWords reads lad/labels.ts for a code Part A never gave) and this rerun; the script now exits 1 on any failing step. The first run's tail: 2 failed | 8736 passed. 2026-10-04T12:52:10Z
+## npm run check (NODE_OPTIONS=--max-old-space-size=12500: a cold typecheck after the client is regenerated runs out of the session default 8 GB heap from C3 on)
+> perolehan@0.1.0 check
+> npm run typecheck && npm run lint
+> perolehan@0.1.0 typecheck
+> next typegen && tsc --noEmit
+Generating route types...
+✓ Types generated successfully
+> perolehan@0.1.0 lint
+> eslint && node scripts/check-ui.mjs
+UI scaffolding check passed.
+exit: 0
+## full suite
+ Test Files  564 passed (564)
+      Tests  8738 passed (8738)
+exit: 0
