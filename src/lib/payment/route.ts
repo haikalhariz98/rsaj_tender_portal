@@ -32,6 +32,19 @@ export const KIND_ROUTE_DOMAIN: Readonly<Record<CertificateKind, string | null>>
   SO_INSTRUCTION: null,
   VARIATION: null,
   SUM_ADJUSTMENT: "sum_adjustment",
+  // 6.13 Part B run 1a: the domains the plan routes these kinds on (rows ship empty; the customer configures them).
+  // The matter-approved kinds route on their matter (ADR 0029), not here.
+  EOT: null,
+  CONTRACT_PERIOD_AGREEMENT: null,
+  PARTIAL_OCCUPATION: null,
+  PRACTICAL_COMPLETION: "practical_completion",
+  SCHEDULE_OF_DEFECTS: null,
+  MAKING_GOOD_DEFECTS: "making_good",
+  TERMINATION_INTENT: null,
+  TERMINATION: null,
+  TERMINATED_FINAL: "final_payment",
+  NOMINATION_LETTER: null,
+  FINAL: "final_payment",
 };
 
 export type RouteFigure = { state: "SET"; figure: PaymentRouteFigure; value: Sen } | { state: "NOT_SET" } | { state: "NOT_COMPUTED" };

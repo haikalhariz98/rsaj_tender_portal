@@ -43,6 +43,18 @@ export const KIND_FIGURE_KEYS: Readonly<Record<CertificateKind, readonly string[
   SO_INSTRUCTION: [],
   VARIATION: [],
   SUM_ADJUSTMENT: [],
+  // 6.13 Part B run 1a: empty (BD-614-24); each kind's assembler declares the values it fills in its own module.
+  EOT: [],
+  CONTRACT_PERIOD_AGREEMENT: [],
+  PARTIAL_OCCUPATION: [],
+  PRACTICAL_COMPLETION: [],
+  SCHEDULE_OF_DEFECTS: [],
+  MAKING_GOOD_DEFECTS: [],
+  TERMINATION_INTENT: [],
+  TERMINATION: [],
+  TERMINATED_FINAL: [],
+  NOMINATION_LETTER: [],
+  FINAL: [],
 };
 
 export const FIGURE_PREFIX = "figure.";

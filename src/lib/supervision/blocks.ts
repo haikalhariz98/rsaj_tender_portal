@@ -33,6 +33,18 @@ export const RECOMMENDING_ACT: Readonly<Record<CertificateKind, SupervisionAct |
   SO_INSTRUCTION: null,
   VARIATION: null,
   SUM_ADJUSTMENT: null,
+  // 6.13 Part B run 1a: none yet; each kind's run decides its recommending act with its assembler.
+  EOT: null,
+  CONTRACT_PERIOD_AGREEMENT: null,
+  PARTIAL_OCCUPATION: null,
+  PRACTICAL_COMPLETION: null,
+  SCHEDULE_OF_DEFECTS: null,
+  MAKING_GOOD_DEFECTS: null,
+  TERMINATION_INTENT: null,
+  TERMINATION: null,
+  TERMINATED_FINAL: null,
+  NOMINATION_LETTER: null,
+  FINAL: null,
 };
 
 export type SupervisedRule = "SO" | "SO_REP" | "RECOMMENDING_OFFICER";

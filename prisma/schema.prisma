@@ -8257,6 +8257,18 @@ enum CertificateKind {
   SO_INSTRUCTION
   VARIATION
   SUM_ADJUSTMENT
+  /// 6.13 Part B (intake 2): each added in its own migration.
+  EOT
+  CONTRACT_PERIOD_AGREEMENT
+  PARTIAL_OCCUPATION
+  PRACTICAL_COMPLETION
+  SCHEDULE_OF_DEFECTS
+  MAKING_GOOD_DEFECTS
+  TERMINATION_INTENT
+  TERMINATION
+  TERMINATED_FINAL
+  NOMINATION_LETTER
+  FINAL
 }
 
 /// Where a certificate stands (ADR 0022). VOID only before ISSUED; an issued certificate is corrected by a later one.

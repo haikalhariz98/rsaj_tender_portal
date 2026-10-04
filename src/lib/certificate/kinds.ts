@@ -28,6 +28,21 @@ export const KIND_ROUTE_RULE: Readonly<Record<CertificateKind, KindRouteRule>> =
   SO_INSTRUCTION: "BY_ROUTING_TYPE",
   VARIATION: "APPROVED_ROUTE",
   SUM_ADJUSTMENT: "APPROVED_ROUTE",
+  // 6.13 Part B run 1a: a kind whose approval of record is a contract matter's route (EOT, the period agreement, the
+  // termination) or a recorded Tender Board approval (the nomination letters) goes by its routing type, never a second
+  // route; practical completion (OD-B17), making good (OD-B10), the terminated contract's final payment and the final
+  // certificate (OD-B10, OD-B16) are routed on their own domain before signing.
+  EOT: "BY_ROUTING_TYPE",
+  CONTRACT_PERIOD_AGREEMENT: "BY_ROUTING_TYPE",
+  PARTIAL_OCCUPATION: "BY_ROUTING_TYPE",
+  PRACTICAL_COMPLETION: "APPROVED_ROUTE",
+  SCHEDULE_OF_DEFECTS: "BY_ROUTING_TYPE",
+  MAKING_GOOD_DEFECTS: "APPROVED_ROUTE",
+  TERMINATION_INTENT: "BY_ROUTING_TYPE",
+  TERMINATION: "BY_ROUTING_TYPE",
+  TERMINATED_FINAL: "APPROVED_ROUTE",
+  NOMINATION_LETTER: "BY_ROUTING_TYPE",
+  FINAL: "APPROVED_ROUTE",
 };
 
 /// Whether the kind certifies money or moves the contract sum (needs an approved route before signing).

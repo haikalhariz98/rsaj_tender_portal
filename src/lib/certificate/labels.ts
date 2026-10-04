@@ -21,6 +21,18 @@ export const KIND_WORDS: Readonly<Record<CertificateKind, Words>> = {
   SO_INSTRUCTION: w("Superintending Officer's instruction", "Arahan Pegawai Penguasa"),
   VARIATION: w("Variation order", "Arahan perubahan kerja"),
   SUM_ADJUSTMENT: w("Contract sum adjustment", "Pelarasan harga kontrak"),
+  // 6.13 Part B run 1a (intake 2).
+  EOT: w("Certificate of extension of time", "Perakuan lanjutan masa"),
+  CONTRACT_PERIOD_AGREEMENT: w("Supplementary agreement extending the contract period", "Perjanjian tambahan lanjutan tempoh kontrak"),
+  PARTIAL_OCCUPATION: w("Certificate of partial occupation", "Perakuan pendudukan separa"),
+  PRACTICAL_COMPLETION: w("Certificate of practical completion", "Perakuan siap kerja"),
+  SCHEDULE_OF_DEFECTS: w("Schedule of defects", "Jadual kecacatan"),
+  MAKING_GOOD_DEFECTS: w("Certificate of making good defects", "Perakuan siap membaiki kecacatan"),
+  TERMINATION_INTENT: w("Notice of intention to terminate", "Notis hasrat penamatan"),
+  TERMINATION: w("Notice of termination", "Notis penamatan"),
+  TERMINATED_FINAL: w("Final payment certificate, contractor's employment terminated", "Perakuan pembayaran muktamad, pengambilan kerja kontraktor ditamatkan"),
+  NOMINATION_LETTER: w("Nomination letter", "Surat penamaan"),
+  FINAL: w("Final certificate", "Perakuan muktamad"),
 };
 
 export const STATUS_WORDS: Readonly<Record<CertificateStatus, Words>> = {

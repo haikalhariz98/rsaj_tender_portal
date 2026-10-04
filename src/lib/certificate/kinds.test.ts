@@ -13,8 +13,10 @@ import { CERTIFICATE_KINDS, type CertificateKind } from "./types";
  * type; every other kind follows its type (with one, through the sheet; with none, straight to signing).
  */
 
-const MONEY: readonly CertificateKind[] = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "VARIATION_APPLICATION", "VARIATION", "SUM_ADJUSTMENT"];
-const BY_TYPE: readonly CertificateKind[] = ["DELEGATION_LETTER", "DELEGATION_NOTICE", "LAD_WARNING", "NON_COMPLETION", "SO_INSTRUCTION"];
+// 6.13 Part B run 1a (additive, faithful): the eleven Part B kinds join the two lists as kinds-listed.test.ts decides
+// them; every assertion over the lists unchanged.
+const MONEY: readonly CertificateKind[] = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "VARIATION_APPLICATION", "VARIATION", "SUM_ADJUSTMENT", "PRACTICAL_COMPLETION", "MAKING_GOOD_DEFECTS", "TERMINATED_FINAL", "FINAL"];
+const BY_TYPE: readonly CertificateKind[] = ["DELEGATION_LETTER", "DELEGATION_NOTICE", "LAD_WARNING", "NON_COMPLETION", "SO_INSTRUCTION", "EOT", "CONTRACT_PERIOD_AGREEMENT", "PARTIAL_OCCUPATION", "SCHEDULE_OF_DEFECTS", "TERMINATION_INTENT", "TERMINATION", "NOMINATION_LETTER"];
 
 describe("the map is exhaustive and decided for every kind", () => {
   it("covers exactly the schema's kinds", () => {

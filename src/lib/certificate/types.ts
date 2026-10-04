@@ -20,7 +20,18 @@ export type CertificateKind =
   | "VARIATION_APPLICATION"
   | "SO_INSTRUCTION"
   | "VARIATION"
-  | "SUM_ADJUSTMENT";
+  | "SUM_ADJUSTMENT"
+  | "EOT"
+  | "CONTRACT_PERIOD_AGREEMENT"
+  | "PARTIAL_OCCUPATION"
+  | "PRACTICAL_COMPLETION"
+  | "SCHEDULE_OF_DEFECTS"
+  | "MAKING_GOOD_DEFECTS"
+  | "TERMINATION_INTENT"
+  | "TERMINATION"
+  | "TERMINATED_FINAL"
+  | "NOMINATION_LETTER"
+  | "FINAL";
 export const CERTIFICATE_KINDS: readonly CertificateKind[] = [
   "DELEGATION_LETTER",
   "DELEGATION_NOTICE",
@@ -32,6 +43,18 @@ export const CERTIFICATE_KINDS: readonly CertificateKind[] = [
   "SO_INSTRUCTION",
   "VARIATION",
   "SUM_ADJUSTMENT",
+  // 6.13 Part B run 1a (intake 2): each in its own migration; raised from runs 1b to 5.
+  "EOT",
+  "CONTRACT_PERIOD_AGREEMENT",
+  "PARTIAL_OCCUPATION",
+  "PRACTICAL_COMPLETION",
+  "SCHEDULE_OF_DEFECTS",
+  "MAKING_GOOD_DEFECTS",
+  "TERMINATION_INTENT",
+  "TERMINATION",
+  "TERMINATED_FINAL",
+  "NOMINATION_LETTER",
+  "FINAL",
 ];
 
 export type CertificateStatus = "DRAFT" | "IN_ROUTING" | "SIGNING" | "ISSUED" | "VOID";
