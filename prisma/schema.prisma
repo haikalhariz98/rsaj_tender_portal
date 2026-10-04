@@ -910,6 +910,7 @@ model Committee {
   openings            Opening[]
   /// 6.13 Part A step 4 (FR-VAR-009): the organisations whose funder's consent this body decides.
   funderConsentPolicies PostAwardPolicy[]
+  claimsForContractTypes ContractType[] @relation("ContractTypeClaimsCommittee")
 
   @@unique([organisationId, code])
 }
@@ -2230,6 +2231,15 @@ model ContractType {
   /// (Appendix A/1 and A/2) or design and build and turnkey (B/1 and B/2). Null: not set, and a delegation is
   /// refused naming the setting.
   delegationVariant           DelegationVariant?
+  /// 6.13 Part B run 1a (FR-MTD-012's remaining behaviours, BD-613-7): the typed twins of `eotInstrument`,
+  /// `completionInstrument` and `claimsApprovalCommitteeCode`, which stay as their labels. Null: not set (NOT_SET),
+  /// and the act that reads one says so (runs 1b and 2).
+  eotInstrumentKind           EotInstrumentKind?
+  completionVariant           CompletionVariant?
+  /// OD-B20: the committee that approves this type's loss-and-expense claims. Restrict (BD-613-102): a committee a
+  /// contract type names for its claims cannot be deleted from under it.
+  claimsCommitteeId           String?
+  claimsCommittee             Committee?          @relation("ContractTypeClaimsCommittee", fields: [claimsCommitteeId], references: [id], onDelete: Restrict)
 
   /// The numbering series (NumberingSeries.key) a contract of this type is numbered
   /// from when its award is issued (FR-CON-002, 6.11). Null: not set, and issue refuses.
@@ -8934,7 +8944,88 @@ model PostAwardPolicy {
   funderConsentCommittee      Committee?          @relation(fields: [funderConsentCommitteeId], references: [id], onDelete: SetNull)
   funderConsentProvenance     Provenance?
 
+  /// 6.13 Part B run 1a (B4; Rule 1, BD-613-102): Part B's settings, each nullable and shipped unset with its
+  /// provenance; the spec's figures are test fixtures and a go-live seed, never a default. Unset refuses (or, for an
+  /// advisory, says "Not set") only the act that needs it, naming the setting. Read by runs 1b to 5.
+  /// FR-LAD-012 (S): the accrual alert's day count. Null: "Not set", no alert, never 0.
+  ladAntiOppressionDays       Int?
+  ladAntiOppressionProvenance Provenance?
+  /// FR-EOT-005: the guidance shown on a weather claim. Null: none shown, and the screen says it is not set.
+  weatherGuidance             String?
+  weatherGuidanceProvenance   Provenance?
+  /// OD-B7 (BD-613-75): when an approved LAD waiver reaches the money. Null: approved, not applied.
+  ladWaiverApplication        LadWaiverApplication?
+  ladWaiverProvenance         Provenance?
+  /// FR-CMP-017 (§8.10): the design guarantee bond's rate on the design work's value, and its years from practical
+  /// completion. Either null: NOT_SET (never 5% or five years).
+  designBondPct               Decimal?            @db.Decimal(9, 4)
+  designBondYears             Int?
+  designBondProvenance        Provenance?
+  /// OD-B8 (BD-613-76): when the performance bond and the retention balance are released. Null refuses the release,
+  /// naming the setting.
+  performanceBondReleaseAt    ReleaseEvent?
+  retentionBalanceReleaseAt   ReleaseEvent?
+  releaseProvenance           Provenance?
+  /// FR-NSC (§8.10): the nominated party's bond rate (null: NOT_SET), the quotation route's ceiling for a nominated
+  /// package (null: NOT_SET, never RM300,000), and OD-B19: one form for the nomination letters, or one per letter.
+  nominatedBondPct            Decimal?            @db.Decimal(9, 4)
+  nominatedQuotationCeiling   Decimal?            @db.Decimal(18, 2)
+  nominationLetterForms       NominationLetterForms?
+  nominatedProvenance         Provenance?
+  /// §8.9 (FR-TRM-011–016): the re-tender cap in days (null blocks the terminated account) and OD-B2's composition of
+  /// the cost-of-loss days (null blocks it; both readings shown).
+  retenderCapDays             Int?
+  lossDaysComposition         LossDaysComposition?
+  terminationProvenance       Provenance?
+  /// OD-B9 (BD-613-77): what the final account's previous interim payments are. Null refuses the final account.
+  finalPreviousBasis          FinalPreviousBasis?
+  finalAccountProvenance      Provenance?
+
   notes String @default("")
+}
+
+/// OD-B7: when an approved LAD waiver is applied (the next certificate, or the final account).
+enum LadWaiverApplication {
+  NEXT_CERTIFICATE
+  FINAL_ACCOUNT
+}
+
+/// OD-B8: the event at which a security or the retention balance is released.
+enum ReleaseEvent {
+  MAKING_GOOD
+  FINAL_PAYMENT
+}
+
+/// OD-B19: the SK010 nomination letter set printed on one form, or one per letter.
+enum NominationLetterForms {
+  ONE_FORM
+  PER_LETTER
+}
+
+/// OD-B2: the cost-of-loss days: the capped re-tender days plus the new contract period, or the days to the new
+/// completion with the cap applied only where the re-tender exceeds it.
+enum LossDaysComposition {
+  CAPPED_RETENDER_PLUS_PERIOD
+  DAYS_TO_NEW_COMPLETION
+}
+
+/// OD-B9: the final account's previous interim payments, before their deductions or as paid.
+enum FinalPreviousBasis {
+  BEFORE_DEDUCTIONS
+  AS_PAID
+}
+
+/// FR-MTD-012, FR-EOT-011: which time instrument a contract type offers.
+enum EotInstrumentKind {
+  EXTENSION_OF_TIME
+  CONTRACT_PERIOD
+  BOTH
+}
+
+/// FR-CMP-006: which practical completion certificate a contract type takes.
+enum CompletionVariant {
+  STANDARD
+  IT
 }
 
 /// The Superintending Officer of a contract (FR-SUP-001): an office resolved from the approval matrix's
