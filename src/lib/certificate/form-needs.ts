@@ -29,13 +29,50 @@ export const SET_AT_WORDS: Readonly<Record<SetAt, Words>> = {
 /**
  * 614b-C6 (BD-613-95): TEMPLATE_NOT_SET in words, naming the need and where its form is chosen, in English and Malay:
  * "No form is chosen for “{need}”. Choose it under Configuration › Post-award controls." The finding carries the need in
- * both languages and where it is set; a finding without them (none is raised so) names "this certificate's form".
+ * both languages and where it is set. BD-613-103 / S-6 (Run 0 fix round): the quotes hold only a need's label, never a
+ * phrase standing in for one, so a finding without a need (none is raised so since openCertificate names its kind) says
+ * "No form is chosen." with no quoted placeholder.
  */
 export function templateNotSetWords(d: Record<string, string | number | null | undefined>): Words {
-  const en = typeof d.need === "string" && d.need ? d.need : "this certificate's form";
-  const ms = typeof d.needMs === "string" && d.needMs ? d.needMs : typeof d.need === "string" && d.need ? d.need : "borang perakuan ini";
   const at = SET_AT_WORDS[d.setAt === "ROUTING_SHEETS" ? "ROUTING_SHEETS" : "POST_AWARD"];
+  const en = typeof d.need === "string" && d.need ? d.need : null;
+  if (!en) return w(`No form is chosen. Choose it under ${at.en}.`, `Tiada borang dipilih. Pilih di ${at.ms}.`);
+  const ms = typeof d.needMs === "string" && d.needMs ? d.needMs : en;
   return w(`No form is chosen for “${en}”. Choose it under ${at.en}.`, `Tiada borang dipilih bagi “${ms}”. Pilih di ${at.ms}.`);
+}
+
+/**
+ * BD-613-103 (sent back) / S-6: a certificate already opened without a form. Its form is fixed when it is opened
+ * (Certificate.templateId), so choosing one under Post-award controls serves the next certificate raised, never this one;
+ * the raise words (TEMPLATE_NOT_SET, BD-613-95) are for raises only. One finding, RAISED_WITHOUT_FORM, used by the
+ * Signatures panel and by the first signature's refusal (the pin, revision.ts), naming the kind through KIND_WORDS:
+ * - open: it was raised without a form; choosing one serves the next raised, not this one; void it and raise it again;
+ * - VOID: only that it was raised without a form, with no advice;
+ * - a kind the product does not raise again once void (the variation's application, opened by its prior approval's last
+ *   step, BD-613-52): the void-and-raise advice would be a false exit, so it says there is no way to give it a form yet.
+ */
+export function raisedWithoutFormFault(cert: { kind: string; status: string } | null): Finding {
+  return { code: "RAISED_WITHOUT_FORM", level: "block", data: { kind: cert?.kind ?? null, status: cert?.status ?? null } };
+}
+
+/// The kinds the product never raises again once void, so "void it and raise it again" is not their exit.
+export const NOT_RAISED_AGAIN: readonly CertificateKind[] = ["VARIATION_APPLICATION"];
+
+export function raisedWithoutFormWords(d: Record<string, string | number | null | undefined>): Words {
+  const kind = typeof d.kind === "string" && d.kind in KIND_WORDS ? KIND_WORDS[d.kind as CertificateKind] : null;
+  const lead = kind
+    ? w(`This certificate (${kind.en}) was raised without a form.`, `Perakuan ini (${kind.ms}) dibangkitkan tanpa borang.`)
+    : w("This certificate was raised without a form.", "Perakuan ini dibangkitkan tanpa borang.");
+  if (d.status === "VOID") return lead;
+  const at = SET_AT_WORDS.POST_AWARD;
+  const serves = w(`Choosing a form under ${at.en} serves the next one raised, not this one`, `Memilih borang di ${at.ms} terpakai bagi yang dibangkitkan seterusnya, bukan yang ini`);
+  if (kind && NOT_RAISED_AGAIN.includes(d.kind as CertificateKind)) {
+    return w(
+      `${lead.en} ${serves.en}. It was opened when its variation's prior approval was approved and is not raised again, so voiding it would leave the variation without its application: there is no way to give it a form yet.`,
+      `${lead.ms} ${serves.ms}. Ia dibuka apabila kelulusan awal perubahannya diluluskan dan tidak dibangkitkan semula, jadi membatalkannya akan meninggalkan perubahan itu tanpa permohonannya: belum ada cara untuk memberinya borang.`,
+    );
+  }
+  return w(`${lead.en} ${serves.en}: void it and raise it again.`, `${lead.ms} ${serves.ms}: batalkannya dan bangkitkannya semula.`);
 }
 
 export interface FormOf {

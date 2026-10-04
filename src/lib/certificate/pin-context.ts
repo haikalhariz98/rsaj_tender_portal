@@ -26,9 +26,11 @@ export interface SheetSource {
   routingChecks: readonly CheckRowIn[];
 }
 
-/// And the pin's: its kind, whether it has a routing type, and its pinned baseline version's Contract Date.
+/// And the pin's: its kind and status, whether it has a routing type, and its pinned baseline version's Contract Date.
 export interface PinSource extends SheetSource {
   kind: CertificateKind | string;
+  /// BD-613-103 / S-6: for a certificate raised without a form, whose words differ once it is void (every loaded row has it).
+  status?: string;
   routingTypeId: string | null;
   baseline: { contractDate: Date | null };
 }
@@ -66,7 +68,7 @@ export function pinContextOf(cert: PinSource, today: string | null = null): PinC
   const f = snap ? applyOverrides(snap, cert.overrides) : null;
   const started = readRoutingSnapshot(cert.routingSnapshot) != null;
   const sheet = started ? (today ? pinSheetOf(sheetOf(cert, today)!) : ({ state: "UNJUDGED" } as const)) : null;
-  return { contractDate: day(cert.baseline.contractDate), figures: f ? [...f.lines, ...f.totals].map((x) => ({ key: x.key, value: x.value })) : null, routed: cert.routingTypeId != null, sheet };
+  return { contractDate: day(cert.baseline.contractDate), figures: f ? [...f.lines, ...f.totals].map((x) => ({ key: x.key, value: x.value })) : null, routed: cert.routingTypeId != null, sheet, raised: { kind: String(cert.kind), status: cert.status ?? "" } };
 }
 
 /// Everything the first signature refuses a form for on this certificate: the act's rule and the page's preview.

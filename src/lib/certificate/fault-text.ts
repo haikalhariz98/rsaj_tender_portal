@@ -8,7 +8,7 @@
 import { formatDate } from "@/lib/format";
 import { formatSen, parseSen } from "@/lib/money";
 
-import { templateNotSetWords } from "./form-needs";
+import { raisedWithoutFormWords, templateNotSetWords } from "./form-needs";
 import { kindFaultWords } from "./kinds";
 import { OFFICE_RULE_WORDS, STATUS_WORDS, w, type Words } from "./labels";
 import type { CertificateStatus, Finding, SignatureOfficeRule } from "./types";
@@ -67,6 +67,9 @@ export function certificateFaultWords(f: Finding): Words {
     case "TEMPLATE_NOT_SET":
       // 614b-C6 (BD-613-95): the need and where its form is chosen, in both languages.
       return templateNotSetWords(d);
+    case "RAISED_WITHOUT_FORM":
+      // BD-613-103 / S-6: a certificate already opened without a form; its exit, never the raise's.
+      return raisedWithoutFormWords(d);
     case "NO_BLOCKS":
       return w(`The form ${s(d.form, "")} has no signature blocks, so nobody can sign it. Add its blocks in printed order under Configuration › Templates.`, `Borang ${s(d.form, "")} tiada blok tandatangan. Tambah di Konfigurasi › Templat.`);
     case "DELEGABLE_UNDECIDED":

@@ -35,7 +35,9 @@ describe("every need, refused for want of a form, reads its own need and where i
     expect(certificateFaultWords(formNeedFault(null, s2.need, s2.setAt)!).ms).toBe("Tiada borang dipilih bagi “Helaian bercetak Delegation sheet”. Pilih di Konfigurasi › Helaian penghalaan.");
   });
   it("a finding carrying no need (none is raised so) still says where, never a code", () => {
-    expect(templateNotSetWords({}).en).toBe("No form is chosen for “this certificate's form”. Choose it under Configuration › Post-award controls.");
+    // Faithful (BD-613-103 sent back, S-6, flagged 6.14): the quoted placeholder is gone; the quotes hold only a real label.
+    expect(templateNotSetWords({}).en).toBe("No form is chosen. Choose it under Configuration › Post-award controls.");
+    expect(templateNotSetWords({}).ms).toBe("Tiada borang dipilih. Pilih di Konfigurasi › Kawalan selepas setuju terima.");
     expect(templateNotSetWords({ need: "X" }).ms).toBe("Tiada borang dipilih bagi “X”. Pilih di Konfigurasi › Kawalan selepas setuju terima.");
   });
 });

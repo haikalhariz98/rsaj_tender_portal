@@ -28,6 +28,7 @@ import { certificateDateOf, dateAtIssue, dateCorrectionFaults, earliestCorrectio
 import { acknowledgeFaults, copiesFor, despatchFaults } from "./distribution";
 import { refusalText } from "./fault-text";
 import { certificateFieldValues, figureField, type Lang } from "./fields";
+import { formNeedFault } from "./form-needs";
 import { renderIssue } from "./issue";
 import { CERT_WORDS, CHECK_KIND_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, ON_BEHALF, STATUS_WORDS } from "./labels";
 import { applyOverrides, overrideFaults } from "./override";
@@ -127,7 +128,10 @@ export async function openCertificate(tx: Tx, l: LoadedContract, o: OpenInput, n
     if (fs.length) refuse("Not opened:", fs);
   }
   if (o.sectionId && !baseline!.sections.some((s) => s.id === o.sectionId)) refuse("Not opened:", one("SECTION_NOT_IN_BASELINE"));
-  if (o.templateId && !(await tx.documentTemplate.findFirst({ where: { id: o.templateId, organisationId: l.org.id }, select: { id: true } }))) refuse("Not opened:", one("TEMPLATE_NOT_SET"));
+  // BD-613-103 / S-6: a form named but not the organisation's is refused naming the kind's need (KIND_WORDS), never a
+  // quoted placeholder. A form not named at all is not refused here: the variation's application is opened at its prior
+  // approval's last step on the form configured then, unset meaning none yet (BD-613-52); its page says RAISED_WITHOUT_FORM.
+  if (o.templateId && !(await tx.documentTemplate.findFirst({ where: { id: o.templateId, organisationId: l.org.id }, select: { id: true } }))) refuse("Not opened:", [formNeedFault(null, KIND_WORDS[o.kind])!]);
   if (o.routingTypeId) {
     const owned = await tx.routingSheetType.findFirst({ where: { id: o.routingTypeId, organisationId: l.org.id }, select: { id: true } });
     const fs = typeFaults(owned ? await routingTypeNow(o.routingTypeId, tx) : null, "CERTIFICATE", o.kind, today);

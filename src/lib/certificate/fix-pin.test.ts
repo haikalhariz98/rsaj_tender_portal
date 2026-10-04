@@ -52,7 +52,8 @@ describe("M-2: a field the text prints must have its value at issue", () => {
     expect(codes(fs)).toEqual(["DATE_FIELD_NO_DATING_BLOCK", "FIELD_NO_VALUE"]);
   });
   it("no form: the form's own refusal only", () => {
-    expect(codes(pinRefusals(null, ANY_CERTIFICATE_FIELD, fieldsNamed, CTX))).toEqual(["TEMPLATE_NOT_SET"]);
+    // Faithful (BD-613-103 sent back, S-6, flagged 6.14): still the form's own refusal only, now RAISED_WITHOUT_FORM.
+    expect(codes(pinRefusals(null, ANY_CERTIFICATE_FIELD, fieldsNamed, CTX))).toEqual(["RAISED_WITHOUT_FORM"]);
   });
   it("every merge field has a need", () => {
     for (const k of ANY_CERTIFICATE_FIELD) expect(fieldNeed(k).need, k).toMatch(/^(ALWAYS|DATING_BLOCK|BASELINE|FIGURE)$/);

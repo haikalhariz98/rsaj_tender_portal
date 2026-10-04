@@ -141,7 +141,8 @@ describe("the pinned revision (OD-2 A)", () => {
   it("nothing undecided is pinned: no form, no blocks, an undecided delegation, no list, no text, an unknown field", () => {
     const ok = pinFaults(FORM, ANY_CERTIFICATE_FIELD, fieldsNamed);
     expect(ok).toEqual([]);
-    expect(codes(pinFaults(null, ANY_CERTIFICATE_FIELD, fieldsNamed))).toEqual(["TEMPLATE_NOT_SET"]);
+    // Faithful (BD-613-103 sent back, S-6, flagged 6.14): no form at the pin is a certificate raised without one, its own code.
+    expect(codes(pinFaults(null, ANY_CERTIFICATE_FIELD, fieldsNamed))).toEqual(["RAISED_WITHOUT_FORM"]);
     expect(codes(pinFaults({ ...FORM, blocks: [] }, ANY_CERTIFICATE_FIELD, fieldsNamed))).toEqual(["NO_BLOCKS"]);
     expect(codes(pinFaults({ ...FORM, blocks: [{ ...INTERIM_BLOCKS[0], delegable: null }] }, ANY_CERTIFICATE_FIELD, fieldsNamed))).toEqual(["DELEGABLE_UNDECIDED"]);
     expect(codes(pinFaults({ ...FORM, distribution: [] }, ANY_CERTIFICATE_FIELD, fieldsNamed))).toEqual(["NO_DISTRIBUTION_LIST"]);

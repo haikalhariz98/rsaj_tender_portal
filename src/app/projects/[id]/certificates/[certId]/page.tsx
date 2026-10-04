@@ -17,7 +17,7 @@ import { KeyValues } from "@/components/ui/stat";
 import { certificateDateOf } from "@/lib/certificate/date";
 import { distributionState } from "@/lib/certificate/distribution";
 import { certificateFaultText, refusalText } from "@/lib/certificate/fault-text";
-import { templateNotSetWords } from "@/lib/certificate/form-needs";
+import { raisedWithoutFormWords } from "@/lib/certificate/form-needs";
 import { certificateFieldValues } from "@/lib/certificate/fields";
 import { BLOCK_KIND_WORDS, CERT_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, OFFICE_RULE_WORDS, STATUS_TONE, STATUS_WORDS } from "@/lib/certificate/labels";
 import { applyOverrides, routingRatioOf, type Effective } from "@/lib/certificate/override";
@@ -201,7 +201,8 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
         {/* Residual M-1: the act's own function (pinCheck); with the time zone not set, a started sheet's values say "not judged". */}
         {(status === "DRAFT" || status === "IN_ROUTING") && preview && (
           <Callout tone="warn" title={preview.judged ? PRINT_WORDS.notReadyTitle.en : PRINT_WORDS.notJudgedTitle.en}>
-            {`${preview.text} ${PRINT_WORDS.notReadyTail.en}`}
+            {/* S-6: "until this is put right" is no exit for a certificate raised without a form: its own words say what is. */}
+            {preview.formless ? preview.text : `${preview.text} ${PRINT_WORDS.notReadyTail.en}`}
           </Callout>
         )}
         {status === "VOID" && (
@@ -239,11 +240,11 @@ function signingBlocker(sheet: Sheet): string | null {
 }
 
 /// The first signature's refusal, by the act's own function; `judged` false where the only finding is "not judged".
-function pinBlocker(form: Awaited<ReturnType<typeof templateNow>>, cert: LoadedCertificate["cert"], today: string | null): { text: string; judged: boolean } | null {
+function pinBlocker(form: Awaited<ReturnType<typeof templateNow>>, cert: LoadedCertificate["cert"], today: string | null): { text: string; judged: boolean; formless: boolean } | null {
   const fs = pinCheck(form, cert, today);
   if (!fs.length) return null;
   const judged = fs.some((f) => f.code !== "SHEET_NOT_JUDGED");
-  return { text: refusalText(judged ? "The first signature is refused:" : "Not judged yet:", fs), judged };
+  return { text: refusalText(judged ? "The first signature is refused:" : "Not judged yet:", fs), judged, formless: fs.every((f) => f.code === "RAISED_WITHOUT_FORM") };
 }
 
 // ------------------------------------------------------------------ figures
@@ -378,7 +379,8 @@ function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, toda
     ? `In the printed order of ${pinned.nameEn}${pinned.formCode ? ` (${pinned.formCode})` : ""}, as pinned at the first signature on ${formatDate(pinned.pinnedOn)}. A later revision of the form does not move it.`
     : formName
       ? `In the printed order of ${formName} as it stands now. The first signature pins the form: its order and recipients do not move after it.`
-      : templateNotSetWords({ need: "this certificate", needMs: "perakuan ini", setAt: "POST_AWARD" }).en;
+      : // BD-613-103 / S-6: raised without a form, its own words (a void one is given no advice); never the raise's.
+        raisedWithoutFormWords({ kind: cert.kind, status }).en;
   const notOpen = status === "DRAFT" || status === "IN_ROUTING" ? "Signatures open once the certificate is sent to signing." : status === "VOID" ? "The certificate is void." : null;
   const dateNow = certificateDateOf(blocks, signed);
   return (

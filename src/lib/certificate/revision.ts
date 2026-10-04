@@ -9,7 +9,7 @@ import { fieldsNamed as namedIn } from "@/lib/templates/merge";
 
 import type { Correction } from "./corrections";
 import { fieldNeed } from "./fields";
-import { formNeedFault } from "./form-needs";
+import { formNeedFault, raisedWithoutFormFault } from "./form-needs";
 import { w, type Words } from "./labels";
 import { inPrintedOrder, isSheetField, labelPair, type PrintedField } from "./printed";
 import { freezeTerms, isTermField, termCodesIn, termFaults, type FrozenTerm, type Term } from "./terms";
@@ -88,10 +88,13 @@ export function pinRevision(t: TemplateNow, pinnedOn: string): TemplateRevision 
  * Configuration › Templates before anyone signs. Checked here so that nothing undecided is ever pinned: a
  * pinned revision is never edited, so a gap frozen into it would have no exit but voiding the certificate.
  */
-export function pinFaults(t: TemplateNow | null, allowed: ReadonlySet<string>, fieldsNamed: (body: string) => string[], need: Words = CERTIFICATE_FORM): Finding[] {
+export function pinFaults(t: TemplateNow | null, allowed: ReadonlySet<string>, fieldsNamed: (body: string) => string[], need?: Words, raised?: { kind: string; status: string } | null): Finding[] {
+  // BD-613-103 / S-6 (Run 0 fix round): no form at the pin is a certificate raised without one. Its form is fixed when it
+  // is opened, so the words are its own (RAISED_WITHOUT_FORM), never the raise's "choose it under …", which would serve
+  // the next certificate, not this one. A caller naming a need explicitly keeps that need's TEMPLATE_NOT_SET.
+  if (!t) return [need ? formNeedFault(null, need)! : raisedWithoutFormFault(raised ?? null)];
   // FR-CRT-012 (BD-614-23): one rule decides "no form" and "no text", the needs list's and Part B's raise's own.
-  const formFault = formNeedFault(t ? { id: t.id, nameEn: t.nameEn, bodyEn: t.bodyEn, bodyMs: t.bodyMs } : null, need);
-  if (!t) return [formFault!];
+  const formFault = formNeedFault({ id: t.id, nameEn: t.nameEn, bodyEn: t.bodyEn, bodyMs: t.bodyMs }, need ?? KIND_FREE_NEED);
   const out: Finding[] = [];
   const form = t.nameEn;
   if (t.blocks.length === 0) out.push({ code: "NO_BLOCKS", level: "block", data: { form } });
@@ -107,8 +110,8 @@ export function pinFaults(t: TemplateNow | null, allowed: ReadonlySet<string>, f
   return out;
 }
 
-/// The need a certificate's form answers, where the caller names none.
-const CERTIFICATE_FORM: Words = w("This certificate's form", "Borang perakuan ini");
+/// A form is chosen here, so only "no text" can follow, which names the form, never a need: the need's words are unused.
+const KIND_FREE_NEED: Words = w("", "");
 
 /// What the certificate brings to the pin: the values its form's fields would be filled from at issue.
 export interface PinContext {
@@ -116,8 +119,11 @@ export interface PinContext {
   contractDate: string | null;
   /// The certificate's frozen figures, as they will be issued (overrides applied). Null: it carries none.
   figures: readonly { key: string; value: string | null }[] | null;
-  /// The need the form answers, for the "no form / no text" refusal's words (default: this certificate's form).
+  /// The need the form answers, for the "no form" refusal's words. Absent (as every certificate's own context): no form at
+  /// the pin is the certificate raised without one (RAISED_WITHOUT_FORM, BD-613-103), worded from `certificate`.
   need?: Words;
+  /// The certificate's kind and status as raised, for RAISED_WITHOUT_FORM's words (a void one is given no advice).
+  raised?: { kind: string; status: string };
   /// Increment 2 (code review M-1): whether the certificate has a routing type, so a sheet value can ever be filled.
   /// Absent: none (a printed field bound to a sheet value is then refused).
   routed?: boolean;
@@ -212,7 +218,7 @@ export function unfillableFaults(t: TemplateNow, ctx: PinContext, allowed: Reado
 
 /// Everything the first signature refuses a form for: the form's own gaps, then a field it could never fill.
 export function pinRefusals(t: TemplateNow | null, allowed: ReadonlySet<string>, fieldsNamed: (body: string) => string[], ctx: PinContext): Finding[] {
-  const own = pinFaults(t, allowed, fieldsNamed, ctx.need ?? CERTIFICATE_FORM);
+  const own = pinFaults(t, allowed, fieldsNamed, ctx.need, ctx.raised);
   return t ? [...own, ...unfillableFaults(t, ctx, allowed, fieldsNamed)] : own;
 }
 
