@@ -57,9 +57,10 @@ describe("Part A's answers, unchanged for the nine statuses that existed", () =>
   }
 });
 
+// Run 1a fix round (BD-613-113 as ruled, R1): CLOSE, SECURITY_RELEASE and DESIGN_BOND_RELEASE join BD-613-99's seven.
 describe("BD-613-99: in TERMINATED exactly these acts are allowed", () => {
-  it("the termination case, renomination, the TERMINATED_FINAL route, the converse decision, bond claims, rectification and debt; no other", () => {
-    expect([...allowedIn("TERMINATED")].sort()).toEqual(["BOND_CLAIM", "CONVERSE_DECISION", "DEBT", "NOMINATED_INCREASE", "RECTIFICATION", "TERMINATED_FINAL_ROUTE", "TERMINATION_CASE"]);
+  it("the termination case, renomination, the TERMINATED_FINAL route, the converse decision, bond claims, rectification, debt, the releases of a security and the design guarantee bond, and the close; no other", () => {
+    expect([...allowedIn("TERMINATED")].sort()).toEqual(["BOND_CLAIM", "CLOSE", "CONVERSE_DECISION", "DEBT", "DESIGN_BOND_RELEASE", "NOMINATED_INCREASE", "RECTIFICATION", "SECURITY_RELEASE", "TERMINATED_FINAL_ROUTE", "TERMINATION_CASE"]);
     for (const a of CONTRACT_ACTS.filter((x) => !allowedIn("TERMINATED").includes(x))) expect(actStatusFault(a, "TERMINATED")?.code, a).toBe("CONTRACT_TERMINATED");
   });
   it("the TERMINATED_FINAL certificate's acts read TERMINATED_FINAL_ROUTE; the termination's own notices read the case", () => {
