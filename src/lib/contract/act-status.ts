@@ -13,7 +13,8 @@
  * - TERMINATED allows exactly the termination case (its notices included), renomination (NOMINATED_INCREASE), the
  *   TERMINATED_FINAL route, the converse decision, bond claims, rectification and debt (BD-613-99), and, as ruled in
  *   the Run 1a fix round, the releases of a security and the design guarantee bond and the close (BD-613-113, R1);
- * - CLOSED allows only what survives the close: the design guarantee bond's release and debts (FR-FIN-014);
+ * - CLOSED allows only what survives the close: the design guarantee bond's release, debts and the originals' custody
+ *   (FR-FIN-014; R2);
  * - Part B's acts are not recorded before execution.
  */
 
@@ -25,9 +26,10 @@ import type { ContractStatus, Finding } from "./types";
 
 /// The acts, by family: those built before Part B (first), then Part B's, whose acts land in runs 1b to 5.
 export const CONTRACT_ACTS = [
-  // 6.12: forming the contract; copies, the briefing and the originals' custody; the baseline.
+  // 6.12: forming the contract; copies and the briefing; the originals' custody (its own family, R2); the baseline.
   "FORMATION",
   "COPIES_AND_CUSTODY",
+  "ORIGINALS",
   "BASELINE",
   // 6.13 Part A: supervision; payment (valuations, retention's release, the opening position, the advance, damages);
   // variations and the adjustment of the contract sum.
@@ -90,6 +92,8 @@ const only = (...states: ContractStatus[]) => row(states);
 export const ACT_STATUS = {
   FORMATION: before(PC, MGC, FCI),
   COPIES_AND_CUSTODY: before(PC, MGC, FCI),
+  // R2 (BD-613-119): where an original is held stays true for the record's life, terminated and closed included.
+  ORIGINALS: before(PC, MGC, FCI, T, C),
   BASELINE: before(PC, MGC),
   SUPERVISION: before(PC, MGC),
   VALUATION: before(PC, MGC),
@@ -197,11 +201,11 @@ export function actStatusWords(f: Finding): Words {
       return { en: "The contract is not executed yet: this is recorded once it is.", ms: "Kontrak belum dilaksanakan: ini direkodkan setelah ia dilaksanakan." };
     case "CONTRACT_TERMINATED":
       return {
-        en: "The contract is terminated: only the termination's own consequences are recorded on it (its case and notices, renomination, the final payment on termination and its converse decision, bond claims, rectification, debts, the release of a security or the design guarantee bond, and its close).",
-        ms: "Kontrak telah ditamatkan: hanya akibat penamatan itu sendiri direkodkan padanya (kes dan notisnya, penamaan semula, pembayaran muktamad penamatan dan keputusan sebaliknya, tuntutan bon, pembaikan, hutang, pelepasan sekuriti atau bon jaminan reka bentuk, dan penutupannya).",
+        en: "The contract is terminated: only the termination's own consequences are recorded on it (its case and notices, renomination, the final payment on termination and its converse decision, bond claims, rectification, debts, the release of a security or the design guarantee bond, where the originals are held, and its close).",
+        ms: "Kontrak telah ditamatkan: hanya akibat penamatan itu sendiri direkodkan padanya (kes dan notisnya, penamaan semula, pembayaran muktamad penamatan dan keputusan sebaliknya, tuntutan bon, pembaikan, hutang, pelepasan sekuriti atau bon jaminan reka bentuk, tempat dokumen asal disimpan, dan penutupannya).",
       };
     case "CONTRACT_CLOSED":
-      return { en: "The contract is closed: it is kept as it was, except what survives the close (the design guarantee bond's release and debts).", ms: "Kontrak telah ditutup: ia dikekalkan seperti sedia ada, kecuali yang kekal selepas penutupan (pelepasan bon jaminan reka bentuk dan hutang)." };
+      return { en: "The contract is closed: it is kept as it was, except what survives the close (the design guarantee bond's release, debts, and where the originals are held).", ms: "Kontrak telah ditutup: ia dikekalkan seperti sedia ada, kecuali yang kekal selepas penutupan (pelepasan bon jaminan reka bentuk, hutang, dan tempat dokumen asal disimpan)." };
     case "NOT_IN_STATUS": {
       const s = CONTRACT_STATUS_WORDS[f.data?.status as ContractStatus] ?? { en: "where it stands", ms: "keadaannya" };
       return { en: `Not recorded while the contract stands at “${s.en}”.`, ms: `Tidak direkodkan semasa kontrak berada pada “${s.ms}”.` };

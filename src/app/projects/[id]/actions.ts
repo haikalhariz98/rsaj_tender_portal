@@ -771,7 +771,7 @@ export async function registerOriginal(_prev: FormState, data: FormData): Promis
   const custodianId = r.text("custodianPersonId", "Custodian", { required: true });
   if (kind && kind !== "CONTRACT" && !refId) r.reject("original", "Choose the bond or policy.");
   if (r.failed || !kind) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
+  return inContract(idOf(data), now, "ORIGINALS", async (c) => {
     const k = c.l.contract;
     const onContract = kind === "CONTRACT" ? true : kind === "SECURITY" ? k.securities.some((s) => s.id === refId) : k.policies.some((p) => p.id === refId);
     const registered = k.custodyItems.some((i) => (kind === "CONTRACT" ? i.kind === "CONTRACT" : kind === "SECURITY" ? i.securityId === refId : i.policyId === refId));
@@ -794,7 +794,7 @@ export async function moveOriginal(_prev: FormState, data: FormData): Promise<Fo
   const on = r.date("on", "On", { required: true });
   const purpose = r.text("purpose", "Purpose", { max: 400 });
   if (r.failed || !direction || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
+  return inContract(idOf(data), now, "ORIGINALS", async (c) => {
     // The domain row last, after the contract.
     await c.tx.$queryRaw`SELECT id FROM "CustodyItem" WHERE id = ${itemId} FOR UPDATE`;
     const item = c.l.contract.custodyItems.find((i) => i.id === itemId);

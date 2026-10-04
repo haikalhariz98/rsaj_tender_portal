@@ -19,7 +19,9 @@ import { CONTRACT_STATUSES, type ContractStatus } from "./types";
 /// Each act today, by the table's act it reads (the certificate page's acts read their certificate's kind).
 const ACT_OF: Record<string, ContractAct | "BY_KIND"> = {
   ...Object.fromEntries(["startPreparation", "setAssemblyPart", "recordReconciliation", "addAmendment", "addCorrection", "addRate", "removeCheckLine", "completeCheck", "submitLegal", "decideLegal", "recordWcCheck", "recordContractorSignature", "recordRsajSignature", "correctContractDate", "recordStamping"].map((a) => [a, "FORMATION"])),
-  ...Object.fromEntries(["recordBriefing", "answerConsultingEngineer", "issueCopy", "despatchCopy", "acknowledgeCopy", "recallCopy", "reissueCopy", "registerOriginal", "moveOriginal"].map((a) => [a, "COPIES_AND_CUSTODY"])),
+  ...Object.fromEntries(["recordBriefing", "answerConsultingEngineer", "issueCopy", "despatchCopy", "acknowledgeCopy", "recallCopy", "reissueCopy"].map((a) => [a, "COPIES_AND_CUSTODY"])),
+  // Run 1a fix round (R2): where an original is held is its own family, open for the record's life.
+  ...Object.fromEntries(["registerOriginal", "moveOriginal"].map((a) => [a, "ORIGINALS"])),
   ...Object.fromEntries(["saveBaselineEntry", "confirmBaseline", "correctBaseline", "correctAwardTerm"].map((a) => [a, "BASELINE"])),
   ...Object.fromEntries(TODAY_ACTS["src/app/projects/[id]/supervision-actions.ts"].map((a) => [a, "SUPERVISION"])),
   ...Object.fromEntries(["recordValuationCalendar", "openInterimValuation", "recordMainWorks", "recordJointValuation", "addMaterialLine", "removeMaterialLine", "recordPartyLine", "addValuationDeduction", "removeValuationDeduction", "raiseInterimCertificate", "holdValuation", "withdrawValuation"].map((a) => [a, "VALUATION"])),
@@ -57,10 +59,11 @@ describe("Part A's answers, unchanged for the nine statuses that existed", () =>
   }
 });
 
-// Run 1a fix round (BD-613-113 as ruled, R1): CLOSE, SECURITY_RELEASE and DESIGN_BOND_RELEASE join BD-613-99's seven.
+// Run 1a fix round (BD-613-113 as ruled, R1, R2): CLOSE, SECURITY_RELEASE, DESIGN_BOND_RELEASE and ORIGINALS join
+// BD-613-99's seven.
 describe("BD-613-99: in TERMINATED exactly these acts are allowed", () => {
-  it("the termination case, renomination, the TERMINATED_FINAL route, the converse decision, bond claims, rectification, debt, the releases of a security and the design guarantee bond, and the close; no other", () => {
-    expect([...allowedIn("TERMINATED")].sort()).toEqual(["BOND_CLAIM", "CLOSE", "CONVERSE_DECISION", "DEBT", "DESIGN_BOND_RELEASE", "NOMINATED_INCREASE", "RECTIFICATION", "SECURITY_RELEASE", "TERMINATED_FINAL_ROUTE", "TERMINATION_CASE"]);
+  it("the termination case, renomination, the TERMINATED_FINAL route, the converse decision, bond claims, rectification, debt, the releases of a security and the design guarantee bond, the originals' custody and the close; no other", () => {
+    expect([...allowedIn("TERMINATED")].sort()).toEqual(["BOND_CLAIM", "CLOSE", "CONVERSE_DECISION", "DEBT", "DESIGN_BOND_RELEASE", "NOMINATED_INCREASE", "ORIGINALS", "RECTIFICATION", "SECURITY_RELEASE", "TERMINATED_FINAL_ROUTE", "TERMINATION_CASE"]);
     for (const a of CONTRACT_ACTS.filter((x) => !allowedIn("TERMINATED").includes(x))) expect(actStatusFault(a, "TERMINATED")?.code, a).toBe("CONTRACT_TERMINATED");
   });
   it("the TERMINATED_FINAL certificate's acts read TERMINATED_FINAL_ROUTE; the termination's own notices read the case", () => {
@@ -71,13 +74,29 @@ describe("BD-613-99: in TERMINATED exactly these acts are allowed", () => {
   });
 });
 
+describe("R2: the originals' custody, for the record's life", () => {
+  it("registering and moving an original are allowed in every state but CANCELLED, TERMINATED and CLOSED included", () => {
+    for (const s of CONTRACT_STATUSES) expect(actStatusFault("ORIGINALS", s)?.code ?? null, s).toBe(s === "CANCELLED" ? "CONTRACT_CANCELLED" : null);
+  });
+  it("the copies and the briefing keep their row: refused once terminated or closed", () => {
+    expect(actStatusFault("COPIES_AND_CUSTODY", "TERMINATED")?.code).toBe("CONTRACT_TERMINATED");
+    expect(actStatusFault("COPIES_AND_CUSTODY", "CLOSED")?.code).toBe("CONTRACT_CLOSED");
+  });
+  it("the closed and terminated contract's words name the originals", () => {
+    expect(actStatusWords({ code: "CONTRACT_CLOSED", level: "block" }).en).toMatch(/where the originals are held/);
+    expect(actStatusWords({ code: "CONTRACT_CLOSED", level: "block" }).ms).toMatch(/tempat dokumen asal disimpan/);
+    expect(actStatusWords({ code: "CONTRACT_TERMINATED", level: "block" }).en).toMatch(/where the originals are held/);
+    expect(actStatusWords({ code: "CONTRACT_TERMINATED", level: "block" }).ms).toMatch(/tempat dokumen asal disimpan/);
+  });
+});
+
 describe("the rest of the table, as ADR 0031 and the plan's B5 set it", () => {
   it("valuations in ACTIVE, practically complete and making good complete; none after the final certificate or termination", () => {
     for (const s of ["ACTIVE", "PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE"] as const) expect(ACT_STATUS.VALUATION[s], s).toBe("ALLOWED");
     for (const s of ["FINAL_CERTIFICATE_ISSUED", "TERMINATED", "CLOSED"] as const) expect(ACT_STATUS.VALUATION[s], s).not.toBe("ALLOWED");
   });
-  it("CLOSED: only what survives the close (the design guarantee bond's release and debts)", () => {
-    expect([...allowedIn("CLOSED")].sort()).toEqual(["DEBT", "DESIGN_BOND_RELEASE"]);
+  it("CLOSED: only what survives the close (the design guarantee bond's release, debts and, R2, the originals' custody)", () => {
+    expect([...allowedIn("CLOSED")].sort()).toEqual(["DEBT", "DESIGN_BOND_RELEASE", "ORIGINALS"]);
   });
   it("a termination is refused once practically complete (CPC / termination, both orders: the CPC is refused once terminated)", () => {
     expect(actStatusFault("TERMINATION_CASE", "PRACTICALLY_COMPLETE")).toEqual({ code: "NOT_IN_STATUS", level: "block", data: { status: "PRACTICALLY_COMPLETE" } });
