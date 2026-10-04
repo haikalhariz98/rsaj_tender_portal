@@ -11,6 +11,7 @@
  * - Not built (no requirement): the organisation's own cancellation, its request and its route.
  */
 
+import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 
 import { eligibilityFindingOf } from "./opening-hook";
@@ -105,15 +106,46 @@ export function openingJudgedOf(exercise: string, b: { listingNo: number; eligib
   return f ? { exercise, listingNo: b.listingNo, judgedOn: f.judgedOn, standing: f.standing, rejected: b.verdict === "REJECT" } : null;
 }
 
+/// A registration cancelled on the supplier's file, as C1 reads it.
+export interface CancellationOnFile {
+  id: string;
+  effectiveOn: string;
+  /// The registration it cancels (BD-613-109); null only where none could be named.
+  cancelsRegistrationOn: string | null;
+  withdrawn: boolean;
+}
+
+/// C1: a supplier's standing events as the cancellations on its file (the act and the Standing tab both read them so).
+export function cancellationsOnFile(events: readonly { id: string; kind: string; effectiveOn: Date; cancelsRegistrationOn: Date | null; withdrawnAt: Date | null }[]): CancellationOnFile[] {
+  return events
+    .filter((e) => e.kind === "REGISTRATION_CANCELLED")
+    .map((e) => ({ id: e.id, effectiveOn: storedDay(e.effectiveOn), cancelsRegistrationOn: e.cancelsRegistrationOn ? storedDay(e.cancelsRegistrationOn) : null, withdrawn: e.withdrawnAt != null }));
+}
+
+/**
+ * C1 (Run 1a, flagged 6.15a): the day a cancellation stopped standing (exclusive), or null while it stands: the next
+ * registration day after it took effect (the supplier's registration day, or the registration a later cancellation names:
+ * a registration is a fact even where that later cancellation was withdrawn), or the next live cancellation's start,
+ * whichever is earlier. A registration day on or before the day it took effect does not end it (cancellationEnded is
+ * strict).
+ */
+export function cancellationStoodUntil(target: { id: string; effectiveOn: string }, onFile: readonly CancellationOnFile[], registeredOn: string | null): string | null {
+  const others = onFile.filter((c) => c.id !== target.id);
+  const after = (d: string | null): d is string => d != null && d > target.effectiveOn;
+  const candidates = [registeredOn, ...others.map((c) => c.cancelsRegistrationOn), ...others.filter((c) => !c.withdrawn).map((c) => c.effectiveOn)].filter(after);
+  return candidates.length ? candidates.reduce((a, b) => (b < a ? b : a)) : null;
+}
+
 /**
  * S-4 (6.13 Part B Run 0 fix round): the openings that judged this supplier's registration cancelled while the record
  * stood, that is on or after the day it took effect, in order. A withdrawal does not revisit them: each keeps its frozen
  * finding (and a bid rejected at the opening stays rejected). A sale refused for the cancellation left no record, so none
- * can be listed.
+ * can be listed. C1 (Run 1a): bounded by `until` (exclusive, `cancellationStoodUntil`), so withdrawing one cancellation
+ * never lists openings a later one caused; null while it stands.
  */
-export function judgedWhileCancelled(openings: readonly OpeningJudged[], effectiveOn: string): OpeningJudged[] {
+export function judgedWhileCancelled(openings: readonly OpeningJudged[], effectiveOn: string, until: string | null): OpeningJudged[] {
   return openings
-    .filter((o) => o.standing === "CANCELLED" && o.judgedOn >= effectiveOn)
+    .filter((o) => o.standing === "CANCELLED" && o.judgedOn >= effectiveOn && (until == null || o.judgedOn < until))
     .sort((a, b) => a.judgedOn.localeCompare(b.judgedOn) || a.exercise.localeCompare(b.exercise) || a.listingNo - b.listingNo);
 }
 

@@ -29,15 +29,17 @@ describe("the openings judged while the cancellation stood (S-4)", () => {
     expect(openings[0]).toEqual({ exercise: "DEMO/T/0007/2026", listingNo: 3, judgedOn: "2026-10-02", standing: "CANCELLED", rejected: true });
     expect(openingJudgedOf("X", { listingNo: 1, eligibilityFinding: null, verdict: null })).toBeNull();
   });
+  // Run 1a C1 (faithful): judgedWhileCancelled takes the day the cancellation stopped standing; null here (it still stands),
+  // so these lists are as before. The bound is judged-window.test.ts's.
   it("only CANCELLED findings on or after the day it took effect, in order (the boundary day counts)", () => {
-    expect(judgedWhileCancelled(openings, "2026-10-01").map((o) => o.exercise)).toEqual(["DEMO/T/0007/2026"]);
-    expect(judgedWhileCancelled(openings, "2026-10-02").map((o) => o.exercise)).toEqual(["DEMO/T/0007/2026"]);
-    expect(judgedWhileCancelled(openings, "2026-10-03")).toEqual([]);
+    expect(judgedWhileCancelled(openings, "2026-10-01", null).map((o) => o.exercise)).toEqual(["DEMO/T/0007/2026"]);
+    expect(judgedWhileCancelled(openings, "2026-10-02", null).map((o) => o.exercise)).toEqual(["DEMO/T/0007/2026"]);
+    expect(judgedWhileCancelled(openings, "2026-10-03", null)).toEqual([]);
     const two = [...openings, { ...openings[0], exercise: "DEMO/T/0005/2026", judgedOn: "2026-10-02", listingNo: 9 }];
-    expect(judgedWhileCancelled(two, "2026-10-01").map((o) => `${o.exercise} ${o.listingNo}`)).toEqual(["DEMO/T/0005/2026 9", "DEMO/T/0007/2026 3"]);
+    expect(judgedWhileCancelled(two, "2026-10-01", null).map((o) => `${o.exercise} ${o.listingNo}`)).toEqual(["DEMO/T/0005/2026 9", "DEMO/T/0007/2026 3"]);
   });
   it("the words name each, in English and Malay, and say refused sales left no record", () => {
-    expect(notRevisitedWords(judgedWhileCancelled(openings, "2026-10-01"))).toEqual({
+    expect(notRevisitedWords(judgedWhileCancelled(openings, "2026-10-01", null))).toEqual({
       en: "Judgments made while it stood are not revisited. The openings that judged the supplier cancelled keep their findings: DEMO/T/0007/2026 (bid No. 3, opened 02 Oct 2026, rejected at the opening). A sale refused for it left no record, so none is listed.",
       ms: "Penilaian yang dibuat semasa ia berkuat kuasa tidak disemak semula. Pembukaan yang menilai pembekal sebagai dibatalkan mengekalkan penemuannya: DEMO/T/0007/2026 (tawaran No. 3, dibuka 02 Oct 2026, ditolak semasa pembukaan). Jualan yang ditolak kerananya tidak meninggalkan rekod, jadi tiada yang disenaraikan.",
     });
@@ -65,7 +67,7 @@ describe("the withdrawal act and drawer (source)", () => {
     // language (run1a-words.test.ts pins the text).
     expect(body).toMatch(/message: withdrawnWords\(nowWords, notRevisited\)\.en \};/);
     const panel = readFileSync("src/app/suppliers/[id]/standing-panels.tsx", "utf8");
-    expect(panel).toMatch(/<WithdrawCancellationDrawer eventId=\{e\.id\} people=\{people\} notRevisited=\{notRevisitedWords\(judgedWhileCancelled\(openings, storedDay\(e\.effectiveOn\)\)\)\.en\} \/>/);
+    expect(panel).toMatch(/<WithdrawCancellationDrawer eventId=\{e\.id\} people=\{people\} notRevisited=\{notRevisitedWords\(judgedWhileCancelled\(openings, storedDay\(e\.effectiveOn\), cancellationStoodUntil\([^]*?\)\)\)\.en\} \/>/);
     const drawer = readFileSync("src/app/suppliers/[id]/standing-editors.tsx", "utf8");
     // Run 1a (Should 2, faithful): the way back's sentence from labels.ts, after the not-revisited words as before.
     expect(drawer).toMatch(/\$\{notRevisited\} \$\{NEW_APPLICATION_WAY_BACK\.en\}/);

@@ -8,7 +8,7 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
-import { CANCELLATION_REFERENCE_MAX, judgedWhileCancelled, notRevisitedWords, openingJudgedOf, recordCancellationFaults, withdrawCancellationFaults, type OpeningJudged } from "@/lib/suppliers/cancellation";
+import { CANCELLATION_REFERENCE_MAX, cancellationsOnFile, cancellationStoodUntil, judgedWhileCancelled, notRevisitedWords, openingJudgedOf, recordCancellationFaults, withdrawCancellationFaults, type OpeningJudged } from "@/lib/suppliers/cancellation";
 import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, withdrawRequestFaults, type RequestFacts } from "@/lib/suppliers/blacklist";
 import { documentStates } from "@/lib/suppliers/documents";
 import { BLACKLIST_MATTER, REQUEST_KIND_LABEL, STANDING_REFUSED_DECIDED_BY, standingWords, withdrawnWords } from "@/lib/suppliers/labels";
@@ -340,7 +340,7 @@ export async function withdrawRegistrationCancelled(_prev: FormState, data: Form
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     await tx.$queryRaw`SELECT id FROM "StandingEvent" WHERE id = ${eventId} FOR UPDATE`;
     const ev = await tx.standingEvent.findFirst({ where: { id: eventId, supplierId: l.supplier.id }, select: { id: true, kind: true, withdrawnAt: true, effectiveOn: true, bodyLabelSnapshot: true, externalReference: true } });
-    const { reading } = await lockedStanding(tx, l);
+    const { reading, s: file } = await lockedStanding(tx, l);
     const person = await activePerson(tx, l.org.id, personId);
     const fs = withdrawCancellationFaults({ reason, personActive: !!person }, { today: l.org.today, event: ev ? { kind: ev.kind, withdrawn: ev.withdrawnAt != null } : null });
     if (blocking(fs).length) {
@@ -356,8 +356,9 @@ export async function withdrawRegistrationCancelled(_prev: FormState, data: Form
     const after = (await lockedStanding(tx, l)).reading;
     const [was, standingAfter] = [standingWords(reading).en, standingWords(after).en];
     const nowWords = was !== standingAfter ? standingWords(after) : null;
-    // S-4: the openings that judged the supplier cancelled while the record stood are named, and not revisited.
-    const judged = judgedWhileCancelled(await openingsJudged(tx, l.supplier.id), storedDay(ev!.effectiveOn));
+    // S-4: the openings that judged the supplier cancelled while the record stood are named, and not revisited. C1: only
+    // while it stood, up to the supplier registering again or the next live cancellation (the panel bounds it alike).
+    const judged = judgedWhileCancelled(await openingsJudged(tx, l.supplier.id), storedDay(ev!.effectiveOn), cancellationStoodUntil({ id: ev!.id, effectiveOn: storedDay(ev!.effectiveOn) }, cancellationsOnFile(file.standingEvents), day(file.registeredOn)));
     const notRevisited = notRevisitedWords(judged);
     await audit(tx, l.org.id, SUPPLIER_ENTITY.standingEvent, ev!.id, standingLabel(l, "Registration cancelled"), "UPDATE",
       diffFields({ withdrawn: null, ...(was !== standingAfter ? { standing: was } : {}) }, { withdrawn: `Withdrawn: recorded in error (the cancellation by ${ev!.bodyLabelSnapshot}, ${ev!.externalReference}, from ${formatDate(storedDay(ev!.effectiveOn))})`, ...(was !== standingAfter ? { standing: standingAfter } : {}), withdrawnBy: person!.name, recordedOnBehalf: "not signed", notRevisited: notRevisited.en }), reason);
