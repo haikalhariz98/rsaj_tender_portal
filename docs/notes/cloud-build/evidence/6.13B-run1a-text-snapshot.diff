@@ -1,0 +1,186 @@
+diff -r -U0 before/configuration__templates.txt after/configuration__templates.txt
+--- before/configuration__templates.txt	2026-10-04 05:22:13.567394761 +0000
++++ after/configuration__templates.txt	2026-10-04 05:53:26.091506070 +0000
+@@ -343 +343 @@
+-2 without a written form
++13 without a written form
+@@ -430,0 +431,77 @@
++What needs a form
++Certificate of extension of time
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Supplementary agreement extending the contract period
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Certificate of partial occupation
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Certificate of practical completion
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Schedule of defects
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Certificate of making good defects
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Notice of intention to terminate
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Notice of termination
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Final payment certificate, contractor's employment terminated
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Nomination letter
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Final certificate
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
+diff -r -U0 before/configuration__templates__tab__templates.txt after/configuration__templates__tab__templates.txt
+--- before/configuration__templates__tab__templates.txt	2026-10-04 05:22:30.323395757 +0000
++++ after/configuration__templates__tab__templates.txt	2026-10-04 05:53:41.199506968 +0000
+@@ -343 +343 @@
+-2 without a written form
++13 without a written form
+@@ -430,0 +431,77 @@
++What needs a form
++Certificate of extension of time
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Supplementary agreement extending the contract period
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Certificate of partial occupation
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Certificate of practical completion
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Schedule of defects
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Certificate of making good defects
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Notice of intention to terminate
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Notice of termination
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Final payment certificate, contractor's employment terminated
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Nomination letter
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
++What needs a form
++Final certificate
++Chosen under Post-award controls
++Form
++None chosen
++State
++No form chosen
+diff -r -U0 before/projects.txt after/projects.txt
+--- before/projects.txt	2026-10-04 05:22:38.207396226 +0000
++++ after/projects.txt	2026-10-04 05:53:48.867507423 +0000
+@@ -43,0 +44,5 @@
++Practically complete
++Making good of defects complete
++Final certificate issued
++Terminated
++Closed
+diff -r -U0 before/projects__view__delay.txt after/projects__view__delay.txt
+--- before/projects__view__delay.txt	2026-10-04 05:27:50.703414801 +0000
++++ after/projects__view__delay.txt	2026-10-04 05:59:05.307526234 +0000
+@@ -44,0 +45,5 @@
++Practically complete
++Making good of defects complete
++Final certificate issued
++Terminated
++Closed
