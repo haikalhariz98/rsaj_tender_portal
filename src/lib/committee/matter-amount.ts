@@ -23,7 +23,7 @@ export const MATTER_AMOUNT_SULIT: Readonly<Record<MatterKind, MatterAmountRule>>
   REQUISITION: { sulit: true, why: "A gate matter's amount is the requisition's estimated value, the department estimate: citing it refuses any other (committee-step.ts OTHER_AMOUNT)." },
   EXERCISE: { sulit: false, why: "An appointment matter's amount is the awarded value, not the department estimate (ruled 8f842cd; whether it is SULIT is a question to RSAJ, carried to 6.7 C-4 / 6.8 E-3)." },
   LATE_TENDER: { sulit: null, why: "Not decided: no module tables it with an amount yet. A late tender's figure would be a price as read (6.7 OD-3)." },
-  CONTRACT: { sulit: null, why: "Not decided: no module tables it with an amount yet." },
+  CONTRACT: { sulit: null, why: "Not decided (6.13 Part B, BD-613-73): a contract matter's amount (its routed value) is read as SULIT and chipped wherever shown until RSAJ answers; whether it is SULIT is a question to RSAJ." },
   VARIATION: { sulit: null, why: "Not decided: no module tables it with an amount yet." },
   SCOPE: { sulit: false, why: "A scope matter carries no amount (tableScope writes none)." },
   EVALUATION_STAGE: { sulit: false, why: "A two-stage tender's first-stage matter carries no amount (6.8 tableStageOneMatter writes none)." },

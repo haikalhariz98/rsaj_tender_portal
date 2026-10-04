@@ -86,7 +86,10 @@ export const MATTER_KINDS = Object.keys(MATTER_KIND_LABEL) as MatterKind[];
 /// 6.13 Part A step 4 (FR-VAR-009, 010; FR-PAD-004): a VARIATION matter names its variation by a typed key, so it is
 /// tabled from the variation, which knows the approval the committee decides on (its route's step, or the funder's
 /// consent); from a sitting it would name no variation and its decision could discharge nothing.
-export const RECORD_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SCOPE", "LATE_TENDER", "EVALUATION_STAGE", "VARIATION"];
+/// 6.13 Part B run 1a (ADR 0029 §3, BD-613-73): a CONTRACT matter names its contract matter by a typed key, so it is
+/// tabled from the matter (its route's committee step, through tablingOf); from a sitting it would name no matter and
+/// its decision could discharge nothing.
+export const RECORD_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SCOPE", "LATE_TENDER", "EVALUATION_STAGE", "VARIATION", "CONTRACT"];
 
 /// 6.15: kinds no sitting tables at all. A supplier matter is decided on its own route, which takes no committee step.
 /// 6.14: a certificate matter names no certificate on a committee decision (no typed key yet), so a sitting tabling
@@ -101,6 +104,11 @@ export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN, LATE_DOMA
 export const RECORD_TABLED_DOMAIN_TEXT = "Scope approval is tabled from the exercise, under Scope and estimate, Scope, which names the bill version the committee decides on.";
 export const LATE_TABLED_TEXT = "Late tender admission is tabled from the exercise, in the Received section of Bids and opening, which names the envelope the committee decides on.";
 export const VARIATION_TABLED_TEXT = "A variation's matter is tabled from the variation, on its contract's Variations tab, which names the variation and the approval the committee decides on.";
+/// 6.13 Part B run 1a: where a contract matter is tabled, in English and Malay (the sitting's refusal shows the English).
+export const CONTRACT_TABLED_WORDS = {
+  en: "A contract matter (an extension of time, a period extension, a waiver of damages, a termination, a nomination, a nominated-sum increase or a loss-and-expense claim) is tabled from the matter itself, on its contract, which names the matter and the step the committee decides on.",
+  ms: "Perkara kontrak (lanjutan masa, lanjutan tempoh, pengecualian ganti rugi, penamatan, penamaan, pertambahan jumlah dinamakan atau tuntutan kerugian dan perbelanjaan) dibentangkan daripada perkara itu sendiri, pada kontraknya, yang menamakan perkara dan langkah yang diputuskan oleh jawatankuasa.",
+} as const;
 export const STAGE_ONE_TABLED_TEXT = "A two-stage tender's first-stage decision is tabled from the exercise, in the Stages section of Evaluation, which names the bidder the committee decides on.";
 
 /// Matter domains no sitting decides at all (6.6 review S-9): a committee decision on either would
@@ -130,6 +138,7 @@ export function recordTabledText(domainOrKind: string): string | null {
   if (domainOrKind === NEGOTIATION_DOMAIN) return NEGOTIATION_NOT_TABLED_TEXT;
   if (domainOrKind === SUPPLIER_REGISTRATION_DOMAIN || domainOrKind === SUPPLIER_BLACKLIST_DOMAIN || domainOrKind === SPECIAL_PERMISSION_DOMAIN || domainOrKind === "SUPPLIER") return SUPPLIER_NOT_TABLED_TEXT;
   if (domainOrKind === "CERTIFICATE") return CERTIFICATE_NOT_TABLED_TEXT;
+  if (domainOrKind === "CONTRACT") return CONTRACT_TABLED_WORDS.en;
   return null;
 }
 

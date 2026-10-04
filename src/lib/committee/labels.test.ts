@@ -14,7 +14,8 @@ describe("matter kinds (ruling 5.3, 6.2 OD-9)", () => {
     // 6.8 (flagged, stricter): so does EVALUATION_STAGE, tabled from the Evaluation tab.
     // 6.15 (flagged, stricter): a SUPPLIER matter is never tabled at all. 6.14 (flagged, stricter): nor a CERTIFICATE matter.
     // 6.13 Part A step 4 (stricter, flagged): a variation's matter is tabled from the variation, never a sitting's drawer.
-    expect(SITTING_TABLED_MATTER_KINDS).toEqual(MATTER_KINDS.filter((k) => k !== "SCOPE" && k !== "LATE_TENDER" && k !== "EVALUATION_STAGE" && k !== "SUPPLIER" && k !== "CERTIFICATE" && k !== "VARIATION"));
+    // 6.13 Part B run 1a (stricter, flagged against Part A, BD-613-73): so is a contract matter, from the matter.
+    expect(SITTING_TABLED_MATTER_KINDS).toEqual(MATTER_KINDS.filter((k) => k !== "SCOPE" && k !== "LATE_TENDER" && k !== "EVALUATION_STAGE" && k !== "SUPPLIER" && k !== "CERTIFICATE" && k !== "VARIATION" && k !== "CONTRACT"));
   });
 });
 
