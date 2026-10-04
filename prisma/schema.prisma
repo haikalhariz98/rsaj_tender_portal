@@ -9863,8 +9863,26 @@ model NonCompletion {
   replacedBy         NonCompletion?       @relation("NonCompletionReplaces")
   replaceReason      String               @default("")
 
+  /// 6.13 Part B run 1b (613A-C2 (a)(1), BD-613-89): where the entitlement determination behind the decision is
+  /// recorded. Every Part A decision reads CNC_DETERMINATION (the decision itself determined it); every later one
+  /// EOT_RECORD. An excusable or pending one on the EOT record names the claim it waits on (CHECK).
+  basis              NonCompletionBasis
+  eotClaimId         String?
+  eotClaim           EotClaim?            @relation(fields: [eotClaimId], references: [id], onDelete: Restrict)
+  /// 613A-C2 (a)(2) as amended (BD-613-89): the issued EOT certificate that superseded it, for later certificates
+  /// only, with the note recorded at its issue (closed by the extension, or a replacement needed past the new date).
+  supersededByEotId  String?
+  supersededByEot    ExtensionOfTime?     @relation(fields: [supersededByEotId], references: [id], onDelete: Restrict)
+  supersededNote     String               @default("")
+
   /// 6.13 Part B run 1b (FR-LAD-009): the waivers of the damages it charges.
   waivers            LadWaiver[]
+}
+
+/// 613A-C2 (a)(1): where a non-completion decision's entitlement determination is recorded.
+enum NonCompletionBasis {
+  CNC_DETERMINATION
+  EOT_RECORD
 }
 
 // ------------------------------------------------------------------ 6.13 Part A step 4 (4d): variations and price adjustment
@@ -10127,6 +10145,8 @@ model EotClaim {
   extensions        ExtensionOfTime[]
   lossExpenseClaims LossExpenseClaim[]
   attachments       DocumentAttachment[]
+  /// The damages decisions that wait on it (excusable or pending, EOT_RECORD).
+  nonCompletions    NonCompletion[]
 
   @@index([contractId])
 }
@@ -10175,6 +10195,9 @@ model ExtensionOfTime {
   personId           String
   person             Person            @relation("ExtensionOfTimeRaisedBy", fields: [personId], references: [id], onDelete: Restrict)
   recordedAt         DateTime
+
+  /// The damages decisions its issue superseded.
+  supersededDecisions NonCompletion[]
 
   @@index([claimId])
 }

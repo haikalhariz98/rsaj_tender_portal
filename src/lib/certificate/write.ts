@@ -368,7 +368,7 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   // were worked out for). A refusal rolls the whole signature back.
   // 6.13 Part A step 4: the variation module judges its own kinds at issue the same way (the instruction still
   // approved and consented, the order still covered, an adjustment still on the issued adjustments it was worked out on).
-  const refusal = (await issueRefusal(c.tx, c.l, cert, sequence)) ?? (await variationIssueRefusal(c.tx, c.l, cert));
+  const refusal = (await issueRefusal(c.tx, c.l, cert, sequence, c.today)) ?? (await variationIssueRefusal(c.tx, c.l, cert));
   if (refusal) throw new CertificateRefusal(refusal);
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const figures = snap ? applyOverrides(snap, cert.overrides) : { lines: [], totals: [], overridden: false };

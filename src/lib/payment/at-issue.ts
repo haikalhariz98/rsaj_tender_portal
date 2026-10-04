@@ -19,12 +19,13 @@ import { advanceIssueFaults, advancesMovedFaults } from "./advance";
 import { readJudgedUnder } from "./assemble";
 import { preExecutionFaults } from "./eligibility";
 import { paymentRefusal } from "./labels";
-import { inProgressSequenceOf, issuedAdjustmentsOf, loadPayment, nextInterimSequence, preExecutionFacts } from "./load";
+import { baselineOn, basisNamesOf, inProgressSequenceOf, issuedAdjustmentsOf, ladBasisOf, loadPayment, nextInterimSequence, preExecutionFacts } from "./load";
+import { ladBasisMoved } from "@/lib/lad/frozen";
 import { adjustmentsMovedFaults } from "./variation-check";
 import type { Finding } from "./types";
 
 /// The refusal's text where the certificate may not issue as `sequence`; null where it may.
-export async function issueRefusal(tx: Tx, l: LoadedContract, cert: { id: string; kind: string }, sequence: number): Promise<string | null> {
+export async function issueRefusal(tx: Tx, l: LoadedContract, cert: { id: string; kind: string }, sequence: number, today?: string): Promise<string | null> {
   if (cert.kind === "ADVANCE_PAYMENT") {
     // Residual MUST 3: no row on or before the interim sequence issued or in progress.
     const adv = await tx.advancePayment.findUnique({ where: { certificateId: cert.id }, select: { schedule: { select: { sequence: true, amount: true } } } });
@@ -46,8 +47,18 @@ export async function issueRefusal(tx: Tx, l: LoadedContract, cert: { id: string
     fs.push(...advancesMovedFaults(j.advancesRead ?? [], issued.map((a) => ({ id: a.id, label: `the advance to ${a.party === "MAIN" ? "the main contractor" : (a.contractParty?.name ?? "a nominated sub-contractor")} of ${formatMoney(senFromDecimal(a.amount))}` }))));
     // 6.13 Part A step 4 (FR-PAD-003): the issued adjustments of the contract sum its new sum was read from must still
     // be the issued set (one issued since would leave this certificate on the earlier sum).
-    const adjusted = issuedAdjustmentsOf(await loadPayment(l.contract.id, tx));
+    const p = await loadPayment(l.contract.id, tx);
+    const adjusted = issuedAdjustmentsOf(p);
     fs.push(...adjustmentsMovedFaults(j.adjustmentsRead ?? [], adjusted.map((a) => a.id)));
+    // 6.13 Part B run 1b (ADR 0030 §6; plan B6's both-orders table, flagged against Part A, stricter): the damages basis
+    // it was raised on must still stand (an EOT issued, a decision replaced or superseded, a waiver approved, a date or a
+    // rate segment moved since refuses it, naming each). A certificate raised before run 1b froze none: not judged.
+    // The act's own day (the stamp read once at its entry), passed by the core's issue.
+    const baseline = today ? baselineOn(l, today) : null;
+    if (j.ladBasis && baseline) {
+      const now = { ...ladBasisOf(p, baseline), waiversApplied: j.ladBasis.waiversApplied };
+      fs.push(...ladBasisMoved(j.ladBasis, now, basisNamesOf(p, baseline)));
+    }
   }
   return fs.length ? paymentRefusal("Not issued:", fs) : null;
 }

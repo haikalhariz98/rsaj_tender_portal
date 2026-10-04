@@ -79,6 +79,8 @@ export interface ScopeLine {
   /// gross − waived (a waiver larger than this certificate's gross returns damages charged before: negative).
   amount: Sen;
   waiverIds: string[];
+  /// CLOSED_BY_EXTENSION or SUPERSEDED: the extension of time's number.
+  closedBy: string | null;
 }
 
 export interface LadLines {
@@ -90,7 +92,7 @@ export interface LadLines {
 
 const sum = (xs: readonly Sen[]) => xs.reduce((a, x) => a + x, 0n);
 const chargedUntilOn = (issued: readonly IssuedLine[], key: string): Day | null =>
-  issued.filter((l) => l.scopeKey === key).flatMap((l) => l.segments.map((s) => s.until)).sort().at(-1) ?? null;
+  issued.filter((l) => l.scopeKey === key).flatMap((l) => [...l.segments.map((s) => s.until), ...(l.chargedUntil ? [l.chargedUntil] : [])]).sort().at(-1) ?? null;
 
 export function ladLines(i: LadLinesInput): LadLines {
   const faults: Finding[] = [];
@@ -101,7 +103,7 @@ export function ladLines(i: LadLinesInput): LadLines {
     if (!d) continue;
     const toApply = i.waiversToApply.filter((w) => w.scopeKey === s.key);
     const waived = sum(toApply.map((w) => w.amount));
-    const blank = { key: s.key, label: s.label, decisionId: d.id, line: null, segments: [], from: null, to: null, until: null, days: 0, gross: 0n, waived, amount: -waived, waiverIds: toApply.map((w) => w.id) };
+    const blank = { key: s.key, label: s.label, decisionId: d.id, line: null, segments: [], from: null, to: null, until: null, days: 0, gross: 0n, waived, amount: -waived, waiverIds: toApply.map((w) => w.id), closedBy: d.superseded?.eotNumber ?? null };
     const sup = supersession(d.superseded, i.valuationDate, s.label);
     if (sup.state === "REFUSED") {
       faults.push(sup.fault);

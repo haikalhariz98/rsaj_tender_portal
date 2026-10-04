@@ -32,6 +32,8 @@ export interface IssuedLine {
   segments: readonly LineSegment[];
   gross: Sen;
   rounding: Sen;
+  /// Damages charged to a day with no segment on record (the opening position's, before the system).
+  chargedUntil?: Day | null;
 }
 
 /// A credit returned (or due) on a certificate, naming the line and segment it returns.

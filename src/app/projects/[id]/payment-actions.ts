@@ -18,12 +18,13 @@ import { KIND_WORDS } from "@/lib/certificate/labels";
 import type { CertificateKind } from "@/lib/certificate/types";
 import { contractLabel, withLockedContract, type LoadedContract } from "@/lib/contract/repo";
 import { dayOf, dayToDate, storedDay } from "@/lib/dates";
-import { decisionFaults, postFaults, replacementFaults, warningFaults, type PackAnswer } from "@/lib/lad/non-completion";
+import { decisionFaults, postFaults, warningFaults, type PackAnswer } from "@/lib/lad/non-completion";
+import { decisionBasisFaults, replacementFaultsOnScope, scopeKey } from "@/lib/lad/basis";
 import { parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
 import { applicationFaults, pendingAdvanceFaults } from "@/lib/payment/advance";
 import { assembleInterim, heldOnLatest } from "@/lib/payment/assemble";
 import { ANSWER_WORDS, DEDUCTION_WORDS, OUTCOME_WORDS, PACK_WORDS, paymentFaultText, paymentRefusal, RELEASE_WORDS, SCOPE_WORDS, TRIGGER_WORDS } from "@/lib/payment/labels";
-import { assembleInputOf, baselineOn, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, kindSettingOf, loadPayment, nextInterimSequence, pendingAdvancesOf, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
+import { assembleInputOf, baselineOn, claimFactsOf, inProgress, inProgressSequenceOf, issuedInterims, kindSettingOf, liveDecisionsOf, loadPayment, nextInterimSequence, pendingAdvancesOf, releaseStateOf, loadPaymentConfig, preExecutionFacts, type PaymentConfig } from "@/lib/payment/load";
 import { afterCutOff } from "@/lib/payment/materials";
 import { ladRoundingFaults } from "@/lib/payment/interim";
 import { OPENING_GROUPS, openingClosed, openingFaults, openingReconciles, type OpeningGroup, type OpeningProvenance } from "@/lib/payment/opening";
@@ -683,6 +684,12 @@ function readPack(data: FormData): PackAnswer[] {
  * The non-completion decision (FR-LAD-001, 004, 005, 008; OD-A1 A): damages apply (the Certificate of
  * Non-Completion raised, with the accrual window, ASSUMED), or the delay is excusable or its entitlement pending.
  * The S.O.'s own decision.
+ *
+ * 6.13 Part B run 1b (613A-C2 (a)(1) as approved, BD-613-89; FR-LAD-001, 011; flagged against accepted Part A,
+ * stricter): every new decision reads the EOT record (basis EOT_RECORD). Damages are refused while an EOT claim on the
+ * scope is open or entitled and not yet certified (EOT_DETERMINATION_OUTSTANDING); an excusable or pending delay names
+ * the claim it waits on and takes its scope. One live decision per scope: a further one replaces its own scope's.
+ * Locks: the contract (inContract), the named claim's matter and the claim, then the scope's live decision.
  */
 export async function recordNonCompletion(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
@@ -700,16 +707,29 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
   const personId = r.text("personId", "Decided by (the S.O.)", { required: true });
   const replacesId = r.optionalText("replacesId");
   const replaceReason = r.text("replaceReason", "Why the decision in force is replaced", { max: 2000 });
+  const eotClaimId = r.optionalText("eotClaimId");
   const pack = readPack(data);
   if (r.failed || !outcome) return { ok: false, errors: r.errors };
   return inContract(idOf(data), now, "DAMAGES", async (c) => {
+    // The named claim's matter, then the claim (ContractMatter the first domain row), before the decision rows.
+    const named = eotClaimId ? await c.tx.eotClaim.findFirst({ where: { id: eotClaimId, contractId: c.l.contract.id }, select: { id: true, matterId: true, scope: true, sectionRef: true } }) : null;
+    if (named) {
+      await c.tx.$queryRaw`SELECT id FROM "ContractMatter" WHERE id = ${named.matterId} FOR UPDATE`;
+      await c.tx.$queryRaw`SELECT id FROM "EotClaim" WHERE id = ${named.id} FOR UPDATE`;
+    }
     const p = await paymentOf(c);
     const cfg = await configOf(c);
     const b = baselineOn(c.l, c.today);
-    // One live decision a contract: a further one replaces it explicitly, with its reason (code review run 2 item 6).
-    const live = liveDecisionOf(p);
+    // 613A-C2 (a)(1): an excusable or pending delay takes the scope of the claim it waits on.
+    const lad0 = outcome === "LAD_APPLIES";
+    const decScope = (lad0 ? scope : (named?.scope ?? null)) as "WHOLE" | "SECTION" | null;
+    const decRef = lad0 ? (scope === "SECTION" ? sectionRef : null) : (named?.sectionRef ?? null);
+    const basisFs = decisionBasisFaults({ outcome, scope: decScope ?? "WHOLE", sectionRef: decRef, claims: claimFactsOf(p), eotClaimId: lad0 ? null : eotClaimId });
+    if (basisFs.length) refuse("Not recorded:", basisFs);
+    // FR-LAD-011: one live decision per scope; a further one replaces its own scope's, with its reason.
+    const live = liveDecisionsOf(p).get(scopeKey(decScope, decRef)) ?? null;
     const prog = inProgress(p);
-    const rf = replacementFaults({ live, replacesId, reason: replaceReason, valuationInProgress: live && prog ? `interim valuation of ${formatDate(storedDay(prog.valuationDate))}` : null });
+    const rf = replacementFaultsOnScope(liveDecisionsOf(p), decScope ?? "WHOLE", decRef, { replacesId, reason: replaceReason, valuationInProgress: live && prog ? `interim valuation of ${formatDate(storedDay(prog.valuationDate))}` : null });
     if (rf.length) refuse("Not recorded:", rf);
     if (live) await c.tx.$queryRaw`SELECT id FROM "NonCompletion" WHERE id = ${live.id} FOR UPDATE`;
     const warning = [...p.ladWarnings].reverse().find((x) => x.certificate.status !== "VOID") ?? null;
@@ -759,7 +779,7 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
       certId = await openCertificate(c.tx, c.l, { kind: "NON_COMPLETION", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed }, c.now, c.today);
     }
     const row = await c.tx.nonCompletion.create({
-      data: { organisationId: c.l.org.id, contractId: c.l.contract.id, outcome, reason: reason.trim(), scope: lad ? scope : null, sectionRef: lad && scope === "SECTION" ? sectionRef : null, certificateId: certId, warningId: lad ? warning!.id : null, eotClause: eotClause.trim(), ladClause: ladClause.trim(), dateForCompletion: dayToDate(b!.values.dateForCompletion!), rate: rate == null ? null : money(rate), insuranceExpiry: lad ? insuranceExpiry : null, expectedCompletion: lad ? expectedCompletion : null, windowFrom: lad ? windowFrom : null, windowUntil: lad ? windowUntil : null, pack: (lad ? pack : []) as unknown as Prisma.InputJsonValue, decidedOn: dayToDate(c.today), personId: who.person.id, recordedAt: c.now, replacesId: live ? live.id : null, replaceReason: live ? replaceReason.trim() : "" },
+      data: { organisationId: c.l.org.id, contractId: c.l.contract.id, outcome, reason: reason.trim(), scope: decScope, sectionRef: decScope === "SECTION" ? decRef : null, basis: "EOT_RECORD", eotClaimId: lad ? null : (named?.id ?? null), certificateId: certId, warningId: lad ? warning!.id : null, eotClause: eotClause.trim(), ladClause: ladClause.trim(), dateForCompletion: dayToDate(b!.values.dateForCompletion!), rate: rate == null ? null : money(rate), insuranceExpiry: lad ? insuranceExpiry : null, expectedCompletion: lad ? expectedCompletion : null, windowFrom: lad ? windowFrom : null, windowUntil: lad ? windowUntil : null, pack: (lad ? pack : []) as unknown as Prisma.InputJsonValue, decidedOn: dayToDate(c.today), personId: who.person.id, recordedAt: c.now, replacesId: live ? live.id : null, replaceReason: live ? replaceReason.trim() : "" },
     });
     await audit(c, "NonCompletion", row.id, "non-completion decision", "CREATE", diffFields(null, {
       nonCompletionDecision: OUTCOME_WORDS[outcome].en,
@@ -774,6 +794,7 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
       accrualWindow: lad ? "entered with the decision (assumed reading: from the day after the date for completion to completion)" : null,
       submissionPack: lad ? pack.map((x) => `${PACK_WORDS[x.item].en}: ${x.notRequired ? `not required (${x.text})` : "written"}`).join("; ") : null,
       decidedBy: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`,
+      entitlementOnRecord: lad ? "no extension-of-time claim on this scope is open or entitled and uncertified" : `waits on the extension-of-time claim ${p.eotClaims.find((x) => x.id === named?.id)?.matter.reference ?? "(not yet numbered)"}`,
       replacesTheDecisionOf: live ? `${storedDay(live.decidedOn)} (${OUTCOME_WORDS[live.outcome].en})` : null,
       recordedOnBehalf: ON_BEHALF,
     }), live ? replaceReason.trim() : "");

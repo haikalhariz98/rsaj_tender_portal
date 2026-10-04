@@ -17,13 +17,17 @@
  */
 
 import type { BaselineValues } from "@/lib/contract/baseline";
+import { dayPlus } from "@/lib/dates";
 import { frozenRateWarnings, ladFaults, ladLine, type Decision, type LadLine } from "@/lib/lad/charge";
+import type { CreditRow, IssuedLine } from "@/lib/lad/credit";
+import type { LadBasis } from "@/lib/lad/frozen";
+import { ladLines, type ScopeIn, type ScopeLine } from "@/lib/lad/scopes";
 import { formatMoney, parseSen, senToDecimalString, type Sen } from "@/lib/money";
 import type { ContractPartyKind } from "@/lib/supervision/types";
 
 import { recoupments, type LiveAdvance } from "./advance";
 import { preExecutionFaults, type PreExecutionFacts } from "./eligibility";
-import { interimCertificate, type InterimResult } from "./interim";
+import { interimCertificate, type InterimResult, type ScopeFigure } from "./interim";
 import { afterCutOff, materialsAllowance, materialsPct, type MaterialLine, type MaterialsPct } from "./materials";
 import { paymentFaultWords } from "./labels";
 import { minimumFaults, minimumMeasureText, minimumReading, type MinimumReading } from "./minimum";
@@ -102,12 +106,44 @@ export interface AssembleInput {
   advances: readonly Omit<LiveAdvance, "recouped">[];
   /// The non-completion decision in force, with its certificate's state (its rate and date frozen with it).
   decision: Decision | null;
+  /// 6.13 Part B run 1b (FR-LAD-011; 613A-C2; ADR 0030): the damages per scope, with the credits and the waivers, and
+  /// the basis the certificate freezes. Given, it replaces `decision` (the load gives it; Part A's callers may not).
+  damages?: DamagesIn;
   /// What the pinned baseline states now for what the decision covers (BD-613-48: compared, never charged).
   baselineDamages?: { rate: Sen | null; dateForCompletion: Day | null };
   /// Premiums the employer paid that no live certificate deducts yet.
   pending: readonly { id: string; amount: Sen; paidOn: Day }[];
   /// FR-PAY-014's facts as they stand (for the warning at open; the refusal is the issue's).
   preExecution: Omit<PreExecutionFacts, "limit">;
+}
+
+/// 6.13 Part B run 1b: what the damages lines are assembled from (payment/load.ts `damagesOf`).
+export interface DamagesIn {
+  wholeDate: Day | null;
+  scopes: readonly ScopeIn[];
+  issued: readonly IssuedLine[];
+  returned: readonly CreditRow[];
+  waiversApplied: readonly { scopeKey: string; amount: Sen }[];
+  waiversToApply: readonly { id: string; scopeKey: string; amount: Sen; label: string }[];
+  /// Refusals found while reading the issued lines (LAD_LINE_SCOPE_UNKNOWN).
+  faults: readonly Finding[];
+  /// Said on the certificate, not refused (OPENING_DAMAGES_NOT_CREDITED).
+  warnings?: readonly Finding[];
+  /// The basis as it stands (the certificate freezes it, the waivers it applies added).
+  basis: LadBasis;
+}
+
+/// A scope's damages line as frozen with the certificate (6.13 Part B run 1b).
+export interface JudgedScope {
+  key: string;
+  label: string;
+  decisionId: string | null;
+  state: string;
+  segments: { from: Day; until: Day; rate: string; days: number }[];
+  gross: string;
+  waived: string;
+  amount: string;
+  waiverIds: string[];
 }
 
 export interface JudgedUnder {
@@ -123,6 +159,10 @@ export interface JudgedUnder {
   released: Record<"MAIN" | "NSC" | "NS", string>;
   minimum: { state: MinimumReading["state"]; minimum: string | null; value: string | null; first: boolean };
   lad: { state: LadLine["state"]; from: Day | null; to: Day | null; until: Day | null; days: number | null; rate: string | null; amount: string | null; reason: string | null };
+  /// 6.13 Part B run 1b: the damages per scope, the credits returned on this certificate, and the basis it was raised on.
+  ladScopes?: JudgedScope[];
+  ladCredits?: { lineCertificateId: string; lineNumber: string | null; scopeKey: string; segmentFrom: Day; days: number; rate: string; amount: string }[];
+  ladBasis?: LadBasis;
   recoupments: { advanceId: string; party: "MAIN" | "NSC"; recoup: string; balanceAfter: string }[];
   /// The issued advances read at raising (the issue refuses if that set has moved: ADVANCES_MOVED).
   advancesRead?: string[];
@@ -198,8 +238,10 @@ export function assembleInterim(i: AssembleInput): Assembled {
   const retention = retentionReading({ applies: b.retentionApplies, percent: b.retentionPercent, capPercent: b.retentionCapPercent, source: b.retentionSource });
   const released = tierSum(i.releases, v.valuationDate);
   const { previous, previousGross } = previousOf(i.issued);
-  const lad = ladLine({ dateForCompletion: b.dateForCompletion, valuationDate: v.valuationDate, decision: i.decision, chargedUntil: chargedUntilOf(i.issued) });
-  faults.push(...ladFaults(lad));
+  const scoped = i.damages ? ladLines({ valuationDate: v.valuationDate, wholeDate: i.damages.wholeDate, scopes: i.damages.scopes, issued: i.damages.issued, returned: i.damages.returned, waiversApplied: i.damages.waiversApplied, waiversToApply: i.damages.waiversToApply }) : null;
+  const lad = scoped ? primaryLine(scoped.lines, i.damages!.wholeDate, v.valuationDate) : ladLine({ dateForCompletion: b.dateForCompletion, valuationDate: v.valuationDate, decision: i.decision, chargedUntil: chargedUntilOf(i.issued) });
+  if (scoped) faults.push(...i.damages!.faults, ...scoped.faults);
+  else faults.push(...ladFaults(lad));
   const advances = i.advances.map((a) => ({ ...a, recouped: recoupedOf(i.issued, a.id) }));
   const rec = recoupments(advances, sequence);
   const pending = i.pending.filter((p) => p.paidOn <= v.valuationDate);
@@ -219,6 +261,7 @@ export function assembleInterim(i: AssembleInput): Assembled {
     previousGross,
     lad,
     ladRounding: sumOf("LAD_ROUNDING"),
+    ...(scoped ? { ladScopes: scoped.lines.map(scopeFigure), ladCredit: scoped.total.credit } : {}),
     advance: { main: rec.main, nsc: rec.nsc },
     premiums: sumOf("PREMIUMS_PERKESO") + pending.reduce((a, p) => a + p.amount, 0n),
     premiumsPending: pending.reduce((a, p) => a + p.amount, 0n),
@@ -242,7 +285,7 @@ export function assembleInterim(i: AssembleInput): Assembled {
   const revised = i.baselineDamages ? frozenRateWarnings(i.decision, i.baselineDamages) : [];
   if (i.openingAssumed?.length) revised.push({ code: "OPENING_ASSUMED", level: "warn", data: { groups: i.openingAssumed.join(", ") } });
   if (i.openingUnreconciled) revised.push(i.openingUnreconciled);
-  const warnings = [...preExecutionFaults(sequence, { ...i.preExecution, limit: i.policy.preExecutionLimit }, "warn"), ...revised];
+  const warnings = [...preExecutionFaults(sequence, { ...i.preExecution, limit: i.policy.preExecutionLimit }, "warn"), ...revised, ...(i.damages?.warnings ?? [])];
   // FR-PAY-008: work done on a variation commenced pending approval is not valued until it is approved (said, not refused:
   // the main contractor's works are one figure to date, BD-613-33, so what it holds is the valuer's to keep out).
   if (i.commencedPending?.length) warnings.push({ code: "VARIATION_PENDING_NOT_VALUABLE", level: "warn", data: { variations: i.commencedPending.map((x) => `${x.reference} (estimated ${formatMoney(x.estimate)})`).join("; ") } });
@@ -269,6 +312,13 @@ export function assembleInterim(i: AssembleInput): Assembled {
         released: { MAIN: str(released.MAIN), NSC: str(released.NSC), NS: str(released.NS) },
         minimum: minimum.state === "NOT_SET" ? { state: minimum.state, minimum: null, value: null, first: sequence === 1 } : { state: minimum.state, minimum: str(minimum.minimum), value: str(minimum.value), first: minimum.first },
         lad: lad.state === "CHARGED" ? { state: lad.state, from: lad.from, to: lad.to, until: lad.until, days: lad.days, rate: str(lad.rate), amount: str(lad.amount), reason: null } : { state: lad.state, from: null, to: null, until: null, days: null, rate: null, amount: null, reason: lad.state === "EXCUSED" ? lad.reason : null },
+        ...(scoped
+          ? {
+              ladScopes: scoped.lines.map((l) => ({ key: l.key, label: l.label, decisionId: l.decisionId, state: l.state, segments: l.segments.map((g) => ({ from: g.from, until: g.until, rate: str(g.rate), days: g.days })), gross: str(l.gross), waived: str(l.waived), amount: str(l.amount), waiverIds: l.waiverIds })),
+              ladCredits: scoped.credits.map((c) => ({ ...c, rate: str(c.rate), amount: str(c.amount) })),
+              ladBasis: { ...i.damages!.basis, waiversApplied: scoped.lines.flatMap((l) => l.waiverIds) },
+            }
+          : {}),
         recoupments: rec.lines.filter((l) => l.recoup > 0n).map((l) => ({ advanceId: l.id, party: l.party, recoup: str(l.recoup), balanceAfter: str(l.balanceAfter) })),
         advancesRead: i.advances.map((a) => a.id),
         adjustmentsRead: [...(i.adjustmentIds ?? [])],
@@ -280,6 +330,23 @@ export function assembleInterim(i: AssembleInput): Assembled {
     : null;
   return { sequence, result, lad, minimum, faults: dedupe(faults), warnings, waterfall: wf, judgedUnder };
 }
+
+/// The frozen reading's primary damages line (Part A's shape): the first scope's, where one is decided; Part A's refusal
+/// where none is and the date is past; not due otherwise.
+function primaryLine(lines: readonly ScopeLine[], wholeDate: Day | null, valuationDate: Day): LadLine {
+  const p = lines[0];
+  if (!p) return wholeDate && valuationDate > wholeDate ? { state: "DECISION_REQUIRED", dateForCompletion: wholeDate } : { state: "NOT_DUE" };
+  if (p.state === "CHARGED" && p.line?.state === "CHARGED") return { ...p.line, waived: p.waived, amount: p.amount };
+  if (p.line) return p.line;
+  return { state: "NOTHING_TO_CHARGE", chargedUntil: null };
+}
+
+/// A scope's line as the certificate's figures print it.
+function scopeFigure(l: ScopeLine): ScopeFigure {
+  const state: ScopeFigure["state"] = l.state === "CHARGED" ? "CHARGED" : l.state === "EXCUSED" ? "EXCUSED" : l.state === "CLOSED_BY_EXTENSION" ? "CLOSED_BY_EXTENSION" : "NOTHING_TO_CHARGE";
+  return { label: l.label, state, reason: l.line?.state === "EXCUSED" ? l.line.reason : (l.closedBy ?? undefined), segments: l.segments.map((g) => ({ from: g.from, to: dayBefore(g.until), days: g.days, rate: g.rate })), waived: l.waived, amount: l.amount };
+}
+const dayBefore = (d: Day) => dayPlus(d, -1);
 
 /// The same refusal named once.
 function dedupe(fs: readonly Finding[]): Finding[] {

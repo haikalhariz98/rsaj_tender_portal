@@ -16,10 +16,18 @@ import { db } from "@/lib/db";
 import type { Decision } from "@/lib/lad/charge";
 import { liveDecision } from "@/lib/lad/non-completion";
 import { issuedAdjustmentsFrom } from "@/lib/adjustment/ppjhk";
+import { claimState, liveDecisionsByScope, scopeKey, type ClaimFact, type Scope } from "@/lib/lad/basis";
+import type { CreditRow, IssuedLine } from "@/lib/lad/credit";
+import type { LadBasis } from "@/lib/lad/frozen";
+import type { ScopeDecision, ScopeIn } from "@/lib/lad/scopes";
+import { lineScopeOf } from "@/lib/lad/scopes";
+import { rateSegments, segmentsKey } from "@/lib/lad/segments";
+import { approvalOfRecord } from "@/lib/matter/matter";
+import { scopeDate } from "@/lib/time/extension";
 import { formatSen, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import type { ContractPartyKind } from "@/lib/supervision/types";
 
-import { readJudgedUnder, type AssembleInput, type IssuedInterim, type ValuationIn } from "./assemble";
+import { readJudgedUnder, type AssembleInput, type DamagesIn, type IssuedInterim, type ValuationIn } from "./assemble";
 import { EXECUTED_STATUSES } from "./eligibility";
 import { OPENING_GROUP_WORDS } from "./labels";
 import { assumedGroups, openingAsIssued, openingReconciles, openingReleaseRow, releaseState, type OpeningProvenance } from "./opening";
@@ -46,7 +54,18 @@ export const paymentInclude = {
   retentionReleases: { include: { person: { select: { name: true } }, basisCertificate: { select: { number: true, sequence: true } } }, orderBy: { releasedOn: "asc" as const } },
   advancePayments: { include: { person: { select: { name: true } }, schedule: { orderBy: { sequence: "asc" as const } }, security: { select: { id: true, kind: true, instrumentRef: true, status: true, value: true } }, contractParty: { select: { name: true } }, certificate: { select: certSelect } }, orderBy: { recordedAt: "asc" as const } },
   ladWarnings: { include: { person: { select: { name: true } }, certificate: { select: certSelect } }, orderBy: { recordedAt: "asc" as const } },
-  nonCompletions: { include: { person: { select: { name: true } }, certificate: { select: certSelect } }, orderBy: [{ decidedOn: "asc" as const }, { recordedAt: "asc" as const }] },
+  nonCompletions: {
+    include: {
+      person: { select: { name: true } },
+      certificate: { select: certSelect },
+      // 6.13 Part B run 1b (613A-C2): the EOT certificate that superseded it, and the waivers of its damages.
+      supersededByEot: { select: { id: true, certificate: { select: { id: true, number: true, status: true } } } },
+      waivers: { select: { id: true, ladAmount: true, waived: true, asOf: true, basis: true, appliedOnCertificateId: true, matter: { select: { id: true, reference: true, closedAt: true, approvedRouteId: true, routes: { select: { id: true, status: true }, orderBy: { openedAt: "asc" as const } } } } }, orderBy: { recordedAt: "asc" as const } },
+    },
+    orderBy: [{ decidedOn: "asc" as const }, { recordedAt: "asc" as const }],
+  },
+  // 6.13 Part B run 1b (FR-LAD-001): the EOT claims, with whether each is determined, closed or certified.
+  eotClaims: { select: { id: true, scope: true, sectionRef: true, entitlement: true, matter: { select: { reference: true, closedAt: true } }, extensions: { select: { id: true, certificate: { select: { id: true, number: true, status: true } } } } }, orderBy: { recordedAt: "asc" as const } },
   pendingDeductions: { include: { valuation: { select: { id: true, certificate: { select: { status: true } } } }, person: { select: { name: true } } }, orderBy: { paidOn: "asc" as const } },
   openingPosition: { include: { person: { select: { name: true } } } },
   certificates: { where: { kind: "INTERIM_PAYMENT" as const, status: "ISSUED" as const, interimValuation: { is: null } }, select: { number: true, sequence: true }, orderBy: { sequence: "asc" as const } },
@@ -217,6 +236,7 @@ export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentC
     releases: [...openingReleaseRow(p.openingPosition ? openingOf(p.openingPosition).released : null), ...p.retentionReleases.map((r) => ({ main: senFromDecimal(r.main), nsc: senFromDecimal(r.nsc), ns: senFromDecimal(r.ns), releasedOn: storedDay(r.releasedOn) }))],
     advances: issuedAdvances(p),
     decision: decisionOf(p, baseline),
+    damages: damagesOf(p, baseline),
     baselineDamages: baselineDamagesOf(p, baseline),
     pending: freePending(p),
     preExecution,
@@ -250,3 +270,117 @@ export const issuedAdjustmentsOf = (p: Pick<PaymentRows, "sumAdjustments">) => i
 /// FR-PAY-008: variations commenced pending approval and not yet approved (named, with their estimate).
 export const commencedPendingOf = (p: Pick<PaymentRows, "variations">) =>
   p.variations.filter((v) => !v.approvals.some((a) => a.event === "PRIOR" && a.approvalInstance.status === "APPROVED")).map((v) => ({ reference: v.reference ?? "a variation not yet numbered", estimate: senFromDecimal(v.estimate) }));
+
+// ------------------------------------------------------------------ 6.13 Part B run 1b: damages per scope
+
+type Baseline = NonNullable<ReturnType<typeof baselineOn>>;
+
+/// A scope's date for completion on the baseline (the whole works', or a section's with its own extensions).
+export function scopeDateOf(baseline: Baseline, key: string): string | null {
+  const v = baseline.values;
+  const sections = v.sections.map((x) => ({ ref: x.ref, extensionDays: (x as { extensionDays?: number }).extensionDays ?? 0 }));
+  return key === "WHOLE" ? v.dateForCompletion : scopeDate({ dateForCompletion: v.dateForCompletion, sections }, "SECTION", key.slice("SECTION:".length));
+}
+
+/// A scope in words, from the baseline's sections.
+export function scopeLabelOf(baseline: Baseline | null, key: string): string {
+  if (key === "WHOLE") return "the whole works";
+  const ref = key.slice("SECTION:".length);
+  const sec = baseline?.values.sections.find((x) => x.ref === ref);
+  return sec?.description ? `Section ${ref}: ${sec.description}` : `Section ${ref}`;
+}
+
+/// The EOT claims, as the damages decision's basis reads them (FR-LAD-001).
+export const claimFactsOf = (p: Pick<PaymentRows, "eotClaims">): ClaimFact[] =>
+  p.eotClaims.map((c) => ({ id: c.id, reference: c.matter.reference, scope: c.scope as Scope, sectionRef: c.sectionRef, entitlement: c.entitlement as ClaimFact["entitlement"], closed: c.matter.closedAt != null, certified: c.extensions.some((e) => e.certificate.status === "ISSUED") }));
+export { claimState };
+
+/// The live decision of each scope (FR-LAD-011), the rows as loaded.
+export const liveDecisionsOf = (p: PaymentRows) => liveDecisionsByScope(p.nonCompletions.map((d) => ({ ...d, scope: d.scope as Scope | null, certificateStatus: d.certificate?.status ?? null })));
+
+const waiverApproved = (w: PaymentRows["nonCompletions"][number]["waivers"][number]) => !w.matter.closedAt && w.matter.approvedRouteId != null && approvalOfRecord(w.matter.routes) === w.matter.approvedRouteId;
+
+/// The issued damages lines per scope, the credits they returned, and the waivers applied on them (from what each
+/// issued interim froze). A line frozen before damages were kept per scope is read as the only scope ever decided with
+/// damages (LAD_LINE_SCOPE_UNKNOWN where two could own it). The opening position's damages before the system count as
+/// charged to their day, with no rate on record (a warning where an extension now reaches them).
+export function issuedDamagesOf(p: PaymentRows): { issued: IssuedLine[]; returned: CreditRow[]; waiversApplied: { scopeKey: string; amount: Sen }[]; faults: Finding[] } {
+  const ladKeys = p.nonCompletions.filter((d) => d.outcome === "LAD_APPLIES").map((d) => scopeKey(d.scope as Scope | null, d.sectionRef));
+  const legacy = lineScopeOf(ladKeys);
+  const issued: IssuedLine[] = [];
+  const returned: CreditRow[] = [];
+  const waiversApplied: { scopeKey: string; amount: Sen }[] = [];
+  const faults: Finding[] = [];
+  for (const v of p.interimValuations) {
+    if (v.certificate?.status !== "ISSUED") continue;
+    const j = readJudgedUnder(v.judgedUnder);
+    if (!j) continue;
+    const number = v.certificate.number;
+    if (j.ladScopes) {
+      for (const sc of j.ladScopes) {
+        if (sc.segments.length) issued.push({ certificateId: v.certificate.id, number, scopeKey: sc.key, segments: sc.segments.map((g) => ({ from: g.from, until: g.until, rate: parseSen(g.rate), days: g.days })), gross: parseSen(sc.gross), rounding: 0n });
+        if (parseSen(sc.waived) !== 0n) waiversApplied.push({ scopeKey: sc.key, amount: parseSen(sc.waived) });
+      }
+      for (const c of j.ladCredits ?? []) returned.push({ ...c, rate: parseSen(c.rate), amount: parseSen(c.amount) });
+    } else if (j.lad.state === "CHARGED" && j.lad.from && j.lad.until && j.lad.rate && j.lad.days != null) {
+      if (!legacy.ok) faults.push({ code: "LAD_LINE_SCOPE_UNKNOWN", level: "block", data: { issuedNumber: number } });
+      else issued.push({ certificateId: v.certificate.id, number, scopeKey: legacy.key, segments: [{ from: j.lad.from, until: j.lad.until, rate: parseSen(j.lad.rate), days: j.lad.days }], gross: parseSen(j.lad.rate) * BigInt(j.lad.days), rounding: 0n });
+    }
+  }
+  const o = p.openingPosition;
+  if (o?.damagesChargedUntil) issued.push({ certificateId: "opening", number: o.lastCertificateNumber ?? null, scopeKey: legacy.ok ? legacy.key : "WHOLE", segments: [], gross: 0n, rounding: 0n, chargedUntil: storedDay(o.damagesChargedUntil) });
+  return { issued, returned, waiversApplied, faults };
+}
+
+/// The damages basis as it stands (what an interim freezes at its raise and reads again at its issue).
+export function ladBasisOf(p: PaymentRows, baseline: Baseline): LadBasis {
+  const live = liveDecisionsOf(p);
+  const keys = new Set<string>(["WHOLE", ...live.keys()]);
+  return {
+    decisions: [...live].map(([key, d]) => ({ key, id: d.id, supersededBy: d.supersededByEot ? (d.supersededByEot.certificate.number ?? d.supersededByEot.id) : null })),
+    extensions: p.eotClaims.flatMap((c) => c.extensions.filter((e) => e.certificate.status === "ISSUED").map((e) => e.id)),
+    waiversApproved: p.nonCompletions.flatMap((d) => d.waivers.filter((w) => waiverApproved(w) && !w.appliedOnCertificateId).map((w) => w.id)),
+    waiversApplied: [],
+    scopeDates: Object.fromEntries([...keys].map((k) => [k, scopeDateOf(baseline, k)])),
+    segments: Object.fromEntries([...live].map(([key, d]) => [key, d.rate == null ? "" : segmentsKey(rateSegments(senFromDecimal(d.rate), null))])),
+  };
+}
+
+/// Names for what a moved basis says (an extension by its certificate's number, a waiver by its matter's, a scope in words).
+export function basisNamesOf(p: PaymentRows, baseline: Baseline | null) {
+  const ext = new Map(p.eotClaims.flatMap((c) => c.extensions.map((e) => [e.id, e.certificate.number ?? "(not yet numbered)"] as const)));
+  const wv = new Map(p.nonCompletions.flatMap((d) => d.waivers.map((w) => [w.id, w.matter.reference ?? "(not yet numbered)"] as const)));
+  return { extension: (id: string) => ext.get(id) ?? "(an extension of time)", waiver: (id: string) => wv.get(id) ?? "(a waiver)", scope: (k: string) => scopeLabelOf(baseline, k) };
+}
+
+/// Everything the interim's damages are assembled from (6.13 Part B run 1b), on the baseline in force.
+export function damagesOf(p: PaymentRows, baseline: Baseline, waiversToApply: DamagesIn["waiversToApply"] = []): DamagesIn {
+  const live = liveDecisionsOf(p);
+  const scopes: ScopeIn[] = live.size
+    ? [...live].map(([key, d]) => ({ key, label: scopeLabelOf(baseline, key), dateNow: scopeDateOf(baseline, key), decision: scopeDecisionOf(d, scopeDateOf(baseline, key)) }))
+    : [{ key: "WHOLE", label: scopeLabelOf(baseline, "WHOLE"), dateNow: scopeDateOf(baseline, "WHOLE"), decision: null }];
+  const d = issuedDamagesOf(p);
+  const basis = ladBasisOf(p, baseline);
+  // Damages charged before the system have no rate on record: where an extension of time has issued, the days it
+  // reaches among them are not returned by the product, and the certificate says so (never silently).
+  const opening = d.issued.find((l) => l.certificateId === "opening");
+  const warnings: Finding[] = opening && basis.extensions.length ? [{ code: "OPENING_DAMAGES_NOT_CREDITED", level: "warn", data: { day: opening.chargedUntil ?? null } }] : [];
+  return { wholeDate: baseline.values.dateForCompletion, scopes, issued: d.issued, returned: d.returned, waiversApplied: d.waiversApplied, waiversToApply, faults: d.faults, warnings, basis };
+}
+
+function scopeDecisionOf(d: PaymentRows["nonCompletions"][number], dateNow: string | null): ScopeDecision {
+  return {
+    id: d.id,
+    outcome: d.outcome,
+    reason: d.reason,
+    certificateIssued: d.certificate?.status === "ISSUED",
+    from: day(d.windowFrom),
+    until: day(d.windowUntil),
+    rate: d.rate == null ? null : senFromDecimal(d.rate),
+    dateForCompletion: day(d.dateForCompletion),
+    // BD-613-89: superseded for later certificates only; the scope's date now is the new date (a later extension of the
+    // scope moves it further, and the decision stays superseded).
+    superseded: d.supersededByEot && dateNow ? { eotNumber: d.supersededByEot.certificate.number, newDate: dateNow } : null,
+    occupation: null,
+  };
+}

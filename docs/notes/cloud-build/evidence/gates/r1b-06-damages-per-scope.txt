@@ -1,0 +1,16 @@
+# Run 1b C6 (flagged against Part A; a shared rule's output: the interim's damages per scope, the credit, the frozen basis, the decision on the EOT record). Its behaviour tests were written first in C5 (red: r1b-05-red.txt); the parity and wiring tests here were written with the code. 2026-10-04T13:11:31Z
+## npm run check (NODE_OPTIONS=--max-old-space-size=12500: a cold typecheck after the client is regenerated runs out of the session default 8 GB heap from C3 on)
+> perolehan@0.1.0 check
+> npm run typecheck && npm run lint
+> perolehan@0.1.0 typecheck
+> next typegen && tsc --noEmit
+Generating route types...
+✓ Types generated successfully
+> perolehan@0.1.0 lint
+> eslint && node scripts/check-ui.mjs
+UI scaffolding check passed.
+exit: 0
+## full suite
+ Test Files  566 passed (566)
+      Tests  8747 passed (8747)
+exit: 0

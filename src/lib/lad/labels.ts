@@ -44,6 +44,7 @@ export const LAD_FAULT_WORDS: Readonly<Record<string, (d: Data) => Words>> = {
   WAIVER_REASON_REQUIRED: () => w("Say why the damages are waived.", "Nyatakan sebab ganti rugi dikecualikan."),
   WAIVER_SETTING_NOT_SET: () => w("Approved, not applied: when an approved waiver reaches the money is not set (Configuration › Post-award controls).", "Diluluskan, tidak dikenakan: bila pengecualian yang diluluskan dikenakan belum ditetapkan (Konfigurasi › Kawalan selepas setuju terima)."),
   WAIVER_AT_FINAL: () => w("Approved, applied in the final account (the setting says so).", "Diluluskan, dikenakan dalam akaun muktamad (seperti tetapan)."),
+  OPENING_DAMAGES_NOT_CREDITED: (d) => w(`Damages were charged before the system to ${day(d.day)}, with no rate on record here: any of those days an extension of time now reaches are not returned by this certificate. Return them by hand, with the paper record.`, `Ganti rugi dikenakan sebelum sistem hingga ${day(d.day)}, tanpa kadar direkodkan di sini: hari-hari itu yang kini dicapai oleh lanjutan masa tidak dikembalikan oleh perakuan ini. Kembalikan secara manual, dengan rekod kertas.`),
   WAIVER_NOT_APPLIED_MOVED: (d) => w(`The waiver ${s(d.waiver, "")} is not applied: ${s(d.moved, "its basis moved")}. Send it again at the new amount.`, `Pengecualian ${s(d.waiver, "")} tidak dikenakan: ${s(d.moved, "asasnya berubah")}. Hantar semula pada amaun baharu.`),
 };
 
