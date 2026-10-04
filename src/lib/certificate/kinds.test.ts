@@ -16,18 +16,26 @@ import { CERTIFICATE_KINDS, type CertificateKind } from "./types";
 // 6.13 Part B run 1a (additive, faithful): the eleven Part B kinds join the two lists as kinds-listed.test.ts decides
 // them; every assertion over the lists unchanged.
 const MONEY: readonly CertificateKind[] = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "VARIATION_APPLICATION", "VARIATION", "SUM_ADJUSTMENT", "PRACTICAL_COMPLETION", "MAKING_GOOD_DEFECTS", "TERMINATED_FINAL", "FINAL"];
-const BY_TYPE: readonly CertificateKind[] = ["DELEGATION_LETTER", "DELEGATION_NOTICE", "LAD_WARNING", "NON_COMPLETION", "SO_INSTRUCTION", "EOT", "CONTRACT_PERIOD_AGREEMENT", "PARTIAL_OCCUPATION", "SCHEDULE_OF_DEFECTS", "TERMINATION_INTENT", "TERMINATION", "NOMINATION_LETTER"];
+const BY_TYPE: readonly CertificateKind[] = ["DELEGATION_LETTER", "DELEGATION_NOTICE", "LAD_WARNING", "NON_COMPLETION", "SO_INSTRUCTION", "PARTIAL_OCCUPATION", "SCHEDULE_OF_DEFECTS", "TERMINATION_INTENT", "NOMINATION_LETTER"];
+// Run 1a fix round (review S5, stricter): approved on a contract matter, refused at signing until the matter answers.
+const MATTER: readonly CertificateKind[] = ["EOT", "CONTRACT_PERIOD_AGREEMENT", "TERMINATION"];
 
 describe("the map is exhaustive and decided for every kind", () => {
   it("covers exactly the schema's kinds", () => {
     expect(Object.keys(KIND_ROUTE_RULE).sort()).toEqual([...CERTIFICATE_KINDS].sort());
-    expect([...MONEY, ...BY_TYPE].sort()).toEqual([...CERTIFICATE_KINDS].sort());
+    expect([...MONEY, ...BY_TYPE, ...MATTER].sort()).toEqual([...CERTIFICATE_KINDS].sort());
   });
   for (const k of MONEY) {
     it(`${k}: money-bearing, needs an approved route`, () => {
       expect(isMoneyBearing(k)).toBe(true);
       for (const route of [null, "PENDING", "REJECTED", "RECALLED"]) expect(draftSigningFaults(k, route).map((f) => f.code), String(route)).toEqual(["MONEY_NEEDS_APPROVED_ROUTE"]);
       expect(draftSigningFaults(k, "APPROVED")).toEqual([]);
+    });
+  }
+  for (const k of MATTER) {
+    it(`${k}: approved on a contract matter, refused at signing whatever its route`, () => {
+      expect(isMoneyBearing(k)).toBe(false);
+      for (const route of [null, "PENDING", "REJECTED", "APPROVED"]) expect(draftSigningFaults(k, route).map((f) => f.code), String(route)).toEqual(["MATTER_NOT_APPROVED"]);
     });
   }
   for (const k of BY_TYPE) {

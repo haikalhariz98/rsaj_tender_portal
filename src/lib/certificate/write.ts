@@ -42,7 +42,7 @@ import { nextSequence } from "./sequence";
 import { issueRefusal, sequenceFloor } from "@/lib/payment/at-issue";
 import { afterCertificateIssue, approvalOfRecordFaults, variationIssueRefusal } from "@/lib/variation/at-certificate";
 import { variationRefusal } from "@/lib/variation/labels";
-import { draftSigningFaults } from "./kinds";
+import { draftSigningFaults, matterSigningFaults } from "./kinds";
 import { voidFaults } from "./void";
 import { allSigned, maskedIc, signFaults, type SignInput } from "./signature";
 import { readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./snapshot";
@@ -249,6 +249,10 @@ export async function proceedToSigning(c: CertCtx) {
     if (open.length) fs.push(...one("CHECKS_OUTSTANDING", { checks: open.join(", ") }));
     if (fs.length) refuse("Not sent to signing:", fs);
   } else refuse("Not sent to signing:", one("NOT_ALLOWED"));
+  // Review S5: from a draft or from routing alike, a kind approved on a contract matter fails closed until the matter's
+  // approval is read (the draft path has already said it through draftSigningFaults).
+  const matter = matterSigningFaults(cert.kind as CertificateKind);
+  if (matter.length) refuse("Not sent to signing:", matter);
   await moveTo(c, "SIGNING");
   await audit(c, "Certificate", cert.id, labelOf(c), "UPDATE", diffFields({ stage: STATUS_WORDS[s].en }, { stage: STATUS_WORDS.SIGNING.en }));
 }

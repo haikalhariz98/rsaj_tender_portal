@@ -11,7 +11,7 @@ import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
 import type { ContractStatus } from "@/lib/contract/types";
 
 import { raisedWithoutFormWords, templateNotSetWords } from "./form-needs";
-import { kindFaultWords } from "./kinds";
+import { kindFaultWords, matterFaultWords } from "./kinds";
 import { OFFICE_RULE_WORDS, STATUS_WORDS, w, type Words } from "./labels";
 import type { CertificateStatus, Finding, SignatureOfficeRule } from "./types";
 
@@ -230,6 +230,9 @@ export function certificateFaultWords(f: Finding): Words {
       return w("Its approval route was refused. It goes on only on a resubmitted route, opened by the module that raised it.", "Laluan kelulusannya ditolak.");
     case "CHECKS_OUTSTANDING":
       return w(`The routing sheet's checks are not all recorded in this round: ${s(d.checks, "a check")} ${String(d.checks ?? "").includes(",") ? "are" : "is"} still open.`, `Semakan helaian belum lengkap: ${s(d.checks, "semakan")}.`);
+    case "MATTER_NOT_APPROVED":
+      // Review S5: a kind approved on a contract matter fails closed until the matter's approval is read.
+      return matterFaultWords();
     case "MONEY_NEEDS_APPROVED_ROUTE":
       // 614-C1: a money-bearing kind never reaches signing without an approved route.
       return kindFaultWords(f);

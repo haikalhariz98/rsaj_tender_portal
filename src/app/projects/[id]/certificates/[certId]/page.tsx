@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { CertificateKind } from "@/lib/certificate/types";
 import type { ContractStatus } from "@/lib/contract/types";
 import { actStatusFault, actStatusText, statusCalloutTitle, certificateAct, certificatePhase } from "@/lib/contract/act-status";
-import { draftSigningFaults } from "@/lib/certificate/kinds";
+import { draftSigningFaults, matterSigningFaults } from "@/lib/certificate/kinds";
 import { historyEntityLabel, RECORD_TYPE_WORDS } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
 
@@ -154,7 +154,9 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
     action = money.length ? <Blocked label="Send to signing" reason={actionNote!} primary noteId={NOTE_ID} /> : <SendToSigningDrawer certId={cert.id} routed={false} blocker={today ? null : "Set the organisation's time zone first."} />;
   }
   else if (status === "IN_ROUTING" && sheet) {
-    const blocker = signingBlocker(sheet);
+    // Review S5: the act's own rule from routing too: a kind approved on a contract matter fails closed.
+    const matter = matterSigningFaults(cert.kind as CertificateKind);
+    const blocker = signingBlocker(sheet) ?? (matter.length ? matter.map(certificateFaultText).join(" ") : null);
     actionNote = blocker;
     action = blocker ? <Blocked label="Send to signing" reason={blocker} primary noteId={NOTE_ID} /> : <SendToSigningDrawer certId={cert.id} routed blocker={null} />;
   }
