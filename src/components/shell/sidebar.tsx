@@ -133,7 +133,7 @@ export function Sidebar({
         {logo ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element -- the address is the logo's own fingerprint, so there is nothing for the image optimiser to add */}
-            <img src={`/organisation/logo/${logo.sha}`} alt={showsNameBesideLogo(logo.width, logo.height) ? "" : orgName} className="max-h-9 max-w-[148px] object-contain" />
+            <img src={`/organisation/logo/${logo.sha}`} alt={showsNameBesideLogo(logo.width, logo.height) ? "" : orgName} className={showsNameBesideLogo(logo.width, logo.height) ? "max-h-12 max-w-[96px] object-contain" : "max-h-12 max-w-[200px] object-contain"} />
             {showsNameBesideLogo(logo.width, logo.height) && (
               <span className="min-w-0 truncate text-[15px] font-extrabold tracking-tight text-ink">{orgName}</span>
             )}

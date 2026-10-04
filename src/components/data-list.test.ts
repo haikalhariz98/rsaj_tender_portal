@@ -16,13 +16,12 @@ describe("a SULIT column and the list's export", () => {
     expect(canExport(plain)).toBe(true);
     expect(html(plain)).toContain("Download this view as CSV");
   });
-  it("a flagged column removes Export, and keeps search, sort and density", () => {
+  it("a flagged column removes Export, and keeps search and sort", () => {
     expect(canExport(flagged)).toBe(false);
     const out = html(flagged);
     expect(out).not.toContain("Download this view as CSV");
     expect(out).not.toMatch(/CSV/);
     expect(out).toContain("Search this list");
-    expect(out).toContain("Row density");
     expect(out).toContain("<button");
   });
   it("the header carries the SULIT lock with the whole sentence in its tooltip and to a screen reader", () => {

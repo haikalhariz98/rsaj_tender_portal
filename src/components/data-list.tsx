@@ -6,8 +6,6 @@ import { Fragment, useMemo, useState, type ReactNode } from "react";
 import {
   ChevronRight,
   DownloadIcon,
-  RowsTightIcon,
-  RowsWideIcon,
   SearchIcon,
 } from "@/components/icons";
 import { AvatarStack, Avatar } from "@/components/ui/avatar";
@@ -23,7 +21,7 @@ import { needsPaging, PAGE_SIZES } from "@/lib/paging";
 
 /**
  * The list chrome around every table: a view selector, search, sort, row selection,
- * a density switch and CSV export.
+ * and CSV export (the row-density switch was removed, founder 2026-10-04).
  *
  * Cells are described as data rather than passed as rendered nodes, so a server
  * component can hand rows straight over and the client can still sort and search
@@ -401,7 +399,6 @@ export function DataList({
   /// The view the list opens on (a view named in the address). Ignored if no such view exists.
   initialView?: string;
 }) {
-  const [compact, setCompact] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [view, setView] = useState(initialView && views.some((v) => v.id === initialView) ? initialView : "all");
@@ -534,7 +531,7 @@ export function DataList({
   const mobilePrimary = columns.find((c) => c.mobile === "primary");
   const mobileMeta = columns.filter((c) => c.mobile === "meta");
 
-  const cellPad = compact ? "px-4 py-2" : "px-4 py-3.5";
+  const cellPad = "px-4 py-3.5";
 
   return (
     <div
@@ -610,32 +607,6 @@ export function DataList({
           ))}
 
           <div className="ml-auto flex items-center gap-1.5">
-            {/* Icon-only with the label in a title. Words here would widen the bar and
-                read as two more filters. */}
-            <div
-              className="flex rounded-full bg-ink/[0.05] p-0.5"
-              role="group"
-              aria-label="Row density"
-            >
-              {(
-                [
-                  [false, "Comfortable rows", RowsWideIcon],
-                  [true, "Compact rows", RowsTightIcon],
-                ] as const
-              ).map(([value, label, Ico]) => (
-                <button
-                  key={label}
-                  type="button"
-                  aria-pressed={compact === value}
-                  aria-label={label}
-                  title={label}
-                  onClick={() => setCompact(value)}
-                  className="grid size-8 place-items-center rounded-full text-ink-3 transition aria-pressed:bg-surface aria-pressed:text-ink aria-pressed:shadow-[0_1px_2px_rgb(15_23_42/0.1)]"
-                >
-                  <Ico size={14} />
-                </button>
-              ))}
-            </div>
             {exportable && (
             <button
               type="button"

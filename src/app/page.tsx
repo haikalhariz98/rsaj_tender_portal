@@ -3,7 +3,6 @@ import {
   AwardIcon,
   CalendarIcon,
   ClockIcon,
-  DownloadIcon,
   FilesIcon,
   GavelIcon,
   GlobeIcon,
@@ -15,7 +14,7 @@ import {
 } from "@/components/icons";
 import { DataList } from "@/components/data-list";
 import { Badge, Dot } from "@/components/ui/badge";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { LeadWithMore } from "@/components/ui/more-text";
@@ -82,7 +81,9 @@ export default async function Dashboard() {
   const now = new Date();
   // Greet by name only when there is a name. Splitting the old placeholder produced
   // "Good afternoon, Signed".
-  const firstName = shell.user?.name.split(/\s+/)[0] ?? null;
+  // Until sign-in names the user, a local placeholder name may be set (PEROLEHAN_GREETING_NAME in .env,
+  // never committed: no person ships with the product). Unset: the greeting alone.
+  const firstName = shell.user?.name.split(/\s+/)[0] ?? (process.env.PEROLEHAN_GREETING_NAME?.trim() || null);
   const waiting = data.queue.length + data.requisitions.length;
   // Waiting days are shown as a count, with no judgement: there is no configured
   // target to call one "aged" against until FR-APR-018's targets exist (ruling R5).
@@ -110,9 +111,6 @@ export default async function Dashboard() {
         ]}
         actions={
           <>
-            <Button icon={<DownloadIcon size={16} />} disabled title="Export is not built yet">
-              Export
-            </Button>
             <ButtonLink href="/requisitions/new" variant="primary" icon={<PlusIcon size={16} />}>
               New requisition
             </ButtonLink>
