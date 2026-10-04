@@ -9907,12 +9907,13 @@ model ContractMatter {
   /// naming it).
   reference      String?
   /// The value its route is resolved on; null where the domain routes on a ratio, or before it is sent. Never below
-  /// nothing (CHECK ContractMatter_shape). Read SULIT wherever shown (MATTER_AMOUNT_SULIT.CONTRACT, not decided).
-  routedValue    Decimal?           @db.Decimal(18, 2)
+  /// nothing (CHECK ContractMatter_shape). Read SULIT wherever shown (MATTER_AMOUNT_SULIT.CONTRACT, not decided);
+  /// registered in SULIT_FIELDS under this name of its own (Run 1a fix round, review S4).
+  matterRoutedValue Decimal?        @db.Decimal(18, 2)
   /// The exact ratio the route is resolved on (a LAD waiver: waived ÷ LAD amount): both or neither, the denominator
-  /// above nothing (CHECK ContractMatter_shape).
-  ratioNum       Decimal?           @db.Decimal(18, 2)
-  ratioDen       Decimal?           @db.Decimal(18, 2)
+  /// above nothing (CHECK ContractMatter_shape). SULIT, registered in SULIT_FIELDS (review S4).
+  matterRatioNum Decimal?           @db.Decimal(18, 2)
+  matterRatioDen Decimal?           @db.Decimal(18, 2)
   /// The routing condition the matrix reads (e.g. FIN_IMPACT_OTHER), as the domain's rows name it.
   cond           String?
   /// Its approval of record: the APPROVED latest route (one writer, the route hook, run 1b).

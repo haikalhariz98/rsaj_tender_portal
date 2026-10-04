@@ -25,8 +25,10 @@ describe("the model", () => {
   });
   it("the matter: its contract, kind, reference, value or exact ratio, condition, approval of record, close, who", () => {
     const m = model("ContractMatter");
-    for (const f of ["organisationId", "contractId", "kind", "reference", "routedValue", "ratioNum", "ratioDen", "cond", "approvedRouteId", "closedAt", "closeReason", "personId", "recordedAt"]) expect(m, f).toMatch(new RegExp(`\\n\\s+${f}\\s`));
-    expect(m).toMatch(/routedValue\s+Decimal\?\s+@db\.Decimal\(18, 2\)/);
+    // Run 1a fix round (review S4, faithful): the amount and the ratio renamed for the SULIT registry
+    // (contract-matter-sulit.test.ts); the same fields, the same types.
+    for (const f of ["organisationId", "contractId", "kind", "reference", "matterRoutedValue", "matterRatioNum", "matterRatioDen", "cond", "approvedRouteId", "closedAt", "closeReason", "personId", "recordedAt"]) expect(m, f).toMatch(new RegExp(`\\n\\s+${f}\\s`));
+    expect(m).toMatch(/matterRoutedValue\s+Decimal\?\s+@db\.Decimal\(18, 2\)/);
     expect(m).toMatch(/approvedRouteId String\?\s+@unique/);
     expect(m).toMatch(/contract\s+Contract\s+@relation\(fields: \[contractId\], references: \[id\], onDelete: Restrict\)/);
     expect(m).toMatch(/@@unique\(\[organisationId, reference\]\)/);

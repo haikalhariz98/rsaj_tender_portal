@@ -68,6 +68,11 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "certificateComputedAmount", what: "a certificate figure as computed, in an override's trail (6.14)" },
   { field: "certificateOverrideAmount", what: "a certificate figure as overridden, in an override's trail (6.14)" },
   { field: "signatureSupportedUpTo", what: "the amount a certificate's recommending block supported up to, in a signature's trail (6.14)" },
+  // 6.13 Part B Run 1a fix round (review S4): a contract matter's amount and exact ratio, read SULIT wherever shown
+  // (BD-613-73). Not "routedValue", the approval module's function and the variation order's figure.
+  { field: "matterRoutedValue", what: "the value a contract matter's route is resolved on (6.13 Part B)" },
+  { field: "matterRatioNum", what: "the numerator of the exact ratio a contract matter's route is resolved on, e.g. the damages waived (6.13 Part B)" },
+  { field: "matterRatioDen", what: "the denominator of the exact ratio a contract matter's route is resolved on, e.g. the damages amount (6.13 Part B)" },
 ];
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History
