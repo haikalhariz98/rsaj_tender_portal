@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { CERTIFICATE_KINDS } from "@/lib/certificate/types";
+import { CERTIFICATE_KINDS, type CertificateKind } from "@/lib/certificate/types";
 import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 
 import { ACT_STATUS, actStatusFault, actStatusWords, CERTIFICATE_PHASES, certificateAct, CONTRACT_ACTS, statusCalloutTitle, type ContractAct } from "./act-status";
@@ -34,6 +34,9 @@ const ACT_OF: Record<string, ContractAct | "BY_KIND"> = {
   ...Object.fromEntries(TODAY_ACTS["src/app/projects/[id]/certificates/[certId]/actions.ts"].map((a) => [a, "BY_KIND"])),
 };
 
+/// The certificate kinds raised before Part B (6.13 Part A and 6.14), named.
+const PRE_PART_B_KINDS: readonly CertificateKind[] = ["DELEGATION_LETTER", "DELEGATION_NOTICE", "INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION", "VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT"];
+
 const NEW: readonly ContractStatus[] = ["PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED", "TERMINATED", "CLOSED"];
 const allowedIn = (s: ContractStatus) => CONTRACT_ACTS.filter((a) => ACT_STATUS[a][s] === "ALLOWED");
 
@@ -60,7 +63,8 @@ describe("Part A's answers, unchanged for the nine statuses that existed", () =>
         const mapped = ACT_OF[a];
         // Run 1a fix round (BD-613-114): a certificate's act reads its kind and phase. The kinds raised before Part B (those
         // listed before EOT), in both phases, give the pinned answer; Part B's kinds are raised from run 1b on.
-        const kinds: ContractAct[] = mapped === "BY_KIND" ? [...new Set(CERTIFICATE_KINDS.slice(0, CERTIFICATE_KINDS.indexOf("EOT")).flatMap((k) => CERTIFICATE_PHASES.map((p) => certificateAct(k, p))))] : [mapped];
+        // Residual round (consider, sturdier): the kinds raised before Part B, named, not read from the enum's order.
+        const kinds: ContractAct[] = mapped === "BY_KIND" ? [...new Set(PRE_PART_B_KINDS.flatMap((k) => CERTIFICATE_PHASES.map((p) => certificateAct(k, p))))] : [mapped];
         for (const act of kinds) for (const s of TODAY_STATUSES) expect(ACT_STATUS[act][s] === "ALLOWED" ? "ALLOWED" : "CANCELLED", `${a} ${act} ${s}`).toBe(todayAnswer(s));
       }
     });

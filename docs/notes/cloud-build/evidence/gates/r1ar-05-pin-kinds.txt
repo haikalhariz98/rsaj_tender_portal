@@ -1,0 +1,13 @@
+# Run 1a residual round, commit 5 (consider: the pin test names the pre-Part-B kinds). 2026-10-04T10:05:51Z
+## npm run check
+✓ Types generated successfully
+
+> perolehan@0.1.0 lint
+> eslint && node scripts/check-ui.mjs
+
+UI scaffolding check passed.
+exit: 0
+## full suite
+ Test Files  546 passed (546)
+      Tests  8541 passed (8541)
+exit: 0
