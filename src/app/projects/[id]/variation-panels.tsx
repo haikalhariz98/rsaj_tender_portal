@@ -1,3 +1,4 @@
+import { ActGate } from "@/components/act-gate";
 import Link from "next/link";
 
 import type { ContractStatus } from "@/lib/contract/types";
@@ -97,7 +98,9 @@ function PositionCard({ l, v }: { l: LoadedContract; v: VariationView }) {
 function VariationsSection({ l, v, people, today, page }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; page: number }) {
   // ADR 0031 (run 1a): the acts' own table, so the screen refuses where the act would.
   const statusRefused = actStatusFault("VARIATION", l.contract.status as ContractStatus);
-  const blocker = !today ? "Set the organisation's time zone first." : statusRefused?.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: it is kept as it was." : statusRefused ? actStatusText(statusRefused) : !EXECUTED_STATUSES.includes(l.contract.status) ? variationFaultText({ code: "NOT_EXECUTED", level: "block" }) : null;
+  // Review S1: the table first, as the act asks it (cancelled in its own words); every drawer below is gated by it.
+  const shut = statusRefused ? actStatusText(statusRefused) : null;
+  const blocker = shut ?? (!today ? "Set the organisation's time zone first." : !EXECUTED_STATUSES.includes(l.contract.status) ? variationFaultText({ code: "NOT_EXECUTED", level: "block" }) : null);
   const all = [...v.all].reverse();
   const pages = Math.max(1, Math.ceil(all.length / VARIATION_PAGE));
   const pg = Math.min(page, pages - 1);
@@ -128,6 +131,7 @@ function VariationsSection({ l, v, people, today, page }: { l: LoadedContract; v
     };
   });
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <PositionCard l={l} v={v} />
       {pending.length > 0 && (
@@ -178,6 +182,7 @@ function VariationsSection({ l, v, people, today, page }: { l: LoadedContract; v
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }
 
@@ -189,9 +194,12 @@ function AdjustmentsSection({ l, v, people, today }: { l: LoadedContract; v: Var
   // The act's own rule on what does not depend on the drawer's answers: one at a time, the form set.
   const pre = adjustmentFaults({ triggers: ["VARIATION"], lines: [], ordersAdjusted: [], ordersIssued: [], inProgress: inProg ? `The adjustment${inProg.certificate.number ? ` ${inProg.certificate.number}` : ""}` : null, original: v.original ?? 1n, prior: [] }).filter((f) => f.code === "ADJUSTMENT_IN_PROGRESS");
   const statusRefused = actStatusFault("SUM_ADJUSTMENT", l.contract.status as ContractStatus);
-  const blocker = !today ? "Set the organisation's time zone first." : statusRefused?.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: it is kept as it was." : statusRefused ? actStatusText(statusRefused) : pre.length ? pre.map(variationFaultText).join(" ") : !v.formSet("SUM_ADJUSTMENT") ? variationFaultText(noFormFault("SUM_ADJUSTMENT")) : null;
+  // Review S1: the table first, as the act asks it (cancelled in its own words); every drawer below is gated by it.
+  const shut = statusRefused ? actStatusText(statusRefused) : null;
+  const blocker = shut ?? (!today ? "Set the organisation's time zone first." : pre.length ? pre.map(variationFaultText).join(" ") : !v.formSet("SUM_ADJUSTMENT") ? variationFaultText(noFormFault("SUM_ADJUSTMENT")) : null);
   const issued = v.issued;
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <PositionCard l={l} v={v} />
       <Card className="overflow-hidden">
@@ -235,6 +243,7 @@ function AdjustmentsSection({ l, v, people, today }: { l: LoadedContract; v: Var
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }
 

@@ -307,3 +307,10 @@ export function statusCalloutTitle(status: ContractStatus): Words {
 
 /// The act's refusal as the acts and screens say it (English, as every screen shows; Malay beside it in actStatusWords).
 export const actStatusText = (f: Finding) => actStatusWords(f).en;
+
+/// Review S1: a panel's blocker for its family's acts, first in every blocker the panel computes: the table's refusal in
+/// the acts' own words (cancelled included), or null where the family is recorded in the state.
+export function actStatusBlocker(act: ContractAct, status: ContractStatus): string | null {
+  const f = actStatusFault(act, status);
+  return f ? actStatusText(f) : null;
+}

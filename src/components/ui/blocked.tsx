@@ -1,3 +1,7 @@
+"use client";
+
+import { useActGate } from "@/components/act-gate";
+
 import { Button } from "./button";
 
 /**
@@ -5,7 +9,9 @@ import { Button } from "./button";
  * shared copy (6.15a fix S-4): a screen's own copy without the width limits pushed a page sideways at 390
  * inside a card header's actions.
  */
-export function Blocked({ label, reason, primary, destructive, noteId }: { label: string; reason: string; primary?: boolean; destructive?: boolean; noteId?: string }) {
+export function Blocked({ label, reason: own, primary, destructive, noteId }: { label: string; reason: string; primary?: boolean; destructive?: boolean; noteId?: string }) {
+  // Review S1: inside a contract section whose act family the state refuses, the table's words come first (ActGate).
+  const reason = useActGate() ?? own;
   const variant = destructive ? "destructive" : primary ? "primary" : "secondary";
   // In a page header the reason is stated once, under the action row (PageHeader's
   // `actionsNote`), and the button points at it rather than carrying its own copy.

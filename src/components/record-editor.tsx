@@ -1,5 +1,6 @@
 "use client";
 
+import { useActGate } from "@/components/act-gate";
 import { formDataOf } from "@/components/ui/form-submit";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
@@ -118,7 +119,7 @@ export function RecordEditor({
   reason: reasonAsked,
   danger,
   confirm,
-  submitBlock,
+  submitBlock: ownBlock,
   size = "md",
   defaultOpen = false,
 }: {
@@ -166,6 +167,9 @@ export function RecordEditor({
   /// its fields filled in (an award's committee step tabling its matter).
   defaultOpen?: boolean;
 }) {
+  // Review S1: inside a contract section whose act family the state refuses, the table's words come first (ActGate).
+  const gate = useActGate();
+  const submitBlock = gate ?? ownBlock;
   const [open, setOpenState] = useState(defaultOpen);
   // Closing forgets what the officer chose in the selects that drive `showWhen`: the
   // form reopens from the stored values.

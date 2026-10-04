@@ -1,3 +1,5 @@
+import { ActGate } from "@/components/act-gate";
+import { actStatusBlocker } from "@/lib/contract/act-status";
 import Link from "next/link";
 
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
@@ -173,6 +175,8 @@ export function OnSiteCard({ l, v }: { l: LoadedContract; v: SupervisionView }) 
 // ------------------------------------------------------------------ Team
 
 export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("SUPERVISION", l.contract.status as ContractStatus);
   const c = l.contract;
   const executed = isExecuted(c.status as ContractStatus);
   const names = new Map(people.map((p) => [p.value, p.label]));
@@ -197,6 +201,7 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
       : say(delegationFaults({ kind: "PRINCIPAL", grantorId: "", delegate: null, competencyConfirmed: true, competencyNote: "x", scope: ["DIARY"] }, { so: v.so?.office ?? null, delegations: delegationFactsOf(v.s), today, variant, typeName: v.type?.nameEn ?? null, forms }).filter((f) => ["NO_SO", "VARIANT_NOT_SET", "FORMS_NOT_SET"].includes(f.code)));
   const partyBlocker = executed ? null : "Nominated parties and assignees are recorded once the contract is executed.";
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card className="overflow-hidden">
         <CardHeader
@@ -307,6 +312,7 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }
 
@@ -329,6 +335,8 @@ const zone = (today: string | null) => (today ? null : "Set the organisation's t
 const possessed = (v: SupervisionView, today: string | null) => zone(today) ?? (v.s.possession ? null : "Possession of site is not recorded yet.");
 
 async function StartSection({ l, v, people, today }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("SUPERVISION", l.contract.status as ContractStatus);
   const c = l.contract;
   const executed = isExecuted(c.status as ContractStatus);
   const pos = v.s.possession;
@@ -344,6 +352,7 @@ async function StartSection({ l, v, people, today }: { l: LoadedContract; v: Sup
   const d = v.delay ? delayWords(v.delay) : null;
   const programmeBlocker = zone(today) ?? (!executed ? "A programme is recorded once the contract is executed." : open ? `Revision ${open.revision} is still open: decide it first.` : null);
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader
@@ -418,10 +427,13 @@ async function StartSection({ l, v, people, today }: { l: LoadedContract; v: Sup
         {v.s.progressRecords.length > 12 && <CardFooter className="text-[12.5px] text-ink-3">{`The latest 12 of ${v.s.progressRecords.length}. Every record is on the History tab.`}</CardFooter>}
       </Card>
     </div>
+    </ActGate>
   );
 }
 
 function DiarySection({ l, v, people, today, page }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null; page: number }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("SUPERVISION", l.contract.status as ContractStatus);
   const c = l.contract;
   const entries = [...v.s.siteDiaryEntries].reverse();
   const pages = Math.max(1, Math.ceil(entries.length / DIARY_PAGE));
@@ -429,6 +441,7 @@ function DiarySection({ l, v, people, today, page }: { l: LoadedContract; v: Sup
   const shown = entries.slice(p * DIARY_PAGE, (p + 1) * DIARY_PAGE);
   const missing = today ? missingDays(day(v.s.possession?.possessionOn), today, new Set(v.s.siteDiaryEntries.map((e) => storedDay(e.day))), 14) : { days: [], count: 0 };
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       {missing.count > 0 && (
         <Callout tone="warn" title={`${missing.count} day${missing.count === 1 ? "" : "s"} since possession with no diary entry`}>
@@ -495,14 +508,18 @@ function DiarySection({ l, v, people, today, page }: { l: LoadedContract; v: Sup
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }
 
 function OversightSection({ l, v, people, today }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("SUPERVISION", l.contract.status as ContractStatus);
   const c = l.contract;
   const inDelay = v.delay?.state === "IN_DELAY";
   const policies = c.policies.map((p) => ({ value: p.id, label: `${INSURANCE_KIND_LABEL[p.kind]}${p.policyNo ? ` · ${p.policyNo}` : ""}` }));
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card className="overflow-hidden">
         <CardHeader icon={<UsersIcon size={17} />} title="Special site meetings" subtitle="Chaired by the S.O. once the contract is In Delay." actions={<MeetingDrawer id={c.id} people={people} today={today} blocker={zone(today) ?? (inDelay ? null : "The contract is not In Delay today: a special meeting is called by that reading.")} />} divided={v.s.siteMeetings.length > 0} />
@@ -613,13 +630,17 @@ function OversightSection({ l, v, people, today }: { l: LoadedContract; v: Super
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }
 
 function RecordsSection({ l, v, people, today }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("SUPERVISION", l.contract.status as ContractStatus);
   const c = l.contract;
   const live = (set: "PIPE_LOG" | "AS_BUILT") => liveOf(c, set).length;
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <OwnerAttachments owner={{ kind: "contract", id: c.id }} title="Site records" subtitle="The work programme as submitted, diary photographs, the pipe log and the as-built drawings." only={["PROGRAMME", "DIARY_PHOTO", "PIPE_LOG", "AS_BUILT"]} />
       <Card className="overflow-hidden">
@@ -644,5 +665,6 @@ function RecordsSection({ l, v, people, today }: { l: LoadedContract; v: Supervi
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }

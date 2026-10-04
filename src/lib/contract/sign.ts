@@ -152,10 +152,13 @@ export function stampFaults(i: { status: ContractStatus; stampedOn: string | nul
 
 export type BriefingFault = "NOT_YET_ENDORSED" | "ALREADY_RECORDED" | "NO_PARTICIPANTS" | "NO_ATTENDEES" | "FUTURE_DATE";
 
+/// Where the briefing may be recorded: an endorsed or executed contract (its own rule; the act and the panel both ask it).
+export const briefingOpen = (status: ContractStatus) => status === "LEGALLY_ENDORSED" || isExecuted(status);
+
 /// The briefing at signing: on an endorsed or executed contract, with RSAJ's participants and the contractor's attendees.
 export function briefingFaults(i: { status: ContractStatus; exists: boolean; participants: number; attendees: number; heldOn: string; today: string }): Finding<BriefingFault>[] {
   const out: Finding<BriefingFault>[] = [];
-  if (i.status !== "LEGALLY_ENDORSED" && !isExecuted(i.status)) out.push({ code: "NOT_YET_ENDORSED", level: "block" });
+  if (!briefingOpen(i.status)) out.push({ code: "NOT_YET_ENDORSED", level: "block" });
   if (i.exists) out.push({ code: "ALREADY_RECORDED", level: "block" });
   if (i.participants === 0) out.push({ code: "NO_PARTICIPANTS", level: "block" });
   if (i.attendees === 0) out.push({ code: "NO_ATTENDEES", level: "block" });

@@ -1,3 +1,6 @@
+import { ActGate } from "@/components/act-gate";
+import { actStatusBlocker } from "@/lib/contract/act-status";
+import type { ContractStatus } from "@/lib/contract/types";
 import { AlertTriangle, CalendarIcon, ClipboardIcon, FileIcon, GavelIcon, ShieldIcon, WalletIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -149,12 +152,14 @@ export function PaymentsPanel({ l, v, people, today, section, page }: { l: Loade
 /// BD-613-41 as amended: the contract's opening position, the way out where earlier interim certificates were not
 /// raised from a valuation here. Entered once, before the first valuation the system raises.
 function OpeningCard({ l, v, people, today }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("OPENING_POSITION", l.contract.status as ContractStatus);
   const o = v.p.openingPosition;
   const raised = openingClosed(v.p.interimValuations.map((x) => ({ certificateStatus: x.certificate?.status ?? null })));
   const rec = o ? openingReconciles(openingOf(o)) : [];
   const foreign = uncoveredForeign(v.p);
   if (!o && raised && foreign.length === 0) return null;
-  const blocker = zone(today) ?? (raised ? paymentFaultText({ code: "OPENING_CLOSED", level: "block" }) : null);
+  const blocker = shut ?? zone(today) ?? (raised ? paymentFaultText({ code: "OPENING_CLOSED", level: "block" }) : null);
   const tag = (pv: string, note: string) => (
     <span className="flex flex-col items-start gap-1">
       <ProvenanceBadge value={pv} />
@@ -183,6 +188,7 @@ function OpeningCard({ l, v, people, today }: { l: LoadedContract; v: PaymentVie
       }
     : {};
   return (
+    <ActGate blocker={shut}>
     <Card>
       <CardHeader
         icon={<ClipboardIcon size={17} />}
@@ -213,10 +219,13 @@ function OpeningCard({ l, v, people, today }: { l: LoadedContract; v: PaymentVie
         {o && <p className={`${sub} mt-3`}>An advance granted before this system is recorded as recouped here, not continued: apply for its remaining recoupment as an advance here if it is still being recouped.</p>}
       </CardBody>
     </Card>
+    </ActGate>
   );
 }
 
 function ValuationsSection({ l, v, people, today, page }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; page: number }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("VALUATION", l.contract.status as ContractStatus);
   const c = l.contract;
   const p = v.p;
   const cal = p.paymentCalendar;
@@ -229,6 +238,7 @@ function ValuationsSection({ l, v, people, today, page }: { l: LoadedContract; v
   const shown = all.slice(pg * VALUATION_PAGE, (pg + 1) * VALUATION_PAGE);
   const formSet = !!kindSettingOf(v.cfg, "INTERIM_PAYMENT")?.templateId;
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader icon={<CalendarIcon size={17} />} title="Valuation calendar" subtitle="The day of each month agreed with the contractor for the joint site valuation. A valuation on another day is started by a claim." actions={<CalendarDrawer id={c.id} people={people} today={today} current={cal ? { dayOfMonth: cal.dayOfMonth, agreedWith: cal.agreedWith } : null} />} />
@@ -294,10 +304,13 @@ function ValuationsSection({ l, v, people, today, page }: { l: LoadedContract; v
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }
 
 function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: PaymentView; today: string | null; formSet: boolean }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("VALUATION", l.contract.status as ContractStatus);
   const c = l.contract;
   const x = v.current!;
   const a = v.assembled;
@@ -310,6 +323,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
   const clock = v.cfg.clocks.find((k) => k.clock === "CERT_ISSUE") ?? null;
   const due = clock ? (clock.unit === "DAYS" ? formatDate(dayPlus(from, clock.length)) : clock.unit === "WEEKS" ? formatDate(dayPlus(from, clock.length * 7)) : `${clock.length} months after ${formatDate(from)}`) : null;
   return (
+    <ActGate blocker={shut}>
     <Card className="overflow-hidden">
       <CardHeader
         icon={<ClipboardIcon size={17} />}
@@ -415,6 +429,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
       )}
       <PreviewFigures a={a} />
     </Card>
+    </ActGate>
   );
 }
 
@@ -460,6 +475,8 @@ function PreviewFigures({ a }: { a: Assembled | null }) {
 // ------------------------------------------------------------------ retention
 
 function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("RETENTION_RELEASE", l.contract.status as ContractStatus);
   const c = l.contract;
   const b = v.baseline?.values ?? null;
   const reading = b ? retentionReading({ applies: b.retentionApplies, percent: b.retentionPercent, capPercent: b.retentionCapPercent, source: b.retentionSource }) : null;
@@ -482,6 +499,7 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
     : reading.state === "NOT_SET" ? <Badge tone="warn">Not set: an interim certificate is refused until the baseline states it</Badge>
     : <Badge tone="warn">Said not to apply without a band or a recorded decision: refused</Badge>;
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader icon={<ShieldIcon size={17} />} title="Retention" subtitle="Held three ways on every interim certificate, from the contract's baseline; released first on the as-built drawings and the balance on the Certificate of Making Good Defects. A release is paid through the next interim certificate." />
@@ -536,19 +554,23 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }
 
 // ------------------------------------------------------------------ the advance (B2)
 
 function AdvanceSection({ l, v, people }: { l: LoadedContract; v: PaymentView; people: Option[] }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("ADVANCE_PAYMENT", l.contract.status as ContractStatus);
   const c = l.contract;
   const guarantees = c.securities.filter((s) => s.kind === "ADVANCE_PAYMENT_GUARANTEE").map((s) => ({ value: s.id, label: `${s.instrumentRef || "Guarantee"} · ${formatMoney(senFromDecimal(s.value))}${s.status === "VERIFIED" ? "" : " (not verified)"}` }));
   const nscs = v.p.contractParties.filter((pt) => pt.kind === "NOMINATED_SUBCONTRACTOR" && !pt.retiredOn).map((pt) => ({ value: pt.id, label: pt.name }));
   const formSet = !!kindSettingOf(v.cfg, "ADVANCE_PAYMENT")?.templateId;
   const inProg = inProgressSequenceOf(v.p);
-  const blocker = !formSet ? paymentFaultText(noFormFault("ADVANCE_PAYMENT")) : inProg != null ? paymentFaultText({ code: "ADVANCE_VALUATION_IN_PROGRESS", level: "block", data: { sequence: inProg } }) : guarantees.length === 0 ? "No Advance Payment Guarantee is lodged: lodge and verify it on the award's Securities tab first." : null;
+  const blocker = shut ?? (!formSet ? paymentFaultText(noFormFault("ADVANCE_PAYMENT")) : inProg != null ? paymentFaultText({ code: "ADVANCE_VALUATION_IN_PROGRESS", level: "block", data: { sequence: inProg } }) : guarantees.length === 0 ? "No Advance Payment Guarantee is lodged: lodge and verify it on the award's Securities tab first." : null);
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Callout tone="info" title="No documented advance payment procedure (B2)">
         Eligibility and the percentage are not checked: no rule states them. An advance rests on an Advance Payment Guarantee verified in the register and on a recoupment schedule entered for the contract; it goes for approval on the approval matrix.
@@ -582,12 +604,15 @@ function AdvanceSection({ l, v, people }: { l: LoadedContract; v: PaymentView; p
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }
 
 // ------------------------------------------------------------------ the damages chain
 
 function DamagesSection({ l, v, people, today }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("DAMAGES", l.contract.status as ContractStatus);
   const c = l.contract;
   const b = v.baseline?.values ?? null;
   const completion = b?.dateForCompletion ?? null;
@@ -610,6 +635,7 @@ function DamagesSection({ l, v, people, today }: { l: LoadedContract; v: Payment
     : reading.state === "NOTHING_TO_CHARGE" ? "Damages apply; every day of the window up to today is charged already, or the window has not begun."
     : `Damages run: ${reading.days} days not yet charged up to today at ${formatMoney(reading.rate)} a day (${formatMoney(reading.amount)}), for the next interim certificate.`;
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader icon={<GavelIcon size={17} />} title="Liquidated damages" subtitle="The rate is the baseline's, never typed, frozen with the decision and its Certificate of Non-Completion. No damages line exists before the Certificate of Non-Completion is issued; a certificate past the date for completion with no decision is refused, never issued without its damages." actions={reading && reading.state !== "NOT_DUE" ? <Badge tone={reading.state === "EXCUSED" || reading.state === "NOTHING_TO_CHARGE" ? "info" : "warn"}>{reading.state === "CHARGED" ? "Damages running" : reading.state === "EXCUSED" ? "Excused or pending" : "Decision needed"}</Badge> : undefined} />
@@ -694,5 +720,6 @@ function DamagesSection({ l, v, people, today }: { l: LoadedContract; v: Payment
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }

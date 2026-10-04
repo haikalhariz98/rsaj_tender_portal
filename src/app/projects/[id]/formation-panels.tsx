@@ -1,3 +1,5 @@
+import { ActGate } from "@/components/act-gate";
+import { actStatusBlocker } from "@/lib/contract/act-status";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { CheckIcon, FileIcon, InboxIcon, ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
@@ -17,7 +19,7 @@ import { openReview, submitFaults } from "@/lib/contract/legal";
 import { liveOf } from "@/lib/contract/load";
 import { readFormationSnapshot } from "@/lib/contract/preparation";
 import type { LoadedContract } from "@/lib/contract/repo";
-import { contractorSignFaults, stampFaults } from "@/lib/contract/sign";
+import { briefingOpen, contractorSignFaults, stampFaults } from "@/lib/contract/sign";
 import { isExecuted } from "@/lib/contract/status";
 import { RECONCILIATION_COMPARISONS, type ContractStatus, type FormationCheckKind } from "@/lib/contract/types";
 import { storedDay } from "@/lib/dates";
@@ -89,9 +91,12 @@ export function FormationPanel({ l, section, facts, people, today }: { l: Loaded
 // ------------------------------------------------------------------ assembly
 
 function AssemblySection({ l, facts }: { l: LoadedContract; facts: Facts }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
   const faults = facts.form.faults.filter((f) => f.code === "NO_PARTS" || f.code === "CANCELLED_WITHOUT_STATEMENT");
   return (
+    <ActGate blocker={shut}>
     <Card className="overflow-hidden">
       <CardHeader icon={<FileIcon size={17} />} title="The Contract Document" subtitle={`In the order prescribed for ${facts.form.snap?.basis.name ?? "its basis"}, as configured when preparation started.`} actions={<Badge tone={faults.length ? "warn" : "ok"}>{faults.length ? "Not complete" : "Complete"}</Badge>} divided={c.assemblyParts.length === 0} />
       {faults.length > 0 && <div className="px-5 pt-3 sm:px-6"><Callout tone="warn" title="Not complete">{faults.map(contractFaultText).join(" ")}</Callout></div>}
@@ -114,15 +119,19 @@ function AssemblySection({ l, facts }: { l: LoadedContract; facts: Facts }) {
         </ul>
       )}
     </Card>
+    </ActGate>
   );
 }
 
 // ------------------------------------------------------------------ reconciliation and checks
 
 function ChecksSection({ l, facts, people, today }: { l: LoadedContract; facts: Facts; people: Option[]; today: string | null }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
   const editable = open(c.status);
   return (
+    <ActGate blocker={shut}>
     <>
       <Card className="overflow-hidden">
         <CardHeader icon={<ScaleIcon size={17} />} title="Reconciliation" subtitle="The Contract Document against the Tender Document and the Tender Table Document, and the drawings, with every tender-stage addendum." />
@@ -166,10 +175,13 @@ function ChecksSection({ l, facts, people, today }: { l: LoadedContract; facts: 
         return k ? <CheckCard key={kind} l={l} check={k} people={people} today={today} editable={editable} preparationOn={facts.form.snap?.startedOn ?? null} applicable={facts.form.applicable} /> : null;
       })}
     </>
+    </ActGate>
   );
 }
 
 function CheckCard({ l, check: k, people, today, editable, preparationOn, applicable }: { l: LoadedContract; check: LoadedContract["contract"]["checks"][number]; people: Option[]; today: string | null; editable: boolean; preparationOn: string | null; applicable: readonly FormationCheckKind[] | null }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
   const kind = k.kind as FormationCheckKind;
   const done = !!k.completedOn;
@@ -179,6 +191,7 @@ function CheckCard({ l, check: k, people, today, editable, preparationOn, applic
   const variance = kind === "ARITHMETIC" ? arithmeticVariance(k.corrections.map((x) => ({ tendered: senFromDecimal(x.tendered), corrected: senFromDecimal(x.corrected) }))) : null;
   const blocker = today && !done ? completeFaults({ kind, applicable, completedOn: null, on: today, today, preparationOn: preparationOn ?? today, note: "-", rates, ratio }).filter((f) => f.code !== "FRONT_LOADING_NOTE_REQUIRED") : [];
   return (
+    <ActGate blocker={shut}>
     <Card className="overflow-hidden">
       <CardHeader
         icon={<CheckIcon size={17} />}
@@ -246,12 +259,15 @@ function CheckCard({ l, check: k, people, today, editable, preparationOn, applic
         </>
       )}
     </Card>
+    </ActGate>
   );
 }
 
 // ------------------------------------------------------------------ legal review
 
 function LegalSection({ l, facts, people, today }: { l: LoadedContract; facts: Facts; people: Option[]; today: string | null }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
   const reviews = reviewsOf(c);
   const pending = openReview(reviews);
@@ -259,6 +275,7 @@ function LegalSection({ l, facts, people, today }: { l: LoadedContract; facts: F
   const fs = submitFaults({ status: c.status as ContractStatus, officeCode: facts.form.snap?.policy.legalOfficeCode ?? null, submissionDocuments: docs.length, formationFaults: facts.form.faults.length, reviews });
   const canSend = c.status === "IN_PREPARATION" || c.status === "RETURNED_FOR_AMENDMENT";
   return (
+    <ActGate blocker={shut}>
     <>
       <Card className="overflow-hidden">
         <CardHeader
@@ -293,6 +310,7 @@ function LegalSection({ l, facts, people, today }: { l: LoadedContract; facts: F
       </Card>
       <OwnerAttachments owner={{ kind: "contract", id: c.id }} title="To and from the legal office" subtitle="What goes for review (pinned at each submission) and the comments that come back." only={["LEGAL_SUBMISSION", "LEGAL_COMMENTS"]} />
     </>
+    </ActGate>
   );
 }
 
@@ -309,9 +327,14 @@ function SigningSection({ l, facts, people, today }: { l: LoadedContract; facts:
   const contractorBlock = today ? contractorSignFaults({ status, gate: facts.gate, resolutionLive: facts.inputs.resolutionLive, alreadySigned: !!contractor, signatory: { name: "-", icNumber: "000000-00-0000" }, witness: { name: "-", icNumber: "000000-00-0000" }, signedOn: today, today, endorsedOn }) : [];
   const rsajBlock = facts.faults;
   const office = facts.signatory?.ok ? facts.signatory.roleLabel : "the office the approval matrix names";
+  // Review S1: each family's row first (the signatures and stamping FORMATION, the briefing COPIES_AND_CUSTODY), in the
+  // acts' own words; every drawer and blocked control below is gated by its family's.
+  const shut = actStatusBlocker("FORMATION", status);
+  const custody = actStatusBlocker("COPIES_AND_CUSTODY", status);
   const stampBlock = today ? stampFaults({ status, stampedOn: today, reference: "-", contractDate: day(c.contractDate), today }).filter((f) => f.code !== "BEFORE_CONTRACT_DATE") : [];
   return (
     <>
+      <ActGate blocker={shut}>
       <Card className="overflow-hidden">
         <CardHeader icon={<ShieldIcon size={17} />} title="Before signature" subtitle="The company resolution or other proof of signing authority is on file before the contractor's signature can be recorded." />
         <div className="p-4 sm:p-5">
@@ -352,8 +375,10 @@ function SigningSection({ l, facts, people, today }: { l: LoadedContract; facts:
         </CardBody>
       </Card>
       {executed && <OwnerAttachments owner={{ kind: "contract", id: c.id }} title="The executed contract" only={["SIGNED_CONTRACT", "STAMPING_CERTIFICATE"]} />}
+      </ActGate>
+      <ActGate blocker={custody}>
       <Card>
-        <CardHeader icon={<UsersIcon size={17} />} title="Integrity Pact, Stage Three" subtitle="The briefing at signing. It does not block signing; a signed contract without it is shown so." actions={!c.briefing && ["LEGALLY_ENDORSED", "EXECUTED", "STAMPED", "ACTIVE"].includes(status) ? <BriefingDrawer id={c.id} people={people} today={today} /> : undefined} />
+        <CardHeader icon={<UsersIcon size={17} />} title="Integrity Pact, Stage Three" subtitle="The briefing at signing. It does not block signing; a signed contract without it is shown so." actions={!c.briefing && !custody && briefingOpen(status) ? <BriefingDrawer id={c.id} people={people} today={today} /> : undefined} />
         <CardBody>
           {c.briefing ? (
             <KeyValues columns={2} items={[{ label: "Held on", value: formatDate(c.briefing.heldOn) }, { label: "For the employer", value: c.briefing.participantNames.join(", ") }, { label: "For the contractor", value: c.briefing.contractorAttendees.join(", ") }, { label: "Note", value: c.briefing.note || notSet("None") }]} />
@@ -362,6 +387,7 @@ function SigningSection({ l, facts, people, today }: { l: LoadedContract; facts:
           )}
         </CardBody>
       </Card>
+      </ActGate>
     </>
   );
 }
@@ -377,6 +403,10 @@ function CopiesSection({ l, people, today }: { l: LoadedContract; people: Option
   const facts2 = c.copies.map((x) => ({ id: x.id, copyNo: x.copyNo, recipientId: x.recipientId, despatchedOn: day(x.despatchedOn), acknowledgedOn: day(x.acknowledgedOn), recalledOn: day(x.recalledOn), reissuedAs: c.copies.find((y) => y.reissueOfId === x.id)?.id ?? null }));
   const missing = list === "CONSULTANT_NOT_ANSWERED" ? [] : missingMandatory(list, facts2);
   const executed = isExecuted(status);
+  // Review S1: each family's row first (the copies COPIES_AND_CUSTODY, the originals ORIGINALS), in the acts' own words;
+  // every drawer and blocked control below is gated by its family's.
+  const shut = actStatusBlocker("COPIES_AND_CUSTODY", status);
+  const originalsShut = actStatusBlocker("ORIGINALS", status);
   const issuable = list === "CONSULTANT_NOT_ANSWERED" ? [] : list.filter((r) => !facts2.some((x) => x.recipientId === r.id && liveCopy(x)));
   const issueBlock = !executed ? "The contract is not executed yet." : list === "CONSULTANT_NOT_ANSWERED" ? "Say whether a consulting engineer is engaged first." : issuable.length === 0 ? "Every recipient holds a live copy." : null;
   const originals: Option[] = [
@@ -386,6 +416,7 @@ function CopiesSection({ l, people, today }: { l: LoadedContract; people: Option
   ];
   return (
     <>
+      <ActGate blocker={shut}>
       <Card className="overflow-hidden">
         <CardHeader
           icon={<InboxIcon size={17} />}
@@ -426,6 +457,8 @@ function CopiesSection({ l, people, today }: { l: LoadedContract; people: Option
           </ul>
         )}
       </Card>
+      </ActGate>
+      <ActGate blocker={originalsShut}>
       <Card className="overflow-hidden">
         <CardHeader icon={<ShieldIcon size={17} />} title="Originals in custody" subtitle="Where each physical original is held and by whom, with every check-out and check-in." actions={status !== "CANCELLED" ? (originals.length ? <RegisterOriginalDrawer id={c.id} originals={originals} people={people} /> : <Blocked label="Register an original" reason={executed ? "Every original on record is registered." : "The signed contract is registered once executed; verified bonds and policies any time."} />) : undefined} divided={c.custodyItems.length === 0} />
         {c.custodyItems.length === 0 ? (
@@ -451,6 +484,7 @@ function CopiesSection({ l, people, today }: { l: LoadedContract; people: Option
           </ul>
         )}
       </Card>
+      </ActGate>
     </>
   );
 }

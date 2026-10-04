@@ -1,3 +1,5 @@
+import { ActGate } from "@/components/act-gate";
+import { actStatusBlocker } from "@/lib/contract/act-status";
 import type { ReactNode } from "react";
 
 import { ClockIcon, FileIcon } from "@/components/icons";
@@ -77,6 +79,8 @@ function rowsOf(b: BaselineValues): FieldRow[] {
  * reads "Not set", never 0.
  */
 export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts: Facts; timeZone: string | null }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("BASELINE", l.contract.status as ContractStatus);
   const c = l.contract;
   const status = c.status as ContractStatus;
   const { draft, versions } = baselineRows(c);
@@ -109,6 +113,7 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
     awardCorrectionFaults({ awardStatus: l.award.status, awardIssued: l.award.issuedAt != null, versions: versions.length, source: latest ? termSource(t, values) : null, term: t, input: { term: "DLP", months: 0 }, reason: "-", changed: true, blocks: 0 }).filter((f) => f.code !== "VALUE_NOT_VALID");
   const corrections = c.awardTermCorrections;
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       {findings.some((f) => f.level !== "info") && (
         <Callout tone={findings.some((f) => f.level === "block") ? "warn" : "info"} title={findings.some((f) => f.level === "block") ? "The baseline is not complete" : "Noted"}>
@@ -205,5 +210,6 @@ export function BaselinePanel({ l, facts, timeZone }: { l: LoadedContract; facts
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }

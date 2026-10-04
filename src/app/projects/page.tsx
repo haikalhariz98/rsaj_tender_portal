@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { PHASE_TONE, PHASE_WORDS } from "@/lib/contract/labels";
 import { CONTRACT_PAGE, endorsedPhases, listContracts } from "@/lib/contract/load";
-import { CONTRACT_PHASES, type ContractPhase } from "@/lib/contract/status";
+import { beforeExecution, CONTRACT_PHASES, isExecuted, type ContractPhase } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf, daysFrom, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
@@ -64,9 +64,10 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
       id: r.id,
       views: [
         ...(status === "NUMBER_ALLOCATED" ? ["unstarted"] : []),
-        ...(["IN_PREPARATION", "RETURNED_FOR_AMENDMENT", "PENDING_LEGAL_ENDORSEMENT", "LEGALLY_ENDORSED"].includes(status) ? ["forming"] : []),
+        // Review S1: the contract's own rules, never a list of its own (load.ts counts EXECUTED_STATES the same way).
+        ...(beforeExecution(status) ? ["forming"] : []),
         ...(phase === "READY_TO_SIGN" ? ["ready"] : []),
-        ...(["EXECUTED", "STAMPED", "ACTIVE"].includes(status) ? ["executed"] : []),
+        ...(isExecuted(status) ? ["executed"] : []),
       ],
       search: [r.award.exercise.title, r.number, r.award.awardeeName, r.award.reference, PHASE_WORDS[phase].en].join(" "),
       sortKeys: { contract: r.award.exercise.title },

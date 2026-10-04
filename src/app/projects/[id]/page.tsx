@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { actStatusText } from "@/lib/contract/act-status";
+import { ActGate } from "@/components/act-gate";
+import { actStatusBlocker, actStatusText } from "@/lib/contract/act-status";
 import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
 import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES, VARIATION_ENTITIES } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
@@ -26,6 +27,7 @@ import { contractHistory, loadContractConfig, preparationSettings } from "@/lib/
 import { readFormationSnapshot, startFaults } from "@/lib/contract/preparation";
 import { loadContract, type LoadedContract } from "@/lib/contract/repo";
 import { briefingMissing } from "@/lib/contract/sign";
+import { isExecuted } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -174,6 +176,8 @@ type Facts = NonNullable<Awaited<ReturnType<typeof signingFacts>>>;
 // ------------------------------------------------------------------ overview
 
 async function OverviewPanel({ l, facts, today, supervision, payments, variations }: { l: LoadedContract; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView; variations: VariationView }) {
+  // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
+  const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
   const status = c.status as ContractStatus;
   const snap = readFormationSnapshot(c.formationSnapshot);
@@ -200,6 +204,7 @@ async function OverviewPanel({ l, facts, today, supervision, payments, variation
   // S-1: the year the number was issued is the organisation's day of issue, never digits read from the number.
   const year = contractYearReading(c);
   return (
+    <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       {start && (
         <Card>
@@ -257,6 +262,7 @@ async function OverviewPanel({ l, facts, today, supervision, payments, variation
         )}
       </Card>
     </div>
+    </ActGate>
   );
 }
 
@@ -264,7 +270,10 @@ async function OverviewPanel({ l, facts, today, supervision, payments, variation
 
 function SecuritiesPanel({ l, people, today }: { l: LoadedContract; people: Option[]; today: string | null }) {
   const c = l.contract;
-  const executed = ["EXECUTED", "STAMPED", "ACTIVE", "CANCELLED"].includes(c.status);
+  // Review S1: the wages check's own act (FORMATION's row, then "executed" by isExecuted), never a list of its own.
+  const status = c.status as ContractStatus;
+  const shut = actStatusBlocker("FORMATION", status);
+  const wcOpen = !shut && !isExecuted(status);
   const wcOnWages = l.award.wcBasis === "UNCOVERED_WAGES";
   return (
     <Card className="overflow-hidden">
@@ -272,6 +281,7 @@ function SecuritiesPanel({ l, people, today }: { l: LoadedContract; people: Opti
       {c.securities.length + c.policies.length === 0 ? (
         <EmptyState size="sm" title="Nothing lodged">Lodge them on the award&apos;s Securities tab.</EmptyState>
       ) : (
+        <ActGate blocker={shut}>
         <ul className="divide-y divide-line/70">
           {c.securities.map((s) => (
             <li key={s.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -299,12 +309,13 @@ function SecuritiesPanel({ l, people, today }: { l: LoadedContract; people: Opti
                 </span>
                 <span className="flex shrink-0 flex-wrap items-center gap-2">
                   <Chip tone={REGISTER_STATUS_TONE[p.status]}>{REGISTER_STATUS_LABEL[p.status]}</Chip>
-                  {wc && !p.wcCheckedOn && !executed && (p.status === "VERIFIED" ? <WcCheckDrawer id={c.id} policyId={p.id} label={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} /> : <Blocked label="Record the wages check" reason="Verify the policy on the award first." />)}
+                  {wc && !p.wcCheckedOn && wcOpen && (p.status === "VERIFIED" ? <WcCheckDrawer id={c.id} policyId={p.id} label={INSURANCE_KIND_LABEL[p.kind]} people={people} today={today} /> : <Blocked label="Record the wages check" reason="Verify the policy on the award first." />)}
                 </span>
               </li>
             );
           })}
         </ul>
+        </ActGate>
       )}
     </Card>
   );
