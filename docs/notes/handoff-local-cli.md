@@ -26,6 +26,22 @@ session starts. Read `AGENTS.md` first, then line 9 and the top entries of `deci
      human to run (all folders after `20261001011312_phase1_closeout`).
 3. Run `npm run check` and `npm test` on `cdec150`. Expect failures: C8 is half-built.
 
+## Done on the local machine (2026-10-04)
+
+- Branch fast-forwarded to the cloud tip; native-engine check passed on all 153 folders (decisions
+  log). The old dev database is kept as `perolehan_backup_20261004`; `perolehan` was rebuilt.
+- Gates on Windows:
+  - **Typecheck and lint:** `$env:NODE_OPTIONS='--max-old-space-size=14000'; npm run check`
+    (typecheck needs more than 8 GB since run 1b C3).
+  - **Full suite:** `powershell -File scripts/test-linux.ps1`, in a Linux container. The
+    source-scan tests are not yet portable to Windows (backlog), and on Windows 37 fail that pass
+    on Linux. The working tree must use LF endings (`git config core.autocrlf false`).
+- At `cdec150` (C8a), check and the Linux suite are green: 568 files / 8,774 tests, after the
+  zero-offset time-zone label fix (newer ICU writes UTC as "GMT+00:00").
+- Stop a dev server by its PID (`Get-NetTCPConnection -LocalPort 3000`, then `Stop-Process -Id`),
+  never by name. The cloud's `$SEW`, `PRISMA_SCHEMA_ENGINE_BINARY=/bin/true`, `fuser` and
+  `/tmp/claude-0` instructions in the log apply to the cloud only.
+
 ## Finishing Run 1b
 
 - The plan: `plans/6.13-post-award-lifecycle.md`, "Part B — full plan", Run 1b in B10.

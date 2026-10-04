@@ -1,0 +1,707 @@
+﻿
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/repo[39m
+
+ [32m✓[39m src/lib/time-zone-label.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 105[2mms[22m[39m
+ [32m✓[39m src/lib/authority/worked-examples.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 11872[2mms[22m[39m
+     [33m[2m✓[22m[39m is imported by nothing the product runs or seeds [33m 11855[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/composition.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 13417[2mms[22m[39m
+     [33m[2m✓[22m[39m no source outside a test imports the fixture, and nothing seeds it [33m 13394[2mms[22m[39m
+ [32m✓[39m src/lib/bids/received-section.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 13104[2mms[22m[39m
+     [33m[2m✓[22m[39m no source in src/app or src/lib names a 'Bids received tab' [33m 13063[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/terms-parity.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 14299[2mms[22m[39m
+     [33m[2m✓[22m[39m no file in src or prisma but a test imports terms.oracle [33m 14208[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/types-schema.test.ts [2m([22m[2m28 tests[22m[2m)[22m[33m 13950[2mms[22m[39m
+     [33m[2m✓[22m[39m CertificateKind was created alone, before the migration that made the tables [33m 2496[2mms[22m[39m
+     [33m[2m✓[22m[39m MatterKind CERTIFICATE arrived alone, before any use [33m 2493[2mms[22m[39m
+     [33m[2m✓[22m[39m no migration comment carries a semicolon (the WASM engine splits on every one) [33m 477[2mms[22m[39m
+     [33m[2m✓[22m[39m IssuedCopy: a contract or a certificate [33m 2530[2mms[22m[39m
+     [33m[2m✓[22m[39m RoutingCheck: a certificate or an award [33m 2597[2mms[22m[39m
+     [33m[2m✓[22m[39m a CERTIFICATE route names its certificate, and only it does [33m 1294[2mms[22m[39m
+     [33m[2m✓[22m[39m a certificate is numbered exactly when issued; one dating block per form [33m 2043[2mms[22m[39m
+ [32m✓[39m src/lib/contract/status-schema.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 17416[2mms[22m[39m
+     [33m[2m✓[22m[39m IN_PREPARATION arrived alone in its own migration, before any use [33m 2519[2mms[22m[39m
+     [33m[2m✓[22m[39m PENDING_LEGAL_ENDORSEMENT arrived alone in its own migration, before any use [33m 2497[2mms[22m[39m
+     [33m[2m✓[22m[39m RETURNED_FOR_AMENDMENT arrived alone in its own migration, before any use [33m 2531[2mms[22m[39m
+     [33m[2m✓[22m[39m LEGALLY_ENDORSED arrived alone in its own migration, before any use [33m 2586[2mms[22m[39m
+     [33m[2m✓[22m[39m EXECUTED arrived alone in its own migration, before any use [33m 2565[2mms[22m[39m
+     [33m[2m✓[22m[39m STAMPED arrived alone in its own migration, before any use [33m 2236[2mms[22m[39m
+     [33m[2m✓[22m[39m ACTIVE arrived alone in its own migration, before any use [33m 2474[2mms[22m[39m
+ [32m✓[39m src/lib/audit/export.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 17603[2mms[22m[39m
+     [33m[2m✓[22m[39m no source under src/ updates, upserts or deletes an audit entry [33m 17548[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/labels.test.ts [2m([22m[2m137 tests[22m[2m)[22m[33m 18587[2mms[22m[39m
+     [33m[2m✓[22m[39m no source file outside a test writes a restriction stamp's words [33m 18520[2mms[22m[39m
+ [32m✓[39m src/lib/instant-days.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 8674[2mms[22m[39m
+     [33m[2m✓[22m[39m no formatDate, storedDay or ISO slice of a server-clock field anywhere in src (source scan) [33m 8654[2mms[22m[39m
+ [32m✓[39m src/lib/approvals/opened-day.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 9098[2mms[22m[39m
+     [33m[2m✓[22m[39m no other file opens a route, so the list above is every writer [33m 8746[2mms[22m[39m
+ [32m✓[39m src/lib/matter/contract-matter-sulit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 29348[2mms[22m[39m
+     [33m[2m✓[22m[39m each name is specific: no source outside the schema, the generated client and the matter's one writer uses it (the whole-word scan cannot misfire) [33m 29330[2mms[22m[39m
+ [32m✓[39m src/components/blocked-wrap.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 9520[2mms[22m[39m
+     [33m[2m✓[22m[39m no screen defines its own Blocked (one copy, in src/components/ui) [33m 9508[2mms[22m[39m
+ [32m✓[39m src/lib/dashboard-sums.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 13709[2mms[22m[39m
+     [33m[2m✓[22m[39m no screen compares a waiting or days-away count against a literal number of days [33m 13698[2mms[22m[39m
+ [32m✓[39m src/lib/bids/rule-snapshot.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 29063[2mms[22m[39m
+     [33m[2m✓[22m[39m only publication (to freeze them), loadBidRule and the tab's read model (each through bidRuleFor) call loadBidMethodRule [33m 29023[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/closing-writers.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 20353[2mms[22m[39m
+     [33m[2m✓[22m[39m only the approving step writes the exercise's closing and start [33m 12661[2mms[22m[39m
+     [33m[2m✓[22m[39m the same step, and only it, freezes the dates on the approved pack [33m 7628[2mms[22m[39m
+ [32m✓[39m src/lib/contract/lock-order.test.ts [2m([22m[2m28 tests[22m[2m)[22m[33m 17168[2mms[22m[39m
+     [33m[2m✓[22m[39m only the RSAJ signature and its audited correction write the Contract Date [33m 3553[2mms[22m[39m
+     [33m[2m✓[22m[39m nothing in 6.12 writes ACTIVE: only 6.13's possession act does [33m 13222[2mms[22m[39m
+ [32m✓[39m src/lib/scope/scope-writers.test.ts [2m([22m[2m826 tests[22m[2m)[22m[33m 14848[2mms[22m[39m
+     [33m[2m✓[22m[39m tableScope is the one writer of a SCOPE matter, and writes the configured act it judged [33m 6863[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/raise-form.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 14286[2mms[22m[39m
+     [33m[2m✓[22m[39m no product file raises or words it; the schedule-form and routing-sheet refusals stay their own (not merged, with the reason) [33m 14275[2mms[22m[39m
+ [32m✓[39m src/lib/committee/matter-amount.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 10536[2mms[22m[39m
+     [33m[2m✓[22m[39m no screen renders a matter's amount without being held here [33m 5646[2mms[22m[39m
+     [33m[2m✓[22m[39m no screen builds a committees link with an amount or value in it [33m 4714[2mms[22m[39m
+ [32m✓[39m src/lib/documents/labels.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 2630[2mms[22m[39m
+     [33m[2m✓[22m[39m every three-decimal value from 0.001 to 100 MB round-trips exactly [33m 2313[2mms[22m[39m
+ [32m✓[39m src/lib/method/status-schema.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 10953[2mms[22m[39m
+     [33m[2m✓[22m[39m PENDING_APPROVAL_FOR_TENDERING arrived alone in its own migration, before any use [33m 3094[2mms[22m[39m
+     [33m[2m✓[22m[39m APPROVED_FOR_TENDERING arrived alone in its own migration, before any use [33m 2580[2mms[22m[39m
+     [33m[2m✓[22m[39m ADVERTISED arrived alone in its own migration, before any use [33m 2745[2mms[22m[39m
+     [33m[2m✓[22m[39m INVITED arrived alone in its own migration, before any use [33m 2527[2mms[22m[39m
+ [32m✓[39m src/lib/method/opening-states.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 5251[2mms[22m[39m
+     [33m[2m✓[22m[39m OPENING_IN_PROGRESS arrived alone in its own migration, before any use [33m 2729[2mms[22m[39m
+     [33m[2m✓[22m[39m OPENED arrived alone in its own migration, before any use [33m 2515[2mms[22m[39m
+ [32m✓[39m src/lib/component-hints.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 5820[2mms[22m[39m
+     [33m[2m✓[22m[39m no component in src/components passes a hint or a provenance tooltip as a literal [33m 593[2mms[22m[39m
+     [33m[2m✓[22m[39m the on-behalf hint is one constant wherever its exact words appear [33m 5223[2mms[22m[39m
+ [32m✓[39m src/lib/sulit-fields.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 4146[2mms[22m[39m
+     [33m[2m✓[22m[39m scans src/app [33m 4099[2mms[22m[39m
+ [32m✓[39m src/lib/documents/attach.test.ts [2m([22m[2m56 tests[22m[2m)[22m[33m 320[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/fix-inc2.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [32m✓[39m src/lib/variation/application.test.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 192[2mms[22m[39m
+ [32m✓[39m src/components/shell/crumbs.test.ts [2m([22m[2m73 tests[22m[2m)[22m[33m 1853[2mms[22m[39m
+ [32m✓[39m src/lib/award/accepted-writer.test.ts [2m([22m[2m826 tests[22m[2m)[22m[33m 15711[2mms[22m[39m
+     [33m[2m✓[22m[39m every other award write takes its status from a literal, or from mustMove whose every call is a literal other than ACCEPTED [33m 7472[2mms[22m[39m
+ [32m✓[39m src/lib/scope/csv.test.ts [2m([22m[2m29 tests[22m[2m)[22m[32m 195[2mms[22m[39m
+ [32m✓[39m src/lib/payment/retention-split.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 492[2mms[22m[39m
+ [32m✓[39m src/lib/window/sale.test.ts [2m([22m[2m28 tests[22m[2m)[22m[33m 1410[2mms[22m[39m
+     [33m[2m✓[22m[39m the index name is the one the migrations create [33m 1341[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/appendix.test.ts [2m([22m[2m24 tests[22m[2m)[22m[33m 596[2mms[22m[39m
+     [33m[2m✓[22m[39m the prototype's 0.1% default and 10% cap appear in no source file (§8.6) [33m 574[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/fixed.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 321[2mms[22m[39m
+     [33m[2m✓[22m[39m src/lib/evaluation calls neither Number(), parseFloat nor toFixed outside its tests [33m 313[2mms[22m[39m
+ [32m✓[39m src/lib/payment/types-schema.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 320[2mms[22m[39m
+     [33m[2m✓[22m[39m no code falls through to 'Refused', in the rules or in the acts [33m 301[2mms[22m[39m
+ [32m✓[39m src/lib/contract/act-status.test.ts [2m([22m[2m34 tests[22m[2m)[22m[32m 244[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/arithmetic.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 291[2mms[22m[39m
+ [32m✓[39m src/lib/time/run1b-schema.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 214[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/kinds-listed.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 194[2mms[22m[39m
+ [32m✓[39m src/lib/payment/interim.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 114[2mms[22m[39m
+ [32m✓[39m src/lib/contract/act-status-pin.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 188[2mms[22m[39m
+ [32m✓[39m src/lib/variation/types-schema.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 190[2mms[22m[39m
+ [32m✓[39m src/lib/payment/assemble.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 71[2mms[22m[39m
+ [32m✓[39m src/lib/opening/frozen-readings.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 128[2mms[22m[39m
+ [32m✓[39m src/lib/people/lock.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 11401[2mms[22m[39m
+     [33m[2m✓[22m[39m no delegation write in src/ names it, or spreads a row read with it [33m 11345[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/screen-words.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 218[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/fix-pin.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 132[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/delay-batch.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 153[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/fidelity-scan.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 28985[2mms[22m[39m
+     [33m[2m✓[22m[39m a template's page count is written only by savePageCount (a Prisma write naming pageCount) [33m 1337[2mms[22m[39m
+     [33m[2m✓[22m[39m no raw SQL writes a printed field, a correction, a term, or a template's page count (stricter) [33m 628[2mms[22m[39m
+     [33m[2m✓[22m[39m per function (stricter): wherever one function locks both, the organisation's row comes before the form [33m 13310[2mms[22m[39m
+     [33m[2m✓[22m[39m nothing locks a form and then the organisation: the organisation's row comes first wherever both are locked [33m 13661[2mms[22m[39m
+ [32m✓[39m src/lib/contract/certificate-act.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 122[2mms[22m[39m
+ [32m✓[39m src/lib/matter/tabling.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 84[2mms[22m[39m
+ [32m✓[39m src/lib/payment/history.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 104[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/form-use.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 105[2mms[22m[39m
+ [32m✓[39m src/lib/time/spec-literals.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 115[2mms[22m[39m
+ [32m✓[39m src/lib/authority/resolve.test.ts [2m([22m[2m63 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lib/variation/route.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m src/lib/contract/in-force.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 84[2mms[22m[39m
+ [32m✓[39m src/lib/documents/body.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 97[2mms[22m[39m
+ [32m✓[39m src/lib/variation/history.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 98[2mms[22m[39m
+ [32m✓[39m src/lib/dashboard/activity.test.ts [2m([22m[2m36 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m src/lib/method/route-domains.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 14763[2mms[22m[39m
+     [33m[2m✓[22m[39m every `awardId: null` filter names a domain in the same object, or is an allowed wipe net [33m 7858[2mms[22m[39m
+     [33m[2m✓[22m[39m no reader decides on an exercise's routes without the splitter [33m 6870[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/types-schema.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 91[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/one-live-cancellation.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 81[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/rules.test.ts [2m([22m[2m34 tests[22m[2m)[22m[32m 69[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/tendering.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 71[2mms[22m[39m
+ [32m✓[39m src/lib/authority/core-routing.test.ts [2m([22m[2m44 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/fault-text.test.ts [2m([22m[2m257 tests[22m[2m)[22m[32m 92[2mms[22m[39m
+ [32m✓[39m src/app/api/documents/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 166[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/review-screens.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 97[2mms[22m[39m
+ [32m✓[39m src/lib/opening/cancelled.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 97[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/review-carries.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 66[2mms[22m[39m
+ [32m✓[39m src/lib/approvals/opened-day-display.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 92[2mms[22m[39m
+ [32m✓[39m src/lib/committee/matter.test.ts [2m([22m[2m58 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/lib/contract/issue-year.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 88[2mms[22m[39m
+ [32m✓[39m src/lib/payment/release-share.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 74[2mms[22m[39m
+ [32m✓[39m src/lib/approvals/certificate-route-lock.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m src/lib/variation/screens.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m src/app/sourcing/[id]/bids/actions.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 165[2mms[22m[39m
+ [32m✓[39m src/lib/lad/rounding.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 132[2mms[22m[39m
+ [32m✓[39m src/app/api/documents/versions/[id]/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 94[2mms[22m[39m
+ [32m✓[39m src/lib/integration/vendor-code-trim.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+ [32m✓[39m src/lib/window/events.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m src/lib/window/dates.test.ts [2m([22m[2m31 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m src/components/data-list.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 125[2mms[22m[39m
+ [32m✓[39m src/lib/ui/select-logic.test.ts [2m([22m[2m29 tests[22m[2m)[22m[32m 116[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/one-party.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 82[2mms[22m[39m
+ [32m✓[39m src/lib/award/insurance-terms.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 81[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/labels.test.ts [2m([22m[2m198 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m src/lib/scope/estimate.test.ts [2m([22m[2m35 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+ [32m✓[39m src/lib/bids/hooks.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 71[2mms[22m[39m
+ [32m✓[39m src/lib/award/appendix-baseline.test.ts [2m([22m[2m36 tests[22m[2m)[22m[32m 115[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/ends-exclusive.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 82[2mms[22m[39m
+ [32m✓[39m src/lib/routed-on.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 96[2mms[22m[39m
+ [32m✓[39m src/lib/window/publish.test.ts [2m([22m[2m42 tests[22m[2m)[22m[32m 103[2mms[22m[39m
+ [32m✓[39m src/lib/window/labels.test.ts [2m([22m[2m172 tests[22m[2m)[22m[32m 81[2mms[22m[39m
+ [32m✓[39m src/lib/matter/contract-matter.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 983[2mms[22m[39m
+     [33m[2m✓[22m[39m only src/lib/matter/write.ts writes ContractMatter; only the route's create and the tabling keys name it [33m 934[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/certificate-scan.test.ts [2m([22m[2m50 tests[22m[2m)[22m[33m 5577[2mms[22m[39m
+     [33m[2m✓[22m[39m a certificate's rows are written only by the core's helpers (and the demo's own loader and wipe) [33m 1228[2mms[22m[39m
+     [33m[2m✓[22m[39m the certificate's date (FR-CRT-005): only the signature and its audited correction write it [33m 1369[2mms[22m[39m
+     [33m[2m✓[22m[39m ISSUED, the number and the sequence: only the issue writes them [33m 1269[2mms[22m[39m
+     [33m[2m✓[22m[39m the routing sheet's frozen type is written only when sent for routing [33m 1108[2mms[22m[39m
+     [33m[2m✓[22m[39m the demo (prisma/) writes a certificate's rows only in its own named loader and wipe, listed here [33m 430[2mms[22m[39m
+ [32m✓[39m src/lib/validate.test.ts [2m([22m[2m26 tests[22m[2m)[22m[32m 96[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/sulit.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+ [32m✓[39m src/lib/method/bands.test.ts [2m([22m[2m32 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/lib/approvals/variation-route-lock.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 79[2mms[22m[39m
+ [32m✓[39m src/lib/bids/audit-view.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 80[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/price-ceiling.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+ [32m✓[39m src/lib/committee/labels.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 67[2mms[22m[39m
+ [32m✓[39m src/lib/contract/sign-fix.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+ [32m✓[39m src/lib/audit/entity-labels.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 2191[2mms[22m[39m
+     [33m[2m✓[22m[39m finds none [33m 2139[2mms[22m[39m
+ [32m✓[39m src/lib/authority/readers.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m src/lib/contract/variance-sulit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 80[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/fix-routing.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 73[2mms[22m[39m
+ [32m✓[39m src/lib/documents/contract-act-status.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m src/lib/contract/act-status-scan.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 1396[2mms[22m[39m
+     [33m[2m✓[22m[39m S-3c: the writers the re-review named are found: exported, or local and called by an exported writer of their file [33m 624[2mms[22m[39m
+     [33m[2m✓[22m[39m no uncovered site outside the named exceptions [33m 312[2mms[22m[39m
+     [33m[2m✓[22m[39m every named exception is still a site (none is stale) [33m 302[2mms[22m[39m
+ [32m✓[39m src/lib/authority/exact-bands.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [32m✓[39m src/lib/method/permit-list.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [32m✓[39m src/lib/payment/opening-residual.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 220[2mms[22m[39m
+ [32m✓[39m src/lib/dates-window.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m src/lib/documents/lock.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [32m✓[39m src/lib/window/fields.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/headings.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [32m✓[39m src/lib/method/behaviour-twins.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 66[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/form-version.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+ [32m✓[39m src/lib/award/return-scans.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 79[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/legacy-ends.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/award-standing.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 51[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/budget.test.ts [2m([22m[2m32 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/org-day.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m src/lib/variation/position.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/stamp.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/lib/contract/correction-sulit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/way-back.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/kinds.test.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/returned-by-bidder.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/lib/window/change.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 56[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/part-b-provenance.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/lib/committee/org-day.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/lib/opening/initials.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 66[2mms[22m[39m
+ [32m✓[39m src/lib/bids/config.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/hooks.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/components/data-list-width.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/review-carries-demo.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/lib/dates.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/so.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lib/award/core.test.ts [2m([22m[2m49 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/lock-order.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/lib/award/evaluate.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/lib/bids/closing-instant.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/sale-names-supplier.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/fix-inc2-residual.test.ts [2m([22m[2m31 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/lib/authority/issued-at.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/lib/award/frozen-on.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/lib/opening/time-zone.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/app/documents/actions.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 74[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/terms.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 61[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/org-day.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/config-words.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/withdraw.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m src/lib/method/justification.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/fix-inc2-residual-glossary.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/withdrawal-words.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/lib/contract/act-status-screens.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 1803[2mms[22m[39m
+     [33m[2m✓[22m[39m no .tsx file holds one: each reads isExecuted, the rule's own helper or the table [33m 1375[2mms[22m[39m
+ [32m✓[39m src/lib/window/phase.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/review.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/lib/format.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [32m✓[39m src/lib/contract/sign.test.ts [2m([22m[2m34 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m src/lib/scope/org-day.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/refresh-confirm.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/inputs-access.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/possession.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/lib/award/ceiling-gate.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/inactive-person.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/lib/scope/scope-matter.test.ts [2m([22m[2m33 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/lib/documents/audit-view.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/refresh.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/lib/people/end-assignment.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/lib/authority/boundary-words.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/pack.test.ts [2m([22m[2m38 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/model.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/lib/numbering/series.test.ts [2m([22m[2m34 tests[22m[2m)[22m[32m 60[2mms[22m[39m
+ [32m✓[39m src/lib/opening/labels.test.ts [2m([22m[2m130 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+ [32m✓[39m src/lib/documents/supersession.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/lib/opening/verdict-setting.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/components/attachments/attachment-panel-stack.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/consent-gate.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/config.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/lib/dashboard/activity-window.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/core.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/lib/opening/frozen-rules.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/lib/documents/limits.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/lib/lad/wiring.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/contract/history-words.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/history.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/lib/contract/fault-text.test.ts [2m([22m[2m110 tests[22m[2m)[22m[32m 56[2mms[22m[39m
+ [32m✓[39m src/lib/payment/waterfall.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/matter-link.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/lib/payment/minimum-measure.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/contract/baseline.test.ts [2m([22m[2m34 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/lib/opening/supplementary-panel.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/stage-one-outcome.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/lib/window/sale-not-named.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/lib/method/approval.test.ts [2m([22m[2m33 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/lib/scope/closing-binding.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/lib/variation/tabling.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/floor.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lib/budget/periods.test.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/lib/award/gate.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/lib/documents/classification.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lib/bids/labels.test.ts [2m([22m[2m65 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/org-day-zone.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/lib/scope/config.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/cancel-writers.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/lib/window/gate.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/lib/opening/sealed.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m src/lib/scope/labels.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/export-sulit.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/lib/documents/delegation-zone.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lib/authority/contract-type-domains.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/clarification-any.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lib/award/insured-differences.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/lib/opening/supplier-eligibility.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/part-view.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/model-completes.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/bids/entity-label.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/holders.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/money-text.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/routing-sheet.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/award-link-order.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/supersede-routes.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/percent.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/lib/documents/targets.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+ [32m✓[39m src/lib/payment/damages-scopes.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+ [32m✓[39m src/lib/award/labels.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m src/lib/method/labels.test.ts [2m([22m[2m80 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/stages.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/override.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 93[2mms[22m[39m
+ [32m✓[39m src/lib/contract/readers-scan.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 118[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/audit-view.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 64[2mms[22m[39m
+ [32m✓[39m src/lib/award/parts.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/delay.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/marks-shown.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/lib/lad/both-orders.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/blacklist.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 66[2mms[22m[39m
+ [32m✓[39m src/lib/money.test.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 116[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/gate.test.ts [2m([22m[2m32 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/window.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/documents/access.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/lib/opening/awardee-party.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lib/window/special-permission-offer.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/retable-wording.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/diary.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/opening/estimate-disclosure.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/raised-without-form.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 82[2mms[22m[39m
+ [32m✓[39m src/lib/variation/refusal.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/award-link.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/organisation/logo.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/lib/committee/meeting.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 51[2mms[22m[39m
+ [32m✓[39m src/lib/approvals/queue.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/part-b-settings.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/documents.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/budget/controls.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/award/gate-words.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/lib/scope/audit-view.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/lib/scope/rates.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/lib/bids/sealed.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m src/lib/variation/application-form.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/blacklist-review.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/budget/codes.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/lib/templates/insert.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/eligibility.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/lib/scope/panel.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/lib/scope/sealed.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 60870[2mms[22m[39m
+     [33m[2m✓[22m[39m only estimate-store.ts un-omits value or reason [33m 6884[2mms[22m[39m
+     [33m[2m✓[22m[39m no raw SQL reads the versions table outside the store [33m 7038[2mms[22m[39m
+     [33m[2m✓[22m[39m no raw SQL reads the versions table outside the store, each call read whole (rawCalls) [33m 8747[2mms[22m[39m
+     [33m[2m✓[22m[39m no file that touches the estimate selects a value or a reason [33m 7776[2mms[22m[39m
+     [33m[2m✓[22m[39m sealed figures are made only by the store [33m 6784[2mms[22m[39m
+     [33m[2m✓[22m[39m nothing under src/app reads the figures before 6.7 discloses them [33m 1772[2mms[22m[39m
+     [33m[2m✓[22m[39m viewFault and custodyList are imported by nothing in src/app [33m 1644[2mms[22m[39m
+     [33m[2m✓[22m[39m the literal 4,200,000 appears nowhere in src/ [33m 6576[2mms[22m[39m
+     [33m[2m✓[22m[39m the export act selects sections and lines only: no estimate, no exercise value, no matter amount [33m 6046[2mms[22m[39m
+     [33m[2m✓[22m[39m nothing in a client component builds a bill's file: exports are built on the server [33m 7567[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/clauses.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/conditions.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/lib/payment/opening-release-line.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/scope/pack.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/award/gate-sums-note.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/labels-a2.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/labels.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/window/sale-register-words.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/committee/assess-sitting.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/sale-link-permission.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/authority/rejection.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/reference/vocabulary.test.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/method/drift.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/negotiated-round.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/payment/text-lines-ms.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/method/evaluate.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/eligibility.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/components/accordion-wrap.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/payment/advance-order.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/contract/baseline-entry.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/permission-again.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/time/extension.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/payment/opening-release.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/config.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/committee/contract-tabling.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/scope/bq.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/lib/committee/exercise-failure.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/lib/opening/panel.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/library.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/method/route-domains-window.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/documents/demo-wipe-plan.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/records.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/documents/supplier-owner.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/organisation/structure.test.ts [2m([22m[2m26 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/route.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/window/template-save.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/securities/insurance.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/pending-text.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/effective-text.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/route.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/people/capabilities.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/fix-dates.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/time/entitlement.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/window/evaluation-pin.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/window/migration.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/payment/lad-rounding.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/effective-text.scan.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/template-not-set.test.ts [2m([22m[2m29 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/variation/instruction.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/documents/owner-facts.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/expiry.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/budget/availability.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/matter/matter.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/lib/adjustment/ppjhk.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/lib/organisation/details.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/lib/contract/copies-custody.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/documents/contract-owner.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/config.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/status.test.ts [2m([22m[2m32 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/live-standing.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/documents/media.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/blocks.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/budget/finance.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/lib/method/name-list.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/people/recommendation.test.ts [2m([22m[2m31 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/lib/contract/award-correction.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/organisation/whole-path.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/authority/requester-only.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/payment/opening.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/lib/securities/liability.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/audit/diff.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/lib/labels.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/lib/people/roster.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/lib/contract/stage.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/payment/route.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/contract/baseline-extension.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/lib/contract/status.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/method/config.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/variation/measure.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/contract/act-status-edges.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/intake.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/opening/finalise.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/window/invitees.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/bids/window-fields.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/people/delegation.test.ts [2m([22m[2m28 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/method/taxonomy.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/lib/scan/source.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/committee/quorum.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/authority/escalation.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/config.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/ratio-c5.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/cancellation.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/config-conditions.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/opening/open.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/lib/method/window-transitions.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/signature.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/lib/award/evaluation-gate.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/identity.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/lib/method/proposal.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/corrections.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/demo/clock.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/payment/valuation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/lib/securities/bond.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/lib/lad/waiver.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/method/value.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/sheet-words.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/window/fee.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/contract/formation.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/lib/lad/non-completion.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/lib/budget/end-allocation.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/labels.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/lib/method/contract-type.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/lib/approvals/successor-owner.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/window/demo-ids.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/endorsement.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/opening/start.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/payment/advance.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/method/snapshot.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/lib/lad/scopes.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/splitting.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/lad/labels.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/opening/verdict.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/documents/retention-period.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/authority/decided-step.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/bids/validity.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/authority/issue.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/time/labels.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/move.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/method/exercise.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/fidelity.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/authority/boundary-sen.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/method/tendering-transitions.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/standing-order.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/window/name-citation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/cancellation-words.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/variation/order.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/lib/payment/variation-check.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/programme.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/time/route.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/documents/store/store.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/tabled-version.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/lib/lad/basis.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/lib/bids/extension.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/committee/sitting.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/printed.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/fields.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/authority/gaps.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/documents/legal-comments-reliance.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/method/audit-view.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/sealed.test.ts [2m([22m[2m41 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+ [32m✓[39m src/lib/percent-band.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/payment/route-state.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/bids/correction.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/method/eligibility.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/variation/percent.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/award/clocks.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/contract/sign-so.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/opening/withdrawals.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/documents/readiness.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/integration/vendor-master.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/award/insurance-terms-allrisks.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/demo-ids.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/ui/cut-text.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/opening/unseal.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/budget/analysis.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/lib/award/exercise-gate.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/opening/grand-summary.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/opening/award-gate.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/opening/no-return-after-write.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/printed-sheet.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/documents/evaluation-owner.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/frozen-view.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/opening/checklist.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/opening/config.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/standing.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/documents/retention.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/documents/request-guard.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/award/bids-gate.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/lib/window/config.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/lib/lad/charge.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/authority.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/documents/versioning.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/payment/retention.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/permit.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/window/edit.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/award/readiness-wc.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/committee/seats.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/window/evaluation-cancel.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/documents/window-owner.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/behaviour.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/documents/cancellation-owner.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/documents/views.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/window/addendum.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/method/boundary.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/opening/estimate-copy.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/lad/credit.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/opening/schedule.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/form-needs.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/adjustment/words.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/ui/tab-keys.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/award/signatory-cond.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/ui/status-tone.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/run1a-words.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/payment/eligibility.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/authority/contract-type.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/bids/demo-ids.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/scope/unique-violation.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/method/evaluation-states.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/judged-window.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/window/cancel-after-opening.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/list-page.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/opening/state.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/documents/opening-owner.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/securities/expiry.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/watched-lists.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/documents/instruction-owner.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/documents/evidence.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/people/labels.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/contract/projects-list.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/supervision/blocks-recommending.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/securities/period.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/bids/lateness.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/sent-back.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/lib/security-headers.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/opening/box.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/library-statuses.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/bids/estimate.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/bids/late.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/consent-cure.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/reinstate.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/paging.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/time/loss-expense.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/documents/tender-part-owner.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/award/audit-view.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/payment/apg-warning.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/bids/receipt.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/lib/award/opening-gate.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/scope/tx-timeout.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/lib/time/period.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/cancellation-scan.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/lib/people/recommendation-zone.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/documents/bids-owner.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/payment/minimum.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/lad/one-decision.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/award/stage-two.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/funding.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/award/mask.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/committee-step.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/lib/approvals/certificate-escalate-cancelled.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/in-force.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/lad/segments.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/committee/gaps.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/assurance.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/payment/advance-skip.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/opening/carry.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/documents/concurrency.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/bids/box.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/bids/withdrawal.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/return-not-set.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/sale-hook.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/ui/strip-scroll.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/approvals/supplier-routes-a2.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/lad/accrual.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/evaluation/route.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/components/data-list-badge-wrap.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/lines.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/suspend-words.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/scope/config-locks.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/committee/minutes.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/award/ceiling-unset-text.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/bids/count.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/bids/completeness.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/tender-docs/reasons-required.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/award/supplier-register.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/suppliers/held-in-force.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/requisition/commitment.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/method/profile.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/audit/core-routing-trail.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/integration/award-commitment.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/window/sale-checks.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/certificate/route-words.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/method/name-route-wiring.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/window/closing-soon.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/award/readiness.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/committee/evaluation-tabling.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/lad/frozen.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/lib/opening/findings.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/payment/materials.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/window/sale-supplier-choices.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/lib/opening/panel-unit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/lib/approvals/routed-value.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/lib/bids/alternatives.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/lib/method/negotiation-route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/lib/award/terms.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/lib/window/addendum-wording.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/app/configuration/history-entities.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/lib/time/run1b-writers.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/documents/owner-check.test.ts [2m([22m[2m46 tests[22m[2m)[22m[33m 96790[2mms[22m[39m
+     [33m[2m✓[22m[39m one_owner counts exactly those keys [33m 1221[2mms[22m[39m
+     [33m[2m✓[22m[39m purpose_owner pairs every purpose with its owner's key, as PURPOSE_OWNER does [33m 1298[2mms[22m[39m
+     [33m[2m✓[22m[39m bqVersionId is counted by one_owner and BQ_IMPORT_SOURCE pairs with it [33m 2483[2mms[22m[39m
+     [33m[2m✓[22m[39m tenderPackPartId is counted by one_owner and TENDER_PART pairs with it [33m 2462[2mms[22m[39m
+     [33m[2m✓[22m[39m the purpose arrived in its own migration, before the migration that rebuilt the CHECKs with it [33m 2641[2mms[22m[39m
+     [33m[2m✓[22m[39m addendumId is counted by one_owner and ADDENDUM_SIGNED pairs with it [33m 2548[2mms[22m[39m
+     [33m[2m✓[22m[39m a publication's proof and an attendance sheet are the exercise's [33m 1288[2mms[22m[39m
+     [33m[2m✓[22m[39m ADDENDUM_SIGNED arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2234[2mms[22m[39m
+     [33m[2m✓[22m[39m PUBLICATION_PROOF arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2471[2mms[22m[39m
+     [33m[2m✓[22m[39m ATTENDANCE_SHEET arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 3572[2mms[22m[39m
+     [33m[2m✓[22m[39m bidWithdrawalId and validityExtensionId are counted by one_owner, and their purposes pair with them [33m 3235[2mms[22m[39m
+     [33m[2m✓[22m[39m WITHDRAWAL_LETTER arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 3028[2mms[22m[39m
+     [33m[2m✓[22m[39m VALIDITY_CONSENT arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2548[2mms[22m[39m
+     [33m[2m✓[22m[39m only a LATE_TENDER matter names an envelope (CHECK) [33m 1355[2mms[22m[39m
+     [33m[2m✓[22m[39m openingId is counted by one_owner and SIGNED_SCHEDULE pairs with it [33m 2597[2mms[22m[39m
+     [33m[2m✓[22m[39m the purpose arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2584[2mms[22m[39m
+     [33m[2m✓[22m[39m their keys are counted by one_owner and each purpose pairs with its owner [33m 3155[2mms[22m[39m
+     [33m[2m✓[22m[39m CPR_REPORT arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2504[2mms[22m[39m
+     [33m[2m✓[22m[39m COMMUNICATION arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2227[2mms[22m[39m
+     [33m[2m✓[22m[39m MEETING_MINUTES arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2856[2mms[22m[39m
+     [33m[2m✓[22m[39m TENDERER_CONFIRMATION arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2991[2mms[22m[39m
+     [33m[2m✓[22m[39m REPORT_DRAWINGS arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 3126[2mms[22m[39m
+     [33m[2m✓[22m[39m SIGNED_REPORT arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2066[2mms[22m[39m
+     [33m[2m✓[22m[39m SIGNED_PROPOSAL_PAPER arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2676[2mms[22m[39m
+     [33m[2m✓[22m[39m an EVALUATION_STAGE matter alone names an evaluation bidder [33m 1459[2mms[22m[39m
+     [33m[2m✓[22m[39m their keys are counted by one_owner and each purpose pairs with its owner [33m 3895[2mms[22m[39m
+     [33m[2m✓[22m[39m SUPPLIER_DOCUMENT arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 3457[2mms[22m[39m
+     [33m[2m✓[22m[39m SUPPLIER_DECLARATION arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2757[2mms[22m[39m
+     [33m[2m✓[22m[39m SUPPLIER_EPAYMENT_FORM arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2428[2mms[22m[39m
+     [33m[2m✓[22m[39m the SUPPLIER matter kind arrived alone, and a SUPPLIER route names exactly one supplier record while any other route names none (a2) [33m 3255[2mms[22m[39m
+     [33m[2m✓[22m[39m its key is counted by one_owner and each of its six purposes pairs with it [33m 2479[2mms[22m[39m
+     [33m[2m✓[22m[39m COMPANY_RESOLUTION arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2238[2mms[22m[39m
+     [33m[2m✓[22m[39m LEGAL_SUBMISSION arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2166[2mms[22m[39m
+     [33m[2m✓[22m[39m LEGAL_COMMENTS arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 2026[2mms[22m[39m
+     [33m[2m✓[22m[39m RECONCILIATION arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 1473[2mms[22m[39m
+     [33m[2m✓[22m[39m SIGNED_CONTRACT arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 1486[2mms[22m[39m
+     [33m[2m✓[22m[39m STAMPING_CERTIFICATE arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 1173[2mms[22m[39m
+     [33m[2m✓[22m[39m a controlled copy has exactly one owner, built by hand (6.14 adds the certificate to the same CHECK) [33m 761[2mms[22m[39m
+     [33m[2m✓[22m[39m its key is counted by one_owner and its purpose pairs with it [33m 2092[2mms[22m[39m
+     [33m[2m✓[22m[39m INSTRUCTION_SKETCH arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 1389[2mms[22m[39m
+     [33m[2m✓[22m[39m its key is counted by one_owner and its purpose pairs with it [33m 1997[2mms[22m[39m
+     [33m[2m✓[22m[39m REGISTRATION_CANCELLATION_NOTICE arrived alone in its own migration, before the migration that rebuilt the CHECKs with it [33m 1064[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m568 passed[39m[22m[90m (568)[39m
+[2m      Tests [22m [1m[32m8774 passed[39m[22m[90m (8774)[39m
+[2m   Start at [22m 14:33:23
+[2m   Duration [22m 98.27s[2m (transform 201.06s, setup 0ms, import 545.65s, tests 590.47s, environment 132ms)[22m
+
+powershell : npm notice
+At line:1 char:302
++ ... tch {} } }; powershell -NoProfile -File scripts\test-linux.ps1 *> doc ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm notice:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+npm notice New major version of npm available! 10.9.9 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

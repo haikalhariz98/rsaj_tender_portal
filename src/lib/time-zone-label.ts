@@ -51,9 +51,10 @@ export function utcOffsetLabel(timeZone: string, at: Date = new Date()): string 
   const part = new Intl.DateTimeFormat("en", { timeZone, timeZoneName: "longOffset" })
     .formatToParts(at)
     .find((p) => p.type === "timeZoneName")?.value;
-  // "GMT+08:00" | "GMT-03:30" | "GMT"
+  // "GMT+08:00" | "GMT-03:30" | "GMT"; newer ICU (78+) writes UTC itself as "GMT+00:00"
   const m = /^GMT(?:([+-−])(\d{1,2})(?::(\d{2}))?)?$/.exec(part ?? "");
   if (!m || !m[1]) return "UTC";
+  if (Number(m[2]) === 0 && (!m[3] || m[3] === "00")) return "UTC";
   const sign = m[1] === "−" ? "-" : m[1];
   const hours = String(Number(m[2]));
   return `UTC${sign}${hours}${m[3] && m[3] !== "00" ? `:${m[3]}` : ""}`;
