@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { CertificateKind } from "@/lib/certificate/types";
 import type { ContractStatus } from "@/lib/contract/types";
-import { actStatusFault, actStatusText, statusCalloutTitle, certificateAct, certificatePhase } from "@/lib/contract/act-status";
+import { actStatusFault, actStatusText, statusCalloutTitle, certificateAct, certificateGates, certificatePhase } from "@/lib/contract/act-status";
 import { draftSigningFaults, matterSigningFaults } from "@/lib/certificate/kinds";
 import { historyEntityLabel, RECORD_TYPE_WORDS } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
 
 import { CheckIcon, ClockIcon, FileIcon, InboxIcon, PrinterIcon, RouteIcon, ToolsIcon } from "@/components/icons";
+import { ActGate } from "@/components/act-gate";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
@@ -90,6 +91,9 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   if (!l || l.contract.id !== id) notFound();
   const cert = l.cert;
   const certStatusRefused = actStatusFault(certificateAct(cert.kind as CertificateKind, certificatePhase(cert.status as CertificateStatus)), l.contract.status as ContractStatus);
+  // Code re-review S-2: the acts' own gates (the void's by S-1's rule), in the acts' words. They wrap the header's acts and
+  // the tabs, so every drawer and blocked control on the page says what its act would.
+  const gates = certificateGates(cert.kind as CertificateKind, cert.status as CertificateStatus, l.contract.status as ContractStatus);
   const status = cert.status as CertificateStatus;
   const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
   const [people, roles] = await Promise.all([
@@ -187,12 +191,16 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
           `Baseline version ${cert.baseline.version}`,
           l.award.awardeeName,
         ].filter((x): x is string => x != null)}
-        actionsNote={actionNote ?? undefined}
+        actionsNote={(action ? gates.acts : null) ?? actionNote ?? undefined}
         actionsNoteId={NOTE_ID}
         actions={
           <span className="flex flex-wrap items-center gap-2">
-            {action}
-            {(status === "DRAFT" || status === "IN_ROUTING" || status === "SIGNING") && <VoidDrawer certId={cert.id} blocker={voidBlocker} />}
+            <ActGate blocker={gates.acts}>{action}</ActGate>
+            {(status === "DRAFT" || status === "IN_ROUTING" || status === "SIGNING") && (
+              <ActGate blocker={gates.void}>
+                <VoidDrawer certId={cert.id} blocker={voidBlocker} />
+              </ActGate>
+            )}
           </span>
         }
       />
@@ -230,7 +238,9 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
           </Callout>
         ))}
       </div>
-      <Tabs initial={tab} label="Certificate" tabs={tabs} />
+      <ActGate blocker={gates.acts}>
+        <Tabs initial={tab} label="Certificate" tabs={tabs} />
+      </ActGate>
     </>
   );
 }

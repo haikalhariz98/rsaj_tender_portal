@@ -319,6 +319,21 @@ export function statusCalloutTitle(status: ContractStatus): Words {
 /// The act's refusal as the acts and screens say it (English, as every screen shows; Malay beside it in actStatusWords).
 export const actStatusText = (f: Finding) => actStatusWords(f).en;
 
+/// A cancelled contract, as the certificate acts' wrapper words it (6.14; pinned in act-status-pin.test.ts), English
+/// and Malay.
+export const CERTIFICATE_CANCELLED_WORDS: Words = { en: "The contract is cancelled: its certificates are kept as they were.", ms: "Kontrak dibatalkan: perakuannya dikekalkan seperti sedia ada." };
+
+/**
+ * Code re-review S-2: the certificate page's gates, in its acts' words. `acts` gates every act the certificate's phase
+ * offers (certificateAct by certificatePhase: before its issue the kind's family, after it the post-issue family);
+ * `void` gates its void (certificateVoidAct, S-1). Null where the table lets the act through to its own rule. The act's
+ * wrapper asks the same two functions under the lock.
+ */
+export function certificateGates(kind: CertificateKind, certStatus: CertificateStatus, contractStatus: ContractStatus): { acts: string | null; void: string | null } {
+  const say = (f: Finding | null) => (f ? (f.code === "CONTRACT_CANCELLED" ? CERTIFICATE_CANCELLED_WORDS.en : actStatusText(f)) : null);
+  return { acts: say(actStatusFault(certificateAct(kind, certificatePhase(certStatus)), contractStatus)), void: say(actStatusFault(certificateVoidAct(kind, certStatus), contractStatus)) };
+}
+
 /// Review S1: a panel's blocker for its family's acts, first in every blocker the panel computes: the table's refusal in
 /// the acts' own words (cancelled included), or null where the family is recorded in the state.
 export function actStatusBlocker(act: ContractAct, status: ContractStatus): string | null {

@@ -6,7 +6,7 @@ import { CERTIFICATE_KINDS, CERTIFICATE_STATUSES, type CertificateKind } from "@
 import { voidFaults } from "@/lib/certificate/void";
 import { certificateFaultWords } from "@/lib/certificate/fault-text";
 
-import { ACT_STATUS, actStatusFault, actStatusText, certificateAct, certificateVoidAct, CERTIFICATE_PHASES, KIND_ISSUE_WRITES, WRITER_FAMILY } from "./act-status";
+import { ACT_STATUS, actStatusFault, actStatusText, certificateAct, CERTIFICATE_CANCELLED_WORDS, certificateGates, certificatePhase, certificateVoidAct, CERTIFICATE_PHASES, KIND_ISSUE_WRITES, WRITER_FAMILY } from "./act-status";
 import { STATUS_WRITTEN_BY } from "./status";
 import { CONTRACT_STATUSES, type ContractStatus } from "./types";
 
@@ -163,5 +163,36 @@ describe("S-1: voiding an unissued certificate reads the CERTIFICATE row", () =>
       for (const cs of [...UNISSUED, "VOID"] as const) expect(certificateVoidAct(k, cs), `${k} ${cs}`).toBe("CERTIFICATE");
       expect(certificateVoidAct(k, "ISSUED"), k).toBe(certificateAct(k, "POST_ISSUE"));
     }
+  });
+});
+
+/**
+ * Code re-review S-2: the certificate page's gates are its acts' answers, in its acts' words. The wrapper refuses with the
+ * table's family by phase (or the void's), and a cancelled contract with its own words. The page wraps its header's acts
+ * and its tabs in these gates (act-status-screens.test.ts).
+ */
+describe("S-2: the certificate page's gates say what its acts would", () => {
+  const wrapper = (k: CertificateKind, cs: (typeof CERTIFICATE_STATUSES)[number], s: ContractStatus, phase: "ACTS" | "VOID") => {
+    const f = actStatusFault(phase === "VOID" ? certificateVoidAct(k, cs) : certificateAct(k, certificatePhase(cs)), s);
+    return f ? (f.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: its certificates are kept as they were." : actStatusText(f)) : null;
+  };
+
+  it("for every kind, certificate state and contract state, each gate is the wrapper's answer", () => {
+    for (const k of CERTIFICATE_KINDS)
+      for (const cs of CERTIFICATE_STATUSES)
+        for (const s of CONTRACT_STATUSES) expect(certificateGates(k, cs, s), `${k} ${cs} ${s}`).toEqual({ acts: wrapper(k, cs, s, "ACTS"), void: wrapper(k, cs, s, "VOID") });
+  });
+
+  it("the cancelled words are the wrapper's own (source), in English and Malay", () => {
+    const acts = readFileSync("src/app/projects/[id]/certificates/[certId]/actions.ts", "utf8");
+    expect(acts).toContain(`const CANCELLED: FormState = { ok: false, message: "${CERTIFICATE_CANCELLED_WORDS.en}" };`);
+    expect(CERTIFICATE_CANCELLED_WORDS.ms).toBe("Kontrak dibatalkan: perakuannya dikekalkan seperti sedia ada.");
+  });
+
+  it("an EOT draft once the final certificate is issued: its acts refused in the table's words, its void open", () => {
+    expect(certificateGates("EOT", "DRAFT", "FINAL_CERTIFICATE_ISSUED")).toEqual({ acts: "Not recorded while the contract stands at “Final certificate issued”.", void: null });
+    expect(certificateGates("INTERIM_PAYMENT", "SIGNING", "FINAL_CERTIFICATE_ISSUED")).toEqual({ acts: "Not recorded while the contract stands at “Final certificate issued”.", void: null });
+    expect(certificateGates("INTERIM_PAYMENT", "ISSUED", "FINAL_CERTIFICATE_ISSUED")).toEqual({ acts: null, void: null });
+    expect(certificateGates("INTERIM_PAYMENT", "DRAFT", "ACTIVE")).toEqual({ acts: null, void: null });
   });
 });

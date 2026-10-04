@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ContractStatus } from "@/lib/contract/types";
-import { actStatusFault, actStatusText, statusCalloutTitle } from "@/lib/contract/act-status";
+import { actStatusBlocker, actStatusFault, actStatusText, statusCalloutTitle } from "@/lib/contract/act-status";
 import { notFound } from "next/navigation";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
@@ -10,6 +10,7 @@ import { ClockIcon, FileIcon, RouteIcon, ScaleIcon, ToolsIcon, WalletIcon } from
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { Badge, Chip } from "@/components/ui/badge";
+import { ActGate } from "@/components/act-gate";
 import { Blocked } from "@/components/ui/blocked";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -101,8 +102,11 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
   const zone = today ? null : "Set the organisation's time zone first.";
   // ADR 0031 (run 1a): the acts' own table, so the page refuses where the act would.
   const statusRefused = actStatusFault("VARIATION", l.contract.status as ContractStatus);
-  const cancelled = statusRefused?.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: it is kept as it was." : statusRefused ? actStatusText(statusRefused) : null;
-  const blockedBy = zone ?? cancelled;
+  // Code re-review S-2: the table's refusal in the variation acts' words (their wrapper's, cancelled included). It gates the
+  // header's acts and the tabs, so a drawer with no blocker of its own (citing a committee, escalating, deciding a step,
+  // choosing where a refusal goes, the oral instruction's loop) says what its act would.
+  const gate = actStatusBlocker("VARIATION", l.contract.status as ContractStatus);
+  const blockedBy = zone ?? gate;
 
   // The header's acts, by where it stands, each judged by its act's own rule.
   const s = today ? await loadSupervision(l.contract.id) : null;
@@ -171,8 +175,10 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
         actionsNoteId={NOTE_ID}
         actions={
           <span className="flex flex-wrap items-center gap-2">
-            {action}
-            {stage !== "CLOSED" && stage !== "CERTIFIED" && stage !== "INSTRUCTED" && <CloseVariationDrawer id={l.contract.id} variationId={v.id} people={people} blocker={closeBlocker} />}
+            <ActGate blocker={gate}>
+              {action}
+              {stage !== "CLOSED" && stage !== "CERTIFIED" && stage !== "INSTRUCTED" && <CloseVariationDrawer id={l.contract.id} variationId={v.id} people={people} blocker={closeBlocker} />}
+            </ActGate>
           </span>
         }
       />
@@ -185,7 +191,9 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
         {commencedPending(f) && <Callout tone="warn" title="Commenced pending approval">{`Work commenced on ${formatDate(day(v.commencedOn))} on the support of ${v.commencedSupport?.name ?? "the S.O."}. Its estimate (${formatMoney(f.estimate)}) is in the contract's exposure until it is approved, and its work is not valued until then.`}</Callout>}
         {!EXECUTED_STATUSES.includes(l.contract.status) && <Callout tone="info" title="The contract is not executed">{variationFaultText({ code: "NOT_EXECUTED", level: "block" })}</Callout>}
       </div>
-      <Tabs initial={tab} label="Variation" tabs={tabs} />
+      <ActGate blocker={gate}>
+        <Tabs initial={tab} label="Variation" tabs={tabs} />
+      </ActGate>
     </>
   );
 }

@@ -1,0 +1,13 @@
+# Run 1a residual round, commit 3 (S-2: the certificate and variation pages gated; the screens scan over every .tsx). 2026-10-04T09:48:13Z
+## npm run check
+✓ Types generated successfully
+
+> perolehan@0.1.0 lint
+> eslint && node scripts/check-ui.mjs
+
+UI scaffolding check passed.
+exit: 0
+## full suite
+ Test Files  546 passed (546)
+      Tests  8535 passed (8535)
+exit: 0

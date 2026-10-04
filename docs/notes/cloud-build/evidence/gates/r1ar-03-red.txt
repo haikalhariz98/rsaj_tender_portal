@@ -1,0 +1,260 @@
+
+ RUN  v4.1.10 /home/user/repo
+
+ ❯ src/lib/contract/act-status-screens.test.ts (16 tests | 2 failed) 95ms
+     × the certificate and variation pages ask one function for their gates and wrap their header's acts and their tabs in them 8ms
+     × over the product: no gated section reaches an ungated opener, and every named exception is reached 49ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/contract/act-status-screens.test.ts > S1 and S-2: every component on the contract's pages that offers an act states its family's refusal first and is gated > the certificate and variation pages ask one function for their gates and wrap their header's acts and their tabs in them
+AssertionError: CertificatePage /const gates = certificateGates\(cert\.kind as CertificateKind, cert\.status as CertificateStatus, l\.contract\.status as ContractStatus\);/: expected 'export default async function Certifi…' to match /const gates = certificateGates\(cert\…/
+
+- Expected:
+/const gates = certificateGates\(cert\.kind as CertificateKind, cert\.status as CertificateStatus, l\.contract\.status as ContractStatus\);/
+
++ Received:
+"export default async function CertificatePage(props: PageProps<\"/projects/[id]/certificates/[certId]\">) {
+  const [{ id, certId }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
+  const l = await loadCertificate(certId);
+  if (!l || l.contract.id !== id) notFound();
+  const cert = l.cert;
+  const certStatusRefused = actStatusFault(certificateAct(cert.kind as CertificateKind, certificatePhase(cert.status as CertificateStatus)), l.contract.status as ContractStatus);
+  const status = cert.status as CertificateStatus;
+  const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
+  const [people, roles] = await Promise.all([
+    db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: \"asc\" }, select: { id: true, name: true } }),
+    db.authorityRole.findMany({ where: { organisationId: l.org.id }, select: { code: true, nameEn: true } }),
+  ]);
+  const officeName = (code: string | null) => roles.find((r) => r.code === code)?.nameEn ?? \"An office no longer configured\";
+  const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));
+  const snap = readComputedSnapshot(cert.computedSnapshot);
+  const figures = snap ? applyOverrides(snap, cert.overrides) : null;
+  const figuresNow = figures;
+  const pinned = readRevision(cert.templateRevision);
+  const form = pinned ? null : await templateNow(cert.templateId);
+  const blocks: Block[] = pinned ? pinned.blocks : (form?.blocks ?? []).slice().sort((a, b) => a.blockOrder - b.blockOrder);
+  const sheet = today ? sheetOf(cert, today) : null;
+  // 6.13 Part A: who holds the S.O.'s blocks today, from the contract's supervision; and whether the S.O. follows the sum (OD-A7).
+  const supervisedRules = [...new Set(blocks.map((b) => b.officeRule).filter(isSupervisedRule))];
+  const supervised: Partial<Record<SupervisedRule, SupervisedToday>> = today
+    ? Object.fromEntries(
+        await Promise.all(
+          supervisedRules.map(async (r) => {
+            const h = await supervisedHoldersOn(l, r, today, undefined, cert.kind);
+            return [r, { soLabel: h.soLabel, names: h.holders ? h.holders.holderIds.map((id) => people.find((p) => p.id === id)?.name ?? \"someone not active on record\") : null, recommends: RECOMMENDING_ACT[cert.kind] != null }] as const;
+          }),
+        ),
+      )
+    : {};
+  const reResolveUnset = supervisedRules.includes(\"SO\") && ((await loadPostAwardPolicy(l.org.id))?.soReResolve ?? null) == null;
+  const dateNow = certificateDateOf(blocks, signedOf(cert));
+  const paid = await db.financePayment.findUnique({ where: { certificateId: cert.id }, include: { person: { select: { name: true } } } });
+  // 614-C4: the route and its steps are the certificate's trail too, and Finance's payment of it.
+  const ids = [cert.id, ...cert.signatures.map((s) => s.id), ...cert.overrides.map((o) => o.id), ...cert.routingChecks.map((r) => r.id), ...cert.copies.map((c) => c.id), ...cert.approvalInstances.flatMap((i) => [i.id, ...i.steps.map((x) => x.id)]), ...(paid ? [paid.id] : [])];
+  const [history, historyTotal] = await Promise.all([
+    db.auditEntry.findMany({ where: { organisationId: l.org.id, entityId: { in: ids } }, orderBy: { at: \"desc\" }, take: HISTORY_PAGE }),
+    db.auditEntry.count({ where: { organisationId: l.org.id, entityId: { in: ids } } }),
+  ]);
+  const kind = KIND_WORDS[cert.kind].en;
+
+  // The header's next act, judged by the act's own rules.
+  let action: React.ReactNode = null;
+  let actionNote: string | null = null;
+  // 6.13 Part A step 3 (614-C4): a certificate a post-award module raised opens its own approval route here, as the
+  // module's act judges it (its state, and the figure it is routed on).
+  const domain = KIND_ROUTE_DOMAIN[cert.kind];
+  const latest = latestCertificateRoute(cert.approvalInstances);
+  const submitState = domain ? submitStateFaults({ domain, status, latest: latest ? { status: latest.status, applied: latest.rejectionApplied, choices: latest.rejectionChoices } : null }) : [];
+  const routable = !!domain && submitState.length === 0;
+  if (routable) {
+    const policy = await loadPostAwardPolicy(l.org.id);
+    const v = routeValueOf(cert.kind, figuresNow, policy?.paymentRouteFigure ?? null, parseSen(cert.baseline.contractSum.toString()));
+    const blocker = !today ? \"Set the organisation's time zone first.\" : Array.isArray(v) ? v.map(paymentFaultText).join(\" \") : null;
+    actionNote = blocker;
+    action = <SendForApprovalDrawer certId={cert.id} figure={Array.isArray(v) ? \"its figure\" : `${v.figure} (${formatMoney(v.value)})`} people={peopleOptions} blocker={blocker} again={!!latest} />;
+  } else if (status === \"DRAFT\" && cert.routingTypeId) action = <SendForRoutingDrawer certId={cert.id} typeLabel={cert.routingType?.labelEn ?? \"its type\"} blocker={today ? null : \"Set the organisation's time zone first.\"} />;
+  else if (status === \"DRAFT\") {
+    // 614-C1: the act's own rule: a money-bearing kind needs its latest approval route approved. 6.13 Part A step 4:
+    // the variation's application and order, its approval of record (the act calls the same function).
+    const own = await approvalOfRecordFaults(db, l, cert);
+    const routes = routesOf(cert.approvalInstances);
+    const money = own ?? draftSigningFaults(cert.kind, routes.length ? routes[routes.length - 1].status : null);
+    actionNote = money.length ? (own ? variationRefusal(\"\", money) : money.map(certificateFaultText).join(\" \")) : null;
+    action = money.length ? <Blocked label=\"Send to signing\" reason={actionNote!} primary noteId={NOTE_ID} /> : <SendToSigningDrawer certId={cert.id} routed={false} blocker={today ? null : \"Set the organisation's time zone first.\"} />;
+  }
+  else if (status === \"IN_ROUTING\" && sheet) {
+    // Review S5: the act's own rule from routing too: a kind approved on a contract matter fails closed.
+    const matter = matterSigningFaults(cert.kind as CertificateKind);
+    const blocker = signingBlocker(sheet) ?? (matter.length ? matter.map(certificateFaultText).join(\" \") : null);
+    actionNote = blocker;
+    action = blocker ? <Blocked label=\"Send to signing\" reason={blocker} primary noteId={NOTE_ID} /> : <SendToSigningDrawer certId={cert.id} routed blocker={null} />;
+  }
+
+  const preview = pinned ? null : pinBlocker(form, cert, today);
+  const tabs = [
+    { id: \"figures\", label: \"Figures\", icon: <FileIcon size={15} />, panel: <FiguresPanel l={l} figures={figures} people={peopleOptions} today={today} /> },
+    { id: \"signatures\", label: \"Signatures\", icon: <ToolsIcon size={15} />, count: cert.signatures.length, panel: <SignaturesPanel l={l} blocks={blocks} pinned={pinned} formName={form?.nameEn ?? null} pinBlocker={!pinned && status === \"SIGNING\" ? (preview?.text ?? null) : null} people={peopleOptions} today={today} officeName={officeName} supervised={supervised} reResolveUnset={reResolveUnset} /> },
+    { id: \"routing\", label: \"Routing sheet\", icon: <RouteIcon size={15} />, panel: <RoutingPanel l={l} sheet={sheet} people={peopleOptions} today={today} roles={roles} /> },
+    { id: \"distribution\", label: \"Distribution\", icon: <InboxIcon size={15} />, count: cert.copies.length, panel: <DistributionPanel l={l} today={today} /> },
+    { id: \"print\", label: \"Print\", icon: <PrinterIcon size={15} />, panel: <PrintPanel l={l} figures={figures} revision={pinned} form={form} sheet={sheet} /> },
+    { id: \"history\", label: \"History\", icon: <ClockIcon size={15} />, count: historyTotal, panel: <HistoryPanel entries={history} total={historyTotal} timeZone={l.org.timeZone} /> },
+  ];
+
+  const voidBlocker = cert.approvalInstances.some((i) => i.status === \"PENDING\") ? \"Its approval route is still waiting for a decision: refuse it on the route first (Approvals).\" : null;
+  return (
+    <>
+      <RecordCrumb label={cert.number ?? kind} parent={l.contract.number} />
+      <PageHeader
+        eyebrow={<Link href={`/projects/${l.contract.id}?tab=documents`}>{`Contract ${l.contract.number}`}</Link>}
+        title={cert.number ? `${kind} ${cert.number}` : kind}
+        badge={<Badge tone={TONE[STATUS_TONE[status]]} dot>{STATUS_WORDS[status].en}</Badge>}
+        subtitle={l.ex.title}
+        meta={[
+          cert.number ? `Number ${cert.number}` : CERT_WORDS.numberOnIssue.en,
+          cert.sequence ? `${kind} ${cert.sequence} on this contract` : null,
+          dateNow.state === \"DATED\" ? `Dated ${formatDate(day(cert.certificateDate) ?? dateNow.day)}` : dateNow.state === \"NOT_YET\" ? \"Date set when signed\" : cert.templateId ? CERT_WORDS.notDatedBySignature.en : \"No form chosen\",
+          `Baseline version ${cert.baseline.version}`,
+          l.award.awardeeName,
+        ].filter((x): x is string => x != null)}
+        actionsNote={actionNote ?? undefined}
+        actionsNoteId={NOTE_ID}
+        actions={
+          <span className=\"flex flex-wrap items-center gap-2\">
+            {action}
+            {(status === \"DRAFT\" || status === \"IN_ROUTING\" || status === \"SIGNING\") && <VoidDrawer certId={cert.id} blocker={voidBlocker} />}
+          </span>
+        }
+      />
+      <div className=\"mb-6 flex flex-col gap-3\">
+        {!today && (
+          <Callout tone=\"warn\" title=\"The organisation's time zone is not set\">
+            Every act on a certificate records the organisation&apos;s day, and its date is the day of the authorising signature: none is assumed to be UTC.
+          </Callout>
+        )}
+        {l.contract.status === \"CANCELLED\" && <Callout tone=\"warn\" title=\"The contract is cancelled\">Its certificates are kept as they were; nothing more is recorded on them.</Callout>}
+        {/* ADR 0031 (run 1a): the acts' own table for this certificate's kind, so the page says what its acts would. */}
+        {certStatusRefused && certStatusRefused.code !== \"CONTRACT_CANCELLED\" && <Callout tone=\"warn\" title={statusCalloutTitle(l.contract.status as ContractStatus).en}>{actStatusText(certStatusRefused)}</Callout>}
+        {/* 6.14 increment 2 (FR-CRT-012): a draft whose form could not be signed on yet says so from the start, by the first signature's own rule. */}
+        {/* Residual M-1: the act's own function (pinCheck); with the time zone not set, a started sheet's values say \"not judged\". */}
+        {(status === \"DRAFT\" || status === \"IN_ROUTING\") && preview && (
+          <Callout tone=\"warn\" title={preview.judged ? PRINT_WORDS.notReadyTitle.en : PRINT_WORDS.notJudgedTitle.en}>
+            {/* S-6: \"until this is put right\" is no exit for a certificate raised without a form: its own words say what is. */}
+            {preview.formless ? preview.text : `${preview.text} ${PRINT_WORDS.notReadyTail.en}`}
+          </Callout>
+        )}
+        {status === \"VOID\" && (
+          <Callout tone=\"warn\" title=\"Void\">
+            {cert.voidReason} It was never numbered, so it leaves no gap.
+          </Callout>
+        )}
+        {/* 612-C1: a correction version written after execution carries the Contract Date, so it is not \"before execution\". */}
+        {cert.baseline.contractDate == null && (
+          <Callout tone=\"info\" title=\"Read from a baseline before execution\">
+            {`This certificate reads baseline version ${cert.baseline.version}, recorded ${formatDate(day(cert.baseline.recordedOn))}, before the contract was executed (the first certificates may be raised before it is). A later version never changes it.`}
+          </Callout>
+        )}
+        {correctedAfter(cert.baseline.version ?? 0, l.contract.baselines).map((m) => (
+          <Callout key={m.version} tone=\"info\" title=\"Its baseline was corrected after issue\">
+            {`The award's recorded ${BASELINE_FIELD_WORDS[TERM_FIELD[m.term]].en.toLowerCase()} was corrected from ${m.from} to ${m.to} in baseline version ${m.version}, after this certificate read version ${cert.baseline.version}. It keeps the version it read.`}
+          </Callout>
+        ))}
+      </div>
+      <Tabs initial={tab} label=\"Certificate\" tabs={tabs} />
+    </>
+  );
+}
+
+function signingBlocker(sheet: Sheet): string | null {
+  const reasons: string[] = [];
+  if (!sheet.date1) reasons.push(\"Record the day it was received first.\");
+  if (sheet.routeState === \"NONE\") reasons.push(\"No approval route is open for it: the module that raised it opens one.\");
+  if (sheet.routeState === \"PENDING\") reasons.push(\"Its approval route is waiting for a decision.\");
+  if (sheet.routeState === \"REJECTED\") reasons.push(\"Its approval route was refused: it goes on only on a resubmitted route.\");
+  if (sheet.routeState === \"RECALLED\") reasons.push(\"Its approval route was recalled before a decision: it goes on only on a new route.\");
+  const open = sheet.current.checks.filter((c) => !c.recorded).map((c) => c.def.labelEn);
+  if (open.length) reasons.push(`Still to record in this round: ${open.join(\", \")}.`);
+  return reasons.length ? reasons.join(\" \") : null;
+}
+
+/// The first signature's refusal, by the act's own function; `judged` false where the only finding is \"not judged\".
+function pinBlocker(form: Awaited<ReturnType<typeof templateNow>>, cert: LoadedCertificate[\"cert\"], today: string | null): { text: string; judged: boolean; formless: boolean } | null {
+  const fs = pinCheck(form, cert, today);
+  if (!fs.length) return null;
+  const judged = fs.some((f) => f.code !== \"SHEET_NOT_JUDGED\");
+  return { text: refusalText(judged ? \"The first signature is refused:\" : \"Not judged yet:\", fs), judged, formless: fs.every((f) => f.code === \"RAISED_WITHOUT_FORM\") };
+}
+
+// ------------------------------------------------------------------ figures
+
+function figureText(type: string, value: string | null): string {
+  if (value == null) return \"Not computed\";
+  if (type === \"MONEY\") return formatMoney(parseSen(value));
+  if (type === \"PERCENT\") return `${value.replace(/(\\.\\d*?)0+$/, \"$1\").replace(/\\.$/, \"\")}%`;
+  if (type === \"DAYS\") return `${value} days`;
+  if (type === \"DATE\") return formatDate(value);
+  return value;
+}
+
+"
+
+ ❯ src/lib/contract/act-status-screens.test.ts:282:127
+    280|
+    281|   it("the certificate and variation pages ask one function for their g…
+    282|     for (const [n, patterns] of Object.entries(PAGE_GATES)) for (const…
+       |                                                                                                                               ^
+    283|   });
+    284|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/contract/act-status-screens.test.ts > BD-613-123's condition: every drawer or form-opening element inside a gated section is gated > over the product: no gated section reaches an ungated opener, and every named exception is reached
+AssertionError: expected [ …(29) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#SendForRoutingDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#SendToSigningDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#ReceivedDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#CheckDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#SignatureDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#OverrideDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#CorrectDateDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#DespatchDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#AcknowledgeDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#VoidDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#SendForApprovalDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#DecideRouteStepDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#ChooseRejectionDrawer",
++   "src/app/projects/[id]/certificates/[certId]/editors.tsx#FinancePaymentDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#SubmitVariationDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#SoDecisionDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#SendVariationDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#DecideVariationStepDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#CiteCommitteeDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#ChooseVariationRefusalDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#TableVariationDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#CommenceDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#CloseVariationDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#InstructionDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#OralLoopDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#MeasurementDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#RemoveMeasurementDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#DayworkDrawer",
++   "src/app/projects/[id]/variation-editors.tsx#OrderDrawer",
++ ]
+
+ ❯ src/lib/contract/act-status-screens.test.ts:336:54
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 14 passed (16)
+   Start at  09:47:06
+   Duration  558ms (transform 129ms, setup 0ms, import 277ms, tests 95ms, environment 0ms)
+
