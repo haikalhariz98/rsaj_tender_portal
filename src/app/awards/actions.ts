@@ -65,6 +65,7 @@ import { supplierFaultText } from "@/lib/suppliers/labels";
 import { awardVendorOnParty } from "@/lib/suppliers/link";
 import { FormReader } from "@/lib/validate";
 import { contractCancellable } from "@/lib/contract/status";
+import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 
 /**
@@ -1051,6 +1052,16 @@ const CHECKED_ON_TEXT = { FUTURE: "Not after today.", BEFORE_LODGED: "Not before
 
 const registerOpen = (l: LoadedAward) => (l.award.contract && l.award.contract.status !== "CANCELLED" ? l.award.contract : null);
 
+/// Review S3 (Run 1a fix round): the register is the contract's (FR-AWD-012, 013), so each of its acts asks the act x
+/// status table under the award's lock (a contract's state is written only under it, the canonical order): FORMATION's
+/// row, to the final certificate (BD-613-122). A terminated or closed contract's register is kept as it was, in the
+/// table's words; a cancelled one keeps each act's own words (registerOpen).
+function registerRefusal(l: LoadedAward): string | null {
+  const c = l.award.contract;
+  const f = c ? actStatusFault("FORMATION", c.status as ContractStatus) : null;
+  return f && f.code !== "CONTRACT_CANCELLED" ? actStatusText(f) : null;
+}
+
 /// Lodge a bond or guarantee on the award's contract (FR-AWD-012). Verified separately.
 export async function lodgeSecurity(_prev: FormState, data: FormData): Promise<FormState> {
   const id = String(data.get("id") ?? "");
@@ -1068,6 +1079,8 @@ export async function lodgeSecurity(_prev: FormState, data: FormData): Promise<F
   };
   if (r.failed || !v.kind || !v.form || !v.value || !v.effectiveFrom || !v.lodgedOn) return { ok: false, errors: r.errors };
   return inAward(id, async (tx, l) => {
+    const refused = registerRefusal(l);
+    if (refused) return { ok: false, message: refused };
     const c = registerOpen(l);
     if (!c) return { ok: false, message: "Securities are lodged on the contract, which exists once the instrument is issued; a cancelled contract's register is kept read-only." };
     if (!l.org.today) return NO_ZONE;
@@ -1092,6 +1105,8 @@ export async function reviewSecurity(_prev: FormState, data: FormData): Promise<
   if (outcome === "REJECTED" && !reason) r.reject("reason", "Say why it is rejected.");
   if (r.failed || !outcome || !on) return { ok: false, errors: r.errors };
   return inAward(id, async (tx, l) => {
+    const refused = registerRefusal(l);
+    if (refused) return { ok: false, message: refused };
     const c = registerOpen(l);
     const s = c?.securities.find((x) => x.id === securityId);
     if (!c || !s) return { ok: false, message: "That security is not on this award's open contract." };
@@ -1143,6 +1158,8 @@ export async function lodgePolicy(_prev: FormState, data: FormData): Promise<For
   };
   if (r.failed || !v.kind || !v.sumInsured || !v.periodStart || !v.periodEnd || !v.lodgedOn) return { ok: false, errors: r.errors };
   return inAward(id, async (tx, l) => {
+    const refused = registerRefusal(l);
+    if (refused) return { ok: false, message: refused };
     const c = registerOpen(l);
     if (!c) return { ok: false, message: "Policies are lodged on the contract, which exists once the instrument is issued; a cancelled contract's register is kept read-only." };
     if (!l.org.today) return NO_ZONE;
@@ -1172,6 +1189,8 @@ export async function reviewPolicy(_prev: FormState, data: FormData): Promise<Fo
   if (outcome === "REJECTED" && !reason) r.reject("reason", "Say why it is rejected.");
   if (r.failed || !outcome || !on) return { ok: false, errors: r.errors };
   return inAward(id, async (tx, l) => {
+    const refused = registerRefusal(l);
+    if (refused) return { ok: false, message: refused };
     const c = registerOpen(l);
     const p = c?.policies.find((x) => x.id === policyId);
     if (!c || !p) return { ok: false, message: "That policy is not on this award's open contract." };

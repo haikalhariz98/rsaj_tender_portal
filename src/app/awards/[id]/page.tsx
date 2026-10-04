@@ -1,3 +1,5 @@
+import { actStatusFault } from "@/lib/contract/act-status";
+import type { ContractStatus } from "@/lib/contract/types";
 import Link from "next/link";
 import { historyEntityLabel } from "@/lib/audit/entity-labels";
 import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
@@ -1173,7 +1175,8 @@ function SecuritiesPanel({
 }) {
   const { award } = l;
   const c = award.contract;
-  const open = !!c && c.status !== "CANCELLED";
+  // Review S3: the register's acts ask FORMATION's row (cancelled, terminated and closed keep it as it was).
+  const open = !!c && !actStatusFault("FORMATION", c.status as ContractStatus);
   const issuers = f.config.issuers.filter((i) => i.retiredOn == null).map((i) => ({ value: i.id, label: i.name }));
   const months = award.completionUnit === "MONTHS" ? award.completionPeriod : null;
   const derived = derivedAnnualValue(senFromDecimal(award.awardedValue), months);
