@@ -135,32 +135,61 @@ export interface RawCall {
   at: number;
   method: "queryRaw" | "executeRaw";
   unsafe: boolean;
+  /// Run 0 fix round (consider): whatever follows the method's name ("" plain, "Unsafe", or another, such as "Typed").
+  suffix: string;
   /// The character after the method and its type argument: "`" a tagged template, "(" a call; null when it is neither
-  /// (the method taken without being called, or a type argument that never closes), which no scan can read.
+  /// (the method taken without being called, or a type argument that never closes), or when the method's suffix is one
+  /// the scans do not know (`$queryRawTyped(…)` passes a compiled query, whose SQL is not in the source): no scan can read it.
   opener: "`" | "(" | null;
   /// The index of that opener (or where it was looked for).
   openAt: number;
 }
 
-/// 614b-C3: every `$queryRaw` / `$executeRaw` (and their Unsafe forms) on lexed text, its type argument read by depth.
+/// The suffixes a scan can read the SQL of: the plain method, and the Unsafe form (whose SQL is a string argument).
+const KNOWN_SUFFIXES = new Set(["", "Unsafe"]);
+
+/**
+ * 614b-C3: every `$queryRaw` / `$executeRaw` on lexed text, its type argument read by depth. Run 0 fix round (consider):
+ * any suffix is found (`\$(executeRaw|queryRaw)\w*`, so `$queryRawTyped` and a suffix not known yet are never skipped);
+ * one the scans do not know is unreadable (opener null), whatever follows it.
+ */
 export function rawCalls(m: string): RawCall[] {
   const out: RawCall[] = [];
-  for (const x of m.matchAll(/\$(executeRaw|queryRaw)(Unsafe)?\b/g)) {
+  for (const x of m.matchAll(/\$(executeRaw|queryRaw)(\w*)/g)) {
+    const suffix = x[2];
+    const base = { at: x.index!, method: x[1] as RawCall["method"], unsafe: suffix === "Unsafe", suffix };
     let p = x.index! + x[0].length;
     while (p < m.length && /\s/.test(m[p])) p++;
+    if (!KNOWN_SUFFIXES.has(suffix)) {
+      out.push({ ...base, opener: null, openAt: p });
+      continue;
+    }
     if (m[p] === "<") {
       const end = typeArgumentsEnd(m, p);
       if (end < 0) {
-        out.push({ at: x.index!, method: x[1] as RawCall["method"], unsafe: !!x[2], opener: null, openAt: p });
+        out.push({ ...base, opener: null, openAt: p });
         continue;
       }
       p = end + 1;
       while (p < m.length && /\s/.test(m[p])) p++;
     }
     const opener = m[p] === "`" || m[p] === "(" ? (m[p] as "`" | "(") : null;
-    out.push({ at: x.index!, method: x[1] as RawCall["method"], unsafe: !!x[2], opener, openAt: p });
+    out.push({ ...base, opener, openAt: p });
   }
   return out;
+}
+
+/**
+ * The SQL text of a readable raw call, from the raw source (`src`) and its lexed text (`m`): a tagged template to its
+ * closing backtick, a call to its closing parenthesis (`closing` on lexed text). Null when the call cannot be read.
+ */
+export function rawCallText(src: string, m: string, c: RawCall): string | null {
+  if (c.opener === "`") {
+    const end = src.indexOf("`", c.openAt + 1);
+    return end < 0 ? null : src.slice(c.openAt, end + 1);
+  }
+  if (c.opener === "(") return src.slice(c.openAt, closing(m, c.openAt) + 1);
+  return null;
 }
 
 const KEYWORDS = new Set(["if", "for", "while", "switch", "catch", "function", "return", "with", "do", "else", "new", "typeof", "await", "yield", "super", "import"]);
