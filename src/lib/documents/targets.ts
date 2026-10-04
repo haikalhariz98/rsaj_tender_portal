@@ -10,7 +10,7 @@
  */
 
 import { methodKeeps, ownerState, purposeFits, type OwnerFacts } from "./attach";
-import { EXIT_TEXT, PURPOSE_LABEL } from "./labels";
+import { exitWords, PURPOSE_LABEL } from "./labels";
 import { ATTACHMENT_PURPOSES, OWNER_ACT_PURPOSES, OWNER_KINDS, PURPOSE_OWNER, type AttachmentPurpose, type OwnerKind } from "./types";
 
 /// The kinds a received document can be attached to from the shared choice: those with at
@@ -123,7 +123,7 @@ export function attachTargets(owners: readonly TargetOwner[]): (TargetRecord & {
     const kept = ATTACHMENT_PURPOSES.filter((p) => !OWNER_ACT_PURPOSES.includes(p) && purposeFits(p, o.facts) && methodKeeps(p, o.facts));
     const purposes = kept.map((value) => {
       const st = ownerState(value, o.facts);
-      return { value, label: PURPOSE_LABEL[value], open: st.state === "OPEN", reason: st.state === "OPEN" ? null : EXIT_TEXT[st.exit] };
+      return { value, label: PURPOSE_LABEL[value], open: st.state === "OPEN", reason: st.state === "OPEN" ? null : exitWords(st) };
     });
     return { id: o.id, label: o.label, purposes, nothingKept: purposes.length === 0 ? NOTHING_KEPT : null, ...(o.href ? { href: o.href } : {}) };
   });

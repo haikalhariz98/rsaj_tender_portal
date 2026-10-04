@@ -10,7 +10,8 @@
 
 import { isLive } from "./evidence";
 import type { ExerciseStatus } from "@/lib/method/types";
-import { isExecuted } from "@/lib/contract/status";
+import { actStatusFault, type ContractAct } from "@/lib/contract/act-status";
+import { isExecuted, possessionTaken } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { exerciseAllowsPanel } from "@/lib/scope/panel";
 import type { PartSource, TenderPackStatus } from "@/lib/tender-docs/types";
@@ -189,7 +190,9 @@ export type OwnerExit =
   | "LEGALLY_ENDORSED"
   | "LEGAL_NOT_SUBMITTED"
   | "CONTRACT_NOT_EXECUTED"
-  | "CONTRACT_NOT_ACTIVE"
+  | "POSSESSION_NOT_RECORDED"
+  /// BD-613-115: the owning family's ACT_STATUS row refuses in the contract's state; said in the table's words (exitWords).
+  | "CONTRACT_STATE"
   | "CONTRACT_EXECUTED"
   | "INSTRUCTION_VOID"
   | "VARIATION_CLOSED"
@@ -226,7 +229,9 @@ export function purposeFits(purpose: AttachmentPurpose, owner: OwnerFacts): bool
  * Where the owner stands for this purpose: open, not ready yet, or frozen — with the
  * way out. Shared by attach, detach and re-pin.
  */
-export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { state: "OPEN" } | { state: "NOT_READY" | "FROZEN"; exit: OwnerExit } {
+export type OwnerState = { state: "OPEN" } | { state: "NOT_READY" | "FROZEN"; exit: OwnerExit; act?: ContractAct; status?: ContractStatus };
+
+export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): OwnerState {
   switch (owner.kind) {
     case "meeting":
       if (owner.status === "CANCELLED") return { state: "FROZEN", exit: "SITTING_CANCELLED" };
@@ -307,17 +312,56 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
       // 6.15: a decided application keeps what it was decided on.
       return owner.open ? { state: "OPEN" } : { state: "FROZEN", exit: "APPLICATION_DECIDED" };
     case "contract":
-      return contractOwnerState(purpose, owner);
-    case "variationInstruction":
+      return contractTableState(purpose, owner.status) ?? contractOwnerState(purpose, owner);
+    case "variationInstruction": {
+      // BD-613-115: the variation family's row first (a cancelled contract keeps what it has).
+      const table = contractTableState(purpose, owner.contractStatus);
+      if (table) return table;
       // 6.13 (FR-VAR-015): open while the instruction stands, drafted, at signing or issued (the plans may follow
-      // its issue); a void instruction, a closed variation and a cancelled contract keep what they have.
-      if (owner.contractStatus === "CANCELLED") return { state: "FROZEN", exit: "CONTRACT_CANCELLED" };
+      // its issue); a void instruction and a closed variation keep what they have.
       if (owner.certificateStatus === "VOID") return { state: "FROZEN", exit: "INSTRUCTION_VOID" };
       return owner.variationClosed ? { state: "FROZEN", exit: "VARIATION_CLOSED" } : { state: "OPEN" };
+    }
     case "standingEvent":
       // 615-C2: open while the record stands; withdrawn as recorded in error, it keeps what it has.
       return owner.withdrawn ? { state: "FROZEN", exit: "CANCELLATION_WITHDRAWN" } : { state: "OPEN" };
   }
+}
+
+/**
+ * BD-613-115 (as ruled, brought forward into the Run 1a fix round, review S6): the family whose ACT_STATUS row each of a
+ * contract's purposes reads first (one table, BD-613-99). The formation papers read FORMATION; the programme and the
+ * site records read SUPERVISION; the instruction's plans or sketches read VARIATION. Kept exhaustive by
+ * contract-act-status.test.ts (every purpose a contract or its instruction keeps).
+ */
+export const CONTRACT_PURPOSE_FAMILY = {
+  COMPANY_RESOLUTION: "FORMATION",
+  LEGAL_SUBMISSION: "FORMATION",
+  LEGAL_COMMENTS: "FORMATION",
+  RECONCILIATION: "FORMATION",
+  SIGNED_CONTRACT: "FORMATION",
+  STAMPING_CERTIFICATE: "FORMATION",
+  PROGRAMME: "SUPERVISION",
+  PIPE_LOG: "SUPERVISION",
+  AS_BUILT: "SUPERVISION",
+  DIARY_PHOTO: "SUPERVISION",
+  INSTRUCTION_SKETCH: "VARIATION",
+} as const satisfies Partial<Record<AttachmentPurpose, ContractAct>>;
+
+/**
+ * The table's answer for a contract's purpose: null where its family is recorded in the state, so the purpose's own rule
+ * judges it. Cancelled keeps its own words (it keeps what it has); before execution a purpose is not ready yet; any other
+ * refusal freezes it, said in the table's words (CLOSED freezes every purpose, FR-FIN-014).
+ */
+function contractTableState(purpose: AttachmentPurpose, status: ContractStatus): OwnerState | null {
+  const act: ContractAct | undefined = (CONTRACT_PURPOSE_FAMILY as Partial<Record<AttachmentPurpose, ContractAct>>)[purpose];
+  // A purpose with no family named here fails closed (the test keeps the map exhaustive, so this is never reached).
+  if (!act) return { state: "FROZEN", exit: "CONTRACT_STATE", status };
+  const f = actStatusFault(act, status);
+  if (!f) return null;
+  if (f.code === "CONTRACT_CANCELLED") return { state: "FROZEN", exit: "CONTRACT_CANCELLED" };
+  if (f.code === "NOT_EXECUTED") return { state: "NOT_READY", exit: "CONTRACT_NOT_EXECUTED" };
+  return { state: "FROZEN", exit: "CONTRACT_STATE", act, status };
 }
 
 /**
@@ -327,7 +371,7 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): { sta
  * comments arrive once it has been sent. The resolution and the reconciliation's scan are kept until the
  * contract is executed; the signed contract and the stamping certificate only after.
  */
-function contractOwnerState(purpose: AttachmentPurpose, owner: Extract<OwnerFacts, { kind: "contract" }>): { state: "OPEN" } | { state: "NOT_READY" | "FROZEN"; exit: OwnerExit } {
+function contractOwnerState(purpose: AttachmentPurpose, owner: Extract<OwnerFacts, { kind: "contract" }>): OwnerState {
   const s = owner.status;
   if (s === "CANCELLED") return { state: "FROZEN", exit: "CONTRACT_CANCELLED" };
   if (s === "NUMBER_ALLOCATED") return { state: "NOT_READY", exit: "CONTRACT_NOT_IN_PREPARATION" };
@@ -349,11 +393,13 @@ function contractOwnerState(purpose: AttachmentPurpose, owner: Extract<OwnerFact
     // 6.13 (FR-SUP-006): the programme is submitted once the contract is executed.
     case "PROGRAMME":
       return executed ? { state: "OPEN" } : { state: "NOT_READY", exit: "CONTRACT_NOT_EXECUTED" };
-    // 6.13 (FR-SUP-007, 009): the site's records are kept from possession of site.
+    // 6.13 (FR-SUP-007, 009): the site's records are kept from possession of site. BD-613-115: from possession, not only
+    // while Active, so as-built evidence is attached at practical completion (FR-PAY-021); the SUPERVISION row above
+    // ends them (after making good, terminated, closed). Which diary days take photographs is run 2's carry.
     case "PIPE_LOG":
     case "AS_BUILT":
     case "DIARY_PHOTO":
-      return s === "ACTIVE" ? { state: "OPEN" } : { state: "NOT_READY", exit: "CONTRACT_NOT_ACTIVE" };
+      return possessionTaken(s as ContractStatus) ? { state: "OPEN" } : { state: "NOT_READY", exit: "POSSESSION_NOT_RECORDED" };
     default:
       return { state: "OPEN" };
   }
@@ -362,6 +408,9 @@ function contractOwnerState(purpose: AttachmentPurpose, owner: Extract<OwnerFact
 /// 6.7: the two states that follow publication (an exercise opened keeps a published one's documents);
 /// 6.8 (X-8): and the evaluation's two.
 const afterOpening = (s: ExerciseStatus) => s === "OPENING_IN_PROGRESS" || s === "OPENED" || s === "UNDER_EVALUATION" || s === "EVALUATED";
+
+/// The finding's data for a refused owner state: its exit, and the family and state where the table refused (exitWords).
+const exitData = (st: Exclude<OwnerState, { state: "OPEN" }>) => ({ exit: st.exit, ...(st.act ? { act: st.act } : {}), ...(st.status ? { status: st.status } : {}) });
 
 export interface AttachInput {
   purpose: AttachmentPurpose;
@@ -384,8 +433,8 @@ export function attachFault(i: AttachInput): Finding<AttachFault>[] {
   if (OWNER_ACT_PURPOSES.includes(i.purpose) && !i.byOwnerAct) return [{ code: "ATTACHED_BY_OWNER_ACT", level: "block", data: { purpose: i.purpose } }];
   if (!methodKeeps(i.purpose, i.owner)) return [{ code: "PURPOSE_NOT_FOR_METHOD", level: "block", data: { purpose: i.purpose, reason: i.owner.kind === "exercise" && i.owner.method == null ? "METHOD_NOT_CONFIGURED" : "METHOD_DOES_NOT_ASK" } }];
   const st = ownerState(i.purpose, i.owner);
-  if (st.state === "NOT_READY") out.push({ code: "OWNER_NOT_READY", level: "block", data: { exit: st.exit } });
-  if (st.state === "FROZEN") out.push({ code: "OWNER_FROZEN", level: "block", data: { exit: st.exit } });
+  if (st.state === "NOT_READY") out.push({ code: "OWNER_NOT_READY", level: "block", data: exitData(st) });
+  if (st.state === "FROZEN") out.push({ code: "OWNER_FROZEN", level: "block", data: exitData(st) });
   if (i.version.withdrawnAt != null) out.push({ code: "VERSION_WITHDRAWN", level: "block" });
   const classification = i.documentClass ? (i.documentClassification === undefined ? i.documentClass.classification : i.documentClassification) : null;
   if (!i.documentClass) out.push({ code: "CLASS_NOT_SET", level: "block" });
@@ -436,7 +485,7 @@ export function detachFault(i: { purpose: AttachmentPurpose; owner: OwnerFacts; 
   const out: Finding<DetachFault>[] = [];
   if (!i.reason.trim()) out.push({ code: "REASON_REQUIRED", level: "block" });
   const st = ownerState(i.purpose, i.owner);
-  if (st.state === "FROZEN") out.push({ code: "OWNER_FROZEN", level: "block", data: { exit: st.exit } });
+  if (st.state === "FROZEN") out.push({ code: "OWNER_FROZEN", level: "block", data: exitData(st) });
   if (i.reliedOn) out.push({ code: "RELIED_ON", level: "block", data: { by: i.reliedOn } });
   return out;
 }
@@ -533,8 +582,8 @@ export function repinFault(i: {
   const out: Finding<RepinFault>[] = [];
   if (!i.reason.trim()) out.push({ code: "REASON_REQUIRED", level: "block" });
   const st = ownerState(i.purpose, i.owner);
-  if (st.state === "FROZEN") out.push({ code: "OWNER_FROZEN", level: "block", data: { exit: st.exit } });
-  if (st.state === "NOT_READY") out.push({ code: "OWNER_NOT_READY", level: "block", data: { exit: st.exit } });
+  if (st.state === "FROZEN") out.push({ code: "OWNER_FROZEN", level: "block", data: exitData(st) });
+  if (st.state === "NOT_READY") out.push({ code: "OWNER_NOT_READY", level: "block", data: exitData(st) });
   if (i.to.documentId !== i.attachment.documentId) out.push({ code: "NOT_SAME_DOCUMENT", level: "block" });
   else if (i.to.id === i.attachment.versionId) out.push({ code: "ALREADY_PINNED", level: "block" });
   if (i.to.withdrawnAt != null) out.push({ code: "VERSION_WITHDRAWN", level: "block" });

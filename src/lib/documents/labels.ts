@@ -4,6 +4,8 @@
  * never reach a screen (AGENTS.md rule 5): each has its label here.
  */
 
+import { actStatusFault, actStatusText, type ContractAct } from "@/lib/contract/act-status";
+import type { ContractStatus } from "@/lib/contract/types";
 import { formatDate } from "@/lib/format";
 
 import type { OwnerExit, Reliance } from "./attach";
@@ -200,12 +202,26 @@ export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   LEGALLY_ENDORSED: "The legal office endorsed the contract on what was sent, which is kept as it was.",
   LEGAL_NOT_SUBMITTED: "The legal office's comments are kept once the contract has been sent for review.",
   CONTRACT_NOT_EXECUTED: "This is kept once the contract is executed, by the RSAJ signature on the Formation tab.",
-  CONTRACT_NOT_ACTIVE: "This is kept from possession of site, recorded on the contract's Site tab.",
+  POSSESSION_NOT_RECORDED: "This is kept from possession of site, recorded on the contract's Site tab.",
+  // BD-613-115: said by exitWords in the table's words; this is only the fallback where the state is not carried.
+  CONTRACT_STATE: "Not kept where the contract now stands.",
   CONTRACT_EXECUTED: "The contract is executed and keeps what it was executed on.",
   INSTRUCTION_VOID: "The instruction is void and keeps what it has.",
   VARIATION_CLOSED: "The variation is closed and its instruction keeps what it has.",
   CANCELLATION_WITHDRAWN: "The cancellation was withdrawn as recorded in error and keeps what it has.",
 };
+
+/**
+ * A refused owner state in words. BD-613-115: where a contract's ACT_STATUS row refused, the table's own words
+ * (actStatusText), so the attach screen, the owner page and the store's refusal say what every other act says.
+ */
+export function exitWords(x: { exit: OwnerExit; act?: ContractAct; status?: ContractStatus }): string {
+  if (x.exit === "CONTRACT_STATE" && x.act && x.status) {
+    const f = actStatusFault(x.act, x.status);
+    if (f) return actStatusText(f);
+  }
+  return EXIT_TEXT[x.exit] ?? "This record takes no attachments now.";
+}
 
 const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
   ACCEPTED_ON_IT: "The award was accepted on this scan, so it is not taken off. To correct it, attach a new version, with the reason.",
@@ -345,7 +361,7 @@ export function documentFaultText(f: Finding): string {
     }
     case "OWNER_NOT_READY":
     case "OWNER_FROZEN":
-      return EXIT_TEXT[d.exit as OwnerExit] ?? "This record takes no attachments now.";
+      return exitWords({ exit: d.exit as OwnerExit, act: d.act as ContractAct | undefined, status: d.status as ContractStatus | undefined });
     case "VERSION_WITHDRAWN":
       return "That version is withdrawn, so it is not attached. Attach a version that stands.";
     case "CLASS_NOT_SET":

@@ -58,6 +58,11 @@ export const STATUS_WRITTEN_BY: Readonly<Partial<Record<ContractStatus, StatusWr
 export const EXECUTED_STATES: readonly ContractStatus[] = ["EXECUTED", "STAMPED", "ACTIVE", "PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED", "TERMINATED", "CLOSED"];
 export const isExecuted = (s: ContractStatus) => EXECUTED_STATES.includes(s);
 
+/// Possession of site is recorded: Active and every state after it (ADR 0031; possession alone writes Active). BD-613-115:
+/// the site's records are kept from here, the SUPERVISION row ending them.
+export const POSSESSED_STATES: readonly ContractStatus[] = ["ACTIVE", "PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED", "TERMINATED", "CLOSED"];
+export const possessionTaken = (s: ContractStatus) => POSSESSED_STATES.includes(s);
+
 /// The states in which the contract is being formed: the assembly, reconciliation and checks may still change.
 export const formationOpen = (s: ContractStatus) => s === "IN_PREPARATION" || s === "RETURNED_FOR_AMENDMENT";
 

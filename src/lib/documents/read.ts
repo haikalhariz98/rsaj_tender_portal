@@ -10,7 +10,7 @@ import { db } from "@/lib/db";
 import { downloadDecision } from "./access";
 import { detachFault, ownerState, purposeFits, reliedOn, reliedOnAttachment, repinFault, type OwnerFacts } from "./attach";
 import { isLive } from "./evidence";
-import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, EXIT_TEXT, FINGERPRINT_STATEMENT } from "./labels";
+import { accessReasonText, ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, exitWords, FINGERPRINT_STATEMENT } from "./labels";
 import { effectiveCap } from "./limits";
 import { addendumFacts, awardFacts, CANCELLATION_OWNER_SELECT, cancellationOwnerFacts, cancellationOwnerLabel, bqVersionFacts, contractFacts, delegationFacts, evaluationBidderFacts, evaluationFacts, evaluationMeetingFacts, exerciseFacts, exerciseMethodFlags, extensionFacts, meetingFacts, openingFacts, PANEL_FACTS_SELECT, panelFacts, supplierApplicationFacts, supplierDocumentFacts, tenderPackPartFacts, VARIATION_INSTRUCTION_FACTS_SELECT, variationInstructionFacts, variationInstructionLabel, withdrawalFacts } from "./owner-facts";
 import { SUPPLIER_APPLICATION_FACTS_SELECT, SUPPLIER_DOCUMENT_FACTS_SELECT, supplierApplicationLabel, supplierDocumentLabel } from "@/lib/suppliers/lock";
@@ -147,7 +147,7 @@ export async function ownerPanel(ref: OwnerRef) {
   });
   const purposes = ATTACHMENT_PURPOSES.filter((p) => purposeFits(p, owner.facts)).map((purpose) => {
     const st = ownerState(purpose, owner.facts);
-    return { purpose, state: st.state, reason: st.state === "OPEN" ? null : EXIT_TEXT[st.exit], live: rows.filter((r) => r.purpose === purpose && isLive(r)).length };
+    return { purpose, state: st.state, reason: st.state === "OPEN" ? null : exitWords(st), live: rows.filter((r) => r.purpose === purpose && isLive(r)).length };
   });
   const liveOf = (purpose: string) => rows.filter((x) => x.purpose === purpose && isLive(x)).length;
   // A disabled act and a refused one give the same reason: the same rule, asked without a reason typed yet.
