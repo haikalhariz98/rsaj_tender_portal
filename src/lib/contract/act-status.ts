@@ -273,7 +273,7 @@ export function certificateVoidAct(kind: CertificateKind, status: CertificateSta
   return status === "ISSUED" ? certificateAct(kind, "POST_ISSUE") : "CERTIFICATE";
 }
 
-export type ActStatusFault ="CONTRACT_CANCELLED" | "NOT_EXECUTED" | "CONTRACT_TERMINATED" | "CONTRACT_CLOSED" | "NOT_IN_STATUS";
+export type ActStatusFault = "CONTRACT_CANCELLED" | "NOT_EXECUTED" | "CONTRACT_TERMINATED" | "CONTRACT_CLOSED" | "NOT_IN_STATUS";
 
 /// The table's answer as a finding: null where the act is recorded in the state; otherwise why not.
 export function actStatusFault(act: ContractAct, status: ContractStatus): Finding<ActStatusFault> | null {

@@ -1,0 +1,16 @@
+# Run 1b commit 0 (S-A and the Considers, flagged against run 1a). 2026-10-04T11:23:03Z
+## npm run check
+> perolehan@0.1.0 check
+> npm run typecheck && npm run lint
+> perolehan@0.1.0 typecheck
+> next typegen && tsc --noEmit
+Generating route types...
+✓ Types generated successfully
+> perolehan@0.1.0 lint
+> eslint && node scripts/check-ui.mjs
+UI scaffolding check passed.
+exit: 0
+## full suite
+ Test Files  546 passed (546)
+      Tests  8546 passed (8546)
+exit: 0

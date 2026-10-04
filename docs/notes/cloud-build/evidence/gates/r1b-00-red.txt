@@ -1,0 +1,30 @@
+# Run 1b commit 0 (S-A, flagged against run 1a): red. The run-1a gate-reach scan (git show HEAD:src/lib/contract/act-status-screens.test.ts, its functions unchanged) run over the new S-A self-test's sources, as a throwaway file src/lib/contract/zz-red-sa.test.ts (deleted after). 2026-10-04T11:22:32Z
+ RUN  v4.1.10 /home/user/repo
+ ❯ src/lib/contract/zz-red-sa.test.ts (1 test | 1 failed) 12ms
+     × S-A: a const component, a default import and a re-export are followed; one the scan cannot read fails 10ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/lib/contract/zz-red-sa.test.ts > S-A red: the old scan over the new self-test's sources > S-A: a const component, a default import and a re-export are followed; one the scan cannot read fails
+AssertionError: expected [ Array(1) ] to deeply equal [ …(6) ]
+- Expected
++ Received
+  [
+-   "src/app/q/panel.tsx#Section > Again: <dialog",
+-   "src/app/q/panel.tsx#Section > Arrow: <button",
+-   "src/app/q/panel.tsx#Section > Dflt: <form",
+-   "src/app/q/panel.tsx#Section > Memo: unresolved",
+-   "src/app/q/panel.tsx#Section > Nowhere: unresolved",
+-   "src/app/q/panel.tsx#Section > Wrapped: unresolved",
++   "src/app/q/panel.tsx#Section: <button",
+  ]
+ ❯ src/lib/contract/zz-red-sa.test.ts:196:51
+    194|       ["src/app/q/wrapped.tsx", `export const Wrapped = forwardRef(fun…
+    195|     ]);
+    196|     expect(gateReach(fake, {}).violations.sort()).toEqual([
+       |                                                   ^
+    197|       "src/app/q/panel.tsx#Section > Again: <dialog",
+    198|       "src/app/q/panel.tsx#Section > Arrow: <button",
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  11:22:33
+   Duration  341ms (transform 63ms, setup 0ms, import 159ms, tests 12ms, environment 0ms)

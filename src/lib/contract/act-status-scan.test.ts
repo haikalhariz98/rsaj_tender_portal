@@ -104,6 +104,27 @@ function contractWriters(lib: ReadonlyMap<string, string>, owned: Set<string>, o
   return new Set(fns.filter((f) => (opts.local || f.exported) && writing.has(f.key)).map((f) => f.key));
 }
 
+/**
+ * BD-613-130 (run 1b's first commit, the final review's Consider; flagged against run 1a): contractWriters reads only
+ * `function` declarations until BD-613-130's run-4 commit reads `const f = async (…) =>` too. Until then this fails
+ * closed: an exported const arrow in src/lib (`export const X = (async )?(`) whose body writes a contract-owned model
+ * (ownedWrites: a delegate write or raw SQL) is reported, so no writer can hide from the scan by its form. Blind spots,
+ * declared: a non-exported const arrow (only reachable through an exported function, which the writer scan reads), an
+ * arrow assigned with `let`, an object's method, and an arrow that writes only by calling another writer (the writer it
+ * calls is itself a function the scan reads, or an exported arrow this check reports).
+ */
+function arrowWriters(lib: ReadonlyMap<string, string>, owned: Set<string>): string[] {
+  const out: string[] = [];
+  for (const [file, src] of lib) {
+    const tops = [...src.matchAll(/^(?:export )?(?:default )?(?:declare )?(?:async )?(?:const|let|var|function|class|type|interface|enum)\b/gm)].map((m) => m.index);
+    for (const m of src.matchAll(/^export const (\w+)(?::[^=\n]+)? = (?:async )?\(/gm)) {
+      const end = tops.find((t) => t > m.index) ?? src.length;
+      if (ownedWrites(src.slice(m.index, end), owned).length) out.push(`${file}#${m[1]}`);
+    }
+  }
+  return out;
+}
+
 /// The uncovered sites of one file's source. `writers` (S-3c): the exported writers of src/lib/**, as file#name.
 function uncoveredSites(file: string, src: string, owned: Set<string>, writers: ReadonlySet<string> = new Set(), known: ReadonlySet<string> = new Set()): Site[] {
   const heads_ = heads(src);
@@ -271,6 +292,17 @@ describe("S3: the scan finds what it should (self-test)", () => {
         expect([...seen].some((c) => WRITERS.has(`${file}#${c}`)), `${file}#${n}: an exported writer reaches it (${[...seen].join(", ")})`).toBe(true);
       }
     }
+  });
+
+  it("BD-613-130, fail closed: an exported const arrow in src/lib that writes an owned model is found (self-test)", () => {
+    const lib = new Map([
+      ["src/lib/w/a.ts", "export const plain = (tx) => tx.certificate.update({});\nexport const later = async (tx: Tx): Promise<void> => {\n  await tx.$executeRaw`DELETE FROM \"Variation\" WHERE 1 = 1`;\n};\nexport const reads = async (tx) => {\n  await tx.certificate.findMany({});\n};\nconst hidden = async (tx) => tx.variation.create({});\nexport const typed: Fn = async (tx) => tx.contract.updateMany({});\nexport async function fn(tx) {\n  await tx.contract.update({});\n}\n"],
+    ]);
+    expect(arrowWriters(lib, OWNED)).toEqual(["src/lib/w/a.ts#plain", "src/lib/w/a.ts#later", "src/lib/w/a.ts#typed"]);
+  });
+
+  it("BD-613-130, fail closed: no exported const arrow in src/lib writes a contract-owned model (the writer scan would not read it)", () => {
+    expect(arrowWriters(new Map([...ALL].filter(([f]) => f.startsWith("src/lib/"))), OWNED)).toEqual([]);
   });
 
   it("it reads every \"use server\" file and the owner paths that take the lock", () => {

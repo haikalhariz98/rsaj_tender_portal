@@ -29,49 +29,124 @@ const DIR = "src/app/projects/[id]";
  * define them. Following stops at a gated component: RecordEditor or Blocked (each reads ActGate, asserted below), or a
  * component that reads `useActGate(` itself. Anything else that opens a drawer or a form (a raw `<form`, `<dialog`,
  * `role="dialog"`, `<button`, `formAction=`) found on the way fails, with its path, unless it is a named exception with
- * its reason. A drawer the scan cannot resolve fails too, so an import it cannot follow is not a blind spot.
+ * its reason.
+ *
+ * Run 1b, first commit (the final review's S-A, flagged against run 1a): until then only an unresolved element named
+ * "…Drawer" failed, so a const component, a default import or a re-export was skipped silently. Now any element the
+ * scan cannot resolve fails when it is imported from src/, declared in the same file as a const, or neither imported nor
+ * declared; components are read
+ * as `function X(` and as `(export )?const X = (…) =>`; default imports and `export { X } from` re-exports are followed.
+ * One file is a named exception, with its reason: src/components/icons.tsx (UNFOLLOWED_FILES).
+ *
+ * What it does not read (its blind spots, declared): an element imported from a package (react, next) is not followed;
+ * an element written in a generic's
+ * position (`Array<X>`, `useState<X>`) is not an element (the lookbehind skips it); a name neither imported nor declared
+ * fails (TypeScript would refuse it, so only a global could be one); a component built by a call
+ * (`const X = memo(Y)`) is not followed but fails as unresolved; a namespace import (`import * as N`) and `<N.X>` are not
+ * followed (none exists in src today; a test below pins that); a component passed as a prop and rendered by variable
+ * (`<props.as>`, `const C = x; <C />`) is not followed.
  */
 type Sources = ReadonlyMap<string, string>;
 const RAW_OPENER = /<form\b|<dialog\b|role="dialog"|<button\b|formAction=/;
 const GATED_TERMINALS = new Set(["RecordEditor", "Blocked"]);
 
-/// The component functions of a file, by name (exported, default-exported or local), each with its body.
+/// The component functions of a file, by name (exported, default-exported or local), each with its body: `function X(`
+/// and `(export )?const X = (…) =>` (run 1b's first commit). A default export is also keyed "default".
 function componentsOf(src: string): Map<string, string> {
   const out = new Map<string, string>();
-  const heads = [...src.matchAll(/^(?:export )?(?:default )?(?:async )?function ([A-Z]\w*)\(/gm)];
-  heads.forEach((h, i) => out.set(h[1], src.slice(h.index, heads[i + 1]?.index ?? src.length)));
+  const heads = [...src.matchAll(/^(?:export )?(?:default )?(?:async )?function ([A-Z]\w*)\(|^(?:export )?const ([A-Z]\w*)(?::[^=\n]+)? = (?:async )?\([^)\n]*\)(?::[^=\n]+)? =>/gm)];
+  heads.forEach((h, i) => out.set(h[1] ?? h[2], src.slice(h.index, heads[i + 1]?.index ?? src.length)));
+  const dflt = /^export default function ([A-Z]\w*)\(/m.exec(src)?.[1] ?? /^export default ([A-Z]\w*);/m.exec(src)?.[1];
+  if (dflt && out.has(dflt)) out.set("default", out.get(dflt)!);
   return out;
 }
 
-/// A file's named imports: local name to the file it comes from (resolved among the sources), or null for a package.
-function importsOf(file: string, src: string, sources: Sources): Map<string, string | null> {
-  const out = new Map<string, string | null>();
-  for (const m of src.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+"([^"]+)"/g)) {
-    const spec = m[2];
-    const base = spec.startsWith("@/") ? `src/${spec.slice(2)}` : spec.startsWith(".") ? join(file, "..", spec) : null;
-    const target = base ? ([".tsx", ".ts", "/index.tsx", "/index.ts"].map((e) => base + e).find((p) => sources.has(p)) ?? null) : null;
-    for (const part of m[1].split(",")) {
-      const names = part.replace(/^\s*type\s+/, "").trim().split(/\s+as\s+/);
-      if (names[0]) out.set((names[1] ?? names[0]).trim(), target);
+/// Capitalised names a file declares as a const (a component or not): an element of that name the scan cannot read as a
+/// component (`const X = memo(Y)`) fails as unresolved.
+const constsOf = (src: string) => new Set([...src.matchAll(/^(?:export )?const ([A-Z]\w*)\b/gm)].map((m) => m[1]));
+
+/// Where an imported name comes from: the file among the sources (null for a package, or a src/ path not among them),
+/// whether the specifier is the product's own (src/), and the name it has there ("default" for a default import).
+type Imported = { file: string | null; own: boolean; name: string };
+
+const targetOf = (file: string, spec: string, sources: Sources) => {
+  const base = spec.startsWith("@/") ? `src/${spec.slice(2)}` : spec.startsWith(".") ? join(file, "..", spec) : null;
+  const target = base ? ([".tsx", ".ts", "/index.tsx", "/index.ts"].map((e) => base + e).find((p) => sources.has(p)) ?? null) : null;
+  return { own: base !== null, target };
+};
+
+/// A file's imports (named and default; type-only ones left out, they are never elements): local name to where it is from.
+function importsOf(file: string, src: string, sources: Sources): Map<string, Imported> {
+  const out = new Map<string, Imported>();
+  for (const m of src.matchAll(/import\s+(type\s+)?([\w$]+\s*,\s*)?(?:\{([^}]*)\}|([\w$]+))?\s*from\s+"([^"]+)"/g)) {
+    if (m[1]) continue;
+    const { own, target } = targetOf(file, m[5], sources);
+    const dflt = (m[2] ?? "").replace(",", "").trim() || m[4];
+    if (dflt) out.set(dflt, { file: target, own, name: "default" });
+    for (const part of (m[3] ?? "").split(",")) {
+      if (/^\s*type\s/.test(part)) continue;
+      const names = part.trim().split(/\s+as\s+/);
+      if (names[0]) out.set((names[1] ?? names[0]).trim(), { file: target, own, name: names[0].trim() });
     }
   }
   return out;
 }
 
-type Reach = { violations: string[]; drawers: Set<string>; exceptionsUsed: Set<string>; roots: string[] };
+/// A file's re-exports (`export { A, B as C } from "…"`): exported name to where it is from.
+function reexportsOf(file: string, src: string, sources: Sources): Map<string, Imported> {
+  const out = new Map<string, Imported>();
+  for (const m of src.matchAll(/export\s+\{([^}]*)\}\s*from\s+"([^"]+)"/g)) {
+    const { own, target } = targetOf(file, m[2], sources);
+    for (const part of m[1].split(",")) {
+      const names = part.replace(/^\s*type\s+/, "").trim().split(/\s+as\s+/);
+      if (names[0]) out.set((names[1] ?? names[0]).trim(), { file: target, own, name: names[0].trim() });
+    }
+  }
+  return out;
+}
+
+/// Files whose components are not followed, each with why (the list can only shrink; a new entry needs a reason).
+const UNFOLLOWED_FILES: Readonly<Record<string, string>> = {
+  "src/components/icons.tsx": "The product's inline SVG icons (AGENTS.md): each is a const arrow drawing an <svg> through the local Icon; none opens a drawer or a form or records anything. Asserted below by reading the file.",
+};
+
+/// The elements a body renders: a capitalised tag in a JSX position (not a generic's `Array<X>` or `useState<X>`).
+const elementsOf = (body: string) => new Set([...body.matchAll(/(?<![\w$.)\]])<([A-Z]\w*)\b/g)].map((m) => m[1]));
+
+type Parsed = { comps: Map<string, string>; consts: Set<string>; imports: Map<string, Imported>; reexports: Map<string, Imported> };
+const parseAll = (sources: Sources): Map<string, Parsed> =>
+  new Map([...sources].map(([f, src]) => [f, { comps: componentsOf(src), consts: constsOf(src), imports: importsOf(f, src, sources), reexports: reexportsOf(f, src, sources) }]));
+
+/// Where an element is defined: its file and body; "external" (a package: not followed); "unknown" (neither imported nor
+/// declared in the file: a global, which TypeScript allows only if declared somewhere); "unfollowed" (a named file); or
+/// "unresolved" (imported from src/ or declared as a const, and still not read as a component).
+type Resolved = { file: string; body: string } | "external" | "unknown" | "unfollowed" | "unresolved";
+function resolveIn(parsed: ReadonlyMap<string, Parsed>, file: string, name: string): Resolved {
+  const p = parsed.get(file)!;
+  const local = p.comps.get(name);
+  if (local) return { file, body: local };
+  if (p.consts.has(name)) return "unresolved";
+  const imp = p.imports.get(name);
+  if (!imp) return "unknown";
+  const follow = (from: Imported, depth: number): Resolved => {
+    if (!from.own) return "external";
+    if (!from.file) return "unresolved";
+    if (UNFOLLOWED_FILES[from.file] !== undefined) return "unfollowed";
+    const q = parsed.get(from.file)!;
+    const body = q.comps.get(from.name);
+    if (body) return { file: from.file, body };
+    const re = q.reexports.get(from.name);
+    return re && depth < 8 ? follow(re, depth + 1) : "unresolved";
+  };
+  return follow(imp, 0);
+}
+
+type Reach = { violations: string[]; drawers: Set<string>; exceptionsUsed: Set<string>; roots: string[]; unfollowed: Set<string> };
 
 /// Every path from a gated section to an ungated opener, over the given sources.
 function gateReach(sources: Sources, exceptions: Readonly<Record<string, string>>): Reach {
-  const reach: Reach = { violations: [], drawers: new Set(), exceptionsUsed: new Set(), roots: [] };
-  const parsed = new Map([...sources].map(([f, src]) => [f, { comps: componentsOf(src), imports: importsOf(f, src, sources) }]));
-  const resolve = (file: string, name: string): { file: string; body: string } | null => {
-    const p = parsed.get(file)!;
-    const local = p.comps.get(name);
-    if (local) return { file, body: local };
-    const from = p.imports.get(name);
-    const body = from ? parsed.get(from)?.comps.get(name) : undefined;
-    return from && body ? { file: from, body } : null;
-  };
+  const reach: Reach = { violations: [], drawers: new Set(), exceptionsUsed: new Set(), roots: [], unfollowed: new Set() };
+  const parsed = parseAll(sources);
   const done = new Set<string>();
   const visit = (file: string, name: string, body: string, path: string[]) => {
     const key = `${file}#${name}`;
@@ -79,18 +154,17 @@ function gateReach(sources: Sources, exceptions: Readonly<Record<string, string>
     done.add(key);
     if (/\buseActGate\(/.test(body)) return;
     if (RAW_OPENER.test(body)) reach.violations.push(`${path.join(" > ")}: ${RAW_OPENER.exec(body)![0]}`);
-    for (const el of new Set([...body.matchAll(/<([A-Z]\w*)\b/g)].map((m) => m[1]))) {
+    for (const el of elementsOf(body)) {
       if (el === "ActGate") continue;
       if (GATED_TERMINALS.has(el)) continue;
       if (exceptions[el] !== undefined) {
         reach.exceptionsUsed.add(el);
         continue;
       }
-      const def = resolve(file, el);
-      if (!def) {
-        if (/Drawer$/.test(el)) reach.violations.push(`${[...path, el].join(" > ")}: unresolved`);
-        continue;
-      }
+      const def = resolveIn(parsed, file, el);
+      if (def === "unresolved" || def === "unknown") reach.violations.push(`${[...path, el].join(" > ")}: unresolved`);
+      if (def === "unfollowed") reach.unfollowed.add(el);
+      if (typeof def === "string") continue;
       if (/Drawer$/.test(el)) reach.drawers.add(`${def.file}#${el}`);
       visit(def.file, el, def.body, [...path, el]);
     }
@@ -127,21 +201,19 @@ const PAGE_FILES = [...SOURCES.keys()].filter((f) => f.startsWith(`${DIR}/`) && 
  * attachments panel), or it renders a component that does.
  */
 function offersActIn(sources: Sources) {
-  const parsed = new Map([...sources].map(([f, src]) => [f, { comps: componentsOf(src), imports: importsOf(f, src, sources) }]));
+  const parsed = parseAll(sources);
   const memo = new Map<string, boolean>();
   const offers = (file: string, name: string, body: string): boolean => {
     const key = `${file}#${name}`;
     if (memo.has(key)) return memo.get(key)!;
     memo.set(key, false);
     let yes = RAW_OPENER.test(body) || /<(?:RecordEditor|Blocked|OwnerAttachments)\b|\buseActGate\(/.test(body);
-    for (const el of new Set([...body.matchAll(/<([A-Z]\w*)\b/g)].map((m) => m[1]))) {
+    for (const el of elementsOf(body)) {
       if (yes) break;
       if (RECORDS_NOTHING[el] !== undefined) continue;
-      const p = parsed.get(file)!;
-      const from = p.comps.has(el) ? file : p.imports.get(el);
-      const def = from ? parsed.get(from)?.comps.get(el) : undefined;
-      if (from && def) yes = offers(from, el, def);
-      else if (/Drawer$/.test(el)) yes = true;
+      const def = resolveIn(parsed, file, el);
+      if (typeof def !== "string") yes = offers(def.file, el, def.body);
+      else if (def === "unresolved" || /Drawer$/.test(el)) yes = true;
     }
     memo.set(key, yes);
     return yes;
@@ -322,6 +394,42 @@ describe("BD-613-123's condition: every drawer or form-opening element inside a 
     ]);
     expect([...r.drawers].sort()).toEqual(["src/app/x/editors.tsx#BadDrawer", "src/app/x/editors.tsx#GoodDrawer", "src/app/x/editors.tsx#OwnDrawer"]);
     expect([...r.exceptionsUsed]).toEqual(["Allowed"]);
+  });
+
+  it("S-A: a const component, a default import and a re-export are followed; one the scan cannot read fails; icons are not followed (self-test)", () => {
+    const fake: Sources = new Map([
+      ["src/app/q/panel.tsx", `import Dflt from "./dflt";\nimport { Again } from "@/components/ui/field";\nimport { Wrapped } from "./wrapped";\nimport { Pkg } from "some-package";\nimport { Glyph } from "@/components/icons";\nimport type { Shape } from "./wrapped";\nexport function Section() {\n  const rows = useState<Shape>(null);\n  return <ActGate blocker={b}><Arrow /><Dflt /><Again /><Wrapped /><Memo /><Pkg /><Glyph /><Nowhere /></ActGate>;\n}\nconst Arrow = ({ x }: { x: string }) => <button />;\nconst Memo = memo(Arrow);\n`],
+      ["src/app/q/dflt.tsx", `export default function Dflt() {\n  return <form />;\n}\n`],
+      ["src/components/ui/field.tsx", `export { Again } from "./again";\n`],
+      ["src/components/ui/again.tsx", `export const Again = () => (\n  <dialog />\n);\n`],
+      ["src/app/q/wrapped.tsx", `export type Shape = { a: 1 };\nexport const Wrapped = forwardRef(function W() { return <form />; });\n`],
+      ["src/components/icons.tsx", `export const Glyph = (p: IconProps) => (\n  <Icon {...p}><path /></Icon>\n);\n`],
+    ]);
+    const r = gateReach(fake, {});
+    expect(r.violations.sort()).toEqual([
+      "src/app/q/panel.tsx#Section > Again: <dialog",
+      "src/app/q/panel.tsx#Section > Arrow: <button",
+      "src/app/q/panel.tsx#Section > Dflt: <form",
+      "src/app/q/panel.tsx#Section > Memo: unresolved",
+      "src/app/q/panel.tsx#Section > Nowhere: unresolved",
+      "src/app/q/panel.tsx#Section > Wrapped: unresolved",
+    ]);
+    expect([...r.unfollowed]).toEqual(["Glyph"]);
+    expect(componentsOf(fake.get("src/app/q/panel.tsx")!).has("Arrow")).toBe(true);
+    expect(componentsOf(fake.get("src/app/q/dflt.tsx")!).has("default")).toBe(true);
+  });
+
+  it("S-A: the one unfollowed file draws icons and opens nothing; no namespace import (a blind spot) exists in src", () => {
+    expect(Object.keys(UNFOLLOWED_FILES)).toEqual(["src/components/icons.tsx"]);
+    const icons = sources.get("src/components/icons.tsx")!;
+    expect(RAW_OPENER.test(icons)).toBe(false);
+    expect(icons).not.toMatch(/<RecordEditor\b|<Blocked\b|Drawer\b|useActGate/);
+    for (const m of icons.matchAll(/^export (.*)$/gm)) expect(m[1], m[0]).toMatch(/^const [A-Z]\w* = \(p: IconProps\) => \($/);
+    expect([...sources].filter(([f, src]) => f.endsWith(".tsx") && /^import \* as /m.test(src)).map(([f]) => f)).toEqual([]);
+  });
+
+  it("BD-613-129's reason holds: the shared pieces the scan does not follow open no drawer and record nothing", () => {
+    for (const f of ["src/components/data-list.tsx", "src/components/tabs.tsx", "src/components/ui/more-text.tsx"]) expect(sources.get(f), f).not.toMatch(/<RecordEditor\b|Drawer\b|formAction|<form\b|<dialog\b|role="dialog"/);
   });
 
   it("over the product: no gated section reaches an ungated opener, and every named exception is reached", () => {
