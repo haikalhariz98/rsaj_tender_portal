@@ -13,8 +13,8 @@
  * - TERMINATED allows exactly the termination case (its notices included), renomination (NOMINATED_INCREASE), the
  *   TERMINATED_FINAL route, the converse decision, bond claims, rectification and debt (BD-613-99), and, as ruled in
  *   the Run 1a fix round, the releases of a security and the design guarantee bond and the close (BD-613-113, R1);
- * - CLOSED allows only what survives the close: the design guarantee bond's release, debts and the originals' custody
- *   (FR-FIN-014; R2);
+ * - CLOSED allows only what survives the close: the design guarantee bond's release and a claim on it, debts and the
+ *   originals' custody (FR-FIN-014; R2, R5);
  * - Part B's acts are not recorded before execution.
  */
 
@@ -61,6 +61,8 @@ export const CONTRACT_ACTS = [
   "TERMINATED_FINAL_ROUTE",
   "CONVERSE_DECISION",
   "BOND_CLAIM",
+  // R5 (review S9a): the claim against the design guarantee bond and the rectification by other means it pays for.
+  "DESIGN_GUARANTEE_CLAIM",
   "DEBT",
   "FINAL_ACCOUNT",
   "FINAL_PAYMENT",
@@ -128,6 +130,9 @@ export const ACT_STATUS = {
   TERMINATED_FINAL_ROUTE: only(T),
   CONVERSE_DECISION: only(T),
   BOND_CLAIM: executed(PC, T),
+  // R5 (review S9a; FR-CMP-014, 017; FR-FIN-014): a surviving obligation, in every executed state. Its own rule (with
+  // its act) requires a design-and-build contract whose bond is held and not released.
+  DESIGN_GUARANTEE_CLAIM: executed(PC, MGC, FCI, T, C),
   DEBT: executed(PC, MGC, FCI, T, C),
   FINAL_ACCOUNT: only(PC, MGC),
   FINAL_PAYMENT: only(FCI),
@@ -201,11 +206,11 @@ export function actStatusWords(f: Finding): Words {
       return { en: "The contract is not executed yet: this is recorded once it is.", ms: "Kontrak belum dilaksanakan: ini direkodkan setelah ia dilaksanakan." };
     case "CONTRACT_TERMINATED":
       return {
-        en: "The contract is terminated: only the termination's own consequences are recorded on it (its case and notices, renomination, the final payment on termination and its converse decision, bond claims, rectification, debts, the release of a security or the design guarantee bond, where the originals are held, and its close).",
-        ms: "Kontrak telah ditamatkan: hanya akibat penamatan itu sendiri direkodkan padanya (kes dan notisnya, penamaan semula, pembayaran muktamad penamatan dan keputusan sebaliknya, tuntutan bon, pembaikan, hutang, pelepasan sekuriti atau bon jaminan reka bentuk, tempat dokumen asal disimpan, dan penutupannya).",
+        en: "The contract is terminated: only the termination's own consequences are recorded on it (its case and notices, renomination, the final payment on termination and its converse decision, bond claims, rectification, debts, the release of a security or the design guarantee bond, a claim on the design guarantee bond, where the originals are held, and its close).",
+        ms: "Kontrak telah ditamatkan: hanya akibat penamatan itu sendiri direkodkan padanya (kes dan notisnya, penamaan semula, pembayaran muktamad penamatan dan keputusan sebaliknya, tuntutan bon, pembaikan, hutang, pelepasan sekuriti atau bon jaminan reka bentuk, tuntutan ke atas bon jaminan reka bentuk, tempat dokumen asal disimpan, dan penutupannya).",
       };
     case "CONTRACT_CLOSED":
-      return { en: "The contract is closed: it is kept as it was, except what survives the close (the design guarantee bond's release, debts, and where the originals are held).", ms: "Kontrak telah ditutup: ia dikekalkan seperti sedia ada, kecuali yang kekal selepas penutupan (pelepasan bon jaminan reka bentuk, hutang, dan tempat dokumen asal disimpan)." };
+      return { en: "The contract is closed: it is kept as it was, except what survives the close (the design guarantee bond's release and a claim on the design guarantee bond, debts, and where the originals are held).", ms: "Kontrak telah ditutup: ia dikekalkan seperti sedia ada, kecuali yang kekal selepas penutupan (pelepasan bon jaminan reka bentuk dan tuntutan ke atas bon jaminan reka bentuk, hutang, dan tempat dokumen asal disimpan)." };
     case "NOT_IN_STATUS": {
       const s = CONTRACT_STATUS_WORDS[f.data?.status as ContractStatus] ?? { en: "where it stands", ms: "keadaannya" };
       return { en: `Not recorded while the contract stands at “${s.en}”.`, ms: `Tidak direkodkan semasa kontrak berada pada “${s.ms}”.` };

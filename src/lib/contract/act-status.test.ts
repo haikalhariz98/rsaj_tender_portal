@@ -42,6 +42,12 @@ describe("the table is exhaustive: every act, every status", () => {
     for (const a of CONTRACT_ACTS) expect(Object.keys(ACT_STATUS[a]).sort(), a).toEqual([...CONTRACT_STATUSES].sort());
     expect(Object.keys(ACT_STATUS).sort()).toEqual([...CONTRACT_ACTS].sort());
   });
+  it("35 families: 13 built before Part B (R2's originals included), then Part B's 22 (R5's design guarantee claim included)", () => {
+    expect(CONTRACT_ACTS.length).toBe(35);
+    expect(CONTRACT_ACTS.indexOf("EOT")).toBe(13);
+    expect(CONTRACT_ACTS.slice(0, 13)).toContain("ORIGINALS");
+    expect(CONTRACT_ACTS.slice(13)).toContain("DESIGN_GUARANTEE_CLAIM");
+  });
   it("CANCELLED refuses every act, first", () => {
     for (const a of CONTRACT_ACTS) expect(actStatusFault(a, "CANCELLED")?.code, a).toBe("CONTRACT_CANCELLED");
   });
@@ -59,11 +65,11 @@ describe("Part A's answers, unchanged for the nine statuses that existed", () =>
   }
 });
 
-// Run 1a fix round (BD-613-113 as ruled, R1, R2): CLOSE, SECURITY_RELEASE, DESIGN_BOND_RELEASE and ORIGINALS join
-// BD-613-99's seven.
+// Run 1a fix round (BD-613-113 as ruled, R1, R2, R5): CLOSE, SECURITY_RELEASE, DESIGN_BOND_RELEASE, ORIGINALS and
+// DESIGN_GUARANTEE_CLAIM join BD-613-99's seven.
 describe("BD-613-99: in TERMINATED exactly these acts are allowed", () => {
-  it("the termination case, renomination, the TERMINATED_FINAL route, the converse decision, bond claims, rectification, debt, the releases of a security and the design guarantee bond, the originals' custody and the close; no other", () => {
-    expect([...allowedIn("TERMINATED")].sort()).toEqual(["BOND_CLAIM", "CLOSE", "CONVERSE_DECISION", "DEBT", "DESIGN_BOND_RELEASE", "NOMINATED_INCREASE", "ORIGINALS", "RECTIFICATION", "SECURITY_RELEASE", "TERMINATED_FINAL_ROUTE", "TERMINATION_CASE"]);
+  it("the termination case, renomination, the TERMINATED_FINAL route, the converse decision, bond claims, rectification, debt, the releases of a security and the design guarantee bond, the originals' custody, the design guarantee claim and the close; no other", () => {
+    expect([...allowedIn("TERMINATED")].sort()).toEqual(["BOND_CLAIM", "CLOSE", "CONVERSE_DECISION", "DEBT", "DESIGN_BOND_RELEASE", "DESIGN_GUARANTEE_CLAIM", "NOMINATED_INCREASE", "ORIGINALS", "RECTIFICATION", "SECURITY_RELEASE", "TERMINATED_FINAL_ROUTE", "TERMINATION_CASE"]);
     for (const a of CONTRACT_ACTS.filter((x) => !allowedIn("TERMINATED").includes(x))) expect(actStatusFault(a, "TERMINATED")?.code, a).toBe("CONTRACT_TERMINATED");
   });
   it("the TERMINATED_FINAL certificate's acts read TERMINATED_FINAL_ROUTE; the termination's own notices read the case", () => {
@@ -90,20 +96,39 @@ describe("R2: the originals' custody, for the record's life", () => {
   });
 });
 
+describe("R5 (review S9a): the claim against the design guarantee bond survives the close", () => {
+  it("allowed in every executed state, practically complete, making good complete, the final certificate, terminated and closed included", () => {
+    for (const s of CONTRACT_STATUSES) expect(ACT_STATUS.DESIGN_GUARANTEE_CLAIM[s] === "ALLOWED", s).toBe(isExecuted(s));
+    for (const s of ["MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED", "TERMINATED", "CLOSED"] as const) expect(actStatusFault("DESIGN_GUARANTEE_CLAIM", s), s).toBeNull();
+    expect(actStatusFault("DESIGN_GUARANTEE_CLAIM", "LEGALLY_ENDORSED")?.code).toBe("NOT_EXECUTED");
+  });
+  it("the performance bond's claim and ordinary rectification keep their rows", () => {
+    expect(actStatusFault("BOND_CLAIM", "MAKING_GOOD_COMPLETE")?.code).toBe("NOT_IN_STATUS");
+    expect(actStatusFault("RECTIFICATION", "MAKING_GOOD_COMPLETE")?.code).toBe("NOT_IN_STATUS");
+    expect(actStatusFault("BOND_CLAIM", "CLOSED")?.code).toBe("CONTRACT_CLOSED");
+  });
+  it("the closed and terminated contract's words name it, in English and Malay", () => {
+    for (const code of ["CONTRACT_CLOSED", "CONTRACT_TERMINATED"]) {
+      expect(actStatusWords({ code, level: "block" }).en, code).toMatch(/a claim on the design guarantee bond/);
+      expect(actStatusWords({ code, level: "block" }).ms, code).toMatch(/tuntutan ke atas bon jaminan reka bentuk/);
+    }
+  });
+});
+
 describe("the rest of the table, as ADR 0031 and the plan's B5 set it", () => {
   it("valuations in ACTIVE, practically complete and making good complete; none after the final certificate or termination", () => {
     for (const s of ["ACTIVE", "PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE"] as const) expect(ACT_STATUS.VALUATION[s], s).toBe("ALLOWED");
     for (const s of ["FINAL_CERTIFICATE_ISSUED", "TERMINATED", "CLOSED"] as const) expect(ACT_STATUS.VALUATION[s], s).not.toBe("ALLOWED");
   });
-  it("CLOSED: only what survives the close (the design guarantee bond's release, debts and, R2, the originals' custody)", () => {
-    expect([...allowedIn("CLOSED")].sort()).toEqual(["DEBT", "DESIGN_BOND_RELEASE", "ORIGINALS"]);
+  it("CLOSED: only what survives the close (the design guarantee bond's release, debts and, R2 and R5, the originals' custody and the design guarantee claim)", () => {
+    expect([...allowedIn("CLOSED")].sort()).toEqual(["DEBT", "DESIGN_BOND_RELEASE", "DESIGN_GUARANTEE_CLAIM", "ORIGINALS"]);
   });
   it("a termination is refused once practically complete (CPC / termination, both orders: the CPC is refused once terminated)", () => {
     expect(actStatusFault("TERMINATION_CASE", "PRACTICALLY_COMPLETE")).toEqual({ code: "NOT_IN_STATUS", level: "block", data: { status: "PRACTICALLY_COMPLETE" } });
     expect(actStatusFault("COMPLETION", "TERMINATED")?.code).toBe("CONTRACT_TERMINATED");
   });
   it("Part B's acts are not recorded before execution; a contract past practical completion never opens an opening position or an advance", () => {
-    const partB: ContractAct[] = ["EOT", "PERIOD_EXTENSION", "LOSS_EXPENSE", "LAD_WAIVER", "COMPLETION", "COMPLETION_OPENING", "DEFECTS", "RECTIFICATION", "MAKING_GOOD", "SECURITY_RELEASE", "DESIGN_BOND_RELEASE", "NOMINATED", "NOMINATED_INCREASE", "TERMINATION_CASE", "TERMINATED_FINAL_ROUTE", "CONVERSE_DECISION", "BOND_CLAIM", "DEBT", "FINAL_ACCOUNT", "FINAL_PAYMENT", "CLOSE"];
+    const partB: ContractAct[] = ["EOT", "PERIOD_EXTENSION", "LOSS_EXPENSE", "LAD_WAIVER", "COMPLETION", "COMPLETION_OPENING", "DEFECTS", "RECTIFICATION", "MAKING_GOOD", "SECURITY_RELEASE", "DESIGN_BOND_RELEASE", "NOMINATED", "NOMINATED_INCREASE", "TERMINATION_CASE", "TERMINATED_FINAL_ROUTE", "CONVERSE_DECISION", "BOND_CLAIM", "DESIGN_GUARANTEE_CLAIM", "DEBT", "FINAL_ACCOUNT", "FINAL_PAYMENT", "CLOSE"];
     for (const a of partB) for (const s of ["NUMBER_ALLOCATED", "IN_PREPARATION", "PENDING_LEGAL_ENDORSEMENT", "RETURNED_FOR_AMENDMENT", "LEGALLY_ENDORSED"] as const) expect(actStatusFault(a, s)?.code, `${a} ${s}`).toBe("NOT_EXECUTED");
     for (const s of ["PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED"] as const) {
       expect(ACT_STATUS.OPENING_POSITION[s]).not.toBe("ALLOWED");
