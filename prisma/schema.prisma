@@ -7646,6 +7646,11 @@ model StandingEvent {
   cancellingBody      RegistrationBody? @relation(fields: [cancellingBodyId], references: [id], onDelete: Restrict)
   bodyLabelSnapshot   String            @default("")
   externalReference   String            @default("")
+  /// 6.13 Part B Run 0 fix round (M-1, BD-613-109): the registration a cancellation cancels, as the supplier's registeredOn
+  /// when it was recorded. A new registration moves registeredOn on and so ends it (standing's rule), and a later
+  /// cancellation then cancels the new registration: one live cancellation per registration (the partial unique index
+  /// StandingEvent_one_live_cancellation). Set on a REGISTRATION_CANCELLED row only (CHECK StandingEvent_cancels_registration).
+  cancelsRegistrationOn DateTime?
   /// 615-C2: a cancellation recorded in error, withdrawn with a reason by a named officer; the row is kept and read as
   /// never in effect. Only a REGISTRATION_CANCELLED row, all three together (CHECK StandingEvent_withdrawn).
   withdrawnAt         DateTime?

@@ -22,6 +22,7 @@ type Words = { en: string; ms: string };
 export type CancellationFault =
   | "TIME_ZONE_UNSET"
   | "CANCELLATION_NEEDS_REGISTRATION"
+  | "REGISTRATION_DAY_NOT_RECORDED"
   | "ALREADY_CANCELLED"
   | "CANCELLING_BODY_REQUIRED"
   | "CANCELLING_BODY_NOT_CONFIGURED"
@@ -59,6 +60,8 @@ export function recordCancellationFaults(i: CancellationInput, ctx: Cancellation
   if (!ctx.today) return [{ code: "TIME_ZONE_UNSET", level: "block" }];
   const out: Finding<CancellationFault>[] = [];
   if (ctx.status !== "REGISTERED") out.push({ code: "CANCELLATION_NEEDS_REGISTRATION", level: "block" });
+  // BD-613-109: a cancellation names the registration it cancels (its day), so a registered supplier without one is refused.
+  else if (!ctx.registeredOn) out.push({ code: "REGISTRATION_DAY_NOT_RECORDED", level: "block" });
   else if (ctx.reading.cancellation) out.push({ code: "ALREADY_CANCELLED", level: "block", data: { since: ctx.reading.cancellation.effectiveOn } });
   if (!i.bodyId) out.push({ code: "CANCELLING_BODY_REQUIRED", level: "block" });
   else if (ctx.bodyConfigured !== true) out.push({ code: "CANCELLING_BODY_NOT_CONFIGURED", level: "block" });

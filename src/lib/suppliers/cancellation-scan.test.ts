@@ -34,7 +34,7 @@ const SOURCES = [...files("src/app"), ...files("src/lib"), ...files("prisma")].m
 type Write = { where: string; op: string; problem: string | null };
 
 const WITHDRAW_KEYS = ["withdrawnAt", "withdrawnReason", "withdrawnByPersonId"];
-const CANCEL_KEYS = ["cancellingBodyId", "bodyLabelSnapshot", "externalReference"];
+const CANCEL_KEYS = ["cancellingBodyId", "bodyLabelSnapshot", "externalReference", "cancelsRegistrationOn"];
 
 /// The top-level keys of an object literal's text (lexed), or null when it is not an inline literal without a spread.
 function keysOf(lexed: string): string[] | null {

@@ -304,6 +304,7 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   WITHDRAW_REASON_REQUIRED: () => w("Say why it is withdrawn: it is kept with the request.", "Nyatakan sebab ia ditarik balik: ia disimpan bersama permohonan."),
   EFFECTIVE_REQUIRED: () => w("Give the day it takes effect.", "Nyatakan tarikh ia berkuat kuasa."),
   // 615-C2 (BD-613-91): a registration body's cancellation, and its withdrawal when recorded in error.
+  REGISTRATION_DAY_NOT_RECORDED: () => w("The supplier's registration day is not recorded, so the registration a cancellation ends cannot be named.", "Tarikh pendaftaran pembekal tidak direkodkan, jadi pendaftaran yang dibatalkan tidak boleh dinamakan."),
   CANCELLATION_NEEDS_REGISTRATION: () => w("Only a registered supplier's registration can be recorded as cancelled.", "Hanya pendaftaran pembekal berdaftar boleh direkodkan sebagai dibatalkan."),
   ALREADY_CANCELLED: (d) => w(`A cancellation of the registration is already recorded (in effect since ${day(d.since)}). If it was recorded in error, withdraw it first.`, `Pembatalan pendaftaran sudah direkodkan (berkuat kuasa sejak ${day(d.since)}). Jika ia direkodkan secara tersilap, tarik baliknya dahulu.`),
   CANCELLING_BODY_REQUIRED: () => w("Choose the registration body that cancelled it.", "Pilih badan pendaftaran yang membatalkannya."),
