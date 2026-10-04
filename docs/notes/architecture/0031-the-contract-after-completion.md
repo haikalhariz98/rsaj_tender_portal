@@ -39,3 +39,29 @@ a closed one.
 - A screen can say where a contract stands in §7.3.3's words without a column for each.
 - Adding an act means adding its row; a forgotten row is a type error.
 - Rules out: storing a derived state, a SUSPENDED state with no act, and an act deciding its own allowed statuses.
+
+## As built (run 1a, 2026-10-04)
+
+- **States.** The five states are stored, each in its own migration (`20261004100201`–`205`). Each is written only by its
+  own act (`STATUS_WRITTEN_BY`; `contractTransition` refuses WRITTEN_ONLY_BY_ITS_ACT): practical completion, making good,
+  the final certificate, the termination and the close. No writer is built yet; they come with runs 2, 4 and 5.
+  `isExecuted` (EXECUTED_STATES) covers every state after the signature, and the rules that listed EXECUTED, STAMPED and
+  ACTIVE by hand now read it (payment's EXECUTED_STATUSES, copies, signing and stamping, the briefing note, the projects
+  count, the contract's papers). Tests: act-status.test.ts "isExecuted covers every state after the signature; the
+  payment rule reads the same list", "ACTIVE → PRACTICALLY_COMPLETE → …", "each new state is written only by its own act;
+  none is cancelled".
+- **The table.** `src/lib/contract/act-status.ts`: `ACT_STATUS` holds 35 acts by family × 14 states. It lists the 12
+  families built before Part B (every one of the 99 exported acts maps to one) and Part B's 23. Every wrapper
+  (`inContract`, `inCertificate`) and `/approvals` ask `actStatusFault` under the contract's lock. CANCELLED is asked
+  first and keeps each wrapper's own words. A certificate's acts read its kind (`certificateAct`): TERMINATED_FINAL reads
+  TERMINATED_FINAL_ROUTE, and the termination's two notices read TERMINATION_CASE. Tests: act-status-pin.test.ts (today's
+  answers, pinned first at dcabd3f), act-status.test.ts "each act's answer is the pinned one", "in TERMINATED exactly
+  these acts are allowed", "CLOSED: only what survives the close", "every act, and /approvals, read the table (source)",
+  "the screens say what the acts would".
+- **The act's own rule still speaks.** For the nine states that existed before, the table lets every act through except
+  in CANCELLED, and the act's own rule judges execution and the rest in its own words. Only the new states get new
+  refusals: CONTRACT_TERMINATED, CONTRACT_CLOSED, and NOT_IN_STATUS naming the state by its words, all in English and
+  Malay.
+- **Not yet covered.** Attaching documents to a contract's records is judged by the document store's owner rules, not by
+  this table. For a contract past Active, its site-record purposes (diary photos, pipe log, as-built) are decided in run
+  2, with the first writer of a new state (carry, BD-613-115).

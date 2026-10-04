@@ -33,7 +33,8 @@ describe("a variation's route, under the lock order", () => {
   });
 
   it("refuses a cancelled contract and a closed variation after the locks and before the step is moved", () => {
-    const cancelled = body.indexOf('inst.variation?.contract.status === "CANCELLED"');
+    // Run 1a (faithful, ADR 0031): the cancelled contract's refusal is the one act × status table's; the order is unchanged.
+    const cancelled = body.indexOf('const variationRefused = inst.variation?.contract ? actStatusFault("VARIATION",');
     const closed = body.indexOf('inst.variation?.status === "CLOSED"');
     const write = body.indexOf("approvalStep.updateMany");
     for (const x of [cancelled, closed]) {

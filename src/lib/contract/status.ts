@@ -1,12 +1,19 @@
 /**
- * Where a contract stands (§7.3.3, up to Active).
+ * Where a contract stands (§7.3.3).
  *
  * Number allocated (6.11, at issue) → in preparation → pending legal endorsement ⇄ returned for
  * amendment → legally endorsed → executed (the RSAJ signature) → stamped → active. The loop with the
  * legal office has no limit and no timeout (FR-CON-006): a returned contract goes back only by being
  * submitted again. A contract is cancelled only before it is executed, and only through its award
- * (6.11 BD-17: an executed contract is ended by termination, Phase 5). Active is written only by
- * 6.13's possession act (`act: "POSSESSION"`); nothing in 6.12 writes it.
+ * (6.11 BD-17: an executed contract is ended by termination). Active is written only by 6.13's
+ * possession act (`act: "POSSESSION"`); nothing in 6.12 writes it.
+ *
+ * 6.13 Part B (ADR 0031, run 1a): five states are stored after Active, each written only by its own act
+ * (`STATUS_WRITTEN_BY`): ACTIVE → PRACTICALLY_COMPLETE → MAKING_GOOD_COMPLETE → FINAL_CERTIFICATE_ISSUED →
+ * CLOSED; PRACTICALLY_COMPLETE → FINAL_CERTIFICATE_ISSUED (where the defects liability period does not apply,
+ * judged by that act); ACTIVE → TERMINATED → CLOSED; nothing else. The rest of §7.3.3 after Active is
+ * derived in words (`contractStage`); SUSPENDED is not built (BD-613-98). What each act may do in each state
+ * is one table (`act-status.ts`).
  *
  * "Awaiting conditions precedent" and "Ready to sign" are phases derived from the readiness gate and
  * the company resolution, never stored (FR-CON-008).
@@ -14,7 +21,7 @@
 
 import type { ContractStatus } from "./types";
 
-export type ContractTransitionFault = "TERMINAL" | "NOT_ALLOWED" | "EXECUTED_NOT_CANCELLED" | "ACTIVE_ONLY_BY_POSSESSION";
+export type ContractTransitionFault = "TERMINAL" | "NOT_ALLOWED" | "EXECUTED_NOT_CANCELLED" | "ACTIVE_ONLY_BY_POSSESSION" | "WRITTEN_ONLY_BY_ITS_ACT";
 
 export const CONTRACT_TRANSITIONS: Record<ContractStatus, readonly ContractStatus[]> = {
   NUMBER_ALLOCATED: ["IN_PREPARATION", "CANCELLED"],
@@ -25,12 +32,30 @@ export const CONTRACT_TRANSITIONS: Record<ContractStatus, readonly ContractStatu
   LEGALLY_ENDORSED: ["EXECUTED", "CANCELLED"],
   EXECUTED: ["STAMPED"],
   STAMPED: ["ACTIVE"],
-  ACTIVE: [],
+  ACTIVE: ["PRACTICALLY_COMPLETE", "TERMINATED"],
+  PRACTICALLY_COMPLETE: ["MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED"],
+  MAKING_GOOD_COMPLETE: ["FINAL_CERTIFICATE_ISSUED"],
+  FINAL_CERTIFICATE_ISSUED: ["CLOSED"],
+  TERMINATED: ["CLOSED"],
+  CLOSED: [],
   CANCELLED: [],
 };
 
-/// The states after the RSAJ signature: the Contract Document is executed and the contract is not cancelled here.
-const EXECUTED_STATES: readonly ContractStatus[] = ["EXECUTED", "STAMPED", "ACTIVE"];
+/// The act that alone writes each state it names (ADR 0031): the possession, the practical completion's and the making
+/// good's certificates' issue, the final certificate's issue, the termination's issue, and the close.
+export type StatusWriter = "POSSESSION" | "PRACTICAL_COMPLETION" | "MAKING_GOOD" | "FINAL_CERTIFICATE" | "TERMINATION" | "CLOSE";
+export const STATUS_WRITTEN_BY: Readonly<Partial<Record<ContractStatus, StatusWriter>>> = {
+  ACTIVE: "POSSESSION",
+  PRACTICALLY_COMPLETE: "PRACTICAL_COMPLETION",
+  MAKING_GOOD_COMPLETE: "MAKING_GOOD",
+  FINAL_CERTIFICATE_ISSUED: "FINAL_CERTIFICATE",
+  TERMINATED: "TERMINATION",
+  CLOSED: "CLOSE",
+};
+
+/// The states after the RSAJ signature: the Contract Document is executed and the contract is not cancelled here. Every
+/// state after Active is one (ADR 0031: a contract past practical completion is still executed for every rule that asks).
+export const EXECUTED_STATES: readonly ContractStatus[] = ["EXECUTED", "STAMPED", "ACTIVE", "PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED", "TERMINATED", "CLOSED"];
 export const isExecuted = (s: ContractStatus) => EXECUTED_STATES.includes(s);
 
 /// The states in which the contract is being formed: the assembly, reconciliation and checks may still change.
@@ -39,11 +64,13 @@ export const formationOpen = (s: ContractStatus) => s === "IN_PREPARATION" || s 
 /// Before execution and not cancelled: the signatures, the WC check and the baseline draft may be recorded.
 export const beforeExecution = (s: ContractStatus) => s !== "CANCELLED" && s !== "NUMBER_ALLOCATED" && !isExecuted(s);
 
-export function contractTransition(from: ContractStatus, to: ContractStatus, ctx: { act?: "POSSESSION" } = {}): ContractTransitionFault | null {
+export function contractTransition(from: ContractStatus, to: ContractStatus, ctx: { act?: StatusWriter } = {}): ContractTransitionFault | null {
   if (from === "CANCELLED") return "TERMINAL";
   if (to === "CANCELLED" && isExecuted(from)) return "EXECUTED_NOT_CANCELLED";
   if (to === "ACTIVE" && ctx.act !== "POSSESSION") return "ACTIVE_ONLY_BY_POSSESSION";
   if (!CONTRACT_TRANSITIONS[from].includes(to)) return "NOT_ALLOWED";
+  const writer = STATUS_WRITTEN_BY[to];
+  if (writer && ctx.act !== writer) return "WRITTEN_ONLY_BY_ITS_ACT";
   return null;
 }
 
@@ -64,4 +91,4 @@ export function phaseOf(status: ContractStatus, gate: { ready: boolean }, resolu
   return resolutionOnFile ? "READY_TO_SIGN" : "LEGALLY_ENDORSED";
 }
 
-export const CONTRACT_PHASES: readonly ContractPhase[] = ["NUMBER_ALLOCATED", "IN_PREPARATION", "PENDING_LEGAL_ENDORSEMENT", "RETURNED_FOR_AMENDMENT", "LEGALLY_ENDORSED", "AWAITING_CONDITIONS", "READY_TO_SIGN", "EXECUTED", "STAMPED", "ACTIVE", "CANCELLED"];
+export const CONTRACT_PHASES: readonly ContractPhase[] = ["NUMBER_ALLOCATED", "IN_PREPARATION", "PENDING_LEGAL_ENDORSEMENT", "RETURNED_FOR_AMENDMENT", "LEGALLY_ENDORSED", "AWAITING_CONDITIONS", "READY_TO_SIGN", "EXECUTED", "STAMPED", "ACTIVE", "PRACTICALLY_COMPLETE", "MAKING_GOOD_COMPLETE", "FINAL_CERTIFICATE_ISSUED", "TERMINATED", "CLOSED", "CANCELLED"];

@@ -8,6 +8,7 @@
  * that is answered nothing is distributed.
  */
 
+import { EXECUTED_STATES } from "./status";
 import type { ContractStatus, Finding } from "./types";
 
 export interface RecipientFacts {
@@ -43,7 +44,8 @@ export function missingMandatory<T extends RecipientFacts>(recipients: readonly 
 
 export const nextCopyNo = (copies: readonly { copyNo: number }[]) => copies.reduce((m, c) => Math.max(m, c.copyNo), 0) + 1;
 
-const EXECUTED: readonly ContractStatus[] = ["EXECUTED", "STAMPED", "ACTIVE"];
+// 6.13 Part B run 1a: the contract's own rule, so every state after Active counts (ADR 0031).
+const EXECUTED: readonly ContractStatus[] = EXECUTED_STATES;
 
 export type IssueFault = "NOT_EXECUTED" | "STAMP_NOT_FROZEN" | "CONSULTANT_NOT_ANSWERED" | "NOT_A_RECIPIENT" | "ALREADY_HOLDS_ONE" | "FUTURE_DATE" | "BEFORE_CONTRACT_DATE";
 

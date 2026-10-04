@@ -1,5 +1,8 @@
 "use server";
 
+import { actStatusFault, actStatusText, certificateAct } from "@/lib/contract/act-status";
+import type { ContractStatus } from "@/lib/contract/types";
+import type { CertificateKind } from "@/lib/certificate/types";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -36,7 +39,9 @@ async function inCertificate(certId: string, now: Date, fn: (c: CertCtx) => Prom
   try {
     result = await withLockedCertificate(certId, async (tx, l) => {
       contractId = l.contract.id;
-      if (l.contract.status === "CANCELLED") return CANCELLED;
+      // ADR 0031 (run 1a): the one act × status table, by the certificate's kind, CANCELLED first (its words as before).
+      const refused = actStatusFault(certificateAct(l.cert.kind as CertificateKind), l.contract.status as ContractStatus);
+      if (refused) return refused.code === "CONTRACT_CANCELLED" ? CANCELLED : { ok: false, message: actStatusText(refused) };
       const today = dayOf(now, l.org.timeZone);
       if (!today) return NO_ZONE;
       await fn({ tx, l, now, today });

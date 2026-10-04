@@ -27,6 +27,12 @@ export const CONTRACT_STATUS_WORDS: Readonly<Record<ContractStatus, Words>> = {
   EXECUTED: w("Executed", "Dilaksanakan"),
   STAMPED: w("Stamped, fully executed", "Dicop, dilaksanakan sepenuhnya"),
   ACTIVE: w("Active", "Aktif"),
+  // 6.13 Part B run 1a (ADR 0031): the five stored states after Active.
+  PRACTICALLY_COMPLETE: w("Practically complete", "Siap kerja"),
+  MAKING_GOOD_COMPLETE: w("Making good of defects complete", "Siap membaiki kecacatan"),
+  FINAL_CERTIFICATE_ISSUED: w("Final certificate issued", "Perakuan muktamad dikeluarkan"),
+  TERMINATED: w("Terminated", "Ditamatkan"),
+  CLOSED: w("Closed", "Ditutup"),
 };
 
 /// Every phase, stored or derived (X-8: exhaustive).
@@ -48,6 +54,11 @@ export const PHASE_TONE: Readonly<Record<ContractPhase, Tone>> = {
   EXECUTED: "ok",
   STAMPED: "ok",
   ACTIVE: "ok",
+  PRACTICALLY_COMPLETE: "ok",
+  MAKING_GOOD_COMPLETE: "ok",
+  FINAL_CERTIFICATE_ISSUED: "ok",
+  TERMINATED: "err",
+  CLOSED: "neutral",
 };
 
 // ------------------------------------------------------------------ formation's own words

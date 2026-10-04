@@ -12,6 +12,7 @@ import type { CommitmentFault } from "@/lib/requisition/commitment";
 import type { SignatoryFault, SignerFault } from "@/lib/award/signatory";
 import { IC_FORMAT } from "@/lib/award/mask";
 
+import { isExecuted } from "./status";
 import type { ContractStatus, Finding } from "./types";
 
 export interface GateFacts {
@@ -113,7 +114,7 @@ export interface SignInputs {
  */
 export function signFaults(i: SignInputs): Finding<SignFault>[] {
   const out: Finding<SignFault>[] = [];
-  if (i.status === "EXECUTED" || i.status === "STAMPED" || i.status === "ACTIVE") return [{ code: "ALREADY_EXECUTED", level: "block" }];
+  if (isExecuted(i.status)) return [{ code: "ALREADY_EXECUTED", level: "block" }];
   if (i.status !== "LEGALLY_ENDORSED") out.push({ code: "NOT_ENDORSED", level: "block" });
   out.push(...gateFindings(i.gate));
   if (!i.resolutionLive) out.push({ code: "NO_RESOLUTION", level: "block" });
@@ -138,7 +139,7 @@ export type StampFault = "NOT_EXECUTED" | "ALREADY_STAMPED" | "DAY_REQUIRED" | "
 /// "Fully executed" (STAMPED) only with both the stamping day and the LHDN reference.
 export function stampFaults(i: { status: ContractStatus; stampedOn: string | null; reference: string; contractDate: string | null; today: string }): Finding<StampFault>[] {
   const out: Finding<StampFault>[] = [];
-  if (i.status === "STAMPED" || i.status === "ACTIVE") out.push({ code: "ALREADY_STAMPED", level: "block" });
+  if (isExecuted(i.status) && i.status !== "EXECUTED") out.push({ code: "ALREADY_STAMPED", level: "block" });
   else if (i.status !== "EXECUTED") out.push({ code: "NOT_EXECUTED", level: "block" });
   if (!i.stampedOn) out.push({ code: "DAY_REQUIRED", level: "block" });
   if (!i.reference.trim()) out.push({ code: "REFERENCE_REQUIRED", level: "block" });
@@ -154,7 +155,7 @@ export type BriefingFault = "NOT_YET_ENDORSED" | "ALREADY_RECORDED" | "NO_PARTIC
 /// The briefing at signing: on an endorsed or executed contract, with RSAJ's participants and the contractor's attendees.
 export function briefingFaults(i: { status: ContractStatus; exists: boolean; participants: number; attendees: number; heldOn: string; today: string }): Finding<BriefingFault>[] {
   const out: Finding<BriefingFault>[] = [];
-  if (!["LEGALLY_ENDORSED", "EXECUTED", "STAMPED", "ACTIVE"].includes(i.status)) out.push({ code: "NOT_YET_ENDORSED", level: "block" });
+  if (i.status !== "LEGALLY_ENDORSED" && !isExecuted(i.status)) out.push({ code: "NOT_YET_ENDORSED", level: "block" });
   if (i.exists) out.push({ code: "ALREADY_RECORDED", level: "block" });
   if (i.participants === 0) out.push({ code: "NO_PARTICIPANTS", level: "block" });
   if (i.attendees === 0) out.push({ code: "NO_ATTENDEES", level: "block" });
@@ -163,4 +164,4 @@ export function briefingFaults(i: { status: ContractStatus; exists: boolean; par
 }
 
 /// FR-CON-010 is a Should: a signed contract without its briefing is shown so, and nothing is refused.
-export const briefingMissing = (status: ContractStatus, exists: boolean) => !exists && (status === "EXECUTED" || status === "STAMPED" || status === "ACTIVE");
+export const briefingMissing = (status: ContractStatus, exists: boolean) => !exists && isExecuted(status);

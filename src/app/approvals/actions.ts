@@ -1,5 +1,8 @@
 "use server";
 
+import { actStatusFault, actStatusText, certificateAct } from "@/lib/contract/act-status";
+import type { ContractStatus } from "@/lib/contract/types";
+import type { CertificateKind } from "@/lib/certificate/types";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -102,8 +105,12 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
       const step = inst?.steps.find((s) => s.id === stepId);
       if (!inst || !step) return { ok: false, message: "That step no longer exists." };
       // A cancelled contract's certificates are kept as they were (read under the contract's lock, code review run 2 item 5).
-      if (inst.certificate?.contract.status === "CANCELLED") return { ok: false, message: "The contract is cancelled: its certificates are kept as they were, and their routes are not escalated." };
-      if (inst.variation?.contract.status === "CANCELLED") return { ok: false, message: "The contract is cancelled: its variations are kept as they were, and their routes are not escalated." };
+      // ADR 0031 (run 1a, BD-613-99): what /approvals allows on a contract's route is what the one act × status table
+      // allows the act the route belongs to; it restates nothing. A cancelled contract keeps its words as before.
+      const certRefused = inst.certificate?.kind ? actStatusFault(certificateAct(inst.certificate?.kind as CertificateKind), inst.certificate?.contract.status as ContractStatus) : null;
+      if (certRefused) return { ok: false, message: certRefused.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: its certificates are kept as they were, and their routes are not escalated." : actStatusText(certRefused) };
+      const variationRefused = inst.variation?.contract ? actStatusFault("VARIATION", inst.variation?.contract.status as ContractStatus) : null;
+      if (variationRefused) return { ok: false, message: variationRefused.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: its variations are kept as they were, and their routes are not escalated." : actStatusText(variationRefused) };
       if (inst.variation?.status === "CLOSED") return { ok: false, message: "That variation is closed: its route is not escalated." };
       // A certificate past its approval (being signed, issued or void) is not escalated: its route is closed with it.
       if (inst.certificate?.status != null && inst.certificate.status !== "DRAFT" && inst.certificate.status !== "IN_ROUTING") return { ok: false, message: "That certificate is past its approval route." };

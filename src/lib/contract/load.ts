@@ -5,6 +5,7 @@
  * rows as values, and the contracts list.
  */
 
+import { EXECUTED_STATES } from "./status";
 import { decimalText } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
@@ -330,7 +331,7 @@ export async function listContracts(page = 0, only: readonly string[] | null = n
     db.contract.count({ where: { ...where, status: "RETURNED_FOR_AMENDMENT" } }),
     db.contract.count({ where: { ...where, status: "PENDING_LEGAL_ENDORSEMENT" } }),
     db.contract.count({ where: { ...where, status: "LEGALLY_ENDORSED" } }),
-    db.contract.count({ where: { ...where, status: { in: ["EXECUTED", "STAMPED", "ACTIVE"] } } }),
+    db.contract.count({ where: { ...where, status: { in: [...EXECUTED_STATES] } } }),
   ]);
   const today = org.timeZone ? dayOf(new Date(), org.timeZone) : null;
   const out = rows.map((r) => {

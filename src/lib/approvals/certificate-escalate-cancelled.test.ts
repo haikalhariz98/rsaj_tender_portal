@@ -13,7 +13,8 @@ describe("escalating a certificate's step on a cancelled contract", () => {
   });
   it("refuses CANCELLED after the locks and before the step is moved", () => {
     const lock = body.indexOf('FROM "Certificate" WHERE id');
-    const refuse = body.indexOf('inst.certificate?.contract.status === "CANCELLED"');
+    // Run 1a (faithful, ADR 0031): the refusal is the one act × status table's, CANCELLED first; the order is unchanged.
+    const refuse = body.indexOf("const certRefused = inst.certificate?.kind ? actStatusFault(certificateAct(");
     const write = body.indexOf("approvalStep.update");
     expect(lock).toBeGreaterThan(-1);
     expect(refuse).toBeGreaterThan(lock);

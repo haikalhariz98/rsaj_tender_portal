@@ -13,6 +13,7 @@
  * Pure.
  */
 
+import { EXECUTED_STATES } from "@/lib/contract/status";
 import type { Finding } from "./types";
 
 export interface PreExecutionFacts {
@@ -49,5 +50,6 @@ export function preExecutionFaults(sequence: number, f: PreExecutionFacts, level
   return out;
 }
 
-/// The statuses at which the formal contract is signed (FR-PAY-014's "Contract Document is signed").
-export const EXECUTED_STATUSES: readonly string[] = ["EXECUTED", "STAMPED", "ACTIVE"];
+/// The statuses at which the formal contract is signed (FR-PAY-014's "Contract Document is signed"): the contract's own
+/// rule (isExecuted), so a contract past Active is still signed (6.13 Part B run 1a, ADR 0031).
+export const EXECUTED_STATUSES: readonly string[] = EXECUTED_STATES;

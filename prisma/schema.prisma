@@ -3330,6 +3330,13 @@ enum ContractStatus {
   EXECUTED
   STAMPED
   ACTIVE
+  /// 6.13 Part B (ADR 0031): the five stored states after Active, each in its own migration; the rest are derived
+  /// (contractStage). Each is written only by its own act.
+  PRACTICALLY_COMPLETE
+  MAKING_GOOD_COMPLETE
+  FINAL_CERTIFICATE_ISSUED
+  TERMINATED
+  CLOSED
 }
 
 enum ContractNumberSource {

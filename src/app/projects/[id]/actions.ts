@@ -1,5 +1,6 @@
 "use server";
 
+import { actStatusFault, actStatusText, type ContractAct } from "@/lib/contract/act-status";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -71,13 +72,15 @@ interface Ctx {
 }
 
 /// Lock, refuse a cancelled contract or an unset zone, then run the act.
-async function inContract(id: string, now: Date, fn: (c: Ctx) => Promise<FormState>, opts: { allowCancelled?: boolean } = {}): Promise<FormState> {
+async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) => Promise<FormState>): Promise<FormState> {
   let result: FormState | null;
   let awardId: string | undefined;
   try {
     result = await withLockedContract(id, async (tx, l) => {
       awardId = l.award.id;
-      if (!opts.allowCancelled && l.contract.status === "CANCELLED") return CANCELLED;
+      // ADR 0031 (run 1a): the one act × status table, CANCELLED first (its words as before), under the contract's lock.
+      const refused = actStatusFault(act, l.contract.status as ContractStatus);
+      if (refused) return refused.code === "CONTRACT_CANCELLED" ? CANCELLED : { ok: false, message: actStatusText(refused) };
       const today = dayOf(now, l.org.timeZone);
       if (!today) return NO_ZONE;
       return fn({ tx, l, now, today, label: contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } }) });
@@ -129,7 +132,7 @@ const idOf = (data: FormData) => String(data.get("id") ?? "");
  */
 export async function startPreparation(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const { l, tx } = c;
     const cfg = await loadContractConfig(l.org.id, tx);
     // What is in force on the organisation's day: a row retired from a later day is still taken (R-6).
@@ -179,7 +182,7 @@ export async function setAssemblyPart(_prev: FormState, data: FormData): Promise
   const statement = r.text("cancelledStatement", "What it cancels", { max: 4000 });
   if (state === "CANCELLED_BY_ALTERNATIVE" && !statement) r.reject("cancelledStatement", "State what the alternative proposal cancels.");
   if (r.failed || !state) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     if (!formationOpen(c.l.contract.status)) return NOT_OPEN;
     const part = c.l.contract.assemblyParts.find((p) => p.id === partId);
     if (!part) return { ok: false, message: "That part is not in this contract's assembly." };
@@ -201,7 +204,7 @@ export async function recordReconciliation(_prev: FormState, data: FormData): Pr
   const checkedOn = r.date("checkedOn", "Checked on", { required: true });
   const note = r.text("note", "Note", { max: 4000 });
   if (r.failed || !comparison || !outcome || !checkedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     if (!formationOpen(c.l.contract.status)) return NOT_OPEN;
     if (storedDay(checkedOn) > c.today) return { ok: false, errors: { checkedOn: "Not after today." } };
     const person = await personOf(c, personId);
@@ -230,7 +233,7 @@ export async function addAmendment(_prev: FormState, data: FormData): Promise<Fo
   const officerPersonId = r.text("officerPersonId", "Preparing officer", { required: true });
   const officerSignedOn = r.date("officerSignedOn", "Officer signed on", { required: true });
   if (r.failed || !contractorSignedOn || !officerSignedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     if (!formationOpen(c.l.contract.status)) return NOT_OPEN;
     const rec = c.l.contract.reconciliations.find((x) => x.id === reconciliationId);
     if (!rec) return { ok: false, message: "Record the comparison first." };
@@ -266,7 +269,7 @@ export async function addCorrection(_prev: FormState, data: FormData): Promise<F
   const corrected = r.money("corrected", "Corrected", { required: true });
   const reason = r.text("reason", "Why", { required: true, max: 2000 });
   if (r.failed || !tendered || !corrected) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const k = openCheck(c, checkId);
     if (k.kind !== "ARITHMETIC") return { ok: false, message: "Corrections are recorded on the arithmetic check." };
     const row = await c.tx.arithmeticCorrection.create({ data: { organisationId: c.l.org.id, checkId: k.id, itemRef, description, tendered: senToDecimalString(parseSen(tendered)), corrected: senToDecimalString(parseSen(corrected)), reason, recordedAt: now } });
@@ -287,7 +290,7 @@ export async function addRate(_prev: FormState, data: FormData): Promise<FormSta
   const tenderedRate = r.money("tenderedRate", "Tendered rate", { required: true });
   const estimateRate = r.money("estimateRate", "Estimate rate", { required: true });
   if (r.failed || !tenderedRate || !estimateRate) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const k = openCheck(c, checkId);
     if (k.kind !== "FRONT_LOADING") return { ok: false, message: "Rates are compared on the front-loading check." };
     const row = await c.tx.rateComparison.create({ data: { organisationId: c.l.org.id, checkId: k.id, itemRef, description, provisional, tenderedRate: senToDecimalString(parseSen(tenderedRate)), estimateRate: senToDecimalString(parseSen(estimateRate)), recordedAt: now } });
@@ -305,7 +308,7 @@ export async function removeCheckLine(_prev: FormState, data: FormData): Promise
   const lineId = r.text("lineId", "Line", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const k = openCheck(c, checkId);
     const correction = k.corrections.find((x) => x.id === lineId);
     const rate = k.rates.find((x) => x.id === lineId);
@@ -328,7 +331,7 @@ export async function completeCheck(_prev: FormState, data: FormData): Promise<F
   const on = r.date("completedOn", "Completed on", { required: true });
   const note = r.text("note", "Note", { max: 4000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract.checks.find((x) => x.id === checkId);
     if (!k) return { ok: false, message: "That check is not on this contract." };
     if (!formationOpen(c.l.contract.status)) return NOT_OPEN;
@@ -354,7 +357,7 @@ export async function submitLegal(_prev: FormState, data: FormData): Promise<For
   const r = new FormReader(data);
   const personId = r.text("personId", "Sent by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const form = formationOf(k);
     const docs = liveOf(k, "LEGAL_SUBMISSION");
@@ -382,7 +385,7 @@ export async function decideLegal(_prev: FormState, data: FormData): Promise<For
   const decidedOn = r.date("decidedOn", "Decided on", { required: true });
   const comments = r.text("comments", "Comments", { max: 8000 });
   if (r.failed || !decision || !decidedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const reviews = reviewsOf(k);
     const open = openReview(reviews);
@@ -417,7 +420,7 @@ export async function recordWcCheck(_prev: FormState, data: FormData): Promise<F
   const wages = r.money("declaredWages", "Declared uncovered wages", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !on || !wages) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     if (isExecuted(k.status as ContractStatus)) return { ok: false, message: "The contract is executed: the check stands as recorded before signature." };
     if (c.l.award.wcBasis !== "UNCOVERED_WAGES") return { ok: false, message: "Workmen's compensation on this award is not on uncovered wages, so there is no wages check to record." };
@@ -451,7 +454,7 @@ export async function recordContractorSignature(_prev: FormState, data: FormData
   const witnessName = r.text("witnessName", "Witness's full name", { required: true, max: 240 });
   const witnessIc = r.text("witnessIcNumber", "Witness's identity-card number", { required: true, max: 20 });
   if (r.failed || !signedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const gate = await contractGate(c.l, c.tx);
     const end = reviewsOf(k).filter((x) => x.decision === "ENDORSED").sort((a, b) => b.iteration - a.iteration)[0];
@@ -477,7 +480,7 @@ export async function recordRsajSignature(_prev: FormState, data: FormData): Pro
   const r = new FormReader(data);
   const personId = r.text("personId", "Signed by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const contractDate = contractDateOf(now, c.l.org.timeZone);
     if (!contractDate) return NO_ZONE;
@@ -542,7 +545,7 @@ export async function correctContractDate(_prev: FormState, data: FormData): Pro
   const proposed = r.date("contractDate", "Contract Date", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed || !proposed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const frozen = frozenSigningDays(k.executedSnapshot);
     // A snapshot frozen before M-1 lacks the signature days: the signature rows, never edited once recorded, give them.
@@ -597,7 +600,7 @@ export async function recordStamping(_prev: FormState, data: FormData): Promise<
   const stampedOn = r.date("stampedOn", "Stamped on", { required: true });
   const reference = r.text("stampingRef", "Stamping reference", { required: true, max: 120 });
   if (r.failed || !stampedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const fs = stampFaults({ status: k.status as ContractStatus, stampedOn: storedDay(stampedOn), reference, contractDate: day(k.contractDate), today: c.today });
     if (fs.length) return refuse("Not recorded:", fs);
@@ -616,7 +619,7 @@ export async function recordBriefing(_prev: FormState, data: FormData): Promise<
   const attendees = r.text("contractorAttendees", "The contractor's attendees", { max: 2000 }).split(/\n|;/).map((x) => x.trim()).filter(Boolean);
   const note = r.text("note", "Note", { max: 4000 });
   if (r.failed || !heldOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const k = c.l.contract;
     const people = participantIds.length ? await c.tx.person.findMany({ where: { id: { in: participantIds }, organisationId: c.l.org.id }, select: { id: true, name: true } }) : [];
     const fs = briefingFaults({ status: k.status as ContractStatus, exists: !!k.briefing, participants: people.length, attendees: attendees.length, heldOn: storedDay(heldOn), today: c.today });
@@ -634,7 +637,7 @@ export async function answerConsultingEngineer(_prev: FormState, data: FormData)
   const r = new FormReader(data);
   const v = r.choice("consultingEngineer", "Consulting engineer", ["yes", "no"] as const, { required: true });
   if (r.failed || !v) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const k = c.l.contract;
     if (k.copies.length > 0) return { ok: false, message: "Copies have been issued on the answer as it stands; it no longer changes." };
     const after = v === "yes";
@@ -670,7 +673,7 @@ export async function issueCopy(_prev: FormState, data: FormData): Promise<FormS
   const despatchedOn = r.date("despatchedOn", "Despatched on");
   if (despatchedOn && !method) r.reject("method", "Say how it went.");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     await issue(c, recipientId, addressedTo, method, despatchedOn, null);
     return { ok: true };
   });
@@ -691,7 +694,7 @@ export async function despatchCopy(_prev: FormState, data: FormData): Promise<Fo
   const method = r.choice("method", "How it went", METHODS, { required: true });
   const on = r.date("despatchedOn", "Despatched on", { required: true });
   if (r.failed || !on || !method) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const { row, facts } = await onCopy(c, copyId);
     const fs = despatchFaults(facts, storedDay(on), c.today, day(c.l.contract.contractDate));
     if (fs.length) return refuse("Not recorded:", fs);
@@ -707,7 +710,7 @@ export async function acknowledgeCopy(_prev: FormState, data: FormData): Promise
   const copyId = r.text("copyId", "Copy", { required: true });
   const on = r.date("acknowledgedOn", "Acknowledged on", { required: true });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const { row, facts } = await onCopy(c, copyId);
     const fs = acknowledgeFaults(facts, storedDay(on), c.today);
     if (fs.length) return refuse("Not recorded:", fs);
@@ -724,7 +727,7 @@ export async function recallCopy(_prev: FormState, data: FormData): Promise<Form
   const on = r.date("recalledOn", "Recalled on", { required: true });
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const { row, facts } = await onCopy(c, copyId);
     const fs = recallFaults(facts, storedDay(on), c.today, reason);
     if (fs.length) return refuse("Not recalled:", fs);
@@ -744,7 +747,7 @@ export async function reissueCopy(_prev: FormState, data: FormData): Promise<For
   const despatchedOn = r.date("despatchedOn", "Despatched on");
   if (despatchedOn && !method) r.reject("method", "Say how it went.");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const { row, facts } = await onCopy(c, copyId);
     const fs = reissueFaults(facts);
     if (fs.length) return refuse("Not reissued:", fs);
@@ -768,7 +771,7 @@ export async function registerOriginal(_prev: FormState, data: FormData): Promis
   const custodianId = r.text("custodianPersonId", "Custodian", { required: true });
   if (kind && kind !== "CONTRACT" && !refId) r.reject("original", "Choose the bond or policy.");
   if (r.failed || !kind) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const k = c.l.contract;
     const onContract = kind === "CONTRACT" ? true : kind === "SECURITY" ? k.securities.some((s) => s.id === refId) : k.policies.some((p) => p.id === refId);
     const registered = k.custodyItems.some((i) => (kind === "CONTRACT" ? i.kind === "CONTRACT" : kind === "SECURITY" ? i.securityId === refId : i.policyId === refId));
@@ -791,7 +794,7 @@ export async function moveOriginal(_prev: FormState, data: FormData): Promise<Fo
   const on = r.date("on", "On", { required: true });
   const purpose = r.text("purpose", "Purpose", { max: 400 });
   if (r.failed || !direction || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     // The domain row last, after the contract.
     await c.tx.$queryRaw`SELECT id FROM "CustodyItem" WHERE id = ${itemId} FOR UPDATE`;
     const item = c.l.contract.custodyItems.find((i) => i.id === itemId);
@@ -890,7 +893,7 @@ export async function saveBaselineEntry(_prev: FormState, data: FormData): Promi
   const note = r.text("note", "Note", { max: 2000 });
   const entered = group ? readGroup(r, group) : null;
   if (r.failed || !group || !entered || !provenance) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "BASELINE", async (c) => {
     const k = c.l.contract;
     const { draft, versions } = baselineRows(k);
     const df = draftFaults({ status: k.status as ContractStatus, versions: versions.length });
@@ -918,7 +921,7 @@ export async function saveBaselineEntry(_prev: FormState, data: FormData): Promi
 /// Confirm the baseline before the first valuation (OD-2 A): version 1, CONFIRMED.
 export async function confirmBaseline(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "BASELINE", async (c) => {
     const k = c.l.contract;
     const { draft, versions } = baselineRows(k);
     const gate = await contractGate(c.l, c.tx);
@@ -939,7 +942,7 @@ export async function correctBaseline(_prev: FormState, data: FormData): Promise
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   const entered = group ? readGroup(r, group) : null;
   if (r.failed || !group || !entered || !provenance) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "BASELINE", async (c) => {
     const k = c.l.contract;
     const { versions } = baselineRows(k);
     const latest = latestVersion(versions);
@@ -999,7 +1002,7 @@ export async function correctAwardTerm(_prev: FormState, data: FormData): Promis
     input = n != null && unit ? { term, period: n, unit } : null;
   }
   if (r.failed || !term || !input) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, async (c) => {
+  return inContract(idOf(data), now, "BASELINE", async (c) => {
     const k = c.l.contract;
     const a = c.l.award;
     const { versions } = baselineRows(k);

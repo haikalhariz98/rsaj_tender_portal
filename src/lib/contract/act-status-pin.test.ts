@@ -38,25 +38,29 @@ describe("today's answers, pinned (before the act × status table)", () => {
   });
 });
 
-describe("how today's answer is given (source, before the table)", () => {
-  const wrappers: Record<string, RegExp> = {
-    "src/app/projects/[id]/actions.ts": /if \(!opts\.allowCancelled && l\.contract\.status === "CANCELLED"\) return CANCELLED;/,
-    "src/app/projects/[id]/supervision-actions.ts": /if \(l\.contract\.status === "CANCELLED"\) return CANCELLED;/,
-    "src/app/projects/[id]/payment-actions.ts": /if \(l\.contract\.status === "CANCELLED"\) return CANCELLED;/,
-    "src/app/projects/[id]/variation-actions.ts": /if \(l\.contract\.status === "CANCELLED"\) return CANCELLED;/,
-    "src/app/projects/[id]/certificates/[certId]/actions.ts": /if \(l\.contract\.status === "CANCELLED"\) return CANCELLED;/,
+// Run 1a (faithful, ADR 0031 §4): the table now gives these answers (act-status.test.ts checks every act against the
+// pinned ones). What stays pinned here of the mechanism: every act still goes through its wrapper, the wrapper refuses a
+// cancelled contract first with the same words as before, and /approvals keeps its two cancelled refusals' words.
+describe("how today's answer is given (source)", () => {
+  const cancelledWords: Record<string, string> = {
+    "src/app/projects/[id]/actions.ts": "The contract is cancelled: it is kept as it was.",
+    "src/app/projects/[id]/supervision-actions.ts": "The contract is cancelled: it is kept as it was.",
+    "src/app/projects/[id]/payment-actions.ts": "The contract is cancelled: it is kept as it was.",
+    "src/app/projects/[id]/variation-actions.ts": "The contract is cancelled: it is kept as it was.",
+    "src/app/projects/[id]/certificates/[certId]/actions.ts": "The contract is cancelled: its certificates are kept as they were.",
   };
   for (const [file, acts] of Object.entries(TODAY_ACTS)) {
-    it(`${file}: the wrapper refuses a cancelled contract first, and every act goes through it`, () => {
+    it(`${file}: the wrapper refuses a cancelled contract first, with its words as before, and every act goes through it`, () => {
       const src = readFileSync(file, "utf8");
-      expect(src).toMatch(wrappers[file]);
+      expect(src).toMatch(/if \(refused\) return refused\.code === "CONTRACT_CANCELLED" \? CANCELLED : \{ ok: false, message: actStatusText\(refused\) \};/);
+      expect(src).toContain(`const CANCELLED: FormState = { ok: false, message: "${cancelledWords[file]}" };`);
       expect(src).not.toMatch(/allowCancelled: true/);
       for (const a of acts) expect(bodyOf(src, a), a).toMatch(/\b(inContract|inCertificate|inCert)\(/);
     });
   }
-  it("/approvals refuses a cancelled contract's certificate and variation routes, under the contract's lock", () => {
+  it("/approvals refuses a cancelled contract's certificate and variation routes, under the contract's lock, with its words as before", () => {
     const src = readFileSync("src/app/approvals/actions.ts", "utf8");
-    expect(src).toMatch(/if \(inst\.certificate\?\.contract\.status === "CANCELLED"\) return/);
-    expect(src).toMatch(/if \(inst\.variation\?\.contract\.status === "CANCELLED"\) return/);
+    expect(src).toContain('certRefused.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: its certificates are kept as they were, and their routes are not escalated."');
+    expect(src).toContain('variationRefused.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: its variations are kept as they were, and their routes are not escalated."');
   });
 });

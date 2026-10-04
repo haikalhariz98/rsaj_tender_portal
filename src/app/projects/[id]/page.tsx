@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { actStatusText } from "@/lib/contract/act-status";
+import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
 import { historyEntityLabel, PAYMENT_ENTITIES, RECORD_TYPE_WORDS, SUPERVISION_ENTITIES, VARIATION_ENTITIES } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
 
@@ -148,6 +150,12 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
         {status === "CANCELLED" && (
           <Callout tone="warn" title="Cancelled with its award">
             {c.cancelReason || "No reason recorded."} The number stays allocated as a gap; everything recorded is kept as it was.
+          </Callout>
+        )}
+        {/* ADR 0031 (run 1a): a terminated or closed contract says what is still recorded on it, in the acts' own words. */}
+        {(status === "TERMINATED" || status === "CLOSED") && (
+          <Callout tone="warn" title={CONTRACT_STATUS_WORDS[status].en}>
+            {actStatusText({ code: status === "TERMINATED" ? "CONTRACT_TERMINATED" : "CONTRACT_CLOSED", level: "block" })}
           </Callout>
         )}
         {briefingMissing(status, !!c.briefing) && (

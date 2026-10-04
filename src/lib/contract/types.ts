@@ -9,7 +9,8 @@
 export type { Finding, Level } from "@/lib/method/types";
 export type { Provenance } from "@/lib/award/types";
 
-/// Stored states (§7.3.3 up to Active). AWAITING_CONDITIONS and READY_TO_SIGN are derived (`phaseOf`).
+/// Stored states (§7.3.3). AWAITING_CONDITIONS and READY_TO_SIGN are derived (`phaseOf`); after Active, five are stored
+/// (6.13 Part B, ADR 0031) and the rest derived in words (`contractStage`).
 export type ContractStatus =
   | "NUMBER_ALLOCATED"
   | "CANCELLED"
@@ -19,7 +20,12 @@ export type ContractStatus =
   | "LEGALLY_ENDORSED"
   | "EXECUTED"
   | "STAMPED"
-  | "ACTIVE";
+  | "ACTIVE"
+  | "PRACTICALLY_COMPLETE"
+  | "MAKING_GOOD_COMPLETE"
+  | "FINAL_CERTIFICATE_ISSUED"
+  | "TERMINATED"
+  | "CLOSED";
 
 export const CONTRACT_STATUSES: readonly ContractStatus[] = [
   "NUMBER_ALLOCATED",
@@ -31,6 +37,11 @@ export const CONTRACT_STATUSES: readonly ContractStatus[] = [
   "EXECUTED",
   "STAMPED",
   "ACTIVE",
+  "PRACTICALLY_COMPLETE",
+  "MAKING_GOOD_COMPLETE",
+  "FINAL_CERTIFICATE_ISSUED",
+  "TERMINATED",
+  "CLOSED",
 ];
 
 export type BaselineSource = "APPENDIX" | "AWARD" | "BQ" | "DERIVED" | "ENTERED";

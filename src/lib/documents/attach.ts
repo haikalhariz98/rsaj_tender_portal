@@ -10,6 +10,7 @@
 
 import { isLive } from "./evidence";
 import type { ExerciseStatus } from "@/lib/method/types";
+import { isExecuted } from "@/lib/contract/status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { exerciseAllowsPanel } from "@/lib/scope/panel";
 import type { PartSource, TenderPackStatus } from "@/lib/tender-docs/types";
@@ -330,7 +331,8 @@ function contractOwnerState(purpose: AttachmentPurpose, owner: Extract<OwnerFact
   const s = owner.status;
   if (s === "CANCELLED") return { state: "FROZEN", exit: "CONTRACT_CANCELLED" };
   if (s === "NUMBER_ALLOCATED") return { state: "NOT_READY", exit: "CONTRACT_NOT_IN_PREPARATION" };
-  const executed = s === "EXECUTED" || s === "STAMPED" || s === "ACTIVE";
+  // 6.13 Part B run 1a: the contract's own rule, so every state after Active counts as executed (ADR 0031).
+  const executed = isExecuted(s as ContractStatus);
   switch (purpose) {
     case "LEGAL_SUBMISSION":
       if (s === "IN_PREPARATION" || s === "RETURNED_FOR_AMENDMENT") return { state: "OPEN" };

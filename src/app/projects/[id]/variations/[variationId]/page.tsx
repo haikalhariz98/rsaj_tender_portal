@@ -1,4 +1,7 @@
 import Link from "next/link";
+import type { ContractStatus } from "@/lib/contract/types";
+import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
+import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
 import { notFound } from "next/navigation";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
@@ -97,7 +100,9 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
   const people = (await db.person.findMany({ where: { organisationId: l.org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })).map((p) => ({ value: p.id, label: p.name }));
   const title = v.reference ? `Variation ${v.reference}` : "Variation (not yet numbered)";
   const zone = today ? null : "Set the organisation's time zone first.";
-  const cancelled = l.contract.status === "CANCELLED" ? "The contract is cancelled: it is kept as it was." : null;
+  // ADR 0031 (run 1a): the acts' own table, so the page refuses where the act would.
+  const statusRefused = actStatusFault("VARIATION", l.contract.status as ContractStatus);
+  const cancelled = statusRefused?.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: it is kept as it was." : statusRefused ? actStatusText(statusRefused) : null;
   const blockedBy = zone ?? cancelled;
 
   // The header's acts, by where it stands, each judged by its act's own rule.
@@ -175,7 +180,8 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
       <div className="mb-6 flex flex-col gap-3">
         {!today && <Callout tone="warn" title="The organisation's time zone is not set">Every act on a variation records the organisation&apos;s day: none is assumed to be UTC.</Callout>}
         {vv.refused && <AdjustmentRefusedCallout l={l} refused={vv.refused} />}
-        {cancelled && <Callout tone="warn" title="The contract is cancelled">Its variations are kept as they were; nothing more is recorded on them.</Callout>}
+        {statusRefused?.code === "CONTRACT_CANCELLED" && <Callout tone="warn" title="The contract is cancelled">Its variations are kept as they were; nothing more is recorded on them.</Callout>}
+        {statusRefused && statusRefused.code !== "CONTRACT_CANCELLED" && <Callout tone="warn" title={`The contract is ${CONTRACT_STATUS_WORDS[l.contract.status as ContractStatus].en.toLowerCase()}`}>{actStatusText(statusRefused)}</Callout>}
         {stage === "CLOSED" && <Callout tone="warn" title="Closed">{`${v.closedReason} (${formatDate(day(v.closedOn))}).`}</Callout>}
         {commencedPending(f) && <Callout tone="warn" title="Commenced pending approval">{`Work commenced on ${formatDate(day(v.commencedOn))} on the support of ${v.commencedSupport?.name ?? "the S.O."}. Its estimate (${formatMoney(f.estimate)}) is in the contract's exposure until it is approved, and its work is not valued until then.`}</Callout>}
         {!EXECUTED_STATUSES.includes(l.contract.status) && <Callout tone="info" title="The contract is not executed">{variationFaultText({ code: "NOT_EXECUTED", level: "block" })}</Callout>}
