@@ -1,0 +1,22 @@
+# Run 1a residual round, commit 1 (BD-613-124 and BD-613-123's condition). 2026-10-04T09:30:57Z
+## npm run check
+
+> perolehan@0.1.0 check
+> npm run typecheck && npm run lint
+
+
+> perolehan@0.1.0 typecheck
+> next typegen && tsc --noEmit
+
+Generating route types...
+✓ Types generated successfully
+
+> perolehan@0.1.0 lint
+> eslint && node scripts/check-ui.mjs
+
+UI scaffolding check passed.
+exit: 0
+## full suite (npx vitest run)
+ Test Files  546 passed (546)
+      Tests  8525 passed (8525)
+exit: 0

@@ -127,6 +127,142 @@ describe("S1: each panel section states its family's refusal first and gates its
   });
 });
 
+/**
+ * BD-613-123's condition (residual round): the "83 of 83" was a hand count. This scan proves it. From every component
+ * that holds an `<ActGate`, it follows every element the component renders, through imports, to the components that
+ * define them. Following stops at a gated component: RecordEditor or Blocked (each reads ActGate, asserted below), or a
+ * component that reads `useActGate(` itself. Anything else that opens a drawer or a form (a raw `<form`, `<dialog`,
+ * `role="dialog"`, `<button`, `formAction=`) found on the way fails, with its path, unless it is a named exception with
+ * its reason. A drawer the scan cannot resolve fails too, so an import it cannot follow is not a blind spot.
+ */
+type Sources = ReadonlyMap<string, string>;
+const RAW_OPENER = /<form\b|<dialog\b|role="dialog"|<button\b|formAction=/;
+const GATED_TERMINALS = new Set(["RecordEditor", "Blocked"]);
+
+/// The component functions of a file, by name (exported, default-exported or local), each with its body.
+function componentsOf(src: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const heads = [...src.matchAll(/^(?:export )?(?:default )?(?:async )?function ([A-Z]\w*)\(/gm)];
+  heads.forEach((h, i) => out.set(h[1], src.slice(h.index, heads[i + 1]?.index ?? src.length)));
+  return out;
+}
+
+/// A file's named imports: local name to the file it comes from (resolved among the sources), or null for a package.
+function importsOf(file: string, src: string, sources: Sources): Map<string, string | null> {
+  const out = new Map<string, string | null>();
+  for (const m of src.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+"([^"]+)"/g)) {
+    const spec = m[2];
+    const base = spec.startsWith("@/") ? `src/${spec.slice(2)}` : spec.startsWith(".") ? join(file, "..", spec) : null;
+    const target = base ? ([".tsx", ".ts", "/index.tsx", "/index.ts"].map((e) => base + e).find((p) => sources.has(p)) ?? null) : null;
+    for (const part of m[1].split(",")) {
+      const names = part.replace(/^\s*type\s+/, "").trim().split(/\s+as\s+/);
+      if (names[0]) out.set((names[1] ?? names[0]).trim(), target);
+    }
+  }
+  return out;
+}
+
+type Reach = { violations: string[]; drawers: Set<string>; exceptionsUsed: Set<string>; roots: string[] };
+
+/// Every path from a gated section to an ungated opener, over the given sources.
+function gateReach(sources: Sources, exceptions: Readonly<Record<string, string>>): Reach {
+  const reach: Reach = { violations: [], drawers: new Set(), exceptionsUsed: new Set(), roots: [] };
+  const parsed = new Map([...sources].map(([f, src]) => [f, { comps: componentsOf(src), imports: importsOf(f, src, sources) }]));
+  const resolve = (file: string, name: string): { file: string; body: string } | null => {
+    const p = parsed.get(file)!;
+    const local = p.comps.get(name);
+    if (local) return { file, body: local };
+    const from = p.imports.get(name);
+    const body = from ? parsed.get(from)?.comps.get(name) : undefined;
+    return from && body ? { file: from, body } : null;
+  };
+  const done = new Set<string>();
+  const visit = (file: string, name: string, body: string, path: string[]) => {
+    const key = `${file}#${name}`;
+    if (done.has(key)) return;
+    done.add(key);
+    if (/\buseActGate\(/.test(body)) return;
+    if (RAW_OPENER.test(body)) reach.violations.push(`${path.join(" > ")}: ${RAW_OPENER.exec(body)![0]}`);
+    for (const el of new Set([...body.matchAll(/<([A-Z]\w*)\b/g)].map((m) => m[1]))) {
+      if (el === "ActGate") continue;
+      if (GATED_TERMINALS.has(el)) continue;
+      if (exceptions[el] !== undefined) {
+        reach.exceptionsUsed.add(el);
+        continue;
+      }
+      const def = resolve(file, el);
+      if (!def) {
+        if (/Drawer$/.test(el)) reach.violations.push(`${[...path, el].join(" > ")}: unresolved`);
+        continue;
+      }
+      if (/Drawer$/.test(el)) reach.drawers.add(`${def.file}#${el}`);
+      visit(def.file, el, def.body, [...path, el]);
+    }
+  };
+  for (const [file, p] of parsed)
+    for (const [name, body] of p.comps)
+      if (/<ActGate\b/.test(body)) {
+        reach.roots.push(`${file}#${name}`);
+        done.clear();
+        visit(file, name, body, [`${file}#${name}`]);
+      }
+  return reach;
+}
+
+/// Components a gated section may render that are neither gated nor ungated openers, each with why.
+const GATE_EXCEPTIONS: Readonly<Record<string, string>> = {
+  OwnerAttachments: "The attachments panel: each purpose is judged by the document store through ownerState, in the table's words (BD-613-115), and the screen and the store give the same answer (contract-act-status.test.ts).",
+  DataList: "The shared list: its buttons filter, sort, select and page the rows, and record nothing (no drawer or form in data-list.tsx). Its rows link to records whose own pages gate their acts.",
+};
+
+/// Drawers under the contract's pages that no gated section reaches yet: the certificate and variation pages (code
+/// re-review S-2). Exact, so it can only shrink.
+const NOT_YET_GATED: readonly string[] = [
+  ...["SendForRoutingDrawer", "SendToSigningDrawer", "ReceivedDrawer", "CheckDrawer", "SignatureDrawer", "OverrideDrawer", "CorrectDateDrawer", "DespatchDrawer", "AcknowledgeDrawer", "VoidDrawer", "SendForApprovalDrawer", "DecideRouteStepDrawer", "ChooseRejectionDrawer", "FinancePaymentDrawer"].map((n) => `${DIR}/certificates/[certId]/editors.tsx#${n}`),
+  ...["SubmitVariationDrawer", "SoDecisionDrawer", "SendVariationDrawer", "DecideVariationStepDrawer", "CiteCommitteeDrawer", "ChooseVariationRefusalDrawer", "TableVariationDrawer", "CommenceDrawer", "CloseVariationDrawer", "InstructionDrawer", "OralLoopDrawer", "MeasurementDrawer", "RemoveMeasurementDrawer", "DayworkDrawer", "OrderDrawer"].map((n) => `${DIR}/variation-editors.tsx#${n}`),
+];
+
+describe("BD-613-123's condition: every drawer or form-opening element inside a gated section is gated", () => {
+  const sources: Sources = new Map(walk("src").filter((f) => /\.tsx?$/.test(f) && !f.includes("/generated/") && !/\.test\.tsx?$/.test(f)).map((f) => [f, readFileSync(f, "utf8")]));
+
+  it("RecordEditor and Blocked each read ActGate before their own blocker", () => {
+    expect(sources.get("src/components/record-editor.tsx")).toMatch(/const gate = useActGate\(\);\n\s+const submitBlock = gate \?\? ownBlock;/);
+    expect(sources.get("src/components/ui/blocked.tsx")).toMatch(/const reason = useActGate\(\) \?\? own;/);
+  });
+
+  it("the scan finds an ungated form, button, dialog and unresolved drawer, through imports and local components, and passes gated ones (self-test)", () => {
+    const fake: Sources = new Map([
+      ["src/app/x/panel.tsx", `import { GoodDrawer, BadDrawer, OwnDrawer } from "./editors";\nimport { Button } from "@/components/ui/button";\nexport function Section() {\n  return <ActGate blocker={b}><GoodDrawer /><BadDrawer /><OwnDrawer /><Inner /><Blocked label="x" reason="y" /><Allowed /></ActGate>;\n}\nfunction Inner() {\n  return <Button onClick={go}>Go</Button>;\n}\nexport function Ungated() {\n  return <form action={x} />;\n}\n`],
+      ["src/app/x/editors.tsx", `export function GoodDrawer() {\n  return <RecordEditor action={a} />;\n}\nexport function BadDrawer() {\n  return <dialog open><RecordEditor action={a} /></dialog>;\n}\nexport function OwnDrawer() {\n  const gate = useActGate();\n  return <form />;\n}\n`],
+      ["src/components/ui/button.tsx", `export function Button() {\n  return <button />;\n}\n`],
+      ["src/app/y/page.tsx", `export default async function Page() {\n  return <ActGate blocker={b}><MissingDrawer /></ActGate>;\n}\n`],
+    ]);
+    const r = gateReach(fake, { Allowed: "test" });
+    expect(r.roots).toEqual(["src/app/x/panel.tsx#Section", "src/app/y/page.tsx#Page"]);
+    expect(r.violations.sort()).toEqual([
+      "src/app/x/panel.tsx#Section > BadDrawer: <dialog",
+      "src/app/x/panel.tsx#Section > Inner > Button: <button",
+      "src/app/y/page.tsx#Page > MissingDrawer: unresolved",
+    ]);
+    expect([...r.drawers].sort()).toEqual(["src/app/x/editors.tsx#BadDrawer", "src/app/x/editors.tsx#GoodDrawer", "src/app/x/editors.tsx#OwnDrawer"]);
+    expect([...r.exceptionsUsed]).toEqual(["Allowed"]);
+  });
+
+  it("over the product: no gated section reaches an ungated opener, and every named exception is reached", () => {
+    const r = gateReach(sources, GATE_EXCEPTIONS);
+    expect(r.roots.length).toBeGreaterThan(10);
+    expect(r.violations).toEqual([]);
+    expect([...r.exceptionsUsed].sort()).toEqual(Object.keys(GATE_EXCEPTIONS).sort());
+    // The panels' drawers counted by the scan, not by hand (the fix round's "83 of 83"): each one reached is gated.
+    // The fix round's "83 of 83" counted the RecordEditors its four editors files define, not what is gated. Counted by the
+    // scan instead: every drawer defined under the contract's pages is reached from a gated section, save the two pages
+    // the code re-review's S-2 found ungated (the not-yet list, emptied by the commit that gates them).
+    const defined = [...sources.keys()].filter((f) => f.startsWith(`${DIR}/`) && f.endsWith(".tsx")).flatMap((f) => [...componentsOf(sources.get(f)!).keys()].filter((n) => /Drawer$/.test(n)).map((n) => `${f}#${n}`));
+    expect(defined.length).toBeGreaterThanOrEqual(83);
+    expect(defined.filter((d) => !r.drawers.has(d)).sort()).toEqual([...NOT_YET_GATED].sort());
+  });
+});
+
 describe("S1: actStatusBlocker is the table in the acts' words", () => {
   it("for every family in every state: null where allowed, actStatusText of the fault otherwise", () => {
     for (const a of CONTRACT_ACTS)

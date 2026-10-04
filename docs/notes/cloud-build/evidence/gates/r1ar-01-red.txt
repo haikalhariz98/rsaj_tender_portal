@@ -1,0 +1,14 @@
+
+ RUN  v4.1.10 /home/user/repo
+
+ ❯ src/lib/supervision/part-b-provenance.test.ts (7 tests | 4 failed) 22ms
+     × no value column in the model lacks a provenance, and no provenance speaks for two, except Part A's logged carry 7ms
+     × Part B: every value column has exactly one provenance of its own, nullable, with no default, on the very next field 4ms
+     × BD-613-124: the re-tender cap, the loss-days composition and the design bond's rate and years each have their own 4ms
+     × BD-613-124: the pre-check first, the four columns with no DEFAULT, the two shared ones dropped, no row written 1ms
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 3 passed (7)
+   Start at  09:25:32
+   Duration  283ms (transform 65ms, setup 0ms, import 82ms, tests 22ms, environment 0ms)
+

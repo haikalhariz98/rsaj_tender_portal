@@ -8957,10 +8957,11 @@ model PostAwardPolicy {
   ladWaiverApplication        LadWaiverApplication?
   ladWaiverProvenance         Provenance?
   /// FR-CMP-017 (§8.10): the design guarantee bond's rate on the design work's value, and its years from practical
-  /// completion. Either null: NOT_SET (never 5% or five years).
+  /// completion. Either null: NOT_SET (never 5% or five years). Each has its own provenance (BD-613-124).
   designBondPct               Decimal?            @db.Decimal(9, 4)
+  designBondPctProvenance     Provenance?
   designBondYears             Int?
-  designBondProvenance        Provenance?
+  designBondYearsProvenance   Provenance?
   /// OD-B8 (BD-613-76): when the performance bond and the retention balance are released. Null refuses the release,
   /// naming the setting. Each switch has its own provenance (Run 1a fix round, review S7).
   performanceBondReleaseAt    ReleaseEvent?
@@ -8977,10 +8978,12 @@ model PostAwardPolicy {
   nominationLetterForms       NominationLetterForms?
   nominationLetterFormsProvenance Provenance?
   /// §8.9 (FR-TRM-011–016): the re-tender cap in days (null blocks the terminated account) and OD-B2's composition of
-  /// the cost-of-loss days (null blocks it; both readings shown).
+  /// the cost-of-loss days (null blocks it; both readings shown). Each has its own provenance (BD-613-124): the cap is
+  /// §8.9's, the composition a customer's undecided choice.
   retenderCapDays             Int?
+  retenderCapProvenance       Provenance?
   lossDaysComposition         LossDaysComposition?
-  terminationProvenance       Provenance?
+  lossDaysCompositionProvenance Provenance?
   /// OD-B9 (BD-613-77): what the final account's previous interim payments are. Null refuses the final account.
   finalPreviousBasis          FinalPreviousBasis?
   finalAccountProvenance      Provenance?

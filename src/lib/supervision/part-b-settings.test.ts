@@ -34,8 +34,10 @@ const POLICY: Record<string, string> = {
   finalPreviousBasis: "FinalPreviousBasis?",
 };
 // Run 1a fix round (review S7, stricter): the release and nominated settings each have their own provenance
-// (part-b-provenance.test.ts), in place of releaseProvenance and nominatedProvenance.
-const PROVENANCE = ["ladAntiOppressionProvenance", "weatherGuidanceProvenance", "ladWaiverProvenance", "designBondProvenance", "performanceBondReleaseProvenance", "retentionBalanceReleaseProvenance", "nominatedBondProvenance", "nominatedQuotationCeilingProvenance", "nominationLetterFormsProvenance", "terminationProvenance", "finalAccountProvenance"];
+// (part-b-provenance.test.ts), in place of releaseProvenance and nominatedProvenance. Residual round (BD-613-124,
+// stricter): the design bond's rate and years, and the re-tender cap and the loss-days composition, likewise, in place
+// of designBondProvenance and terminationProvenance.
+const PROVENANCE = ["ladAntiOppressionProvenance", "weatherGuidanceProvenance", "ladWaiverProvenance", "designBondPctProvenance", "designBondYearsProvenance", "performanceBondReleaseProvenance", "retentionBalanceReleaseProvenance", "nominatedBondProvenance", "nominatedQuotationCeilingProvenance", "nominationLetterFormsProvenance", "retenderCapProvenance", "lossDaysCompositionProvenance", "finalAccountProvenance"];
 
 describe("the post-award policy's Part B settings", () => {
   const m = model("PostAwardPolicy");
