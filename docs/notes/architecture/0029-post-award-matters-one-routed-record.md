@@ -43,3 +43,24 @@ would add seven foreign keys to each of the two tables, seven CHECK pairs, seven
   table (ADR 0031).
 - A matter's history (sent, tabled, recommended, approved, closed) reads the same for every kind.
 - Rules out: a foreign key per domain record on the route tables, and a matter tabled at a sitting.
+
+## As built (run 1a, 2026-10-04)
+
+- **The record.** `ContractMatter` (migration `20261004100301_contract_matter`) holds the contract, the kind
+  (ContractMatterKind, the seven), the reference, routedValue, the exact ratio (ratioNum/ratioDen), cond, approvedRouteId
+  (@unique, the approval of record), closedAt/closeReason, who and when. It also has CHECK `ContractMatter_shape` and the
+  partial unique index `ContractMatter_one_open_termination`. `ApprovalInstance.contractMatterId` and
+  `CommitteeDecision.contractMatterId` have their CHECKs, and the SELECT CAST pre-check runs first. Tests:
+  contract-matter.test.ts "the pre-check runs first …", "the CHECKs: …", "one open termination matter a contract (partial
+  unique index)".
+- **No writer yet.** Recording, sending (the series, value or ratio), the route hook that writes the approval of record,
+  and the `/approvals` lock line on `ContractMatter` come with run 1b. Until then a single-writer scan refuses any write.
+  Its one named exception is tablingOf's keys builder. Test: contract-matter.test.ts "no product code or demo writes
+  ContractMatter, nor sets a route's or a committee matter's contractMatterId".
+- **One tabling rule.** `src/lib/matter/tabling.ts` `tablingOf(from, matters)` gives the table and cite faults and the
+  committee matter's typed keys. The variation's tabling goes through it, its tests unchanged. Tests: matter/tabling.test.ts
+  "a variation and a contract matter answer alike, and as the variation's wrappers do", "the committee matter's typed
+  keys …".
+- **Record-tabled, read SULIT.** CONTRACT is in `RECORD_TABLED_MATTER_KINDS`, so no sitting tables one, and its amount stays
+  not decided, read as SULIT. Tests: contract-tabling.test.ts. The contract-matter domains (eot, lad_waiver, termination, …)
+  join `RECORD_TABLED_DOMAINS` with run 1b, when their routes exist (BD-613-117).
