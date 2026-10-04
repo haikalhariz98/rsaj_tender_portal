@@ -98,9 +98,24 @@ export interface StageFacts {
 
 export const NO_STAGE_FACTS: StageFacts = { inDelay: false, noticeOfIntention: false, partiallyOccupied: false, dlp: "NOT_SET", scheduleOfDefectsOpen: false, thirdPartyRectification: false, obligationsDischarged: false, declarationBlocking: false, terminatedAccountSettled: false };
 
-/// The stored status and, beside it, the derived stages that hold, in §7.3.3's order.
-export function contractStage(c: { status: ContractStatus }, f: StageFacts): { status: ContractStatus; derived: Stage[] } {
+/// A fact a stage turns on that is not set (Run 1a fix round, review S8): said so, never read as false or not applicable.
+export type NotSetFact = "DLP";
+
+export const NOT_SET_WORDS: Readonly<Record<NotSetFact, Words>> = {
+  DLP: w(
+    "The defects liability period is not set for this contract, so whether it is in defects liability or goes straight to its final account is not known.",
+    "Tempoh tanggungan kecacatan tidak ditetapkan untuk kontrak ini, jadi sama ada ia dalam tempoh tanggungan kecacatan atau terus ke akaun muktamadnya tidak diketahui.",
+  ),
+};
+
+/**
+ * The stored status and, beside it, the derived stages that hold, in §7.3.3's order, and the facts the stage turns on
+ * that are not set (review S8: met, not met, and not set). An unset defects liability period at practical completion
+ * claims no stage and is named, distinct from a period that does not apply (which bypasses the chain, FR-CMP-001).
+ */
+export function contractStage(c: { status: ContractStatus }, f: StageFacts): { status: ContractStatus; derived: Stage[]; notSet: NotSetFact[] } {
   const out: Stage[] = [];
+  const notSet: NotSetFact[] = [];
   switch (c.status) {
     case "ACTIVE":
       if (f.inDelay) out.push("IN_DELAY");
@@ -108,6 +123,7 @@ export function contractStage(c: { status: ContractStatus }, f: StageFacts): { s
       if (f.partiallyOccupied) out.push("PARTIALLY_OCCUPIED");
       break;
     case "PRACTICALLY_COMPLETE":
+      if (f.dlp === "NOT_SET") notSet.push("DLP");
       if (f.dlp === "RUNNING") out.push("IN_DEFECTS_LIABILITY");
       if (f.dlp === "ENDED" && f.scheduleOfDefectsOpen) out.push("DEFECTS_RECTIFICATION");
       if (f.dlp === "ENDED" && f.scheduleOfDefectsOpen && f.thirdPartyRectification) out.push("THIRD_PARTY_RECTIFICATION");
@@ -125,5 +141,5 @@ export function contractStage(c: { status: ContractStatus }, f: StageFacts): { s
     default:
       break;
   }
-  return { status: c.status, derived: out };
+  return { status: c.status, derived: out, notSet };
 }

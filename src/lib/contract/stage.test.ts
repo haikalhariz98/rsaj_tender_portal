@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { contractStage, NO_STAGE_FACTS, POST_ACTIVE_STAGES, STAGE_WORDS, type Stage } from "./stage";
+import { contractStage, NO_STAGE_FACTS, NOT_SET_WORDS, POST_ACTIVE_STAGES, STAGE_WORDS, type Stage } from "./stage";
 import { CONTRACT_STATUSES } from "./types";
 
 /**
@@ -37,8 +37,9 @@ describe("every §7.3.3 state after Active, once", () => {
 
 describe("the stage read from the status and the records", () => {
   it("before Active: none; stored states read as themselves", () => {
-    expect(contractStage({ status: "STAMPED" }, NO_STAGE_FACTS)).toEqual({ status: "STAMPED", derived: [] });
-    expect(contractStage({ status: "CLOSED" }, { ...NO_STAGE_FACTS, terminatedAccountSettled: true })).toEqual({ status: "CLOSED", derived: [] });
+    // Run 1a fix round (review S8, faithful): the result also says which facts are not set (none here).
+    expect(contractStage({ status: "STAMPED" }, NO_STAGE_FACTS)).toEqual({ status: "STAMPED", derived: [], notSet: [] });
+    expect(contractStage({ status: "CLOSED" }, { ...NO_STAGE_FACTS, terminatedAccountSettled: true })).toEqual({ status: "CLOSED", derived: [], notSet: [] });
   });
   it("Active: in delay, a notice of intention not remedied, a part occupied", () => {
     expect(contractStage({ status: "ACTIVE" }, { ...NO_STAGE_FACTS, inDelay: true, noticeOfIntention: true, partiallyOccupied: true }).derived).toEqual(["IN_DELAY", "NOTICE_OF_INTENTION_ISSUED", "PARTIALLY_OCCUPIED"]);
@@ -63,5 +64,25 @@ describe("the stage read from the status and the records", () => {
   });
   it("Suspended is never derived: no act enters it", () => {
     for (const status of CONTRACT_STATUSES) expect(contractStage({ status }, { ...NO_STAGE_FACTS, inDelay: true, dlp: "RUNNING", obligationsDischarged: true, terminatedAccountSettled: true }).derived).not.toContain("SUSPENDED");
+  });
+});
+
+describe("S8 (Run 1a fix round): an unset defects liability period is said to be not set, never read as not applicable", () => {
+  it("practically complete with the DLP not set: no stage claimed, and the DLP named as not set", () => {
+    expect(contractStage({ status: "PRACTICALLY_COMPLETE" }, { ...NO_STAGE_FACTS, dlp: "NOT_SET", obligationsDischarged: true })).toEqual({ status: "PRACTICALLY_COMPLETE", derived: [], notSet: ["DLP"] });
+  });
+  it("not applicable is a fact, not a gap: nothing is not set, and the chain is bypassed (FR-CMP-001)", () => {
+    expect(contractStage({ status: "PRACTICALLY_COMPLETE" }, { ...NO_STAGE_FACTS, dlp: "NOT_APPLICABLE" })).toEqual({ status: "PRACTICALLY_COMPLETE", derived: [], notSet: [] });
+    expect(contractStage({ status: "PRACTICALLY_COMPLETE" }, { ...NO_STAGE_FACTS, dlp: "NOT_APPLICABLE", obligationsDischarged: true }).notSet).toEqual([]);
+  });
+  it("running or ended, nothing is not set", () => {
+    for (const dlp of ["RUNNING", "ENDED"] as const) expect(contractStage({ status: "PRACTICALLY_COMPLETE" }, { ...NO_STAGE_FACTS, dlp }).notSet, dlp).toEqual([]);
+  });
+  it("the DLP is asked only where the stage turns on it: practically complete, not before or after", () => {
+    for (const status of CONTRACT_STATUSES.filter((s) => s !== "PRACTICALLY_COMPLETE")) expect(contractStage({ status }, NO_STAGE_FACTS).notSet, status).toEqual([]);
+  });
+  it("the not-set words, in English and Malay, say what is not known and never claim a stage", () => {
+    expect(NOT_SET_WORDS.DLP.en).toBe("The defects liability period is not set for this contract, so whether it is in defects liability or goes straight to its final account is not known.");
+    expect(NOT_SET_WORDS.DLP.ms).toBe("Tempoh tanggungan kecacatan tidak ditetapkan untuk kontrak ini, jadi sama ada ia dalam tempoh tanggungan kecacatan atau terus ke akaun muktamadnya tidak diketahui.");
   });
 });
