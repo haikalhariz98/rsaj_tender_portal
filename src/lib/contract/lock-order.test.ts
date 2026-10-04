@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 // 614-C2: the one lexer every source scan shares (6.14 lifted it unchanged from this file).
-import { closing, enclosingFn, lex, spans } from "@/lib/scan/source";
+import { closing, enclosingFn, lex, rawCallText, rawCalls, spans } from "@/lib/scan/source";
 
 /**
  * The canonical lock order for every post-award write (rulings, 6.12 conditions): Requisition →
@@ -317,12 +317,18 @@ export function scanWrites(files: readonly Source[], allow: Allow): Write[] {
       else if (reason === '"EXECUTED"' && !(file === ACT && fn === "recordRsajSignature")) problem = "writes an EXECUTED version";
       writes.push({ where: `${file} › ${fn}`, op: `writeVersion ${reason}`, problem });
     }
-    // (5) Raw SQL naming the tables in a write.
-    for (const x of m.matchAll(/\$(?:executeRaw|queryRaw)(?:Unsafe)?\s*[`(]/g)) {
-      const startIdx = x.index! + x[0].length - 1;
-      const end = src[startIdx] === "`" ? src.indexOf("`", startIdx + 1) : closing(m, startIdx);
-      const sql = src.slice(startIdx, end + 1);
-      if (/\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+"?(Contract|ContractBaseline|ContractSection)"?(\s|\(|$)/i.test(sql)) push(x.index!, "raw SQL", "raw SQL writes the table");
+    // (5) Raw SQL naming the tables in a write. BD-613-106 (stricter, 6.13 Part B Run 0 fix round): every raw call through
+    // the shared reader (rawCalls), so a type argument (`$executeRaw<number>\`…\``) no longer hides the call; a tagged
+    // template read to its backtick, the "(" form to its closing parenthesis (closing, as before, via rawCallText). An
+    // Unsafe call, or one the reader cannot open (no opener, an unknown suffix), cannot be read and is flagged.
+    for (const c of rawCalls(m)) {
+      const name = `$${c.method}${c.suffix}`;
+      const sql = c.unsafe ? null : rawCallText(src, m, c);
+      if (sql == null) {
+        push(c.at, name, "raw SQL the scan cannot read");
+        continue;
+      }
+      if (/\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+"?(Contract|ContractBaseline|ContractSection)"?(\s|\(|$)/i.test(sql)) push(c.at, "raw SQL", "raw SQL writes the table");
     }
   }
   return writes;
@@ -426,6 +432,17 @@ describe("the scan catches each evasion (self-tests)", () => {
     expect(one("async function writeVersion(c) {\n  await c.tx.contractBaseline.create({ data: { reason: \"EXECUTED\" } });\n}\n")).toEqual(["writeVersion · contractBaseline.create · writes an EXECUTED version"]);
     expect(one("export async function submitLegal(c) {\n  await moveTo(c, \"ACTIVE\");\n}\n")).toEqual(['submitLegal · moveTo "ACTIVE" · writes ACTIVE']);
     expect(one("export async function sneaky(tx) {\n  await tx.$executeRaw`UPDATE \"Contract\" SET \"contractDate\" = NOW()`;\n}\n")).toEqual(["sneaky · raw SQL · raw SQL writes the table"]);
+  });
+  it("BD-613-106: a typed raw write naming the table is caught (the old pattern skipped it); an Unsafe or unreadable call is flagged", () => {
+    const typed = "export async function sneaky(tx) {\n  await tx.$executeRaw<number>`UPDATE \"Contract\" SET \"contractDate\" = NOW()`;\n}\n";
+    expect(one(typed)).toEqual(["sneaky · raw SQL · raw SQL writes the table"]);
+    expect([...lex(typed).matchAll(/\$(?:executeRaw|queryRaw)(?:Unsafe)?\s*[`(]/g)]).toHaveLength(0);
+    expect(one("export async function sneaky(tx) {\n  await tx.$queryRaw<Array<{ n: (number | null) }>>`DELETE FROM \"ContractSection\" WHERE 1 = 1`;\n}\n")).toEqual(["sneaky · raw SQL · raw SQL writes the table"]);
+    // The "(" form is still read to its closing parenthesis.
+    expect(one("export async function sneaky(tx) {\n  await tx.$executeRaw(Prisma.sql`INSERT INTO \"ContractBaseline\" (id) VALUES (1)`);\n}\n")).toEqual(["sneaky · raw SQL · raw SQL writes the table"]);
+    expect(one("export async function sneaky(tx) {\n  await tx.$executeRawUnsafe(q);\n}\n")).toEqual(["sneaky · $executeRawUnsafe · raw SQL the scan cannot read"]);
+    expect(one("export async function sneaky(tx) {\n  const q = tx.$executeRaw;\n  await q`UPDATE x SET y = 1`;\n}\n")).toEqual(["sneaky · $executeRaw · raw SQL the scan cannot read"]);
+    expect(one("export async function sneaky(tx) {\n  await tx.$queryRawTyped(rows(id));\n}\n")).toEqual(["sneaky · $queryRawTyped · raw SQL the scan cannot read"]);
     expect(one(`${head}  await c.tx.contract.update({ where: { id }, data: { ...patch } });\n}\n`)).toEqual(["answerConsultingEngineer · contract.update · data not an inline object literal"]);
   });
   it("nothing is flagged in strings, comments or a lock's SELECT … FOR UPDATE", () => {
