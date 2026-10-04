@@ -114,3 +114,33 @@ a closed one.
 - **An unset DLP is said to be not set (review S8).** `contractStage` returns `notSet` beside `derived`: at practical
   completion an unset defects liability period claims no stage and is named, distinct from one that does not apply.
   Test: stage.test.ts "practically complete with the DLP not set: no stage claimed, and the DLP named as not set".
+
+## As built (Run 1a residual round, 2026-10-04)
+
+- **An unissued certificate's void reads the CERTIFICATE row (code re-review S-1; the lead's decision, BD-613-127).**
+  `certificateVoidAct(kind, status)` gives CERTIFICATE for a certificate not yet issued, and the post-issue family for an
+  issued one (still refused by `voidFaults`). Reading the kind's own family stranded a draft whose family closes (an
+  interim at the final certificate, an advance at practical completion, an EOT at making good complete). Where the
+  CERTIFICATE row refuses every certificate act (cancelled, terminated, closed), the void is refused in the table's words.
+  Tests: certificate-act.test.ts "for every kind, in every state its pre-issue family refuses, void stays open (save
+  where every certificate act is refused)", and "the states where the CERTIFICATE row refuses every certificate act are
+  exactly cancelled, terminated and closed: …".
+- **The certificate and variation pages gate their acts (S-2).** `certificateGates(kind, certStatus, contractStatus)`
+  gives the certificate page's `acts` and `void` gates in its acts' words (the wrapper's cancelled words,
+  `CERTIFICATE_CANCELLED_WORDS`, EN and MS). The page wraps its header's act, its void and its tabs in `ActGate`. The
+  variation page does the same with `actStatusBlocker("VARIATION", …)`. Tests: certificate-act.test.ts "for every kind,
+  certificate state and contract state, each gate is the wrapper's answer"; act-status-screens.test.ts "the certificate and
+  variation pages ask one function for their gates and wrap their header's acts and their tabs in them".
+- **The gate's reach is scanned, not counted (BD-613-123's condition).** From every component holding an `<ActGate`, the
+  scan follows each element through imports, stopping at RecordEditor, Blocked or a reader of `useActGate`. Any form,
+  dialog, button or formAction it reaches fails it, as does an unresolved drawer, unless named (OwnerAttachments, and
+  Tabs, DataList and MoreText, which record nothing). Every drawer defined under the contract's pages is reached. Tests:
+  act-status-screens.test.ts "over the product: no gated section reaches an ungated opener, and every named exception is
+  reached", with its self-test.
+- **The act-status scan's blind spots (S-3).** Server modules are read by `isServerModule`. The AndReturn writes count, and
+  so does raw SQL writing an owned table or that the scan cannot read. A call to an exported writer of src/lib is a site.
+  A committee's outcome on a variation's matter locks the contract, asks VARIATION's row, then locks the variation and the
+  sitting. Tests: act-status-scan.test.ts "S-3a…", "S-3b…", "S-3c…", "S-3d…".
+- Weak spot, as before: the scans read source text. That an `ActGate` encloses an element is checked for the two record
+  pages by pattern (their header's acts and their `<Tabs`), and for the panels by each section holding the wrapper. JSX
+  nesting itself is not parsed.

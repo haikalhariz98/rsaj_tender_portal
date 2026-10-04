@@ -1,0 +1,9 @@
+# Run 1a residual round, commit 6 (S-5 plan text; plan and ADR 0031 as built). 2026-10-04T10:09:01Z
+## npm run check
+✓ Types generated successfully
+
+> perolehan@0.1.0 lint
+> eslint && node scripts/check-ui.mjs
+
+UI scaffolding check passed.
+exit: 0
