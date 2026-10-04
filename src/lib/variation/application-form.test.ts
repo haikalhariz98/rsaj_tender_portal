@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { noFormFault } from "@/lib/certificate/form-needs";
 
 import { applicationFormFault, lastStepFormFault, sendFaults, type VariationFacts } from "./application";
-import { variationFaultWords } from "./labels";
+import { LAST_STEP_REFUSED, variationFaultWords } from "./labels";
 
 /**
  * BD-613-110 (6.13 Part B run 1a, against accepted 6.13 Part A). The variation's application (VO-660) is opened by the
@@ -67,6 +67,9 @@ describe("the acts and the screen read it the same way (source)", () => {
   it("the send act and the page pass the application's form into sendFaults", () => {
     expect(acts).toMatch(/const fs = sendFaults\(\{[^\n]*applicationTemplateId: await applicationFormNow\(c\)/);
     expect(page).toMatch(/const fs = sendFaults\(\{[^\n]*applicationTemplateId: vv\.formOf\("VARIATION_APPLICATION"\)/);
+  });
+  it("the route card's lead, in English and Malay", () => {
+    expect(LAST_STEP_REFUSED).toEqual({ en: "Its last step's approval will be refused until the application's form is chosen:", ms: "Kelulusan langkah terakhirnya akan ditolak sehingga borang permohonan dipilih:" });
   });
   it("the page warns on a waiting prior approval that its last step would be refused, by the same rule", () => {
     expect(page).toMatch(/lastStepFormFault\(a\.event as VariationEvent, vv\.formOf\("VARIATION_APPLICATION"\)\)/);

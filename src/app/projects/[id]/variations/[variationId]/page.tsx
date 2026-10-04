@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ContractStatus } from "@/lib/contract/types";
-import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
-import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
+import { actStatusFault, actStatusText, statusCalloutTitle } from "@/lib/contract/act-status";
 import { notFound } from "next/navigation";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
@@ -181,7 +180,7 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
         {!today && <Callout tone="warn" title="The organisation's time zone is not set">Every act on a variation records the organisation&apos;s day: none is assumed to be UTC.</Callout>}
         {vv.refused && <AdjustmentRefusedCallout l={l} refused={vv.refused} />}
         {statusRefused?.code === "CONTRACT_CANCELLED" && <Callout tone="warn" title="The contract is cancelled">Its variations are kept as they were; nothing more is recorded on them.</Callout>}
-        {statusRefused && statusRefused.code !== "CONTRACT_CANCELLED" && <Callout tone="warn" title={`The contract is ${CONTRACT_STATUS_WORDS[l.contract.status as ContractStatus].en.toLowerCase()}`}>{actStatusText(statusRefused)}</Callout>}
+        {statusRefused && statusRefused.code !== "CONTRACT_CANCELLED" && <Callout tone="warn" title={statusCalloutTitle(l.contract.status as ContractStatus).en}>{actStatusText(statusRefused)}</Callout>}
         {stage === "CLOSED" && <Callout tone="warn" title="Closed">{`${v.closedReason} (${formatDate(day(v.closedOn))}).`}</Callout>}
         {commencedPending(f) && <Callout tone="warn" title="Commenced pending approval">{`Work commenced on ${formatDate(day(v.commencedOn))} on the support of ${v.commencedSupport?.name ?? "the S.O."}. Its estimate (${formatMoney(f.estimate)}) is in the contract's exposure until it is approved, and its work is not valued until then.`}</Callout>}
         {!EXECUTED_STATUSES.includes(l.contract.status) && <Callout tone="info" title="The contract is not executed">{variationFaultText({ code: "NOT_EXECUTED", level: "block" })}</Callout>}

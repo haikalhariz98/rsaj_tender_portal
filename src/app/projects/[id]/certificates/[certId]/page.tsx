@@ -1,8 +1,7 @@
 import Link from "next/link";
 import type { CertificateKind } from "@/lib/certificate/types";
 import type { ContractStatus } from "@/lib/contract/types";
-import { actStatusFault, actStatusText, certificateAct } from "@/lib/contract/act-status";
-import { CONTRACT_STATUS_WORDS } from "@/lib/contract/labels";
+import { actStatusFault, actStatusText, statusCalloutTitle, certificateAct } from "@/lib/contract/act-status";
 import { draftSigningFaults } from "@/lib/certificate/kinds";
 import { historyEntityLabel, RECORD_TYPE_WORDS } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
@@ -203,7 +202,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
         )}
         {l.contract.status === "CANCELLED" && <Callout tone="warn" title="The contract is cancelled">Its certificates are kept as they were; nothing more is recorded on them.</Callout>}
         {/* ADR 0031 (run 1a): the acts' own table for this certificate's kind, so the page says what its acts would. */}
-        {certStatusRefused && certStatusRefused.code !== "CONTRACT_CANCELLED" && <Callout tone="warn" title={`The contract is ${CONTRACT_STATUS_WORDS[l.contract.status as ContractStatus].en.toLowerCase()}`}>{actStatusText(certStatusRefused)}</Callout>}
+        {certStatusRefused && certStatusRefused.code !== "CONTRACT_CANCELLED" && <Callout tone="warn" title={statusCalloutTitle(l.contract.status as ContractStatus).en}>{actStatusText(certStatusRefused)}</Callout>}
         {/* 6.14 increment 2 (FR-CRT-012): a draft whose form could not be signed on yet says so from the start, by the first signature's own rule. */}
         {/* Residual M-1: the act's own function (pinCheck); with the time zone not set, a started sheet's values say "not judged". */}
         {(status === "DRAFT" || status === "IN_ROUTING") && preview && (

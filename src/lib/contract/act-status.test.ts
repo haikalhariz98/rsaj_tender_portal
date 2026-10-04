@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { CERTIFICATE_KINDS } from "@/lib/certificate/types";
 import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 
-import { ACT_STATUS, actStatusFault, actStatusWords, certificateAct, CONTRACT_ACTS, type ContractAct } from "./act-status";
+import { ACT_STATUS, actStatusFault, actStatusWords, certificateAct, CONTRACT_ACTS, statusCalloutTitle, type ContractAct } from "./act-status";
 import { bodyOf, TODAY_ACTS, TODAY_STATUSES, todayAnswer } from "./act-status-pin.fixture";
 import { CONTRACT_TRANSITIONS, contractTransition, isExecuted, STATUS_WRITTEN_BY } from "./status";
 import { CONTRACT_STATUSES, type ContractStatus } from "./types";
@@ -162,5 +162,14 @@ describe("the screens say what the acts would (source, screen–act agreement)",
   it("the contract page's banner for a terminated or closed contract is the table's own words", () => {
     const page = readFileSync("src/app/projects/[id]/page.tsx", "utf8");
     expect(page).toMatch(/actStatusText\(\{ code: status === "TERMINATED" \? "CONTRACT_TERMINATED" : "CONTRACT_CLOSED", level: "block" \}\)/);
+  });
+});
+
+describe("the callout's title names the state in English and Malay", () => {
+  it("terminated, closed, and a state that refuses by its words", () => {
+    expect(statusCalloutTitle("TERMINATED")).toEqual({ en: "The contract is terminated", ms: "Kontrak ditamatkan" });
+    expect(statusCalloutTitle("CLOSED")).toEqual({ en: "The contract is closed", ms: "Kontrak ditutup" });
+    expect(statusCalloutTitle("PRACTICALLY_COMPLETE")).toEqual({ en: "The contract is practically complete", ms: "Kontrak siap kerja" });
+    for (const f of ["src/app/projects/[id]/variations/[variationId]/page.tsx", "src/app/projects/[id]/certificates/[certId]/page.tsx"]) expect(readFileSync(f, "utf8"), f).toMatch(/title=\{statusCalloutTitle\(l\.contract\.status as ContractStatus\)\.en\}/);
   });
 });

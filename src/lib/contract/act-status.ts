@@ -167,5 +167,11 @@ export function actStatusWords(f: Finding): Words {
   }
 }
 
+/// A page's callout title for a contract whose state refuses its acts: the state by its words, English and Malay.
+export function statusCalloutTitle(status: ContractStatus): Words {
+  const s = CONTRACT_STATUS_WORDS[status];
+  return { en: `The contract is ${s.en.toLowerCase()}`, ms: `Kontrak ${s.ms.toLowerCase()}` };
+}
+
 /// The act's refusal as the acts and screens say it (English, as every screen shows; Malay beside it in actStatusWords).
 export const actStatusText = (f: Finding) => actStatusWords(f).en;
