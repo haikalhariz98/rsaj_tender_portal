@@ -47,7 +47,10 @@ would add seven foreign keys to each of the two tables, seven CHECK pairs, seven
 ## As built (run 1a, 2026-10-04)
 
 - **The record.** `ContractMatter` (migration `20261004100301_contract_matter`) holds the contract, the kind
-  (ContractMatterKind, the seven), the reference, routedValue, the exact ratio (ratioNum/ratioDen), cond, approvedRouteId
+  (ContractMatterKind, the seven), the reference, the routed value and the exact ratio (renamed `matterRoutedValue`,
+  `matterRatioNum`/`matterRatioDen` by the Run 1a fix round, migration `20261004100501_contract_matter_sulit_names`, and
+  registered in SULIT_FIELDS, review S4; test: contract-matter-sulit.test.ts "each is registered SULIT, saying what it
+  is"), cond, approvedRouteId
   (@unique, the approval of record), closedAt/closeReason, who and when. It also has CHECK `ContractMatter_shape` and the
   partial unique index `ContractMatter_one_open_termination`. `ApprovalInstance.contractMatterId` and
   `CommitteeDecision.contractMatterId` have their CHECKs, and the SELECT CAST pre-check runs first. Tests:

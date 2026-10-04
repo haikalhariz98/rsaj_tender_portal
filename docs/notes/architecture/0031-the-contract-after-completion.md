@@ -50,8 +50,11 @@ a closed one.
   count, the contract's papers). Tests: act-status.test.ts "isExecuted covers every state after the signature; the
   payment rule reads the same list", "ACTIVE → PRACTICALLY_COMPLETE → …", "each new state is written only by its own act;
   none is cancelled".
-- **The table.** `src/lib/contract/act-status.ts`: `ACT_STATUS` holds 35 acts by family × 14 states. It lists the 12
-  families built before Part B (every one of the 99 exported acts maps to one) and Part B's 23. Every wrapper
+- **The table.** `src/lib/contract/act-status.ts`: `ACT_STATUS` holds 35 act families × 14 states, as the Run 1a fix round
+  leaves it: the 13 families built before Part B (every one of the 99 exported acts maps to one; R2's ORIGINALS
+  included) and Part B's 22 (R5's DESIGN_GUARANTEE_CLAIM included). Test: act-status.test.ts "35 families: 13 built
+  before Part B (R2's originals included), then Part B's 22 (R5's design guarantee claim included)". (Run 1a's own
+  note said 12 and 23; corrected here.) Every wrapper
   (`inContract`, `inCertificate`) and `/approvals` ask `actStatusFault` under the contract's lock. CANCELLED is asked
   first and keeps each wrapper's own words. A certificate's acts read its kind (`certificateAct`): TERMINATED_FINAL reads
   TERMINATED_FINAL_ROUTE, and the termination's two notices read TERMINATION_CASE. Tests: act-status-pin.test.ts (today's
@@ -62,6 +65,52 @@ a closed one.
   in CANCELLED, and the act's own rule judges execution and the rest in its own words. Only the new states get new
   refusals: CONTRACT_TERMINATED, CONTRACT_CLOSED, and NOT_IN_STATUS naming the state by its words, all in English and
   Malay.
-- **Not yet covered.** Attaching documents to a contract's records is judged by the document store's owner rules, not by
-  this table. For a contract past Active, its site-record purposes (diary photos, pipe log, as-built) are decided in run
-  2, with the first writer of a new state (carry, BD-613-115).
+- **Attachments** (run 1a left them to the document store's owner rules; brought forward by BD-613-115, see below).
+
+## As built (Run 1a fix round, 2026-10-04)
+
+- **Edges and rows (BD-613-119 R1 with review S2; R3; R4; BD-613-113).** Every CONTRACT_TRANSITIONS edge has its writer's
+  family (WRITER_FAMILY) allowed in the state it leaves, and every state a writer's family allows leads to the state it
+  writes, or is a named exception with its reason (EDGE_EXCEPTIONS: the award's cancellation; WRITER_ROW_EXCEPTIONS:
+  SUPERVISION, MAKING_GOOD). TERMINATED also allows the close and the releases of a security and the design guarantee
+  bond; TERMINATION_CASE only in ACTIVE and TERMINATED; COMPLETION, DEFECTS, RECTIFICATION and MAKING_GOOD from ACTIVE;
+  PERIOD_EXTENSION not once practically complete. Tests: act-status-edges.test.ts "the writer's family is allowed in the
+  state the edge leaves, or the edge is a named exception", "each such state has an edge to the written state, or is a
+  named exception", "R1: a terminated contract is closed (TERMINATED → CLOSED is reachable)", "R3: …", "R4: …",
+  "BD-613-113: …".
+- **Two families (R2, R5).** ORIGINALS (registering and moving an original) is allowed in every state but CANCELLED,
+  TERMINATED and CLOSED included. DESIGN_GUARANTEE_CLAIM is allowed in every executed state, terminated and closed
+  included (a surviving obligation, FR-FIN-014). Tests: act-status.test.ts "registering and moving an original are
+  allowed in every state but CANCELLED, TERMINATED and CLOSED included", "allowed in every executed state, practically
+  complete, making good complete, the final certificate, terminated and closed included".
+- **A certificate's family by phase (BD-613-114's condition).** `certificateAct(kind, phase)` is an exhaustive switch.
+  Before its issue a certificate reads its kind's own family (EOT reads EOT, the CPC COMPLETION, the CMGD MAKING_GOOD,
+  the final certificate FINAL_ACCOUNT until run 5 names its acts); after it, CERTIFICATE, except the termination's own
+  certificates, which read their case or route (BD-613-120). `KIND_ISSUE_WRITES` names the state each kind's issue
+  writes; the post-issue family is allowed there. Voiding an issued certificate whose issue wrote the status is refused
+  (VOID_WOULD_UNDO_STATUS) until a run decides how a status is undone. Tests: certificate-act.test.ts "each kind, as the
+  condition names them …", "for every kind whose issue writes a state, the post-issue family is allowed in that state",
+  "a switch on the kind with a case per kind, no default and no fall-through return", "named, before the general rule,
+  for each such kind; every other kind keeps ISSUED_IS_FINAL".
+- **Attachments read the table (BD-613-115, brought forward).** Every contract attachment purpose reads its owning
+  family's row first (`CONTRACT_PURPOSE_FAMILY`: the formation papers FORMATION, the programme and site records
+  SUPERVISION, the instruction's plans VARIATION), then its own rule; a refusal is said in the table's words
+  (`exitWords`). The site records are kept from possession (`possessionTaken`), so as-built evidence attaches at
+  practical completion; CLOSED freezes every purpose. Tests: contract-act-status.test.ts "the attach screen and the
+  store give the same answer for each purpose in each state", "CLOSED freezes every purpose, and nothing comes off a
+  closed contract", "as-built evidence attaches at practical completion (no dead end for the 50% retention release)".
+- **The screens ask the table (review S1).** No screen holds a status list of its own (`isExecuted`, `beforeExecution`,
+  `briefingOpen`). Each contract panel section that offers an act states its family's refusal first
+  (`actStatusBlocker`) and gates its drawers with it (`ActGate`, read by RecordEditor and Blocked). Tests:
+  act-status-screens.test.ts "no .tsx file holds one: each reads isExecuted, the rule's own helper or the table", "each
+  listed section asks the table (actStatusBlocker, or actStatusFault) for each of its families and gates its drawers
+  with it".
+- **Every way in asks the table (review S3).** A scan over every "use server" file and every file that takes the
+  contract's or the certificate's lock finds each lock and each write to a contract-owned model (read from the schema);
+  each asks `actStatusFault`, is reached only through a function that does, or is a named exception with its reason.
+  The award's securities register asks FORMATION's row (BD-613-122). Tests: act-status-scan.test.ts "no uncovered site
+  outside the named exceptions", "an ungated write, an ungated lock and a helper called from an ungated act are found; a
+  gated wrapper, its acts and their helpers are not".
+- **An unset DLP is said to be not set (review S8).** `contractStage` returns `notSet` beside `derived`: at practical
+  completion an unset defects liability period claims no stage and is named, distinct from one that does not apply.
+  Test: stage.test.ts "practically complete with the DLP not set: no stage claimed, and the DLP named as not set".
