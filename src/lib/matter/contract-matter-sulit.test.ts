@@ -31,10 +31,12 @@ describe("S4: the matter's amount and ratio, named for the registry", () => {
     }
   });
 
-  it("each name is specific: no source outside the schema and the generated client uses it yet (the whole-word scan cannot misfire)", () => {
+  it("each name is specific: no source outside the schema, the generated client and the matter's one writer uses it (the whole-word scan cannot misfire)", () => {
+    // 6.13 Part B run 1b (flagged against run 1a, stricter): the matter's one writer (write.ts, markSent) is the only
+    // product source that names them; "yet" became "only there".
     const walk = (d: string): string[] => readdirSync(d).flatMap((n) => (statSync(path.join(d, n)).isDirectory() ? walk(path.join(d, n)) : [path.join(d, n)]));
     const users = walk(path.join(ROOT, "src")).filter((f) => /\.tsx?$/.test(f) && !f.includes("/generated/") && !f.endsWith(".test.ts") && !f.endsWith("sulit-fields.ts")).filter((f) => NAMES.some((n) => new RegExp(`\\b${n}\\b`).test(readFileSync(f, "utf8"))));
-    expect(users).toEqual([]);
+    expect(users).toEqual([path.join(ROOT, "src/lib/matter/write.ts")]);
   });
 
   it("the migration: the pre-check first, then the renames, then the shape CHECK restated under the new names", () => {

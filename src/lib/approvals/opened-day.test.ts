@@ -34,6 +34,8 @@ const WRITERS: readonly { file: string; openedAt: RegExp }[] = [
   { file: "src/lib/certificate/route-write.ts", openedAt: /openedAt: on,/ },
   // 6.13 Part A step 4 (faithful update, flagged: the scan's own list of writers): a variation's route (614-C4).
   { file: "src/lib/variation/route-write.ts", openedAt: /openedAt: on,/ },
+  // 6.13 Part B run 1b (faithful update, flagged: the scan's own list of writers): a contract matter's route (ADR 0029).
+  { file: "src/lib/matter/route-write.ts", openedAt: /openedAt: on,/ },
 ];
 
 /** The text of each `approvalInstance.create({ … })` call in a file. */

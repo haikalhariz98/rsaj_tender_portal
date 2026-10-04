@@ -1,0 +1,2 @@
+# 6.13 Part B Run 1b C8a: the matter's route and the EOT claim's acts (the sitting, escalation and tabling-words changes split out to C8b). 2026-10-04T13:48:50Z
+## npm run check (NODE_OPTIONS=--max-old-space-size=12500: a cold typecheck after the client is regenerated runs out of the session default 8 GB heap from C3 on)

@@ -25,6 +25,14 @@ export const MATTER_FAULT_WORDS: Readonly<Record<string, (d: Data) => Words>> = 
   VALUE_REQUIRED: () => w("The matter is routed on its value, and none is given.", "Perkara itu dihalakan mengikut nilainya, dan tiada nilai diberi."),
   RATIO_REQUIRED: () => w("The waiver is routed on the share waived of the damages, and that share cannot be read (no damages amount).", "Pengecualian dihalakan mengikut bahagian ganti rugi yang dikecualikan, dan bahagian itu tidak dapat dibaca (tiada amaun ganti rugi)."),
   MATTER_NOT_APPROVED: () => w("The certificate certifies the matter once its route is approved, and it is not (no route approved on the matter).", "Perakuan memperakui perkara itu setelah laluannya diluluskan, dan ia belum (tiada laluan diluluskan bagi perkara itu)."),
+  // The one tabling rule's words (ADR 0029 §3), the variation's, naming the matter.
+  NOT_COMMITTEE_STEP: () => w("That is not a committee's step on the matter's open route.", "Itu bukan langkah jawatankuasa pada laluan terbuka perkara itu."),
+  OTHER_COMMITTEE: () => w("That sitting is of another committee than the one the step needs.", "Persidangan itu bagi jawatankuasa lain daripada yang diperlukan oleh langkah itu."),
+  SITTING_FROZEN: () => w("That sitting no longer takes matters (it is minuted or cancelled).", "Persidangan itu tidak lagi menerima perkara (telah diminitkan atau dibatalkan)."),
+  ALREADY_TABLED: () => w("This step's matter is tabled already and waits for the committee: cite its decision once it is decided.", "Perkara langkah ini telah dibentangkan dan menunggu jawatankuasa: rujuk keputusannya setelah diputuskan."),
+  NOT_TABLED_YET: () => w("Nothing is tabled from this matter for this step's committee yet: table it first.", "Belum ada perkara dibentangkan daripada perkara ini bagi jawatankuasa langkah ini: bentangkan dahulu."),
+  NOT_DECIDED_YET: () => w("The committee has not decided the matter tabled for this step yet: cite it once it is decided.", "Jawatankuasa belum memutuskan perkara yang dibentangkan bagi langkah ini: rujuk setelah diputuskan."),
+  NO_ROUTE_WAITING: () => w("No approval route is waiting for a decision on this matter.", "Tiada laluan kelulusan menunggu keputusan bagi perkara ini."),
   NO_MATRIX: (d) => w(`No approval matrix is in force on ${d.day ? formatDate(String(d.day)) : "the day"}.`, `Tiada matriks kelulusan berkuat kuasa pada ${d.day ? formatDate(String(d.day)) : "hari itu"}.`),
   NO_RULE: (d) => {
     const dom = domainWords(d.domain);

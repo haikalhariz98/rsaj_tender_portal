@@ -7,8 +7,7 @@ import { lex, rawCallText, rawCalls } from "@/lib/scan/source";
 
 /**
  * 6.13 Part B run 1a (ADR 0029, OD-B5 A, BD-613-73): a post-award matter decided on an approval route is one record,
- * ContractMatter. Built with its CHECKs and the pre-check; no act writes it before run 1b, which this scan holds until
- * run 1b names the writers.
+ * ContractMatter. Built with its CHECKs and the pre-check. Run 1b names its one writer (the scan at the end).
  */
 
 const ROOT = path.join(__dirname, "../../..");
@@ -80,23 +79,77 @@ describe("the raw-write test (self-test, run 1b C3)", () => {
   });
 });
 
-describe("no writer before run 1b (single-writer scan)", () => {
+/**
+ * 6.13 Part B run 1b C8 (flagged against run 1a, stricter): run 1a's "no writer before run 1b" becomes "one named writer".
+ * ContractMatter is written only by src/lib/matter/write.ts, through the four writers it exports; a route names its
+ * matter only in sendMatterRoute's create (src/lib/matter/route-write.ts); a committee matter names it only through
+ * tablingOf's keys (src/lib/matter/tabling.ts), spread by the one act that tables a CONTRACT matter (tableContractMatter).
+ * Nothing writes it in raw SQL, nor through a nested relation write.
+ *
+ * Blind spots, declared: a computed key (`["contractMatterId"]`) or a data object built under another name and passed
+ * whole; a write through a client not named `tx`, `db` or `client` is still found (the delegate is matched on any
+ * receiver); a `contractMatterId:` in a where clause fails closed (it is reported, and must be named here).
+ */
+const WRITER_FILE = path.normalize("src/lib/matter/write.ts");
+const ROUTE_FILE = path.normalize("src/lib/matter/route-write.ts");
+const KEY_FILE = path.normalize("src/lib/matter/tabling.ts");
+const TABLING_ACTS = path.normalize("src/app/projects/[id]/matter-actions.ts");
+
+/// What one source does to ContractMatter that the rule restricts, after comments and strings are lexed out.
+function matterWritesOf(file: string, src: string): string[] {
+  const found: string[] = [];
+  const m = lex(src);
+  if (/\.contractMatter\.(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)\b/.test(m) && file !== WRITER_FILE) found.push(`${file}: contractMatter write`);
+  if (/\bcontractMatter\s*:\s*\{\s*(connect|connectOrCreate|create|update|upsert|delete|disconnect|set)\b/.test(m)) found.push(`${file}: nested contractMatter write`);
+  // A select of the key (`contractMatterId: true`) is a read; any other `contractMatterId:` sets or filters it.
+  const sets = (m.replace(/\bcontractMatterId\s*:\s*true\b/g, "").match(/\bcontractMatterId\s*:/g) ?? []).length;
+  const allowed = file === KEY_FILE ? 2 : file === ROUTE_FILE ? 1 : 0;
+  if (sets !== allowed) found.push(`${file}: contractMatterId set ${sets} time(s), ${allowed} named`);
+  if (/tablingOf\(\{ kind: "CONTRACT"/.test(src) && file !== TABLING_ACTS) found.push(`${file}: tables a CONTRACT matter`);
+  for (const c of rawCalls(m)) {
+    const text = rawCallText(src, m, c);
+    if (text === null) found.push(`${file}: an unreadable raw call`);
+    else if (rawWritesMatter(text)) found.push(`${file}: raw write to ContractMatter`);
+  }
+  return found;
+}
+
+describe("the one-writer scan's self-test", () => {
+  it("a write outside the writer, a nested write, an unnamed key set and a select are told apart", () => {
+    expect(matterWritesOf("src/app/x.ts", "await tx.contractMatter.update({ where: { id } });")).toEqual(["src/app/x.ts: contractMatter write"]);
+    expect(matterWritesOf(WRITER_FILE, "await tx.contractMatter.update({ where: { id } });")).toEqual([]);
+    expect(matterWritesOf("src/app/x.ts", "await tx.approvalInstance.update({ data: { contractMatter: { connect: { id } } } });")).toEqual(["src/app/x.ts: nested contractMatter write"]);
+    expect(matterWritesOf("src/app/x.ts", "select: { contractMatterId: true }")).toEqual([]);
+    expect(matterWritesOf("src/app/x.ts", "data: { contractMatterId: m.id }")).toEqual(["src/app/x.ts: contractMatterId set 1 time(s), 0 named"]);
+    expect(matterWritesOf(ROUTE_FILE, "data: { contractMatterId: m.id, other: { contractMatterId: x } }")).toEqual([`${ROUTE_FILE}: contractMatterId set 2 time(s), 1 named`]);
+    expect(matterWritesOf("src/app/x.ts", 'tablingOf({ kind: "CONTRACT", id })')).toEqual(["src/app/x.ts: tables a CONTRACT matter"]);
+    expect(matterWritesOf("src/app/x.ts", 'await tx.$executeRaw`UPDATE "ContractMatter" SET x = 1`;')).toEqual(["src/app/x.ts: raw write to ContractMatter"]);
+    // A comment or a string naming the write is not code.
+    expect(matterWritesOf("src/app/x.ts", '// tx.contractMatter.update(\nconst s = "contractMatterId: m.id";')).toEqual([]);
+  });
+});
+
+describe("one named writer (single-writer scan, run 1b)", () => {
   const sources = [...files("src/app"), ...files("src/lib"), ...files("prisma")].map((file) => ({ file, src: readFileSync(path.join(ROOT, file), "utf8") }));
-  it("no product code or demo writes ContractMatter, nor sets a route's or a committee matter's contractMatterId", () => {
-    const found: string[] = [];
-    for (const { file, src } of sources) {
-      const m = lex(src);
-      if (/\.contractMatter\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\b/.test(m)) found.push(`${file}: contractMatter write`);
-      // The one named exception: tablingOf's keys builder names the key for a CONTRACT matter's committee matter (a pure
-      // value; tabling.test.ts holds that no act passes it a CONTRACT matter before run 1b).
-      const keyBuilder = path.normalize("src/lib/matter/tabling.ts");
-      if (/\bcontractMatterId\s*:/.test(m) && !(file === keyBuilder && (m.match(/\bcontractMatterId\s*:/g) ?? []).length === 2 && /matterKind: "CONTRACT"; matterRef: string \| null; contractMatterId: string/.test(src))) found.push(`${file}: contractMatterId set`);
-      for (const c of rawCalls(m)) {
-        const text = rawCallText(src, m, c);
-        if (text === null) found.push(`${file}: an unreadable raw call`);
-        else if (rawWritesMatter(text)) found.push(`${file}: raw write to ContractMatter`);
-      }
+  it("only src/lib/matter/write.ts writes ContractMatter; only the route's create and the tabling keys name it", () => {
+    expect(sources.flatMap(({ file, src }) => matterWritesOf(file, src))).toEqual([]);
+  });
+  it("the writer exports exactly its four writers, and each writes the matter", () => {
+    const src = readFileSync(path.join(ROOT, WRITER_FILE), "utf8");
+    const exported = [...src.matchAll(/^export (?:async )?function (\w+)/gm)].map((x) => x[1]);
+    expect(exported.sort()).toEqual(["closeMatter", "markSent", "openMatter", "writeApprovalOfRecord"]);
+    for (const n of exported) {
+      const body = src.slice(src.indexOf(`function ${n}(`)).split(/\n}\n/)[0];
+      expect(body, n).toMatch(/tx\.contractMatter\.(create|updateMany)\(/);
     }
-    expect(found).toEqual([]);
+  });
+  it("the route's key is set only in sendMatterRoute's create, and the committee matter's only by tableContractMatter spreading tablingOf's keys", () => {
+    const route = readFileSync(path.join(ROOT, ROUTE_FILE), "utf8");
+    const send = route.slice(route.indexOf("export async function sendMatterRoute("));
+    expect(send.slice(0, send.indexOf("\n}\n"))).toMatch(/tx\.approvalInstance\.create\(\{\n\s+data: \{\n\s+organisationId: c\.l\.org\.id,\n\s+matterKind: "CONTRACT",\n\s+contractMatterId: m\.id,/);
+    const acts = readFileSync(path.join(ROOT, TABLING_ACTS), "utf8");
+    const table = acts.slice(acts.indexOf("export async function tableContractMatter("), acts.indexOf("export async function citeContractMatterDecision("));
+    expect(table).toMatch(/const tabledFrom = tablingOf\(\{ kind: "CONTRACT", id: m\.id, reference: m\.reference \}, tablingFactsOf\(m\)\);/);
+    expect(table).toMatch(/committeeDecision\.create\(\{ data: \{ meetingId: s!\.meeting\.id, subject, domain: open!\.domain, \.\.\.tabledFrom\.keys,/);
   });
 });

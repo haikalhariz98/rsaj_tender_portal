@@ -92,6 +92,55 @@ describe("one lock order (withLockedContract)", () => {
   });
 });
 
+/// 6.13 Part B run 1b (stricter: the scans extended to every new act): time and the contract matters' routes.
+const TIME = "src/app/projects/[id]/time-actions.ts";
+const MATTER = "src/app/projects/[id]/matter-actions.ts";
+const RUN_1B_ACT_FILES = [TIME, MATTER];
+
+describe("one lock order, run 1b's acts (ContractMatter the first domain row, then its record, then a sitting)", () => {
+  it("each file asks the table in its own inContract, under withLockedContract; every act reads the clock once, before it", () => {
+    for (const file of RUN_1B_ACT_FILES) {
+      const src = read(file);
+      const at = src.indexOf("async function inContract(");
+      const helper = src.slice(at, src.indexOf("\n}\n", at));
+      expect(helper, file).toContain("withLockedContract(");
+      expect(helper.indexOf("actStatusFault(family, l.contract.status as ContractStatus)"), file).toBeGreaterThan(helper.indexOf("withLockedContract("));
+      const acts = actions(src);
+      expect(acts.size, file).toBeGreaterThanOrEqual(file === TIME ? 7 : 4);
+      for (const [name, body] of acts) {
+        const entry = file === MATTER ? "return run(" : "return inContract(";
+        expect(body, name).toContain(entry);
+        expect(body.indexOf("const now = toSecond(new Date());"), name).toBeGreaterThan(-1);
+        expect(body.indexOf("const now = toSecond(new Date());"), name).toBeLessThan(body.indexOf(entry));
+        expect((body.match(/new Date\(\)/g) ?? []).length, name).toBe(1);
+      }
+      expect((src.match(/new Date\(\)/g) ?? []).length, file).toBe(acts.size);
+    }
+  });
+
+  it("no act file locks a row itself; lockMatter takes the matter, then its record, and the tabling act the sitting after", () => {
+    for (const file of RUN_1B_ACT_FILES) {
+      const src = read(file);
+      expect(src, file).not.toMatch(/FOR UPDATE|FOR SHARE|db\.\$transaction/);
+      // The one read before the lock: the matter's kind, to choose the row of the table (read again under the lock).
+      const dbUses = [...lex(src).matchAll(/\bdb\./g)].map((m) => enclosingFn(spans(lex(src)), m.index!));
+      expect(dbUses, file).toEqual(file === MATTER ? ["familyOf"] : []);
+    }
+    const act = read("src/lib/matter/act.ts");
+    const lock = act.slice(act.indexOf("export async function lockMatter("));
+    const matterAt = lock.indexOf(`FROM "ContractMatter" WHERE id = \${pre.id} FOR UPDATE`);
+    expect(matterAt).toBeGreaterThan(-1);
+    for (const t of ["EotClaim", "PeriodExtension", "LossExpenseClaim", "LadWaiver"]) {
+      const recordAt = lock.indexOf(`FROM "${t}" WHERE "matterId" = \${pre.id} FOR UPDATE`);
+      expect(recordAt, t).toBeGreaterThan(matterAt);
+    }
+    expect(lock.indexOf("loadMatters(")).toBeGreaterThan(lock.lastIndexOf("FOR UPDATE"));
+    const table = actions(read(MATTER)).get("tableContractMatter")!;
+    expect(table.indexOf("lockMatter(c, matterId)")).toBeGreaterThan(-1);
+    expect(table.indexOf("lockMatter(c, matterId)")).toBeLessThan(table.indexOf("lockSittingIn("));
+  });
+});
+
 describe("single writers", () => {
   it("only the RSAJ signature and its audited correction write the Contract Date", () => {
     const acts = actions(read(ACTIONS));

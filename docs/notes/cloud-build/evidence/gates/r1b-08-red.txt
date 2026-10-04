@@ -1,0 +1,97 @@
+6.13 Part B Run 1b C8 — red evidence (the matter's route and the EOT claim's acts)
+Recorded 2026-10-04T13:44:38Z on build-all-modules (tip 36105e2 + C8 working tree).
+
+Process note (stated, not hidden): the acts were written before run1b-writers.test.ts and the run 1b lock-order
+block. Their red is shown here by mutation (a planted unnamed writer, removed after the run), not by a test written
+first. The scans that went red on the acts themselves (section 1) were run 1a's and 6.10's existing scans.
+
+== 1. Existing scans, red on the first C8 tree (13:40Z run, verbatim excerpt) ==
+ FAIL  src/lib/contract/act-status-scan.test.ts > S3: every way into a contract's records asks the table, or is named with its reason > no uncovered site outside the named exceptions
+AssertionError: expected [ …(15) ] to deeply equal []
++   "src/app/projects/[id]/matter-actions.ts#citeContractMatterDecision: citeMatterDecision( (a writer of src/lib/matter/route-write.ts)",
++   "src/app/projects/[id]/matter-actions.ts#decideContractMatterStep: decideMatterStep( (a writer of src/lib/matter/route-write.ts)",
++   "src/app/projects/[id]/matter-actions.ts#chooseContractMatterRejection: chooseMatterRejection( (a writer of src/lib/matter/route-write.ts)",
++   "src/app/projects/[id]/time-actions.ts#recordDelayNotice: tx.delayNotice.create(",
++   "src/app/projects/[id]/time-actions.ts#openEotClaim: openMatter( (a writer of src/lib/matter/write.ts)",
++   "src/app/projects/[id]/time-actions.ts#openEotClaim: tx.eotClaim.create(",
++   "src/app/projects/[id]/time-actions.ts#openEotClaim: tx.eotClaimNotice.create(",
++   "src/app/projects/[id]/time-actions.ts#answerEotClaim: tx.eotClaim.updateMany(",
++   "src/app/projects/[id]/time-actions.ts#answerEotClaim: tx.lossExpenseClaim.updateMany(",
++   "src/app/projects/[id]/time-actions.ts#answerEotClaim: tx.lossExpenseClaim.create(",
++   "src/app/projects/[id]/time-actions.ts#addEotReason: tx.eotReason.create(",
++   "src/app/projects/[id]/time-actions.ts#removeEotReason: tx.eotReason.delete(",
++   "src/app/projects/[id]/time-actions.ts#determineEotClaim: tx.eotClaim.updateMany(",
++   "src/app/projects/[id]/time-actions.ts#determineEotClaim: closeMatter( (a writer of src/lib/matter/write.ts)",
++   "src/app/projects/[id]/time-actions.ts#sendEotClaim: sendMatterRoute( (a writer of src/lib/matter/route-write.ts)",
+
+ FAIL  src/lib/matter/contract-matter.test.ts > no writer before run 1b (single-writer scan) > no product code or demo writes ContractMatter, nor sets a route's or a committee matter's contractMatterId
++   "src/app/approvals/actions.ts: contractMatterId set",
++   "src/lib/matter/route-write.ts: contractMatterId set",
++   "src/lib/matter/write.ts: contractMatter write",
+
+Fix: the gate (actStatusFault under withLockedContract) moved into each action file's own inContract, as every
+contract action file has it (the scan reads the gate where the act is); matter-actions' run became a function
+declaration (the scan reads declarations). Run 1a's 'no writer before run 1b' became 'one named writer' (stricter);
+a select of the key (contractMatterId: true, approvals/actions.ts) is a read, told apart in its self-test.
+
+== 2. Mutation: an unnamed writer planted at src/app/projects/[id]/zz-mutant.ts (removed after) ==
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/matter/contract-matter.test.ts > one named writer (single-writer scan, run 1b) > only src/lib/matter/write.ts writes ContractMatter; only the route's create and the tabling keys name it
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "src/app/projects/[id]/zz-mutant.ts: contractMatter write",
++ ]
+
+ ❯ src/lib/matter/contract-matter.test.ts:135:75
+       |                                                                           ^
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/time/run1b-writers.test.ts > one named writer per run 1b table (design note §9) > every write to a run 1b table is in a writer the design note names
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "LadWaiver src/app/projects/[id]/zz-mutant.ts#sneaky",
++ ]
+
+ ❯ src/lib/time/run1b-writers.test.ts:114:124
+       |                                                                                                                            ^
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  2 failed | 14 passed (16)
+   Start at  13:44:20
+   Duration  1.72s (transform 378ms, setup 0ms, import 1.81s, tests 680ms, environment 0ms)
+
+
+== 3. BD-613-117 pre-check on the perolehan database (contract-matter domains: no sitting matter, no route) ==
+            run_at             | current_database 
+-------------------------------+------------------
+ 2026-10-04 13:44:13.976592+00 | perolehan
+(1 row)
+
+ id | domain | matterKind | contractMatterId 
+----+--------+------------+------------------
+(0 rows)
+
+ sitting_matters_on_contract_matter_domains_without_a_matter 
+-------------------------------------------------------------
+                                                           0
+(1 row)
+
+ id | domain | matterKind 
+----+--------+------------
+(0 rows)
+

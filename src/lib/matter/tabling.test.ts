@@ -48,7 +48,10 @@ describe("the variation's tabling act goes through it (source)", () => {
     expect(body).toMatch(/const tf = tabledFrom\.tableFaults\(inst\.domain, step!\.committeeCode!\);/);
     expect(body).toMatch(/committeeDecision\.create\(\{ data: \{ meetingId: s!\.meeting\.id, subject, domain, \.\.\.tabledFrom\.keys, amount, act,/);
   });
-  it("no act tables a CONTRACT matter before run 1b", () => {
-    for (const f of ["src/app/projects/[id]/variation-actions.ts", "src/app/projects/[id]/payment-actions.ts", "src/app/projects/[id]/supervision-actions.ts", "src/app/committees/actions.ts"]) expect(readFileSync(f, "utf8"), f).not.toMatch(/tablingOf\(\{ kind: "CONTRACT"/);
+  // Run 1b C8 (flagged against run 1a): "no act before run 1b" becomes "only the matter's own act"; the repository-wide
+  // form is contract-matter.test.ts's one-writer scan.
+  it("no other act tables a CONTRACT matter; tableContractMatter does, from the matter", () => {
+    for (const f of ["src/app/projects/[id]/variation-actions.ts", "src/app/projects/[id]/payment-actions.ts", "src/app/projects/[id]/supervision-actions.ts", "src/app/committees/actions.ts", "src/app/projects/[id]/time-actions.ts"]) expect(readFileSync(f, "utf8"), f).not.toMatch(/tablingOf\(\{ kind: "CONTRACT"/);
+    expect(readFileSync("src/app/projects/[id]/matter-actions.ts", "utf8")).toMatch(/tablingOf\(\{ kind: "CONTRACT", id: m\.id/);
   });
 });
