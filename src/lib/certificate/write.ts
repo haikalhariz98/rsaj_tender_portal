@@ -28,7 +28,7 @@ import { certificateDateOf, dateAtIssue, dateCorrectionFaults, earliestCorrectio
 import { acknowledgeFaults, copiesFor, despatchFaults } from "./distribution";
 import { refusalText } from "./fault-text";
 import { certificateFieldValues, figureField, type Lang } from "./fields";
-import { formNeedFault } from "./form-needs";
+import { formNeedFault, noFormFault } from "./form-needs";
 import { renderIssue } from "./issue";
 import { CERT_WORDS, CHECK_KIND_WORDS, DECISION_WORDS, KIND_WORDS, METHOD_WORDS, ON_BEHALF, STATUS_WORDS } from "./labels";
 import { applyOverrides, overrideFaults } from "./override";
@@ -128,9 +128,12 @@ export async function openCertificate(tx: Tx, l: LoadedContract, o: OpenInput, n
     if (fs.length) refuse("Not opened:", fs);
   }
   if (o.sectionId && !baseline!.sections.some((s) => s.id === o.sectionId)) refuse("Not opened:", one("SECTION_NOT_IN_BASELINE"));
+  // BD-613-110 (run 1a, against accepted Part A): no certificate is opened without a form. Every raise act asks
+  // raiseFormFault first, and the variation's application is now asked at its prior approval's send and last step, so
+  // this refusal is the same finding (noFormFault) and is reached only by a caller that skipped its own check.
+  if (!o.templateId) refuse("Not opened:", [noFormFault(o.kind)]);
   // BD-613-103 / S-6: a form named but not the organisation's is refused naming the kind's need (KIND_WORDS), never a
-  // quoted placeholder. A form not named at all is not refused here: the variation's application is opened at its prior
-  // approval's last step on the form configured then, unset meaning none yet (BD-613-52); its page says RAISED_WITHOUT_FORM.
+  // quoted placeholder.
   if (o.templateId && !(await tx.documentTemplate.findFirst({ where: { id: o.templateId, organisationId: l.org.id }, select: { id: true } }))) refuse("Not opened:", [formNeedFault(null, KIND_WORDS[o.kind])!]);
   if (o.routingTypeId) {
     const owned = await tx.routingSheetType.findFirst({ where: { id: o.routingTypeId, organisationId: l.org.id }, select: { id: true } });

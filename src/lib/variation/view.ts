@@ -38,8 +38,9 @@ export async function variationView(l: LoadedContract, today: string | null) {
   const edges = issue ? edgesOf(issue.matrix.rules, "vo") : [];
   const rules = issue?.matrix.rules ?? [];
   const labelOf = (r: Reading, domain: string) => sentLabelOf(r, rules, domain);
-  const formSet = (k: string) => !!kinds.find((x) => x.kind === k)?.templateId;
-  return { all, facts, adjustments, issued, refused, policy, baseline, original, revised, cumulative, base, edges, labelOf, formSet, matrixLabel: issue?.label ?? null };
+  const formOf = (k: string) => kinds.find((x) => x.kind === k)?.templateId ?? null;
+  const formSet = (k: string) => !!formOf(k);
+  return { all, facts, adjustments, issued, refused, policy, baseline, original, revised, cumulative, base, edges, labelOf, formSet, formOf, matrixLabel: issue?.label ?? null };
 }
 
 export type VariationView = Awaited<ReturnType<typeof variationView>>;

@@ -57,6 +57,9 @@ export const STAGE_TONE: Readonly<Record<Stage, "brand" | "info" | "ok" | "warn"
   CLOSED: "neutral",
 };
 
+/// BD-613-110: a prior approval waiting while the application's form is unset; the finding's own words follow.
+export const LAST_STEP_REFUSED = w("Its last step's approval will be refused until the application's form is chosen:", "Kelulusan langkah terakhirnya akan ditolak sehingga borang permohonan dipilih:");
+
 export const EVENT_WORDS: Readonly<Record<VariationEvent, Words>> = {
   PRIOR: w("Prior approval to instruct the variation", "Kelulusan terdahulu untuk mengarahkan perubahan kerja"),
   INCREASE: w("Approval to increase an approved variation", "Kelulusan menambah perubahan kerja yang diluluskan"),

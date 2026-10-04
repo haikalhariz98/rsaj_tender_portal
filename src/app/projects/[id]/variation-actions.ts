@@ -39,7 +39,7 @@ import { dayworkFaults, measuredAmount, measurementFaults, parseQuantity, parseS
 import { applicationFigures, orderFaults, orderFigures } from "@/lib/variation/order";
 import { applicationPercents, orderBands } from "@/lib/variation/route";
 import { tableStepFaults } from "@/lib/variation/tabling";
-import { chooseVariationRejection, citeVariationDecision, decideVariationStep, matrixToday, sendVariationRoute, VariationRefusal, variationLabel, type VariationCtx } from "@/lib/variation/route-write";
+import { applicationFormNow, chooseVariationRejection, citeVariationDecision, decideVariationStep, matrixToday, sendVariationRoute, VariationRefusal, variationLabel, type VariationCtx } from "@/lib/variation/route-write";
 import { ADJUSTMENT_DIRECTIONS, ADJUSTMENT_TRIGGERS, RATE_SOURCES, SO_DECISIONS, VARIATION_EVENTS, VARIATION_EXEMPTIONS, VARIATION_ORIGINS, type AdjustmentTrigger, type Finding, type VariationEvent, type VariationExemption } from "@/lib/variation/types";
 import { FormReader } from "@/lib/validate";
 
@@ -427,7 +427,7 @@ export async function sendVariationForApproval(_prev: FormState, data: FormData)
     const blocking = policy?.variationPctBasis === "CUMULATIVE" && others.length ? (all.find((x) => x.id === others[0].variationId)?.reference ?? "another variation") : null;
     const adj = policy?.variationBase === "REVISED" ? adjustmentInProgress(await loadAdjustments(c.l.contract.id, c.tx)) : null;
     const value = routeValue(facts, event, keyed ? parseSen(keyed) : null, orderNet);
-    const fs = sendFaults({ v: facts, event, value, cumulativeBlockedBy: blocking ? `Variation ${blocking}` : null, adjustmentInProgress: adj ? `The adjustment of the contract sum${adj.certificate.number ? ` ${adj.certificate.number}` : ""}` : null, orderNet });
+    const fs = sendFaults({ v: facts, event, value, cumulativeBlockedBy: blocking ? `Variation ${blocking}` : null, adjustmentInProgress: adj ? `The adjustment of the contract sum${adj.certificate.number ? ` ${adj.certificate.number}` : ""}` : null, orderNet, applicationTemplateId: await applicationFormNow(c) });
     if (fs.length) refuse("Not sent for approval:", fs);
     const now2 = await readingNow(c, all, v, event, value!);
     if (!now2.r.ok) return refuse("Not sent for approval:", now2.r.faults);

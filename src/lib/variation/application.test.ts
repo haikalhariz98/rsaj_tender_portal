@@ -93,7 +93,9 @@ describe("FR-VAR-005: the S.O.'s decision", () => {
 });
 
 describe("FR-VAR-008: sending each approval", () => {
-  const s = (x: Partial<Parameters<typeof sendFaults>[0]>) => codes(sendFaults({ v: v(), event: "PRIOR", value: null, cumulativeBlockedBy: null, adjustmentInProgress: null, orderNet: null, ...x }));
+  // BD-613-110 (faithful, flagged against accepted Part A): the application's form is now an input, set here so every
+  // assertion reads as before; its own refusal is application-form.test.ts's.
+  const s = (x: Partial<Parameters<typeof sendFaults>[0]>) => codes(sendFaults({ v: v(), event: "PRIOR", value: null, cumulativeBlockedBy: null, adjustmentInProgress: null, orderNet: null, applicationTemplateId: "t1", ...x }));
   it("prior approval once supported; one route at a time; a refusal awaiting its destination first", () => {
     expect(s({})).toEqual([]);
     expect(s({ v: v({ status: "SUBMITTED" }) })).toEqual(["NOT_SUPPORTED_YET"]);

@@ -36,9 +36,9 @@ import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 import { loadRoster } from "@/lib/people/load";
 import { capacityFor } from "@/lib/supervision/authority";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
-import { approvedValue, awaitingChoice, closeFaults, commenceFaults, commencedPending, cumulativeApproved, newSumOf, pendingRoute, pendingValueRoutes, priorValueOf, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, stageOf, submitFaults, type VariationFacts } from "@/lib/variation/application";
+import { approvedValue, awaitingChoice, closeFaults, commenceFaults, commencedPending, cumulativeApproved, lastStepFormFault, newSumOf, pendingRoute, pendingValueRoutes, priorValueOf, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, stageOf, submitFaults, type VariationFacts } from "@/lib/variation/application";
 import { clockReading, instructionFaults, sketchesLine } from "@/lib/variation/instruction";
-import { BASE_WORDS, BASIS_WORDS, CONSENT_WORDS, DIRECTION_WORDS, EVENT_WORDS, EXEMPTION_WORDS, ORIGIN_WORDS, RATE_SOURCE_WORDS, SCHEDULE_FORM_WORDS, SO_DECISION_WORDS, STAGE_TONE, STAGE_WORDS, variationFaultText } from "@/lib/variation/labels";
+import { BASE_WORDS, BASIS_WORDS, CONSENT_WORDS, DIRECTION_WORDS, EVENT_WORDS, EXEMPTION_WORDS, LAST_STEP_REFUSED, ORIGIN_WORDS, RATE_SOURCE_WORDS, SCHEDULE_FORM_WORDS, SO_DECISION_WORDS, STAGE_TONE, STAGE_WORDS, variationFaultText } from "@/lib/variation/labels";
 import { adjustmentInProgress, consentOf, disputeOf, factsOf, liveInstructionRow, liveOrderRow, matterFactsOf, orderNetOf, standingMeasurements, type VariationRow } from "@/lib/variation/load";
 import { citeStepFaults, matterLineOf, tableStepFaults } from "@/lib/variation/tabling";
 import { dayworkFlags, measurementFaults } from "@/lib/variation/measure";
@@ -294,7 +294,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
   // Each approval, judged by the send act's own rule (the amount at agreed rates is keyed in the drawer).
   const judged = VARIATION_EVENTS.map((e) => {
     const value = routeValue(f, e, e === "AGREED_RATE" ? 1n : null, orderNet);
-    const fs = sendFaults({ v: f, event: e, value, cumulativeBlockedBy: blocking, adjustmentInProgress: adj ? `The adjustment of the contract sum${adj.certificate.number ? ` ${adj.certificate.number}` : ""}` : null, orderNet });
+    const fs = sendFaults({ v: f, event: e, value, cumulativeBlockedBy: blocking, adjustmentInProgress: adj ? `The adjustment of the contract sum${adj.certificate.number ? ` ${adj.certificate.number}` : ""}` : null, orderNet, applicationTemplateId: vv.formOf("VARIATION_APPLICATION") });
     return { e, fs };
   });
   const open = judged.filter((x) => x.fs.length === 0);
@@ -340,8 +340,12 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
           </span>
         );
       };
+      // BD-613-110: a waiting prior approval whose last step would be refused for want of the application's form, by the
+      // act's own rule on the same setting, said before anyone decides it.
+      const noForm = inst.status === "PENDING" ? lastStepFormFault(a.event as VariationEvent, vv.formOf("VARIATION_APPLICATION")) : null;
       const extra = (
         <CardBody className="border-b border-line/70">
+          {noForm && <Callout tone="warn" className="mb-2">{`${LAST_STEP_REFUSED.en} ${variationFaultText(noForm)}`}</Callout>}
           <p className="text-[12.5px] break-words text-ink-3">{`${EVENT_WORDS[a.event as VariationEvent].en}: ${formatMoney(senFromDecimal(a.value))}, read as ${vv.labelOf(reading, inst.domain).en} of ${formatMoney(BigInt(reading.den))} (${BASIS_WORDS[reading.basis].en.toLowerCase()}, over ${BASE_WORDS[reading.base].en.toLowerCase()}), ${vv.labelOf(reading, inst.domain).frozen ? "frozen when sent" : "sent"} ${formatDate(day(a.sentOn))} by ${a.sentBy.name} (recorded on their behalf, not signed).${vv.labelOf(reading, inst.domain).frozen ? "" : " Its percentage was not frozen with it (sent before labels were): read now on the issued matrix's rows, without any funding override."}`}</p>
           {v.matters.filter((m) => m.domain === inst.domain).map((m) => {
             // Acceptance S-1: the outcome only, linked to the sitting; members' votes stay on its decision record.

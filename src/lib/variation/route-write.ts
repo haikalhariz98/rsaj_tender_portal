@@ -53,7 +53,7 @@ import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
 import { methodKeyOf } from "@/lib/supervision/load";
 
 import { EVENT_WORDS, variationRefusal } from "./labels";
-import { refusalKinds, variationRefusalOutcome } from "./application";
+import { lastStepFormFault, refusalKinds, variationRefusalOutcome } from "./application";
 import { factsOf, matterRecordOf, type VariationRow } from "./load";
 import { ratioOf, type Reading } from "./percent";
 import { edgesOf, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel } from "./route";
@@ -290,19 +290,30 @@ async function afterStep(c: VariationCtx, v: VariationRow, a: VariationRow["appr
     return;
   }
   if (!inst.steps.every((s) => s.id === stepId || s.decision === "DONE")) return;
+  // BD-613-110: the last step of a prior approval opens the application on the form configured now; none chosen refuses
+  // the step (the send asked the same, but the form may have been cleared since), in English and Malay, naming where.
+  const form = a.event === "PRIOR" ? await applicationFormNow(c) : null;
+  const noForm = lastStepFormFault(a.event as VariationEvent, form);
+  if (noForm) refuse("Not approved:", [noForm]);
   const moved = await c.tx.approvalInstance.updateMany({ where: { id: inst.id, status: "PENDING" }, data: { status: "APPROVED", closedAt: c.now } });
   if (moved.count !== 1) throw new VariationRefusal("The route changed while this was being saved. Reload and try again.");
   await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalInstance", entityId: inst.id, entityLabel: routeLabel(c, v), reason: "" }, "UPDATE", diffFields({ status: "PENDING" }, { status: "APPROVED" }));
-  if (a.event === "PRIOR") await openApplication(c, v);
+  if (a.event === "PRIOR") await openApplication(c, v, form!);
+}
+
+/// BD-613-110: the form configured for the application now (null: none chosen), as the send and the last step read it.
+export async function applicationFormNow(c: Pick<VariationCtx, "tx" | "l">): Promise<string | null> {
+  const kind = await c.tx.certificateKindSetting.findUnique({ where: { organisationId_kind: { organisationId: c.l.org.id, kind: "VARIATION_APPLICATION" } }, select: { templateId: true } });
+  return kind?.templateId ?? null;
 }
 
 /// BD-613-52: the application (VO-660) is opened when its prior approval is approved, from the figures the route was
-/// sent on (frozen then), on the form configured for it (unset: none yet, and its first signature says so).
-async function openApplication(c: VariationCtx, v: VariationRow) {
+/// sent on (frozen then), on the form configured for it. BD-613-110: the last step has refused already where none is
+/// chosen, and openCertificate refuses a missing form too, so it is never opened without one.
+async function openApplication(c: VariationCtx, v: VariationRow, templateId: string) {
   const snap = readComputedSnapshot(v.applicationReading);
   if (!snap) throw new VariationRefusal("The application's figures were not frozen when it was sent. Reload and try again.");
-  const kind = await c.tx.certificateKindSetting.findUnique({ where: { organisationId_kind: { organisationId: c.l.org.id, kind: "VARIATION_APPLICATION" } }, select: { templateId: true } });
-  const certId = await openCertificate(c.tx, c.l, { kind: "VARIATION_APPLICATION", templateId: kind?.templateId ?? null, routingTypeId: null, sectionId: null, computed: snap }, c.now, c.today);
+  const certId = await openCertificate(c.tx, c.l, { kind: "VARIATION_APPLICATION", templateId, routingTypeId: null, sectionId: null, computed: snap }, c.now, c.today);
   const moved = await c.tx.variation.updateMany({ where: { id: v.id, applicationCertificateId: null }, data: { applicationCertificateId: certId } });
   if (moved.count !== 1) throw new VariationRefusal("The variation changed while this was being saved. Reload and try again.");
   await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "Variation", entityId: v.id, entityLabel: variationLabel(c.l, v), reason: "" }, "UPDATE", diffFields({ application: null }, { application: "opened from the figures it was approved on" }));

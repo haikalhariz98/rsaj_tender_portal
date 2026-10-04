@@ -21,6 +21,8 @@
  */
 
 import { rejectionOutcome, type RejectionOutcome, type RouteSnapshot, type RouteStep } from "@/lib/authority/rejection";
+import { raiseFormFault } from "@/lib/certificate/form-needs";
+import { KIND_WORDS } from "@/lib/certificate/labels";
 import type { Sen } from "@/lib/money";
 
 import type { DelegateKind } from "@/lib/supervision/types";
@@ -242,6 +244,23 @@ export interface SendInput {
   adjustmentInProgress: string | null;
   /// The raised (draft or being signed) Variation Order Certificate's net, for an increase or a re-measurement.
   orderNet: Sen | null;
+  /// BD-613-110: the form configured for the application (VO-660) now (CertificateKindSetting VARIATION_APPLICATION);
+  /// null: none chosen. Asked of the prior approval, whose last step opens the application on it.
+  applicationTemplateId: string | null;
+}
+
+/**
+ * BD-613-110 (6.13 Part B run 1a, against accepted Part A): the application's form, through the one raise rule
+ * (raiseFormFault): none chosen refuses TEMPLATE_NOT_SET, naming the need and where it is chosen, in English and Malay.
+ * The same finding openCertificate refuses a missing form with (noFormFault), so the two never disagree.
+ */
+export function applicationFormFault(templateId: string | null): Finding | null {
+  return raiseFormFault(templateId ? { id: templateId } : null, KIND_WORDS.VARIATION_APPLICATION);
+}
+
+/// BD-613-110: what the last step of a route asks of the application's form: only a prior approval opens it.
+export function lastStepFormFault(event: VariationEvent, templateId: string | null): Finding | null {
+  return event === "PRIOR" ? applicationFormFault(templateId) : null;
 }
 
 /// Why the variation cannot be sent for this approval now (the route's own rule is judged after).
@@ -260,6 +279,11 @@ export function sendFaults(i: SendInput): Finding[] {
       if (v.exemption != null) f("EXEMPT_NO_PRIOR", { exemption: v.exemption });
       else if (v.soDecision !== "SUPPORTED") f("NOT_SUPPORTED_YET", { status: v.status });
       else if (priorApproved(v)) f("PRIOR_ALREADY_APPROVED");
+      else {
+        // BD-613-110: its last step opens the application on the form configured then; none chosen refuses the send now.
+        const noForm = applicationFormFault(i.applicationTemplateId);
+        if (noForm) out.push(noForm);
+      }
       break;
     case "INCREASE": {
       if (v.exemption != null) f("EXEMPT_NO_PRIOR", { exemption: v.exemption });

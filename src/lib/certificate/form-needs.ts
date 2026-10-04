@@ -50,6 +50,8 @@ export function templateNotSetWords(d: Record<string, string | number | null | u
  * - VOID: only that it was raised without a form, with no advice;
  * - a kind the product does not raise again once void (the variation's application, opened by its prior approval's last
  *   step, BD-613-52): the void-and-raise advice would be a false exit, so it says there is no way to give it a form yet.
+ *   Since BD-613-110 (run 1a) none is opened without a form (the send and the last step ask, openCertificate refuses), so
+ *   these words serve only a certificate opened so before it.
  */
 export function raisedWithoutFormFault(cert: { kind: string; status: string } | null): Finding {
   return { code: "RAISED_WITHOUT_FORM", level: "block", data: { kind: cert?.kind ?? null, status: cert?.status ?? null } };
