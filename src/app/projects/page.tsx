@@ -85,7 +85,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   return (
     <>
       <PageHeader
-        title="Projects"
+        title="Contracts"
         subtitle="Contracts after award: formed, signed, stamped and distributed, on a fixed baseline."
         meta={[`${data.counts.preparing} in preparation`, `${data.counts.returned} returned for amendment`, `${data.counts.legal} with the legal office`, `${awaiting} awaiting conditions`, `${ready} ready to sign`, `${data.counts.executed} executed`, <span key="delay" className="inline-flex flex-wrap items-center gap-1.5">
             {`${delayIds.length} In Delay`}

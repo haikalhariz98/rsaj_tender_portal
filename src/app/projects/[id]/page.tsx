@@ -137,7 +137,7 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
     <>
       <RecordCrumb label={c.number} />
       <PageHeader
-        eyebrow={<Link href="/projects">Projects</Link>}
+        eyebrow={<Link href="/projects">Contracts</Link>}
         title={`Contract ${c.number}`}
         badge={<Badge tone={TONE[PHASE_TONE[phase]]} dot>{PHASE_WORDS[phase].en}</Badge>}
         subtitle={l.ex.title}

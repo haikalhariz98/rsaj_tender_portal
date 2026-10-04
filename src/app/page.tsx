@@ -239,7 +239,7 @@ export default async function Dashboard() {
               divided={false}
               actions={
                 <ButtonLink href="/approvals" variant="ghost" size="sm">
-                  Awaiting decision
+                  My approvals
                 </ButtonLink>
               }
             />

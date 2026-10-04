@@ -30,12 +30,12 @@ const labels = (c: { label: string }[]) => c.map((x) => x.label);
 describe("breadcrumbs of the certificate core's pages (S-1)", () => {
   it("a certificate: Projects › its contract › Documents (the contract's tab) › the certificate", () => {
     const c = trail("/projects/demo_con3/certificates/demo_hct1", "DEMO/CERT/1", "XI202600799");
-    expect(labels(c)).toEqual(["Projects", "XI202600799", "Documents", "DEMO/CERT/1"]);
+    expect(labels(c)).toEqual(["Contracts", "XI202600799", "Documents", "DEMO/CERT/1"]);
     expect(c[2].href).toBe("/projects/demo_con3?tab=documents");
     for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
   });
   it("before the page names them, the crumbs say what kind of record, never a key or \"Details\"", () => {
-    expect(labels(trail("/projects/demo_con3/certificates/demo_hct1", null))).toEqual(["Projects", "Contract", "Documents", "Certificate"]);
+    expect(labels(trail("/projects/demo_con3/certificates/demo_hct1", null))).toEqual(["Contracts", "Contract", "Documents", "Certificate"]);
   });
   it("a routing sheet type: Configuration › Routing sheets › the type", () => {
     const c = trail("/configuration/routing-sheets/demo_hrt1", "Demo interim certificate routing sheet");
@@ -51,12 +51,12 @@ describe("breadcrumbs of the certificate core's pages (S-1)", () => {
   });
   it("6.13 Part A step 4, a variation: Projects › its contract › Variations (the contract's tab) › the variation", () => {
     const c = trail("/projects/demo_con3/variations/demo_vvo1", "Variation VO/1", "XI202600799");
-    expect(labels(c)).toEqual(["Projects", "XI202600799", "Variations", "Variation VO/1"]);
+    expect(labels(c)).toEqual(["Contracts", "XI202600799", "Variations", "Variation VO/1"]);
     expect(c[2].href).toBe("/projects/demo_con3?tab=variations");
-    expect(labels(trail("/projects/demo_con3/variations/demo_vvo1", null))).toEqual(["Projects", "Contract", "Variations", "Variation"]);
+    expect(labels(trail("/projects/demo_con3/variations/demo_vvo1", null))).toEqual(["Contracts", "Contract", "Variations", "Variation"]);
   });
   it("the contract itself is unchanged: Projects › its number", () => {
-    expect(labels(trail("/projects/demo_con3", "XI202600799"))).toEqual(["Projects", "XI202600799"]);
+    expect(labels(trail("/projects/demo_con3", "XI202600799"))).toEqual(["Contracts", "XI202600799"]);
   });
   it("the page check itself finds a missing page", () => {
     expect(hasPage("/projects/demo_con3/certificates")).toBe(false);

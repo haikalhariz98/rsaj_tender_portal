@@ -20,38 +20,50 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-/// Grouping matches the prototype — note that Documents sits under Supply base. The
-/// prototype's Insight group held Reports alone; reporting is not in this build (the
-/// founder removed it on 2026-10-04, 613A-C3), so neither the group nor the entry is
-/// shown: the sidebar promises no module that will not be built.
+/// Grouped by where a matter is in its life (founder, 2026-10-04), not as the prototype grouped
+/// them: what needs me, procuring, the contract after award, governance, records, set-up.
+/// Reporting is not in this build (the founder removed it on 2026-10-04, 613A-C3), so the
+/// sidebar promises no module that will not be built.
 export const STAFF_NAV: NavGroup[] = [
   {
     label: "Overview",
-    items: [{ href: "/", label: "Dashboard", icon: "grid", built: true }],
+    items: [
+      { href: "/", label: "Dashboard", icon: "grid", built: true },
+      // Not in the prototype (close-out ruling CO-7): every open approval's next step, by
+      // the office deciding it. Shown to everyone until sign-in; nobody is notified.
+      { href: "/approvals", label: "My approvals", icon: "inbox", built: true },
+    ],
   },
   {
-    label: "Work",
+    label: "Procurement",
     items: [
       // Not in the prototype, whose requisition screen no route renders. Above
       // Sourcing, not under it: a supervision-only matter never becomes sourcing (6.1).
       { href: "/requisitions", label: "Requisitions", icon: "clipboard", built: true },
-      // Not in the prototype (close-out ruling CO-7): every open approval's next step, by
-      // the office deciding it. Shown to everyone until sign-in; nobody is notified.
-      { href: "/approvals", label: "Awaiting decision", icon: "inbox", built: true },
       { href: "/sourcing", label: "Sourcing", icon: "globe", built: true },
       // Not in the prototype, which has the award only as a tab of the exercise (6.11 plan §6).
       // Cross-exercise work lists: what awaits approval, issue, return or a commitment number.
       { href: "/awards", label: "Awards", icon: "award", built: true },
-      { href: "/securities", label: "Securities", icon: "shield", built: true },
+    ],
+  },
+  {
+    label: "Contracts",
+    items: [
       // 6.12 (OD-6 A): the contracts after award, formed, signed and on their baseline.
-      { href: "/projects", label: "Projects", icon: "tools", built: true },
+      { href: "/projects", label: "Contracts", icon: "tools", built: true },
+      { href: "/securities", label: "Securities", icon: "shield", built: true },
+    ],
+  },
+  {
+    label: "Governance",
+    items: [
       // Not in the prototype, which shows committee votes only on each matter's own
       // record. Sittings run before those modules exist (ruling 5.1).
       { href: "/committees", label: "Committee sittings", icon: "users", built: true },
     ],
   },
   {
-    label: "Supply base",
+    label: "Records",
     items: [
       // 6.15a: the staff-side register (ADR 0019). The vendor workspace below stays not built until sign-in (6.15b).
       { href: "/suppliers", label: "Suppliers", icon: "building", built: true },
