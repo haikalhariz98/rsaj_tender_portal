@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { closing, enclosingFn, lex, spans } from "@/lib/scan/source";
+import { closing, enclosingFn, lex, rawCallText, rawCalls, spans } from "@/lib/scan/source";
 
 /**
  * 615-C2 (BD-613-91): one writer of a registration cancelled, held by a source scan. Standing events are append-only
@@ -14,7 +14,9 @@ import { closing, enclosingFn, lex, spans } from "@/lib/scan/source";
  * - the body, its label and the body's reference are written only there;
  * - the only update of a standing event is `withdrawRegistrationCancelled`'s, writing withdrawnAt, withdrawnReason and
  *   withdrawnByPersonId and nothing else; no product code deletes one;
- * - the demo (prisma/) writes standing events only in its own named loaders and wipe, never a cancellation.
+ * - the demo (prisma/) writes standing events only in its own named loaders and wipe, never a cancellation;
+ * - Run 0 fix round S-5: no raw SQL writes the StandingEvent table, and every raw call can be read (the shared rawCalls
+ *   reader; an Unsafe call, one with no opener or with a suffix the reader does not know is unreadable, so flagged).
  * Sources are lexed (comments, strings, templates blanked) and each write is credited to its enclosing function.
  */
 
@@ -133,9 +135,21 @@ export function scanStandingWrites(sources: readonly { file: string; src: string
       else if (!dataKeys.every((k) => WITHDRAW_KEYS.includes(k)) || dataKeys.length !== WITHDRAW_KEYS.length) problem = "the withdrawal writes more than its three columns";
       out.push({ where, op: name, problem });
     }
+    // S-5 (Run 0 fix round): raw SQL. A write naming the table is never the single writer; a call that cannot be read
+    // might be one. A read (the withdrawal's lock, SELECT … FOR UPDATE) is not a write and is not listed.
+    for (const c of rawCalls(m)) {
+      const where = `${file} › ${enclosingFn(sp, c.at)}`;
+      const name = `$${c.method}${c.suffix}`;
+      const sql = c.unsafe ? null : rawCallText(src, m, c);
+      if (sql == null) out.push({ where, op: name, problem: "raw SQL the scan cannot read" });
+      else if (RAW_WRITE.test(sql)) out.push({ where, op: "raw SQL", problem: "raw SQL writes a standing event" });
+    }
   }
   return out;
 }
+
+/// A raw write on the standing events' table, however qualified or quoted.
+const RAW_WRITE = /\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|MERGE\s+INTO)\s+(?:ONLY\s+)?(?:"?\w+"?\.)?"?StandingEvent"?(?=[\s(;`)]|$)/i;
 
 describe("one writer of a registration cancelled (615-C2), standing events append-only", () => {
   const found = scanStandingWrites(SOURCES);
@@ -199,5 +213,16 @@ describe("the scan catches each evasion (self-tests)", () => {
   });
   it("nothing in comments or strings", () => {
     expect(one(fn("x", `// tx.standingEvent.create({ data: { kind: "REGISTRATION_CANCELLED" } })\n  const s = "tx.standingEvent.updateMany(";`))).toEqual([]);
+  });
+  it("S-5: a raw write naming StandingEvent, typed or not, tagged or called; an unreadable raw call", () => {
+    expect(one(fn("x", 'await tx.$executeRaw`UPDATE "StandingEvent" SET "withdrawnAt" = NOW()`;'))).toEqual(["x · raw SQL · raw SQL writes a standing event"]);
+    expect(one(fn("x", 'await tx.$executeRaw<number>`INSERT INTO "StandingEvent" (id, kind) VALUES (1, \'REGISTRATION_CANCELLED\')`;'))).toEqual(["x · raw SQL · raw SQL writes a standing event"]);
+    expect(one(fn("x", 'await tx.$executeRaw(Prisma.sql`DELETE FROM public."StandingEvent" WHERE id = ${id}`);'))).toEqual(["x · raw SQL · raw SQL writes a standing event"]);
+    expect(one(fn("x", "await tx.$executeRawUnsafe(q);"))).toEqual(["x · $executeRawUnsafe · raw SQL the scan cannot read"]);
+    expect(one(fn("x", "const q = tx.$executeRaw;\n  await q`UPDATE x SET y = 1`;"))).toEqual(["x · $executeRaw · raw SQL the scan cannot read"]);
+    expect(one(fn("x", "await tx.$queryRawTyped(rows(id));"))).toEqual(["x · $queryRawTyped · raw SQL the scan cannot read"]);
+    // A read is not a write: the withdrawal's lock, and a read of another table.
+    expect(one(fn("withdrawRegistrationCancelled", 'await tx.$queryRaw`SELECT id FROM "StandingEvent" WHERE id = ${eventId} FOR UPDATE`;'))).toEqual([]);
+    expect(one(fn("x", 'await tx.$executeRaw`UPDATE "StandingEventNote" SET x = 1`;'))).toEqual([]);
   });
 });
