@@ -8962,16 +8962,20 @@ model PostAwardPolicy {
   designBondYears             Int?
   designBondProvenance        Provenance?
   /// OD-B8 (BD-613-76): when the performance bond and the retention balance are released. Null refuses the release,
-  /// naming the setting.
+  /// naming the setting. Each switch has its own provenance (Run 1a fix round, review S7).
   performanceBondReleaseAt    ReleaseEvent?
+  performanceBondReleaseProvenance Provenance?
   retentionBalanceReleaseAt   ReleaseEvent?
-  releaseProvenance           Provenance?
+  retentionBalanceReleaseProvenance Provenance?
   /// FR-NSC (§8.10): the nominated party's bond rate (null: NOT_SET), the quotation route's ceiling for a nominated
   /// package (null: NOT_SET, never RM300,000), and OD-B19: one form for the nomination letters, or one per letter.
+  /// Each has its own provenance (review S7).
   nominatedBondPct            Decimal?            @db.Decimal(9, 4)
+  nominatedBondProvenance     Provenance?
   nominatedQuotationCeiling   Decimal?            @db.Decimal(18, 2)
+  nominatedQuotationCeilingProvenance Provenance?
   nominationLetterForms       NominationLetterForms?
-  nominatedProvenance         Provenance?
+  nominationLetterFormsProvenance Provenance?
   /// §8.9 (FR-TRM-011–016): the re-tender cap in days (null blocks the terminated account) and OD-B2's composition of
   /// the cost-of-loss days (null blocks it; both readings shown).
   retenderCapDays             Int?

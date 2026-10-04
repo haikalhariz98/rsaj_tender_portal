@@ -33,7 +33,9 @@ const POLICY: Record<string, string> = {
   lossDaysComposition: "LossDaysComposition?",
   finalPreviousBasis: "FinalPreviousBasis?",
 };
-const PROVENANCE = ["ladAntiOppressionProvenance", "weatherGuidanceProvenance", "ladWaiverProvenance", "designBondProvenance", "releaseProvenance", "nominatedProvenance", "terminationProvenance", "finalAccountProvenance"];
+// Run 1a fix round (review S7, stricter): the release and nominated settings each have their own provenance
+// (part-b-provenance.test.ts), in place of releaseProvenance and nominatedProvenance.
+const PROVENANCE = ["ladAntiOppressionProvenance", "weatherGuidanceProvenance", "ladWaiverProvenance", "designBondProvenance", "performanceBondReleaseProvenance", "retentionBalanceReleaseProvenance", "nominatedBondProvenance", "nominatedQuotationCeilingProvenance", "nominationLetterFormsProvenance", "terminationProvenance", "finalAccountProvenance"];
 
 describe("the post-award policy's Part B settings", () => {
   const m = model("PostAwardPolicy");
