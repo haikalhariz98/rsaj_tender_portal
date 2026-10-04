@@ -217,6 +217,7 @@ describe("the scan catches each evasion (self-tests)", () => {
     expect(one(fn("x", `// tx.standingEvent.create({ data: { kind: "REGISTRATION_CANCELLED" } })\n  const s = "tx.standingEvent.updateMany(";`))).toEqual([]);
   });
   it("BD-613-105(e): the writer storing the cancellation's reason as words", () => {
+    // eslint-disable-next-line no-template-curly-in-string -- the scanned source's own template, as text
     expect(one(fn("recordRegistrationCancelled", "await tx.standingEvent.create({ data: { kind: \"REGISTRATION_CANCELLED\", reasonSnapshot: `Cancelled by ${b} (${r})` } });"))).toEqual(["recordRegistrationCancelled · standingEvent.create REGISTRATION_CANCELLED · stores a cancellation's reason as words"]);
     expect(one(fn("recordRegistrationCancelled", "await tx.standingEvent.create({ data: { kind: \"REGISTRATION_CANCELLED\", reasonSnapshot: \"\" } });"))).toEqual([]);
     expect(one(fn("recordRegistrationCancelled", "await tx.standingEvent.create({ data: { kind: \"REGISTRATION_CANCELLED\" } });"))).toEqual([]);
@@ -224,11 +225,13 @@ describe("the scan catches each evasion (self-tests)", () => {
   it("S-5: a raw write naming StandingEvent, typed or not, tagged or called; an unreadable raw call", () => {
     expect(one(fn("x", 'await tx.$executeRaw`UPDATE "StandingEvent" SET "withdrawnAt" = NOW()`;'))).toEqual(["x · raw SQL · raw SQL writes a standing event"]);
     expect(one(fn("x", 'await tx.$executeRaw<number>`INSERT INTO "StandingEvent" (id, kind) VALUES (1, \'REGISTRATION_CANCELLED\')`;'))).toEqual(["x · raw SQL · raw SQL writes a standing event"]);
+    // eslint-disable-next-line no-template-curly-in-string -- the scanned source's own template, as text
     expect(one(fn("x", 'await tx.$executeRaw(Prisma.sql`DELETE FROM public."StandingEvent" WHERE id = ${id}`);'))).toEqual(["x · raw SQL · raw SQL writes a standing event"]);
     expect(one(fn("x", "await tx.$executeRawUnsafe(q);"))).toEqual(["x · $executeRawUnsafe · raw SQL the scan cannot read"]);
     expect(one(fn("x", "const q = tx.$executeRaw;\n  await q`UPDATE x SET y = 1`;"))).toEqual(["x · $executeRaw · raw SQL the scan cannot read"]);
     expect(one(fn("x", "await tx.$queryRawTyped(rows(id));"))).toEqual(["x · $queryRawTyped · raw SQL the scan cannot read"]);
     // A read is not a write: the withdrawal's lock, and a read of another table.
+    // eslint-disable-next-line no-template-curly-in-string -- the scanned source's own template, as text
     expect(one(fn("withdrawRegistrationCancelled", 'await tx.$queryRaw`SELECT id FROM "StandingEvent" WHERE id = ${eventId} FOR UPDATE`;'))).toEqual([]);
     expect(one(fn("x", 'await tx.$executeRaw`UPDATE "StandingEventNote" SET x = 1`;'))).toEqual([]);
   });
