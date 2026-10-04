@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { recordCancellationFaults, withdrawCancellationFaults } from "./cancellation";
 import { supplierFaultText } from "./labels";
-import { applicationKindFaults, approveFaults, openApplicationFaults, submitFaults, type CancellationInEffect, type FileFacts } from "./review";
+import { applicationKindFaults, approveFaults, openApplicationFaults, submitFaults, type BlacklistInEffect, type CancellationInEffect, type FileFacts } from "./review";
 import { cancellationEnded, standing, type StandingEventFacts } from "./standing";
 
 /**
@@ -139,6 +139,32 @@ describe("both orders with a withdrawal", () => {
   });
   it("a withdrawn cancellation is never 'ended': registering again says nothing of it", () => {
     expect(read("2026-10-05", [{ ...cancelled, withdrawn: true }]).notes).toEqual([]);
+  });
+});
+
+// Run 1a (ADR 0019 Amendment 2, BD-613-108 (c), (d), (f)): the three parts of the confirmed mechanism that had no test of
+// their own are pinned here, so each claim in the amendment cites one.
+describe("ADR 0019 Amendment 2: the rest of the way back", () => {
+  const blacklist: BlacklistInEffect = { effectiveOn: "2026-09-24", endsOn: null, reasonLabel: "False declaration in a bid" };
+  it("(c) cancelled and blacklisted: a new application opens, but sending and approving it are refused for the blacklisting", () => {
+    expect(openApplicationFaults("NEW", "REGISTERED", false, blacklist, inEffect(cancelled))).toEqual([]);
+    expect(codes(approveFaults(file({ blacklist: blacklist }), "2026-10-05"))).toEqual(["BLACKLISTED_NOT_APPROVED"]);
+    expect(codes(submitFaults(file({ blacklist: blacklist }), "2026-10-05"))).toEqual(["BLACKLISTED_NOT_APPROVED"]);
+  });
+  it("(d) an ended cancellation stays on the record, marked ended, and may still be withdrawn as recorded in error", () => {
+    const ended = read("2026-10-05", [cancelled]);
+    expect(ended.notes.map((n) => n.code)).toEqual(["CANCELLATION_ENDED"]);
+    expect(withdrawCancellationFaults({ reason: "Another company's notice", personActive: true }, { today: "2026-10-06", event: { kind: "REGISTRATION_CANCELLED", withdrawn: false } })).toEqual([]);
+    // Withdrawn, it is read as never in effect: no longer "ended" either.
+    expect(read("2026-10-05", [{ ...cancelled, withdrawn: true }]).notes).toEqual([]);
+    // The Recorded card offers the withdrawal on any live cancellation, ended or not.
+    const panel = readFileSync("src/app/suppliers/[id]/standing-panels.tsx", "utf8");
+    expect(panel).toMatch(/cancellationEndedWords\(storedDay\(e\.effectiveOn\), day\(s\.registeredOn\)\)/);
+    expect(panel).toMatch(/<WithdrawCancellationDrawer eventId=\{e\.id\}/);
+  });
+  it("(f) the approval moves registeredOn to the day approved and the audit keeps the day it was", () => {
+    const acts = readFileSync("src/app/suppliers/actions.ts", "utf8");
+    expect(acts).toMatch(/diffFields\(\{ status: [^}]*, registeredOn: day\(before\.registeredOn\) \}, \{ status: "Registered", registeredOn: today,/);
   });
 });
 
