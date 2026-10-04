@@ -12,7 +12,7 @@ Founder, 2026-10-04 (chat): "let skip part b acceptance and bundle and 6.16 and 
 | Item | Why it is here | Plan / record |
 | --- | --- | --- |
 | 6.16 Contractor performance | Moved after go-live by the founder. Contracts close without a performance report until it is built, and say so on screen (BD-613-86, OD-B18). | `plans/6.16-contractor-performance.md` |
-| 6.17 Reporting | Removed by the founder 2026-10-04 (aac3495). Listed here only so it is not forgotten. | `plans/6.17-*.md` (marked out of scope) |
+| 6.17 Reporting | Removed by the founder 2026-10-04 (aac3495). Listed here only so it is not forgotten. | `plans/6.17-reporting.md` (marked out of scope) |
 | 6.13 Part B acceptance, bundle and screenshots | Skipped by the founder to speed up 6.13. Part B is reviewed once per run instead. | decisions log, 6.13 Part B entries |
 
 ## From the build
