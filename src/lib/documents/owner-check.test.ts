@@ -37,6 +37,31 @@ function latestCheck(name: string): string {
   return found;
 }
 
+/**
+ * 6.13 Part B Run 0 fix round (consider, stricter): where each mention of `literal` sits in a migration that is not the
+ * purpose's own: inside the body of an `ADD CONSTRAINT "DocumentAttachment_purpose_owner" CHECK (…)` rebuild, or not. Returns
+ * the offsets of the mentions outside every such body (an empty list: every mention is a rebuild of the owner CHECK).
+ */
+export function mentionsOutsidePurposeCheck(sql: string, literal: string): number[] {
+  const bodies: [number, number][] = [];
+  for (const m of sql.matchAll(/ADD CONSTRAINT "DocumentAttachment_purpose_owner"\s*CHECK\s*\(/g)) {
+    const open = m.index! + m[0].length - 1;
+    let depth = 0;
+    let end = sql.length;
+    for (let i = open; i < sql.length; i++) {
+      if (sql[i] === "(") depth++;
+      else if (sql[i] === ")" && --depth === 0) {
+        end = i;
+        break;
+      }
+    }
+    bodies.push([open, end]);
+  }
+  const out: number[] = [];
+  for (let at = sql.indexOf(literal); at >= 0; at = sql.indexOf(literal, at + 1)) if (!bodies.some(([a, b]) => a < at && at < b)) out.push(at);
+  return out;
+}
+
 describe("attachment owners: schema, CHECK and lib agree (X-6)", () => {
   const body = modelBody("DocumentAttachment");
   // Every nullable key with a relation, other than the version it pins, is an owner.
@@ -277,6 +302,8 @@ describe("6.13 Part A acceptance S-2: the S.O.'s Instruction is an owner, everyw
     // later owner's rebuild of the owner CHECKs from the full owner list, never a use of the purpose elsewhere.
     expect(used[0]).toBe("20261003400202_attachment_owner_variation_instruction");
     for (const u of used.slice(1)) expect(readFileSync(join(migrationsDir, u, "migration.sql"), "utf8"), u).toMatch(/ADD CONSTRAINT "DocumentAttachment_purpose_owner"/);
+    // Run 0 fix round (consider, stricter): and every one of those later mentions sits inside the rebuilt CHECK's body.
+    for (const u of used.slice(1)) expect(mentionsOutsidePurposeCheck(readFileSync(join(migrationsDir, u, "migration.sql"), "utf8"), "'INSTRUCTION_SKETCH'"), u).toEqual([]);
     const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
     expect(sql).toHaveLength(1);
   });
@@ -299,8 +326,17 @@ describe("615-C2: a registration cancelled is an owner, everywhere at once (X-6)
     expect(used[0]).toBe("20261003600102_registration_cancelled_writer");
     // Any later mention is a rebuild of the owner CHECKs from the full owner list (a later owner's migration).
     for (const u of used.slice(1)) expect(readFileSync(join(migrationsDir, u, "migration.sql"), "utf8"), u).toMatch(/ADD CONSTRAINT "DocumentAttachment_purpose_owner"/);
+    for (const u of used.slice(1)) expect(mentionsOutsidePurposeCheck(readFileSync(join(migrationsDir, u, "migration.sql"), "utf8"), "'REGISTRATION_CANCELLATION_NOTICE'"), u).toEqual([]);
     const sql = readFileSync(join(migrationsDir, own[0], "migration.sql"), "utf8").split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
     expect(sql).toHaveLength(1);
+  });
+
+  it("a later mention outside the rebuilt CHECK's body is caught (self-test)", () => {
+    const rebuild = `ALTER TABLE "DocumentAttachment" ADD CONSTRAINT "DocumentAttachment_purpose_owner" CHECK (("purpose" = 'INSTRUCTION_SKETCH' AND "variationInstructionId" IS NOT NULL) OR ("purpose" IN ('A', 'B')))`;
+    expect(mentionsOutsidePurposeCheck(rebuild, "'INSTRUCTION_SKETCH'")).toEqual([]);
+    const elsewhere = `${rebuild}\nUPDATE "DocumentAttachment" SET "purpose" = 'INSTRUCTION_SKETCH' WHERE id = 'x'`;
+    expect(mentionsOutsidePurposeCheck(elsewhere, "'INSTRUCTION_SKETCH'")).toEqual([elsewhere.lastIndexOf("'INSTRUCTION_SKETCH'")]);
+    expect(mentionsOutsidePurposeCheck(`ALTER TABLE "DocumentAttachment" ADD CONSTRAINT "DocumentAttachment_one_owner" CHECK ('INSTRUCTION_SKETCH' IS NOT NULL)`, "'INSTRUCTION_SKETCH'")).toHaveLength(1);
   });
 
   it("the writer's CHECKs: a cancellation names its body and reference; withdrawn only a cancellation, with all three and a reason; the pre-check", () => {
