@@ -8,7 +8,7 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
-import { CANCELLATION_REFERENCE_MAX, recordCancellationFaults, withdrawCancellationFaults } from "@/lib/suppliers/cancellation";
+import { CANCELLATION_REFERENCE_MAX, judgedWhileCancelled, notRevisitedWords, openingJudgedOf, recordCancellationFaults, withdrawCancellationFaults, type OpeningJudged } from "@/lib/suppliers/cancellation";
 import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, withdrawRequestFaults, type RequestFacts } from "@/lib/suppliers/blacklist";
 import { documentStates } from "@/lib/suppliers/documents";
 import { BLACKLIST_MATTER, REQUEST_KIND_LABEL, STANDING_REFUSED_DECIDED_BY, standingWords } from "@/lib/suppliers/labels";
@@ -316,6 +316,12 @@ export async function recordRegistrationCancelled(_prev: FormState, data: FormDa
   });
 }
 
+/// S-4: each bid opened for a party linked to this supplier, with the register's finding frozen on it.
+async function openingsJudged(client: Tx, supplierId: string): Promise<OpeningJudged[]> {
+  const bids = await client.openedBid.findMany({ where: { party: { vendorId: supplierId } }, select: { listingNo: true, eligibilityFinding: true, verdict: true, party: { select: { exercise: { select: { reference: true } } } } } });
+  return bids.flatMap((b) => openingJudgedOf(b.party.exercise.reference, b) ?? []);
+}
+
 /**
  * Withdraw a registration cancelled that was recorded in error (615-C2, BD-613-91): with the reason and the officer, audited;
  * the row is kept and shown withdrawn, and the standing rule reads it as never recorded. A cancellation that stood is not
@@ -344,8 +350,16 @@ export async function withdrawRegistrationCancelled(_prev: FormState, data: Form
     }
     const moved = await tx.standingEvent.updateMany({ where: { id: ev!.id, kind: "REGISTRATION_CANCELLED", withdrawnAt: null }, data: { withdrawnAt: now, withdrawnReason: reason, withdrawnByPersonId: person!.id } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
+    // S-2 (Run 0 fix round): the standing re-read in this transaction after the update, so the audit holds the real after
+    // value; where the standing did not change (a suspension or blacklisting still ranks above, or the cancellation had
+    // already ended) the field is left out rather than written as an empty change.
+    const after = (await lockedStanding(tx, l)).reading;
+    const [was, standingAfter] = [standingWords(reading).en, standingWords(after).en];
+    // S-4: the openings that judged the supplier cancelled while the record stood are named, and not revisited.
+    const judged = judgedWhileCancelled(await openingsJudged(tx, l.supplier.id), storedDay(ev!.effectiveOn));
+    const notRevisited = notRevisitedWords(judged);
     await audit(tx, l.org.id, SUPPLIER_ENTITY.standingEvent, ev!.id, standingLabel(l, "Registration cancelled"), "UPDATE",
-      diffFields({ withdrawn: null, standing: standingWords(reading).en }, { withdrawn: `Withdrawn: recorded in error (the cancellation by ${ev!.bodyLabelSnapshot}, ${ev!.externalReference}, from ${formatDate(storedDay(ev!.effectiveOn))})`, standing: null, withdrawnBy: person!.name, recordedOnBehalf: "not signed" }), reason);
-    return { ok: true, message: "Withdrawn as recorded in error. It stays on the record, marked withdrawn with why; the supplier's standing no longer reads it." };
+      diffFields({ withdrawn: null, ...(was !== standingAfter ? { standing: was } : {}) }, { withdrawn: `Withdrawn: recorded in error (the cancellation by ${ev!.bodyLabelSnapshot}, ${ev!.externalReference}, from ${formatDate(storedDay(ev!.effectiveOn))})`, ...(was !== standingAfter ? { standing: standingAfter } : {}), withdrawnBy: person!.name, recordedOnBehalf: "not signed", notRevisited: notRevisited.en }), reason);
+    return { ok: true, message: `Withdrawn as recorded in error. It stays on the record, marked withdrawn with why; the supplier's standing no longer reads it${was !== standingAfter ? ` (now ${standingAfter.toLowerCase()})` : ""}. ${notRevisited.en}` };
   });
 }

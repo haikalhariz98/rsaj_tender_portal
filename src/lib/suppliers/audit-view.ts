@@ -104,6 +104,8 @@ export const SUPPLIER_FIELD_NAME: Readonly<Record<string, string>> = {
   withdrawnBy: "Withdrawn by",
   // M-1: a new registration's approval ends a registration cancelled that stood.
   cancellationEnded: "Registration cancelled",
+  // S-4: what a withdrawal does not revisit.
+  notRevisited: "Not revisited",
   fromAward: "From the award",
   lifts: "Lifts",
   supplier: "Supplier on the register",

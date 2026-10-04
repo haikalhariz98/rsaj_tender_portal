@@ -21,7 +21,7 @@ import { ACT_DONE_LABEL } from "@/lib/labels";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
-import { recordCancellationFaults } from "@/lib/suppliers/cancellation";
+import { judgedWhileCancelled, notRevisitedWords, openingJudgedOf, recordCancellationFaults } from "@/lib/suppliers/cancellation";
 import { nextOffenceNo, recordFaults, requestBlacklistFaults, requestLiftFaults, routeState, withdrawRequestFaults, type RequestFacts } from "@/lib/suppliers/blacklist";
 import { documentStates } from "@/lib/suppliers/documents";
 import { isEligibilitySnapshot } from "@/lib/suppliers/eligibility";
@@ -112,6 +112,8 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
   };
   const awards = s.awards.filter((a) => a.status === "CANCELLED" && a.cancelConsequence === "CANCEL_AND_BLACKLIST").map((a) => ({ value: a.id, label: `${a.reference} · ${a.awardeeName}` }));
   const since = reading.blacklist ?? reading.cancellation ?? reading.suspension;
+  // S-4: every bid opened for a party linked to this supplier, with its frozen register finding, for the withdrawal's words.
+  const openings = s.parties.flatMap((p) => p.openedBids.flatMap((b) => openingJudgedOf(p.exercise.reference, b) ?? []));
   // 615-C2: the registration bodies a cancellation may be recorded from (a retired one still names an old registration).
   const bodies = (await db.registrationBody.findMany({ where: { organisationId: l.org.id }, orderBy: { labelEn: "asc" }, select: { id: true, labelEn: true, retiredOn: true } })).map((b) => ({ value: b.id, label: `${asHeading(b.labelEn)}${b.retiredOn ? " (retired)" : ""}` }));
   const cancelBlocker = bodies.length === 0 ? "No registration body is configured (Configuration › Supplier register)." : first(recordCancellationFaults({ bodyId: "x", reference: "x", effectiveOn: today, personActive: true }, { today, status: s.status, registeredOn: day(s.registeredOn), reading, bodyConfigured: true }));
@@ -200,7 +202,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
                     {e.withdrawnAt ? (
                       <p className="text-[12.5px] break-words text-ink-3">Withdrawn by {e.withdrawnBy?.name ?? "a person no longer on record"}, on their behalf, {formatOrgDay(e.withdrawnAt, l.org.timeZone)}: “{e.withdrawnReason}”. The supplier&apos;s standing does not read it.</p>
                     ) : (
-                      <span className="flex flex-wrap items-center gap-2"><WithdrawCancellationDrawer eventId={e.id} people={people} /></span>
+                      <span className="flex flex-wrap items-center gap-2"><WithdrawCancellationDrawer eventId={e.id} people={people} notRevisited={notRevisitedWords(judgedWhileCancelled(openings, storedDay(e.effectiveOn))).en} /></span>
                     )}
                     <OwnerAttachments owner={{ kind: "standingEvent", id: e.id }} title="The body's notice" subtitle="The registration body's notice of the cancellation, as received." only={["REGISTRATION_CANCELLATION_NOTICE"]} required={{ REGISTRATION_CANCELLATION_NOTICE: !e.withdrawnAt }} />
                   </>

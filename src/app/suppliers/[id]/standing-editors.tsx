@@ -168,11 +168,11 @@ export function RecordCancellationDrawer({ supplierId, bodies, people, today, bl
 }
 
 /// Withdraw a registration cancelled that was recorded in error: the reason is kept with it.
-export function WithdrawCancellationDrawer({ eventId, people }: { eventId: string; people: Option[] }) {
+export function WithdrawCancellationDrawer({ eventId, people, notRevisited }: { eventId: string; people: Option[]; notRevisited: string }) {
   return (
     <RecordEditor
       title="Withdraw the cancellation: recorded in error"
-      description="Only for a record made in error (another supplier's notice, a misread one). It stays on the record, marked withdrawn, with why, and the supplier's standing no longer reads it. A cancellation that stood is not withdrawn: the supplier registers again."
+      description={`Only for a record made in error (another supplier's notice, a misread one). It stays on the record, marked withdrawn, with why, and the supplier's standing no longer reads it. ${notRevisited} A cancellation that stood is not withdrawn: the supplier registers again, by a new application on the Applications tab, which ends it once approved.`}
       fields={[hidden("eventId"), person("Withdrawn by", people)]}
       values={{ eventId }}
       destructive={{ reasonLabel: "Why it was recorded in error" }}

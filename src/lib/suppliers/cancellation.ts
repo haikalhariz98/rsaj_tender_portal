@@ -11,8 +11,13 @@
  * - Not built (no requirement): the organisation's own cancellation, its request and its route.
  */
 
+import { formatDate } from "@/lib/format";
+
+import { eligibilityFindingOf } from "./opening-hook";
 import type { StandingReading } from "./standing";
 import type { Finding } from "./types";
+
+type Words = { en: string; ms: string };
 
 export type CancellationFault =
   | "TIME_ZONE_UNSET"
@@ -77,4 +82,44 @@ export function withdrawCancellationFaults(
   if (!i.reason.trim()) out.push({ code: "CANCELLATION_WITHDRAW_REASON_REQUIRED", level: "block" });
   if (!i.personActive) out.push({ code: "PERSON_REQUIRED", level: "block" });
   return out;
+}
+
+/// One bid opened for this supplier's linked party, with the register's finding frozen on it (OpenedBid.eligibilityFinding).
+export interface OpeningJudged {
+  exercise: string;
+  listingNo: number;
+  /// The organisation's day the finding was made on (its snapshot's judgedOn).
+  judgedOn: string;
+  /// The standing the finding recorded.
+  standing: string;
+  /// Whether the bid was rejected at the opening (its verdict).
+  rejected: boolean;
+}
+
+/// An opened bid as S-4 reads it: its frozen register finding, if it has one (a bidder not linked when opened has none).
+export function openingJudgedOf(exercise: string, b: { listingNo: number; eligibilityFinding: unknown; verdict: string | null }): OpeningJudged | null {
+  const f = eligibilityFindingOf(b.eligibilityFinding);
+  return f ? { exercise, listingNo: b.listingNo, judgedOn: f.judgedOn, standing: f.standing, rejected: b.verdict === "REJECT" } : null;
+}
+
+/**
+ * S-4 (6.13 Part B Run 0 fix round): the openings that judged this supplier's registration cancelled while the record
+ * stood, that is on or after the day it took effect, in order. A withdrawal does not revisit them: each keeps its frozen
+ * finding (and a bid rejected at the opening stays rejected). A sale refused for the cancellation left no record, so none
+ * can be listed.
+ */
+export function judgedWhileCancelled(openings: readonly OpeningJudged[], effectiveOn: string): OpeningJudged[] {
+  return openings
+    .filter((o) => o.standing === "CANCELLED" && o.judgedOn >= effectiveOn)
+    .sort((a, b) => a.judgedOn.localeCompare(b.judgedOn) || a.exercise.localeCompare(b.exercise) || a.listingNo - b.listingNo);
+}
+
+/// S-4: what a withdrawal does not revisit, in English and Malay, naming each opening that judged the supplier cancelled.
+export function notRevisitedWords(judged: readonly OpeningJudged[]): Words {
+  const lead = { en: "Judgments made while it stood are not revisited", ms: "Penilaian yang dibuat semasa ia berkuat kuasa tidak disemak semula" };
+  const sales = { en: "A sale refused for it left no record, so none is listed.", ms: "Jualan yang ditolak kerananya tidak meninggalkan rekod, jadi tiada yang disenaraikan." };
+  if (!judged.length) return { en: `${lead.en}: no bid opening judged the supplier cancelled. ${sales.en}`, ms: `${lead.ms}: tiada pembukaan tawaran yang menilai pembekal sebagai dibatalkan. ${sales.ms}` };
+  const en = judged.map((o) => `${o.exercise} (bid No. ${o.listingNo}, opened ${formatDate(o.judgedOn)}${o.rejected ? ", rejected at the opening" : ""})`).join("; ");
+  const ms = judged.map((o) => `${o.exercise} (tawaran No. ${o.listingNo}, dibuka ${formatDate(o.judgedOn)}${o.rejected ? ", ditolak semasa pembukaan" : ""})`).join("; ");
+  return { en: `${lead.en}. The openings that judged the supplier cancelled keep their findings: ${en}. ${sales.en}`, ms: `${lead.ms}. Pembukaan yang menilai pembekal sebagai dibatalkan mengekalkan penemuannya: ${ms}. ${sales.ms}` };
 }
