@@ -2,13 +2,13 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { CERTIFICATE_KINDS, type CertificateKind } from "@/lib/certificate/types";
+import { CERTIFICATE_KINDS, CERTIFICATE_STATUSES, type CertificateKind } from "@/lib/certificate/types";
 import { voidFaults } from "@/lib/certificate/void";
 import { certificateFaultWords } from "@/lib/certificate/fault-text";
 
-import { ACT_STATUS, actStatusFault, certificateAct, CERTIFICATE_PHASES, KIND_ISSUE_WRITES, WRITER_FAMILY } from "./act-status";
+import { ACT_STATUS, actStatusFault, actStatusText, certificateAct, certificateVoidAct, CERTIFICATE_PHASES, KIND_ISSUE_WRITES, WRITER_FAMILY } from "./act-status";
 import { STATUS_WRITTEN_BY } from "./status";
-import type { ContractStatus } from "./types";
+import { CONTRACT_STATUSES, type ContractStatus } from "./types";
 
 /**
  * 6.13 Part B Run 1a fix round (BD-613-114 as confirmed with its condition): a certificate's acts read the table by
@@ -105,10 +105,63 @@ describe("voiding an issued certificate whose issue wrote the contract's status 
     const v = write.slice(write.indexOf("export async function voidCertificate("));
     expect(v.slice(0, 400)).toMatch(/voidFaults\(cert\.kind as CertificateKind, s\)/);
     const acts = readFileSync("src/app/projects/[id]/certificates/[certId]/actions.ts", "utf8");
-    expect(acts).toMatch(/actStatusFault\(certificateAct\(l\.cert\.kind as CertificateKind, phase === "BY_STATUS" \? certificatePhase\(l\.cert\.status as CertificateStatus\) : phase\), l\.contract\.status as ContractStatus\)/);
+    // Residual round (faithful): the void's family is certificateVoidAct's, the one function the page asks too.
+    expect(acts).toMatch(/actStatusFault\(phase === "VOID" \? certificateVoidAct\(kind, l\.cert\.status as CertificateStatus\) : certificateAct\(kind, phase\), l\.contract\.status as ContractStatus\)/);
     for (const a of ["despatchCertificateCopy", "acknowledgeCertificateCopy", "recordCertificatePayment"]) expect(acts.slice(acts.indexOf(`export async function ${a}(`)).split("\nexport ")[0], a).toMatch(/inCertificate\(certOf\(data\), now, "POST_ISSUE",/);
-    expect(acts.slice(acts.indexOf("export async function voidCertificateAct(")).split("\nexport ")[0]).toMatch(/inCertificate\(certOf\(data\), now, "BY_STATUS",/);
+    expect(acts.slice(acts.indexOf("export async function voidCertificateAct(")).split("\nexport ")[0]).toMatch(/inCertificate\(certOf\(data\), now, "VOID",/);
     const page = readFileSync("src/app/projects/[id]/certificates/[certId]/page.tsx", "utf8");
     expect(page).toMatch(/certificateAct\(cert\.kind as CertificateKind, certificatePhase\(cert\.status as CertificateStatus\)\)/);
+  });
+});
+
+/**
+ * Code re-review S-1 (residual round; the lead's decision, BD-613-127). Since the fix round, voiding an unissued
+ * certificate read its kind's own family, so a draft, routed or signing certificate whose family closes (an interim at
+ * the final certificate, an advance at practical completion, an EOT at making good complete) could never be signed,
+ * decided or voided, and stayed non-VOID for good. Voiding an unissued certificate reads the CERTIFICATE row again, as
+ * it did before the round. An issued certificate's void still reads its post-issue family, and voidFaults refuses it
+ * (ISSUED_IS_FINAL, VOID_WOULD_UNDO_STATUS).
+ */
+describe("S-1: voiding an unissued certificate reads the CERTIFICATE row", () => {
+  const UNISSUED = ["DRAFT", "IN_ROUTING", "SIGNING"] as const;
+  const voidRefused = (k: CertificateKind, cs: (typeof CERTIFICATE_STATUSES)[number], s: ContractStatus) => actStatusFault(certificateVoidAct(k, cs), s);
+
+  it("the review's examples stay voidable: an interim at the final certificate, an advance at practical completion, an EOT at making good complete", () => {
+    for (const cs of UNISSUED) {
+      expect(voidRefused("INTERIM_PAYMENT", cs, "FINAL_CERTIFICATE_ISSUED"), cs).toBeNull();
+      expect(voidRefused("ADVANCE_PAYMENT", cs, "PRACTICALLY_COMPLETE"), cs).toBeNull();
+      expect(voidRefused("EOT", cs, "MAKING_GOOD_COMPLETE"), cs).toBeNull();
+    }
+  });
+
+  it("for every kind, in every state its pre-issue family refuses, void stays open (save where every certificate act is refused)", () => {
+    let cases = 0;
+    for (const k of CERTIFICATE_KINDS)
+      for (const s of CONTRACT_STATUSES) {
+        if (!actStatusFault(certificateAct(k, "PRE_ISSUE"), s) || ACT_STATUS.CERTIFICATE[s] === "REFUSED") continue;
+        for (const cs of UNISSUED) {
+          expect(voidRefused(k, cs, s), `${k} ${cs} at ${s}`).toBeNull();
+          cases++;
+        }
+      }
+    expect(cases).toBeGreaterThan(100);
+  });
+
+  it("the states where the CERTIFICATE row refuses every certificate act are exactly cancelled, terminated and closed: there the void is refused in the table's words (BD-613-127 asks the product owner about these)", () => {
+    expect(CONTRACT_STATUSES.filter((s) => ACT_STATUS.CERTIFICATE[s] === "REFUSED")).toEqual(["CANCELLED", "TERMINATED", "CLOSED"]);
+    for (const k of CERTIFICATE_KINDS)
+      for (const cs of UNISSUED) {
+        expect(voidRefused(k, cs, "CANCELLED")?.code, `${k} ${cs}`).toBe("CONTRACT_CANCELLED");
+        expect(voidRefused(k, cs, "TERMINATED")?.code, `${k} ${cs}`).toBe("CONTRACT_TERMINATED");
+        expect(voidRefused(k, cs, "CLOSED")?.code, `${k} ${cs}`).toBe("CONTRACT_CLOSED");
+      }
+    expect(actStatusText(voidRefused("TERMINATION_INTENT", "DRAFT", "TERMINATED")!)).toMatch(/^The contract is terminated: /);
+  });
+
+  it("an unissued certificate's void reads CERTIFICATE; an issued one's its post-issue family, as before", () => {
+    for (const k of CERTIFICATE_KINDS) {
+      for (const cs of [...UNISSUED, "VOID"] as const) expect(certificateVoidAct(k, cs), `${k} ${cs}`).toBe("CERTIFICATE");
+      expect(certificateVoidAct(k, "ISSUED"), k).toBe(certificateAct(k, "POST_ISSUE"));
+    }
   });
 });

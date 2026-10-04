@@ -262,7 +262,18 @@ export function certificateAct(kind: CertificateKind, phase: CertificatePhase): 
   return _never;
 }
 
-export type ActStatusFault = "CONTRACT_CANCELLED" | "NOT_EXECUTED" | "CONTRACT_TERMINATED" | "CONTRACT_CLOSED" | "NOT_IN_STATUS";
+/**
+ * The family a certificate's void reads, the act and the page alike (code re-review S-1; the lead's decision in the
+ * residual round, BD-613-127). An unissued certificate's void reads the CERTIFICATE row, as it did before the fix round:
+ * read by the kind's own family, a draft whose family closes (an interim at the final certificate, an advance at
+ * practical completion, an EOT at making good complete) could be neither signed nor voided, and stayed non-VOID for good.
+ * An issued certificate's void reads its post-issue family, and voidFaults refuses it by its own rule.
+ */
+export function certificateVoidAct(kind: CertificateKind, status: CertificateStatus): ContractAct {
+  return status === "ISSUED" ? certificateAct(kind, "POST_ISSUE") : "CERTIFICATE";
+}
+
+export type ActStatusFault ="CONTRACT_CANCELLED" | "NOT_EXECUTED" | "CONTRACT_TERMINATED" | "CONTRACT_CLOSED" | "NOT_IN_STATUS";
 
 /// The table's answer as a finding: null where the act is recorded in the state; otherwise why not.
 export function actStatusFault(act: ContractAct, status: ContractStatus): Finding<ActStatusFault> | null {

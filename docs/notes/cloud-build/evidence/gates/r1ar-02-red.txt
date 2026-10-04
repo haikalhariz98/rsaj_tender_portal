@@ -1,0 +1,102 @@
+
+ RUN  v4.1.10 /home/user/repo
+
+ ❯ src/lib/contract/certificate-act.test.ts (14 tests | 4 failed) 34ms
+     × the review's examples stay voidable: an interim at the final certificate, an advance at practical completion, an EOT at making good complete 7ms
+     × for every kind, in every state its pre-issue family refuses, void stays open (save where every certificate act is refused) 1ms
+     × the states where the CERTIFICATE row refuses every certificate act are exactly cancelled, terminated and closed: there the void is refused in the table's words (BD-613-127 asks the product owner about these) 5ms
+     × an unissued certificate's void reads CERTIFICATE; an issued one's its post-issue family, as before 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/contract/certificate-act.test.ts > S-1: voiding an unissued certificate reads the CERTIFICATE row > the review's examples stay voidable: an interim at the final certificate, an advance at practical completion, an EOT at making good complete
+AssertionError: DRAFT: expected { code: 'NOT_IN_STATUS', …(2) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "code": "NOT_IN_STATUS",
+  "data": {
+    "status": "FINAL_CERTIFICATE_ISSUED",
+  },
+  "level": "block",
+}
+
+ ❯ src/lib/contract/certificate-act.test.ts:131:82
+    129|   it("the review's examples stay voidable: an interim at the final cer…
+    130|     for (const cs of UNISSUED) {
+    131|       expect(voidRefused("INTERIM_PAYMENT", cs, "FINAL_CERTIFICATE_ISS…
+       |                                                                                  ^
+    132|       expect(voidRefused("ADVANCE_PAYMENT", cs, "PRACTICALLY_COMPLETE"…
+    133|       expect(voidRefused("EOT", cs, "MAKING_GOOD_COMPLETE"), cs).toBeN…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/lib/contract/certificate-act.test.ts > S-1: voiding an unissued certificate reads the CERTIFICATE row > for every kind, in every state its pre-issue family refuses, void stays open (save where every certificate act is refused)
+AssertionError: DELEGATION_LETTER DRAFT at FINAL_CERTIFICATE_ISSUED: expected { code: 'NOT_IN_STATUS', …(2) } to be null
+
+- Expected:
+null
+
++ Received:
+{
+  "code": "NOT_IN_STATUS",
+  "data": {
+    "status": "FINAL_CERTIFICATE_ISSUED",
+  },
+  "level": "block",
+}
+
+ ❯ src/lib/contract/certificate-act.test.ts:143:63
+    141|         if (!actStatusFault(certificateAct(k, "PRE_ISSUE"), s) || ACT_…
+    142|         for (const cs of UNISSUED) {
+    143|           expect(voidRefused(k, cs, s), `${k} ${cs} at ${s}`).toBeNull…
+       |                                                               ^
+    144|           cases++;
+    145|         }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/lib/contract/certificate-act.test.ts > S-1: voiding an unissued certificate reads the CERTIFICATE row > the states where the CERTIFICATE row refuses every certificate act are exactly cancelled, terminated and closed: there the void is refused in the table's words (BD-613-127 asks the product owner about these)
+AssertionError: TERMINATION_INTENT DRAFT: expected undefined to be 'CONTRACT_TERMINATED' // Object.is equality
+
+- Expected:
+"CONTRACT_TERMINATED"
+
++ Received:
+undefined
+
+ ❯ src/lib/contract/certificate-act.test.ts:155:70
+    153|       for (const cs of UNISSUED) {
+    154|         expect(voidRefused(k, cs, "CANCELLED")?.code, `${k} ${cs}`).to…
+    155|         expect(voidRefused(k, cs, "TERMINATED")?.code, `${k} ${cs}`).t…
+       |                                                                      ^
+    156|         expect(voidRefused(k, cs, "CLOSED")?.code, `${k} ${cs}`).toBe(…
+    157|       }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/lib/contract/certificate-act.test.ts > S-1: voiding an unissued certificate reads the CERTIFICATE row > an unissued certificate's void reads CERTIFICATE; an issued one's its post-issue family, as before
+AssertionError: DELEGATION_LETTER DRAFT: expected 'SUPERVISION' to be 'CERTIFICATE' // Object.is equality
+
+Expected: "CERTIFICATE"
+Received: "SUPERVISION"
+
+ ❯ src/lib/contract/certificate-act.test.ts:163:104
+    161|   it("an unissued certificate's void reads CERTIFICATE; an issued one'…
+    162|     for (const k of CERTIFICATE_KINDS) {
+    163|       for (const cs of [...UNISSUED, "VOID"] as const) expect(certific…
+       |                                                                                                        ^
+    164|       expect(certificateVoidAct(k, "ISSUED"), k).toBe(certificateAct(k…
+    165|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 10 passed (14)
+   Start at  09:38:01
+   Duration  577ms (transform 318ms, setup 0ms, import 364ms, tests 34ms, environment 0ms)
+

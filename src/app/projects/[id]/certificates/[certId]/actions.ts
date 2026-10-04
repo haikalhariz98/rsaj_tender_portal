@@ -1,6 +1,6 @@
 "use server";
 
-import { actStatusFault, actStatusText, certificateAct, certificatePhase, type CertificatePhase } from "@/lib/contract/act-status";
+import { actStatusFault, actStatusText, certificateAct, certificateVoidAct, type CertificatePhase } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import type { CertificateKind, CertificateStatus } from "@/lib/certificate/types";
 import { revalidatePath } from "next/cache";
@@ -33,16 +33,17 @@ const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zo
 const CANCELLED: FormState = { ok: false, message: "The contract is cancelled: its certificates are kept as they were." };
 
 /// Lock, refuse a cancelled contract or an unset zone, then run the act.
-async function inCertificate(certId: string, now: Date, phase: CertificatePhase | "BY_STATUS", fn: (c: CertCtx) => Promise<void>): Promise<FormState> {
+async function inCertificate(certId: string, now: Date, phase: CertificatePhase | "VOID", fn: (c: CertCtx) => Promise<void>): Promise<FormState> {
   let contractId: string | undefined;
   let result: FormState | null;
   try {
     result = await withLockedCertificate(certId, async (tx, l) => {
       contractId = l.contract.id;
       // ADR 0031 (run 1a): the one act × status table, by the certificate's kind and the act's phase (BD-613-114: before
-      // the issue the kind's family, after it the CERTIFICATE row; the void by where the certificate stands), CANCELLED
-      // first (its words as before).
-      const refused = actStatusFault(certificateAct(l.cert.kind as CertificateKind, phase === "BY_STATUS" ? certificatePhase(l.cert.status as CertificateStatus) : phase), l.contract.status as ContractStatus);
+      // the issue the kind's family, after it the CERTIFICATE row; the void by certificateVoidAct), CANCELLED first (its
+      // words as before).
+      const kind = l.cert.kind as CertificateKind;
+      const refused = actStatusFault(phase === "VOID" ? certificateVoidAct(kind, l.cert.status as CertificateStatus) : certificateAct(kind, phase), l.contract.status as ContractStatus);
       if (refused) return refused.code === "CONTRACT_CANCELLED" ? CANCELLED : { ok: false, message: actStatusText(refused) };
       const today = dayOf(now, l.org.timeZone);
       if (!today) return NO_ZONE;
@@ -152,7 +153,7 @@ export async function acknowledgeCertificateCopy(_prev: FormState, data: FormDat
 export async function voidCertificateAct(_prev: FormState, data: FormData): Promise<FormState> {
   const now = toSecond(new Date());
   const reason = String(data.get("reason") ?? "").slice(0, 2000);
-  return inCertificate(certOf(data), now, "BY_STATUS", (c) => voidCertificate(c, reason));
+  return inCertificate(certOf(data), now, "VOID", (c) => voidCertificate(c, reason));
 }
 
 // ------------------------------------------------------------------ the approval route (6.13 Part A step 3, 614-C4)

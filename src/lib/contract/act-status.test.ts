@@ -182,7 +182,8 @@ describe("every act, and /approvals, read the table (source)", () => {
   for (const [file, acts] of Object.entries(TODAY_ACTS)) {
     it(`${file}: the wrapper asks the table; each act names its act`, () => {
       const src = readFileSync(file, "utf8");
-      expect(src).toMatch(/const refused = actStatusFault\((act|certificateAct\(l\.cert\.kind as CertificateKind, phase === "BY_STATUS" \? certificatePhase\(l\.cert\.status as CertificateStatus\) : phase\)), l\.contract\.status as ContractStatus\);/);
+      // Residual round (S-1, faithful): the certificate wrapper's void reads certificateVoidAct, its other acts certificateAct.
+      expect(src).toMatch(/const refused = actStatusFault\((act|phase === "VOID" \? certificateVoidAct\(kind, l\.cert\.status as CertificateStatus\) : certificateAct\(kind, phase\)), l\.contract\.status as ContractStatus\);/);
       for (const a of acts) {
         const mapped = ACT_OF[a];
         if (mapped === "BY_KIND") expect(bodyOf(src, a), a).toMatch(/\binCertificate\(/);
