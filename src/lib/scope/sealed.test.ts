@@ -3,6 +3,8 @@ import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { lex, rawCallText, rawCalls } from "@/lib/scan/source";
+
 /**
  * The sealed-figure rule, by source scan (OD-1, ADR 0012): one accessor reads the company
  * estimate's figure and amendment reason, and nothing else can. Each scan here fails if a
@@ -27,6 +29,21 @@ function walk(dir: string, out: string[] = []): string[] {
 
 const files = [...walk("src"), ...walk("prisma")].map((f) => relative(root, join(root, f)));
 const isTest = (f: string) => /\.test\.tsx?$/.test(f);
+
+/// Each raw call that names the versions table, or cannot be read, as "file · method · why" (read through rawCalls).
+function rawReadsOfVersions(sources: readonly { file: string; src: string }[]): string[] {
+  const out: string[] = [];
+  for (const { file, src } of sources) {
+    const m = lex(src);
+    for (const c of rawCalls(m)) {
+      const name = `$${c.method}${c.suffix}`;
+      const sql = c.unsafe ? null : rawCallText(src, m, c);
+      if (sql == null) out.push(`${file} · ${name} · cannot be read`);
+      else if (/CompanyEstimateVersion/.test(sql)) out.push(`${file} · ${name} · names the versions table`);
+    }
+  }
+  return out;
+}
 const source = (f: string) => readFileSync(join(root, f), "utf8");
 const matching = (re: RegExp, filter: (f: string) => boolean = () => true) => files.filter((f) => filter(f) && re.test(source(f)));
 
@@ -42,6 +59,21 @@ describe("one accessor reads the sealed columns", () => {
   });
   it("no raw SQL reads the versions table outside the store", () => {
     expect(matching(/\$(queryRaw|executeRaw)(Unsafe)?[\s\S]{0,300}CompanyEstimateVersion/, (f) => f !== STORE && !isTest(f))).toEqual([]);
+  });
+  // 6.13 Part B Run 0 fix round (BD-613-106's pass, stricter, flagged to 6.2): the check above looks 300 characters past the
+  // method, and a long type argument (`$queryRaw<{ …300 characters… }[]>\`SELECT … FROM "CompanyEstimateVersion"\``) pushes the
+  // table name out of that window. This reads every raw call through the shared reader (its type argument by depth, the SQL
+  // whole); a call it cannot read (Unsafe, no opener, an unknown suffix) cannot be shown not to read the table.
+  it("no raw SQL reads the versions table outside the store, each call read whole (rawCalls)", () => {
+    expect(rawReadsOfVersions(files.filter((f) => f !== STORE && !isTest(f)).map((f) => ({ file: f, src: source(f) })))).toEqual([]);
+  });
+  it("the whole-call reading catches what the 300-character window misses (self-test)", () => {
+    const longType = `{ ${Array.from({ length: 40 }, (_, i) => `field${i}: string`).join("; ")} }[]`;
+    const src = `export async function sneak(tx) {\n  return tx.$queryRaw<${longType}>\`SELECT "value" FROM "CompanyEstimateVersion"\`;\n}\n`;
+    expect(/\$(queryRaw|executeRaw)(Unsafe)?[\s\S]{0,300}CompanyEstimateVersion/.test(src)).toBe(false);
+    expect(rawReadsOfVersions([{ file: "x.ts", src }])).toEqual(["x.ts · $queryRaw · names the versions table"]);
+    expect(rawReadsOfVersions([{ file: "x.ts", src: "tx.$queryRawUnsafe(q); tx.$queryRawTyped(q); const r = tx.$queryRaw;" }])).toEqual(["x.ts · $queryRawUnsafe · cannot be read", "x.ts · $queryRawTyped · cannot be read", "x.ts · $queryRaw · cannot be read"]);
+    expect(rawReadsOfVersions([{ file: "x.ts", src: 'tx.$queryRaw`SELECT id FROM "CompanyEstimate"`; // tx.$queryRaw`SELECT * FROM "CompanyEstimateVersion"`' }])).toEqual([]);
   });
   it("no file that touches the estimate selects a value or a reason", () => {
     // db.ts names them only to omit them (checked above).
