@@ -413,6 +413,7 @@ model Organisation {
   nonCompletions           NonCompletion[]
   // 6.13 Part A step 4 (4d): variations and the adjustment of the contract sum.
   variations               Variation[]
+  contractMatters          ContractMatter[]
   variationApprovals       VariationApproval[]
   variationInstructions    VariationInstruction[]
   variationMeasurements    VariationMeasurement[]
@@ -593,6 +594,7 @@ model Person {
   variationsDecided      Variation[]               @relation("VariationSoDecision")
   variationsCommenced    Variation[]               @relation("VariationCommencedSupport")
   variationsClosed       Variation[]               @relation("VariationClosedBy")
+  contractMattersRecorded ContractMatter[]         @relation("ContractMatterRecordedBy")
   variationRoutesSent    VariationApproval[]       @relation("VariationRouteSentBy")
   instructionsRecorded   VariationInstruction[]    @relation("InstructionRecordedBy")
   measurementsRecorded   VariationMeasurement[]    @relation("MeasurementRecordedBy")
@@ -1076,6 +1078,12 @@ model CommitteeDecision {
   /// key, set only on a VARIATION matter (CHECK in the migration).
   variationId String?
   variation   Variation? @relation(fields: [variationId], references: [id], onDelete: SetNull)
+
+  /// 6.13 Part B (ADR 0029, OD-B5 A, BD-613-73): the contract matter a CONTRACT matter decides on, tabled from the matter's
+  /// own record (its route's committee step), never at a sitting: a typed key, set only on a CONTRACT matter (CHECK
+  /// CommitteeDecision_contract_matter in the migration).
+  contractMatterId String?
+  contractMatter   ContractMatter? @relation(fields: [contractMatterId], references: [id], onDelete: Restrict)
 
   /// A matter that cannot be decided while this one is pending.
   dependsOnDecisionId String?
@@ -2583,6 +2591,12 @@ model ApprovalInstance {
   variationId           String?
   variation             Variation?        @relation(fields: [variationId], references: [id], onDelete: Restrict)
   variationApproval     VariationApproval?
+  /// 6.13 Part B (ADR 0029, OD-B5 A): the contract matter this route decides (a CONTRACT matter): CHECK
+  /// ApprovalInstance_contract_matter ((matterKind = 'CONTRACT') = (contractMatterId IS NOT NULL)).
+  contractMatterId      String?
+  contractMatter        ContractMatter?   @relation("ContractMatterRoutes", fields: [contractMatterId], references: [id], onDelete: Restrict)
+  /// The matter whose approval of record this route is (its one writer: the route hook, run 1b).
+  approvalOfRecordFor   ContractMatter?   @relation("ContractMatterApprovalOfRecord")
   /// 6.13 Part A step 3: who sent a certificate's route (recorded on their behalf, not signed); the self-approval
   /// check bars them from deciding it. Null on every other route.
   submittedByPersonId   String?
@@ -3770,6 +3784,7 @@ model Contract {
   nonCompletions         NonCompletion[]
   /// 6.13 Part A step 4 (4d): variations and the adjustment of the contract sum.
   variations             Variation[]
+  matters                ContractMatter[]
   sumAdjustments         SumAdjustment[]
 
   @@unique([organisationId, number])
@@ -9774,6 +9789,60 @@ enum AdjustmentSection {
 /// certified (the Variation Order Certificate, VO-663). The contract sum moves only by an issued adjustment
 /// certificate (FR-PAD-003). Its figures are worked out, never keyed: the cumulative and the new sum (FR-VAR-003,
 /// 024), the percentage on the configured basis (OD-A2), its edge wording (OD-A3).
+/// 6.13 Part B (ADR 0029, OD-B5 A): the kind of a post-award matter decided on an approval route.
+enum ContractMatterKind {
+  EOT
+  PERIOD_EXTENSION
+  LAD_WAIVER
+  TERMINATION
+  NOMINATED_INCREASE
+  NOMINATION
+  LOSS_EXPENSE
+}
+
+/// 6.13 Part B (ADR 0029, OD-B5 A, BD-613-73): a post-award matter decided on an approval route: an extension of time,
+/// a contract period extension, a LAD waiver, a termination, a nominated-sum increase, a nomination or a loss-and-expense
+/// claim. It owns its routes (ApprovalInstance.contractMatterId) and the committee matters tabled from it
+/// (CommitteeDecision.contractMatterId); each domain record points to it by its own `matterId @unique` (runs 1b to 5).
+/// Built at run 1a with no writer: the acts that record, send and close a matter come with run 1b.
+model ContractMatter {
+  id             String             @id @default(cuid())
+  organisationId String
+  organisation   Organisation       @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  contractId     String
+  contract       Contract           @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  kind           ContractMatterKind
+  /// From the `contract_matter` numbering series at its first send; null until then (no series: the send is refused,
+  /// naming it).
+  reference      String?
+  /// The value its route is resolved on; null where the domain routes on a ratio, or before it is sent. Never below
+  /// nothing (CHECK ContractMatter_shape). Read SULIT wherever shown (MATTER_AMOUNT_SULIT.CONTRACT, not decided).
+  routedValue    Decimal?           @db.Decimal(18, 2)
+  /// The exact ratio the route is resolved on (a LAD waiver: waived ÷ LAD amount): both or neither, the denominator
+  /// above nothing (CHECK ContractMatter_shape).
+  ratioNum       Decimal?           @db.Decimal(18, 2)
+  ratioDen       Decimal?           @db.Decimal(18, 2)
+  /// The routing condition the matrix reads (e.g. FIN_IMPACT_OTHER), as the domain's rows name it.
+  cond           String?
+  /// Its approval of record: the APPROVED latest route (one writer, the route hook, run 1b).
+  approvedRouteId String?           @unique
+  approvedRoute   ApprovalInstance? @relation("ContractMatterApprovalOfRecord", fields: [approvedRouteId], references: [id], onDelete: Restrict)
+  /// Closed with its reason (CHECK ContractMatter_shape: a closed matter says why). One open TERMINATION matter a
+  /// contract (partial unique index ContractMatter_one_open_termination).
+  closedAt       DateTime?
+  closeReason    String             @default("")
+  /// Who recorded it, on their behalf, not signed.
+  personId       String
+  person         Person             @relation("ContractMatterRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
+  recordedAt     DateTime
+
+  routes    ApprovalInstance[]  @relation("ContractMatterRoutes")
+  decisions CommitteeDecision[]
+
+  @@unique([organisationId, reference])
+  @@index([contractId])
+}
+
 model Variation {
   id             String       @id @default(cuid())
   organisationId String
