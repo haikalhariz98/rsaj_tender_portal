@@ -223,7 +223,9 @@ export function valuesOf(b: BaselineRow): BaselineValues {
     designWorkValue: senOrNull(b.designWorkValue),
     sectionalCompletion: b.sectionalCompletion,
     sectionalSource: src(b.sectionalSource),
-    sections: b.sections.map((s): SectionValue => ({ ref: s.ref, description: s.description, ladKind: s.ladKind as LadKind | null, ladAmount: senOrNull(s.ladAmount), ladPct: pctString(s.ladPct), ladDaily: senOrNull(s.ladDaily) })),
+    sections: b.sections.map((s): SectionValue => ({ ref: s.ref, description: s.description, ladKind: s.ladKind as LadKind | null, ladAmount: senOrNull(s.ladAmount), ladPct: pctString(s.ladPct), ladDaily: senOrNull(s.ladDaily), extensionDays: s.extensionDays })),
+    // 6.13 Part B run 1b (ADR 0030): the days extensions have added.
+    extensionDays: b.extensionDays,
   };
 }
 
@@ -267,11 +269,12 @@ export function rowOf(v: BaselineValues) {
     designWorkValue: m(v.designWorkValue),
     sectionalCompletion: v.sectionalCompletion,
     sectionalSource: v.sectionalSource,
+    extensionDays: v.extensionDays ?? 0,
   };
 }
 
 export const sectionRows = (v: BaselineValues, organisationId: string) =>
-  v.sections.map((s, n) => ({ organisationId, ref: s.ref, description: s.description, ladKind: s.ladKind, ladAmount: m(s.ladAmount), ladPct: s.ladPct, ladDaily: m(s.ladDaily), sortOrder: n }));
+  v.sections.map((s, n) => ({ organisationId, ref: s.ref, description: s.description, ladKind: s.ladKind, ladAmount: m(s.ladAmount), ladPct: s.ladPct, ladDaily: m(s.ladDaily), extensionDays: s.extensionDays ?? 0, sortOrder: n }));
 
 /// The baseline in a version row's terms (for baselineFor), with the organisation's day it was recorded.
 export const versionRowOf = (b: BaselineRow) => ({ ...b, version: b.version, reason: b.reason as BaselineReason | null, recordedOn: day(b.recordedOn) });

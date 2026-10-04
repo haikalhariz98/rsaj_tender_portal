@@ -1,0 +1,16 @@
+# Run 1b C7 (flagged against 6.12: extension days on the baseline; the extension's version writer; red in r1b-07-red.txt). 2026-10-04T13:22:59Z
+## npm run check (NODE_OPTIONS=--max-old-space-size=12500: a cold typecheck after the client is regenerated runs out of the session default 8 GB heap from C3 on)
+> perolehan@0.1.0 check
+> npm run typecheck && npm run lint
+> perolehan@0.1.0 typecheck
+> next typegen && tsc --noEmit
+Generating route types...
+✓ Types generated successfully
+> perolehan@0.1.0 lint
+> eslint && node scripts/check-ui.mjs
+UI scaffolding check passed.
+exit: 0
+## full suite
+ Test Files  567 passed (567)
+      Tests  8753 passed (8753)
+exit: 0

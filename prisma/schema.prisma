@@ -8141,6 +8141,11 @@ model ContractBaseline {
   sectionalCompletion Boolean?
   sectionalSource     BaselineSource?
 
+  /// 6.13 Part B run 1b (ADR 0030, flagged against 6.12): the days extensions of time (and of the contract period) have
+  /// added to the whole works' date for completion, so a later correction that derives the date again from possession
+  /// and the period keeps them. 0 on every version before an extension: none had been granted (a fact, not a policy).
+  extensionDays       Int             @default(0)
+
   /// Per entered field: the provenance the officer chose (OD-5, no default) and a note.
   entered  Json
   /// Every policy value it was built under, with provenance (the band, the type's behaviours, the
@@ -8176,6 +8181,9 @@ model ContractSection {
   ladAmount   Decimal? @db.Decimal(18, 2)
   ladPct      Decimal? @db.Decimal(9, 6)
   ladDaily    Decimal? @db.Decimal(18, 2)
+  /// 6.13 Part B run 1b (ADR 0030): the days an extension of time on this section alone added to its date for
+  /// completion (the whole works' date plus these). 0 before any.
+  extensionDays Int      @default(0)
   sortOrder   Int      @default(0)
 
   certificates Certificate[]

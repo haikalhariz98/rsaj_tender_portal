@@ -231,6 +231,9 @@ export const ALLOW: Allow = {
   // 6.13 Part A: possession writes its POSSESSION version (with its sections) and moves STAMPED → ACTIVE, and nothing else does.
   [`${SUP} › writePossessionVersion`]: { ops: ["contractBaseline.create", "contractSection.create"], spread: /^\.\.\.(rowOf\(v\)|s|\(draft\?\.snapshotasobject\))$/, reason: "POSSESSION" },
   [`${SUP} › recordPossession`]: { ops: ["contract.updateMany"], active: true },
+  // 6.13 Part B run 1b (ADR 0030, ADR 0021 Amendment 2; flagged against 6.12): the extension's version writer, the one
+  // writer of EXTENSION_OF_TIME and PERIOD_EXTENSION, called only by the two certificates' issue hooks.
+  [`${P("src/lib/contract/version-write.ts")} › writeExtensionVersion`]: { ops: ["contractBaseline.create", "contractSection.create"], spread: /^\.\.\.(rowOf\(after\)|s|\(draft\?\.snapshotasobject\))$/ },
   [`${P("src/app/awards/actions.ts")} › issueAward`]: { ops: ["contract.create"] },
   [`${P("src/app/awards/actions.ts")} › cancelAward`]: { ops: ["contract.update"] },
 };

@@ -24,6 +24,7 @@
  * given.
  */
 
+import { dayPlus } from "@/lib/dates";
 import { LAD_PER_DAY } from "@/lib/award/appendix-baseline";
 import type { Sen } from "@/lib/money";
 import { completionDay } from "@/lib/securities/period";
@@ -45,6 +46,8 @@ export interface SectionValue {
   ladPct: string | null;
   /// Resolved against the contract sum; null where the section's damages are not stated.
   ladDaily: Sen | null;
+  /// 6.13 Part B run 1b (ADR 0030): the days an extension of time on this section alone added (absent: none).
+  extensionDays?: number;
 }
 
 export interface BaselineValues {
@@ -83,6 +86,9 @@ export interface BaselineValues {
   sectionalCompletion: boolean | null;
   sectionalSource: BaselineSource | null;
   sections: SectionValue[];
+  /// 6.13 Part B run 1b (ADR 0030): the days extensions have added to the whole works' date for completion (absent:
+  /// none), so a correction deriving the date from possession and the period keeps them.
+  extensionDays?: number;
 }
 
 /// What a baseline is built from, as frozen when preparation starts (the snapshot keeps it).
@@ -220,9 +226,12 @@ export function derive(v: BaselineValues, policy: BaselineInputs["interimPolicy"
     firstInterimMinimum: first,
     firstInterimSource: firstSource,
     sections: v.sections.map((s) => ({ ...s, ladDaily: resolveLad(s.ladKind, s.ladAmount, s.ladPct, v.contractSum) })),
-    dateForCompletion: dateForCompletion(v.possessionDate, v.completionPeriod, v.completionUnit),
+    // 6.13 Part B run 1b (ADR 0030, flagged against 6.12): an extension's days stay added.
+    dateForCompletion: plusExtension(dateForCompletion(v.possessionDate, v.completionPeriod, v.completionUnit), v.extensionDays ?? 0),
   };
 }
+
+const plusExtension = (d: Day | null, days: number): Day | null => (d && days ? dayPlus(d, days) : d);
 
 /// Write keyed values over a baseline, each group marked ENTERED. The caller decides which groups may be keyed.
 export function applyEntered(v: BaselineValues, e: EnteredValues): BaselineValues {

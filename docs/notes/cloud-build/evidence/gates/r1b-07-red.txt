@@ -1,0 +1,5 @@
+# Run 1b C7 (flagged against 6.12: extension days on the baseline): red, the tests written before the code (a first run failed on loading the database module, mocked since). 2026-10-04T13:16:54Z
+ FAIL  src/lib/contract/baseline-extension.test.ts [ src/lib/contract/baseline-extension.test.ts ]
+Error: Cannot find module '/src/lib/contract/version-write' imported from /home/user/repo/src/lib/contract/baseline-extension.test.ts
+ Test Files  1 failed (1)
+      Tests  no tests
