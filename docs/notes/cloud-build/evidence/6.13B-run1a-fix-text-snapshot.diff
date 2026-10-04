@@ -1,0 +1,1 @@
+# diff -r -U0 before after: no difference in any of the 1,427 screens (6.13 Part B Run 1a fix round; before 83977d7 from a worktree, after 2973c05, both on port 3100 against perolehan_verify with the same demo; the round's two migrations deployed between them).
