@@ -1,0 +1,17 @@
+# Run 1b C4 (the time and matter rules): red, the tests written before the rules. 2026-10-04T12:29:23Z
+ FAIL  src/lib/matter/matter.test.ts [ src/lib/matter/matter.test.ts ]
+Error: Cannot find module './matter' imported from /home/user/repo/src/lib/matter/matter.test.ts
+ FAIL  src/lib/time/entitlement.test.ts [ src/lib/time/entitlement.test.ts ]
+Error: Cannot find module './entitlement' imported from /home/user/repo/src/lib/time/entitlement.test.ts
+ FAIL  src/lib/time/extension.test.ts [ src/lib/time/extension.test.ts ]
+Error: Cannot find module './extension' imported from /home/user/repo/src/lib/time/extension.test.ts
+ FAIL  src/lib/time/labels.test.ts [ src/lib/time/labels.test.ts ]
+Error: Cannot find module './labels' imported from /home/user/repo/src/lib/time/labels.test.ts
+ FAIL  src/lib/time/loss-expense.test.ts [ src/lib/time/loss-expense.test.ts ]
+Error: Cannot find module './loss-expense' imported from /home/user/repo/src/lib/time/loss-expense.test.ts
+ FAIL  src/lib/time/period.test.ts [ src/lib/time/period.test.ts ]
+Error: Cannot find module './period' imported from /home/user/repo/src/lib/time/period.test.ts
+ FAIL  src/lib/time/route.test.ts [ src/lib/time/route.test.ts ]
+Error: Cannot find module './route' imported from /home/user/repo/src/lib/time/route.test.ts
+ Test Files  7 failed | 2 passed (9)
+      Tests  11 passed (11)

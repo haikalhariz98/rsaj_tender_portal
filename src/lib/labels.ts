@@ -79,6 +79,10 @@ const CONDS: Record<string, string> = {
   // 6.15a (OD-8 A): what a blacklisting route is asked for.
   BLACKLIST: "A blacklisting",
   BLACKLIST_LIFT: "The lifting of a blacklisting",
+  // 6.13 Part B run 1b (FR-EOT-007, BD-613-132): the cause of an extension of time's financial impact.
+  financial_not_authority: "With a financial impact not due to an authority requirement",
+  financial_authority: "With a financial impact due to an authority requirement",
+  no_financial_impact: "With no financial impact",
 };
 
 export function condLabel(code: string): string {

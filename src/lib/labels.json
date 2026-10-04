@@ -55,9 +55,17 @@
     "en": "Extension of Contract Period",
     "ms": "Lanjutan Tempoh Kontrak"
   },
+  "contract_period_extension": {
+    "en": "Extension of Contract Period",
+    "ms": "Lanjutan Tempoh Kontrak"
+  },
   "lad_waiver": {
     "en": "Waiver of LAD / Penalty",
     "ms": "Pengecualian LAD / Penalti"
+  },
+  "loss_expense": {
+    "en": "Loss and Expense Claim",
+    "ms": "Tuntutan Kerugian dan Perbelanjaan"
   },
   "completion": {
     "en": "Completion & LAD Events",
@@ -70,6 +78,14 @@
   "termination": {
     "en": "Termination / Arbitration",
     "ms": "Penamatan / Timbang Tara"
+  },
+  "nominated_increase": {
+    "en": "Increase of a Nominated Sum",
+    "ms": "Pertambahan Jumlah Dinamakan"
+  },
+  "nomination": {
+    "en": "Nomination of a Sub-contractor or Supplier",
+    "ms": "Penamaan Subkontraktor atau Pembekal"
   },
   "assignment": {
     "en": "Deed of Assignment & Factoring",
