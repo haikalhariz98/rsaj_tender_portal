@@ -5,7 +5,10 @@
  * - **Recorded as a fact**, never decided here: the body (a configured registration body), the body's reference and
  *   the day it takes effect, by an officer recorded on their behalf, not signed. No route. The body's notice is
  *   attached on the record afterwards (REGISTRATION_CANCELLATION_NOTICE); until it is, the record says so.
- * - **One at a time.** A cancellation in effect refuses another; a later one waits for the first to be withdrawn.
+ * - **One per registration** (BD-613-109). A cancellation in effect refuses another. Each names the registration it
+ *   cancels (`cancelsRegistrationOn`); once the supplier has registered again (which ends it, BD-613-108) or it has been
+ *   withdrawn, a new one may be recorded against the new registration. The partial unique index
+ *   `StandingEvent_one_live_cancellation` holds one live cancellation per (supplier, registration).
  * - **Withdrawn when made in error**, with a reason: the row is kept and shown withdrawn, and the standing rule reads it
  *   as never in effect. A cancellation that stood is lifted by a new registration, not by a withdrawal.
  * - Not built (no requirement): the organisation's own cancellation, its request and its route.
