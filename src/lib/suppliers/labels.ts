@@ -394,6 +394,21 @@ export const STANDING_EVENT_LABEL: Readonly<Record<StandingEventKind, Words>> = 
   REGISTRATION_CANCELLED: w("Registration cancelled", "Pendaftaran dibatalkan"),
 };
 
+/**
+ * BD-613-105(e) / S-3 (Run 0 fix round): a registration cancelled's reason line, composed at read from the body's label as
+ * frozen and the body's reference, in English and Malay: "Cancelled by {body} ({reference})". Nothing of it is stored as
+ * words (its reasonSnapshot stays ""), so no product wording sits in a data row.
+ */
+export function cancellationWords(by: { body: string; reference: string }): Words {
+  return w(`Cancelled by ${by.body} (${by.reference})`, `Dibatalkan oleh ${by.body} (${by.reference})`);
+}
+
+/// An event's reason line in words: a cancellation's composed from its body and reference; any other kind's its reason as recorded.
+export function eventReasonWords(e: { kind: string; reasonLabel: string; cancelledBy: { body: string; reference: string } | null }): Words {
+  if (e.kind === "REGISTRATION_CANCELLED") return e.cancelledBy ? cancellationWords(e.cancelledBy) : w("", "");
+  return w(e.reasonLabel, e.reasonLabel);
+}
+
 export const REASON_USE_LABEL: Readonly<Record<"SUSPEND" | "BLACKLIST", Words>> = { SUSPEND: w("Suspension", "Penggantungan"), BLACKLIST: w("Blacklisting", "Senarai hitam") };
 export const REQUEST_KIND_LABEL: Readonly<Record<"BLACKLIST" | "BLACKLIST_LIFT", Words>> = { BLACKLIST: w("Blacklisting", "Senarai hitam"), BLACKLIST_LIFT: w("Lifting a blacklisting", "Penarikan balik senarai hitam") };
 export const CONSEQUENCE_LABEL: Readonly<Record<"ELIMINATE" | "REPORT", Words>> = { ELIMINATE: w("Eliminated at the opening", "Disingkirkan semasa pembukaan"), REPORT: w("Reported to the committee, which decides", "Dilaporkan kepada jawatankuasa, yang memutuskan") };

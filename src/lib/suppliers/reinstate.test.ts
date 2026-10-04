@@ -6,7 +6,7 @@ import { standing, type StandingEventFacts } from "./standing";
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
 const today = "2026-10-01";
 const reading = (events: StandingEventFacts[] = [], lapsed = false) => standing({ status: "REGISTERED" }, events, lapsed ? [{ typeLabel: "Tax clearance", state: "EXPIRED" }] : [], { autoSuspendOnLapse: null }, today);
-const suspension: StandingEventFacts = { id: "s", kind: "SUSPEND", effectiveOn: "2026-09-01", endsOn: null, offenceNo: null, reasonLabel: "Documents not in order", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: ["d1", "d2"] };
+const suspension: StandingEventFacts = { id: "s", kind: "SUSPEND", effectiveOn: "2026-09-01", endsOn: null, offenceNo: null, reasonLabel: "Documents not in order", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: ["d1", "d2"], withdrawn: false, cancelledBy: null };
 
 describe("suspending a registered supplier (FR-VND-010)", () => {
   const ctx = { today, status: "REGISTERED", registeredOn: "2026-01-10", reading: reading(), reason: { appliesTo: "SUSPEND" as const, retiredOn: null }, documentIds: ["d1", "d2"] };

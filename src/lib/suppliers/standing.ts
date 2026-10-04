@@ -41,8 +41,13 @@ export interface StandingEventFacts {
   reinstatesEventId: string | null;
   liftsEventId: string | null;
   flaggedDocumentIds: readonly string[];
-  /// 615-C2: a registration cancelled withdrawn as recorded in error. Absent: not withdrawn.
-  withdrawn?: boolean;
+  /// 615-C2: a registration cancelled withdrawn as recorded in error. Run 0 fix round (consider): required, so a reader
+  /// that forgets it cannot read a withdrawn cancellation as standing.
+  withdrawn: boolean;
+  /// BD-613-105(e) / S-3: a registration cancelled's body (its label as frozen) and the body's reference, from which its
+  /// reason line is composed at read in English and Malay (`cancellationWords`); no product wording is stored. Null for
+  /// every other kind.
+  cancelledBy: { body: string; reference: string } | null;
 }
 
 export interface StandingPolicy {

@@ -8,7 +8,7 @@
  * is a customer policy question with no rule set (carry 615-C5). Never a refusal. Pure.
  */
 
-import { blacklistEndPhrase, standingTone, standingWords, type Words } from "./labels";
+import { blacklistEndPhrase, cancellationWords, standingTone, standingWords, type Words } from "./labels";
 import { barred, type StandingReading } from "./standing";
 
 export interface AwardStanding {
@@ -32,7 +32,9 @@ export function awardStanding(r: Pick<StandingReading, "standing" | "notes" | "b
     const end = blacklistEndPhrase(r.blacklist.endsOn);
     what = w(`Blacklisted since ${day(r.blacklist.effectiveOn)} (${r.blacklist.reasonLabel}; ${end.en})`, `Disenarai hitam sejak ${day(r.blacklist.effectiveOn)} (${r.blacklist.reasonLabel}; ${end.ms})`);
   } else if (r.standing === "CANCELLED" && r.cancellation) {
-    what = w(`Registration cancelled since ${day(r.cancellation.effectiveOn)}`, `Pendaftaran dibatalkan sejak ${day(r.cancellation.effectiveOn)}`);
+    // BD-613-105(e) / S-3: the warning names the body and its reference, composed at read in each language.
+    const by = r.cancellation.cancelledBy ? cancellationWords(r.cancellation.cancelledBy) : null;
+    what = w(`Registration cancelled since ${day(r.cancellation.effectiveOn)}${by ? ` (${by.en})` : ""}`, `Pendaftaran dibatalkan sejak ${day(r.cancellation.effectiveOn)}${by ? ` (${by.ms})` : ""}`);
   } else if (r.standing === "SUSPENDED" && r.suspension) {
     what = w(`Suspended since ${day(r.suspension.effectiveOn)} (${r.suspension.reasonLabel})`, `Digantung sejak ${day(r.suspension.effectiveOn)} (${r.suspension.reasonLabel})`);
   } else {

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { barred, standing, type StandingEventFacts } from "./standing";
 
 const on = "2026-10-01";
-const ev = (o: Partial<StandingEventFacts> & Pick<StandingEventFacts, "id" | "kind">): StandingEventFacts => ({ effectiveOn: "2026-09-01", endsOn: null, offenceNo: null, reasonLabel: "A reason", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], ...o });
+const ev = (o: Partial<StandingEventFacts> & Pick<StandingEventFacts, "id" | "kind">): StandingEventFacts => ({ effectiveOn: "2026-09-01", endsOn: null, offenceNo: null, reasonLabel: "A reason", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null, ...o });
 const registered = { status: "REGISTERED" as const };
 const clean = [{ typeLabel: "Works board certificate", state: "VALID" as const }];
 const expired = [{ typeLabel: "Works board certificate", state: "EXPIRED" as const }, { typeLabel: "Tax clearance", state: "VALID" as const }];

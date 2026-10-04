@@ -6,7 +6,7 @@ import { standing, type StandingEventFacts } from "./standing";
 
 /** 6.15a fix S-4: the Suspend control's refusal names the standing actually in effect, and since when. */
 
-const ev = (o: Partial<StandingEventFacts> & Pick<StandingEventFacts, "id" | "kind">): StandingEventFacts => ({ effectiveOn: "2026-09-24", endsOn: null, offenceNo: null, reasonLabel: "A reason", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], ...o });
+const ev = (o: Partial<StandingEventFacts> & Pick<StandingEventFacts, "id" | "kind">): StandingEventFacts => ({ effectiveOn: "2026-09-24", endsOn: null, offenceNo: null, reasonLabel: "A reason", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null, ...o });
 const ask = { reasonId: "r", effectiveOn: "2026-10-02", personActive: true, flaggedDocumentIds: [] };
 const ctx = (events: StandingEventFacts[]) => ({ today: "2026-10-02", status: "REGISTERED", registeredOn: "2026-01-01", reading: standing({ status: "REGISTERED" }, events, [], { autoSuspendOnLapse: null }, "2026-10-02"), reason: { appliesTo: "SUSPEND" as const, retiredOn: null }, documentIds: [] });
 

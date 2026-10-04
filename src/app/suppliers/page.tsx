@@ -12,7 +12,7 @@ import { formatDate } from "@/lib/format";
 import { routeState } from "@/lib/suppliers/blacklist";
 import { documentStates, stateCounts } from "@/lib/suppliers/documents";
 import { expiryBand, reminderDue, startsOn, worstBand, type ExpiryBand } from "@/lib/suppliers/expiry";
-import { APPLICATION_KIND_LABEL, blacklistEndWords, renewalUpcomingWords, DOCUMENT_STATE_LABEL, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, QUEUE_STATE_LABEL, QUEUE_STATE_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords, SUPPLIER_STATUS_LABEL, SUPPLIER_STATUS_TONE } from "@/lib/suppliers/labels";
+import { APPLICATION_KIND_LABEL, blacklistEndWords, eventReasonWords, renewalUpcomingWords, DOCUMENT_STATE_LABEL, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, QUEUE_STATE_LABEL, QUEUE_STATE_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords, SUPPLIER_STATUS_LABEL, SUPPLIER_STATUS_TONE } from "@/lib/suppliers/labels";
 import { documentFacts, listSuppliers, loadSupplierConfig, supplierOrg, SUPPLIERS_PAGE } from "@/lib/suppliers/repo";
 import { queueState, type QueueState } from "@/lib/suppliers/review";
 import { standing } from "@/lib/suppliers/standing";
@@ -161,7 +161,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       cells: {
         supplier: { kind: "link", text: s.registeredName, href: `/suppliers/${s.id}?tab=standing`, sub: s.reference },
         standing: { kind: "chips", items: [{ text: standingWords(st).en, tone: TONE[standingTone(st)] }] },
-        since: since ? { kind: "stack", title: `Since ${formatDate(since.effectiveOn)}`, sub: since.kind === "BLACKLIST" ? blacklistEndWords(since.endsOn).en : since.reasonLabel || undefined } : st.standing === "SUSPENDED_ON_LAPSE" || lapseUnset ? { kind: "text", text: st.lapsed.join(", ") } : { kind: "text", text: "—", dim: true },
+        since: since ? { kind: "stack", title: `Since ${formatDate(since.effectiveOn)}`, sub: since.kind === "BLACKLIST" ? blacklistEndWords(since.endsOn).en : eventReasonWords(since).en || undefined } : st.standing === "SUSPENDED_ON_LAPSE" || lapseUnset ? { kind: "text", text: st.lapsed.join(", ") } : { kind: "text", text: "—", dim: true },
         requests: open.length ? { kind: "chips", items: open.map((r) => ({ text: `${REQUEST_KIND_LABEL[r.kind].en}: ${routeState(r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }))) === "APPROVED" ? "approved, to record" : "with approval"}`, tone: "brand" as const })) } : { kind: "text", text: "—", dim: true },
       },
     }];

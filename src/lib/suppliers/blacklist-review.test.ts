@@ -48,7 +48,7 @@ describe("a blacklisting in effect stops a renewal or upgrade (FR-TRM-017, fix S
   });
 
   it("boundary: on the last blacklisted day refused; on the free-from day the reading carries no blacklisting", () => {
-    const ev = { id: "b", kind: "BLACKLIST" as const, effectiveOn: "2026-09-24", endsOn: "2031-09-24", offenceNo: 1, reasonLabel: "False declaration in a bid", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [] };
+    const ev = { id: "b", kind: "BLACKLIST" as const, effectiveOn: "2026-09-24", endsOn: "2031-09-24", offenceNo: 1, reasonLabel: "False declaration in a bid", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null };
     const on = (d: string) => standing({ status: "REGISTERED" }, [ev], [], { autoSuspendOnLapse: null }, d).blacklist;
     expect(on("2031-09-23")).not.toBeNull();
     expect(openApplicationFaults("RENEWAL", "REGISTERED", false, on("2031-09-23")).map((f) => f.code)).toEqual(["BLACKLISTED_NO_APPLICATION"]);

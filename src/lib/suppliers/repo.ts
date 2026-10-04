@@ -149,7 +149,7 @@ const listedSupplier = {
   erpVendorCode: true,
   documents: { select: { id: true, typeId: true, typeLabelSnapshot: true, lodgedOn: true, issuedOn: true, validFrom: true, expiresOn: true, notApplicable: true, verification: true, verifiedOn: true, supersedesId: true } },
   // a2: standing is derived from these, never stored.
-  standingEvents: { select: { id: true, kind: true, effectiveOn: true, endsOn: true, offenceNo: true, reasonSnapshot: true, reinstatesEventId: true, liftsEventId: true, flaggedDocumentIds: true, withdrawnAt: true } },
+  standingEvents: { select: { id: true, kind: true, effectiveOn: true, endsOn: true, offenceNo: true, reasonSnapshot: true, reinstatesEventId: true, liftsEventId: true, flaggedDocumentIds: true, withdrawnAt: true, bodyLabelSnapshot: true, externalReference: true } },
 } satisfies Prisma.SupplierSelect;
 
 const OPEN_APPLICATION = { status: { in: ["RECEIVED" as const, "RESUBMISSION_REQUESTED" as const] }, lapsedRecordedAt: null };

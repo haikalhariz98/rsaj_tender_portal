@@ -13,7 +13,7 @@ import { barred, standing, type StandingEventFacts } from "./standing";
  */
 
 const on = "2026-10-02";
-const ev = (o: Partial<StandingEventFacts> & Pick<StandingEventFacts, "id" | "kind">): StandingEventFacts => ({ effectiveOn: "2026-10-01", endsOn: null, offenceNo: null, reasonLabel: "", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], ...o });
+const ev = (o: Partial<StandingEventFacts> & Pick<StandingEventFacts, "id" | "kind">): StandingEventFacts => ({ effectiveOn: "2026-10-01", endsOn: null, offenceNo: null, reasonLabel: "", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null, ...o });
 const clean = [{ typeLabel: "Works board certificate", state: "VALID" as const }];
 const read = (events: StandingEventFacts[]) => standing({ status: "REGISTERED" }, events, clean, { autoSuspendOnLapse: null }, on);
 

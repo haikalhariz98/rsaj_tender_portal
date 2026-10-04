@@ -309,7 +309,7 @@ export async function recordRegistrationCancelled(_prev: FormState, data: FormDa
     const fs = recordCancellationFaults({ bodyId, reference, effectiveOn, personActive: !!person }, { today: l.org.today, status, registeredOn: day(s.registeredOn), reading, bodyConfigured: bodyId ? !!body : null });
     if (blocking(fs).length) return refuse(fs, "Not recorded:");
     const ref = reference.trim();
-    const e = await tx.standingEvent.create({ data: { organisationId: l.org.id, supplierId, kind: "REGISTRATION_CANCELLED", cancellingBodyId: body!.id, bodyLabelSnapshot: body!.labelEn, externalReference: ref, reasonSnapshot: `Cancelled by ${body!.labelEn} (${ref})`, effectiveOn: dayToDate(effectiveOn!), note, recordedByPersonId: person!.id, recordedAt: now } });
+    const e = await tx.standingEvent.create({ data: { organisationId: l.org.id, supplierId, kind: "REGISTRATION_CANCELLED", cancellingBodyId: body!.id, bodyLabelSnapshot: body!.labelEn, externalReference: ref, effectiveOn: dayToDate(effectiveOn!), note, recordedByPersonId: person!.id, recordedAt: now } });
     await audit(tx, l.org.id, SUPPLIER_ENTITY.standingEvent, e.id, standingLabel(l, "Registration cancelled"), "CREATE",
       diffFields(null, { standing: "Registration cancelled", cancelledBy: body!.labelEn, bodyReference: ref, effectiveOn: effectiveOn!, note: note || null, recordedBy: person!.name, recordedOnBehalf: "not signed" }), note);
     return { ok: true, message: `Recorded: the registration is cancelled from ${formatDate(effectiveOn!)}, by ${body!.labelEn} (${ref}). Attach the body's notice on the record. The notice to the supplier is shown, not sent.` };

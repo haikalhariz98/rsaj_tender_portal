@@ -125,6 +125,8 @@ export function scanStandingWrites(sources: readonly { file: string; src: string
         else if (literal !== "REGISTRATION_CANCELLED" && file === ACTS && fn === "recordRegistrationCancelled") problem = "the cancellation's writer creates another kind";
         else if (dataKeys.some((k) => CANCEL_KEYS.includes(k)) && literal !== "REGISTRATION_CANCELLED") problem = "writes a cancellation's body or reference";
         else if (dataKeys.some((k) => WITHDRAW_KEYS.includes(k))) problem = "creates an event withdrawn";
+        // BD-613-105(e) / S-3: a cancellation's reason line is composed at read from its body and reference, never stored as words.
+        else if (literal === "REGISTRATION_CANCELLED" && dataKeys.includes("reasonSnapshot") && valueOf(dataLex, dataRaw!, "reasonSnapshot") !== '""') problem = "stores a cancellation's reason as words";
         out.push({ where, op: `${name} ${literal ?? "?"}`, problem });
         continue;
       }
@@ -213,6 +215,11 @@ describe("the scan catches each evasion (self-tests)", () => {
   });
   it("nothing in comments or strings", () => {
     expect(one(fn("x", `// tx.standingEvent.create({ data: { kind: "REGISTRATION_CANCELLED" } })\n  const s = "tx.standingEvent.updateMany(";`))).toEqual([]);
+  });
+  it("BD-613-105(e): the writer storing the cancellation's reason as words", () => {
+    expect(one(fn("recordRegistrationCancelled", "await tx.standingEvent.create({ data: { kind: \"REGISTRATION_CANCELLED\", reasonSnapshot: `Cancelled by ${b} (${r})` } });"))).toEqual(["recordRegistrationCancelled · standingEvent.create REGISTRATION_CANCELLED · stores a cancellation's reason as words"]);
+    expect(one(fn("recordRegistrationCancelled", "await tx.standingEvent.create({ data: { kind: \"REGISTRATION_CANCELLED\", reasonSnapshot: \"\" } });"))).toEqual([]);
+    expect(one(fn("recordRegistrationCancelled", "await tx.standingEvent.create({ data: { kind: \"REGISTRATION_CANCELLED\" } });"))).toEqual([]);
   });
   it("S-5: a raw write naming StandingEvent, typed or not, tagged or called; an unreadable raw call", () => {
     expect(one(fn("x", 'await tx.$executeRaw`UPDATE "StandingEvent" SET "withdrawnAt" = NOW()`;'))).toEqual(["x · raw SQL · raw SQL writes a standing event"]);

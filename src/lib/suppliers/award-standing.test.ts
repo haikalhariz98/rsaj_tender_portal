@@ -14,7 +14,7 @@ import { standing, type StandingEventFacts } from "./standing";
  * rule set (carry 615-C5).
  */
 
-const ev = (o: Partial<StandingEventFacts> & Pick<StandingEventFacts, "id" | "kind">): StandingEventFacts => ({ effectiveOn: "2026-09-24", endsOn: null, offenceNo: null, reasonLabel: "False declaration in a bid", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], ...o });
+const ev = (o: Partial<StandingEventFacts> & Pick<StandingEventFacts, "id" | "kind">): StandingEventFacts => ({ effectiveOn: "2026-09-24", endsOn: null, offenceNo: null, reasonLabel: "False declaration in a bid", reinstatesEventId: null, liftsEventId: null, flaggedDocumentIds: [], withdrawn: false, cancelledBy: null, ...o });
 const on = "2026-10-02";
 const read = (events: StandingEventFacts[], mandatory: { typeLabel: string; state: "VALID" | "EXPIRED" }[] = [], auto: boolean | null = null) => standing({ status: "REGISTERED" }, events, mandatory, { autoSuspendOnLapse: auto }, on);
 
