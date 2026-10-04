@@ -11,7 +11,7 @@ import type { Tx } from "@/lib/audit/record";
 
 import type { EligibilitySnapshot } from "./eligibility";
 import { lockSupplierRow } from "./lock";
-import { saleStandingCheck, type SaleCheck } from "./sale";
+import { saleStandingCheck, saleSupplierFacts, type SaleCheck } from "./sale";
 import { eligibilityOf, supplierPolicyOf } from "./standing-repo";
 
 export interface RegisterAtSale {
@@ -29,6 +29,9 @@ export async function registerAtSale(tx: Tx, org: { id: string; timeZone: string
   const s = await tx.supplier.findUniqueOrThrow({ where: { id: vendorId }, select: { status: true } });
   const standingRow = e?.eligibility.rows.find((r) => r.kind === "STANDING");
   // Run 0 fix round (consider): the registration check reads the cancellation itself, also under a blacklisting.
-  const check = saleStandingCheck({ status: s.status, standing: (e?.snapshot.standing ?? "NOT_REGISTERED") as never, lapseRuleNotSet: standingRow?.reason === "LAPSE_RULE_NOT_SET", cancelled: e?.reading.cancellation != null }, { registerRequiredForSale: policy.registerRequiredForSale });
+  // Run 1a (Should 1, flagged 6.15a): the facts from the reading through saleSupplierFacts, so a suspension beneath a
+  // cancellation fails the suspension check. A supplier with no reading is judged not registered.
+  const facts = e ? saleSupplierFacts(s.status, e.reading, standingRow?.reason === "LAPSE_RULE_NOT_SET") : { status: s.status, standing: "NOT_REGISTERED" as const, lapseRuleNotSet: false, cancelled: false, barredOtherwise: false };
+  const check = saleStandingCheck(facts, { registerRequiredForSale: policy.registerRequiredForSale });
   return { linked: true, check, snapshot: e ? { ...e.snapshot, check: { registration: check.registrationCheck, suspension: check.suspensionCheck } } : null };
 }

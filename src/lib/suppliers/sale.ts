@@ -6,7 +6,7 @@
  * refuses, naming the link to make; not set says the rule is not set; false notes it. Pure.
  */
 
-import type { Standing } from "./standing";
+import type { Standing, StandingReading } from "./standing";
 import { barred } from "./standing";
 import type { Finding } from "./types";
 
@@ -20,10 +20,32 @@ export interface SaleCheck {
   findings: Finding<SaleFault>[];
 }
 
+export interface SaleSupplierFacts {
+  status: string;
+  standing: Standing;
+  lapseRuleNotSet: boolean;
+  /// A registration cancelled in effect (the reading's cancellation), read from the fact itself, not from the standing's
+  /// ranking, so it is seen also under a blacklisting that ranks above it (Run 0 fix round consider).
+  cancelled: boolean;
+  /// Run 1a (Should 1, flagged 6.15a): barred by something other than the cancellation (a blacklisting or a suspension in
+  /// effect, or a suspension on lapse), read from the facts, so a suspension beneath a cancellation still fails the
+  /// suspension check rather than being recorded as not checked.
+  barredOtherwise: boolean;
+}
+
+/// The supplier's facts for the sale check, from its standing reading: the one place the hook builds them (tested).
+export function saleSupplierFacts(status: string, reading: StandingReading, lapseRuleNotSet: boolean): SaleSupplierFacts {
+  return {
+    status,
+    standing: reading.standing,
+    lapseRuleNotSet,
+    cancelled: reading.cancellation != null,
+    barredOtherwise: reading.blacklist != null || reading.suspension != null || reading.standing === "SUSPENDED_ON_LAPSE",
+  };
+}
+
 export function saleStandingCheck(
-  /// `cancelled`: a registration cancelled in effect (the reading's cancellation), read from the fact itself, not from the
-  /// standing's ranking, so it is seen also under a blacklisting that ranks above it (Run 0 fix round consider).
-  supplier: { status: string; standing: Standing; lapseRuleNotSet: boolean; cancelled: boolean } | null,
+  supplier: SaleSupplierFacts | null,
   policy: { registerRequiredForSale: boolean | null },
 ): SaleCheck {
   if (!supplier) {
@@ -34,10 +56,11 @@ export function saleStandingCheck(
   const registered = supplier.status === "REGISTERED";
   if (!registered) findings.push({ code: "SALE_NOT_REGISTERED", level: "block" });
   // A cancelled registration fails the registration check (from the cancellation itself, also under a blacklisting); a
-  // suspension or blacklisting the suspension check. A cancellation alone leaves the suspension check not made.
+  // suspension or blacklisting the suspension check, read from the facts (also beneath a cancellation, Should 1). A
+  // cancellation alone leaves the suspension check not made.
   const cancelled = registered && supplier.cancelled;
   const isBarred = registered && barred(supplier.standing);
-  const otherBar = isBarred && supplier.standing !== "CANCELLED";
+  const otherBar = registered && supplier.barredOtherwise;
   if (isBarred) findings.push({ code: "BARRED", level: "block", data: { standing: supplier.standing } });
   if (registered && !isBarred && supplier.lapseRuleNotSet) findings.push({ code: "LAPSE_RULE_NOT_SET", level: "warn" });
   return { registrationCheck: registered && !cancelled ? "CLEAR" : "FAILED", suspensionCheck: !registered ? "NOT_CHECKED" : otherBar ? "FAILED" : cancelled ? "NOT_CHECKED" : "CLEAR", findings };
