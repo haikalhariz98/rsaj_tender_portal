@@ -89,9 +89,16 @@ export interface Column {
   sulit?: boolean;
 }
 
-/// Whether a list may offer a client export: never when any column is SULIT.
+/// The columns a CSV download carries: every column but a SULIT one, so a classified figure never
+/// leaves in a file (the SULIT guard). Founder, 2026-10-04: a list with a SULIT column downloads
+/// its other columns, rather than offering no download at all.
+export function exportColumns(columns: readonly Column[]): Column[] {
+  return columns.filter((c) => !c.sulit);
+}
+
+/// Whether a list may offer a client export: when at least one column is not SULIT.
 export function canExport(columns: readonly Column[]): boolean {
-  return !columns.some((c) => c.sulit);
+  return exportColumns(columns).length > 0;
 }
 
 /// The mark a SULIT column's header carries: the shared lock beside the column name, the
@@ -489,13 +496,15 @@ export function DataList({
   );
 
   const exportable = canExport(columns);
+  const leavesOutSulit = columns.some((c) => c.sulit);
 
   function exportCsv() {
-    // The guard lives here as well as in the button: no path out of a SULIT list.
+    // The guard lives here as well as in the button: a SULIT column never leaves in the file.
     if (!exportable) return;
-    const header = columns.map((c) => c.label);
+    const cols = exportColumns(columns);
+    const header = cols.map((c) => c.label);
     // The whole filtered list, not just the page being looked at.
-    const lines = visible.map((r) => columns.map((c) => cellText(r.cells[c.key])));
+    const lines = visible.map((r) => cols.map((c) => cellText(r.cells[c.key])));
     const csv = [header, ...lines]
       .map((cells) => cells.map((v) => `"${v.replace(/"/g, '""')}"`).join(","))
       .join("\r\n");
@@ -611,8 +620,8 @@ export function DataList({
             <button
               type="button"
               onClick={exportCsv}
-              aria-label="Download this view as CSV"
-              title="Download this view as CSV"
+              aria-label={leavesOutSulit ? "Download this view as CSV, SULIT columns left out" : "Download this view as CSV"}
+              title={leavesOutSulit ? "Download this view as CSV (SULIT columns left out)" : "Download this view as CSV"}
               className={iconButtonClass("sm", true, "size-9")}
             >
               <DownloadIcon size={16} />

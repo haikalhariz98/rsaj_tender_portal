@@ -232,6 +232,7 @@ export async function listRequisitions() {
       orderBy: [{ raisedOn: "desc" }, { reference: "desc" }],
       take: REQUISITIONS_PAGE,
       include: {
+        requestingPerson: { select: { name: true } },
         budgetChecks: { orderBy: { checkedAt: "desc" }, take: 1, select: { verdict: true } },
         splitChecks: { orderBy: { checkedAt: "desc" }, take: 1, select: { state: true, overrideJustification: true } },
         // Every route, for whether a draft was sent back: a rejected route is a small row.
@@ -265,6 +266,7 @@ export async function listRequisitions() {
       ...r,
       estimatedValue: num(r.estimatedValue)!,
       unitName: unitName.get(r.requestingUnitCode) ?? "A unit no longer configured",
+      requesterName: r.requestingPerson.name,
       routeName: r.fundingRouteCode ? (routes.find((x) => x.code === r.fundingRouteCode)?.nameEn ?? "A route no longer configured") : null,
       verdict: r.budgetChecks[0]?.verdict ?? null,
       split: r.splitChecks[0] ?? null,

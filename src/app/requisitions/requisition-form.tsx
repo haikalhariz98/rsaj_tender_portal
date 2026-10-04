@@ -10,14 +10,13 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
-import { ACT_LABEL } from "@/lib/labels";
 import { lineAmount } from "@/lib/requisition/lines";
 
-import { createRequisition, editDraft, receiveRequisition } from "./actions";
+import { createRequisition, editDraft } from "./actions";
 
 /**
- * The requisition form: raising one, editing a draft, or receiving one typed in from
- * the finance system. Values are held here, so a refused save keeps everything typed;
+ * The requisition form: raising one, or editing a draft. Values are held here, so a refused
+ * save keeps everything typed;
  * every rule is checked by the action. Nothing is pre-filled with a policy value.
  */
 
@@ -40,18 +39,10 @@ interface Line {
   estimatedUnitPrice: string;
   estimatedAmount: string;
 }
-interface Step {
-  roleLabel: string;
-  act: string;
-  actorName: string;
-  actorPersonId: string;
-  decidedOn: string;
-}
 
 export type FormLine = Line;
 
 const BLANK_LINE: Line = { description: "", quantity: "", unit: "", estimatedUnitPrice: "", estimatedAmount: "" };
-const BLANK_STEP: Step = { roleLabel: "", act: "", actorName: "", actorPersonId: "", decidedOn: "" };
 
 /// Sen of a typed amount, exactly (no float), or null where it is not an amount.
 function senOf(v: string): bigint | null {
@@ -84,7 +75,7 @@ export function RequisitionForm({
   id,
   cancelHref,
 }: {
-  mode: "new" | "edit" | "receive";
+  mode: "new" | "edit";
   options: FormOptions;
   values?: Record<string, string>;
   initialLines?: Line[];
@@ -95,7 +86,6 @@ export function RequisitionForm({
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const [lines, setLines] = useState<Line[]>(initialLines?.length ? initialLines : [{ ...BLANK_LINE }]);
-  const [trail, setTrail] = useState<Step[]>([{ ...BLANK_STEP }]);
   const [unit, setUnit] = useState(values.requestingUnitCode ?? "");
   const [value, setValue] = useState(values.estimatedValue ?? "");
   const e = state.errors ?? {};
@@ -104,10 +94,9 @@ export function RequisitionForm({
   const total = totalOf(lines);
   const valueSen = senOf(value);
 
-  const action = mode === "new" ? createRequisition : mode === "edit" ? editDraft : receiveRequisition;
+  const action = mode === "new" ? createRequisition : editDraft;
   const submit = (data: FormData) => {
     data.set("lines", JSON.stringify(lines));
-    if (mode === "receive") data.set("trail", JSON.stringify(trail));
     startTransition(async () => {
       const result = await action({ ok: false }, data);
       if (result) setState(result);
@@ -136,7 +125,6 @@ export function RequisitionForm({
     setLines((ls) => ls.filter((_, j) => j !== i));
     setOwnAmount((o) => o.filter((_, j) => j !== i));
   };
-  const setStep = (i: number, k: keyof Step, v: string) => setTrail((ts) => ts.map((t, j) => (j === i ? { ...t, [k]: v } : t)));
 
   const select = (name: string, label: string, opts: { value: string; label: string }[], o: { required?: boolean; placeholder?: string; hint?: string; onChange?: (v: string) => void } = {}) => (
     <Field label={label} htmlFor={`rq-${name}`} required={o.required} hint={o.hint} error={e[name]}>
@@ -165,34 +153,12 @@ export function RequisitionForm({
       )}
     </Field>
   );
-  const money = (name: string, label: string, o: { required?: boolean; hint?: string } = {}) => (
-    <Field label={label} htmlFor={`rq-${name}`} required={o.required} hint={o.hint} error={e[name]}>
-      <AffixInput id={`rq-${name}`} prefix="RM" name={name} inputMode="decimal" defaultValue={values[name] ?? ""} aria-invalid={e[name] ? true : undefined} className="[&_input]:text-right" />
-    </Field>
-  );
   const coded = (xs: { code: string; name: string }[]) => xs.map((x) => ({ value: x.code, label: `${x.code} · ${x.name}` }));
 
   return (
     <form onSubmit={(ev) => submit(formDataOf(ev))} className="flex flex-col gap-6">
       {id && <input type="hidden" name="id" value={id} />}
       {state.message && <Callout tone="err">{state.message}</Callout>}
-      {mode === "receive" && (
-        <Callout tone="info" title="Entered by hand from the finance system. Nothing is fetched.">
-          The requisition arrives approved. Its numbers, budget figures and approval trail are stored exactly as typed,
-          marked as entered by hand, and the trail is shown as not checked against the approval matrix.
-        </Callout>
-      )}
-
-      {mode === "receive" && (
-        <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Finance system numbers" subtitle="As the finance system issued them. Checked against their configured formats." />
-          <CardBody className="grid gap-4 sm:grid-cols-2">
-            {text("erpRequisitionNo", "Finance system requisition no.", { required: true, mono: true })}
-            {text("erpNoteNo", "Requisition note no.", { required: true, mono: true })}
-          </CardBody>
-        </Card>
-      )}
-
       <Card>
         <CardHeader icon={<ClipboardIcon size={17} />} title="What is needed" subtitle="The title, the justification and the need, as the request form states them." />
         <CardBody className="grid gap-4 sm:grid-cols-2">
@@ -211,7 +177,7 @@ export function RequisitionForm({
           })}
           {select("requestingPersonId", "Requesting officer", options.people.map((p) => ({ value: p.id, label: p.name })), { required: true })}
           {select("fundingRouteCode", "Funding route", options.fundingRoutes.map((r) => ({ value: r.code, label: r.name })), {
-            hint: mode === "receive" ? "The route it was approved under in the finance system." : "Required to submit.",
+            hint: "Required to submit.",
           })}
           {select("costCentreCode", "Cost centre", coded(options.costCentres))}
           {select("accountCode", "Account code", coded(options.accounts))}
@@ -227,7 +193,7 @@ export function RequisitionForm({
         <CardHeader
           icon={<FileIcon size={17} />}
           title="Line items"
-          subtitle={mode === "receive" ? "One or more lines, summing to the estimated value." : "One or more lines, summing to the estimated value before it leaves draft."}
+          subtitle="One or more lines, summing to the estimated value before it leaves draft."
         />
         <CardBody className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -293,81 +259,12 @@ export function RequisitionForm({
         </CardBody>
       </Card>
 
-      {mode === "receive" && (
-        <>
-          <Card>
-            <CardHeader icon={<FileIcon size={17} />} title="Budget check, as the finance system gave it" subtitle="Stored exactly as typed. The verdict is read from the balance and the value alone." />
-            <CardBody className="grid gap-4 sm:grid-cols-2">
-              {text("budgetAsAt", "As at", { required: true, type: "date" })}
-              {money("balanceAsAt", "Balance as at", { required: true })}
-              {money("actualBudget", "Actual budget")}
-              {money("approvedAccount", "Approved account", { hint: "As the finance system shows it. What it means is not yet confirmed." })}
-              {money("projectedBalance", "Projected balance")}
-            </CardBody>
-          </Card>
-          <Card>
-            <CardHeader icon={<RouteIcon size={17} />} title="Approval trail, as received" subtitle="Each step as the finance system records it. The last must be an approval." />
-            <CardBody className="flex flex-col gap-3">
-              {e.trail && <Callout tone="err">{e.trail}</Callout>}
-              {trail.map((t, i) => (
-                <div key={i} className="rounded-2xl border border-line bg-sunken/60 p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-[12.5px] font-semibold text-ink-3">Step {i + 1}</span>
-                    {trail.length > 1 && (
-                      <button type="button" className={iconButtonClass("sm")} aria-label={`Remove step ${i + 1}`} onClick={() => setTrail((ts) => ts.filter((_, j) => j !== i))}>
-                        <XIcon size={14} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                    <Field label="Office, as named" htmlFor={`tr-${i}-r`}>
-                      <Input id={`tr-${i}-r`} value={t.roleLabel} onChange={(ev) => setStep(i, "roleLabel", ev.target.value)} />
-                    </Field>
-                    <Field label="Act" htmlFor={`tr-${i}-a`}>
-                      <Select id={`tr-${i}-a`} value={t.act} onChange={(ev) => setStep(i, "act", ev.target.value)}>
-                        <option value="">Choose</option>
-                        {Object.entries(ACT_LABEL).map(([k, v]) => (
-                          <option key={k} value={k}>
-                            {v}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field label="Actor, as named" htmlFor={`tr-${i}-n`}>
-                      <Input id={`tr-${i}-n`} value={t.actorName} onChange={(ev) => setStep(i, "actorName", ev.target.value)} />
-                    </Field>
-                    <Field label="Person on file" htmlFor={`tr-${i}-p`}>
-                      <Select id={`tr-${i}-p`} value={t.actorPersonId} onChange={(ev) => setStep(i, "actorPersonId", ev.target.value)}>
-                        <option value="">Not on file</option>
-                        {options.people.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field label="Date" htmlFor={`tr-${i}-d`}>
-                      <Input id={`tr-${i}-d`} type="date" value={t.decidedOn} onChange={(ev) => setStep(i, "decidedOn", ev.target.value)} />
-                    </Field>
-                  </div>
-                </div>
-              ))}
-              <div>
-                <Button size="sm" onClick={() => setTrail((ts) => [...ts, { ...BLANK_STEP }])} icon={<PlusIcon size={15} />}>
-                  Add step
-                </Button>
-              </div>
-            </CardBody>
-          </Card>
-        </>
-      )}
-
       <div className="flex flex-wrap items-center justify-end gap-2">
         <ButtonLink href={cancelHref} variant="ghost">
           Cancel
         </ButtonLink>
         <Button type="submit" variant="primary" disabled={pending} icon={<SaveIcon size={15} />}>
-          {pending ? "Saving…" : mode === "new" ? "Save draft" : mode === "edit" ? "Save changes" : "Record received requisition"}
+          {pending ? "Saving…" : mode === "new" ? "Save draft" : "Save changes"}
         </Button>
       </div>
     </form>

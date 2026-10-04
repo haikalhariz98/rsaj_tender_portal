@@ -23,6 +23,7 @@ Founder, 2026-10-04 (chat): "let skip part b acceptance and bundle and 6.16 and 
 | ContractType: one provenance per behaviour column | Held for the founder's review (BD-613-128). | Run 1a acceptance |
 | Code-review Considers from each Part B run | One review per run; Considers are not built. Each run's entry lists them with what they block. | each run's decisions-log entry |
 | Source-scan tests portable to Windows | About 110 test files build file paths with `path.join`, which gives `\` on Windows, and compare them with lists written with `/`; 37 fail on Windows though green on Linux. Until fixed, the full suite runs in Linux through `scripts/test-linux.ps1`. Fix by normalising every walker's paths to `/` (one shared helper). | decisions log, 2026-10-04 local-machine entries |
+| Dead code after removing "Receive from finance system" | Founder, 2026-10-04: the receive flow is not used and was removed (button, page, action, form mode). `src/lib/requisition/intake.ts` and `src/lib/integration/requisition-intake.ts` (and their tests) now have no caller; the `EXTERNAL` origin and its display stay for requisitions already received. Remove the dead modules, or keep them if a customer needs the flow again. | commit for the founder's UI comments 8-11 |
 | Part B items not finished within a run's time budget | A run that overruns moves its remaining items here rather than overrunning. | appended below as they happen |
 
 ## Part B items moved here when a run overran

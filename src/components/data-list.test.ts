@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 
-import { canExport, DataList, hasRowAction, type Column, type Row } from "./data-list";
+import { canExport, DataList, exportColumns, hasRowAction, type Column, type Row } from "./data-list";
 
 const rows: Row[] = [{ id: "1", search: "a", cells: { name: { kind: "text", text: "A" }, value: { kind: "money", value: 1500 } } }];
 const html = (columns: Column[]) => renderToStaticMarkup(createElement(DataList, { columns, rows }));
@@ -16,13 +16,19 @@ describe("a SULIT column and the list's export", () => {
     expect(canExport(plain)).toBe(true);
     expect(html(plain)).toContain("Download this view as CSV");
   });
-  it("a flagged column removes Export, and keeps search and sort", () => {
-    expect(canExport(flagged)).toBe(false);
+  it("a flagged column is left out of the download, which says so; search and sort stay", () => {
+    // Founder, 2026-10-04: a list with a SULIT column downloads its other columns. The guard
+    // holds where it matters: the SULIT column never reaches the file.
+    expect(canExport(flagged)).toBe(true);
+    expect(exportColumns(flagged).map((c) => c.key)).toEqual(["name"]);
     const out = html(flagged);
-    expect(out).not.toContain("Download this view as CSV");
-    expect(out).not.toMatch(/CSV/);
+    expect(out).toContain("Download this view as CSV (SULIT columns left out)");
     expect(out).toContain("Search this list");
     expect(out).toContain("<button");
+  });
+  it("a list of SULIT columns only offers no download at all", () => {
+    expect(canExport([{ key: "value", label: "Value", sulit: true }])).toBe(false);
+    expect(html([{ key: "value", label: "Value", sulit: true }])).not.toMatch(/CSV/);
   });
   it("the header carries the SULIT lock with the whole sentence in its tooltip and to a screen reader", () => {
     // Founder, 2026-10-04: a lock beside the column name replaces the "SULIT" chip. The mark stays:
@@ -32,8 +38,9 @@ describe("a SULIT column and the list's export", () => {
     expect(out).toContain(`<span class="sr-only">${VALUE_SULIT_LABEL}</span>`);
     expect(html(plain)).not.toContain("SULIT");
   });
-  it("one flagged column among many is enough", () => {
-    expect(canExport([...plain, { key: "x", label: "X", sulit: true }])).toBe(false);
+  it("every flagged column among many is left out, and only those", () => {
+    expect(exportColumns([...plain, { key: "x", label: "X", sulit: true }]).map((c) => c.key)).toEqual(["name", "value"]);
+    expect(exportColumns(flagged).some((c) => c.sulit)).toBe(false);
   });
 });
 

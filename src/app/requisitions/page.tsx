@@ -5,17 +5,17 @@ import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { formatDate } from "@/lib/format";
-import { STATUS_LABEL, STATUS_ORDER, STATUS_TONE, VERDICT_LABEL, VERDICT_TONE } from "@/lib/requisition/labels";
+import { STATUS_LABEL, STATUS_ORDER, STATUS_TONE } from "@/lib/requisition/labels";
 import { listRequisitions, REQUISITIONS_PAGE } from "@/lib/requisition/repo";
 import { SENT_BACK_LABEL } from "@/lib/requisition/sent-back";
-import { splitStateLabel } from "@/lib/requisition/splitting";
 
 export const dynamic = "force-dynamic";
 
 const TONE = { neutral: undefined, brand: "brand", ok: "ok", warn: "warn", err: "err", info: "info" } as const;
 
 /**
- * Requisitions: raised here, or received by hand from the finance system (ADR 0003).
+ * Requisitions raised in the portal. Receiving one typed in from the finance system was removed
+ * (founder, 2026-10-04: not used); records received before then still show as received.
  *
  * Not in the prototype, whose requisition screen is reachable from no route. Under
  * Work rather than Sourcing: a supervision-only requisition never becomes sourcing.
@@ -24,7 +24,6 @@ export default async function RequisitionsPage() {
   const { org, rows, total, counts } = await listRequisitions();
 
   const list: Row[] = rows.map((r) => {
-    const split = splitStateLabel(r.split?.state ?? null, !!r.split?.overrideJustification);
     const erp = r.erpRequisitionNo ?? null;
     const statusText = r.sentBack ? SENT_BACK_LABEL : STATUS_LABEL[r.status];
     const statusTone = r.sentBack ? "warn" : STATUS_TONE[r.status];
@@ -36,22 +35,16 @@ export default async function RequisitionsPage() {
         ...(r.status === "OVER_BUDGET" ? ["over"] : []),
       ],
       // A finance-system number finds the requisition, as its own reference does.
-      search: [r.title, r.reference, r.erpRequisitionNo, r.erpNoteNo, r.unitName, r.routeName, statusText].filter(Boolean).join(" "),
+      search: [r.title, r.reference, r.erpRequisitionNo, r.erpNoteNo, r.requesterName, r.unitName, r.routeName, statusText].filter(Boolean).join(" "),
       sortKeys: { value: r.estimatedValue, required: r.dateRequired.getTime(), title: r.title },
       cells: {
         title: { kind: "link", text: r.title, href: `/requisitions/${r.id}`, sub: erp ? `${erp} · ${r.reference}` : r.reference },
-        department: { kind: "stack", title: r.unitName, sub: r.routeName ?? "Funding route not set" },
+        funding: { kind: "text", text: r.routeName ?? "Funding route not set" },
         value: { kind: "money", value: r.estimatedValue },
         status: { kind: "badge", text: statusText, tone: TONE[statusTone] },
-        // One column for both checks: each chip names its own check, and the title keeps
-        // the width.
-        checks: {
-          kind: "chips",
-          items: [
-            r.verdict ? { text: VERDICT_LABEL[r.verdict], tone: TONE[VERDICT_TONE[r.verdict]] } : { text: "Budget not checked" },
-            { text: r.split ? split.label : "Splitting not assessed", tone: TONE[split.tone] },
-          ],
-        },
+        // Founder, 2026-10-04: who asked, and for which department, in place of the checks
+        // column. The budget and splitting checks stay on the requisition's own Checks tab.
+        requester: { kind: "stack", title: r.requesterName, sub: r.unitName },
         required: { kind: "text", text: formatDate(r.dateRequired) },
       },
     };
@@ -61,7 +54,7 @@ export default async function RequisitionsPage() {
     <>
       <PageHeader
         title="Requisitions"
-        subtitle="Requests to spend, raised here or received from finance, checked and routed for approval."
+        subtitle="Requests to spend, raised here, checked and routed for approval."
         meta={[
           `${counts.open} open`,
           `${counts.pending} pending approval`,
@@ -70,14 +63,9 @@ export default async function RequisitionsPage() {
         ]}
         actions={
           org ? (
-            <>
-              <ButtonLink href="/requisitions/receive" variant="secondary" size="md">
-                Receive from finance system
-              </ButtonLink>
-              <ButtonLink href="/requisitions/new" variant="primary" size="md" icon={<PlusIcon size={16} />}>
-                New requisition
-              </ButtonLink>
-            </>
+            <ButtonLink href="/requisitions/new" variant="primary" size="md" icon={<PlusIcon size={16} />}>
+              New requisition
+            </ButtonLink>
           ) : undefined
         }
       />
@@ -111,7 +99,7 @@ export default async function RequisitionsPage() {
           exportName="requisitions"
           searchPlaceholder="Search by title or number"
           emptyTitle="No requisitions yet"
-          emptyBody="Raise a requisition, or receive one approved in the finance system."
+          emptyBody="Raise a requisition to start."
           views={[
             { id: "pending", label: "Pending approval" },
             { id: "drafts", label: "Drafts" },
@@ -122,10 +110,10 @@ export default async function RequisitionsPage() {
           rowOpens
           columns={[
             { key: "title", label: "Requisition", sortable: true, mobile: "primary" },
-            { key: "department", label: "Department and funding", width: "18%", hideBelow: "2xl" },
+            { key: "funding", label: "Funding", width: "16%", hideBelow: "2xl" },
             { key: "value", label: "Value", width: "120px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
             { key: "status", label: "Status", width: "208px", sortable: true, mobile: "meta" },
-            { key: "checks", label: "Checks", width: "204px", hideBelow: "md", mobile: "meta" },
+            { key: "requester", label: "Requester and department", width: "20%", hideBelow: "md", mobile: "meta" },
             { key: "required", label: "Required by", width: "112px", sortable: true, hideBelow: "2xl", mobile: "meta" },
           ]}
           rows={list}

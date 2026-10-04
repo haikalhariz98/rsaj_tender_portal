@@ -16,13 +16,12 @@ import { postingRefusal } from "@/lib/budget/periods";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { manualEntry, portalLedger, type BudgetCheckProvider } from "@/lib/integration/budget-check";
-import { manualIntake, type IntakeTerms } from "@/lib/integration/requisition-intake";
 import { parseSen, senToDecimalString } from "@/lib/money";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
-import { ageDay, approvalBudgetOutcome, approvalCommitment, approvalRechecks, intakeCommitment, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
+import { ageDay, approvalBudgetOutcome, approvalCommitment, approvalRechecks, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { committeeCitationFault, committeeStepFrom, type CitationFault } from "@/lib/requisition/committee-step";
 import { endorsementEntryFault, endorsementFaults } from "@/lib/requisition/endorsement";
 import { blocking, erpRefFaults, requisitionFaults, type DraftLine, type RequisitionDraft } from "@/lib/requisition/fields";
@@ -32,7 +31,6 @@ import { actingOffice } from "@/lib/authority/escalation";
 import { committeeCitationWrite, personDecisionWrite } from "@/lib/authority/decided-step";
 import { ableToAct, deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
 import { requesterOnlySteps, requesterOnlyText } from "@/lib/authority/requester-only";
-import { intakeFaults, type ExternalRequisition, type ReceivedStep } from "@/lib/requisition/intake";
 import {
   DECIDER_FAULT_TEXT,
   GATE_CITATION_TEXT,
@@ -92,7 +90,7 @@ const NO_ZONE: FormState = {
   message: "Set the organisation's time zone under Configuration, Organisation first. Today's date decides this act, and it is not assumed to be UTC.",
 };
 
-const ACTS = ["P", "JP", "R", "JR", "MR", "MJR", "A", "MA"] as const;
+type Act = "P" | "JP" | "R" | "JR" | "MR" | "MJR" | "A" | "MA";
 const TIERS = ["COMPANY", "DIVISION", "DEPARTMENT", "SECTION"] as const;
 
 function refresh(id?: string) {
@@ -1104,7 +1102,7 @@ async function determineGates(tx: Tx, l: LoadedRequisition, approved: bigint): P
           committeeCode: rule.committeeCode,
           committeeLabel,
           subjectEn: rule.subjectEn,
-          act: rule.act as (typeof ACTS)[number],
+          act: rule.act as Act,
           aboveValue: rule.aboveValue,
           ruleProvenance: rule.provenance,
           determinedOn: on,
@@ -1503,28 +1501,6 @@ const JUSTIFIER_TEXT: Record<JustifierFault, string> = {
   FUTURE_DATE: "The date cannot be after today.",
 };
 
-// ---------------------------------------------------------------- intake
-
-function readTrail(data: FormData): ReceivedStep[] {
-  try {
-    const raw = JSON.parse(String(data.get("trail") ?? "[]"));
-    if (!Array.isArray(raw)) return [];
-    const s = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-    return raw
-      .map((x) => ({
-        roleLabel: s(x?.roleLabel),
-        // An act not chosen stays empty and is refused, never read as an approval.
-        act: ((ACTS as readonly string[]).includes(s(x?.act)) ? s(x?.act) : "") as ReceivedStep["act"],
-        actorName: s(x?.actorName),
-        actorPersonId: s(x?.actorPersonId) || null,
-        decidedOn: /^\d{4}-\d{2}-\d{2}$/.test(s(x?.decidedOn)) ? s(x?.decidedOn) : "",
-      }))
-      .filter((x) => x.roleLabel || x.actorName || x.decidedOn);
-  } catch {
-    return [];
-  }
-}
-
 const CITATION_TEXT: Record<CitationFault, string> = {
   NOT_THIS_REQUISITION: "That matter was not tabled against this requisition.",
   NOT_A_REQUISITION_MATTER: "That matter was not tabled as a requisition matter.",
@@ -1534,100 +1510,3 @@ const CITATION_TEXT: Record<CitationFault, string> = {
   CITED_ON_RETURNED_ROUTE: "That decision was cited on a route returned at approval for budget. It stays with that route and cannot discharge this one: table the matter again.",
   ALREADY_CITED: "That decision already discharges another step. One decision discharges one step.",
 };
-
-const INTAKE_TEXT: Record<string, string> = {
-  REQUIRED: "Required.",
-  FUTURE_DATE: "Cannot be after today.",
-  NOT_AN_AMOUNT: "Must be an amount, to at most two decimal places.",
-  TRAIL_REQUIRED: "Enter the approval trail as the finance system shows it.",
-  NOT_APPROVED: "A received requisition arrives approved: the last step on the trail must be an approval.",
-  MALFORMED: "Does not match the configured format.",
-  BAD_PATTERN: "The configured format cannot be read.",
-};
-
-/**
- * Receive a requisition typed in from the finance system (INT-01, ADR 0003). It
- * arrives approved; its figures and trail are stored as typed and never re-routed.
- * No budget commitment is written: the finance system holds its own (a build decision).
- */
-export async function receiveRequisition(_prev: FormState, data: FormData): Promise<FormState> {
-  const org = await requisitionOrg();
-  if (!org) return NO_ORG;
-  const r = new FormReader(data);
-  const draft = readDraft(r, data);
-  const s = (k: string) => String(data.get(k) ?? "").trim();
-  const payload: ExternalRequisition = {
-    ...draft,
-    erpRequisitionNo: s("erpRequisitionNo"),
-    erpNoteNo: s("erpNoteNo"),
-    budget: {
-      asAt: s("budgetAsAt"),
-      actualBudget: s("actualBudget").replace(/,/g, "") || null,
-      balanceAsAt: s("balanceAsAt").replace(/,/g, ""),
-      approvedAccount: s("approvedAccount").replace(/,/g, "") || null,
-      projectedBalance: s("projectedBalance").replace(/,/g, "") || null,
-    },
-    trail: readTrail(data),
-  };
-  if (!safeLines(draft.lines)) r.reject("lines", "Every line needs an amount, and quantities must be numbers.");
-  if (!org.today) return NO_ZONE;
-  const { lookups, formats } = await loadLookups(org.id);
-  const lineMsgs: string[] = [];
-  for (const f of intakeFaults(payload, lookups, formats, dayToDate(org.today), org.today)) {
-    const key = f.field === "budget.asAt" ? "budgetAsAt" : f.field.startsWith("budget.") ? f.field.slice(7) : f.field.startsWith("trail") ? "trail" : f.field.startsWith("lines") ? "lines" : f.field;
-    const text = INTAKE_TEXT[f.message] ?? fieldFaultText({ field: f.field, code: f.message } as never);
-    if (key === "lines") lineMsgs.push(text);
-    else if (!r.errors[key]) r.reject(key, text);
-  }
-  if (lineMsgs.length > 0 && !r.errors.lines) r.reject("lines", [...new Set(lineMsgs)].join(" "));
-  for (const [field, value] of [["erpRequisitionNo", payload.erpRequisitionNo], ["erpNoteNo", payload.erpNoteNo]] as const) {
-    if (!value || r.errors[field]) continue;
-    const clash = await db.requisition.findFirst({ where: { organisationId: org.id, [field]: value }, select: { reference: true } });
-    if (clash) r.reject(field, `Already recorded against ${clash.reference}.`);
-  }
-  if (r.failed) return { ok: false, errors: r.errors, message: "Nothing was saved. Correct the fields marked below." };
-
-  const today = org.today;
-  // Read inside the intake's transaction (round 3, item l): the route, the controls and
-  // the budget periods as they stand when the requisition is written.
-  const terms = async (tx: Tx): Promise<IntakeTerms> => {
-    const { lookups: now } = await loadLookups(org.id, tx);
-    const route = now.fundingRoutes.find((x) => x.code === payload.fundingRouteCode) ?? null;
-    const gate = fundingGate(route, { externalAuthorityRef: null }, dayToDate(today));
-    const funding = gate.posture ? { supersedesAuthority: gate.supersedesAuthority === true, sourcingPermitted: gate.sourcingPermitted === true, posture: gate.posture } : null;
-    // Ruling BD-10: on the portal ledger, a received commitment is posted, or refused.
-    const controls = await loadControls(org.id, tx);
-    const routeRow = route ? await tx.fundingRoute.findFirst({ where: { organisationId: org.id, code: route.code }, select: { approvalCommitsBudget: true } }) : null;
-    const commitment = intakeCommitment(controls.budgetCheckSource, routeRow?.approvalCommitsBudget ?? null, !!payload.budgetCodeId);
-    if (commitment === "SOURCE_NOT_SET") {
-      return { ok: false, message: "Where the budget check comes from is not set, so nobody has said whether this requisition's commitment belongs in the portal ledger or the finance system. Set it in Requisition controls before receiving a requisition." };
-    }
-    if (commitment === "ROUTE_NOT_SET") {
-      return { ok: false, errors: { fundingRouteCode: `Whether approval on the funding route “${route?.nameEn ?? "chosen"}” commits the organisation's budget is not set, so the commitment cannot be posted to the portal ledger. Set it on the route under Reference data.` } };
-    }
-    if (commitment === "NO_BUDGET_CODE") {
-      return { ok: false, errors: { budgetCodeId: "The portal ledger is the budget source, so the commitment this approval made must be posted against a budget code. Choose it." } };
-    }
-    if (commitment === "POST") {
-      const periods = await tx.budgetPeriod.findMany({ where: { organisationId: org.id } });
-      const closed = postingRefusal(periods, dayToDate(today));
-      if (closed) return { ok: false, message: `The commitment would be posted today, and the budget period ${closed.nameEn} ${closed.year} is closed.` };
-    }
-    return { ok: true, funding, postCommitment: commitment === "POST" };
-  };
-  let result;
-  try {
-    result = await manualIntake.receive(
-      { organisationId: org.id, today, postCommitment: false, funding: null, terms },
-      payload,
-    );
-  } catch (e) {
-    if (e instanceof NumberingError) {
-      return { ok: false, message: "No valid numbering series for requisitions is configured. Add the series keyed “requisition” under Configuration, Numbering." };
-    }
-    throw e;
-  }
-  if (!result.ok) return { ok: false, message: result.message, errors: result.errors };
-  refresh(result.id);
-  redirect(`/requisitions/${result.id}`);
-}

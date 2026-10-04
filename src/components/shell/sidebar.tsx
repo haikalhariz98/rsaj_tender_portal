@@ -135,7 +135,8 @@ export function Sidebar({
             {/* eslint-disable-next-line @next/next/no-img-element -- the address is the logo's own fingerprint, so there is nothing for the image optimiser to add */}
             <img src={`/organisation/logo/${logo.sha}`} alt={showsNameBesideLogo(logo.width, logo.height) ? "" : orgName} className={showsNameBesideLogo(logo.width, logo.height) ? "max-h-16 max-w-[128px] object-contain" : "max-h-16 max-w-[232px] object-contain"} />
             {showsNameBesideLogo(logo.width, logo.height) && (
-              <span className="min-w-0 truncate text-[15px] font-extrabold tracking-tight text-ink">{orgName}</span>
+              // Founder, 2026-10-04: a long name stays to the right of the logo and wraps onto more lines there, never cut.
+              <span className="min-w-0 flex-1 break-words text-[15px] leading-snug font-extrabold tracking-tight text-ink">{orgName}</span>
             )}
           </>
         ) : (

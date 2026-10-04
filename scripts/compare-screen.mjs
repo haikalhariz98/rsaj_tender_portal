@@ -243,7 +243,6 @@ const ALLOWED_EXTRA = [
   // no route, and a supervision-only matter never becomes sourcing, so it is not
   // under Sourcing.
   /^Requisitions$/,
-  /^Receive from finance system$/,
   // 6.1 plan §5: the requisition policy (endorsement tiers, splitting, re-check,
   // registration) has its own screen under Money and authority. The prototype held
   // only a guessed splitting window, on the approval matrix, which is removed (OD-9).
