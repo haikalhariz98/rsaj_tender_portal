@@ -11,13 +11,12 @@ import {
   SearchIcon,
 } from "@/components/icons";
 import { AvatarStack, Avatar } from "@/components/ui/avatar";
-import { Badge, Chip } from "@/components/ui/badge";
+import { Badge, Chip, SulitLock } from "@/components/ui/badge";
 import { Button, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter } from "@/components/ui/feedback";
 import { provenanceLabel, ProvenanceBadge } from "@/components/ui/provenance";
 import { Select } from "@/components/ui/select";
-import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 import { formatRM } from "@/lib/format";
 import { compareSenOrNone, formatMoney, senToDecimalString } from "@/lib/money";
 import { needsPaging, PAGE_SIZES } from "@/lib/paging";
@@ -97,15 +96,10 @@ export function canExport(columns: readonly Column[]): boolean {
   return !columns.some((c) => c.sulit);
 }
 
-/// The chip a SULIT column's header carries: "SULIT" to the eye, the whole sentence to a
-/// screen reader and in the tooltip, so a narrow column keeps the words.
+/// The mark a SULIT column's header carries: the shared lock beside the column name, the
+/// whole sentence in the tooltip and to a screen reader (founder, 2026-10-04: a lock, not a chip).
 function SulitMark() {
-  return (
-    <Chip tone="err" wrap={false} title={VALUE_SULIT_LABEL} className="px-2 py-0 text-[11px] leading-5 font-semibold">
-      <span aria-hidden="true">SULIT</span>
-      <span className="sr-only">{VALUE_SULIT_LABEL}</span>
-    </Chip>
-  );
+  return <SulitLock size={12} />;
 }
 // Written out whole for Tailwind (see HIDE_COL_BELOW): the stacked list below the breakpoint, the table from it.
 const STACKED_BELOW = { md: "md:hidden", xl: "xl:hidden", "2xl": "2xl:hidden" } as const;
@@ -729,7 +723,7 @@ export function DataList({
                     <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2.5">
                       {mobileMeta.map((c) => (
                         <div key={c.key} className="min-w-0">
-                          <dt className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] font-semibold text-ink-3">
+                          <dt className="flex items-center gap-1 text-[11.5px] font-semibold text-ink-3">
                             {c.label}
                             {c.sulit && <SulitMark />}
                           </dt>
@@ -808,7 +802,7 @@ export function DataList({
                     )}
                   >
                     {c.sulit ? (
-                      <span className={cx("flex flex-wrap items-center gap-x-2 gap-y-1", c.numeric ? "justify-end" : "justify-start")}>
+                      <span className={cx("inline-flex items-center gap-1", c.numeric ? "justify-end" : "justify-start")}>
                         {c.sortable ? sortButton(c) : c.label}
                         <SulitMark />
                       </span>

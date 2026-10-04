@@ -18,12 +18,13 @@ import { Badge, Dot } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
+import { LeadWithMore } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
 import Link from "next/link";
 import type { ActivityKind } from "@/lib/dashboard/activity";
 import { WAITING_RULE_TEXT } from "@/lib/approvals/queue";
-import { EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
+import { phaseSummary, statusBreakdown } from "@/lib/method/phase";
 import { loadDashboard } from "@/lib/dashboard";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { matterLabel } from "@/lib/labels";
@@ -138,7 +139,16 @@ export default async function Dashboard() {
           value={data.exercises.open}
           tone="brand"
           icon={<GlobeIcon size={17} />}
-          hint={data.exercises.total === 0 ? "none started yet" : [...data.exercises.openByStatus.map((b) => `${b.count} ${EXERCISE_STATUS_LABEL[b.status].toLowerCase()}`), ...(data.exercises.cancelled > 0 ? [`${data.exercises.cancelled} cancelled, not counted`] : [])].join(" · ")}
+          href="/sourcing"
+          hint={
+            data.exercises.total === 0 ? (
+              "none started yet"
+            ) : (
+              <span title={statusBreakdown(data.exercises.openByStatus, data.exercises.cancelled)}>
+                {phaseSummary(data.exercises.openByStatus) || "none open"}
+              </span>
+            )
+          }
         />
         <Stat
           label="Value approved"
@@ -227,7 +237,7 @@ export default async function Dashboard() {
             <CardHeader
               icon={<ClockIcon size={17} />}
               title="Requisitions awaiting approval"
-              subtitle={`Open approval routes, longest wait first, with the office acting for each step. ${WAITING_RULE_TEXT}`}
+              subtitle={<LeadWithMore lead="Open approval routes, longest wait first." more={`Each step shows the office acting for it. ${WAITING_RULE_TEXT}`} />}
               divided={false}
               actions={
                 <ButtonLink href="/approvals" variant="ghost" size="sm">

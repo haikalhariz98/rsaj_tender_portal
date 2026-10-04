@@ -3,6 +3,7 @@ import { RouteIcon } from "@/components/icons";
 import { actLabel } from "@/components/ui/act";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
+import { LeadWithMore } from "@/components/ui/more-text";
 import { PageHeader } from "@/components/ui/page-header";
 import { loadWorklist } from "@/lib/approvals/load";
 import { WAITING_RULE_TEXT } from "@/lib/approvals/queue";
@@ -60,7 +61,7 @@ export default async function ApprovalsPage() {
         </Callout>
       )}
       <Card className="overflow-hidden">
-        <CardHeader icon={<RouteIcon size={17} />} title="By office" subtitle={`Grouped by the office acting for each step. Filter by office, or narrow to what was escalated or has nobody able to act. ${WAITING_RULE_TEXT}`} divided={false} />
+        <CardHeader icon={<RouteIcon size={17} />} title="By office" subtitle={<LeadWithMore lead="Grouped by the office acting for each step." more={`Filter by office, or narrow to what was escalated or has nobody able to act. ${WAITING_RULE_TEXT}`} />} divided={false} />
         {rows.length === 0 ? (
           <EmptyState title="Nothing awaits a decision">No approval route is open.</EmptyState>
         ) : (

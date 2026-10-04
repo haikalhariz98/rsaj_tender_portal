@@ -1,5 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
+import { LockIcon } from "@/components/icons";
 import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 
 import { cx } from "./cx";
@@ -107,13 +108,25 @@ export function Chip({
   );
 }
 
+/// The mark for a SULIT value or column: a small lock to the eye, the whole sentence (which
+/// says it is not yet restricted) in the tooltip and to a screen reader, so the mark never
+/// implies a protection the portal does not have yet.
+export function SulitLock({ size = 13, className }: { size?: number; className?: string }) {
+  return (
+    <span title={VALUE_SULIT_LABEL} className={cx("inline-flex shrink-0 items-center text-ink-3", className)}>
+      <LockIcon size={size} strokeWidth={2} />
+      <span className="sr-only">{VALUE_SULIT_LABEL}</span>
+    </span>
+  );
+}
+
 /// A value the organisation treats as SULIT, where nothing yet stops anyone who can reach
-/// the portal from reading it. The chip says so rather than implying a restriction.
+/// the portal from reading it. The lock says so (tooltip, screen reader) rather than implying a restriction.
 export function SulitValue({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+    <span className="inline-flex items-center gap-1.5">
       <span className="tabular-nums">{children}</span>
-      <Chip tone="err">{VALUE_SULIT_LABEL}</Chip>
+      <SulitLock />
     </span>
   );
 }

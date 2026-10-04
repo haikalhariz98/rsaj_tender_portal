@@ -25,10 +25,12 @@ describe("a SULIT column and the list's export", () => {
     expect(out).toContain("Row density");
     expect(out).toContain("<button");
   });
-  it("the header carries the SULIT chip with the whole sentence available", () => {
+  it("the header carries the SULIT lock with the whole sentence in its tooltip and to a screen reader", () => {
+    // Founder, 2026-10-04: a lock beside the column name replaces the "SULIT" chip. The mark stays:
+    // the whole sentence (classified, not yet restricted) is both the tooltip and the sr-only text.
     const out = html(flagged);
-    expect(out).toContain(">SULIT<");
-    expect(out).toContain(VALUE_SULIT_LABEL);
+    expect(out).toContain(`title="${VALUE_SULIT_LABEL}"`);
+    expect(out).toContain(`<span class="sr-only">${VALUE_SULIT_LABEL}</span>`);
     expect(html(plain)).not.toContain("SULIT");
   });
   it("one flagged column among many is enough", () => {

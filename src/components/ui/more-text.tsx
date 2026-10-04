@@ -124,3 +124,16 @@ export function MoreText({ text }: { text: string }) {
     </span>
   );
 }
+
+/// A short line with the rest behind the information button: the lead to the eye, the detail in
+/// the popover, and both read once by a screen reader (the popover is hidden from it; see MoreText).
+/// For a card or section subtitle whose detail is worth keeping but too long to show (founder,
+/// 2026-10-04: "sub header too long").
+export function LeadWithMore({ lead, more }: { lead: string; more: string }) {
+  return (
+    <>
+      {lead} <span className="sr-only">{more}</span>
+      <MoreText text={more} />
+    </>
+  );
+}
