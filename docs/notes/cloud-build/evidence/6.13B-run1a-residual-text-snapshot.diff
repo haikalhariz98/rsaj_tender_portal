@@ -1,0 +1,1 @@
+# diff -r -U0 before after: no difference in any of the 1,427 screens (6.13 Part B Run 1a residual round; before 36cc78f from a detached worktree, after 7aae728, both on port 3100 against perolehan_verify with the same demo; the round's migration 20261004100701 deployed between them through pmig).
