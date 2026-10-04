@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint && node scripts/check-ui.mjs",
     "typecheck": "next typegen && tsc --noEmit",
+    "check": "npm run typecheck && npm run lint",
     "test": "vitest run",
     "test:watch": "vitest",
     "setup": "npm run db:up && npm run db:migrate && npm run db:seed",
