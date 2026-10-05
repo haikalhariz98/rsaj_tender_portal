@@ -38,7 +38,7 @@ export { Blocked };
 
 const hidden = (name: string): Field => ({ kind: "hidden", name });
 
-export function RecordEndorsementDrawer({ id, tiers, people, today }: { id: string; tiers: Option[]; people: Option[]; today: string | null }) {
+export function RecordEndorsementDrawer({ id, tiers, byTier, today }: { id: string; tiers: Option[]; byTier: Record<string, Option[]>; today: string | null }) {
   return (
     <RecordEditor
       title="Record an endorsement"
@@ -46,7 +46,17 @@ export function RecordEndorsementDrawer({ id, tiers, people, today }: { id: stri
       fields={[
         hidden("id"),
         { kind: "select", name: "tier", label: "Tier", required: true, placeholder: "Choose", options: tiers },
-        { kind: "select", name: "personId", label: "Endorsed by", required: true, placeholder: "Choose", options: people, hint: "Must head that unit on the date." },
+        {
+          kind: "select",
+          name: "personId",
+          label: "Endorsed by",
+          required: true,
+          placeholder: "Choose",
+          options: [],
+          // Only who heads the chosen tier's unit (from the day raised to today), not everyone.
+          optionsBy: { name: "tier", options: byTier, waiting: "Choose the tier first" },
+          hint: "The head of that unit. If nobody is listed, the unit has no head on record: set one in Configuration, Organisation.",
+        },
         { kind: "date", name: "endorsedOn", label: "Endorsed on", required: true, hint: "Not after today." },
         { kind: "textarea", name: "note", label: "Note" },
       ]}

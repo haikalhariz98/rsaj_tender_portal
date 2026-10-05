@@ -35,7 +35,7 @@ import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ageDay, approvalCommitment, identityHolds, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { commitmentFault } from "@/lib/requisition/commitment";
-import { endorsementFaults, endorsersFor } from "@/lib/requisition/endorsement";
+import { eligibleEndorsers, endorsementFaults, endorsersFor } from "@/lib/requisition/endorsement";
 import { blocking, requisitionFaults } from "@/lib/requisition/fields";
 import { fundingGate } from "@/lib/requisition/funding";
 import { ableToAct, deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
@@ -491,9 +491,9 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         }
         subtitle={`${unitName(r.requestingUnitCode)}${r.sectionUnitCode ? ` · ${unitName(r.sectionUnitCode)}` : ""} · raised by ${r.requestingPerson.name}`}
         meta={[
-          <span key="ref" className="font-mono text-[12.5px]">
-            {r.erpRequisitionNo ? erpFirst : `${r.reference} · finance system no. not recorded`}
-          </span>,
+          // Founder, 2026-10-05: the reference in the header's own font, and the finance system's
+          // number only once one is recorded (no "not recorded" placeholder).
+          <span key="ref">{r.erpRequisitionNo ? erpFirst : r.reference}</span>,
           <SulitValue key="v">{formatRM(num(r.estimatedValue))}</SulitValue>,
           `Required by ${formatDate(r.dateRequired)}`,
           route ? route.nameEn : "Funding route not set",
@@ -601,6 +601,15 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                   faults: eFaults.map((f) => endorsementFaultText(f, (pid) => personName(pid) ?? "That person")),
                   canRecord: r.status === "DRAFT",
                   people,
+                  // Founder, 2026-10-05: each tier offers only who heads its unit, from the day raised to today.
+                  byTier: Object.fromEntries(
+                    policy.endorsementTiers.map((t) => [
+                      t,
+                      eligibleEndorsers(unit, t, lookups.units, storedDay(r.raisedOn), today ?? storedDay(r.raisedOn), r.requestingPersonId)
+                        .filter((pid) => lookups.people.some((x) => x.id === pid && x.isActive))
+                        .map((pid) => ({ value: pid, label: personName(pid) ?? "Not on record" })),
+                    ]),
+                  ),
                   today,
                 }}
               />
@@ -814,6 +823,7 @@ function Overview({
     faults: string[];
     canRecord: boolean;
     people: { value: string; label: string }[];
+    byTier: Record<string, { value: string; label: string }[]>;
     today: string | null;
   };
 }) {
@@ -928,7 +938,7 @@ function Overview({
               <RecordEndorsementDrawer
                 id={r.id}
                 tiers={endorsement.tiers.filter((t) => !r.endorsements.some((e) => e.tier === t)).map((t) => ({ value: t, label: TIER_LABEL[t] }))}
-                people={endorsement.people}
+                byTier={endorsement.byTier}
                 today={endorsement.today}
               />
             ) : undefined

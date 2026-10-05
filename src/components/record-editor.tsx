@@ -65,6 +65,11 @@ export type Field =
       /// value itself is shown, which is right where the value is already a label and
       /// wrong where it is a code.
       orphanLabel?: string;
+      /// Options that depend on another select of the same form: `options` is ignored and the
+      /// list is `optionsBy.options[<that select's value>]`. While it is unchosen, the
+      /// placeholder says `optionsBy.waiting` (founder, 2026-10-05: choosing a tier should
+      /// leave only that tier's head to choose).
+      optionsBy?: { name: string; options: Record<string, { value: string; label: string; disabled?: boolean }[]>; waiting: string };
     }
   | { kind: "switch"; name: string; label: string; hint?: string }
   /// A file chosen from the officer's device, on the shared FileInput. It rides out in the
@@ -194,6 +199,20 @@ export function RecordEditor({
     const w = showWhen?.[name];
     return !w || w.in.includes(current(w.name));
   };
+  // Every select another field reads: those that decide what shows, and those another select's options follow.
+  const drivers = new Set([
+    ...Object.values(showWhen ?? {}).map((w) => w.name),
+    ...fields.flatMap((f) => (f.kind === "select" && f.optionsBy ? [f.optionsBy.name] : [])),
+  ]);
+  // A select whose options follow another: its options for that select's current value.
+  const resolved = <F extends Field>(field: F): F =>
+    field.kind === "select" && field.optionsBy
+      ? {
+          ...field,
+          options: field.optionsBy.options[current(field.optionsBy.name)] ?? [],
+          placeholder: current(field.optionsBy.name) ? field.placeholder : field.optionsBy.waiting,
+        }
+      : field;
 
   // A save that succeeded closes the form; one that failed stays open holding its
   // errors, because reopening a cleared form loses what the officer typed. Decided
@@ -285,7 +304,7 @@ export function RecordEditor({
               }}
               onChange={(e) => {
                 const t = e.target as unknown as HTMLSelectElement;
-                if (showWhen && t.name && Object.values(showWhen).some((w) => w.name === t.name)) setLive((x) => ({ ...x, [t.name]: t.value }));
+                if (t.name && drivers.has(t.name)) setLive((x) => ({ ...x, [t.name]: t.value }));
               }}
               className="flex min-h-0 flex-1 flex-col"
             >
@@ -351,7 +370,13 @@ export function RecordEditor({
                           // unwrapped. A hidden field's fieldset is disabled: it is not submitted and
                           // not required, so the action leaves its stored value alone.
                           <fieldset key={field.name} disabled={!shown(field.name)} className={shown(field.name) ? "contents" : "hidden"}>
-                            <FieldInput field={field} value={values?.[field.name] ?? null} error={state.errors?.[field.name]} />
+                            <FieldInput
+                              // A select whose options follow another starts afresh when that one changes.
+                              key={field.kind === "select" && field.optionsBy ? `${field.name}:${current(field.optionsBy.name)}` : field.name}
+                              field={resolved(field)}
+                              value={values?.[field.name] ?? null}
+                              error={state.errors?.[field.name]}
+                            />
                           </fieldset>
                         ),
                       )}

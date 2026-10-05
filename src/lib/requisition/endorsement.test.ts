@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { OrgUnit } from "@/lib/organisation/types";
 
-import { endorsementEntryFault, endorsementFaults, endorsersFor } from "./endorsement";
+import { eligibleEndorsers, endorsementEntryFault, endorsementFaults, endorsersFor } from "./endorsement";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const unit = (code: string, kind: OrgUnit["kind"], parentCode: string | null, headPersonId: string | null, from = "2024-01-01", to: string | null = null): OrgUnit => ({
@@ -80,5 +80,25 @@ describe("the endorsement date (UX review, M1)", () => {
   it("may fall on the day it was raised, or after", () => {
     expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "requester", "2026-09-10")).toBeNull();
     expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "requester", "2026-09-01")).toBeNull();
+  });
+});
+
+describe("who the endorsement drawer offers for a tier (founder, 2026-10-05)", () => {
+  it("only that tier's head, not everyone", () => {
+    expect(eligibleEndorsers("SEC", "SECTION", UNITS, "2026-09-01", today)).toEqual(["sh"]);
+  });
+  it("both heads where the unit's head changed inside the window, in order", () => {
+    expect(eligibleEndorsers("SEC", "DEPARTMENT", UNITS, "2026-06-15", today)).toEqual(["hod", "hod2"]);
+  });
+  it("never the requester, and nobody for a tier with no unit or no head", () => {
+    expect(eligibleEndorsers("SEC", "SECTION", UNITS, "2026-09-01", today, "sh")).toEqual([]);
+    expect(eligibleEndorsers("DEPT", "SECTION", UNITS, "2026-09-01", today)).toEqual([]);
+    expect(eligibleEndorsers("SEC", "DIVISION", UNITS, "2026-09-01", today)).toEqual([]);
+  });
+  it("everyone it offers is someone the entry check accepts on some day in the window", () => {
+    for (const pid of eligibleEndorsers("SEC", "DEPARTMENT", UNITS, "2026-06-15", today)) {
+      const days = ["2026-06-15", "2026-07-01", today];
+      expect(days.some((day) => endorsementEntryFault({ tier: "DEPARTMENT", unitCode: "", personId: pid, endorsedOn: day }, "SEC", ["SECTION", "DEPARTMENT"], UNITS, today) == null)).toBe(true);
+    }
   });
 });

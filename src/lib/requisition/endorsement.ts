@@ -68,6 +68,34 @@ export function headedOn(units: readonly OrgUnit[], unitCode: string, personId: 
 }
 
 /**
+ * Who may endorse a tier: the head of the tier's unit on any day from `from` to `to` (both
+ * YYYY-MM-DD, the day raised and today), never the requester. Read through endorsersFor on
+ * each day a unit's version starts, so it offers exactly the people endorsementEntryFault would
+ * accept on some day in the window, and no one it would refuse on every day (founder,
+ * 2026-10-05: choosing a tier should leave only that tier's head to choose).
+ */
+export function eligibleEndorsers(
+  unitCode: string,
+  tier: OrgUnitKind,
+  units: readonly OrgUnit[],
+  from: string,
+  to: string,
+  requesterId?: string,
+): string[] {
+  const days = new Set<string>([from, to]);
+  for (const u of units) {
+    const start = u.effectiveFrom.toISOString().slice(0, 10);
+    if (start > from && start <= to) days.add(start);
+  }
+  const out: string[] = [];
+  for (const day of [...days].sort()) {
+    const e = endorsersFor(unitCode, [tier], units, dayDate(day))[0];
+    if (!e.fault && e.headPersonId && e.headPersonId !== requesterId && !out.includes(e.headPersonId)) out.push(e.headPersonId);
+  }
+  return out;
+}
+
+/**
  * Why one endorsement cannot be recorded, or null. The person must head the tier's
  * unit on the endorsement date, and the date may not be after today.
  */
