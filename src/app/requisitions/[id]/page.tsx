@@ -504,7 +504,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
       {r.status === "OVER_BUDGET" && inst?.status === "RECALLED" && returnedAtApproval(inst.warnings) && (
         <Callout tone="warn" className="mb-6" title="Returned at approval (budget): the budget no longer covers it">
           When the final decision was recorded, the budget code was re-checked before committing, and another commitment had used the
-          balance since submission. The decision was not recorded; a fresh check is on the Budget tab. Submit it again on the
+          balance since submission. The decision was not recorded; a fresh check is on the Budget and checks tab. Submit it again on the
           over-budget route.
           {returnedRouteCitationNotes({ returnedAtApproval: true, steps: inst.steps }).map((n) => (
             <span key={n} className="mt-1.5 block">
@@ -599,27 +599,51 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
               />
             ),
           },
+          // Founder, 2026-10-05: the tabs follow the requisition's flow, overview, checks, approval, sourcing, history,
+          // and the budget check sits with the other checks rather than on a tab of its own.
           {
-            id: "budget",
-            label: "Budget",
-            icon: <ChartIcon size={15} />,
+            id: "checks",
+            label: "Budget and checks",
+            icon: <ShieldIcon size={15} />,
             count: r.budgetChecks.length,
             panel: (
-              <BudgetPanel
-                l={l}
-                unposted={
-                  r.origin === "EXTERNAL" && !r.commitmentMovementId
-                    ? unpostedIntakeReason(controls.budgetCheckSource, (route as { approvalCommitsBudget?: boolean | null } | null)?.approvalCommitsBudget ?? null)
-                    : null
-                }
-                controls={controls}
-                recheckDays={policy.budgetRecheckDays}
-                checkAction={
-                  !checkBlocker && controls.budgetCheckSource ? (
-                    <CheckBudgetDrawer id={r.id} source={controls.budgetCheckSource} blocker={null} today={today} />
-                  ) : undefined
-                }
-              />
+              <div className="flex flex-col gap-6">
+                <BudgetPanel
+                  l={l}
+                  unposted={
+                    r.origin === "EXTERNAL" && !r.commitmentMovementId
+                      ? unpostedIntakeReason(controls.budgetCheckSource, (route as { approvalCommitsBudget?: boolean | null } | null)?.approvalCommitsBudget ?? null)
+                      : null
+                  }
+                  controls={controls}
+                  recheckDays={policy.budgetRecheckDays}
+                  checkAction={
+                    !checkBlocker && controls.budgetCheckSource ? (
+                      <CheckBudgetDrawer id={r.id} source={controls.budgetCheckSource} blocker={null} today={today} />
+                    ) : undefined
+                  }
+                />
+                <ChecksPanel
+                  l={l}
+                  gate={{ ...gate, faults: gate.faults.map(fundingFaultText) }}
+                  route={
+                    route
+                      ? {
+                          name: route.nameEn,
+                          requires: route.requiresExternalAuthorityRef,
+                          label: route.externalAuthorityRefLabel,
+                          commitsBudget: (route as { approvalCommitsBudget?: boolean | null }).approvalCommitsBudget ?? null,
+                        }
+                      : null
+                  }
+                  justifyingOffice={policy.splitJustifyingRoleCode ? (roster.offices.find((o) => o.code === policy.splitJustifyingRoleCode)?.nameEn ?? "An office no longer configured") : null}
+                  routes={lookups.fundingRoutes.filter((x) => x.retiredOn == null || x.retiredOn > on).map((x) => ({ value: x.code, label: x.nameEn }))}
+                  policy={policy}
+                  today={today}
+                  routeNameOf={(code) => lookups.fundingRoutes.find((x) => x.code === code)?.nameEn ?? null}
+                  justifierPeople={justifierOptions()}
+                />
+              </div>
             ),
           },
           {
@@ -656,7 +680,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                   // The final step waits for a flagged split's justification.
                   const last = open.steps.every((s) => s.id === step.id || s.decision === "DONE");
                   const split = r.splitChecks.find((c) => c.id === open.splitCheckId) ?? null;
-                  if (last && splitApprovalFault(split)) return "Flagged as a possible split: record the justification (Checks tab) before the final approval.";
+                  if (last && splitApprovalFault(split)) return "Flagged as a possible split: record the justification (Budget and checks tab) before the final approval.";
                   return null;
                 }}
                 suggestions={(step) => deciderOptions(step).options}
@@ -669,33 +693,6 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                   return `Every holder of this office on file is barred from deciding it: ${d.barred.join("; ")}. Record a delegation to someone who is not.`;
                 }}
                 today={today}
-              />
-            ),
-          },
-          {
-            id: "checks",
-            label: "Checks",
-            icon: <ShieldIcon size={15} />,
-            panel: (
-              <ChecksPanel
-                l={l}
-                gate={{ ...gate, faults: gate.faults.map(fundingFaultText) }}
-                route={
-                  route
-                    ? {
-                        name: route.nameEn,
-                        requires: route.requiresExternalAuthorityRef,
-                        label: route.externalAuthorityRefLabel,
-                        commitsBudget: (route as { approvalCommitsBudget?: boolean | null }).approvalCommitsBudget ?? null,
-                      }
-                    : null
-                }
-                justifyingOffice={policy.splitJustifyingRoleCode ? (roster.offices.find((o) => o.code === policy.splitJustifyingRoleCode)?.nameEn ?? "An office no longer configured") : null}
-                routes={lookups.fundingRoutes.filter((x) => x.retiredOn == null || x.retiredOn > on).map((x) => ({ value: x.code, label: x.nameEn }))}
-                policy={policy}
-                today={today}
-                routeNameOf={(code) => lookups.fundingRoutes.find((x) => x.code === code)?.nameEn ?? null}
-                justifierPeople={justifierOptions()}
               />
             ),
           },
