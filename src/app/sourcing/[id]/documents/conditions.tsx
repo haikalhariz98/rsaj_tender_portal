@@ -1,7 +1,9 @@
+import { Accordion } from "@/components/accordion";
 import { CheckIcon, GavelIcon, UsersIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
+import { assuranceCardShown, CLAUSE_STATUS, clausesSummary, type ClausesLine } from "@/lib/tender-docs/conditions-view";
 import { capFirst } from "@/lib/tender-docs/frozen-view";
 import type { ConditionsTab, LiveConditions } from "@/lib/tender-docs/read-conditions";
 
@@ -43,6 +45,28 @@ export function Row({ title, value, action, children }: { title: string; value?:
       </span>
       {children}
     </li>
+  );
+}
+
+/**
+ * The mandatory clauses as one line: "2 clauses carried". The list is behind the line, and opens by
+ * itself only where there is something to act on or to read (a clause missing or not set, or one left
+ * out under an endorsement), because the override drawer is the only fix (founder, 2026-10-05). Where
+ * no clause is configured there is no list: the line says what is missing.
+ */
+function ClausesCard({ line, children }: { line: ClausesLine; children: React.ReactNode }) {
+  return (
+    <div id="clauses" className="scroll-mt-24">
+      {!line.empty ? (
+        <Accordion title={`Mandatory clauses: ${line.text}`} defaultOpen={line.expand}>
+          <div className="flex flex-col gap-4 p-5">{children}</div>
+        </Accordion>
+      ) : (
+        <Card className="overflow-hidden">
+          <CardHeader icon={<GavelIcon size={17} />} title="Mandatory clauses" subtitle={line.text} divided={false} actions={line.tone === "warn" ? <Badge tone="warn">Needs attention</Badge> : undefined} />
+        </Card>
+      )}
+    </div>
   );
 }
 
@@ -121,7 +145,7 @@ function FrozenCards({ c }: { c: Frozen }) {
         </CardBody>
       </Card>
 
-      <Card id="assurance" className="scroll-mt-24 overflow-hidden">
+      {assuranceCardShown(f.assurance.policy) && <Card id="assurance" className="scroll-mt-24 overflow-hidden">
         <CardHeader icon={<CheckIcon size={17} />} title="Assurance" subtitle="Who confirmed the documents before they went for approval, and the day." actions={<Badge tone={f.assurance.required === NOT_SET ? "warn" : "neutral"}>{f.assurance.required === NOT_SET ? "Policy was not set" : f.assurance.required}</Badge>} />
         <CardBody>
           {f.assurance.rows.length === 0 ? (
@@ -140,25 +164,19 @@ function FrozenCards({ c }: { c: Frozen }) {
             </ul>
           )}
         </CardBody>
-      </Card>
+      </Card>}
 
-      <Card id="clauses" className="scroll-mt-24 overflow-hidden">
-        <CardHeader icon={<GavelIcon size={17} />} title="Mandatory clauses" subtitle="The clauses every agreement carries, as frozen with this version." />
-        <CardBody>
-          {f.clauses.length === 0 ? (
-            <p className="text-[13px] text-ink-2">No clause was required when the documents were frozen.</p>
-          ) : (
-            <ul className="divide-y divide-line/70 rounded-2xl border border-line">
-              {f.clauses.map((x) => (
-                <Row key={x.title} title={x.title} value={<Badge tone={x.override ? "neutral" : "ok"}>{x.status}</Badge>}>
-                  <span className="text-[12.5px] text-ink-3">{x.version}</span>
-                  {x.override && <span className="text-[12.5px] break-words text-ink-3">{x.override}</span>}
-                </Row>
-              ))}
-            </ul>
-          )}
-        </CardBody>
-      </Card>
+      <ClausesCard line={clausesSummary({ none: f.clauses.length === 0 ? "No clause was required when the documents were frozen." : null, statuses: f.clauses.map((x) => x.status), noneTone: "neutral" })}>
+        <p className="text-[12.5px] text-ink-3">The clauses every agreement carries, as frozen with this version.</p>
+        <ul className="divide-y divide-line/70 rounded-2xl border border-line">
+          {f.clauses.map((x) => (
+            <Row key={x.title} title={x.title} value={<Badge tone={x.override ? "neutral" : "ok"}>{x.status}</Badge>}>
+              <span className="text-[12.5px] text-ink-3">{x.version}</span>
+              {x.override && <span className="text-[12.5px] break-words text-ink-3">{x.override}</span>}
+            </Row>
+          ))}
+        </ul>
+      </ClausesCard>
     </>
   );
 }
@@ -192,7 +210,7 @@ function LiveCards({ c, packless }: { c: LiveConditions; packless: boolean }) {
     <>
       {!packless && (
         <>
-          <Card id="assurance" className="scroll-mt-24 overflow-hidden">
+          {assuranceCardShown(c.assurance.policy) && <Card id="assurance" className="scroll-mt-24 overflow-hidden">
             <CardHeader
               icon={<CheckIcon size={17} />}
               title="Assurance"
@@ -221,34 +239,27 @@ function LiveCards({ c, packless }: { c: LiveConditions; packless: boolean }) {
                 ))}
               </ul>
             </CardBody>
-          </Card>
+          </Card>}
 
-          <Card id="clauses" className="scroll-mt-24 overflow-hidden">
-            <CardHeader icon={<GavelIcon size={17} />} title="Mandatory clauses" subtitle="Clauses every agreement carries. Leaving one out needs a legal endorsement." />
-            <CardBody className="flex flex-col gap-4">
-              <p className="text-[12.5px] text-ink-3">Who may give an endorsement is not checked, because no policy names them. The person named and the reason are recorded on behalf of, not signed.</p>
-              {c.clauses.none ? (
-                <p className="text-[13px] text-ink-2">{c.clauses.none}</p>
-              ) : (
-                <ul className="divide-y divide-line/70 rounded-2xl border border-line">
-                  {c.clauses.rows.map((r) => (
-                    <Row
-                      key={r.code}
-                      title={r.title}
-                      value={<Badge tone={r.tone}>{r.status}</Badge>}
-                      action={r.override ? <RemoveOverrideDrawer exerciseId={c.exerciseId} id={r.override.id} title={r.title} allowed={c.clauses.remove} /> : r.record && r.status === "Missing" ? <OverrideClauseDrawer exerciseId={c.exerciseId} clauseCode={r.code} title={r.title} people={c.people} allowed={r.record} /> : null}
-                    >
-                      <span className="text-[12.5px] text-ink-3">{r.version}</span>
-                      {r.override && <span className="text-[12.5px] break-words text-ink-3">Endorsed by {r.override.by}: “{r.override.reason}”</span>}
-                      {r.findings.map((f) => (
-                        <span key={f} className="text-[12.5px] break-words text-amber-800">{f}</span>
-                      ))}
-                    </Row>
+          <ClausesCard line={clausesSummary({ none: c.clauses.none, statuses: c.clauses.rows.map((r) => r.status) })}>
+            <p className="text-[12.5px] text-ink-3">Leaving a clause out needs a legal endorsement. Who may give one is not checked, because no policy names them. The person named and the reason are recorded on behalf of, not signed.</p>
+            <ul className="divide-y divide-line/70 rounded-2xl border border-line">
+              {c.clauses.rows.map((r) => (
+                <Row
+                  key={r.code}
+                  title={r.title}
+                  value={<Badge tone={r.tone}>{r.status}</Badge>}
+                  action={r.override ? <RemoveOverrideDrawer exerciseId={c.exerciseId} id={r.override.id} title={r.title} allowed={c.clauses.remove} /> : r.record && r.status === CLAUSE_STATUS.missing ? <OverrideClauseDrawer exerciseId={c.exerciseId} clauseCode={r.code} title={r.title} people={c.people} allowed={r.record} /> : null}
+                >
+                  <span className="text-[12.5px] text-ink-3">{r.version}</span>
+                  {r.override && <span className="text-[12.5px] break-words text-ink-3">Endorsed by {r.override.by}: “{r.override.reason}”</span>}
+                  {r.findings.map((f) => (
+                    <span key={f} className="text-[12.5px] break-words text-amber-800">{f}</span>
                   ))}
-                </ul>
-              )}
-            </CardBody>
-          </Card>
+                </Row>
+              ))}
+            </ul>
+          </ClausesCard>
         </>
       )}
     </>

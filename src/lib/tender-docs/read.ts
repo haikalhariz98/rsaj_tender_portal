@@ -57,7 +57,7 @@ import {
   UPLIFT_KIND_LABEL,
   yesNoNotSet,
 } from "./labels";
-import { blockingOf, isLivePack, markReadyFaults, omitFaults, packEditFault, startPackFaults, submitFaults, nextPack } from "./pack";
+import { isLivePack, markReadyFaults, omitFaults, packEditFault, startPackFaults, submitFaults, nextPack } from "./pack";
 import { distinctOffices, pickTemplateView } from "./part-view";
 import { changeListKey, flagChanges, refreshView } from "./refresh";
 import { formatPct } from "./percent";
@@ -181,7 +181,9 @@ export async function documentsTab(exerciseId: string) {
     readiness: submit
       ? submitFindingTexts(submit).map((t) => ({ level: t.level, text: t.text, href: findingHref(ex.id, t.family, t.finding) }))
       : [],
-    submit: submit ? (blockingOf(submit).length ? { allowed: false as const, reason: "The findings below block it." } : { allowed: true as const }) : { allowed: false as const, reason: shown?.status === "DRAFT" ? "The organisation's time zone is not set, so the documents cannot be judged. Set it under Configuration, Organisation." : shown ? `This version is ${PACK_STATUS_LABEL[shown.status].toLowerCase()}.` : "Start the tender documents first." },
+    /// A draft can always be submitted from the screen: the findings do not disable the button (founder, 2026-10-05).
+    /// `submitPack` judges them under lock and its refusal lists what is missing, so the screen never restates them.
+    submit: shown?.status === "DRAFT" ? { allowed: true as const } : { allowed: false as const, reason: shown ? `This version is ${PACK_STATUS_LABEL[shown.status].toLowerCase()}.` : "Start the tender documents first." },
     behaviours: {
       checkedHere: BEHAVIOURS_CHECKED_HERE.map((k) => ({ label: BEHAVIOUR_LABEL[k], value: valueText(k), findings: behaviourFindings.filter((f) => f.data?.behaviour === k || behaviourKeyOf(f.code) === k).map(behaviourFaultText) })),
       afterAward: BEHAVIOURS_AFTER_AWARD.map((b) => ({ label: BEHAVIOUR_LABEL[b.key], value: valueText(b.key), where: BEHAVIOUR_AFTER_AWARD_WHERE[b.where] })),
@@ -243,6 +245,8 @@ function packView(p: PackRow, c: NonNullable<Awaited<ReturnType<typeof context>>
         id: row.id,
         printedNumber: row.printedNumber,
         label: row.labelSnapshot,
+        /// The pack's own notice (its invitation): the part the printed pack opens at.
+        isNotice: row.role === "INVITATION",
         role: PART_ROLE_LABEL[row.role],
         content: PART_CONTENT_LABEL[row.content],
         source: PART_SOURCE_LABEL[row.source],

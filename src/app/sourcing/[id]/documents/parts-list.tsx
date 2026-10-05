@@ -13,6 +13,8 @@ export interface PartRow {
   id: string;
   printedNumber: string;
   label: string;
+  /// The pack's own notice: its row opens the printed pack at this part.
+  isNotice: boolean;
   role: string;
   content: string;
   source: string;
@@ -88,7 +90,13 @@ export function PartsList({ exerciseId, parts, printHref }: { exerciseId: string
             {p.state === "Not ready" && <MarkReadyDrawer exerciseId={exerciseId} partId={p.id} partLabel={`${p.printedNumber}. ${p.label}`} allowed={p.markReady} />}
             {p.state === "Not ready" && <OmitPartDrawer exerciseId={exerciseId} partId={p.id} partLabel={`${p.printedNumber}. ${p.label}`} allowed={p.omit} />}
             {p.state !== "Not ready" && p.reopen.allowed && <ReopenPartDrawer exerciseId={exerciseId} partId={p.id} partLabel={`${p.printedNumber}. ${p.label}`} state={p.state} />}
-            {p.hasFrozenText && !edits && !p.isUpload && (
+            {/* The quotation (or tender) notice is the pack's own printable: its row opens the printed pack there (founder, 2026-10-05). */}
+            {p.isNotice && (
+              <Link href={`${printHref}#part-${p.printedNumber}`} className={buttonClass("ghost", "sm")} aria-label={`Open ${p.printedNumber}. ${p.label} in the printed pack`}>
+                Open
+              </Link>
+            )}
+            {p.hasFrozenText && !edits && !p.isUpload && !p.isNotice && (
               <Link href={`${printHref}#part-${p.printedNumber}`} className={buttonClass("ghost", "sm")} aria-label={`View ${p.printedNumber}. ${p.label} as frozen`}>
                 View as frozen
               </Link>

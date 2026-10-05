@@ -13,6 +13,7 @@ import { formatDate } from "@/lib/format";
 import { ASSURANCE_KIND_LABEL, restrictionQuestion } from "./conditions-labels";
 import type { ConditionsSnapshot } from "./conditions";
 import type { AssuranceKind } from "./assurance";
+import { CLAUSE_STATUS, triOf } from "./conditions-view";
 import { NOT_SET, yesNoNotSet } from "./labels";
 
 /// A body's name as it starts a line ("the Demo Companies Registry" is "The Demo Companies Registry" in a list).
@@ -57,12 +58,13 @@ export function frozenConditionsView(s: ConditionsSnapshot, versionNo: number) {
     tableDocument: s.tableDocument,
     assurance: {
       required: assuranceRequiredText(s.assurance.required),
+      policy: triOf(s.assurance.required),
       rows: (s.assurance.required ? s.assurance.needed : []).map((kind) => {
         const c = s.assurance.confirmations.find((x) => x.kind === kind) ?? null;
         return { label: ASSURANCE_KIND_LABEL[kind as AssuranceKind] ?? "A confirmation", by: c ? `${c.person} · ${RECORDED_ON_BEHALF}` : null, on: c ? formatDate(c.on) : null };
       }),
     },
-    clauses: s.clauses.map((c) => ({ title: c.title, version: `Text version ${c.bodyVersion}`, status: c.overriddenBy ? "Left out under an endorsement" : "Carried", override: c.overriddenBy ? `Endorsed by ${c.overriddenBy} · ${RECORDED_ON_BEHALF}: “${c.overrideReason ?? ""}”` : null })),
+    clauses: s.clauses.map((c) => ({ title: c.title, version: `Text version ${c.bodyVersion}`, status: c.overriddenBy ? CLAUSE_STATUS.endorsed : CLAUSE_STATUS.carried, override: c.overriddenBy ? `Endorsed by ${c.overriddenBy} · ${RECORDED_ON_BEHALF}: “${c.overrideReason ?? ""}”` : null })),
   };
 }
 

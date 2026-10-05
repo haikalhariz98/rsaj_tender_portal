@@ -60,12 +60,15 @@ export function StartPackDrawer({ exerciseId, label, allowed, rows, notes }: { e
   );
 }
 
-export function SubmitPackDrawer({ exerciseId, allowed, rows, warnings, today }: { exerciseId: string; allowed: Allowed; rows: [string, string][]; warnings: string[]; today: string | null }) {
-  if (!allowed.allowed) return <Blocked label="Submit for approval" reason={allowed.reason} primary />;
+/**
+ * Always openable on a draft: what is still missing is not listed on the screen (founder, 2026-10-05).
+ * `submitPack` judges everything under lock and refuses with the list, which this drawer shows.
+ */
+export function SubmitPackDrawer({ exerciseId, rows, warnings, today }: { exerciseId: string; rows: [string, string][]; warnings: string[]; today: string | null }) {
   return (
     <RecordEditor
       title="Submit for Approval for Tendering"
-      description="Submitting freezes this version: each part's text is stored as it reads now, the bill of quantities is issued unpriced and files are pinned. A version that is frozen is changed only by returning it."
+      description="Submitting freezes this version: each part's text is stored as it reads now, the bill of quantities is issued unpriced and files are pinned. A version that is frozen is changed only by returning it. If anything is still missing, submitting says what it is and nothing is frozen."
       columns={2}
       fields={[
         hidden("exerciseId"),

@@ -15,6 +15,7 @@ import { RECORDED_ON_BEHALF } from "@/lib/documents/labels";
 import { PROVENANCE_LABEL } from "@/lib/scope/labels";
 
 import { assuranceKindsFor, confirmFaults, type AssuranceKind } from "./assurance";
+import { CLAUSE_STATUS, triOf } from "./conditions-view";
 import { clauseFaults, liveClauses, overrideFaults } from "./clauses";
 import { readConditionsSnapshot } from "./conditions";
 import { ASSURANCE_KIND_LABEL, CONDITIONS_FROZEN_TEXT, conditionsFaultText, confirmFaultText, overrideFaultText, restrictionQuestion } from "./conditions-labels";
@@ -31,7 +32,6 @@ const ok: Allowed = { allowed: true };
 const no = (reason: string): Allowed => ({ allowed: false, reason });
 const provenance = (p: string | null | undefined) => (p ? ((PROVENANCE_LABEL as Record<string, string>)[p] ?? NOT_SET) : null);
 const words = (fs: readonly Finding[]) => fs.map((f) => ({ level: f.level, text: conditionsFaultText(f) }));
-const TRI = (b: boolean | null) => (b == null ? "unset" : b ? "yes" : "no");
 
 export async function conditionsTab(exerciseId: string) {
   const l = await loadExercise(exerciseId);
@@ -96,7 +96,7 @@ export async function conditionsTab(exerciseId: string) {
   const restriction = {
     question: restrictionQuestion(policy.restrictionLabelEn),
     answer: yesNoNotSet(ex.restrictedTender),
-    raw: TRI(ex.restrictedTender),
+    raw: triOf(ex.restrictedTender),
     stampEn: policy.restrictionStampTextEn ?? NOT_SET,
     stampMs: policy.restrictionStampTextMs ?? NOT_SET,
     provenance: provenance(policy.restrictionProvenance),
@@ -106,7 +106,7 @@ export async function conditionsTab(exerciseId: string) {
   // ---- the regulator permit (FR-DOC-006)
   const permit = {
     answer: yesNoNotSet(ex.regulatedActivity),
-    raw: TRI(ex.regulatedActivity),
+    raw: triOf(ex.regulatedActivity),
     permit: ex.regulatedActivity ? (permitLabel(true, ex.regulatorPermitCode, list) ?? NOT_SET) : null,
     rawPermit: ex.regulatorPermitCode ?? "",
     list: list?.name ?? NOT_SET,
@@ -120,6 +120,8 @@ export async function conditionsTab(exerciseId: string) {
   const needed = draft ? assuranceKindsFor(parts) : [];
   const assurance = {
     required: assuranceRequiredText(policy.assuranceRequired),
+    /// The raw answer: the card is hidden only on an explicit no, never on an unanswered policy.
+    policy: triOf(policy.assuranceRequired),
     provenance: provenance(policy.assuranceProvenance),
     policyNotSet: policy.assuranceRequired == null ? conditionsFaultText({ code: "ASSURANCE_POLICY_NOT_SET", level: "block" }) : null,
     rows: (["NO_AMBIGUITY", "DRAWINGS_COORDINATED"] as const).map((kind) => {
@@ -149,14 +151,14 @@ export async function conditionsTab(exerciseId: string) {
   const clauseRows = live.map((c) => {
     const ov = overrides.find((o) => o.clauseCode === c.code) ?? null;
     const missing = clauseFindings.filter((f) => f.level === "block" && f.data?.clause === c.titleEn);
-    const status = c.mandatoryInAgreements == null ? "Not set" : !c.mandatoryInAgreements ? "Not required in every agreement" : ov ? "Left out under an endorsement" : !draft ? "Checked once the documents are started" : missing.length ? "Missing" : "Carried";
+    const status = c.mandatoryInAgreements == null ? CLAUSE_STATUS.notSet : !c.mandatoryInAgreements ? CLAUSE_STATUS.notRequired : ov ? CLAUSE_STATUS.endorsed : !draft ? CLAUSE_STATUS.notChecked : missing.length ? CLAUSE_STATUS.missing : CLAUSE_STATUS.carried;
     const canOverride = draft && today ? overrideFaults({ packStatus: draft.status, exerciseStatus: ex.status, clause: c, today, existing: overrides, person: { isActive: true }, reason: "given" }) : [];
     return {
       code: c.code,
       title: c.titleEn,
       version: `Text version ${c.bodyVersion}`,
       status,
-      tone: status === "Carried" ? ("ok" as const) : status === "Missing" || status === "Not set" ? ("warn" as const) : ("neutral" as const),
+      tone: status === CLAUSE_STATUS.carried ? ("ok" as const) : status === CLAUSE_STATUS.missing || status === CLAUSE_STATUS.notSet ? ("warn" as const) : ("neutral" as const),
       findings: missing.map(conditionsFaultText),
       override: ov ? { id: ov.id, by: `${ov.personName} · ${RECORDED_ON_BEHALF}`, reason: ov.reason } : null,
       record: c.mandatoryInAgreements !== true ? null : !draft ? no("Start the tender documents first.") : canOverride.length ? no(canOverride.map(overrideFaultText).join(" ")) : ok,
