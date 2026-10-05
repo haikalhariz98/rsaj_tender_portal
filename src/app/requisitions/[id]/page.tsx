@@ -3,7 +3,7 @@ import { historyEntityLabel } from "@/lib/audit/entity-labels";
 import { routedValue } from "@/lib/approvals/routed-value";
 import { notFound } from "next/navigation";
 
-import { AlertTriangle, ChartIcon, ClipboardIcon, ClockIcon, GlobeIcon, RouteIcon, ShieldIcon } from "@/components/icons";
+import { AlertTriangle, ChartIcon, ClipboardIcon, ClockIcon, DownloadIcon, GlobeIcon, RouteIcon, ShieldIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
@@ -12,7 +12,7 @@ import { escalationText } from "@/lib/authority/escalation-labels";
 import { absentOffices } from "@/lib/authority/absence";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { isSulitField } from "@/lib/sulit-fields";
-import { ButtonLink } from "@/components/ui/button";
+import { buttonClass, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
@@ -82,6 +82,7 @@ import {
   gatesForRequisition,
   type LoadedRequisition,
 } from "@/lib/requisition/repo";
+import { prRefusal } from "@/lib/requisition/pr-pdf-data";
 import { resolveRequisitionRoute } from "@/lib/requisition/route";
 import { returnedRouteCitationNotes } from "@/lib/requisition/committee-step";
 import { choicesFor, earlierSteps, returnTargetBefore, type RejectionKind } from "@/lib/authority/rejection";
@@ -456,6 +457,13 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         />
       )}
       {["DRAFT", "ENDORSED", "RETURNED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"].includes(r.status) && <CancelDrawer id={r.id} />}
+      {/* Founder, 2026-10-05: the expenditure request form, once approved. A plain link: it is a file, not a page. */}
+      {prRefusal(r.status, !!approvedRoute) === null && (
+        <a href={`/requisitions/${r.id}/pr.pdf`} download className={buttonClass("secondary", "sm")}>
+          <DownloadIcon size={15} />
+          Download PR
+        </a>
+      )}
     </>
   );
 
