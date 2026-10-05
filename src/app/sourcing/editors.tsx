@@ -13,6 +13,7 @@ import {
   removeParticipant,
   requestNameApproval,
   reviewProposal,
+  saveExerciseDetails,
   saveProposalAnswers,
   submitProposal,
 } from "./actions";
@@ -240,6 +241,28 @@ export function ChooseTaxonomyDrawer({ id, taxonomyCode, taxonomy, candidates }:
       submitLabel="Choose"
       trigger={{ label: "Choose", className: buttonClass("secondary", "sm") }}
       size="sm"
+    />
+  );
+}
+
+/// The exercise's person in charge and work code (founder, 2026-10-05). `people` are the
+/// organisation's active people; a person already named but since retired is passed in too,
+/// so the drawer shows who is named rather than an empty choice.
+export function EditDetailsDrawer({ id, people, personInChargeId, workCode }: { id: string; people: Option[]; personInChargeId: string | null; workCode: string | null }) {
+  return (
+    <RecordEditor
+      title="Edit details"
+      description="Who is in charge of this exercise, and its work code. Either may be left blank."
+      fields={[
+        hidden("id"),
+        { kind: "select", name: "personInChargeId", label: "Person in charge", placeholder: "Not named", options: people, orphanLabel: "Someone no longer on record" },
+        { kind: "text", name: "workCode", label: "Work code", hint: "As your organisation writes it, up to 100 characters." },
+      ]}
+      values={{ id, personInChargeId: personInChargeId ?? "", workCode: workCode ?? "" }}
+      action={saveExerciseDetails}
+      submitLabel="Save details"
+      trigger={{ label: "Edit details", className: buttonClass("secondary", "sm") }}
+      size="md"
     />
   );
 }

@@ -493,6 +493,7 @@ model Person {
   approvalStepsDecided  ApprovalStep[]
   exerciseTypeOverrides SourcingExercise[] @relation("TypeOverriddenBy")
   proposalsReviewed     SourcingExercise[] @relation("ProposalReviewer")
+  exercisesInCharge     SourcingExercise[] @relation("ExercisePersonInCharge")
   exerciseParticipation ExerciseParticipant[]
   awardsSigned          Award[]              @relation("AwardSignatory")
   returnsReceived       AwardReturn[]        @relation("ReturnReceivedBy")
@@ -3172,6 +3173,14 @@ model SourcingExercise {
   regulatedActivity      Boolean?
   regulatorPermitCode    String?
 
+  /// Founder, 2026-10-05: the officer in charge of the exercise, shown on its Overview.
+  /// Null: not named yet. A person removed from the register leaves the exercise unnamed.
+  personInChargeId       String?
+  personInCharge         Person?            @relation("ExercisePersonInCharge", fields: [personInChargeId], references: [id], onDelete: SetNull)
+  /// Founder, 2026-10-05: the work code (field of work) as the customer writes it, free text.
+  /// Null: not recorded. No list is configured for it yet.
+  workCode               String?
+
   /// 6.5 (FR-ADV-016): the cancelled exercise this one replaces, a new case linked to it.
   replacesExerciseId     String?
   replaces               SourcingExercise?  @relation("ExerciseReplaces", fields: [replacesExerciseId], references: [id], onDelete: SetNull)
@@ -3222,6 +3231,7 @@ model SourcingExercise {
   @@unique([organisationId, dossierReference])
   @@index([organisationId, status])
   @@index([requisitionId])
+  @@index([personInChargeId])
   specialPermissions SpecialPermission[]
 }
 

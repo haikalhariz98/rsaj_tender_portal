@@ -1330,6 +1330,9 @@ const FIELD_NAME: Record<string, string> = {
   overriddenByPersonId: "Type decided by",
   reviewedBy: "Reviewed by",
   recordedOnBehalf: "Recorded",
+  // Founder, 2026-10-05: audited as the person's name, and the work code as written.
+  personInCharge: "Person in charge",
+  workCode: "Work code",
 };
 const MONEY = new Set(["estimatedValue", "amount", "boundaryValue"]);
 
@@ -1391,7 +1394,8 @@ function HistoryPanel({
     return value;
   };
   // Keys the page cannot name are configuration: left out, as are ids (UX 4).
-  const NAMED_KEYS = new Set(["sourcingMethodCode", "proposedMethodCode", "contractTypeCode", "derivedContractTypeCode", "contractBasisCode", "justificationReasonCode"]);
+  // The work code is free text the officer wrote, not a configuration key: it is shown as written.
+  const NAMED_KEYS = new Set(["sourcingMethodCode", "proposedMethodCode", "contractTypeCode", "derivedContractTypeCode", "contractBasisCode", "justificationReasonCode", "workCode"]);
   const shown = (field: string, ch: { before: string | null; after: string | null }, action: string, entityId: string) =>
     (!/(Code|Key)$/.test(field) || NAMED_KEYS.has(field)) &&
     (!/Id$/.test(field) || field === "overriddenByPersonId" || field === "proposalReviewerPersonId") &&

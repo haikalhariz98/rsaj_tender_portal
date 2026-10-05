@@ -116,6 +116,8 @@ const exerciseInclude = {
   participants: { include: { person: { select: { id: true, name: true, isActive: true } } } },
   overriddenBy: { select: { id: true, name: true } },
   proposalReviewer: { select: { id: true, name: true } },
+  // Founder, 2026-10-05: the person in charge, named on the Overview (isActive: a person since retired still reads, marked).
+  personInCharge: { select: { id: true, name: true, isActive: true } },
   approvalInstances: {
     // The exercise's own routes, of its own domains (ruling X-5). An award's appointment
     // route also names the exercise, but it is the award's: it never reads as a name

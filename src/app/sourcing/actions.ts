@@ -17,6 +17,7 @@ import { choiceFault, rejectionOutcome, rejectionSnapshot, REJECTION_KINDS, type
 import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { auditCreate, auditPair } from "@/lib/method/audit-view";
 import { determinationDrift } from "@/lib/method/drift";
+import { DETAILS_FAULT_TEXT, detailsFault, WORK_CODE_MAX, workCodeOf } from "@/lib/method/details";
 import { keptForMethod, nameRoutesToWithdraw } from "@/lib/method/config";
 import { remainingOf } from "@/lib/method/value";
 import { evaluateExercise, saveBlockers, type Evaluation, type ExerciseDraft } from "@/lib/method/evaluate";
@@ -798,6 +799,36 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
       await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
       await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise was cancelled: ${reason}`);
     }
+    return { ok: true };
+  });
+}
+
+// -------------------------------------------------------------------- details
+
+/// The exercise's person in charge and work code (founder, 2026-10-05). Either may be left
+/// unset. A person named must be on record in this organisation and active, except the one
+/// already named, who is kept as they are when only the work code changes.
+export async function saveExerciseDetails(_prev: FormState, data: FormData): Promise<FormState> {
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const personId = r.optionalText("personInChargeId");
+  const workCode = workCodeOf(r.text("workCode", "Work code", { max: WORK_CODE_MAX }));
+  if (r.failed) return { ok: false, errors: r.errors };
+  return inExercise(id, async (tx, l) => {
+    const ex = l.ex;
+    const stop = detailsFault(ex);
+    if (stop) return { ok: false, message: DETAILS_FAULT_TEXT[stop] };
+    let person: { id: string; name: string } | null = null;
+    if (personId && personId === ex.personInChargeId && ex.personInCharge) person = ex.personInCharge;
+    else if (personId) {
+      person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
+      if (!person) return { ok: false, errors: { personInChargeId: "Choose someone on record and active." } };
+    }
+    const before = { personInCharge: ex.personInCharge?.name ?? null, workCode: ex.workCode };
+    const after = { personInCharge: person?.name ?? null, workCode };
+    if ((person?.id ?? null) === ex.personInChargeId && workCode === ex.workCode) return { ok: true };
+    await tx.sourcingExercise.update({ where: { id: ex.id }, data: { personInChargeId: person?.id ?? null, workCode } });
+    await audit(tx, l.org.id, "SourcingExercise", ex.id, labelOf(ex), "UPDATE", diffFields(before, after));
     return { ok: true };
   });
 }
