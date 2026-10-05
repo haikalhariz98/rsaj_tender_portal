@@ -90,6 +90,8 @@ const REQUIRED: [keyof RequisitionDraft, string][] = [
   ["requestingPersonId", "requestingPersonId"],
   ["costCentreCode", "costCentreCode"],
   ["accountCode", "accountCode"],
+  // Founder, 2026-10-05: the budget line the check reads is required, as the cost centre and account are.
+  ["budgetCodeId", "budgetCodeId"],
   ["placeOfDelivery", "placeOfDelivery"],
   ["dateRequired", "dateRequired"],
   ["estimatedValue", "estimatedValue"],

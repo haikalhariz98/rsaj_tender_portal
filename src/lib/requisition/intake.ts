@@ -59,6 +59,9 @@ export function intakeFaults(
 
   for (const f of requisitionFaults(p, lookups, formats, on)) {
     if (f.code === "NO_FORMAT") continue;
+    // A received requisition carries the finance system's own budget figures, so the portal's
+    // budget code, required of one raised here (founder, 2026-10-05), is not asked of it.
+    if (f.field === "budgetCodeId" && f.code === "REQUIRED") continue;
     out.push({ field: f.field, message: f.code });
   }
   if (!p.erpRequisitionNo?.trim()) out.push({ field: "erpRequisitionNo", message: "REQUIRED" });

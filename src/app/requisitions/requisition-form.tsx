@@ -28,7 +28,7 @@ export interface FormOptions {
   people: { id: string; name: string }[];
   costCentres: { code: string; name: string }[];
   accounts: { code: string; name: string }[];
-  budgetCodes: { id: string; code: string; name: string }[];
+  budgetCodes: { id: string; code: string; name: string; accountCode: string }[];
   sites: { code: string; name: string }[];
   fundingRoutes: { code: string; name: string }[];
   contractTypes: { code: string; name: string }[];
@@ -97,10 +97,12 @@ export function RequisitionForm({
   const router = useRouter();
   const [lines, setLines] = useState<Line[]>(initialLines?.length ? initialLines : [{ ...BLANK_LINE }]);
   const [unit, setUnit] = useState(values.requestingUnitCode ?? "");
+  const [account, setAccount] = useState(values.accountCode ?? "");
   const [value, setValue] = useState(values.estimatedValue ?? "");
   const e = state.errors ?? {};
 
   const sections = useMemo(() => options.sections.filter((s) => s.parentCode === unit), [options.sections, unit]);
+  const budgetCodes = useMemo(() => (account ? options.budgetCodes.filter((b) => b.accountCode === account) : options.budgetCodes), [options.budgetCodes, account]);
   const total = totalOf(lines);
   const valueSen = senOf(value);
 
@@ -205,8 +207,14 @@ export function RequisitionForm({
           })}
           {/* Founder, 2026-10-05: these lists grow long once data is migrated, so each takes typing: type a code or a word to narrow it. */}
           {select("costCentreCode", "Cost centre", coded(options.costCentres), { required: true, searchable: true })}
-          {select("accountCode", "Account code", coded(options.accounts), { required: true, searchable: true })}
-          {select("budgetCodeId", "Budget code", options.budgetCodes.map((b) => ({ value: b.id, label: `${b.code} · ${b.name}` })), { searchable: true, hint: "The budget line the check reads. Its account must be the requisition's." })}
+          {select("accountCode", "Account code", coded(options.accounts), { required: true, searchable: true, onChange: setAccount })}
+          {/* Founder, 2026-10-05: required. Only the budget codes on the chosen account are offered, so the pair always agrees. */}
+          {select("budgetCodeId", "Budget code", budgetCodes.map((b) => ({ value: b.id, label: `${b.code} · ${b.name}` })), {
+            required: true,
+            searchable: true,
+            placeholder: account && budgetCodes.length === 0 ? "No budget code on this account" : "Choose",
+            hint: account ? "The budget line the check reads, on the chosen account." : "Choose the account code first to narrow this list.",
+          })}
           {select("contractTypeCode", "Contract type", options.contractTypes.map((c) => ({ value: c.code, label: c.name })), { placeholder: "Not set" })}
           {select("siteCode", "Site", options.sites.map((s) => ({ value: s.code, label: s.name })), { placeholder: "None" })}
           {text("placeOfDelivery", "Place of delivery", { required: true })}

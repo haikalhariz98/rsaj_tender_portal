@@ -348,7 +348,7 @@ export async function formOptions(organisationId: string, on: Date) {
     people: lookups.people.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name })),
     costCentres: costCentres.filter(inForce).map((c) => ({ code: c.code, name: c.nameEn })),
     accounts: accountCodes.filter(inForce).map((a) => ({ code: a.code, name: a.nameEn })),
-    budgetCodes: lookups.budgetCodes.filter((b) => b.isActive && inForce(b)).map((b) => ({ id: b.id, code: b.code, name: b.descriptionEn })),
+    budgetCodes: lookups.budgetCodes.filter((b) => b.isActive && inForce(b)).map((b) => ({ id: b.id, code: b.code, name: b.descriptionEn, accountCode: b.accountCode })),
     sites: sites.filter(inForce).map((x) => ({ code: x.code, name: x.nameEn })),
     fundingRoutes: lookups.fundingRoutes.filter((r) => r.retiredOn == null || r.retiredOn > on).map((r) => ({ code: r.code, name: r.nameEn })),
     contractTypes: contractTypes.filter((c) => c.retiredOn == null || c.retiredOn > on).map((c) => ({ code: c.code, name: c.nameEn })),
