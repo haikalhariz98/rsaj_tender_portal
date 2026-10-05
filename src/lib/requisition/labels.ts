@@ -273,10 +273,6 @@ export function transitionFaultText(f: TransitionFault): string {
       return `${f.count} ${f.count === 1 ? "endorsement is" : "endorsements are"} outstanding.`;
     case "ENDORSEMENT_TIERS_NOT_SET":
       return "No endorsement tiers are set in Requisition controls, so it cannot be endorsed.";
-    case "ERP_POLICY_NOT_SET":
-      return "Whether registration needs the finance system's numbers is not set in Requisition controls.";
-    case "ERP_REFS_REQUIRED":
-      return `Record the ${f.missing.map((m) => fieldName(m).toLowerCase()).join(" and ")} first.`;
     case "RETURN_DETAILS_REQUIRED":
       return `A return needs its ${f.missing.join(", ")}.`;
     case "REASON_REQUIRED":

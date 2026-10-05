@@ -34,7 +34,6 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ageDay, approvalCommitment, identityHolds, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
-import { commitmentFault } from "@/lib/requisition/commitment";
 import { eligibleEndorsers, endorsementFaults, endorsersFor } from "@/lib/requisition/endorsement";
 import { blocking, requisitionFaults } from "@/lib/requisition/fields";
 import { fundingGate } from "@/lib/requisition/funding";
@@ -102,7 +101,6 @@ import {
   CiteGateDrawer,
   CloseWithoutSourcingDrawer,
   DecisionDrawer,
-  ErpRefsDrawer,
   HEADER_NOTE_ID,
   ExternalAuthorityDrawer,
   JustifySplitDrawer,
@@ -227,12 +225,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     tiersSet: policy.endorsementTiers.length > 0,
     endorsementFaults: eFaults.length,
   });
-  const registerBlock = transitionFault(r.status, "REGISTERED", {
-    today,
-    erpReferenceRequired: policy.erpReferenceRequired,
-    erpRequisitionNo: policy.erpReferenceRequired ? "(entered in the drawer)" : r.erpRequisitionNo,
-    erpNoteNo: policy.erpReferenceRequired ? "(entered in the drawer)" : r.erpNoteNo,
-  });
+  const registerBlock = transitionFault(r.status, "REGISTERED", { today });
 
   // Submission, as far as it can be judged before the lock: the same pure checks.
   let submitBlocker: string | null = null;
@@ -310,11 +303,6 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
       : !controls.budgetCheckSource
         ? "Where the budget check comes from is not set. Set it in Requisition controls."
         : null;
-
-  const erpExamples = {
-    requisition: formats.find((f) => f.key === "erp_requisition_no")?.example || null,
-    note: formats.find((f) => f.key === "erp_note_no")?.example || null,
-  };
 
   // Say what is wrong, not how many things are: "the lines come to RM9,500, not
   // RM12,000" rather than "1 field needs attention".
@@ -410,7 +398,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   // Why a header action is unavailable, stated once under the action row.
   const unavailable: [string, string | null][] = [
     ["Mark endorsed", r.status === "DRAFT" ? endorseText : null],
-    ["Register", r.status === "ENDORSED" && registerBlock && registerBlock.code !== "ERP_REFS_REQUIRED" ? transitionFaultText(registerBlock) : null],
+    ["Register", r.status === "ENDORSED" && registerBlock ? transitionFaultText(registerBlock) : null],
     ["Check budget", PRE_SUBMIT.includes(r.status) ? (checkBlocker ?? (controls.budgetCheckSource ? null : "The budget check source is not set.")) : null],
     ["Submit for approval", PRE_SUBMIT.includes(r.status) ? submitBlocker : null],
     ["Recall", r.status === "PENDING_APPROVAL" && recallBlock ? transitionFaultText(recallBlock) : null],
@@ -445,14 +433,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
       {r.status === "ENDORSED" && (
         <>
           <ReturnDrawer id={r.id} people={people} today={today} />
-          <RegisterDrawer
-            id={r.id}
-            required={policy.erpReferenceRequired}
-            proc={r.erpRequisitionNo}
-            nm={r.erpNoteNo}
-            blocker={registerBlock && registerBlock.code !== "ERP_REFS_REQUIRED" ? transitionFaultText(registerBlock) : null}
-            examples={erpExamples}
-          />
+          <RegisterDrawer id={r.id} blocker={registerBlock ? transitionFaultText(registerBlock) : null} />
         </>
       )}
       {PRE_SUBMIT.includes(r.status) && (
@@ -711,7 +692,6 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 policy={policy}
                 today={today}
                 routeNameOf={(code) => lookups.fundingRoutes.find((x) => x.code === code)?.nameEn ?? null}
-                erpExamples={erpExamples}
                 justifierPeople={justifierOptions()}
               />
             ),
@@ -847,11 +827,9 @@ function Overview({
             columns={3}
             items={[
               { label: "Reference", value: <span className="font-mono text-[13px]">{r.reference}</span> },
-              {
-                label: "Finance system requisition no.",
-                value: r.erpRequisitionNo ? <span className="font-mono text-[13px]">{r.erpRequisitionNo}</span> : <span className="text-ink-3">Not recorded</span>,
-              },
-              { label: "Requisition note no.", value: r.erpNoteNo ? <span className="font-mono text-[13px]">{r.erpNoteNo}</span> : <span className="text-ink-3">Not recorded</span> },
+              // Founder, 2026-10-05: the finance system's numbers only where one was recorded before they were removed.
+              ...(r.erpRequisitionNo ? [{ label: "Finance system requisition no.", value: <span className="font-mono text-[13px]">{r.erpRequisitionNo}</span> }] : []),
+              ...(r.erpNoteNo ? [{ label: "Requisition note no.", value: <span className="font-mono text-[13px]">{r.erpNoteNo}</span> }] : []),
               { label: "Requesting department", value: facts.department },
               { label: "Section", value: facts.section },
               { label: "Requesting officer", value: r.requestingPerson.name },
@@ -1677,11 +1655,9 @@ function ChecksPanel({
   policy,
   today,
   routeNameOf,
-  erpExamples,
   justifierPeople,
 }: {
   l: LoadedRequisition;
-  erpExamples: { requisition: string | null; note: string | null };
   /// Holders of the justifying office first, then those barred and why, then the rest.
   justifierPeople: { value: string; label: string }[];
   gate: { faults: string[]; posture: string | null; sourcingPermitted: boolean | null; supersedesAuthority: boolean | null };
@@ -1697,7 +1673,6 @@ function ChecksPanel({
   const split = r.splitChecks[0] ?? null;
   const inst = r.approvalInstances[0] ?? null;
   const shown = splitStateLabel(split?.state ?? null, !!split?.overrideJustification);
-  const commit = commitmentFault({ status: r.status }, inst ? { status: inst.status, steps: inst.steps } : null);
   const canJustify = r.status === "PENDING_APPROVAL" && split?.state === "FLAGGED" && !split.overrideJustification && inst?.splitCheckId === split.id;
   const label = route?.label?.trim() || "External authority";
   const postureText =
@@ -1830,33 +1805,6 @@ function ChecksPanel({
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader icon={<ShieldIcon size={17} />} title="Commitment" subtitle="No purchase order, indent, letter of acceptance or contract before approval." />
-        <CardBody>
-          {r.origin === "PORTAL" && route && route.commitsBudget == null && !["CANCELLED", "CLOSED"].includes(r.status) && (
-            <Callout tone="warn" className="mb-4" title="Commitment not set for this funding route">
-              Whether approval on the funding route &ldquo;{route.name}&rdquo; commits the organisation&apos;s budget is not set, so approval writes no commitment. Set it on the route under Reference data.
-            </Callout>
-          )}
-          {commit == null ? (
-            <Callout tone="ok">Approved. A commitment may be issued against it.</Callout>
-          ) : commit.code === "NO_APPROVAL_ROUTE" ? (
-            <Callout tone="info">Not submitted for approval, so nothing may be committed against it.</Callout>
-          ) : (
-            <Callout tone="warn">
-              Not approved{commit.outstanding ? `: awaiting the ${commit.outstanding}'s decision` : ""}. Nothing may be committed against it yet.
-            </Callout>
-          )}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            {!["CANCELLED", "CLOSED"].includes(r.status) &&
-              (successorOpenFault(r.approvalInstances) ? (
-                <Blocked label="Record finance numbers" reason={SUCCESSOR_OPEN_TEXT} />
-              ) : (
-                <ErpRefsDrawer id={r.id} proc={r.erpRequisitionNo} nm={r.erpNoteNo} examples={erpExamples} />
-              ))}
-          </div>
-        </CardBody>
-      </Card>
     </div>
   );
 }

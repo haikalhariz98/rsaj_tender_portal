@@ -24,7 +24,7 @@ import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ageDay, approvalBudgetOutcome, approvalCommitment, approvalRechecks, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { committeeCitationFault, committeeStepFrom, type CitationFault } from "@/lib/requisition/committee-step";
 import { endorsementEntryFault, endorsementFaults } from "@/lib/requisition/endorsement";
-import { blocking, erpRefFaults, requisitionFaults, type DraftLine, type RequisitionDraft } from "@/lib/requisition/fields";
+import { blocking, requisitionFaults, type DraftLine, type RequisitionDraft } from "@/lib/requisition/fields";
 import { fundingGate } from "@/lib/requisition/funding";
 import { absentOffices } from "@/lib/authority/absence";
 import { actingOffice } from "@/lib/authority/escalation";
@@ -480,85 +480,21 @@ export async function cancelRequisition(_prev: FormState, data: FormData): Promi
   });
 }
 
-// --------------------------------------------------------- finance references
-
-/// Save the finance system's numbers onto the locked row, refusing a clash or a malformed one.
-async function saveErpRefs(tx: Tx, l: LoadedRequisition, proc: string | null, nm: string | null): Promise<Record<string, string> | null> {
-  const { formats } = await loadLookups(l.org.id, tx);
-  const errors: Record<string, string> = {};
-  for (const f of erpRefFaults(proc, nm, formats)) {
-    if (f.code === "NO_FORMAT") continue;
-    errors[f.field] = f.code === "MALFORMED" ? `Does not match the configured format${f.example ? ` (for example ${f.example})` : ""}.` : "The configured format cannot be read. Correct it under Organisation, Code formats.";
-  }
-  for (const [field, value] of [["erpRequisitionNo", proc], ["erpNoteNo", nm]] as const) {
-    if (!value || errors[field]) continue;
-    const clash = await tx.requisition.findFirst({ where: { organisationId: l.org.id, [field]: value, NOT: { id: l.req.id } }, select: { reference: true } });
-    if (clash) errors[field] = `Already recorded against ${clash.reference}. Each finance-system number belongs to one requisition.`;
-  }
-  return Object.keys(errors).length > 0 ? errors : null;
-}
-
-/**
- * Record the finance system's requisition and note numbers (FR-REQ-002). Consumed,
- * never minted. Changing one already recorded needs a reason.
- */
-export async function recordErpRefs(_prev: FormState, data: FormData): Promise<FormState> {
-  const id = String(data.get("id") ?? "");
-  const proc = String(data.get("erpRequisitionNo") ?? "").trim() || null;
-  const nm = String(data.get("erpNoteNo") ?? "").trim() || null;
-  const reason = String(data.get("reason") ?? "").trim();
-  if (!proc && !nm) return { ok: false, errors: { erpRequisitionNo: "Enter at least one number." } };
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
-    if (["CANCELLED", "CLOSED"].includes(l.req.status)) return { ok: false, message: "A cancelled or closed requisition cannot change." };
-    if (successorOpenFault(l.req.approvalInstances)) return { ok: false, message: SUCCESSOR_OPEN_TEXT };
-    const replacing = (l.req.erpRequisitionNo && proc && proc !== l.req.erpRequisitionNo) || (l.req.erpNoteNo && nm && nm !== l.req.erpNoteNo);
-    if (replacing && !reason) return { ok: false, errors: { reason: "Say why a number already recorded is being changed." } };
-    const errors = await saveErpRefs(tx, l, proc, nm);
-    if (errors) return { ok: false, errors };
-    const after = { erpRequisitionNo: proc ?? l.req.erpRequisitionNo, erpNoteNo: nm ?? l.req.erpNoteNo, erpRefSource: "MANUAL" as const, erpRefRecordedAt: new Date() };
-    await tx.requisition.update({ where: { id }, data: after });
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE",
-      diffFields({ erpRequisitionNo: l.req.erpRequisitionNo, erpNoteNo: l.req.erpNoteNo }, { erpRequisitionNo: after.erpRequisitionNo, erpNoteNo: after.erpNoteNo }), reason);
-    await linkMatchingMatters(tx, l.org.id, id);
-    return { ok: true };
-  });
-}
-
-/// Endorsed to Registered (OD-10): with the finance system's numbers where the policy requires them.
+/// Endorsed to Registered. The finance system's numbers are no longer asked for or recorded
+/// here (founder, 2026-10-05: the customer does not use them); numbers already on a
+/// requisition stay as they are.
 export async function registerRequisition(_prev: FormState, data: FormData): Promise<FormState> {
   const id = String(data.get("id") ?? "");
-  const proc = String(data.get("erpRequisitionNo") ?? "").trim() || null;
-  const nm = String(data.get("erpNoteNo") ?? "").trim() || null;
   return inRequisition(id, async (tx, l): Promise<FormState> => {
-    const policy = await loadPolicy(l.org.id, tx);
-    const nextProc = proc ?? l.req.erpRequisitionNo;
-    const nextNm = nm ?? l.req.erpNoteNo;
-    const regCtx = { today: l.org.today, erpReferenceRequired: policy.erpReferenceRequired, erpRequisitionNo: nextProc, erpNoteNo: nextNm };
+    const regCtx = { today: l.org.today };
     const fault = transitionFault(l.req.status, "REGISTERED", regCtx);
-    if (fault) {
-      if (fault.code === "ERP_REFS_REQUIRED") {
-        return { ok: false, errors: Object.fromEntries(fault.missing.map((m) => [m, "Required: the policy registers a requisition only with the finance system's numbers."])) };
-      }
-      return { ok: false, message: transitionFaultText(fault) };
-    }
-    if ((proc && proc !== l.req.erpRequisitionNo) || (nm && nm !== l.req.erpNoteNo)) {
-      if ((l.req.erpRequisitionNo && proc && proc !== l.req.erpRequisitionNo) || (l.req.erpNoteNo && nm && nm !== l.req.erpNoteNo)) {
-        return { ok: false, message: "A number is already recorded. Change it with “Record finance numbers”, which asks for a reason." };
-      }
-      const errors = await saveErpRefs(tx, l, proc, nm);
-      if (errors) return { ok: false, errors };
-    }
-    const refs = nextProc !== l.req.erpRequisitionNo || nextNm !== l.req.erpNoteNo
-      ? { erpRequisitionNo: nextProc, erpNoteNo: nextNm, erpRefSource: "MANUAL" as const, erpRefRecordedAt: new Date() }
-      : {};
-    const before = { status: l.req.status, erpRequisitionNo: l.req.erpRequisitionNo, erpNoteNo: l.req.erpNoteNo };
-    await mustMove(tx, l, "REGISTERED", regCtx, refs);
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields(before, { status: "REGISTERED", erpRequisitionNo: nextProc, erpNoteNo: nextNm }));
+    if (fault) return { ok: false, message: transitionFaultText(fault) };
+    await mustMove(tx, l, "REGISTERED", regCtx);
+    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: l.req.status }, { status: "REGISTERED" }));
     await linkMatchingMatters(tx, l.org.id, id);
     return { ok: true };
   });
 }
-
 // --------------------------------------------------------------- funding
 
 /**

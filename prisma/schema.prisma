@@ -2573,8 +2573,6 @@ model RequisitionPolicy {
   budgetRecheckDays            Int?
   /// The tiers whose heads endorse before submission. Empty means not set.
   endorsementTiers             OrgUnitKind[] @default([])
-  /// Whether registration needs the finance system's numbers. Null blocks it.
-  erpReferenceRequired         Boolean?
   /// The office whose holder may justify a flagged split (6.1 ruling Q3), by
   /// AuthorityRole.code. Null blocks justification.
   splitJustifyingRoleCode      String?

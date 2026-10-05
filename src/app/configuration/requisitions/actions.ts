@@ -48,7 +48,6 @@ export async function savePolicy(_prev: FormState, data: FormData): Promise<Form
     splittingAggregateAcrossYear: triState(r, "splittingAggregateAcrossYear", "Aggregate across the financial year"),
     budgetRecheckDays: r.int("budgetRecheckDays", "Re-check after", { min: 0 }),
     endorsementTiers: tiers as (typeof TIERS)[number][],
-    erpReferenceRequired: triState(r, "erpReferenceRequired", "Registration needs the finance system's numbers"),
     splitJustifyingRoleCode: r.optionalText("splitJustifyingRoleCode"),
     provenance: r.choice("provenance", "Provenance", PROVENANCE),
     notes: r.text("notes", "Notes", { max: 4000 }),

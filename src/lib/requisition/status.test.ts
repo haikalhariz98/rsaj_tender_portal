@@ -43,11 +43,11 @@ describe("the requisition state machine (§7.3.1)", () => {
     expect(transitionFault("DRAFT", "ENDORSED", { today, fieldFaults: 0, endorsementFaults: 0, tiersSet: true })).toBeNull();
   });
 
-  it("registers only with the finance system's numbers when they are required, and not at all while unset (OD-10)", () => {
-    expect(transitionFault("ENDORSED", "REGISTERED", { today, erpReferenceRequired: null })).toMatchObject({ code: "ERP_POLICY_NOT_SET" });
-    expect(transitionFault("ENDORSED", "REGISTERED", { today, erpReferenceRequired: true, erpRequisitionNo: "PROC1", erpNoteNo: null })).toEqual({ code: "ERP_REFS_REQUIRED", missing: ["erpNoteNo"] });
-    expect(transitionFault("ENDORSED", "REGISTERED", { today, erpReferenceRequired: true, erpRequisitionNo: "PROC1", erpNoteNo: "NM1" })).toBeNull();
-    expect(transitionFault("ENDORSED", "REGISTERED", { today, erpReferenceRequired: false })).toBeNull();
+  // Founder, 2026-10-05: the finance-system numbers were removed (the OD-10 setting and its act),
+  // so the four OD-10 expectations went with the feature. What stays pinned: registering an
+  // endorsed requisition waits for nothing from the finance system.
+  it("registers an endorsed requisition, never waiting for finance-system numbers", () => {
+    expect(transitionFault("ENDORSED", "REGISTERED", { today })).toBeNull();
   });
 
   it("returns only with a reason, a recipient and a date not in the future (FR-REQ-010)", () => {

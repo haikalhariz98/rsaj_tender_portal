@@ -1411,7 +1411,7 @@ async function loadRequisitions(organisationId: string, from: Date) {
   await db.requisitionPolicy.create({
     data: {
       id: `${P}rp1`, organisationId, splittingWindowDays: 45, splittingMatchOn: ["unit", "accountCode"],
-      budgetRecheckDays: 14, endorsementTiers: ["SECTION", "DEPARTMENT"], erpReferenceRequired: true, provenance: "ASSUMED",
+      budgetRecheckDays: 14, endorsementTiers: ["SECTION", "DEPARTMENT"], provenance: "ASSUMED",
       splittingAggregateAcrossYear: false, splitJustifyingRoleCode: "HOD_CP",
       notes: "Invented demo controls.",
     },

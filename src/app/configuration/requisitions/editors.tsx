@@ -47,14 +47,6 @@ export function EditPolicy({
           options: (["SECTION", "DEPARTMENT", "DIVISION"] as const).map((t) => ({ value: t, label: TIER_LABEL[t] })),
           hint: "The head of each tier's unit on the requesting unit's path. Empty: nothing can be endorsed or submitted.",
         },
-        { kind: "note", text: "Registration" },
-        {
-          kind: "select",
-          name: "erpReferenceRequired",
-          label: "Registration needs the finance system's numbers",
-          placeholder: "Not set — registration is refused",
-          options: TRI,
-        },
         { kind: "note", text: "Budget check" },
         { kind: "number", name: "budgetRecheckDays", label: "Re-check on submission when the check is older than (days)", min: 0, hint: "Empty: a check never goes stale." },
         { kind: "note", text: "Anti-splitting. No governing document sets these; they are the customer's decision." },
@@ -86,7 +78,6 @@ export function EditPolicy({
       ]}
       values={{
         endorsementTiers: policy.endorsementTiers.join("\n"),
-        erpReferenceRequired: tri(policy.erpReferenceRequired),
         budgetRecheckDays: policy.budgetRecheckDays == null ? null : String(policy.budgetRecheckDays),
         splittingWindowDays: policy.splittingWindowDays == null ? null : String(policy.splittingWindowDays),
         splittingMatchOn: policy.splittingMatchOn.join("\n"),

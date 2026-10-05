@@ -41,7 +41,6 @@ export async function loadPolicy(organisationId: string, client: Tx = db): Promi
     splittingAggregateAcrossYear: row.splittingAggregateAcrossYear,
     budgetRecheckDays: row.budgetRecheckDays,
     endorsementTiers: row.endorsementTiers as OrgUnitKind[],
-    erpReferenceRequired: row.erpReferenceRequired,
     splitJustifyingRoleCode: row.splitJustifyingRoleCode,
     provenance: (row.provenance as Provenance | null) ?? null,
   };

@@ -1,4 +1,4 @@
-import { ChartIcon, ClipboardIcon, FileIcon, ShieldIcon } from "@/components/icons";
+import { ChartIcon, ClipboardIcon, ShieldIcon } from "@/components/icons";
 import { periodText } from "@/lib/effective-text";
 import { HistoryButton } from "@/components/history-drawer";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import { formatDate } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
 import { storedDay } from "@/lib/dates";
 
-import { EditCheckSource, EditErpFormat, EditPolicy, GateRuleEditor } from "./editors";
+import { EditCheckSource, EditPolicy, GateRuleEditor } from "./editors";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +34,6 @@ function Setting({ value, unset, action }: { value: React.ReactNode | null; unse
   );
 }
 
-/// A regular expression, said in words: the configured description, else that a shape
-/// is set. The pattern itself is a configuration key and stays in the editor.
-function shapeInWords(f: { description: string | null; example: string | null }) {
-  return f.description?.trim() || "Checked against a set shape";
-}
-
 /**
  * Requisition controls: the customer's policy for requisitions. Every control ships
  * unset (6.1 rulings OD-3, OD-7, OD-8, OD-10), and each unset one says here what it
@@ -50,17 +44,16 @@ export default async function RequisitionControlsPage() {
   if (!org) {
     return (
       <>
-        <PageHeader title="Requisition controls" subtitle="Endorsement tiers, the splitting check, budget re-checks and registration." />
+        <PageHeader title="Requisition controls" subtitle="Endorsement tiers, the splitting check and budget re-checks." />
         <Card>
           <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
         </Card>
       </>
     );
   }
-  const [policy, controls, formats, offices, gateRules, routeRows, committeeRows] = await Promise.all([
+  const [policy, controls, offices, gateRules, routeRows, committeeRows] = await Promise.all([
     loadPolicy(org.id),
     loadControls(org.id),
-    db.codeFormat.findMany({ where: { organisationId: org.id, key: { in: ["erp_requisition_no", "erp_note_no"] } } }),
     db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true } }),
     db.committeeGateRule.findMany({ where: { organisationId: org.id }, orderBy: [{ fundingRouteCode: "asc" }, { sortOrder: "asc" }, { effectiveFrom: "asc" }] }),
     db.fundingRoute.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true, retiredOn: true, committeeGateRequired: true } }),
@@ -74,7 +67,6 @@ export default async function RequisitionControlsPage() {
   const justifier = policy.splitJustifyingRoleCode ? (offices.find((o) => o.code === policy.splitJustifyingRoleCode)?.nameEn ?? "An office no longer configured") : null;
   const unset = [
     policy.endorsementTiers.length === 0,
-    policy.erpReferenceRequired == null,
     policy.budgetRecheckDays == null,
     policy.splittingWindowDays == null,
     policy.splittingMatchOn.length === 0,
@@ -82,14 +74,13 @@ export default async function RequisitionControlsPage() {
     policy.splitJustifyingRoleCode == null,
     controls.budgetCheckSource == null,
   ].filter(Boolean).length;
-  const format = (key: string) => formats.find((f) => f.key === key) ?? null;
 
   return (
     <>
       <PageHeader
         title="Requisition controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
-        subtitle="Endorsements, registration, where the budget check comes from, and how a split is caught."
+        subtitle="Endorsements, where the budget check comes from, and how a split is caught."
         meta={[
           <span key="p" className="inline-flex items-center gap-1.5">
             Where these controls come from <ProvenanceBadge value={policy.provenance} />
@@ -129,64 +120,6 @@ export default async function RequisitionControlsPage() {
                 },
               ]}
             />
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader
-            icon={<FileIcon size={17} />}
-            title="Registration"
-            subtitle="The finance system's requisition and note numbers are consumed here, never issued."
-          />
-          <CardBody className="flex flex-col gap-5">
-            <KeyValues
-              columns={2}
-              items={[
-                {
-                  label: "Registration needs the finance system's numbers",
-                  value: (
-                    <Setting
-                      value={policy.erpReferenceRequired == null ? null : policy.erpReferenceRequired ? "Yes — both numbers before registering" : "No — they are recorded when known"}
-                      unset="Registration is refused until this is decided."
-                      action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}
-                    />
-                  ),
-                },
-              ]}
-            />
-            <div className="grid gap-4 border-t border-line pt-5 md:grid-cols-2">
-              {(
-                [
-                  ["erp_requisition_no", "Finance system requisition no."],
-                  ["erp_note_no", "Requisition note no."],
-                ] as const
-              ).map(([key, label]) => {
-                const f = format(key);
-                return (
-                  <div key={key} className="flex min-w-0 flex-col gap-2 rounded-2xl border border-line bg-sunken/60 p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[13px] font-semibold text-ink-2">{label}</span>
-                      <EditErpFormat formatKey={key} label={label} current={f ? { pattern: f.pattern, example: f.example, description: f.description, provenance: f.provenance } : null} />
-                    </div>
-                    {f ? (
-                      <div className="min-w-0 text-[13px] text-ink-2">
-                        <span className="block">{shapeInWords(f)}</span>
-                        {f.example && (
-                          <span className="block text-ink-3">
-                            For example <span className="font-mono">{f.example}</span>
-                          </span>
-                        )}
-                        <span className="mt-1 block">
-                          <ProvenanceBadge value={f.provenance} />
-                        </span>
-                      </div>
-                    ) : (
-                      <Setting value={null} unset="The number is recorded as typed and not checked against any shape." />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           </CardBody>
         </Card>
 

@@ -53,8 +53,6 @@ export type TransitionFault =
   | { code: "FIELDS_INCOMPLETE"; count: number }
   | { code: "ENDORSEMENTS_INCOMPLETE"; count: number }
   | { code: "ENDORSEMENT_TIERS_NOT_SET" }
-  | { code: "ERP_POLICY_NOT_SET" }
-  | { code: "ERP_REFS_REQUIRED"; missing: ("erpRequisitionNo" | "erpNoteNo")[] }
   | { code: "RETURN_DETAILS_REQUIRED"; missing: ("reason" | "recipient" | "date")[] }
   | { code: "REASON_REQUIRED" }
   | { code: "FUTURE_DATE" }
@@ -71,9 +69,6 @@ export interface TransitionContext {
   /// policy names no tiers, which blocks rather than passing vacuously.
   endorsementFaults?: number;
   tiersSet?: boolean;
-  erpReferenceRequired?: boolean | null;
-  erpRequisitionNo?: string | null;
-  erpNoteNo?: string | null;
   reason?: string;
   returnedToPersonId?: string | null;
   returnedOn?: string | null;
@@ -102,23 +97,11 @@ export function transitionFault(
       if (ctx.tiersSet === false) return { code: "ENDORSEMENT_TIERS_NOT_SET" };
       if ((ctx.endorsementFaults ?? 0) > 0) return { code: "ENDORSEMENTS_INCOMPLETE", count: ctx.endorsementFaults! };
       return null;
-    case "REGISTERED": {
-      // OD-10: whether registration needs the finance system's numbers is policy.
-      // Unset blocks rather than being read as "not required".
-      if (ctx.erpReferenceRequired == null) return { code: "ERP_POLICY_NOT_SET" };
-      if (ctx.erpReferenceRequired) {
-        const missing = (
-          [
-            ["erpRequisitionNo", ctx.erpRequisitionNo],
-            ["erpNoteNo", ctx.erpNoteNo],
-          ] as const
-        )
-          .filter(([, v]) => !v)
-          .map(([k]) => k);
-        if (missing.length > 0) return { code: "ERP_REFS_REQUIRED", missing };
-      }
+    case "REGISTERED":
+      // Founder, 2026-10-05: registration never waits for the finance system's numbers. The
+      // setting that could require them (OD-10) and the act that recorded them were removed:
+      // the customer does not use them.
       return null;
-    }
     case "RETURNED": {
       const missing = (
         [

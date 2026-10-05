@@ -14,7 +14,6 @@ import {
   recallRequisition,
   recordDecision,
   recordEndorsement,
-  recordErpRefs,
   recordExternalAuthority,
   registerRequisition,
   reopenDraft,
@@ -108,40 +107,16 @@ export function ReturnDrawer({ id, people, today }: { id: string; people: Option
   );
 }
 
-/// The configured examples of the finance system's two numbers, shown before typing.
-export type ErpExamples = { requisition: string | null; note: string | null };
-const exampleHint = (x: string | null) => (x ? `For example ${x}.` : undefined);
-
-export function RegisterDrawer({
-  id,
-  required,
-  proc,
-  nm,
-  blocker,
-  examples,
-}: {
-  id: string;
-  required: boolean | null;
-  proc: string | null;
-  nm: string | null;
-  blocker: string | null;
-  examples: ErpExamples;
-}) {
+/// Registering an endorsed requisition: a confirmation. The finance system's numbers are no longer
+/// asked for (founder, 2026-10-05: the customer does not use them).
+export function RegisterDrawer({ id, blocker }: { id: string; blocker: string | null }) {
   if (blocker) return <Blocked label="Register" reason={blocker} primary noteId={HEADER_NOTE_ID} />;
   return (
     <RecordEditor
       title="Register"
-      description={
-        required
-          ? "Registration needs the finance system's requisition and note numbers. They are consumed, never issued here."
-          : "The finance system's numbers are not required to register. Record them here if they are known."
-      }
-      fields={[
-        hidden("id"),
-        { kind: "text", name: "erpRequisitionNo", label: "Finance system requisition no.", required: required === true, mono: true, hint: exampleHint(examples.requisition) },
-        { kind: "text", name: "erpNoteNo", label: "Requisition note no.", required: required === true, mono: true, hint: exampleHint(examples.note) },
-      ]}
-      values={{ id, erpRequisitionNo: proc, erpNoteNo: nm }}
+      description="The requisition is entered in the register. From here it is budget-checked and submitted for approval."
+      fields={[hidden("id")]}
+      values={{ id }}
       action={registerRequisition}
       submitLabel="Register"
       trigger={{ label: "Register", className: buttonClass("primary", "sm") }}
@@ -149,26 +124,6 @@ export function RegisterDrawer({
     />
   );
 }
-
-export function ErpRefsDrawer({ id, proc, nm, examples }: { id: string; proc: string | null; nm: string | null; examples: ErpExamples }) {
-  return (
-    <RecordEditor
-      title="Record finance numbers"
-      description="The finance system's requisition and note numbers, as it issued them. Each belongs to one requisition."
-      fields={[
-        hidden("id"),
-        { kind: "text", name: "erpRequisitionNo", label: "Finance system requisition no.", mono: true, hint: exampleHint(examples.requisition) },
-        { kind: "text", name: "erpNoteNo", label: "Requisition note no.", mono: true, hint: exampleHint(examples.note) },
-      ]}
-      values={{ id, erpRequisitionNo: proc, erpNoteNo: nm }}
-      action={recordErpRefs}
-      reason={proc || nm ? { label: "Reason for the change" } : undefined}
-      trigger={{ label: "Record finance numbers", className: buttonClass("secondary", "sm") }}
-      size="md"
-    />
-  );
-}
-
 export function CheckBudgetDrawer({ id, source, blocker, today }: { id: string; source: "PORTAL_LEDGER" | "MANUAL_ERP_ENTRY" | null; blocker: string | null; today: string | null }) {
   if (blocker || !source) return <Blocked label="Check budget" reason={blocker ?? "The budget check source is not set."} noteId={HEADER_NOTE_ID} />;
   const manual = source === "MANUAL_ERP_ENTRY";
