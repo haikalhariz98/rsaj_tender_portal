@@ -46,9 +46,10 @@ describe("only the Opening's offers use them (other lists unchanged)", () => {
   // 6.8 (flagged, faithful): the evaluation's lists are the second set to use them, as the build was told to.
   // 6.14 inc 2 code review S-1 (faithful, as the review ordered): the documents register's Library and Routing sheets give
   // their main column a minWidth (no stackBelow "2xl").
-  it("stackBelow=\"2xl\" and a column minWidth appear only on the offers list, the evaluation's lists and the documents register", () => {
+  // Founder, 2026-10-05 (faithful): the sourcing list keeps its exercise column at least 260px.
+  it("stackBelow=\"2xl\" and a column minWidth appear only on the offers list, the evaluation's lists, the documents register and the sourcing list", () => {
     expect(screens.filter((s) => /stackBelow="2xl"/.test(s.text)).map((s) => s.p.slice(s.p.indexOf("src/"))).sort()).toEqual(["src/app/sourcing/[id]/evaluation/lists.tsx", "src/app/sourcing/[id]/opening/lists.tsx"]);
-    expect(screens.filter((s) => /\{ key: "[^"]+", label: [^}]*minWidth: "\d+px"/.test(s.text)).map((s) => s.p.slice(s.p.indexOf("src/"))).sort()).toEqual(["src/app/documents/page.tsx", "src/app/sourcing/[id]/evaluation/lists.tsx", "src/app/sourcing/[id]/opening/lists.tsx"]);
+    expect(screens.filter((s) => /\{ key: "[^"]+", label: [^}]*minWidth: "\d+px"/.test(s.text)).map((s) => s.p.slice(s.p.indexOf("src/"))).sort()).toEqual(["src/app/documents/page.tsx", "src/app/sourcing/[id]/evaluation/lists.tsx", "src/app/sourcing/[id]/opening/lists.tsx", "src/app/sourcing/page.tsx"]);
   });
   it("the offers list: bidder at least 200px; the verdict column holds the badge", () => {
     const lists = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/opening/lists.tsx"), "utf8");

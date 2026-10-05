@@ -28,7 +28,12 @@ export function PageHeader({
   eyebrow,
   actionsBelow,
   className,
+  info,
 }: {
+  /// What the screen covers, behind an information button beside the title: a dark message box
+  /// on hover, focus or tap, rather than a notice taking the top of the page (founder, 2026-10-05).
+  /// The words are also in the page for a screen reader, as MoreText expects.
+  info?: { title: string; text: string };
   title: ReactNode;
   /// Sits beside the title — status of the whole screen, e.g. "Not built yet".
   badge?: ReactNode;
@@ -72,6 +77,14 @@ export function PageHeader({
           <h1 className="text-[28px] leading-tight font-bold tracking-[-0.02em] text-ink">
             {title}
           </h1>
+          {info && (
+            <>
+              <span className="sr-only">
+                {info.title}. {info.text}
+              </span>
+              <MoreText text={info.text} title={info.title} variant="note" label={info.title} />
+            </>
+          )}
           {badge}
         </div>
         {subtitle && (

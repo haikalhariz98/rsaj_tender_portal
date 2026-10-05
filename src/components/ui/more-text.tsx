@@ -16,7 +16,21 @@ const CLOSE_DELAY = 200;
 ///
 /// The full text is also in the page as screen-reader-only text (see PageHeader), so the
 /// popover is hidden from assistive technology: it is heard once, not twice.
-export function MoreText({ text }: { text: string }) {
+export function MoreText({
+  text,
+  title,
+  variant = "plain",
+  label = "Show the full description",
+}: {
+  text: string;
+  /// A bold first line in the popover (the `note` variant).
+  title?: string;
+  /// `note`: a dark message box beside a page's title, for what a screen covers and what it does
+  /// not (founder, 2026-10-05). `plain`: the white popover after a cut subtitle.
+  variant?: "plain" | "note";
+  /// The button's accessible name.
+  label?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [above, setAbove] = useState(false);
   const pinned = useRef(false);
@@ -74,10 +88,10 @@ export function MoreText({ text }: { text: string }) {
   };
 
   return (
-    <span ref={root} className="-my-1 inline-block align-middle" onPointerEnter={hoverIn} onPointerLeave={hoverOut}>
+    <span ref={root} className={cx("-my-1 inline-block align-middle", variant === "note" && "relative")} onPointerEnter={hoverIn} onPointerLeave={hoverOut}>
       <button
         type="button"
-        aria-label="Show the full description"
+        aria-label={label}
         aria-expanded={open}
         aria-controls={id}
         className={cx(
@@ -114,10 +128,12 @@ export function MoreText({ text }: { text: string }) {
           id={id}
           aria-hidden="true"
           className={cx(
-            "absolute left-0 z-30 block w-max max-w-[min(36rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-3 text-left text-[13.5px] leading-snug font-normal text-ink-2 shadow-pop",
+            "absolute left-0 z-30 block w-max max-w-[min(36rem,calc(100vw-2rem))] p-3 text-left text-[13.5px] leading-snug font-normal tracking-normal shadow-pop",
+            variant === "note" ? "rounded-xl bg-ink p-4 text-white" : "rounded-2xl border border-line bg-surface text-ink-2",
             above ? "bottom-full mb-2" : "top-full mt-2",
           )}
         >
+          {title && <span className="mb-1 block font-semibold">{title}</span>}
           {text}
         </span>
       )}

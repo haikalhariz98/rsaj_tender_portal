@@ -2,7 +2,6 @@ import type { Row } from "@/components/data-list";
 import { PlusIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { CardFooter } from "@/components/ui/card";
-import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { nameRoutesOf } from "@/lib/method/approval";
 import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_ORDER, EXERCISE_STATUS_TONE, REGIME_SHORT, TERM } from "@/lib/method/labels";
@@ -76,6 +75,12 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
     <>
       <PageHeader
         title="Sourcing"
+        /* Founder, 2026-10-05: what the screen covers sits behind the information button beside the title,
+           not as a notice across the top. Brought up to date: bids, opening and evaluation are recorded here now. */
+        info={{
+          title: "What is recorded here",
+          text: "An exercise is classified here: its value bands, sourcing method, contract type and basis, and who approves the name and the appointment. Its tender documents and its window (advertisement or invitation, sale of the documents, briefings and addenda) are prepared and recorded here, and so are the bids received on paper, their opening and their evaluation. Suppliers cannot submit bids online yet: that waits for the supplier portal, which needs sign-in.",
+        }}
         subtitle="Exercises opened on approved requisitions: value band, method, contract type and basis."
         meta={[
           // The state's own label, as the dashboard counts it: one name for one state.
@@ -91,10 +96,6 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
           ) : undefined
         }
       />
-
-      <Callout tone="info" className="mb-6" title="Bids and evaluation run outside the portal in this phase">
-        An exercise is classified here: its three value bands, sourcing method, contract type and basis, and who approves the name and the appointment. Its tender documents are prepared and approved here, and its window is recorded here: advertisement or invitation, sale of the documents, briefings and addenda. Receiving bids and evaluation are still recorded outside the portal.
-      </Callout>
 
       <ExerciseList
         flat
@@ -123,12 +124,14 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
         rowAction={{ label: "Open", hrefTemplate: "/sourcing/{id}" }}
         rowOpens
         columns={[
-          { key: "title", label: "Exercise", sortable: true, mobile: "primary" },
-          { key: "method", label: "Method and contract type", width: "22%", hideBelow: "2xl" },
-          { key: "value", label: "Value", width: "156px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
-          { key: "window", label: "Closing", width: "190px", hideBelow: "lg", mobile: "meta" },
-          { key: "status", label: "Status", width: "230px", sortable: true, mobile: "meta" },
-          { key: "checks", label: "Band and checks", width: "220px", hideBelow: "2xl", mobile: "meta" },
+          // Founder, 2026-10-05: the exercise's title was squeezed to a sliver by the fixed columns. It keeps
+          // at least 260px (the table scrolls in its card rather than squeeze it) and the others are narrower.
+          { key: "title", label: "Exercise", minWidth: "260px", sortable: true, mobile: "primary" },
+          { key: "method", label: "Method and contract type", width: "18%", hideBelow: "2xl" },
+          { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
+          { key: "window", label: "Closing", width: "168px", hideBelow: "lg", mobile: "meta" },
+          { key: "status", label: "Status", width: "200px", sortable: true, mobile: "meta" },
+          { key: "checks", label: "Band and checks", width: "168px", hideBelow: "2xl", mobile: "meta" },
         ]}
         rows={list}
         footer={total > rows.length ? <CardFooter className="text-[12.5px] text-ink-3">Showing the latest {EXERCISES_PAGE} of {total}.</CardFooter> : undefined}
