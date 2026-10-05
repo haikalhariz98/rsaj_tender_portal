@@ -6,11 +6,12 @@ import { useEffect, useRef, useState, useTransition, type ReactNode } from "reac
 
 import { PlusIcon, SaveIcon } from "@/components/icons";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
+import { cx } from "@/components/ui/cx";
 import { Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, FileInput, Input, Select, Switch, Textarea } from "@/components/ui/field";
 import { REASON_HINT } from "@/lib/labels";
 import { splitValues } from "@/lib/ui/select-logic";
-import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
+import { CONFIRM_SCRIM, confirmPanelClass, DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 
 /**
  * The form chrome around every configuration record.
@@ -246,6 +247,8 @@ export function RecordEditor({
   // Nobody is signed in, so where a reason is asked for it is the only account of
   // why the change was made, whichever direction the change goes.
   const asksReason = destructive ? { label: destructive.reasonLabel } : reasonAsked;
+  // Nothing to fill in: a confirmation, shown as a small centred box sized to its words.
+  const confirmOnly = fields.every((f) => f.kind === "hidden") && !sections && !asksReason;
   const blocked = asksReason != null && reason.trim().length === 0;
   const placed = new Set(fields.filter((f) => f.kind !== "hidden" && "name" in f).map((f) => (f as { name: string }).name));
   if (asksReason) placed.add("reason");
@@ -274,11 +277,11 @@ export function RecordEditor({
 
       {open && (
         <div
-          className={DRAWER_SCRIM}
+          className={confirmOnly ? CONFIRM_SCRIM : DRAWER_SCRIM}
           onPointerDown={(e) => e.target === e.currentTarget && setOpen(false)}
         >
           <aside
-            className={drawerPanelClass(size)}
+            className={confirmOnly ? confirmPanelClass() : drawerPanelClass(size)}
             role="dialog"
             aria-modal="true"
             aria-label={title}
@@ -315,7 +318,9 @@ export function RecordEditor({
                 onClose={() => setOpen(false)}
               />
 
-              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              {/* A confirmation shows its body only when there is something to say (a refusal);
+                  its hidden inputs still submit while the body is hidden. */}
+              <div className={confirmOnly && !state.message && unplaced.length === 0 && !identity && !review ? "hidden" : "min-h-0 flex-1 overflow-y-auto px-6 py-5"}>
                 {review && confirm && (
                   <div className="flex flex-col gap-4" role="group" aria-label={confirm.heading}>
                     <p className="text-[15px] font-bold text-ink">{confirm.heading}</p>
@@ -405,7 +410,7 @@ export function RecordEditor({
                 </div>
               </div>
 
-              <footer className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-t border-line px-6 py-4">
+              <footer className={cx("flex flex-wrap items-center justify-end gap-x-3 gap-y-2 px-6 py-4", !confirmOnly && "border-t border-line")}>
                 {submitBlock && (
                   <p id="record-submit-block" role="status" className="min-w-0 flex-1 basis-56 text-[13px] text-ink-2">
                     {submitBlock}
