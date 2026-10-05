@@ -34,4 +34,18 @@ describe("an approval route as a flow of steps (founder, 2026-10-05)", () => {
   it("a recalled route waits on nothing: its undecided steps are not reached", () => {
     expect(states(routeSteps({ status: "RECALLED", openedOn: "x", steps: [step("hod", "PENDING")] }))).toEqual(["Submitted:done", "HOD:waiting", "Recalled:rejected"]);
   });
+  it("an outcome label words the last step only, in the same state, for every status", () => {
+    const words = (st: string) => `outcome of ${st}`;
+    for (const status of ["PENDING", "APPROVED", "REJECTED", "RECALLED"] as const) {
+      const route = { status, openedOn: "01 Oct 2026", steps: [step("hod", status === "APPROVED" ? "DONE" : status === "REJECTED" ? "REJECTED" : "PENDING")] };
+      const plain = routeSteps(route);
+      const worded = routeSteps(route, words);
+      expect(worded.slice(0, -1)).toEqual(plain.slice(0, -1));
+      expect(worded.at(-1)).toEqual({ ...plain.at(-1), label: `outcome of ${status}` });
+    }
+  });
+  it("without an outcome label the words are as they always were", () => {
+    expect(routeSteps({ status: "REJECTED", openedOn: "x", steps: [step("hod", "REJECTED")] }).at(-1)).toEqual({ key: "outcome", label: "Rejected", state: "rejected" });
+    expect(routeSteps({ status: "PENDING", openedOn: "x", steps: [step("hod", "PENDING")] }).at(-1)).toEqual({ key: "outcome", label: "Approved", state: "waiting" });
+  });
 });

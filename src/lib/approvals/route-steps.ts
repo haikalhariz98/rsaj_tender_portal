@@ -18,12 +18,21 @@ export interface RouteStepIn {
  * waiting now; the ones after it are not reached yet. A rejected step and a rejected route read
  * as rejected; a recalled route leaves its undecided steps not reached and its outcome
  * "Recalled".
+ *
+ * `outcomeLabel` words the last step where the route's own words differ (a tendering route's
+ * rejection returns the documents for amendment: "Returned for amendment", never "Rejected").
+ * For an open route it names the outcome still to come. Not given: the words above.
  */
-export function routeSteps(route: {
-  status: "PENDING" | "APPROVED" | "REJECTED" | "RECALLED";
-  openedOn: string;
-  steps: readonly RouteStepIn[];
-}): StepperStep[] {
+export type RouteStatus = "PENDING" | "APPROVED" | "REJECTED" | "RECALLED";
+
+export function routeSteps(
+  route: {
+    status: RouteStatus;
+    openedOn: string;
+    steps: readonly RouteStepIn[];
+  },
+  outcomeLabel?: (status: RouteStatus) => string,
+): StepperStep[] {
   const open = route.status === "PENDING";
   const firstPending = route.steps.findIndex((s) => s.decision === "PENDING");
   const out: StepperStep[] = [{ key: "submitted", label: "Submitted", sub: route.openedOn, state: "done" }];
@@ -38,12 +47,13 @@ export function routeSteps(route: {
       out.push({ key: s.id, label: s.label, state: "waiting" });
     }
   });
-  const outcome: Record<typeof route.status, StepperStep> = {
+  const outcome: Record<RouteStatus, StepperStep> = {
     PENDING: { key: "outcome", label: "Approved", state: "waiting" },
     APPROVED: { key: "outcome", label: "Approved", state: "done" },
     REJECTED: { key: "outcome", label: "Rejected", state: "rejected" },
     RECALLED: { key: "outcome", label: "Recalled", state: "rejected" },
   };
-  out.push(outcome[route.status]);
+  const last = outcome[route.status];
+  out.push(outcomeLabel ? { ...last, label: outcomeLabel(route.status) } : last);
   return out;
 }
