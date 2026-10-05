@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BQ_SCOPED_BY, BQ_ITEM_KINDS } from "./types";
-import { BQ_READABLE_STATEMENT, ESTIMATE_SEALED_STATEMENT, ESTIMATE_STATE_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, LEAD_STATE_BADGE, leadTimeText, PACK_CARD_HEADING, PANEL_STATE_LABEL, SCOPE_CODES, scopeFaultText, SCOPED_BY_LABEL, sealedVersion, signatoriesText, sharePercentText, estimateEmptyState, leadConfiguredText } from "./labels";
+import { BQ_READABLE_STATEMENT, ESTIMATE_STATE_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, LEAD_STATE_BADGE, leadTimeText, PANEL_STATE_LABEL, SCOPE_CODES, scopeFaultText, SCOPED_BY_LABEL, sealedVersion, signatoriesText, sharePercentText, estimateEmptyState, leadConfiguredText } from "./labels";
 
 describe("every code has words, and no words are a code (AGENTS.md rule 5)", () => {
   it("each code renders a sentence that is not the code", () => {
@@ -34,13 +34,15 @@ describe("the lead-time badge", () => {
 });
 
 describe("the statements the screens carry", () => {
-  it("the estimate callout names the Phase 3 electronic tender box (6.2 conditions)", () => {
-    expect(ESTIMATE_SEALED_STATEMENT).toMatch(/electronic tender box \(Phase 3\)/);
-    expect(ESTIMATE_SEALED_STATEMENT).toMatch(/withheld from every screen, including this one/);
-  });
-  it("the BQ tab says priced rates are readable by anyone (OD-8); the pack card says not yet enforced (OD-4)", () => {
+  // Founder decision, 2026-10-05: the estimate's "sealed on screen, not yet in storage" statement
+  // (ESTIMATE_SEALED_STATEMENT, 6.2 conditions) is deleted from the screen and from the read model,
+  // so it no longer has wording to pin. What it protected, that the figure is withheld from every
+  // screen, is pinned by sealed.test.ts and by the read model omitting the figure.
+  // The same decision removed the readiness card (PACK_CARD_HEADING, OD-4), so its "not yet
+  // enforced" heading is not pinned either; the checks themselves stay in pack.ts and are enforced
+  // at submission, and pack.test.ts pins them.
+  it("the BQ tab says priced rates are readable by anyone (OD-8)", () => {
     expect(BQ_READABLE_STATEMENT).toMatch(/readable by anyone/);
-    expect(PACK_CARD_HEADING).toMatch(/not yet enforced/);
   });
   it("sealed rows and an unstated firm value", () => {
     expect(sealedVersion(2)).toBe("Sealed (version 2)");

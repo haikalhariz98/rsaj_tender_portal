@@ -1,3 +1,4 @@
+import { Accordion } from "@/components/accordion";
 import { DataList } from "@/components/data-list";
 import { ClockIcon, ShieldIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
@@ -25,8 +26,6 @@ export function EstimateSection({ d }: { d: Data }) {
   const e = d.live;
   return (
     <div className="flex flex-col gap-6">
-      <Callout tone="warn" title="Sealed on screen, not yet in storage">{d.statement}</Callout>
-
       {!e ? (
         <Card id="company-estimate" className="scroll-mt-24">
           <CardHeader
@@ -88,6 +87,7 @@ function Live({ e, d, exerciseId, people }: { e: Estimate; d: Data; exerciseId: 
           {e.lodgementBehind && (
             <Callout tone="warn">The estimate was amended after version {e.lodgedVersionNo} was lodged. The lodged copy is behind: lodge the current version.</Callout>
           )}
+          {(e.lead.badge.tone === "err" || e.lead.badge.tone === "warn") && !closed && <Callout tone={e.lead.badge.tone}>{e.lead.text}</Callout>}
           <KeyValues
             columns={3}
             items={[
@@ -110,70 +110,77 @@ function Live({ e, d, exerciseId, people }: { e: Estimate; d: Data; exerciseId: 
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader icon={<ClockIcon size={17} />} title="Lead time" subtitle="How long before closing the last version has to be made." actions={<Badge tone={e.lead.badge.tone} dot>{e.lead.badge.label}</Badge>} />
-        <CardBody className="flex flex-col gap-1.5">
-          <p className="text-[13.5px] text-ink">{e.lead.text}</p>
-          <p className="text-[13.5px] text-ink">{e.lead.configured}</p>
-          <p className="text-[12.5px] text-ink-3">{e.lead.reading}</p>
-        </CardBody>
-      </Card>
+      <Accordion title="History" meta={`${e.versions.length === 1 ? "1 version" : `${e.versions.length} versions`}, lead time, custody`}>
+        <div className="flex flex-col gap-6 p-5">
+          <section aria-labelledby="estimate-lead" className="flex flex-col gap-1.5">
+            <h3 id="estimate-lead" className="flex flex-wrap items-center gap-2 text-[13.5px] font-semibold text-ink">
+              Lead time <Badge tone={e.lead.badge.tone} dot>{e.lead.badge.label}</Badge>
+            </h3>
+            <p className="text-[12.5px] text-ink-3">How long before closing the last version has to be made.</p>
+            <p className="text-[13.5px] text-ink">{e.lead.text}</p>
+            <p className="text-[13.5px] text-ink">{e.lead.configured}</p>
+            <p className="text-[12.5px] text-ink-3">{e.lead.reading}</p>
+          </section>
 
-      <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title="Versions" subtitle="Each is kept, sealed. A version made after the first needs a reason, sealed with its figure." divided={false} />
-        <DataList
-          flat
-          selectable={false}
-          searchable={false}
-          toolbar={false}
-          exportName="estimate-versions"
-          emptyTitle="No versions"
-          columns={[
-            { key: "no", label: "Version", width: "14%", mobile: "primary" },
-            { key: "on", label: "Prepared on", width: "20%", nowrap: true, mobile: "meta" },
-            { key: "by", label: "Prepared by", width: "26%", mobile: "meta" },
-            { key: "value", label: "Figure", width: "16%", mobile: "meta" },
-            { key: "reason", label: "Reason", mobile: "meta" },
-          ]}
-          rows={e.versions.map((v) => ({
-            id: String(v.versionNo),
-            search: `${v.versionNo} ${v.preparer}`,
-            cells: {
-              no: { kind: "text", text: `Version ${v.versionNo}` },
-              on: { kind: "text", text: formatDate(v.preparedOn) },
-              by: { kind: "text", text: v.preparer },
-              value: { kind: "chip", text: v.value, tone: "err" },
-              reason: v.reason ? { kind: "chip", text: v.reason, tone: "err" } : { kind: "text", text: "None needed for the first version", dim: true },
-            },
-          }))}
-        />
-      </Card>
+          <section aria-labelledby="estimate-versions" className="flex flex-col gap-2">
+            <h3 id="estimate-versions" className="text-[13.5px] font-semibold text-ink">Versions</h3>
+            <p className="text-[12.5px] text-ink-3">Each is kept, sealed. A version made after the first needs a reason, sealed with its figure.</p>
+            <div className="overflow-hidden rounded-2xl border border-line">
+              <DataList
+                flat
+                selectable={false}
+                searchable={false}
+                toolbar={false}
+                exportName="estimate-versions"
+                emptyTitle="No versions"
+                columns={[
+                  { key: "no", label: "Version", width: "14%", mobile: "primary" },
+                  { key: "on", label: "Prepared on", width: "20%", nowrap: true, mobile: "meta" },
+                  { key: "by", label: "Prepared by", width: "26%", mobile: "meta" },
+                  { key: "value", label: "Figure", width: "16%", mobile: "meta" },
+                  { key: "reason", label: "Reason", mobile: "meta" },
+                ]}
+                rows={e.versions.map((v) => ({
+                  id: String(v.versionNo),
+                  search: `${v.versionNo} ${v.preparer}`,
+                  cells: {
+                    no: { kind: "text", text: `Version ${v.versionNo}` },
+                    on: { kind: "text", text: formatDate(v.preparedOn) },
+                    by: { kind: "text", text: v.preparer },
+                    value: { kind: "chip", text: v.value, tone: "err" },
+                    reason: v.reason ? { kind: "chip", text: v.reason, tone: "err" } : { kind: "text", text: "None needed for the first version", dim: true },
+                  },
+                }))}
+              />
+            </div>
+          </section>
 
-      <Card>
-        <CardHeader icon={<ClockIcon size={17} />} title="Custody" subtitle="Who prepared, lodged and kept each copy. Recorded on behalf of, not signed: nobody signs in yet." />
-        <CardBody>
-          {e.events.length === 0 ? (
-            <EmptyState size="sm" title="No custody events yet" />
-          ) : (
-            <ol className="divide-y divide-line/70 rounded-2xl border border-line">
-              {e.events.map((x) => (
-                <li key={x.id} className="flex flex-col gap-0.5 px-4 py-3">
-                  <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-                    <span className="text-[13.5px] font-semibold text-ink">
-                      {x.kind}
-                      {x.versionNo ? `, version ${x.versionNo}` : ""}
-                      {x.copyNo ? `, copy ${x.copyNo}` : ""}
+          <section aria-labelledby="estimate-custody" className="flex flex-col gap-2">
+            <h3 id="estimate-custody" className="text-[13.5px] font-semibold text-ink">Custody</h3>
+            <p className="text-[12.5px] text-ink-3">Who prepared, lodged and kept each copy. Recorded on behalf of, not signed: nobody signs in yet.</p>
+            {e.events.length === 0 ? (
+              <EmptyState size="sm" title="No custody events yet" />
+            ) : (
+              <ol className="divide-y divide-line/70 rounded-2xl border border-line">
+                {e.events.map((x) => (
+                  <li key={x.id} className="flex flex-col gap-0.5 px-4 py-3">
+                    <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <span className="text-[13.5px] font-semibold text-ink">
+                        {x.kind}
+                        {x.versionNo ? `, version ${x.versionNo}` : ""}
+                        {x.copyNo ? `, copy ${x.copyNo}` : ""}
+                      </span>
+                      <span className="text-[12.5px] text-ink-3">{formatOrgDateTime(x.at, d.timeZone)}</span>
                     </span>
-                    <span className="text-[12.5px] text-ink-3">{formatOrgDateTime(x.at, d.timeZone)}</span>
-                  </span>
-                  {(x.by || x.capacity) && <span className="text-[13px] break-words text-ink-2">{[x.by, x.capacity].filter(Boolean).join(" · ")}</span>}
-                  {x.note && <span className="text-[13px] break-words text-ink-2">{x.note}</span>}
-                </li>
-              ))}
-            </ol>
-          )}
-        </CardBody>
-      </Card>
+                    {(x.by || x.capacity) && <span className="text-[13px] break-words text-ink-2">{[x.by, x.capacity].filter(Boolean).join(" · ")}</span>}
+                    {x.note && <span className="text-[13px] break-words text-ink-2">{x.note}</span>}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        </div>
+      </Accordion>
     </>
   );
 }

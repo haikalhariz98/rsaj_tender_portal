@@ -1,21 +1,11 @@
 import { EmptyState } from "@/components/ui/feedback";
 import { Card } from "@/components/ui/card";
 import { bqTab, estimateTab, scopeTab } from "@/lib/scope/read";
+import type { ScopeSectionId } from "@/lib/scope/sections";
 
 import { BqSection } from "./bq-section";
 import { EstimateSection } from "./estimate-section";
 import { ScopeSection } from "./scope-section";
-
-/// The sections of the exercise's "Scope and estimate" tab, in order. The strip is the
-/// shared Tabs' second level; these are its ids and labels.
-export const SCOPE_SECTIONS = [
-  { id: "scope", label: "Scope" },
-  { id: "bq", label: "Bill of quantities" },
-  { id: "estimate", label: "Company estimate" },
-] as const;
-
-export type ScopeSectionId = (typeof SCOPE_SECTIONS)[number]["id"];
-export const scopeSectionOf = (v: string | undefined): ScopeSectionId => SCOPE_SECTIONS.find((s) => s.id === v)?.id ?? "scope";
 
 const GONE = (
   <Card>

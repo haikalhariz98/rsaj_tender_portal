@@ -16,6 +16,7 @@ import { CLASSIFICATION_LABEL } from "@/lib/documents/labels";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { exerciseOrg } from "@/lib/method/repo";
 
+import type { ScopeSectionFacts } from "./sections";
 import { bqTotals, currentBq, draftEditFaults, finaliseFaults, reviseFaults, startBqFaults } from "./bq";
 import { estimateFactsOf as factsOf, loadBqVersions, loadEstimates, loadRateIssues, loadScopeMatters, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadScopePolicy, loadScopeRules, linesOf, lineOf } from "./repo";
 import { leadTime, lodgeFaults, lodgementBehind, retainedCopyDue, retainFaults, startFault, versionFaults, voidFault } from "./estimate";
@@ -23,7 +24,6 @@ import {
   ATTESTED,
   BQ_READABLE_STATEMENT,
   BQ_STATUS_LABEL,
-  ESTIMATE_SEALED_STATEMENT,
   ESTIMATE_STATE_LABEL,
   EVENT_KIND_LABEL,
   firmValueText,
@@ -37,7 +37,6 @@ import {
   estimateEmptyState,
   leadConfiguredText,
   NOT_SET,
-  PACK_CARD_HEADING,
   PANEL_STATE_LABEL,
   PROVENANCE_LABEL,
   PROVISIONAL_CHIP,
@@ -54,7 +53,6 @@ import {
   scopeRuleMovedNote,
   scopeRuleWords,
 } from "./labels";
-import { packFaults, type PackFault } from "./pack";
 import { issueText, schedulesInForce } from "./rates";
 import { rateFromText } from "./audit-view";
 import { uploadContext } from "@/lib/documents/read";
@@ -78,25 +76,6 @@ const money = (s: bigint) => formatSen(s);
 const provenanceText = (p: string | null | undefined) => (p ? (PROVENANCE_LABEL as Record<string, string>)[p] ?? NOT_SET : NOT_SET);
 const yesNo = (b: boolean | null) => (b == null ? NOT_SET : b ? "Yes" : "No");
 
-/// Where each readiness finding is fixed, for a link.
-const PACK_HREF = (exerciseId: string): Readonly<Record<PackFault, string>> => ({
-  BASIS_NOT_CHOSEN: `/sourcing/${exerciseId}?tab=overview`,
-  BASIS_BQ_NOT_SET: `${SCOPE_CONFIG_PATH}#bill-bases`,
-  BQ_NOT_FINALISED: `/sourcing/${exerciseId}?tab=scope&section=bq#bill-version`,
-  BQ_REVISION_OPEN: `/sourcing/${exerciseId}?tab=scope&section=bq#bill-version`,
-  PANEL_NOT_VERIFIED: `/sourcing/${exerciseId}?tab=scope&section=scope#specification-panel`,
-  PANEL_SCAN_GONE: `/sourcing/${exerciseId}?tab=scope&section=scope#signed-panel-form`,
-  PANEL_BILL_SUPERSEDED: `/sourcing/${exerciseId}?tab=scope&section=scope#specification-panel`,
-  METHOD_NOT_CONFIGURED: "/configuration/reference-data",
-  ESTIMATE_RULE_NOT_SET: `${SCOPE_CONFIG_PATH}#estimate-rules`,
-  ESTIMATE_NOT_LODGED: `/sourcing/${exerciseId}?tab=scope&section=estimate#company-estimate`,
-  ESTIMATE_BEHIND: `/sourcing/${exerciseId}?tab=scope&section=estimate#company-estimate`,
-  SCOPE_RULE_NOT_SET: `${SCOPE_CONFIG_PATH}#scope-rules`,
-  SCOPE_COMMITTEE_NOT_SET: `${SCOPE_CONFIG_PATH}#scope-rules`,
-  SCOPE_ACT_NOT_SET: `${SCOPE_CONFIG_PATH}#scope-rules`,
-  SCOPE_NOT_APPROVED: `/sourcing/${exerciseId}?tab=scope&section=scope#scope-approval`,
-});
-
 async function loadAll(exerciseId: string) {
   const org = await exerciseOrg();
   if (!org) return null;
@@ -114,10 +93,21 @@ async function loadAll(exerciseId: string) {
   return { org, ex, policy, versions, panel, estimates, rules, scopeMatters, approval };
 }
 
-/// The live estimate's facts for packFaults (or null).
-function liveEstimate(estimates: Awaited<ReturnType<typeof loadEstimates>>) {
-  const e = estimates.find((x) => x.state !== "VOID");
-  return e ? factsOf(e) : null;
+// ------------------------------------------------------------------ Which sections the tab shows
+
+/**
+ * What decides which of the Scope and estimate tab's sections the exercise needs: the two
+ * configured flags, and whether a bill or an estimate already exists. A count only, not a
+ * sibling section's data. Null when the exercise or its organisation cannot be found.
+ */
+export async function scopeSectionFacts(exerciseId: string): Promise<ScopeSectionFacts | null> {
+  const org = await exerciseOrg();
+  if (!org) return null;
+  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, sourcingMethodCode: true, contractBasisCode: true } });
+  if (!ex) return null;
+  const rules = await loadScopeRules(org.id, ex);
+  const [bills, estimates] = await Promise.all([db.bqVersion.count({ where: { exerciseId: ex.id } }), db.companyEstimate.count({ where: { exerciseId: ex.id } })]);
+  return { requiresBq: rules.basis?.requiresBq ?? null, requiresCompanyEstimate: rules.method?.requiresCompanyEstimate ?? null, hasBill: bills > 0, hasEstimate: estimates > 0 };
 }
 
 // ------------------------------------------------------------------ Scope tab
@@ -125,7 +115,7 @@ function liveEstimate(estimates: Awaited<ReturnType<typeof loadEstimates>>) {
 export async function scopeTab(exerciseId: string) {
   const a = await loadAll(exerciseId);
   if (!a) return null;
-  const { org, ex, policy, versions, panel, estimates, rules } = a;
+  const { org, ex, policy, versions, panel, rules } = a;
   const [columns, people, lists] = await Promise.all([
     loadPanelColumns(org.id),
     db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -134,8 +124,6 @@ export async function scopeTab(exerciseId: string) {
   const listOf = (code: string | null) => lists.find((t) => t.code === code)?.values.map((v) => ({ value: v.code, label: v.nameEn })) ?? [];
   const valueName = (code: string | null, listCode: string | null, other: string) =>
     code ? (listOf(listCode).find((v) => v.value === code)?.label ?? "A value no longer on the list") : other.trim() ? `Specified: ${other.trim()}` : NOT_SET;
-  const { finalised, draft } = currentBq(versions);
-  const shown = finalised ?? draft;
   const state = panelState(panel ? { status: panel.status, liveScanVersionIds: panel.liveScanVersionIds, verifiedSnapshot: panel.verifiedSnapshot } : null);
   const inForce = columnsInForce(columns, org.today);
   const standing = panel ? standingVerifications(panel.verifications) as typeof panel.verifications : [];
@@ -146,20 +134,8 @@ export async function scopeTab(exerciseId: string) {
       )
     : [];
   const signatories = new Set(standing.map((v) => v.personId)).size;
-  const live = liveEstimate(estimates);
-  const pack = packFaults({
-    basis: rules.basis ? { requiresBq: rules.basis.requiresBq } : null,
-    method: rules.method ? { requiresCompanyEstimate: rules.method.requiresCompanyEstimate } : null,
-    bq: versions,
-    panel: state,
-    panelBill: panel?.bqVersion ? { versionNo: panel.bqVersion.versionNo, status: panel.bqVersion.status } : null,
-    estimate: live ? { state: live.state, behind: lodgementBehind(live) } : null,
-    scope: a.approval.state,
-  });
-  const hrefs = PACK_HREF(ex.id);
   return {
     exercise: { id: ex.id, reference: ex.reference, title: ex.title },
-    scope: shown ? { scopedBy: shown.scopedBy ? SCOPED_BY_LABEL[shown.scopedBy as BqScopedBy] : NOT_SET, statement: shown.scopeStatement || NOT_SET, fromVersion: shown.versionNo } : null,
     panel: {
       id: panel?.id ?? null,
       state,
@@ -197,7 +173,6 @@ export async function scopeTab(exerciseId: string) {
       options: { contractKinds: listOf(policy.panelContractKindTaxonomyCode), projectStatuses: listOf(policy.panelProjectStatusTaxonomyCode), bills: versions.filter((v) => v.status === "FINALISED").map((v) => ({ value: v.id, label: `Version ${v.versionNo}` })), people, columns: inForce.map((c) => ({ value: c.code, label: c.labelEn })) },
       statement: `Verifications are attested: each is ${ATTESTED}.`,
     },
-    readiness: { heading: PACK_CARD_HEADING, findings: pack.map((f) => ({ level: f.level, text: scopeFaultText(f), href: hrefs[f.code] })) },
     approval: await approvalView(a, people),
   };
 }
@@ -460,7 +435,6 @@ export async function estimateTab(exerciseId: string) {
   return {
     exercise: { id: ex.id, reference: ex.reference, title: ex.title },
     badge: CLASSIFICATION_LABEL.SULIT,
-    statement: ESTIMATE_SEALED_STATEMENT,
     timeZone: org.timeZone,
     live: liveRow ? view(liveRow) : null,
     voided: estimates.filter((x) => x.state === "VOID").map(view),

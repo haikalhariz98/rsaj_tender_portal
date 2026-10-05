@@ -53,11 +53,6 @@ export const sealedVersion = (versionNo: number) => `Sealed (version ${versionNo
 /// OD-7 and the BQ tab (OD-8).
 export const FIRM_NOT_STATED = "Not stated";
 export const BQ_READABLE_STATEMENT = "Priced rates and totals are readable by anyone with access to the portal; the bill issued to tenderers is unpriced.";
-/// The Company estimate section (OD-1, 6.2 conditions: names the Phase 3 electronic tender box).
-export const ESTIMATE_SEALED_STATEMENT =
-  "The figure is withheld from every screen, including this one, until the bids are opened. Nobody signs in yet, so the portal cannot stop someone reading it from the database: sealed storage arrives with the electronic tender box (Phase 3).";
-/// The Scope section's readiness card (OD-4).
-export const PACK_CARD_HEADING = "Checked when the documents go for approval, not yet enforced";
 export const ATTESTED = "recorded on behalf of, not signed";
 export const NOT_SET = "Not set";
 /// Where a configured value came from (the three-state honesty of AGENTS.md).

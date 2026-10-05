@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { DataList } from "@/components/data-list";
-import { ClipboardIcon, ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
+import { ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -20,36 +20,16 @@ const STATE_TONE: Record<Data["panel"]["state"], Tone> = { NONE: "neutral", DRAF
 const levelTone = (l: string) => (l === "block" || l === "err" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 
 /**
- * Scope: the scope statement, the specification panel with its signed form, and the
- * readiness card. Every verification is "recorded on behalf of, not signed"; the panel is
+ * Scope: the specification panel with its signed form, and the scope approval. (The
+ * scope statement lives in the bill of quantities' header, and the readiness card is gone:
+ * founder decision, 2026-10-05.) Every verification is "recorded on behalf of, not signed"; the panel is
  * verified only with a live SULIT scan of its signed form.
  */
 export function ScopeSection({ d }: { d: Data }) {
-  const { panel, scope, readiness, exercise, approval } = d;
-  const bqHref = `/sourcing/${exercise.id}?tab=scope&section=bq`;
+  const { panel, exercise, approval } = d;
   const columnsUnset = panel.id != null && panel.columns.length === 0;
   return (
     <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader icon={<ClipboardIcon size={17} />} title="Scope of the work" subtitle="Who scoped it and what it covers. It is recorded in the bill of quantities' header." actions={<ButtonLink href={bqHref} variant="secondary" size="sm">Open the bill</ButtonLink>} />
-        <CardBody>
-          {scope ? (
-            <KeyValues
-              columns={2}
-              items={[
-                { label: "Scoped by", value: scope.scopedBy },
-                { label: "From", value: `Bill of quantities, version ${scope.fromVersion}` },
-                { label: "Scope statement", value: <span className="whitespace-pre-line">{scope.statement}</span> },
-              ]}
-            />
-          ) : (
-            <EmptyState size="sm" title="No scope recorded yet" action={<ButtonLink href={bqHref} size="sm">Start the bill of quantities</ButtonLink>}>
-              The scope statement and who scoped the work are entered in the header of the bill of quantities.
-            </EmptyState>
-          )}
-        </CardBody>
-      </Card>
-
       <Card id="specification-panel" className="scroll-mt-24">
         <CardHeader
           icon={<UsersIcon size={17} />}
@@ -205,25 +185,6 @@ export function ScopeSection({ d }: { d: Data }) {
             />
           </div>
         )}
-      </Card>
-
-      <Card>
-        <CardHeader icon={<ShieldIcon size={17} />} title={readiness.heading} subtitle="What the documents' approval will look for. Nothing here stops anyone today, so each is a warning, not a refusal." />
-        <CardBody>
-          {readiness.findings.length === 0 ? (
-            <Callout tone="ok">Nothing is outstanding on the checks that exist today.</Callout>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {readiness.findings.map((f, i) => (
-                <li key={i}>
-                  <Callout tone={f.level === "info" ? "info" : "warn"} action={<Link href={f.href} className="text-[13px] font-semibold">Go there</Link>}>
-                    {f.text}
-                  </Callout>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardBody>
       </Card>
     </div>
   );

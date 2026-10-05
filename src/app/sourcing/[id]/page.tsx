@@ -114,7 +114,9 @@ import {
 } from "../editors";
 import { DocumentsWorkspace } from "./documents/workspace";
 import { INVITATION_SECTIONS, invitationSectionOf, loadInvitation } from "./window/workspace";
-import { SCOPE_SECTIONS, ScopeWorkspace, scopeSectionOf } from "./scope/workspace";
+import { scopeSectionFacts } from "@/lib/scope/read";
+import { ALL_SCOPE_SECTIONS, scopeSectionOf, visibleScopeSections } from "@/lib/scope/sections";
+import { ScopeWorkspace } from "./scope/workspace";
 import { money, OverviewPanel, pct, tone } from "./overview";
 
 export const dynamic = "force-dynamic";
@@ -124,7 +126,6 @@ const RESTRICTION_NOTE = "Restriction not enforced until sign-in";
 
 export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const [{ id }, { tab: asked, section }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string }>]);
-  const scopeSection = scopeSectionOf(section);
   const l = await loadExercise(id);
   if (!l) notFound();
   const { ex, req, org } = l;
@@ -345,6 +346,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // Founder, 2026-10-05: the Overview, read only while it is the tab being looked at (its own reads: the
   // tender conditions, the pack's proposed dates, the window's briefings and the organisation's closing time).
   const overviewPack = draft ? (method?.documentPackKind ?? null) : ex.packKindSnapshot;
+  // Only the scope tab's own strip is drawn from this, so it is read only while that tab is the one looked at.
+  const scopeSections = tab === "scope" ? visibleScopeSections(await scopeSectionFacts(ex.id)) : ALL_SCOPE_SECTIONS;
+  const scopeSection = scopeSectionOf(section, scopeSections);
   const overview = tab === "overview" ? await loadOverviewReads(ex, ex.closingAt, org, flowShape(ex.status, overviewPack, !!ex.preparedAt) !== "NO_PACK") : null;
   const detailsRefused = detailsFault(ex);
   const tenderingRoute = latestFirst(tenderingRoutesOf(ex.approvalInstances))[0] ?? null;
@@ -405,7 +409,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       id: "scope",
       label: "Scope and estimate",
       icon: <ToolsIcon size={15} />,
-      sections: [...SCOPE_SECTIONS],
+      sections: [...scopeSections],
       section: scopeSection,
       // Read only while it is the tab being looked at, and only for the section named.
       panel: tab === "scope" ? <ScopeWorkspace exerciseId={ex.id} section={scopeSection} /> : null,

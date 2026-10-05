@@ -1,3 +1,4 @@
+import { Accordion } from "@/components/accordion";
 import { DataList } from "@/components/data-list";
 import { ClipboardIcon, FileIcon, FilesIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
@@ -53,14 +54,7 @@ export function BqSection({ d }: { d: Data }) {
         <Callout tone="info">Version {d.finalised.versionNo} is finalised and stands until this draft is finalised.</Callout>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
-        <Stat label="Lines" value={v.stats.lines} hint={v.stats.incompleteLines > 0 ? `${v.stats.incompleteLines} not complete yet` : "All have a quantity or a sum, and a rate"} tone={v.stats.incompleteLines > 0 ? "warn" : "brand"} icon={<ClipboardIcon size={16} />} />
-        <Stat label="Total" value={v.stats.total} hint={`Builders' works ${v.stats.buildersWorks}`} icon={<ScaleIcon size={16} />} />
-        <Stat label="Firm value" value={dash(v.stats.firmValue)} hint={v.header.provisionalLeftOut === "Not stated" ? "Not stated: whether provisional quantities are left out is not said" : `Provisional quantities ${v.header.provisionalLeftOut === "Yes" ? "left out" : "counted in"}`} tone={v.stats.firmValue === "Not stated" ? "warn" : "brand"} icon={<ShieldIcon size={16} />} />
-        <Stat label="Provisional quantities" value={v.stats.provisionalQuantities} hint={`${v.stats.provisionalShare} of the total`} icon={<SlidersIcon size={16} />} />
-        <Stat label="Prime cost sums" value={v.stats.primeCostSums} icon={<FilesIcon size={16} />} />
-        <Stat label="Provisional sums" value={v.stats.provisionalSums} icon={<ToolsIcon size={16} />} />
-      </div>
+      {v.stats.incompleteLines > 0 && <Callout tone="warn">{v.stats.incompleteLines === 1 ? "1 line is" : `${v.stats.incompleteLines} lines are`} not complete yet: each needs a quantity or a sum, and a rate.</Callout>}
 
       <Card id="bill-version" className="scroll-mt-24">
         <CardHeader
@@ -113,7 +107,7 @@ export function BqSection({ d }: { d: Data }) {
         <Card>
           <CardHeader icon={<FileIcon size={17} />} title="Sections and lines" actions={editable ? <SectionDrawer exerciseId={exerciseId} versionId={v.id} /> : undefined} />
           <EmptyState size="sm" title="No sections yet">
-            A bill is made of sections, each with its lines. {editable ? "Add the first section." : ""}
+            A bill is made of sections, each with its lines. {editable ? "Add the first section, or import a CSV file under More." : ""}
           </EmptyState>
         </Card>
       ) : (
@@ -200,65 +194,78 @@ export function BqSection({ d }: { d: Data }) {
         </>
       )}
 
-      <Card>
-        <CardHeader icon={<FileIcon size={17} />} title="CSV and schedules of rates" subtitle="Import the department's bill into the draft, or export a version, built by the portal. Rates may be taken from a schedule in force." />
-        <CardBody className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            <p className="text-[12px] font-semibold text-ink-3">Import</p>
-            <p className="text-[13px] text-ink-2">{d.csv.importNote}</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <ImportCsvDrawer exerciseId={exerciseId} draft={d.csv.draft} upload={d.csv.upload} allowed={d.csv.import} note={d.csv.importNote} />
-              {!d.csv.import.allowed && <span className="text-[13px] text-ink-3">{d.csv.import.reason}</span>}
-            </div>
+      <Accordion title="More" meta="Totals, CSV import and export, imported files, versions">
+        <div className="flex flex-col gap-6 p-5">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+            <Stat label="Lines" value={v.stats.lines} hint={v.stats.incompleteLines > 0 ? `${v.stats.incompleteLines} not complete yet` : "All have a quantity or a sum, and a rate"} tone={v.stats.incompleteLines > 0 ? "warn" : "brand"} icon={<ClipboardIcon size={16} />} />
+            <Stat label="Total" value={v.stats.total} hint={`Builders' works ${v.stats.buildersWorks}`} icon={<ScaleIcon size={16} />} />
+            <Stat label="Firm value" value={dash(v.stats.firmValue)} hint={v.header.provisionalLeftOut === "Not stated" ? "Not stated: whether provisional quantities are left out is not said" : `Provisional quantities ${v.header.provisionalLeftOut === "Yes" ? "left out" : "counted in"}`} tone={v.stats.firmValue === "Not stated" ? "warn" : "brand"} icon={<ShieldIcon size={16} />} />
+            <Stat label="Provisional quantities" value={v.stats.provisionalQuantities} hint={`${v.stats.provisionalShare} of the total`} icon={<SlidersIcon size={16} />} />
+            <Stat label="Prime cost sums" value={v.stats.primeCostSums} icon={<FilesIcon size={16} />} />
+            <Stat label="Provisional sums" value={v.stats.provisionalSums} icon={<ToolsIcon size={16} />} />
           </div>
-          <div className="flex flex-col gap-2 border-t border-line pt-5">
-            <p className="text-[12px] font-semibold text-ink-3">Export</p>
-            <ExportCsvForm exerciseId={exerciseId} versions={d.csv.exportable} note={d.csv.exportNote} />
-          </div>
-          <div className="flex flex-col gap-1 border-t border-line pt-5">
-            <p className="text-[12px] font-semibold text-ink-3">Schedules of rates</p>
-            <p className="text-[13px] text-ink-2">{d.schedulesNote}</p>
-          </div>
-        </CardBody>
-      </Card>
 
-      <OwnerAttachments
-        owner={{ kind: "bqVersion", id: v.id }}
-        title={`Files version ${v.versionNo} was imported from`}
-        subtitle="Kept as received, with the class the officer chose. Lines imported from a file stand on it: it is replaced only by importing again."
-        only={["BQ_IMPORT_SOURCE"]}
-        collapseWhenEmpty
-        attachedBy={{ BQ_IMPORT_SOURCE: "Attached by Import from CSV, above, in the same step as the lines." }}
-        statuses={{ BQ_IMPORT_SOURCE: { text: "None: entered by hand", tone: "neutral" } }}
-      />
+          <Card>
+            <CardHeader icon={<FileIcon size={17} />} title="CSV and schedules of rates" subtitle="Import the department's bill into the draft, or export a version, built by the portal. Rates may be taken from a schedule in force." />
+            <CardBody className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <p className="text-[12px] font-semibold text-ink-3">Import</p>
+                <p className="text-[13px] text-ink-2">{d.csv.importNote}</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <ImportCsvDrawer exerciseId={exerciseId} draft={d.csv.draft} upload={d.csv.upload} allowed={d.csv.import} note={d.csv.importNote} />
+                  {!d.csv.import.allowed && <span className="text-[13px] text-ink-3">{d.csv.import.reason}</span>}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 border-t border-line pt-5">
+                <p className="text-[12px] font-semibold text-ink-3">Export</p>
+                <ExportCsvForm exerciseId={exerciseId} versions={d.csv.exportable} note={d.csv.exportNote} />
+              </div>
+              <div className="flex flex-col gap-1 border-t border-line pt-5">
+                <p className="text-[12px] font-semibold text-ink-3">Schedules of rates</p>
+                <p className="text-[13px] text-ink-2">{d.schedulesNote}</p>
+              </div>
+            </CardBody>
+          </Card>
 
-      <Card className="overflow-hidden">
-        <CardHeader icon={<ClipboardIcon size={17} />} title="Versions" subtitle="A finalised version is never changed. A revision is a new draft that replaces it when it is finalised." divided={false} />
-        <DataList
-          flat
-          selectable={false}
-          searchable={false}
-          toolbar={false}
-          exportName="bill-versions"
-          emptyTitle="No versions"
-          columns={[
-            { key: "version", label: "Version", width: "16%", mobile: "primary" },
-            { key: "status", label: "Status", width: "18%", mobile: "meta" },
-            { key: "finalised", label: "Finalised on", width: "20%", nowrap: true, mobile: "meta" },
-            { key: "reason", label: "Why it was revised", mobile: "meta" },
-          ]}
-          rows={d.versions.map((x) => ({
-            id: x.id,
-            search: `${x.versionNo} ${x.status}`,
-            cells: {
-              version: { kind: "text", text: `Version ${x.versionNo}` },
-              status: { kind: "badge", text: x.status, tone: x.status === "Finalised" ? "ok" : x.status === "Draft" ? "info" : undefined },
-              finalised: { kind: "text", text: x.finalisedOn ?? "—", dim: !x.finalisedOn },
-              reason: { kind: "text", text: x.revisionReason ?? (x.versionNo === 1 ? "First version" : "—"), dim: true },
-            },
-          }))}
-        />
-      </Card>
+          <OwnerAttachments
+            owner={{ kind: "bqVersion", id: v.id }}
+            title={`Files version ${v.versionNo} was imported from`}
+            subtitle="Kept as received, with the class the officer chose. Lines imported from a file stand on it: it is replaced only by importing again."
+            only={["BQ_IMPORT_SOURCE"]}
+            collapseWhenEmpty
+            attachedBy={{ BQ_IMPORT_SOURCE: "Attached by Import from CSV, above, in the same step as the lines." }}
+            statuses={{ BQ_IMPORT_SOURCE: { text: "None: entered by hand", tone: "neutral" } }}
+          />
+
+          <Card className="overflow-hidden">
+            <CardHeader icon={<ClipboardIcon size={17} />} title="Versions" subtitle="A finalised version is never changed. A revision is a new draft that replaces it when it is finalised." divided={false} />
+            <DataList
+              flat
+              selectable={false}
+              searchable={false}
+              toolbar={false}
+              exportName="bill-versions"
+              emptyTitle="No versions"
+              columns={[
+                { key: "version", label: "Version", width: "16%", mobile: "primary" },
+                { key: "status", label: "Status", width: "18%", mobile: "meta" },
+                { key: "finalised", label: "Finalised on", width: "20%", nowrap: true, mobile: "meta" },
+                { key: "reason", label: "Why it was revised", mobile: "meta" },
+              ]}
+              rows={d.versions.map((x) => ({
+                id: x.id,
+                search: `${x.versionNo} ${x.status}`,
+                cells: {
+                  version: { kind: "text", text: `Version ${x.versionNo}` },
+                  status: { kind: "badge", text: x.status, tone: x.status === "Finalised" ? "ok" : x.status === "Draft" ? "info" : undefined },
+                  finalised: { kind: "text", text: x.finalisedOn ?? "—", dim: !x.finalisedOn },
+                  reason: { kind: "text", text: x.revisionReason ?? (x.versionNo === 1 ? "First version" : "—"), dim: true },
+                },
+              }))}
+            />
+          </Card>
+        </div>
+      </Accordion>
     </div>
   );
 }
