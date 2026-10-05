@@ -54,7 +54,6 @@ import {
   type RequisitionRow,
 } from "@/lib/requisition/repo";
 import { resolveRequisitionRoute } from "@/lib/requisition/route";
-import { assessSplitting, justifierFaults, type JustifierFault, type SplitSubject } from "@/lib/requisition/splitting";
 import { loadDestinations, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
 import { choiceFault, choicesFor, rejectionOutcome, rejectionSnapshot, REJECTION_KINDS, type RejectionKind } from "@/lib/authority/rejection";
 import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
@@ -586,28 +585,9 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
 
 // ---------------------------------------------------------------- submission
 
-/// The requisitions this one is compared with for splitting, as the pure check reads them.
-async function splitSubjects(tx: Tx, orgId: string) {
-  const rows = await tx.requisition.findMany({
-    where: { organisationId: orgId },
-    select: { id: true, reference: true, status: true, raisedOn: true, estimatedValue: true, requestingUnitCode: true, costCentreCode: true, accountCode: true, budgetCodeId: true, contractTypeCode: true },
-  });
-  return rows.map(
-    (r): SplitSubject => ({
-      id: r.id,
-      reference: r.reference,
-      status: r.status,
-      raisedOn: storedDay(r.raisedOn),
-      // Exact sen, from the Decimal's string: never through a float.
-      value: parseSen(r.estimatedValue.toString()),
-      keys: { unit: r.requestingUnitCode || null, costCentre: r.costCentreCode || null, accountCode: r.accountCode || null, budgetCode: r.budgetCodeId, contractType: r.contractTypeCode },
-    }),
-  );
-}
-
 /**
  * Submit for approval (FR-REQ-004–009, 015): re-check the budget where the last check
- * is stale, decide the over-budget disposition, run the splitting check, resolve the
+ * is stale, decide the over-budget disposition, resolve the
  * route, and open the approval instance with every rule it was judged under. All of
  * it is computed on the locked row first and written only if nothing refuses.
  */
@@ -703,34 +683,11 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
       return { ok: false, message: onlyRequester.map((x) => requesterOnlyText(x, office(x.roleCode), "requisition", dal.matrix.policy.clauses?.selfApproval)).join(" ") };
     }
 
-    // Splitting (FR-REQ-015): NOT_SET is stored and shown, never cleared (OD-7).
-    const others = await splitSubjects(tx, l.org.id);
-    const me = others.find((o) => o.id === req.id)!;
-    const company = lookups.units.find((u) => u.kind === "COMPANY" && u.effectiveFrom <= today && (u.effectiveTo == null || u.effectiveTo > today));
-    const split = assessSplitting(me, others, {
-      windowDays: policy.splittingWindowDays,
-      matchOn: policy.splittingMatchOn,
-      aggregateAcrossYear: policy.splittingAggregateAcrossYear,
-      financialYearStart: company?.financialYearStart ?? null,
-    }, dal.matrix);
+    // Founder, 2026-10-05: no splitting check (FR-REQ-015 removed). Nothing is assessed or
+    // stored; routes opened before keep the check their approvers saw.
 
     // Nothing refused: write.
     const checkRow = check ? await writeCheck(tx, l, check, today) : last;
-    const splitRow = await tx.requisitionSplitCheck.create({
-      data: {
-        requisitionId: req.id,
-        state: split.state,
-        windowDays: policy.splittingWindowDays,
-        matchOn: policy.splittingMatchOn,
-        aggregateAcrossYear: policy.splittingAggregateAcrossYear,
-        policyProvenance: policy.provenance,
-        relatedRequisitionIds: split.related.map((x) => x.id),
-        relatedReferences: split.related.map((x) => x.reference),
-        combinedValue: split.combinedValue == null ? null : senToDecimalString(split.combinedValue),
-        crossesBand: split.crossesBand,
-        notSetReasons: split.notSet,
-      },
-    });
     const issue = resolved.source === "OVERRIDE" && override ? override : dal;
     const rule = resolved.resolution.rule!;
     const roleLabel = (code: string) => issue.matrix.roles[code]?.nameEn ?? dal.matrix.roles[code]?.nameEn ?? "An office no longer configured";
@@ -771,8 +728,6 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
         budgetVerdict: verdict,
         availabilityCheck: controls.availabilityCheck,
         overBudgetInvoked: invoked && disposition.cond === "over_budget" && !disposition.autoRouted,
-        splitCheckId: splitRow.id,
-        splitState: split.state,
         checkedAgainstMatrix: true,
         warnings: warnings as unknown as Prisma.InputJsonValue,
         status: "PENDING",
@@ -810,7 +765,6 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
         route: resolved.resolution.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "),
         overBudget: disposition.cond === "over_budget",
         fundingOverrideApplied: resolved.fundingOverrideApplied,
-        splitState: split.state,
       }));
     await audit(tx, l.org.id, "Requisition", id, labelOf(req), "UPDATE", diffFields(beforeStatus, after));
     return { ok: true };
@@ -1062,63 +1016,4 @@ export async function recallRequisition(_prev: FormState, data: FormData): Promi
     return { ok: true };
   });
 }
-
-/**
- * Justify a flagged split (FR-REQ-015, OD-8): the justification, who gave it and when.
- * Required before the final approval of a flagged requisition.
- */
-export async function justifySplit(_prev: FormState, data: FormData): Promise<FormState> {
-  const id = String(data.get("id") ?? "");
-  const r = new FormReader(data);
-  const justification = r.text("overrideJustification", "Justification", { required: true, max: 4000 });
-  const personId = r.text("personId", "Justified by", { required: true });
-  const on = r.date("overriddenOn", "On", { required: true });
-  if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
-    const inst = openInstance(l);
-    const check = inst ? l.req.splitChecks.find((c) => c.id === inst.splitCheckId) : null;
-    if (!check || check.state !== "FLAGGED") return { ok: false, message: "There is no open flag to justify." };
-    if (check.overrideJustification) return { ok: false, message: "This flag has already been justified." };
-    // Ruling Q3: a holder of the justifying office the policy names, never the requester
-    // or an endorser. Unset blocks.
-    const policy = await loadPolicy(l.org.id, tx);
-    if (!policy.splitJustifyingRoleCode) return { ok: false, message: JUSTIFIER_TEXT.OFFICE_NOT_SET };
-    const { lookups } = await loadLookups(l.org.id, tx);
-    const person = lookups.people.find((p) => p.id === personId) ?? null;
-    const [roster, delegations] = [await loadRoster(ORGANISATION_CODE, tx), await loadDelegations(ORGANISATION_CODE, tx)];
-    const day = storedDay(on);
-    const unitPath = pathTo(lookups.units, unitOf(l.req), on).reverse().map((u) => u.code);
-    const holders = holdersFor(policy.splitJustifyingRoleCode, unitPath, roster, delegations, day);
-    const faults = justifierFaults({
-      roleCode: policy.splitJustifyingRoleCode,
-      person,
-      requesterId: l.req.requestingPersonId,
-      endorserIds: l.req.endorsements.map((e) => e.personId),
-      holderIds: holders.holderIds,
-      delegateIds: holders.delegates.map((d) => d.personId),
-      on: day,
-      today: l.org.today,
-    });
-    if (faults.length > 0) {
-      const text = faults.map((f) => JUSTIFIER_TEXT[f].replace(/^That person/, person?.name ?? "That person")).join(" ");
-      return faults.includes("FUTURE_DATE") && faults.length === 1 ? { ok: false, errors: { overriddenOn: text } } : faults[0] === "TIME_ZONE_UNSET" ? NO_ZONE : { ok: false, errors: { personId: text } };
-    }
-    const after = { overrideJustification: justification, overriddenByPersonId: personId, overriddenOn: on, overriddenAt: new Date() };
-    await tx.requisitionSplitCheck.update({ where: { id: check.id }, data: after });
-    await audit(tx, l.org.id, "RequisitionSplitCheck", check.id, `${l.req.reference} · possible split`, "UPDATE",
-      diffFields({ overrideJustification: null }, { overrideJustification: justification, justifiedBy: person!.name, recordedOnBehalf: "not signed", overriddenOn: on }), justification);
-    return { ok: true };
-  });
-}
-
-const JUSTIFIER_TEXT: Record<JustifierFault, string> = {
-  OFFICE_NOT_SET: "The office that may justify a possible split is not set, so no flag can be justified. Set it in Configuration, Requisition controls.",
-  TIME_ZONE_UNSET: "Set the organisation's time zone first.",
-  REQUESTER: "The requesting officer cannot justify a flag on their own requisition.",
-  ENDORSER: "Someone who endorsed this requisition cannot justify its flag.",
-  NOT_HOLDER: "That person does not hold the office that may justify a possible split, for this requisition's department, on that date.",
-  DELEGATE: "That person acts in the office only under a delegation. Only someone who holds the office directly may justify a possible split.",
-  INACTIVE: "That person is recorded as having left.",
-  FUTURE_DATE: "The date cannot be after today.",
-};
 

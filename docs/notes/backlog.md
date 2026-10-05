@@ -29,3 +29,5 @@ Founder, 2026-10-04 (chat): "let skip part b acceptance and bundle and 6.16 and 
 ## Part B items moved here when a run overran
 
 (none yet)
+
+- **Splitting check leftovers (founder removed FR-REQ-015, 2026-10-05).** `assessSplitting`, `justifierFaults` and `splitApprovalFault` in `src/lib/requisition/splitting.ts` have no caller (only `splitStateLabel` is used, by History). The RequisitionPolicy columns `splittingWindowDays`, `splittingMatchOn`, `splittingAggregateAcrossYear`, `splitJustifyingRoleCode`, and the demo data that writes them, are unused. Drop them with a migration once past split checks no longer need to be read.

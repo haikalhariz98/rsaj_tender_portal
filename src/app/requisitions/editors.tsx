@@ -18,7 +18,6 @@ import {
   reopenDraft,
   returnRequisition,
   submitRequisition,
-  justifySplit,
 } from "./actions";
 
 /**
@@ -165,7 +164,7 @@ export function SubmitDrawer({
   }
   fields.push({
     kind: "note",
-    text: "On submission the budget is re-checked if the last check is stale, the splitting check runs, and the route is resolved from the approval matrix in force and stored with every rule it was judged under.",
+    text: "On submission the budget is re-checked if the last check is stale, and the route is resolved from the approval matrix in force and stored with every rule it was judged under.",
   });
   return (
     <RecordEditor
@@ -334,26 +333,6 @@ export function CiteCommitteeDrawer({ id, stepId, committee, decisions, blocker 
       action={citeCommitteeDecision}
       submitLabel="Cite decision"
       trigger={{ label: "Cite committee decision", className: buttonClass("primary", "sm") }}
-      size="md"
-    />
-  );
-}
-
-export function JustifySplitDrawer({ id, people, today, office }: { id: string; people: Option[]; today: string | null; office: string }) {
-  return (
-    <RecordEditor
-      title="Justify the possible split"
-      description="Why these related requisitions are not one requirement split below a threshold. Required before the final approval."
-      fields={[
-        hidden("id"),
-        { kind: "textarea", name: "overrideJustification", label: "Justification" },
-        { kind: "select", name: "personId", label: "Justified by", required: true, placeholder: "Choose", options: people, hint: `Someone who holds the ${office} office directly — not a delegate, the requester or anyone who endorsed it. Recorded on their behalf, not signed.` },
-        { kind: "date", name: "overriddenOn", label: "On", required: true },
-      ]}
-      values={{ id, overriddenOn: today }}
-      action={justifySplit}
-      submitLabel="Record justification"
-      trigger={{ label: "Justify", className: buttonClass("primary", "sm") }}
       size="md"
     />
   );

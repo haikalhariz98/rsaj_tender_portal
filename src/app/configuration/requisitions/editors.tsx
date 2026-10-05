@@ -1,18 +1,13 @@
 import { RecordEditor } from "@/components/record-editor";
 import { END_DAY_LABEL } from "@/lib/effective-text";
 import { buttonClass } from "@/components/ui/button";
-import { SPLIT_KEY_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
-import { SPLIT_KEYS, type RequisitionPolicy } from "@/lib/requisition/types";
+import { TIER_LABEL } from "@/lib/requisition/labels";
+import type { RequisitionPolicy } from "@/lib/requisition/types";
 
 import { ACT_LABEL } from "@/lib/labels";
 
 import { saveBudgetCheckSource, saveErpFormat, saveGateRule, savePolicy } from "./actions";
 
-const TRI = [
-  { value: "yes", label: "Yes" },
-  { value: "no", label: "No" },
-];
-const tri = (v: boolean | null) => (v == null ? null : v ? "yes" : "no");
 const PROVENANCE_OPTIONS = [
   { value: "STATED", label: "Stated — written in a governing document" },
   { value: "OBSERVED", label: "Observed — seen in practice" },
@@ -23,13 +18,11 @@ const PROVENANCE_OPTIONS = [
 export function EditPolicy({
   policy,
   notes,
-  offices,
   label = "Edit controls",
   quiet = false,
 }: {
   policy: RequisitionPolicy;
   notes: string;
-  offices: { code: string; nameEn: string }[];
   /// The trigger's words: "Set it" where it sits beside an unset control.
   label?: string;
   quiet?: boolean;
@@ -49,40 +42,12 @@ export function EditPolicy({
         },
         { kind: "note", text: "Budget check" },
         { kind: "number", name: "budgetRecheckDays", label: "Re-check on submission when the check is older than (days)", min: 0, hint: "Empty: a check never goes stale." },
-        { kind: "note", text: "Anti-splitting. No governing document sets these; they are the customer's decision." },
-        { kind: "number", name: "splittingWindowDays", label: "Window (days)", min: 1 },
-        {
-          kind: "tokens",
-          name: "splittingMatchOn",
-          label: "Requisitions are related when they share",
-          options: SPLIT_KEYS.map((k) => ({ value: k, label: SPLIT_KEY_LABEL[k] })),
-        },
-        {
-          kind: "select",
-          name: "splittingAggregateAcrossYear",
-          label: "Also relate everything in the same financial year",
-          placeholder: "Not set — not assessed",
-          options: TRI,
-        },
-        {
-          kind: "select",
-          name: "splitJustifyingRoleCode",
-          label: "The office that may justify a possible split",
-          placeholder: "Not set — no flag can be justified",
-          options: offices.map((o) => ({ value: o.code, label: o.nameEn })),
-          orphanLabel: "An office no longer configured",
-          hint: "Its holder for the requesting department. Never the requester, nor anyone who endorsed it.",
-        },
         { kind: "select", name: "provenance", label: "Where these controls come from", placeholder: "Not set", options: PROVENANCE_OPTIONS },
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
       values={{
         endorsementTiers: policy.endorsementTiers.join("\n"),
         budgetRecheckDays: policy.budgetRecheckDays == null ? null : String(policy.budgetRecheckDays),
-        splittingWindowDays: policy.splittingWindowDays == null ? null : String(policy.splittingWindowDays),
-        splittingMatchOn: policy.splittingMatchOn.join("\n"),
-        splittingAggregateAcrossYear: tri(policy.splittingAggregateAcrossYear),
-        splitJustifyingRoleCode: policy.splitJustifyingRoleCode,
         provenance: policy.provenance,
         notes,
       }}

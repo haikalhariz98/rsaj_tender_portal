@@ -43,7 +43,7 @@ export default async function RequisitionsPage() {
         value: { kind: "money", value: r.estimatedValue },
         status: { kind: "badge", text: statusText, tone: TONE[statusTone] },
         // Founder, 2026-10-04: who asked, and for which department, in place of the checks
-        // column. The budget and splitting checks stay on the requisition's own Checks tab.
+        // column. The budget check stays on the requisition's own Checks tab.
         requester: { kind: "stack", title: r.requesterName, sub: r.unitName },
         required: { kind: "text", text: formatDate(r.dateRequired) },
       },
@@ -59,7 +59,6 @@ export default async function RequisitionsPage() {
           `${counts.open} open`,
           `${counts.pending} pending approval`,
           `${counts.overBudget} over budget`,
-          `${counts.flagged} possible ${counts.flagged === 1 ? "split" : "splits"} awaiting justification`,
         ]}
         actions={
           org ? (

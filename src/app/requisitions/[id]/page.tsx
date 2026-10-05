@@ -3,7 +3,7 @@ import { historyEntityLabel } from "@/lib/audit/entity-labels";
 import { routedValue } from "@/lib/approvals/routed-value";
 import { notFound } from "next/navigation";
 
-import { AlertTriangle, ChartIcon, ClipboardIcon, ClockIcon, DownloadIcon, GlobeIcon, RouteIcon, ShieldIcon } from "@/components/icons";
+import { ChartIcon, ClipboardIcon, ClockIcon, DownloadIcon, GlobeIcon, RouteIcon, ShieldIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
@@ -61,7 +61,6 @@ import {
   OPERATOR_LABEL,
   POSTURE_LABEL,
   SOURCE_LABEL,
-  SPLIT_KEY_LABEL,
   STATUS_LABEL,
   STATUS_TONE,
   TIER_LABEL,
@@ -91,8 +90,8 @@ import { routeCoreText, stepOriginText } from "@/lib/authority/core-routing-labe
 import { SENT_BACK_LABEL, sentBackBy } from "@/lib/requisition/sent-back";
 import { GATE_DOMAIN, gateOpenReason } from "@/lib/requisition/gate";
 import { unpostedIntakeReason, type UnpostedReason } from "@/lib/requisition/budget";
-import { splitApprovalFault, splitStateLabel } from "@/lib/requisition/splitting";
 import { SUCCESSOR_OPEN_TEXT, successorOpenFault, transitionFault } from "@/lib/requisition/status";
+import { splitStateLabel } from "@/lib/requisition/splitting";
 import type { OrgUnitKind } from "@/lib/requisition/types";
 
 import {
@@ -107,7 +106,6 @@ import {
   DecisionDrawer,
   HEADER_NOTE_ID,
   ExternalAuthorityDrawer,
-  JustifySplitDrawer,
   MarkEndorsed,
   RecallDrawer,
   RecordEndorsementDrawer,
@@ -133,22 +131,6 @@ const BUDGET_HREF = "/configuration/budget";
 const REFERENCE_HREF = "/configuration/reference-data";
 const PRE_SUBMIT = ["ENDORSED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"];
 const TERMINAL = ["CANCELLED", "CLOSED"];
-
-/// Why a splitting check could not run, in words.
-function NOT_SET_REASON_TEXT(x: string): string {
-  if (x.startsWith("MISSING_KEY:")) {
-    const k = x.slice("MISSING_KEY:".length) as keyof typeof SPLIT_KEY_LABEL;
-    return `this requisition has no ${(SPLIT_KEY_LABEL[k] ?? "field").toLowerCase()}, which requisitions are related on`;
-  }
-  return (
-    {
-      WINDOW: "the splitting window was not set",
-      MATCH_ON: "the fields that make requisitions related were not set",
-      YEAR_AGGREGATION: "whether the financial year aggregates was not set",
-      FINANCIAL_YEAR: "the company's financial year start was not recorded",
-    } as Record<string, string>
-  )[x] ?? "a setting was missing";
-}
 
 const sen = (v: { toString(): string } | null) => (v == null ? null : parseSen(v.toString()));
 const money = (v: { toString(): string } | null) => (v == null ? "Not recorded" : formatRM(num(v)));
@@ -368,28 +350,6 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     const eligibleOpts = eligibleIds.map((pid) => ({ value: pid, label: labelled.get(pid)! }));
     const rest = people.filter((p) => !labelled.has(p.value));
     return { options: [...eligibleOpts, ...barredOpts, ...rest], candidates: labelled.size, eligible: eligibleIds.length, barred };
-  };
-
-  // Who may justify a flagged split (ruling Q3), listed as the action judges it: a
-  // direct holder only (BD-26), never a delegate, the requester or an endorser.
-  const justifierOptions = () => {
-    if (!policy.splitJustifyingRoleCode || !today) return people;
-    const path = pathTo(lookups.units, unit, on).reverse().map((u) => u.code);
-    const h = holdersFor(policy.splitJustifyingRoleCode, path, roster, delegations, today);
-    const endorserIds = new Set(r.endorsements.map((e) => e.personId));
-    const ok: { value: string; label: string }[] = [];
-    const barred: { value: string; label: string }[] = [];
-    const seen = new Set<string>();
-    for (const pid of [...h.holderIds, ...h.delegates.map((d) => d.personId)]) {
-      if (seen.has(pid)) continue;
-      seen.add(pid);
-      const name = personName(pid) ?? "Not on record";
-      const via = h.holderIds.includes(pid) ? null : h.delegates.find((d) => d.personId === pid);
-      const role = via ? `delegate of ${personName(via.delegation.fromPersonId) ?? "a holder no longer on record"}` : "holds the office";
-      const why = via ? "a delegate, not a direct holder" : pid === r.requestingPersonId ? "raised it" : endorserIds.has(pid) ? "endorsed it" : null;
-      (why ? barred : ok).push({ value: pid, label: why ? `${name} — ${role}, cannot justify: ${why}` : `${name} — ${role}` });
-    }
-    return [...ok, ...barred, ...people.filter((p) => !seen.has(p.value))];
   };
 
   const recallBlock = r.status === "PENDING_APPROVAL" ? transitionFault(r.status, "RECALLED", { today, anyStepDone: open?.steps.some((s) => s.decision !== "PENDING") ?? false }) : null;
@@ -636,12 +596,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                         }
                       : null
                   }
-                  justifyingOffice={policy.splitJustifyingRoleCode ? (roster.offices.find((o) => o.code === policy.splitJustifyingRoleCode)?.nameEn ?? "An office no longer configured") : null}
                   routes={lookups.fundingRoutes.filter((x) => x.retiredOn == null || x.retiredOn > on).map((x) => ({ value: x.code, label: x.nameEn }))}
-                  policy={policy}
-                  today={today}
                   routeNameOf={(code) => lookups.fundingRoutes.find((x) => x.code === code)?.nameEn ?? null}
-                  justifierPeople={justifierOptions()}
                 />
               </div>
             ),
@@ -677,10 +633,6 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                   const earlierDone = open.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE");
                   if (!earlierDone) return DECIDER_FAULT_TEXT.OUT_OF_ORDER;
                   if (!today) return DECIDER_FAULT_TEXT.TIME_ZONE_UNSET;
-                  // The final step waits for a flagged split's justification.
-                  const last = open.steps.every((s) => s.id === step.id || s.decision === "DONE");
-                  const split = r.splitChecks.find((c) => c.id === open.splitCheckId) ?? null;
-                  if (last && splitApprovalFault(split)) return "Flagged as a possible split: record the justification (Budget and checks tab) before the final approval.";
                   return null;
                 }}
                 suggestions={(step) => deciderOptions(step).options}
@@ -1247,8 +1199,6 @@ function ApprovalPanel({
   }
 
   const warnings = (inst.warnings as { code: string; level: string; messageEn: string }[]) ?? [];
-  const split = inst.splitCheckId ? r.splitChecks.find((c) => c.id === inst.splitCheckId) : null;
-  const splitShown = splitStateLabel(inst.splitState, !!split?.overrideJustification);
   const open = inst.status === "PENDING";
   const openedOn = formatDate(inst.openedAt);
 
@@ -1322,19 +1272,6 @@ function ApprovalPanel({
                         ? `Over-budget route invoked by the officer${inst.availabilityCheck == null ? " · control not set" : ""}`
                         : "Routed to the over-budget approvers automatically, with a warning"
                       : "Within budget",
-                },
-                {
-                  label: "Splitting check the approvers saw",
-                  value: (
-                    <span className="flex flex-col items-start gap-1">
-                      <Chip tone={TONE[splitShown.tone]}>{splitShown.label}</Chip>
-                      {split?.overrideJustification && (
-                        <span className="text-[12.5px] text-ink-2">
-                          Justified by {split.overriddenBy?.name ?? "Not recorded"} · recorded on behalf of, not signed · {formatDate(split.overriddenOn)}
-                        </span>
-                      )}
-                    </span>
-                  ),
                 },
               ]}
             />
@@ -1671,30 +1608,17 @@ function ChecksPanel({
   l,
   gate,
   route,
-  justifyingOffice,
   routes,
-  policy,
-  today,
   routeNameOf,
-  justifierPeople,
 }: {
   l: LoadedRequisition;
-  /// Holders of the justifying office first, then those barred and why, then the rest.
-  justifierPeople: { value: string; label: string }[];
   gate: { faults: string[]; posture: string | null; sourcingPermitted: boolean | null; supersedesAuthority: boolean | null };
   route: { name: string; requires: boolean | undefined; label: string | null | undefined; commitsBudget: boolean | null } | null;
-  /// The office that may justify a possible split; null while unset.
-  justifyingOffice: string | null;
   routes: { value: string; label: string }[];
-  policy: { splittingWindowDays: number | null; splittingMatchOn: string[]; provenance: string | null };
-  today: string | null;
   routeNameOf: (code: string) => string | null;
 }) {
   const r = l.req;
-  const split = r.splitChecks[0] ?? null;
   const inst = r.approvalInstances[0] ?? null;
-  const shown = splitStateLabel(split?.state ?? null, !!split?.overrideJustification);
-  const canJustify = r.status === "PENDING_APPROVAL" && split?.state === "FLAGGED" && !split.overrideJustification && inst?.splitCheckId === split.id;
   const label = route?.label?.trim() || "External authority";
   const postureText =
     gate.posture === "RECORDS_ONLY"
@@ -1706,81 +1630,6 @@ function ChecksPanel({
           : "Not set";
   return (
     <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader
-          icon={<AlertTriangle size={17} />}
-          title="Splitting check"
-          subtitle="Related requisitions from the same source within the window."
-          actions={
-            <>
-              <Chip tone={TONE[shown.tone]}>{shown.label}</Chip>
-              {canJustify &&
-                (justifyingOffice ? (
-                  <JustifySplitDrawer id={r.id} people={justifierPeople} today={today} office={justifyingOffice} />
-                ) : (
-                  <Blocked label="Justify" reason="The office that may justify a possible split is not set. Set it in Requisition controls." />
-                ))}
-            </>
-          }
-        />
-        <CardBody className="flex flex-col gap-4">
-          {!split ? (
-            <p className="text-[13.5px] text-ink-3">
-              {r.origin === "EXTERNAL"
-                ? "Not assessed: it was received already approved in the finance system, so the portal never submitted it."
-                : ["PENDING_APPROVAL", "APPROVED", "REJECTED", "RECALLED", "SOURCING", "PARTIALLY_FULFILLED", "FULFILLED", "CLOSED"].includes(r.status)
-                  ? "Not assessed: no splitting check was recorded when it was submitted."
-                  : r.status === "CANCELLED"
-                    ? "Not assessed: it was cancelled before submission."
-                    : "Not assessed yet. The check runs when the requisition is submitted."}
-            </p>
-          ) : split.state === "NOT_SET" ? (
-            <Callout
-              tone="warn"
-              title="Not assessed: the control is not set"
-              action={
-                <ButtonLink href={CONTROLS_HREF} size="sm">
-                  Set it
-                </ButtonLink>
-              }
-            >
-              When this requisition was submitted, the check could not run:{" "}
-              {split.notSetReasons.length
-                ? split.notSetReasons.map((x) => NOT_SET_REASON_TEXT(x)).join("; ")
-                : "the splitting window or the fields that make requisitions related were not set"}
-              . That is recorded, and it was shown to the approvers. It will never read as clear.
-            </Callout>
-          ) : (
-            <KeyValues
-              columns={2}
-              items={[
-                { label: "Window", value: split.windowDays == null ? "Not set" : `${split.windowDays} days` },
-                { label: "Related on", value: split.matchOn.length ? split.matchOn.map((k) => SPLIT_KEY_LABEL[k as keyof typeof SPLIT_KEY_LABEL] ?? "A field").join(", ") : "Not set" },
-                { label: "Aggregated across the financial year", value: split.aggregateAcrossYear == null ? "Not set" : split.aggregateAcrossYear ? "Yes" : "No" },
-                { label: "Policy", value: <ProvenanceBadge value={split.policyProvenance} /> },
-                { label: "Related requisitions", value: split.relatedReferences.length ? split.relatedReferences.join(", ") : "None" },
-                { label: "Combined value", value: split.combinedValue == null ? "—" : formatRM(num(split.combinedValue)) },
-                {
-                  label: "Would the whole go to a higher approver",
-                  value: split.crossesBand == null ? "Not assessed" : split.crossesBand ? "Yes — the combined value routes differently" : "No — the same approver either way",
-                },
-              ]}
-            />
-          )}
-          {split?.overrideJustification && (
-            <Callout tone="info" title={`Justified by ${split.overriddenBy?.name ?? "Not recorded"} on ${formatDate(split.overriddenOn)}`}>
-              {split.overrideJustification}
-            </Callout>
-          )}
-          {split && (
-            <p className="text-[12.5px] text-ink-3">
-              Judged under the policy as it stood on {formatOrgDay(split.checkedAt, l.org.timeZone)}. Today the window is{" "}
-              {policy.splittingWindowDays == null ? "not set" : `${policy.splittingWindowDays} days`}.
-            </p>
-          )}
-        </CardBody>
-      </Card>
-
       <Card>
         <CardHeader
           icon={<RouteIcon size={17} />}

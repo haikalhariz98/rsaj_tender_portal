@@ -206,7 +206,7 @@ export const CONFIG_SECTIONS: {
       {
         href: "/configuration/requisitions",
         label: "Requisition controls",
-        description: "Endorsement tiers, the splitting check, budget re-checks and registration.",
+        description: "Endorsement tiers and budget re-checks.",
         icon: "clipboard",
         built: true,
       },

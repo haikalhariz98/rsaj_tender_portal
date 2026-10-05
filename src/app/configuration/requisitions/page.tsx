@@ -1,4 +1,4 @@
-import { ChartIcon, ClipboardIcon, ShieldIcon } from "@/components/icons";
+import { ChartIcon, ShieldIcon } from "@/components/icons";
 import { periodText } from "@/lib/effective-text";
 import { HistoryButton } from "@/components/history-drawer";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { db } from "@/lib/db";
-import { SOURCE_LABEL, SPLIT_KEY_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
+import { SOURCE_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
 import { loadControls, loadPolicy, requisitionOrg } from "@/lib/requisition/repo";
 
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -44,17 +44,16 @@ export default async function RequisitionControlsPage() {
   if (!org) {
     return (
       <>
-        <PageHeader title="Requisition controls" subtitle="Endorsement tiers, the splitting check and budget re-checks." />
+        <PageHeader title="Requisition controls" subtitle="Endorsement tiers and budget re-checks." />
         <Card>
           <EmptyState title="No organisation is configured">Run the setup first.</EmptyState>
         </Card>
       </>
     );
   }
-  const [policy, controls, offices, gateRules, routeRows, committeeRows] = await Promise.all([
+  const [policy, controls, gateRules, routeRows, committeeRows] = await Promise.all([
     loadPolicy(org.id),
     loadControls(org.id),
-    db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true } }),
     db.committeeGateRule.findMany({ where: { organisationId: org.id }, orderBy: [{ fundingRouteCode: "asc" }, { sortOrder: "asc" }, { effectiveFrom: "asc" }] }),
     db.fundingRoute.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true, retiredOn: true, committeeGateRequired: true } }),
     db.committee.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true, retiredOn: true } }),
@@ -64,14 +63,9 @@ export default async function RequisitionControlsPage() {
   const routeOptions = routeRows.filter((x) => !x.retiredOn).map((x) => ({ value: x.code, label: x.nameEn }));
   const committeeOptions = committeeRows.filter((x) => !x.retiredOn).map((x) => ({ value: x.code, label: x.nameEn }));
   const gatedWithoutRule = routeRows.filter((x) => !x.retiredOn && x.committeeGateRequired === true && !gateRules.some((g) => g.fundingRouteCode === x.code && g.effectiveTo == null));
-  const justifier = policy.splitJustifyingRoleCode ? (offices.find((o) => o.code === policy.splitJustifyingRoleCode)?.nameEn ?? "An office no longer configured") : null;
   const unset = [
     policy.endorsementTiers.length === 0,
     policy.budgetRecheckDays == null,
-    policy.splittingWindowDays == null,
-    policy.splittingMatchOn.length === 0,
-    policy.splittingAggregateAcrossYear == null,
-    policy.splitJustifyingRoleCode == null,
     controls.budgetCheckSource == null,
   ].filter(Boolean).length;
 
@@ -80,7 +74,7 @@ export default async function RequisitionControlsPage() {
       <PageHeader
         title="Requisition controls"
         badge={unset > 0 ? <Badge tone="warn" dot>{`${unset} not set`}</Badge> : <Badge tone="ok" dot>All set</Badge>}
-        subtitle="Endorsements, where the budget check comes from, and how a split is caught."
+        subtitle="Endorsements, and where the budget check comes from."
         meta={[
           <span key="p" className="inline-flex items-center gap-1.5">
             Where these controls come from <ProvenanceBadge value={policy.provenance} />
@@ -89,22 +83,14 @@ export default async function RequisitionControlsPage() {
         actions={
           <>
             {policy.id && <HistoryButton entity="RequisitionPolicy" entityId={policy.id} label="Requisition controls" />}
-            <EditPolicy policy={policy} notes={policy.notes} offices={offices} />
+            <EditPolicy policy={policy} notes={policy.notes} />
           </>
         }
       />
 
       <div className="flex flex-col gap-6">
-        {(policy.splittingWindowDays == null || policy.splittingMatchOn.length === 0 || policy.splittingAggregateAcrossYear == null) && (
-          <Callout tone="warn" title="The splitting check is not set" action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}>
-            No governing document says when two requisitions are one requirement split in pieces. Until the window, the related
-            fields and whether the financial year aggregates are all set, every requisition is submitted with its splitting check recorded as not assessed, and approvers see that.
-            It is never shown as clear.
-          </Callout>
-        )}
-
         <Card>
-          <CardHeader icon={<ShieldIcon size={17} />} title="Endorsement" subtitle="Whose endorsement a requisition needs before it is registered." />
+          <CardHeader icon={<ShieldIcon size={17} />} title="Endorsement" subtitle="Whose endorsement a requisition needs before its budget is checked." />
           <CardBody>
             <KeyValues
               items={[
@@ -114,7 +100,7 @@ export default async function RequisitionControlsPage() {
                     <Setting
                       value={policy.endorsementTiers.length ? policy.endorsementTiers.map((t) => TIER_LABEL[t]).join(", then ") : null}
                       unset="No requisition can be endorsed, so none can be registered or submitted. Nothing is assumed."
-                      action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}
+                      action={<EditPolicy policy={policy} notes={policy.notes} label="Set it" quiet />}
                     />
                   ),
                 },
@@ -152,7 +138,7 @@ export default async function RequisitionControlsPage() {
                 },
                 {
                   label: "Re-checked on submission when older than",
-                  value: <Setting value={policy.budgetRecheckDays == null ? null : `${policy.budgetRecheckDays} days`} unset="A check never goes stale, and is not re-run on submission." action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />} />,
+                  value: <Setting value={policy.budgetRecheckDays == null ? null : `${policy.budgetRecheckDays} days`} unset="A check never goes stale, and is not re-run on submission." action={<EditPolicy policy={policy} notes={policy.notes} label="Set it" quiet />} />,
                 },
                 {
                   label: "Over budget (Budget controls)",
@@ -178,49 +164,6 @@ export default async function RequisitionControlsPage() {
                     />
                   ),
                 },
-              ]}
-            />
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader icon={<ClipboardIcon size={17} />} title="Anti-splitting" subtitle="When two requisitions count as one requirement split below a threshold." />
-          <CardBody>
-            <KeyValues
-              columns={2}
-              items={[
-                { label: "Window", value: <Setting value={policy.splittingWindowDays == null ? null : `${policy.splittingWindowDays} days`} unset="Not assessed on any requisition." action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />} /> },
-                {
-                  label: "Related when they share",
-                  value: (
-                    <Setting
-                      value={policy.splittingMatchOn.length ? policy.splittingMatchOn.map((k) => SPLIT_KEY_LABEL[k]).join(", ") : null}
-                      unset="Not assessed on any requisition."
-                      action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}
-                    />
-                  ),
-                },
-                {
-                  label: "Whole financial year",
-                  value: (
-                    <Setting
-                      value={policy.splittingAggregateAcrossYear == null ? null : policy.splittingAggregateAcrossYear ? "Also related across the financial year" : "The window only"}
-                      unset="Not assessed on any requisition: whether the year aggregates is policy too."
-                      action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}
-                    />
-                  ),
-                },
-                {
-                  label: "Who may justify a possible split",
-                  value: (
-                    <Setting
-                      value={justifier ? `Someone holding the ${justifier} office directly for the requesting department — never a delegate, the requester or an endorser` : null}
-                      unset="No flag can be justified, so a flagged requisition cannot be finally approved."
-                      action={<EditPolicy policy={policy} notes={policy.notes} offices={offices} label="Set it" quiet />}
-                    />
-                  ),
-                },
-                { label: "Flagged requisitions", value: "Need a recorded justification before their final approval." },
               ]}
             />
           </CardBody>

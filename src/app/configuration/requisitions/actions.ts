@@ -10,7 +10,6 @@ import { db } from "@/lib/db";
 import { parseSen, senToDecimalString } from "@/lib/money";
 import { gateRuleFaults, type GateRuleFault } from "@/lib/requisition/gate";
 import { requisitionOrg } from "@/lib/requisition/repo";
-import { SPLIT_KEYS, type SplitKey } from "@/lib/requisition/types";
 import { FormReader } from "@/lib/validate";
 import { splitValues } from "@/lib/ui/select-logic";
 
@@ -25,11 +24,6 @@ const NO_ORG: FormState = { ok: false, message: "No organisation is configured. 
 const TIERS = ["COMPANY", "DIVISION", "DEPARTMENT", "SECTION"] as const;
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 
-/// A three-way choice posted as "yes" / "no" / "" (not set).
-function triState(r: FormReader, name: string, label: string): boolean | null {
-  const v = r.choice(name, label, ["yes", "no"] as const);
-  return v == null ? null : v === "yes";
-}
 
 /// Values posted newline-separated by the tokens field.
 const list = (data: FormData, name: string) => splitValues(data.get(name));
@@ -38,32 +32,23 @@ export async function savePolicy(_prev: FormState, data: FormData): Promise<Form
   const org = await requisitionOrg();
   if (!org) return NO_ORG;
   const r = new FormReader(data);
-  const matchOn = list(data, "splittingMatchOn");
   const tiers = list(data, "endorsementTiers");
-  if (matchOn.some((k) => !(SPLIT_KEYS as readonly string[]).includes(k))) r.reject("splittingMatchOn", "Choose from the fields offered.");
   if (tiers.some((t) => !(TIERS as readonly string[]).includes(t))) r.reject("endorsementTiers", "Choose from the tiers offered.");
   const v = {
-    splittingWindowDays: r.int("splittingWindowDays", "Splitting window", { min: 1 }),
-    splittingMatchOn: matchOn as SplitKey[],
-    splittingAggregateAcrossYear: triState(r, "splittingAggregateAcrossYear", "Aggregate across the financial year"),
     budgetRecheckDays: r.int("budgetRecheckDays", "Re-check after", { min: 0 }),
     endorsementTiers: tiers as (typeof TIERS)[number][],
-    splitJustifyingRoleCode: r.optionalText("splitJustifyingRoleCode"),
     provenance: r.choice("provenance", "Provenance", PROVENANCE),
     notes: r.text("notes", "Notes", { max: 4000 }),
   };
   const reason = r.text("reason", "Reason", { max: 2000 });
-  if (v.splitJustifyingRoleCode) {
-    const office = await db.authorityRole.findFirst({ where: { organisationId: org.id, code: v.splitJustifyingRoleCode, isCommittee: false }, select: { id: true } });
-    if (!office) r.reject("splitJustifyingRoleCode", "That is not an office. Add it under Users & roles first.");
-  }
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   await db.$transaction(async (tx) => {
     const before = await tx.requisitionPolicy.findUnique({ where: { organisationId: org.id } });
     const row = await tx.requisitionPolicy.upsert({ where: { organisationId: org.id }, update: v, create: { organisationId: org.id, ...v } });
-    const flat = (x: typeof v | NonNullable<typeof before>) => ({ ...x, splittingMatchOn: x.splittingMatchOn.join(", "), endorsementTiers: x.endorsementTiers.join(", ") });
+    // Founder, 2026-10-05: the splitting settings are no longer offered or changed here.
+    const flat = (x: typeof v | NonNullable<typeof before>) => ({ budgetRecheckDays: x.budgetRecheckDays, endorsementTiers: x.endorsementTiers.join(", "), provenance: x.provenance, notes: x.notes });
     const changes = diffFields(before ? flat(before) : null, flat(v));
     if (!before || changes.length > 0) {
       await writeAudit(tx, { organisationId: org.id, entity: "RequisitionPolicy", entityId: row.id, entityLabel: "Requisition controls", reason }, before ? "UPDATE" : "CREATE", changes);

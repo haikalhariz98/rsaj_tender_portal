@@ -25,7 +25,6 @@ import { gatesFor, type GatesFinding } from "@/lib/requisition/gate";
 import { DECIDER_FAULT_TEXT, RETURNED_AT_APPROVAL, returnedAtApproval } from "@/lib/requisition/labels";
 import { moveRequisition } from "@/lib/requisition/move";
 import { loadControls, loadGateRules, recordOf, type LoadedRequisition } from "@/lib/requisition/repo";
-import { splitApprovalFault } from "@/lib/requisition/splitting";
 import type { TransitionContext } from "@/lib/requisition/status";
 import type { RequisitionStatus } from "@/lib/requisition/types";
 
@@ -105,7 +104,6 @@ export const openInstance = (l: LoadedRequisition) => l.req.approvalInstances.fi
  * Whether the final decision may approve, and what approval will write. Run on the
  * locked data BEFORE the final step is recorded.
  *
- * - A flagged split without a justification refuses.
  * - A commitment is written only where the budget settings commit on approval and the
  *   funding route commits the organisation's budget (ruling BD-13).
  * - Where it will be written, the ledger is re-checked under the budget code's lock
@@ -123,10 +121,7 @@ export async function approvalGate(tx: Tx, l: LoadedRequisition, instanceId: str
   const req = l.req;
   const today = dayToDate(l.org.today!);
   const inst = req.approvalInstances.find((i) => i.id === instanceId)!;
-  const split = req.splitChecks.find((c) => c.id === inst.splitCheckId) ?? null;
-  if (splitApprovalFault(split)) {
-    return { kind: "refuse", state: { ok: false, message: "This requisition was flagged as a possible split. Record a justification for the flag before the final approval." } };
-  }
+  // Founder, 2026-10-05: no splitting check, so a flag on a route opened before never refuses.
   const controls = await loadControls(l.org.id, tx);
   const route = req.fundingRouteCode
     ? await tx.fundingRoute.findFirst({ where: { organisationId: l.org.id, code: req.fundingRouteCode }, select: { approvalCommitsBudget: true } })
