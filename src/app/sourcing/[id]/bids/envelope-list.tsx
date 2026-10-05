@@ -70,7 +70,7 @@ export function EnvelopeList({ exerciseId, rows, people, late }: { exerciseId: s
       columns={[
         { key: "sequence", label: "Envelope", width: "140px", sortable: true, mobile: "primary" },
         { key: "received", label: "Recorded", width: "220px", mobile: "meta" },
-        { key: "state", label: "Where it stands", width: "210px", mobile: "meta" },
+        { key: "state", label: "Status", width: "210px", mobile: "meta" },
         { key: "markings", label: "Markings as written", mobile: "meta" },
       ]}
       rows={list}

@@ -106,7 +106,7 @@ export default async function AwardsPage() {
             { key: "instrument", label: "Reference", width: "204px", nowrap: true, hideBelow: "xl" },
             { key: "value", label: "Value", width: "128px", numeric: true, sortable: true, mobile: "meta" },
             { key: "status", label: "Status", width: "192px", sortable: true, mobile: "meta" },
-            { key: "checks", label: "Where it stands", width: "190px", hideBelow: "md", mobile: "meta" },
+            { key: "checks", label: "Status", width: "190px", hideBelow: "md", mobile: "meta" },
           ]}
           rows={list}
         />

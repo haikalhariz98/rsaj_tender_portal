@@ -49,7 +49,7 @@ export function BiddersList({ exerciseId, c, people }: { exerciseId: string; c: 
         { key: "bid", label: "Bid", width: "120px", sortable: true, mobile: "primary" },
         { key: "bidder", label: "Bidder", minWidth: "200px", mobile: "meta" },
         { key: "evaluatedPrice", label: "Evaluated price", width: "200px", sulit: true, mobile: "meta" },
-        { key: "running", label: "Where it stands", width: "220px", mobile: "meta" },
+        { key: "running", label: "Status", width: "220px", mobile: "meta" },
         ...(c.capitalInputs || c.cprInputs ? [{ key: "inputs", label: "Inputs", width: "220px", mobile: "meta" as const }] : []),
       ]}
       rows={rows}
@@ -95,7 +95,7 @@ export function StageList({ exerciseId, s, open, sittings, people }: { exerciseI
       actionsPlacement="below"
       columns={[
         { key: "bid", label: "Bid", minWidth: "200px", sortable: true, mobile: "primary" },
-        { key: "running", label: committee ? "The committee" : "Where it stands", width: "220px", mobile: "meta" },
+        { key: "running", label: committee ? "The committee" : "Status", width: "220px", mobile: "meta" },
         ...(s.hasFigure ? [{ key: "stageFigure", label: "Figure", width: "120px", numeric: true, sulit: true, mobile: "meta" as const }] : []),
         { key: "outcome", label: "Result", width: "240px", sulit: true, mobile: "meta" },
       ]}
@@ -180,7 +180,7 @@ export function MeetingsList({ exerciseId, c, people }: { exerciseId: string; c:
       columns={[
         { key: "meeting", label: "Meeting", minWidth: "220px", mobile: "primary" },
         { key: "held", label: "Held", width: "200px", mobile: "meta" },
-        { key: "state", label: "Where it stands", width: "260px", mobile: "meta" },
+        { key: "state", label: "Status", width: "260px", mobile: "meta" },
         { key: "priceAfterRound", label: "Price after the round", width: "200px", sulit: true, mobile: "meta" },
       ]}
       rows={rows}

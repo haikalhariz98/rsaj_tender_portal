@@ -203,7 +203,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
               { key: "supplier", label: "Supplier", sortable: true, mobile: "primary" },
               { key: "status", label: "Standing", width: "220px", mobile: "meta" },
               { key: "documents", label: "Documents", width: "200px", mobile: "meta" },
-              { key: "where", label: "Where it stands", width: "250px", mobile: "meta" },
+              { key: "where", label: "Status", width: "250px", mobile: "meta" },
             ]}
             rows={register}
           />
@@ -245,7 +245,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
             columns={[
               { key: "supplier", label: "Supplier", mobile: "primary" },
               { key: "received", label: "Received", width: "170px", sortable: true, mobile: "meta" },
-              { key: "state", label: "Where it stands", width: "220px", mobile: "meta" },
+              { key: "state", label: "Status", width: "220px", mobile: "meta" },
               { key: "deadline", label: "Deadline", width: "190px", hideBelow: "md", mobile: "meta" },
             ]}
             rows={queue}

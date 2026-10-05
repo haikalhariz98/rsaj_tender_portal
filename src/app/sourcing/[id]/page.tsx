@@ -678,7 +678,7 @@ function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossi
                   { label: "Reference", value: <span className="font-mono text-[13px]">{live.reference}</span> },
                   { label: "Awarded value", value: <span className="tabular-nums">{money(live.awardedValue)}</span> },
                   { label: "Instrument", value: INSTRUMENT_SHORT[live.instrumentKind as InstrumentKind] },
-                  { label: "Where it stands", value: <Badge tone={AWARD_STATUS_TONE[live.status as AwardStatus]}>{AWARD_STATUS_LABEL[live.status as AwardStatus]}</Badge> },
+                  { label: "Status", value: <Badge tone={AWARD_STATUS_TONE[live.status as AwardStatus]}>{AWARD_STATUS_LABEL[live.status as AwardStatus]}</Badge> },
                   { label: "Contract", value: live.contract ? <span className="font-mono text-[13px]">{live.contract.number}</span> : "Numbered when the instrument is issued" },
                 ]}
               />

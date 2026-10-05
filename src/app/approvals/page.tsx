@@ -14,7 +14,7 @@ import { formatDate } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 /**
- * Awaiting decision (FR-APR-010, ruling CO-7): every open route's next step, under the
+ * My approvals (FR-APR-010, ruling CO-7): every open route's next step, under the
  * office acting for it — requisitions, approvals of the name and appointments. Not in
  * the prototype. Partly met: nobody signs in yet, so this is the office's list, shown
  * to everyone, and nobody is notified.
@@ -35,8 +35,8 @@ export default async function ApprovalsPage() {
       why: {
         kind: "chips",
         items: [
-          ...(i.escalation ? [{ text: ESCALATION_KIND_LABEL[i.escalation], tone: "warn" as const }] : []),
-          ...(i.noneAvailable ? [{ text: "Nobody able to act — escalate", tone: "err" as const }] : []),
+          ...(i.escalation ? [{ text: ESCALATION_KIND_LABEL[i.escalation], tone: "warn" as const, nowrap: true }] : []),
+          ...(i.noneAvailable ? [{ text: "Nobody able to act — escalate", tone: "err" as const, nowrap: true }] : []),
           ...(!i.escalation && !i.noneAvailable ? [{ text: i.committee ? "With the committee" : "With the office", tone: "brand" as const }] : []),
         ],
       },
@@ -49,12 +49,14 @@ export default async function ApprovalsPage() {
     <>
       <PageHeader
         title="My approvals"
-        subtitle="Every open approval's next step, grouped by the office that decides it."
+        subtitle={
+          <LeadWithMore
+            lead="Every open approval's next step, grouped by the office that decides it."
+            more="Until sign-in, this list is the same for everyone and nobody is notified when a step arrives. A step whose office has nobody able to act can be escalated from its record, with the reason; it never passes down."
+          />
+        }
         meta={[`${all.length} ${all.length === 1 ? "step" : "steps"} waiting`, `${w?.groups.length ?? 0} ${w?.groups.length === 1 ? "office" : "offices"}`, `${escalated} escalated`, `${nobody} with nobody able to act`]}
       />
-      <Callout tone="info" className="mb-6" title="The office's list, not yours">
-        Nobody signs in yet, so this list is the same for everyone and nobody is notified when a step arrives. A step whose office has nobody able to act can be escalated from its record, with the reason; it never passes down.
-      </Callout>
       {w && !w.today && (
         <Callout tone="warn" className="mb-6" title="The organisation's time zone is not set">
           How long each step has waited is counted on the organisation&apos;s day, which is not assumed to be UTC. The days are not counted until the zone is set.
@@ -68,22 +70,22 @@ export default async function ApprovalsPage() {
           <DataList
             flat
             selectable={false}
-            exportName="awaiting-decision"
-            searchPlaceholder="Search by matter or office"
+            exportName="my-approvals"
+            searchPlaceholder="Search by request or office"
             emptyTitle="Nothing here"
             emptyBody="No step in this view."
             views={[
               { id: "escalated", label: "Escalated" },
               { id: "nobody", label: "Nobody able to act" },
             ]}
-            filters={[{ key: "office", label: "Office" }]}
+            filters={[{ key: "office", label: "Waiting on" }]}
             rowOpens
             columns={[
-              { key: "matter", label: "Matter", mobile: "primary" },
-              { key: "office", label: "Office", width: "160px", sortable: true, mobile: "meta" },
-              { key: "act", label: "Act", width: "170px", hideBelow: "xl" },
-              { key: "waiting", label: "Waiting", width: "148px", sortable: true, mobile: "meta" },
-              { key: "why", label: "Where it stands", width: "220px", hideBelow: "md", mobile: "meta" },
+              { key: "matter", label: "Request", mobile: "primary" },
+              { key: "office", label: "Waiting on", width: "160px", sortable: true, mobile: "meta" },
+              { key: "act", label: "Action needed", width: "170px", hideBelow: "xl" },
+              { key: "waiting", label: "Waiting for", width: "148px", sortable: true, mobile: "meta" },
+              { key: "why", label: "Status", width: "250px", hideBelow: "md", mobile: "meta" },
             ]}
             rows={rows}
           />

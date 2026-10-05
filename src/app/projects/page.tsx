@@ -139,7 +139,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
             { id: "ready", label: "Ready to sign" },
             { id: "executed", label: "Executed" },
           ]}
-          filters={[{ key: "phase", label: "Where it stands", order: CONTRACT_PHASES.map((x) => PHASE_WORDS[x].en) }]}
+          filters={[{ key: "phase", label: "Status", order: CONTRACT_PHASES.map((x) => PHASE_WORDS[x].en) }]}
           rowAction={{ label: "Open", hrefTemplate: "/projects/{id}" }}
           rowOpens
           stackBelow="xl"
@@ -147,7 +147,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
             { key: "contract", label: "Contract", sortable: true, mobile: "primary" },
             { key: "contractor", label: "Contractor", width: "200px", hideBelow: "2xl", mobile: "meta" },
             { key: "sum", label: "Contract sum", width: "140px", numeric: true, sortable: true, mobile: "meta" },
-            { key: "phase", label: "Where it stands", width: "200px", sortable: true, mobile: "meta" },
+            { key: "phase", label: "Status", width: "200px", sortable: true, mobile: "meta" },
             { key: "dates", label: "Dates", width: "220px", mobile: "meta" },
           ]}
           rows={rows}

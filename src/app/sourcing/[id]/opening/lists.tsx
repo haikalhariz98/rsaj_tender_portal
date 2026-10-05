@@ -40,7 +40,7 @@ export function EnvelopesToOpen({ exerciseId, o }: { exerciseId: string; o: Open
       columns={[
         { key: "envelope", label: "Envelope", width: "150px", sortable: true, mobile: "primary" },
         { key: "source", label: "How it came", width: "220px", mobile: "meta" },
-        { key: "state", label: "Where it stands", width: "190px", mobile: "meta" },
+        { key: "state", label: "Status", width: "190px", mobile: "meta" },
         { key: "markings", label: "Markings as written", mobile: "meta" },
       ]}
       rows={rows}

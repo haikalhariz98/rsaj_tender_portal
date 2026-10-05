@@ -165,7 +165,7 @@ function VariationsSection({ l, v, people, today, page }: { l: LoadedContract; v
           stackBelow="xl"
           columns={[
             { key: "variation", label: "Variation", mobile: "primary" },
-            { key: "stage", label: "Where it stands", width: "240px", mobile: "meta" },
+            { key: "stage", label: "Status", width: "240px", mobile: "meta" },
             { key: "estimate", label: "Estimate", width: "140px", numeric: true, mobile: "meta" },
             { key: "approved", label: "Approved or certified", width: "170px", numeric: true, mobile: "meta" },
           ]}

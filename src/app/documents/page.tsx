@@ -140,7 +140,7 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
         columns={[
           { key: "copy", label: "Copy", mobile: "primary" },
           { key: "certificate", label: "Certificate", width: "280px", mobile: "meta" },
-          { key: "state", label: "Where it stands", width: "230px", mobile: "meta" },
+          { key: "state", label: "Status", width: "230px", mobile: "meta" },
         ]}
         rows={distribution.rows.map((c) => {
           const state = copyState(c);

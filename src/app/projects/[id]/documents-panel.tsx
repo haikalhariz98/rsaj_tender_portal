@@ -31,13 +31,13 @@ export async function DocumentsPanel({ contractId, page }: { contractId: string;
         searchPlaceholder="Search by kind or number"
         emptyTitle="No certificates yet"
         emptyBody="None is raised on this contract. A delegation under Team raises its letters; Payments raises the advance, interim, warning and non-completion certificates; Variations raises a variation's application, instruction and order, and the adjustments of the contract sum."
-        filters={[{ key: "status", label: "Where it stands", order: CERTIFICATE_STATUSES.map((s) => STATUS_WORDS[s].en) }]}
+        filters={[{ key: "status", label: "Status", order: CERTIFICATE_STATUSES.map((s) => STATUS_WORDS[s].en) }]}
         rowAction={{ label: "Open", hrefTemplate: `/projects/${contractId}/certificates/{id}` }}
         rowOpens
         stackBelow="xl"
         columns={[
           { key: "certificate", label: "Certificate", sortable: true, mobile: "primary" },
-          { key: "status", label: "Where it stands", width: "190px", sortable: true, mobile: "meta" },
+          { key: "status", label: "Status", width: "190px", sortable: true, mobile: "meta" },
           { key: "date", label: "Dated", width: "160px", mobile: "meta" },
           { key: "copies", label: "Distribution", width: "220px", mobile: "meta" },
         ]}
