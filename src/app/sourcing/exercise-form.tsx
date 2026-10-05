@@ -2,16 +2,13 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import { ClipboardIcon, FileIcon, PlusIcon, RouteIcon, SaveIcon, ScaleIcon, SlidersIcon, XIcon } from "@/components/icons";
+import { ClipboardIcon, FileIcon, PlusIcon, RouteIcon, SaveIcon, ScaleIcon, XIcon } from "@/components/icons";
 import type { FormState } from "@/components/record-editor";
-import { ActBadge } from "@/components/ui/act";
 import { Button, ButtonLink, iconButtonClass } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
-import { ProvenanceBadge } from "@/components/ui/provenance";
-import { KeyValues } from "@/components/ui/stat";
 import { EVIDENCE_NOTE_HINT, SCOPE_NOTE_HINT } from "@/lib/method/labels";
 import type { Presented } from "@/lib/method/present";
 
@@ -20,8 +17,8 @@ import { createExercise, updateExercise } from "./actions";
 /**
  * The exercise form: opening one on an approved requisition, or editing a draft.
  * Values are held here, so a refused save keeps everything typed; every rule is the
- * action's. "How this will run" asks the route handler, which judges the draft with the
- * same logic the save does and answers in words (FR-MTD-002). Nothing is pre-filled
+ * action's. The route handler judges the draft as it is typed with the
+ * same logic the save does, and its proposals show on their fields (FR-MTD-002). Nothing is pre-filled
  * with a policy value: the method and type left unchosen take what the rules propose.
  */
 
@@ -57,8 +54,6 @@ interface ScopeLine {
 
 type Values = Record<string, string>;
 
-const TONE = { err: "err", warn: "warn", info: "info" } as const;
-
 export function ExerciseForm({
   mode,
   requisition,
@@ -78,8 +73,6 @@ export function ExerciseForm({
 }) {
   const [state, setState] = useState<FormState>({ ok: false });
   const [pending, startTransition] = useTransition();
-  // Until the first save is tried, what blocks is "still to do", not an error (UX 8).
-  const [tried, setTried] = useState(false);
   const [v, setV] = useState<Values>(initial);
   const [scope, setScope] = useState<ScopeLine[]>(initialScope?.length ? initialScope : [{ kind: "", amount: initial.estimatedValue ?? "", description: "" }]);
   const [preview, setPreview] = useState<{ result: Presented; proposedMethodCode: string | null; matrixLabel: string } | { message: string } | null>(null);
@@ -119,7 +112,6 @@ export function ExerciseForm({
   }, [v, scope, requisition.id, id]);
 
   const submit = (data: FormData) => {
-    setTried(true);
     data.set("scope", JSON.stringify(scope));
     startTransition(async () => {
       const result = await (mode === "new" ? createExercise : updateExercise)({ ok: false }, data);
@@ -153,7 +145,9 @@ export function ExerciseForm({
   const r = preview && "result" in preview ? preview.result : null;
 
   return (
-    <form onSubmit={(ev) => submit(formDataOf(ev))} className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
+    // Founder, 2026-10-05: no "How this will run" panel beside the form. The rules still judge the
+    // draft as it is typed, and what they propose shows on its field: the method, the derived type.
+    <form onSubmit={(ev) => submit(formDataOf(ev))} className="flex flex-col gap-6">
       <div className="flex min-w-0 flex-col gap-6">
         {id && <input type="hidden" name="id" value={id} />}
         <input type="hidden" name="requisitionId" value={requisition.id} />
@@ -284,112 +278,6 @@ export function ExerciseForm({
           </Button>
         </div>
       </div>
-
-      <Card className="min-w-0 xl:sticky xl:top-6">
-        <CardHeader icon={<SlidersIcon size={17} />} title="How this will run" subtitle={preview && "matrixLabel" in preview ? `Under ${preview.matrixLabel}` : "Judged as you type"} />
-        <CardBody className="flex flex-col gap-5" aria-live="polite">
-          {!preview && <p className="text-[13.5px] text-ink-3">Type the estimated value to see its bands.</p>}
-          {preview && "message" in preview && <Callout tone="warn">{preview.message}</Callout>}
-          {r && <PreviewPanel r={r} tried={tried} chosen={!!method} />}
-        </CardBody>
-      </Card>
     </form>
-  );
-}
-
-function RouteSteps({ route }: { route: Presented["appointment"] }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <p className="text-[13px] font-semibold text-ink">{route.status}</p>
-      {route.steps.length > 0 && (
-        <ol className="flex flex-col gap-1.5">
-          {route.steps.map((s, i) => (
-            <li key={i} className="flex min-w-0 items-center gap-2 text-[13px]">
-              <ActBadge act={s.actCode} />
-              <span className="min-w-0 break-words text-ink">{s.role}</span>
-              <span className="text-ink-3">{s.act}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-      {route.rule && <p className="text-[12.5px] break-words text-ink-3">{route.rule}</p>}
-      {route.notes.map((n) => (
-        <Callout key={n.text} tone={TONE[n.tone]}>
-          {n.text}
-        </Callout>
-      ))}
-    </div>
-  );
-}
-
-function PreviewPanel({ r, tried, chosen }: { r: Presented; tried: boolean; chosen: boolean }) {
-  return (
-    <>
-      <KeyValues
-        items={[
-          { label: "Requisition band", value: <span className="flex flex-col gap-1"><span>{r.requisition.approved}</span><span className="text-[12.5px] text-ink-3">{r.requisition.preview}</span></span> },
-          { label: "Method band", value: r.regime },
-          {
-            label: "Contract terms band",
-            value: r.terms.label ? (
-              <span className="flex flex-col gap-1">
-                <span>{r.terms.label}</span>
-                <span className="text-[12.5px] text-ink-3">
-                  Retention: {r.terms.retention.toLowerCase()} · Defects liability: {r.terms.defects.toLowerCase()}
-                </span>
-              </span>
-            ) : (
-              <span className="text-ink-3">{r.terms.status}</span>
-            ),
-          },
-          ...(r.boundary.onBoundary
-            ? [
-                {
-                  label: "At the boundary",
-                  value: (
-                    <span className="flex flex-col items-start gap-1">
-                      <span>{r.boundary.rule}</span>
-                      <ProvenanceBadge value={r.boundary.provenance} />
-                    </span>
-                  ),
-                },
-              ]
-            : []),
-        ]}
-      />
-      <div className="border-t border-line pt-4">
-        <p className="mb-2 text-[12px] font-semibold text-ink-3">
-          {chosen ? `Approval of the appointment · ${r.method}` : r.method ? `If you use the proposed method (${r.method})` : "Approval of the appointment"}
-        </p>
-        <RouteSteps route={r.appointment} />
-      </div>
-      {r.nameApproval && (
-        <div className="border-t border-line pt-4">
-          <p className="mb-2 text-[12px] font-semibold text-ink-3">Name approval · recorded, not enforced in this phase</p>
-          <RouteSteps route={r.nameApproval} />
-        </div>
-      )}
-      <div className="border-t border-line pt-4">
-        <KeyValues
-          items={[
-            { label: "Contract type", value: r.contractType.name ? `${r.contractType.name} · ${r.contractType.status.toLowerCase()}` : "Not set" },
-            ...(r.contractType.share ? [{ label: "Scope", value: r.contractType.share }] : []),
-            ...r.taxonomies.map((t) => ({ label: t.name, value: t.value ? `${t.value} · ${t.status.toLowerCase()}` : t.status })),
-          ]}
-        />
-      </div>
-      {r.findings.length > 0 && (
-        <div className="flex flex-col gap-2 border-t border-line pt-4">
-          {!tried && r.findings.some((f) => f.tone === "err") && <p className="text-[12px] font-semibold text-ink-3">Still to do</p>}
-          <ul className="flex flex-col gap-2">
-            {r.findings.map((f) => (
-              <li key={f.text}>
-                <Callout tone={f.tone === "err" && !tried ? "info" : TONE[f.tone]}>{f.text}</Callout>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </>
   );
 }

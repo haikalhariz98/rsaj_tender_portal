@@ -60,7 +60,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       orderBy: { reference: "desc" },
       include: { approvalInstances: { select: { status: true, value: true, ruleKey: true, ruleLabel: true, checkedAgainstMatrix: true } }, exercises: { select: { estimatedValue: true, status: true } } },
     });
-    // Open to an exercise, or not and why (UX 7): only the first list can be chosen.
+    // Whether an exercise can be opened on each (UX 7).
     const judged = await Promise.all(reqs.map(async (q) => {
       const approved = approvedRouteOf(q);
       const remaining = remainingOf(approved, q.exercises.map((x, i) => ({ id: String(i), value: parseSen(x.estimatedValue.toString()), status: x.status as ExerciseStatus })));
@@ -68,19 +68,17 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       const fault = openFault({ status: q.status, sourcingPermitted: q.sourcingPermitted, approvedRoute: !!approved, remaining }, { today: org.today, methodsConfigured: true, gate });
       return { q, approved, remaining, fault };
     }));
-    const row = (x: (typeof judged)[number], link: boolean): Row => ({
+    // Founder, 2026-10-05: only the requisitions an exercise can be opened on are listed.
+    const row = (x: (typeof judged)[number]): Row => ({
       id: x.q.id,
       search: `${x.q.reference} ${x.q.title}`,
       cells: {
-        title: link ? { kind: "link", text: x.q.title, href: `/sourcing/new?requisition=${x.q.id}`, sub: x.q.reference } : { kind: "stack", title: x.q.title, sub: x.q.reference },
+        title: { kind: "link", text: x.q.title, href: `/sourcing/new?requisition=${x.q.id}`, sub: x.q.reference },
         approved: { kind: "text", text: x.approved ? formatMoney(x.approved.value) : "No approved route" },
-        open: link
-          ? { kind: "text", text: x.remaining != null ? `${formatMoney(x.remaining)} left` : "—" }
-          : { kind: "chip", text: x.fault?.code === "FULLY_IN_EXERCISES" ? "Fully in exercises" : x.fault?.code === "SOURCING_NOT_PERMITTED" ? "Not procured by the organisation" : "Not open to an exercise", tone: "warn" },
+        open: { kind: "text", text: x.remaining != null ? formatMoney(x.remaining) : "—" },
       },
     });
     const open = judged.filter((x) => !x.fault || x.fault.code === "TIME_ZONE_UNSET");
-    const closed = judged.filter((x) => x.fault && x.fault.code !== "TIME_ZONE_UNSET");
     const columns = (third: string) => [
       { key: "title", label: "Requisition", mobile: "primary" as const },
       { key: "approved", label: "Approved value", width: "150px", sulit: true, mobile: "meta" as const },
@@ -97,19 +95,13 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
             exportName="approved-requisitions"
             searchPlaceholder="Search by title or reference"
             emptyTitle="No requisition is open to an exercise"
-            emptyBody="An exercise is opened against an approved requisition with value left to put in one."
+            emptyBody="An exercise is opened against an approved requisition with value still to source."
             rowAction={{ label: "Open exercise", hrefTemplate: "/sourcing/new?requisition={id}" }}
             rowOpens
-            columns={columns("Left to put in an exercise")}
-            rows={open.map((x) => row(x, true))}
+            columns={columns("Still to source")}
+            rows={open.map(row)}
           />
         </Card>
-        {closed.length > 0 && (
-          <Card className="mt-6 overflow-hidden">
-            <CardHeader title="Not open to an exercise" subtitle="Approved, but fully held by live exercises, or on a funding route under which the organisation does not procure." divided={false} />
-            <DataList flat selectable={false} exportName="closed-requisitions" searchPlaceholder="Search by title or reference" emptyTitle="None" emptyBody="" columns={columns("Why")} rows={closed.map((x) => row(x, false))} />
-          </Card>
-        )}
       </>
     );
   }
@@ -157,7 +149,8 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
             id: l.req.id,
             reference: l.req.reference,
             title: l.req.title,
-            approved: approved && remaining != null ? `The requisition's approval covers ${formatMoney(approved.value)}; ${formatMoney(remaining)} is left to put in an exercise.` : "",
+            // Founder, 2026-10-05: said only where part of the requisition is already in another exercise.
+            approved: approved && remaining != null && remaining < approved.value ? `${formatMoney(approved.value - remaining)} of this requisition is already in other exercises; ${formatMoney(remaining)} is still to source.` : "",
           }}
           options={options}
           initial={{ title: l.req.title, estimatedValue: remaining != null && remaining > 0n ? plainAmount(remaining) : "", contractTypeCode: "" }}
