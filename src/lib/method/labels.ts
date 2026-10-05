@@ -95,7 +95,7 @@ export const DERIVATION_TEXT: Record<DerivationState, string> = {
   THRESHOLD_NOT_SET: "Mixed scope, and no dominance threshold is set, so there is no default for mixed scope. Choose a type, with a reason — or set the threshold under Reference data.",
   NO_TYPE_FOR_KIND: "No contract type is configured as the default for this deliverable. Choose one, with a reason — or set a deliverable on a type under Reference data.",
   SEVERAL_TYPES_FOR_KIND: "More than one contract type is configured as the default for this deliverable, so none is derived. Choose one, or correct the types under Reference data.",
-  NO_SCOPE: "No scope split is recorded, so no type can be derived.",
+  NO_SCOPE: "What is delivered is not chosen, so no type can be derived.",
 };
 
 export const TAXONOMY_STATE_LABEL: Record<TaxonomyState, string> = {
@@ -261,7 +261,7 @@ export function findingText(f: Finding): string {
       return "The scope document from the coordination meeting is not attached. Attach it to the exercise.";
     // contract-type.ts
     case "SCOPE_REQUIRED":
-      return "Record at least one scope line: what is delivered, and its value.";
+      return "Choose what is delivered.";
     case "SCOPE_AMOUNT_INVALID":
       return "Every scope line needs a value above zero.";
     case "SCOPE_SUM_MISMATCH":

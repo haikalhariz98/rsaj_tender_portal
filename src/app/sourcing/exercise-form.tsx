@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { ClipboardIcon, FileIcon, PlusIcon, RouteIcon, SaveIcon, ScaleIcon, XIcon } from "@/components/icons";
+import { ClipboardIcon, FileIcon, RouteIcon, SaveIcon } from "@/components/icons";
 import type { FormState } from "@/components/record-editor";
-import { Button, ButtonLink, iconButtonClass } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select, Textarea } from "@/components/ui/field";
@@ -74,13 +74,14 @@ export function ExerciseForm({
   const [state, setState] = useState<FormState>({ ok: false });
   const [pending, startTransition] = useTransition();
   const [v, setV] = useState<Values>(initial);
-  const [scope, setScope] = useState<ScopeLine[]>(initialScope?.length ? initialScope : [{ kind: "", amount: initial.estimatedValue ?? "", description: "" }]);
+  // Founder, 2026-10-05: one "What is delivered" choice covering the whole value, not a split. A draft
+  // saved with several parts opens on its largest, and saving it records that one part.
+  const [kind, setKind] = useState(() => largestKind(initialScope ?? []));
+  const scope: ScopeLine[] = useMemo(() => (kind ? [{ kind, amount: v.estimatedValue ?? "", description: "" }] : []), [kind, v.estimatedValue]);
   const [preview, setPreview] = useState<{ result: Presented; proposedMethodCode: string | null; matrixLabel: string } | { message: string } | null>(null);
   const e = state.errors ?? {};
   const set = (k: string) => (ev: { target: { value: string } }) => {
     const next = ev.target.value;
-    // One scope line still holding the whole value follows the value as it is typed.
-    if (k === "estimatedValue") setScope((ls) => (ls.length === 1 && ls[0].amount === (v.estimatedValue ?? "") ? [{ ...ls[0], amount: next }] : ls));
     setV((x) => ({ ...x, [k]: next }));
   };
   const method = options.methods.find((m) => m.code === v.sourcingMethodCode) ?? null;
@@ -140,7 +141,6 @@ export function ExerciseForm({
       </Select>
     </Field>
   );
-  const setLine = (i: number, k: keyof ScopeLine, val: string) => setScope((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: val } : l)));
   const reasons = options.reasons.filter((r) => r.methodCode == null || r.methodCode === method?.code);
   const r = preview && "result" in preview ? preview.result : null;
 
@@ -157,53 +157,19 @@ export function ExerciseForm({
           <CardHeader icon={<ClipboardIcon size={17} />} title="What is being sourced" subtitle={`Against ${requisition.reference} · ${requisition.title}`} />
           <CardBody className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">{text("title", "Title", { required: true })}</div>
-            <Field label="Estimated value" htmlFor="sx-estimatedValue" required hint={requisition.approved} error={e.estimatedValue}>
+            <Field label="Estimated value" htmlFor="sx-estimatedValue" required hint={requisition.approved || undefined} error={e.estimatedValue}>
               <AffixInput id="sx-estimatedValue" prefix="RM" name="estimatedValue" inputMode="decimal" value={v.estimatedValue ?? ""} onChange={set("estimatedValue")} aria-invalid={e.estimatedValue ? true : undefined} className="[&_input]:text-right" />
             </Field>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader icon={<ScaleIcon size={17} />} title="Scope split" subtitle="What is delivered, and its share of the value. The contract type is derived from it." />
-          <CardBody className="flex flex-col gap-3">
-            {e.scope && <Callout tone="err">{e.scope}</Callout>}
-            <ol className="flex flex-col gap-3">
-              {scope.map((l, i) => (
-                <li key={i} className="rounded-2xl border border-line bg-sunken/60 p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-[12.5px] font-semibold text-ink-3">Part {i + 1}</span>
-                    {scope.length > 1 && (
-                      <button type="button" className={iconButtonClass("sm")} aria-label={`Remove part ${i + 1}`} onClick={() => setScope((ls) => ls.filter((_, j) => j !== i))}>
-                        <XIcon size={14} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,10rem)]">
-                    <Field label="Delivers" htmlFor={`sp-${i}-k`}>
-                      <Select id={`sp-${i}-k`} value={l.kind} onChange={(ev) => setLine(i, "kind", ev.target.value)}>
-                        <option value="">Choose</option>
-                        {options.kinds.map((k) => (
-                          <option key={k.value} value={k.value}>
-                            {k.label}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field label="Value" htmlFor={`sp-${i}-a`}>
-                      <AffixInput id={`sp-${i}-a`} prefix="RM" inputMode="decimal" value={l.amount} onChange={(ev) => setLine(i, "amount", ev.target.value)} className="[&_input]:text-right" />
-                    </Field>
-                    <Field label="Description" htmlFor={`sp-${i}-d`} className="sm:col-span-2">
-                      <Input id={`sp-${i}-d`} value={l.description} onChange={(ev) => setLine(i, "description", ev.target.value)} />
-                    </Field>
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <div>
-              <Button size="sm" onClick={() => setScope((ls) => [...ls, { kind: "", amount: "", description: "" }])} icon={<PlusIcon size={15} />}>
-                Add part
-              </Button>
-            </div>
+            <Field label="What is delivered" htmlFor="sx-kind" required hint="The contract type is derived from it." error={e.scope}>
+              <Select id="sx-kind" value={kind} onChange={(ev) => setKind(ev.target.value)} aria-invalid={e.scope ? true : undefined}>
+                <option value="">Choose</option>
+                {options.kinds.map((k) => (
+                  <option key={k.value} value={k.value}>
+                    {k.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
           </CardBody>
         </Card>
 
@@ -248,7 +214,7 @@ export function ExerciseForm({
         </Card>
 
         <Card>
-          <CardHeader icon={<FileIcon size={17} />} title="Contract type and basis" subtitle="The type is derived from the scope; the basis is always chosen." />
+          <CardHeader icon={<FileIcon size={17} />} title="Contract type and basis" subtitle="The type is derived from what is delivered; the basis is always chosen." />
           <CardBody className="grid gap-4 sm:grid-cols-2">
             {select("contractTypeCode", "Contract type", options.types.map((t) => ({ value: t.code, label: t.name })), {
               placeholder: r?.contractType.name && !typeChosen ? `As derived: ${r.contractType.name}` : "As derived",
@@ -280,4 +246,14 @@ export function ExerciseForm({
       </div>
     </form>
   );
+}
+
+/// The deliverable with the largest value among a saved draft's parts; empty when none.
+function largestKind(parts: readonly ScopeLine[]): string {
+  const byKind = new Map<string, number>();
+  for (const p of parts) byKind.set(p.kind, (byKind.get(p.kind) ?? 0) + (Number(p.amount.replace(/,/g, "")) || 0));
+  let best = "";
+  let most = -1;
+  for (const [k, n] of byKind) if (n > most) [best, most] = [k, n];
+  return best;
 }
