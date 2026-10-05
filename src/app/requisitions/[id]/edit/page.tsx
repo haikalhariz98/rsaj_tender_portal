@@ -25,7 +25,7 @@ function backToDraft(status: string): string {
     case "REGISTERED":
     case "BUDGET_CHECKED":
     case "OVER_BUDGET":
-      return "Once registered it cannot go back to draft. Cancel it and raise a new requisition to change them.";
+      return "Once its budget has been checked it cannot go back to draft. Cancel it and raise a new requisition to change them.";
     default:
       return "It can no longer be changed.";
   }

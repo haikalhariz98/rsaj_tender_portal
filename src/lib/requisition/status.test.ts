@@ -8,7 +8,8 @@ describe("the requisition state machine (§7.3.1)", () => {
   it.each([
     ["DRAFT", "ENDORSED"],
     ["DRAFT", "CANCELLED"],
-    ["ENDORSED", "REGISTERED"],
+    ["ENDORSED", "BUDGET_CHECKED"],
+    ["ENDORSED", "OVER_BUDGET"],
     ["ENDORSED", "RETURNED"],
     ["RETURNED", "DRAFT"],
     ["REGISTERED", "BUDGET_CHECKED"],
@@ -44,10 +45,13 @@ describe("the requisition state machine (§7.3.1)", () => {
   });
 
   // Founder, 2026-10-05: the finance-system numbers were removed (the OD-10 setting and its act),
-  // so the four OD-10 expectations went with the feature. What stays pinned: registering an
-  // endorsed requisition waits for nothing from the finance system.
-  it("registers an endorsed requisition, never waiting for finance-system numbers", () => {
-    expect(transitionFault("ENDORSED", "REGISTERED", { today })).toBeNull();
+  // and then the Register step itself, which only stood for that registration. What stays
+  // pinned: an endorsed requisition is budget-checked directly, and none is newly registered;
+  // one registered before still goes on to its budget check.
+  it("checks an endorsed requisition's budget directly; nothing is newly registered", () => {
+    expect(transitionFault("ENDORSED", "BUDGET_CHECKED", { today })).toBeNull();
+    expect(transitionFault("ENDORSED", "REGISTERED", { today })).toMatchObject({ code: "NOT_ALLOWED" });
+    expect(transitionFault("REGISTERED", "BUDGET_CHECKED", { today })).toBeNull();
   });
 
   it("returns only with a reason, a recipient and a date not in the future (FR-REQ-010)", () => {

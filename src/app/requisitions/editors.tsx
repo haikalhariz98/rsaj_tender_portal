@@ -15,7 +15,6 @@ import {
   recordDecision,
   recordEndorsement,
   recordExternalAuthority,
-  registerRequisition,
   reopenDraft,
   returnRequisition,
   submitRequisition,
@@ -76,7 +75,7 @@ export function MarkEndorsed({ id, blocker }: { id: string; blocker: string | nu
   return (
     <RecordEditor
       title="Mark as endorsed"
-      description="Every tier has endorsed it. From here its fields are fixed; it is registered, budget-checked and submitted."
+      description="Every tier has endorsed it. From here its fields are fixed; it is budget-checked and submitted."
       fields={[hidden("id")]}
       values={{ id }}
       action={markEndorsed}
@@ -107,23 +106,6 @@ export function ReturnDrawer({ id, people, today }: { id: string; people: Option
   );
 }
 
-/// Registering an endorsed requisition: a confirmation. The finance system's numbers are no longer
-/// asked for (founder, 2026-10-05: the customer does not use them).
-export function RegisterDrawer({ id, blocker }: { id: string; blocker: string | null }) {
-  if (blocker) return <Blocked label="Register" reason={blocker} primary noteId={HEADER_NOTE_ID} />;
-  return (
-    <RecordEditor
-      title="Register"
-      description="The requisition is entered in the register. From here it is budget-checked and submitted for approval."
-      fields={[hidden("id")]}
-      values={{ id }}
-      action={registerRequisition}
-      submitLabel="Register"
-      trigger={{ label: "Register", className: buttonClass("primary", "sm") }}
-      size="md"
-    />
-  );
-}
 export function CheckBudgetDrawer({ id, source, blocker, today }: { id: string; source: "PORTAL_LEDGER" | "MANUAL_ERP_ENTRY" | null; blocker: string | null; today: string | null }) {
   if (blocker || !source) return <Blocked label="Check budget" reason={blocker ?? "The budget check source is not set."} noteId={HEADER_NOTE_ID} />;
   const manual = source === "MANUAL_ERP_ENTRY";
@@ -236,7 +218,7 @@ export function ReopenDrawer({ id }: { id: string }) {
   return (
     <RecordEditor
       title="Reopen as a draft"
-      description="Back to draft to be corrected. Editing it withdraws its endorsements, and it is endorsed, registered and checked again."
+      description="Back to draft to be corrected. Editing it withdraws its endorsements, and it is endorsed and checked again."
       fields={[hidden("id")]}
       values={{ id }}
       action={reopenDraft}

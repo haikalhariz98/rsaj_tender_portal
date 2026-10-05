@@ -17,7 +17,10 @@ import type { RequisitionStatus } from "./types";
  */
 export const TRANSITIONS: Record<RequisitionStatus, readonly RequisitionStatus[]> = {
   DRAFT: ["ENDORSED", "CANCELLED"],
-  ENDORSED: ["REGISTERED", "RETURNED", "CANCELLED"],
+  // Founder, 2026-10-05: no Register step. It mirrored the finance system's registration,
+  // which minted the numbers the customer does not use; an endorsed requisition goes
+  // straight to the budget check. Registered stays for requisitions registered before.
+  ENDORSED: ["BUDGET_CHECKED", "OVER_BUDGET", "RETURNED", "CANCELLED"],
   RETURNED: ["DRAFT", "CANCELLED"],
   REGISTERED: ["BUDGET_CHECKED", "OVER_BUDGET", "CANCELLED"],
   BUDGET_CHECKED: ["BUDGET_CHECKED", "PENDING_APPROVAL", "OVER_BUDGET", "CANCELLED"],
@@ -96,11 +99,6 @@ export function transitionFault(
       if ((ctx.fieldFaults ?? 0) > 0) return { code: "FIELDS_INCOMPLETE", count: ctx.fieldFaults! };
       if (ctx.tiersSet === false) return { code: "ENDORSEMENT_TIERS_NOT_SET" };
       if ((ctx.endorsementFaults ?? 0) > 0) return { code: "ENDORSEMENTS_INCOMPLETE", count: ctx.endorsementFaults! };
-      return null;
-    case "REGISTERED":
-      // Founder, 2026-10-05: registration never waits for the finance system's numbers. The
-      // setting that could require them (OD-10) and the act that recorded them were removed:
-      // the customer does not use them.
       return null;
     case "RETURNED": {
       const missing = (

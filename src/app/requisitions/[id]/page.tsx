@@ -111,7 +111,6 @@ import {
   MarkEndorsed,
   RecallDrawer,
   RecordEndorsementDrawer,
-  RegisterDrawer,
   ReopenDrawer,
   WhereItGoesDrawer,
   ReturnDrawer,
@@ -132,7 +131,7 @@ const ORGANISATION_HREF = "/configuration/organisation";
 const CONTROLS_HREF = "/configuration/requisitions";
 const BUDGET_HREF = "/configuration/budget";
 const REFERENCE_HREF = "/configuration/reference-data";
-const PRE_SUBMIT = ["REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"];
+const PRE_SUBMIT = ["ENDORSED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"];
 const TERMINAL = ["CANCELLED", "CLOSED"];
 
 /// Why a splitting check could not run, in words.
@@ -229,7 +228,6 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     tiersSet: policy.endorsementTiers.length > 0,
     endorsementFaults: eFaults.length,
   });
-  const registerBlock = transitionFault(r.status, "REGISTERED", { today });
 
   // Submission, as far as it can be judged before the lock: the same pure checks.
   let submitBlocker: string | null = null;
@@ -402,7 +400,6 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   // Why a header action is unavailable, stated once under the action row.
   const unavailable: [string, string | null][] = [
     ["Mark endorsed", r.status === "DRAFT" ? endorseText : null],
-    ["Register", r.status === "ENDORSED" && registerBlock ? transitionFaultText(registerBlock) : null],
     ["Check budget", PRE_SUBMIT.includes(r.status) ? (checkBlocker ?? (controls.budgetCheckSource ? null : "The budget check source is not set.")) : null],
     ["Submit for approval", PRE_SUBMIT.includes(r.status) ? submitBlocker : null],
     ["Recall", r.status === "PENDING_APPROVAL" && recallBlock ? transitionFaultText(recallBlock) : null],
@@ -434,12 +431,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
           <MarkEndorsed id={r.id} blocker={endorseText} />
         </>
       )}
-      {r.status === "ENDORSED" && (
-        <>
-          <ReturnDrawer id={r.id} people={people} today={today} />
-          <RegisterDrawer id={r.id} blocker={registerBlock ? transitionFaultText(registerBlock) : null} />
-        </>
-      )}
+      {r.status === "ENDORSED" && <ReturnDrawer id={r.id} people={people} today={today} />}
       {PRE_SUBMIT.includes(r.status) && (
         <>
           <CheckBudgetDrawer id={r.id} source={controls.budgetCheckSource} blocker={checkBlocker} today={today} />
@@ -1031,8 +1023,8 @@ function BudgetPanel({
       ? { title: "No budget check was entered", body: "It was received already approved in the finance system, with no budget figures typed." }
       : PRE_SUBMIT.includes(r.status)
         ? { title: "Not checked yet", body: "Run Check budget before submitting it for approval." }
-        : ["DRAFT", "ENDORSED", "RETURNED"].includes(r.status)
-          ? { title: "No budget check yet", body: "The check can be run once the requisition is registered." }
+        : ["DRAFT", "RETURNED"].includes(r.status)
+          ? { title: "No budget check yet", body: "The check can be run once the requisition is endorsed." }
           : { title: "No budget check was recorded", body: "It left the stages where a check is run without one." };
   const settings: { label: string; value: React.ReactNode }[] = [
     {
@@ -1244,7 +1236,7 @@ function ApprovalPanel({
               </>
             ) : (
               <EmptyState size="sm" title="Not submitted">
-                The route is resolved once the requisition is registered and its budget checked.
+                The route is resolved once the requisition is endorsed and its budget checked.
               </EmptyState>
             )}
           </CardBody>

@@ -397,6 +397,9 @@ export async function markEndorsed(_prev: FormState, data: FormData): Promise<Fo
     const from = l.req.status;
     await mustMove(tx, l, "ENDORSED", ctx);
     await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "ENDORSED" }));
+    // Once endorsed it is a live requisition: committee matters waiting for it are linked
+    // now (this ran at Register, a step since removed).
+    await linkMatchingMatters(tx, l.org.id, id);
     return { ok: true };
   });
 }
@@ -463,21 +466,6 @@ export async function cancelRequisition(_prev: FormState, data: FormData): Promi
   });
 }
 
-/// Endorsed to Registered. The finance system's numbers are no longer asked for or recorded
-/// here (founder, 2026-10-05: the customer does not use them); numbers already on a
-/// requisition stay as they are.
-export async function registerRequisition(_prev: FormState, data: FormData): Promise<FormState> {
-  const id = String(data.get("id") ?? "");
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
-    const regCtx = { today: l.org.today };
-    const fault = transitionFault(l.req.status, "REGISTERED", regCtx);
-    if (fault) return { ok: false, message: transitionFaultText(fault) };
-    await mustMove(tx, l, "REGISTERED", regCtx);
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: l.req.status }, { status: "REGISTERED" }));
-    await linkMatchingMatters(tx, l.org.id, id);
-    return { ok: true };
-  });
-}
 // --------------------------------------------------------------- funding
 
 /**
@@ -532,7 +520,7 @@ export async function recordExternalAuthority(_prev: FormState, data: FormData):
 
 // ---------------------------------------------------------------- budget
 
-const CHECKABLE: RequisitionStatus[] = ["REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"];
+const CHECKABLE: RequisitionStatus[] = ["ENDORSED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"];
 const SOURCE_NOT_SET =
   "Where the budget check comes from is not set, so no check can be run. Set the budget check source in Configuration, Requisition controls.";
 
@@ -555,7 +543,7 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
   if (r.failed) return { ok: false, errors: r.errors };
 
   return inRequisition(id, async (tx, l): Promise<FormState> => {
-    if (!CHECKABLE.includes(l.req.status)) return { ok: false, message: "A budget check runs once the requisition is registered, and before it is submitted." };
+    if (!CHECKABLE.includes(l.req.status)) return { ok: false, message: "A budget check runs once the requisition is endorsed, and before it is submitted." };
     if (!l.org.today) return NO_ZONE;
     const controls = await loadControls(l.org.id, tx);
     if (!controls.budgetCheckSource) return { ok: false, message: SOURCE_NOT_SET };
