@@ -11,8 +11,10 @@ import { Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
 import { lineAmount } from "@/lib/requisition/lines";
+import type { ImportedLine } from "@/lib/requisition/line-import";
 
 import { createRequisition, editDraft } from "./actions";
+import { LineUpload } from "./line-upload";
 
 /**
  * The requisition form: raising one, or editing a draft. Values are held here, so a refused
@@ -129,6 +131,19 @@ export function RequisitionForm({
       }),
     );
   };
+  /// An upload replaces the lines (the upload asked first where some were typed). The
+  /// estimated value is filled from the lines only while it is empty; otherwise the line
+  /// under it says whether they match.
+  const applyImport = (imported: ImportedLine[]) => {
+    const next = imported.map((l) => ({ ...l, estimatedUnitPrice: l.estimatedUnitPrice ? tidy(l.estimatedUnitPrice) : "", estimatedAmount: tidy(l.estimatedAmount) }));
+    setLines(next);
+    setOwnAmount(next.map(() => true));
+    if (value.trim() === "") {
+      const sum = totalOf(next);
+      if (sum != null) setValue(grouped(sum));
+    }
+  };
+  const typedLines = lines.filter((l) => Object.values(l).some((v) => v.trim() !== "")).length;
   const removeLine = (i: number) => {
     setLines((ls) => ls.filter((_, j) => j !== i));
     setOwnAmount((o) => o.filter((_, j) => j !== i));
@@ -231,6 +246,7 @@ export function RequisitionForm({
             </div>
           </div>
           {e.lines && <Callout tone="err">{e.lines}</Callout>}
+          <LineUpload typedLines={typedLines} onApply={applyImport} />
           <ol className="flex flex-col gap-3">
             {lines.map((l, i) => (
               <li key={i} className="rounded-2xl border border-line bg-sunken/60 p-3">
