@@ -268,7 +268,9 @@ export async function createRequisition(_prev: FormState, data: FormData): Promi
   if (!draft.requestingPersonId) r.reject("requestingPersonId", "Requesting officer is required.");
   if (!safeLines(draft.lines)) r.reject("lines", "Every line needs an amount, and quantities must be numbers.");
   const { lookups, formats } = await loadLookups(org.id);
-  faultErrors(r, requisitionFaults(draft, lookups, formats, dayToDate(today), { complete: false }));
+  // Founder, 2026-10-05: a draft is saved complete, as it must be to leave draft, so the form asks for
+  // everything up front rather than listing what is missing afterwards. One rule: requisitionFaults.
+  faultErrors(r, requisitionFaults(draft, lookups, formats, dayToDate(today), { complete: true }));
   if (r.failed) return { ok: false, errors: r.errors, message: "Nothing was saved. Correct the fields marked below." };
 
   let id: string;
@@ -314,7 +316,7 @@ export async function editDraft(_prev: FormState, data: FormData): Promise<FormS
     if (l.req.status !== "DRAFT") return { ok: false, message: `Only a draft can be edited. This one is ${STATUS_LABEL[l.req.status].toLowerCase()}.` };
     if (!l.org.today) return NO_ZONE;
     const { lookups, formats } = await loadLookups(l.org.id, tx);
-    faultErrors(r, requisitionFaults(draft, lookups, formats, dayToDate(l.org.today), { complete: false }));
+    faultErrors(r, requisitionFaults(draft, lookups, formats, dayToDate(l.org.today), { complete: true }));
     if (r.failed) return { ok: false, errors: r.errors };
 
     const before = l.req;

@@ -172,8 +172,8 @@ export function RequisitionForm({
         <CardHeader icon={<ClipboardIcon size={17} />} title="Request details" subtitle="What you need, and why." />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">{text("title", "Title", { required: true })}</div>
-          {text("justification", "Justification", { area: true })}
-          {text("needStatement", "Need statement", { area: true })}
+          {text("justification", "Justification", { area: true, required: true })}
+          {text("needStatement", "Need statement", { area: true, required: true })}
         </CardBody>
       </Card>
 
@@ -189,12 +189,12 @@ export function RequisitionForm({
             hint: "Required to submit.",
           })}
           {/* Founder, 2026-10-05: these lists grow long once data is migrated, so each takes typing: type a code or a word to narrow it. */}
-          {select("costCentreCode", "Cost centre", coded(options.costCentres), { searchable: true })}
-          {select("accountCode", "Account code", coded(options.accounts), { searchable: true })}
+          {select("costCentreCode", "Cost centre", coded(options.costCentres), { required: true, searchable: true })}
+          {select("accountCode", "Account code", coded(options.accounts), { required: true, searchable: true })}
           {select("budgetCodeId", "Budget code", options.budgetCodes.map((b) => ({ value: b.id, label: `${b.code} · ${b.name}` })), { searchable: true, hint: "The budget line the check reads. Its account must be the requisition's." })}
           {select("contractTypeCode", "Contract type", options.contractTypes.map((c) => ({ value: c.code, label: c.name })), { placeholder: "Not set" })}
           {select("siteCode", "Site", options.sites.map((s) => ({ value: s.code, label: s.name })), { placeholder: "None" })}
-          {text("placeOfDelivery", "Place of delivery")}
+          {text("placeOfDelivery", "Place of delivery", { required: true })}
           {text("dateRequired", "Date required", { required: true, type: "date" })}
         </CardBody>
       </Card>
@@ -203,7 +203,7 @@ export function RequisitionForm({
         <CardHeader
           icon={<FileIcon size={17} />}
           title="Line items"
-          subtitle="List each item. The lines must add up to the estimated value before you submit."
+          subtitle="List each item. The lines must add up to the estimated value."
         />
         <CardBody className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
