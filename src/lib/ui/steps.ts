@@ -8,4 +8,9 @@ export interface StepperStep {
   /// A short second line: who decided it and when, or what it waits for.
   sub?: string;
   state: StepState;
+  /// What a screen reader is told of the state where the default word would mislead: a returned
+  /// route is "sent back for amendment", never "rejected" (Q-3, §7.3.2); a cancelled exercise is "cancelled".
+  stateText?: string;
+  /// How a `rejected` step is drawn where red would say too much: a return is amber, as it is elsewhere.
+  tone?: "warn";
 }

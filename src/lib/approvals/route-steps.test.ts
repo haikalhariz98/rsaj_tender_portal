@@ -40,9 +40,21 @@ describe("an approval route as a flow of steps (founder, 2026-10-05)", () => {
       const route = { status, openedOn: "01 Oct 2026", steps: [step("hod", status === "APPROVED" ? "DONE" : status === "REJECTED" ? "REJECTED" : "PENDING")] };
       const plain = routeSteps(route);
       const worded = routeSteps(route, words);
-      expect(worded.slice(0, -1)).toEqual(plain.slice(0, -1));
-      expect(worded.at(-1)).toEqual({ ...plain.at(-1), label: `outcome of ${status}` });
+      // Only the hidden state word and the tone differ (below): the step, its label and its state are the same.
+      const bare = (s: (typeof worded)[number]) => ({ ...s, stateText: undefined, tone: undefined });
+      expect(worded.slice(0, -1).map(bare)).toEqual(plain.slice(0, -1).map(bare));
+      expect(bare(worded.at(-1)!)).toEqual({ ...plain.at(-1), label: `outcome of ${status}`, stateText: undefined, tone: undefined });
     }
+  });
+  it("where the route words its outcome, a refusal is a return: amber, and never read aloud as rejected (founder, 2026-10-05; Q-3)", () => {
+    const r = routeSteps({ status: "REJECTED", openedOn: "x", steps: [step("hod", "REJECTED"), step("ceo", "PENDING")] }, () => "Returned for amendment");
+    expect(r.filter((s) => s.state === "rejected").map((s) => [s.label, s.stateText, s.tone])).toEqual([
+      ["HOD", "sent the documents back", "warn"],
+      ["Returned for amendment", "not approved", "warn"],
+    ]);
+    const recalled = routeSteps({ status: "RECALLED", openedOn: "x", steps: [step("hod", "PENDING")] }, () => "Withdrawn");
+    expect(recalled.at(-1)).toMatchObject({ state: "rejected", stateText: "withdrawn", tone: "warn" });
+    for (const s of [...r, ...recalled]) expect(s.stateText ?? "").not.toMatch(/reject/i);
   });
   it("without an outcome label the words are as they always were", () => {
     expect(routeSteps({ status: "REJECTED", openedOn: "x", steps: [step("hod", "REJECTED")] }).at(-1)).toEqual({ key: "outcome", label: "Rejected", state: "rejected" });

@@ -5,19 +5,20 @@ import { Callout } from "@/components/ui/feedback";
 import { capFirst } from "@/lib/tender-docs/frozen-view";
 import type { ConditionsTab, LiveConditions } from "@/lib/tender-docs/read-conditions";
 
-import { AddRequirementDrawer, ConfirmAssuranceDrawer, OverrideClauseDrawer, PermitDrawer, RemoveAssuranceDrawer, RemoveOverrideDrawer, RemoveRequirementDrawer, RestrictionDrawer } from "./conditions-editors";
+import { ConfirmAssuranceDrawer, OverrideClauseDrawer, RemoveAssuranceDrawer, RemoveOverrideDrawer } from "./conditions-editors";
 
 /**
- * The Tender documents tab's increment-2 cards: the tender's conditions (who may bid, the
- * restriction, the regulator permit), assurance and the mandatory clauses. Words only, from
+ * The Tender documents tab's increment-2 cards: assurance and the mandatory clauses, and what the
+ * tender's conditions (who may bid, the restriction, the regulator permit) were when frozen. While live,
+ * the conditions are answered on the Overview (founder, 2026-10-05). Words only, from
  * `conditionsTab`; every act is the shared drawer, disabled with its reason where refused.
  */
 
-const tone = (l: string) => (l === "block" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
-const NOT_SET = "Not set";
-const Value = ({ v }: { v: string }) => (v === NOT_SET ? <Badge tone="warn">Not set</Badge> : <span className="break-words">{v}</span>);
+export const tone = (l: string) => (l === "block" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
+export const NOT_SET = "Not set";
+export const Value = ({ v }: { v: string }) => (v === NOT_SET ? <Badge tone="warn">Not set</Badge> : <span className="break-words">{v}</span>);
 
-function Findings({ items }: { items: { level: string; text: string }[] }) {
+export function Findings({ items }: { items: { level: string; text: string }[] }) {
   if (!items.length) return null;
   return (
     <ul className="flex flex-col gap-2">
@@ -30,7 +31,7 @@ function Findings({ items }: { items: { level: string; text: string }[] }) {
   );
 }
 
-function Row({ title, value, action, children }: { title: string; value?: React.ReactNode; action?: React.ReactNode; children?: React.ReactNode }) {
+export function Row({ title, value, action, children }: { title: string; value?: React.ReactNode; action?: React.ReactNode; children?: React.ReactNode }) {
   return (
     <li className="flex flex-col gap-2 px-4 py-3">
       <span className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4">
@@ -58,7 +59,7 @@ export function ConditionsCards({ c, packless }: { c: ConditionsTab; packless: b
 type Frozen = Extract<ConditionsTab, { mode: "frozen" }>;
 type Before = Extract<ConditionsTab, { mode: "before" }>;
 
-const Registrations = ({ groups }: { groups: { number: number; heading: string; items: { id?: string; body: string; qualifiers: string | null }[] }[] }) =>
+export const Registrations = ({ groups }: { groups: { number: number; heading: string; items: { id?: string; body: string; qualifiers: string | null }[] }[] }) =>
   groups.length === 0 ? (
     <p className="rounded-2xl border border-dashed border-line px-4 py-3 text-[13px] text-ink-2">
       <Badge tone="warn">Not set</Badge> <span className="ml-1">No registration is recorded, so the notice has no eligibility block.</span>
@@ -184,68 +185,11 @@ function BeforeCards({ c }: { c: Before }) {
   );
 }
 
+/// The tender's conditions (registrations, restriction, permit) moved to the Overview's Details & compliance
+/// card (founder, 2026-10-05): this tab keeps what is judged against the documents themselves.
 function LiveCards({ c, packless }: { c: LiveConditions; packless: boolean }) {
   return (
     <>
-      <Card id="conditions" className="scroll-mt-24 overflow-hidden">
-        <CardHeader
-          icon={<UsersIcon size={17} />}
-          title="Tender conditions"
-          subtitle="Who may bid, whether the tender is restricted, and the regulator's permit. Unanswered is never read as no."
-          actions={<AddRequirementDrawer exerciseId={c.exerciseId} allowed={c.eligibility.noBodies ? { allowed: false, reason: c.eligibility.noBodies } : c.edit} bodies={c.eligibility.bodyOptions} groups={c.eligibility.groupOptions} typeTest={c.eligibility.typeTest} />}
-        />
-        <CardBody className="flex flex-col gap-5">
-          <div>
-            <p className="mb-2 text-[12px] font-semibold text-ink-3">Registrations bidders must hold</p>
-            {c.eligibility.groups.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-line px-4 py-3 text-[13px] text-ink-2">
-                <Badge tone="warn">Not set</Badge> <span className="ml-1">No registration is recorded, so the notice has no eligibility block.</span>
-              </p>
-            ) : (
-              <ul className="divide-y divide-line/70 rounded-2xl border border-line">
-                {c.eligibility.groups.map((g) => (
-                  <li key={g.number} className="flex flex-col gap-1.5 px-4 py-3">
-                    <span className="text-[12px] font-semibold text-ink-3">{g.heading}</span>
-                    <ul className="flex flex-col gap-1.5">
-                      {g.items.map((r) => (
-                        <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-                          <span className="min-w-0 text-[13.5px] break-words text-ink">
-                            <span className="font-semibold">{capFirst(r.body)}</span>
-                            {r.qualifiers && <span className="text-ink-2"> · {r.qualifiers}</span>}
-                          </span>
-                          <RemoveRequirementDrawer exerciseId={c.exerciseId} id={r.id} label={capFirst(r.body)} allowed={c.edit} />
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="mt-2 text-[12.5px] text-ink-3">
-              The notice states each registration must be valid from the day tendering starts to the closing day: the days proposed when the documents are submitted. The contract type&apos;s registration test: {c.eligibility.typeTest}.
-            </p>
-          </div>
-          <ul className="divide-y divide-line/70 rounded-2xl border border-line">
-            <Row title={c.restriction.question} value={<Value v={c.restriction.answer} />} action={<RestrictionDrawer exerciseId={c.exerciseId} question={c.restriction.question} raw={c.restriction.raw} allowed={c.edit} />}>
-              {c.restriction.answer === "Yes" && (
-                <span className="text-[12.5px] break-words text-ink-3">
-                  Stamped on every generated document: {c.restriction.stampEn === NOT_SET ? "English wording not set" : `“${c.restriction.stampEn}”`}
-                  {c.restriction.stampMs !== NOT_SET ? ` · “${c.restriction.stampMs}”` : ""}
-                </span>
-              )}
-            </Row>
-            <Row title="Needs the regulator's permit" value={<Value v={c.permit.answer} />} action={<PermitDrawer exerciseId={c.exerciseId} raw={c.permit.raw} rawPermit={c.permit.rawPermit} options={c.permit.options} list={c.permit.list} allowed={c.edit} />}>
-              {c.permit.permit != null && (
-                <span className="text-[12.5px] text-ink-3">
-                  Permit type: {c.permit.permit === NOT_SET ? "not chosen" : c.permit.permit}
-                </span>
-              )}
-            </Row>
-          </ul>
-          <Findings items={[...c.eligibility.findings, ...c.restriction.findings, ...c.permit.findings]} />
-        </CardBody>
-      </Card>
-
       {!packless && (
         <>
           <Card id="assurance" className="scroll-mt-24 overflow-hidden">

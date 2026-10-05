@@ -223,7 +223,7 @@ export function exerciseFlow(input: ExerciseFlowInput): StepperStep[] {
 
   if (cancelled) {
     const proven: StepperStep[] = stages.slice(0, reach).map((x) => ({ key: x.key, label: x.label, sub: x.doneSub, state: "done" }));
-    return [...proven, { key: "CANCELLED", label: CANCELLED_LABEL, sub: on.cancelled ?? undefined, state: "rejected" }];
+    return [...proven, { key: "CANCELLED", label: CANCELLED_LABEL, sub: on.cancelled ?? undefined, state: "rejected", stateText: "cancelled" }];
   }
 
   const awardAt = stages.length - 1;

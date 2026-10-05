@@ -46,13 +46,13 @@ export function Stepper({ steps, label }: { steps: StepperStep[]; label: string 
                 )}
               />
             )}
-            <span aria-hidden="true" className={cx("relative z-10 grid size-8 shrink-0 place-items-center rounded-full text-[13px] font-bold", DOT[s.state])}>
+            <span aria-hidden="true" className={cx("relative z-10 grid size-8 shrink-0 place-items-center rounded-full text-[13px] font-bold", s.state === "rejected" && s.tone === "warn" ? "bg-amber-500 text-white" : DOT[s.state])}>
               {s.state === "done" ? <CheckIcon size={16} strokeWidth={2.5} /> : s.state === "rejected" ? <XIcon size={16} strokeWidth={2.5} /> : i + 1}
             </span>
             <span className="min-w-0 sm:px-2">
               <span className={cx("block text-[13.5px] leading-snug font-semibold break-words", s.state === "waiting" ? "text-ink-3" : "text-ink")}>{s.label}</span>
               {s.sub && <span className="mt-0.5 block text-[12.5px] leading-snug break-words text-ink-3">{s.sub}</span>}
-              <span className="sr-only">, {STATE_WORDS[s.state]}</span>
+              <span className="sr-only">, {s.stateText ?? STATE_WORDS[s.state]}</span>
             </span>
           </li>
         );

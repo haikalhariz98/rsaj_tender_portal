@@ -13,6 +13,8 @@ import type { Finding } from "./types";
 const d = (f: Finding, k: string) => (f.data?.[k] == null ? "" : String(f.data[k]));
 const CONFIG = "under Configuration, Tender documents";
 const TAB = "on the Tender documents tab";
+/// Founder, 2026-10-05: the registrations, the restriction and the permit are answered on the Overview.
+export const DETAILS = "on the Overview tab, under Details & compliance";
 
 export const ASSURANCE_KIND_LABEL: Readonly<Record<AssuranceKind, string>> = {
   NO_AMBIGUITY: "Free from ambiguity and contradiction",
@@ -24,30 +26,30 @@ export const restrictionQuestion = (label: string | null) => (label?.trim() ? la
 
 const TEXT: Record<ConditionsFault, (f: Finding) => string> = {
   // FR-DOC-005
-  ELIGIBILITY_NOT_SET: () => `The registrations a bidder must hold are not recorded, so the notice has no eligibility block. Add them ${TAB}, under Tender conditions.`,
-  BODY_NOT_CONFIGURED: (f) => `${d(f, "body") || "A registration body"} is no longer configured. Remove the requirement and choose a configured body ${TAB}.`,
-  BODY_RETIRED: (f) => `${d(f, "body")} is retired. Remove the requirement and choose a live body ${TAB}, or restore the body ${CONFIG}.`,
-  QUALIFIERS_REQUIRED: (f) => `${d(f, "body")}: state the ${d(f, "qualifier").toLowerCase() || "qualifiers"} the scope needs ${TAB}.`,
-  QUALIFIERS_NOT_TAKEN: (f) => `${d(f, "body")} takes nothing stated with it. Clear what is entered against it ${TAB}.`,
+  ELIGIBILITY_NOT_SET: () => `The registrations a bidder must hold are not recorded, so the notice has no eligibility block. Add them ${DETAILS}.`,
+  BODY_NOT_CONFIGURED: (f) => `${d(f, "body") || "A registration body"} is no longer configured. Remove the requirement and choose a configured body ${DETAILS}.`,
+  BODY_RETIRED: (f) => `${d(f, "body")} is retired. Remove the requirement and choose a live body ${DETAILS}, or restore the body ${CONFIG}.`,
+  QUALIFIERS_REQUIRED: (f) => `${d(f, "body")}: state the ${d(f, "qualifier").toLowerCase() || "qualifiers"} the scope needs ${DETAILS}.`,
+  QUALIFIERS_NOT_TAKEN: (f) => `${d(f, "body")} takes nothing stated with it. Clear what is entered against it ${DETAILS}.`,
   GROUP_NOT_VALID: () => "Give the alternative group as a whole number from 1.",
-  BODY_TWICE_IN_GROUP: (f) => `${d(f, "body")} is required twice in one group. Remove one ${TAB}.`,
+  BODY_TWICE_IN_GROUP: (f) => `${d(f, "body")} is required twice in one group. Remove one ${DETAILS}.`,
   NOTICE_PART_MISSING: () => `The pack has no notice of invitation to carry the eligibility block. Add an invitation part for this pack kind ${CONFIG}.`,
   NOTICE_LACKS_ELIGIBILITY: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} does not state ${d(f, "fields")}, so the notice would go without its eligibility block. Add them under Configuration, Templates, or choose another template.`,
   NOTICE_NOT_CHECKED: (f) => `Part ${d(f, "part")} is an uploaded file, which the portal cannot read: check that it states the registrations and their validity window before it goes.`,
   // FR-DOC-009
-  RESTRICTION_NOT_ANSWERED: () => `Whether the tender is restricted is not answered. Answer it ${TAB}, under Tender conditions.`,
+  RESTRICTION_NOT_ANSWERED: () => `Whether the tender is restricted is not answered. Answer it ${DETAILS}.`,
   STAMP_NOT_SET: (f) => `The tender is restricted, and the wording stamped on its documents is not set in ${d(f, "language")}. Set it ${CONFIG}.`,
   UPLOADS_NOT_STAMPED: (f) => `The portal stamps the documents it generates; ${d(f, "count")} uploaded ${f.data?.count === 1 ? "file is" : "files are"} not generated here and must carry the stamp themselves.`,
   // FR-DOC-006
-  REGULATED_NOT_ANSWERED: () => `Whether the works need the regulator's permit is not answered. Answer it ${TAB}, under Tender conditions.`,
+  REGULATED_NOT_ANSWERED: () => `Whether the works need the regulator's permit is not answered. Answer it ${DETAILS}.`,
   PERMIT_LIST_NOT_SET: () => `The works need the regulator's permit, and no list of permit types is configured. Choose the list ${CONFIG}.`,
-  PERMIT_NOT_CHOSEN: () => `The works need the regulator's permit: choose its type ${TAB}, under Tender conditions.`,
-  PERMIT_NOT_ON_LIST: () => `The permit type chosen is no longer on the configured list. Choose another ${TAB}.`,
+  PERMIT_NOT_CHOSEN: () => `The works need the regulator's permit: choose its type ${DETAILS}.`,
+  PERMIT_NOT_ON_LIST: () => `The permit type chosen is no longer on the configured list. Choose another ${DETAILS}.`,
   INSTRUCTIONS_PART_MISSING: () => `The pack has no instructions to tenderers to state the permit in. Add an instructions part for this pack kind ${CONFIG}.`,
-  PERMIT_NAME_MS_MISSING: (f) => `Part ${d(f, "part")} has Malay text, and the permit type ${d(f, "permit")} has no Malay name, so the Malay instructions would not name it. Add the name under Configuration, Reference data, or choose another type ${TAB}.`,
+  PERMIT_NAME_MS_MISSING: (f) => `Part ${d(f, "part")} has Malay text, and the permit type ${d(f, "permit")} has no Malay name, so the Malay instructions would not name it. Add the name under Configuration, Reference data, or choose another type ${DETAILS}.`,
   PERMIT_NOT_IN_INSTRUCTIONS: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} does not name {{permit.type}}, so the instructions would not state the permit. Add it under Configuration, Templates, or choose another template.`,
   INSTRUCTIONS_NOT_CHECKED: (f) => `Part ${d(f, "part")} is an uploaded file, which the portal cannot read: check that it states the regulator's permit and its type.`,
-  PERMIT_FIELD_NOT_REGULATED: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} names the regulator's permit, and the works are recorded as not needing one. Choose a template without it, or correct the answer ${TAB}.`,
+  PERMIT_FIELD_NOT_REGULATED: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} names the regulator's permit, and the works are recorded as not needing one. Choose a template without it, or correct the answer ${DETAILS}.`,
   // FR-DOC-011
   CLAUSE_MANDATORY_UNSET: (f) => `Whether every agreement must carry the clause ${d(f, "clause")} is not set. Set it ${CONFIG}, under Clauses.`,
   AGREEMENT_PART_MISSING: () => `Mandatory clauses are configured, and the pack issues no conditions of contract to carry them. Make the conditions part ready instead of omitting it.`,
@@ -76,7 +78,8 @@ export function conditionsFixHref(code: string, exerciseId: string): string {
   if (["NOTICE_LACKS_ELIGIBILITY", "PERMIT_NOT_IN_INSTRUCTIONS", "PERMIT_FIELD_NOT_REGULATED"].includes(code)) return `/sourcing/${exerciseId}?tab=documents#parts`;
   if (code.startsWith("ASSURANCE")) return `/sourcing/${exerciseId}?tab=documents#assurance`;
   if (code.startsWith("CLAUSE") || code === "AGREEMENT_PART_MISSING") return `/sourcing/${exerciseId}?tab=documents#clauses`;
-  return `/sourcing/${exerciseId}?tab=documents#conditions`;
+  // The registrations, the restriction and the permit are answered on the Overview (founder, 2026-10-05).
+  return `/sourcing/${exerciseId}?tab=overview#conditions`;
 }
 
 const CONFIRM_TEXT: Record<ConfirmFault, string> = {

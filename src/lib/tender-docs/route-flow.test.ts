@@ -42,7 +42,9 @@ describe("the Approval for Tendering route as a flow of steps (founder, 2026-10-
     const r = tenderingStepperSteps(route("REJECTED", [step("s1", "Head of department", "REJECTED"), step("s2", "Chief Executive", "PENDING")]));
     expect(states(r)).toEqual(["Submitted:done", "Head of department:rejected", "Chief Executive:waiting", "Returned for amendment:rejected"]);
     expect(r[1].sub).toBe("A. Rahman · 21 Sep 2026");
-    for (const s of r) expect(`${s.label} ${s.sub ?? ""}`).not.toMatch(/reject|refus/i);
+    for (const s of r) expect(`${s.label} ${s.sub ?? ""} ${s.stateText ?? ""}`).not.toMatch(/reject|refus/i);
+    // What a screen reader is told, and how it is drawn: a return is amber, not red (the stepper reads stateText).
+    expect(r.filter((s) => s.state === "rejected").map((s) => s.tone)).toEqual(["warn", "warn"]);
   });
 
   it("a route withdrawn when the exercise was cancelled says so", () => {

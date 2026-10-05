@@ -260,7 +260,12 @@ const ALLOWED_EXTRA = [
   /^Use the proposed method$/,
   // 6.3 plan §4, ruling R-7/R-14: the three band families and the terms bands on the
   // approval matrix, which the prototype (one threshold) does not have.
+  // Founder, 2026-10-05: the bands now sit behind "Rules used" on the Overview, which replaced Classification.
   /^Three band families$/,
+  /^Rules used$/,
+  /^Process flow$/,
+  /^Details & compliance$/,
+  /^Key dates & person in charge$/,
   /^Contract terms bands$/,
   // 6.3 plan §4: the classification lists on Reference data (FR-MTD-006, 009, 011–014).
   /^Proposal items$/,

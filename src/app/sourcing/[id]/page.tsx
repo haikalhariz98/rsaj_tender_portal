@@ -1,12 +1,8 @@
-import { exerciseEvidence, type ExerciseEvidence } from "@/lib/documents/evidence";
+import { exerciseEvidence } from "@/lib/documents/evidence";
 import { historyEntityLabel } from "@/lib/audit/entity-labels";
 import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
 import { SCOPE_ENTITY_LABEL } from "@/lib/scope/audit-view";
-import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { attachmentFacts } from "@/lib/documents/repo";
-import { exercisePurposes } from "@/lib/documents/targets";
-import { resolutionText, supersession } from "@/lib/documents/supersession";
-import type { AttachmentFact } from "@/lib/documents/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -24,22 +20,19 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { ProvenanceBadge } from "@/components/ui/provenance";
-import { KeyValues, Stat } from "@/components/ui/stat";
+import { KeyValues } from "@/components/ui/stat";
 import { fieldLabel } from "@/lib/audit/diff";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 import { dayToDate } from "@/lib/dates";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { exerciseRoutesOf, historyFieldHidden, historyRouteLabel, latestFirst, nameRequestFault, nameRouteForRequester, nameRouteLabel, nameRoutesOf, requesterHolding, resolveNameApproval, tenderingRoutesOf, windowChangeRoutesOf } from "@/lib/method/approval";
-import { disagreesAtBoundary } from "@/lib/method/bands";
 import { determinationDrift } from "@/lib/method/drift";
 import { evaluateExercise } from "@/lib/method/evaluate";
 import { dossierEvidenceMissing } from "@/lib/method/justification";
 import { transitionFault } from "@/lib/method/exercise";
 import {
   APPOINTMENT_STATE_TEXT,
-  BEHAVIOUR_LABEL,
   boundarySentence,
   CANCELLED_ASSUMPTION,
   TERM,
@@ -56,13 +49,10 @@ import {
   TAXONOMY_STATE_LABEL,
   TERMS_STATE_TEXT,
   TYPE_STATE_LABEL,
-  evidenceChip,
 } from "@/lib/method/labels";
-import { ignoredMappingsText, ignoredPermitListMappings } from "@/lib/method/taxonomy";
-import { behaviourProfile, type BehaviourValue } from "@/lib/method/profile";
 import { nameRequestProposalFault, proposalFaults, proposalView } from "@/lib/method/proposal";
 import { draftOf, evaluationContext, exerciseHistory, loadExercise, type LoadedExercise } from "@/lib/method/repo";
-import { determinationColumns, isBandSnapshot, isClassificationSnapshot, profileRows, type BandSnapshot, type ClassificationSnapshot, type RouteSnap } from "@/lib/method/snapshot";
+import { determinationColumns, isBandSnapshot, isClassificationSnapshot } from "@/lib/method/snapshot";
 import type { DeliverableKind, Finding, Regime } from "@/lib/method/types";
 import { formatMoney, parseSen } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
@@ -98,6 +88,12 @@ import { nameListTab } from "@/lib/window/read";
 import { exerciseMatters } from "@/lib/award/repo";
 import { RouteSteps } from "./route-steps";
 import { tenderingRouteLabel, trailLabel } from "@/lib/tender-docs/labels";
+import { tenderingStepperSteps } from "@/lib/tender-docs/route-flow";
+import { DETAILS_FAULT_TEXT, detailsFault } from "@/lib/method/details";
+import { exerciseFlow, flowShape } from "@/lib/method/lifecycle";
+import { loadOverviewReads } from "@/lib/method/overview-read";
+import { activeTabOf } from "@/lib/method/overview-tab";
+import { windowPathOf } from "@/lib/window/publish";
 import type { PackKind } from "@/lib/tender-docs/types";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { DECISION_LABEL, DECIDER_FAULT_TEXT, OPERATOR_LABEL } from "@/lib/requisition/labels";
@@ -105,7 +101,6 @@ import { DECISION_LABEL, DECIDER_FAULT_TEXT, OPERATOR_LABEL } from "@/lib/requis
 import {
   AddParticipantDrawer,
   CancelExerciseDrawer,
-  ChooseTaxonomyDrawer,
   CiteNameDecisionDrawer,
   EXERCISE_NOTE_ID,
   MoveToPreparationDrawer,
@@ -120,21 +115,15 @@ import {
 import { DocumentsWorkspace } from "./documents/workspace";
 import { INVITATION_SECTIONS, invitationSectionOf, loadInvitation } from "./window/workspace";
 import { SCOPE_SECTIONS, ScopeWorkspace, scopeSectionOf } from "./scope/workspace";
+import { money, OverviewPanel, pct, tone } from "./overview";
 
 export const dynamic = "force-dynamic";
 
-/// Where a rule or band sits at the boundary, in words; the disagreement is the lib's finding.
 const flagsNeedName = (code: string, methods: { code: string; requiresNameApproval: boolean }[]) => methods.find((m) => m.code === code)?.requiresNameApproval ?? false;
-const boundarySide = (op: string | null | undefined, disagrees: boolean) => (!op ? "no edge at the boundary" : disagrees ? "the other side from its band — see the checks" : "the same side as its band");
 const RESTRICTION_NOTE = "Restriction not enforced until sign-in";
-const money = (v: { toString(): string }) => formatMoney(parseSen(v.toString()));
-/// A percentage to as many places as it has (up to four), so "above the threshold" is
-/// visibly true: 50.0010%, not 50.00%.
-const pct = (v: string) => v.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
-const tone = (l: string) => (l === "block" || l === "err" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 
 export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
-  const [{ id }, { tab, section }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string }>]);
+  const [{ id }, { tab: asked, section }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string }>]);
   const scopeSection = scopeSectionOf(section);
   const l = await loadExercise(id);
   if (!l) notFound();
@@ -165,6 +154,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // A draft is judged now, as its next save would be; a decided exercise renders from its record.
   const ev = draft && ctx ? evaluateExercise(draftOf(ex), ctx) : null;
   const flags = decided?.method.flags ?? method ?? null;
+  // Founder, 2026-10-05: Classification and Contract type are one Overview now; their old addresses still open it.
+  // The Overview is also the tab for an address that names none, or one this exercise has no tab for.
+  const tab = activeTabOf(asked, ["overview", "scope", "documents", "invitation", "bids", "evaluation", ...(flags?.requiresProposal ? ["proposal"] : []), ...(flags?.requiresNameApproval ? ["name"] : []), "award", "access", "history"]);
   const methodName = decided?.method.nameEn ?? method?.nameEn ?? "A method no longer configured";
   const typeName = (code: string | null) => (code ? (config.types.find((t) => t.code === code)?.nameEn ?? "A type no longer configured") : null);
   const personName = (pid: string | null) => (pid ? (people.find((p) => p.id === pid)?.name ?? "Not on record") : null);
@@ -262,7 +254,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     BASIS_NOT_SET: { href: `/sourcing/${ex.id}/edit`, label: "Choose a basis" },
     TYPE_NOT_SET: { href: `/sourcing/${ex.id}/edit`, label: "Choose a type" },
     METHOD_NOT_SET: { href: `/sourcing/${ex.id}/edit`, label: "Choose a method" },
-    TAXONOMY_AMBIGUOUS: { href: `/sourcing/${ex.id}?tab=contract`, label: "Choose it" },
+    TAXONOMY_AMBIGUOUS: { href: `/sourcing/${ex.id}?tab=overview`, label: "Choose it" },
     PROPOSAL_NOT_REVIEWED: { href: `/sourcing/${ex.id}?tab=proposal`, label: "Open the Proposal tab" },
     JUSTIFICATION_REQUIRED: { href: `/sourcing/${ex.id}/edit`, label: "Edit the justification" },
     REASON_REQUIRED: { href: `/sourcing/${ex.id}/edit`, label: "Choose a reason" },
@@ -350,31 +342,64 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   );
 
   const restricted = ex.restricted;
+  // Founder, 2026-10-05: the Overview, read only while it is the tab being looked at (its own reads: the
+  // tender conditions, the pack's proposed dates, the window's briefings and the organisation's closing time).
+  const overviewPack = draft ? (method?.documentPackKind ?? null) : ex.packKindSnapshot;
+  const overview = tab === "overview" ? await loadOverviewReads(ex, ex.closingAt, org, flowShape(ex.status, overviewPack, !!ex.preparedAt) !== "NO_PACK") : null;
+  const detailsRefused = detailsFault(ex);
+  const tenderingRoute = latestFirst(tenderingRoutesOf(ex.approvalInstances))[0] ?? null;
+  const cancelledEntry = ex.status === "CANCELLED" ? history.entries.find((e) => e.entity === "SourcingExercise" && e.changes.some((c) => c.field === "status" && c.after === "CANCELLED")) : null;
   const tabs = [
     {
-      id: "classification",
-      label: "Classification",
+      id: "overview",
+      label: "Overview",
       icon: <SlidersIcon size={15} />,
-      panel: <ClassificationPanel l={l} evidence={evidence} evidenceFacts={evidenceFacts} timeZone={org.timeZone} bands={bands} findings={ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? [])} live={!!ev} methodName={methodName} flags={flags} reasonName={decided ? (decided.justification?.reasonName ?? null) : (config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null)} />,
-    },
-    {
-      id: "contract",
-      label: "Contract type",
-      icon: <FileIcon size={15} />,
-      panel: (
-        <ContractPanel
-          l={l}
-          decided={decided}
-          live={ev ? { derivation: ev.derivation, type: ev.type, taxonomies: ev.taxonomies } : null}
-          config={config}
-          permitList={cfg.permitList}
-          typeName={typeName}
-          overriddenBy={ex.overriddenBy?.name ?? null}
-          requesterType={typeName(req.contractTypeCode)}
-          draft={draft}
-          officeName={(c) => roster.offices.find((o) => o.code === c)?.nameEn ?? issue?.matrix.roles[c]?.nameEn ?? "An office no longer configured"}
-        />
-      ),
+      // Read only while it is the tab being looked at: selecting it from another tab asks the server for it.
+      lazy: true,
+      panel:
+        overview == null ? null : (
+          <OverviewPanel
+            l={l}
+            flow={exerciseFlow({
+              status: ex.status,
+              packKind: overviewPack,
+              path: overview.windowPath ?? windowPathOf(method),
+              windowPhase: windowGateNow.phase,
+              routes: ex.approvalInstances,
+              awards,
+              on: {
+                prepared: ex.preparedAt ? formatOrgDay(ex.preparedAt, org.timeZone) : null,
+                approvedForTendering: ex.approvedForTenderingAt ? formatOrgDay(ex.approvedForTenderingAt, org.timeZone) : null,
+                published: overview.publishedAt ? formatOrgDay(overview.publishedAt, org.timeZone) : null,
+                closing: ex.closingAt ? formatOrgDateTime(ex.closingAt, org.timeZone) : null,
+                cancelled: cancelledEntry ? formatOrgDay(cancelledEntry.at, org.timeZone) : null,
+              },
+            })}
+            tendering={tenderingRoute ? tenderingStepperSteps(tenderingRoute) : null}
+            decided={decided}
+            bands={bands}
+            live={ev ? { derivation: ev.derivation, type: ev.type, taxonomies: ev.taxonomies } : null}
+            findings={ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? [])}
+            config={config}
+            permitList={cfg.permitList}
+            typeName={typeName}
+            methodName={methodName}
+            flags={flags}
+            reasonName={decided ? (decided.justification?.reasonName ?? null) : (config.reasons.find((r) => r.code === ex.justificationReasonCode)?.nameEn ?? null)}
+            overriddenBy={ex.overriddenBy?.name ?? null}
+            requesterType={typeName(req.contractTypeCode)}
+            draft={draft}
+            officeName={(c) => roster.offices.find((o) => o.code === c)?.nameEn ?? issue?.matrix.roles[c]?.nameEn ?? "An office no longer configured"}
+            evidence={evidence}
+            evidenceFacts={evidenceFacts}
+            timeZone={org.timeZone}
+            conditions={overview.conditions}
+            keyDates={overview.keyDates}
+            // The person named now stays on the list even if since retired, so the drawer shows who it is.
+            people={people.filter((x) => x.isActive || x.id === ex.personInChargeId).map((x) => ({ value: x.id, label: x.isActive ? x.name : `${x.name} (no longer active)` }))}
+            detailsBlocker={detailsRefused ? DETAILS_FAULT_TEXT[detailsRefused] : null}
+          />
+        ),
     },
     {
       id: "scope",
@@ -719,338 +744,6 @@ function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossi
           </ul>
         </Card>
       )}
-    </div>
-  );
-}
-
-// ------------------------------------------------------------ classification
-
-function RouteList({ route }: { route: RouteSnap }) {
-  return (
-    <div className="flex flex-col gap-2">
-      {route.chain.length > 0 ? (
-        <ol className="flex flex-col gap-1.5">
-          {route.chain.map((s, i) => (
-            <li key={i} className="flex min-w-0 items-center gap-2 text-[13.5px]">
-              <ActBadge act={s.act} />
-              <span className="min-w-0 font-semibold break-words text-ink">{s.role}</span>
-              <span className="text-ink-3">{actLabel(s.act)}</span>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="text-[13.5px] text-ink-2">{APPOINTMENT_STATE_TEXT[route.state as keyof typeof APPOINTMENT_STATE_TEXT] ?? "Not resolved"}</p>
-      )}
-      {route.ruleLabel && <p className="text-[12.5px] break-words text-ink-3">{`${route.ruleLabel}${route.clause ? ` · ${route.clause}` : ""}${route.overrideLabel ? ` · funder's rule set “${route.overrideLabel}”` : ""}`}</p>}
-      {route.warnings.map((w) => (
-        <Callout key={w.text} tone={tone(w.level)}>
-          {w.text}
-        </Callout>
-      ))}
-    </div>
-  );
-}
-
-function ClassificationPanel({
-  l,
-  evidence,
-  evidenceFacts,
-  timeZone,
-  bands,
-  findings,
-  live,
-  methodName,
-  flags,
-  reasonName,
-}: {
-  l: LoadedExercise;
-  evidence: ExerciseEvidence;
-  /// The exercise's attachments, to say what has come since a recorded check was made.
-  evidenceFacts: AttachmentFact[];
-  timeZone: string | null;
-  bands: BandSnapshot | null;
-  findings: Finding[];
-  live: boolean;
-  methodName: string;
-  flags: { requiresJustification: boolean; requiresDossier: boolean; requiresCoordinationRecord: boolean; requiresFreshSourcing: boolean } | null;
-  reasonName: string | null;
-}) {
-  const ex = l.ex;
-  if (!bands) {
-    return (
-      <Card>
-        <EmptyState title="Not determined">The bands are determined when the exercise is saved under an issue of the limits in force.</EmptyState>
-      </Card>
-    );
-  }
-  // A check recorded with the exercise is a statement about the day it was recorded: where
-  // a live attachment has since satisfied it, it reads as history, not as a warning.
-  const judged = !live && ex.determinedAt ? supersession(findings, evidenceFacts, ex.determinedAt) : findings.map((finding) => ({ finding, superseded: null }));
-  const standing = judged.filter((j) => !j.superseded).map((j) => j.finding);
-  const superseded = judged.flatMap((j) => (j.superseded ? [j.superseded] : []));
-  const blocking = standing.filter((f) => f.level === "block");
-  const others = standing.filter((f) => f.level !== "block");
-  return (
-    <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader icon={<SlidersIcon size={17} />} title="Three band families" subtitle={`Determined ${formatDate(ex.determinedAt)} under ${bands.matrixLabel}.`} />
-        <CardBody className="flex flex-col gap-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <Stat variant="inset" size="sm" tone="neutral" label="Requisition band" value={<span className="text-[17px] whitespace-normal">{ex.requisitionRuleLabel ?? "Not checked"}</span>} hint={ex.requisitionRuleLabel ? "The rule the requisition was approved under." : "The requisition's approval was received from outside and not checked against the approval matrix."} />
-            <Stat variant="inset" size="sm" tone="neutral" label="Method band" value={<span className="text-[17px] whitespace-normal">{REGIME_LABEL[bands.regime]}</span>} hint={bands.proposed.method ? `Proposed: ${bands.proposed.method}.` : "No single method is proposed in this regime."} />
-            <Stat
-              variant="inset"
-              size="sm"
-              tone="neutral"
-              label="Contract terms band"
-              value={<span className={bands.terms.label ? "text-[17px] whitespace-normal" : "text-[17px] whitespace-normal text-ink-4"}>{bands.terms.label ?? (bands.terms.state === "NONE_IN_REGIME" ? "Not applicable" : NOT_SET)}</span>}
-              hint={
-                bands.terms.label
-                  ? `Retention: ${bands.terms.retentionApplies == null ? "not set" : bands.terms.retentionApplies ? "applies" : "does not apply"}. Defects liability: ${bands.terms.defectsLiabilityApplies == null ? "not set" : bands.terms.defectsLiabilityApplies ? "applies" : "does not apply"}.`
-                  : bands.terms.state === "NOT_SET" || bands.terms.state === "NO_BAND_FOR_VALUE"
-                    ? <>{TERMS_STATE_TEXT[bands.terms.state as keyof typeof TERMS_STATE_TEXT]} <Link href="/configuration/approval-matrix">Set them on the approval matrix</Link>.</>
-                    : TERMS_STATE_TEXT[bands.terms.state as keyof typeof TERMS_STATE_TEXT]
-              }
-            />
-          </div>
-          <KeyValues
-            columns={2}
-            className="border-t border-line pt-6"
-            items={[
-              { label: "Value", value: <SulitValue>{money(ex.estimatedValue)}</SulitValue> },
-              ...(bands.boundary.onBoundary
-                ? [
-                    {
-                      label: "At the boundary",
-                      value: (
-                        <span className="flex flex-col items-start gap-1">
-                          <span>{boundarySentence(bands.boundary.operator, String(bands.boundary.value), bands.boundary.provenance)}</span>
-                          <ProvenanceBadge value={bands.boundary.provenance} />
-                          {bands.boundary.source && <span className="text-[12.5px] text-ink-3">{bands.boundary.source}</span>}
-                          <span className="text-[12.5px] text-ink-3">
-                            Appointment rule: {boundarySide(bands.appointment.boundaryOperator, disagreesAtBoundary(ex.bandWarnings as never, "rule"))}. Terms band:{" "}
-                            {boundarySide(bands.terms.boundaryOperator, disagreesAtBoundary(ex.bandWarnings as never, "terms"))}.
-                          </span>
-                        </span>
-                      ),
-                    },
-                  ]
-                : []),
-            ]}
-          />
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader icon={<RouteIcon size={17} />} title="Method and who approves the appointment" subtitle={methodName} />
-        <CardBody className="flex flex-col gap-5">
-          <KeyValues
-            columns={2}
-            items={[
-              { label: "Method", value: ex.proposedMethodCode && ex.proposedMethodCode !== ex.sourcingMethodCode ? `${methodName} · overridden` : ex.proposedMethodCode ? `${methodName} · as proposed` : methodName },
-              ...(ex.methodReason ? [{ label: "Why this method", value: ex.methodReason }] : []),
-              ...(ex.externalRouteNote ? [{ label: "What the external body decided", value: ex.externalRouteNote }] : []),
-              ...(flags?.requiresJustification || flags?.requiresDossier ? [{ label: "Justification", value: ex.justificationText || "Not recorded" }] : []),
-              ...(flags?.requiresDossier
-                ? [
-                    { label: "Reason", value: reasonName ?? "Not recorded" },
-                    { label: "Dossier reference", value: ex.dossierReference ? <span className="font-mono text-[13px]">{ex.dossierReference}</span> : "Numbered when it moves into preparation" },
-                    { label: "Supporting evidence", value: <span className="flex flex-col items-start gap-1"><span>{ex.evidenceNote || "No note"}</span><Chip tone={evidenceChip(evidence.dossier, "dossier").tone}>{evidenceChip(evidence.dossier, "dossier").text}</Chip></span> },
-                  ]
-                : []),
-              ...(flags?.requiresCoordinationRecord
-                ? [
-                    { label: "Emergency trigger", value: ex.emergencyTrigger || "Not recorded" },
-                    { label: "Coordination meeting", value: ex.coordinationMeetingOn ? formatDate(ex.coordinationMeetingOn) : "Not recorded" },
-                    { label: "Attended by", value: ex.coordinationAttendees || "Not recorded" },
-                    { label: "Scope fixed", value: <span className="flex flex-col items-start gap-1"><span>{ex.coordinationScopeNote || "No note"}</span><Chip tone={evidenceChip(evidence.scope, "scope").tone}>{evidenceChip(evidence.scope, "scope").text}</Chip></span> },
-                    { label: "Bill of quantities", value: ex.bqReference ?? "Not recorded" },
-                  ]
-                : []),
-              ...(flags && !flags.requiresFreshSourcing ? [{ label: "Parent contract", value: <span className="flex flex-col items-start gap-1"><span>{ex.parentContractRef ?? "Not recorded"}</span><Chip tone="warn">Capacity not tracked</Chip></span> }] : []),
-            ]}
-          />
-          <div className="border-t border-line pt-5">
-            <p className="mb-2 text-[12px] font-semibold text-ink-3">Approval of the appointment</p>
-            <RouteList route={bands.appointment} />
-          </div>
-        </CardBody>
-      </Card>
-
-      {flags && (flags.requiresDossier || flags.requiresCoordinationRecord) && (
-        <OwnerAttachments
-          owner={{ kind: "exercise", id: ex.id }}
-          title={flags.requiresDossier && flags.requiresCoordinationRecord ? "Dossier evidence and coordination scope" : flags.requiresDossier ? "Dossier evidence" : "Coordination meeting scope"}
-          subtitle={flags.requiresDossier ? "Kept against the exercise. A direct appointment is sent for approval only with its dossier evidence attached." : "Kept against the exercise: the document that fixed the scope at the coordination meeting."}
-          only={exercisePurposes(flags)}
-          required={{ DOSSIER_EVIDENCE: flags.requiresDossier, COORDINATION_SCOPE: flags.requiresCoordinationRecord }}
-        />
-      )}
-
-      {(blocking.length > 0 || others.length > 0 || superseded.length > 0) && (
-        <Card>
-          <CardHeader icon={<ShieldIcon size={17} />} title={live ? "Checks, as they stand today" : ex.determinedAt ? `Checks, as recorded on ${formatDate(ex.determinedAt)}` : "Checks, as recorded"} subtitle={blocking.length ? "What must be put right before documents go into preparation, and what is recorded with it." : "Recorded with the exercise."} />
-          <CardBody className="flex flex-col gap-2">
-            {[...blocking, ...others].map((f, i) => (
-              <Callout key={i} tone={tone(f.level)}>
-                {findingText(f)}
-              </Callout>
-            ))}
-            {superseded.map((r) => (
-              <Callout key={r.subject} tone="neutral">
-                {resolutionText(r, timeZone)}
-              </Callout>
-            ))}
-          </CardBody>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-// ------------------------------------------------------------- contract type
-
-const behaviourText = (v: BehaviourValue, officeName: (c: string) => string, key: string) => {
-  if (v == null) return <span className="text-ink-4">{NOT_SET}</span>;
-  if (typeof v === "boolean") return v ? "Yes" : "No";
-  if (Array.isArray(v)) return key === "administratorRoleCodes" ? v.map(officeName).join(", ") : v.join(", ");
-  return key === "claimsApprovalCommitteeCode" ? officeName(v) : v;
-};
-
-function ContractPanel({
-  l,
-  decided,
-  live,
-  config,
-  permitList,
-  typeName,
-  overriddenBy,
-  requesterType,
-  draft,
-  officeName,
-}: {
-  l: LoadedExercise;
-  decided: ClassificationSnapshot | null;
-  live: { derivation: { state: string; code: string | null; sharePct: string | null }; type: { state: string | null; code: string | null }; taxonomies: { taxonomyCode: string; state: string; valueCode: string | null; candidates: string[] }[] } | null;
-  config: Awaited<ReturnType<typeof evaluationContext>>["cfg"]["config"];
-  /// The list the tender-documents policy keeps as its permit list (64-C1): never a classification.
-  permitList: { code: string; nameEn: string } | null;
-  typeName: (c: string | null) => string | null;
-  overriddenBy: string | null;
-  requesterType: string | null;
-  draft: boolean;
-  officeName: (code: string) => string;
-}) {
-  const ex = l.ex;
-  const type = config.types.find((t) => t.code === ex.contractTypeCode) ?? null;
-  // Once decided, the record's values and office names; before, the type in force (review #6).
-  const profile = profileRows(decided, type ? behaviourProfile(type) : null, officeName);
-  const state = (decided?.contractType.state ?? ex.contractTypeState) as keyof typeof TYPE_STATE_LABEL | null;
-  const derivationState = (decided?.contractType.derivationState ?? live?.derivation.state ?? ex.derivationState) as keyof typeof DERIVATION_TEXT | null;
-  const derivedName = decided?.contractType.derivedName ?? typeName(live?.derivation.code ?? ex.derivedContractTypeCode);
-  const basis = decided?.basis ?? config.bases.find((b) => b.code === ex.contractBasisCode) ?? null;
-  const tax = (code: string) => config.taxonomies.find((t) => t.code === code);
-  // 64-C1: mappings set up before the permit list was refused as a classification are ignored by
-  // derivation; the live view says so rather than staying silent. A decided record renders as recorded.
-  const liveType = live?.type.code ?? ex.contractTypeCode;
-  const ignored = !decided && permitList && liveType ? ignoredPermitListMappings(config.mappings, permitList.code, liveType) : [];
-  return (
-    <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader icon={<FileIcon size={17} />} title="Contract type" subtitle={state ? TYPE_STATE_LABEL[state] : NOT_SET} />
-        <CardBody className="flex flex-col gap-5">
-          <KeyValues
-            columns={2}
-            items={[
-              { label: "Contract type", value: decided?.contractType.nameEn ?? typeName(ex.contractTypeCode) ?? NOT_SET },
-              { label: "Derived from what is delivered", value: derivationState === "DERIVED" ? (derivedName ?? NOT_SET) : derivationState ? DERIVATION_TEXT[derivationState] : NOT_SET },
-              ...(state && state !== "DERIVED" ? [{ label: "Why this type", value: ex.contractTypeOverrideReason || "Not recorded" }, { label: "Decided by", value: overriddenBy ? `${overriddenBy} · recorded on behalf of, not signed` : "Not recorded" }] : []),
-              { label: "Largest deliverable's share", value: ex.dominantSharePct && Number(ex.dominantSharePct.toString()) < 100 ? `${pct(ex.dominantSharePct.toString())}%` : "One deliverable" },
-              {
-                label: TERM.mixedThreshold,
-                value: decided ? (decided.policy.dominanceSharePct ? `Above ${pct(decided.policy.dominanceSharePct)}% · as recorded` : "Not set: no default for mixed scope") : config.policy.dominanceSharePct ? `Above ${pct(config.policy.dominanceSharePct)}%` : "Not set: no default for mixed scope",
-              },
-              { label: "Requester's indication", value: requesterType ?? "None" },
-              { label: "Contract basis", value: basis ? `${basis.nameEn}${basis.standardFormLabel ? ` · ${basis.standardFormLabel}` : ""}` : "Not chosen: required before documents go into preparation" },
-            ]}
-          />
-          {ex.scopeParts.length > 0 && (
-            <ul className="flex flex-col gap-1.5 border-t border-line pt-4 text-[13px]">
-              {ex.scopeParts.map((p) => (
-                <li key={p.id} className="flex flex-wrap justify-between gap-2">
-                  <span className="min-w-0 break-words text-ink-2">
-                    {DELIVERABLE_LABEL[p.deliverableKind as DeliverableKind]}
-                    {p.description ? ` · ${p.description}` : ""}
-                  </span>
-                  <span className="tabular-nums text-ink">{money(p.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader icon={<SlidersIcon size={17} />} title="What the type drives" subtitle={decided ? "As recorded when it moved into preparation." : "Enforced where each behaviour lives, in later modules."} />
-        <CardBody>
-          {profile ? (
-            <div className="flex flex-col gap-4">
-              <KeyValues columns={2} items={profile.map((b) => ({ label: BEHAVIOUR_LABEL[b.key], value: behaviourText(b.value, b.offices, b.key) }))} />
-              {!decided && type && profile.some((b) => b.value == null) && (
-                <p className="border-t border-line pt-4 text-[13px] text-ink-2">
-                  {profile.filter((b) => b.value == null).length} of 12 behaviours are not set for {type.nameEn}.{" "}
-                  <Link href="/configuration/reference-data">Set them under Reference data, Contract types, Behaviours of {type.nameEn}</Link>.
-                </p>
-              )}
-            </div>
-          ) : (
-            <EmptyState size="sm" title="No contract type yet">Choose or derive one to see its behaviours.</EmptyState>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card className="overflow-hidden">
-        <CardHeader icon={<ClipboardIcon size={17} />} title="Other classifications" subtitle="Derived from the type and basis rather than asked again. The basis itself is always chosen." />
-        {ignored.length > 0 && permitList && (
-          <CardBody className="border-b border-line/70">
-            <Callout tone="warn" action={<ButtonLink href="/configuration/reference-data" size="sm">Open Reference data</ButtonLink>}>
-              {ignoredMappingsText(ignored.length, permitList.nameEn)}
-            </Callout>
-          </CardBody>
-        )}
-        {decided ? (
-          <ul className="divide-y divide-line/70">
-            {decided.taxonomies.map((t) => (
-              <li key={t.taxonomy} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
-                <span className="text-[13.5px] font-semibold text-ink">{t.taxonomy}</span>
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-[13.5px] text-ink-2">{t.value ?? "—"}</span>
-                  <Chip tone={t.state === "NOT_MAPPED" ? "warn" : t.state === "CHOSEN" ? "info" : "ok"}>{TAXONOMY_STATE_LABEL[t.state]}</Chip>
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : live && live.taxonomies.length > 0 ? (
-          <ul className="divide-y divide-line/70">
-            {live.taxonomies.map((t) => {
-              const tx = tax(t.taxonomyCode);
-              const valueName = (c: string) => tx?.values.find((v) => v.code === c)?.nameEn ?? "A value no longer configured";
-              return (
-                <li key={t.taxonomyCode} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
-                  <span className="text-[13.5px] font-semibold text-ink">{tx?.nameEn ?? "A classification no longer configured"}</span>
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-[13.5px] text-ink-2">{t.valueCode ? valueName(t.valueCode) : t.state === "AMBIGUOUS" ? t.candidates.map(valueName).join(" or ") : "—"}</span>
-                    <Chip tone={t.state === "AMBIGUOUS" || t.state === "NOT_MAPPED" ? "warn" : t.state === "CHOSEN" ? "info" : "ok"}>{TAXONOMY_STATE_LABEL[t.state as keyof typeof TAXONOMY_STATE_LABEL]}</Chip>
-                    {draft && t.state === "AMBIGUOUS" && tx && <ChooseTaxonomyDrawer id={ex.id} taxonomyCode={t.taxonomyCode} taxonomy={tx.nameEn} candidates={t.candidates.map((c) => ({ value: c, label: valueName(c) }))} />}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <EmptyState size="sm" title="No classifications configured">Other classifications and their mappings are set under Reference data.</EmptyState>
-        )}
-      </Card>
     </div>
   );
 }

@@ -386,7 +386,7 @@ export function findingHref(exerciseId: string, family: keyof SubmitFindings, f:
       if (f.code === "APPENDIX_INCOMPLETE") return `${ex}/appendix`;
       return `${ex}?tab=documents#parts`;
     case "scope":
-      if (f.code === "BASIS_NOT_CHOSEN") return `${ex}?tab=contract`;
+      if (f.code === "BASIS_NOT_CHOSEN") return `${ex}?tab=overview`;
       if (BILL_CODES.has(f.code)) return `${ex}?tab=scope&section=bq`;
       if (ESTIMATE_CODES.has(f.code)) return `${ex}?tab=scope&section=estimate`;
       return `${ex}?tab=scope`;

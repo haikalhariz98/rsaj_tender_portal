@@ -236,11 +236,11 @@ describe("cancelled: the stages its records prove, then Cancelled", () => {
       { key: "DOCUMENTS", label: "Documents", sub: "Submitted 18 Sep 2026", state: "done" },
       { key: "TENDERING", label: "Approval for tendering", sub: "21 Sep 2026", state: "done" },
       { key: "MARKET", label: "Advertised", sub: "24 Sep 2026", state: "done" },
-      { key: "CANCELLED", label: "Cancelled", sub: "26 Sep 2026", state: "rejected" },
+      { key: "CANCELLED", label: "Cancelled", sub: "26 Sep 2026", state: "rejected", stateText: "cancelled" },
     ]);
   });
   it("cancelled as a draft: Cancelled alone, and with no day on record no second line", () => {
-    expect(exerciseFlow(base({ status: "CANCELLED", packKind: null }))).toEqual([{ key: "CANCELLED", label: "Cancelled", sub: undefined, state: "rejected" }]);
+    expect(exerciseFlow(base({ status: "CANCELLED", packKind: null }))).toEqual([{ key: "CANCELLED", label: "Cancelled", sub: undefined, state: "rejected", stateText: "cancelled" }]);
   });
   it("cancelled in preparation: set up proven only", () => {
     expect(view(exerciseFlow(base({ status: "CANCELLED", on: { prepared: "x" } })))).toEqual(["Set up:done", "Cancelled:rejected"]);

@@ -80,7 +80,7 @@ const yesNo = (b: boolean | null) => (b == null ? NOT_SET : b ? "Yes" : "No");
 
 /// Where each readiness finding is fixed, for a link.
 const PACK_HREF = (exerciseId: string): Readonly<Record<PackFault, string>> => ({
-  BASIS_NOT_CHOSEN: `/sourcing/${exerciseId}?tab=contract`,
+  BASIS_NOT_CHOSEN: `/sourcing/${exerciseId}?tab=overview`,
   BASIS_BQ_NOT_SET: `${SCOPE_CONFIG_PATH}#bill-bases`,
   BQ_NOT_FINALISED: `/sourcing/${exerciseId}?tab=scope&section=bq#bill-version`,
   BQ_REVISION_OPEN: `/sourcing/${exerciseId}?tab=scope&section=bq#bill-version`,

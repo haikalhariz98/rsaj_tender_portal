@@ -150,6 +150,7 @@ describe("the acts read the permit list under the organisation's lock, in the tr
     expect(tx).toMatch(/lockOrganisation[\s\S]*tenderDocumentPolicy\.findUnique[\s\S]*scopePolicyFaults\([^\n]*permitList \}\)[\s\S]*scopePolicy\.upsert/);
   });
   it("the exercise screen warns from the same rule", () => {
-    expect(read("src/app/sourcing/[id]/page.tsx")).toMatch(/ignoredPermitListMappings\(config\.mappings, permitList\.code, liveType\)[\s\S]*ignoredMappingsText\(ignored\.length, permitList\.nameEn\)/);
+    // Founder, 2026-10-05: Classification and Contract type became the Overview, so the warning now lives in overview.tsx.
+    expect(read("src/app/sourcing/[id]/overview.tsx")).toMatch(/ignoredPermitListMappings\(config\.mappings, permitList\.code, liveType\)[\s\S]*ignoredMappingsText\(ignored\.length, permitList\.nameEn\)/);
   });
 });

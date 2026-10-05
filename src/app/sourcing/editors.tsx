@@ -248,7 +248,14 @@ export function ChooseTaxonomyDrawer({ id, taxonomyCode, taxonomy, candidates }:
 /// The exercise's person in charge and work code (founder, 2026-10-05). `people` are the
 /// organisation's active people; a person already named but since retired is passed in too,
 /// so the drawer shows who is named rather than an empty choice.
-export function EditDetailsDrawer({ id, people, personInChargeId, workCode }: { id: string; people: Option[]; personInChargeId: string | null; workCode: string | null }) {
+/// `blocker`: why the details cannot change now (`detailsFault`), said beside the disabled control.
+/// `what`: where the control sits in a row of its own ("Change" beside the work code or the person in
+/// charge), rather than as a stand-alone "Edit details" button.
+export function EditDetailsDrawer({ id, people, personInChargeId, workCode, blocker, what }: { id: string; people: Option[]; personInChargeId: string | null; workCode: string | null; blocker?: string | null; what?: "work code" | "person in charge" }) {
+  // Beside a value already recorded it changes it; beside "Not recorded" it adds one.
+  const recorded = what === "work code" ? !!workCode : what === "person in charge" ? !!personInChargeId : true;
+  const label = !what ? "Edit details" : recorded ? "Change" : "Add";
+  if (blocker) return <Blocked label={label} reason={blocker} />;
   return (
     <RecordEditor
       title="Edit details"
@@ -261,7 +268,7 @@ export function EditDetailsDrawer({ id, people, personInChargeId, workCode }: { 
       values={{ id, personInChargeId: personInChargeId ?? "", workCode: workCode ?? "" }}
       action={saveExerciseDetails}
       submitLabel="Save details"
-      trigger={{ label: "Edit details", className: buttonClass("secondary", "sm") }}
+      trigger={{ label, className: buttonClass(what ? "ghost" : "secondary", "sm"), ariaLabel: what ? `${recorded ? "Change" : "Add"} the ${what}` : undefined }}
       size="md"
     />
   );
