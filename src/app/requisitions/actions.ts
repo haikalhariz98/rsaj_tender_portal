@@ -3,7 +3,6 @@
 import { routedValue } from "@/lib/approvals/routed-value";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
 import type { Prisma } from "@/generated/prisma/client";
@@ -279,7 +278,9 @@ export async function createRequisition(_prev: FormState, data: FormData): Promi
     throw e;
   }
   refresh(id);
-  redirect(`/requisitions/${id}`);
+  // The form navigates itself: a redirect thrown from an action awaited inside the
+  // form's transition saved the draft but left the button on "Saving…" (founder, 2026-10-05).
+  return { ok: true, href: `/requisitions/${id}` };
 }
 
 /**

@@ -110,7 +110,7 @@ export function RequisitionForm({
     startTransition(async () => {
       const result = await action({ ok: false }, data);
       if (result) setState(result);
-      if (result?.ok && mode === "edit") router.push(cancelHref);
+      if (result?.ok) router.push(result.href ?? cancelHref);
     });
   };
 

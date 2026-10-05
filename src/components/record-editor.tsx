@@ -116,6 +116,9 @@ export interface FormState {
   ok: boolean;
   errors?: Record<string, string>;
   message?: string;
+  /// Where the form goes once saved, for a form that navigates itself rather than
+  /// relying on a server-side redirect from an action awaited in a transition.
+  href?: string;
 }
 
 export const EMPTY_FORM_STATE: FormState = { ok: false };

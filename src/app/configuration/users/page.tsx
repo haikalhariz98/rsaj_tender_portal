@@ -34,7 +34,10 @@ export default async function UsersPage({
     loadDelegations(ORGANISATION_CODE),
     uploadContext(),
     // 6.7 (C-6): the units a person may sit in, for an opening panel's independence rule.
-    db.orgUnit.findMany({ where: { organisation: { code: ORGANISATION_CODE } }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true } }),
+    // A unit with several dated versions appears once, under its latest name.
+    db.orgUnit
+      .findMany({ where: { organisation: { code: ORGANISATION_CODE } }, orderBy: { effectiveFrom: "desc" }, distinct: ["code"], select: { code: true, nameEn: true } })
+      .then((us) => us.sort((a, b) => a.nameEn.localeCompare(b.nameEn))),
   ]);
 
   const holdings = holdingsOn(roster, on).map((h) => ({
