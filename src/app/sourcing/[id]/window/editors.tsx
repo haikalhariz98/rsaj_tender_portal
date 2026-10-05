@@ -475,8 +475,9 @@ export function RecordReceiptDrawer({ exerciseId, saleId, name }: { exerciseId: 
 
 // ------------------------------------------------------------------ briefings and site visits
 
-export function ScheduleEventDrawer({ exerciseId, allowed, mandatoryOffered }: { exerciseId: string; allowed: Allowed; mandatoryOffered: boolean }) {
-  if (!allowed.allowed) return <Blocked label="Schedule an event" reason={allowed.reason} primary noteId={EXERCISE_NOTE_ID} />;
+/// `inCard`: the act sits in its own card's header (preparation, before approval), so it is a secondary button and its reason is beside it, not in the page header's note.
+export function ScheduleEventDrawer({ exerciseId, allowed, mandatoryOffered, inCard = false }: { exerciseId: string; allowed: Allowed; mandatoryOffered: boolean; inCard?: boolean }) {
+  if (!allowed.allowed) return inCard ? <Blocked label="Schedule an event" reason={allowed.reason} /> : <Blocked label="Schedule an event" reason={allowed.reason} primary noteId={EXERCISE_NOTE_ID} />;
   return (
     <RecordEditor
       title="Schedule a briefing or site visit"
@@ -496,7 +497,7 @@ export function ScheduleEventDrawer({ exerciseId, allowed, mandatoryOffered }: {
       values={{ exerciseId }}
       action={scheduleEvent}
       submitLabel="Schedule"
-      trigger={{ label: "Schedule an event", className: primary }}
+      trigger={{ label: "Schedule an event", className: inCard ? secondary : primary }}
       size="md"
     />
   );

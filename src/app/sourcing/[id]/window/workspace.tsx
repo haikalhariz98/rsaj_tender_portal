@@ -4,10 +4,12 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
 import { addendaTab, briefingTab, invitationActs, saleRegister, windowTab } from "@/lib/window/read";
+import { invitationStage } from "@/lib/window/stage";
 
 import { AddendaSection, addendaHeader } from "./addenda-section";
 import { BriefingSection, briefingHeader } from "./briefing-section";
 import { GONE } from "./common";
+import { PreparingSection } from "./preparing-section";
 import { SaleSection, saleHeader } from "./sale-section";
 import { tabActs } from "./tab-acts";
 import { WindowSection, windowHeader, type WindowContext } from "./window-section";
@@ -39,22 +41,30 @@ async function withTabActs(own: { actions: ReactNode; notes: [string, string][] 
   return { actions: <>{own.actions}{tab.actions}</>, notes: [...own.notes, ...tab.notes], cancel: tab.cancel };
 }
 
-const EARLY = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING"];
+/// The sections the tab offers at this stage. Before approval for tendering the window and the briefings are one view, so there is no strip.
+export const invitationSectionsFor = (status: string) => (invitationStage(status) === "live" ? [...INVITATION_SECTIONS] : undefined);
 
 /**
  * One section at a time: only the section the address names is read, so a sibling's data is never
- * loaded. Before the documents are approved for tendering there is no window to show, and the
- * screen says what to do first.
+ * loaded. A draft has no window to show, and the screen says what to do first. While the documents
+ * are in preparation or awaiting approval for tendering, the window's items and the briefings are
+ * shown and can be prepared (the server allows both); the sections open from approval for tendering.
  */
 export async function loadInvitation(section: InvitationSectionId, c: WindowContext): Promise<InvitationView> {
   const none = { actions: null, notes: [] as [string, string][], cancel: null };
-  if (EARLY.includes(c.status)) {
+  const stage = invitationStage(c.status);
+  if (stage === "preparing") {
+    const [w, b] = await Promise.all([windowTab(c.exerciseId), briefingTab(c.exerciseId)]);
+    if (!w || !b) return { ...none, panel: GONE };
+    return { ...none, panel: <PreparingSection w={w} b={b} c={c} /> };
+  }
+  if (stage === "not_yet") {
     return {
       ...none,
       panel: (
         <Card>
-          <EmptyState title="The window opens once the tender documents are approved" action={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=documents`} variant="secondary" size="sm">Open the tender documents</ButtonLink>}>
-            Advertising or inviting, selling the documents, briefings and addenda are recorded here after the documents are approved for tendering.
+          <EmptyState title="The window is prepared once the exercise is in preparation" action={<ButtonLink href={`/sourcing/${c.exerciseId}?tab=documents`} variant="secondary" size="sm">Open the tender documents</ButtonLink>}>
+            The window&apos;s items, briefings and site visits are prepared here once the exercise is moved to preparation. Advertising or inviting, selling the documents and addenda follow approval for tendering.
           </EmptyState>
         </Card>
       ),

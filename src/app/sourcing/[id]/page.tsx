@@ -113,7 +113,7 @@ import {
   SubmitProposalDrawer,
 } from "../editors";
 import { DocumentsWorkspace } from "./documents/workspace";
-import { INVITATION_SECTIONS, invitationSectionOf, loadInvitation } from "./window/workspace";
+import { invitationSectionOf, invitationSectionsFor, loadInvitation } from "./window/workspace";
 import { scopeSectionFacts } from "@/lib/scope/read";
 import { ALL_SCOPE_SECTIONS, scopeSectionOf, visibleScopeSections } from "@/lib/scope/sections";
 import { ScopeWorkspace } from "./scope/workspace";
@@ -426,8 +426,10 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       id: "invitation",
       label: "Invitation",
       icon: <GlobeIcon size={15} />,
-      sections: [...INVITATION_SECTIONS],
+      sections: invitationSectionsFor(ex.status),
       section: invitationSectionOf(section),
+      // Without sections (before approval for tendering) the panel is still the server's, so selecting the tab asks for it.
+      lazy: !invitationSectionsFor(ex.status),
       // Read only while it is the tab being looked at, and only for the section named.
       panel: inv?.panel ?? null,
     },

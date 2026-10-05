@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
+import { Accordion } from "@/components/accordion";
 import { ClockIcon, FileIcon, RouteIcon, ShieldIcon, SlidersIcon, UsersIcon } from "@/components/icons";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { Badge, Chip } from "@/components/ui/badge";
@@ -176,88 +177,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
 
       <EvaluationModelCard d={d} c={c} />
 
-      <Card>
-        <CardHeader
-          icon={<FileIcon size={17} />}
-          title="What the notice states, and the fee"
-          subtitle={d.actions.save.allowed ? "The notice's items, and what a set of the documents costs and why." : d.actions.save.reason}
-          actions={<EditWindowDrawer exerciseId={c.exerciseId} items={d.items} allowed={d.actions.save} first={!d.hasWindow} />}
-        />
-        {!d.items ? (
-          <EmptyState size="sm" title="Not prepared yet">The window has no items yet: where the documents are inspected and bought, the days of sale and the fee.</EmptyState>
-        ) : (
-          <CardBody className="flex flex-col gap-4">
-            <KeyValues
-              columns={2}
-              items={[
-                { label: "Documents inspected at", value: d.items.inspectionPlace || "Not recorded" },
-                { label: "Documents bought at", value: d.items.purchasePlace || "Not recorded" },
-                { label: "Hours", value: d.items.inspectionHours || "Not recorded" },
-                { label: `${cap(d.bid.many)} submitted at`, value: d.items.submissionPlace || "Not recorded" },
-                { label: "Document fee", value: <span className="font-semibold tabular-nums">{d.fee.amount}</span> },
-                { label: "How the fee is paid", value: d.items.feePaymentMethods || "Not recorded" },
-                { label: "The least the fee may be", value: d.fee.floor == null ? <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">No minimum is set for this band, so the window cannot be published.</span></span> : <span className="flex flex-wrap items-center gap-2"><span>{d.fee.floor.amount}</span><FromBadge text={d.fee.floor.from} />{d.fee.floor.source && <span className="text-[12.5px] break-words text-ink-3">{d.fee.floor.source}</span>}</span> },
-                ...(d.items.closingTimeReason ? [{ label: "Why the closing time differs", value: d.items.closingTimeReason }] : []),
-                { label: "Special permission", value: d.items.specialPermissionOffered === "yes" ? "Offered" : d.items.specialPermissionOffered === "no" ? "Not offered" : <span className="text-ink-3">Not stated: none is granted on this exercise</span> },
-                ...(d.registrations.length ? [{ label: `Registrations asked of a ${d.bid.bidder}`, value: d.registrations.join("; ") }] : []),
-              ]}
-            />
-          </CardBody>
-        )}
-        {d.hasWindow && (
-          <div className="border-t border-line">
-            <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
-              <div>
-                <p className="text-[13.5px] font-semibold text-ink">What a set costs to make</p>
-                <p className="text-[12.5px] text-ink-3">The fee is entered, not worked out from this.</p>
-              </div>
-              <FeeLineDrawer exerciseId={c.exerciseId} allowed={d.actions.save} kinds={FEE_COST_KINDS.map((k) => ({ value: k, label: FEE_COST_KIND_LABEL[k] }))} />
-            </div>
-            {d.fee.basis.length === 0 ? (
-              <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">No cost is listed: the basis is empty.</p>
-            ) : (
-              <Table minWidth={640}>
-                <colgroup>
-                  <col style={{ width: "28%" }} />
-                  <col />
-                  <col style={{ width: 90 }} />
-                  <col style={{ width: 120 }} />
-                  <col style={{ width: 130 }} />
-                  {d.actions.save.allowed && <ActionsCol labelled={2} icons={0} />}
-                </colgroup>
-                <THead>
-                  <Th>Cost</Th>
-                  <Th>Description</Th>
-                  <Th numeric>Quantity</Th>
-                  <Th numeric>Unit cost</Th>
-                  <Th numeric>Amount</Th>
-                  {d.actions.save.allowed && <Th className="text-right">Actions</Th>}
-                </THead>
-                <tbody>
-                  {d.fee.basis.map((l) => (
-                    <Tr key={l.id}>
-                      <Td label="Cost"><CellStack title={l.cost} /></Td>
-                      <Td label="Description">{l.description || <span className="text-ink-3">—</span>}</Td>
-                      <Td numeric label="Quantity">{l.quantity ?? "—"}</Td>
-                      <Td numeric label="Unit cost">{l.unitCost ?? "—"}</Td>
-                      <Td numeric label="Amount"><span className="font-semibold">{l.amount}</span></Td>
-                      {d.actions.save.allowed && <Td>
-                        <RowActions>
-                          {d.actions.save.allowed && <FeeLineDrawer exerciseId={c.exerciseId} allowed={d.actions.save} kinds={FEE_COST_KINDS.map((k) => ({ value: k, label: FEE_COST_KIND_LABEL[k] }))} line={{ id: l.id, label: l.cost, values: l.raw }} />}
-                          {d.actions.save.allowed && <RemoveFeeLineDrawer exerciseId={c.exerciseId} lineId={l.id} label={l.cost} />}
-                        </RowActions>
-                      </Td>}
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
-            )}
-            <p className="border-t border-line px-5 py-3 text-[13px] text-ink-2 sm:px-6">
-              The basis comes to <span className="font-semibold tabular-nums">{d.fee.basisTotal}</span>.
-            </p>
-          </div>
-        )}
-      </Card>
+      <WindowItemsCard d={d} c={c} />
 
       {d.pathKey === "ADVERTISED" ? (
         <>
@@ -328,24 +248,7 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
 
       <ClosingCard d={d} c={c} latest={latest} earlier={earlier} />
 
-      <Card>
-        <CardHeader icon={<SlidersIcon size={17} />} title="The rules this window is judged by" subtitle="Each value is the organisation's setting, with where it comes from. Not set blocks the act it governs." actions={<ButtonLink href={SETTINGS_HREF} variant="secondary" size="sm">Open Invitation controls</ButtonLink>} />
-        <ul className="divide-y divide-line/70">
-          {d.rules.map((r) => (
-            <li key={r.label} className="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6">
-              <span className="min-w-0 text-[13.5px] font-semibold text-ink">{r.label}</span>
-              <span className="flex min-w-0 flex-col items-start gap-1 text-[13.5px] sm:items-end sm:text-right">
-                {r.value.startsWith("Not set") ? <Badge tone="warn">{r.value}</Badge> : <span className="break-words text-ink-2">{r.value}</span>}
-                <span className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  <FromBadge text={r.from} />
-                  {r.source && <span className="text-[12.5px] break-words text-ink-3">{r.source}</span>}
-                </span>
-                {r.note && <span className="text-[12.5px] text-ink-3">{r.note}</span>}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      <RulesUsed d={d} />
 
       {d.notice && (
         <Card>
@@ -359,6 +262,139 @@ export function WindowSection({ d, c }: { d: WindowTab; c: WindowContext }) {
         </Card>
       )}
     </div>
+  );
+}
+
+/**
+ * The settings the window is judged by, each with where it comes from, behind "Rules used"
+ * (founder, 2026-10-05). A setting that is not set stays on the surface, named, because it holds back the
+ * act it governs; the fee's minimum, when it is not set, is shown beside the fee itself.
+ */
+function RulesUsed({ d }: { d: WindowTab }) {
+  const rows: { label: string; value: string; from: string; source: string | null; note: string | null }[] = [
+    ...(d.fee.floor ? [{ label: "The least the document fee may be", value: d.fee.floor.amount, from: d.fee.floor.from, source: d.fee.floor.source, note: null }] : []),
+    ...d.rules,
+  ];
+  // A rule about advertising, on an invited exercise, is marked as not applying: it is not a gap.
+  const unset = d.rules.filter((r) => r.value.startsWith("Not set") && !r.note).map((r) => r.label);
+  return (
+    <div className="flex flex-col gap-3">
+      {unset.length > 0 && (
+        <Callout tone="warn" title={`${unset.length === 1 ? "A setting is" : `${unset.length} settings are`} not set under Invitation controls`}>
+          {unset.join("; ")}.{" "}
+          <Link href={SETTINGS_HREF} className="font-semibold">Open Invitation controls</Link>
+        </Callout>
+      )}
+      <Accordion title="Rules used" meta={unset.length ? `${unset.length} not set` : `${rows.length} settings`}>
+        <p className="border-b border-line px-5 py-3 text-[12.5px] text-ink-3 sm:px-6">Each value is the organisation&apos;s setting, with where it comes from. Not set blocks the act it governs.</p>
+        <ul className="divide-y divide-line/70">
+          {rows.map((r) => (
+            <li key={r.label} className="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6">
+              <span className="min-w-0 text-[13.5px] font-semibold text-ink">{r.label}</span>
+              <span className="flex min-w-0 flex-col items-start gap-1 text-[13.5px] sm:items-end sm:text-right">
+                {r.value.startsWith("Not set") ? <Badge tone="warn">{r.value}</Badge> : <span className="break-words text-ink-2">{r.value}</span>}
+                <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <FromBadge text={r.from} />
+                  {r.source && <span className="text-[12.5px] break-words text-ink-3">{r.source}</span>}
+                </span>
+                {r.note && <span className="text-[12.5px] text-ink-3">{r.note}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="border-t border-line px-5 py-3 sm:px-6">
+          <ButtonLink href={SETTINGS_HREF} variant="secondary" size="sm">Open Invitation controls</ButtonLink>
+        </div>
+      </Accordion>
+    </div>
+  );
+}
+
+/// The notice's items and the fee with its basis: the card the window is prepared on, in preparation and after.
+export function WindowItemsCard({ d, c }: { d: WindowTab; c: WindowContext }) {
+  return (
+    <Card>
+      <CardHeader
+        icon={<FileIcon size={17} />}
+        title="What the notice states, and the fee"
+        subtitle={d.actions.save.allowed ? "The notice's items, and what a set of the documents costs and why." : d.actions.save.reason}
+        actions={<EditWindowDrawer exerciseId={c.exerciseId} items={d.items} allowed={d.actions.save} first={!d.hasWindow} />}
+      />
+      {!d.items ? (
+        <EmptyState size="sm" title="Not prepared yet">The window has no items yet: where the documents are inspected and bought, the days of sale and the fee.</EmptyState>
+      ) : (
+        <CardBody className="flex flex-col gap-4">
+          <KeyValues
+            columns={2}
+            items={[
+              { label: "Documents inspected at", value: d.items.inspectionPlace || "Not recorded" },
+              { label: "Documents bought at", value: d.items.purchasePlace || "Not recorded" },
+              { label: "Hours", value: d.items.inspectionHours || "Not recorded" },
+              { label: `${cap(d.bid.many)} submitted at`, value: d.items.submissionPlace || "Not recorded" },
+              { label: "Document fee", value: <span className="font-semibold tabular-nums">{d.fee.amount}</span> },
+              { label: "How the fee is paid", value: d.items.feePaymentMethods || "Not recorded" },
+              ...(d.fee.floor == null ? [{ label: "The least the fee may be", value: <span className="flex flex-wrap items-center gap-2"><Badge tone="warn">Not set</Badge><span className="text-[12.5px] text-ink-3">No minimum is set for this band, so the window cannot be published.</span></span> }] : []),
+              ...(d.items.closingTimeReason ? [{ label: "Why the closing time differs", value: d.items.closingTimeReason }] : []),
+              { label: "Special permission", value: d.items.specialPermissionOffered === "yes" ? "Offered" : d.items.specialPermissionOffered === "no" ? "Not offered" : <span className="text-ink-3">Not stated: none is granted on this exercise</span> },
+              ...(d.registrations.length ? [{ label: `Registrations asked of a ${d.bid.bidder}`, value: d.registrations.join("; ") }] : []),
+            ]}
+          />
+        </CardBody>
+      )}
+      {d.hasWindow && (
+        <div className="border-t border-line">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
+            <div>
+              <p className="text-[13.5px] font-semibold text-ink">What a set costs to make</p>
+              <p className="text-[12.5px] text-ink-3">The fee is entered, not worked out from this.</p>
+            </div>
+            <FeeLineDrawer exerciseId={c.exerciseId} allowed={d.actions.save} kinds={FEE_COST_KINDS.map((k) => ({ value: k, label: FEE_COST_KIND_LABEL[k] }))} />
+          </div>
+          {d.fee.basis.length === 0 ? (
+            <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">No cost is listed: the basis is empty.</p>
+          ) : (
+            <Table minWidth={640}>
+              <colgroup>
+                <col style={{ width: "28%" }} />
+                <col />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 130 }} />
+                {d.actions.save.allowed && <ActionsCol labelled={2} icons={0} />}
+              </colgroup>
+              <THead>
+                <Th>Cost</Th>
+                <Th>Description</Th>
+                <Th numeric>Quantity</Th>
+                <Th numeric>Unit cost</Th>
+                <Th numeric>Amount</Th>
+                {d.actions.save.allowed && <Th className="text-right">Actions</Th>}
+              </THead>
+              <tbody>
+                {d.fee.basis.map((l) => (
+                  <Tr key={l.id}>
+                    <Td label="Cost"><CellStack title={l.cost} /></Td>
+                    <Td label="Description">{l.description || <span className="text-ink-3">—</span>}</Td>
+                    <Td numeric label="Quantity">{l.quantity ?? "—"}</Td>
+                    <Td numeric label="Unit cost">{l.unitCost ?? "—"}</Td>
+                    <Td numeric label="Amount"><span className="font-semibold">{l.amount}</span></Td>
+                    {d.actions.save.allowed && <Td>
+                      <RowActions>
+                        {d.actions.save.allowed && <FeeLineDrawer exerciseId={c.exerciseId} allowed={d.actions.save} kinds={FEE_COST_KINDS.map((k) => ({ value: k, label: FEE_COST_KIND_LABEL[k] }))} line={{ id: l.id, label: l.cost, values: l.raw }} />}
+                        {d.actions.save.allowed && <RemoveFeeLineDrawer exerciseId={c.exerciseId} lineId={l.id} label={l.cost} />}
+                      </RowActions>
+                    </Td>}
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+          <p className="border-t border-line px-5 py-3 text-[13px] text-ink-2 sm:px-6">
+            The basis comes to <span className="font-semibold tabular-nums">{d.fee.basisTotal}</span>.
+          </p>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -549,24 +585,31 @@ function ClosingCard({ d, c, latest, earlier }: { d: WindowTab; c: WindowContext
             ))}
           </>
         )}
+        {(latest || earlier.length > 0) && (
+          <div className="flex flex-col gap-3 border-t border-line p-4 sm:p-5">
+            {latest && (
+              <Accordion title="Approval of the change" meta={changeRouteLabel(latest.status, latest.warnings)} defaultOpen={latest.status === "PENDING"}>
+                <ChangeRouteCard c={c} inst={latest} />
+              </Accordion>
+            )}
+            {earlier.length > 0 && (
+              <Accordion title="Earlier routes" meta={`${earlier.length} kept on record`}>
+                <ul className="divide-y divide-line/70">
+                  {earlier.map((e) => (
+                    <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
+                      <Badge tone={routeTone(e.status)}>{changeRouteLabel(e.status, e.warnings)}</Badge>
+                      <span className="text-ink-2">
+                        {routedOnLabel(e.cond, "exercise")} · asked {formatDate(e.openedAt)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
+                        {e.rejectionReason ? ` · “${e.rejectionReason}”` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Accordion>
+            )}
+          </div>
+        )}
       </Card>
-      {latest && <ChangeRouteCard c={c} inst={latest} />}
-      {earlier.length > 0 && (
-        <Card className="overflow-hidden">
-          <CardHeader icon={<ClockIcon size={17} />} title="Earlier routes" subtitle="Kept on record." />
-          <ul className="divide-y divide-line/70">
-            {earlier.map((e) => (
-              <li key={e.id} className="flex flex-wrap items-center gap-2 px-5 py-3 text-[13px] sm:px-6">
-                <Badge tone={routeTone(e.status)}>{changeRouteLabel(e.status, e.warnings)}</Badge>
-                <span className="text-ink-2">
-                  {routedOnLabel(e.cond, "exercise")} · asked {formatDate(e.openedAt)} · {e.steps.map((s) => s.roleLabel).join(" → ")}
-                  {e.rejectionReason ? ` · “${e.rejectionReason}”` : ""}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
     </>
   );
 }
@@ -584,7 +627,7 @@ function ChangeRouteCard({ c, inst }: { c: WindowContext; inst: Route }) {
   const warnings = ((inst.warnings as { code?: string; level: string; messageEn: string }[]) ?? []).filter((w) => !(inst.checkedAgainstMatrix && w.code && (w.code === "CORE_AS_ENTERED" || w.code === "CORE_NOT_CHECKED")));
   const what = routedOnLabel(inst.cond, "exercise").toLowerCase();
   return (
-    <Card className="overflow-hidden">
+    <div>
       <CardHeader
         icon={<RouteIcon size={17} />}
         title="Approval of the change"
@@ -633,6 +676,6 @@ function ChangeRouteCard({ c, inst }: { c: WindowContext; inst: Route }) {
           </>
         )}
       />
-    </Card>
+    </div>
   );
 }
