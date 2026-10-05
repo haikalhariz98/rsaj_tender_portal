@@ -42,6 +42,15 @@ session starts. Read `AGENTS.md` first, then line 9 and the top entries of `deci
   never by name. The cloud's `$SEW`, `PRISMA_SCHEMA_ENGINE_BINARY=/bin/true`, `fuser` and
   `/tmp/claude-0` instructions in the log apply to the cloud only.
 
+## Paused Run 1b work is in a git stash (2026-10-05)
+
+The uncommitted C8b work (the /approvals escalation lock line for contract matters, committee
+labels, the lock-order tests and the red gate file `r1b-08b-red.txt`) was parked as
+`stash@{0}` "Run 1b C8b WIP (paused 2026-10-05)" while the founder's UI changes went in. Restore
+it with `git stash pop` before resuming Run 1b. Expect conflicts in `src/lib/committee/labels.ts`
+and `src/app/committees/actions.ts` if the committee auto-tabling work (founder, 2026-10-05) has
+changed them; resolve by keeping both.
+
 ## Finishing Run 1b
 
 - The plan: `plans/6.13-post-award-lifecycle.md`, "Part B — full plan", Run 1b in B10.
