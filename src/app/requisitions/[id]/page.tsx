@@ -18,6 +18,9 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
+import { Stepper } from "@/components/ui/stepper";
+import { Accordion } from "@/components/accordion";
+import { routeSteps } from "@/lib/approvals/route-steps";
 import { CellStack, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { fieldLabel } from "@/lib/audit/diff";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
@@ -1250,6 +1253,7 @@ function ApprovalPanel({
   const split = inst.splitCheckId ? r.splitChecks.find((c) => c.id === inst.splitCheckId) : null;
   const splitShown = splitStateLabel(inst.splitState, !!split?.overrideJustification);
   const open = inst.status === "PENDING";
+  const openedOn = formatDate(inst.openedAt);
 
   return (
     <div className="flex flex-col gap-6">
@@ -1259,12 +1263,40 @@ function ApprovalPanel({
           title="Approval route"
           subtitle={
             inst.checkedAgainstMatrix
-              ? `Opened ${formatDate(inst.openedAt)} under ${inst.matrixLabel ?? "an issue no longer on file"}.`
+              ? `Opened ${openedOn} under ${inst.matrixLabel ?? "an issue no longer on file"}.`
               : "As received from the finance system: not checked against the approval matrix."
           }
           actions={<Badge tone={routeTone(inst.status)}>{approvalRouteLabel(inst.status, inst.warnings)}</Badge>}
         />
         <CardBody className="flex flex-col gap-5">
+          {/* Founder, 2026-10-05: the route at a glance first, as a flow of steps; how it was chosen below, folded. */}
+          <Stepper
+            label="Approval steps"
+            steps={routeSteps({
+              status: inst.status,
+              openedOn,
+              steps: inst.steps.map((s) => ({
+                id: s.id,
+                label: s.roleLabel,
+                decision: s.decision,
+                committee: !!s.committeeCode,
+                decidedBy: s.committeeDecision ? (s.committeeDecision.meeting?.reference ?? null) : s.decidedByName,
+                decidedOn: s.decidedOn ? formatDate(s.decidedOn) : null,
+              })),
+            })}
+          />
+          {inst.supersedesInstanceId && (
+            <Callout tone="info" title="Continues a rejected route">
+              The route before this one was rejected and returned to an earlier step. The steps before that step keep the decisions taken on it; the rest are decided again.
+            </Callout>
+          )}
+          {inst.status === "REJECTED" && inst.rejectionApplied && inst.rejectionSource && (
+            <Callout tone="warn" title="Where the rejection sent it">
+              {appliedText(inst.rejectionApplied as RejectionKind, inst.rejectionSource, officeName(inst.rejectionReturnToRoleCode), inst.rejectionChosenBy?.name ?? null)}
+            </Callout>
+          )}
+          <Accordion title="How this route was chosen" meta={warnings.length > 0 ? `${warnings.length} ${warnings.length === 1 ? "note" : "notes"} to check` : undefined}>
+          <div className="flex flex-col gap-5 p-5">
           {inst.checkedAgainstMatrix ? (
             <KeyValues
               columns={2}
@@ -1314,16 +1346,6 @@ function ApprovalPanel({
               This trail was typed in from the finance system. The portal did not route it and does not vouch for it.
             </Callout>
           )}
-          {inst.supersedesInstanceId && (
-            <Callout tone="info" title="Continues a rejected route">
-              The route before this one was rejected and returned to an earlier step. The steps before that step keep the decisions taken on it; the rest are decided again.
-            </Callout>
-          )}
-          {inst.status === "REJECTED" && inst.rejectionApplied && inst.rejectionSource && (
-            <Callout tone="warn" title="Where the rejection sent it">
-              {appliedText(inst.rejectionApplied as RejectionKind, inst.rejectionSource, officeName(inst.rejectionReturnToRoleCode), inst.rejectionChosenBy?.name ?? null)}
-            </Callout>
-          )}
           {warnings.length > 0 && (
             <ul className="flex flex-col gap-2">
               {warnings.map((w, i) => (
@@ -1333,6 +1355,8 @@ function ApprovalPanel({
               ))}
             </ul>
           )}
+          </div>
+          </Accordion>
         </CardBody>
         <ol className="divide-y divide-line/70 border-t border-line">
           {inst.steps.map((s, stepIndex) => {
