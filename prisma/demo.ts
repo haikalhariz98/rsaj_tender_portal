@@ -1,5 +1,6 @@
 import "dotenv/config";
 // 6.13 Part A step 5: first, so the product's client is the one the demo's acts run through (prisma/demo-acts.ts).
+import { raiseSeries } from "./demo-series";
 import "./demo-acts";
 
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -1415,7 +1416,7 @@ async function loadRequisitions(organisationId: string, from: Date) {
       notes: "Invented demo controls.",
     },
   });
-  await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 25 } });
+  await raiseSeries(db, `${P}n1`, 25);
 
   await db.budgetCode.createMany({
     data: [
@@ -1887,7 +1888,7 @@ async function loadMethodSelection(organisationId: string, from: Date) {
       lines: { create: [{ id: `${P}rq14l1`, lineNo: 1, description: "Tank relining and roof works", estimatedAmount: "600000.00" }] },
     },
   });
-  await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 27 } });
+  await raiseSeries(db, `${P}n1`, 27);
   await db.requisitionEndorsement.createMany({
     data: [
       { id: `${P}en13a`, requisitionId: `${P}rq13`, tier: "SECTION", unitCode: "NTH-MNT", personId: `${P}p10`, endorsedOn: day("2026-06-02") },
@@ -2319,7 +2320,7 @@ async function loadCloseout(organisationId: string) {
       v("v34", "d22", "p1", "TIDAK_SETUJU", "2026-09-24"), v("v35", "d22", "p2", "TIDAK_SETUJU", "2026-09-24"),
     ],
   });
-  await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 38 } });
+  await raiseSeries(db, `${P}n1`, 38);
 
   // Approved before gates were checked on approval: their routes have no gate, as
   // determined. rq7 is left undetermined, so "Check committee gates" has work to do;

@@ -35,6 +35,7 @@
  * Parties are not linked to a supplier register (ExerciseParty.vendorId stays null until 6.15).
  */
 
+import { raiseSeries } from "./demo-series";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { diffFields } from "../src/lib/audit/diff";
 import { routeCoreFields, stepOrigin } from "../src/lib/authority/core-routing";
@@ -307,7 +308,7 @@ export async function loadWindowDemo(db: Db, organisationId: string, hooks: Wind
     await acts.noticeDelivery(sx, "BY_HAND", "", W(1), W(1), T(W(1), "11:00"), notices.find((x) => x.partyId === `${P}pty9`)!.id);
   }
 
-  await db.numberingSeries.update({ where: { id: `${P}n5` }, data: { nextSerial: 20 } });
+  await raiseSeries(db, `${P}n5`, 20);
   await flush();
   return { sittings };
 }
@@ -521,7 +522,7 @@ async function loadRequisitions(db: Db, organisationId: string, W: (k: number) =
     e("Requisition", rq, label, "UPDATE", T(approvedOn, "16:00"), diffFields({ status: "PENDING_APPROVAL" }, { status: "APPROVED" }));
   }
   await db.auditEntry.createMany({ data: entries as never });
-  await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 41 } });
+  await raiseSeries(db, `${P}n1`, 41);
 }
 
 const EXERCISES: Record<number, { rq: number; title: string; value: string; method: string; methodReason?: string }> = {

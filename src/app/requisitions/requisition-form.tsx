@@ -62,10 +62,18 @@ function totalOf(lines: Line[]): bigint | null {
   return sen;
 }
 
-/// As formatRM writes ringgit: "RM9,500", with sen only where there are some.
-const rm = (sen: bigint) => `RM${(sen / 100n).toLocaleString("en-MY")}${sen % 100n ? `.${(sen % 100n).toString().padStart(2, "0")}` : ""}`;
+/// An amount as the form shows it: "100,000.00" (founder, 2026-10-05: xx,xxx.xx). The commas are
+/// display only: the action strips them, as parseSen and FormReader.money already do.
+const grouped = (sen: bigint) => `${(sen / 100n).toLocaleString("en-MY")}.${(sen % 100n).toString().padStart(2, "0")}`;
+const rm = (sen: bigint) => `RM${grouped(sen)}`;
+const typed = grouped;
 
-const typed = (sen: bigint) => `${sen / 100n}.${(sen % 100n).toString().padStart(2, "0")}`;
+/// A typed amount rewritten as "100,000.00" when the field is left. Anything that is not an
+/// amount is left as typed, for the action to refuse in words.
+const tidy = (v: string) => {
+  const sen = senOf(v);
+  return sen == null ? v : grouped(sen);
+};
 
 export function RequisitionForm({
   mode,
@@ -126,12 +134,13 @@ export function RequisitionForm({
     setOwnAmount((o) => o.filter((_, j) => j !== i));
   };
 
-  const select = (name: string, label: string, opts: { value: string; label: string }[], o: { required?: boolean; placeholder?: string; hint?: string; onChange?: (v: string) => void } = {}) => (
+  const select = (name: string, label: string, opts: { value: string; label: string }[], o: { required?: boolean; placeholder?: string; hint?: string; searchable?: boolean; onChange?: (v: string) => void } = {}) => (
     <Field label={label} htmlFor={`rq-${name}`} required={o.required} hint={o.hint} error={e[name]}>
       <Select
         id={`rq-${name}`}
         name={name}
         defaultValue={values[name] ?? ""}
+        searchable={o.searchable}
         aria-invalid={e[name] ? true : undefined}
         onChange={o.onChange ? (ev) => o.onChange!(ev.target.value) : undefined}
       >
@@ -160,7 +169,7 @@ export function RequisitionForm({
       {id && <input type="hidden" name="id" value={id} />}
       {state.message && <Callout tone="err">{state.message}</Callout>}
       <Card>
-        <CardHeader icon={<ClipboardIcon size={17} />} title="What is needed" subtitle="The title, the justification and the need, as the request form states them." />
+        <CardHeader icon={<ClipboardIcon size={17} />} title="Request details" subtitle="What you need, and why." />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">{text("title", "Title", { required: true })}</div>
           {text("justification", "Justification", { area: true })}
@@ -169,7 +178,7 @@ export function RequisitionForm({
       </Card>
 
       <Card>
-        <CardHeader icon={<RouteIcon size={17} />} title="Who is asking, and what it is charged to" subtitle="Looked up against the structure and codes in force today." />
+        <CardHeader icon={<RouteIcon size={17} />} title="Requester and budget" subtitle="Who is asking, and which budget pays for it." />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           {select("requestingUnitCode", "Requesting department", options.departments.map((d) => ({ value: d.code, label: d.name })), { required: true, onChange: setUnit })}
           {select("sectionUnitCode", "Section", sections.map((s) => ({ value: s.code, label: s.name })), {
@@ -179,9 +188,10 @@ export function RequisitionForm({
           {select("fundingRouteCode", "Funding route", options.fundingRoutes.map((r) => ({ value: r.code, label: r.name })), {
             hint: "Required to submit.",
           })}
-          {select("costCentreCode", "Cost centre", coded(options.costCentres))}
-          {select("accountCode", "Account code", coded(options.accounts))}
-          {select("budgetCodeId", "Budget code", options.budgetCodes.map((b) => ({ value: b.id, label: `${b.code} · ${b.name}` })), { hint: "The budget line the check reads. Its account must be the requisition's." })}
+          {/* Founder, 2026-10-05: these lists grow long once data is migrated, so each takes typing: type a code or a word to narrow it. */}
+          {select("costCentreCode", "Cost centre", coded(options.costCentres), { searchable: true })}
+          {select("accountCode", "Account code", coded(options.accounts), { searchable: true })}
+          {select("budgetCodeId", "Budget code", options.budgetCodes.map((b) => ({ value: b.id, label: `${b.code} · ${b.name}` })), { searchable: true, hint: "The budget line the check reads. Its account must be the requisition's." })}
           {select("contractTypeCode", "Contract type", options.contractTypes.map((c) => ({ value: c.code, label: c.name })), { placeholder: "Not set" })}
           {select("siteCode", "Site", options.sites.map((s) => ({ value: s.code, label: s.name })), { placeholder: "None" })}
           {text("placeOfDelivery", "Place of delivery")}
@@ -193,7 +203,7 @@ export function RequisitionForm({
         <CardHeader
           icon={<FileIcon size={17} />}
           title="Line items"
-          subtitle="One or more lines, summing to the estimated value before it leaves draft."
+          subtitle="List each item. The lines must add up to the estimated value before you submit."
         />
         <CardBody className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -205,6 +215,7 @@ export function RequisitionForm({
                 inputMode="decimal"
                 value={value}
                 onChange={(ev) => setValue(ev.target.value)}
+                onBlur={() => setValue(tidy(value))}
                 aria-invalid={e.estimatedValue ? true : undefined}
                 className="[&_input]:text-right"
               />
@@ -242,10 +253,10 @@ export function RequisitionForm({
                     <Input id={`ln-${i}-u`} value={l.unit} onChange={(ev) => setLine(i, "unit", ev.target.value)} />
                   </Field>
                   <Field label="Unit price" htmlFor={`ln-${i}-p`}>
-                    <AffixInput id={`ln-${i}-p`} prefix="RM" inputMode="decimal" value={l.estimatedUnitPrice} onChange={(ev) => setLine(i, "estimatedUnitPrice", ev.target.value)} className="[&_input]:text-right" />
+                    <AffixInput id={`ln-${i}-p`} prefix="RM" inputMode="decimal" value={l.estimatedUnitPrice} onChange={(ev) => setLine(i, "estimatedUnitPrice", ev.target.value)} onBlur={() => setLine(i, "estimatedUnitPrice", tidy(l.estimatedUnitPrice))} className="[&_input]:text-right" />
                   </Field>
                   <Field label="Amount" htmlFor={`ln-${i}-a`} hint={ownAmount[i] ? undefined : "Quantity × unit price"}>
-                    <AffixInput id={`ln-${i}-a`} prefix="RM" inputMode="decimal" value={l.estimatedAmount} onChange={(ev) => setLine(i, "estimatedAmount", ev.target.value)} className="[&_input]:text-right" />
+                    <AffixInput id={`ln-${i}-a`} prefix="RM" inputMode="decimal" value={l.estimatedAmount} onChange={(ev) => setLine(i, "estimatedAmount", ev.target.value)} onBlur={() => { if (l.estimatedAmount.trim()) setLine(i, "estimatedAmount", tidy(l.estimatedAmount)); }} className="[&_input]:text-right" />
                   </Field>
                 </div>
               </li>

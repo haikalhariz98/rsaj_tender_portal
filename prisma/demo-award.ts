@@ -10,6 +10,7 @@
  * numbers are visibly invented.
  */
 
+import { raiseSeries } from "./demo-series";
 import { wipeContractFormation, wipeContractsConfig } from "./demo-contracts";
 import { wipeAwardRoutingSheets } from "./demo-certificates";
 import type { PrismaClient } from "../src/generated/prisma/client";
@@ -261,7 +262,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
       },
     });
   }
-  await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 32 } });
+  await raiseSeries(db, `${P}n1`, 32);
 
   // ------------------------------------------------ the exercises, in preparation
   await db.sourcingExercise.createMany({
@@ -271,7 +272,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
     })),
   });
   await db.exerciseScopePart.createMany({ data: EXERCISES.map((x) => ({ id: `${P}sx${x.n}p1`, exerciseId: `${P}sx${x.n}`, deliverableKind: x.kind, amount: x.value, description: x.title, sortOrder: 1 })) });
-  await db.numberingSeries.update({ where: { id: `${P}n5` }, data: { nextSerial: 15 } });
+  await raiseSeries(db, `${P}n5`, 15);
 
   // --------------------------------------------------------------- the sittings
   // The Tender Board's award sitting, and the Quotation Committee's. Minuted; their
@@ -282,7 +283,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
       { id: `${P}mt7`, committeeId: `${P}c2`, reference: "DEMO/SQ/1/2026", meetingDate: day("2026-09-11"), status: "MINUTED", minutedAt: day("2026-09-12"), agenda: "Two quotations.", minutes: "The Committee recommended both awards." },
     ],
   });
-  await db.numberingSeries.update({ where: { id: `${P}n4` }, data: { nextSerial: 6 } });
+  await raiseSeries(db, `${P}n4`, 6);
   await db.meetingAttendance.createMany({
     data: [
       { id: `${P}at13`, meetingId: `${P}mt6`, personId: `${P}p1`, attended: true },
@@ -458,7 +459,7 @@ export async function loadAwards(db: Db, organisationId: string) {
       { id: `${P}con3`, organisationId, number: "XI202600799", numberSource: "INDENT_NUMBER", numberedOn: day("2026-09-16"), awardId: `${P}aw5`, contractSum: "36000.00" },
     ],
   });
-  await db.numberingSeries.update({ where: { id: `${P}n2` }, data: { nextSerial: 5 } });
+  await raiseSeries(db, `${P}n2`, 5);
   await db.caseOwnershipEvent.createMany({
     data: [
       { id: `${P}ce1`, contractId: `${P}con1`, fromUnitCode: "CP-PRE", toUnitCode: "CP-POST", on: day("2026-09-17") },

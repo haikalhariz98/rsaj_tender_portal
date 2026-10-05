@@ -35,6 +35,7 @@
  * nothing here prints them; their audit rows read "Sealed (version N)" (ADR 0012).
  */
 
+import { raiseSeries } from "./demo-series";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, bqFinalisedAudit, bqStatusAudit, itemAudit, sectionAudit, rateFromText, verificationAudit, ENTITY, RATE_ENTITY, SCOPE_ENTITIES } from "../src/lib/scope/audit-view";
 import { diffFields } from "../src/lib/audit/diff";
@@ -80,7 +81,7 @@ export async function loadScopeExercises(db: Db, organisationId: string): Promis
     },
   });
   await db.exerciseScopePart.create({ data: { id: `${P}sx15p1`, exerciseId: `${P}sx15`, deliverableKind: "MEASURED_CONSTRUCTION", amount: "18000.00", description: "FRP panel repair and resealing", sortOrder: 1 } });
-  await db.numberingSeries.update({ where: { id: `${P}n5` }, data: { nextSerial: 16 } });
+  await raiseSeries(db, `${P}n5`, 16);
   return [`${P}sx15`];
 }
 

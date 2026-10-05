@@ -26,6 +26,7 @@
  * Bidders are not named before opening (OD-2): no envelope names a party.
  */
 
+import { raiseSeries } from "./demo-series";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { diffFields } from "../src/lib/audit/diff";
 import { bidAnswerFields, BID_ENTITY, boxFields, envelopeFields, extensionFields, appliedFields, returnFields, statusField, withdrawalFields } from "../src/lib/bids/audit-view";
@@ -155,7 +156,7 @@ export async function loadBidsDemo(db: Db, organisationId: string, hooks: BidsDe
     await acts.sale(NEW_EXERCISE, `${P}sale8`, { party: { id: `${P}pty10`, ...FIRMS.rekaan }, receiptNo: "FR/26/004301", collectedBy: "Wong Demo", paymentMethod: "Bank draft" }, T(W(5), "10:00"));
     await acts.sale(NEW_EXERCISE, `${P}sale9`, { party: { id: `${P}pty11`, ...FIRMS.teladan }, receiptNo: "FR/26/004302", collectedBy: "Rajan Demo", paymentMethod: "Cheque" }, T(W(4), "14:00"));
   }
-  await db.numberingSeries.update({ where: { id: `${P}n5` }, data: { nextSerial: 21 } });
+  await raiseSeries(db, `${P}n5`, 21);
 
   // ================================================================ sx16: the register of a closed tender
   const sx16 = `${P}sx16`;
@@ -468,7 +469,7 @@ async function loadRequisition(db: Db, organisationId: string, W: (k: number) =>
   e("ApprovalInstance", route, rlabel, "UPDATE", T(approvedOn, "16:00"), diffFields({ status: "PENDING" }, { status: "APPROVED", commitment: "written" }));
   e("Requisition", rq, label, "UPDATE", T(approvedOn, "16:00"), diffFields({ status: "PENDING_APPROVAL" }, { status: "APPROVED" }));
   await db.auditEntry.createMany({ data: entries as never });
-  await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 42 } });
+  await raiseSeries(db, `${P}n1`, 42);
 }
 
 // ------------------------------------------------------------------ the read-back (X-10 b)

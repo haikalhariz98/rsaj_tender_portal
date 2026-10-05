@@ -23,6 +23,7 @@
  *   demo_at64–67; demo_at60–63 were 6.6's), PENDING: the award waits for the Board.
  */
 
+import { raiseSeries } from "./demo-series";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { diffFields } from "../src/lib/audit/diff";
 import { dayIn, dayToDate, instantAt, storedDay, todayIn } from "../src/lib/dates";
@@ -854,7 +855,7 @@ async function loadQuotation(db: Db, organisationId: string, tz: string, W: (k: 
     entry("ApprovalInstance", `${P}ai74`, `${REQ(42)} · approval route`, "CREATE", T(checked, "10:00"), diffFields(null, { matrix: "Demo limits, issue 1", rule: BIG.label, route: BIG.chain.map(([, roleLabel, act]) => `${roleLabel} (${ACT_LABEL[act]?.toLowerCase() ?? "acts"})`).join(" → ") }));
     BIG.chain.forEach(([, roleLabel, , , name], i) => entry("ApprovalStep", `${P}rs40_${i + 1}`, `${REQ(42)} · ${roleLabel}`, "UPDATE", T(steps[i], "11:00"), diffFields({ decision: "PENDING" }, { decision: "DONE", decidedBy: name, decidedOn: dayToDate(steps[i]), recordedOnBehalf: "not signed" })));
     entry("Requisition", rq, label, "UPDATE", T(approvedOn, "16:00"), diffFields({ status: "PENDING_APPROVAL" }, { status: "APPROVED" }));
-    await db.numberingSeries.update({ where: { id: `${P}n1` }, data: { nextSerial: 43 } });
+    await raiseSeries(db, `${P}n1`, 43);
   }
 
   // ---- the exercise, 6.2 and 6.4 by their own acts
@@ -862,7 +863,7 @@ async function loadQuotation(db: Db, organisationId: string, tz: string, W: (k: 
   const ref = SX(21);
   await db.sourcingExercise.create({ data: { id: sx, organisationId, reference: ref, requisitionId: rq, title, estimatedValue: value, sourcingMethodCode: "open_quotation", methodReason: "", status: "DRAFT", contractBasisCode: "ds", createdAt: T(W(22), "10:00") } });
   await db.exerciseScopePart.create({ data: { id: `${sx}p1`, exerciseId: sx, deliverableKind: "MEASURED_CONSTRUCTION", amount: value, description: title, sortOrder: 1 } });
-  await db.numberingSeries.update({ where: { id: `${P}n5` }, data: { nextSerial: 22 } });
+  await raiseSeries(db, `${P}n5`, 22);
   await hooks.determine([sx]);
   const on = W(20);
   await scopeReady(db, organisationId, tz, sx, ref, 21, on, T, nextDoc, docs as never, entry, value);
