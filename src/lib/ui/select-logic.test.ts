@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CLEAR_LABEL,
   SEARCH_THRESHOLD,
+  choiceDropped,
   emptyOptionRole,
   isPromptLabel,
   planChoices,
@@ -193,5 +194,18 @@ describe("the empty option: placeholder or choice", () => {
     expect(planChoices(withEmpty("Choose"), { hasValue: true }).clear).toBe(true);
     expect(planChoices(withEmpty("Choose"), { hasValue: false }).clear).toBe(false);
     expect(planChoices(withEmpty("Choose"), { required: true, hasValue: true }).clear).toBe(false);
+  });
+});
+
+describe("choiceDropped", () => {
+  const a = { value: "a", label: "A" };
+  const b = { value: "b", label: "B" };
+  it("is true when the chosen option was offered and is no longer", () => {
+    expect(choiceDropped([a, b], [a], "b")).toBe(true);
+  });
+  it("is false while the option is still offered, for an empty value, and for a value never offered", () => {
+    expect(choiceDropped([a, b], [b], "b")).toBe(false);
+    expect(choiceDropped([a, b], [a], "")).toBe(false);
+    expect(choiceDropped([a], [a], "retired")).toBe(false);
   });
 });

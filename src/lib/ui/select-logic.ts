@@ -164,3 +164,11 @@ export function splitValues(posted: FormDataEntryValue | string | null | undefin
 export function resultsAnnouncement(count: number): string {
   return count === 0 ? "No matches" : count === 1 ? "1 option" : `${count} options`;
 }
+
+/// Whether a chosen value's option was offered and has just been taken away, so the choice should
+/// be cleared rather than shown as its raw value. A value with no option before either (a saved
+/// code since retired) is not "dropped": it keeps showing as it always did.
+export function choiceDropped(before: readonly Opt[], after: readonly Opt[], value: string): boolean {
+  if (value === "") return false;
+  return before.some((o) => o.value === value) && !after.some((o) => o.value === value);
+}

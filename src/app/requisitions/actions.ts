@@ -1,5 +1,6 @@
 "use server";
 
+import { MISSING_BUDGET_CODE_TEXT, missingBudgetCode } from "@/lib/requisition/budget-code";
 import { routedValue } from "@/lib/approvals/routed-value";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { revalidatePath } from "next/cache";
@@ -543,6 +544,9 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
 
   return inRequisition(id, async (tx, l): Promise<FormState> => {
     if (!CHECKABLE.includes(l.req.status)) return { ok: false, message: "A budget check runs once the requisition is endorsed, and before it is submitted." };
+    // Checking one with no budget code would move it past where it can still be returned to add one.
+    const noCode = missingBudgetCode(l.req.status, l.req.budgetCodeId);
+    if (noCode) return { ok: false, message: MISSING_BUDGET_CODE_TEXT[noCode] };
     if (!l.org.today) return NO_ZONE;
     const controls = await loadControls(l.org.id, tx);
     if (!controls.budgetCheckSource) return { ok: false, message: SOURCE_NOT_SET };
@@ -605,6 +609,8 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
     // Configuration read inside the same locked transaction as the write (code review, item 8).
     const [roster, delegations] = [await loadRoster(ORGANISATION_CODE, tx), await loadDelegations(ORGANISATION_CODE, tx)];
 
+    const noCode = missingBudgetCode(req.status, req.budgetCodeId);
+    if (noCode) return { ok: false, message: `This requisition cannot be submitted. ${MISSING_BUDGET_CODE_TEXT[noCode]}` };
     const fields = blocking(requisitionFaults(draftOf(req), lookups, formats, today));
     if (fields.length > 0) return { ok: false, message: `This requisition cannot be submitted: ${fields.map(fieldFaultText).join(" ")}` };
     const route = lookups.fundingRoutes.find((x) => x.code === req.fundingRouteCode) ?? null;

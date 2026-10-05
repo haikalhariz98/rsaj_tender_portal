@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MISSING_BUDGET_CODE_TEXT, missingBudgetCode } from "@/lib/requisition/budget-code";
 import { historyEntityLabel } from "@/lib/audit/entity-labels";
 import { routedValue } from "@/lib/approvals/routed-value";
 import { notFound } from "next/navigation";
@@ -212,6 +213,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   });
 
   // Submission, as far as it can be judged before the lock: the same pure checks.
+  const noBudgetCode = missingBudgetCode(r.status, r.budgetCodeId);
   let submitBlocker: string | null = null;
   let overBudget: { invocation: boolean; controlNotSet: boolean; auto: boolean; ifRechecked?: boolean } | null = null;
   let preview: ReturnType<typeof resolveRequisitionRoute> | null = null;
@@ -221,6 +223,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   if (PRE_SUBMIT.includes(r.status)) {
     const stale = lastCheck && today ? isStale(ageDay(lastCheck), policy.budgetRecheckDays, today) : false;
     if (!today) submitBlocker = transitionFaultText({ code: "TIME_ZONE_UNSET" });
+    else if (noBudgetCode) submitBlocker = MISSING_BUDGET_CODE_TEXT[noBudgetCode];
     else if (fieldFaults.length > 0) submitBlocker = fieldFaultText(fieldFaults[0]);
     else if (gate.faults.length > 0) submitBlocker = fundingFaultText(gate.faults[0]);
     else if (!lastCheck) submitBlocker = "Run the budget check first.";
@@ -286,7 +289,9 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
       ? transitionFaultText({ code: "TIME_ZONE_UNSET" })
       : !controls.budgetCheckSource
         ? "Where the budget check comes from is not set. Set it in Requisition controls."
-        : null;
+        : noBudgetCode
+          ? MISSING_BUDGET_CODE_TEXT[noBudgetCode]
+          : null;
 
   // Say what is wrong, not how many things are: "the lines come to RM9,500, not
   // RM12,000" rather than "1 field needs attention".

@@ -21,6 +21,7 @@ import {
 import { CheckIcon, ChevronDown, SearchIcon } from "@/components/icons";
 import {
   CLEAR_LABEL,
+  choiceDropped,
   filterOptions,
   joinValues,
   moveActive,
@@ -177,6 +178,16 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
   );
   const single = chosen[0] ?? "";
   const hasValue = !multiple ? single !== "" : chosen.length > 0;
+
+  // An uncontrolled choice whose option the caller has just taken away (a budget code once the
+  // account changes) is cleared, not shown as its raw value. Only a value that was offered and then
+  // dropped: a saved value with no option from the start keeps showing as it always did.
+  const offered = useRef(items);
+  useEffect(() => {
+    const before = offered.current;
+    offered.current = items;
+    if (!controlled && !multiple && choiceDropped(before, items, single)) setInner([""]);
+  }, [items, controlled, multiple, single]);
 
   // The empty option is a placeholder (required field, or a generic prompt such as
   // "Choose") or a real choice ("None", "Not set"); the rule lives in select-logic.
