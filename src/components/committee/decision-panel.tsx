@@ -10,10 +10,10 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardBody } from "@/components/ui/card";
-import { cx } from "@/components/ui/cx";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Input } from "@/components/ui/field";
 import { KeyValues } from "@/components/ui/stat";
+import { Toggle } from "@/components/ui/toggle";
 import { VOTE_LABEL } from "@/lib/committee/labels";
 import { formatDate, formatRM } from "@/lib/format";
 
@@ -91,7 +91,10 @@ export interface PanelMatter {
   } | null;
 }
 
-const CHOICES = (["SETUJU", "TIDAK_SETUJU"] as const).map((value) => ({ value, ...VOTE_LABEL[value] }));
+const CHOICES = [
+  { value: "SETUJU", label: VOTE_LABEL.SETUJU.en, tone: "ok" },
+  { value: "TIDAK_SETUJU", label: VOTE_LABEL.TIDAK_SETUJU.en, tone: "err" },
+] as const;
 
 const OUTCOME_TONE = { PENDING: "warn", CARRIED: "ok", NOT_CARRIED: "err", DEFERRED: "neutral" } as const;
 
@@ -339,34 +342,14 @@ function VoterRow({
                 {vote.comment && <> · “{vote.comment}”</>}
               </span>
             )}
-            <span className="inline-flex shrink-0 rounded-full border border-line-2 bg-surface p-0.5">
-              {CHOICES.map((c) => {
-                const pressed = shown === c.value;
-                return (
-                  <button
-                    key={c.value}
-                    type="button"
-                    className={cx(
-                      "h-7 rounded-full px-3 text-[12.5px] font-semibold transition",
-                      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500",
-                      "disabled:cursor-not-allowed",
-                      pressed
-                        ? c.value === "SETUJU"
-                          ? "bg-emerald-600 text-white"
-                          : "bg-rose-600 text-white"
-                        : "text-ink-2 enabled:hover:bg-ink/5 enabled:hover:text-ink disabled:opacity-45",
-                    )}
-                    aria-pressed={pressed}
-                    disabled={!open || busy}
-                    onClick={() => setChoice(c.value)}
-                    title={`${c.en} — on the sheet: ${c.ms}`}
-                  >
-                    {c.en}
-                    <span className="ml-1 text-[11px] font-medium opacity-70">{c.ms}</span>
-                  </button>
-                );
-              })}
-            </span>
+            {/* Founder, 2026-10-05: English only on the buttons. */}
+            <Toggle
+              label={`Vote of ${voter.name}`}
+              options={CHOICES}
+              value={shown as (typeof CHOICES)[number]["value"] | null}
+              onChange={setChoice}
+              disabled={!open || busy}
+            />
           </>
         )}
       </div>

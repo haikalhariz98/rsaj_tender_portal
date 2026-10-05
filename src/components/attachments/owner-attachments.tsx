@@ -19,7 +19,7 @@ import { AttachmentPanel } from "./attachment-panel";
  * exercise's method needs a dossier; an award's return needs its scans); everything
  * the panel decides comes from `read.ts`.
  */
-export async function OwnerAttachments({ owner, title, subtitle, collapseWhenEmpty, ...opts }: {
+export async function OwnerAttachments({ owner, title, subtitle, collapseWhenEmpty, compact, ...opts }: {
   owner: OwnerRef;
   title?: string;
   subtitle?: string;
@@ -27,6 +27,8 @@ export async function OwnerAttachments({ owner, title, subtitle, collapseWhenEmp
   /// attached, nor was: the panel is one line, its title and what the slot says, not a card of
   /// empty states. Anything attached, or any slot that can take an upload, shows the whole panel.
   collapseWhenEmpty?: boolean;
+  /// Only the slots, each with its upload and download (AttachmentPanel).
+  compact?: boolean;
 } & PanelOptions) {
   const [org, panel, upload] = await Promise.all([documentOrg(), ownerPanel(owner), uploadContext()]);
   if (!panel || !upload) {
@@ -50,5 +52,5 @@ export async function OwnerAttachments({ owner, title, subtitle, collapseWhenEmp
       </Card>
     );
   }
-  return <AttachmentPanel {...view} title={title} subtitle={subtitle} />;
+  return <AttachmentPanel {...view} title={title} subtitle={subtitle} compact={compact} />;
 }

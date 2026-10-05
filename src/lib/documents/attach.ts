@@ -167,6 +167,7 @@ export const RETURN_PURPOSES: Readonly<Record<InstrumentKind, readonly Attachmen
 /// What to do instead, for a frozen or not-yet-ready owner. Rendered by labels.ts.
 export type OwnerExit =
   | "MINUTE_FIRST"
+  | "START_FIRST"
   | "SITTING_CANCELLED"
   | "EXERCISE_CANCELLED"
   | "ROUTE_OPEN"
@@ -245,6 +246,9 @@ export function ownerState(purpose: AttachmentPurpose, owner: OwnerFacts): Owner
   switch (owner.kind) {
     case "meeting":
       if (owner.status === "CANCELLED") return { state: "FROZEN", exit: "SITTING_CANCELLED" };
+      // The minutes are written from the sitting, so they are uploaded once it has started and
+      // stay correctable (as a new version) once minuted; the signed copy follows minuting.
+      if (purpose === "SITTING_MINUTES") return owner.status === "SCHEDULED" ? { state: "NOT_READY", exit: "START_FIRST" } : { state: "OPEN" };
       if (owner.status !== "MINUTED") return { state: "NOT_READY", exit: "MINUTE_FIRST" };
       return { state: "OPEN" };
     case "exercise":

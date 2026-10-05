@@ -259,7 +259,7 @@ export const TABLING_FAULT_MESSAGE: Record<TablingFault, string> = {
 
 export const TRANSITION_FAULT_MESSAGE: Record<TransitionFault, string> = {
   NOT_ALLOWED: "A sitting cannot move to that status from where it is.",
-  MINUTES_REQUIRED: "Write the minutes before the sitting is minuted.",
+  MINUTES_REQUIRED: "Upload the minutes before the sitting is minuted.",
   MATTERS_PENDING: "Every matter must be decided or deferred before the sitting is minuted.",
   REASON_REQUIRED: "Say why the sitting is cancelled.",
   MATTERS_DECIDED: "A sitting that has decided a matter cannot be cancelled.",

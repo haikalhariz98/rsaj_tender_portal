@@ -36,6 +36,9 @@ export function meetingTransition(
   to: MeetingStatus,
   f: {
     minutes: string;
+    /// Founder, 2026-10-05: the minutes are uploaded as a file. Either the file or minutes
+    /// typed before uploads existed satisfies minuting.
+    minutesFiled?: boolean;
     reason: string;
     matterOutcomes: readonly DecisionOutcome[];
     /// Today in the organisation's zone and the sitting's date, both YYYY-MM-DD. A
@@ -55,7 +58,7 @@ export function meetingTransition(
     return { ok: false, fault: "NOT_YET_DUE" };
   }
   if (to === "MINUTED") {
-    if (!f.minutes.trim()) return { ok: false, fault: "MINUTES_REQUIRED" };
+    if (!f.minutes.trim() && !f.minutesFiled) return { ok: false, fault: "MINUTES_REQUIRED" };
     if (f.matterOutcomes.includes("PENDING")) return { ok: false, fault: "MATTERS_PENDING" };
     if ((f.registerFaults ?? 0) > 0) return { ok: false, fault: "REGISTER_FAULTS" };
     if ((f.brokenDecisions ?? 0) > 0) return { ok: false, fault: "DECISION_NO_LONGER_HOLDS" };

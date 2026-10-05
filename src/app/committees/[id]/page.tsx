@@ -5,6 +5,8 @@ import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
 import { notFound } from "next/navigation";
 
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
+
+import { AttendanceToggle } from "../attendance-toggle";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 
 import { AlertTriangle, CalendarIcon, ClockIcon, FileIcon, UsersIcon } from "@/components/icons";
@@ -16,7 +18,6 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState, Meter } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
-import { KeyValues } from "@/components/ui/stat";
 import { fieldLabel } from "@/lib/audit/diff";
 import { assessQuorum } from "@/lib/committee/quorum";
 import { ProvenanceBadge } from "@/components/ui/provenance";
@@ -40,10 +41,6 @@ import {
   POSITION_LABEL,
   TRANSITION_FAULT_MESSAGE,
   VOTING_RULE_LABEL,
-  signedMinutesState,
-  MINUTED_CARD_NOTE,
-  SIGNED_MINUTES_LABEL,
-  SIGNED_MINUTES_TONE,
 } from "@/lib/committee/labels";
 import { isLive } from "@/lib/documents/evidence";
 import { liveOutcomes, MANDATORY_ACTS } from "@/lib/committee/matter";
@@ -62,7 +59,6 @@ import {
   CancelSitting,
   DeclareRecusal,
   WithdrawMatter,
-  EditMinutes,
   EditSitting,
   MinuteSitting,
   RecordAttendanceEditor,
@@ -146,6 +142,7 @@ export default async function SittingPage({
 
   const minuteCheck = meetingTransition(m.status, "MINUTED", {
     minutes: m.minutes,
+    minutesFiled: m.attachments.some((a) => a.purpose === "SITTING_MINUTES" && isLive(a)),
     reason: "",
     matterOutcomes: liveOutcomes(m.decisions),
     ...minutingChecks(a, s.matters),
@@ -643,7 +640,28 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
                     <ProvenanceBadge value="ASSUMED" />
                   </span>
                 )}
-                {r == null ? (
+                {editable && line.personId ? (
+                  <>
+                    {standingFor && <Badge tone="info">Standing in for {standingFor.name ?? seatLabel(standingFor)}</Badge>}
+                    {/* Founder, 2026-10-05: one press on the line records attendance. */}
+                    <AttendanceToggle
+                      meetingId={m.id}
+                      personId={line.personId}
+                      name={line.name}
+                      attended={r ? r.attended : null}
+                      standingInForSeatId={r?.standingInForSeatId ?? null}
+                    />
+                    {line.alternate && r?.attended && (
+                      <RecordAttendanceEditor
+                        meetingId={m.id}
+                        personId={line.personId}
+                        name={line.name}
+                        current={{ attended: r.attended, standingInForSeatId: r.standingInForSeatId }}
+                        seats={coverable}
+                      />
+                    )}
+                  </>
+                ) : r == null ? (
                   <span className="text-[12.5px] text-ink-3">{a.registerTaken ? "Not recorded" : "Taken when the sitting starts"}</span>
                 ) : !r.attended ? (
                   <Badge>Absent</Badge>
@@ -651,15 +669,6 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
                   <Badge tone="info">Present · standing in for {standingFor.name ?? seatLabel(standingFor)}</Badge>
                 ) : (
                   <Badge tone="ok">Present</Badge>
-                )}
-                {editable && line.personId && (
-                  <RecordAttendanceEditor
-                    meetingId={m.id}
-                    personId={line.personId}
-                    name={line.name}
-                    current={r ? { attended: r.attended, standingInForSeatId: r.standingInForSeatId } : null}
-                    seats={line.alternate ? coverable : []}
-                  />
                 )}
               </li>
             );
@@ -674,42 +683,27 @@ function AttendancePanel({ s }: { s: LoadedSitting }) {
 
 function MinutesPanel({ s }: { s: LoadedSitting }) {
   const m = s.meeting;
-  const minutesState = signedMinutesState(m.status, m.attachments.filter(isLive).length);
+  // Founder, 2026-10-05: the minutes are two files, the minutes and the signed copy, each uploaded
+  // and downloaded on its line. Minutes typed before uploads existed are still shown, as typed.
+  const minuted = m.minutedAt ? `Minuted on ${formatOrgDay(m.minutedAt, s.timeZone)}.` : m.status === "CANCELLED" ? `Cancelled: ${m.cancelledReason}` : "Not minuted yet.";
   return (
     <div className="flex flex-col gap-6">
-    <Card>
-      <CardHeader
-        icon={<CalendarIcon size={17} />}
+      <OwnerAttachments
+        compact
+        owner={{ kind: "meeting", id: m.id }}
         title="Minutes"
-        subtitle={m.status === "MINUTED" ? MINUTED_CARD_NOTE : "Recorded as text."}
-        actions={!isFrozen(m.status) ? <EditMinutes meetingId={m.id} minutes={m.minutes} /> : undefined}
+        subtitle={`${minuted} Upload the minutes once the sitting has started, and the signed copy once it is minuted.`}
+        only={["SITTING_MINUTES", "SIGNED_MINUTES"]}
+        required={{ SITTING_MINUTES: !m.minutes.trim(), SIGNED_MINUTES: true }}
       />
-      <CardBody className="flex flex-col gap-5">
-        {m.minutes ? (
-          <p className="text-[14px] leading-relaxed whitespace-pre-line text-ink">{m.minutes}</p>
-        ) : (
-          <p className="text-[13.5px] text-ink-3">No minutes written yet.</p>
-        )}
-        <KeyValues
-          columns={2}
-          items={[
-            {
-              label: "Signed minutes",
-              value: <Badge tone={SIGNED_MINUTES_TONE[minutesState]}>{SIGNED_MINUTES_LABEL[minutesState]}</Badge>,
-            },
-            // An instant: read as the organisation's day.
-            { label: "Minuted on", value: m.minutedAt ? formatOrgDay(m.minutedAt, s.timeZone) : "Not minuted" },
-            ...(m.status === "CANCELLED" ? [{ label: "Cancelled because", value: m.cancelledReason }] : []),
-          ]}
-        />
-      </CardBody>
-    </Card>
-    <OwnerAttachments
-      owner={{ kind: "meeting", id: m.id }}
-      title="Signed minutes"
-      subtitle="The wet-signed copy, scanned and attached once the sitting is minuted. Minuting does not wait for it."
-      required={{ SIGNED_MINUTES: true }}
-    />
+      {m.minutes.trim() && (
+        <Card>
+          <CardHeader icon={<CalendarIcon size={17} />} title="Minutes as typed" subtitle="Written in the portal before minutes were uploaded as a file." />
+          <CardBody>
+            <p className="text-[14px] leading-relaxed whitespace-pre-line text-ink">{m.minutes}</p>
+          </CardBody>
+        </Card>
+      )}
     </div>
   );
 }

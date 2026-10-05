@@ -4132,6 +4132,8 @@ enum ScanState {
 /// with its module, and its owner pairing is checked in lib and by a CHECK constraint.
 enum AttachmentPurpose {
   SIGNED_MINUTES
+  /// Founder, 2026-10-05: a sitting's minutes, uploaded as a file rather than typed, on the sitting.
+  SITTING_MINUTES
   /// 6.2 Q-1: the signed specification panel form, on its panel. SULIT.
   SPEC_PANEL_FORM
   /// 6.2 Q-3: a bill of quantities' imported CSV as received, on the bill's version.

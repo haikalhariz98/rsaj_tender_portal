@@ -120,7 +120,7 @@ export async function loadSitting(id: string, client: Tx = db, preloaded?: Roste
       committee: { include: { members: { orderBy: [{ position: "asc" }, { id: "asc" }] } } },
       attendance: { include: { person: true } },
       // Signed minutes (FR-CTE-004), live and past, for the minutes card and History.
-      attachments: { where: { purpose: "SIGNED_MINUTES" }, select: { id: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
+      attachments: { where: { purpose: { in: ["SIGNED_MINUTES", "SITTING_MINUTES"] } }, select: { id: true, purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
       decisions: {
         orderBy: [{ sequence: "asc" }, { id: "asc" }],
         include: {

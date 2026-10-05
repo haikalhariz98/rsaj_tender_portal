@@ -80,7 +80,7 @@ export interface AttachmentItemView {
 }
 
 /// The purposes that hold one document at a time: a signed copy, a signed scan, the one recommendation. Corrected by a new version, not added to. Dossier evidence and the scope document are several documents.
-export const HOLDS_ONE_DOCUMENT: ReadonlySet<AttachmentPurpose> = new Set<AttachmentPurpose>(["SIGNED_MINUTES", "HOLDER_RECOMMENDATION", "SIGNED_LETTER", "DECLARATION", "AUTHORISATION", "ACCEPTANCE_PAGE"]);
+export const HOLDS_ONE_DOCUMENT: ReadonlySet<AttachmentPurpose> = new Set<AttachmentPurpose>(["SIGNED_MINUTES", "SITTING_MINUTES", "HOLDER_RECOMMENDATION", "SIGNED_LETTER", "DECLARATION", "AUTHORISATION", "ACCEPTANCE_PAGE"]);
 
 /// What a slot offers: upload while it is empty, then a new version where it holds one document, or another where it holds several.
 export type SlotAct = "UPLOAD" | "NEW_VERSION" | "ADD_ANOTHER";

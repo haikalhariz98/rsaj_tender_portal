@@ -1,5 +1,6 @@
 "use server";
 
+import { isLive } from "@/lib/documents/evidence";
 import { bidGate } from "@/lib/bids/repo";
 import { bidFindingText } from "@/lib/bids/labels";
 import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
@@ -544,6 +545,7 @@ export async function changeStatus(_prev: FormState, data: FormData): Promise<Fo
     const checks = minutingChecks(s.assessment, s.matters);
     const check = meetingTransition(m.status, to, {
       minutes: m.minutes,
+      minutesFiled: m.attachments.some((a) => a.purpose === "SITTING_MINUTES" && isLive(a)),
       reason,
       // A matter withdrawn before the sitting opened is not on the agenda (6.10 follow-up).
       matterOutcomes: liveOutcomes(m.decisions),

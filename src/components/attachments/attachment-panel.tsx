@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonClass } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
+import { MoreText } from "@/components/ui/more-text";
 import type { AttachmentItemView, PanelView, SlotView } from "@/lib/documents/views";
 
 import { DocumentButton } from "./document-drawer";
@@ -34,8 +35,13 @@ export function AttachmentPanel({
   upload,
   statement,
   onChanged,
+  compact,
 }: PanelView & { title?: string; subtitle?: string; /// Called after any act succeeds or reports, for a host that holds its own copy of the panel (a drawer).
-  onChanged?: () => void }) {
+  onChanged?: () => void;
+  /// Founder, 2026-10-05 (a sitting's minutes): only the slots, each with its upload and its download.
+  /// The access statement moves behind the information button beside the title; the full list of
+  /// versions and what was taken off stay on the Documents screen.
+  compact?: boolean }) {
   const [notice, setNoticeState] = useState<Notice | null>(null);
   const setNotice = (n: Notice | null) => {
     setNoticeState(n);
@@ -91,9 +97,23 @@ export function AttachmentPanel({
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<FileIcon size={17} />} title={title} subtitle={subtitle ?? `Kept against ${owner.label}.`} />
+      <CardHeader
+        icon={<FileIcon size={17} />}
+        title={
+          compact ? (
+            <span className="inline-flex items-center gap-2">
+              {title}
+              <span className="sr-only">{statement}</span>
+              <MoreText text={statement} title="Who can open these" variant="note" label="Who can open these" />
+            </span>
+          ) : (
+            title
+          )
+        }
+        subtitle={subtitle ?? `Kept against ${owner.label}.`}
+      />
       <CardBody className="flex flex-col gap-4">
-        <Callout tone="info">{statement}</Callout>
+        {!compact && <Callout tone="info">{statement}</Callout>}
         {notice && (
           <Callout tone={notice.tone} action={<Button size="sm" variant="ghost" onClick={() => setNotice(null)}>Dismiss</Button>}>
             {notice.text}
@@ -111,12 +131,13 @@ export function AttachmentPanel({
         {frozen && <Callout tone="warn">{frozen.reason}</Callout>}
         <ul className="flex flex-col divide-y divide-line/70 rounded-2xl border border-line">
           {slots.map((s) => (
-            <SlotRow key={s.purpose} s={s} item={items.find((i) => i.purpose === s.purpose) ?? null} owner={key} upload={upload} refused={refused} showReason={!frozen} onNotice={setNotice} />
+            <SlotRow key={s.purpose} s={s} item={items.find((i) => i.purpose === s.purpose) ?? null} owner={key} upload={upload} refused={refused} showReason={!frozen} onNotice={setNotice} download={compact} />
           ))}
           {slots.length === 0 && <li className="px-4 py-3 text-[13.5px] text-ink-3">No document is kept against this record.</li>}
         </ul>
       </CardBody>
 
+      {!compact && (
       <div className="border-t border-line">
         {/* Phase 1 carry D5: five columns and an actions column need more than the record's content column at
             1024 (688px beside the sidebar), so the list stacks below xl rather than scrolling inside its card. */}
@@ -141,8 +162,9 @@ export function AttachmentPanel({
           actions={(id) => <RowActions item={byId.get(id)!} owner={key} upload={upload} onNotice={setNotice} />}
         />
       </div>
+      )}
 
-      {past.length > 0 && (
+      {!compact && past.length > 0 && (
         <div className="border-t border-line">
           <div className="px-5 pt-4 sm:px-6">
             <h4 className="text-[13px] font-bold text-ink">Taken off or replaced</h4>
@@ -155,7 +177,7 @@ export function AttachmentPanel({
   );
 }
 
-function SlotRow({ s, item, owner, upload, refused, showReason, onNotice }: { s: SlotView; item: AttachmentItemView | null; owner: OwnerKey; upload: PanelView["upload"]; refused: boolean; showReason: boolean; onNotice: (n: Notice) => void }) {
+function SlotRow({ s, item, owner, upload, refused, showReason, onNotice, download }: { s: SlotView; item: AttachmentItemView | null; owner: OwnerKey; upload: PanelView["upload"]; refused: boolean; showReason: boolean; onNotice: (n: Notice) => void; download?: boolean }) {
   const open = s.state === "OPEN" && !refused && s.attachedBy == null;
   return (
     <li className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3.5">
@@ -173,7 +195,16 @@ function SlotRow({ s, item, owner, upload, refused, showReason, onNotice }: { s:
           </p>
         ))}
       </div>
-      <div className="shrink-0 max-sm:w-full">
+      <div className="flex shrink-0 items-center gap-2 max-sm:w-full">
+        {download && item && (item.download.allowed ? (
+          <a href={item.download.href} className={buttonClass("secondary", "sm")} aria-label={`Download ${item.title}`}>
+            Download
+          </a>
+        ) : (
+          <Button size="sm" variant="secondary" disabled aria-label={`Download ${item.title}`} title={item.download.reason ?? undefined}>
+            Download
+          </Button>
+        ))}
         <SlotButton s={s} item={item} owner={owner} upload={upload} refused={refused} open={open} onNotice={onNotice} />
       </div>
     </li>

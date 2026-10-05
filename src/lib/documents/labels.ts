@@ -78,6 +78,7 @@ export const STATUS_LABEL: Readonly<Record<DocumentStatus, string>> = { STAGED: 
 
 export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   SIGNED_MINUTES: "Signed minutes",
+  SITTING_MINUTES: "Minutes",
   SPEC_PANEL_FORM: "Signed specification panel form",
   BQ_IMPORT_SOURCE: "Imported bill of quantities file",
   TENDER_PART: "Tender document part",
@@ -176,6 +177,7 @@ export const shortFingerprint = (sha256: string) => (sha256.length > 16 ? `${sha
 
 export const EXIT_TEXT: Readonly<Record<OwnerExit, string>> = {
   MINUTE_FIRST: "The signed minutes are attached once the sitting is minuted.",
+  START_FIRST: "The minutes are uploaded once the sitting has started.",
   SITTING_CANCELLED: "The sitting was cancelled, so nothing is attached to it.",
   EXERCISE_CANCELLED: "The exercise is cancelled, so nothing more is attached to it.",
   ROUTE_OPEN: "The award's appointment route is open and was sent on this evidence. Wait for its decision, or withdraw it, before changing the dossier.",

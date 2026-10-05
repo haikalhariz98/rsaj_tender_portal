@@ -22,6 +22,7 @@ export type AccessKind = "DOWNLOADED" | "REFUSED" | "VERIFIED" | "INTEGRITY_FAIL
 
 export type AttachmentPurpose =
   | "SIGNED_MINUTES"
+  | "SITTING_MINUTES"
   | "SPEC_PANEL_FORM"
   | "BQ_IMPORT_SOURCE"
   | "TENDER_PART"
@@ -66,6 +67,7 @@ export type AttachmentPurpose =
 
 export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "SIGNED_MINUTES",
+  "SITTING_MINUTES",
   "SPEC_PANEL_FORM",
   "BQ_IMPORT_SOURCE",
   "TENDER_PART",
@@ -117,6 +119,7 @@ export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award"
 /// Which owner each purpose belongs to. The migration's CHECK says the same.
 export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   SIGNED_MINUTES: "meeting",
+  SITTING_MINUTES: "meeting",
   SPEC_PANEL_FORM: "specificationPanel",
   BQ_IMPORT_SOURCE: "bqVersion",
   TENDER_PART: "tenderPackPart",

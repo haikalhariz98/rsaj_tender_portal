@@ -257,7 +257,7 @@ export function RecordAttendanceEditor({
         standingInForSeatId: current?.standingInForSeatId ?? null,
       }}
       action={recordAttendance}
-      trigger={{ label: current ? "Change" : "Record", className: buttonClass("ghost", "sm") }}
+      trigger={{ label: seats.length > 0 ? "Standing in for…" : current ? "Change" : "Record", className: buttonClass("ghost", "sm") }}
       size="sm"
     />
   );
