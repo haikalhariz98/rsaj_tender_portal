@@ -103,7 +103,9 @@ describe("a route's opened day is stored as a day (68-C5, examined)", () => {
   it("a successor route opens on the organisation's day too", () => {
     // openSuccessor writes the openedAt it is given; each caller gives the organisation's day.
     expect(createCalls(read("src/lib/approvals/rejection-store.ts")).join("")).toMatch(/\bopenedAt,/);
-    for (const f of ["src/app/requisitions/actions.ts", "src/app/awards/actions.ts", "src/app/sourcing/actions.ts"]) {
+    // Founder, 2026-10-05: each module's refusal destinations moved, unchanged, to its route writer (requisition,
+    // award, name), so a sitting's outcome can cite through them; the successor still opens on the organisation's day.
+    for (const f of ["src/lib/requisition/approval-write.ts", "src/lib/award/route-write.ts", "src/lib/method/name-route-write.ts"]) {
       const calls = [...read(f).matchAll(/openSuccessor\([^;]*\);/g)].map((m) => m[0]);
       expect(calls.length, f).toBeGreaterThan(0);
       for (const c of calls) expect(c, f).toMatch(/dayToDate\((today!|l\.org\.today!)\)\);$/);
@@ -131,10 +133,14 @@ describe("a route's opened day is stored as a day (68-C5, examined)", () => {
 
   it("the six decision acts and the Approval tab read it with storedDay", () => {
     const readers: [string, number][] = [
-      ["src/app/requisitions/actions.ts", 2],
+      // Founder, 2026-10-05: each committee citation moved, unchanged, to its module's route writer: one read each.
+      ["src/app/requisitions/actions.ts", 1],
+      ["src/lib/requisition/approval-write.ts", 1],
       ["src/app/requisitions/[id]/page.tsx", 1],
-      ["src/app/awards/actions.ts", 3],
-      ["src/app/sourcing/actions.ts", 2],
+      ["src/app/awards/actions.ts", 2],
+      ["src/lib/award/route-write.ts", 1],
+      ["src/app/sourcing/actions.ts", 1],
+      ["src/lib/method/name-route-write.ts", 1],
       ["src/app/sourcing/[id]/evaluation/meeting-actions.ts", 1],
       ["src/app/sourcing/[id]/window/change-actions.ts", 1],
       ["src/app/sourcing/[id]/documents/actions.ts", 1],

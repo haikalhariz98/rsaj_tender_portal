@@ -8,7 +8,7 @@ import { PlusIcon, SaveIcon } from "@/components/icons";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { Callout } from "@/components/ui/feedback";
-import { AffixInput, Field, FileInput, Input, Select, Switch, Textarea } from "@/components/ui/field";
+import { AffixInput, Checkbox, Field, FileInput, Input, Select, Switch, Textarea } from "@/components/ui/field";
 import { REASON_HINT } from "@/lib/labels";
 import { splitValues } from "@/lib/ui/select-logic";
 import { CONFIRM_SCRIM, confirmPanelClass, DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
@@ -85,6 +85,21 @@ export type Field =
       hint?: string;
       placeholder?: string;
       options: { value: string; label: string }[];
+    }
+  /// Several choices at once, as checkboxes: each ticked one rides out under the field's name (read with
+  /// `FormData.getAll`). `optionsBy`, as a select's, makes the boxes follow another select of the form; while it is
+  /// unchosen `waiting` is said, and `none` where it offers nothing. `allChecked` starts every box ticked: for a
+  /// proposal the officer prunes (founder, 2026-10-05: what is waiting for the committee chosen), never a policy value.
+  | {
+      kind: "checks";
+      name: string;
+      label: string;
+      hint?: string;
+      options: { value: string; label: string; description?: string }[];
+      optionsBy?: { name: string; options: Record<string, { value: string; label: string; description?: string }[]>; waiting: string; none: string };
+      allChecked?: boolean;
+      /// Said where there is nothing to tick.
+      empty?: string;
     }
   /// Shown, never edited. A value the record implies rather than stores.
   | { kind: "readonly"; name: string; label: string; hint?: string; text: string }
@@ -203,9 +218,9 @@ export function RecordEditor({
   // Every select another field reads: those that decide what shows, and those another select's options follow.
   const drivers = new Set([
     ...Object.values(showWhen ?? {}).map((w) => w.name),
-    ...fields.flatMap((f) => (f.kind === "select" && f.optionsBy ? [f.optionsBy.name] : [])),
+    ...fields.flatMap((f) => ((f.kind === "select" || f.kind === "checks") && f.optionsBy ? [f.optionsBy.name] : [])),
   ]);
-  // A select whose options follow another: its options for that select's current value.
+  // A select (or a set of boxes) whose options follow another select: its options for that select's current value.
   const resolved = <F extends Field>(field: F): F =>
     field.kind === "select" && field.optionsBy
       ? {
@@ -213,7 +228,14 @@ export function RecordEditor({
           options: field.optionsBy.options[current(field.optionsBy.name)] ?? [],
           placeholder: current(field.optionsBy.name) ? field.placeholder : field.optionsBy.waiting,
         }
-      : field;
+      : field.kind === "checks" && field.optionsBy
+        ? {
+            ...field,
+            options: field.optionsBy.options[current(field.optionsBy.name)] ?? [],
+            empty: current(field.optionsBy.name) ? field.optionsBy.none : field.optionsBy.waiting,
+          }
+        : field;
+  const follows = (field: Field) => ((field.kind === "select" || field.kind === "checks") && field.optionsBy ? field.optionsBy.name : null);
 
   // A save that succeeded closes the form; one that failed stays open holding its
   // errors, because reopening a cleared form loses what the officer typed. Decided
@@ -376,8 +398,8 @@ export function RecordEditor({
                           // not required, so the action leaves its stored value alone.
                           <fieldset key={field.name} disabled={!shown(field.name)} className={shown(field.name) ? "contents" : "hidden"}>
                             <FieldInput
-                              // A select whose options follow another starts afresh when that one changes.
-                              key={field.kind === "select" && field.optionsBy ? `${field.name}:${current(field.optionsBy.name)}` : field.name}
+                              // A select (or a set of boxes) whose options follow another starts afresh when that one changes.
+                              key={follows(field) ? `${field.name}:${current(follows(field)!)}` : field.name}
                               field={resolved(field)}
                               value={values?.[field.name] ?? null}
                               error={state.errors?.[field.name]}
@@ -465,6 +487,32 @@ function FieldInput({
       <Field label={field.label} required={required} htmlFor={id} hint={hint} error={error} className="sm:col-span-2">
         <FileInput id={id} name={field.name} accept={field.accept} aria-invalid={error ? true : undefined} />
       </Field>
+    );
+  }
+
+  if (field.kind === "checks") {
+    const labelId = `${id}-label`;
+    return (
+      <div role="group" aria-labelledby={labelId} aria-describedby={hint ? `${id}-hint` : undefined} className="min-w-0 sm:col-span-2">
+        <p id={labelId} className="text-[13px] font-semibold text-ink-2">
+          {field.label}
+        </p>
+        {hint && (
+          <p id={`${id}-hint`} className="mt-0.5 text-[12.5px] text-ink-3">
+            {hint}
+          </p>
+        )}
+        {field.options.length === 0 ? (
+          <p className="mt-2 rounded-xl bg-sunken px-3.5 py-2.5 text-[13px] text-ink-2">{field.empty}</p>
+        ) : (
+          <div className="mt-2 flex flex-col gap-2.5 rounded-xl border border-line px-3.5 py-3">
+            {field.options.map((o) => (
+              <Checkbox key={o.value} name={field.name} value={o.value} defaultChecked={field.allChecked === true} label={o.label} description={o.description} className="min-w-0 break-words" />
+            ))}
+          </div>
+        )}
+        {error && <p className="mt-1.5 text-[12.5px] font-medium text-rose-600">{error}</p>}
+      </div>
     );
   }
 

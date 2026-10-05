@@ -7,12 +7,12 @@ import { redirect } from "next/navigation";
 import type { FormState } from "@/components/record-editor";
 import { Prisma } from "@/generated/prisma/client";
 import { exerciseCancelBlockedBy } from "@/lib/award/status";
-import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
-import { writeAudit, type Tx } from "@/lib/audit/record";
+import { diffFields, snapshotFields } from "@/lib/audit/diff";
+import { type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
 import { exerciseRouteMatter, exerciseRoutesOf, latestFirst, nameRequestFault, nameRoutesOf, nameRouteForRequester, requesterHolding, WITHDRAWN_ON_CANCEL, WITHDRAWN_ON_CHANGE } from "@/lib/method/approval";
-import { closeRejected, loadDestinations, openSuccessor, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
+import { closeRejected, loadDestinations, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
 import { choiceFault, rejectionOutcome, rejectionSnapshot, REJECTION_KINDS, type RejectionKind } from "@/lib/authority/rejection";
 import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { auditCreate, auditPair } from "@/lib/method/audit-view";
@@ -51,12 +51,8 @@ import { deciderFaultText, transitionFaultText } from "@/lib/requisition/labels"
 import { MoveRefused, moveRequisition } from "@/lib/requisition/move";
 import { gatesForRequisition } from "@/lib/requisition/repo";
 import { FormReader } from "@/lib/validate";
-import { exerciseMatters, matterRecord } from "@/lib/award/repo";
-import { committeeCitationWrite } from "@/lib/authority/decided-step";
-import { committeeStepFrom } from "@/lib/requisition/committee-step";
 import { nameListFault } from "@/lib/window/invitees";
-import { nameCitationFault } from "@/lib/window/name-citation";
-import { windowFindingText } from "@/lib/window/labels";
+import { audit, CHANGED, citeNameStep, labelOf, nameLabel, nameSupports, Refusal, refuse, sendNameRejected } from "@/lib/method/name-route-write";
 
 /**
  * Writes for sourcing exercises (6.3).
@@ -70,14 +66,8 @@ import { windowFindingText } from "@/lib/window/labels";
  */
 
 const GONE: FormState = { ok: false, message: "That exercise no longer exists." };
-const CHANGED: FormState = { ok: false, message: "The exercise changed while this was being saved. Reload and try again." };
 const NO_ISSUE: FormState = { ok: false, message: "No approval matrix is in force, so the exercise's bands cannot be determined. Issue one under Configuration, Approval matrix." };
 
-class Refusal extends Error {
-  constructor(readonly state: FormState) {
-    super(state.message ?? "Refused");
-  }
-}
 
 function refresh(id?: string, requisitionId?: string) {
   revalidatePath("/sourcing");
@@ -85,13 +75,7 @@ function refresh(id?: string, requisitionId?: string) {
   if (requisitionId) revalidatePath(`/requisitions/${requisitionId}`);
 }
 
-async function audit(tx: Tx, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
-  if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
-}
 
-const labelOf = (x: { reference: string; title: string }) => `${x.reference} · ${x.title}`;
-const refuse = (fs: readonly Finding[], lead = "Nothing was saved:") => ({ ok: false, message: `${lead} ${fs.map(findingText).join(" ")}` }) as FormState;
 
 /// Run a write on an exercise under its requisition's lock and its own.
 async function inExercise(id: string, fn: (tx: Tx, l: { org: ExerciseOrg; req: SourcingRequisition; ex: ExerciseRow }) => Promise<FormState>): Promise<FormState> {
@@ -490,7 +474,6 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
 
 // ------------------------------------------------------------ name approval
 
-const nameLabel = (ex: { reference: string }) => `${ex.reference} · name approval`;
 
 /**
  * Send the name for approval (FR-MTD-008): the route resolved now, under the issue in
@@ -654,34 +637,7 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
   });
 }
 
-/// Where a refused name can go: back to whoever asked (it may be asked again), back to
-/// an earlier step, or the exercise ends — but not while an award stands on it.
-async function nameSupports(tx: Tx, exerciseId: string): Promise<RejectionKind[]> {
-  const live = exerciseCancelBlockedBy(await tx.award.findMany({ where: { exerciseId }, select: { reference: true, status: true } }));
-  return live ? ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP"] : ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"];
-}
 
-/// Send a refused name where its rejection says.
-async function sendNameRejected(tx: Tx, l: { org: ExerciseOrg; ex: ExerciseRow }, instId: string, kind: RejectionKind, returnToSeq: number | null, reason: string) {
-  const ex = l.ex;
-  if (kind === "RETURN_TO_STEP") {
-    await openSuccessor(tx, { organisationId: l.org.id, routeLabel: nameLabel(ex) }, instId, returnToSeq!, dayToDate(l.org.today!));
-  } else if (kind === "TERMINATE") {
-    const t = transitionFault(ex.status, "CANCELLED", { today: l.org.today, reason });
-    if (t.length > 0) throw new Refusal(refuse(t, "The exercise cannot end:"));
-    const moved = await tx.sourcingExercise.updateMany({ where: { id: ex.id, status: ex.status }, data: { status: "CANCELLED", cancelReason: `Name refused: ${reason}` } });
-    if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "SourcingExercise", ex.id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), `The name was refused and the exercise ends: ${reason}`);
-    // 6.4: the exercise's live pack ends with it, and any other route of its own still open is withdrawn (X-5).
-    await voidLivePacks(tx, l, `The name was refused and the exercise ends: ${reason}`);
-    for (const inst of exerciseRoutesOf(ex.approvalInstances).filter((i) => i.status === "PENDING" && i.id !== instId)) {
-      const warning = { code: WITHDRAWN_ON_CANCEL, level: "info", messageEn: `Withdrawn: the exercise ended when its name was refused — ${reason}` };
-      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise ended: ${reason}`);
-    }
-  }
-  // Back to whoever asked: the name may be asked again, and nothing else moves.
-}
 
 /**
  * Where a refused name goes, chosen by the officer where the refusal decided nothing
@@ -731,48 +687,8 @@ export async function citeNameDecision(_prev: FormState, data: FormData): Promis
   const stepId = String(data.get("stepId") ?? "");
   const decisionId = String(data.get("committeeDecisionId") ?? "");
   if (!decisionId) return { ok: false, errors: { committeeDecisionId: "Choose the committee's decision." } };
-  return inExercise(id, async (tx, l) => {
-    const ex = l.ex;
-    if (!l.org.today) return { ok: false, message: findingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
-    const inst = nameRoutesOf(ex.approvalInstances).find((i) => i.status === "PENDING");
-    if (!inst || ex.status === "CANCELLED") return { ok: false, message: "No name approval is open on this exercise." };
-    const step = inst.steps.find((s) => s.id === stepId);
-    if (!step || !step.committeeCode) return { ok: false, message: "That is not a committee step on the open route." };
-    if (step.decision !== "PENDING") return { ok: false, message: "This step is already decided." };
-    if (!inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE")) return { ok: false, message: "Steps are decided in order: the step before this one is not done." };
-    const matter = (await exerciseMatters(ex.id, tx)).find((m) => m.id === decisionId);
-    if (!matter) return { ok: false, errors: { committeeDecisionId: windowFindingText({ code: "NOT_THIS_EXERCISE", level: "block" }) } };
-    const cited = await tx.approvalStep.findMany({ where: { committeeDecisionId: matter.id }, select: { id: true } });
-    const fault = nameCitationFault(
-      { id: matter.id, exerciseId: matter.exerciseId, matterKind: matter.matterKind, domain: matter.domain, act: matter.act, committeeCode: matter.meeting.committee.code, decidedOn: matter.decisionDate ? storedDay(matter.decisionDate) : null },
-      step,
-      ex.id,
-      storedDay(inst.openedAt),
-      cited.length ? [matter.id] : [],
-    );
-    if (fault) return { ok: false, errors: { committeeDecisionId: windowFindingText({ code: fault, level: "block" }) } };
-    const { record, minuted } = matterRecord(matter);
-    const s = committeeStepFrom(record);
-    if (s.decision === "PENDING") return { ok: false, errors: { committeeDecisionId: record ? "The committee deferred the matter. Cite it once it is decided." : "The committee has not decided the matter yet." } };
-    const after = committeeCitationWrite({ decision: s.decision, committeeName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() });
-    const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
-    if (done.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",
-      diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn, minuted: minuted ? "yes" : "no" }));
-    if (s.decision === "REJECTED") {
-      const reason = `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}`;
-      const supports = await nameSupports(tx, ex.id);
-      const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee: record?.notApproved ?? null, steps: inst.steps, rejectingSeq: step.sequence, supports });
-      await closeRejected(tx, { organisationId: l.org.id, routeLabel: nameLabel(ex) }, inst, outcome, reason);
-      if ("apply" in outcome) await sendNameRejected(tx, l, inst.id, outcome.apply, outcome.returnToSeq ?? null, reason);
-      return { ok: true };
-    }
-    if (inst.steps.every((x) => x.id === step.id || x.decision === "DONE")) {
-      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "APPROVED", closedAt: new Date() } });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, nameLabel(ex), "UPDATE", diffFields({ status: inst.status }, { status: "APPROVED" }));
-    }
-    return { ok: true };
-  });
+  // The citation is citeNameStep (method/name-route-write.ts), the one a sitting's outcome also runs (founder, 2026-10-05).
+  return inExercise(id, (tx, l) => citeNameStep(tx, l, stepId, decisionId));
 }
 
 // ------------------------------------------------------------------ the states

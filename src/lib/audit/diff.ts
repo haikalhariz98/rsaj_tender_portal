@@ -65,8 +65,16 @@ export const CERTIFICATE_FIGURE_FIELD_WORDS: Readonly<Record<string, { en: strin
   signatureSupportedUpTo: { en: "Supported up to", ms: "Disokong sehingga" },
 };
 
+/// Founder, 2026-10-05: a committee's outcome linked to the record's approval when the sitting recorded it, as a cited
+/// step's History and a matter's History say it, in both languages (the values are committee/labels.ts AUTO_LINK_WORDS).
+export const AUTO_LINK_FIELD_WORDS: Readonly<Record<string, { en: string; ms: string }>> = {
+  linkedHow: { en: "How the decision was linked", ms: "Cara keputusan dipautkan" },
+  linkedToApproval: { en: "Linked to the record's approval", ms: "Dipautkan kepada kelulusan rekod" },
+};
+
 const NAMED_FIELDS: Record<string, string> = {
   ...Object.fromEntries(Object.entries(CERTIFICATE_FIGURE_FIELD_WORDS).map(([k, v]) => [k, v.en])),
+  ...Object.fromEntries(Object.entries(AUTO_LINK_FIELD_WORDS).map(([k, v]) => [k, v.en])),
   // 65-C1: an effective-dated end day is exclusive (inForceOn); History says so as the forms do.
   effectiveTo: END_DAY_LABEL,
   endsOn: END_DAY_LABEL,

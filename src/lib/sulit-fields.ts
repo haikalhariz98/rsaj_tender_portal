@@ -16,6 +16,8 @@ export interface SulitField {
 
 export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "estimatedValue", what: "the department estimate on a requisition or a sourcing exercise" },
+  // Founder, 2026-10-05: the value an open route was routed on, on the sittings page's "Waiting to be tabled" list.
+  { field: "waitingValue", what: "the value a route waiting to be tabled was routed on (a requisition's is the department estimate)" },
   { field: "companyEstimate", what: "the sealed company estimate" },
   { field: "openingPrice", what: "a price read out at bid opening" },
   { field: "openingPrices", what: "prices read out at bid opening" },

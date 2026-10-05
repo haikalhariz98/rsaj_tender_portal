@@ -119,6 +119,18 @@ export async function withLockedAward<T>(awardId: string, fn: (tx: Tx, l: Loaded
   );
 }
 
+/**
+ * The award's lock and its load, inside a transaction that already holds the award's requisition and exercise (founder,
+ * 2026-10-05: a committee's outcome on an appointment matter, which also holds the window and the openings, and takes
+ * the sitting after it: requisition → exercise → window → openings → award → sitting). Null where the award is gone or
+ * is not that exercise's.
+ */
+export async function lockAwardIn(tx: Tx, awardId: string, exerciseId: string): Promise<LoadedAward | null> {
+  await tx.$queryRaw`SELECT id FROM "Award" WHERE id = ${awardId} FOR UPDATE`;
+  const l = await loadAward(awardId, tx);
+  return l && l.ex.id === exerciseId ? l : null;
+}
+
 /// Lock an exercise's requisition and the exercise, for opening an award on it.
 export async function withLockedExerciseForAward<T>(exerciseId: string, fn: (tx: Tx, l: LoadedExercise) => Promise<T>): Promise<T | null> {
   const ex = await db.sourcingExercise.findUnique({ where: { id: exerciseId }, select: { requisitionId: true } });

@@ -58,6 +58,7 @@ import { factsOf, matterRecordOf, type VariationRow } from "./load";
 import { ratioOf, type Reading } from "./percent";
 import { edgesOf, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel } from "./route";
 import type { Finding, VariationEvent } from "./types";
+import { linkedVia, type CiteVia } from "@/lib/committee/cite-via";
 
 /// A refusal: rolls the transaction back. `errors` names a field where the refusal is about one.
 export class VariationRefusal extends Error {
@@ -246,7 +247,7 @@ export async function decideVariationStep(c: VariationCtx, v: VariationRow, i: D
  * matter naming this variation, before the step's committee, for its act, at the route's value (or no amount),
  * decided on or after the route opened, and cited by no other step.
  */
-export async function citeVariationDecision(c: VariationCtx, v: VariationRow, stepId: string, decisionId: string) {
+export async function citeVariationDecision(c: VariationCtx, v: VariationRow, stepId: string, decisionId: string, via: CiteVia = "BY_HAND") {
   const a = openRoute(v);
   const inst = a.approvalInstance;
   const step = inst.steps.find((s) => s.id === stepId);
@@ -271,7 +272,7 @@ export async function citeVariationDecision(c: VariationCtx, v: VariationRow, st
   if (done.count !== 1) throw new VariationRefusal("The step changed while this was being saved. Reload and try again.");
   const minuted = matter.meeting.status === "MINUTED";
   await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${variationLabel(c.l, v)} · ${step.roleLabel}`, reason: "" }, "UPDATE",
-    diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn, minuted: minuted ? "yes" : "no" }));
+    diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn, minuted: minuted ? "yes" : "no", ...linkedVia(via) }));
   const reason = s.decision === "REJECTED" ? `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}${record?.note ? `: ${record.note}` : ""}` : "";
   await afterStep(c, v, a, step.id, s.decision === "DONE" ? "DONE" : "REJECTED", reason, record?.notApproved ?? null);
 }

@@ -72,6 +72,7 @@ describe("E-8: the committee's bundle and the loop-back (6.10 tableMatter, recor
 describe("E-9: the award follows the evaluation (6.11)", () => {
   const repo = read("src", "lib", "award", "repo.ts");
   const awards = read("src", "app", "awards", "actions.ts");
+  const routeWrite = read("src", "lib", "award", "route-write.ts");
   it("the one producer of the award's facts always states the evaluation's gate (null only where none applies)", () => {
     expect(repo).toMatch(/evaluation: evaluationNow\.gate\.applies \? \{ facts: evaluationNow\.gate, awardeePartyId: award\.awardeePartyId, award: \{/);
     const evaluate = read("src", "lib", "award", "evaluate.ts");
@@ -90,7 +91,9 @@ describe("E-9: the award follows the evaluation (6.11)", () => {
     expect(check).toBeLessThan(update.indexOf("tx.award.updateMany("));
   });
   it("citing the appointment's decision asks the evaluation's bundle, before the step is written", () => {
-    const cite = body(awards, "citeAppointmentDecision");
+    // Founder, 2026-10-05: the citation moved, unchanged, to the module's route writer, the one function its act and a sitting's outcome both run.
+    expect(body(awards, "citeAppointmentDecision")).toMatch(/citeAppointmentStep\(tx, l, stepId, decisionId\)/);
+    const cite = body(routeWrite, "citeAppointmentStep");
     // 6.8 re-review 1 (flagged test change): one read of the gate, its bundle checked before the step is written.
     const read = cite.indexOf("const gate = await loadEvaluationGate(l.ex.id, tx);");
     const check = cite.indexOf("bundleFaults(gate.bundle)");

@@ -147,7 +147,8 @@ describe("the budget commitment's amount is the department estimate, withheld (6
   });
   it("every commitment audit writer uses the registered key, never a plain amount", async () => {
     const { readFileSync } = await import("node:fs");
-    for (const p of ["src/app/requisitions/actions.ts", "src/lib/integration/requisition-intake.ts", "prisma/demo-award.ts"]) {
+    // Founder, 2026-10-05: approve() moved, unchanged, from the requisition actions to their approval writer.
+    for (const p of ["src/lib/requisition/approval-write.ts", "src/lib/integration/requisition-intake.ts", "prisma/demo-award.ts"]) {
       const src = readFileSync(p, "utf8");
       const audits = src.split("\n").filter((l) => /kind: "COMMITMENT", budgetCode/.test(l));
       expect(audits.length, p).toBeGreaterThan(0);

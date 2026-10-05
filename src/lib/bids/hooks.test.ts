@@ -25,7 +25,9 @@ describe("the late-admission gate is asked where an appointment is tabled or cit
     expect(b).toMatch(/lateFault/);
   });
   it("6.11 citeAppointmentDecision", () => {
-    const b = body(read("src/app/awards/actions.ts"), "citeAppointmentDecision");
+    // Founder, 2026-10-05: the citation moved, unchanged, to the module's route writer, the one function its act and a sitting's outcome both run.
+    expect(body(read("src/app/awards/actions.ts"), "citeAppointmentDecision")).toMatch(/return inAward\(id, \(tx, l\) => citeAppointmentStep\(tx, l, stepId, decisionId\)\);/);
+    const b = body(read("src/lib/award/route-write.ts"), "citeAppointmentStep");
     expect(b).toMatch(/bidGate\(/);
     expect(b).toMatch(/bids\.lateFault/);
   });

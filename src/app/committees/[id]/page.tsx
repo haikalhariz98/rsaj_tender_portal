@@ -26,6 +26,7 @@ import {
   blockerShort,
   ORGANISATION_HREF,
   configurationGapLine,
+  AUTO_LINK_WORDS,
   matterCount,
   attendanceFaultText,
   ROLE_ASSIGNMENTS_HREF,
@@ -51,6 +52,7 @@ import type { VotingSeat } from "@/lib/committee/sitting";
 import { loadSitting, sittingHistory, type LoadedSitting } from "@/lib/committee/sittings";
 import { tablePrefillFromQuery } from "@/lib/committee/table-prefill";
 import { tablingAmount } from "@/lib/committee/repo";
+import { notLinkedFor } from "@/lib/committee/auto-link-write";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { actWithCode, matterLabel } from "@/lib/labels";
 import { scopeMatterRecordNote } from "@/lib/scope/labels";
@@ -108,6 +110,8 @@ export default async function SittingPage({
   const a = s.assessment;
   const frozen = isFrozen(m.status);
   const history = await sittingHistory(s);
+  // Founder, 2026-10-05: why a decided matter was not linked to its record's approval, from its History.
+  const notLinked = await notLinkedFor(s.organisationId, m.decisions);
   const nameOf = (pid: string) => s.names[pid] ?? "Not on record";
   // A minuted sitting reads its quorum and rule from its own snapshot.
   const quorum = s.rules.quorum;
@@ -232,7 +236,7 @@ export default async function SittingPage({
             label: "Agenda and decisions",
             icon: <FileIcon size={15} />,
             count: m.decisions.length,
-            panel: <AgendaPanel s={s} prefill={prefill} />,
+            panel: <AgendaPanel s={s} prefill={prefill} notLinked={notLinked} />,
           },
           {
             id: "attendance",
@@ -290,7 +294,7 @@ function ConfigurationGaps({ s }: { s: LoadedSitting }) {
 
 // ------------------------------------------------------------------ agenda
 
-function AgendaPanel({ s, prefill }: { s: LoadedSitting; prefill?: Record<string, string> }) {
+function AgendaPanel({ s, prefill, notLinked }: { s: LoadedSitting; prefill?: Record<string, string>; notLinked: ReadonlyMap<string, string> }) {
   const m = s.meeting;
   const a = s.assessment;
   const frozen = isFrozen(m.status);
@@ -451,6 +455,11 @@ function AgendaPanel({ s, prefill }: { s: LoadedSitting; prefill?: Record<string
                 A matter not carried must say what happens next, and no not-approved outcome is configured
                 for this committee. Add one under Configuration, Committees, Not-approved outcomes. The
                 sitting cannot be minuted until this matter is recorded.
+              </Callout>
+            ) : notLinked.has(d.id) ? (
+              // Founder, 2026-10-05: the outcome was recorded, and the record's own rule would not take it.
+              <Callout tone="warn" title={AUTO_LINK_WORDS.noteTitle.en}>
+                {AUTO_LINK_WORDS.note.en(notLinked.get(d.id)!)}
               </Callout>
             ) : undefined
           }

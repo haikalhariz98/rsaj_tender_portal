@@ -1,15 +1,21 @@
-import { CalendarIcon } from "@/components/icons";
+import { CalendarIcon, ClockIcon } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { matterCount, MEETING_STATUS_LABEL, MEETING_STATUS_TONE } from "@/lib/committee/labels";
+import { matterCount, MEETING_STATUS_LABEL, MEETING_STATUS_TONE, SCHEDULE_WORDS, WAITING_KIND_WORDS, WAITING_WORDS } from "@/lib/committee/labels";
+import { secretariatHoldersOn } from "@/lib/committee/tabling";
+import { loadWaiting } from "@/lib/committee/waiting-load";
+import { ORGANISATION_CODE } from "@/lib/org";
+import { loadRoster } from "@/lib/people/load";
 import { listSittings, organisationId, SITTINGS_PAGE } from "@/lib/committee/sittings";
 import { db } from "@/lib/db";
+import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
+import { ACT_LABEL } from "@/lib/labels";
 import { patternFaults } from "@/lib/numbering/series";
 
-import { ScheduleSitting } from "./editors";
+import { ScheduleSitting, type ProposedItem } from "./editors";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +38,23 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
     ? await db.numberingSeries.findUnique({ where: { organisationId_key: { organisationId: orgId, key: "meeting" } } })
     : null;
   const numbered = series != null && patternFaults(series).length === 0;
+  const waiting = await loadWaiting();
+  // Founder, 2026-10-05: what the schedule drawer proposes for each committee, and who may table it today.
+  const roster = waiting?.today ? await loadRoster(ORGANISATION_CODE) : null;
+  const secretariats = orgId ? await db.committee.findMany({ where: { organisationId: orgId }, select: { id: true, secretariatRoleCode: true } }) : [];
+  const proposed: Record<string, ProposedItem[]> = {};
+  for (const e of waiting?.entries ?? []) {
+    if (e.tabledAt !== "SITTING" || !e.committeeId) continue;
+    (proposed[e.committeeId] ??= []).push({
+      value: e.stepId,
+      label: `${WAITING_KIND_WORDS[e.kind].en} ${e.reference} · ${e.title}`,
+      description: `${ACT_LABEL[e.act] ?? "Not on record"} · ${e.waitingDays == null ? WAITING_WORDS.daysUnset.en : `${WAITING_WORDS.waiting.en} ${WAITING_WORDS.days.en(e.waitingDays)}`}`,
+    });
+  }
+  const tablers = Object.fromEntries(
+    secretariats.map((c) => [c.id, roster ? secretariatHoldersOn(roster, c.secretariatRoleCode, waiting!.today).map((p) => ({ value: p.id, label: p.name })) : []]),
+  );
+  const fromRecord = (waiting?.entries ?? []).some((e) => e.tabledAt === "RECORD");
 
   // Counted across every sitting, not only this page.
   const { upcoming, awaiting, pending } = counts;
@@ -76,8 +99,10 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
           `${awaiting} awaiting minutes`,
           `${pending} ${pending === 1 ? "matter" : "matters"} pending`,
         ]}
-        actions={schedulable.length > 0 ? <ScheduleSitting committees={schedulable} numbered={numbered} /> : undefined}
+        actions={schedulable.length > 0 ? <ScheduleSitting committees={schedulable} numbered={numbered} proposed={proposed} tablers={tablers} fromRecord={fromRecord} /> : undefined}
       />
+
+      <WaitingToBeTabled waiting={waiting} />
 
       <Card className="overflow-hidden">
         <CardHeader
@@ -110,7 +135,7 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
           rowOpens
           columns={[
             { key: "committee", label: "Committee", sortable: true, mobile: "meta" },
-            { key: "reference", label: "Reference", width: "176px", nowrap: true, sortable: true, mobile: "primary" },
+            { key: "reference", label: SCHEDULE_WORDS.sittingNumber.en, width: "176px", nowrap: true, sortable: true, mobile: "primary" },
             { key: "date", label: "Date", width: "128px", nowrap: true, sortable: true, mobile: "meta" },
             { key: "status", label: "Status", width: "128px", sortable: true, mobile: "meta" },
             { key: "matters", label: "Matters", width: "176px", sortable: true, mobile: "meta" },
@@ -139,5 +164,60 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
         )}
       </Card>
     </>
+  );
+}
+
+/**
+ * Waiting to be tabled (founder, 2026-10-05): the open routes whose current step is a committee's, with no matter
+ * tabled for it yet (`waiting.ts`). Grouped by committee through the filter; scheduling a sitting of the committee
+ * offers the ones a sitting tables. The value is SULIT, so its column carries the lock and the list exports without it.
+ */
+function WaitingToBeTabled({ waiting }: { waiting: Awaited<ReturnType<typeof loadWaiting>> }) {
+  const W = WAITING_WORDS;
+  const entries = waiting?.entries ?? [];
+  const rows: Row[] = entries.map((e) => ({
+    id: e.stepId,
+    search: [e.reference, e.title, e.committeeName, WAITING_KIND_WORDS[e.kind].en].join(" "),
+    sortKeys: { waiting: e.waitingDays ?? -1, record: e.reference },
+    cells: {
+      record: { kind: "link", text: e.reference, href: e.href, sub: e.title },
+      kind: { kind: "text", text: WAITING_KIND_WORDS[e.kind].en },
+      committee: { kind: "text", text: e.committeeName },
+      act: { kind: "text", text: ACT_LABEL[e.act] ?? "Not on record" },
+      amount: { kind: "money", sen: e.waitingValue },
+      waiting:
+        e.waitingDays == null
+          ? { kind: "text", text: W.daysUnset.en, dim: true }
+          : { kind: "badge", text: W.days.en(e.waitingDays) },
+      tabled: { kind: "text", text: e.tabledAt === "SITTING" ? W.tabledAtSitting.en : W.tabledFromRecord.en, dim: true },
+    },
+    note: e.waitingDays == null ? `${W.since.en(formatDate(dayToDate(e.waitingSince)))}. ${W.daysUnsetWhy.en}` : undefined,
+  }));
+  return (
+    <Card className="mb-6 overflow-hidden">
+      <CardHeader icon={<ClockIcon size={17} />} title={W.title.en} subtitle={W.subtitle.en} divided={false} />
+      <DataList
+        flat
+        selectable={false}
+        exportName="waiting-to-be-tabled"
+        searchPlaceholder={W.search.en}
+        emptyTitle={W.emptyTitle.en}
+        emptyBody={W.emptyBody.en}
+        filters={[
+          { key: "committee", label: W.committee.en },
+          { key: "kind", label: W.kind.en },
+        ]}
+        columns={[
+          { key: "record", label: W.record.en, sortable: true, mobile: "primary" },
+          { key: "kind", label: W.kind.en, width: "136px", mobile: "meta" },
+          { key: "committee", label: W.committee.en, width: "176px", mobile: "meta" },
+          { key: "act", label: W.act.en, width: "156px", hideBelow: "xl", mobile: "meta" },
+          { key: "amount", label: W.amount.en, width: "140px", numeric: true, sulit: true, mobile: "meta" },
+          { key: "waiting", label: W.waiting.en, width: "104px", sortable: true, mobile: "meta" },
+          { key: "tabled", label: W.how.en, width: "200px", hideBelow: "2xl", mobile: "hide" },
+        ]}
+        rows={rows}
+      />
+    </Card>
   );
 }

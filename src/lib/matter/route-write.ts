@@ -53,6 +53,7 @@ import { matrixToday } from "@/lib/variation/route-write";
 import { decisionRecordOf, type MatterRow } from "./load";
 import type { ContractMatterKind } from "./matter";
 import { closeMatter, markSent, matterLabel, writeApprovalOfRecord } from "./write";
+import { linkedVia, type CiteVia } from "@/lib/committee/cite-via";
 
 /// A refusal: rolls the transaction back. `errors` names a field where the refusal is about one.
 export class MatterRefusal extends Error {
@@ -235,7 +236,7 @@ export async function decideMatterStep(c: MatterCtx, m: MatterRow, i: DecideInpu
 }
 
 /// A committee's step, from its decision on a matter tabled from this matter (ADR 0029 §3).
-export async function citeMatterDecision(c: MatterCtx, m: MatterRow, stepId: string, decisionId: string) {
+export async function citeMatterDecision(c: MatterCtx, m: MatterRow, stepId: string, decisionId: string, via: CiteVia = "BY_HAND") {
   const inst = openRoute(m);
   const step = inst.steps.find((s) => s.id === stepId);
   if (!step || !step.committeeCode) return refuse("Not cited:", [{ code: "NOT_COMMITTEE_STEP", level: "block" }]);
@@ -258,7 +259,7 @@ export async function citeMatterDecision(c: MatterCtx, m: MatterRow, stepId: str
   const done = await c.tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) throw new MatterRefusal("The step changed while this was being saved. Reload and try again.");
   await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matterLabel(c.l, m)} · ${step.roleLabel}`, reason: "" }, "UPDATE",
-    diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn, minuted: matter.meeting.status === "MINUTED" ? "yes" : "no" }));
+    diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn, minuted: matter.meeting.status === "MINUTED" ? "yes" : "no", ...linkedVia(via) }));
   const reason = s.decision === "REJECTED" ? `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}${record?.note ? `: ${record.note}` : ""}` : "";
   await afterStep(c, m, inst, step.id, s.decision === "DONE" ? "DONE" : "REJECTED", reason, record?.notApproved ?? null);
 }

@@ -22,6 +22,8 @@ import { awardTransition } from "./status";
 
 const ROOT = process.cwd();
 const OWNER = "src/lib/award/return-acceptance.ts";
+/// Where the award's `mustMove` lives (moved from src/app/awards/actions.ts, founder, 2026-10-05).
+const MUST_MOVE_FILE = "src/lib/award/route-write.ts";
 
 function sources(dir: string): string[] {
   const out: string[] = [];
@@ -101,23 +103,27 @@ describe("acceptOnCompleteReturn is the only writer of ACCEPTED (BD-DS-2)", () =
           expect(status[1], `${file}`).not.toMatch(/ACCEPTED/);
           continue;
         }
-        // The one variable-status writer: the awards actions' `mustMove(tx, l, to)`.
-        expect(file, `${file} writes an award status from ${status[1]}`).toBe("src/app/awards/actions.ts");
+        // The one variable-status writer: `mustMove(tx, l, to)`, moved unchanged from the awards actions to the award's
+        // route writer (founder, 2026-10-05), so a sitting's outcome can cite the appointment through it.
+        expect(file, `${file} writes an award status from ${status[1]}`).toBe(MUST_MOVE_FILE);
         expect(w).toMatch(/data:\s*\{\s*status:\s*to\b/);
       }
     }
     // The scan saw mustMove's write; if it is renamed, this test must be looked at again.
-    expect(seen).toContain("src/app/awards/actions.ts: to");
+    expect(seen).toContain(`${MUST_MOVE_FILE}: to`);
 
-    const actions = text("src/app/awards/actions.ts");
-    const calls = [...actions.matchAll(/\bmustMove\(\s*tx\s*,\s*l\s*,\s*([^,)]+)/g)].map((m) => m[1].trim());
-    expect(calls.length).toBeGreaterThan(0);
-    for (const to of calls) {
-      expect(to, "mustMove called with a non-literal status").toMatch(/^"[A-Z_]+"$/);
-      expect(to).not.toBe('"ACCEPTED"');
+    // Its callers: the awards actions (which import it) and the route writer (which defines it). Stricter: both files.
+    for (const f of ["src/app/awards/actions.ts", MUST_MOVE_FILE]) {
+      const src = text(f);
+      const calls = [...src.matchAll(/\bmustMove\(\s*tx\s*,\s*l\s*,\s*([^,)]+)/g)].map((m) => m[1].trim());
+      expect(calls.length, f).toBeGreaterThan(0);
+      for (const to of calls) {
+        expect(to, `${f}: mustMove called with a non-literal status`).toMatch(/^"[A-Z_]+"$/);
+        expect(to, f).not.toBe('"ACCEPTED"');
+      }
+      // And mustMove itself is only reached through those calls, never passed on as a value (its import, or its definition).
+      expect([...src.matchAll(/\bmustMove\b/g)].length, f).toBe(calls.length + 1);
     }
-    // And mustMove itself is only reached through those calls, never passed on as a value.
-    expect([...actions.matchAll(/\bmustMove\b/g)].length).toBe(calls.length + 1);
   });
 
   it("the transition itself still refuses ACCEPTED without a complete return", () => {

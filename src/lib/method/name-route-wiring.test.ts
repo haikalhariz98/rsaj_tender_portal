@@ -31,7 +31,13 @@ describe("requesting the name", () => {
 });
 
 describe("citing a committee's decision on the name's route", () => {
-  const body = fn("citeNameDecision");
+  // Founder, 2026-10-05: the citation moved, unchanged, to the module's route writer, the one function its act and a sitting's outcome both run.
+  const writer = readFileSync(join(process.cwd(), "src/lib/method/name-route-write.ts"), "utf8");
+  const body = writer.slice(writer.indexOf("export async function citeNameStep("));
+  it("the act runs the route writer's citation", () => {
+    expect(fn("citeNameDecision")).toMatch(/return inExercise\(id, \(tx, l\) => citeNameStep\(tx, l, stepId, decisionId\)\);/);
+    expect(body.length).toBeGreaterThan(0);
+  });
   it("judges the matter with nameCitationFault, not the award's exerciseCitationFault", () => {
     expect(body).toMatch(/nameCitationFault\(/);
     expect(body).not.toMatch(/exerciseCitationFault/);

@@ -6,12 +6,12 @@ import { redirect } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
 import type { Prisma } from "@/generated/prisma/client";
-import { diffFields, type FieldChange } from "@/lib/audit/diff";
-import { writeAudit, type Tx } from "@/lib/audit/record";
+import { diffFields } from "@/lib/audit/diff";
+import { type Tx } from "@/lib/audit/record";
 import { boundaryOperatorFor, regimeFor } from "@/lib/authority/resolve";
 import { appointmentRoute } from "@/lib/award/appointment";
-import { closeRejected, loadDestinations, openSuccessor, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
-import { choiceFault, rejectionOutcome, rejectionSnapshot, REJECTION_KINDS, type RejectionKind } from "@/lib/authority/rejection";
+import { loadDestinations, recordChoice } from "@/lib/approvals/rejection-store";
+import { choiceFault, rejectionSnapshot, REJECTION_KINDS, type RejectionKind } from "@/lib/authority/rejection";
 import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { APPOINTMENT_DOMAIN } from "@/lib/method/types";
 import { awardAuditCreate, awardAuditPair } from "@/lib/award/audit-view";
@@ -19,25 +19,20 @@ import { termsUpdate } from "@/lib/award/terms";
 import { BASELINE_FIELDS, baselineOf, baselineSnapshot, isSumField, ladOnValueChange, prefill, REASON_COLUMN, reasonsOnSave, SUM_FIELD_COLUMN, worksAppendixAmount, type AwardTerms, type BaselineField, type FrozenTender } from "@/lib/award/appendix-baseline";
 import { percentAboveZero } from "@/lib/securities/money";
 import { icNumberFault } from "@/lib/award/mask";
-import { exerciseCitationFault } from "@/lib/award/citation";
 import { despatchFaults } from "@/lib/award/distribution";
 import { evaluateAward } from "@/lib/award/evaluate";
 import { awardOpenRefusal, evaluationFindings, exerciseOpenForAward } from "@/lib/award/gate";
 import { readWindowGate } from "@/lib/window/repo";
-import { bidGate } from "@/lib/bids/repo";
 import { awardeeBidderText, awardeePartyWrite, openingGateFaults } from "@/lib/opening/award-gate";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
 import { recommendationDifferences } from "@/lib/evaluation/award-gate";
-import { bundleFaults, tabledVersionFault } from "@/lib/evaluation/bundle";
-import { evaluationFindingText } from "@/lib/evaluation/labels";
 import { loadEvaluationGate, type EvaluationGate } from "@/lib/evaluation/gate-read";
 import { openingFindingText } from "@/lib/opening/labels";
-import { bidFindingText } from "@/lib/bids/labels";
 import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
 import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, INSURANCE_KIND_LABEL, SECURITY_KIND_LABEL, SIGNER_FAULT_TEXT, differsRefusal, tenderTermText } from "@/lib/award/labels";
 import { policyLabel, securityLabel } from "@/lib/audit/entity-labels";
 import { renderedText } from "@/lib/award/merge";
-import { awardFacts, dossierEvidenceOf, exerciseMatters, frozenTenderOf, loadAwardConfig, matterRecord, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
+import { awardFacts, dossierEvidenceOf, frozenTenderOf, loadAwardConfig, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
 import { receivedOnFault } from "@/lib/award/routing";
 import { approvedOnOf, checkSignatory } from "@/lib/award/signatory";
 import { correctionScansMissing, instrumentReturned, returnReadsComplete, type ReturnRecord } from "@/lib/award/stage-two";
@@ -53,9 +48,8 @@ import { ACT_LABEL } from "@/lib/labels";
 import { approvedRouteOf, evaluationContext } from "@/lib/method/repo";
 import { formatSen, parseSen, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
-import { committeeStepFrom } from "@/lib/requisition/committee-step";
 import { actingOffice } from "@/lib/authority/escalation";
-import { committeeCitationWrite, personDecisionWrite } from "@/lib/authority/decided-step";
+import { personDecisionWrite } from "@/lib/authority/decided-step";
 import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
 import { deciderFaultText } from "@/lib/requisition/labels";
 import { bondFaults, bondRequiredUntil, checkedOnFault, requiredBond } from "@/lib/securities/bond";
@@ -67,6 +61,7 @@ import { FormReader } from "@/lib/validate";
 import { contractCancellable } from "@/lib/contract/status";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
+import { afterStep, audit, CHANGED, citeAppointmentStep, labelOf, mustMove, NO_ZONE, Refusal, routeLabel, sendAwardRejected } from "@/lib/award/route-write";
 
 /**
  * Writes for awards (6.11) and the registers on their contracts.
@@ -80,21 +75,9 @@ import type { ContractStatus } from "@/lib/contract/types";
  */
 
 const GONE: FormState = { ok: false, message: "That award no longer exists." };
-const CHANGED: FormState = { ok: false, message: "The award changed while this was being saved. Reload and try again." };
-const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zone under Configuration, Organisation first. Today's date decides this act, and it is not assumed to be UTC." };
 
-class Refusal extends Error {
-  constructor(readonly state: FormState) {
-    super(state.message ?? "Refused");
-  }
-}
 
-async function audit(tx: Tx, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
-  if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
-}
 
-const labelOf = (a: { reference: string; awardeeName: string }) => `${a.reference} · ${a.awardeeName}`;
 const refuse = (fs: readonly Finding[], lead: string): FormState => ({ ok: false, message: `${lead} ${fs.map(awardFindingText).join(" ")}` });
 
 function refresh(id?: string, exerciseId?: string) {
@@ -120,11 +103,6 @@ async function inAward(id: string, fn: (tx: Tx, l: LoadedAward) => Promise<FormS
   return result ?? GONE;
 }
 
-/// Move the award from the status read under the lock, or roll the transaction back.
-async function mustMove(tx: Tx, l: LoadedAward, to: AwardStatus, extra: Prisma.AwardUpdateManyMutationInput = {}) {
-  const moved = await tx.award.updateMany({ where: { id: l.award.id, status: l.award.status }, data: { status: to, ...extra } });
-  if (moved.count !== 1) throw new Refusal(CHANGED);
-}
 
 const UNITS = ["DAYS", "WEEKS", "MONTHS"] as const;
 const supplierWords = (v: { reference: string; registeredName: string }) => `${v.reference} · ${v.registeredName}`;
@@ -425,7 +403,6 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
 
 // ------------------------------------------------------------ the appointment
 
-const routeLabel = (a: { reference: string }) => `${a.reference} · appointment route`;
 
 /**
  * Send the award for the appointment's approval (FR-AWD-001; 6.3 BD-3). The route is
@@ -509,48 +486,8 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
   });
 }
 
-/// Where a refused appointment can go: back to Draft to be reworked, back to an earlier
-/// step on a successor route, or the award ends (Cancelled, under BD-17's rules).
-const AWARD_SUPPORTS: readonly RejectionKind[] = ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"];
 
-/**
- * Close the route when its last step is done. When a step refuses, the destination
- * snapshotted at open — or, on a committee step, the committee's own not-carried
- * outcome — says where the award goes (FR-APR-016); where nothing applies the award
- * waits, still pending approval, for the officer's choice (ruling CO-5).
- */
-async function afterStep(tx: Tx, l: LoadedAward, instId: string, decision: "DONE" | "REJECTED", stepId: string, reason: string, committee: { kind: "LOOP" | "TERMINAL" } | null = null) {
-  const inst = l.award.approvalInstances.find((i) => i.id === instId)!;
-  if (decision === "REJECTED") {
-    const step = inst.steps.find((s) => s.id === stepId)!;
-    const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee, steps: inst.steps, rejectingSeq: step.sequence, supports: AWARD_SUPPORTS });
-    await closeRejected(tx, { organisationId: l.org.id, routeLabel: routeLabel(l.award) }, inst, outcome, reason);
-    if ("apply" in outcome) await sendAwardRejected(tx, l, inst.id, outcome.apply, outcome.returnToSeq ?? null, reason);
-    return;
-  }
-  if (!inst.steps.every((s) => s.id === stepId || s.decision === "DONE")) return;
-  await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "APPROVED", closedAt: new Date() } });
-  await audit(tx, l.org.id, "ApprovalInstance", inst.id, routeLabel(l.award), "UPDATE", diffFields({ status: inst.status }, { status: "APPROVED" }), reason);
-  await mustMove(tx, l, "APPROVED");
-  await audit(tx, l.org.id, "Award", l.award.id, labelOf(l.award), "UPDATE", diffFields({ status: l.award.status }, { status: "APPROVED" }));
-}
 
-/// Send a refused appointment where its rejection says.
-async function sendAwardRejected(tx: Tx, l: LoadedAward, instId: string, kind: RejectionKind, returnToSeq: number | null, reason: string) {
-  const a = l.award;
-  if (kind === "RETURN_TO_ORIGINATOR") {
-    await mustMove(tx, l, "DRAFT");
-    await audit(tx, l.org.id, "Award", a.id, labelOf(a), "UPDATE", diffFields({ status: a.status }, { status: "DRAFT" }), `The appointment was refused: ${reason}`);
-  } else if (kind === "TERMINATE") {
-    const t = awardTransition(a.status as AwardStatus, "CANCELLED", { today: l.org.today, reason });
-    if (t) throw new Refusal({ ok: false, message: "The award cannot be cancelled from where it stands." });
-    await mustMove(tx, l, "CANCELLED", { cancelReason: `The appointment was refused: ${reason}` });
-    await audit(tx, l.org.id, "Award", a.id, labelOf(a), "UPDATE", diffFields({ status: a.status }, { status: "CANCELLED" }), `The appointment was refused and the award ends: ${reason}`);
-  } else {
-    // The award stays pending approval; the route continues from the earlier step.
-    await openSuccessor(tx, { organisationId: l.org.id, routeLabel: routeLabel(a) }, instId, returnToSeq!, dayToDate(l.org.today!));
-  }
-}
 
 /**
  * Where a refused appointment goes, chosen by the officer where the refusal decided
@@ -652,55 +589,8 @@ export async function citeAppointmentDecision(_prev: FormState, data: FormData):
   const stepId = String(data.get("stepId") ?? "");
   const decisionId = String(data.get("committeeDecisionId") ?? "");
   if (!decisionId) return { ok: false, errors: { committeeDecisionId: "Choose the committee's decision." } };
-  return inAward(id, async (tx, l) => {
-    const inst = latestRoute(l.award);
-    if (l.award.status !== "PENDING_APPROVAL" || !inst || inst.status !== "PENDING") return { ok: false, message: "No approval is open on this award." };
-    if (!l.org.today) return NO_ZONE;
-    const step = inst.steps.find((s) => s.id === stepId);
-    if (!step || !step.committeeCode) return { ok: false, message: "That is not a committee step on the open route." };
-    if (step.decision !== "PENDING") return { ok: false, message: "This step is already decided." };
-    if (!inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE")) return { ok: false, message: "Steps are decided in order: the step before this one is not done." };
-    const matter = (await exerciseMatters(l.ex.id, tx)).find((m) => m.id === decisionId);
-    if (!matter) return { ok: false, errors: { committeeDecisionId: "That matter was not tabled against this exercise." } };
-    const cited = await tx.approvalStep.findMany({ where: { committeeDecisionId: matter.id }, select: { id: true } });
-    const { record, minuted } = matterRecord(matter);
-    const fault = exerciseCitationFault(
-      { id: matter.id, exerciseId: matter.exerciseId, matterKind: matter.matterKind, domain: matter.domain, act: matter.act, amount: matter.amount?.toString() ?? null, committeeCode: matter.meeting.committee.code, decidedOn: matter.decisionDate ? storedDay(matter.decisionDate) : null },
-      step,
-      { exerciseId: l.ex.id, value: l.award.awardedValue.toString(), routeOpenedOn: storedDay(inst.openedAt) },
-      cited.length ? [matter.id] : [],
-    );
-    const TEXT = {
-      NOT_THIS_EXERCISE: "That matter was not tabled against this exercise.",
-      NOT_AN_APPOINTMENT_MATTER: "That matter is not an appointment tabled as an exercise matter.",
-      OTHER_COMMITTEE: "That matter was before another committee.",
-      OTHER_ACT: "That matter was tabled for a different act from the one this step asks.",
-      OTHER_AMOUNT: "That matter was tabled at a different amount from the awarded value.",
-      ALREADY_CITED: "That decision already discharges another step: one decision discharges one step.",
-      DECIDED_BEFORE_ROUTE: "The committee decided that matter before this award went for approval.",
-    } as const;
-    if (fault) return { ok: false, errors: { committeeDecisionId: TEXT[fault] } };
-    // 6.6 (OD-6, flagged): no appointment decision is cited while a late envelope waits for the committee's decision on admission.
-    const bids = await bidGate(l.ex.id, tx);
-    if (bids.lateFault) return { ok: false, errors: { committeeDecisionId: bidFindingText(bids.lateFault) } };
-    // 6.8 (E-8, flagged): nor while the evaluation's bundle does not stand (its report issued and standing, the Kertas Cadangan checked and recommended).
-    // One read (6.8 re-review 1): the version judged is the one whose bundle was checked.
-    const gate = await loadEvaluationGate(l.ex.id, tx);
-    const bundle = bundleFaults(gate.bundle);
-    if (bundle.length) return { ok: false, errors: { committeeDecisionId: bundle.map(evaluationFindingText).join(" ") } };
-    // 6.8 fix M-3: and only a decision on the version in force, the one the matter was tabled on.
-    const tabledOn = tabledVersionFault({ applies: gate.bundle.applies, tabledOn: matter.evaluationVersion ?? null, inForce: gate.version });
-    if (tabledOn) return { ok: false, errors: { committeeDecisionId: evaluationFindingText(tabledOn) } };
-    const s = committeeStepFrom(record);
-    if (s.decision === "PENDING") return { ok: false, errors: { committeeDecisionId: record ? "The committee deferred the matter. Cite it once it is decided." : "The committee has not decided the matter yet." } };
-    const after = committeeCitationWrite({ decision: s.decision, committeeName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() });
-    const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
-    if (done.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.award.reference} · ${step.roleLabel}`, "UPDATE",
-      diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn, minuted: minuted ? "yes" : "no" }));
-    await afterStep(tx, l, inst.id, s.decision === "DONE" ? "DONE" : "REJECTED", step.id, s.decision === "REJECTED" ? `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}` : "", record?.notApproved ?? null);
-    return { ok: true };
-  });
+  // The citation is citeAppointmentStep (award/route-write.ts), the one a sitting's outcome also runs (founder, 2026-10-05).
+  return inAward(id, (tx, l) => citeAppointmentStep(tx, l, stepId, decisionId));
 }
 
 // ------------------------------------------------------------- the commitment

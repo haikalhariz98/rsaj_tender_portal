@@ -25,7 +25,16 @@ const region = (from: string, to: string) => {
 };
 
 const cancel = region("export async function cancelExercise(", "// --------------------------------------------------------------- participants");
-const terminate = region('} else if (kind === "TERMINATE") {', "// Back to whoever asked");
+// Founder, 2026-10-05: the name's refusal destinations moved, unchanged, to its route writer (the name's citation, run
+// by its act and by a sitting's outcome, sends a refusal there).
+const nameWriter = readFileSync(join(process.cwd(), "src/lib/method/name-route-write.ts"), "utf8");
+const terminate = (() => {
+  const i = nameWriter.indexOf('} else if (kind === "TERMINATE") {');
+  expect(i, "the name's terminating refusal exists").toBeGreaterThan(-1);
+  const j = nameWriter.indexOf("// Back to whoever asked", i);
+  expect(j, "it ends").toBeGreaterThan(i);
+  return nameWriter.slice(i, j);
+})();
 
 describe("cancelling an exercise", () => {
   it("voids the live pack, with the cancel reason", () => {

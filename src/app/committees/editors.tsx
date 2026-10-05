@@ -2,7 +2,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
 import { ACT_LABEL, matterLabel } from "@/lib/labels";
 import matters from "@/lib/labels.json";
-import { MATTER_KIND_LABEL, MINUTES_EDITOR_DESCRIPTION, SITTING_TABLED_MATTER_KINDS, sittingTablesDomain, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
+import { MATTER_KIND_LABEL, MINUTES_EDITOR_DESCRIPTION, SCHEDULE_WORDS, SITTING_TABLED_MATTER_KINDS, sittingTablesDomain, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
 import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 
 import {
@@ -24,39 +24,71 @@ import {
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
+/// A waiting item the drawer proposes, by its step: the record's own words, never an amount (this drawer is a SULIT
+/// surface; the figure is read on the server when it is tabled).
+export type ProposedItem = { value: string; label: string; description: string };
+
 export function ScheduleSitting({
   committees,
   numbered,
+  proposed,
+  tablers,
+  fromRecord,
 }: {
   committees: { id: string; nameEn: string }[];
   /// True where a numbering series for sittings is configured.
   numbered: boolean;
+  /// Founder, 2026-10-05: by committee id, what is waiting for it that a sitting tables (`loadWaiting`).
+  proposed: Record<string, ProposedItem[]>;
+  /// By committee id, the holders of its Secretariat office today, who may table them.
+  tablers: Record<string, { value: string; label: string }[]>;
+  /// Whether anything waiting is tabled from its own record instead (a variation, a contract matter).
+  fromRecord: boolean;
 }) {
+  const W = SCHEDULE_WORDS;
+  const fields: Field[] = [
+    {
+      kind: "select",
+      name: "committeeId",
+      label: "Committee",
+      required: true,
+      placeholder: "Choose",
+      options: committees.map((c) => ({ value: c.id, label: c.nameEn })),
+    },
+    { kind: "date", name: "meetingDate", label: "Date", required: true },
+    {
+      kind: "text",
+      name: "reference",
+      label: W.sittingNumber.en,
+      required: !numbered,
+      hint: numbered ? W.sittingNumberHint.en : W.sittingNumberTyped.en,
+    },
+    { kind: "textarea", name: "agenda", label: "Agenda" },
+    {
+      kind: "checks",
+      name: "items",
+      label: W.items.en,
+      hint: W.itemsHint.en,
+      options: [],
+      optionsBy: { name: "committeeId", options: proposed, waiting: W.itemsWaiting.en, none: W.itemsNone.en },
+      allChecked: true,
+    },
+    {
+      kind: "select",
+      name: "tabledByPersonId",
+      label: W.tabledBy.en,
+      hint: W.tabledByHint.en,
+      placeholder: "Choose",
+      options: [],
+      optionsBy: { name: "committeeId", options: tablers, waiting: W.itemsWaiting.en },
+    },
+    ...(fromRecord ? [{ kind: "note" as const, text: W.fromRecordNote.en }] : []),
+  ];
   return (
     <RecordEditor
       title="Schedule a sitting"
-      description="A sitting of one committee, on one date. Matters are tabled onto it afterwards."
-      fields={[
-        {
-          kind: "select",
-          name: "committeeId",
-          label: "Committee",
-          required: true,
-          placeholder: "Choose",
-          options: committees.map((c) => ({ value: c.id, label: c.nameEn })),
-        },
-        { kind: "date", name: "meetingDate", label: "Date", required: true },
-        {
-          kind: "text",
-          name: "reference",
-          label: "Reference",
-          required: !numbered,
-          hint: numbered
-            ? "Leave empty to draw the next number from the sittings series."
-            : "No numbering series for sittings is configured, so type the reference.",
-        },
-        { kind: "textarea", name: "agenda", label: "Agenda" },
-      ]}
+      description={W.description.en}
+      fields={fields}
       action={scheduleSitting}
       submitLabel="Schedule"
       trigger={{ label: "Schedule sitting", icon: true, className: buttonClass("primary", "md") }}
