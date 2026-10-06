@@ -1450,3 +1450,4 @@ reported an empty migration (exit 0). The migrations are good on the native tool
 
 - 2026-10-06 · Founder: the need statement is removed from the requisition form and is no longer required. One recorded before is kept as it was (shown on the requisition and printed on the PR only where it exists); the column stays.
 - 2026-10-06 · Founder: on the requisition form the requesting officer is chosen first, and their unit fills in the department, section and cost centre (only fields still empty or filled by an earlier officer; a cost centre only where exactly one carries the unit).
+- 2026-10-06 · Founder: marking a requisition endorsed now checks its budget automatically where the check needs nothing typed (the portal ledger), and so does changing its funding route; the Check budget button stays for a re-check and for typed figures. The checking rules live in one function used by all three.

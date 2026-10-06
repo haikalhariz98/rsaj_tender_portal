@@ -1,5 +1,6 @@
 "use server";
 
+import { autoCheck, budgetCheckRefusal } from "@/lib/requisition/auto-check";
 import { MISSING_BUDGET_CODE_TEXT, missingBudgetCode } from "@/lib/requisition/budget-code";
 import { routedValue } from "@/lib/approvals/routed-value";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
@@ -60,7 +61,7 @@ import { choiceFault, choicesFor, rejectionOutcome, rejectionSnapshot, REJECTION
 import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { MoveRefused } from "@/lib/requisition/move";
 import { SUCCESSOR_OPEN_TEXT, successorOpenFault, transitionFault, type TransitionContext } from "@/lib/requisition/status";
-import { REQUISITION_DOMAIN, type OrgUnitKind, type RequisitionStatus } from "@/lib/requisition/types";
+import { REQUISITION_DOMAIN, type OrgUnitKind } from "@/lib/requisition/types";
 import {
   approvalGate,
   approve,
@@ -75,6 +76,7 @@ import {
   openInstance,
   rejectAndApply,
   routeLabelOf,
+  runBudgetCheck,
   REQUISITION_SUPPORTS,
   sendRejected,
   writeCheck,
@@ -387,6 +389,18 @@ async function leaveDraftContext(tx: Tx, l: LoadedRequisition): Promise<Transiti
   };
 }
 
+/**
+ * The budget check that runs without being asked (founder, 2026-10-06): after a requisition
+ * is marked endorsed and after its funding route changes. It runs only where `autoCheck`
+ * says so (the portal ledger, a checkable status, a budget code, a time zone), in the
+ * caller's transaction, so what it cannot do it leaves alone: the endorsement or the
+ * funding change stands, and the Check budget button (and its blocker) remain on the page.
+ */
+async function checkAutomatically(tx: Tx, l: LoadedRequisition): Promise<void> {
+  const controls = await loadControls(l.org.id, tx);
+  if (autoCheck(controls.budgetCheckSource, l.req.status, l.req.budgetCodeId, l.org.today).run) await runBudgetCheck(tx, l, portalLedger);
+}
+
 /// Draft to Endorsed: complete, and every tier endorsed by its head.
 export async function markEndorsed(_prev: FormState, data: FormData): Promise<FormState> {
   const id = String(data.get("id") ?? "");
@@ -400,6 +414,9 @@ export async function markEndorsed(_prev: FormState, data: FormData): Promise<Fo
     // Once endorsed it is a live requisition: committee matters waiting for it are linked
     // now (this ran at Register, a step since removed).
     await linkMatchingMatters(tx, l.org.id, id);
+    // Founder, 2026-10-06: where the budget check needs nothing typed it runs now, so the
+    // requisition leaves here Budget checked (or Over budget), not waiting for a click.
+    await checkAutomatically(tx, l);
     return { ok: true };
   });
 }
@@ -497,6 +514,9 @@ export async function changeFunding(_prev: FormState, data: FormData): Promise<F
     await tx.requisition.update({ where: { id }, data: after });
     await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE",
       diffFields({ fundingRouteCode: l.req.fundingRouteCode, sourcingPermitted: l.req.sourcingPermitted }, after), reason);
+    l.req.fundingRouteCode = code;
+    // Founder, 2026-10-06: a changed funding route re-checks the budget where one can be checked.
+    await checkAutomatically(tx, l);
     return { ok: true };
   });
 }
@@ -520,7 +540,6 @@ export async function recordExternalAuthority(_prev: FormState, data: FormData):
 
 // ---------------------------------------------------------------- budget
 
-const CHECKABLE: RequisitionStatus[] = ["ENDORSED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"];
 const SOURCE_NOT_SET =
   "Where the budget check comes from is not set, so no check can be run. Set the budget check source in Configuration, Requisition controls.";
 
@@ -543,21 +562,21 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
   if (r.failed) return { ok: false, errors: r.errors };
 
   return inRequisition(id, async (tx, l): Promise<FormState> => {
-    if (!CHECKABLE.includes(l.req.status)) return { ok: false, message: "A budget check runs once the requisition is endorsed, and before it is submitted." };
+    const refusal = budgetCheckRefusal(l.req.status, l.req.budgetCodeId, l.org.today);
+    if (refusal?.code === "NOT_CHECKABLE") return { ok: false, message: "A budget check runs once the requisition is endorsed, and before it is submitted." };
     // Checking one with no budget code would move it past where it can still be returned to add one.
-    const noCode = missingBudgetCode(l.req.status, l.req.budgetCodeId);
-    if (noCode) return { ok: false, message: MISSING_BUDGET_CODE_TEXT[noCode] };
-    if (!l.org.today) return NO_ZONE;
+    if (refusal?.code === "NO_BUDGET_CODE") return { ok: false, message: MISSING_BUDGET_CODE_TEXT[refusal.missing] };
+    if (refusal) return NO_ZONE;
     const controls = await loadControls(l.org.id, tx);
     if (!controls.budgetCheckSource) return { ok: false, message: SOURCE_NOT_SET };
-    const today = dayToDate(l.org.today);
+    const today = dayToDate(l.org.today!);
     let provider: BudgetCheckProvider = portalLedger;
     let asAt = today;
     if (controls.budgetCheckSource === "MANUAL_ERP_ENTRY") {
       const errors: Record<string, string> = {};
       if (!typed.balanceAsAt) errors.balanceAsAt = "The balance as at the date is required: the verdict is read from it.";
       if (!typed.asAt) errors.asAt = "Give the date the finance system's figures are as at.";
-      else if (storedDay(typed.asAt) > l.org.today) errors.asAt = "The figures cannot be as at a date after today.";
+      else if (storedDay(typed.asAt) > l.org.today!) errors.asAt = "The figures cannot be as at a date after today.";
       if (Object.keys(errors).length > 0) return { ok: false, errors };
       asAt = typed.asAt!;
       const sen = (v: string | null) => (v == null ? null : parseSen(v));
@@ -569,20 +588,7 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
         budgetCodeCode: l.req.budgetCode?.code ?? null,
       });
     }
-    const snapshot = await provider.check(tx, {
-      budgetCodeId: l.req.budgetCodeId,
-      accountCode: l.req.accountCode,
-      costCentreUnitCode: await costCentreUnit(tx, l, today),
-      requested: parseSen(l.req.estimatedValue.toString()),
-      on: today,
-    });
-    await writeCheck(tx, l, snapshot, asAt);
-    const to: RequisitionStatus = snapshot.verdict === "EXCEEDS" ? "OVER_BUDGET" : "BUDGET_CHECKED";
-    if (to !== l.req.status) {
-      const from = l.req.status;
-      await mustMove(tx, l, to, { today: l.org.today });
-      await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: to }));
-    }
+    await runBudgetCheck(tx, l, provider, asAt);
     return { ok: true };
   });
 }

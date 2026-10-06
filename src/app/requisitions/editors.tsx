@@ -69,12 +69,16 @@ export function RecordEndorsementDrawer({ id, tiers, byTier, today }: { id: stri
 /// Id of the header note that states why a header action is unavailable.
 export const HEADER_NOTE_ID = "requisition-actions-note";
 
-export function MarkEndorsed({ id, blocker }: { id: string; blocker: string | null }) {
+export function MarkEndorsed({ id, blocker, source }: { id: string; blocker: string | null; source: "PORTAL_LEDGER" | "MANUAL_ERP_ENTRY" | null }) {
   if (blocker) return <Blocked label="Mark endorsed" reason={blocker} primary noteId={HEADER_NOTE_ID} />;
   return (
     <RecordEditor
       title="Mark as endorsed"
-      description="Every tier has endorsed it. From here its fields are fixed; it is budget-checked and submitted."
+      description={
+        source === "PORTAL_LEDGER"
+          ? "Every tier has endorsed it. From here its fields are fixed. The budget is checked automatically, from the portal's budget ledger, as it is endorsed; it is then submitted."
+          : "Every tier has endorsed it. From here its fields are fixed; it is budget-checked and submitted."
+      }
       fields={[hidden("id")]}
       values={{ id }}
       action={markEndorsed}
@@ -342,7 +346,7 @@ export function ChangeFundingDrawer({ id, current, routes }: { id: string; curre
   return (
     <RecordEditor
       title="Change the funding route"
-      description="A controlled change with a reason. What the new route implies — whether the organisation sources, whose rules apply — is read again and stored."
+      description="A controlled change with a reason. What the new route implies — whether the organisation sources, whose rules apply — is read again and stored. Where the budget is checked from the portal's ledger, it is checked again."
       fields={[hidden("id"), { kind: "select", name: "fundingRouteCode", label: "Funding route", required: true, placeholder: "Choose", options: routes, orphanLabel: "A route no longer configured" }]}
       values={{ id, fundingRouteCode: current }}
       action={changeFunding}

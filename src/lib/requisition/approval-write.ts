@@ -17,7 +17,7 @@ import { rejectionOutcome, type RejectionKind, type RejectionOutcome } from "@/l
 import { postingRefusal } from "@/lib/budget/periods";
 import { linkedVia, type CiteVia } from "@/lib/committee/cite-via";
 import { dayToDate, storedDay } from "@/lib/dates";
-import { portalLedger } from "@/lib/integration/budget-check";
+import { portalLedger, type BudgetCheckProvider } from "@/lib/integration/budget-check";
 import { parseSen, senToDecimalString } from "@/lib/money";
 import { approvalBudgetOutcome, approvalCommitment, approvalRechecks, type BudgetSnapshot } from "@/lib/requisition/budget";
 import { committeeCitationFault, committeeStepFrom, type CitationFault } from "@/lib/requisition/committee-step";
@@ -87,6 +87,35 @@ export async function writeCheck(tx: Tx, l: LoadedRequisition, s: BudgetSnapshot
   await audit(tx, l.org.id, "RequisitionBudgetCheck", row.id, `${l.req.reference} · budget check`, "CREATE",
     diffFields(null, { source: s.source, asAt, budgetCode: s.budgetCodeCode, verdict: s.verdict, balanceAsAt: dec(s.balanceAsAt), requestedAmount: senToDecimalString(s.requested) }));
   return row;
+}
+
+/**
+ * Run the budget check on the locked requisition and record it: the provider's snapshot
+ * is written with its audit, and the requisition moves to Budget checked or Over budget
+ * (FR-REQ-007). The one place this is done, for the Check budget action and for the
+ * automatic checks on endorsement and on a funding change (founder, 2026-10-06). The
+ * caller has already established that a check may run (`budgetCheckRefusal`) and holds
+ * the requisition's lock; `asAt` is the day the figures are as at (today where the source reads now).
+ */
+export async function runBudgetCheck(tx: Tx, l: LoadedRequisition, provider: BudgetCheckProvider, asAt?: Date) {
+  const todayDay = l.org.today;
+  if (!todayDay) throw new Error("A budget check needs the organisation's today; the caller checks it first.");
+  const today = dayToDate(todayDay);
+  const snapshot = await provider.check(tx, {
+    budgetCodeId: l.req.budgetCodeId,
+    accountCode: l.req.accountCode,
+    costCentreUnitCode: await costCentreUnit(tx, l, today),
+    requested: parseSen(l.req.estimatedValue.toString()),
+    on: today,
+  });
+  await writeCheck(tx, l, snapshot, asAt ?? today);
+  const to: RequisitionStatus = snapshot.verdict === "EXCEEDS" ? "OVER_BUDGET" : "BUDGET_CHECKED";
+  if (to !== l.req.status) {
+    const from = l.req.status;
+    await mustMove(tx, l, to, { today: todayDay });
+    await audit(tx, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: to }));
+  }
+  return snapshot;
 }
 
 /// The cost centre's unit, for the owner warning.

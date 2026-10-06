@@ -393,7 +393,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
           <ButtonLink href={`/requisitions/${r.id}/edit`} variant="secondary" size="sm">
             Edit
           </ButtonLink>
-          <MarkEndorsed id={r.id} blocker={endorseText} />
+          <MarkEndorsed id={r.id} blocker={endorseText} source={controls.budgetCheckSource} />
         </>
       )}
       {r.status === "ENDORSED" && <ReturnDrawer id={r.id} people={people} today={today} />}
