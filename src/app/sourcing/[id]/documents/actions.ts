@@ -47,6 +47,8 @@ import { appendixFactsOf, loadClauses, loadConditions, loadConfiguredParts, load
 import { approvalDatesFault, estimateLeadWarning, frozenWindowFault, RETURN_DECIDED_BY, returnOutcome, TENDERING_DOMAIN, tenderingRejectionSnapshot, tenderingRouteForRequester } from "@/lib/tender-docs/tendering";
 import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Writes for 6.4 increment 1: an exercise's tender pack, its parts and its Appendix, the
@@ -57,8 +59,7 @@ import { FormReader } from "@/lib/validate";
  * (`lockPackRows`) — and a submission then the 6.2 rows it judges — re-reads what it
  * judges inside that transaction, re-runs the pure rule (`src/lib/tender-docs`) on the
  * locked data, and writes with its audit rows in the same transaction. A refusal saves
- * nothing and names what blocks it and where to fix it. Nobody is signed in: every person
- * named is "recorded on behalf of, not signed", and the audit is unattributed.
+ * nothing and names what blocks it and where to fix it. Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that).
  */
 
 const GONE: FormState = { ok: false, message: "That exercise no longer exists." };
@@ -74,9 +75,9 @@ class Refusal extends Error {
 
 const refuse = (fs: readonly Finding[], text: (f: Finding) => string = partFaultText, lead = "Nothing was saved:"): FormState => ({ ok: false, message: `${lead} ${fs.filter((f) => f.level === "block").map(text).join(" ")}` });
 
-async function audit(tx: Tx, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
+async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
+  await writeAudit(tx, { actor, organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
 }
 
 /// Every 6.4 row is labelled with its exercise's reference, so the exercise's History finds it.
@@ -150,6 +151,7 @@ const partAuditFacts = (p: { printedNumber: string; labelSnapshot: string; role:
  * returned version stays as it was frozen.
  */
 export async function startPack(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   return inPacks(exerciseId, async (tx, l, packs) => {
     if (!l.org.today) return NO_ZONE;
@@ -176,7 +178,7 @@ export async function startPack(_prev: FormState, data: FormData): Promise<FormS
         copiedFromPackId: copyFrom?.id ?? null,
       },
     });
-    await audit(tx, l.org.id, ENTITY.pack, pack.id, packLabel(l, pack), "CREATE", packCreatedAudit({ versionNo, packKind: kind, basis: basis?.nameEn ?? null, form, parts: composition.parts.length, continues: copyFrom?.versionNo ?? null }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.pack, pack.id, packLabel(l, pack), "CREATE", packCreatedAudit({ versionNo, packKind: kind, basis: basis?.nameEn ?? null, form, parts: composition.parts.length, continues: copyFrom?.versionNo ?? null }));
     for (const p of composition.parts) {
       const was = copyFrom?.parts.find((x) => x.partCode === p.code) ?? null;
       const template = was?.templateId ? (templates.find((t) => t.id === was.templateId) ?? null) : p.templateCode ? (byCode.get(p.templateCode) ?? null) : null;
@@ -205,7 +207,7 @@ export async function startPack(_prev: FormState, data: FormData): Promise<FormS
           omittedReason: was?.state === "OMITTED" ? was.omittedReason : "",
         },
       });
-      await audit(tx, l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${versionNo} · part ${p.printedNumber}`), "CREATE", partAudit(null, partAuditFacts(row, row.templateId ? (template?.nameEn ?? null) : null)));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${versionNo} · part ${p.printedNumber}`), "CREATE", partAudit(null, partAuditFacts(row, row.templateId ? (template?.nameEn ?? null) : null)));
       // The returned version's files go with the part, each judged as an attachment now.
       if (was && p.source === "UPLOAD") {
         const facts = tenderPackPartFacts({ source: row.source, pack: { status: "DRAFT", exercise: { status: l.ex.status } } });
@@ -215,11 +217,11 @@ export async function startPack(_prev: FormState, data: FormData): Promise<FormS
           if (attachFault({ purpose: "TENDER_PART", owner: facts, version: v, documentClass: v.document.documentClass, documentClassification: v.document.classificationSnapshot }).some((f) => f.level === "block")) continue;
           const att = await tx.documentAttachment.create({ data: { organisationId: l.org.id, purpose: "TENDER_PART", versionId: v.id, tenderPackPartId: row.id } });
           const owner = label(l, `Tender documents v${versionNo} · part ${p.printedNumber}, ${p.labelEn}`);
-          await audit(tx, l.org.id, "DocumentAttachment", att.id, `${owner} · Tender document part`, "CREATE", attached({ purpose: "TENDER_PART", title: v.document.title, versionNo: v.versionNo, sha256: v.sha256, owner }));
+          await audit(tx, toAuditActor(actor), l.org.id, "DocumentAttachment", att.id, `${owner} · Tender document part`, "CREATE", attached({ purpose: "TENDER_PART", title: v.document.title, versionNo: v.versionNo, sha256: v.sha256, owner }));
         }
         if (state === "READY" && !(await tx.documentAttachment.count({ where: { tenderPackPartId: row.id, detachedAt: null } }))) {
           await tx.tenderPackPart.update({ where: { id: row.id }, data: { state: "NOT_STARTED" } });
-          await audit(tx, l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${versionNo} · part ${p.printedNumber}`), "UPDATE", diffFields({ state: "Ready" }, { state: "Not ready", why: "Its file could not be carried from the returned version." }));
+          await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, row.id, label(l, `Tender documents v${versionNo} · part ${p.printedNumber}`), "UPDATE", diffFields({ state: "Ready" }, { state: "Not ready", why: "Its file could not be carried from the returned version." }));
         }
       }
     }
@@ -235,7 +237,7 @@ export async function startPack(_prev: FormState, data: FormData): Promise<FormS
       const stored = (await loadPacks(exerciseId, tx)).find((x) => x.id === pack.id)!.appendix!;
       const facts = appendixFactsOf(stored);
       if (appendixComplete(facts)) await tx.conditionsAppendix.update({ where: { id: appx.id }, data: { status: "COMPLETE" } });
-      await audit(tx, l.org.id, ENTITY.appendix, appx.id, label(l, `Tender documents v${versionNo} · Appendix`), "CREATE", appendixAudit(null, facts, names.name));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.appendix, appx.id, label(l, `Tender documents v${versionNo} · Appendix`), "CREATE", appendixAudit(null, facts, names.name));
     }
     return { ok: true };
   });
@@ -256,6 +258,7 @@ function lockedPart(l: LockedExercise, packs: readonly PackRow[], partId: string
 
 /// Mark a part ready: its content as its source needs it (FR-DOC-003).
 export async function markPartReady(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
   return inPacks(exerciseId, async (tx, l, packs) => {
@@ -266,7 +269,7 @@ export async function markPartReady(_prev: FormState, data: FormData): Promise<F
     const faults = markReadyFaults(partFactsOf(part), pack.status, l.ex.status, { bqFinalised, appendixComplete: appx, whitelist: await whitelistOn(tx, l.org.id, l.org.today) });
     if (faults.length) return refuse(faults);
     await tx.tenderPackPart.update({ where: { id: part.id }, data: { state: "READY", omittedReason: "" } });
-    await audit(tx, l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "READY", omittedReason: "" }, part.template?.nameEn ?? null)));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "READY", omittedReason: "" }, part.template?.nameEn ?? null)));
     return { ok: true };
   });
 }
@@ -279,6 +282,7 @@ export async function markPartReady(_prev: FormState, data: FormData): Promise<F
  * The officer confirms the list the drawer showed; a different list now is refused (64-C2).
  */
 export async function refreshPartFlags(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const confirmed = data.get("confirmedChanges");
   return inPacks(exerciseId, async (tx, l, packs) => {
@@ -301,7 +305,7 @@ export async function refreshPartFlags(_prev: FormState, data: FormData): Promis
         returnedByBidderProvenance: c.returnedByBidder ? c.returnedByBidder.provenance : part.returnedByBidderProvenance,
       };
       await tx.tenderPackPart.update({ where: { id: part.id }, data: next });
-      await audit(tx, l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, ...next }, part.template?.nameEn ?? null)), "Refreshed from the configuration");
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, ...next }, part.template?.nameEn ?? null)), "Refreshed from the configuration");
     }
     return { ok: true };
   });
@@ -309,6 +313,7 @@ export async function refreshPartFlags(_prev: FormState, data: FormData): Promis
 
 /// Omit a part that is not mandatory, with the reason.
 export async function omitPart(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
@@ -317,26 +322,28 @@ export async function omitPart(_prev: FormState, data: FormData): Promise<FormSt
     const faults = omitFaults(partFactsOf(part), pack.status, l.ex.status, reason);
     if (faults.length) return faults.some((f) => f.code === "OMIT_REASON_REQUIRED") && faults.length === 1 ? { ok: false, errors: { reason: partFaultText(faults[0]) } } : refuse(faults);
     await tx.tenderPackPart.update({ where: { id: part.id }, data: { state: "OMITTED", omittedReason: reason } });
-    await audit(tx, l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "OMITTED", omittedReason: reason }, part.template?.nameEn ?? null)), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "OMITTED", omittedReason: reason }, part.template?.nameEn ?? null)), reason);
     return { ok: true };
   });
 }
 
 /// Take a part back to not ready (to rework it, or to include a part that was omitted).
 export async function reopenPart(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
   return inPacks(exerciseId, async (tx, l, packs) => {
     const { pack, part } = lockedPart(l, packs, partId);
     if (part.state === "NOT_STARTED") return { ok: false, message: "This part is already not ready." };
     await tx.tenderPackPart.update({ where: { id: part.id }, data: { state: "NOT_STARTED", omittedReason: "" } });
-    await audit(tx, l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "NOT_STARTED", omittedReason: "" }, part.template?.nameEn ?? null)));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "NOT_STARTED", omittedReason: "" }, part.template?.nameEn ?? null)));
     return { ok: true };
   });
 }
 
 /// Choose the library template a part draws (FR-DOC-003). A ready part goes back to not ready: its content changed.
 export async function pickPartTemplate(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
   const templateId = String(data.get("templateId") ?? "");
@@ -348,7 +355,7 @@ export async function pickPartTemplate(_prev: FormState, data: FormData): Promis
     if (faults.length) return refuse(faults);
     if (part.templateId === t.id) return { ok: true };
     await tx.tenderPackPart.update({ where: { id: part.id }, data: { templateId: t.id, state: "NOT_STARTED" } });
-    await audit(tx, l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "NOT_STARTED" }, t.nameEn)));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.part, part.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "UPDATE", partAudit(partAuditFacts(part, part.template?.nameEn ?? null), partAuditFacts({ ...part, state: "NOT_STARTED" }, t.nameEn)));
     return { ok: true };
   });
 }
@@ -369,13 +376,13 @@ function lockedAppendix(l: LockedExercise, packs: readonly PackRow[]) {
 }
 
 /// After any change: the status follows the rule, and the trail records the change in words.
-async function appendixChanged(tx: Tx, l: LockedExercise, pack: PackRow, before: AppendixFacts, reason = "") {
+async function appendixChanged(tx: Tx, by: AuditActor, l: LockedExercise, pack: PackRow, before: AppendixFacts, reason = "") {
   const after = (await loadPacks(l.ex.id, tx)).find((p) => p.id === pack.id)!.appendix!;
   const facts = appendixFactsOf(after);
   const status = appendixComplete(facts) ? "COMPLETE" : "DRAFT";
   if (after.status !== status) await tx.conditionsAppendix.update({ where: { id: after.id }, data: { status } });
   const names = await officeNames(tx, l.org.id);
-  await audit(tx, l.org.id, ENTITY.appendix, after.id, label(l, `Tender documents v${pack.versionNo} · Appendix`), "UPDATE", appendixAudit(before, { ...facts, status }, names.name), reason);
+  await audit(tx, by, l.org.id, ENTITY.appendix, after.id, label(l, `Tender documents v${pack.versionNo} · Appendix`), "UPDATE", appendixAudit(before, { ...facts, status }, names.name), reason);
   const blocks = appendixFaults(facts);
   return { ok: true as const, message: blocks.length ? `Saved. Still to enter: ${blocks.length === 1 ? appendixFaultText(blocks[0]) : `${blocks.length} items, listed on the page.`}` : "Saved. The Appendix is complete." };
 }
@@ -386,6 +393,7 @@ async function appendixChanged(tx: Tx, l: LockedExercise, pack: PackRow, before:
  * the kind changes (an amount LAD holds no percentage, Q-6).
  */
 export async function saveAppendix(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const office = (name: string) => r.optionalText(name);
@@ -445,12 +453,13 @@ export async function saveAppendix(_prev: FormState, data: FormData): Promise<Fo
         dlpMonths: v.dlpApplies === false ? null : v.dlpMonths,
       },
     });
-    return appendixChanged(tx, l, pack, before, String(data.get("reason") ?? ""));
+    return appendixChanged(tx, toAuditActor(actor), l, pack, before, String(data.get("reason") ?? ""));
   });
 }
 
 /// Add or change a variation limit: an office or a committee, and its limit (null: not set).
 export async function saveVariationLimit(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const id = r.optionalText("id");
@@ -469,11 +478,12 @@ export async function saveVariationLimit(_prev: FormState, data: FormData): Prom
       if (!existing) return { ok: false, message: "That limit is no longer on the Appendix." };
       await tx.appendixVariationLimit.update({ where: { id }, data: row });
     } else await tx.appendixVariationLimit.create({ data: { organisationId: l.org.id, appendixId: appendix.id, ...row } });
-    return appendixChanged(tx, l, pack, before);
+    return appendixChanged(tx, toAuditActor(actor), l, pack, before);
   });
 }
 
 export async function removeVariationLimit(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
   return inPacks(exerciseId, async (tx, l, packs) => {
@@ -481,12 +491,13 @@ export async function removeVariationLimit(_prev: FormState, data: FormData): Pr
     if (!appendix.variationLimits.some((x) => x.id === id)) return { ok: false, message: "That limit is no longer on the Appendix." };
     const before = appendixFactsOf(appendix);
     await tx.appendixVariationLimit.delete({ where: { id } });
-    return appendixChanged(tx, l, pack, before);
+    return appendixChanged(tx, toAuditActor(actor), l, pack, before);
   });
 }
 
 /// Add or change a section for sectional completion, with its LAD (amount or percentage, Q-6).
 export async function saveAppendixSection(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const id = r.optionalText("id");
@@ -505,11 +516,12 @@ export async function saveAppendixSection(_prev: FormState, data: FormData): Pro
       if (!appendix.sections.some((x) => x.id === id)) return { ok: false, message: "That section is no longer on the Appendix." };
       await tx.appendixSection.update({ where: { id }, data: row });
     } else await tx.appendixSection.create({ data: { organisationId: l.org.id, appendixId: appendix.id, ...row } });
-    return appendixChanged(tx, l, pack, before);
+    return appendixChanged(tx, toAuditActor(actor), l, pack, before);
   });
 }
 
 export async function removeAppendixSection(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
   return inPacks(exerciseId, async (tx, l, packs) => {
@@ -517,7 +529,7 @@ export async function removeAppendixSection(_prev: FormState, data: FormData): P
     if (!appendix.sections.some((x) => x.id === id)) return { ok: false, message: "That section is no longer on the Appendix." };
     const before = appendixFactsOf(appendix);
     await tx.appendixSection.delete({ where: { id } });
-    return appendixChanged(tx, l, pack, before);
+    return appendixChanged(tx, toAuditActor(actor), l, pack, before);
   });
 }
 
@@ -533,6 +545,7 @@ export async function removeAppendixSection(_prev: FormState, data: FormData): P
  * moved to Pending approval for tendering by the submission (`moveExercise`).
  */
 export async function submitPack(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const startOn = String(data.get("startOn") ?? "").trim() || null;
   const closingDay = String(data.get("closingDay") ?? "").trim() || null;
@@ -622,7 +635,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
         },
       });
       const part = pack.parts.find((p) => p.partCode === d.partCode)!;
-      await audit(tx, l.org.id, ENTITY.document, row.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "CREATE", diffFields(null, { part: `${part.printedNumber}. ${part.labelSnapshot}`, frozenFrom: d.templateName ? `${d.templateName}, text version ${d.templateBodyVersion}` : d.source === "BQ_UNPRICED" ? "The bill of quantities, unpriced" : "The Appendix as entered", language: d.language === "MS" ? "Malay" : "English" }));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.document, row.id, label(l, `Tender documents v${pack.versionNo} · part ${part.printedNumber}`), "CREATE", diffFields(null, { part: `${part.printedNumber}. ${part.labelSnapshot}`, frozenFrom: d.templateName ? `${d.templateName}, text version ${d.templateBodyVersion}` : d.source === "BQ_UNPRICED" ? "The bill of quantities, unpriced" : "The Appendix as entered", language: d.language === "MS" ? "Malay" : "English" }));
     }
     if (pack.appendix && appendixFacts) {
       await tx.conditionsAppendix.update({ where: { id: pack.appendix.id }, data: { status: "COMPLETE" } });
@@ -675,7 +688,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
       },
     });
     const routeLabel = label(l, exerciseRouteMatter(TENDERING_DOMAIN).auditNoun);
-    await audit(tx, l.org.id, "ApprovalInstance", instance.id, routeLabel, "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", instance.id, routeLabel, "CREATE",
       diffFields(null, { matrix: issue!.label, rule: rule.labelEn, route: res.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: res.source === "OVERRIDE", ifRejected: "Returned for amendment" }));
     // ---- the pack, frozen
     const warns = allOf(findings).filter((f) => f.level !== "block");
@@ -694,9 +707,9 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
         approvalInstanceId: instance.id,
       },
     });
-    await audit(tx, l.org.id, ENTITY.pack, pack.id, packLabel(l, pack), "UPDATE", packStatusAudit("DRAFT", "SUBMITTED", { proposedStart: startOn, proposedClosing: `${closingDay}, ${closingTime}`, partsFrozen: frozen.documents.length, filesPinned: frozen.manifest.reduce((n, m) => n + m.files.length, 0), warnings: warns.length || null }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.pack, pack.id, packLabel(l, pack), "UPDATE", packStatusAudit("DRAFT", "SUBMITTED", { proposedStart: startOn, proposedClosing: `${closingDay}, ${closingTime}`, partsFrozen: frozen.documents.length, filesPinned: frozen.manifest.reduce((n, m) => n + m.files.length, 0), warnings: warns.length || null }));
     await moveExercise(tx, l.ex, "PENDING_APPROVAL_FOR_TENDERING", { today: l.org.today, via: "SUBMISSION", packFaults: blocks.length });
-    await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "PENDING_APPROVAL_FOR_TENDERING" }));
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "PENDING_APPROVAL_FOR_TENDERING" }));
     return { ok: true, message: warns.length ? `Submitted. ${submitFindingTexts(findings).filter((t) => t.level !== "block").map((t) => t.text).join(" ")}` : undefined };
   });
 }
@@ -713,6 +726,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
  * returned with the reason, and the exercise goes back into preparation.
  */
 export async function recordTenderingDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);
@@ -773,18 +787,18 @@ export async function recordTenderingDecision(_prev: FormState, data: FormData):
     const after = personDecisionWrite({ decision, person: { id: person!.id, name: person!.name }, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",
       diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
     const routeLabel = label(l, exerciseRouteMatter(TENDERING_DOMAIN).auditNoun);
     const now = new Date();
 
     if (decision === "REJECTED") {
       // Q-3: always returned for amendment; cancelling the exercise is its own act.
-      await closeRejected(tx, { organisationId: l.org.id, routeLabel }, inst, returnOutcome(), reason, RETURN_DECIDED_BY);
+      await closeRejected(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel }, inst, returnOutcome(), reason, RETURN_DECIDED_BY);
       await tx.tenderPack.update({ where: { id: pack.id }, data: { status: "RETURNED", returnedReason: reason, returnedAt: now } });
-      await audit(tx, l.org.id, ENTITY.pack, pack.id, packLabel(l, pack), "UPDATE", packStatusAudit("SUBMITTED", "RETURNED", { returnedBecause: reason }), reason);
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.pack, pack.id, packLabel(l, pack), "UPDATE", packStatusAudit("SUBMITTED", "RETURNED", { returnedBecause: reason }), reason);
       await moveExercise(tx, ex, "DOCUMENTS_IN_PREPARATION", { today: l.org.today, via: "RETURN" });
-      await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${ex.reference} · ${ex.title}`, "UPDATE", diffFields({ status: ex.status }, { status: "DOCUMENTS_IN_PREPARATION" }), `Tender documents returned for amendment: ${reason}`);
+      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${ex.reference} · ${ex.title}`, "UPDATE", diffFields({ status: ex.status }, { status: "DOCUMENTS_IN_PREPARATION" }), `Tender documents returned for amendment: ${reason}`);
       return { ok: true, message: "Returned for amendment. Start the next version of the tender documents on the Tender documents tab." };
     }
     if (!completes) return { ok: true };
@@ -794,11 +808,11 @@ export async function recordTenderingDecision(_prev: FormState, data: FormData):
     const closingAt = dates!.closingAt!;
     const approvedAt = on;
     await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "APPROVED", closedAt: now } });
-    await audit(tx, l.org.id, "ApprovalInstance", inst.id, routeLabel, "UPDATE", diffFields({ status: inst.status }, { status: "APPROVED" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, routeLabel, "UPDATE", diffFields({ status: inst.status }, { status: "APPROVED" }), reason);
     await tx.tenderPack.update({ where: { id: pack.id }, data: { status: "APPROVED", approvedStartOn: startDay, approvedClosingAt: closingAt, approvedAt } });
-    await audit(tx, l.org.id, ENTITY.pack, pack.id, packLabel(l, pack), "UPDATE", packStatusAudit("SUBMITTED", "APPROVED", { approvedStart: startOn, approvedClosing: `${closingDay}, ${closingTime}` }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.pack, pack.id, packLabel(l, pack), "UPDATE", packStatusAudit("SUBMITTED", "APPROVED", { approvedStart: startOn, approvedClosing: `${closingDay}, ${closingTime}` }));
     await moveExercise(tx, ex, "APPROVED_FOR_TENDERING", { today: l.org.today, via: "APPROVAL", datesSet: true }, { tenderingStartOn: startDay, closingAt, approvedForTenderingAt: approvedAt });
-    await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${ex.reference} · ${ex.title}`, "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${ex.reference} · ${ex.title}`, "UPDATE",
       diffFields({ status: ex.status, tenderingStarts: null, closing: null }, { status: "APPROVED_FOR_TENDERING", tenderingStarts: startOn, closing: `${closingDay}, ${closingTime}` }));
     // 6.2's estimate lead, read against the closing just recorded: a warning, never a refusal.
     const scopePolicy = await loadScopePolicy(l.org.id, tx);

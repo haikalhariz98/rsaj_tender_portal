@@ -17,9 +17,11 @@ import { lockEnvelopeRows } from "./lock";
 import type { LockedExercise } from "@/lib/scope/lock";
 
 import type { Finding } from "./types";
+import type { AuditActor } from "@/lib/auth/types";
 
 export async function recordEstimateLodgement(
   tx: Tx,
+  actor: AuditActor,
   l: LockedExercise,
   i: { personId: string; personName: string; versionNo: number; now: Date },
 ): Promise<{ ok: true; sequence: number } | { ok: false; faults: Finding[] }> {
@@ -47,7 +49,7 @@ export async function recordEstimateLodgement(
       recordedAfterClosing: judged.recordedAfterClosing,
     },
   });
-  await writeAudit(tx, { organisationId: l.org.id, entity: BID_ENTITY.envelope, entityId: row.id, entityLabel: `${l.ex.reference} · Envelope ${sequence}` }, "CREATE",
+  await writeAudit(tx, { actor, organisationId: l.org.id, entity: BID_ENTITY.envelope, entityId: row.id, entityLabel: `${l.ex.reference} · Envelope ${sequence}` }, "CREATE",
     diffFields(null, envelopeFields({ ...row, receivedBy: i.personName, parentSequence: null }, l.org.timeZone)));
   return { ok: true, sequence };
 }

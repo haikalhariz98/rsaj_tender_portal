@@ -29,6 +29,7 @@ import { wipeSupervision } from "./demo-supervision";
 import { wipePayments } from "./demo-payment";
 import { wipeVariations } from "./demo-lifecycle";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -117,7 +118,7 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
 
   const c: Ctx = { db, organisationId, audit: [] };
   let n = 0;
-  const audit = (entity: string, entityId: string, label: string, action: "CREATE" | "UPDATE" | "DELETE", when: string, changes: object[], reason = "") => c.audit.push({ id: `${P}kau${++n}`, organisationId, entity, entityId, entityLabel: label, action, at: at(when), changes, reason, unattributed: true });
+  const audit = (entity: string, entityId: string, label: string, action: "CREATE" | "UPDATE" | "DELETE", when: string, changes: object[], reason = "") => c.audit.push({ id: `${P}kau${++n}`, organisationId, entity, entityId, entityLabel: label, action, at: at(when), changes, reason, ...DEMO_ACTOR });
   const ON_BEHALF = "recorded on behalf of, not signed";
   const people = { daniel: { id: `${P}p4`, name: "Daniel Anak Jelani" }, chen: { id: `${P}p3`, name: "Chen Wei Ling" }, imran: { id: `${P}p9`, name: "Imran Hakim" } };
   const policy = (await db.contractPolicy.findUnique({ where: { organisationId } }))!;

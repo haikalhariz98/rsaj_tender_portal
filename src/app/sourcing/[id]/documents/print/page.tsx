@@ -10,6 +10,7 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { printView } from "@/lib/tender-docs/read";
 import { tableDocumentNote } from "@/lib/window/read";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
  * live and is marked on every page. The bill of quantities is issued unpriced.
  */
 export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/documents/print">) {
+  await requireStaff();
   const { id } = await props.params;
   // FR-DOC-010 (the part built here): the same pack, only the parts in the Tender Table Document.
   const table = (await props.searchParams).set === "table";

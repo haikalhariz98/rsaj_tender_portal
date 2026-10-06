@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Callout } from "@/components/ui/feedback";
 import { HistoryButton } from "@/components/history-drawer";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ const RESET_LABEL: Record<string, string> = {
 };
 
 export default async function NumberingPage() {
+  await requireStaff();
   // Previews are drawn on the organisation's day, never the UTC one; with no zone set
   // the period a serial belongs to is not known, so none is shown (6.10 §9.5 follow-up).
   const zone = await organisationTimeZone();

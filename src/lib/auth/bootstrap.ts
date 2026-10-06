@@ -46,7 +46,7 @@ const fail = (code: string, message: string, unset?: SecurityPolicyKey[]): Boots
 export const bootstrapLabel = (mode: BootstrapMode) => (mode === "FIRST" ? "bootstrap command" : mode === "ADDITIONAL" ? "bootstrap command (--additional)" : "bootstrap command (--recover)");
 
 /// Letters, digits and . _ - @ only, so that a sign-in name is one word that can be read out and typed.
-const LOGIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._@-]{2,63}$/;
+export const LOGIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._@-]{2,63}$/;
 
 export interface Holdings {
   offices: number;
@@ -66,7 +66,7 @@ export function holdingsFault(h: Holdings): string | null {
 }
 
 /// What a person holds that has not ended. A period whose end is today or earlier has ended.
-async function holdingsOf(tx: Tx, personId: string, now: Date): Promise<Holdings> {
+export async function holdingsOf(tx: Tx, personId: string, now: Date): Promise<Holdings> {
   const live = { OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] };
   const [offices, seats, delegations] = await Promise.all([
     tx.roleAssignment.count({ where: { personId, ...live } }),

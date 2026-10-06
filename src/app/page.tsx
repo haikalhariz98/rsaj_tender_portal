@@ -27,9 +27,9 @@ import { phaseSummary, statusBreakdown } from "@/lib/method/phase";
 import { loadDashboard } from "@/lib/dashboard";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { matterLabel } from "@/lib/labels";
-import { currentStaffOrNull } from "./_auth/actor";
 import { greetingAt } from "@/lib/dates";
 import { organisationTimeZone } from "@/lib/org-time";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +65,8 @@ const COMING = [
 ];
 
 export default async function Dashboard() {
-  const [data, actor, timeZone] = await Promise.all([loadDashboard(), currentStaffOrNull(), organisationTimeZone()]);
+  const actor = await requireStaff();
+  const [data, timeZone] = await Promise.all([loadDashboard(), organisationTimeZone()]);
 
   if (!data) {
     return (
@@ -80,7 +81,7 @@ export default async function Dashboard() {
 
   const now = new Date();
   // Greet by the name of whoever is signed in, from their session. Nobody signed in: the greeting alone.
-  const firstName = actor?.personName.split(/\s+/)[0] ?? null;
+  const firstName = actor.personName.split(/\s+/)[0];
   const waiting = data.queue.length + data.requisitions.length;
   // Waiting days are shown as a count, with no judgement: there is no configured
   // target to call one "aged" against until FR-APR-018's targets exist (ruling R5).
@@ -95,7 +96,7 @@ export default async function Dashboard() {
             : `${waiting} ${waiting === 1 ? "item is" : "items are"} awaiting a decision.`
         }
         meta={[
-          actor?.jobTitle && (
+          actor.jobTitle && (
             <>
               <UserIcon size={14} />
               {actor.jobTitle}

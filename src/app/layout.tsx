@@ -21,11 +21,12 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // The shell must render before anything is configured, so this never throws.
-  const [shell, actor] = await Promise.all([loadShell(), currentStaffOrNull()]);
+  const actor = await currentStaffOrNull();
+  // The public copy serves strangers: it carries none of the staff side's counts, and no way over to it. Nor does the frame show counts to anyone not signed in.
+  const portalOnly = surfaceOf(process.env[SURFACE_ENV]) === "public";
+  const shell = await loadShell({ counts: actor != null && !portalOnly });
   // Who is signed in comes from the session, read from the database on this request, never from the environment or from whoever sorts first.
   const user = actor ? { name: actor.personName, jobTitle: actor.jobTitle } : null;
-  // The public copy serves strangers: it carries none of the staff side's counts, and no way over to it.
-  const portalOnly = surfaceOf(process.env[SURFACE_ENV]) === "public";
 
   return (
     <html lang="en" className={jakarta.variable} style={{ colorScheme: "light" }}>

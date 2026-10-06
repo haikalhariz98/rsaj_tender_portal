@@ -1,12 +1,14 @@
 import type { NextRequest } from "next/server";
 
+import { toAuditActor } from "@/app/_auth/actor";
+import { staffRoute } from "@/app/_auth/route";
+import type { AuditActor } from "@/lib/auth/types";
 import { filenameFault } from "@/lib/documents/access";
 import { limitBody } from "@/lib/documents/body";
 import { RETRY_AFTER_SECONDS, uploadLimiter } from "@/lib/documents/concurrency";
 import { documentFaultText } from "@/lib/documents/labels";
 import { effectiveCap, readLimit, requestLengthFault, sizeFault } from "@/lib/documents/limits";
 import { mediaFault, sniffMediaType, SNIFF_BYTES } from "@/lib/documents/media";
-import { uploadRequestFault, UPLOAD_HEADER } from "@/lib/documents/request-guard";
 import { documentOrg, loadStorePolicy, logAccess, storeUpload, UploadRefusal } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling, sha256Hex } from "@/lib/documents/store";
 import type { Finding } from "@/lib/documents/types";
@@ -19,8 +21,8 @@ import type { Finding } from "@/lib/documents/types";
  * Multipart form fields: `file`, `title`, `documentClassId`, `recordedByPersonId`,
  * optional `receivedOn` (YYYY-MM-DD), `note`, `documentId`.
  *
- * Refused before anything else, and never logged: a request that is not same-origin
- * or lacks the `X-Perolehan-Upload` header (CSRF, audit M-3). Refused before the body is read: an unset policy or ceiling, and a declared length
+ * Refused before anything else, and never logged: a request from nobody signed in, one that is not same-origin
+ * or whose body is not multipart (CSRF, audit M-3; the shared route guard, which replaced the `X-Perolehan-Upload` header check). Refused before the body is read: an unset policy or ceiling, and a declared length
  * over the cap (413). A body with no length is counted as it arrives and cut off at the
  * same limit. Then the file's own size against the exact cap, its type sniffed from its
  * bytes against the allow-list and its declared name and type, and its SHA-256. One
@@ -28,28 +30,23 @@ import type { Finding } from "@/lib/documents/types";
  * refusal is logged as a REFUSED access event with what was offered (never the bytes).
  */
 export async function POST(req: NextRequest) {
-  // First, before the organisation is read, a body is read or anything is logged: a
-  // cross-site request writes nothing (audit M-3).
-  const guard = uploadRequestFault({
-    secFetchSite: req.headers.get("sec-fetch-site"),
-    origin: req.headers.get("origin"),
-    host: req.headers.get("host"),
-    uploadHeader: req.headers.get(UPLOAD_HEADER),
-  });
-  if (guard) return refusal(403, { code: guard, level: "block" });
+  // First, before the organisation is read, a body is read or anything is logged: who is signed in, and that the request is same-origin with a
+  // multipart body (the shared guard of every route handler: a cross-site form is refused here, and writes nothing; audit M-3, F9).
+  const guard = await staffRoute({ contentTypes: ["multipart/form-data"] });
+  if (!guard.ok) return guard.response;
 
   // Then the cap on uploads in flight (audit C-1): a request over it is told to retry,
   // and is not an access event, since nothing was asked of the store.
   const slot = uploadLimiter().tryAcquire();
   if (!slot) return refusal(503, { code: "BUSY", level: "block" }, { "Retry-After": String(RETRY_AFTER_SECONDS) });
   try {
-    return await upload(req);
+    return await upload(req, toAuditActor(guard.actor));
   } finally {
     slot();
   }
 }
 
-async function upload(req: NextRequest) {
+async function upload(req: NextRequest, actor: AuditActor) {
   const org = await documentOrg();
   if (!org) return refusal(503, { code: "NO_ORGANISATION", level: "block" });
   const declaredLength = req.headers.get("content-length");
@@ -111,7 +108,7 @@ async function upload(req: NextRequest) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   form = null;
   try {
-    const result = await storeUpload({
+    const result = await storeUpload(actor, {
       org,
       store: s.store,
       bytes,

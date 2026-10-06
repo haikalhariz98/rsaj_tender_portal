@@ -44,6 +44,7 @@ import { bqTotals, itemAmount, totalsSnapshot } from "../src/lib/scope/bq";
 import { formatSen, parseSen, senToDecimalString } from "../src/lib/money";
 import type { BqItemKind, BqLine } from "../src/lib/scope/types";
 import { scopeMatterSubject } from "../src/lib/scope/scope-matter";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -195,7 +196,7 @@ export async function loadScope(db: Db, organisationId: string) {
   const audit: { id: string; organisationId: string; entity: string; entityId: string; entityLabel: string; action: "CREATE" | "UPDATE"; at: Date; changes: object[]; reason: string; unattributed: boolean }[] = [];
   let n = 0;
   const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", when: Date, changes: object[], reason = "") =>
-    audit.push({ id: `${P}scau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+    audit.push({ id: `${P}scau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
 
   // ---------------------------------------------------------------- configuration
   const existing = await db.scopePolicy.findUnique({ where: { organisationId } });

@@ -12,6 +12,8 @@ import { parseSen, senToDecimalString } from "@/lib/money";
 import { bandSetFaults } from "@/lib/securities/liability";
 import { FormReader } from "@/lib/validate";
 import { splitValues } from "@/lib/ui/select-logic";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Award controls: the customer's policy for awards and the lists the award reads. Every
@@ -30,10 +32,10 @@ async function org() {
   return o;
 }
 
-async function audit(tx: Tx, orgId: string, entity: string, entityId: string, label: string, before: Record<string, unknown> | null, after: Record<string, unknown>, reason: string) {
+async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, entityId: string, label: string, before: Record<string, unknown> | null, after: Record<string, unknown>, reason: string) {
   const changes = diffFields(before ? awardAuditView(before) : null, awardAuditView(after));
   if (before && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
+  await writeAudit(tx, { actor, organisationId: orgId, entity, entityId, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
 }
 
 const done = (): FormState => {
@@ -48,6 +50,7 @@ async function templateOk(tx: Tx, orgId: string, id: string | null) {
 }
 
 export async function saveAwardPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await org();
   if (!o) return NO_ORG;
   const r = new FormReader(data);
@@ -79,13 +82,14 @@ export async function saveAwardPolicy(_prev: FormState, data: FormData): Promise
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
     const before = await tx.awardPolicy.findUnique({ where: { organisationId: o.id } });
     const row = await tx.awardPolicy.upsert({ where: { organisationId: o.id }, update: v, create: { organisationId: o.id, ...v } });
-    await audit(tx, o.id, "AwardPolicy", row.id, "Award controls", before, v, reason);
+    await audit(tx, toAuditActor(actor), o.id, "AwardPolicy", row.id, "Award controls", before, v, reason);
     return done();
   });
 }
 
 /// A recipient of an instrument's copies (FR-AWD-004).
 export async function saveRecipient(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await org();
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -110,13 +114,14 @@ export async function saveRecipient(_prev: FormState, data: FormData): Promise<F
   return db.$transaction(async (tx) => {
     const before = id ? await tx.distributionRecipient.findUnique({ where: { id } }) : null;
     const row = id ? await tx.distributionRecipient.update({ where: { id }, data: w }) : await tx.distributionRecipient.create({ data: { organisationId: o.id, ...w } });
-    await audit(tx, o.id, "DistributionRecipient", row.id, v.nameEn, before, w, reason);
+    await audit(tx, toAuditActor(actor), o.id, "DistributionRecipient", row.id, v.nameEn, before, w, reason);
     return done();
   });
 }
 
 /// An appointment-letter variant (FR-AWD-007): contract types plus a terms band.
 export async function saveVariant(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await org();
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -145,13 +150,14 @@ export async function saveVariant(_prev: FormState, data: FormData): Promise<For
     const before = id ? await tx.appointmentLetterVariant.findUnique({ where: { id } }) : null;
     const w = { ...v, provenance: v.provenance! };
     const row = id ? await tx.appointmentLetterVariant.update({ where: { id }, data: w }) : await tx.appointmentLetterVariant.create({ data: { organisationId: o.id, ...w } });
-    await audit(tx, o.id, "AppointmentLetterVariant", row.id, v.nameEn, before && { ...before, contractTypeCodes: before.contractTypeCodes.join(", ") }, { ...w, contractTypeCodes: types.join(", ") }, reason);
+    await audit(tx, toAuditActor(actor), o.id, "AppointmentLetterVariant", row.id, v.nameEn, before && { ...before, contractTypeCodes: before.contractTypeCodes.join(", ") }, { ...w, contractTypeCodes: types.join(", ") }, reason);
     return done();
   });
 }
 
 /// A kind of condition precedent (FR-AWD-014).
 export async function saveConditionKind(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await org();
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -173,13 +179,14 @@ export async function saveConditionKind(_prev: FormState, data: FormData): Promi
   return db.$transaction(async (tx) => {
     const before = id ? await tx.conditionPrecedentKind.findUnique({ where: { id } }) : null;
     const row = id ? await tx.conditionPrecedentKind.update({ where: { id }, data: w }) : await tx.conditionPrecedentKind.create({ data: { organisationId: o.id, ...w } });
-    await audit(tx, o.id, "ConditionPrecedentKind", row.id, v.nameEn, before, w, reason);
+    await audit(tx, toAuditActor(actor), o.id, "ConditionPrecedentKind", row.id, v.nameEn, before, w, reason);
     return done();
   });
 }
 
 /// A policy a contract must carry (FR-AWD-013).
 export async function saveRequirement(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await org();
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -209,7 +216,7 @@ export async function saveRequirement(_prev: FormState, data: FormData): Promise
     if (v.contractTypeCode && !(await tx.contractType.findFirst({ where: { organisationId: o.id, code: v.contractTypeCode }, select: { id: true } }))) return { ok: false, errors: { contractTypeCode: "Choose a contract type from the list." } } as FormState;
     const before = id ? await tx.insuranceRequirement.findUnique({ where: { id } }) : null;
     const row = id ? await tx.insuranceRequirement.update({ where: { id }, data: w }) : await tx.insuranceRequirement.create({ data: { organisationId: o.id, ...w } });
-    await audit(tx, o.id, "InsuranceRequirement", row.id, v.nameEn, before, w, reason);
+    await audit(tx, toAuditActor(actor), o.id, "InsuranceRequirement", row.id, v.nameEn, before, w, reason);
     return done();
   });
 }
@@ -220,6 +227,7 @@ export async function saveRequirement(_prev: FormState, data: FormData): Promise
  * transcribes has them (6.11 ruling).
  */
 export async function saveBand(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await org();
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -252,13 +260,14 @@ export async function saveBand(_prev: FormState, data: FormData): Promise<FormSt
     if (overlap) return { ok: false, errors: { minValue: "This band would overlap another: a contract price would fall in both. Adjust its edges." } };
     const before = id ? await tx.liabilityBand.findUnique({ where: { id } }) : null;
     const row = id ? await tx.liabilityBand.update({ where: { id }, data: w }) : await tx.liabilityBand.create({ data: { organisationId: o.id, ...w } });
-    await audit(tx, o.id, "LiabilityBand", row.id, `Liability band ${w.code}`, before, w, reason);
+    await audit(tx, toAuditActor(actor), o.id, "LiabilityBand", row.id, `Liability band ${w.code}`, before, w, reason);
     return done();
   });
 }
 
 /// An issuer on the regulator's approved list (FR-AWD-012).
 export async function saveIssuer(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await org();
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -282,7 +291,7 @@ export async function saveIssuer(_prev: FormState, data: FormData): Promise<Form
   return db.$transaction(async (tx) => {
     const before = id ? await tx.approvedIssuer.findUnique({ where: { id } }) : null;
     const row = id ? await tx.approvedIssuer.update({ where: { id }, data: w }) : await tx.approvedIssuer.create({ data: { organisationId: o.id, ...w } });
-    await audit(tx, o.id, "ApprovedIssuer", row.id, v.name, before, w, reason);
+    await audit(tx, toAuditActor(actor), o.id, "ApprovedIssuer", row.id, v.name, before, w, reason);
     return done();
   });
 }
@@ -298,6 +307,7 @@ const RETIRABLE = {
 
 /// Retire a row from one of the lists: kept, and no longer offered. A reason is required.
 export async function retireRow(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await org();
   if (!o) return NO_ORG;
   const entity = String(data.get("entity") ?? "") as keyof typeof RETIRABLE;
@@ -313,7 +323,7 @@ export async function retireRow(_prev: FormState, data: FormData): Promise<FormS
     const before = await model.findFirst({ where: { id, organisationId: o.id } });
     if (!before) return { ok: false, message: "That row no longer exists." } as FormState;
     await model.update({ where: { id }, data: { retiredOn: on } });
-    await writeAudit(tx, { organisationId: o.id, entity, entityId: id, entityLabel: before.nameEn ?? before.name ?? before.code, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn }, { retiredOn: on }));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity, entityId: id, entityLabel: before.nameEn ?? before.name ?? before.code, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn }, { retiredOn: on }));
     return done();
   });
 }

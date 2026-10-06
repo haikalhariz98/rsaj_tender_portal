@@ -23,8 +23,8 @@ describe("an endsOn written before S-1 is the last day (residual 4)", () => {
     const legacyCsv = auditCsv([row(legacy)], "Asia/Kuala_Lumpur");
     expect(legacyCsv).toBe(
       "Entry,Recorded at (UTC),Organisation's day,Record type,Record,Record id,Action,Changes,Reason,Recorded by\r\n" +
-        // Review fix (Phase 1a): the Recorded-by text for an unattributed row says what is true of every one (who acted was not recorded), no longer "no sign-in".
-        'e1,2026-10-03T02:00:00.000Z,2026-10-03,Standing event,VND-0005 · Blacklisting,b,CREATE,"[{""field"":""Standing"",""before"":null,""after"":""Blacklisted""},{""field"":""Effective on"",""before"":null,""after"":""2026-09-24""},{""field"":""Last blacklisted day"",""before"":null,""after"":""2031-09-23""},{""field"":""Free from"",""before"":null,""after"":""2031-09-24""}]",,Not attributed: who acted was not recorded\r\n',
+        // Phase 1b (the plan changes this wording): every writer now passes who acted, so an unattributed row is one from before sign-in, and says so.
+        'e1,2026-10-03T02:00:00.000Z,2026-10-03,Standing event,VND-0005 · Blacklisting,b,CREATE,"[{""field"":""Standing"",""before"":null,""after"":""Blacklisted""},{""field"":""Effective on"",""before"":null,""after"":""2026-09-24""},{""field"":""Last blacklisted day"",""before"":null,""after"":""2031-09-23""},{""field"":""Free from"",""before"":null,""after"":""2031-09-24""}]",,Not attributed: before sign-in\r\n',
     );
     const currentCsv = auditCsv([row(current)], "Asia/Kuala_Lumpur");
     expect(currentCsv).toContain('{""field"":""Last blacklisted day"",""before"":null,""after"":""2031-10-02""},{""field"":""Ends on (not included)"",""before"":null,""after"":""2031-10-03""}');

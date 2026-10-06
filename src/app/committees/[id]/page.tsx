@@ -66,6 +66,7 @@ import {
   StartSitting,
   TableMatter,
 } from "../editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,7 @@ export default async function SittingPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  await requireStaff();
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const tab = sp.tab;
   // A record asking for a matter to be tabled (a requisition's gate, an award's committee step)
@@ -777,8 +779,8 @@ function HistoryPanel({
         title="History"
         subtitle={
           total > entries.length
-            ? `Showing the latest ${entries.length} of ${total} changes. Nobody is signed in, so no change is attributed.`
-            : "Every change to this sitting and what is under it. Nobody is signed in, so no change is attributed."
+            ? `Showing the latest ${entries.length} of ${total} changes. Each change names who made it; any from before sign-in is not attributed.`
+            : "Every change to this sitting and what is under it. Each change names who made it; any from before sign-in is not attributed."
         }
         divided={entries.length === 0}
       />

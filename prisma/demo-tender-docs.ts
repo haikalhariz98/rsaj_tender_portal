@@ -57,6 +57,7 @@ import { PACK_KIND_LABEL } from "../src/lib/tender-docs/labels";
 import { blockingOf, submitFaults } from "../src/lib/tender-docs/pack";
 import { approvalDatesFault, estimateLeadWarning, RETURN_DECIDED_BY, TENDERING_DOMAIN, tenderingRejectionSnapshot, tenderingRouteForRequester } from "../src/lib/tender-docs/tendering";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -156,7 +157,7 @@ export async function loadTenderDocs(db: Db, organisationId: string) {
   const trail: Entry[] = [];
   let n = 0;
   const entry = (entity: string, entityId: string, entityLabel: string, action: Entry["action"], when: Date, changes: object[], reason = "") =>
-    trail.push({ id: `${P}tdau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+    trail.push({ id: `${P}tdau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
 
   // ---- configuration (dated before the first pack: 15 September)
   const configured = at("2026-09-15T09:00");

@@ -36,6 +36,8 @@ import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervisio
 import { supervisionRefusal } from "@/lib/supervision/labels";
 import { formatDate } from "@/lib/format";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Interim payment and the damages chain on a contract (6.13 Part A step 3, 4c: FR-PAY-001–019, 021; FR-LAD-001–008).
@@ -45,7 +47,7 @@ import { FormReader } from "@/lib/validate";
  * (`withLockedContract`), then any domain row it changes (a valuation, a warning letter, a decision), re-reads the
  * contract's payment records on the locked transaction, re-runs the pure rule, writes, and audits in the same
  * transaction. A refusal throws, so nothing is half-written. The certificates it raises are opened through the
- * certificate core (Contract → Certificate). Nobody is signed in: each act records the Person the officer names,
+ * certificate core (Contract → Certificate). The signed-in officer is named on every audit row; each act records the Person the officer names,
  * "recorded on behalf of, not signed", and judges whether that Person may be recorded for it on the day. A
  * cancelled contract refuses every act. The organisation's day is the act's day; with no time zone, nothing is
  * recorded (never UTC's day).
@@ -65,6 +67,7 @@ class Refusal extends Error {
 
 interface Ctx {
   tx: Tx;
+  actor: AuditActor;
   l: LoadedContract;
   /// The server's instant, read once on entry, to the second.
   now: Date;
@@ -74,7 +77,7 @@ interface Ctx {
 }
 
 /// Lock, refuse a cancelled contract or an unset zone, then run the act.
-async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) => Promise<FormState>): Promise<FormState> {
+async function inContract(actor: AuditActor, id: string, now: Date, act: ContractAct, fn: (c: Ctx) => Promise<FormState>): Promise<FormState> {
   let result: FormState | null;
   try {
     result = await withLockedContract(id, async (tx, l) => {
@@ -83,7 +86,7 @@ async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) 
       if (refused) return refused.code === "CONTRACT_CANCELLED" ? CANCELLED : { ok: false, message: actStatusText(refused) };
       const today = dayOf(now, l.org.timeZone);
       if (!today) return NO_ZONE;
-      return fn({ tx, l, now, today, label: contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } }) });
+      return fn({ tx, actor, l, now, today, label: contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } }) });
     });
   } catch (e) {
     if (e instanceof Refusal) return e.state;
@@ -100,7 +103,7 @@ async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) 
 
 async function audit(c: Ctx, entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity, entityId, entityLabel: `${c.label} · ${suffix}`, reason }, action, changes);
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity, entityId, entityLabel: `${c.label} · ${suffix}`, reason }, action, changes);
 }
 
 const refuse = (lead: string, fs: readonly Finding[]): never => {
@@ -152,6 +155,7 @@ async function openValuationOf(c: Ctx, valuationId: string) {
 
 /// The day of the month agreed with the contractor as the site valuation day. A change says why.
 export async function recordValuationCalendar(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const dayOfMonth = r.int("dayOfMonth", "Day of the month", { required: true, min: 1 });
@@ -161,7 +165,7 @@ export async function recordValuationCalendar(_prev: FormState, data: FormData):
   const note = r.text("note", "Note", { max: 2000 });
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed || dayOfMonth == null || !agreedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const p = await paymentOf(c);
     const before = p.paymentCalendar;
     const fs = calendarFaults({ dayOfMonth, agreedOn: storedDay(agreedOn), agreedWith, today: c.today, existing: !!before, reason });
@@ -179,6 +183,7 @@ export async function recordValuationCalendar(_prev: FormState, data: FormData):
 
 /// Open a valuation: on the agreed day, or on a contractor's claim. One at a time.
 export async function openInterimValuation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const trigger = r.choice("trigger", "What started it", VALUATION_TRIGGERS, { required: true });
@@ -186,7 +191,7 @@ export async function openInterimValuation(_prev: FormState, data: FormData): Pr
   const valuationDate = r.date("valuationDate", "Valuation day", { required: true });
   const personId = r.text("personId", "Recorded for", { required: true });
   if (r.failed || !trigger || !valuationDate) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const p = await paymentOf(c);
     const lastIssued = p.interimValuations.filter((v) => v.certificate?.status === "ISSUED").map((v) => storedDay(v.valuationDate)).sort().at(-1) ?? null;
     const fs = openFaults({ trigger, triggerDate: claimOn ? storedDay(claimOn) : null, valuationDate: storedDay(valuationDate), today: c.today, calendarDay: p.paymentCalendar?.dayOfMonth ?? null, inProgress: !!inProgress(p), lastIssuedOn: lastIssued, baselineInForce: !!baselineOn(c.l, c.today) });
@@ -202,13 +207,14 @@ export async function openInterimValuation(_prev: FormState, data: FormData): Pr
 
 /// The main contractor's work executed, valued to date.
 export async function recordMainWorks(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
   const value = r.money("mainWorks", "Work executed to date", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || value == null) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const { v, label } = await openValuationOf(c, valuationId);
     const after = senToDecimalString(parseSen(value));
     await c.tx.interimValuation.update({ where: { id: v.id }, data: { mainWorks: after, mainWorksNote: note.trim() } });
@@ -219,6 +225,7 @@ export async function recordMainWorks(_prev: FormState, data: FormData): Promise
 
 /// The joint valuation: who valued it, how, and the contractor's agreement or dissent (FR-PAY-006).
 export async function recordJointValuation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -228,7 +235,7 @@ export async function recordJointValuation(_prev: FormState, data: FormData): Pr
   const answer = r.choice("contractorAnswer", "The contractor's answer", CONTRACTOR_ANSWERS);
   const dissent = r.text("dissent", "What the contractor disputes", { max: 4000 });
   if (r.failed || !jointOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const { v, label } = await openValuationOf(c, valuationId);
     const fs = jointFaults({ participants, method, answer, dissent, on: storedDay(jointOn), valuationDate: storedDay(v.valuationDate), today: c.today });
     if (fs.length) refuse("Not recorded:", fs);
@@ -240,6 +247,7 @@ export async function recordJointValuation(_prev: FormState, data: FormData): Pr
 
 /// A line of the contractor's materials-on-site list, with the three answers (FR-PAY-005, 007).
 export async function addMaterialLine(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -253,7 +261,7 @@ export async function addMaterialLine(_prev: FormState, data: FormData): Promise
   const temporary = r.bool("temporary");
   const submittedOn = r.date("submittedOn", "On the list submitted on", { required: true });
   if (r.failed || value == null || !submittedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const { v, label } = await openValuationOf(c, valuationId);
     if (storedDay(submittedOn) > c.today) refuse("Not recorded:", [{ code: "FUTURE_DATE", level: "block", data: { day: storedDay(submittedOn) } }]);
     if (afterCutOff(storedDay(submittedOn), storedDay(v.valuationDate))) refuse("Not recorded:", [{ code: "LINE_AFTER_CUT_OFF", level: "block", data: { day: storedDay(v.valuationDate) } }]);
@@ -265,13 +273,14 @@ export async function addMaterialLine(_prev: FormState, data: FormData): Promise
 
 /// Take a material line off a valuation still being valued, with the reason.
 export async function removeMaterialLine(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
   const lineId = r.text("lineId", "Line", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const { v, label } = await openValuationOf(c, valuationId);
     const line = v.materialLines.find((m) => m.id === lineId);
     if (!line) return { ok: false, message: "That line is not on this valuation." };
@@ -283,6 +292,7 @@ export async function removeMaterialLine(_prev: FormState, data: FormData): Prom
 
 /// A nominated party's or an assignee's totals on the valuation (B1: totals only, FR-PAY-010).
 export async function recordPartyLine(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -292,7 +302,7 @@ export async function recordPartyLine(_prev: FormState, data: FormData): Promise
   const submittedOn = r.date("submittedOn", "Its valuation or claim submitted on", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || due == null || !submittedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const { p, v, label } = await openValuationOf(c, valuationId);
     const party = p.contractParties.find((x) => x.id === partyId && !x.retiredOn);
     if (!party) refuse("Not recorded:", [{ code: "PARTY_NOT_ON_CONTRACT", level: "block" }]);
@@ -312,6 +322,7 @@ export async function recordPartyLine(_prev: FormState, data: FormData): Promise
 /// A deduction keyed on the valuation (FR-PAY-011): premiums and social security, wages, non-compliance, up to three
 /// others, the damages line's signed rounding.
 export async function addValuationDeduction(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -322,7 +333,7 @@ export async function addValuationDeduction(_prev: FormState, data: FormData): P
   if (deduction === "OTHER" && !label.trim()) r.reject("label", "Say what the other permitted deduction is.");
   if (deduction === "LAD_ROUNDING" && amount != null && parseSen(amount) !== 0n && !note.trim()) r.reject("note", "Say why the damages line is rounded.");
   if (r.failed || !deduction || amount == null) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const v0 = await openValuationOf(c, valuationId);
     const fs: Finding[] = [];
     if (deduction === "OTHER" && v0.v.deductions.filter((d) => d.kind === "OTHER").length >= 3) fs.push({ code: "TOO_MANY_OTHER_DEDUCTIONS", level: "block", data: { max: 3 } });
@@ -341,13 +352,14 @@ export async function addValuationDeduction(_prev: FormState, data: FormData): P
 
 /// Take a keyed deduction off a valuation still being valued, with the reason.
 export async function removeValuationDeduction(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
   const deductionId = r.text("deductionId", "Deduction", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const { v, label } = await openValuationOf(c, valuationId);
     const d = v.deductions.find((x) => x.id === deductionId);
     if (!d) return { ok: false, message: "That deduction is not on this valuation." };
@@ -373,11 +385,12 @@ function formFor(cfg: PaymentConfig, kind: string, sheetRequired = false) {
  * frozen with everything they rest on; the employer's premiums deducted are tied to it.
  */
 export async function raiseInterimCertificate(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const { p, v, label } = await openValuationOf(c, valuationId);
     const cfg = await configOf(c);
     const form = formFor(cfg, "INTERIM_PAYMENT");
@@ -385,7 +398,7 @@ export async function raiseInterimCertificate(_prev: FormState, data: FormData):
     if (!input) return refuse("Not raised:", [{ code: "NO_BASELINE", level: "block" }]);
     const a = assembleInterim(input);
     if (a.faults.length || !a.result.snapshot || !a.judgedUnder) return refuse("Not raised:", a.faults);
-    const certId = await openCertificate(c.tx, c.l, { kind: "INTERIM_PAYMENT", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed: a.result.snapshot }, c.now, c.today);
+    const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "INTERIM_PAYMENT", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed: a.result.snapshot }, c.now, c.today);
     const moved = await c.tx.interimValuation.updateMany({ where: { id: v.id, status: "OPEN" }, data: { status: "RAISED", certificateId: certId, judgedUnder: a.judgedUnder as unknown as Prisma.InputJsonValue } });
     if (moved.count !== 1) return CHANGED;
     if (a.judgedUnder.pendingDeductionIds.length) await c.tx.pendingDeduction.updateMany({ where: { id: { in: a.judgedUnder.pendingDeductionIds }, contractId: c.l.contract.id }, data: { valuationId: v.id } });
@@ -397,22 +410,24 @@ export async function raiseInterimCertificate(_prev: FormState, data: FormData):
 
 /// Hold a valuation below its minimum to the next cycle (FR-PAY-013, B4's exit), with the reason.
 export async function holdValuation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", (c) => closeValuation(c, valuationId, "HELD", reason));
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", (c) => closeValuation(c, valuationId, "HELD", reason));
 }
 
 /// Withdraw a valuation still being valued, with the reason (its lines are kept with it).
 export async function withdrawValuation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VALUATION", (c) => closeValuation(c, valuationId, "WITHDRAWN", reason));
+  return inContract(toAuditActor(actor), idOf(data), now, "VALUATION", (c) => closeValuation(c, valuationId, "WITHDRAWN", reason));
 }
 
 async function closeValuation(c: Ctx, valuationId: string, to: "HELD" | "WITHDRAWN", reason: string): Promise<FormState> {
@@ -433,6 +448,7 @@ async function closeValuation(c: Ctx, valuationId: string, to: "HELD" | "WITHDRA
 
 /// Release retention: the first share on the as-built drawings, or the balance on the Certificate of Making Good Defects.
 export async function releaseRetention(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const release = r.choice("release", "Which release", RETENTION_RELEASES, { required: true });
@@ -440,7 +456,7 @@ export async function releaseRetention(_prev: FormState, data: FormData): Promis
   const personId = r.text("personId", "Recorded for", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !release || !releasedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "RETENTION_RELEASE", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "RETENTION_RELEASE", async (c) => {
     if (storedDay(releasedOn) > c.today) refuse("Not released:", [{ code: "FUTURE_DATE", level: "block", data: { day: storedDay(releasedOn) } }]);
     const p = await paymentOf(c);
     const held = heldOnLatest(issuedInterims(p));
@@ -467,6 +483,7 @@ export async function releaseRetention(_prev: FormState, data: FormData): Promis
  * certificate (its reference) or assumed (the reason). The payment module reads it as the latest issued interim.
  */
 export async function recordOpeningPosition(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const lastCertificateNumber = r.text("lastCertificateNumber", "The last interim certificate's number", { max: 120 });
@@ -489,7 +506,7 @@ export async function recordOpeningPosition(_prev: FormState, data: FormData): P
   const personId = r.text("personId", "Recorded for", { required: true });
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "OPENING_POSITION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "OPENING_POSITION", async (c) => {
     const p = await paymentOf(c);
     if (p.openingPosition) await c.tx.$queryRaw`SELECT id FROM "OpeningPosition" WHERE id = ${p.openingPosition.id} FOR UPDATE`;
     const input = { lastCertificateNumber, lastSequence, grossToDate, previouslyCertified, retention, released, advanceRecouped, damagesChargedUntil: chargedUntil ? storedDay(chargedUntil) : null, provenance };
@@ -558,6 +575,7 @@ function readSchedule(r: FormReader, raw: string, field = "schedule"): { sequenc
 
 /// Apply for an advance payment (a mechanism only, B2): its amount, guarantee and recoupment schedule; its certificate opened.
 export async function applyAdvancePayment(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const party = r.choice("advanceFor", "For", ADVANCE_PARTIES, { required: true });
@@ -568,7 +586,7 @@ export async function applyAdvancePayment(_prev: FormState, data: FormData): Pro
   const personId = r.text("personId", "Recorded for", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !party || amount == null) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "ADVANCE_PAYMENT", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "ADVANCE_PAYMENT", async (c) => {
     const p = await paymentOf(c);
     const security = c.l.contract.securities.find((s) => s.id === securityId) ?? null;
     const nsc = party === "NSC" ? (p.contractParties.find((x) => x.id === partyId && x.kind === "NOMINATED_SUBCONTRACTOR" && !x.retiredOn) ?? null) : null;
@@ -601,7 +619,7 @@ export async function applyAdvancePayment(_prev: FormState, data: FormData): Pro
       totals: [],
       routingRatio: null,
     };
-    const certId = await openCertificate(c.tx, c.l, { kind: "ADVANCE_PAYMENT", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed }, c.now, c.today);
+    const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "ADVANCE_PAYMENT", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed }, c.now, c.today);
     const row = await c.tx.advancePayment.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, party, partyId: nsc?.id ?? null, amount: amountText, securityId: security!.id, certificateId: certId, appliedOn: dayToDate(c.today), personId: who.person.id, note: note.trim(), judgedUnder: { warnings: fs.filter((f) => f.level === "warn").map((f) => f.code), noDocumentedRule: true } as Prisma.InputJsonValue, recordedAt: c.now } });
     for (const s of schedule) await c.tx.advanceRecoupmentRow.create({ data: { organisationId: c.l.org.id, advanceId: row.id, sequence: s.sequence, amount: money(s.amount) } });
     await audit(c, "AdvancePayment", row.id, "advance payment", "CREATE", diffFields(null, { advanceFor: party === "MAIN" ? "the main contractor" : nsc!.name, advanceAmount: amountText, guarantee: security!.instrumentRef || "lodged", recoupedOn: schedule.map((x) => `interim certificate ${x.sequence}: ${money(x.amount)}`).join("; "), eligibilityAndPercentage: "not checked: no documented advance payment procedure (B2)", recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }), note.trim());
@@ -613,6 +631,7 @@ export async function applyAdvancePayment(_prev: FormState, data: FormData): Pro
 
 /// Raise the warning letter of the intention to impose damages (FR-LAD-003).
 export async function raiseLadWarning(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const eotClause = r.text("eotClause", "Extension-of-time clause", { required: true, max: 240 });
@@ -620,7 +639,7 @@ export async function raiseLadWarning(_prev: FormState, data: FormData): Promise
   const extended = r.date("extendedCompletion", "Extended date for completion", { required: true });
   const personId = r.text("personId", "Recorded for", { required: true });
   if (r.failed || !extended) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "DAMAGES", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "DAMAGES", async (c) => {
     const p = await paymentOf(c);
     const cfg = await configOf(c);
     const b = baselineOn(c.l, c.today);
@@ -645,7 +664,7 @@ export async function raiseLadWarning(_prev: FormState, data: FormData): Promise
       totals: [],
       routingRatio: null,
     };
-    const certId = await openCertificate(c.tx, c.l, { kind: "LAD_WARNING", templateId: setting!.templateId!, routingTypeId: setting!.routingTypeId ?? null, sectionId: null, computed }, c.now, c.today);
+    const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "LAD_WARNING", templateId: setting!.templateId!, routingTypeId: setting!.routingTypeId ?? null, sectionId: null, computed }, c.now, c.today);
     const row = await c.tx.ladWarning.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, certificateId: certId, eotClause: eotClause.trim(), ladClause: ladClause.trim(), extendedCompletion: extended, rate: money(rate), responseClock: clock ? ({ length: clock.length, unit: clock.unit, provenance: clock.provenance } as Prisma.InputJsonValue) : undefined, personId: who.person.id, recordedAt: c.now, recordedOn: dayToDate(c.today) } });
     await audit(c, "LadWarning", row.id, "warning of liquidated damages", "CREATE", diffFields(null, { extendedCompletion: storedDay(extended), damagesRateADay: money(rate), extensionClause: eotClause.trim(), damagesClause: ladClause.trim(), responseWindow: clock ? `${clock.length} ${clock.unit === "DAYS" ? "calendar days" : clock.unit === "WEEKS" ? "weeks" : "months"} from posting (assumed)` : "not set (advisory)", recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
@@ -654,13 +673,14 @@ export async function raiseLadWarning(_prev: FormState, data: FormData): Promise
 
 /// Its registered post: the consignment reference and the day posted (the response window runs from it).
 export async function recordWarningPost(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const warningId = r.text("warningId", "Warning letter", { required: true });
   const ref = r.text("consignmentRef", "Consignment reference", { required: true, max: 120 });
   const postedOn = r.date("postedOn", "Posted on", { required: true });
   if (r.failed || !postedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "DAMAGES", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "DAMAGES", async (c) => {
     await c.tx.$queryRaw`SELECT id FROM "LadWarning" WHERE id = ${warningId} FOR UPDATE`;
     const p = await paymentOf(c);
     const wr = p.ladWarnings.find((x) => x.id === warningId);
@@ -692,6 +712,7 @@ function readPack(data: FormData): PackAnswer[] {
  * Locks: the contract (inContract), the named claim's matter and the claim, then the scope's live decision.
  */
 export async function recordNonCompletion(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const outcome = r.choice("decisionOutcome", "Decision", NON_COMPLETION_OUTCOMES, { required: true });
@@ -710,7 +731,7 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
   const eotClaimId = r.optionalText("eotClaimId");
   const pack = readPack(data);
   if (r.failed || !outcome) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "DAMAGES", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "DAMAGES", async (c) => {
     // The named claim's matter, then the claim (ContractMatter the first domain row), before the decision rows.
     const named = eotClaimId ? await c.tx.eotClaim.findFirst({ where: { id: eotClaimId, contractId: c.l.contract.id }, select: { id: true, matterId: true, scope: true, sectionRef: true } }) : null;
     if (named) {
@@ -776,7 +797,7 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
         totals: [],
         routingRatio: null,
       };
-      certId = await openCertificate(c.tx, c.l, { kind: "NON_COMPLETION", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed }, c.now, c.today);
+      certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "NON_COMPLETION", templateId: form.templateId, routingTypeId: form.routingTypeId, sectionId: null, computed }, c.now, c.today);
     }
     const row = await c.tx.nonCompletion.create({
       data: { organisationId: c.l.org.id, contractId: c.l.contract.id, outcome, reason: reason.trim(), scope: decScope, sectionRef: decScope === "SECTION" ? decRef : null, basis: "EOT_RECORD", eotClaimId: lad ? null : (named?.id ?? null), certificateId: certId, warningId: lad ? warning!.id : null, eotClause: eotClause.trim(), ladClause: ladClause.trim(), dateForCompletion: dayToDate(b!.values.dateForCompletion!), rate: rate == null ? null : money(rate), insuranceExpiry: lad ? insuranceExpiry : null, expectedCompletion: lad ? expectedCompletion : null, windowFrom: lad ? windowFrom : null, windowUntil: lad ? windowUntil : null, pack: (lad ? pack : []) as unknown as Prisma.InputJsonValue, decidedOn: dayToDate(c.today), personId: who.person.id, recordedAt: c.now, replacesId: live ? live.id : null, replaceReason: live ? replaceReason.trim() : "" },
@@ -805,13 +826,14 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
 
 /// Close the damages window at completion (the first day not charged), with the reason; once.
 export async function closeLadWindow(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const decisionId = r.text("decisionId", "Decision", { required: true });
   const until = r.date("windowUntil", "Completed on", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed || !until) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "DAMAGES", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "DAMAGES", async (c) => {
     await c.tx.$queryRaw`SELECT id FROM "NonCompletion" WHERE id = ${decisionId} FOR UPDATE`;
     const p = await paymentOf(c);
     const d = p.nonCompletions.find((x) => x.id === decisionId) ?? null;

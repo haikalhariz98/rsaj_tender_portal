@@ -14,6 +14,7 @@ import { storedDay } from "@/lib/dates";
 import { SULIT_CHIP } from "@/lib/evaluation/labels";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export const dynamic = "force-dynamic";
  * with its checking and recommending officers as recorded (on their behalf, not signed).
  */
 export default async function ProposalPrint(props: PageProps<"/sourcing/[id]/evaluation/proposal">) {
+  await requireStaff();
   const { id } = await props.params;
   const org = await exerciseOrg();
   if (!org) notFound();

@@ -33,6 +33,8 @@ import { earlyActionFaults, handoverFaults, meetingFaults, onSiteFaults, partyFa
 import { resolveActFaults, resolveSo, soFaults } from "@/lib/supervision/so";
 import { COMPLIANCE_AREAS, CONTRACT_PARTY_KINDS, DELEGATE_KINDS, DIARY_ENDORSERS, DIRECTION_CAUSES, EARLY_ACTION_BRANCHES, PROGRAMME_DECISIONS, PROGRAMME_KINDS, SITE_RECORDS_SETS, SUPERVISION_ACTS, type DelegationVariant, type Finding } from "@/lib/supervision/types";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Supervising the contract (6.13 Part A, 4b, FR-SUP-001–015, B1).
@@ -41,7 +43,7 @@ import { FormReader } from "@/lib/validate";
  * second), then locks the requisition, the exercise, the award and the contract in the canonical order
  * (`withLockedContract`), then any domain row it changes, re-reads the contract's supervision on the locked
  * transaction, re-runs the pure rule, writes, and audits in the same transaction. A refusal throws, so nothing is
- * half-written. Nobody is signed in: each act records the Person the officer names, "recorded on behalf of, not
+ * half-written. The signed-in officer is named on every audit row; each act records the Person the officer names, "recorded on behalf of, not
  * signed", and judges whether that Person may be recorded for it (the S.O., or a representative in scope). A
  * cancelled contract refuses every act. The organisation's day is the act's day; with no time zone, nothing is
  * recorded (never UTC's day).
@@ -61,6 +63,7 @@ class Refusal extends Error {
 
 interface Ctx {
   tx: Tx;
+  actor: AuditActor;
   l: LoadedContract;
   /// The server's instant, read once on entry, to the second.
   now: Date;
@@ -70,7 +73,7 @@ interface Ctx {
 }
 
 /// Lock, refuse a cancelled contract or an unset zone, then run the act.
-async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) => Promise<FormState>): Promise<FormState> {
+async function inContract(actor: AuditActor, id: string, now: Date, act: ContractAct, fn: (c: Ctx) => Promise<FormState>): Promise<FormState> {
   let result: FormState | null;
   try {
     result = await withLockedContract(id, async (tx, l) => {
@@ -79,7 +82,7 @@ async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) 
       if (refused) return refused.code === "CONTRACT_CANCELLED" ? CANCELLED : { ok: false, message: actStatusText(refused) };
       const today = dayOf(now, l.org.timeZone);
       if (!today) return NO_ZONE;
-      return fn({ tx, l, now, today, label: contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } }) });
+      return fn({ tx, actor, l, now, today, label: contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } }) });
     });
   } catch (e) {
     if (e instanceof Refusal) return e.state;
@@ -95,7 +98,7 @@ async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) 
 
 async function audit(c: Ctx, entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE", changes: FieldChange[], reason = "") {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity, entityId, entityLabel: `${c.label} · ${suffix}`, reason }, action, changes);
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity, entityId, entityLabel: `${c.label} · ${suffix}`, reason }, action, changes);
 }
 
 const refuse = (lead: string, fs: readonly Finding[]): never => {
@@ -137,11 +140,12 @@ function latestValues(c: Ctx) {
  * office the matrix in force today gives at the contract's value and regime, effective from today.
  */
 export async function resolveSuperintendingOfficer(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const reason = r.text("reason", "Why it is recorded now", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const k = c.l.contract;
     const s = await supervisionOf(c);
     const fs = resolveActFaults({ executed: isExecuted(k.status as ContractStatus), assignments: s.soAssignments.length, reason });
@@ -175,6 +179,7 @@ const formsFor = (p: Awaited<ReturnType<typeof loadPostAwardPolicy>>, v: Delegat
  * DELEGATION_NOTICE) through the 6.14 core in this transaction. The delegation holds from the letter's date.
  */
 export async function recordDelegation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const kind = r.choice("kind", "Type of representative", DELEGATE_KINDS, { required: true });
@@ -184,7 +189,7 @@ export async function recordDelegation(_prev: FormState, data: FormData): Promis
   const competencyConfirmed = r.bool("competencyConfirmed");
   const scope = linesOf(String(data.get("scope") ?? "")).filter((x): x is (typeof SUPERVISION_ACTS)[number] => (SUPERVISION_ACTS as readonly string[]).includes(x));
   if (r.failed || !kind) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     const so = await soOfficeOn(c.l, s, c.today, c.tx);
     const delegate = await personOf(c, delegateId);
@@ -195,8 +200,8 @@ export async function recordDelegation(_prev: FormState, data: FormData): Promis
     if (fs.length) refuse("Not delegated:", fs);
     const grantor = (await personOf(c, grantorId))!;
     // FR-SUP-003: the letter pair, through the certificate core, in this transaction (Contract → Certificate → the delegation).
-    const letterId = await openCertificate(c.tx, c.l, { kind: "DELEGATION_LETTER", templateId: forms.letter, routingTypeId: null, sectionId: null, computed: null }, c.now, c.today);
-    const noticeId = await openCertificate(c.tx, c.l, { kind: "DELEGATION_NOTICE", templateId: forms.notice, routingTypeId: null, sectionId: null, computed: null }, c.now, c.today);
+    const letterId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "DELEGATION_LETTER", templateId: forms.letter, routingTypeId: null, sectionId: null, computed: null }, c.now, c.today);
+    const noticeId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "DELEGATION_NOTICE", templateId: forms.notice, routingTypeId: null, sectionId: null, computed: null }, c.now, c.today);
     const row = await c.tx.soDelegation.create({
       data: { organisationId: c.l.org.id, contractId: c.l.contract.id, assignmentId: so!.assignment.id, kind, delegatePersonId: delegate!.id, delegateName: delegate!.name, grantorPersonId: grantor.id, grantorName: grantor.name, competencyConfirmed: true, competencyNote: competencyNote.trim(), variant: variant!, letterCertificateId: letterId, noticeCertificateId: noticeId, recordedAt: c.now, recordedOn: dayToDate(c.today) },
     });
@@ -208,13 +213,14 @@ export async function recordDelegation(_prev: FormState, data: FormData): Promis
 
 /// Revoke a delegation from a day, with the reason. Its letters stay as they were.
 export async function revokeDelegation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const delegationId = r.text("delegationId", "Delegation", { required: true });
   const on = r.date("on", "Revoked from", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     // The delegation is a domain row: locked after the contract.
     await c.tx.$queryRaw`SELECT id FROM "SoDelegation" WHERE id = ${delegationId} FOR UPDATE`;
     const d = await c.tx.soDelegation.findFirst({ where: { id: delegationId, contractId: c.l.contract.id } });
@@ -239,13 +245,14 @@ export async function revokeDelegation(_prev: FormState, data: FormData): Promis
  * contract to ACTIVE: the only act that does.
  */
 export async function recordPossession(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const on = r.date("possessionOn", "Date of possession", { required: true });
   const personId = r.text("personId", "Recorded for", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const k = c.l.contract;
     const s = await supervisionOf(c);
     const day0 = storedDay(on);
@@ -273,7 +280,7 @@ export async function recordPossession(_prev: FormState, data: FormData): Promis
     const moved = await c.tx.contract.updateMany({ where: { id: k.id, status: "STAMPED" }, data: { status: "ACTIVE" } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(c, "Possession", row.id, "possession of site", "CREATE", diffFields(null, { possessionOn: day0, dateForCompletion: after.dateForCompletion, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, startOfWork: judgedUnder.startOfWork === "WITHOUT_SECURITIES" ? "this contract type starts without its securities" : "the bond and the required insurance verified", recordedOnBehalf: ON_BEHALF }), note);
-    await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "Contract", entityId: k.id, entityLabel: c.label, reason: "" }, "UPDATE", diffFields({ status: k.status }, { status: "ACTIVE" }));
+    await writeAudit(c.tx, { actor: toAuditActor(actor), organisationId: c.l.org.id, entity: "Contract", entityId: k.id, entityLabel: c.label, reason: "" }, "UPDATE", diffFields({ status: k.status }, { status: "ACTIVE" }));
     return { ok: true };
   });
 }
@@ -307,6 +314,7 @@ function readPoints(r: FormReader, raw: string): PointIn[] {
 
 /// The contractor submits a revision of its programme (or service schedule), with its planned progress.
 export async function submitProgramme(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const kind = r.choice("kind", "What it is", PROGRAMME_KINDS, { required: true });
@@ -315,7 +323,7 @@ export async function submitProgramme(_prev: FormState, data: FormData): Promise
   const note = r.text("note", "Note", { max: 2000 });
   const directionId = r.optionalText("directionId");
   if (r.failed || !kind || !submittedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     const revs = revisionsOf(s);
     const open = openRevision(revs);
@@ -341,6 +349,7 @@ async function lockedRevision(c: Ctx, programmeId: string) {
 
 /// The S.O. Representative's scrutiny: whether it reflects a reasonable and realistic sequence.
 export async function scrutiniseProgramme(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const programmeId = r.text("programmeId", "Programme", { required: true });
@@ -349,7 +358,7 @@ export async function scrutiniseProgramme(_prev: FormState, data: FormData): Pro
   const answer = r.choice("reasonable", "Reasonable and realistic", ["yes", "no"] as const, { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !on || !answer) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const { s, rev } = await lockedRevision(c, programmeId);
     const who = await recordedFor(c, s, personId, { act: "PROGRAMME_SCRUTINY" }, storedDay(on));
     const reasonable = answer === "yes";
@@ -364,6 +373,7 @@ export async function scrutiniseProgramme(_prev: FormState, data: FormData): Pro
 
 /// The Principal S.O. Representative approves the revision (the baseline for progress from then) or returns it for revision.
 export async function decideProgramme(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const programmeId = r.text("programmeId", "Programme", { required: true });
@@ -372,7 +382,7 @@ export async function decideProgramme(_prev: FormState, data: FormData): Promise
   const decision = r.choice("decision", "Decision", PROGRAMME_DECISIONS, { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !on || !decision) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const { s, rev } = await lockedRevision(c, programmeId);
     const who = await recordedFor(c, s, personId, { principalOrSo: true }, storedDay(on));
     const fs = decideFaults(rev, { decision, on: storedDay(on), today: c.today, note, points: rev.points.length });
@@ -388,6 +398,7 @@ export async function decideProgramme(_prev: FormState, data: FormData): Promise
 
 /// Actual physical progress on a day.
 export async function recordProgress(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const personId = r.text("personId", "Recorded for", { required: true });
@@ -395,7 +406,7 @@ export async function recordProgress(_prev: FormState, data: FormData): Promise<
   const pct = (r.optionalText("actualPct") ?? "").replace(/%$/, "").trim();
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     const d = storedDay(on);
     const who = await recordedFor(c, s, personId, { act: "PROGRESS" }, d);
@@ -420,6 +431,7 @@ export async function recordProgress(_prev: FormState, data: FormData): Promise<
 
 /// A day's diary entry, kept by the responsible officer (the S.O. or a representative with the diary in scope).
 export async function recordDiaryEntry(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const personId = r.text("personId", "Responsible officer", { required: true });
@@ -428,7 +440,7 @@ export async function recordDiaryEntry(_prev: FormState, data: FormData): Promis
   const entry = r.text("entry", "Entry", { required: true, max: 10000 });
   const backdatedReason = r.text("backdatedReason", "Why it was not written on the day", { max: 2000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     const d = storedDay(on);
     const who = await recordedFor(c, s, personId, { act: "DIARY" }, d);
@@ -450,6 +462,7 @@ async function lockedEntry(c: Ctx, entryId: string) {
 
 /// An attestation at the end of the day: the responsible officer's, or the contractor's agent's (by name).
 export async function attestDiary(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const entryId = r.text("entryId", "Entry", { required: true });
@@ -457,7 +470,7 @@ export async function attestDiary(_prev: FormState, data: FormData): Promise<For
   const on = r.date("on", "Attested on", { required: true });
   const agentName = r.text("agentName", "The contractor's agent", { max: 200 });
   if (r.failed || !on || !who) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const e = await lockedEntry(c, entryId);
     const fs = attestFaults({ who, already: who === "OFFICER" ? e.officerAttestedOn != null : e.agentAttestedOn != null, day: storedDay(e.day), on: storedDay(on), today: c.today, agentName });
     if (fs.length) refuse("Not recorded:", fs);
@@ -470,12 +483,13 @@ export async function attestDiary(_prev: FormState, data: FormData): Promise<For
 
 /// A disagreement between the two is recorded on the entry and escalated to the S.O. (ASSUMED path).
 export async function disputeDiary(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const entryId = r.text("entryId", "Entry", { required: true });
   const disagreement = r.text("disagreement", "What they disagree on", { required: true, max: 4000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const e = await lockedEntry(c, entryId);
     const fs = disputeFaults({ disagreement, existing: e.disagreement });
     if (fs.length) refuse("Not recorded:", fs);
@@ -488,6 +502,7 @@ export async function disputeDiary(_prev: FormState, data: FormData): Promise<Fo
 
 /// An endorsement of the diary at a site visit, over the days it covers (FR-SUP-008).
 export async function endorseDiary(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const role = r.choice("role", "Endorsed as", DIARY_ENDORSERS, { required: true });
@@ -497,7 +512,7 @@ export async function endorseDiary(_prev: FormState, data: FormData): Promise<Fo
   const coversTo = r.date("coversTo", "Covers to", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !role || !visitedOn || !coversFrom || !coversTo) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     // The S.O.'s endorsement is the S.O.'s; the superior officer's is recorded as named (no reporting lines yet).
     // Review 8: the superior officer is someone on record and active, as every other person named (recordedFor checks the S.O.).
@@ -518,6 +533,7 @@ export async function endorseDiary(_prev: FormState, data: FormData): Promise<Fo
 
 /// A special meeting chaired by the S.O. after an In Delay classification, with its minutes and the reading that called it.
 export async function recordSiteMeeting(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const personId = r.text("personId", "Chaired by (the S.O.)", { required: true });
@@ -525,7 +541,7 @@ export async function recordSiteMeeting(_prev: FormState, data: FormData): Promi
   const attendees = linesOf(String(data.get("attendees") ?? ""));
   const minutes = r.text("minutes", "Minutes", { required: true, max: 20000 });
   if (r.failed || !heldOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     const d = storedDay(heldOn);
     const who = await recordedFor(c, s, personId, { soOnly: true }, d);
@@ -542,6 +558,7 @@ export async function recordSiteMeeting(_prev: FormState, data: FormData): Promi
 
 /// A compliance observation (FR-SUP-014).
 export async function recordObservation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const area = r.choice("area", "About", COMPLIANCE_AREAS, { required: true });
@@ -549,7 +566,7 @@ export async function recordObservation(_prev: FormState, data: FormData): Promi
   const on = r.date("on", "Observed on", { required: true });
   const note = r.text("note", "Observation", { required: true, max: 4000 });
   if (r.failed || !area || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     const d = storedDay(on);
     const who = await recordedFor(c, s, personId, { act: "OBSERVATION" }, d);
@@ -563,6 +580,7 @@ export async function recordObservation(_prev: FormState, data: FormData): Promi
 
 /// A direction to review the completion date and submit a revised programme (FR-SUP-012). A variation's is raised by the variation itself.
 export async function recordDirection(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const cause = r.choice("cause", "Called for by", DIRECTION_CAUSES.filter((x) => x !== "VARIATION"), { required: true });
@@ -570,7 +588,7 @@ export async function recordDirection(_prev: FormState, data: FormData): Promise
   const on = r.date("on", "Directed on", { required: true });
   const note = r.text("note", "Direction", { required: true, max: 4000 });
   if (r.failed || !cause || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     const d = storedDay(on);
     const who = await recordedFor(c, s, personId, { principalOrSo: true }, d);
@@ -586,6 +604,7 @@ export async function recordDirection(_prev: FormState, data: FormData): Promise
 
 /// The S.O.'s self-help on insurance: the premium the employer paid becomes a deduction waiting for the next interim.
 export async function recordSelfHelp(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const policyId = r.text("policyId", "Policy", { required: true });
@@ -595,7 +614,7 @@ export async function recordSelfHelp(_prev: FormState, data: FormData): Promise<
   const personId = r.text("personId", "Decided by (the S.O.)", { required: true });
   const note = r.text("note", "Why", { required: true, max: 2000 });
   if (r.failed || !amount || !paidOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     const who = await recordedFor(c, s, personId, { soOnly: true }, c.today);
     const policy = c.l.contract.policies.find((p) => p.id === policyId) ?? null;
@@ -610,6 +629,7 @@ export async function recordSelfHelp(_prev: FormState, data: FormData): Promise<
 
 /// The S.O.'s early-action decision: one or more branches, each opening its module.
 export async function recordEarlyAction(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const branches = linesOf(String(data.get("branches") ?? "")).filter((x): x is (typeof EARLY_ACTION_BRANCHES)[number] => (EARLY_ACTION_BRANCHES as readonly string[]).includes(x));
@@ -617,7 +637,7 @@ export async function recordEarlyAction(_prev: FormState, data: FormData): Promi
   const on = r.date("on", "Decided on", { required: true });
   const reason = r.text("reason", "Why", { required: true, max: 4000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     const d = storedDay(on);
     const who = await recordedFor(c, s, personId, { soOnly: true }, d);
@@ -633,6 +653,7 @@ export async function recordEarlyAction(_prev: FormState, data: FormData): Promi
 
 /// A nominated sub-contractor, nominated supplier or approved assignee paid through the contract's certificates.
 export async function recordParty(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const kind = r.choice("kind", "Party", CONTRACT_PARTY_KINDS, { required: true });
@@ -642,7 +663,7 @@ export async function recordParty(_prev: FormState, data: FormData): Promise<For
   const provenance = r.choice("provenance", "Where it came from", ["STATED", "OBSERVED", "ASSUMED"] as const);
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !kind) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     const sen = sum ? parseSen(sum) : null;
     const fs = partyFaults({ executed: isExecuted(c.l.contract.status as ContractStatus), kind, name, sum: sen, others: s.contractParties.map((p) => ({ kind: p.kind, name: p.name, retired: p.retiredOn != null })) });
@@ -655,12 +676,13 @@ export async function recordParty(_prev: FormState, data: FormData): Promise<For
 
 /// Retire a party, with the reason: it is never deleted, so a certificate that carried it still reads it.
 export async function retireParty(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const partyId = r.text("partyId", "Party", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     await c.tx.$queryRaw`SELECT id FROM "ContractParty" WHERE id = ${partyId} FOR UPDATE`;
     const p = await c.tx.contractParty.findFirst({ where: { id: partyId, contractId: c.l.contract.id } });
     if (!p) return { ok: false, message: "That party is not on this contract." };
@@ -677,6 +699,7 @@ export async function retireParty(_prev: FormState, data: FormData): Promise<For
 
 /// Hand a set of site records to the Implementing Department, the versions live now pinned.
 export async function handOverRecords(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const set = r.choice("recordsSet", "Records", SITE_RECORDS_SETS, { required: true });
@@ -686,7 +709,7 @@ export async function handOverRecords(_prev: FormState, data: FormData): Promise
   const personId = r.text("personId", "Handed over by", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !set || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUPERVISION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     const s = await supervisionOf(c);
     const person = await personOf(c, personId);
     if (!person || !person.isActive) return { ok: false, errors: { personId: "Choose someone on record and active." } };

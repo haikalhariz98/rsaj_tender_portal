@@ -39,6 +39,8 @@ import { CLOSING_CHANGE_KINDS, DELIVERY_METHODS, type ClosingChangeKind, type De
 import { FormReader } from "@/lib/validate";
 
 import { audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, type LockedWindow } from "./shared";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Changing the window after approval for tendering (plan §4.7; FR-ADV-015, 016; OD-5 A): a
@@ -55,7 +57,7 @@ import { audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refu
 const NO_ISSUE: FormState = { ok: false, message: "No approval matrix is in force, so nobody can be shown as approving a change. Issue one under Configuration, Approval matrix." };
 
 /// The change's route, resolved now with the requester in mind, and opened with its steps (audited).
-async function openChangeRoute(tx: Tx, l: LockedWindow, cond: WindowChangeCond, what: string): Promise<{ id: string } | FormState> {
+async function openChangeRoute(tx: Tx, actor: AuditActor, l: LockedWindow, cond: WindowChangeCond, what: string): Promise<{ id: string } | FormState> {
   const { issue, ctx, cfg } = await evaluationContext(l.org, l.req, l.ex, tx);
   if (!issue || !ctx) return NO_ISSUE;
   const method = cfg.config.methods.find((m) => m.code === l.ex.sourcingMethodCode) ?? null;
@@ -106,7 +108,7 @@ async function openChangeRoute(tx: Tx, l: LockedWindow, cond: WindowChangeCond, 
       },
     },
   });
-  await audit(tx, l.org.id, "ApprovalInstance", instance.id, label(l, exerciseRouteMatter(WINDOW_CHANGE_DOMAIN).auditNoun), "CREATE",
+  await audit(tx, actor, l.org.id, "ApprovalInstance", instance.id, label(l, exerciseRouteMatter(WINDOW_CHANGE_DOMAIN).auditNoun), "CREATE",
     diffFields(null, { matter: what, matrix: issue.label, rule: rule.labelEn, route: res.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: res.source === "OVERRIDE", ifRefused: "not made; may be asked again" }));
   return { id: instance.id };
 }
@@ -126,6 +128,7 @@ function changeRules(l: LockedWindow, d: WindowData) {
  * asked for. The original and the revised are both kept (append-only).
  */
 export async function requestClosingChange(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const kind = r.choice("kind", "Change", CLOSING_CHANGE_KINDS, { required: true }) as ClosingChangeKind | null;
@@ -154,7 +157,7 @@ export async function requestClosingChange(_prev: FormState, data: FormData): Pr
     });
     if (fs.some((f) => f.level === "block")) return refuse(fs, "Not asked:");
     const what = `${kind === "EXTENSION" ? "Extension" : "Correction"} of the closing to ${formatOrgDateTime(toClosingAt!, l.org.timeZone)}`;
-    const route = await openChangeRoute(tx, l, kind, what);
+    const route = await openChangeRoute(tx, toAuditActor(actor), l, kind, what);
     if (!("id" in route)) return route;
     const row = {
       kind,
@@ -167,7 +170,7 @@ export async function requestClosingChange(_prev: FormState, data: FormData): Pr
     const change = await tx.closingChange.create({
       data: { organisationId: l.org.id, windowId: w.id, ...row, approvalInstanceId: route.id, requestedOn: dayToDate(l.org.today), faultsSnapshot: fs.map((f) => ({ level: f.level, text: windowFindingText(f) })) as unknown as Prisma.InputJsonValue },
     });
-    await audit(tx, l.org.id, ENTITY.change, change.id, label(l, `Closing ${kind === "EXTENSION" ? "extension" : "correction"}`), "CREATE", diffFields(null, changeFields(row, l.org.timeZone)), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.change, change.id, label(l, `Closing ${kind === "EXTENSION" ? "extension" : "correction"}`), "CREATE", diffFields(null, changeFields(row, l.org.timeZone)), reason);
     return { ok: true, message: "Asked for. It is applied when its approval is recorded." };
   });
 }
@@ -178,6 +181,7 @@ export async function requestClosingChange(_prev: FormState, data: FormData): Pr
  * replacement is a new exercise linked to this one.
  */
 export async function requestCancellation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const reason = r.text("reason", "Reason", { max: 2000 });
@@ -194,10 +198,10 @@ export async function requestCancellation(_prev: FormState, data: FormData): Pro
       const field = fs.length === 1 && fs[0].code === "REASON_REQUIRED" ? "reason" : fs.length === 1 && fs[0].code === "REFUND_NOT_ANSWERED" ? "feeRefund" : null;
       return field ? { ok: false, errors: { [field]: windowFindingText(fs[0]) } } : refuse(fs, "Not asked:");
     }
-    const route = await openChangeRoute(tx, l, "CANCELLATION", "Cancellation of the published exercise");
+    const route = await openChangeRoute(tx, toAuditActor(actor), l, "CANCELLATION", "Cancellation of the published exercise");
     if (!("id" in route)) return route;
     const c = await tx.windowCancellation.create({ data: { organisationId: l.org.id, windowId: w.id, reason, feeRefund: refund === "yes", approvalInstanceId: route.id, requestedOn: dayToDate(l.org.today!) } });
-    await audit(tx, l.org.id, ENTITY.cancellation, c.id, label(l, "Cancellation"), "CREATE", diffFields(null, { reason, feesRefunded: refund === "yes" ? "Yes" : "No" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.cancellation, c.id, label(l, "Cancellation"), "CREATE", diffFields(null, { reason, feesRefunded: refund === "yes" ? "Yes" : "No" }), reason);
     return { ok: true, message: "Asked for. The exercise is cancelled when its approval is recorded." };
   });
 }
@@ -205,13 +209,13 @@ export async function requestCancellation(_prev: FormState, data: FormData): Pro
 // ------------------------------------------------------------------ deciding and applying
 
 /// The parties told of an applied change or of the cancellation: the register (FR-ADV-012).
-async function writeNotices(tx: Tx, l: LockedWindow, d: WindowData, parent: { closingChangeId: string } | { cancellationId: string }, what: string) {
+async function writeNotices(tx: Tx, actor: AuditActor, l: LockedWindow, d: WindowData, parent: { closingChangeId: string } | { cancellationId: string }, what: string) {
   const w = d.window!;
   const ids = noticeRecipients(w.sales, w.letters.map((x) => ({ partyId: x.partyId })));
   for (const partyId of ids) {
     const p = d.parties.find((x) => x.id === partyId)!;
     const n = await tx.windowNotice.create({ data: { organisationId: l.org.id, ...parent, partyId } });
-    await audit(tx, l.org.id, ENTITY.notice, n.id, label(l, `${what} · ${p.name}`), "CREATE", diffFields(null, { recipient: p.name, notice: what }));
+    await audit(tx, actor, l.org.id, ENTITY.notice, n.id, label(l, `${what} · ${p.name}`), "CREATE", diffFields(null, { recipient: p.name, notice: what }));
   }
   return ids.length;
 }
@@ -221,7 +225,7 @@ async function writeNotices(tx: Tx, l: LockedWindow, d: WindowData, parent: { cl
  * the locked rows. The exercise's closing is written here and only here after approval for
  * tendering (X-2: the second writer); the window's last day of sale with it.
  */
-async function applyClosingChange(tx: Tx, l: LockedWindow, d: WindowData, change: NonNullable<WindowData["window"]>["closingChanges"][number], instId: string): Promise<string> {
+async function applyClosingChange(tx: Tx, actor: AuditActor, l: LockedWindow, d: WindowData, change: NonNullable<WindowData["window"]>["closingChanges"][number], instId: string): Promise<string> {
   const now = new Date();
   const fs: Finding[] = appliedChangeFaults(
     {
@@ -240,7 +244,7 @@ async function applyClosingChange(tx: Tx, l: LockedWindow, d: WindowData, change
   if (fs.length) {
     const why = fs.map(windowFindingText).join(" ");
     await tx.closingChange.update({ where: { id: change.id }, data: { refusedAt: now, refusedReason: why } });
-    await audit(tx, l.org.id, ENTITY.change, change.id, label(l, `Closing ${change.kind === "EXTENSION" ? "extension" : "correction"}`), "UPDATE", diffFields({ outcome: null }, { outcome: "Approved, but not applied" }), why);
+    await audit(tx, actor, l.org.id, ENTITY.change, change.id, label(l, `Closing ${change.kind === "EXTENSION" ? "extension" : "correction"}`), "UPDATE", diffFields({ outcome: null }, { outcome: "Approved, but not applied" }), why);
     const inst = windowChangeRoutesOf(l.ex.approvalInstances).find((i) => i.id === instId)!;
     const warning = { code: "CHANGE_NOT_APPLIED", level: "warn", messageEn: `Approved, but not applied: ${why}` };
     await tx.approvalInstance.update({ where: { id: instId }, data: { warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
@@ -250,16 +254,16 @@ async function applyClosingChange(tx: Tx, l: LockedWindow, d: WindowData, change
   if (moved.count !== 1) throw new Refusal(CHANGED);
   if (change.toPurchaseCloseDay) await tx.exerciseWindow.update({ where: { id: d.window!.id }, data: { purchaseCloseDay: change.toPurchaseCloseDay } });
   await tx.closingChange.update({ where: { id: change.id }, data: { appliedAt: now } });
-  await audit(tx, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE",
+  await audit(tx, actor, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE",
     diffFields({ closing: formatOrgDateTime(change.fromClosingAt, l.org.timeZone), lastDayOfSale: change.fromPurchaseCloseDay ? formatDate(storedDay(change.fromPurchaseCloseDay)) : null }, { closing: formatOrgDateTime(change.toClosingAt, l.org.timeZone), lastDayOfSale: change.toPurchaseCloseDay ? formatDate(storedDay(change.toPurchaseCloseDay)) : null }), change.reason);
-  await audit(tx, l.org.id, ENTITY.change, change.id, label(l, `Closing ${change.kind === "EXTENSION" ? "extension" : "correction"}`), "UPDATE", diffFields({ outcome: null }, { outcome: "Applied" }));
+  await audit(tx, actor, l.org.id, ENTITY.change, change.id, label(l, `Closing ${change.kind === "EXTENSION" ? "extension" : "correction"}`), "UPDATE", diffFields({ outcome: null }, { outcome: "Applied" }));
   // A correction is before publication: nobody holds the documents yet.
-  const told = change.kind === "EXTENSION" ? await writeNotices(tx, l, d, { closingChangeId: change.id }, "Closing extended") : 0;
+  const told = change.kind === "EXTENSION" ? await writeNotices(tx, actor, l, d, { closingChangeId: change.id }, "Closing extended") : 0;
   return `Approved and applied: the closing is now ${formatOrgDateTime(change.toClosingAt, l.org.timeZone)}.${told ? ` Record how each of the ${told} purchaser${told === 1 ? "" : "s"} was told.` : ""}`;
 }
 
 /// Apply an approved cancellation: the exercise ends (terminal), its other routes are withdrawn, and everyone holding the documents is told.
-async function applyCancellation(tx: Tx, l: LockedWindow, d: WindowData, c: NonNullable<WindowData["window"]>["cancellations"][number], instId: string): Promise<string> {
+async function applyCancellation(tx: Tx, actor: AuditActor, l: LockedWindow, d: WindowData, c: NonNullable<WindowData["window"]>["cancellations"][number], instId: string): Promise<string> {
   const now = new Date();
   const live = exerciseCancelBlockedBy(await tx.award.findMany({ where: { exerciseId: l.ex.id }, select: { reference: true, status: true } }));
   await lockOpeningRows(tx, l.ex.id);
@@ -267,23 +271,23 @@ async function applyCancellation(tx: Tx, l: LockedWindow, d: WindowData, c: NonN
   if (fs.length) {
     const why = fs.map(windowFindingText).join(" ");
     await tx.windowCancellation.update({ where: { id: c.id }, data: { refusedAt: now, refusedReason: why } });
-    await audit(tx, l.org.id, ENTITY.cancellation, c.id, label(l, "Cancellation"), "UPDATE", diffFields({ outcome: null }, { outcome: "Approved, but not applied" }), why);
+    await audit(tx, actor, l.org.id, ENTITY.cancellation, c.id, label(l, "Cancellation"), "UPDATE", diffFields({ outcome: null }, { outcome: "Approved, but not applied" }), why);
     return `Approved, but the exercise was not cancelled: ${why}`;
   }
   await moveExercise(tx, l.ex, "CANCELLED", { today: l.org.today, via: "WINDOW_CANCELLATION", reason: c.reason }, { cancelReason: c.reason });
-  await audit(tx, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "CANCELLED" }), c.reason);
+  await audit(tx, actor, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "CANCELLED" }), c.reason);
   // 6.8 (E-10, flagged): the evaluation in force is closed as cancelled, its records kept; locked after the openings.
   await lockEvaluationRows(tx, l.ex.id);
-  await closeOnCancellation(tx, { organisationId: l.org.id, exercise: { id: l.ex.id, reference: l.ex.reference }, now, reason: c.reason });
+  await closeOnCancellation(tx, actor, { organisationId: l.org.id, exercise: { id: l.ex.id, reference: l.ex.reference }, now, reason: c.reason });
   await tx.windowCancellation.update({ where: { id: c.id }, data: { appliedAt: now } });
-  await audit(tx, l.org.id, ENTITY.cancellation, c.id, label(l, "Cancellation"), "UPDATE", diffFields({ outcome: null }, { outcome: "Applied", feesRefunded: c.feeRefund ? "Yes" : "No" }));
-  await voidLivePacks(tx, l, c.reason);
+  await audit(tx, actor, l.org.id, ENTITY.cancellation, c.id, label(l, "Cancellation"), "UPDATE", diffFields({ outcome: null }, { outcome: "Applied", feesRefunded: c.feeRefund ? "Yes" : "No" }));
+  await voidLivePacks(tx, actor, l, c.reason);
   for (const inst of exerciseRoutesOf(l.ex.approvalInstances).filter((i) => i.status === "PENDING" && i.id !== instId)) {
     const warning = { code: WITHDRAWN_ON_CANCEL, level: "info", messageEn: `Withdrawn: the exercise was cancelled — ${c.reason}` };
     await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: now, warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
-    await audit(tx, l.org.id, "ApprovalInstance", inst.id, label(l, exerciseRouteMatter(inst.domain).auditNoun), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise was cancelled: ${c.reason}`);
+    await audit(tx, actor, l.org.id, "ApprovalInstance", inst.id, label(l, exerciseRouteMatter(inst.domain).auditNoun), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise was cancelled: ${c.reason}`);
   }
-  const told = await writeNotices(tx, l, d, { cancellationId: c.id }, "Exercise cancelled");
+  const told = await writeNotices(tx, actor, l, d, { cancellationId: c.id }, "Exercise cancelled");
   return `Approved: the exercise is cancelled.${told ? ` Record how each of the ${told} holder${told === 1 ? "" : "s"} of the documents was told.` : ""}`;
 }
 
@@ -293,6 +297,7 @@ async function applyCancellation(tx: Tx, l: LockedWindow, d: WindowData, c: NonN
  * The step that completes the route applies the change here; a refusal means it is not made.
  */
 export async function recordWindowChangeDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);
@@ -338,31 +343,32 @@ export async function recordWindowChangeDecision(_prev: FormState, data: FormDat
     const after = personDecisionWrite({ decision, person: { id: person!.id, name: person!.name }, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.ex.reference} · ${step.roleLabel}`, "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${l.ex.reference} · ${step.roleLabel}`, "UPDATE",
       diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
     const routeLabel = label(l, exerciseRouteMatter(WINDOW_CHANGE_DOMAIN).auditNoun);
     const now = new Date();
     if (decision === "REJECTED") {
-      await closeRejected(tx, { organisationId: l.org.id, routeLabel }, full, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, reason, CHANGE_REFUSED_DECIDED_BY);
+      await closeRejected(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel }, full, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, reason, CHANGE_REFUSED_DECIDED_BY);
       if (change) {
         await tx.closingChange.update({ where: { id: change.id }, data: { refusedAt: now, refusedReason: reason } });
-        await audit(tx, l.org.id, ENTITY.change, change.id, label(l, `Closing ${change.kind === "EXTENSION" ? "extension" : "correction"}`), "UPDATE", diffFields({ outcome: null }, { outcome: "Refused" }), reason);
+        await audit(tx, toAuditActor(actor), l.org.id, ENTITY.change, change.id, label(l, `Closing ${change.kind === "EXTENSION" ? "extension" : "correction"}`), "UPDATE", diffFields({ outcome: null }, { outcome: "Refused" }), reason);
       } else {
         await tx.windowCancellation.update({ where: { id: cancellation!.id }, data: { refusedAt: now, refusedReason: reason } });
-        await audit(tx, l.org.id, ENTITY.cancellation, cancellation!.id, label(l, "Cancellation"), "UPDATE", diffFields({ outcome: null }, { outcome: "Refused" }), reason);
+        await audit(tx, toAuditActor(actor), l.org.id, ENTITY.cancellation, cancellation!.id, label(l, "Cancellation"), "UPDATE", diffFields({ outcome: null }, { outcome: "Refused" }), reason);
       }
       return { ok: true, message: "Refused: the change is not made. It may be asked for again." };
     }
     if (!full.steps.every((s) => s.id === step.id || s.decision === "DONE")) return { ok: true };
     await tx.approvalInstance.update({ where: { id: full.id }, data: { status: "APPROVED", closedAt: now } });
-    await audit(tx, l.org.id, "ApprovalInstance", full.id, routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), reason);
-    const message = change ? await applyClosingChange(tx, l, d, change, full.id) : await applyCancellation(tx, l, d, cancellation!, full.id);
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", full.id, routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), reason);
+    const message = change ? await applyClosingChange(tx, toAuditActor(actor), l, d, change, full.id) : await applyCancellation(tx, toAuditActor(actor), l, d, cancellation!, full.id);
     return { ok: true, message };
   });
 }
 
 /// How a purchaser was told of an applied change or of the cancellation: recorded, never sent.
 export async function recordNoticeDelivery(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const noticeId = String(data.get("noticeId") ?? "");
   const r = new FormReader(data);
@@ -379,7 +385,7 @@ export async function recordNoticeDelivery(_prev: FormState, data: FormData): Pr
     if (fs.length) return refuse(fs, "Not recorded:");
     const after = { method, consignmentRef, despatchedOn: sent, acknowledgedOn: ack };
     await tx.windowNotice.update({ where: { id: n.id }, data: after });
-    await audit(tx, l.org.id, ENTITY.notice, n.id, label(l, `Notice · ${n.party.name}`), "UPDATE", diffFields(deliveryFields(n), deliveryFields(after)));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.notice, n.id, label(l, `Notice · ${n.party.name}`), "UPDATE", diffFields(deliveryFields(n), deliveryFields(after)));
     return { ok: true };
   });
 }

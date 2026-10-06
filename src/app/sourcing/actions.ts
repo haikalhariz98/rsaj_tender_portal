@@ -54,6 +54,8 @@ import { gatesForRequisition } from "@/lib/requisition/repo";
 import { FormReader } from "@/lib/validate";
 import { nameListFault } from "@/lib/window/invitees";
 import { audit, CHANGED, citeNameStep, labelOf, nameLabel, nameSupports, Refusal, refuse, sendNameRejected } from "@/lib/method/name-route-write";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Writes for sourcing exercises (6.3).
@@ -62,8 +64,7 @@ import { audit, CHANGED, citeNameStep, labelOf, nameLabel, nameSupports, Refusal
  * transaction that locks the parent requisition and then the exercise, and reads the
  * issue in force, the configuration and the siblings there. The write and its audit
  * rows share the transaction; a refusal saves nothing and names what blocks it.
- * Nobody is signed in: a decision records the Person the officer names, "recorded on
- * behalf of, not signed", and the audit stays unattributed.
+ * Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that).
  */
 
 const GONE: FormState = { ok: false, message: "That exercise no longer exists." };
@@ -218,7 +219,7 @@ function methodColumns(v: FormValues, ev: Evaluation) {
 const methodNameOf = (cfg: { methods: { code: string; nameEn: string }[] }) => (code: string) => cfg.methods.find((m) => m.code === code)?.nameEn ?? "A method no longer configured";
 
 /// Replace the scope lines and the derived taxonomy values, audited row by row.
-async function writeChildren(tx: Tx, orgId: string, ex: { id: string; reference: string }, before: ExerciseRow | null, scope: ExerciseDraft["scope"], ev: Evaluation, cfg: { taxonomies: { code: string; nameEn: string; values: { code: string; nameEn: string }[] }[] }) {
+async function writeChildren(tx: Tx, actor: AuditActor, orgId: string, ex: { id: string; reference: string }, before: ExerciseRow | null, scope: ExerciseDraft["scope"], ev: Evaluation, cfg: { taxonomies: { code: string; nameEn: string; values: { code: string; nameEn: string }[] }[] }) {
   // The trail names what it records: codes are configuration keys.
   const taxName = (t: string) => cfg.taxonomies.find((x) => x.code === t)?.nameEn ?? "A classification no longer configured";
   const valName = (t: string, v: string) => cfg.taxonomies.find((x) => x.code === t)?.values.find((x) => x.code === v)?.nameEn ?? "A value no longer configured";
@@ -229,11 +230,11 @@ async function writeChildren(tx: Tx, orgId: string, ex: { id: string; reference:
   if (!same) {
     for (const p of before?.scopeParts ?? []) {
       await tx.exerciseScopePart.delete({ where: { id: p.id } });
-      await audit(tx, orgId, "ExerciseScopePart", p.id, `${ex.reference} · scope: ${DELIVERABLE_LABEL[p.deliverableKind as DeliverableKind].toLowerCase()}`, "DELETE", snapshotFields({ deliverableKind: p.deliverableKind, amount: p.amount.toString(), description: p.description }));
+      await audit(tx, actor, orgId, "ExerciseScopePart", p.id, `${ex.reference} · scope: ${DELIVERABLE_LABEL[p.deliverableKind as DeliverableKind].toLowerCase()}`, "DELETE", snapshotFields({ deliverableKind: p.deliverableKind, amount: p.amount.toString(), description: p.description }));
     }
     for (const [i, p] of scope.entries()) {
       const row = await tx.exerciseScopePart.create({ data: { exerciseId: ex.id, deliverableKind: p.kind, amount: senToDecimalString(p.amount), description: p.description, sortOrder: i } });
-      await audit(tx, orgId, "ExerciseScopePart", row.id, `${ex.reference} · scope: ${DELIVERABLE_LABEL[p.kind].toLowerCase()}`, "CREATE", diffFields(null, { deliverableKind: p.kind, amount: senToDecimalString(p.amount), description: p.description }));
+      await audit(tx, actor, orgId, "ExerciseScopePart", row.id, `${ex.reference} · scope: ${DELIVERABLE_LABEL[p.kind].toLowerCase()}`, "CREATE", diffFields(null, { deliverableKind: p.kind, amount: senToDecimalString(p.amount), description: p.description }));
     }
   }
   // Taxonomy values: derived ones follow the type; a chosen pick stays while it is
@@ -246,11 +247,11 @@ async function writeChildren(tx: Tx, orgId: string, ex: { id: string; reference:
       continue;
     }
     await tx.exerciseTaxonomyValue.delete({ where: { id: tv.id } });
-    await audit(tx, orgId, "ExerciseTaxonomyValue", tv.id, `${ex.reference} · ${taxName(tv.taxonomyCode)}`, "DELETE", snapshotFields({ taxonomy: taxName(tv.taxonomyCode), value: valName(tv.taxonomyCode, tv.valueCode), pick: tv.pick }));
+    await audit(tx, actor, orgId, "ExerciseTaxonomyValue", tv.id, `${ex.reference} · ${taxName(tv.taxonomyCode)}`, "DELETE", snapshotFields({ taxonomy: taxName(tv.taxonomyCode), value: valName(tv.taxonomyCode, tv.valueCode), pick: tv.pick }));
   }
   for (const t of keep.values()) {
     const row = await tx.exerciseTaxonomyValue.create({ data: { exerciseId: ex.id, taxonomyCode: t.taxonomyCode, valueCode: t.valueCode!, pick: t.state as "DERIVED" | "CHOSEN" } });
-    await audit(tx, orgId, "ExerciseTaxonomyValue", row.id, `${ex.reference} · ${taxName(t.taxonomyCode)}`, "CREATE", diffFields(null, { taxonomy: taxName(t.taxonomyCode), value: valName(t.taxonomyCode, t.valueCode!), pick: t.state }));
+    await audit(tx, actor, orgId, "ExerciseTaxonomyValue", row.id, `${ex.reference} · ${taxName(t.taxonomyCode)}`, "CREATE", diffFields(null, { taxonomy: taxName(t.taxonomyCode), value: valName(t.taxonomyCode, t.valueCode!), pick: t.state }));
   }
 }
 
@@ -259,6 +260,7 @@ async function writeChildren(tx: Tx, orgId: string, ex: { id: string; reference:
  * from the `exercise` series in the same transaction as the row and its audit.
  */
 export async function createExercise(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const requisitionId = String(data.get("requisitionId") ?? "");
   const r = new FormReader(data);
   const v = readForm(r, data, null);
@@ -297,8 +299,8 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
           ...methodColumns(v, ev),
         },
       });
-      await audit(tx, l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", auditCreate(row, { requisition: l.req.reference }));
-      await writeChildren(tx, l.org.id, row, null, v.draft.scope, ev, cfg.config);
+      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", auditCreate(row, { requisition: l.req.reference }));
+      await writeChildren(tx, toAuditActor(actor), l.org.id, row, null, v.draft.scope, ev, cfg.config);
       id = row.id;
       return { ok: true };
     });
@@ -326,6 +328,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
  * decision BD-5). A change of method re-opens the proposal; answers are kept.
  */
 export async function updateExercise(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const v = readForm(r, data, id);
@@ -357,8 +360,8 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     };
     const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", auditPair(ex, { ...ex, ...after }), String(data.get("reason") ?? ""));
-    await writeChildren(tx, l.org.id, ex, ex, v.draft.scope, ev, cfg.config);
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", auditPair(ex, { ...ex, ...after }), String(data.get("reason") ?? ""));
+    await writeChildren(tx, toAuditActor(actor), l.org.id, ex, ex, v.draft.scope, ev, cfg.config);
     const withdraw = nameRoutesToWithdraw(nameRoutesOf(ex.approvalInstances), { methodChanged, valueChanged });
     for (const inst of withdraw.routes) {
       const warning = { code: WITHDRAWN_ON_CHANGE, level: "warn", messageEn: `${withdraw.reason} This route no longer describes the exercise, so it was withdrawn.` };
@@ -366,7 +369,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
         where: { id: inst.id },
         data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue },
       });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · name approval`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), withdraw.reason ?? "");
+      await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · name approval`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), withdraw.reason ?? "");
     }
     return { ok: true };
   });
@@ -376,6 +379,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
 
 /// Resolve an ambiguous classification with the officer's pick, stored as chosen.
 export async function chooseTaxonomyValue(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const taxonomyCode = r.text("taxonomyCode", "Classification", { required: true });
@@ -393,10 +397,10 @@ export async function chooseTaxonomyValue(_prev: FormState, data: FormData): Pro
     const prior = ex.taxonomyValues.find((t) => t.taxonomyCode === taxonomyCode);
     if (prior) {
       await tx.exerciseTaxonomyValue.update({ where: { id: prior.id }, data: { valueCode, pick: "CHOSEN" } });
-      await audit(tx, l.org.id, "ExerciseTaxonomyValue", prior.id, `${ex.reference} · ${ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? "classification"}`, "UPDATE", diffFields({ value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === prior.valueCode)?.nameEn ?? null, pick: prior.pick }, { value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === valueCode)?.nameEn ?? null, pick: "CHOSEN" }));
+      await audit(tx, toAuditActor(actor), l.org.id, "ExerciseTaxonomyValue", prior.id, `${ex.reference} · ${ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? "classification"}`, "UPDATE", diffFields({ value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === prior.valueCode)?.nameEn ?? null, pick: prior.pick }, { value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === valueCode)?.nameEn ?? null, pick: "CHOSEN" }));
     } else {
       const row = await tx.exerciseTaxonomyValue.create({ data: { exerciseId: ex.id, taxonomyCode, valueCode, pick: "CHOSEN" } });
-      await audit(tx, l.org.id, "ExerciseTaxonomyValue", row.id, `${ex.reference} · ${ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? "classification"}`, "CREATE", diffFields(null, { taxonomy: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? null, value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === valueCode)?.nameEn ?? null, pick: "CHOSEN" }));
+      await audit(tx, toAuditActor(actor), l.org.id, "ExerciseTaxonomyValue", row.id, `${ex.reference} · ${ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? "classification"}`, "CREATE", diffFields(null, { taxonomy: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? null, value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === valueCode)?.nameEn ?? null, pick: "CHOSEN" }));
     }
     return { ok: true };
   });
@@ -406,6 +410,7 @@ export async function chooseTaxonomyValue(_prev: FormState, data: FormData): Pro
 
 /// The answers to the method's proposal items, while the proposal is being prepared.
 export async function saveProposalAnswers(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   return inExercise(id, async (tx, l) => {
     const ex = l.ex;
@@ -419,10 +424,10 @@ export async function saveProposalAnswers(_prev: FormState, data: FormData): Pro
       if (prior && prior.text === text) continue;
       if (prior) {
         await tx.exerciseProposalAnswer.update({ where: { id: prior.id }, data: { text, answeredAt: new Date() } });
-        await audit(tx, l.org.id, "ExerciseProposalAnswer", prior.id, `${ex.reference} · ${item.labelEn}`, "UPDATE", diffFields({ text: prior.text }, { text }));
+        await audit(tx, toAuditActor(actor), l.org.id, "ExerciseProposalAnswer", prior.id, `${ex.reference} · ${item.labelEn}`, "UPDATE", diffFields({ text: prior.text }, { text }));
       } else if (text) {
         const row = await tx.exerciseProposalAnswer.create({ data: { exerciseId: ex.id, itemKey: item.key, text } });
-        await audit(tx, l.org.id, "ExerciseProposalAnswer", row.id, `${ex.reference} · ${item.labelEn}`, "CREATE", diffFields(null, { text }));
+        await audit(tx, toAuditActor(actor), l.org.id, "ExerciseProposalAnswer", row.id, `${ex.reference} · ${item.labelEn}`, "CREATE", diffFields(null, { text }));
       }
     }
     return { ok: true };
@@ -430,6 +435,7 @@ export async function saveProposalAnswers(_prev: FormState, data: FormData): Pro
 }
 
 export async function submitProposal(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   return inExercise(id, async (tx, l) => {
     const ex = l.ex;
@@ -442,7 +448,7 @@ export async function submitProposal(_prev: FormState, data: FormData): Promise<
     // The proposal as submitted, item by item, so its review renders what was reviewed.
     const record = proposalRecordOf(cfg.checklist[ex.sourcingMethodCode] ?? [], ex.proposalAnswers, on);
     await tx.sourcingExercise.update({ where: { id }, data: { proposalState: "SUBMITTED", proposalSubmittedOn: on, proposalRecord: record as unknown as Prisma.InputJsonValue } });
-    await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ proposalState: ex.proposalState }, { proposalState: "SUBMITTED", proposalSubmittedOn: on }));
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ proposalState: ex.proposalState }, { proposalState: "SUBMITTED", proposalSubmittedOn: on }));
     return { ok: true };
   });
 }
@@ -450,6 +456,7 @@ export async function submitProposal(_prev: FormState, data: FormData): Promise<
 /// C&P's review: reviewed, or returned for amendment. The reviewer is a named Person,
 /// recorded on their behalf.
 export async function reviewProposal(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const outcome = r.choice("outcome", "Outcome", ["REVIEWED", "DRAFT"] as const, { required: true });
@@ -467,7 +474,7 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
     const after = { proposalState: outcome, proposalReviewedOn: outcome === "REVIEWED" ? on : null, proposalReviewerPersonId: person!.id, proposalReviewComment: comment };
     // Returned for amendment: it is being prepared again, and the next submission records it anew.
     await tx.sourcingExercise.update({ where: { id }, data: { ...after, ...(outcome === "DRAFT" ? { proposalRecord: Prisma.DbNull } : {}) } });
-    await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE",
       diffFields({ proposalState: ex.proposalState, proposalReviewComment: ex.proposalReviewComment }, { ...after, proposalReviewerPersonId: undefined, reviewedBy: person!.name, recordedOnBehalf: "not signed" }), comment);
     return { ok: true };
   });
@@ -484,6 +491,7 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
  * to be cited.
  */
 export async function requestNameApproval(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   return inExercise(id, async (tx, l) => {
     const ex = l.ex;
@@ -562,12 +570,12 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
         },
       },
     });
-    await audit(tx, l.org.id, "ApprovalInstance", instance.id, nameLabel(ex), "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", instance.id, nameLabel(ex), "CREATE",
       diffFields(null, { matrix: issue.label, rule: rule.labelEn, route: res.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: res.source === "OVERRIDE", invitees: proposed.length }));
     // The invitee list, frozen on the route it is approved by (written once, never edited).
     for (const [i, p] of proposed.entries()) {
       const row = await tx.nameRouteInvitee.create({ data: { organisationId: l.org.id, approvalInstanceId: instance.id, name: p.name, registrationNo: p.registrationNo, sortOrder: i } });
-      await audit(tx, l.org.id, "NameRouteInvitee", row.id, `${nameLabel(ex)} · ${p.name}`, "CREATE", diffFields(null, { invitee: p.name, registrationNo: p.registrationNo }));
+      await audit(tx, toAuditActor(actor), l.org.id, "NameRouteInvitee", row.id, `${nameLabel(ex)} · ${p.name}`, "CREATE", diffFields(null, { invitee: p.name, registrationNo: p.registrationNo }));
     }
     return { ok: true };
   });
@@ -576,6 +584,7 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
 /// Record a named Person's decision on a step of the name's route: recorded on their
 /// behalf, not signed. The holder, delegation, self-approval and date checks are 6.1's.
 export async function recordNameDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);
@@ -619,20 +628,20 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
     const after = personDecisionWrite({ decision, person: { id: person!.id, name: person!.name }, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",
       diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
     if (decision === "REJECTED") {
       // FR-APR-016: the destination snapshotted at open says where it goes; unset, the
       // officer chooses. A refusal is never refused.
       const supports = await nameSupports(tx, ex.id);
       const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee: null, steps: inst.steps, rejectingSeq: step.sequence, supports });
-      await closeRejected(tx, { organisationId: l.org.id, routeLabel: nameLabel(ex) }, inst, outcome, reason);
-      if ("apply" in outcome) await sendNameRejected(tx, l, inst.id, outcome.apply, outcome.returnToSeq ?? null, reason);
+      await closeRejected(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel: nameLabel(ex) }, inst, outcome, reason);
+      if ("apply" in outcome) await sendNameRejected(tx, toAuditActor(actor), l, inst.id, outcome.apply, outcome.returnToSeq ?? null, reason);
       return { ok: true };
     }
     if (inst.steps.every((s) => s.id === step.id || s.decision === "DONE")) {
       await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "APPROVED", closedAt: new Date() } });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, nameLabel(ex), "UPDATE", diffFields({ status: inst.status }, { status: "APPROVED" }), reason);
+      await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, nameLabel(ex), "UPDATE", diffFields({ status: inst.status }, { status: "APPROVED" }), reason);
     }
     return { ok: true };
   });
@@ -645,6 +654,7 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
  * (FR-APR-016, ruling CO-5): recorded as their choice on behalf of a named Person.
  */
 export async function chooseNameRejection(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
@@ -669,8 +679,8 @@ export async function chooseNameRejection(_prev: FormState, data: FormData): Pro
     }
     const person = await tx.person.findFirst({ where: { id: personId!, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
     if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
-    await recordChoice(tx, { organisationId: l.org.id, routeLabel: nameLabel(ex) }, inst!.id, kind!, person.id, person.name, reason);
-    await sendNameRejected(tx, l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
+    await recordChoice(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel: nameLabel(ex) }, inst!.id, kind!, person.id, person.name, reason);
+    await sendNameRejected(tx, toAuditActor(actor), l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
     return { ok: true };
   });
 }
@@ -684,12 +694,13 @@ export async function chooseNameRejection(_prev: FormState, data: FormData): Pro
  * outcome says; deferred or undecided leaves it waiting.
  */
 export async function citeNameDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const decisionId = String(data.get("committeeDecisionId") ?? "");
   if (!decisionId) return { ok: false, errors: { committeeDecisionId: "Choose the committee's decision." } };
   // The citation is citeNameStep (method/name-route-write.ts), the one a sitting's outcome also runs (founder, 2026-10-05).
-  return inExercise(id, (tx, l) => citeNameStep(tx, l, stepId, decisionId));
+  return inExercise(id, (tx, l) => citeNameStep(tx, toAuditActor(actor), l, stepId, decisionId));
 }
 
 // ------------------------------------------------------------------ the states
@@ -701,6 +712,7 @@ export async function citeNameDecision(_prev: FormState, data: FormData): Promis
  * first time.
  */
 export async function moveToPreparation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   try {
     return await inExercise(id, async (tx, l) => {
@@ -759,12 +771,12 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
       };
       const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
       if (moved.count !== 1) throw new Refusal(CHANGED);
-      await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", [...auditPair(ex, { ...ex, ...after, classificationRecorded: "yes" }), ...diffFields({ documentPack: null }, { documentPack: PACK_KIND_LABEL[after.packKindSnapshot] })]);
-      await writeChildren(tx, l.org.id, ex, ex, draftOf(ex).scope, ev, cfg.config);
+      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", [...auditPair(ex, { ...ex, ...after, classificationRecorded: "yes" }), ...diffFields({ documentPack: null }, { documentPack: PACK_KIND_LABEL[after.packKindSnapshot] })]);
+      await writeChildren(tx, toAuditActor(actor), l.org.id, ex, ex, draftOf(ex).scope, ev, cfg.config);
       if (l.req.status === "APPROVED") {
         // Through the requisition's own state machine (ruling C1); a refusal throws.
         await moveRequisition(tx, { id: l.req.id, status: "APPROVED" }, "SOURCING", { today: l.org.today });
-        await audit(tx, l.org.id, "Requisition", l.req.id, `${l.req.reference} · ${l.req.title}`, "UPDATE", diffFields({ status: "APPROVED" }, { status: "SOURCING" }), `Exercise ${ex.reference} moved into preparation.`);
+        await audit(tx, toAuditActor(actor), l.org.id, "Requisition", l.req.id, `${l.req.reference} · ${l.req.title}`, "UPDATE", diffFields({ status: "APPROVED" }, { status: "SOURCING" }), `Exercise ${ex.reference} moved into preparation.`);
       }
       return { ok: true };
     });
@@ -779,6 +791,7 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
 /// Cancel an exercise, with a reason. An assumption: §7.3.2 gives it no SOP path. An
 /// open name-approval route is withdrawn with it.
 export async function cancelExercise(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   return inExercise(id, async (tx, l) => {
@@ -790,14 +803,14 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
     if (live) return { ok: false, message: `Not cancelled: award ${live.reference} stands on this exercise. Cancel the award first, from its own record.` };
     const moved = await tx.sourcingExercise.updateMany({ where: { id, status: ex.status }, data: { status: "CANCELLED", cancelReason: reason } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), reason);
     // 6.4: a draft pack, or one with approval, is voided with the exercise; an approved one stays as history.
-    await voidLivePacks(tx, l, reason);
+    await voidLivePacks(tx, toAuditActor(actor), l, reason);
     // Every pending route of the exercise's own, of each domain (name and tendering), is withdrawn.
     for (const inst of exerciseRoutesOf(ex.approvalInstances).filter((i) => i.status === "PENDING")) {
       const warning = { code: WITHDRAWN_ON_CANCEL, level: "info", messageEn: `Withdrawn: the exercise was cancelled — ${reason}` };
       await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise was cancelled: ${reason}`);
+      await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise was cancelled: ${reason}`);
     }
     return { ok: true };
   });
@@ -809,6 +822,7 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
 /// unset. A person named must be on record in this organisation and active, except the one
 /// already named, who is kept as they are when only the work code changes.
 export async function saveExerciseDetails(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const personId = r.optionalText("personInChargeId");
@@ -831,7 +845,7 @@ export async function saveExerciseDetails(_prev: FormState, data: FormData): Pro
     const after = { personInCharge: trail.after, workCode };
     if ((person?.id ?? null) === ex.personInChargeId && workCode === ex.workCode) return { ok: true };
     await tx.sourcingExercise.update({ where: { id: ex.id }, data: { personInChargeId: person?.id ?? null, workCode } });
-    await audit(tx, l.org.id, "SourcingExercise", ex.id, labelOf(ex), "UPDATE", diffFields(before, after));
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", ex.id, labelOf(ex), "UPDATE", diffFields(before, after));
     return { ok: true };
   });
 }
@@ -840,6 +854,7 @@ export async function saveExerciseDetails(_prev: FormState, data: FormData): Pro
 
 /// A named participant of a restricted exercise (FR-MTD-007). Not enforced until sign-in.
 export async function addParticipant(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const personId = r.text("personId", "Person", { required: true });
@@ -852,12 +867,13 @@ export async function addParticipant(_prev: FormState, data: FormData): Promise<
     if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
     if (ex.participants.some((p) => p.personId === person.id)) return { ok: false, errors: { personId: `${person.name} is already named.` } };
     const row = await tx.exerciseParticipant.create({ data: { exerciseId: ex.id, personId: person.id, capacity } });
-    await audit(tx, l.org.id, "ExerciseParticipant", row.id, `${ex.reference} · ${person.name}`, "CREATE", diffFields(null, { person: person.name, capacity }));
+    await audit(tx, toAuditActor(actor), l.org.id, "ExerciseParticipant", row.id, `${ex.reference} · ${person.name}`, "CREATE", diffFields(null, { person: person.name, capacity }));
     return { ok: true };
   });
 }
 
 export async function removeParticipant(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const participantId = String(data.get("participantId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -868,7 +884,7 @@ export async function removeParticipant(_prev: FormState, data: FormData): Promi
     const p = ex.participants.find((x) => x.id === participantId);
     if (!p) return { ok: false, message: "That participant is no longer named." };
     await tx.exerciseParticipant.delete({ where: { id: p.id } });
-    await audit(tx, l.org.id, "ExerciseParticipant", p.id, `${ex.reference} · ${p.person.name}`, "DELETE", snapshotFields({ person: p.person.name, capacity: p.capacity }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "ExerciseParticipant", p.id, `${ex.reference} · ${p.person.name}`, "DELETE", snapshotFields({ person: p.person.name, capacity: p.capacity }), reason);
     return { ok: true };
   });
 }

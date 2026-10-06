@@ -21,6 +21,7 @@ import { queueState, type QueueState } from "@/lib/suppliers/review";
 import { standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 import type { ApplicationKind, SupplierStatus } from "@/lib/suppliers/types";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * if it were here (condition 3).
  */
 export default async function SuppliersPage(props: { searchParams: Promise<{ tab?: string; page?: string }> }) {
+  await requireStaff();
   const { tab, page: raw } = await props.searchParams;
   const requested = Math.max(0, Number.parseInt(raw ?? "0", 10) || 0);
   const org0 = await supplierOrg();

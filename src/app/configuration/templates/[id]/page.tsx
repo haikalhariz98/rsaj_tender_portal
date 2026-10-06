@@ -19,6 +19,7 @@ import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 
 import { AddBlock, AddPrintedField, AddRecipient, EditBlock, EditPageCount, EditPrintedField, EditRecipient, RemoveBlock, RemovePrintedField, RemoveRecipient } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ const USE_COUNTS = Object.fromEntries(Object.keys(TEMPLATE_OTHER_USES).map((k) =
  * it. Everything ships empty. A certificate pins the form (text, blocks and list) at its first signature.
  */
 export default async function TemplateFormPage(props: PageProps<"/configuration/templates/[id]">) {
+  await requireStaff();
   const { id } = await props.params;
   const org = await exerciseOrg();
   if (!org) notFound();

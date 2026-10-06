@@ -19,6 +19,7 @@ import { extendedDates } from "@/lib/time/extension";
 import { changedFields, latestVersion, type BaselineValues } from "./baseline";
 import { baselineRows, rowOf, sectionRows, valuesOf } from "./load";
 import { contractLabel, type LoadedContract } from "./repo";
+import type { AuditActor } from "@/lib/auth/types";
 
 /// The values after an extension of `days` on the scope (the whole works, or the section alone).
 export function extensionValues(v: BaselineValues, scope: "WHOLE" | "SECTION", sectionRef: string | null, days: number): BaselineValues {
@@ -44,7 +45,7 @@ export interface WrittenVersion {
 }
 
 /// Write the version (the latest version's values extended), its sections and its audit. Returns its id and values.
-export async function writeExtensionVersion(tx: Tx, l: LoadedContract, i: ExtensionVersionInput): Promise<WrittenVersion> {
+export async function writeExtensionVersion(tx: Tx, actor: AuditActor, l: LoadedContract, i: ExtensionVersionInput): Promise<WrittenVersion> {
   const { versions, draft } = baselineRows(l.contract);
   const prior = latestVersion(versions);
   if (!prior) throw new Error("No baseline version to extend.");
@@ -66,7 +67,7 @@ export async function writeExtensionVersion(tx: Tx, l: LoadedContract, i: Extens
     },
   });
   for (const s of sectionRows(after, l.org.id)) await tx.contractSection.create({ data: { ...s, baselineId: row.id } });
-  await writeAudit(tx, { organisationId: l.org.id, entity: "ContractBaseline", entityId: row.id, entityLabel: `${contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } })} · baseline version ${version}`, reason: "" }, "CREATE",
+  await writeAudit(tx, { actor, organisationId: l.org.id, entity: "ContractBaseline", entityId: row.id, entityLabel: `${contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } })} · baseline version ${version}`, reason: "" }, "CREATE",
     diffFields(null, { version, reason: i.reason === "EXTENSION_OF_TIME" ? "By an extension of time" : "By an extension of the contract period", changed: changedFields(before, after).join(", ") || "nothing", dateForCompletion: after.dateForCompletion, extendedBy: `${i.days} days${i.scope === "SECTION" ? ` (section ${i.sectionRef})` : ""}`, writtenBy: i.writtenBy.number ?? "its certificate" }));
   return { id: row.id, version, values: after };
 }

@@ -8,10 +8,12 @@ import { dayToDate } from "@/lib/dates";
 import { formOptions, requisitionOrg } from "@/lib/requisition/repo";
 
 import { RequisitionForm } from "../requisition-form";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewRequisitionPage() {
+  await requireStaff();
   const org = await requisitionOrg();
   const options = org ? await formOptions(org.id, org.today ? dayToDate(org.today) : new Date()) : null;
   return (

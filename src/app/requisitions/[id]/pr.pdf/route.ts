@@ -1,3 +1,4 @@
+import { staffRoute } from "@/app/_auth/route";
 import { prFileName } from "@/lib/requisition/pr-pdf-data";
 import { loadPrPdf } from "@/lib/requisition/pr-pdf-load";
 
@@ -7,6 +8,8 @@ import { loadPrPdf } from "@/lib/requisition/pr-pdf-load";
  * asked for and never cached.
  */
 export async function GET(_req: Request, ctx: RouteContext<"/requisitions/[id]/pr.pdf">) {
+  const guard = await staffRoute();
+  if (!guard.ok) return guard.response;
   const { id } = await ctx.params;
   const out = await loadPrPdf(id);
   if (!out.ok) {

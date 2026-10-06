@@ -29,8 +29,8 @@ export interface AuditContext {
   /// How the row read at the time. A deleted row is still legible in the trail.
   entityLabel: string;
   reason?: string;
-  /// Who acted. Optional until Phase 1b makes every caller give one.
-  actor?: AuditActor;
+  /// Who acted. Required: the compile errors were the checklist of every writer (Phase 1b).
+  actor: AuditActor;
 }
 
 export async function writeAudit(

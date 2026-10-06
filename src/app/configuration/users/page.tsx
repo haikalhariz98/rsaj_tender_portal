@@ -8,6 +8,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 
 import { UsersTabs } from "./panels";
 import { PageHeader } from "@/components/ui/page-header";
+import { requireStaff } from "@/app/_auth/actor";
 
 const EMPTY_UPLOAD = { classes: [], people: [], allowedMediaTypes: [], maxBytes: null, ceiling: null, cap: null, refusals: [], timeZoneSet: false, statement: "" };
 
@@ -26,6 +27,7 @@ export default async function UsersPage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
+  await requireStaff();
   const on = new Date();
   const { tab } = await searchParams;
   const [roster, grants, delegations, upload, units] = await Promise.all([

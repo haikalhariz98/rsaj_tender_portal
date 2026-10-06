@@ -19,6 +19,7 @@ import { scopeConfiguration } from "@/lib/scope/read";
 
 import { Section } from "../records-ui";
 import { ColumnDrawer, DiscardRateIssueDrawer, EditBasisRule, EditMethodRule, EditMethodScopeRule, EditScopePolicy, HoldingDrawer, IssueRateScheduleDrawer, QualificationDrawer, RateItemDrawer, RemoveRateItemDrawer, StartRateIssueDrawer, TemplateDrawer, TemplateSectionDrawer } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,7 @@ const UNSET: Record<string, string> = {
 const day = (d: string | null) => (d ? formatDate(d) : "");
 
 export default async function ScopeConfigurationPage({ searchParams }: { searchParams: Promise<{ retired?: string }> }) {
+  await requireStaff();
   const showRetired = (await searchParams).retired === "1";
   const org = await exerciseOrg();
   const c = org ? await scopeConfiguration() : null;

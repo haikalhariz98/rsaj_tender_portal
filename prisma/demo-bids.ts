@@ -46,6 +46,7 @@ import { parseSen, senToDecimalString } from "../src/lib/money";
 import { BIG, calendarOf, CHANNELS, COMPLETE_APPENDIX, FIRMS, scopeReady, TENDER_FEE_BASIS, tenderWindow, Acts } from "./demo-window";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 import { answer, conditionsFor, confirm, decide, enterAppendix, markAllReady, moveIntoPreparation, startPack, submit, type Add } from "./demo-tender-docs";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -87,7 +88,7 @@ export async function loadBidsDemo(db: Db, organisationId: string, hooks: BidsDe
   const trail: Entry[] = [];
   let n = 0;
   const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") =>
-    trail.push({ id: `${P}bau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+    trail.push({ id: `${P}bau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
   const flush = async () => {
     await db.auditEntry.createMany({ data: trail.splice(0) as never });
   };
@@ -225,7 +226,7 @@ export async function configureBidsDemo(db: Db, organisationId: string) {
   const trail: Entry[] = [];
   let n = 0;
   const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") =>
-    trail.push({ id: `${P}bauc${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+    trail.push({ id: `${P}bauc${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
   await configure(db, organisationId, instantAt(W(16), "09:00", tz)!, entry);
   await db.auditEntry.createMany({ data: trail as never });
 }
@@ -456,7 +457,7 @@ async function loadRequisition(db: Db, organisationId: string, W: (k: number) =>
   const rlabel = `${REQ(r.n)} · approval route`;
   const entries: object[] = [];
   let k = 0;
-  const e = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", at: Date, changes: object[], reason = "") => entries.push({ id: `${rq}_au${++k}`, organisationId, entity, entityId, entityLabel, action, at, changes, reason, unattributed: true });
+  const e = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", at: Date, changes: object[], reason = "") => entries.push({ id: `${rq}_au${++k}`, organisationId, entity, entityId, entityLabel, action, at, changes, reason, ...DEMO_ACTOR });
   e("Requisition", rq, label, "CREATE", T(raised, "09:00"), diffFields(null, { reference: REQ(r.n), title: r.title, justification: r.justification, needStatement: r.need, requestingUnitCode: "NTH", sectionUnitCode: "NTH-MNT", requestingPersonId: `${P}p11`, costCentreCode: "CC-200", accountCode: "7400400", budgetCodeId: `${P}bcode9`, siteCode: "NTH-WKS", placeOfDelivery: "Northern network", dateRequired: dayToDate(W(-120)), estimatedValue: r.value, fundingRouteCode: "capex", contractTypeCode: null, lines: 1, status: "DRAFT" }));
   e("RequisitionEndorsement", `${P}en35a`, `${REQ(r.n)} · Section endorsement`, "CREATE", T(endorsed, "09:00"), diffFields(null, { tier: "SECTION", unit: "Maintenance Section", person: "Lim Kok Seng", endorsedOn: dayToDate(endorsed), note: "" }));
   e("RequisitionEndorsement", `${P}en35b`, `${REQ(r.n)} · Department endorsement`, "CREATE", T(endorsed, "10:00"), diffFields(null, { tier: "DEPARTMENT", unit: "Northern Region", person: "Imran Hakim", endorsedOn: dayToDate(endorsed), note: "" }));

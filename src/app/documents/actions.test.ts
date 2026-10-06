@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { versionFindFirst, holdFindFirst } = vi.hoisted(() => ({ versionFindFirst: vi.fn(), holdFindFirst: vi.fn() }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+// Phase 1b: every action asks who is signed in first; these tests are not about sign-in, so a signed-in officer stands in for the session.
+vi.mock("@/app/_auth/actor", async () => (await import("@/lib/test-support/staff")).actorModule());
 vi.mock("@/lib/db", () => ({ db: { documentVersion: { findFirst: versionFindFirst }, legalHold: { findFirst: holdFindFirst } } }));
 vi.mock("@/lib/documents/service", () => ({ documentOrg: async () => ({ id: "org1" }), lockDocument: async () => undefined, logAccess: async () => undefined }));
 

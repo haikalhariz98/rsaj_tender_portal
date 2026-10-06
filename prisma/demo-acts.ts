@@ -34,7 +34,12 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "../src/generated/prisma/client";
 
+import { installLoader } from "../src/app/_auth/loader";
+
 import { demoInstant, onDemoClock, RealDate } from "./demo-clock";
+
+// The acts below are the product's own server actions, run outside any request: they write their audit rows as this system actor (src/app/_auth/loader.ts).
+installLoader("demo loader");
 
 // ------------------------------------------------------------------ next/cache outside Next
 

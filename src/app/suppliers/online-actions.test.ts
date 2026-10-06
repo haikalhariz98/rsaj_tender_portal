@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+// Phase 1b: every action asks who is signed in first; these tests are not about sign-in, so a signed-in officer stands in for the session.
+vi.mock("@/app/_auth/actor", async () => (await import("@/lib/test-support/staff")).actorModule());
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`REDIRECT ${to}`);
@@ -77,7 +79,8 @@ vi.mock("@/lib/suppliers/repo", () => ({
 vi.mock("@/lib/numbering/issue", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/numbering/issue")>()), issueReference: async () => "DEMO/SUP/0009/2026" }));
 vi.mock("./shared", () => ({
   activePerson: async () => h.person,
-  audit: async (_tx: unknown, _org: string, entity: string, _id: string, label: string, action: string, changes: { field: string; before: unknown; after: unknown }[], reason = "") => {
+  // Phase 1b: the shared audit helper takes who acted as its second argument.
+  audit: async (_tx: unknown, _actor: unknown, _org: string, entity: string, _id: string, label: string, action: string, changes: { field: string; before: unknown; after: unknown }[], reason = "") => {
     h.audits.push({ entity, label, action, changes, reason });
   },
   CHANGED: { ok: false },

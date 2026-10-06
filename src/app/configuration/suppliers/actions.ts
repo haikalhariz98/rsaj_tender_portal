@@ -17,6 +17,8 @@ import { asHeading, LIST_KIND_SINGULAR, supplierFaultText, VALUE_KIND_LABEL } fr
 import { REGISTRATION_VALUE_KINDS, SUPPLIER_LIST_KINDS, type Finding, type RegistrationValueKind, type SupplierListKind } from "@/lib/suppliers/types";
 import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Configuration › Supplier register (6.15 §5): the registration bodies' values (FR-VND-003), the document
@@ -47,8 +49,8 @@ function done(): FormState {
   revalidatePath("/suppliers");
   return { ok: true };
 }
-const audit = (tx: Tx, organisationId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", changes: ReturnType<typeof diffFields>, reason = "") =>
-  action === "UPDATE" && changes.length === 0 ? Promise.resolve() : writeAudit(tx, { organisationId, entity, entityId, entityLabel, reason }, action, changes);
+const audit = (tx: Tx, actor: AuditActor, organisationId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", changes: ReturnType<typeof diffFields>, reason = "") =>
+  action === "UPDATE" && changes.length === 0 ? Promise.resolve() : writeAudit(tx, { actor, organisationId, entity, entityId, entityLabel, reason }, action, changes);
 const refusal = (fs: readonly Finding[]): FormState => ({ ok: false, message: `Nothing was saved: ${fs.map((f) => supplierFaultText(f)).join(" ")}` });
 const retiredWords = (d: Date | null) => (d ? formatDate(storedDay(d)) : null);
 
@@ -69,6 +71,7 @@ const valueWords = (v: { kind: string; nameEn: string; nameMs: string | null; pa
 
 /// Add or change a value under a registration body (a grade with its rank and ceiling; a specialisation under a category).
 export async function saveRegistrationValue(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
@@ -106,10 +109,10 @@ export async function saveRegistrationValue(_prev: FormState, data: FormData): P
     const what = `Registration value · ${asHeading(body!.labelEn)} · ${v.nameEn}`;
     if (!before) {
       const created = await tx.registrationValue.create({ data: { organisationId: org.id, bodyId, kind: kind!, code, ...row } });
-      await audit(tx, org.id, "RegistrationValue", created.id, what, "CREATE", diffFields(null, valueWords(created)));
+      await audit(tx, toAuditActor(actor), org.id, "RegistrationValue", created.id, what, "CREATE", diffFields(null, valueWords(created)));
     } else {
       const after = await tx.registrationValue.update({ where: { id: before.id }, data: row });
-      await audit(tx, org.id, "RegistrationValue", before.id, what, "UPDATE", diffFields(valueWords(before), valueWords(after)), String(data.get("reason") ?? ""));
+      await audit(tx, toAuditActor(actor), org.id, "RegistrationValue", before.id, what, "UPDATE", diffFields(valueWords(before), valueWords(after)), String(data.get("reason") ?? ""));
     }
     return done();
   });
@@ -117,7 +120,8 @@ export async function saveRegistrationValue(_prev: FormState, data: FormData): P
 
 /// Retire a value (it stays on the documents that record it), or bring it back. Retiring asks the reason.
 export async function setRegistrationValueRetired(_prev: FormState, data: FormData): Promise<FormState> {
-  return setRetired(data, "RegistrationValue", async (tx, id, orgId) => {
+  const actor = await requireStaff();
+  return setRetired(toAuditActor(actor), data, "RegistrationValue", async (tx, id, orgId) => {
     const v = await tx.registrationValue.findFirst({ where: { id, organisationId: orgId }, include: { body: { select: { labelEn: true } } } });
     return v ? { label: `Registration value · ${asHeading(v.body.labelEn)} · ${v.nameEn}`, retiredOn: v.retiredOn, apply: (d: Date | null) => tx.registrationValue.update({ where: { id }, data: { retiredOn: d } }) } : null;
   });
@@ -140,6 +144,7 @@ const typeWords = (t: { nameEn: string; nameMs: string | null; valueKinds: strin
 
 /// Add or change a document type. Its three switches may be left not set: each then blocks the act it governs, naming itself.
 export async function saveDocumentType(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
@@ -178,10 +183,10 @@ export async function saveDocumentType(_prev: FormState, data: FormData): Promis
     const bodyName = async (bid: string | null) => (bid ? ((await tx.registrationBody.findFirst({ where: { id: bid } }))?.labelEn ?? "A body no longer configured") : null);
     if (!before) {
       const created = await tx.supplierDocumentType.create({ data: { organisationId: org.id, code, ...row } });
-      await audit(tx, org.id, "SupplierDocumentType", created.id, `Supplier document type · ${row.nameEn}`, "CREATE", diffFields(null, typeWords(created, body?.labelEn ?? null)));
+      await audit(tx, toAuditActor(actor), org.id, "SupplierDocumentType", created.id, `Supplier document type · ${row.nameEn}`, "CREATE", diffFields(null, typeWords(created, body?.labelEn ?? null)));
     } else {
       const after = await tx.supplierDocumentType.update({ where: { id: before.id }, data: row });
-      await audit(tx, org.id, "SupplierDocumentType", before.id, `Supplier document type · ${row.nameEn}`, "UPDATE", diffFields(typeWords(before, await bodyName(before.bodyId)), typeWords(after, body?.labelEn ?? null)), reason);
+      await audit(tx, toAuditActor(actor), org.id, "SupplierDocumentType", before.id, `Supplier document type · ${row.nameEn}`, "UPDATE", diffFields(typeWords(before, await bodyName(before.bodyId)), typeWords(after, body?.labelEn ?? null)), reason);
     }
     return done();
   });
@@ -189,7 +194,8 @@ export async function saveDocumentType(_prev: FormState, data: FormData): Promis
 
 /// Retire a document type (documents of it stay on file and keep their state), or bring it back.
 export async function setDocumentTypeRetired(_prev: FormState, data: FormData): Promise<FormState> {
-  return setRetired(data, "SupplierDocumentType", async (tx, id, orgId) => {
+  const actor = await requireStaff();
+  return setRetired(toAuditActor(actor), data, "SupplierDocumentType", async (tx, id, orgId) => {
     const t = await tx.supplierDocumentType.findFirst({ where: { id, organisationId: orgId } });
     return t ? { label: `Supplier document type · ${t.nameEn}`, retiredOn: t.retiredOn, apply: (d: Date | null) => tx.supplierDocumentType.update({ where: { id }, data: { retiredOn: d } }) } : null;
   });
@@ -199,6 +205,7 @@ export async function setDocumentTypeRetired(_prev: FormState, data: FormData): 
 
 /// Add or change an entity type or a country.
 export async function saveListValue(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
@@ -224,17 +231,18 @@ export async function saveListValue(_prev: FormState, data: FormData): Promise<F
     const what = `${LIST_KIND_SINGULAR[list!].en} · ${v.nameEn}`;
     if (!before) {
       const created = await tx.supplierListValue.create({ data: { organisationId: org.id, list: list!, code, nameEn: v.nameEn, nameMs: v.nameMs, provenance: v.provenance!, sortOrder: v.sortOrder } });
-      await audit(tx, org.id, "SupplierListValue", created.id, what, "CREATE", diffFields(null, words(created)));
+      await audit(tx, toAuditActor(actor), org.id, "SupplierListValue", created.id, what, "CREATE", diffFields(null, words(created)));
     } else {
       const after = await tx.supplierListValue.update({ where: { id: before.id }, data: { nameEn: v.nameEn, nameMs: v.nameMs, provenance: v.provenance!, sortOrder: v.sortOrder } });
-      await audit(tx, org.id, "SupplierListValue", before.id, what, "UPDATE", diffFields(words(before), words(after)), String(data.get("reason") ?? ""));
+      await audit(tx, toAuditActor(actor), org.id, "SupplierListValue", before.id, what, "UPDATE", diffFields(words(before), words(after)), String(data.get("reason") ?? ""));
     }
     return done();
   });
 }
 
 export async function setListValueRetired(_prev: FormState, data: FormData): Promise<FormState> {
-  return setRetired(data, "SupplierListValue", async (tx, id, orgId) => {
+  const actor = await requireStaff();
+  return setRetired(toAuditActor(actor), data, "SupplierListValue", async (tx, id, orgId) => {
     const v = await tx.supplierListValue.findFirst({ where: { id, organisationId: orgId } });
     return v ? { label: `${LIST_KIND_SINGULAR[v.list as SupplierListKind].en} · ${v.nameEn}`, retiredOn: v.retiredOn, apply: (d: Date | null) => tx.supplierListValue.update({ where: { id }, data: { retiredOn: d } }) } : null;
   });
@@ -244,6 +252,7 @@ export async function setListValueRetired(_prev: FormState, data: FormData): Pro
 
 /// The register's policy (6.15 §2). Every field may be left not set; nothing is defaulted.
 export async function saveSupplierPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const r = new FormReader(data);
@@ -261,10 +270,10 @@ export async function saveSupplierPolicy(_prev: FormState, data: FormData): Prom
     const words = (p: typeof v | NonNullable<typeof before> | null) => (p ? { verificationNotice: p.verificationNoticeEn ?? "Not set", verificationNoticeInMalay: p.verificationNoticeMs ?? "Not set", noticeFrom: prov(p.noticeProvenance), governingSource: p.governingSource || null } : null);
     if (!before) {
       const created = await tx.supplierPolicy.create({ data: { organisationId: org.id, ...v } });
-      await audit(tx, org.id, "SupplierPolicy", created.id, "Supplier register · policy", "CREATE", diffFields(null, words(v)!), String(data.get("reason") ?? ""));
+      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", created.id, "Supplier register · policy", "CREATE", diffFields(null, words(v)!), String(data.get("reason") ?? ""));
     } else {
       await tx.supplierPolicy.update({ where: { id: before.id }, data: v });
-      await audit(tx, org.id, "SupplierPolicy", before.id, "Supplier register · policy", "UPDATE", diffFields(words(before), words(v)!), String(data.get("reason") ?? ""));
+      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", before.id, "Supplier register · policy", "UPDATE", diffFields(words(before), words(v)!), String(data.get("reason") ?? ""));
     }
     return done();
   });
@@ -276,6 +285,7 @@ export async function saveSupplierPolicy(_prev: FormState, data: FormData): Prom
  * says it is not open and names what is missing. Each figure says where it comes from.
  */
 export async function savePortalIntake(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const r = new FormReader(data);
@@ -309,10 +319,10 @@ export async function savePortalIntake(_prev: FormState, data: FormData): Promis
         : null;
     if (!before) {
       const created = await tx.supplierPolicy.create({ data: { organisationId: org.id, ...v } });
-      await audit(tx, org.id, "SupplierPolicy", created.id, "Supplier register · online applications", "CREATE", diffFields(null, words(v)!), String(data.get("reason") ?? ""));
+      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", created.id, "Supplier register · online applications", "CREATE", diffFields(null, words(v)!), String(data.get("reason") ?? ""));
     } else {
       await tx.supplierPolicy.update({ where: { id: before.id }, data: v });
-      await audit(tx, org.id, "SupplierPolicy", before.id, "Supplier register · online applications", "UPDATE", diffFields(words(before), words(v)!), String(data.get("reason") ?? ""));
+      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", before.id, "Supplier register · online applications", "UPDATE", diffFields(words(before), words(v)!), String(data.get("reason") ?? ""));
     }
     return done();
   });
@@ -320,7 +330,7 @@ export async function savePortalIntake(_prev: FormState, data: FormData): Promis
 
 // ------------------------------------------------------------------ retiring
 
-async function setRetired(data: FormData, entity: string, find: (tx: Tx, id: string, orgId: string) => Promise<{ label: string; retiredOn: Date | null; apply: (d: Date | null) => Promise<unknown> } | null>): Promise<FormState> {
+async function setRetired(by: AuditActor, data: FormData, entity: string, find: (tx: Tx, id: string, orgId: string) => Promise<{ label: string; retiredOn: Date | null; apply: (d: Date | null) => Promise<unknown> } | null>): Promise<FormState> {
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -335,7 +345,7 @@ async function setRetired(data: FormData, entity: string, find: (tx: Tx, id: str
     if (!today) return NO_ZONE;
     const to = retire ? dayToDate(today) : null;
     await row.apply(to);
-    await audit(tx, org.id, entity, id, row.label, "UPDATE", diffFields({ retiredOn: retiredWords(row.retiredOn) }, { retiredOn: retiredWords(to) }), reason);
+    await audit(tx, by, org.id, entity, id, row.label, "UPDATE", diffFields({ retiredOn: retiredWords(row.retiredOn) }, { retiredOn: retiredWords(to) }), reason);
     return done();
   });
 }
@@ -344,6 +354,7 @@ async function setRetired(data: FormData, entity: string, find: (tx: Tx, id: str
 
 /// Add or change a reason on the maintained list (FR-VND-010): for a suspension or for a blacklisting.
 export async function saveStandingReason(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
@@ -368,18 +379,19 @@ export async function saveStandingReason(_prev: FormState, data: FormData): Prom
     const words = (x: { appliesTo: string; nameEn: string; nameMs: string; governingSource: string; provenance: string }) => ({ givenFor: x.appliesTo === "SUSPEND" ? "Suspension" : "Blacklisting", reason: x.nameEn, reasonInMalay: x.nameMs || null, governingSource: x.governingSource || null, whereItComesFrom: prov(x.provenance) });
     if (!before) {
       const created = await tx.standingReason.create({ data: { organisationId: org.id, code, appliesTo: v.appliesTo!, nameEn: v.nameEn, nameMs: v.nameMs, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder } });
-      await audit(tx, org.id, "StandingReason", created.id, `Standing reason · ${v.nameEn}`, "CREATE", diffFields(null, words(created)));
+      await audit(tx, toAuditActor(actor), org.id, "StandingReason", created.id, `Standing reason · ${v.nameEn}`, "CREATE", diffFields(null, words(created)));
     } else {
       // Its use (suspension or blacklisting) is fixed once made: events recorded under it say which.
       const after = await tx.standingReason.update({ where: { id: before.id }, data: { nameEn: v.nameEn, nameMs: v.nameMs, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder } });
-      await audit(tx, org.id, "StandingReason", before.id, `Standing reason · ${v.nameEn}`, "UPDATE", diffFields(words(before), words(after)), String(data.get("reason") ?? ""));
+      await audit(tx, toAuditActor(actor), org.id, "StandingReason", before.id, `Standing reason · ${v.nameEn}`, "UPDATE", diffFields(words(before), words(after)), String(data.get("reason") ?? ""));
     }
     return done();
   });
 }
 
 export async function setStandingReasonRetired(_prev: FormState, data: FormData): Promise<FormState> {
-  return setRetired(data, "StandingReason", async (tx, id, orgId) => {
+  const actor = await requireStaff();
+  return setRetired(toAuditActor(actor), data, "StandingReason", async (tx, id, orgId) => {
     const v = await tx.standingReason.findFirst({ where: { id, organisationId: orgId } });
     return v ? { label: `Standing reason · ${v.nameEn}`, retiredOn: v.retiredOn, apply: (d: Date | null) => tx.standingReason.update({ where: { id }, data: { retiredOn: d } }) } : null;
   });
@@ -392,6 +404,7 @@ export async function setStandingReasonRetired(_prev: FormState, data: FormData)
  * bidder at an opening. Each may be left not set; a value set says where it came from. Nothing is defaulted.
  */
 export async function saveStandingRules(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const r = new FormReader(data);
@@ -453,10 +466,10 @@ export async function saveStandingRules(_prev: FormState, data: FormData): Promi
     const why = String(data.get("reason") ?? "");
     if (!before) {
       const created = await tx.supplierPolicy.create({ data: { organisationId: org.id, ...v } });
-      await audit(tx, org.id, "SupplierPolicy", created.id, "Supplier register · standing rules", "CREATE", diffFields(null, words(v)), why);
+      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", created.id, "Supplier register · standing rules", "CREATE", diffFields(null, words(v)), why);
     } else {
       await tx.supplierPolicy.update({ where: { id: before.id }, data: v });
-      await audit(tx, org.id, "SupplierPolicy", before.id, "Supplier register · standing rules", "UPDATE", diffFields(words(before), words(v)), why);
+      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", before.id, "Supplier register · standing rules", "UPDATE", diffFields(words(before), words(v)), why);
     }
     return done();
   });

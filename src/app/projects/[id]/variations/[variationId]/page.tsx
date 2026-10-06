@@ -70,6 +70,7 @@ import {
   VariationRecordDrawer,
   type Option,
 } from "../../variation-editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +89,7 @@ const yes = (v: boolean | null) => (v == null ? dim("Not answered") : v ? "Yes" 
  * Every refusal shown beside a button is the act's own rule on the same inputs.
  */
 export default async function VariationPage(props: PageProps<"/projects/[id]/variations/[variationId]">) {
+  await requireStaff();
   const [{ id, variationId }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
   const l = await loadContract(id);
   if (!l) notFound();
@@ -571,7 +573,7 @@ const ENTITY: Readonly<Record<string, string>> = Object.fromEntries(VARIATION_EN
 function HistoryPanel({ entries, total, timeZone }: { entries: { id: string; entity: string; entityLabel: string; action: string; at: Date; reason: string; changes: unknown }[]; total: number; timeZone: string | null }) {
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ClockIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this variation and what is under it. "}Nobody is signed in, so no change is attributed.`} divided={entries.length === 0} />
+      <CardHeader icon={<ClockIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this variation and what is under it. "}Each change names who made it; any from before sign-in is not attributed.`} divided={entries.length === 0} />
       {entries.length === 0 ? (
         <EmptyState size="sm" title="No changes yet">Its record is written when it is first saved.</EmptyState>
       ) : (

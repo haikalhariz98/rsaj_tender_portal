@@ -36,6 +36,8 @@ import { maskIc } from "@/lib/award/mask";
 import { amountOf, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Forming, executing and recording the contract (6.12, FR-CON-003–014).
@@ -44,8 +46,7 @@ import { FormReader } from "@/lib/validate";
  * (truncated to the second), then locks the requisition, the exercise, the award and the contract in
  * the canonical order (`withLockedContract`), then any domain row it changes, re-runs the pure rule on
  * the locked rows, writes, and audits in the same transaction. A refusal saves nothing and says what
- * refuses it. Nobody is signed in: a signature or a decision records the Person the officer names,
- * "recorded on behalf of, not signed", and the audit stays unattributed. A cancelled contract refuses
+ * refuses it. Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that). A cancelled contract refuses
  * every act.
  */
 
@@ -63,6 +64,7 @@ class Refusal extends Error {
 
 interface Ctx {
   tx: Tx;
+  actor: AuditActor;
   l: LoadedContract;
   /// The server's instant, read once on entry, to the second.
   now: Date;
@@ -72,7 +74,7 @@ interface Ctx {
 }
 
 /// Lock, refuse a cancelled contract or an unset zone, then run the act.
-async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) => Promise<FormState>): Promise<FormState> {
+async function inContract(actor: AuditActor, id: string, now: Date, act: ContractAct, fn: (c: Ctx) => Promise<FormState>): Promise<FormState> {
   let result: FormState | null;
   let awardId: string | undefined;
   try {
@@ -83,7 +85,7 @@ async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) 
       if (refused) return refused.code === "CONTRACT_CANCELLED" ? CANCELLED : { ok: false, message: actStatusText(refused) };
       const today = dayOf(now, l.org.timeZone);
       if (!today) return NO_ZONE;
-      return fn({ tx, l, now, today, label: contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } }) });
+      return fn({ tx, actor, l, now, today, label: contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } }) });
     });
   } catch (e) {
     if (e instanceof Refusal) return e.state;
@@ -100,7 +102,7 @@ async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) 
 
 async function audit(c: Ctx, entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity, entityId, entityLabel: suffix ? `${c.label} · ${suffix}` : c.label, reason }, action, changes);
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity, entityId, entityLabel: suffix ? `${c.label} · ${suffix}` : c.label, reason }, action, changes);
 }
 
 const refuse = (lead: string, fs: readonly Finding[]): FormState => ({ ok: false, message: refusalText(lead, fs) });
@@ -131,8 +133,9 @@ const idOf = (data: FormData) => String(data.get("id") ?? "");
  * document parts into the assembly, open the basis's checks, and build the baseline's draft.
  */
 export async function startPreparation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const { l, tx } = c;
     const cfg = await loadContractConfig(l.org.id, tx);
     // What is in force on the organisation's day: a row retired from a later day is still taken (R-6).
@@ -175,6 +178,7 @@ export async function startPreparation(_prev: FormState, data: FormData): Promis
 
 /// Mark a part cancelled by an accepted alternative proposal (stating what it cancels), or restore it.
 export async function setAssemblyPart(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const partId = r.text("partId", "Part", { required: true });
@@ -182,7 +186,7 @@ export async function setAssemblyPart(_prev: FormState, data: FormData): Promise
   const statement = r.text("cancelledStatement", "What it cancels", { max: 4000 });
   if (state === "CANCELLED_BY_ALTERNATIVE" && !statement) r.reject("cancelledStatement", "State what the alternative proposal cancels.");
   if (r.failed || !state) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     if (!formationOpen(c.l.contract.status)) return NOT_OPEN;
     const part = c.l.contract.assemblyParts.find((p) => p.id === partId);
     if (!part) return { ok: false, message: "That part is not in this contract's assembly." };
@@ -196,6 +200,7 @@ export async function setAssemblyPart(_prev: FormState, data: FormData): Promise
 // ------------------------------------------------------------------ reconciliation
 
 export async function recordReconciliation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const comparison = r.choice("comparison", "Comparison", ["TENDER_DOCUMENT", "TENDER_TABLE_DOCUMENT", "DRAWINGS"] as const, { required: true });
@@ -204,7 +209,7 @@ export async function recordReconciliation(_prev: FormState, data: FormData): Pr
   const checkedOn = r.date("checkedOn", "Checked on", { required: true });
   const note = r.text("note", "Note", { max: 4000 });
   if (r.failed || !comparison || !outcome || !checkedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     if (!formationOpen(c.l.contract.status)) return NOT_OPEN;
     if (storedDay(checkedOn) > c.today) return { ok: false, errors: { checkedOn: "Not after today." } };
     const person = await personOf(c, personId);
@@ -224,6 +229,7 @@ export async function recordReconciliation(_prev: FormState, data: FormData): Pr
 
 /// An amendment to recorded information, with both signatures recorded on their behalf.
 export async function addAmendment(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const reconciliationId = r.text("reconciliationId", "Comparison", { required: true });
@@ -233,7 +239,7 @@ export async function addAmendment(_prev: FormState, data: FormData): Promise<Fo
   const officerPersonId = r.text("officerPersonId", "Preparing officer", { required: true });
   const officerSignedOn = r.date("officerSignedOn", "Officer signed on", { required: true });
   if (r.failed || !contractorSignedOn || !officerSignedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     if (!formationOpen(c.l.contract.status)) return NOT_OPEN;
     const rec = c.l.contract.reconciliations.find((x) => x.id === reconciliationId);
     if (!rec) return { ok: false, message: "Record the comparison first." };
@@ -260,6 +266,7 @@ function openCheck(c: Ctx, checkId: string) {
 
 /// An arithmetical correction line (item, tendered, corrected, reason).
 export async function addCorrection(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const checkId = r.text("checkId", "Check", { required: true });
@@ -269,7 +276,7 @@ export async function addCorrection(_prev: FormState, data: FormData): Promise<F
   const corrected = r.money("corrected", "Corrected", { required: true });
   const reason = r.text("reason", "Why", { required: true, max: 2000 });
   if (r.failed || !tendered || !corrected) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = openCheck(c, checkId);
     if (k.kind !== "ARITHMETIC") return { ok: false, message: "Corrections are recorded on the arithmetic check." };
     const row = await c.tx.arithmeticCorrection.create({ data: { organisationId: c.l.org.id, checkId: k.id, itemRef, description, tendered: senToDecimalString(parseSen(tendered)), corrected: senToDecimalString(parseSen(corrected)), reason, recordedAt: now } });
@@ -281,6 +288,7 @@ export async function addCorrection(_prev: FormState, data: FormData): Promise<F
 
 /// A tendered rate set against the estimate's (FR-CON-005 b). The estimate rate is SULIT.
 export async function addRate(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const checkId = r.text("checkId", "Check", { required: true });
@@ -290,7 +298,7 @@ export async function addRate(_prev: FormState, data: FormData): Promise<FormSta
   const tenderedRate = r.money("tenderedRate", "Tendered rate", { required: true });
   const estimateRate = r.money("estimateRate", "Estimate rate", { required: true });
   if (r.failed || !tenderedRate || !estimateRate) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = openCheck(c, checkId);
     if (k.kind !== "FRONT_LOADING") return { ok: false, message: "Rates are compared on the front-loading check." };
     const row = await c.tx.rateComparison.create({ data: { organisationId: c.l.org.id, checkId: k.id, itemRef, description, provisional, tenderedRate: senToDecimalString(parseSen(tenderedRate)), estimateRate: senToDecimalString(parseSen(estimateRate)), recordedAt: now } });
@@ -302,13 +310,14 @@ export async function addRate(_prev: FormState, data: FormData): Promise<FormSta
 
 /// Take a line off a check not yet complete (a mistake), with a reason; the trail keeps it.
 export async function removeCheckLine(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const checkId = r.text("checkId", "Check", { required: true });
   const lineId = r.text("lineId", "Line", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = openCheck(c, checkId);
     const correction = k.corrections.find((x) => x.id === lineId);
     const rate = k.rates.find((x) => x.id === lineId);
@@ -324,6 +333,7 @@ export async function removeCheckLine(_prev: FormState, data: FormData): Promise
 }
 
 export async function completeCheck(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const checkId = r.text("checkId", "Check", { required: true });
@@ -331,7 +341,7 @@ export async function completeCheck(_prev: FormState, data: FormData): Promise<F
   const on = r.date("completedOn", "Completed on", { required: true });
   const note = r.text("note", "Note", { max: 4000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract.checks.find((x) => x.id === checkId);
     if (!k) return { ok: false, message: "That check is not on this contract." };
     if (!formationOpen(c.l.contract.status)) return NOT_OPEN;
@@ -353,11 +363,12 @@ export async function completeCheck(_prev: FormState, data: FormData): Promise<F
 
 /// Send the contract to the legal office: a new iteration pinning the documents live to send.
 export async function submitLegal(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const personId = r.text("personId", "Sent by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const form = formationOf(k);
     const docs = liveOf(k, "LEGAL_SUBMISSION");
@@ -378,6 +389,7 @@ export async function submitLegal(_prev: FormState, data: FormData): Promise<For
 
 /// The legal office's decision on the open iteration: endorsed, or returned with comments.
 export async function decideLegal(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const decision = r.choice("decision", "Decision", ["ENDORSED", "RETURNED"] as const, { required: true });
@@ -385,7 +397,7 @@ export async function decideLegal(_prev: FormState, data: FormData): Promise<For
   const decidedOn = r.date("decidedOn", "Decided on", { required: true });
   const comments = r.text("comments", "Comments", { max: 8000 });
   if (r.failed || !decision || !decidedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const reviews = reviewsOf(k);
     const open = openReview(reviews);
@@ -409,6 +421,7 @@ export async function decideLegal(_prev: FormState, data: FormData): Promise<For
 
 /// The recorded check of uncovered wages on a verified WC policy. Recorded, not judged (D4).
 export async function recordWcCheck(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const NOT_AFTER_TODAY: FormState = { ok: false, errors: { checkedOn: "Not after today." } };
   const NOT_BEFORE_VERIFIED: FormState = { ok: false, errors: { checkedOn: "Not before the policy was verified." } };
   const WHO: FormState = { ok: false, errors: { personId: "Choose someone on record and active." } };
@@ -420,7 +433,7 @@ export async function recordWcCheck(_prev: FormState, data: FormData): Promise<F
   const wages = r.money("declaredWages", "Declared uncovered wages", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !on || !wages) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     if (isExecuted(k.status as ContractStatus)) return { ok: false, message: "The contract is executed: the check stands as recorded before signature." };
     if (c.l.award.wcBasis !== "UNCOVERED_WAGES") return { ok: false, message: "Workmen's compensation on this award is not on uncovered wages, so there is no wages check to record." };
@@ -445,6 +458,7 @@ export async function recordWcCheck(_prev: FormState, data: FormData): Promise<F
 
 /// The contractor's signature and its witness (FR-CON-007), recorded on their behalf.
 export async function recordContractorSignature(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const name = r.text("name", "Signatory's full name", { required: true, max: 240 });
@@ -454,7 +468,7 @@ export async function recordContractorSignature(_prev: FormState, data: FormData
   const witnessName = r.text("witnessName", "Witness's full name", { required: true, max: 240 });
   const witnessIc = r.text("witnessIcNumber", "Witness's identity-card number", { required: true, max: 20 });
   if (r.failed || !signedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const gate = await contractGate(c.l, c.tx);
     const end = reviewsOf(k).filter((x) => x.decision === "ENDORSED").sort((a, b) => b.iteration - a.iteration)[0];
@@ -476,11 +490,12 @@ export async function recordContractorSignature(_prev: FormState, data: FormData
  * snapshot, the EXECUTED baseline version, and the status.
  */
 export async function recordRsajSignature(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const personId = r.text("personId", "Signed by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const contractDate = contractDateOf(now, c.l.org.timeZone);
     if (!contractDate) return NO_ZONE;
@@ -540,12 +555,13 @@ async function writeVersion(c: Ctx, v: BaselineValues, reason: "CONFIRMED" | "EX
 
 /// Correct the Contract Date to an earlier day (OD-1 A): audited, with a reason; a CORRECTION version carries it.
 export async function correctContractDate(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const proposed = r.date("contractDate", "Contract Date", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed || !proposed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const frozen = frozenSigningDays(k.executedSnapshot);
     // A snapshot frozen before M-1 lacks the signature days: the signature rows, never edited once recorded, give them.
@@ -595,12 +611,13 @@ export async function correctContractDate(_prev: FormState, data: FormData): Pro
 
 /// Stamping at LHDN (FR-CON-011): "fully executed" only with the day and the reference.
 export async function recordStamping(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const stampedOn = r.date("stampedOn", "Stamped on", { required: true });
   const reference = r.text("stampingRef", "Stamping reference", { required: true, max: 120 });
   if (r.failed || !stampedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "FORMATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const fs = stampFaults({ status: k.status as ContractStatus, stampedOn: storedDay(stampedOn), reference, contractDate: day(k.contractDate), today: c.today });
     if (fs.length) return refuse("Not recorded:", fs);
@@ -612,6 +629,7 @@ export async function recordStamping(_prev: FormState, data: FormData): Promise<
 
 /// The Integrity Pact Stage Three briefing (FR-CON-010).
 export async function recordBriefing(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const heldOn = r.date("heldOn", "Held on", { required: true });
@@ -619,7 +637,7 @@ export async function recordBriefing(_prev: FormState, data: FormData): Promise<
   const attendees = r.text("contractorAttendees", "The contractor's attendees", { max: 2000 }).split(/\n|;/).map((x) => x.trim()).filter(Boolean);
   const note = r.text("note", "Note", { max: 4000 });
   if (r.failed || !heldOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const k = c.l.contract;
     const people = participantIds.length ? await c.tx.person.findMany({ where: { id: { in: participantIds }, organisationId: c.l.org.id }, select: { id: true, name: true } }) : [];
     const fs = briefingFaults({ status: k.status as ContractStatus, exists: !!k.briefing, participants: people.length, attendees: attendees.length, heldOn: storedDay(heldOn), today: c.today });
@@ -633,11 +651,12 @@ export async function recordBriefing(_prev: FormState, data: FormData): Promise<
 // ------------------------------------------------------------------ controlled copies
 
 export async function answerConsultingEngineer(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const v = r.choice("consultingEngineer", "Consulting engineer", ["yes", "no"] as const, { required: true });
   if (r.failed || !v) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const k = c.l.contract;
     if (k.copies.length > 0) return { ok: false, message: "Copies have been issued on the answer as it stands; it no longer changes." };
     const after = v === "yes";
@@ -665,6 +684,7 @@ async function issue(c: Ctx, recipientId: string, addressedTo: string, method: (
 }
 
 export async function issueCopy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const recipientId = r.text("recipientId", "Recipient", { required: true });
@@ -673,7 +693,7 @@ export async function issueCopy(_prev: FormState, data: FormData): Promise<FormS
   const despatchedOn = r.date("despatchedOn", "Despatched on");
   if (despatchedOn && !method) r.reject("method", "Say how it went.");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     await issue(c, recipientId, addressedTo, method, despatchedOn, null);
     return { ok: true };
   });
@@ -688,13 +708,14 @@ async function onCopy(c: Ctx, copyId: string) {
 }
 
 export async function despatchCopy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const copyId = r.text("copyId", "Copy", { required: true });
   const method = r.choice("method", "How it went", METHODS, { required: true });
   const on = r.date("despatchedOn", "Despatched on", { required: true });
   if (r.failed || !on || !method) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const { row, facts } = await onCopy(c, copyId);
     const fs = despatchFaults(facts, storedDay(on), c.today, day(c.l.contract.contractDate));
     if (fs.length) return refuse("Not recorded:", fs);
@@ -705,12 +726,13 @@ export async function despatchCopy(_prev: FormState, data: FormData): Promise<Fo
 }
 
 export async function acknowledgeCopy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const copyId = r.text("copyId", "Copy", { required: true });
   const on = r.date("acknowledgedOn", "Acknowledged on", { required: true });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const { row, facts } = await onCopy(c, copyId);
     const fs = acknowledgeFaults(facts, storedDay(on), c.today);
     if (fs.length) return refuse("Not recorded:", fs);
@@ -721,13 +743,14 @@ export async function acknowledgeCopy(_prev: FormState, data: FormData): Promise
 }
 
 export async function recallCopy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const copyId = r.text("copyId", "Copy", { required: true });
   const on = r.date("recalledOn", "Recalled on", { required: true });
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const { row, facts } = await onCopy(c, copyId);
     const fs = recallFaults(facts, storedDay(on), c.today, reason);
     if (fs.length) return refuse("Not recalled:", fs);
@@ -739,6 +762,7 @@ export async function recallCopy(_prev: FormState, data: FormData): Promise<Form
 
 /// Reissue a recalled copy: the next number, linked to the one it replaces.
 export async function reissueCopy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const copyId = r.text("copyId", "Copy", { required: true });
@@ -747,7 +771,7 @@ export async function reissueCopy(_prev: FormState, data: FormData): Promise<For
   const despatchedOn = r.date("despatchedOn", "Despatched on");
   if (despatchedOn && !method) r.reject("method", "Say how it went.");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "COPIES_AND_CUSTODY", async (c) => {
     const { row, facts } = await onCopy(c, copyId);
     const fs = reissueFaults(facts);
     if (fs.length) return refuse("Not reissued:", fs);
@@ -760,6 +784,7 @@ export async function reissueCopy(_prev: FormState, data: FormData): Promise<For
 // ------------------------------------------------------------------ custody
 
 export async function registerOriginal(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   // The drawer offers each original as "KIND:id" (the contract's own as "CONTRACT:").
@@ -771,7 +796,7 @@ export async function registerOriginal(_prev: FormState, data: FormData): Promis
   const custodianId = r.text("custodianPersonId", "Custodian", { required: true });
   if (kind && kind !== "CONTRACT" && !refId) r.reject("original", "Choose the bond or policy.");
   if (r.failed || !kind) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "ORIGINALS", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "ORIGINALS", async (c) => {
     const k = c.l.contract;
     const onContract = kind === "CONTRACT" ? true : kind === "SECURITY" ? k.securities.some((s) => s.id === refId) : k.policies.some((p) => p.id === refId);
     const registered = k.custodyItems.some((i) => (kind === "CONTRACT" ? i.kind === "CONTRACT" : kind === "SECURITY" ? i.securityId === refId : i.policyId === refId));
@@ -786,6 +811,7 @@ export async function registerOriginal(_prev: FormState, data: FormData): Promis
 }
 
 export async function moveOriginal(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const itemId = r.text("itemId", "Original", { required: true });
@@ -794,7 +820,7 @@ export async function moveOriginal(_prev: FormState, data: FormData): Promise<Fo
   const on = r.date("on", "On", { required: true });
   const purpose = r.text("purpose", "Purpose", { max: 400 });
   if (r.failed || !direction || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "ORIGINALS", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "ORIGINALS", async (c) => {
     // The domain row last, after the contract.
     await c.tx.$queryRaw`SELECT id FROM "CustodyItem" WHERE id = ${itemId} FOR UPDATE`;
     const item = c.l.contract.custodyItems.find((i) => i.id === itemId);
@@ -886,6 +912,7 @@ const enteredJson = (e: unknown) => JSON.parse(JSON.stringify(e, (_, v) => (type
 
 /// Key one group on the draft, where nothing else states it (OD-5 A), with the provenance the officer chose.
 export async function saveBaselineEntry(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const group = r.choice("group", "Value", ENTERED_GROUPS, { required: true });
@@ -893,7 +920,7 @@ export async function saveBaselineEntry(_prev: FormState, data: FormData): Promi
   const note = r.text("note", "Note", { max: 2000 });
   const entered = group ? readGroup(r, group) : null;
   if (r.failed || !group || !entered || !provenance) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "BASELINE", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "BASELINE", async (c) => {
     const k = c.l.contract;
     const { draft, versions } = baselineRows(k);
     const df = draftFaults({ status: k.status as ContractStatus, versions: versions.length });
@@ -920,8 +947,9 @@ export async function saveBaselineEntry(_prev: FormState, data: FormData): Promi
 
 /// Confirm the baseline before the first valuation (OD-2 A): version 1, CONFIRMED.
 export async function confirmBaseline(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
-  return inContract(idOf(data), now, "BASELINE", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "BASELINE", async (c) => {
     const k = c.l.contract;
     const { draft, versions } = baselineRows(k);
     const gate = await contractGate(c.l, c.tx);
@@ -935,6 +963,7 @@ export async function confirmBaseline(_prev: FormState, data: FormData): Promise
 
 /// Correct a versioned baseline: a CORRECTION version with the group keyed, a reason and its provenance.
 export async function correctBaseline(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const group = r.choice("group", "Value", ENTERED_GROUPS, { required: true });
@@ -942,7 +971,7 @@ export async function correctBaseline(_prev: FormState, data: FormData): Promise
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   const entered = group ? readGroup(r, group) : null;
   if (r.failed || !group || !entered || !provenance) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "BASELINE", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "BASELINE", async (c) => {
     const k = c.l.contract;
     const { versions } = baselineRows(k);
     const latest = latestVersion(versions);
@@ -976,6 +1005,7 @@ export async function correctBaseline(_prev: FormState, data: FormData): Promise
  * variation, not this.
  */
 export async function correctAwardTerm(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const term = r.choice("term", "Term", AWARD_TERMS, { required: true });
@@ -1002,7 +1032,7 @@ export async function correctAwardTerm(_prev: FormState, data: FormData): Promis
     input = n != null && unit ? { term, period: n, unit } : null;
   }
   if (r.failed || !term || !input) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "BASELINE", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "BASELINE", async (c) => {
     const k = c.l.contract;
     const a = c.l.award;
     const { versions } = baselineRows(k);
@@ -1024,7 +1054,7 @@ export async function correctAwardTerm(_prev: FormState, data: FormData): Promis
     const words = AWARD_TERM_WORDS[term].en;
     const version = await writeVersion(c, after!, "CORRECTION", reason, { correctedField: TERM_FIELD[term], awardCorrection: { term, from: fromText, to: toText } }, undefined, { before: { [TERM_FIELD[term]]: fromText, source: "the Letter of Acceptance, as recorded" }, after: { [TERM_FIELD[term]]: toText, source: "the Letter of Acceptance, corrected after issue" } });
     const row = await c.tx.awardTermCorrection.create({ data: { organisationId: c.l.org.id, awardId: a.id, contractId: k.id, term, before: { ...cols }, after: { ...next }, beforeText: fromText, afterText: toText, reason, baselineId: version.id, recordedAt: now, recordedOn: dayToDate(c.today) } });
-    await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "Award", entityId: a.id, entityLabel: `${a.reference} · ${a.awardeeName}`, reason }, "UPDATE", diffFields({ [TERM_FIELD[term]]: fromText }, { [TERM_FIELD[term]]: toText, correctedAfterIssue: "yes", issuedLetter: "unchanged" }));
+    await writeAudit(c.tx, { actor: toAuditActor(actor), organisationId: c.l.org.id, entity: "Award", entityId: a.id, entityLabel: `${a.reference} · ${a.awardeeName}`, reason }, "UPDATE", diffFields({ [TERM_FIELD[term]]: fromText }, { [TERM_FIELD[term]]: toText, correctedAfterIssue: "yes", issuedLetter: "unchanged" }));
     await audit(c, "AwardTermCorrection", row.id, `the award's recorded terms corrected after issue · ${words}`, "CREATE", diffFields(null, { term: words, correctedFrom: fromText, correctedTo: toText, baselineVersion: `version ${version.version}`, issuedLetter: "unchanged" }), reason);
     return { ok: true };
   });

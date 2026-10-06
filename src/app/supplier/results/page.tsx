@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * figure is never read from the database.
  */
 export default async function SupplierResultsPage() {
-  const [{ organisation }, { ready, showsValue, results }] = await Promise.all([loadShell(), loadResults()]);
+  const [{ organisation }, { ready, showsValue, results }] = await Promise.all([loadShell({ counts: false }), loadResults()]);
 
   const rows: Row[] = results.map((r) => ({
     id: r.id,

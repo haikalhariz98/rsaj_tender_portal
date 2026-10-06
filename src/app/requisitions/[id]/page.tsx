@@ -122,6 +122,7 @@ import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_TONE, findingText, REGIME_SHORT 
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
 import { addSen, formatMoney } from "@/lib/money";
 import { historyMoneyText, linesSubtitle } from "@/lib/requisition/money-text";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -137,6 +138,7 @@ const sen = (v: { toString(): string } | null) => (v == null ? null : parseSen(v
 const money = (v: { toString(): string } | null) => (v == null ? "Not recorded" : formatRM(num(v)));
 
 export default async function RequisitionPage(props: PageProps<"/requisitions/[id]">) {
+  await requireStaff();
   const [{ id }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
   const l = await loadRequisition(id);
   if (!l) notFound();
@@ -1751,8 +1753,8 @@ function HistoryPanel({
         title="History"
         subtitle={
           total > entries.length
-            ? `Showing the latest ${entries.length} of ${total} changes. Nobody is signed in, so no change is attributed.`
-            : "Every change to this requisition and what is under it. Nobody is signed in, so no change is attributed."
+            ? `Showing the latest ${entries.length} of ${total} changes. Each change names who made it; any from before sign-in is not attributed.`
+            : "Every change to this requisition and what is under it. Each change names who made it; any from before sign-in is not attributed."
         }
         divided={entries.length === 0}
       />

@@ -20,6 +20,7 @@ import { conditionsConfig } from "@/lib/tender-docs/read-config-conditions";
 
 import { BodyDrawer, ClauseDrawer, RestoreDrawer, RetireDrawer } from "./conditions-editors";
 import { EditMethodPack, EditTenderPolicy, PartDrawer, RestorePartDrawer, RetirePartDrawer, type PartValues } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,7 @@ function Setting({ value, unset, source }: { value: string; unset: string; sourc
 const tri = (v: boolean | null) => (v === true ? "yes" : v === false ? "no" : "unset");
 
 export default async function TenderDocumentsConfigurationPage({ searchParams }: { searchParams: Promise<{ retired?: string }> }) {
+  await requireStaff();
   const showRetired = (await searchParams).retired === "1";
   const [c, k] = await Promise.all([tenderDocsConfig(showRetired), conditionsConfig(showRetired)]);
   if (!c) {

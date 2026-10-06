@@ -1,7 +1,7 @@
 /**
  * Recording Finance's payment of an issued certificate (6.13 Part A step 3: FR-PAY-019). Server-only: runs inside the
  * certificate page's act on the rows `withLockedCertificate` locked; re-runs the rule, writes and audits in the same
- * transaction. Nobody is signed in: the officer named is recorded on their behalf.
+ * transaction. The signed-in officer is named on every audit row; the officer named is recorded on their behalf.
  */
 
 import { diffFields } from "@/lib/audit/diff";
@@ -27,6 +27,6 @@ export async function recordFinancePayment(c: CertCtx, i: { batchNo: string; pai
   if (!person) throw new CertificateRefusal("Not recorded.", { personId: "Choose someone on record and active." });
   const amount = senToDecimalString(parseSen(v!));
   const row = await c.tx.financePayment.create({ data: { organisationId: c.l.org.id, certificateId: cert.id, batchNo: i.batchNo.trim(), paidOn: dayToDate(i.paidOn), amount, personId: person.id, note: i.note.trim(), recordedAt: c.now } });
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "FinancePayment", entityId: row.id, entityLabel: `${certificateLabel(c.l, cert)} · paid by Finance`, reason: "" }, "CREATE",
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "FinancePayment", entityId: row.id, entityLabel: `${certificateLabel(c.l, cert)} · paid by Finance`, reason: "" }, "CREATE",
     diffFields(null, { batchNo: i.batchNo.trim(), paidOn: i.paidOn, amountPaid: amount, recordedFor: person.name, recordedOnBehalf: "not signed", note: i.note.trim() || null }));
 }

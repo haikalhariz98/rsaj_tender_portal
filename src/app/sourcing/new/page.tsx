@@ -23,6 +23,7 @@ import type { ExerciseStatus } from "@/lib/method/types";
 const plainAmount = (sen: bigint) => senToDecimalString(sen).replace(/\.00$/, "");
 
 import { ExerciseForm } from "../exercise-form";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export const dynamic = "force-dynamic";
  * requisition chosen, the approved ones that can take an exercise are listed.
  */
 export default async function NewExercisePage(props: PageProps<"/sourcing/new">) {
+  await requireStaff();
   const { requisition } = (await props.searchParams) as { requisition?: string };
   const org = await exerciseOrg();
   const header = (

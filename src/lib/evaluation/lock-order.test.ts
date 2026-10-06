@@ -39,7 +39,7 @@ describe("the outcome of an appointment matter locks the exercise before the sit
     expect(rec).toMatch(/const variation = exerciseId \? null : await variationMatterOf\(decisionId\);/);
     expect(rec).toMatch(/const awardId = exerciseId \? await openAppointmentOf\(exerciseId\) : null;/);
     expect(rec).toMatch(/const record = exerciseId \|\| variation \? null : await outcomeRecordOf\(decisionId\);/);
-    expect(rec).toMatch(/return exerciseId\n\s+\? inSittingAfterExercise\(meetingId, exerciseId, run, awardId \? \{ awardId, decisionId \} : null\)\n\s+: variation\n\s+\? inSittingAfterContract\(meetingId, variation, run, \{ decisionId, now \}\)\n\s+: record\n\s+\? inSittingAfterRecord\(meetingId, record, decisionId, now, run\)\n\s+: inSitting\(meetingId, run\);/);
+    expect(rec).toMatch(/return exerciseId\n\s+\? inSittingAfterExercise\(toAuditActor\(actor\), meetingId, exerciseId, run, awardId \? \{ awardId, decisionId \} : null\)\n\s+: variation\n\s+\? inSittingAfterContract\(toAuditActor\(actor\), meetingId, variation, run, \{ decisionId, now \}\)\n\s+: record\n\s+\? inSittingAfterRecord\(toAuditActor\(actor\), meetingId, record, decisionId, now, run\)\n\s+: inSitting\(meetingId, run\);/);
     expect(rec.indexOf("matterKey(decision) !== outcomeRecordKey(record)")).toBeGreaterThan(-1);
     expect(rec.indexOf("matterKey(decision) !== outcomeRecordKey(record)")).toBeLessThan(rec.indexOf("tx.committeeDecision.updateMany("));
     // The exercise and the variation locked are the matter's own, judged before anything is written.
@@ -50,7 +50,7 @@ describe("the outcome of an appointment matter locks the exercise before the sit
   });
   it("the appointment's path locks its award after the openings and before the sitting, and links after the outcome (founder, 2026-10-05)", () => {
     const helper = between(committee, "async function inSittingAfterExercise(", "\n}\n");
-    inOrder(helper, ["lockOpeningRows(tx, exerciseId)", "lockAwardIn(tx, appointment.awardId, exerciseId)", "lockSittingIn(tx, meetingId, roster)", "fn(tx, s)", "linkOutcome(tx,", 'citeAppointmentStep(tx, award, stepId, appointment.decisionId, "OUTCOME")']);
+    inOrder(helper, ["lockOpeningRows(tx, exerciseId)", "lockAwardIn(tx, appointment.awardId, exerciseId)", "lockSittingIn(tx, meetingId, roster)", "fn(tx, s)", "linkOutcome(tx,", 'citeAppointmentStep(tx, actor, award, stepId, appointment.decisionId, "OUTCOME")']);
     const repo = read("src", "lib", "award", "repo.ts");
     inOrder(between(repo, "export async function lockAwardIn(", "\n}\n"), ['FROM "Award" WHERE id = $' + "{awardId} FOR UPDATE", "loadAward(awardId, tx)"]);
   });
@@ -99,12 +99,12 @@ describe("the outcome locks the record before the sitting, then links (founder, 
   it("a requisition's matter: the requisition → the sitting → the outcome → the requisition read again → its citation", () => {
     const wrap = between(committee, "async function inSittingAfterRecord(", "\n}\n");
     const req = wrap.slice(wrap.indexOf("withLockedRequisition(record.requisitionId"));
-    inOrder(req, ["withLockedRequisition(record.requisitionId", "lockSittingIn(tx, meetingId, roster)", "fn(tx, s)", "loadRequisition(l.req.id, tx)", "linkOutcome(tx,", 'citeCommitteeStep(tx, fresh, stepId, decisionId, "OUTCOME")']);
+    inOrder(req, ["withLockedRequisition(record.requisitionId", "lockSittingIn(tx, meetingId, roster)", "fn(tx, s)", "loadRequisition(l.req.id, tx)", "linkOutcome(tx,", 'citeCommitteeStep(tx, actor, fresh, stepId, decisionId, "OUTCOME")']);
   });
   it("a name's matter: the requisition → the exercise (one helper) → the sitting → the outcome → its citation", () => {
     const wrap = between(committee, "async function inSittingAfterRecord(", "\n}\n");
     const name = wrap.slice(wrap.indexOf("withLockedRequisitionForSourcing(record.requisitionId, record.exerciseId"), wrap.indexOf("withLockedRequisition(record.requisitionId"));
-    inOrder(name, ["withLockedRequisitionForSourcing(record.requisitionId, record.exerciseId", "lockSittingIn(tx, meetingId, roster)", "fn(tx, s)", "linkOutcome(tx,", 'citeNameStep(tx, { org: l.org, ex }, stepId, decisionId, "OUTCOME")']);
+    inOrder(name, ["withLockedRequisitionForSourcing(record.requisitionId, record.exerciseId", "lockSittingIn(tx, meetingId, roster)", "fn(tx, s)", "linkOutcome(tx,", 'citeNameStep(tx, actor, { org: l.org, ex }, stepId, decisionId, "OUTCOME")']);
   });
   it("a contract matter's: the contract's chain → its family's row → the matter and its record → the sitting → the outcome → the matter read again → its citation", () => {
     const wrap = between(committee, "async function inContractMatterForOutcome(", "\n}\n");
@@ -122,10 +122,10 @@ describe("the outcome locks the record before the sitting, then links (founder, 
     const schedule = between(committee, "export async function scheduleSitting(", "\n}\n");
     // Phase 0 of the sign-in programme: the sitting is created, and numbered under the series lock, by createNumberedSitting
     // (sitting-number.ts), which makes the meeting row with tx.meeting.create; the order asserted is unchanged: create, then table.
-    inOrder(schedule, ["createNumberedSitting(tx,", "tableWaiting(tx, row.id"]);
+    inOrder(schedule, ["createNumberedSitting(tx,", "tableWaiting(tx, toAuditActor(actor), row.id"]);
     inOrder(read("src", "lib", "committee", "sitting-number.ts"), ["issueReference(tx,", "tx.meeting.create("]);
     const table = between(committee, "async function tableWaiting(", "\n}\n");
-    inOrder(table, ["loadWaiting(tx)", "lockSittingIn(tx, meetingId, roster)", 'permit(s, "TABLE")', "tableInto(tx, s, r,"]);
+    inOrder(table, ["loadWaiting(tx)", "lockSittingIn(tx, meetingId, roster)", 'permit(s, "TABLE")', "tableInto(tx, by, s, r,"]);
     expect(table).not.toMatch(/withLocked|FOR UPDATE/);
   });
 });

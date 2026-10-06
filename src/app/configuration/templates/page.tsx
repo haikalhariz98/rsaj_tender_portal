@@ -22,6 +22,7 @@ import { otherUsesOf, TEMPLATE_OTHER_USES } from "@/lib/certificate/config";
 import { formNeeds, NEED_STATE_WORDS, type FormOf } from "@/lib/certificate/form-needs";
 import type { CertificateKind } from "@/lib/certificate/types";
 import { AddCorrection, AddTerm, EditCorrection, EditTerm, RemoveCorrection, RemoveTerm } from "./glossary-editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ const FORM_OF = { select: { id: true, nameEn: true, bodyEn: true, bodyMs: true }
 const TAB_IDS = ["templates", "corrections", "terms"] as const;
 
 export default async function TemplatesPage(props: PageProps<"/configuration/templates">) {
+  await requireStaff();
   const { tab } = (await props.searchParams) as { tab?: string };
   const [templates, classes, org, blocks, rows, fields] = await Promise.all([
     loadTemplates(ORGANISATION_CODE),

@@ -43,6 +43,7 @@ import { PAYMENT_SECTIONS, PaymentsPanel, PaymentSummaryCard, paymentView, type 
 import { OnSiteCard, SITE_SECTIONS, SitePanel, supervisionView, TeamPanel, type SiteSection, type SupervisionView } from "./supervision-panels";
 import { VARIATION_SECTIONS, VariationsPanel, VariationSummaryCard, type VariationSection } from "./variation-panels";
 import { variationView, type VariationView } from "@/lib/variation/view";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,7 @@ const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err",
  * would refuse is said beside the act's button, from the same rule the act runs.
  */
 export default async function ContractPage(props: PageProps<"/projects/[id]">) {
+  await requireStaff();
   const [{ id }, { tab, section, page }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string; page?: string }>]);
   const l = await loadContract(id);
   if (!l) notFound();
@@ -363,7 +365,7 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
   const chipped = (field: string, value: string | null, entity: string) => (isSulitField(field) && value ? <SulitValue>{read(field, value, entity)}</SulitValue> : read(field, value, entity));
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<ClockIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this contract and what is under it. "}Nobody is signed in, so no change is attributed. Identity-card numbers are masked here.`} divided={entries.length === 0} />
+      <CardHeader icon={<ClockIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this contract and what is under it. "}Each change names who made it; any from before sign-in is not attributed. Identity-card numbers are masked here.`} divided={entries.length === 0} />
       {entries.length === 0 ? (
         <EmptyState size="sm" title="No recorded changes">Changes made through the portal appear here.</EmptyState>
       ) : (

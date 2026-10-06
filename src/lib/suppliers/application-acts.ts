@@ -17,6 +17,7 @@ import { supplierApplicationLabel } from "./lock";
 import { decisionFaults } from "./review";
 import { blocking } from "./types";
 import { activePerson, audit, CHANGED, GONE, label, Refusal, type LockedSupplier } from "./write";
+import type { AuditActor } from "@/lib/auth/types";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
@@ -33,7 +34,7 @@ export const appInclude = { supplier: { select: { reference: true } }, routes: {
  * so nothing in the append-only trail needs erasing later. The reason is the officer's own words, so it
  * must not repeat the applicant's details.
  */
-export async function setAsideOnlineApplication(tx: Tx, organisationId: string, i: { id: string; reason: string; personId: string | null; now: Date }): Promise<FormState> {
+export async function setAsideOnlineApplication(tx: Tx, actor: AuditActor, organisationId: string, i: { id: string; reason: string; personId: string | null; now: Date }): Promise<FormState> {
   await tx.$queryRaw`SELECT id FROM "PortalApplication" WHERE id = ${i.id} AND "organisationId" = ${organisationId} FOR UPDATE`;
   const pa = await tx.portalApplication.findFirst({ where: { id: i.id, organisationId } });
   if (!pa) return { ok: false, message: "That online application no longer exists." };
@@ -41,7 +42,7 @@ export async function setAsideOnlineApplication(tx: Tx, organisationId: string, 
   const person = await activePerson(tx, organisationId, i.personId);
   if (!person) return { ok: false, errors: { recordedByPersonId: supplierFaultText({ code: "RECORDER_REQUIRED", level: "block" }) } };
   await tx.portalApplication.update({ where: { id: pa.id }, data: { status: "DISCARDED", decidedAt: i.now, decidedByPersonId: person.id, discardReason: i.reason, erasedAt: i.now, ...ERASED } });
-  await audit(tx, organisationId, SUPPLIER_ENTITY.onlineApplication, pa.id, label({ reference: pa.reference }, "Online application"), "UPDATE",
+  await audit(tx, actor, organisationId, SUPPLIER_ENTITY.onlineApplication, pa.id, label({ reference: pa.reference }, "Online application"), "UPDATE",
     diffFields({ status: "Received", personalDetails: "Held on the application" }, { status: "Set aside", decidedBy: person.name, personalDetails: "Erased" }), i.reason);
   return { ok: true };
 }
@@ -62,7 +63,7 @@ export interface OutcomeInput {
  * resubmission requested (each item as written, with a deadline) or rejected (with the reasons as written).
  * Throws a Refusal (rolling everything back) if the application moved under the lock.
  */
-export async function recordOutcome(tx: Tx, l: LockedSupplier, input: OutcomeInput): Promise<FormState> {
+export async function recordOutcome(tx: Tx, actor: AuditActor, l: LockedSupplier, input: OutcomeInput): Promise<FormState> {
   const { applicationId, outcome, remarks, resubmitBy, personId, items, now } = input;
   const supplierId = l.supplier.id;
   await tx.$queryRaw`SELECT id FROM "SupplierApplication" WHERE id = ${applicationId} FOR UPDATE`;
@@ -108,16 +109,16 @@ export async function recordOutcome(tx: Tx, l: LockedSupplier, input: OutcomeInp
   const status = outcome === "RESUBMIT" ? "RESUBMISSION_REQUESTED" : "REJECTED";
   const moved = await tx.supplierApplication.updateMany({ where: { id: a.id, status: a.status, lapsedRecordedAt: null }, data: { status, resubmitBy: outcome === "RESUBMIT" ? dayToDate(resubmitBy!) : a.resubmitBy, ...(outcome === "REJECT" ? { decidedAt: now } : {}) } });
   if (moved.count !== 1) throw new Refusal(CHANGED);
-  await audit(tx, l.org.id, SUPPLIER_ENTITY.decision, dec.id, supplierApplicationLabel(a), "CREATE",
+  await audit(tx, actor, l.org.id, SUPPLIER_ENTITY.decision, dec.id, supplierApplicationLabel(a), "CREATE",
     diffFields(null, { outcome: OUTCOME_LABEL[dec.outcome].en, remarks: remarks || null, resubmitBy: outcome === "RESUBMIT" ? resubmitBy : null, items: dec.items.length ? dec.items.map((i) => `${i.labelSnapshot}: ${i.remarks}`).join(" | ") : null, decidedBy: person!.name, decidedOn: today, recordedOnBehalf: "not signed" }), remarks);
-  await audit(tx, l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ status: a.status, resubmitBy: day(a.resubmitBy) }, { status, resubmitBy: outcome === "RESUBMIT" ? resubmitBy : day(a.resubmitBy) }));
-  if (outcome === "REJECT") await rejectApplicant(tx, l, a.kind);
+  await audit(tx, actor, l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ status: a.status, resubmitBy: day(a.resubmitBy) }, { status, resubmitBy: outcome === "RESUBMIT" ? resubmitBy : day(a.resubmitBy) }));
+  if (outcome === "REJECT") await rejectApplicant(tx, actor, l, a.kind);
   return { ok: true, message: `${OUTCOME_LABEL[dec.outcome].en}. The notice to the supplier is shown here, not sent.` };
 }
 
 /// A first registration rejected (or lapsed) leaves an applicant not registered.
-export async function rejectApplicant(tx: Tx, l: LockedSupplier, kind: string) {
+export async function rejectApplicant(tx: Tx, actor: AuditActor, l: LockedSupplier, kind: string) {
   if (kind !== "NEW" || l.supplier.status !== "APPLICANT") return;
   await tx.supplier.update({ where: { id: l.supplier.id }, data: { status: "REJECTED" } });
-  await audit(tx, l.org.id, SUPPLIER_ENTITY.supplier, l.supplier.id, label(l.supplier, l.supplier.registeredName), "UPDATE", diffFields({ status: "Applicant" }, { status: "Not registered: application rejected" }));
+  await audit(tx, actor, l.org.id, SUPPLIER_ENTITY.supplier, l.supplier.id, label(l.supplier, l.supplier.registeredName), "UPDATE", diffFields({ status: "Applicant" }, { status: "Not registered: application rejected" }));
 }

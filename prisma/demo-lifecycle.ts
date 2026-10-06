@@ -33,6 +33,7 @@ import type { PrismaClient } from "../src/generated/prisma/client";
 
 import { act, actRoute, claimNumbered } from "./demo-acts";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -242,7 +243,7 @@ export async function loadLifecycleSetup(db: Db, organisationId: string): Promis
   const route = `${REQ_REF} · approval route`;
   let n = 0;
   const entries: object[] = [];
-  const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", on: string, changes: object[], reason = "") => entries.push({ id: `${RQ}_au${++n}`, organisationId, entity, entityId, entityLabel, action, at: day(on), changes, reason, unattributed: true });
+  const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", on: string, changes: object[], reason = "") => entries.push({ id: `${RQ}_au${++n}`, organisationId, entity, entityId, entityLabel, action, at: day(on), changes, reason, ...DEMO_ACTOR });
   entry("Requisition", RQ, label, "CREATE", "2026-04-06", diffFields(null, { reference: REQ_REF, title: TITLE, requestingUnitCode: "NTH", sectionUnitCode: "NTH-MNT", estimatedValue: value, fundingRouteCode: "capex", lines: 1, status: "DRAFT" }));
   entry("RequisitionEndorsement", `${P}en41a`, `${REQ_REF} · ${TIER_LABEL.SECTION}`, "CREATE", "2026-04-07", diffFields(null, { tier: "SECTION", unit: "Maintenance Section", person: "Lim Kok Seng", endorsedOn: day("2026-04-07") }));
   entry("RequisitionEndorsement", `${P}en41b`, `${REQ_REF} · ${TIER_LABEL.DEPARTMENT}`, "CREATE", "2026-04-07", diffFields(null, { tier: "DEPARTMENT", unit: "Northern Region", person: "Imran Hakim", endorsedOn: day("2026-04-07") }));
@@ -373,7 +374,7 @@ export async function loadLifecycleAward(db: Db, organisationId: string): Promis
   const a = (await db.award.findUniqueOrThrow({ where: { id: AW }, include: { distributions: true, awardReturn: true, documents: true, contract: { include: { securities: true, policies: true } } } }))!;
   const entries: object[] = [];
   let n = 0;
-  const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", when: Date | string, changes: object[], reason = "") => entries.push({ id: `${AW}_au${++n}`, organisationId, entity, entityId, entityLabel, action, at: typeof when === "string" ? day(when) : when, changes, reason, unattributed: true });
+  const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", when: Date | string, changes: object[], reason = "") => entries.push({ id: `${AW}_au${++n}`, organisationId, entity, entityId, entityLabel, action, at: typeof when === "string" ? day(when) : when, changes, reason, ...DEMO_ACTOR });
   const label = `${AWD_REF} · ${AWARDEE.name}`;
   entry("Award", AW, label, "CREATE", "2026-05-08", awardAuditCreate({ ...a, status: "DRAFT", signatoryRoleCode: null, signatoryRoleLabel: null, signatoryRuleKey: null, signatoryRuleLabel: null, signatoryPersonId: null, signatoryName: null, signedOn: null, issuedAt: null }, { exercise: SX_REF, instrument: a.instrumentKind }));
   entry("ApprovalInstance", `${P}ai132`, `${AWD_REF} · appointment route`, "CREATE", "2026-05-11", diffFields(null, { matrix: "Demo limits, issue 1", rule: "Tender, above RM300,000", route: "Tender Board (approves)", fundingOverrideApplied: false, escalated: null }));
@@ -398,7 +399,7 @@ export async function loadLifecycleAward(db: Db, organisationId: string): Promis
     entry("InsurancePolicy", p.id, lbl, "CREATE", p.lodgedOn, awardAuditCreate({ ...p, status: "LODGED", verifiedOn: null, verifiedByPersonId: null, requirementSnapshot: undefined }, { contract: CON_NO }));
     entry("InsurancePolicy", p.id, lbl, "UPDATE", p.verifiedOn!, diffFields({ status: "LODGED" }, { status: p.status, checkedBy: people.chen.name, checkedOn: p.verifiedOn, recordedOnBehalf: "not signed" }));
   }
-  entries.push({ id: `${SX}_lock`, organisationId, entity: "SourcingExercise", entityId: SX, entityLabel: `${SX_REF} · ${TITLE}`, action: "UPDATE", at: day("2026-05-11"), changes: diffFields({ classificationLockedAt: null }, { classificationLockedAt: day("2026-05-11") }), reason: `Award ${AWD_REF} sent for approval.`, unattributed: true });
+  entries.push({ id: `${SX}_lock`, organisationId, entity: "SourcingExercise", entityId: SX, entityLabel: `${SX_REF} · ${TITLE}`, action: "UPDATE", at: day("2026-05-11"), changes: diffFields({ classificationLockedAt: null }, { classificationLockedAt: day("2026-05-11") }), reason: `Award ${AWD_REF} sent for approval.`, ...DEMO_ACTOR });
   await db.auditEntry.createMany({ data: entries as never });
   return [`${P}mt20`];
 }

@@ -50,7 +50,7 @@ async function main() {
     const money = { boundaryValue: "1.00", quotationFloor: "1.00", tenderFloor: "1.00", requisitionBoundary: "1.00" };
     const issue = (label: string) => db.authorityMatrix.create({ data: { organisationId: org.id, label, effectiveFrom: new Date("2026-01-01T00:00:00Z"), ...money } });
     const route = await db.fundingRoute.create({ data: { organisationId: org.id, code: "LOCKCHECK", nameEn: "Lock check route", supersedesAuthority: true } });
-    const audit = (tx: Tx, entityId: string) => writeAudit(tx, { organisationId: org.id, entity: "AuthorityMatrix", entityId, entityLabel: "lock check" }, "UPDATE", []);
+    const audit = (tx: Tx, entityId: string) => writeAudit(tx, { actor: { kind: "SYSTEM", label: "lock-order check" }, organisationId: org.id, entity: "AuthorityMatrix", entityId, entityLabel: "lock check" }, "UPDATE", []);
 
     /// The organisation lock the editor used before the fix: the control.
     const lockOrganisationForUpdate = async (tx: Tx, id: string) => {

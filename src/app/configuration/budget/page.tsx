@@ -17,6 +17,7 @@ import { organisationTimeZone } from "@/lib/org-time";
 
 import { BudgetTabs } from "./panels";
 import { PageHeader } from "@/components/ui/page-header";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export default async function BudgetPage({
 }: {
   searchParams: Promise<{ tab?: string; year?: string }>;
 }) {
+  await requireStaff();
   // Balances and the year are as at the organisation's day, not the UTC one (6.10 §9.5
   // follow-up). With no zone set the UTC day is used, and the header says so.
   const zone = await organisationTimeZone();

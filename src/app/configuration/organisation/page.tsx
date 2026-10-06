@@ -15,6 +15,7 @@ import { timeZoneLabel, timeZoneOptions } from "@/lib/time-zone-label";
 import { EditTimeZone } from "./editors";
 import type { LogoInfo } from "./logo-card";
 import { OrganisationScreen } from "./panels";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function OrganisationPage({
 }: {
   searchParams: Promise<{ unit?: string; tab?: string }>;
 }) {
+  await requireStaff();
   const on = new Date();
   const [{ unit, tab }, data] = await Promise.all([
     searchParams,

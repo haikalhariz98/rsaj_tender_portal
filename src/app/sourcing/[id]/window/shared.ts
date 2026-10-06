@@ -3,9 +3,8 @@
  * requisition, then the exercise (`withLockedRequisitionForSourcing`), then the exercise's window
  * row (`lockWindowRow`), and re-reads everything the rules judge (`windowData`) under those locks.
  * The pure rule (`src/lib/window`) is re-run on the locked rows; the write and its audit rows share
- * the transaction; a refusal saves nothing and names what blocks it and where to set it. Nobody is
- * signed in: every person named is "recorded on behalf of, not signed", and the audit is
- * unattributed. The derived phase is recomputed here on every write, never taken from the form.
+ * the transaction; a refusal saves nothing and names what blocks it and where to set it. The signed-in
+ * officer is named on every audit row; every person named is "recorded on behalf of, not signed". The derived phase is recomputed here on every write, never taken from the form.
  */
 
 import { revalidatePath } from "next/cache";
@@ -13,6 +12,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import type { FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
+import type { AuditActor } from "@/lib/auth/types";
 import { findingText } from "@/lib/method/labels";
 import { ExerciseMoveRefused } from "@/lib/method/move";
 import { requisitionOfExercise, withLockedRequisitionForSourcing, type ExerciseOrg, type ExerciseRow, type SourcingRequisition } from "@/lib/method/repo";
@@ -41,9 +41,9 @@ export const refuse = (fs: readonly Finding[], lead = "Nothing was saved:"): For
 /// The warnings and notes of a finding list, in words, for a saved act's message.
 export const notes = (fs: readonly Finding[]) => fs.filter((f) => f.level !== "block").map(windowFindingText).join(" ");
 
-export async function audit(tx: Tx, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
+export async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
+  await writeAudit(tx, { actor, organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
 }
 
 /// Every window row is labelled with its exercise's reference, so the exercise's History finds it.

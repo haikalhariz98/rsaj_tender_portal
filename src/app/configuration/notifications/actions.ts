@@ -7,6 +7,7 @@ import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/notifications";
@@ -50,6 +51,7 @@ function readOffsets(r: FormReader, raw: string | null): number[] {
 }
 
 export async function saveNotificationRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -123,6 +125,7 @@ export async function saveNotificationRule(_prev: FormState, data: FormData): Pr
     entity: "NotificationRule",
     entityLabel: v.nameEn,
     reason: String(data.get("reason") ?? ""),
+    actor: toAuditActor(actor),
   };
   const write = { ...v, provenance: v.provenance! };
   // Arrays render as their joined text in the trail, which is what a reader wants.

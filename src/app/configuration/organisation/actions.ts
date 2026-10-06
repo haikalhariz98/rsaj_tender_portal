@@ -14,6 +14,7 @@ import { inspectLogo, LOGO_MAX_BYTES, logoFaultText } from "@/lib/organisation/l
 import { placementFault } from "@/lib/organisation/structure";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 const PATH = "/configuration/organisation";
 
@@ -45,6 +46,7 @@ type Kind = (typeof KINDS)[number];
  * column complains. Only what the form posted is written.
  */
 export async function saveOrgUnit(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -128,6 +130,7 @@ export async function saveOrgUnit(_prev: FormState, data: FormData): Promise<For
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "OrgUnit",
     entityLabel: common.nameEn,
@@ -154,6 +157,7 @@ export async function saveOrgUnit(_prev: FormState, data: FormData): Promise<For
 // ------------------------------------------------------------------ cost centres
 
 export async function saveCostCentre(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -189,6 +193,7 @@ export async function saveCostCentre(_prev: FormState, data: FormData): Promise<
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "CostCentre",
     entityLabel: code,
@@ -213,6 +218,7 @@ export async function saveCostCentre(_prev: FormState, data: FormData): Promise<
 // -------------------------------------------------------------------------- sites
 
 export async function saveSite(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -249,6 +255,7 @@ export async function saveSite(_prev: FormState, data: FormData): Promise<FormSt
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "Site",
     entityLabel: v.nameEn,
@@ -279,6 +286,7 @@ export async function saveSite(_prev: FormState, data: FormData): Promise<FormSt
  * cannot start, table or vote until it is set again.
  */
 export async function saveTimeZone(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE } });
   if (!org) return NO_ORG;
   const r = new FormReader(data);
@@ -298,7 +306,7 @@ export async function saveTimeZone(_prev: FormState, data: FormData): Promise<Fo
     const changes = diffFields({ timeZone: locked.timeZone }, { timeZone });
     await tx.organisation.update({ where: { id: org.id }, data: { timeZone } });
     if (changes.length > 0) {
-      await writeAudit(tx, { organisationId: org.id, entity: "Organisation", entityId: org.id, entityLabel: locked.name, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "Organisation", entityId: org.id, entityLabel: locked.name, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
     }
   });
   revalidatePath(PATH);
@@ -326,6 +334,7 @@ async function lockOrganisation(tx: Tx, id: string) {
  * documents keep the details they were issued with: nothing here reaches them.
  */
 export async function saveDetails(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE } });
   if (!org) return NO_ORG;
 
@@ -341,7 +350,7 @@ export async function saveDetails(_prev: FormState, data: FormData): Promise<For
     const changes = diffFields(Object.fromEntries(DETAIL_FIELDS.map((f) => [f, locked[f]])), after);
     await tx.organisation.update({ where: { id: org.id }, data: after });
     if (changes.length > 0) {
-      await writeAudit(tx, { organisationId: org.id, entity: "Organisation", entityId: org.id, entityLabel: locked.name, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "Organisation", entityId: org.id, entityLabel: locked.name, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
     }
     return changes.length > 0;
   });
@@ -365,6 +374,7 @@ function logoFacts(l: { sha256: string; mediaType: string; sizeBytes: number; wi
 
 /// Replace the logo. Only PNG, JPEG or WebP, judged by the file's bytes, up to 512 KB.
 export async function uploadLogo(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, name: true } });
   if (!org) return NO_ORG;
 
@@ -403,7 +413,7 @@ export async function uploadLogo(_prev: FormState, data: FormData): Promise<Form
     });
     await writeAudit(
       tx,
-      { organisationId: org.id, entity: "OrganisationLogo", entityId: saved.id, entityLabel: org.name },
+      { actor: toAuditActor(actor), organisationId: org.id, entity: "OrganisationLogo", entityId: saved.id, entityLabel: org.name },
       prior ? "UPDATE" : "CREATE",
       diffFields(prior ? logoFacts(prior) : null, logoFacts(check)),
     );
@@ -416,6 +426,7 @@ export async function uploadLogo(_prev: FormState, data: FormData): Promise<Form
 
 /// Remove the logo; the product mark is shown again. A reason is required.
 export async function removeLogo(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, name: true } });
   if (!org) return NO_ORG;
   const reason = String(data.get("reason") ?? "").trim();
@@ -426,7 +437,7 @@ export async function removeLogo(_prev: FormState, data: FormData): Promise<Form
     const logo = await tx.organisationLogo.findUnique({ where: { organisationId: org.id }, select: { id: true, sha256: true, mediaType: true, sizeBytes: true, width: true, height: true } });
     if (!logo) return { ok: false, message: "There is no logo to remove." };
     await tx.organisationLogo.delete({ where: { id: logo.id } });
-    await writeAudit(tx, { organisationId: org.id, entity: "OrganisationLogo", entityId: logo.id, entityLabel: org.name, reason }, "DELETE", snapshotFields(logoFacts(logo)));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "OrganisationLogo", entityId: logo.id, entityLabel: org.name, reason }, "DELETE", snapshotFields(logoFacts(logo)));
     return { ok: true };
   });
   if (!result.ok) return result;

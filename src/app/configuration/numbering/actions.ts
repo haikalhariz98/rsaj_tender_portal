@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { afterConfiguring, patternFaults, serialFor, type Series } from "@/lib/numbering/series";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const RESETS = ["NEVER", "CALENDAR_YEAR", "FINANCIAL_YEAR"] as const;
@@ -29,6 +30,7 @@ const NO_ORG: FormState = {
 };
 
 export async function saveSeries(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -106,6 +108,7 @@ export async function saveSeries(_prev: FormState, data: FormData): Promise<Form
     entity: "NumberingSeries",
     entityLabel: v.nameEn,
     reason: String(data.get("reason") ?? ""),
+    actor: toAuditActor(actor),
   };
 
   // Sign-in programme Phase 0 (group E): the series row is locked, FOR UPDATE, before it is read: the lock `issueReference`

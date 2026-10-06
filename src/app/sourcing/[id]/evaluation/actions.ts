@@ -25,6 +25,7 @@ import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, exerciseIdOf } from "../window/shared";
 import { evLabel, GONE_BIDDER, inEvaluation, notes, picks, refuse, signedMoney, stampNow } from "./shared";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /**
  * Writes for 6.8's evaluation (plan §4, as ruled E-1..E-13): starting it, the team, scores, the
@@ -45,6 +46,7 @@ const ON_BEHALF = "recorded on their behalf, not signed";
  * both sides; the score places frozen; the exercise Under evaluation.
  */
 export async function startEvaluation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const personId = r.optionalText("startedByPersonId");
@@ -83,7 +85,7 @@ export async function startEvaluation(_prev: FormState, data: FormData): Promise
     });
     for (const p of teamPicks) {
       const m = await tx.evaluationTeamMember.create({ data: { organisationId: l.org.id, evaluationId: ev.id, personId: p.personId, side: p.side, orgUnitCodeSnapshot: p.unitCode, appointedOn: appointed, recordedAt: now } });
-      await audit(tx, l.org.id, EVALUATION_ENTITY.team, m.id, evLabel(l, 1, "Team"), "CREATE", diffFields(null, teamFields({ name: p.name, side: p.side, unit: p.unitCode, on: day })));
+      await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.team, m.id, evLabel(l, 1, "Team"), "CREATE", diffFields(null, teamFields({ name: p.name, side: p.side, unit: p.unitCode, on: day })));
     }
     let excluded = 0;
     for (const b of c.carried) {
@@ -91,11 +93,11 @@ export async function startEvaluation(_prev: FormState, data: FormData): Promise
       const reason = exclusionReason(j);
       if (reason) excluded++;
       const row = await tx.evaluationBidder.create({ data: { organisationId: l.org.id, evaluationId: ev.id, openedBidId: b.id, excludedReason: reason, ceilingSnapshot: { regime: ceiling.regime, boundary: ceiling.boundary != null ? senToDecimalString(ceiling.boundary) : null, operator: ceiling.operator } } });
-      if (reason) await audit(tx, l.org.id, EVALUATION_ENTITY.bidder, row.id, evLabel(l, 1, `Bid No. ${b.listingNo}`), "CREATE", diffFields(null, { bid: `No. ${b.listingNo}`, excluded: reason }));
+      if (reason) await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.bidder, row.id, evLabel(l, 1, `Bid No. ${b.listingNo}`), "CREATE", diffFields(null, { bid: `No. ${b.listingNo}`, excluded: reason }));
     }
-    await audit(tx, l.org.id, EVALUATION_ENTITY.evaluation, ev.id, evLabel(l, 1), "CREATE", diffFields(null, startFields({ version: 1, trigger: "START", model: `${c.model!.nameEn}, version ${c.model!.version}`, at: now, by: person!.name, bidders: c.carried.length, excluded, decimals }, l.org.timeZone)));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.evaluation, ev.id, evLabel(l, 1), "CREATE", diffFields(null, startFields({ version: 1, trigger: "START", model: `${c.model!.nameEn}, version ${c.model!.version}`, at: now, by: person!.name, bidders: c.carried.length, excluded, decimals }, l.org.timeZone)));
     await moveExercise(tx, l.ex, "UNDER_EVALUATION", { today: l.org.today, via: "EVALUATION_STARTED", startFaults: 0 });
-    await audit(tx, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "UNDER_EVALUATION" }));
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "UNDER_EVALUATION" }));
     const said = notes(all);
     return { ok: true, message: `Evaluation started with ${c.carried.length} ${c.carried.length === 1 ? "bid" : "bids"}${excluded ? `, ${excluded} excluded above the ceiling` : ""}.${said ? ` ${said}` : ""}` };
   });
@@ -103,6 +105,7 @@ export async function startEvaluation(_prev: FormState, data: FormData): Promise
 
 /// Appoint a further team member, on one side, while the version is open (FR-EVL-001).
 export async function appointTeamMember(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const personId = r.text("personId", "Member", { required: true });
@@ -120,7 +123,7 @@ export async function appointTeamMember(_prev: FormState, data: FormData): Promi
     if (l.org.today && day > l.org.today) tf.push({ code: "DAY_IN_FUTURE", level: "block" });
     if (tf.some((f) => f.level === "block")) return refuse(tf);
     const m = await tx.evaluationTeamMember.create({ data: { organisationId: l.org.id, evaluationId: e!.id, personId, side, orgUnitCodeSnapshot: pick.unitCode, appointedOn: appointed, recordedAt: now } });
-    await audit(tx, l.org.id, EVALUATION_ENTITY.team, m.id, evLabel(l, e!.version, "Team"), "CREATE", diffFields(null, teamFields({ name: pick.name, side, unit: pick.unitCode, on: day })));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.team, m.id, evLabel(l, e!.version, "Team"), "CREATE", diffFields(null, teamFields({ name: pick.name, side, unit: pick.unitCode, on: day })));
     const said = notes(tf);
     return { ok: true, message: `Appointed.${said ? ` ${said}` : ""}` };
   });
@@ -134,6 +137,7 @@ export async function appointTeamMember(_prev: FormState, data: FormData): Promi
  * running, or from someone not appointed to the stage's side.
  */
 export async function recordScore(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
@@ -163,7 +167,7 @@ export async function recordScore(_prev: FormState, data: FormData): Promise<For
     const row = await tx.evaluationScore.create({ data: { organisationId: l.org.id, bidderId, stageCode, criterionCode, marks: "marks" in value ? fixedToDecimalString(value.marks) : null, passed: "passed" in value ? value.passed : null, note, scoredByPersonId: person.id, recordedAt: now, supersedesId: prev?.id ?? null } });
     const criterion = s.criteria.find((x) => x.code === criterionCode)!.labelEn;
     const before = b.scores.get(scoreKey(stageCode, criterionCode));
-    await audit(tx, l.org.id, EVALUATION_ENTITY.score, row.id, evLabel(l, e!.version, `${s.labelEn} · bid No. ${b.listingNo}`), prev ? "UPDATE" : "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.score, row.id, evLabel(l, e!.version, `${s.labelEn} · bid No. ${b.listingNo}`), prev ? "UPDATE" : "CREATE",
       diffFields(before ? scoreFields({ criterion, marks: before.marks, passed: before.passed, note: before.note, by: before.scoredBy }) : null, scoreFields({ criterion, marks: "marks" in value ? value.marks : null, passed: "passed" in value ? value.passed : null, note, by: person.name })));
     return { ok: true, message: prev ? "Rescored: the earlier score is kept in the History." : "Scored." };
   });
@@ -175,6 +179,7 @@ export async function recordScore(_prev: FormState, data: FormData): Promise<For
  * is submitted, and for a bid excluded or out of the running at that stage (BD-68-11).
  */
 export async function recordInputs(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
@@ -213,7 +218,7 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
     if (fs.some((x) => x.level === "block")) return refuse(fs);
     const factorLabel = (code: string | null) => (code ? (capital.flatMap((s) => s.factors).find((x) => x.code === code)?.labelEn ?? "A factor no longer offered") : null);
     await tx.evaluationBidder.update({ where: { id: b.id }, data: { factorOptionCode: factor, balanceMonth1: balances[0], balanceMonth2: balances[1], balanceMonth3: balances[2], cprPercent: cpr != null ? fixedToDecimalString(cpr) : null, inputsRecordedAt: now, inputsRecordedByPersonId: person!.id } });
-    await audit(tx, l.org.id, EVALUATION_ENTITY.bidder, b.id, evLabel(l, e!.version, `Bid No. ${b.listingNo}`), "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.bidder, b.id, evLabel(l, e!.version, `Bid No. ${b.listingNo}`), "UPDATE",
       diffFields(inputFields({ factor: factorLabel(b.factorOptionCode), balances: b.balances, cpr: b.cprPercent, by: person!.name }), inputFields({ factor: factorLabel(factor), balances: balances.map((v) => (v == null ? null : parseSen(v))), cpr, by: person!.name })));
     return { ok: true, message: "Recorded." };
   });
@@ -225,6 +230,7 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
  * again on the corrected price, the exclusion recorded or cleared.
  */
 export async function correctPrice(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
@@ -247,7 +253,7 @@ export async function correctPrice(_prev: FormState, data: FormData): Promise<Fo
     const sen = parseSen(price);
     const reasonExcluded = exclusionReason(ceilingExclusion(sen, ceilingOf(l.ex)));
     await tx.evaluationBidder.update({ where: { id: b.id }, data: { correctedPrice: price, correctionReason: reason, correctedAt: now, correctedByPersonId: person!.id, excludedReason: reasonExcluded } });
-    await audit(tx, l.org.id, EVALUATION_ENTITY.bidder, b.id, evLabel(l, e!.version, `Bid No. ${b.listingNo}`), "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.bidder, b.id, evLabel(l, e!.version, `Bid No. ${b.listingNo}`), "UPDATE",
       diffFields(b.correctedPrice != null ? correctionFields({ price: b.correctedPrice, reason: "", by: "", excluded: b.excludedReason }) : { correctedPrice: null }, correctionFields({ price: sen, reason, by: person!.name, excluded: reasonExcluded })), reason);
     return { ok: true, message: reasonExcluded ? "Corrected. On the corrected price the bid is above the exercise's quotation ceiling and is excluded." : "Corrected." };
   });
@@ -260,6 +266,7 @@ export async function correctPrice(_prev: FormState, data: FormData): Promise<Fo
  * computed, a note for each value no band holds (OD-5 A). Its results are frozen with it.
  */
 export async function submitStage(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const stageCode = String(data.get("stageCode") ?? "");
   const personId = String(data.get("personId") ?? "") || null;
@@ -280,7 +287,7 @@ export async function submitStage(_prev: FormState, data: FormData): Promise<For
       await tx.stageResult.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId: row.bidderId, stageCode: s.code, percent: row.percent != null ? fixedToDecimalString(row.percent) : null, shown: row.shown != null ? fixedToDecimalString(row.shown) : null, passed: row.passed, bandLabel: row.bandLabel, outOfRunning: row.outOfRunning, detail: row.detail as Prisma.InputJsonValue } });
     }
     const out = r.results.filter((x) => x.outOfRunning).length;
-    await audit(tx, l.org.id, EVALUATION_ENTITY.submission, sub.id, evLabel(l, e!.version, s.labelEn), "CREATE", diffFields(null, { stage: s.labelEn, submittedBy: `${person!.name} (${ON_BEHALF})`, bidsJudged: r.results.length, outOfTheRunning: out || null }));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.submission, sub.id, evLabel(l, e!.version, s.labelEn), "CREATE", diffFields(null, { stage: s.labelEn, submittedBy: `${person!.name} (${ON_BEHALF})`, bidsJudged: r.results.length, outOfTheRunning: out || null }));
     return { ok: true, message: `${s.labelEn} submitted: ${r.results.length} ${r.results.length === 1 ? "bid" : "bids"} judged${out ? `, ${out} out of the running` : ""}.` };
   });
 }
@@ -290,6 +297,7 @@ export async function submitStage(_prev: FormState, data: FormData): Promise<For
  * stage's submission and its results are this act's.
  */
 export async function recordShortlist(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const stageCode = String(data.get("stageCode") ?? "");
   const personId = String(data.get("personId") ?? "") || null;
@@ -316,7 +324,7 @@ export async function recordShortlist(_prev: FormState, data: FormData): Promise
       await tx.stageResult.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId: b.id, stageCode: s.code, passed: on, outOfRunning: !on } });
     }
     const listing = (id: string) => f.bidders.find((x) => x.id === id)!.listingNo;
-    await audit(tx, l.org.id, EVALUATION_ENTITY.submission, sub.id, evLabel(l, e!.version, s.labelEn), "CREATE", diffFields(null, { stage: s.labelEn, shortlisted: chosen.map((id) => `No. ${listing(id)}`).join(", ") || "None", notShortlisted: eligible.filter((b) => !chosen.includes(b.id)).map((b) => `No. ${listing(b.id)}`).join(", ") || null, recordedBy: `${person!.name} (${ON_BEHALF})` }));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.submission, sub.id, evLabel(l, e!.version, s.labelEn), "CREATE", diffFields(null, { stage: s.labelEn, shortlisted: chosen.map((id) => `No. ${listing(id)}`).join(", ") || "None", notShortlisted: eligible.filter((b) => !chosen.includes(b.id)).map((b) => `No. ${listing(b.id)}`).join(", ") || null, recordedBy: `${person!.name} (${ON_BEHALF})` }));
     const said = notes(fs);
     return { ok: true, message: `Shortlist recorded.${said ? ` ${said}` : ""}` };
   });
@@ -326,6 +334,7 @@ export async function recordShortlist(_prev: FormState, data: FormData): Promise
 
 /// One aspect's verdict and narrative on one bidder (FR-EVL-003): append-only, a reassessment supersedes.
 export async function assessAspect(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
@@ -355,7 +364,7 @@ export async function assessAspect(_prev: FormState, data: FormData): Promise<Fo
     if (fs.length || !person) return refuse(fs);
     const prev = e!.bidders.find((x) => x.id === bidderId)!.aspects.find((a) => a.aspectCode === aspectCode && !a.supersededBy) ?? null;
     const row = await tx.aspectAssessment.create({ data: { organisationId: l.org.id, bidderId, aspectCode, verdict: verdict!, narrative, assessedByPersonId: person.id, recordedAt: now, supersedesId: prev?.id ?? null } });
-    await audit(tx, l.org.id, EVALUATION_ENTITY.aspect, row.id, evLabel(l, e!.version, `Aspects · bid No. ${b.listingNo}`), prev ? "UPDATE" : "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.aspect, row.id, evLabel(l, e!.version, `Aspects · bid No. ${b.listingNo}`), prev ? "UPDATE" : "CREATE",
       diffFields(prev ? aspectFields({ aspect: aspect!.labelEn, kind: aspect!.kind, verdict: prev.verdict, narrative: prev.narrative, by: prev.assessedBy.name }) : null, aspectFields({ aspect: aspect!.labelEn, kind: aspect!.kind, verdict: verdict!, narrative, by: person.name })));
     return { ok: true, message: "Assessed." };
   });
@@ -363,6 +372,7 @@ export async function assessAspect(_prev: FormState, data: FormData): Promise<Fo
 
 /// A written communication with a tenderer (FR-EVL-013): recorded, never sent (INT-09 not built).
 export async function logCommunication(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Tenderer", { required: true });
@@ -387,7 +397,7 @@ export async function logCommunication(_prev: FormState, data: FormData): Promis
     else if (day > l.org.today) fs.push({ code: "DAY_IN_FUTURE", level: "block" });
     if (fs.length) return refuse(fs);
     const row = await tx.tendererCommunication.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId, direction, channel, sentOn: direction === "TO_TENDERER" ? on : null, receivedOn: direction === "FROM_TENDERER" ? on : null, subject, content, recordedByPersonId: person!.id, recordedAt: now } });
-    await audit(tx, l.org.id, EVALUATION_ENTITY.communication, row.id, evLabel(l, e!.version, `Communication · bid No. ${b.listingNo}`), "CREATE", diffFields(null, communicationFields({ direction, channel, on: day, subject, content, by: person!.name })));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.communication, row.id, evLabel(l, e!.version, `Communication · bid No. ${b.listingNo}`), "CREATE", diffFields(null, communicationFields({ direction, channel, on: day, subject, content, by: person!.name })));
     return { ok: true, message: "Recorded. Attach the letter itself to the tenderer's record if you have it." };
   });
 }

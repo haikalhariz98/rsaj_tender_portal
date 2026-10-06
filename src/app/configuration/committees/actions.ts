@@ -15,6 +15,7 @@ import { compareAmounts } from "@/lib/money";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { checkAlternateLink } from "@/lib/committee/sitting";
 import { inProgressSittingRefusal } from "@/lib/committee/sittings";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const ACTIONS = ["APPROVES", "RECOMMENDS", "CONSENTS", "DECIDES"] as const;
@@ -37,6 +38,7 @@ const NO_ORG: FormState = {
 };
 
 export async function saveCommittee(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -155,6 +157,7 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "Committee",
     entityLabel: v.nameEn,
@@ -193,6 +196,7 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
  * the sitting; a seat with both is two different rules for the same chair.
  */
 export async function saveMember(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -293,6 +297,7 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
   if (sitting) return { ok: false, message: sitting };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "CommitteeMember",
     entityLabel: `${committee.nameEn} seat`,
@@ -316,6 +321,7 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
 
 /// Vacating a seat ends its period. Votes already cast from it must keep resolving.
 export async function vacateSeat(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -338,6 +344,7 @@ export async function vacateSeat(_prev: FormState, data: FormData): Promise<Form
   if (sitting) return { ok: false, message: sitting };
   await auditedUpdate(
     {
+      actor: toAuditActor(actor),
       organisationId: orgId,
       entity: "CommitteeMember",
       entityId: id,
@@ -363,6 +370,7 @@ export async function vacateSeat(_prev: FormState, data: FormData): Promise<Form
  * default. Until one is configured a matter voted down cannot be recorded.
  */
 export async function saveNotApprovedOutcome(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -404,6 +412,7 @@ export async function saveNotApprovedOutcome(_prev: FormState, data: FormData): 
 
   const write = { ...v, kind: v.kind!, provenance: v.provenance! };
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "NotApprovedOutcome",
     entityLabel: v.nameEn,
@@ -437,6 +446,7 @@ export async function saveNotApprovedOutcome(_prev: FormState, data: FormData): 
 
 /// Retire an outcome. Decisions already recorded against it keep citing it.
 export async function retireNotApprovedOutcome(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -449,7 +459,7 @@ export async function retireNotApprovedOutcome(_prev: FormState, data: FormData)
 
   const retiredOn = new Date();
   await auditedUpdate(
-    { organisationId: orgId, entity: "NotApprovedOutcome", entityId: id, entityLabel: before.nameEn, reason },
+    { actor: toAuditActor(actor), organisationId: orgId, entity: "NotApprovedOutcome", entityId: id, entityLabel: before.nameEn, reason },
     { retiredOn: null },
     { retiredOn },
     (tx) => tx.notApprovedOutcome.update({ where: { id }, data: { retiredOn } }),
@@ -469,6 +479,7 @@ const provWords = (p: string | null) => (p === "STATED" ? "Stated" : p === "OBSE
  * committee's row, judges the draft (`committeePanelFaults`) and writes with its audit row.
  */
 export async function saveCommitteePanel(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -502,7 +513,7 @@ export async function saveCommitteePanel(_prev: FormState, data: FormData): Prom
       openingPanelExcludes: c.panelExclusionRule == null ? "Not set" : c.panelExclusionRule ? (units.find((u) => u.code === c.panelExcludesUnitCode)?.nameEn ?? "A unit no longer in the structure") : "No unit",
       openingPanelExclusionFrom: c.panelExclusionRule == null ? null : provWords(c.panelExclusionProvenance),
     });
-    await writeAudit(tx, { organisationId: orgId, entity: "Committee", entityId: id, entityLabel: nameEn, reason }, "UPDATE", diffFields(words(was), words(v)));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "Committee", entityId: id, entityLabel: nameEn, reason }, "UPDATE", diffFields(words(was), words(v)));
     revalidatePath(PATH);
     revalidatePath(`${PATH}/[code]`, "page");
     return { ok: true };

@@ -107,7 +107,7 @@ export function routedOnLabel(cond: string | null | undefined, resolvedOn: keyof
 // Phase 1 carry D6: the shared components' hints, here rather than as literals in the components.
 
 /// Under the reason a record editor asks for (RecordEditor's `reason`).
-export const REASON_HINT = "Recorded in the audit trail. Nobody is signed in, so this is the only account of why the change was made.";
+export const REASON_HINT = "Recorded in the audit trail with who made the change. This is the only account of why it was made.";
 
 /// What each provenance means, for its badge's tooltip; and the tooltip where nobody has sourced a fact.
 export const PROVENANCE_HINT: Readonly<Record<"STATED" | "OBSERVED" | "ASSUMED", string>> = {

@@ -29,6 +29,7 @@
 import type { PrismaClient } from "../src/generated/prisma/client";
 
 import { linkFirstInterimDemo, raiseFirstInterimDemo } from "./demo-payment";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -153,7 +154,7 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
 
   const audits: { id: string; organisationId: string; entity: string; entityId: string; entityLabel: string; action: "CREATE" | "UPDATE" | "DELETE"; at: Date; changes: object[]; reason: string; unattributed: boolean }[] = [];
   let n = 0;
-  const audit = (entity: string, entityId: string, label: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") => audits.push({ id: `${P}hau${++n}`, organisationId, entity, entityId, entityLabel: label, action, at: at(when), changes, reason, unattributed: true });
+  const audit = (entity: string, entityId: string, label: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") => audits.push({ id: `${P}hau${++n}`, organisationId, entity, entityId, entityLabel: label, action, at: at(when), changes, reason, ...DEMO_ACTOR });
   const ON_BEHALF = "recorded on behalf of, not signed";
   const people = { aisyah: { id: `${P}p1`, name: "Aisyah Rahman", isActive: true }, bala: { id: `${P}p2`, name: "Bala Krishnan", isActive: true }, chen: { id: `${P}p3`, name: "Chen Wei Ling", isActive: true }, eng: { id: `${P}p5`, name: "Eng Siew Mei", isActive: true } };
 

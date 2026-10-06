@@ -13,11 +13,13 @@ import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
 import { PAPER_CHANNELS } from "@/lib/suppliers/types";
 
 import { ApplicationForm } from "./application-form";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
 /// Recording a supplier from its paper application (FR-VND-001, a1). The supplier cannot sign in yet.
 export default async function NewSupplierApplicationPage(props: { searchParams: Promise<{ from?: string }> }) {
+  await requireStaff();
   const { from } = await props.searchParams;
   const header = <PageHeader eyebrow={<Link href="/suppliers">Suppliers</Link>} title={from ? "Record a supplier from an online application" : "Record a paper application"} subtitle={from ? "An officer checks what the applicant sent against its certificate, then records the supplier." : "A new supplier, recorded by an officer from the application it handed in."} />;
   const org = await supplierOrg();

@@ -92,7 +92,7 @@ describe("E-9: the award follows the evaluation (6.11)", () => {
   });
   it("citing the appointment's decision asks the evaluation's bundle, before the step is written", () => {
     // Founder, 2026-10-05: the citation moved, unchanged, to the module's route writer, the one function its act and a sitting's outcome both run.
-    expect(body(awards, "citeAppointmentDecision")).toMatch(/citeAppointmentStep\(tx, l, stepId, decisionId\)/);
+    expect(body(awards, "citeAppointmentDecision")).toMatch(/citeAppointmentStep\(tx, toAuditActor\(actor\), l, stepId, decisionId\)/); // Phase 1b: who acted is the argument after the transaction
     const cite = body(routeWrite, "citeAppointmentStep");
     // 6.8 re-review 1 (flagged test change): one read of the gate, its bundle checked before the step is written.
     const read = cite.indexOf("const gate = await loadEvaluationGate(l.ex.id, tx);");

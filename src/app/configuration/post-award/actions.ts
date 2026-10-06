@@ -14,6 +14,7 @@ import { parsePercent, percentAboveZero } from "@/lib/securities/money";
 import { BASE_WORDS, BASIS_WORDS, SCHEDULE_FORM_WORDS } from "@/lib/variation/labels";
 import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/variation/types";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /// The certificate kinds the payment and damages chain, and the variations and adjustments, raise (each needs its
 /// form; a routing sheet is optional).
@@ -33,6 +34,7 @@ const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const FORM_FIELDS = ["delegationLetterConventionalId", "delegationNoticeConventionalId", "delegationLetterDesignBuildId", "delegationNoticeDesignBuildId"] as const;
 
 export async function savePostAwardPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const r = new FormReader(data);
@@ -78,7 +80,7 @@ export async function savePostAwardPolicy(_prev: FormState, data: FormData): Pro
       templates.push(...earlier.filter((t) => !templates.some((x) => x.id === t.id)));
     }
     const changes = diffFields(before ? words(before) : null, words(v));
-    if (!before || changes.length) await writeAudit(tx, { organisationId: o.id, entity: "PostAwardPolicy", entityId: row.id, entityLabel: "Post-award controls", reason }, before ? "UPDATE" : "CREATE", changes);
+    if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "PostAwardPolicy", entityId: row.id, entityLabel: "Post-award controls", reason }, before ? "UPDATE" : "CREATE", changes);
     revalidatePath(PATH);
     revalidatePath("/projects");
     return { ok: true };
@@ -98,6 +100,7 @@ const pctOf = (r: FormReader, name: string, label: string) => {
  * where it came from; an empty field clears it back to unset, recorded.
  */
 export async function savePaymentPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const r = new FormReader(data);
@@ -134,7 +137,7 @@ export async function savePaymentPolicy(_prev: FormState, data: FormData): Promi
       beforeSigningProvenance: x.preExecutionProvenance,
     });
     const changes = diffFields(before ? words(before) : null, words(v));
-    if (!before || changes.length) await writeAudit(tx, { organisationId: o.id, entity: "PostAwardPolicy", entityId: row.id, entityLabel: "Post-award controls", reason }, before ? "UPDATE" : "CREATE", changes);
+    if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "PostAwardPolicy", entityId: row.id, entityLabel: "Post-award controls", reason }, before ? "UPDATE" : "CREATE", changes);
     revalidatePath(PATH);
     revalidatePath("/projects");
     return { ok: true };
@@ -143,6 +146,7 @@ export async function savePaymentPolicy(_prev: FormState, data: FormData): Promi
 
 /// The form a certificate kind prints on and the routing sheet it goes on (CertificateKindSetting). Empty: unset.
 export async function saveKindSetting(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const r = new FormReader(data);
@@ -167,7 +171,7 @@ export async function saveKindSetting(_prev: FormState, data: FormData): Promise
     const before = await tx.certificateKindSetting.findUnique({ where: { organisationId_kind: { organisationId: o.id, kind } }, include: { template: { select: { nameEn: true } }, routingType: { select: { labelEn: true } } } });
     const row = await tx.certificateKindSetting.upsert({ where: { organisationId_kind: { organisationId: o.id, kind } }, update: { templateId: template?.id ?? null, routingTypeId: type?.id ?? null, provenance, notes }, create: { organisationId: o.id, kind, templateId: template?.id ?? null, routingTypeId: type?.id ?? null, provenance, notes } });
     const changes = diffFields(before ? { form: before.template?.nameEn ?? null, routingSheet: before.routingType?.labelEn ?? null, provenance: before.provenance, notes: before.notes } : null, { form: template?.nameEn ?? null, routingSheet: type?.labelEn ?? null, provenance, notes });
-    if (!before || changes.length) await writeAudit(tx, { organisationId: o.id, entity: "CertificateKindSetting", entityId: row.id, entityLabel: `Post-award controls · ${KIND_WORDS[kind].en}`, reason }, before ? "UPDATE" : "CREATE", changes);
+    if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "CertificateKindSetting", entityId: row.id, entityLabel: `Post-award controls · ${KIND_WORDS[kind].en}`, reason }, before ? "UPDATE" : "CREATE", changes);
     revalidatePath(PATH);
     return { ok: true };
   });
@@ -175,6 +179,7 @@ export async function saveKindSetting(_prev: FormState, data: FormData): Promise
 
 /// A contract clock (ContractClockRule): its length and unit with where it came from; saving it empty removes it, with the reason.
 export async function saveClockRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const r = new FormReader(data);
@@ -198,11 +203,11 @@ export async function saveClockRule(_prev: FormState, data: FormData): Promise<F
       if (!before) return { ok: true };
       if (!reason.trim()) return { ok: false, errors: { reason: "Say why the clock is removed." } } as FormState;
       await tx.contractClockRule.delete({ where: { id: before.id } });
-      await writeAudit(tx, { organisationId: o.id, entity: "ContractClockRule", entityId: before.id, entityLabel: label, reason }, "DELETE", diffFields({ clock: text(before), provenance: before.provenance }, { clock: null, provenance: null }));
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "ContractClockRule", entityId: before.id, entityLabel: label, reason }, "DELETE", diffFields({ clock: text(before), provenance: before.provenance }, { clock: null, provenance: null }));
     } else {
       const row = await tx.contractClockRule.upsert({ where: { organisationId_clock: { organisationId: o.id, clock } }, update: { length, unit: unit!, provenance: provenance!, notes }, create: { organisationId: o.id, clock, length, unit: unit!, provenance: provenance!, notes } });
       const changes = diffFields(before ? { clock: text(before), provenance: before.provenance, notes: before.notes } : null, { clock: text({ length, unit: unit! }), provenance, notes });
-      if (!before || changes.length) await writeAudit(tx, { organisationId: o.id, entity: "ContractClockRule", entityId: row.id, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
+      if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "ContractClockRule", entityId: row.id, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
     }
     revalidatePath(PATH);
     return { ok: true };
@@ -218,6 +223,7 @@ export async function saveClockRule(_prev: FormState, data: FormData): Promise<F
  * recorded. Audited with before and after in the same transaction.
  */
 export async function saveVariationPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const r = new FormReader(data);
@@ -250,7 +256,7 @@ export async function saveVariationPolicy(_prev: FormState, data: FormData): Pro
       consentProvenance: x.funderConsentProvenance,
     });
     const changes = diffFields(before ? words(before, before.funderConsentCommittee?.nameEn ?? null) : null, words(v, committee?.nameEn ?? null));
-    if (!before || changes.length) await writeAudit(tx, { organisationId: o.id, entity: "PostAwardPolicy", entityId: row.id, entityLabel: "Post-award controls", reason }, before ? "UPDATE" : "CREATE", changes);
+    if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "PostAwardPolicy", entityId: row.id, entityLabel: "Post-award controls", reason }, before ? "UPDATE" : "CREATE", changes);
     revalidatePath(PATH);
     revalidatePath("/projects");
     return { ok: true };

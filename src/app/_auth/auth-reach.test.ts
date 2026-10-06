@@ -1,0 +1,188 @@
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+import { isPublicEntryFile, PUBLIC_ENTRY_POINTS } from "@/lib/auth/routes";
+import { isServerModule, lex, spans } from "@/lib/scan/source";
+
+/**
+ * Who is signed in is asked first, everywhere (Phase 1b, threat model F3 and the security tests of the plan). A source scan, in the manner of
+ * `certificate-scan.test.ts`, of every entry point under `src/app`:
+ *
+ * - every export of a `"use server"` file (each is a public POST endpoint, however the screen hides its button);
+ * - every page;
+ * - every route handler (and the HTTP method it answers);
+ * - every layout that loads data.
+ *
+ * Each must ask `requireStaff` (an action or a page) or `staffRoute` (a route handler) as its first awaited call, before any read, any write and any
+ * parse, or be named in `PUBLIC_ENTRY_POINTS` (`src/lib/auth/routes.ts`) with its reason, or in the short list of exceptions below with its own. Adding an
+ * entry point that is neither fails here, which is the point.
+ */
+
+const ROOT = process.cwd();
+const APP = path.join(ROOT, "src", "app");
+
+const walk = (dir: string): string[] =>
+  readdirSync(dir).flatMap((n) => {
+    const p = path.join(dir, n);
+    return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n) ? [p] : [];
+  });
+const rel = (f: string) => path.relative(APP, f).split(path.sep).join("/");
+
+const FILES = walk(APP).map((f) => ({ file: rel(f), src: readFileSync(f, "utf8") }));
+const publicEntry = (file: string) => isPublicEntryFile(file);
+
+/// The calls that count as asking who is signed in. `staffOrSignIn` is the account page's own wrapper of `requireStaff`, which sends nobody-signed-in to sign in.
+const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute("];
+
+interface Entry {
+  file: string;
+  name: string;
+  /// The function's body with strings and comments blanked.
+  body: string;
+}
+
+/// The exported functions of a file, by name, whatever they are exported as (`export async function`, `export default async function`).
+function exportsOf(file: string, src: string): Entry[] {
+  const m = lex(src);
+  const out: Entry[] = [];
+  const decl = /export\s+(?:default\s+)?(?:async\s+)?function\s+(\w+)/g;
+  for (const x of m.matchAll(decl)) {
+    const name = x[1];
+    const s = spans(m).find((sp) => sp.name === name && sp.from > x.index!);
+    if (s) out.push({ file, name, body: m.slice(s.from, s.to) });
+  }
+  return out;
+}
+
+/// What the function does first: the text from its first `await`, or null where it awaits nothing.
+const firstAwait = (body: string): string | null => {
+  const at = body.search(/\bawait\b/);
+  return at < 0 ? null : body.slice(at, at + 80);
+};
+const asksFirst = (e: Entry) => {
+  const first = firstAwait(e.body);
+  return first != null && GUARDS.some((g) => new RegExp(String.raw`^await\s+${g.replace("(", "\\(")}`).test(first));
+};
+
+const ACTION_FILES = FILES.filter((f) => isServerModule(f.src) && !publicEntry(f.file));
+const PAGE_FILES = FILES.filter((f) => /(^|\/)page\.tsx$/.test(f.file) && !publicEntry(f.file));
+const ROUTE_FILES = FILES.filter((f) => /(^|\/)route\.ts$/.test(f.file) && !f.file.startsWith("_auth/"));
+const LAYOUT_FILES = FILES.filter((f) => /(^|\/)layout\.tsx$/.test(f.file));
+
+describe("the scan finds what it should", () => {
+  it("reads the server modules, the pages, the routes and the layouts it is about", () => {
+    // 61 server modules at the time of writing (the plan counted 54 earlier), less sign-in's.
+    expect(ACTION_FILES.length).toBeGreaterThan(50);
+    expect(PAGE_FILES.length).toBeGreaterThan(55);
+    expect(ROUTE_FILES.length).toBe(11);
+    expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
+    expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
+  });
+
+  it("recognises a guard first and an unguarded entry (self-test)", () => {
+    const guarded = exportsOf("a.ts", 'export async function save(a) {\n  const actor = await requireStaff();\n  const x = await read();\n}');
+    const late = exportsOf("a.ts", 'export async function save(a) {\n  const x = await read();\n  const actor = await requireStaff();\n}');
+    const none = exportsOf("a.ts", "export async function save(a) {\n  return 1;\n}");
+    const inString = exportsOf("a.ts", 'export async function save(a) {\n  const s = "await requireStaff()";\n  await read();\n}');
+    expect([guarded, late, none, inString].map((e) => asksFirst(e[0]))).toEqual([true, false, false, false]);
+  });
+});
+
+describe("every export of a server module asks who is signed in first", () => {
+  it("none is reachable signed out", () => {
+    const unguarded = ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).filter((e) => !asksFirst(e));
+    expect(unguarded.map((e) => `${e.file}: ${e.name}`)).toEqual([]);
+  });
+
+  it("the sign-in actions are the public ones, named, each behind the Origin guard", () => {
+    const signIn = FILES.filter((f) => f.file.startsWith("sign-in/") && isServerModule(f.src)).flatMap((f) => exportsOf(f.file, f.src));
+    expect(signIn.map((e) => e.name).sort()).toEqual(["redeemCodeAction", "signInAction", "signOutAction"]);
+    for (const e of signIn) expect(e.body, e.name).toContain("refuseForeignPost(");
+  });
+});
+
+describe("every page asks who is signed in first", () => {
+  it("none shows anything to nobody", () => {
+    const pages = PAGE_FILES.map((f) => {
+      const defaults = exportsOf(f.file, f.src).filter((e) => new RegExp(String.raw`export\s+default\s+(?:async\s+)?function\s+${e.name}\b`).test(f.src));
+      return { file: f.file, defaults };
+    });
+    expect(pages.filter((p) => p.defaults.length !== 1).map((p) => p.file)).toEqual([]);
+    expect(pages.flatMap((p) => p.defaults).filter((e) => !asksFirst(e)).map((e) => `${e.file}: ${e.name}`)).toEqual([]);
+  });
+
+  it("a page does not load its data in generateMetadata or generateStaticParams, which no guard would precede", () => {
+    expect(PAGE_FILES.filter((f) => /export\s+(?:async\s+)?function\s+generate(?:Metadata|StaticParams)\b/.test(f.src)).map((f) => f.file)).toEqual([]);
+  });
+
+  it("a layout that loads anything does so only for someone signed in", () => {
+    // The root layout renders for everyone (the sign-in screens sit in it), so it loads no counts for nobody; every other layout loads nothing at all.
+    const loaders = LAYOUT_FILES.filter((f) => /from "@\/lib\//.test(f.src));
+    expect(loaders.map((f) => f.file)).toEqual(["layout.tsx"]);
+    expect(loaders[0].src).toMatch(/const actor = await currentStaffOrNull\(\);/);
+    expect(loaders[0].src).toMatch(/loadShell\(\{ counts: actor != null && !portalOnly \}\)/);
+  });
+});
+
+describe("every route handler asks who is signed in first, and every one that changes anything passes the Origin guard", () => {
+  const HTTP = /export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g;
+  const handlers = ROUTE_FILES.filter((f) => !publicEntry(f.file)).flatMap((f) => [...f.src.matchAll(HTTP)].map((x) => exportsOf(f.file, f.src).find((e) => e.name === x[1])!));
+
+  /// A handler that refuses outright with no read at all needs no session to do so.
+  const EXCEPTIONS: Record<string, string> = {
+    "api/documents/versions/[id]/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry: Next would otherwise answer a HEAD with the GET handler, which reads and logs a download (audit C-2).",
+  };
+
+  it("finds the handlers", () => {
+    expect(handlers.length).toBeGreaterThanOrEqual(8);
+    expect(ROUTE_FILES.filter((f) => publicEntry(f.file)).map((f) => f.file).sort()).toEqual(["organisation/logo/[sha]/route.ts", "supplier/register/submit/route.ts"]);
+  });
+
+  it("none is reachable signed out", () => {
+    expect(handlers.filter((e) => !asksFirst(e) && !EXCEPTIONS[`${e.file}#${e.name}`]).map((e) => `${e.file}: ${e.name}`)).toEqual([]);
+  });
+
+  it("every exception is still a handler, and still reads nothing", () => {
+    for (const key of Object.keys(EXCEPTIONS)) {
+      const e = handlers.find((h) => `${h.file}#${h.name}` === key);
+      expect(e, key).toBeDefined();
+      expect(e!.body, key).not.toMatch(/\bawait\b|\bdb\./);
+    }
+  });
+
+  it("a POST, PUT, PATCH or DELETE names the content types it accepts, so a cross-site form body is never read as one", () => {
+    const writes = handlers.filter((e) => /^(POST|PUT|PATCH|DELETE)$/.test(e.name));
+    expect(writes.length).toBeGreaterThanOrEqual(4);
+    const raw = (e: Entry) => FILES.find((f) => f.file === e.file)!.src;
+    for (const e of writes) {
+      const types = /staffRoute\(\{ contentTypes: \[((?:"[a-z-]+\/[a-z-]+"(?:, )?)+)\] \}\)/.exec(raw(e));
+      expect(types, `${e.file}: ${e.name}`).not.toBeNull();
+      expect(types![1], `${e.file}: ${e.name}`).not.toContain("text/plain");
+    }
+  });
+
+  it("the public routes are the portal's registration post and the logo, and say why", () => {
+    for (const e of PUBLIC_ENTRY_POINTS) expect(e.reason.length, e.under ?? e.file).toBeGreaterThan(40);
+    expect(PUBLIC_ENTRY_POINTS.map((e) => e.under ?? e.file).sort()).toEqual(["organisation/logo/[sha]/route.ts", "sign-in", "supplier"]);
+  });
+
+  it("every public entry names something that exists (none is stale)", () => {
+    for (const e of PUBLIC_ENTRY_POINTS) expect(existsSync(path.join(APP, e.under ?? e.file!)), e.under ?? e.file).toBe(true);
+  });
+});
+
+describe("the loader hook, the one way an act runs with nobody signed in, is for the loaders", () => {
+  it("is named only by prisma/, scripts/ and src/app/_auth/", () => {
+    const walkAll = (dir: string): string[] => (existsSync(dir) ? readdirSync(dir).flatMap((n) => (n === "node_modules" || n === "generated" ? [] : statSync(path.join(dir, n)).isDirectory() ? walkAll(path.join(dir, n)) : /\.(ts|tsx|mts|mjs)$/.test(n) ? [path.join(dir, n)] : [])) : []);
+    const users = [...walkAll(path.join(ROOT, "src")), ...walkAll(path.join(ROOT, "prisma")), ...walkAll(path.join(ROOT, "scripts"))]
+      .map((f) => ({ f: path.relative(ROOT, f).split(path.sep).join("/"), src: readFileSync(f, "utf8") }))
+      .filter(({ src }) => /\binstallLoader\b|\bloaderLabel\b|_auth\/loader["']/.test(src))
+      .map(({ f }) => f);
+    const outside = users.filter((f) => !(f.startsWith("prisma/") || f.startsWith("scripts/") || f.startsWith("src/app/_auth/")));
+    expect(outside).toEqual([]);
+    // And the one that installs it is the demo's act runner.
+    expect(users.filter((f) => /installLoader\("/.test(readFileSync(path.join(ROOT, f), "utf8")) && !f.endsWith(".test.ts"))).toEqual(["prisma/demo-acts.ts"]);
+  });
+});

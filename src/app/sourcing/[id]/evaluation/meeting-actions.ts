@@ -32,6 +32,7 @@ import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, Refusal } from "../window/shared";
 import { evLabel, GONE_BIDDER, inEvaluation, notes, refuse, stampNow } from "./shared";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /**
  * Meetings and the negotiation's route (FR-EVL-015, 016; OQ-08 interim; OD-10 A). A clarification is
@@ -46,6 +47,7 @@ const NO_ISSUE: FormState = { ok: false, message: "No approval matrix is in forc
 
 /// Record that a clarification or negotiation meeting was held with a bidder.
 export async function openMeeting(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Tenderer", { required: true });
@@ -80,7 +82,7 @@ export async function openMeeting(_prev: FormState, data: FormData): Promise<For
     if (fs.some((x) => x.level === "block")) return refuse(fs);
     const round = e!.meetings.filter((m) => m.bidderId === bidderId && m.kind === kind).length + 1;
     const row = await tx.evaluationMeeting.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId, kind, round, heldOn, place, approvalInstanceId: kind === "NEGOTIATION" ? request!.approvalInstanceId : null, openedByPersonId: person!.id, openedAt: now } });
-    await audit(tx, l.org.id, EVALUATION_ENTITY.meeting, row.id, evLabel(l, e!.version, `${kind === "CLARIFICATION" ? "Clarification" : "Negotiation"} with bid No. ${b.listingNo}, round ${round}`), "CREATE", diffFields(null, meetingFields({ kind, round, heldOn: storedDay(heldOn), place, by: person!.name })));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.meeting, row.id, evLabel(l, e!.version, `${kind === "CLARIFICATION" ? "Clarification" : "Negotiation"} with bid No. ${b.listingNo}, round ${round}`), "CREATE", diffFields(null, meetingFields({ kind, round, heldOn: storedDay(heldOn), place, by: person!.name })));
     return { ok: true, message: "Recorded as held. Attach the tenderer's written confirmation to it, then close it with its minutes." };
   });
 }
@@ -90,6 +92,7 @@ export async function openMeeting(_prev: FormState, data: FormData): Promise<For
  * the price before and after. Closed, it is frozen (FR-EVL-015, 016).
  */
 export async function closeMeeting(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const meetingId = r.text("meetingId", "Meeting", { required: true });
@@ -112,7 +115,7 @@ export async function closeMeeting(_prev: FormState, data: FormData): Promise<Fo
     const done = await tx.evaluationMeeting.updateMany({ where: { id: m.id, closedAt: null }, data: { minutes, priceBefore: m.kind === "NEGOTIATION" ? before : null, priceAfter: m.kind === "NEGOTIATION" ? after : null, closedAt: now, closedByPersonId: person!.id } });
     if (done.count !== 1) throw new Refusal(CHANGED);
     const listing = c.facts!.bidders.find((b) => b.id === m.bidderId)!.listingNo;
-    await audit(tx, l.org.id, EVALUATION_ENTITY.meeting, m.id, evLabel(l, e!.version, `${m.kind === "CLARIFICATION" ? "Clarification" : "Negotiation"} with bid No. ${listing}, round ${m.round}`), "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.meeting, m.id, evLabel(l, e!.version, `${m.kind === "CLARIFICATION" ? "Clarification" : "Negotiation"} with bid No. ${listing}, round ${m.round}`), "UPDATE",
       diffFields({ closed: null }, closeFields({ minutes, priceBefore: m.kind === "NEGOTIATION" ? priceBefore : null, priceAfter: m.kind === "NEGOTIATION" ? priceAfter : null, by: person!.name, at: now }, l.org.timeZone)));
     const said = notes(fs);
     return { ok: true, message: `Closed.${said ? ` ${said}` : ""}` };
@@ -127,6 +130,7 @@ export async function closeMeeting(_prev: FormState, data: FormData): Promise<Fo
  * a committee step: refused, naming the Approval matrix.
  */
 export async function requestNegotiation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Tenderer", { required: true });
@@ -200,9 +204,9 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
     });
     const n = await tx.negotiationRequest.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId, reason, approvalInstanceId: instance.id, requestedByPersonId: person!.id, requestedAt: now } });
     const label = evLabel(l, e!.version, `Negotiation with bid No. ${b.listingNo}`);
-    await audit(tx, l.org.id, "ApprovalInstance", instance.id, `${l.ex.reference} · ${exerciseRouteMatter(NEGOTIATION_DOMAIN).auditNoun}`, "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", instance.id, `${l.ex.reference} · ${exerciseRouteMatter(NEGOTIATION_DOMAIN).auditNoun}`, "CREATE",
       diffFields(null, { matter: `Negotiation with bid No. ${b.listingNo}`, matrix: issue.label, rule: rule.labelEn, route: res!.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), ifRefused: "not held; may be asked again" }));
-    await audit(tx, l.org.id, EVALUATION_ENTITY.negotiation, n.id, label, "CREATE", diffFields(null, { negotiationWith: `Bid No. ${b.listingNo}`, why: reason, askedBy: `${person!.name} (recorded on their behalf, not signed)` }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.negotiation, n.id, label, "CREATE", diffFields(null, { negotiationWith: `Bid No. ${b.listingNo}`, why: reason, askedBy: `${person!.name} (recorded on their behalf, not signed)` }), reason);
     return { ok: true, message: "Asked for. The negotiation is held once its approval is recorded." };
   });
 }
@@ -212,6 +216,7 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
  * the holder, delegation, self-approval and date checks are 6.1's (`deciderFaults`).
  */
 export async function recordNegotiationDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   // 6.8 fix R-9: the clock is read once, at the act's entry, truncated to the second (6.6 CR-3).
   const now = stampNow();
   const r = new FormReader(data);
@@ -256,15 +261,15 @@ export async function recordNegotiationDecision(_prev: FormState, data: FormData
     const after = personDecisionWrite({ decision, person: { id: person!.id, name: person!.name }, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: now });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.ex.reference} · ${step.roleLabel}`, "UPDATE", diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${l.ex.reference} · ${step.roleLabel}`, "UPDATE", diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
     const routeLabel = `${l.ex.reference} · ${exerciseRouteMatter(NEGOTIATION_DOMAIN).auditNoun}`;
     if (decision === "REJECTED") {
-      await closeRejected(tx, { organisationId: l.org.id, routeLabel }, full, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, reason, NEGOTIATION_REFUSED_DECIDED_BY);
+      await closeRejected(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel }, full, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, reason, NEGOTIATION_REFUSED_DECIDED_BY);
       return { ok: true, message: "Refused: the negotiation is not held. It may be asked for again." };
     }
     if (!full.steps.every((s) => s.id === step.id || s.decision === "DONE")) return { ok: true };
     await tx.approvalInstance.update({ where: { id: full.id }, data: { status: "APPROVED", closedAt: now } });
-    await audit(tx, l.org.id, "ApprovalInstance", full.id, routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", full.id, routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), reason);
     return { ok: true, message: "Approved: the negotiation may be held. Record each round on Meetings and letters." };
   });
 }

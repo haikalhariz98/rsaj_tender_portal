@@ -9,6 +9,7 @@ import { recordAwardCheck, recordAwardReceived, startAwardSheet } from "@/lib/ce
 import { CertificateRefusal } from "@/lib/certificate/write";
 import { dayOf, storedDay } from "@/lib/dates";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /**
  * The award's pre-award routing sheet (6.14 increment 1, rulings condition; flagged against accepted 6.11).
@@ -40,22 +41,25 @@ async function inAwardSheet(awardId: string, now: Date, fn: (tx: Parameters<Para
 const idOf = (data: FormData) => String(data.get("id") ?? "");
 
 export async function startAwardRoutingSheet(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const typeId = r.text("typeId", "Routing sheet", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inAwardSheet(idOf(data), now, (tx, l, today) => startAwardSheet(tx, l, typeId, now, today));
+  return inAwardSheet(idOf(data), now, (tx, l, today) => startAwardSheet(tx, toAuditActor(actor), l, typeId, now, today));
 }
 
 export async function recordAwardRoutingReceived(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const received = r.date("receivedOn", "Received on", { required: true });
   if (r.failed || !received) return { ok: false, errors: r.errors };
-  return inAwardSheet(idOf(data), now, (tx, l, today) => recordAwardReceived(tx, l, storedDay(received), now, today));
+  return inAwardSheet(idOf(data), now, (tx, l, today) => recordAwardReceived(tx, toAuditActor(actor), l, storedDay(received), now, today));
 }
 
 export async function recordAwardRoutingCheck(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const defOrder = r.int("defOrder", "Check", { min: 1, required: true });
@@ -63,5 +67,5 @@ export async function recordAwardRoutingCheck(_prev: FormState, data: FormData):
   const on = r.date("on", "On", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || defOrder == null || !on) return { ok: false, errors: r.errors };
-  return inAwardSheet(idOf(data), now, (tx, l, today) => recordAwardCheck(tx, l, defOrder, personId, storedDay(on), note, now, today));
+  return inAwardSheet(idOf(data), now, (tx, l, today) => recordAwardCheck(tx, toAuditActor(actor), l, defOrder, personId, storedDay(on), note, now, today));
 }

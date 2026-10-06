@@ -26,6 +26,7 @@
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -44,7 +45,7 @@ type Audit = { id: string; organisationId: string; entity: string; entityId: str
 let auditNo = 0;
 function trail(organisationId: string, contract: string) {
   const audits: Audit[] = [];
-  const add = (entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") => audits.push({ id: `${P}qau${++auditNo}`, organisationId, entity, entityId, entityLabel: `${contract} · ${suffix}`, action, at: at(when), changes, reason, unattributed: true });
+  const add = (entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") => audits.push({ id: `${P}qau${++auditNo}`, organisationId, entity, entityId, entityLabel: `${contract} · ${suffix}`, action, at: at(when), changes, reason, ...DEMO_ACTOR });
   return { audits, add };
 }
 

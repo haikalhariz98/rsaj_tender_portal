@@ -10,6 +10,7 @@ import { issuerStanding } from "@/lib/securities/bond";
 import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { expiryAlert } from "@/lib/securities/expiry";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ const VIEWS: { id: RegisterView; label: string }[] = [
 ];
 
 export default async function SecuritiesPage({ searchParams }: { searchParams: Promise<{ page?: string; view?: string }> }) {
+  await requireStaff();
   const sp = await searchParams;
   const view = (VIEWS.find((v) => v.id === sp.view)?.id ?? "all") as RegisterView;
   const requested = Math.max(0, Number.parseInt(sp.page ?? "0", 10) || 0);

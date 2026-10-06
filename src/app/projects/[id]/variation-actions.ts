@@ -44,6 +44,8 @@ import { applicationPercents, orderBands } from "@/lib/variation/route";
 import { applicationFormNow, chooseVariationRejection, citeVariationDecision, decideVariationStep, matrixToday, sendVariationRoute, VariationRefusal, variationLabel, type VariationCtx } from "@/lib/variation/route-write";
 import { ADJUSTMENT_DIRECTIONS, ADJUSTMENT_TRIGGERS, RATE_SOURCES, SO_DECISIONS, VARIATION_EVENTS, VARIATION_EXEMPTIONS, VARIATION_ORIGINS, type AdjustmentTrigger, type Finding, type VariationEvent, type VariationExemption } from "@/lib/variation/types";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Variations and the adjustment of the contract sum on a contract (6.13 Part A step 4, 4d: FR-VAR-001–024,
@@ -55,7 +57,7 @@ import { FormReader } from "@/lib/validate";
  * re-runs the pure rule, writes, and audits in the same transaction. A refusal throws, so nothing is half-written. The
  * certificates it raises (the instruction, the order, the adjustment; the application when its approval is approved)
  * are opened through the certificate core (Contract → Certificate); they are signed, voided and sent on the core's own
- * page. Nobody is signed in: each act records the Person the officer names, "recorded on behalf of, not signed", and
+ * page. The signed-in officer is named on every audit row; each act records the Person the officer names, "recorded on behalf of, not signed", and
  * judges whether that Person may be recorded for it on the day. A cancelled contract refuses every act. The
  * organisation's day is the act's day; with no time zone, nothing is recorded (never UTC's day).
  */
@@ -77,7 +79,7 @@ interface Ctx extends VariationCtx {
 }
 
 /// Lock, refuse a cancelled contract or an unset zone, then run the act.
-async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) => Promise<FormState>, alsoRevalidate: readonly string[] = []): Promise<FormState> {
+async function inContract(actor: AuditActor, id: string, now: Date, act: ContractAct, fn: (c: Ctx) => Promise<FormState>, alsoRevalidate: readonly string[] = []): Promise<FormState> {
   let result: FormState | null;
   try {
     result = await withLockedContract(id, async (tx, l) => {
@@ -86,7 +88,7 @@ async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) 
       if (refused) return refused.code === "CONTRACT_CANCELLED" ? CANCELLED : { ok: false, message: actStatusText(refused) };
       const today = dayOf(now, l.org.timeZone);
       if (!today) return NO_ZONE;
-      return fn({ tx, l, now, today, label: contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } }) });
+      return fn({ tx, actor, l, now, today, label: contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } }) });
     });
   } catch (e) {
     if (e instanceof Refusal) return e.state;
@@ -105,7 +107,7 @@ async function inContract(id: string, now: Date, act: ContractAct, fn: (c: Ctx) 
 
 async function audit(c: Ctx, entity: string, entityId: string, label: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity, entityId, entityLabel: label, reason }, action, changes);
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity, entityId, entityLabel: label, reason }, action, changes);
 }
 
 const refuse = (lead: string, fs: readonly Finding[]): never => {
@@ -254,11 +256,12 @@ async function judgeRecord(c: Ctx, origin: "DEPARTMENT" | "SO_REPRESENTATIVE", f
 
 /// Record a variation as a draft (FR-VAR-001): its path, its originator, what it is and why, its estimate.
 export async function recordVariation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const { origin, fields, more } = readFields(r);
   if (r.failed || !origin || fields.estimate == null) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const who = await judgeRecord(c, origin, fields, more);
     const row = await c.tx.variation.create({
       data: {
@@ -276,12 +279,13 @@ export async function recordVariation(_prev: FormState, data: FormData): Promise
 
 /// Change a draft (before it is submitted), every answer audited before and after.
 export async function editVariation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
   const { origin, fields, more } = readFields(r);
   if (r.failed || !origin || fields.estimate == null) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     if (v.status !== "DRAFT") refuse("Not changed:", [{ code: "NOT_DRAFT", level: "block", data: { status: v.status } }]);
     const who = await judgeRecord(c, origin, fields, more);
@@ -321,11 +325,12 @@ async function readingNow(c: Ctx, all: readonly VariationRow[], v: VariationRow,
  * and its percentage's basis and base must be set (OD-A2: unset refuses submission, naming the setting).
  */
 export async function submitVariation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { all, v } = await lockVariation(c, variationId);
     const fields: ApplicationFields = { description: v.description, reason: v.reason, estimate: senFromDecimal(v.estimate), exemption: v.exemption as VariationExemption | null, periodImplication: v.periodImplication, agreedRateExists: v.agreedRateExists, funderConsentRequired: v.funderConsentRequired };
     const origin = { origin: v.origin as "DEPARTMENT" | "SO_REPRESENTATIVE", originatorCapacity: v.origin === "SO_REPRESENTATIVE" ? await repCapacityOf(c, v.originatorPersonId, c.today) : null, reviewerCapacity: await repCapacityOf(c, v.reviewedByPersonId, day(v.reviewedOn)), reviewRecorded: !!v.reviewedByPersonId && !!v.reviewedOn, allocationConfirmed: v.allocationConfirmed, principalRecorded: !!(await principalCapable(c, v.principalPersonId, day(v.principalOn))) };
@@ -367,6 +372,7 @@ async function principalCapable(c: Ctx, personId: string | null, on: string | nu
  * originator, or the variation ends), or, where none is configured, where the officer chooses (CO-5).
  */
 export async function decideVariation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -377,7 +383,7 @@ export async function decideVariation(_prev: FormState, data: FormData): Promise
   const personId = r.text("personId", "The S.O.", { required: true });
   const chosen = r.choice("whereTo", "Where it goes", ["RETURN_TO_ORIGINATOR", "TERMINATE"] as const);
   if (r.failed || !decision || !decidedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     const so = await recordedFor(c, personId, { soOnly: true }, decidedOn);
     const cap = capRaw ? parseSen(capRaw) : null;
@@ -413,6 +419,7 @@ export async function decideVariation(_prev: FormState, data: FormData): Promise
  * the revised sum waits for an adjustment in progress.
  */
 export async function sendVariationForApproval(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -420,7 +427,7 @@ export async function sendVariationForApproval(_prev: FormState, data: FormData)
   const keyed = r.money("value", "The amount at agreed rates");
   const personId = r.text("personId", "Sent by", { required: true });
   if (r.failed || !event) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { all, v } = await lockVariation(c, variationId);
     const sender = await personNamed(c, personId);
     const order = liveOrderRow(v);
@@ -463,6 +470,7 @@ export async function sendVariationForApproval(_prev: FormState, data: FormData)
 
 /// A named Person's decision on a person step of the variation's open route (6.1's checks).
 export async function decideVariationApprovalStep(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -473,7 +481,7 @@ export async function decideVariationApprovalStep(_prev: FormState, data: FormDa
   const receivedOn = dayField(r, "receivedOn", "Received on");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed || !decision || !decidedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     await decideVariationStep(c, v, { stepId, decision, personId, decidedOn, receivedOn, reason });
     return { ok: true };
@@ -482,13 +490,14 @@ export async function decideVariationApprovalStep(_prev: FormState, data: FormDa
 
 /// Discharge a committee's step from its decision on a matter tabled from this variation (FR-VAR-010, 013).
 export async function citeVariationCommittee(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
   const stepId = r.text("stepId", "Step", { required: true });
   const decisionId = r.text("committeeDecisionId", "The committee's decision", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     await citeVariationDecision(c, v, stepId, decisionId);
     return { ok: true };
@@ -497,6 +506,7 @@ export async function citeVariationCommittee(_prev: FormState, data: FormData): 
 
 /// Where a refused route goes, chosen by the officer where nothing was configured (FR-APR-016, CO-5).
 export async function chooseVariationRefusal(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -505,7 +515,7 @@ export async function chooseVariationRefusal(_prev: FormState, data: FormData): 
   const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     await chooseVariationRejection(c, v, { kind: kind ?? null, returnToSeq: seq, personId, reason });
     return { ok: true };
@@ -519,6 +529,7 @@ export async function chooseVariationRefusal(_prev: FormState, data: FormData): 
  * committee's Secretariat office on the tabling day tables it (an attestation until sign-in).
  */
 export async function tableVariationMatter(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -526,7 +537,7 @@ export async function tableVariationMatter(_prev: FormState, data: FormData): Pr
   const meetingId = r.text("meetingId", "Sitting", { required: true });
   const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed || !purpose) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     const roster = await loadRoster(ORGANISATION_CODE, c.tx);
     const s = await lockSittingIn(c.tx, meetingId, roster);
@@ -576,6 +587,7 @@ export async function tableVariationMatter(_prev: FormState, data: FormData): Pr
 
 /// Work commenced pending approval, on the support of the S.O. or a representative in force (FR-VAR-014).
 export async function recordCommencement(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -583,7 +595,7 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
   const personId = r.text("personId", "Supported by", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     const person = await personNamed(c, personId);
     const s = await loadSupervision(c.l.contract.id, c.tx);
@@ -600,13 +612,14 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
 
 /// Close a variation not yet approved (withdrawn, or ended), with the reason.
 export async function closeVariation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
   const personId = r.text("personId", "Recorded for", { required: true });
   const reason = r.text("reason", "Why it is closed", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     const person = await personNamed(c, personId);
     const fs = closeFaults({ v: factsOf(v), reason });
@@ -627,6 +640,7 @@ export async function closeVariation(_prev: FormState, data: FormData): Promise<
  * it was first given orally, the confirmation clock is frozen from the oral day now (FR-VAR-016).
  */
 export async function raiseInstruction(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -634,7 +648,7 @@ export async function raiseInstruction(_prev: FormState, data: FormData): Promis
   const oralIssuedOn = dayField(r, "oralIssuedOn", "Given orally on");
   const personId = r.text("personId", "Recorded for", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     const who = await recordedFor(c, personId, { act: "INSTRUCTION" }, c.today);
     const policy = await policyOf(c);
@@ -659,7 +673,7 @@ export async function raiseInstruction(_prev: FormState, data: FormData): Promis
       routingRatio: null,
     };
     // It goes by no approval route (BY_ROUTING_TYPE with none), so never on a routing sheet.
-    const certId = await openCertificate(c.tx, c.l, { kind: "SO_INSTRUCTION", templateId: kind.templateId, routingTypeId: null, sectionId: null, computed: snap }, c.now, c.today);
+    const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "SO_INSTRUCTION", templateId: kind.templateId, routingTypeId: null, sectionId: null, computed: snap }, c.now, c.today);
     const clock = await clockOf(c, "ORAL_CONFIRM");
     const row = await c.tx.variationInstruction.create({ data: { organisationId: c.l.org.id, variationId: v.id, certificateId: certId, description, scheduleForm: form!, oralIssuedOn: oralIssuedOn ? dayToDate(oralIssuedOn) : null, confirmDueOn: oralIssuedOn && clock ? dayToDate(dueOn(oralIssuedOn, clock)!) : null, personId: who.person.id, recordedAt: c.now } });
     await audit(c, "VariationInstruction", row.id, `${vLabel(c, v)} · the S.O.'s instruction`, "CREATE", diffFields(null, { description, scheduleForm: SCHEDULE_FORM_WORDS[form!].en, givenOrallyOn: oralIssuedOn, confirmationDue: oralIssuedOn ? (clock ? dueOn(oralIssuedOn, clock) : "clock not set (advisory)") : null, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }));
@@ -669,6 +683,7 @@ export async function raiseInstruction(_prev: FormState, data: FormData): Promis
 
 /// The oral loop (FR-VAR-016): the contractor's written confirmation and whether it matches; an objection where not.
 export async function recordOralLoop(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -677,7 +692,7 @@ export async function recordOralLoop(_prev: FormState, data: FormData): Promise<
   const objectedOn = dayField(r, "objectedOn", "Objected on");
   const objectionNote = r.text("objectionNote", "The objection", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     const ins = liveInstructionRow(v);
     if (!ins) return refuse("Not recorded:", [{ code: "INSTRUCTION_NOT_ISSUED", level: "block" }]);
@@ -696,6 +711,7 @@ export async function recordOralLoop(_prev: FormState, data: FormData): Promise<
 
 /// Measure one item under the instruction (FR-VAR-017, 018): its amount worked out, rounded once.
 export async function addMeasurement(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -726,7 +742,7 @@ export async function addMeasurement(_prev: FormState, data: FormData): Promise<
     r.reject("adjustmentPct", "A percentage, to at most four places (a reduction with a minus).");
   }
   if (r.failed || !rateSource || !direction || !measuredOn || !rate) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     const who = await recordedFor(c, personId, { act: "VALUATION" }, measuredOn);
     const ins = liveInstructionRow(v);
@@ -748,13 +764,14 @@ export async function addMeasurement(_prev: FormState, data: FormData): Promise<
 
 /// Remove a measured item while no order is raised from the instruction, with the reason (kept, marked removed).
 export async function removeMeasurement(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
   const measurementId = r.text("measurementId", "Item", { required: true });
   const reason = r.text("removedReason", "Why it is removed", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     const m = v.measurements.find((x) => x.id === measurementId);
     if (!m) return { ok: false, message: "That item is not on this variation." };
@@ -769,6 +786,7 @@ export async function removeMeasurement(_prev: FormState, data: FormData): Promi
 
 /// A daywork record (FR-VAR-019): the day worked, its agreement with the contractor, its substantiation (its clock frozen now).
 export async function recordDaywork(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -780,7 +798,7 @@ export async function recordDaywork(_prev: FormState, data: FormData): Promise<F
   const receivedOn = dayField(r, "substantiationReceivedOn", "Substantiation received on");
   const personId = r.text("personId", "Recorded for", { required: true });
   if (r.failed || !workedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     const who = await recordedFor(c, personId, { act: "VALUATION" }, c.today);
     const fs = dayworkFaults({ workedOn, agreedOn, agreedWith, receivedOn, description, today: c.today, instructed: v.instructions.some((i) => i.certificate.status === "ISSUED") });
@@ -810,6 +828,7 @@ export async function recordDaywork(_prev: FormState, data: FormData): Promise<F
  * re-measurement each sent from here first where it needs one).
  */
 export async function raiseVariationOrder(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -817,7 +836,7 @@ export async function raiseVariationOrder(_prev: FormState, data: FormData): Pro
   const clauseId = r.optionalText("valuationClauseId");
   const personId = r.text("personId", "Recorded for", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "VARIATION", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { all, v } = await lockVariation(c, variationId);
     const who = await recordedFor(c, personId, { act: "VALUATION" }, c.today);
     const ins = liveInstructionRow(v);
@@ -850,7 +869,7 @@ export async function raiseVariationOrder(_prev: FormState, data: FormData): Pro
     const o = orderFigures({ computedOn: c.today, original: baseline.values.contractSum, reference: v.reference!, instruction: { number: ins!.certificate.number ?? "", date: day(ins!.certificate.certificateDate) }, description, clauseTitle: clause!.titleEn, exemption: v.exemption ? EXEMPTION_WORDS[v.exemption as VariationExemption] : null, lines: linesIn, approved: approvedValue(self), cumulative, cumulativePct: cumPct, cumulativeBands: bands.words });
     const agreedRateTotal = lines.filter((x) => x.rateSource === "AGREED_RATE").reduce((a, x) => a + (x.direction === "ADDITION" ? senFromDecimal(x.amount) : 0n), 0n);
     // Approved on the variation's own routes (its approval of record), so never on a routing sheet.
-    const certId = await openCertificate(c.tx, c.l, { kind: "VARIATION", templateId: kind.templateId, routingTypeId: null, sectionId: null, computed: o.snapshot }, c.now, c.today);
+    const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "VARIATION", templateId: kind.templateId, routingTypeId: null, sectionId: null, computed: o.snapshot }, c.now, c.today);
     const judged = { version: 1, measurementIds: lines.map((x) => x.id), approved: approvedValue(self).toString(), cumulative: cumulative.toString(), net: o.totals.net.toString(), agreedRateTotal: agreedRateTotal.toString(), instructionId: ins!.id };
     const row = await c.tx.variationCertificate.create({ data: { organisationId: c.l.org.id, variationId: v.id, instructionId: ins!.id, certificateId: certId, description, direction: o.totals.direction, valuationClauseId: clause!.id, valuationClauseTitle: clause!.titleEn, judgedUnder: judged as Prisma.InputJsonValue, personId: who.person.id, recordedAt: c.now } });
     await audit(c, "VariationCertificate", row.id, `${vLabel(c, v)} · Variation Order Certificate`, "CREATE", diffFields(null, { measuredAdditions: money(o.totals.additions), measuredOmissions: money(o.totals.omissions), netValue: money(o.totals.net), addsOrOmits: DIRECTION_WORDS[o.totals.direction].en, approvedValue: money(approvedValue(self)), valuedUnder: clause!.titleEn, items: lines.length, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }));
@@ -869,6 +888,7 @@ const OTHER_LINES = 3;
  * it. One in progress at a time. It routes on the configured gap rule from its own page (FR-PAD-006).
  */
 export async function raiseSumAdjustment(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   // The tokens field rides out as one newline-joined value (the shared Select).
@@ -886,7 +906,7 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
     if (trigger && direction) others.push({ section: "OTHER", trigger, reference, description, direction, amount: parseSen(amountRaw), basis, orderId: null });
   }
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "SUM_ADJUSTMENT", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "SUM_ADJUSTMENT", async (c) => {
     // The contract's lock serialises every act on its variations and certificates (each takes it first): the orders
     // chosen are read on the locked transaction.
     const who = await recordedFor(c, personId, { act: "VALUATION" }, c.today);
@@ -910,7 +930,7 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
     if (fs.length) refuse("Not raised:", fs);
     const kind = await formOf(c, "SUM_ADJUSTMENT");
     const { snapshot, figures } = adjustmentSnapshot(c.today, baseline.values.contractSum, issued.map((a) => a.net), lines);
-    const certId = await openCertificate(c.tx, c.l, { kind: "SUM_ADJUSTMENT", templateId: kind.templateId, routingTypeId: kind.routingTypeId, sectionId: null, computed: snapshot }, c.now, c.today);
+    const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "SUM_ADJUSTMENT", templateId: kind.templateId, routingTypeId: kind.routingTypeId, sectionId: null, computed: snapshot }, c.now, c.today);
     const row = await c.tx.sumAdjustment.create({
       data: {
         organisationId: c.l.org.id, contractId: c.l.contract.id, certificateId: certId, personId: who.person.id, recordedAt: c.now,

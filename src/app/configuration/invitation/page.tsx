@@ -23,6 +23,7 @@ import { PRODUCT_SUMMARY_LABELS } from "@/lib/opening/grand-summary";
 import { INVITED_READING_LABEL, UNPURCHASED_LABEL } from "@/lib/opening/labels";
 
 import { CalendarDrawer, ChannelDrawer, EditMethodBidRule, EditMethodOpeningRule, EditOpeningPolicy, EditWindowPolicy, FloorDrawer, HolidayDrawer, ImportYearDrawer, RemoveFloorDrawer, RemoveHolidayDrawer, RetireCalendarDrawer, RetireChannelDrawer, YearDrawer } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,7 @@ const tri = (v: boolean | null | undefined) => (v === true ? "yes" : v === false
 const days = (n: number | null | undefined) => (n == null ? "Not set" : `${n} day${n === 1 ? "" : "s"}`);
 
 export default async function InvitationControlsPage() {
+  await requireStaff();
   const c = await invitationConfig();
   if (!c) {
     return (

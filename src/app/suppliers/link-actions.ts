@@ -23,6 +23,7 @@ import { FormReader } from "@/lib/validate";
 
 import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
 import { activePerson, audit, CHANGED, notes, NO_ORG, refuse, Refusal, stampNow } from "./shared";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /**
  * The register's acts that touch an exercise too (plan 6.15 §4.2, OD-9, FR-ADV-017): linking a party,
@@ -68,6 +69,7 @@ const supplierWords = (s: { reference: string; registeredName: string }) => `${s
 
 /// Link an exercise's party to the register's supplier. Its awards with that party follow, in the same transaction.
 export async function linkPartyToSupplier(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const r = new FormReader(data);
   const partyId = r.text("partyId", "Party", { required: true });
   const supplierId = r.text("supplierId", "Supplier", { required: true });
@@ -90,14 +92,14 @@ export async function linkPartyToSupplier(_prev: FormState, data: FormData): Pro
     if (blocking(fs).length) return refuseLink(fs);
     await tx.exerciseParty.update({ where: { id: party.id }, data: { vendorId: supplier!.id } });
     const differs = fs.find((f) => f.code === "NUMBER_DIFFERS");
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.party, party.id, `${l.ex.reference} · Party ${party.name}`, "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.party, party.id, `${l.ex.reference} · Party ${party.name}`, "UPDATE",
       diffFields({ supplier: null }, { supplier: supplierWords(supplier!), numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: reason || null, linkedBy: person.name, recordedOnBehalf: "not signed" }), reason);
     // The party's awards follow its link (the party is authoritative); one that disagreed is refused, never moved.
     for (const a of party.awards) {
       if (a.vendorId && a.vendorId !== supplier!.id) throw new Refusal({ ok: false, message: `Nothing was saved: award ${a.reference} already names another supplier, against its party's link.` });
       if (a.vendorId === supplier!.id) continue;
       await tx.award.update({ where: { id: a.id }, data: { vendorId: supplier!.id } });
-      await audit(tx, l.org.id, SUPPLIER_ENTITY.award, a.id, `${a.reference} · Awardee's supplier`, "UPDATE", diffFields({ supplier: null }, { supplier: supplierWords(supplier!), linkedBy: `${person.name}, through the awardee party's link` }));
+      await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.award, a.id, `${a.reference} · Awardee's supplier`, "UPDATE", diffFields({ supplier: null }, { supplier: supplierWords(supplier!), linkedBy: `${person.name}, through the awardee party's link` }));
     }
     const n = notes(fs);
     return { ok: true, message: `Linked to ${supplierWords(supplier!)}.${party.awards.length ? ` Its award${party.awards.length === 1 ? "" : "s"} follow${party.awards.length === 1 ? "s" : ""} the link.` : ""}${n ? ` ${n}` : ""}` };
@@ -106,6 +108,7 @@ export async function linkPartyToSupplier(_prev: FormState, data: FormData): Pro
 
 /// Link an award with no awardee party (Phase 1's awards) to the register's supplier.
 export async function linkAwardToSupplier(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const r = new FormReader(data);
   const awardId = r.text("awardId", "Award", { required: true });
   const supplierId = r.text("supplierId", "Supplier", { required: true });
@@ -125,7 +128,7 @@ export async function linkAwardToSupplier(_prev: FormState, data: FormData): Pro
     if (blocking(fs).length) return refuseLink(fs);
     await tx.award.update({ where: { id: award.id }, data: { vendorId: supplier!.id } });
     const differs = fs.find((f) => f.code === "NUMBER_DIFFERS");
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.award, award.id, `${award.reference} · Awardee's supplier`, "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.award, award.id, `${award.reference} · Awardee's supplier`, "UPDATE",
       diffFields({ supplier: null }, { supplier: supplierWords(supplier!), numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: reason || null, linkedBy: person.name, recordedOnBehalf: "not signed" }), reason);
     const n = notes(fs);
     return { ok: true, message: `Linked to ${supplierWords(supplier!)}.${n ? ` ${n}` : ""}` };
@@ -147,6 +150,7 @@ function refuseLink(fs: readonly Finding[]): FormState {
  * day given; with one, it waits for its route on `special_permission`.
  */
 export async function recordSpecialPermission(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const partyId = r.text("partyId", "Party", { required: true });
@@ -189,10 +193,10 @@ export async function recordSpecialPermission(_prev: FormState, data: FormData):
       },
     });
     const permLabel = `${l.ex.reference} · Special permission for ${party.name}`;
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.permission, perm.id, permLabel, "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.permission, perm.id, permLabel, "CREATE",
       diffFields(null, { requirement: reqLabel, relaxes: RELAXES_LABEL[relaxes!].en, grantedByBodies: grantingBodyLabels.join(", ") || null, internalApproval: internalApproval ? "Yes, on its route" : "No", existingClassConfirmed: "Confirmed", goodRecordConfirmed: "Confirmed", note: note || null, grantedOn: grantedOn, recordedBy: person!.name, recordedOnBehalf: "not signed" }), note);
     if (!internalApproval) return { ok: true, message: `Granted on ${formatDate(grantedOn!)}. ${RELAXES_LABEL[relaxes!].en} passes by special permission for this requirement.` };
-    const opened = await openSupplierRoute(tx, l.org, { domain: SPECIAL_PERMISSION_DOMAIN, cond: null, owner: { specialPermissionId: perm.id }, requester: person!, what: PERMISSION_MATTER, routeLabel: `${permLabel} · route`, matter: `Special permission for ${party.name} on ${l.ex.reference}`, ifRefused: PERMISSION_REFUSED_DECIDED_BY, now });
+    const opened = await openSupplierRoute(tx, toAuditActor(actor), l.org, { domain: SPECIAL_PERMISSION_DOMAIN, cond: null, owner: { specialPermissionId: perm.id }, requester: person!, what: PERMISSION_MATTER, routeLabel: `${permLabel} · route`, matter: `Special permission for ${party.name} on ${l.ex.reference}`, ifRefused: PERMISSION_REFUSED_DECIDED_BY, now });
     if (!opened.ok) throw new Refusal(opened.state);
     return { ok: true, message: "Recorded and sent on its route. It is granted once the route approves it." };
   }, p0.vendorId ? [`/suppliers/${p0.vendorId}`] : []);
@@ -200,6 +204,7 @@ export async function recordSpecialPermission(_prev: FormState, data: FormData):
 
 /// A named Person's decision on a step of a special permission's route.
 export async function decidePermissionStep(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const stepId = r.text("stepId", "Step", { required: true });
@@ -218,7 +223,7 @@ export async function decidePermissionStep(_prev: FormState, data: FormData): Pr
     const perm = await tx.specialPermission.findUniqueOrThrow({ where: { id: perm0.id }, include: { party: { select: { name: true } }, routes: { where: { status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } } } });
     const full = perm.routes.find((x) => x.steps.some((s) => s.id === stepId));
     if (!full) return { ok: false, message: "That step is not on a route awaiting a decision." };
-    const res = await decideSupplierStep(tx, l.org, full, stepId, { decision, personId, decidedOn: on, reason, requesterId: perm.requestedByPersonId, routeLabel: `${l.ex.reference} · Special permission for ${perm.party.name} · route`, refusedGoesTo: PERMISSION_REFUSED_DECIDED_BY, now });
+    const res = await decideSupplierStep(tx, toAuditActor(actor), l.org, full, stepId, { decision, personId, decidedOn: on, reason, requesterId: perm.requestedByPersonId, routeLabel: `${l.ex.reference} · Special permission for ${perm.party.name} · route`, refusedGoesTo: PERMISSION_REFUSED_DECIDED_BY, now });
     if ("refused" in res) return res.refused;
     if (res.outcome === "REJECTED") return { ok: true, message: "Refused on its route: the permission is not granted." };
     if (res.outcome === "APPROVED") return { ok: true, message: "Approved on its route. Record the day it was granted." };
@@ -228,6 +233,7 @@ export async function decidePermissionStep(_prev: FormState, data: FormData): Pr
 
 /// Grant a special permission its internal route approved, on the day given.
 export async function grantSpecialPermission(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const permissionId = r.text("permissionId", "Permission", { required: true });
@@ -249,7 +255,7 @@ export async function grantSpecialPermission(_prev: FormState, data: FormData): 
     if (blocking(fs).length) return refuse(fs, "Not granted:");
     const moved = await tx.specialPermission.updateMany({ where: { id: perm.id, grantedOn: null }, data: { grantedOn: dayToDate(grantedOn!), grantedByPersonId: person!.id, grantedAt: now } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.permission, perm.id, `${l.ex.reference} · Special permission for ${perm.party.name}`, "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.permission, perm.id, `${l.ex.reference} · Special permission for ${perm.party.name}`, "UPDATE",
       diffFields({ grantedOn: null }, { grantedOn: grantedOn!, grantedBy: person!.name, recordedOnBehalf: "not signed" }));
     return { ok: true, message: `Granted on ${formatDate(grantedOn!)}.` };
   }, p0.party.vendorId ? [`/suppliers/${p0.party.vendorId}`] : []);

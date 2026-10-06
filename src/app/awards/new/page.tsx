@@ -28,11 +28,13 @@ import { formatDate } from "@/lib/format";
 import { partyRegister } from "@/lib/suppliers/standing-repo";
 
 import { AwardForm } from "../award-form";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
 /// Open an award on an exercise in preparation (6.11), from the exercise's Award tab.
 export default async function NewAwardPage(props: PageProps<"/awards/new">) {
+  await requireStaff();
   const { exercise } = (await props.searchParams) as { exercise?: string };
   const l = exercise ? await loadExercise(exercise) : null;
   const header = (

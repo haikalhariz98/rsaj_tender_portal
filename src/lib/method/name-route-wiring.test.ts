@@ -35,7 +35,7 @@ describe("citing a committee's decision on the name's route", () => {
   const writer = readFileSync(join(process.cwd(), "src/lib/method/name-route-write.ts"), "utf8");
   const body = writer.slice(writer.indexOf("export async function citeNameStep("));
   it("the act runs the route writer's citation", () => {
-    expect(fn("citeNameDecision")).toMatch(/return inExercise\(id, \(tx, l\) => citeNameStep\(tx, l, stepId, decisionId\)\);/);
+    expect(fn("citeNameDecision")).toMatch(/return inExercise\(id, \(tx, l\) => citeNameStep\(tx, toAuditActor\(actor\), l, stepId, decisionId\)\);/); // Phase 1b: who acted is the argument after the transaction
     expect(body.length).toBeGreaterThan(0);
   });
   it("judges the matter with nameCitationFault, not the award's exerciseCitationFault", () => {

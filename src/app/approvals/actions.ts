@@ -25,6 +25,7 @@ import { MATTER_KIND_WORDS } from "@/lib/matter/write";
 import { holdersFor } from "@/lib/requisition/holders";
 import { supplierHolders } from "@/lib/suppliers/route";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /**
  * Escalate a pending person step (FR-APR-009, FR-APR-010, FR-APR-012; rulings CO-6,
@@ -39,6 +40,7 @@ import { FormReader } from "@/lib/validate";
  * on their behalf, not signed) are written beside it with the audit row.
  */
 export async function escalateStep(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const r = new FormReader(data);
   const stepId = r.text("stepId", "Step", { required: true });
   const kind = r.choice("kind", "Why", ["NO_AVAILABLE_HOLDER", "CONFLICT_DECLARED"] as const, { required: true });
@@ -174,7 +176,7 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
       const moved = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
       if (moved.count !== 1) return { ok: false, message: "The step changed while this was being saved. Reload and try again." };
       const matter = inst.contractMatter?.id ? `${contractLabel({ number: inst.contractMatter.contract.number, award: { awardeeName: inst.contractMatter.contract.award.awardeeName } })} · ${MATTER_KIND_WORDS[inst.contractMatter.kind as ContractMatterKind].en} ${inst.contractMatter.reference ?? "(not yet numbered)"}` : inst.variation?.id ? `${contractLabel({ number: inst.variation.contract.number, award: { awardeeName: inst.variation.contract.award.awardeeName } })} · variation ${inst.variation.reference ?? "(not yet numbered)"}` : inst.certificate?.id ? `${contractLabel({ number: inst.certificate.contract.number, award: { awardeeName: inst.certificate.contract.award.awardeeName } })} · ${KIND_WORDS[inst.certificate.kind].en}${inst.certificate.number ? ` ${inst.certificate.number}` : ""}` : inst.award ? `${inst.award.reference} · appointment` : inst.exercise ? `${inst.exercise.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}` : inst.supplierApplication ? `${inst.supplierApplication.supplier.reference} · Registration approval route` : inst.standingRequest ? `${inst.standingRequest.supplier.reference} · ${inst.standingRequest.kind === "BLACKLIST" ? "Blacklisting route" : "Blacklisting lift route"}` : inst.specialPermission ? `${inst.specialPermission.exercise.reference} · Special permission route` : `${inst.requisition?.reference ?? "Matter"}`;
-      await writeAudit(tx, { organisationId: req.organisationId, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matter} · ${step.roleLabel}`, reason }, "UPDATE",
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: req.organisationId, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matter} · ${step.roleLabel}`, reason }, "UPDATE",
         diffFields(
           { actingOffice: step.actingRoleLabel ?? step.roleLabel },
           {

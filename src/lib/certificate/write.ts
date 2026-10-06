@@ -6,7 +6,7 @@
  * so the whole transaction rolls back and nothing is half-written. The owning 6.13 module calls these from its
  * own acts; the certificate page's acts call them directly.
  *
- * Nobody is signed in: a signature, a check or an override records the Person the officer names, "recorded on
+ * The signed-in officer is named on every audit row; a signature, a check or an override records the Person the officer names, "recorded on
  * behalf of, not signed". Server stamps are read once, at the act's entry, and passed in as `now` (truncated to
  * the second); `today` is the organisation's day of that instant. The certificate's date is written only by a
  * signature and by its audited correction (a source scan holds that).
@@ -49,6 +49,7 @@ import { readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./s
 import { certificateTransition } from "./status";
 import type { CertificateKind, CertificateStatus, DeliveryMethod, Finding } from "./types";
 import { isPersonRule } from "./types";
+import type { AuditActor } from "@/lib/auth/types";
 
 /// A refusal: rolls the transaction back. `errors` names a field where the refusal is about one.
 export class CertificateRefusal extends Error {
@@ -69,6 +70,8 @@ const CHANGED = "The certificate changed while this was being saved. Reload and 
 
 export interface CertCtx {
   tx: Tx;
+  /// Who acted, for the audit rows the act writes.
+  actor: AuditActor;
   l: LoadedCertificate;
   /// The server's instant, read once at the act's entry, to the second.
   now: Date;
@@ -81,9 +84,9 @@ const statusOf = (c: CertCtx) => c.l.cert.status as CertificateStatus;
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const money = (v: string | null) => (v == null ? null : formatSen(parseSen(v)));
 
-async function audit(c: { tx: Tx; l: LoadedContract }, entity: string, entityId: string, label: string, action: "CREATE" | "UPDATE" | "DELETE", changes: ReturnType<typeof diffFields>, reason = "") {
+async function audit(c: { tx: Tx; l: LoadedContract; actor: AuditActor }, entity: string, entityId: string, label: string, action: "CREATE" | "UPDATE" | "DELETE", changes: ReturnType<typeof diffFields>, reason = "") {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity, entityId, entityLabel: label, reason }, action, changes);
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity, entityId, entityLabel: label, reason }, action, changes);
 }
 
 /// Move the certificate from the status read under the lock, or roll back.
@@ -119,7 +122,7 @@ export interface OpenInput {
  * baseline version in force today (ADR 0021 §3); refuses a cancelled contract, no version in force, figures
  * not in the certificate's form, a section not of that version, and a routing type not for this kind.
  */
-export async function openCertificate(tx: Tx, l: LoadedContract, o: OpenInput, now: Date, today: string): Promise<string> {
+export async function openCertificate(tx: Tx, actor: AuditActor, l: LoadedContract, o: OpenInput, now: Date, today: string): Promise<string> {
   if (l.contract.status === "CANCELLED") refuse("Not opened:", one("CONTRACT_CANCELLED"));
   const versions = l.contract.baselines.filter((b) => b.version != null).map((b) => ({ ...b, recordedOn: b.recordedOn ? storedDay(b.recordedOn) : null }));
   const baseline = baselineFor(versions, today);
@@ -155,7 +158,7 @@ export async function openCertificate(tx: Tx, l: LoadedContract, o: OpenInput, n
       openedOn: dayToDate(today),
     },
   });
-  await audit({ tx, l }, "Certificate", row.id, certificateLabel(l, { id: row.id, kind: o.kind, number: null }), "CREATE", diffFields(null, { certificate: KIND_WORDS[o.kind].en, stage: STATUS_WORDS.DRAFT.en, baselineVersion: `version ${baseline!.version}`, figures: o.computed ? o.computed.rule.en : "none", routed: o.routingTypeId ? "yes" : "no" }));
+  await audit({ tx, l, actor }, "Certificate", row.id, certificateLabel(l, { id: row.id, kind: o.kind, number: null }), "CREATE", diffFields(null, { certificate: KIND_WORDS[o.kind].en, stage: STATUS_WORDS.DRAFT.en, baselineVersion: `version ${baseline!.version}`, figures: o.computed ? o.computed.rule.en : "none", routed: o.routingTypeId ? "yes" : "no" }));
   return row.id;
 }
 
@@ -423,7 +426,7 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   await audit(c, "Certificate", cert.id, `${labelOf(c)} ${number}`, "UPDATE", diffFields({ stage: STATUS_WORDS.SIGNING.en, number: null }, { stage: STATUS_WORDS.ISSUED.en, number, ordinal: `${KIND_WORDS[cert.kind].en} ${sequence} on this contract`, certificateDate, copies: plan.copies.length, notSent: plan.skipped.map((s) => s.recipientName).join(", ") || null }));
   // 6.13 Part A step 4 (OD-A7 A): an issued adjustment of the contract sum re-resolves the S.O. where the switch says so,
   // in this transaction; a refusal rolls the issue back.
-  const after = await afterCertificateIssue(c.tx, c.l, cert, c.now, c.today);
+  const after = await afterCertificateIssue(c.tx, c.actor, c.l, cert, c.now, c.today);
   if (after) throw new CertificateRefusal(after);
 }
 

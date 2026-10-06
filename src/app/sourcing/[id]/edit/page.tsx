@@ -13,10 +13,12 @@ import { approvedRouteOf, loadExercise } from "@/lib/method/repo";
 import { addSen, formatMoney, parseSen, subtractSen } from "@/lib/money";
 
 import { ExerciseForm } from "../../exercise-form";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/edit">) {
+  await requireStaff();
   const { id } = await props.params;
   const l = await loadExercise(id);
   if (!l) notFound();

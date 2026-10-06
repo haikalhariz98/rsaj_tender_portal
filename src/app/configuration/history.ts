@@ -19,6 +19,7 @@ import { SOURCE_LABEL, SPLIT_KEY_LABEL, STATUS_LABEL, TIER_LABEL } from "@/lib/r
 import { ORGANISATION_CODE } from "@/lib/org";
 import { ACT_LABEL } from "@/lib/labels";
 import { formatOrgDateTime } from "@/lib/format";
+import { requireStaff } from "@/app/_auth/actor";
 
 /// The entities whose history a screen may ask for. Anything else is refused rather
 /// than read, so the action cannot be used to page through the whole trail.
@@ -96,6 +97,8 @@ const ENTITIES = new Set([
   "SupplierDocumentType",
   "SupplierListValue",
   "SupplierPolicy",
+  // Phase 1b: a sign-in account's trail (who made it, disabled it, issued it a code). Administrators only: see `historyOf`.
+  "StaffAccount",
 ]);
 
 /// Entities whose configuration key is not part of what their history shows (the name is); older rows carry it.
@@ -138,6 +141,7 @@ const ENTITY_VALUE_LABEL: Record<string, Record<string, Record<string, string>>>
   FinanceIntegration: { budgetCheckSource: SOURCE_LABEL },
   DocumentClass: { classification: CLASSIFICATION_LABEL, retentionTrigger: RETENTION_TRIGGER_LABEL, disposalMethod: DISPOSAL_METHOD_LABEL },
   SourcingMethod: { scopeAct: ACT_LABEL },
+  StaffAccount: { status: { ACTIVE: "Active", PENDING_ACTIVATION: "Waiting for activation", DISABLED: "Disabled" } },
 };
 /// Yes or No where a stored flag is a boolean.
 const FLAG_FIELDS = new Set(["requiresCompanyEstimate", "requiresBq", "scopeApprovalRequired", "completenessEliminates"]);
@@ -193,7 +197,10 @@ async function valueReader(entity = ""): Promise<(field: string, value: string |
 /// core routing rows and steps (found by their label, which begins with the issue's), so
 /// a row or step that has since been removed is still reachable.
 export async function historyOf(entity: string, entityId: string): Promise<HistoryEntry[]> {
+  const actor = await requireStaff();
   if (!ENTITIES.has(entity) || !entityId) return [];
+  // A sign-in account's trail names sign-in names and why codes were issued: for the people who administer accounts.
+  if (entity === "StaffAccount" && !actor.isAdministrator) return [];
   const issue = entity === "AuthorityMatrix" ? await db.authorityMatrix.findUnique({ where: { id: entityId }, select: { label: true } }) : null;
   const [own, core, read, org] = await Promise.all([
     loadAudit(ORGANISATION_CODE, { entity, entityId, take: 100 }),

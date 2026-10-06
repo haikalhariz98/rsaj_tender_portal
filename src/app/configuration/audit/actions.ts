@@ -8,6 +8,7 @@ import { writeAudit } from "@/lib/audit/record";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 export interface ExportResult {
   ok: boolean;
@@ -29,6 +30,7 @@ const DAY_MS = 86_400_000;
  * its digest.
  */
 export async function exportAuditTrail(_prev: ExportResult, data: FormData): Promise<ExportResult> {
+  const actor = await requireStaff();
   const fromDay = String(data.get("fromDay") ?? "").trim() || null;
   const toDay = String(data.get("toDay") ?? "").trim() || null;
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
@@ -58,7 +60,7 @@ export async function exportAuditTrail(_prev: ExportResult, data: FormData): Pro
       const sha256 = sha256Hex(file);
       const fileName = exportFileName(fromDay!, toDay!);
       const row = await tx.auditExport.create({ data: { organisationId: org.id, fromDay: dayToDate(fromDay!), toDay: dayToDate(toDay!), rowCount: picked.length, sha256, fileName } });
-      await writeAudit(tx, { organisationId: org.id, entity: "AuditExport", entityId: row.id, entityLabel: `Audit trail export ${fromDay} to ${toDay}` }, "CREATE",
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "AuditExport", entityId: row.id, entityLabel: `Audit trail export ${fromDay} to ${toDay}` }, "CREATE",
         diffFields(null, { fromDay: dayToDate(fromDay!), toDay: dayToDate(toDay!), rowCount: picked.length, sha256, fileName }));
       return { file, sha256, fileName, rowCount: picked.length };
     },

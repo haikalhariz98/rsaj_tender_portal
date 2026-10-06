@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 import { scheduleSection } from "@/lib/opening/read";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ const NOT_FINALISED = "Not finalised";
  * and say so; this is the only paper route while a SULIT scan cannot be downloaded.
  */
 export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/opening/print">) {
+  await requireStaff();
   const { id } = await props.params;
   const wanted = (await props.searchParams).opening;
   const d = await scheduleSection(id);

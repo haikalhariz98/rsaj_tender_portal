@@ -13,6 +13,7 @@ import { APPENDIX_CARD, appendixCopy, NOT_SET } from "@/lib/tender-docs/labels";
 import { appendixPage } from "@/lib/tender-docs/read";
 
 import { AppendixDrawer, LimitDrawer, RemoveLimitDrawer, RemoveSectionDrawer, SectionDrawer } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ const val = (v: string): ReactNode => (v === NOT_SET ? <Badge tone="warn">Not se
  * department's estimate or bill (SULIT): a percentage is fixed at award, on the awarded sum.
  */
 export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appendix">) {
+  await requireStaff();
   const { id } = await props.params;
   const d = await appendixPage(id);
   if (!d) notFound();

@@ -27,12 +27,14 @@ import { loadDocumentClasses } from "@/lib/records/load";
 
 import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
 import { AddDocumentClass, EditDocumentClass, EditStorePolicy, ReleaseHold } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
 const NOT_SET = <span className="text-ink-4">Not set</span>;
 
 export default async function DocumentsConfigPage() {
+  await requireStaff();
   const org = await documentOrg();
   const [classes, upload, staged, holds, policy, officeRows] = await Promise.all([
     loadDocumentClasses(ORGANISATION_CODE),

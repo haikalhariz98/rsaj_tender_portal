@@ -14,6 +14,7 @@ import { db } from "@/lib/db";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
 import { splitValues } from "@/lib/ui/select-logic";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/documents";
@@ -32,6 +33,7 @@ const NO_ORG: FormState = {
 };
 
 export async function saveDocumentClass(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -91,6 +93,7 @@ export async function saveDocumentClass(_prev: FormState, data: FormData): Promi
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "DocumentClass",
     entityLabel: v.nameEn,
@@ -132,6 +135,7 @@ export async function saveDocumentClass(_prev: FormState, data: FormData): Promi
  * before and after in the same transaction.
  */
 export async function saveStorePolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
@@ -154,7 +158,7 @@ export async function saveStorePolicy(_prev: FormState, data: FormData): Promise
       update: { allowedMediaTypes, maxBytes, provenance, notes },
     });
     const changes = diffFields(policyView(before), policyView(row));
-    if (!before || changes.length) await writeAudit(tx, { organisationId: orgId, entity: "DocumentStorePolicy", entityId: row.id, entityLabel: "Upload rules", reason }, before ? "UPDATE" : "CREATE", changes);
+    if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "DocumentStorePolicy", entityId: row.id, entityLabel: "Upload rules", reason }, before ? "UPDATE" : "CREATE", changes);
   });
   revalidatePath(PATH);
   return { ok: true };

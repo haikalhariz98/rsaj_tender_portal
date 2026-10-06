@@ -62,6 +62,7 @@ import { contractCancellable } from "@/lib/contract/status";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { afterStep, audit, CHANGED, citeAppointmentStep, labelOf, mustMove, NO_ZONE, Refusal, routeLabel, sendAwardRejected } from "@/lib/award/route-write";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /**
  * Writes for awards (6.11) and the registers on their contracts.
@@ -70,8 +71,7 @@ import { afterStep, audit, CHANGED, citeAppointmentStep, labelOf, mustMove, NO_Z
  * transaction that locks the requisition, the exercise and the award, and reads the
  * issue in force and the configuration there (`awardFacts` → `evaluateAward`). The
  * write and its audit rows share the transaction; a refusal saves nothing and names
- * what blocks it. Nobody is signed in: a decision or a signature records the Person the
- * officer names, "recorded on behalf of, not signed", and the audit stays unattributed.
+ * what blocks it. Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that).
  */
 
 const GONE: FormState = { ok: false, message: "That award no longer exists." };
@@ -172,6 +172,7 @@ function recordedReasons(e: EvaluationGate, value: Sen, period: AwardFigures["pe
  * `award` series in the same transaction. At most one live award per exercise.
  */
 export async function createAward(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = String(data.get("exerciseId") ?? "");
   const r = new FormReader(data);
   const v = {
@@ -264,7 +265,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
           ...(filled.regulatedActivity != null ? { regulatedActivity: filled.regulatedActivity } : {}),
         },
       });
-      await audit(tx, org.id, "Award", row.id, labelOf(row), "CREATE", awardAuditCreate(row, { exercise: ex.reference, instrument: instrument.kind, ...(row.awardeePartyId ? { awardeeBidder: awardeeBidderText(opening.carried, row.awardeePartyId) } : {}), ...(party?.vendor ? { supplier: supplierWords(party.vendor), supplierLink: "Follows the awardee party's link" } : {}), ...(tender ? { termsFrom: `the tender Appendix, documents version ${tender.packVersion}` } : {}) }));
+      await audit(tx, toAuditActor(actor), org.id, "Award", row.id, labelOf(row), "CREATE", awardAuditCreate(row, { exercise: ex.reference, instrument: instrument.kind, ...(row.awardeePartyId ? { awardeeBidder: awardeeBidderText(opening.carried, row.awardeePartyId) } : {}), ...(party?.vendor ? { supplier: supplierWords(party.vendor), supplierLink: "Follows the awardee party's link" } : {}), ...(tender ? { termsFrom: `the tender Appendix, documents version ${tender.packVersion}` } : {}) }));
       id = row.id;
       return { ok: true };
     });
@@ -283,6 +284,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
 /// The awardee, value and period: only while the award is a draft, because they are
 /// what the appointment approves.
 export async function updateAwardDetails(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const v = {
@@ -331,7 +333,7 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
     // R-7: the bidder named reads by name in the trail, never as the party's id.
     const bidder = opening && partyWrite !== undefined && partyWrite !== l.award.awardeePartyId ? diffFields({ awardeeBidder: awardeeBidderText(opening.carried, l.award.awardeePartyId) }, { awardeeBidder: awardeeBidderText(opening.carried, partyWrite) }) : [];
     const relinked = link && link.vendorId !== l.award.vendorId ? diffFields({ supplier: l.award.vendor ? supplierWords(l.award.vendor) : null }, { supplier: party?.vendor ? supplierWords(party.vendor) : null, supplierLink: "Follows the awardee party's link" }) : [];
-    await audit(tx, l.org.id, "Award", id, labelOf(l.award), "UPDATE", [...awardAuditPair(l.award, { ...l.award, ...after }), ...bidder, ...relinked], String(data.get("reason") ?? ""));
+    await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(l.award), "UPDATE", [...awardAuditPair(l.award, { ...l.award, ...after }), ...bidder, ...relinked], String(data.get("reason") ?? ""));
     return { ok: true };
   });
 }
@@ -339,6 +341,7 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
 /// The letter's terms, the bond decision and the start date: until issue, each with its
 /// provenance. None is defaulted (D4, B3, B8).
 export async function updateAwardTerms(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const bondRequired = triState(r, "bondRequired", "Performance bond required");
@@ -396,7 +399,7 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
     }
     const moved = await tx.award.updateMany({ where: { id, status: l.award.status, updatedAt: l.award.updatedAt }, data: after });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "Award", id, labelOf(l.award), "UPDATE", awardAuditPair(l.award, { ...l.award, ...after }), String(data.get("reason") ?? ""));
+    await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(l.award), "UPDATE", awardAuditPair(l.award, { ...l.award, ...after }), String(data.get("reason") ?? ""));
     return { ok: true };
   });
 }
@@ -411,6 +414,7 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
  * classification is locked from here (FR-MTD-011).
  */
 export async function submitAward(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   return inAward(id, async (tx, l) => {
     const t = awardTransition(l.award.status as AwardStatus, "PENDING_APPROVAL", { today: l.org.today });
@@ -468,19 +472,19 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
         },
       },
     });
-    await audit(tx, l.org.id, "ApprovalInstance", instance.id, routeLabel(l.award), "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", instance.id, routeLabel(l.award), "CREATE",
       diffFields(null, { matrix: r.issue.label, rule: rule.labelEn, route: route.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: route.source === "OVERRIDE", escalated: route.warnings.some((w) => w.code === "ABSENCE" || w.code === "SELF_APPROVAL") ? "yes" : null }));
     // FR-MTD-009: a direct appointment is sent on the dossier evidence attached now, and
     // the pins are kept: issue refuses if one of them is withdrawn since (scope ruling).
     const dossier = r.method?.requiresDossier ? evidenceSnapshot((await dossierEvidenceOf(l.ex.id, null, tx)).attachments, ["DOSSIER_EVIDENCE"], l.org.today!) : null;
     await mustMove(tx, l, "PENDING_APPROVAL", dossier ? { dossierEvidenceSnapshot: dossier as unknown as Prisma.InputJsonValue } : {});
-    await audit(tx, l.org.id, "Award", id, labelOf(l.award), "UPDATE", diffFields({ status: l.award.status }, { status: "PENDING_APPROVAL", dossierEvidence: dossier ? dossier.pins.map((p) => `${p.title} (version ${p.versionNo})`).join("; ") : null }));
+    await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(l.award), "UPDATE", diffFields({ status: l.award.status }, { status: "PENDING_APPROVAL", dossierEvidence: dossier ? dossier.pins.map((p) => `${p.title} (version ${p.versionNo})`).join("; ") : null }));
     // FR-MTD-011: the contract type is fixed from the award on; changed only by a controlled change.
     // The moment it was locked; shown as the organisation's day (formatOrgDay).
     if (!l.ex.classificationLockedAt) {
       const lockedAt = new Date();
       await tx.sourcingExercise.update({ where: { id: l.ex.id }, data: { classificationLockedAt: lockedAt } });
-      await audit(tx, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ classificationLockedAt: null }, { classificationLockedAt: on }), `Award ${l.award.reference} sent for approval.`);
+      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ classificationLockedAt: null }, { classificationLockedAt: on }), `Award ${l.award.reference} sent for approval.`);
     }
     return { ok: true };
   });
@@ -494,6 +498,7 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
  * nothing (FR-APR-016, ruling CO-5): recorded as their choice on behalf of a named Person.
  */
 export async function chooseAwardRejection(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
@@ -516,8 +521,8 @@ export async function chooseAwardRejection(_prev: FormState, data: FormData): Pr
     }
     const person = await tx.person.findFirst({ where: { id: personId!, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
     if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
-    await recordChoice(tx, { organisationId: l.org.id, routeLabel: routeLabel(l.award) }, inst!.id, kind!, person.id, person.name, reason);
-    await sendAwardRejected(tx, l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
+    await recordChoice(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel: routeLabel(l.award) }, inst!.id, kind!, person.id, person.name, reason);
+    await sendAwardRejected(tx, toAuditActor(actor), l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
     return { ok: true };
   });
 }
@@ -529,6 +534,7 @@ export async function chooseAwardRejection(_prev: FormState, data: FormData): Pr
  * discharged by its committee's decision.
  */
 export async function decideAppointmentStep(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);
@@ -571,9 +577,9 @@ export async function decideAppointmentStep(_prev: FormState, data: FormData): P
     const after = personDecisionWrite({ decision, person: { id: person!.id, name: person!.name }, decidedOn: on, receivedOn: received, delegationId: check.delegationId, reason, recordedAt: new Date() });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.award.reference} · ${step.roleLabel}`, "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${l.award.reference} · ${step.roleLabel}`, "UPDATE",
       diffFields({ decision: step.decision, receivedOn: null }, { decision, decidedBy: person!.name, decidedOn: on, receivedOn: received, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
-    await afterStep(tx, l, inst.id, decision, step.id, reason);
+    await afterStep(tx, toAuditActor(actor), l, inst.id, decision, step.id, reason);
     return { ok: true };
   });
 }
@@ -585,12 +591,13 @@ export async function decideAppointmentStep(_prev: FormState, data: FormData): P
  * carried refuses the route and returns the award to Draft; deferred leaves it waiting.
  */
 export async function citeAppointmentDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const decisionId = String(data.get("committeeDecisionId") ?? "");
   if (!decisionId) return { ok: false, errors: { committeeDecisionId: "Choose the committee's decision." } };
   // The citation is citeAppointmentStep (award/route-write.ts), the one a sitting's outcome also runs (founder, 2026-10-05).
-  return inAward(id, (tx, l) => citeAppointmentStep(tx, l, stepId, decisionId));
+  return inAward(id, (tx, l) => citeAppointmentStep(tx, toAuditActor(actor), l, stepId, decisionId));
 }
 
 // ------------------------------------------------------------- the commitment
@@ -600,6 +607,7 @@ export async function citeAppointmentDecision(_prev: FormState, data: FormData):
  * or a purchase order after. Consumed, never minted; checked against its format.
  */
 export async function recordCommitment(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const number = r.text("erpCommitmentNo", "Number", { required: true, max: 60 });
@@ -621,7 +629,7 @@ export async function recordCommitment(_prev: FormState, data: FormData): Promis
     }
     const after = { erpCommitmentNo: number, erpCommitmentKind: kind, commitmentRecordedOn: dayToDate(l.org.today), indentReceivedOn: kind === "INDENT" ? received : null };
     await tx.award.update({ where: { id }, data: after });
-    await audit(tx, l.org.id, "Award", id, labelOf(a), "UPDATE", diffFields({ erpCommitmentNo: null }, { ...after, source: "typed by an officer" }));
+    await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(a), "UPDATE", diffFields({ erpCommitmentNo: null }, { ...after, source: "typed by an officer" }));
     return { ok: true };
   });
 }
@@ -636,6 +644,7 @@ export async function recordCommitment(_prev: FormState, data: FormData): Promis
  * issued — each audited. Anything the gate or the signatory check finds refuses all of it.
  */
 export async function issueAward(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const personId = r.text("signatoryPersonId", "Signed by", { required: true });
@@ -673,14 +682,14 @@ export async function issueAward(_prev: FormState, data: FormData): Promise<Form
       const bad = ev.documents.filter((d) => d.state !== "OK" || d.missing.length || d.unknown.length);
       if (bad.length || ev.issueFaults.length) throw new Refusal(refuse(issueFaultsOf(ev), "Not issued:"));
       const contract = await tx.contract.create({ data: { organisationId: l.org.id, number, numberSource: src.source, seriesKey: src.source === "SERIES" ? src.seriesKey : null, numberedOn: on, awardId: a.id, contractSum: a.awardedValue } });
-      await audit(tx, l.org.id, "Contract", contract.id, `${a.reference} · contract ${number}`, "CREATE", diffFields(null, { number, numberSource: src.source, numberedOn: on, contractSum: senToDecimalString(senFromDecimal(a.awardedValue)), yearReading: "issue date, assumed" }));
+      await audit(tx, toAuditActor(actor), l.org.id, "Contract", contract.id, `${a.reference} · contract ${number}`, "CREATE", diffFields(null, { number, numberSource: src.source, numberedOn: on, contractSum: senToDecimalString(senFromDecimal(a.awardedValue)), yearReading: "issue date, assumed" }));
       const policy = f.config.policy;
       const handover = await tx.caseOwnershipEvent.create({ data: { contractId: contract.id, fromUnitCode: policy.preContractUnitCode, toUnitCode: policy.postContractUnitCode, on, note: policy.preContractUnitCode && policy.postContractUnitCode ? "" : "Sections not set: the handover is recorded without them." } });
-      await audit(tx, l.org.id, "CaseOwnershipEvent", handover.id, `${a.reference} · case handed over`, "CREATE", diffFields(null, { from: f.config.unitName(policy.preContractUnitCode), to: f.config.unitName(policy.postContractUnitCode), on }));
+      await audit(tx, toAuditActor(actor), l.org.id, "CaseOwnershipEvent", handover.id, `${a.reference} · case handed over`, "CREATE", diffFields(null, { from: f.config.unitName(policy.preContractUnitCode), to: f.config.unitName(policy.postContractUnitCode), on }));
       if ("rows" in ev.distribution) {
         for (const row of ev.distribution.rows) {
           const d = await tx.awardDistribution.create({ data: { awardId: a.id, ...row } });
-          await audit(tx, l.org.id, "AwardDistribution", d.id, `${a.reference} · copy to ${row.recipientName}`, "CREATE", diffFields(null, { recipient: row.recipientName, mandatory: row.mandatory, awardee: row.isAwardee }));
+          await audit(tx, toAuditActor(actor), l.org.id, "AwardDistribution", d.id, `${a.reference} · copy to ${row.recipientName}`, "CREATE", diffFields(null, { recipient: row.recipientName, mandatory: row.mandatory, awardee: row.isAwardee }));
         }
       }
       const frozenAt = new Date();
@@ -692,10 +701,10 @@ export async function issueAward(_prev: FormState, data: FormData): Promise<Form
             language: d.language!, version: 1, fields: d.fields as Prisma.InputJsonValue, renderedText: renderedText(d.rendered!), frozenAt,
           },
         });
-        await audit(tx, l.org.id, "AwardDocument", doc.id, `${a.reference} · ${t.nameEn}`, "CREATE", diffFields(null, { template: t.nameEn, formCode: t.formCode, textVersion: t.bodyVersion, language: d.language, frozen: "yes" }));
+        await audit(tx, toAuditActor(actor), l.org.id, "AwardDocument", doc.id, `${a.reference} · ${t.nameEn}`, "CREATE", diffFields(null, { template: t.nameEn, formCode: t.formCode, textVersion: t.bodyVersion, language: d.language, frozen: "yes" }));
       }
       const ret = await tx.awardReturn.create({ data: { awardId: a.id } });
-      await audit(tx, l.org.id, "AwardReturn", ret.id, `${a.reference} · return`, "CREATE", diffFields(null, { opened: "yes" }));
+      await audit(tx, toAuditActor(actor), l.org.id, "AwardReturn", ret.id, `${a.reference} · return`, "CREATE", diffFields(null, { opened: "yes" }));
 
       const variant = ev.variant?.state === "SELECTED" ? ev.variant.variant : null;
       const snapshot = {
@@ -720,7 +729,7 @@ export async function issueAward(_prev: FormState, data: FormData): Promise<Form
         signatoryPersonId: person!.id, signatoryName: person!.name, signedOn: signed, signatoryDelegationId: check.delegationId, variantId: variant?.id ?? null, variantName: variant?.nameEn ?? null,
       };
       await mustMove(tx, l, "ISSUED", { ...after, issueSnapshot: snapshot as unknown as Prisma.InputJsonValue });
-      await audit(tx, l.org.id, "Award", a.id, labelOf(a), "UPDATE",
+      await audit(tx, toAuditActor(actor), l.org.id, "Award", a.id, labelOf(a), "UPDATE",
         diffFields({ status: a.status }, { status: "ISSUED", issuedAt: on, signedBy: person!.name, signedOn: signed, signatoryOffice: sig.roleLabel, recordedOnBehalf: "not signed", contractNumber: number, underDelegation: check.delegationId ? "yes" : null }));
       return { ok: true };
     });
@@ -736,6 +745,7 @@ const issueFaultsOf = (ev: ReturnType<typeof evaluateAward>) => ev.issueFaults.l
 
 /// One copy's despatch and acknowledgement (FR-AWD-004/005).
 export async function recordDespatch(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const rowId = String(data.get("distributionId") ?? "");
   const r = new FormReader(data);
@@ -760,7 +770,7 @@ export async function recordDespatch(_prev: FormState, data: FormData): Promise<
     }
     const after = { method, consignmentRef, despatchedOn, acknowledgedOn, note };
     await tx.awardDistribution.update({ where: { id: row.id }, data: after });
-    await audit(tx, l.org.id, "AwardDistribution", row.id, `${a.reference} · copy to ${row.recipientName}`, "UPDATE", diffFields({ method: row.method, consignmentRef: row.consignmentRef, despatchedOn: row.despatchedOn, acknowledgedOn: row.acknowledgedOn, note: row.note }, after));
+    await audit(tx, toAuditActor(actor), l.org.id, "AwardDistribution", row.id, `${a.reference} · copy to ${row.recipientName}`, "UPDATE", diffFields({ method: row.method, consignmentRef: row.consignmentRef, despatchedOn: row.despatchedOn, acknowledgedOn: row.acknowledgedOn, note: row.note }, after));
     return { ok: true };
   });
 }
@@ -771,6 +781,7 @@ export async function recordDespatch(_prev: FormState, data: FormData): Promise<
  * return that completes the instrument moves the award to Accepted, in the same act.
  */
 export async function recordReturn(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const d = (n: string, label: string) => r.date(n, label);
@@ -835,15 +846,16 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
     }
     await tx.awardReturn.update({ where: { id: before.id }, data: v });
     const view = (x: Record<string, unknown>) => ({ ...x, receivedByPersonId: undefined, receivedBy: x.receivedByPersonId ? (x.receivedByPersonId === receivedBy?.id ? receivedBy?.name : before.receivedBy?.name) : null });
-    await audit(tx, l.org.id, "AwardReturn", before.id, `${a.reference} · return`, "UPDATE", awardAuditPair(view(before), view({ ...before, ...v })), correcting ? `Corrected: ${correction}` : "");
+    await audit(tx, toAuditActor(actor), l.org.id, "AwardReturn", before.id, `${a.reference} · return`, "UPDATE", awardAuditPair(view(before), view({ ...before, ...v })), correcting ? `Corrected: ${correction}` : "");
     // The return that completes the instrument, every item with its scan, accepts it in the same act (BD-12).
-    const accepted = correcting ? null : await acceptOnCompleteReturn(tx, l, rec);
+    const accepted = correcting ? null : await acceptOnCompleteReturn(tx, toAuditActor(actor), l, rec);
     return { ok: true, message: accepted ?? undefined };
   });
 }
 
 /// The day work commenced (FR-AWD-009).
 export async function recordCommencement(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const on = r.date("commencedOn", "Commenced on", { required: true });
@@ -855,7 +867,7 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
     if (storedDay(on) > l.org.today) return { ok: false, errors: { commencedOn: "Not after today." } };
     if (a.issuedAt && storedDay(on) < storedDay(a.issuedAt)) return { ok: false, errors: { commencedOn: "Not before the instrument was issued." } };
     await tx.award.update({ where: { id }, data: { commencedOn: on } });
-    await audit(tx, l.org.id, "Award", id, labelOf(a), "UPDATE", diffFields({ commencedOn: a.commencedOn }, { commencedOn: on }));
+    await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(a), "UPDATE", diffFields({ commencedOn: a.commencedOn }, { commencedOn: on }));
     return { ok: true };
   });
 }
@@ -868,6 +880,7 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
  * vendor master that would act on it is 6.15.
  */
 export async function cancelAward(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   return inAward(id, async (tx, l) => {
@@ -884,16 +897,16 @@ export async function cancelAward(_prev: FormState, data: FormData): Promise<For
     if (a.contract && !contractCancellable(a.contract.status as ContractStatus)) return { ok: false, message: "The contract is executed: it is not cancelled with its award. Termination arrives with the post-award modules." };
     const consequence = ev.commencement?.state === "LATE" ? ev.consequence : null;
     await mustMove(tx, l, "CANCELLED", { cancelReason: reason, cancelConsequence: consequence });
-    await audit(tx, l.org.id, "Award", id, labelOf(a), "UPDATE", diffFields({ status: a.status }, { status: "CANCELLED", consequence: consequence === "CANCEL_AND_BLACKLIST" ? "blacklisting recommended" : consequence === "WARNING_LETTER" ? "warning letter" : null }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(a), "UPDATE", diffFields({ status: a.status }, { status: "CANCELLED", consequence: consequence === "CANCEL_AND_BLACKLIST" ? "blacklisting recommended" : consequence === "WARNING_LETTER" ? "warning letter" : null }), reason);
     const open = a.approvalInstances.filter((i) => i.status === "PENDING");
     for (const inst of open) {
       const warning = { code: "WITHDRAWN_ON_CANCEL", level: "info", messageEn: `Withdrawn: the award was cancelled — ${reason}` };
       await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, routeLabel(a), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The award was cancelled: ${reason}`);
+      await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, routeLabel(a), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The award was cancelled: ${reason}`);
     }
     if (a.contract && a.contract.status !== "CANCELLED") {
       await tx.contract.update({ where: { id: a.contract.id }, data: { status: "CANCELLED", cancelReason: reason } });
-      await audit(tx, l.org.id, "Contract", a.contract.id, `${a.reference} · contract ${a.contract.number}`, "UPDATE", diffFields({ status: a.contract.status }, { status: "CANCELLED", numberKept: "yes, as a gap" }), reason);
+      await audit(tx, toAuditActor(actor), l.org.id, "Contract", a.contract.id, `${a.reference} · contract ${a.contract.number}`, "UPDATE", diffFields({ status: a.contract.status }, { status: "CANCELLED", numberKept: "yes, as a gap" }), reason);
     }
     return { ok: true };
   });
@@ -902,6 +915,7 @@ export async function cancelAward(_prev: FormState, data: FormData): Promise<For
 // ---------------------------------------------------------------- conditions
 
 export async function addCondition(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const kindId = r.text("kindId", "Condition", { required: true });
@@ -914,12 +928,13 @@ export async function addCondition(_prev: FormState, data: FormData): Promise<Fo
     const kind = await tx.conditionPrecedentKind.findFirst({ where: { id: kindId, organisationId: l.org.id, retiredOn: null } });
     if (!kind) return { ok: false, errors: { kindId: "Choose a condition on the list." } };
     const row = await tx.awardCondition.create({ data: { awardId: l.award.id, kindId: kind.id, kindName: kind.nameEn, excludesEot: kind.excludesEotReason, reference, requiredBy, note } });
-    await audit(tx, l.org.id, "AwardCondition", row.id, `${l.award.reference} · ${kind.nameEn}`, "CREATE", diffFields(null, { condition: kind.nameEn, reference, requiredBy, excludesEot: kind.excludesEotReason, note }));
+    await audit(tx, toAuditActor(actor), l.org.id, "AwardCondition", row.id, `${l.award.reference} · ${kind.nameEn}`, "CREATE", diffFields(null, { condition: kind.nameEn, reference, requiredBy, excludesEot: kind.excludesEotReason, note }));
     return { ok: true };
   });
 }
 
 export async function satisfyCondition(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const conditionId = String(data.get("conditionId") ?? "");
   const r = new FormReader(data);
@@ -931,7 +946,7 @@ export async function satisfyCondition(_prev: FormState, data: FormData): Promis
     if (!c) return { ok: false, message: "That condition is not on this award." };
     if (storedDay(on) > l.org.today) return { ok: false, errors: { satisfiedOn: "Not after today." } };
     await tx.awardCondition.update({ where: { id: c.id }, data: { satisfiedOn: on } });
-    await audit(tx, l.org.id, "AwardCondition", c.id, `${l.award.reference} · ${c.kindName}`, "UPDATE", diffFields({ satisfiedOn: c.satisfiedOn }, { satisfiedOn: on }));
+    await audit(tx, toAuditActor(actor), l.org.id, "AwardCondition", c.id, `${l.award.reference} · ${c.kindName}`, "UPDATE", diffFields({ satisfiedOn: c.satisfiedOn }, { satisfiedOn: on }));
     return { ok: true };
   });
 }
@@ -954,6 +969,7 @@ function registerRefusal(l: LoadedAward): string | null {
 
 /// Lodge a bond or guarantee on the award's contract (FR-AWD-012). Verified separately.
 export async function lodgeSecurity(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const v = {
@@ -978,13 +994,14 @@ export async function lodgeSecurity(_prev: FormState, data: FormData): Promise<F
     if (v.expiresOn && v.expiresOn < v.effectiveFrom!) return { ok: false, errors: { expiresOn: "It cannot expire before it takes effect." } };
     if (v.issuerId && !(await tx.approvedIssuer.findFirst({ where: { id: v.issuerId, organisationId: l.org.id } }))) return { ok: false, errors: { issuerId: "That issuer is not on the list." } };
     const row = await tx.securityInstrument.create({ data: { contractId: c.id, ...v, kind: v.kind!, form: v.form!, value: senToDecimalString(parseSen(v.value!)), effectiveFrom: v.effectiveFrom!, lodgedOn: v.lodgedOn! } });
-    await audit(tx, l.org.id, "SecurityInstrument", row.id, securityLabel(l.award.reference, v.kind!), "CREATE", awardAuditCreate(row, { contract: c.number }));
+    await audit(tx, toAuditActor(actor), l.org.id, "SecurityInstrument", row.id, securityLabel(l.award.reference, v.kind!), "CREATE", awardAuditCreate(row, { contract: c.number }));
     return { ok: true };
   });
 }
 
 /// Verify or reject a lodged security. Verification snapshots what it was judged against.
 export async function reviewSecurity(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const securityId = String(data.get("securityId") ?? "");
   const r = new FormReader(data);
@@ -1020,13 +1037,14 @@ export async function reviewSecurity(_prev: FormState, data: FormData): Promise<
       ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requiredValue: req.state === "SET" ? senToDecimalString(req.amount) : null, basis: a.bondBasis, basisPercent: a.bondPercent, basisAmount: a.bondBasisAmount, basisProvenance: a.bondBasisProvenance, requiredUntil: completion && a.bondValidityExtraMonths != null ? dayToDate(bondRequiredUntil(completion, a.bondValidityExtraMonths)!) : null }
       : { status: "REJECTED" as const, verifiedOn: on, verifiedByPersonId: person.id, rejectedReason: reason };
     await tx.securityInstrument.update({ where: { id: s.id }, data: after });
-    await audit(tx, l.org.id, "SecurityInstrument", s.id, securityLabel(a.reference, s.kind as keyof typeof SECURITY_KIND_LABEL), "UPDATE", diffFields({ status: s.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed", requiredValue: "requiredValue" in after ? after.requiredValue : undefined }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "SecurityInstrument", s.id, securityLabel(a.reference, s.kind as keyof typeof SECURITY_KIND_LABEL), "UPDATE", diffFields({ status: s.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed", requiredValue: "requiredValue" in after ? after.requiredValue : undefined }), reason);
     return { ok: true };
   });
 }
 
 /// Lodge an insurance policy on the award's contract (FR-AWD-013).
 export async function lodgePolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const KINDS = ["WORKS", "PUBLIC_LIABILITY", "WORKMENS_COMPENSATION", "CAR", "EAR"] as const;
@@ -1062,13 +1080,14 @@ export async function lodgePolicy(_prev: FormState, data: FormData): Promise<For
     const stated = worksAppendixAmount(coversWorks, v.appendixAmount ? parseSen(v.appendixAmount) : null, tender ? baselineOf(tender, senFromDecimal(l.award.awardedValue)) : null);
     if ("fault" in stated) return { ok: false, errors: { appendixAmount: `The tender Appendix states ${formatSen(stated.appendix)} at the awarded sum. Leave it empty to take that figure.` } };
     const row = await tx.insurancePolicy.create({ data: { contractId: c.id, ...v, kind: v.kind!, sumInsured: money(v.sumInsured)!, appendixAmount: stated.amount == null ? null : senToDecimalString(stated.amount), requiredLimit: money(v.requiredLimit), periodStart: v.periodStart!, periodEnd: v.periodEnd!, lodgedOn: v.lodgedOn! } });
-    await audit(tx, l.org.id, "InsurancePolicy", row.id, policyLabel(l.award.reference, v.kind!), "CREATE", awardAuditCreate(row, { contract: c.number }));
+    await audit(tx, toAuditActor(actor), l.org.id, "InsurancePolicy", row.id, policyLabel(l.award.reference, v.kind!), "CREATE", awardAuditCreate(row, { contract: c.number }));
     return { ok: true };
   });
 }
 
 /// Verify or reject a lodged policy against its requirement, the bands and the period.
 export async function reviewPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const policyId = String(data.get("policyId") ?? "");
   const r = new FormReader(data);
@@ -1106,7 +1125,7 @@ export async function reviewPolicy(_prev: FormState, data: FormData): Promise<Fo
       ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requirementSnapshot: (requirement ? { name: requirement.nameEn, tailMonths: requirement.tailMonths, tailDays: requirement.tailDays, percent: requirement.percent, dlpMonths: a.dlpMonths, wcBasis: a.wcBasis, sumChecked: p.kind === "WORKMENS_COMPENSATION" ? wcSumCheck(a.wcBasis) === "CHECKED" : true } : null) as Prisma.InputJsonValue }
       : { status: "REJECTED" as const, verifiedOn: on, verifiedByPersonId: person.id, rejectedReason: reason };
     await tx.insurancePolicy.update({ where: { id: p.id }, data: after });
-    await audit(tx, l.org.id, "InsurancePolicy", p.id, policyLabel(a.reference, p.kind as keyof typeof INSURANCE_KIND_LABEL), "UPDATE", diffFields({ status: p.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "InsurancePolicy", p.id, policyLabel(a.reference, p.kind as keyof typeof INSURANCE_KIND_LABEL), "UPDATE", diffFields({ status: p.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed" }), reason);
     return { ok: true };
   });
 }

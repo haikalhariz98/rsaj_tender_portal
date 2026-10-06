@@ -25,6 +25,7 @@ import { committeeStepFrom } from "@/lib/requisition/committee-step";
 import { voidLivePacks } from "@/lib/tender-docs/store";
 import { windowFindingText } from "@/lib/window/labels";
 import { nameCitationFault } from "@/lib/window/name-citation";
+import type { AuditActor } from "@/lib/auth/types";
 
 export const CHANGED: FormState = { ok: false, message: "The exercise changed while this was being saved. Reload and try again." };
 
@@ -35,9 +36,9 @@ export class Refusal extends Error {
   }
 }
 
-export async function audit(tx: Tx, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
+export async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
+  await writeAudit(tx, { actor, organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
 }
 
 export const labelOf = (x: { reference: string; title: string }) => `${x.reference} · ${x.title}`;
@@ -52,22 +53,22 @@ export async function nameSupports(tx: Tx, exerciseId: string): Promise<Rejectio
 }
 
 /// Send a refused name where its rejection says.
-export async function sendNameRejected(tx: Tx, l: { org: ExerciseOrg; ex: ExerciseRow }, instId: string, kind: RejectionKind, returnToSeq: number | null, reason: string) {
+export async function sendNameRejected(tx: Tx, actor: AuditActor, l: { org: ExerciseOrg; ex: ExerciseRow }, instId: string, kind: RejectionKind, returnToSeq: number | null, reason: string) {
   const ex = l.ex;
   if (kind === "RETURN_TO_STEP") {
-    await openSuccessor(tx, { organisationId: l.org.id, routeLabel: nameLabel(ex) }, instId, returnToSeq!, dayToDate(l.org.today!));
+    await openSuccessor(tx, actor, { organisationId: l.org.id, routeLabel: nameLabel(ex) }, instId, returnToSeq!, dayToDate(l.org.today!));
   } else if (kind === "TERMINATE") {
     const t = transitionFault(ex.status, "CANCELLED", { today: l.org.today, reason });
     if (t.length > 0) throw new Refusal(refuse(t, "The exercise cannot end:"));
     const moved = await tx.sourcingExercise.updateMany({ where: { id: ex.id, status: ex.status }, data: { status: "CANCELLED", cancelReason: `Name refused: ${reason}` } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "SourcingExercise", ex.id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), `The name was refused and the exercise ends: ${reason}`);
+    await audit(tx, actor, l.org.id, "SourcingExercise", ex.id, labelOf(ex), "UPDATE", diffFields({ status: ex.status }, { status: "CANCELLED" }), `The name was refused and the exercise ends: ${reason}`);
     // 6.4: the exercise's live pack ends with it, and any other route of its own still open is withdrawn (X-5).
-    await voidLivePacks(tx, l, `The name was refused and the exercise ends: ${reason}`);
+    await voidLivePacks(tx, actor, l, `The name was refused and the exercise ends: ${reason}`);
     for (const inst of exerciseRoutesOf(ex.approvalInstances).filter((i) => i.status === "PENDING" && i.id !== instId)) {
       const warning = { code: WITHDRAWN_ON_CANCEL, level: "info", messageEn: `Withdrawn: the exercise ended when its name was refused — ${reason}` };
       await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise ended: ${reason}`);
+      await audit(tx, actor, l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise ended: ${reason}`);
     }
   }
   // Back to whoever asked: the name may be asked again, and nothing else moves.
@@ -85,7 +86,7 @@ export async function sendNameRejected(tx: Tx, l: { org: ExerciseOrg; ex: Exerci
  * sitting recording the matter's outcome (founder, 2026-10-05; `via` then says so in the step's History). The
  * caller holds the requisition's and the exercise's locks.
  */
-export async function citeNameStep(tx: Tx, l: { org: ExerciseOrg; ex: ExerciseRow }, stepId: string, decisionId: string, via: CiteVia = "BY_HAND"): Promise<FormState> {
+export async function citeNameStep(tx: Tx, actor: AuditActor, l: { org: ExerciseOrg; ex: ExerciseRow }, stepId: string, decisionId: string, via: CiteVia = "BY_HAND"): Promise<FormState> {
   const ex = l.ex;
   if (!l.org.today) return { ok: false, message: findingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
   const inst = nameRoutesOf(ex.approvalInstances).find((i) => i.status === "PENDING");
@@ -111,19 +112,19 @@ export async function citeNameStep(tx: Tx, l: { org: ExerciseOrg; ex: ExerciseRo
   const after = committeeCitationWrite({ decision: s.decision, committeeName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() });
   const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) throw new Refusal(CHANGED);
-  await audit(tx, l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",
+  await audit(tx, actor, l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",
     diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn, minuted: minuted ? "yes" : "no", ...linkedVia(via) }));
   if (s.decision === "REJECTED") {
     const reason = `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}`;
     const supports = await nameSupports(tx, ex.id);
     const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee: record?.notApproved ?? null, steps: inst.steps, rejectingSeq: step.sequence, supports });
-    await closeRejected(tx, { organisationId: l.org.id, routeLabel: nameLabel(ex) }, inst, outcome, reason);
-    if ("apply" in outcome) await sendNameRejected(tx, l, inst.id, outcome.apply, outcome.returnToSeq ?? null, reason);
+    await closeRejected(tx, actor, { organisationId: l.org.id, routeLabel: nameLabel(ex) }, inst, outcome, reason);
+    if ("apply" in outcome) await sendNameRejected(tx, actor, l, inst.id, outcome.apply, outcome.returnToSeq ?? null, reason);
     return { ok: true };
   }
   if (inst.steps.every((x) => x.id === step.id || x.decision === "DONE")) {
     await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "APPROVED", closedAt: new Date() } });
-    await audit(tx, l.org.id, "ApprovalInstance", inst.id, nameLabel(ex), "UPDATE", diffFields({ status: inst.status }, { status: "APPROVED" }));
+    await audit(tx, actor, l.org.id, "ApprovalInstance", inst.id, nameLabel(ex), "UPDATE", diffFields({ status: inst.status }, { status: "APPROVED" }));
   }
   return { ok: true };
 }

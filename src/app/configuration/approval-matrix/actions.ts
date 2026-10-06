@@ -28,6 +28,7 @@ import { matrixPolicyFaults, termsBandBoundaryFault } from "@/lib/method/boundar
 import { ORGANISATION_CODE } from "@/lib/org";
 import { contractTypeDomainWords, takesContractType } from "@/lib/authority/contract-type-domains";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /// A recommender proposes or recommends. Approving is the approver's act, set on
 /// the rule itself; a recommender step saying "approve" would put two approvers in
@@ -157,6 +158,7 @@ function coreSaveFault(rule: Pick<Rule, "approverCode" | "proposerCode" | "recom
  * refused outright.
  */
 export async function saveMatrix(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -236,6 +238,7 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
   };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "AuthorityMatrix",
     entityLabel: v.label,
@@ -329,6 +332,7 @@ async function fundingRouteFault(tx: Tx, orgId: string, code: string): Promise<s
  * gap is recorded.
  */
 export async function saveRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -499,6 +503,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
     if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
     const ctx = {
+      actor: toAuditActor(actor),
       organisationId: orgId,
       entity: "AuthorityRule",
       entityLabel: `${matrix.label} — ${v.labelEn}`,
@@ -542,6 +547,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
 
 /// A recommender on a rule, in sequence. Mandatory acts cannot be skipped later.
 export async function saveRecommender(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -570,6 +576,7 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
   const saved = await refusable(async () => {
     await auditedCreate(
       {
+        actor: toAuditActor(actor),
         organisationId: orgId,
         entity: "AuthorityRuleStep",
         entityLabel: `${rule.labelEn} — ${office?.nameEn ?? "An office no longer configured"}`,
@@ -604,6 +611,7 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
 
 /// Take a recommender off a draft's rule.
 export async function removeRecommender(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -626,7 +634,7 @@ export async function removeRecommender(_prev: FormState, data: FormData): Promi
     // The office by its name, in the label and the record: never its code.
     const office = (await tx.authorityRole.findFirst({ where: { organisationId: orgId, code: step.roleCode }, select: { nameEn: true } }))?.nameEn ?? "An office no longer configured";
     await tx.authorityRuleStep.delete({ where: { id: step.id } });
-    await writeAudit(tx, { organisationId: orgId, entity: "AuthorityRuleStep", entityId: step.id, entityLabel: `${step.authorityRule.labelEn} — ${office}`, reason }, "DELETE",
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "AuthorityRuleStep", entityId: step.id, entityLabel: `${step.authorityRule.labelEn} — ${office}`, reason }, "DELETE",
       snapshotFields({ roleCode: office, act: actWithCode(step.act), sequence: step.sequence }));
     return { ok: true };
   });
@@ -641,6 +649,7 @@ export async function removeRecommender(_prev: FormState, data: FormData): Promi
  * every recommender — to be changed and then issued. The issue it copies is untouched.
  */
 export async function startRevision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -710,6 +719,7 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
     await writeAudit(
       tx,
       {
+        actor: toAuditActor(actor),
         organisationId: orgId,
         entity: "AuthorityMatrix",
         entityId: draft.id,
@@ -734,6 +744,7 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
  * two issues in force or none.
  */
 export async function issueDraft(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -807,6 +818,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
       await writeAudit(
         tx,
         {
+          actor: toAuditActor(actor),
           organisationId: orgId,
           entity: "AuthorityMatrix",
           entityId: predecessor.id,
@@ -823,7 +835,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
     });
     await writeAudit(
       tx,
-      { organisationId: orgId, entity: "AuthorityMatrix", entityId: draft.id, entityLabel: draft.label, reason },
+      { actor: toAuditActor(actor), organisationId: orgId, entity: "AuthorityMatrix", entityId: draft.id, entityLabel: draft.label, reason },
       "UPDATE",
       diffFields(
         decimals({ issuedAt: null, effectiveFrom: draft.effectiveFrom }),
@@ -846,6 +858,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
  * row lock, so an issue being issued cannot take a band edited at the same moment.
  */
 export async function saveTermsBand(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -906,11 +919,11 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
     const label = `${matrix.label} — ${v.labelEn}`;
     if (!before) {
       const row = await tx.termsBand.create({ data: { authorityMatrixId, ...data2 } });
-      await writeAudit(tx, { organisationId: orgId, entity: "TermsBand", entityId: row.id, entityLabel: label }, "CREATE", diffFields(null, data2));
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TermsBand", entityId: row.id, entityLabel: label }, "CREATE", diffFields(null, data2));
     } else {
       await tx.termsBand.update({ where: { id: before.id }, data: data2 });
       const changes = diffFields(decimals({ ...before }), data2);
-      if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "TermsBand", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+      if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TermsBand", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
     }
     revalidatePath(PATH);
     return { ok: true } as FormState;
@@ -918,6 +931,7 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
 }
 
 export async function removeTermsBand(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -931,7 +945,7 @@ export async function removeTermsBand(_prev: FormState, data: FormData): Promise
     if (m.issuedAt) return FROZEN;
     const { authorityMatrix, ...row } = band;
     await tx.termsBand.delete({ where: { id } });
-    await writeAudit(tx, { organisationId: orgId, entity: "TermsBand", entityId: id, entityLabel: `${authorityMatrix.label} — ${band.labelEn}`, reason }, "DELETE", snapshotFields(decimals(row)));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TermsBand", entityId: id, entityLabel: `${authorityMatrix.label} — ${band.labelEn}`, reason }, "DELETE", snapshotFields(decimals(row)));
     revalidatePath(PATH);
     return { ok: true } as FormState;
   });
@@ -942,6 +956,7 @@ export async function removeTermsBand(_prev: FormState, data: FormData): Promise
  * record with a reason. An issued issue is never discarded — decisions ran under it.
  */
 export async function discardDraft(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -964,7 +979,7 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
     // history (6.3 re-review): each rule, each of its steps, each terms band, then the issue.
     const offices = new Map((await tx.authorityRole.findMany({ where: { organisationId: orgId }, select: { code: true, nameEn: true } })).map((o) => [o.code, o.nameEn]));
     const del = (entity: string, entityId: string, entityLabel: string, row: Record<string, unknown>) =>
-      writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel, reason: `Draft discarded: ${reason}` }, "DELETE", snapshotFields(decimals(row)));
+      writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity, entityId, entityLabel, reason: `Draft discarded: ${reason}` }, "DELETE", snapshotFields(decimals(row)));
     for (const { recommenders, ...rule } of draft.rules) {
       for (const step of recommenders) await del("AuthorityRuleStep", step.id, `${rule.labelEn} — ${offices.get(step.roleCode) ?? "An office no longer configured"}`, step);
       await del("AuthorityRule", rule.id, `${draft.label} — ${rule.labelEn}`, rule);
@@ -977,7 +992,7 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
       await del("CoreRoutingLevel", level.id, coreRoutingEntryLabel(draft.label, officeName(level.approverCode)), { ...level, approverCode: officeName(level.approverCode) });
     }
     const { rules, termsBands, coreRouting, ...issue } = draft;
-    await writeAudit(tx, { organisationId: orgId, entity: "AuthorityMatrix", entityId: id, entityLabel: draft.label, reason }, "DELETE",
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "AuthorityMatrix", entityId: id, entityLabel: draft.label, reason }, "DELETE",
       snapshotFields({ ...decimals(issue), rules: rules.length, termsBands: termsBands.length, coreRouting: coreRouting.length, status: "Draft" }));
     return { ok: true };
   });
@@ -997,6 +1012,7 @@ const PROVENANCES = ["STATED", "OBSERVED", "ASSUMED"] as const;
  * transaction.
  */
 export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -1031,11 +1047,11 @@ export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<F
       const shown = { ...write, approverCode: officeIn(roles, write.approverCode) };
       if (!before) {
         const row = await tx.coreRoutingLevel.create({ data: { organisationId: orgId, authorityMatrixId, ...write } });
-        await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingLevel", entityId: row.id, entityLabel: label }, "CREATE", diffFields(null, shown));
+        await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingLevel", entityId: row.id, entityLabel: label }, "CREATE", diffFields(null, shown));
       } else {
         await tx.coreRoutingLevel.update({ where: { id: before.id }, data: write });
         const changes = diffFields({ approverCode: officeIn(roles, before.approverCode), clause: before.clause, provenance: before.provenance, note: before.note }, shown);
-        if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingLevel", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+        if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingLevel", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
       }
       return { ok: true };
     }),
@@ -1047,6 +1063,7 @@ export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<F
 
 /// Take an approving office's row out of a draft's core routing, with its steps. Asks why.
 export async function removeCoreLevel(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -1065,7 +1082,7 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
     const name = (code: string) => officeIn(roles, code);
     const label = coreRoutingEntryLabel(matrix.label, name(level.approverCode));
     for (const step of level.steps) {
-      await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: step.id, entityLabel: `${label} — ${name(step.roleCode)}`, reason }, "DELETE",
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingStep", entityId: step.id, entityLabel: `${label} — ${name(step.roleCode)}`, reason }, "DELETE",
         snapshotFields({ office: name(step.roleCode), act: actWithCode(step.act), sequence: step.sequence, provenance: step.provenance, note: step.note }));
     }
     // Exactly the steps audited above, or nothing: a step that is not one of them would
@@ -1073,7 +1090,7 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
     const removed = await tx.coreRoutingStep.deleteMany({ where: { coreRoutingLevelId: level.id } });
     if (removed.count !== level.steps.length) throw new Refused({ ok: false, message: "The row's steps changed while this was being saved. Reload and try again." });
     await tx.coreRoutingLevel.delete({ where: { id } });
-    await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingLevel", entityId: id, entityLabel: label, reason }, "DELETE",
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingLevel", entityId: id, entityLabel: label, reason }, "DELETE",
       snapshotFields({ approverCode: name(level.approverCode), clause: level.clause, provenance: level.provenance, note: level.note, steps: level.steps.length }));
     return { ok: true };
   }));
@@ -1085,6 +1102,7 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
 /// An office beneath the approver in a draft's core row, in order. Its act is one of
 /// the four the core routing holds (6.9 note D-4).
 export async function saveCoreStep(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const levelId = String(data.get("coreRoutingLevelId") ?? "");
@@ -1114,7 +1132,7 @@ export async function saveCoreStep(_prev: FormState, data: FormData): Promise<Fo
     const fault = coreLevelFaults({ approverCode: level.approverCode, clause: level.clause, provenance: level.provenance, steps }, roles).find((f) => f.roleCode === roleCode);
     if (fault) return { ok: false, errors: { roleCode: coreLevelFaultText(fault.fault, officeIn(roles, fault.roleCode)) } };
     const row = await tx.coreRoutingStep.create({ data: { organisationId: orgId, coreRoutingLevelId: level.id, roleCode, act, sequence, provenance, note } });
-    await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: row.id, entityLabel: coreRoutingEntryLabel(matrix.label, officeIn(roles, level.approverCode), officeIn(roles, roleCode)), reason: String(data.get("reason") ?? "") }, "CREATE",
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingStep", entityId: row.id, entityLabel: coreRoutingEntryLabel(matrix.label, officeIn(roles, level.approverCode), officeIn(roles, roleCode)), reason: String(data.get("reason") ?? "") }, "CREATE",
       diffFields(null, { office: officeIn(roles, roleCode), act: actWithCode(act), sequence, provenance, note }));
     return { ok: true };
   });
@@ -1125,6 +1143,7 @@ export async function saveCoreStep(_prev: FormState, data: FormData): Promise<Fo
 
 /// Take a step out of a draft's core row. Asks why.
 export async function removeCoreStep(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -1143,7 +1162,7 @@ export async function removeCoreStep(_prev: FormState, data: FormData): Promise<
     if (matrix.issuedAt) return FROZEN;
     const roles = (await issueIn(tx, authorityMatrixId))?.matrix.roles ?? {};
     await tx.coreRoutingStep.delete({ where: { id } });
-    await writeAudit(tx, { organisationId: orgId, entity: "CoreRoutingStep", entityId: id, entityLabel: coreRoutingEntryLabel(matrix.label, officeIn(roles, step.level.approverCode), officeIn(roles, step.roleCode)), reason }, "DELETE",
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingStep", entityId: id, entityLabel: coreRoutingEntryLabel(matrix.label, officeIn(roles, step.level.approverCode), officeIn(roles, step.roleCode)), reason }, "DELETE",
       snapshotFields({ office: officeIn(roles, step.roleCode), act: actWithCode(step.act), sequence: step.sequence, provenance: step.provenance, note: step.note }));
     return { ok: true };
   });
@@ -1163,6 +1182,7 @@ const DESTINATION_KINDS = ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"
  * (ruling CO-4).
  */
 export async function saveRejectionDestination(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return { ok: false, message: "No organisation is configured. Run npm run setup first." };
   const r = new FormReader(data);
@@ -1192,10 +1212,10 @@ export async function saveRejectionDestination(_prev: FormState, data: FormData)
     });
     for (const old of replaced) {
       await tx.rejectionDestination.update({ where: { id: old.id }, data: { effectiveTo: v.effectiveFrom } });
-      await writeAudit(tx, { organisationId: orgId, entity: "RejectionDestination", entityId: old.id, entityLabel: label, reason }, "UPDATE", diffFields({ effectiveTo: old.effectiveTo }, { effectiveTo: v.effectiveFrom }));
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "RejectionDestination", entityId: old.id, entityLabel: label, reason }, "UPDATE", diffFields({ effectiveTo: old.effectiveTo }, { effectiveTo: v.effectiveFrom }));
     }
     const row = await tx.rejectionDestination.create({ data: { organisationId: orgId, ...write, returnToRoleCode: write.returnToRoleCode ?? null } });
-    await writeAudit(tx, { organisationId: orgId, entity: "RejectionDestination", entityId: row.id, entityLabel: label, reason }, "CREATE",
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "RejectionDestination", entityId: row.id, entityLabel: label, reason }, "CREATE",
       diffFields(null, { domain: matterLabel(v.domain), kind: v.kind, returnToRoleCode: write.returnToRoleCode, provenance: v.provenance, effectiveFrom: v.effectiveFrom, governingSource: v.governingSource }));
   });
   revalidatePath(PATH);
@@ -1204,6 +1224,7 @@ export async function saveRejectionDestination(_prev: FormState, data: FormData)
 
 /// Back to not set from a day: the officer chooses again from then (ruling CO-5).
 export async function endRejectionDestination(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return { ok: false, message: "No organisation is configured. Run npm run setup first." };
   const r = new FormReader(data);
@@ -1215,7 +1236,7 @@ export async function endRejectionDestination(_prev: FormState, data: FormData):
   if (!row) return { ok: false, message: "That destination no longer exists." };
   if (on <= row.effectiveFrom) return { ok: false, errors: { effectiveTo: "It must end after it took effect." } };
   await auditedUpdate(
-    { organisationId: orgId, entity: "RejectionDestination", entityId: id, entityLabel: `When rejected: ${matterLabel(row.domain)}`, reason },
+    { actor: toAuditActor(actor), organisationId: orgId, entity: "RejectionDestination", entityId: id, entityLabel: `When rejected: ${matterLabel(row.domain)}`, reason },
     { effectiveTo: row.effectiveTo },
     { effectiveTo: on },
     (tx) => tx.rejectionDestination.update({ where: { id }, data: { effectiveTo: on } }),

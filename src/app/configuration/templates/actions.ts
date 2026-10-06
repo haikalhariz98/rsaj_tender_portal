@@ -15,6 +15,7 @@ import { EVALUATION_FIELD_KEYS } from "@/lib/evaluation/instrument";
 import { ANY_CERTIFICATE_FIELD } from "@/lib/certificate/fields";
 import { isTermField, termCodeOf } from "@/lib/certificate/terms";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/templates";
@@ -33,6 +34,7 @@ const NO_ORG: FormState = {
 };
 
 export async function saveTemplate(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -99,6 +101,7 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "DocumentTemplate",
     entityLabel: v.nameEn,

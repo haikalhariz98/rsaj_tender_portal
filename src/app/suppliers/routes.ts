@@ -27,6 +27,7 @@ import type { SupplierOrg } from "@/lib/suppliers/repo";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 
 import { audit, CHANGED, Refusal } from "./shared";
+import type { AuditActor } from "@/lib/auth/types";
 
 export const NO_MATRIX = "No approval matrix is in force, so nobody can be shown as deciding it. Issue one under Configuration › Approval matrix.";
 
@@ -38,6 +39,7 @@ type Owner = { standingRequestId: string } | { specialPermissionId: string };
  */
 export async function openSupplierRoute(
   tx: Tx,
+  actor: AuditActor,
   org: SupplierOrg,
   o: { domain: string; cond: string | null; owner: Owner; requester: { id: string; name: string }; what: { en: string; ms: string }; routeLabel: string; matter: string; ifRefused: string; now: Date },
 ): Promise<{ ok: true; id: string } | { ok: false; state: FormState }> {
@@ -88,7 +90,7 @@ export async function openSupplierRoute(
       steps: { create: res.chain.map((s, i) => ({ sequence: i + 1, roleCode: s.roleCode, roleLabel: roleLabel(s.roleCode), act: s.act, committeeCode: s.committeeCode ?? null, nonDelegable: s.nonDelegable, sourceRuleKey: s.sourceRuleKey, chainOrigin: stepOrigin(s) })) },
     },
   });
-  await audit(tx, org.id, "ApprovalInstance", instance.id, o.routeLabel, "CREATE",
+  await audit(tx, actor, org.id, "ApprovalInstance", instance.id, o.routeLabel, "CREATE",
     diffFields(null, { matter: o.matter, matrix: issue.label, rule: rule.labelEn, routedOn: "No value (supplier matters are not routed on a value)", route: res.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), ifRefused: o.ifRefused, askedBy: o.requester.name, recordedOnBehalf: "not signed" }));
   return { ok: true, id: instance.id };
 }
@@ -102,6 +104,7 @@ type RouteWithSteps = Prisma.ApprovalInstanceGetPayload<{ include: { steps: true
  */
 export async function decideSupplierStep(
   tx: Tx,
+  actor: AuditActor,
   org: SupplierOrg,
   full: RouteWithSteps,
   stepId: string,
@@ -134,15 +137,15 @@ export async function decideSupplierStep(
   const after = personDecisionWrite({ decision: d.decision, person: { id: person!.id, name: person!.name }, decidedOn: d.decidedOn, delegationId: check.delegationId, reason: d.reason, recordedAt: d.now });
   const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) throw new Refusal(CHANGED);
-  await audit(tx, org.id, "ApprovalStep", step.id, `${d.routeLabel} · ${step.roleLabel}`, "UPDATE", diffFields({ decision: step.decision }, { decision: d.decision, decidedBy: person!.name, decidedOn: d.decidedOn, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), d.reason);
+  await audit(tx, actor, org.id, "ApprovalStep", step.id, `${d.routeLabel} · ${step.roleLabel}`, "UPDATE", diffFields({ decision: step.decision }, { decision: d.decision, decidedBy: person!.name, decidedOn: d.decidedOn, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), d.reason);
   if (d.decision === "REJECTED") {
-    await closeRejected(tx, { organisationId: org.id, routeLabel: d.routeLabel }, full, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, d.reason, d.refusedGoesTo);
+    await closeRejected(tx, actor, { organisationId: org.id, routeLabel: d.routeLabel }, full, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, d.reason, d.refusedGoesTo);
     return { outcome: "REJECTED", person: person! };
   }
   if (!full.steps.every((s) => s.id === step.id || s.decision === "DONE")) return { outcome: "PENDING", person: person! };
   const moved = await tx.approvalInstance.updateMany({ where: { id: full.id, status: "PENDING" }, data: { status: "APPROVED", closedAt: d.now } });
   if (moved.count !== 1) throw new Refusal(CHANGED);
-  await audit(tx, org.id, "ApprovalInstance", full.id, d.routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), d.reason);
+  await audit(tx, actor, org.id, "ApprovalInstance", full.id, d.routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), d.reason);
   return { outcome: "APPROVED", person: person! };
 }
 

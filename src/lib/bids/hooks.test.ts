@@ -26,7 +26,7 @@ describe("the late-admission gate is asked where an appointment is tabled or cit
   });
   it("6.11 citeAppointmentDecision", () => {
     // Founder, 2026-10-05: the citation moved, unchanged, to the module's route writer, the one function its act and a sitting's outcome both run.
-    expect(body(read("src/app/awards/actions.ts"), "citeAppointmentDecision")).toMatch(/return inAward\(id, \(tx, l\) => citeAppointmentStep\(tx, l, stepId, decisionId\)\);/);
+    expect(body(read("src/app/awards/actions.ts"), "citeAppointmentDecision")).toMatch(/return inAward\(id, \(tx, l\) => citeAppointmentStep\(tx, toAuditActor\(actor\), l, stepId, decisionId\)\);/); // Phase 1b: who acted is the argument after the transaction
     const b = body(read("src/lib/award/route-write.ts"), "citeAppointmentStep");
     expect(b).toMatch(/bidGate\(/);
     expect(b).toMatch(/bids\.lateFault/);
@@ -41,7 +41,7 @@ describe("the late-admission gate is asked where an appointment is tabled or cit
 describe("6.2's lodgement writes the estimate's envelope in its own transaction", () => {
   it("through recordEstimateLodgement, never a receipt", () => {
     const b = body(read("src/app/sourcing/[id]/scope/actions.ts"), "lodgeEstimate");
-    expect(b).toMatch(/recordEstimateLodgement\(tx, l,/);
+    expect(b).toMatch(/recordEstimateLodgement\(tx, toAuditActor\(actor\), l,/); // Phase 1b: who acted is the argument after the transaction
     expect(b).not.toMatch(/recordReceipt/);
   });
 });

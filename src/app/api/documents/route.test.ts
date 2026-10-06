@@ -1,11 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { documentOrg, logAccess, storeUpload } = vi.hoisted(() => ({
+const { documentOrg, logAccess, storeUpload, guard } = vi.hoisted(() => ({
+  // What the shared route guard answers (Phase 1b): null lets the request through as a signed-in officer; a code refuses it as the guard would. The guard has its own tests, src/app/_auth/route.test.ts.
+  guard: { refuse: null as null | { code: string; status: number } },
   documentOrg: vi.fn(async () => ({ id: "org1", timeZone: "Asia/Kuala_Lumpur", today: "2026-10-01" })),
   logAccess: vi.fn(async (...args: unknown[]) => void args),
   storeUpload: vi.fn(async (...args: unknown[]) => ({ documentId: "d1", versionId: "v1", versionNo: 1, sha256: "x", byteSize: "0", mediaType: "application/pdf", status: "STAGED", warnings: [], args })),
 }));
 
+vi.mock("@/app/_auth/actor", async () => (await import("@/lib/test-support/staff")).actorModule());
+vi.mock("@/app/_auth/route", async () => {
+  const support = await import("@/lib/test-support/staff");
+  const real = support.routeModule();
+  return { ...real, staffRoute: async () => (guard.refuse ? { ok: false as const, response: Response.json({ ok: false, code: guard.refuse.code }, { status: guard.refuse.status }) } : { ok: true as const, actor: support.STAFF_FIXTURE }) };
+});
 vi.mock("@/lib/documents/service", () => ({
   documentOrg,
   logAccess,
@@ -43,6 +51,7 @@ function formRequest(file: Uint8Array, name: string, headers: Record<string, str
 const refused = () => logAccess.mock.calls.map((c) => c[0] as { kind: string; reasonCode: string; offeredBytes: bigint | null });
 
 beforeEach(() => {
+  guard.refuse = null;
   documentOrg.mockClear();
   logAccess.mockClear();
   storeUpload.mockClear();
@@ -56,14 +65,17 @@ describe("POST /api/documents", () => {
   it("parses the multipart once and hands the file's bytes and fields to the store", async () => {
     const res = await POST(formRequest(PDF(500), "a.pdf") as never);
     expect(res.status).toBe(201);
-    const input = storeUpload.mock.calls[0][0] as { bytes: Uint8Array; originalFilename: string; title: string; mediaType: string };
+    // The first argument is who acted (the signed-in officer), the second the upload.
+    expect(storeUpload.mock.calls[0][0]).toMatchObject({ kind: "STAFF", personId: "person_test" });
+    const input = storeUpload.mock.calls[0][1] as { bytes: Uint8Array; originalFilename: string; title: string; mediaType: string };
     expect(input.bytes.byteLength).toBe(500);
     expect(input.originalFilename).toBe("a.pdf");
     expect(input.title).toBe("A title");
     expect(input.mediaType).toBe("application/pdf");
   });
 
-  it("a cross-site request is refused before anything is read, and writes nothing (audit M-3)", async () => {
+  it("a request the shared guard refuses (cross-site, or not multipart) is refused before anything is read, and writes nothing (audit M-3, F9)", async () => {
+    guard.refuse = { code: "CROSS_SITE", status: 403 };
     const res = await POST(formRequest(PDF(500), "a.pdf", { ...SAME_SITE, "sec-fetch-site": "cross-site" }) as never);
     expect(res.status).toBe(403);
     expect(documentOrg).not.toHaveBeenCalled();
@@ -71,10 +83,13 @@ describe("POST /api/documents", () => {
     expect(storeUpload).not.toHaveBeenCalled();
   });
 
-  it("a request without the upload header is refused and writes nothing", async () => {
-    const res = await POST(formRequest(PDF(500), "a.pdf", { origin: SAME_SITE.origin, host: SAME_SITE.host, "sec-fetch-site": "same-origin" }) as never);
-    expect(res.status).toBe(403);
+  // Phase 1b: the `X-Perolehan-Upload` header check this replaced is the shared guard's now (same-origin and a multipart body, plus a signed-in officer).
+  it("nobody signed in is refused 401 and writes nothing", async () => {
+    guard.refuse = { code: "NOT_SIGNED_IN", status: 401 };
+    const res = await POST(formRequest(PDF(500), "a.pdf") as never);
+    expect(res.status).toBe(401);
     expect(logAccess).not.toHaveBeenCalled();
+    expect(storeUpload).not.toHaveBeenCalled();
   });
 
   it("a name over the storage limit is refused, logged, and never cut (audit M-1)", async () => {

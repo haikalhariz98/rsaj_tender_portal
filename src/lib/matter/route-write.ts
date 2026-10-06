@@ -54,6 +54,7 @@ import { decisionRecordOf, type MatterRow } from "./load";
 import type { ContractMatterKind } from "./matter";
 import { closeMatter, markSent, matterLabel, writeApprovalOfRecord } from "./write";
 import { linkedVia, type CiteVia } from "@/lib/committee/cite-via";
+import type { AuditActor } from "@/lib/auth/types";
 
 /// A refusal: rolls the transaction back. `errors` names a field where the refusal is about one.
 export class MatterRefusal extends Error {
@@ -68,6 +69,8 @@ export class MatterRefusal extends Error {
 
 export interface MatterCtx {
   tx: Tx;
+  /// Who acted, for the audit rows the act writes.
+  actor: AuditActor;
   l: LoadedContract;
   now: Date;
   today: string;
@@ -166,8 +169,8 @@ export async function sendMatterRoute(c: MatterCtx, m: MatterRow, i: SendInput):
       },
     },
   });
-  await markSent(c.tx, c.l, m, { reference, value: i.value, ratio: i.ratio, cond: i.cond });
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalInstance", entityId: inst.id, entityLabel: routeLabel(c, { kind: m.kind, reference }), reason: "" }, "CREATE",
+  await markSent(c.tx, c.actor, c.l, m, { reference, value: i.value, ratio: i.ratio, cond: i.cond });
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "ApprovalInstance", entityId: inst.id, entityLabel: routeLabel(c, { kind: m.kind, reference }), reason: "" }, "CREATE",
     diffFields(null, {
       approval: i.what,
       matrix: m0.issue.label,
@@ -230,7 +233,7 @@ export async function decideMatterStep(c: MatterCtx, m: MatterRow, i: DecideInpu
   const after = personDecisionWrite({ decision: i.decision, person: { id: person!.id, name: person!.name }, decidedOn: dayToDate(i.decidedOn), receivedOn: i.receivedOn ? dayToDate(i.receivedOn) : null, delegationId: check.delegationId, reason: i.reason.trim(), recordedAt: c.now });
   const done = await c.tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) throw new MatterRefusal("The step changed while this was being saved. Reload and try again.");
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matterLabel(c.l, m)} · ${step.roleLabel}`, reason: i.reason.trim() }, "UPDATE",
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matterLabel(c.l, m)} · ${step.roleLabel}`, reason: i.reason.trim() }, "UPDATE",
     diffFields({ decision: step.decision, receivedOn: null }, { decision: i.decision, decidedBy: person!.name, decidedOn: i.decidedOn, receivedOn: i.receivedOn, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }));
   await afterStep(c, m, inst, step.id, i.decision, i.reason.trim(), null);
 }
@@ -258,7 +261,7 @@ export async function citeMatterDecision(c: MatterCtx, m: MatterRow, stepId: str
   const after = committeeCitationWrite({ decision: s.decision, committeeName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: c.now });
   const done = await c.tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) throw new MatterRefusal("The step changed while this was being saved. Reload and try again.");
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matterLabel(c.l, m)} · ${step.roleLabel}`, reason: "" }, "UPDATE",
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matterLabel(c.l, m)} · ${step.roleLabel}`, reason: "" }, "UPDATE",
     diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn, minuted: matter.meeting.status === "MINUTED" ? "yes" : "no", ...linkedVia(via) }));
   const reason = s.decision === "REJECTED" ? `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}${record?.note ? `: ${record.note}` : ""}` : "";
   await afterStep(c, m, inst, step.id, s.decision === "DONE" ? "DONE" : "REJECTED", reason, record?.notApproved ?? null);
@@ -272,24 +275,24 @@ async function afterStep(c: MatterCtx, m: MatterRow, inst: MatterRow["routes"][n
   if (decision === "REJECTED") {
     const step = inst.steps.find((s) => s.id === stepId)!;
     const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee, steps: inst.steps, rejectingSeq: step.sequence, supports: MATTER_REFUSAL_KINDS });
-    await closeRejected(c.tx, { organisationId: c.l.org.id, routeLabel: routeLabel(c, m) }, inst, outcome, reason, undefined, c.now);
+    await closeRejected(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c, m) }, inst, outcome, reason, undefined, c.now);
     if ("apply" in outcome) await sendRefused(c, m, inst, outcome.apply, outcome.returnToSeq ?? null, reason);
     return;
   }
   if (!inst.steps.every((s) => s.id === stepId || s.decision === "DONE")) return;
   const moved = await c.tx.approvalInstance.updateMany({ where: { id: inst.id, status: "PENDING" }, data: { status: "APPROVED", closedAt: c.now } });
   if (moved.count !== 1) throw new MatterRefusal("The route changed while this was being saved. Reload and try again.");
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalInstance", entityId: inst.id, entityLabel: routeLabel(c, m), reason: "" }, "UPDATE", diffFields({ status: "PENDING" }, { status: "APPROVED" }));
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "ApprovalInstance", entityId: inst.id, entityLabel: routeLabel(c, m), reason: "" }, "UPDATE", diffFields({ status: "PENDING" }, { status: "APPROVED" }));
   // The route hook: the approval of record (ADR 0029 §4), its one writer.
-  await writeApprovalOfRecord(c.tx, c.l, m, inst.id);
+  await writeApprovalOfRecord(c.tx, c.actor, c.l, m, inst.id);
 }
 
 async function sendRefused(c: MatterCtx, m: MatterRow, inst: MatterRow["routes"][number], kind: RejectionKind, returnToSeq: number | null, reason: string) {
   if (kind === "RETURN_TO_STEP") {
-    await openSuccessor(c.tx, { organisationId: c.l.org.id, routeLabel: routeLabel(c, m) }, inst.id, returnToSeq!, dayToDate(c.today));
+    await openSuccessor(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c, m) }, inst.id, returnToSeq!, dayToDate(c.today));
     return;
   }
-  if (kind === "TERMINATE") await closeMatter(c.tx, c.l, m, `Its approval route was refused and the matter ends: ${reason}`, c.now);
+  if (kind === "TERMINATE") await closeMatter(c.tx, c.actor, c.l, m, `Its approval route was refused and the matter ends: ${reason}`, c.now);
 }
 
 /// Where a refused route goes, chosen by the officer where its refusal decided nothing (FR-APR-016, CO-5).
@@ -303,7 +306,7 @@ export async function chooseMatterRejection(c: MatterCtx, m: MatterRow, i: { kin
   }
   const person = await c.tx.person.findFirst({ where: { id: i.personId!, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
   if (!person) throw new MatterRefusal("Not recorded.", { personId: "Choose someone on record and active." });
-  await recordChoice(c.tx, { organisationId: c.l.org.id, routeLabel: routeLabel(c, m) }, inst!.id, i.kind!, person.id, person.name, i.reason.trim());
+  await recordChoice(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c, m) }, inst!.id, i.kind!, person.id, person.name, i.reason.trim());
   await sendRefused(c, m, inst!, i.kind!, i.kind === "RETURN_TO_STEP" ? i.returnToSeq : null, i.reason.trim());
 }
 

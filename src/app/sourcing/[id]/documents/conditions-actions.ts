@@ -18,6 +18,8 @@ import { permitLabel, permitSaveFaults } from "@/lib/tender-docs/permit";
 import { loadClauses, loadConfirmations, loadOverrides, loadPacks, loadPermitList, loadRegistrationBodies, loadRequirements, loadTenderPolicy, partFactsOf, type PackRow } from "@/lib/tender-docs/repo";
 import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Writes for 6.4 increment 2 on the exercise's Tender documents tab: the registrations a
@@ -28,8 +30,7 @@ import { FormReader } from "@/lib/validate";
  * Each locks the exercise's requisition, then the exercise, then its pack rows (the order
  * every 6.4 write takes), re-reads what it judges inside the transaction, runs the lib's
  * rule on the locked rows and writes with its audit row, in words, in the same
- * transaction. A refusal saves nothing and says what to do. Nobody is signed in: a Person
- * named is recorded on their behalf, not signed, and the audit is unattributed.
+ * transaction. A refusal saves nothing and says what to do. Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that).
  */
 
 const GONE: FormState = { ok: false, message: "That exercise no longer exists." };
@@ -40,9 +41,9 @@ type Locked = { org: ExerciseOrg; ex: ExerciseRow; packs: PackRow[] };
 
 const refuse = (fs: readonly Finding[], text: (f: Finding) => string): FormState => ({ ok: false, message: `Nothing was saved: ${fs.filter((f) => f.level === "block").map(text).join(" ")}` });
 
-async function audit(tx: Tx, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
+async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
+  await writeAudit(tx, { actor, organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
 }
 
 /// Every row is labelled with its exercise's reference, so the exercise's History finds it.
@@ -75,6 +76,7 @@ const frozen = (l: Locked): FormState | null => (eligibilityEditFault(l.ex.statu
 
 /// Add a registration the bidders must hold, from a configured body.
 export async function addRequirement(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const bodyCode = r.text("bodyCode", "Registration body", { required: true, max: 80 });
@@ -97,13 +99,14 @@ export async function addRequirement(_prev: FormState, data: FormData): Promise<
     const body = bodies.find((b) => b.code === bodyCode)!;
     const sortOrder = existing.filter((x) => x.alternativeGroup === alternativeGroup).reduce((m, x) => Math.max(m, x.sortOrder + 1), 0);
     const row = await tx.exerciseRegistrationRequirement.create({ data: { organisationId: l.org.id, exerciseId, bodyCode, bodyLabelSnapshot: body.labelEn, qualifierLabelSnapshot: body.qualifierLabelEn, qualifiers: qualifiers.trim(), alternativeGroup, sortOrder } });
-    await audit(tx, l.org.id, "ExerciseRegistrationRequirement", row.id, label(l, `Registration required · ${body.labelEn}`), "CREATE", diffFields(null, { registrationBody: body.labelEn, requiredWithIt: qualifiers.trim() || null, alternativeGroup: `Group ${alternativeGroup}` }));
+    await audit(tx, toAuditActor(actor), l.org.id, "ExerciseRegistrationRequirement", row.id, label(l, `Registration required · ${body.labelEn}`), "CREATE", diffFields(null, { registrationBody: body.labelEn, requiredWithIt: qualifiers.trim() || null, alternativeGroup: `Group ${alternativeGroup}` }));
     return { ok: true };
   });
 }
 
 /// Remove a registration requirement, with the reason.
 export async function removeRequirement(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -115,7 +118,7 @@ export async function removeRequirement(_prev: FormState, data: FormData): Promi
     const row = await tx.exerciseRegistrationRequirement.findFirst({ where: { id, exerciseId } });
     if (!row) return { ok: false, message: "That requirement is no longer on the exercise." };
     await tx.exerciseRegistrationRequirement.delete({ where: { id } });
-    await audit(tx, l.org.id, "ExerciseRegistrationRequirement", id, label(l, `Registration required · ${row.bodyLabelSnapshot}`), "DELETE", snapshotFields({ registrationBody: row.bodyLabelSnapshot, requiredWithIt: row.qualifiers || null, alternativeGroup: `Group ${row.alternativeGroup}` }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "ExerciseRegistrationRequirement", id, label(l, `Registration required · ${row.bodyLabelSnapshot}`), "DELETE", snapshotFields({ registrationBody: row.bodyLabelSnapshot, requiredWithIt: row.qualifiers || null, alternativeGroup: `Group ${row.alternativeGroup}` }), reason);
     return { ok: true };
   });
 }
@@ -127,6 +130,7 @@ const tri = (v: (typeof TRI)[number] | null): boolean | null => (v === "yes" ? t
 
 /// Answer whether the tender is restricted, in the customer's configured words. Unset may be chosen again: it is honest.
 export async function saveRestriction(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const answer = r.choice("restrictedTender", "Restricted", TRI, { required: true });
@@ -138,13 +142,14 @@ export async function saveRestriction(_prev: FormState, data: FormData): Promise
     if (value === l.ex.restrictedTender) return { ok: true };
     await tx.sourcingExercise.update({ where: { id: exerciseId }, data: { restrictedTender: value } });
     // The question the screen asks is the customer's wording of a field, not a reason: no reason is recorded (nobody gave one).
-    await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ restrictedTender: yesNoNotSet(l.ex.restrictedTender) }, { restrictedTender: yesNoNotSet(value) }));
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ restrictedTender: yesNoNotSet(l.ex.restrictedTender) }, { restrictedTender: yesNoNotSet(value) }));
     return { ok: true };
   });
 }
 
 /// Answer whether the works need the regulator's permit, and which type from the configured list.
 export async function savePermit(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const answer = r.choice("regulatedActivity", "Needs the regulator's permit", TRI, { required: true });
@@ -164,7 +169,7 @@ export async function savePermit(_prev: FormState, data: FormData): Promise<Form
     if (regulated === l.ex.regulatedActivity && permitCode === l.ex.regulatorPermitCode) return { ok: true };
     await tx.sourcingExercise.update({ where: { id: exerciseId }, data: { regulatedActivity: regulated, regulatorPermitCode: permitCode } });
     const words = (reg: boolean | null, pc: string | null) => ({ needsRegulatorPermit: yesNoNotSet(reg), permitType: reg === true ? (permitLabel(reg, pc, list) ?? NOT_SET) : null });
-    await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields(words(l.ex.regulatedActivity, l.ex.regulatorPermitCode), words(regulated, permitCode)));
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields(words(l.ex.regulatedActivity, l.ex.regulatorPermitCode), words(regulated, permitCode)));
     return { ok: true };
   });
 }
@@ -173,6 +178,7 @@ export async function savePermit(_prev: FormState, data: FormData): Promise<Form
 
 /// Record a confirmation on the draft: a named Person and the day, recorded on their behalf, not signed.
 export async function recordAssurance(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const kind = r.choice("kind", "Confirmation", ASSURANCE_KINDS, { required: true });
@@ -192,13 +198,14 @@ export async function recordAssurance(_prev: FormState, data: FormData): Promise
       return f.code === "PERSON_REQUIRED" || f.code === "PERSON_NOT_ACTIVE" ? { ok: false, errors: { personId: confirmFaultText(f) } } : f.code.startsWith("DAY") ? { ok: false, errors: { confirmedOn: confirmFaultText(f) } } : refuse(faults, confirmFaultText);
     }
     const row = await tx.packAssurance.create({ data: { organisationId: l.org.id, packId: pack.id, kind, personId: person!.id, confirmedOn: dayToDate(storedDay(on)), note, recordedAt: new Date() } });
-    await audit(tx, l.org.id, "PackAssurance", row.id, label(l, `Tender documents v${pack.versionNo} · ${ASSURANCE_KIND_LABEL[kind]}`), "CREATE", diffFields(null, { confirmation: ASSURANCE_KIND_LABEL[kind], confirmedBy: person!.name, confirmedOn: storedDay(on), recordedOnBehalf: "not signed", note: note || null }));
+    await audit(tx, toAuditActor(actor), l.org.id, "PackAssurance", row.id, label(l, `Tender documents v${pack.versionNo} · ${ASSURANCE_KIND_LABEL[kind]}`), "CREATE", diffFields(null, { confirmation: ASSURANCE_KIND_LABEL[kind], confirmedBy: person!.name, confirmedOn: storedDay(on), recordedOnBehalf: "not signed", note: note || null }));
     return { ok: true };
   });
 }
 
 /// Take a confirmation off the draft (recorded in error, or the documents changed since), with the reason.
 export async function removeAssurance(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -210,7 +217,7 @@ export async function removeAssurance(_prev: FormState, data: FormData): Promise
     const row = await tx.packAssurance.findFirst({ where: { id, packId: pack.id }, include: { person: { select: { name: true } } } });
     if (!row) return { ok: false, message: "That confirmation is not on the draft." };
     await tx.packAssurance.delete({ where: { id } });
-    await audit(tx, l.org.id, "PackAssurance", id, label(l, `Tender documents v${pack.versionNo} · ${ASSURANCE_KIND_LABEL[row.kind]}`), "DELETE", snapshotFields({ confirmation: ASSURANCE_KIND_LABEL[row.kind], confirmedBy: row.person.name, confirmedOn: storedDay(row.confirmedOn) }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "PackAssurance", id, label(l, `Tender documents v${pack.versionNo} · ${ASSURANCE_KIND_LABEL[row.kind]}`), "DELETE", snapshotFields({ confirmation: ASSURANCE_KIND_LABEL[row.kind], confirmedBy: row.person.name, confirmedOn: storedDay(row.confirmedOn) }), reason);
     return { ok: true };
   });
 }
@@ -219,6 +226,7 @@ export async function removeAssurance(_prev: FormState, data: FormData): Promise
 
 /// Record a legal endorsement letting this version go without a mandatory clause: a named Person and the reason.
 export async function recordClauseOverride(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const clauseCode = r.text("clauseCode", "Clause", { required: true, max: 80 });
@@ -239,13 +247,14 @@ export async function recordClauseOverride(_prev: FormState, data: FormData): Pr
     }
     const live = liveClauses([clause!], l.org.today)[0];
     const row = await tx.clauseOverride.create({ data: { organisationId: l.org.id, packId: pack.id, clauseCode, clauseTitleSnapshot: live.titleEn, personId: person!.id, reason, recordedAt: new Date() } });
-    await audit(tx, l.org.id, "ClauseOverride", row.id, label(l, `Tender documents v${pack.versionNo} · without ${live.titleEn}`), "CREATE", diffFields(null, { clauseLeftOut: live.titleEn, endorsedBy: person!.name, recordedOnBehalf: "not signed" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "ClauseOverride", row.id, label(l, `Tender documents v${pack.versionNo} · without ${live.titleEn}`), "CREATE", diffFields(null, { clauseLeftOut: live.titleEn, endorsedBy: person!.name, recordedOnBehalf: "not signed" }), reason);
     return { ok: true };
   });
 }
 
 /// Withdraw an override on the draft, with the reason: the clause is required again.
 export async function removeClauseOverride(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -257,7 +266,7 @@ export async function removeClauseOverride(_prev: FormState, data: FormData): Pr
     const row = await tx.clauseOverride.findFirst({ where: { id, packId: pack.id }, include: { person: { select: { name: true } } } });
     if (!row) return { ok: false, message: "That endorsement is not on the draft." };
     await tx.clauseOverride.delete({ where: { id } });
-    await audit(tx, l.org.id, "ClauseOverride", id, label(l, `Tender documents v${pack.versionNo} · without ${row.clauseTitleSnapshot}`), "DELETE", snapshotFields({ clauseLeftOut: row.clauseTitleSnapshot, endorsedBy: row.person.name }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "ClauseOverride", id, label(l, `Tender documents v${pack.versionNo} · without ${row.clauseTitleSnapshot}`), "DELETE", snapshotFields({ clauseLeftOut: row.clauseTitleSnapshot, endorsedBy: row.person.name }), reason);
     return { ok: true };
   });
 }

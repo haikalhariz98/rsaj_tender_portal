@@ -3,8 +3,7 @@
  * first (`lockSupplierRow`), then the application, document or route it changes, and re-reads everything
  * the rules judge under that lock. The pure rule (`src/lib/suppliers`) is re-run on the locked rows; the
  * write and its audit rows share the transaction; a refusal saves nothing and names what blocks it and
- * where to set it. Nobody is signed in: every person named is "recorded on behalf of, not signed", and the
- * audit is unattributed. The server's clock is read once, at the act's entry, to the second.
+ * where to set it. Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that). The server's clock is read once, at the act's entry, to the second.
  */
 
 import { revalidatePath } from "next/cache";

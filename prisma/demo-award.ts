@@ -14,6 +14,7 @@ import { raiseSeries } from "./demo-series";
 import { wipeContractFormation, wipeContractsConfig } from "./demo-contracts";
 import { wipeAwardRoutingSheets } from "./demo-certificates";
 import type { PrismaClient } from "../src/generated/prisma/client";
+import { DEMO_ACTOR } from "./demo-actor";
 
 const P = "demo_";
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
@@ -329,7 +330,7 @@ export async function loadAwardSetup(db: Db, organisationId: string, from: Date)
     const label = `${REQ(r.n)} · ${r.title}`;
     const route = `${REQ(r.n)} · approval route`;
     let n = 0;
-    const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", at: string, changes: object[], reason = "") => entries.push({ id: `${reqId}_au${++n}`, organisationId, entity, entityId, entityLabel, action, at: day(at), changes, reason, unattributed: true });
+    const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", at: string, changes: object[], reason = "") => entries.push({ id: `${reqId}_au${++n}`, organisationId, entity, entityId, entityLabel, action, at: day(at), changes, reason, ...DEMO_ACTOR });
     entry("Requisition", reqId, label, "CREATE", r.raised, diffFields(null, { reference: REQ(r.n), title: r.title, justification: r.justification, needStatement: r.need, requestingUnitCode: "NTH", sectionUnitCode: "NTH-MNT", requestingPersonId: `${P}p11`, costCentreCode: "CC-200", accountCode: "7400400", budgetCodeId: `${P}bcode9`, siteCode: "NTH-WKS", placeOfDelivery: "Northern network", dateRequired: day("2027-03-31"), estimatedValue: r.value, fundingRouteCode: "capex", contractTypeCode: null, lines: 1, status: "DRAFT" }));
     entry("RequisitionEndorsement", `${P}en${r.id}a`, `${REQ(r.n)} · ${TIER_LABEL.SECTION}`, "CREATE", r.endorsed, diffFields(null, { tier: "SECTION", unit: "Maintenance Section", person: "Lim Kok Seng", endorsedOn: day(r.endorsed), note: "" }));
     entry("RequisitionEndorsement", `${P}en${r.id}b`, `${REQ(r.n)} · ${TIER_LABEL.DEPARTMENT}`, "CREATE", r.endorsed, diffFields(null, { tier: "DEPARTMENT", unit: "Northern Region", person: "Imran Hakim", endorsedOn: day(r.endorsed), note: "" }));
@@ -565,7 +566,7 @@ export async function loadAwards(db: Db, organisationId: string) {
   for (const a of rows) {
     let n = 0;
     const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", at: Date | string, changes: object[], reason = "") =>
-      entries.push({ id: `${a.id}_au${++n}`, organisationId, entity, entityId, entityLabel, action, at: typeof at === "string" ? day(at) : at, changes, reason, unattributed: true });
+      entries.push({ id: `${a.id}_au${++n}`, organisationId, entity, entityId, entityLabel, action, at: typeof at === "string" ? day(at) : at, changes, reason, ...DEMO_ACTOR });
     const label = `${a.reference} · ${a.awardeeName}`;
     const created = a.createdAt;
     const asCreated = { ...a, status: "DRAFT", signatoryRoleCode: null, signatoryRoleLabel: null, signatoryRuleKey: null, signatoryRuleLabel: null, signatoryPersonId: null, signatoryName: null, signedOn: null, issuedAt: null, erpCommitmentNo: null, erpCommitmentKind: null, commitmentRecordedOn: null, indentReceivedOn: null, variantName: null, commencedOn: null, cancelReason: "" };
@@ -619,7 +620,7 @@ export async function loadAwards(db: Db, organisationId: string) {
   const locks = [[10, "2026-09-22", "DEMO/AWD/0001/2026"], [11, "2026-09-09", "DEMO/AWD/0002/2026"], [12, "2026-09-09", "DEMO/AWD/0003/2026"], [13, "2026-09-09", "DEMO/AWD/0004/2026"], [14, "2026-09-09", "DEMO/AWD/0005/2026"]] as const;
   for (const [sx, on, ref] of locks) {
     const ex = EXERCISES.find((x) => x.n === sx)!;
-    entries.push({ id: `${P}sx${sx}_lock`, organisationId, entity: "SourcingExercise", entityId: `${P}sx${sx}`, entityLabel: `${SX(sx)} · ${ex.title}`, action: "UPDATE", at: day(on), changes: diffFields({ classificationLockedAt: null }, { classificationLockedAt: day(on) }), reason: `Award ${ref} sent for approval.`, unattributed: true });
+    entries.push({ id: `${P}sx${sx}_lock`, organisationId, entity: "SourcingExercise", entityId: `${P}sx${sx}`, entityLabel: `${SX(sx)} · ${ex.title}`, action: "UPDATE", at: day(on), changes: diffFields({ classificationLockedAt: null }, { classificationLockedAt: day(on) }), reason: `Award ${ref} sent for approval.`, ...DEMO_ACTOR });
   }
   await db.auditEntry.createMany({ data: entries as never });
 }

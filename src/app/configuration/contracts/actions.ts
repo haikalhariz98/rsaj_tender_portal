@@ -11,6 +11,8 @@ import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Contract controls (6.12): how this organisation forms contracts. Every setting ships unset and every
@@ -29,13 +31,14 @@ const done = (): FormState => {
   return { ok: true };
 };
 
-async function audit(tx: Tx, orgId: string, entity: string, entityId: string, label: string, before: Record<string, unknown> | null, after: Record<string, unknown>, reason: string) {
+async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, entityId: string, label: string, before: Record<string, unknown> | null, after: Record<string, unknown>, reason: string) {
   const changes = diffFields(before, after);
   if (before && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
+  await writeAudit(tx, { actor, organisationId: orgId, entity, entityId, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
 }
 
 export async function saveContractPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const r = new FormReader(data);
@@ -58,12 +61,13 @@ export async function saveContractPolicy(_prev: FormState, data: FormData): Prom
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
     const before = await tx.contractPolicy.findUnique({ where: { organisationId: o.id } });
     const row = await tx.contractPolicy.upsert({ where: { organisationId: o.id }, update: v, create: { organisationId: o.id, ...v } });
-    await audit(tx, o.id, "ContractPolicy", row.id, "Contract controls", before ? { ...before, frontLoadingRatio: before.frontLoadingRatio?.toString() ?? null } : null, v, reason);
+    await audit(tx, toAuditActor(actor), o.id, "ContractPolicy", row.id, "Contract controls", before ? { ...before, frontLoadingRatio: before.frontLoadingRatio?.toString() ?? null } : null, v, reason);
     return done();
   });
 }
 
 export async function saveDocumentPart(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const r = new FormReader(data);
@@ -85,17 +89,18 @@ export async function saveDocumentPart(_prev: FormState, data: FormData): Promis
       const before = await tx.contractDocumentPart.findFirst({ where: { id, organisationId: o.id } });
       if (!before) return { ok: false, message: "That part no longer exists." } as FormState;
       await tx.contractDocumentPart.update({ where: { id }, data: { ...v, provenance: v.provenance! } });
-      await audit(tx, o.id, "ContractDocumentPart", id, v.labelEn, before, v, "");
+      await audit(tx, toAuditActor(actor), o.id, "ContractDocumentPart", id, v.labelEn, before, v, "");
     } else {
       if (await tx.contractDocumentPart.findFirst({ where: { organisationId: o.id, contractBasisCode: v.contractBasisCode, code: code! }, select: { id: true } })) return { ok: false, errors: { code: "That code is already used for this basis." } } as FormState;
       const row = await tx.contractDocumentPart.create({ data: { organisationId: o.id, code: code!, ...v, provenance: v.provenance! } });
-      await audit(tx, o.id, "ContractDocumentPart", row.id, v.labelEn, null, { code, ...v }, "");
+      await audit(tx, toAuditActor(actor), o.id, "ContractDocumentPart", row.id, v.labelEn, null, { code, ...v }, "");
     }
     return done();
   });
 }
 
 export async function saveCopyRecipient(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const r = new FormReader(data);
@@ -117,11 +122,11 @@ export async function saveCopyRecipient(_prev: FormState, data: FormData): Promi
       const before = await tx.controlledCopyRecipient.findFirst({ where: { id, organisationId: o.id } });
       if (!before) return { ok: false, message: "That recipient no longer exists." } as FormState;
       await tx.controlledCopyRecipient.update({ where: { id }, data: { ...v, provenance: v.provenance! } });
-      await audit(tx, o.id, "ControlledCopyRecipient", id, v.nameEn, before, v, "");
+      await audit(tx, toAuditActor(actor), o.id, "ControlledCopyRecipient", id, v.nameEn, before, v, "");
     } else {
       if (await tx.controlledCopyRecipient.findFirst({ where: { organisationId: o.id, code: code! }, select: { id: true } })) return { ok: false, errors: { code: "That code is already used." } } as FormState;
       const row = await tx.controlledCopyRecipient.create({ data: { organisationId: o.id, code: code!, ...v, provenance: v.provenance! } });
-      await audit(tx, o.id, "ControlledCopyRecipient", row.id, v.nameEn, null, { code, ...v }, "");
+      await audit(tx, toAuditActor(actor), o.id, "ControlledCopyRecipient", row.id, v.nameEn, null, { code, ...v }, "");
     }
     return done();
   });
@@ -130,6 +135,7 @@ export async function saveCopyRecipient(_prev: FormState, data: FormData): Promi
 const RETIRABLE = { ContractDocumentPart: "contractDocumentPart", ControlledCopyRecipient: "controlledCopyRecipient" } as const;
 
 export async function retireContractRow(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const entity = String(data.get("entity") ?? "") as keyof typeof RETIRABLE;
@@ -150,7 +156,7 @@ export async function retireContractRow(_prev: FormState, data: FormData): Promi
     // R-6: the day is a "from" day, judged against the organisation's day with an exclusive end (rowInForce).
     if (before.retiredOn) return { ok: false, message: `It is already retired from ${formatDate(storedDay(before.retiredOn))}.` } as FormState;
     await model.update({ where: { id }, data: { retiredOn: on } });
-    await writeAudit(tx, { organisationId: o.id, entity, entityId: id, entityLabel: before.labelEn ?? before.nameEn ?? "Row", reason }, "UPDATE", diffFields({ retiredOn: null }, { retiredOn: storedDay(on), inForceToday: o.today ? (rowInForce({ retiredOn: on }, o.today) ? "yes: retired from a later day" : "no") : null }));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity, entityId: id, entityLabel: before.labelEn ?? before.nameEn ?? "Row", reason }, "UPDATE", diffFields({ retiredOn: null }, { retiredOn: storedDay(on), inForceToday: o.today ? (rowInForce({ retiredOn: on }, o.today) ? "yes: retired from a later day" : "no") : null }));
     return done();
   });
 }

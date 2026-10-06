@@ -39,6 +39,7 @@ import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, lockOrganisation, NO_ORG, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /**
  * The staff-side supplier register's acts (plan 6.15 §4.1, increment a1; ADR 0019). An officer records a
@@ -112,6 +113,7 @@ function readContact(r: FormReader) {
  * reference is issued from the `supplier` series; unset, nothing is recorded and the setting is named.
  */
 export async function recordApplication(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   // Recorded from an online application: the portal fixes the channel and the day it came in, and the
@@ -192,15 +194,15 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
         },
         include: { supplier: { select: { reference: true } } },
       });
-      await audit(tx, org.id, SUPPLIER_ENTITY.supplier, supplier.id, label(supplier, supplier.registeredName), "CREATE",
+      await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.supplier, supplier.id, label(supplier, supplier.registeredName), "CREATE",
         diffFields(null, { reference, registeredName: supplier.registeredName, registrationNo: supplier.registrationNo, formatChecked: fs.some((f) => f.code === "FORMAT_NOT_CHECKED") ? "Not checked: no format is set" : "Matches the configured format", entityType: listWords(cfg, "ENTITY_TYPE", supplier.entityTypeCode), country: listWords(cfg, "COUNTRY", supplier.countryCode), registeredAddress: supplier.registeredAddress, companyEmail: supplier.companyEmail, status: "Applicant" }));
-      await audit(tx, org.id, SUPPLIER_ENTITY.contact, c.id, label(supplier, "Primary contact"), "CREATE", diffFields(null, { contactName: c.name, contactDesignation: c.designation || null, contactEmail: c.email || null, contactPhone: c.phone || null, primary: true }));
-      await audit(tx, org.id, SUPPLIER_ENTITY.application, app.id, supplierApplicationLabel(app), "CREATE",
+      await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.contact, c.id, label(supplier, "Primary contact"), "CREATE", diffFields(null, { contactName: c.name, contactDesignation: c.designation || null, contactEmail: c.email || null, contactPhone: c.phone || null, primary: true }));
+      await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.application, app.id, supplierApplicationLabel(app), "CREATE",
         diffFields(null, { kind: APPLICATION_KIND_LABEL.NEW.en, receivedOn: v.receivedOn, channel: CHANNEL_LABEL[v.channel!].en, recordedBy: person!.name, recordedOnBehalf: "not signed", declarationSignedOn: v.declarationSignedOn, epaymentFormReceivedOn: v.epaymentFormReceivedOn, ...(portal ? { onlineApplication: portal.reference } : {}) }));
       if (portal) {
         // The supplier record now holds what the officer checked, so the applicant's own words are erased: nothing is kept twice.
         await tx.portalApplication.update({ where: { id: portal.id }, data: { status: "RECORDED", acceptedSupplierId: supplier.id, decidedAt: now, decidedByPersonId: person!.id, erasedAt: now, ...ERASED } });
-        await audit(tx, org.id, SUPPLIER_ENTITY.onlineApplication, portal.id, label({ reference: portal.reference }, "Online application"), "UPDATE",
+        await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.onlineApplication, portal.id, label({ reference: portal.reference }, "Online application"), "UPDATE",
           diffFields({ status: "Received", personalDetails: "Held on the application" }, { status: "Recorded as a supplier", supplier: supplier.reference, decidedBy: person!.name, personalDetails: "Erased: the supplier record holds them" }));
       }
       created = supplier.id;
@@ -215,6 +217,7 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
 
 /// Set an online application aside, with a reason (the core, with what it erases and audits, is `setAsideOnlineApplication`).
 export async function discardPortalApplication(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const id = String(data.get("portalApplicationId") ?? "").trim();
   const r = new FormReader(data);
@@ -225,7 +228,7 @@ export async function discardPortalApplication(_prev: FormState, data: FormData)
     async (tx): Promise<FormState> => {
       const org = await supplierOrg(tx);
       if (!org) return NO_ORG;
-      return setAsideOnlineApplication(tx, org.id, { id, reason, personId, now });
+      return setAsideOnlineApplication(tx, toAuditActor(actor), org.id, { id, reason, personId, now });
     },
     { timeout: 20_000, maxWait: 10_000 },
   );
@@ -237,6 +240,7 @@ export async function discardPortalApplication(_prev: FormState, data: FormData)
 
 /// Open a further application for a supplier on the register: a first registration again after a rejection, or a renewal or upgrade.
 export async function openApplication(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
@@ -265,9 +269,9 @@ export async function openApplication(_prev: FormState, data: FormData): Promise
     // A supplier rejected before applies again as an applicant.
     if (kind === "NEW" && l.supplier.status === "REJECTED") {
       await tx.supplier.update({ where: { id: supplierId }, data: { status: "APPLICANT" } });
-      await audit(tx, l.org.id, SUPPLIER_ENTITY.supplier, supplierId, label(l.supplier, l.supplier.registeredName), "UPDATE", diffFields({ status: "Not registered: application rejected" }, { status: "Applicant" }));
+      await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.supplier, supplierId, label(l.supplier, l.supplier.registeredName), "UPDATE", diffFields({ status: "Not registered: application rejected" }, { status: "Applicant" }));
     }
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.application, app.id, supplierApplicationLabel(app), "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.application, app.id, supplierApplicationLabel(app), "CREATE",
       diffFields(null, { kind: APPLICATION_KIND_LABEL[kind!].en, receivedOn, channel: CHANNEL_LABEL[channel!].en, recordedBy: person!.name, recordedOnBehalf: "not signed", declarationSignedOn, epaymentFormReceivedOn }));
     return { ok: true, message: "Recorded. Lodge its documents on the Documents tab." };
   });
@@ -275,6 +279,7 @@ export async function openApplication(_prev: FormState, data: FormData): Promise
 
 /// Record the paper's days on an open application: when its declaration was signed, when the E-Payment form was received (OD-3 B: no bank field).
 export async function recordApplicationPaper(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const applicationId = String(data.get("applicationId") ?? "");
   const r = new FormReader(data);
   const declarationSignedOn = r.optionalText("declarationSignedOn");
@@ -293,13 +298,14 @@ export async function recordApplicationPaper(_prev: FormState, data: FormData): 
     for (const [k, v] of [["declarationSignedOn", declarationSignedOn], ["epaymentFormReceivedOn", epaymentFormReceivedOn]] as const) if (v && v > l.org.today) errors[k] = supplierFaultText({ code: "IN_FUTURE", level: "block" });
     if (Object.keys(errors).length) return { ok: false, errors };
     const after = await tx.supplierApplication.update({ where: { id: applicationId }, data: { declarationSignedOn: declarationSignedOn ? dayToDate(declarationSignedOn) : null, epaymentFormReceivedOn: epaymentFormReceivedOn ? dayToDate(epaymentFormReceivedOn) : null } });
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ declarationSignedOn: day(a.declarationSignedOn), epaymentFormReceivedOn: day(a.epaymentFormReceivedOn) }, { declarationSignedOn: day(after.declarationSignedOn), epaymentFormReceivedOn: day(after.epaymentFormReceivedOn) }));
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ declarationSignedOn: day(a.declarationSignedOn), epaymentFormReceivedOn: day(a.epaymentFormReceivedOn) }, { declarationSignedOn: day(after.declarationSignedOn), epaymentFormReceivedOn: day(after.epaymentFormReceivedOn) }));
     return { ok: true };
   });
 }
 
 /// Add or change a contact (not a Person: ADR 0019). Marking one primary unmarks the other.
 export async function saveContact(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const supplierId = String(data.get("supplierId") ?? "");
   const contactId = String(data.get("contactId") ?? "").trim() || null;
   const r = new FormReader(data);
@@ -317,15 +323,15 @@ export async function saveContact(_prev: FormState, data: FormData): Promise<For
     if (before?.isPrimary && !primary && !hasPrimary) return { ok: false, errors: { primary: "Mark another contact primary first: the supplier keeps a primary contact." } };
     if (primary && hasPrimary) {
       await tx.supplierContact.update({ where: { id: hasPrimary.id }, data: { isPrimary: false } });
-      await audit(tx, l.org.id, SUPPLIER_ENTITY.contact, hasPrimary.id, label(l.supplier, "Contact"), "UPDATE", diffFields({ primary: true }, { primary: false }));
+      await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.contact, hasPrimary.id, label(l.supplier, "Contact"), "UPDATE", diffFields({ primary: true }, { primary: false }));
     }
     const row = { name: c.name, designation: c.designation, email: c.email, phone: c.phone, isPrimary: primary || (!hasPrimary && !before) };
     if (!before) {
       const created = await tx.supplierContact.create({ data: { organisationId: l.org.id, supplierId, ...row } });
-      await audit(tx, l.org.id, SUPPLIER_ENTITY.contact, created.id, label(l.supplier, "Contact"), "CREATE", diffFields(null, words(created)!));
+      await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.contact, created.id, label(l.supplier, "Contact"), "CREATE", diffFields(null, words(created)!));
     } else {
       const after = await tx.supplierContact.update({ where: { id: before.id }, data: row });
-      await audit(tx, l.org.id, SUPPLIER_ENTITY.contact, before.id, label(l.supplier, "Contact"), "UPDATE", diffFields(words(before), words(after)!));
+      await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.contact, before.id, label(l.supplier, "Contact"), "UPDATE", diffFields(words(before), words(after)!));
     }
     return { ok: true };
   });
@@ -339,6 +345,7 @@ export async function saveContact(_prev: FormState, data: FormData): Promise<For
  * its body's values and the day are judged under the supplier's lock.
  */
 export async function lodgeDocument(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const renewsId = String(data.get("renewsId") ?? "").trim() || null;
@@ -396,7 +403,7 @@ export async function lodgeDocument(_prev: FormState, data: FormData): Promise<F
       },
       include: { supplier: { select: { reference: true } } },
     });
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.document, doc.id, supplierDocumentLabel(doc), "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.document, doc.id, supplierDocumentLabel(doc), "CREATE",
       diffFields(null, {
         documentType: typeRow!.nameEn,
         documentReference: doc.reference || null,
@@ -417,6 +424,7 @@ export async function lodgeDocument(_prev: FormState, data: FormData): Promise<F
 
 /// An officer's check of a lodged document (FR-VND-004): verified (on its scan) or not in order (with why), by a named Person on a day.
 export async function verifyDocument(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const documentId = String(data.get("documentId") ?? "");
   const r = new FormReader(data);
@@ -445,7 +453,7 @@ export async function verifyDocument(_prev: FormState, data: FormData): Promise<
     }
     const moved = await tx.supplierDocument.updateMany({ where: { id: d.id, verification: "NOT_CHECKED" }, data: { verification: state!, verifiedByPersonId: person!.id, verifiedOn: dayToDate(verifiedOn!), verifiedAt: now, verificationNote: note } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.document, d.id, supplierDocumentLabel(d), "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.document, d.id, supplierDocumentLabel(d), "UPDATE",
       diffFields({ verification: VERIFICATION_LABEL.NOT_CHECKED.en }, { verification: VERIFICATION_LABEL[state!].en, verifiedBy: person!.name, verifiedOn, recordedOnBehalf: "not signed", verificationNote: note || null }), note);
     return { ok: true };
   });
@@ -479,6 +487,7 @@ async function fileOf(tx: Tx, l: LockedSupplier, a: { kind: string; status: File
  * with its steps. No rule: refused, naming the Approval matrix.
  */
 export async function submitForDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const applicationId = String(data.get("applicationId") ?? "");
   const r = new FormReader(data);
@@ -543,9 +552,9 @@ export async function submitForDecision(_prev: FormState, data: FormData): Promi
       },
     });
     await tx.supplierApplication.update({ where: { id: a.id }, data: { submittedByPersonId: person.id } });
-    await audit(tx, l.org.id, "ApprovalInstance", instance.id, label(l.supplier, "Registration approval route"), "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", instance.id, label(l.supplier, "Registration approval route"), "CREATE",
       diffFields(null, { matter: `${APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en} of ${l.supplier.registeredName}`, matrix: issue.label, rule: rule.labelEn, routedOn: "No value (supplier matters are not routed on a value)", route: res.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), ifRefused: "the application stays open" }));
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ sentBy: null }, { sentBy: person.name, recordedOnBehalf: "not signed" }));
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ sentBy: null }, { sentBy: person.name, recordedOnBehalf: "not signed" }));
     return { ok: true, message: "Sent for decision. The application is approved when its route's last step is recorded." };
   });
 }
@@ -559,6 +568,7 @@ export async function submitForDecision(_prev: FormState, data: FormData): Promi
  * under frozen on its decision.
  */
 export async function decideRegistrationStep(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const stepId = r.text("stepId", "Step", { required: true });
@@ -606,9 +616,9 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
     const routeLabel = label(l.supplier, "Registration approval route");
-    await audit(tx, l.org.id, "ApprovalStep", step.id, `${routeLabel} · ${step.roleLabel}`, "UPDATE", diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${routeLabel} · ${step.roleLabel}`, "UPDATE", diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
     if (decision === "REJECTED") {
-      await closeRejected(tx, { organisationId: l.org.id, routeLabel }, full, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, reason, REGISTRATION_REFUSED_DECIDED_BY);
+      await closeRejected(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel }, full, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, reason, REGISTRATION_REFUSED_DECIDED_BY);
       return { ok: true, message: "Refused on its route. The application stays open: request a resubmission, reject it, or send it again." };
     }
     if (!full.steps.every((s) => s.id === step.id || s.decision === "DONE")) return { ok: true };
@@ -618,13 +628,13 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
     if (blocking(fs).length) throw new Refusal(refuse(fs, "Not approved, and the step was not recorded: the file no longer stands as it did when sent."));
     const today = l.org.today!;
     await tx.approvalInstance.update({ where: { id: full.id }, data: { status: "APPROVED", closedAt: now } });
-    await audit(tx, l.org.id, "ApprovalInstance", full.id, routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", full.id, routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), reason);
     const moved = await tx.supplierApplication.updateMany({ where: { id: a.id, status: a.status, lapsedRecordedAt: null }, data: { status: "APPROVED", decidedAt: now } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     const snap = decisionSnapshot(f, today, provenanceOf);
     const dec = await tx.applicationDecision.create({ data: { organisationId: l.org.id, applicationId: a.id, outcome: "APPROVE", decidedByPersonId: person!.id, decidedOn: on, decidedAt: now, policySnapshot: snap as unknown as Prisma.InputJsonValue } });
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.decision, dec.id, supplierApplicationLabel(a), "CREATE", diffFields(null, { outcome: OUTCOME_LABEL.APPROVE.en, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", judgedUnder: snap.mandatory.map((m) => `${m.type}: ${DOCUMENT_STATE_LABEL[m.state as DocumentState].en}`).join("; ") || "No mandatory document type" }));
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ status: a.status }, { status: "APPROVED" }));
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.decision, dec.id, supplierApplicationLabel(a), "CREATE", diffFields(null, { outcome: OUTCOME_LABEL.APPROVE.en, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", judgedUnder: snap.mandatory.map((m) => `${m.type}: ${DOCUMENT_STATE_LABEL[m.state as DocumentState].en}`).join("; ") || "No mandatory document type" }));
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ status: a.status }, { status: "APPROVED" }));
     // M-1 (BD-613-108): a first registration sets the registration day, also for a supplier whose registration was
     // cancelled (the way back): its registeredOn moves to today, after the day the cancellation took effect (approveFaults
     // refused the very day), so the standing reads the cancellation as ended. The audit records the row as it was.
@@ -633,7 +643,7 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
       const before = await tx.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { registeredOn: true } });
       again = l.supplier.status === "REGISTERED" && f.cancellation ? { since: f.cancellation.effectiveOn } : null;
       await tx.supplier.update({ where: { id: supplierId }, data: { status: "REGISTERED", registeredOn: dayToDate(today) } });
-      await audit(tx, l.org.id, SUPPLIER_ENTITY.supplier, supplierId, label(l.supplier, l.supplier.registeredName), "UPDATE",
+      await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.supplier, supplierId, label(l.supplier, l.supplier.registeredName), "UPDATE",
         diffFields({ status: SUPPLIER_STATUS_LABEL[l.supplier.status as SupplierStatus]?.en ?? l.supplier.status, registeredOn: day(before.registeredOn) }, { status: "Registered", registeredOn: today, ...(again ? { cancellationEnded: `The registration cancelled from ${formatDate(again.since)} no longer stands` } : {}) }));
     }
     return { ok: true, message: approvedWords(a.kind, again, today).en };
@@ -646,6 +656,7 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
  * Items come from the form as `item:<documentId>` or `type:<typeId>` remarks; an empty one is not asked.
  */
 export async function decideApplication(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const applicationId = String(data.get("applicationId") ?? "");
   const r = new FormReader(data);
@@ -664,7 +675,7 @@ export async function decideApplication(_prev: FormState, data: FormData): Promi
   }
   const supplierId = await supplierOfApplication(applicationId);
   if (!supplierId) return GONE;
-  return inSupplier(supplierId, (tx, l) => recordOutcome(tx, l, { applicationId, outcome, remarks, resubmitBy, personId, items, now }));
+  return inSupplier(supplierId, (tx, l) => recordOutcome(tx, toAuditActor(actor), l, { applicationId, outcome, remarks, resubmitBy, personId, items, now }));
 }
 
 /**
@@ -673,6 +684,7 @@ export async function decideApplication(_prev: FormState, data: FormData): Promi
  * once, with nobody's name: it is the deadline's outcome, not a decision. The notice is shown, not sent.
  */
 export async function recordLapse(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const applicationId = String(data.get("applicationId") ?? "");
   const supplierId = await supplierOfApplication(applicationId);
@@ -688,9 +700,9 @@ export async function recordLapse(_prev: FormState, data: FormData): Promise<For
     const dec = await tx.applicationDecision.create({ data: { organisationId: l.org.id, applicationId: a.id, outcome: "LAPSE", remarks, decidedOn: dayToDate(today), decidedAt: now } });
     const moved = await tx.supplierApplication.updateMany({ where: { id: a.id, status: "RESUBMISSION_REQUESTED", lapsedRecordedAt: null }, data: { status: "REJECTED", lapsedRecordedAt: now, decidedAt: now } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.decision, dec.id, supplierApplicationLabel(a), "CREATE", diffFields(null, { outcome: OUTCOME_LABEL.LAPSE.en, remarks, decidedOn: today, lapse: `Recorded ${formatOrgDateTime(now, l.org.timeZone)}` }));
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ status: a.status }, { status: "REJECTED" }));
-    await rejectApplicant(tx, l, a.kind);
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.decision, dec.id, supplierApplicationLabel(a), "CREATE", diffFields(null, { outcome: OUTCOME_LABEL.LAPSE.en, remarks, decidedOn: today, lapse: `Recorded ${formatOrgDateTime(now, l.org.timeZone)}` }));
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ status: a.status }, { status: "REJECTED" }));
+    await rejectApplicant(tx, toAuditActor(actor), l, a.kind);
     return { ok: true, message: "Recorded: the application is rejected on its lapsed deadline. The notice to the supplier is shown here, not sent." };
   });
 }
@@ -699,6 +711,7 @@ export async function recordLapse(_prev: FormState, data: FormData): Promise<For
 
 /// Record the finance system's vendor code (manual adapter). A changed code needs the reason.
 export async function setErpVendorCode(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
@@ -714,7 +727,7 @@ export async function setErpVendorCode(_prev: FormState, data: FormData): Promis
     const faults = manualVendorMaster.check(code, { pattern: format?.pattern ?? null, taken: !!taken, registered: l.supplier.status === "REGISTERED" });
     if (faults.length) return { ok: false, errors: { erpVendorCode: faults.map((f) => supplierFaultText({ code: f, level: "block" })).join(" ") } };
     await tx.supplier.update({ where: { id: supplierId }, data: { erpVendorCode: code, erpSyncedAt: now } });
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.supplier, supplierId, label(l.supplier, l.supplier.registeredName), "UPDATE", diffFields({ erpVendorCode: before.erpVendorCode }, { erpVendorCode: code, recordedOnBehalf: `entered ${formatOrgDateTime(now, l.org.timeZone)}, not synced by an adapter` }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.supplier, supplierId, label(l.supplier, l.supplier.registeredName), "UPDATE", diffFields({ erpVendorCode: before.erpVendorCode }, { erpVendorCode: code, recordedOnBehalf: `entered ${formatOrgDateTime(now, l.org.timeZone)}, not synced by an adapter` }), reason);
     return { ok: true };
   });
 }

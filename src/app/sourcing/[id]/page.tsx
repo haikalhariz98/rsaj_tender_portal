@@ -118,6 +118,7 @@ import { scopeSectionFacts } from "@/lib/scope/read";
 import { ALL_SCOPE_SECTIONS, scopeSectionOf, visibleScopeSections } from "@/lib/scope/sections";
 import { ScopeWorkspace } from "./scope/workspace";
 import { money, OverviewPanel, pct, tone } from "./overview";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +126,7 @@ const flagsNeedName = (code: string, methods: { code: string; requiresNameApprov
 const RESTRICTION_NOTE = "Restriction not enforced until sign-in";
 
 export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
+  await requireStaff();
   const [{ id }, { tab: asked, section }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string }>]);
   const l = await loadExercise(id);
   if (!l) notFound();
@@ -1110,7 +1112,7 @@ function HistoryPanel({
       <CardHeader
         icon={<ClockIcon size={17} />}
         title="History"
-        subtitle={total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. Nobody is signed in, so no change is attributed.` : "Every change to this exercise and what is under it. Nobody is signed in, so no change is attributed."}
+        subtitle={total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. Each change names who made it; any from before sign-in is not attributed.` : "Every change to this exercise and what is under it. Each change names who made it; any from before sign-in is not attributed."}
         divided={entries.length === 0}
       />
       {entries.length === 0 ? (

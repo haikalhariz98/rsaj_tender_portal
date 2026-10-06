@@ -26,6 +26,8 @@ import { loadRoster } from "@/lib/people/load";
 import { timeRefusal } from "@/lib/time/labels";
 import type { Finding } from "@/lib/time/types";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * A contract matter's route (6.13 Part B run 1b; ADR 0029; design note §6.5): table its committee step from the matter,
@@ -37,13 +39,13 @@ import { FormReader } from "@/lib/validate";
 
 /// The contract's lock, the act × status table's row for the act's family (CANCELLED first), the organisation's day, then
 /// the act (BD-613-130: the gate is asked here, in this file, as in every contract action file).
-async function inContract(id: string, now: Date, family: ContractAct, fn: (c: ActCtx) => Promise<FormState>, alsoRevalidate: readonly string[] = []): Promise<FormState> {
+async function inContract(actor: AuditActor, id: string, now: Date, family: ContractAct, fn: (c: ActCtx) => Promise<FormState>, alsoRevalidate: readonly string[] = []): Promise<FormState> {
   let result: FormState | null;
   try {
     result = await withLockedContract(id, async (tx, l) => {
       const refused = actStatusFault(family, l.contract.status as ContractStatus);
       if (refused) return tableRefusal(refused);
-      const c = actCtx(tx, l, now);
+      const c = actCtx(tx, l, now, actor);
       return c ? fn(c) : NO_ZONE_STATE;
     });
   } catch (e) {
@@ -68,10 +70,10 @@ async function familyOf(matterId: string) {
 }
 
 /// The act on a matter: its family read before the lock (only to choose the row), then inContract.
-async function run(data: FormData, matterId: string, now: Date, fn: (c: ActCtx) => Promise<FormState>, paths: readonly string[] = []): Promise<FormState> {
+async function run(by: AuditActor, data: FormData, matterId: string, now: Date, fn: (c: ActCtx) => Promise<FormState>, paths: readonly string[] = []): Promise<FormState> {
   const family = await familyOf(matterId);
   if (!family) return { ok: false, message: "That matter no longer exists." };
-  return inContract(idOf(data), now, family, async (c) => {
+  return inContract(by, idOf(data), now, family, async (c) => {
     // The row asked was chosen from the kind read before the lock: read it again under the lock (a matter's kind never
     // changes, so this refuses only a matter that vanished or a forged id).
     const again = await c.tx.contractMatter.findFirst({ where: { id: matterId, contractId: c.l.contract.id }, select: { kind: true } });
@@ -82,13 +84,14 @@ async function run(data: FormData, matterId: string, now: Date, fn: (c: ActCtx) 
 
 /// Table the matter's open route's committee step at a sitting (ADR 0029 §3: tabled from the matter, never at a sitting).
 export async function tableContractMatter(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const matterId = r.text("matterId", "Matter", { required: true });
   const meetingId = r.text("meetingId", "Sitting", { required: true });
   const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return run(data, matterId, now, async (c) => {
+  return run(toAuditActor(actor), data, matterId, now, async (c) => {
     const { m } = await lockMatter(c, matterId);
     const roster = await loadRoster(ORGANISATION_CODE, c.tx);
     const s = await lockSittingIn(c.tx, meetingId, roster);
@@ -107,20 +110,21 @@ export async function tableContractMatter(_prev: FormState, data: FormData): Pro
     const sequence = s!.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     const subject = `${MATTER_KIND_WORDS[m.kind as ContractMatterKind].en[0].toUpperCase()}${MATTER_KIND_WORDS[m.kind as ContractMatterKind].en.slice(1)} ${m.reference ?? "(not yet numbered)"} on contract ${c.l.contract.number}`;
     const row = await c.tx.committeeDecision.create({ data: { meetingId: s!.meeting.id, subject, domain: open!.domain, ...tabledFrom.keys, amount: open!.value?.toString() ?? null, act: step!.act, tabledByPersonId, tabledAt: dayToDate(s!.today!), sequence } });
-    await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "CommitteeDecision", entityId: row.id, entityLabel: `${matterLabel(c.l, m)} · tabled for its approval`, reason: "" }, "CREATE", diffFields(null, { matter: subject, sitting: s!.meeting.reference, committee: s!.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s!.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s!.today!), recordedOnBehalf: "yes" }));
+    await writeAudit(c.tx, { actor: toAuditActor(actor), organisationId: c.l.org.id, entity: "CommitteeDecision", entityId: row.id, entityLabel: `${matterLabel(c.l, m)} · tabled for its approval`, reason: "" }, "CREATE", diffFields(null, { matter: subject, sitting: s!.meeting.reference, committee: s!.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s!.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s!.today!), recordedOnBehalf: "yes" }));
     return { ok: true, message: `Tabled at ${s!.meeting.reference}. It is decided there, at the sitting; cite its decision here once it is decided.` };
   }, ["/committees", `/committees/${meetingId}`]);
 }
 
 /// Discharge a committee's step from its decision on a matter tabled from this matter.
 export async function citeContractMatterDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const matterId = r.text("matterId", "Matter", { required: true });
   const stepId = r.text("stepId", "Step", { required: true });
   const decisionId = r.text("committeeDecisionId", "The committee's decision", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return run(data, matterId, now, async (c) => {
+  return run(toAuditActor(actor), data, matterId, now, async (c) => {
     const { m } = await lockMatter(c, matterId);
     await citeMatterDecision(c, m, stepId, decisionId);
     return { ok: true };
@@ -129,6 +133,7 @@ export async function citeContractMatterDecision(_prev: FormState, data: FormDat
 
 /// A named Person's decision on a person step of the matter's open route.
 export async function decideContractMatterStep(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const matterId = r.text("matterId", "Matter", { required: true });
@@ -139,7 +144,7 @@ export async function decideContractMatterStep(_prev: FormState, data: FormData)
   const receivedOn = dayField(r, "receivedOn", "Received on");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed || !decision || !decidedOn) return { ok: false, errors: r.errors };
-  return run(data, matterId, now, async (c) => {
+  return run(toAuditActor(actor), data, matterId, now, async (c) => {
     const { m } = await lockMatter(c, matterId);
     await decideMatterStep(c, m, { stepId, decision, personId, decidedOn, receivedOn, reason });
     return { ok: true };
@@ -148,6 +153,7 @@ export async function decideContractMatterStep(_prev: FormState, data: FormData)
 
 /// Where a refused route goes, chosen by the officer where nothing was configured (FR-APR-016, CO-5).
 export async function chooseContractMatterRejection(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const matterId = r.text("matterId", "Matter", { required: true });
@@ -156,7 +162,7 @@ export async function chooseContractMatterRejection(_prev: FormState, data: Form
   const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return run(data, matterId, now, async (c) => {
+  return run(toAuditActor(actor), data, matterId, now, async (c) => {
     const { m } = await lockMatter(c, matterId);
     await chooseMatterRejection(c, m, { kind: kind ?? null, returnToSeq: seq, personId, reason });
     return { ok: true };

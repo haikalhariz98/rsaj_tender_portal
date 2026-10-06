@@ -38,7 +38,7 @@ const terminate = (() => {
 
 describe("cancelling an exercise", () => {
   it("voids the live pack, with the cancel reason", () => {
-    expect(cancel).toMatch(/await voidLivePacks\(tx, l, reason\)/);
+    expect(cancel).toMatch(/await voidLivePacks\(tx, toAuditActor\(actor\), l, reason\)/); // Phase 1b: who acted is the argument after the transaction
   });
   it("withdraws every pending route of the exercise, of each domain", () => {
     expect(cancel).toMatch(/exerciseRoutesOf\(ex\.approvalInstances\)\.filter\(\(i\) => i\.status === "PENDING"\)/);
@@ -49,7 +49,7 @@ describe("cancelling an exercise", () => {
 
 describe("a name refusal that terminates the exercise", () => {
   it("voids the live pack, with the refusal as the reason", () => {
-    expect(terminate).toMatch(/await voidLivePacks\(tx, l, `The name was refused and the exercise ends: \$\{reason\}`\)/);
+    expect(terminate).toMatch(/await voidLivePacks\(tx, actor, l, `The name was refused and the exercise ends: \$\{reason\}`\)/);
   });
   it("withdraws the other pending routes of every domain (the deciding route is closed by its own rejection)", () => {
     expect(terminate).toMatch(/exerciseRoutesOf\(ex\.approvalInstances\)\.filter\(\(i\) => i\.status === "PENDING" && i\.id !== instId\)/);

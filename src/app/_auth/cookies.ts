@@ -2,6 +2,7 @@ import { cookies, headers } from "next/headers";
 
 import { originFault, type OriginFault } from "@/lib/auth/origin";
 import { requestFacts, trustedProxyHops, type RequestFacts } from "@/lib/auth/request";
+import { STAFF_COOKIE } from "@/lib/auth/routes";
 
 /**
  * The staff session cookie and what a request says about itself (ADR 0034 D4).
@@ -14,7 +15,7 @@ import { requestFacts, trustedProxyHops, type RequestFacts } from "@/lib/auth/re
  * password actions call them. Reading works anywhere.
  */
 
-export const STAFF_COOKIE = "__Host-perolehan-staff";
+export { STAFF_COOKIE };
 
 export async function staffToken(): Promise<string | null> {
   return (await cookies()).get(STAFF_COOKIE)?.value ?? null;

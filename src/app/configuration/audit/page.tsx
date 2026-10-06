@@ -10,6 +10,7 @@ import { formatDate, formatOrgDay } from "@/lib/format";
 import { ORGANISATION_CODE } from "@/lib/org";
 
 import { AuditExportForm } from "./export-form";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
  * deletes an entry. The export is what an outside auditor takes away.
  */
 export default async function AuditTrailPage() {
+  await requireStaff();
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
   if (!org) {
     return (

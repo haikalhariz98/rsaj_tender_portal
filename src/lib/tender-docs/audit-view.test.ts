@@ -69,7 +69,7 @@ describe("the four acts write the Appendix's trail through the view", () => {
       const start = src.indexOf(`export async function ${act}(`);
       const body = src.slice(start, src.indexOf("\nexport ", start + 1));
       expect(body, act).toMatch(/const before = appendixFactsOf\(appendix\);/);
-      expect(body, act).toMatch(/return appendixChanged\(tx, l, pack, before\);/);
+      expect(body, act).toMatch(/return appendixChanged\(tx, toAuditActor\(actor\), l, pack, before\);/); // Phase 1b: who acted is the argument after the transaction
     }
     expect(src).toMatch(/appendixAudit\(before, \{ \.\.\.facts, status \}, names\.name\)/);
   });

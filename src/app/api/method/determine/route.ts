@@ -1,3 +1,4 @@
+import { staffRoute } from "@/app/_auth/route";
 import { evaluateExercise, type ExerciseDraft } from "@/lib/method/evaluate";
 import { presentEvaluation } from "@/lib/method/present";
 import { evaluationContext, loadExercise, loadRequisitionForSourcing } from "@/lib/method/repo";
@@ -20,6 +21,8 @@ const str = (v: unknown, max = 4000): string => (typeof v === "string" ? v.trim(
 const opt = (v: unknown): string | null => str(v, 200) || null;
 
 export async function POST(request: Request) {
+  const guard = await staffRoute({ contentTypes: ["application/json"] });
+  if (!guard.ok) return guard.response;
   let body: Record<string, unknown>;
   try {
     const parsed = await request.json();

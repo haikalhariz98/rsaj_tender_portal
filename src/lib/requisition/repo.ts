@@ -20,6 +20,7 @@ import type { Lookups, RequisitionDraft } from "@/lib/requisition/fields";
 import { sentBackBy } from "@/lib/requisition/sent-back";
 import { gateFinding, gatesFor, gateState, type GateFinding, type GateMatter, type GateRuleRow, type GateState } from "@/lib/requisition/gate";
 import { SPLIT_KEYS, UNSET_POLICY, type Provenance, type RequisitionPolicy, type SplitKey } from "@/lib/requisition/types";
+import type { AuditActor } from "@/lib/auth/types";
 
 export const num = (v: { toString(): string } | null | undefined): number | null => (v == null ? null : amountOf(v));
 
@@ -364,7 +365,7 @@ export async function formOptions(organisationId: string, on: Date) {
  * this requisition is linked, audited. A reference that answers to more than one
  * requisition is left alone. Returns how many were linked.
  */
-export async function linkMatchingMatters(tx: Tx, organisationId: string, requisitionId: string): Promise<number> {
+export async function linkMatchingMatters(tx: Tx, actor: AuditActor, organisationId: string, requisitionId: string): Promise<number> {
   const req = await tx.requisition.findUnique({ where: { id: requisitionId }, select: { reference: true, erpRequisitionNo: true, erpNoteNo: true, status: true } });
   if (!req) return 0;
   const refs = [req.reference, req.erpRequisitionNo, req.erpNoteNo].filter((x): x is string => !!x);
@@ -386,7 +387,7 @@ export async function linkMatchingMatters(tx: Tx, organisationId: string, requis
     await tx.committeeDecision.update({ where: { id: m.id }, data: { requisitionId } });
     await writeAudit(
       tx,
-      { organisationId, entity: "CommitteeDecision", entityId: m.id, entityLabel: m.subject, reason: `Linked to requisition ${req.reference} by its reference` },
+      { actor, organisationId, entity: "CommitteeDecision", entityId: m.id, entityLabel: m.subject, reason: `Linked to requisition ${req.reference} by its reference` },
       "UPDATE",
       [{ field: "requisition", before: null, after: req.reference }],
     );

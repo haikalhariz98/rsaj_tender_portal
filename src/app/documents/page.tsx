@@ -18,6 +18,7 @@ import { dayOf } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { ORGANISATION_CODE } from "@/lib/org";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ const lang = (ls: readonly ("EN" | "MS")[]) => [...new Set(ls)].sort((a, b) => (
  * with the vendor portal, and the tab says so (the rulings' condition) rather than promising it here.
  */
 export default async function DocumentsPage(props: PageProps<"/documents">) {
+  await requireStaff();
   const sp = (await props.searchParams) as { tab?: string; q?: string; page?: string };
   const tab = TAB_IDS.find((t) => t === sp.tab) ?? "library";
   const query = (sp.q ?? "").slice(0, 200);

@@ -18,6 +18,7 @@ import { senToDecimalString, type Sen } from "@/lib/money";
 import type { ExactRatio } from "@/lib/percent-band";
 
 import type { ContractMatterKind } from "./matter";
+import type { AuditActor } from "@/lib/auth/types";
 
 export class MatterChanged extends Error {
   constructor() {
@@ -40,36 +41,36 @@ export const MATTER_KIND_WORDS: Readonly<Record<ContractMatterKind, { en: string
 export const matterLabel = (l: LoadedContract, m: { kind: string; reference: string | null }) =>
   `${contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } })} · ${MATTER_KIND_WORDS[m.kind as ContractMatterKind]?.en ?? "matter"} ${m.reference ?? "(not yet numbered)"}`;
 
-async function audit(tx: Tx, l: LoadedContract, id: string, label: string, action: "CREATE" | "UPDATE", changes: ReturnType<typeof diffFields>, reason = "") {
+async function audit(tx: Tx, actor: AuditActor, l: LoadedContract, id: string, label: string, action: "CREATE" | "UPDATE", changes: ReturnType<typeof diffFields>, reason = "") {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: l.org.id, entity: "ContractMatter", entityId: id, entityLabel: label, reason }, action, changes);
+  await writeAudit(tx, { actor, organisationId: l.org.id, entity: "ContractMatter", entityId: id, entityLabel: label, reason }, action, changes);
 }
 
-export async function openMatter(tx: Tx, l: LoadedContract, kind: ContractMatterKind, personId: string, personName: string, now: Date): Promise<string> {
+export async function openMatter(tx: Tx, actor: AuditActor, l: LoadedContract, kind: ContractMatterKind, personId: string, personName: string, now: Date): Promise<string> {
   const row = await tx.contractMatter.create({ data: { organisationId: l.org.id, contractId: l.contract.id, kind, personId, recordedAt: now } });
-  await audit(tx, l, row.id, matterLabel(l, { kind, reference: null }), "CREATE", diffFields(null, { matter: MATTER_KIND_WORDS[kind].en, recordedBy: personName, recordedOnBehalf: "not signed" }));
+  await audit(tx, actor, l, row.id, matterLabel(l, { kind, reference: null }), "CREATE", diffFields(null, { matter: MATTER_KIND_WORDS[kind].en, recordedBy: personName, recordedOnBehalf: "not signed" }));
   return row.id;
 }
 
-export async function markSent(tx: Tx, l: LoadedContract, m: { id: string; kind: string; reference: string | null }, i: { reference: string | null; value: Sen | null; ratio: ExactRatio | null; cond: string | null }): Promise<string | null> {
+export async function markSent(tx: Tx, actor: AuditActor, l: LoadedContract, m: { id: string; kind: string; reference: string | null }, i: { reference: string | null; value: Sen | null; ratio: ExactRatio | null; cond: string | null }): Promise<string | null> {
   const reference = m.reference ?? i.reference;
   const moved = await tx.contractMatter.updateMany({
     where: { id: m.id, closedAt: null, reference: m.reference },
     data: { reference, matterRoutedValue: i.value == null ? null : senToDecimalString(i.value), matterRatioNum: i.ratio ? senToDecimalString(i.ratio.num) : null, matterRatioDen: i.ratio ? senToDecimalString(i.ratio.den) : null, cond: i.cond },
   });
   if (moved.count !== 1) throw new MatterChanged();
-  await audit(tx, l, m.id, matterLabel(l, { kind: m.kind, reference }), "UPDATE", diffFields({ reference: m.reference }, { reference, sentForApproval: "yes", routedOn: i.cond ?? (i.ratio ? "the share waived of the damages" : i.value != null ? "its value" : "the matrix's row for it") }));
+  await audit(tx, actor, l, m.id, matterLabel(l, { kind: m.kind, reference }), "UPDATE", diffFields({ reference: m.reference }, { reference, sentForApproval: "yes", routedOn: i.cond ?? (i.ratio ? "the share waived of the damages" : i.value != null ? "its value" : "the matrix's row for it") }));
   return reference;
 }
 
-export async function writeApprovalOfRecord(tx: Tx, l: LoadedContract, m: { id: string; kind: string; reference: string | null }, routeId: string): Promise<void> {
+export async function writeApprovalOfRecord(tx: Tx, actor: AuditActor, l: LoadedContract, m: { id: string; kind: string; reference: string | null }, routeId: string): Promise<void> {
   const moved = await tx.contractMatter.updateMany({ where: { id: m.id, closedAt: null }, data: { approvedRouteId: routeId } });
   if (moved.count !== 1) throw new MatterChanged();
-  await audit(tx, l, m.id, matterLabel(l, m), "UPDATE", diffFields({ approved: "no" }, { approved: "yes, its route approved" }));
+  await audit(tx, actor, l, m.id, matterLabel(l, m), "UPDATE", diffFields({ approved: "no" }, { approved: "yes, its route approved" }));
 }
 
-export async function closeMatter(tx: Tx, l: LoadedContract, m: { id: string; kind: string; reference: string | null }, reason: string, now: Date): Promise<void> {
+export async function closeMatter(tx: Tx, actor: AuditActor, l: LoadedContract, m: { id: string; kind: string; reference: string | null }, reason: string, now: Date): Promise<void> {
   const moved = await tx.contractMatter.updateMany({ where: { id: m.id, closedAt: null }, data: { closedAt: now, closeReason: reason } });
   if (moved.count !== 1) throw new MatterChanged();
-  await audit(tx, l, m.id, matterLabel(l, m), "UPDATE", diffFields({ stage: "open" }, { stage: "closed" }), reason);
+  await audit(tx, actor, l, m.id, matterLabel(l, m), "UPDATE", diffFields({ stage: "open" }, { stage: "closed" }), reason);
 }

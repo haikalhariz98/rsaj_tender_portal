@@ -15,6 +15,7 @@ import { loadPortalApplication } from "@/lib/portal/queue-repo";
 import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
 
 import { DiscardOnlineApplicationDrawer } from "./discard-drawer";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ const STATUS = { RECEIVED: { text: "Waiting for an officer", tone: "info" }, REC
  * it aside). Once decided, the applicant's words are erased and only the outcome stays.
  */
 export default async function OnlineApplicationPage(props: PageProps<"/suppliers/online/[id]">) {
+  await requireStaff();
   const { id } = await props.params;
   const org = await supplierOrg();
   const back = <Link href="/suppliers?tab=portal">Suppliers</Link>;

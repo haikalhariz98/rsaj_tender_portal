@@ -35,6 +35,7 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ const ACTION_LABEL = COMMITTEE_ACTION_LABEL;
 export default async function CommitteePage({
   params,
 }: PageProps<"/configuration/committees/[code]">) {
+  await requireStaff();
   const { code } = await params;
   const committee = await getCommittee(code);
   if (!committee) notFound();

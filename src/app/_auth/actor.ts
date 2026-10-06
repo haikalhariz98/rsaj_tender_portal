@@ -2,6 +2,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
+import { auditActorOfStaff } from "@/lib/auth/audit-actor";
 import { confirmStaffPassword } from "@/lib/auth/identity";
 import { AUTH_WORDS } from "@/lib/auth/words";
 import { readStaffSession } from "@/lib/auth/session-store";
@@ -9,6 +10,7 @@ import type { AuditActor, PermissionKey, StaffActor } from "@/lib/auth/types";
 import { SURFACE_ENV, surfaceOf } from "@/lib/portal/surface";
 
 import { currentRequestFacts, staffToken } from "./cookies";
+import { loaderActor, loaderLabel } from "./loader";
 
 /**
  * The one way to ask who is signed in (ADR 0034 D7).
@@ -16,8 +18,10 @@ import { currentRequestFacts, staffToken } from "./cookies";
  * The session is read once per request (`cache()`), however many pages, layouts and actions ask. Every read goes to the database and re-checks the
  * account, the person and their offices, so a change that makes someone unfit takes effect on their next request, not at the end of their session.
  *
- * - A page or layout calls `requireStaff()`: nobody signed in is sent to `/sign-in`.
- * - A server action calls `requireStaff({ on: "throw" })`: nobody signed in throws `AuthRefusal`, which `refusalState` turns into a form's answer.
+ * - A page or a server action calls `requireStaff()`, first: nobody signed in is sent to `/sign-in`. For an action that is the stale tab (a session that ended, a cookie
+ *   that expired): Next carries the redirect to the browser, which lands on sign-in, rather than a form showing a message it cannot act on (Phase 1b, ADR 0034 D7
+ *   asked for `AuthRefusal`; the account actions, which have a message to give, still use `{ on: "throw" }` and `refusalState`).
+ * - A route handler calls `staffRoute()` (`route.ts`), which answers a structured 401 rather than redirecting.
  *
  * `unauthorized()` and `forbidden()` are experimental in this version of Next and are not used.
  *
@@ -36,6 +40,9 @@ export class AuthRefusal extends Error {
 
 /// Whoever is signed in on this request, or null. Never throws and never redirects: for the shell, which must render for everyone.
 export const currentStaffOrNull = cache(async (): Promise<StaffActor | null> => {
+  // A loader script runs the acts outside any request, as the system (see loader.ts). A running server never has this set.
+  const loader = loaderLabel();
+  if (loader) return loaderActor(loader);
   if (surfaceOf(process.env[SURFACE_ENV]) === "public") return null;
   const token = await staffToken();
   if (!token) return null;
@@ -56,9 +63,7 @@ export async function requireStaff(opts: { permission?: PermissionKey; on?: "red
 }
 
 /// The actor an audit row is written with.
-export function toAuditActor(actor: StaffActor): AuditActor {
-  return { kind: "STAFF", personId: actor.personId, sessionId: actor.sessionId, offices: actor.offices, sourceAddress: actor.sourceAddress };
-}
+export const toAuditActor: (actor: StaffActor) => AuditActor = auditActorOfStaff;
 
 /// What a form shows when an action was refused for who is asking, not for what was asked.
 export function refusalState(error: unknown): FormState | null {

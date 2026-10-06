@@ -23,12 +23,14 @@ import { db } from "@/lib/db";
 import { autoLinkTarget, linkNoteAsked, notLinkedNotes, type LinkRoute } from "./auto-link";
 import { AUTO_LINK_WORDS } from "./labels";
 import { matterKey } from "./waiting-load";
+import type { AuditActor } from "@/lib/auth/types";
 
 /// A refusal's words: its message, then what it says against a field.
 export const refusalWords = (s: FormState) => [s.message, ...Object.values(s.errors ?? {})].filter((x) => x && x.trim()).join(" ");
 
 export async function linkOutcome(
   tx: Tx,
+  actor: AuditActor,
   i: {
     organisationId: string;
     decisionId: string;
@@ -48,7 +50,7 @@ export async function linkOutcome(
   const target = autoLinkTarget({ recordKey: matterKey(d), domain: d.domain, committeeCode: d.meeting.committee.code, outcome: d.outcome, withdrawn: d.withdrawnAt != null }, i.routes);
   if (target.kind === "NONE") {
     if (!linkNoteAsked(target)) return "NOT_ASKED";
-    await notLinked(tx, i.organisationId, d, AUTO_LINK_WORDS.noStep.en);
+    await notLinked(tx, actor, i.organisationId, d, AUTO_LINK_WORDS.noStep.en);
     return "NOT_LINKED";
   }
   await tx.$executeRaw`SAVEPOINT committee_outcome_link`;
@@ -64,12 +66,12 @@ export async function linkOutcome(
     why = refusalWords(said);
   }
   if (why == null) return "LINKED";
-  await notLinked(tx, i.organisationId, d, why || AUTO_LINK_WORDS.noStep.en);
+  await notLinked(tx, actor, i.organisationId, d, why || AUTO_LINK_WORDS.noStep.en);
   return "NOT_LINKED";
 }
 
-async function notLinked(tx: Tx, organisationId: string, d: { id: string; subject: string }, why: string) {
-  await writeAudit(tx, { organisationId, entity: "CommitteeDecision", entityId: d.id, entityLabel: d.subject, reason: why }, "UPDATE",
+async function notLinked(tx: Tx, actor: AuditActor, organisationId: string, d: { id: string; subject: string }, why: string) {
+  await writeAudit(tx, { actor, organisationId, entity: "CommitteeDecision", entityId: d.id, entityLabel: d.subject, reason: why }, "UPDATE",
     diffFields({ linkedToApproval: null }, { linkedToApproval: AUTO_LINK_WORDS.notLinked.en }));
 }
 

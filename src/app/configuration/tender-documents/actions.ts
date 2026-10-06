@@ -17,6 +17,7 @@ import { NOT_SET, PACK_KIND_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOU
 import { formatPct } from "@/lib/tender-docs/percent";
 import { PACK_KINDS, PART_CONTENTS, PART_ROLES, PART_SOURCES, type ConfiguredPart, type Provenance } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /**
  * Configuration › Tender documents (6.4 plan §5): the parts each pack kind assembles on each
@@ -84,6 +85,7 @@ async function partWords(tx: Tx, organisationId: string, p: Omit<ConfiguredPart,
 
 /// Add or change a configured part (FR-DOC-001, 002, 013).
 export async function saveTenderPart(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const today = todayIn(new Date(), org.timeZone);
@@ -128,11 +130,11 @@ export async function saveTenderPart(_prev: FormState, data: FormData): Promise<
     if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [String(f.data?.field ?? "code"), PART_CONFIG_FAULT_TEXT[f.code]])) };
     if (!before) {
       const row = await tx.tenderDocumentPart.create({ data: { organisationId: org.id, ...part } });
-      await writeAudit(tx, { organisationId: org.id, entity: ENTITY.config, entityId: row.id, entityLabel: `Tender document part · ${part.labelEn}`, reason }, "CREATE", diffFields(null, await partWords(tx, org.id, part)));
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: row.id, entityLabel: `Tender document part · ${part.labelEn}`, reason }, "CREATE", diffFields(null, await partWords(tx, org.id, part)));
     } else {
       await tx.tenderDocumentPart.update({ where: { id: before.id }, data: part });
       const changes = diffFields(await partWords(tx, org.id, { ...before, provenance: before.provenance as Provenance, retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }), await partWords(tx, org.id, { ...part, retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }));
-      if (changes.length) await writeAudit(tx, { organisationId: org.id, entity: ENTITY.config, entityId: before.id, entityLabel: `Tender document part · ${part.labelEn}`, reason }, "UPDATE", changes);
+      if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: before.id, entityLabel: `Tender document part · ${part.labelEn}`, reason }, "UPDATE", changes);
     }
     return done();
   });
@@ -140,6 +142,7 @@ export async function saveTenderPart(_prev: FormState, data: FormData): Promise<
 
 /// Retire a part from a day (a pack started after it does not take it), with the reason; or restore it.
 export async function retireTenderPart(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -152,12 +155,13 @@ export async function retireTenderPart(_prev: FormState, data: FormData): Promis
     const before = await tx.tenderDocumentPart.findFirst({ where: { id, organisationId: org.id }, select: { labelEn: true, retiredOn: true } });
     if (!before) return GONE;
     await tx.tenderDocumentPart.update({ where: { id }, data: { retiredOn: on } });
-    await writeAudit(tx, { organisationId: org.id, entity: ENTITY.config, entityId: id, entityLabel: `Tender document part · ${before.labelEn}`, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }, { retiredOn: storedDay(on) }));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: id, entityLabel: `Tender document part · ${before.labelEn}`, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }, { retiredOn: storedDay(on) }));
     return done();
   });
 }
 
 export async function restoreTenderPart(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -181,7 +185,7 @@ export async function restoreTenderPart(_prev: FormState, data: FormData): Promi
     const role = clash.find((f) => f.code === "ROLE_TAKEN");
     if (role) return { ok: false, message: PART_CONFIG_FAULT_TEXT.ROLE_TAKEN };
     await tx.tenderDocumentPart.update({ where: { id }, data: { retiredOn: null } });
-    await writeAudit(tx, { organisationId: org.id, entity: ENTITY.config, entityId: id, entityLabel: `Tender document part · ${before.labelEn}`, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }, { retiredOn: null }));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: id, entityLabel: `Tender document part · ${before.labelEn}`, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }, { retiredOn: null }));
     return done();
   });
 }
@@ -210,6 +214,7 @@ const policyWords = (p: Record<string, unknown>) => ({
 
 /// Save the tender documents' policy. Every value nullable: unset reads "Not set" where used, never a default.
 export async function saveTenderPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const r = new FormReader(data);
@@ -259,7 +264,7 @@ export async function saveTenderPolicy(_prev: FormState, data: FormData): Promis
     const before = await tx.tenderDocumentPolicy.findUnique({ where: { organisationId: org.id } });
     const row = before ? await tx.tenderDocumentPolicy.update({ where: { id: before.id }, data: value }) : await tx.tenderDocumentPolicy.create({ data: { organisationId: org.id, ...value } });
     const changes = diffFields(before ? policyWords({ ...before, regulatorPermitTaxonomyName: taxonomyName(before.regulatorPermitTaxonomyCode) }) : null, policyWords({ ...value, regulatorPermitTaxonomyName: taxonomyName(value.regulatorPermitTaxonomyCode) }));
-    if (!before || changes.length) await writeAudit(tx, { organisationId: org.id, entity: ENTITY.policy, entityId: row.id, entityLabel: "Tender documents policy", reason }, before ? "UPDATE" : "CREATE", changes);
+    if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.policy, entityId: row.id, entityLabel: "Tender documents policy", reason }, before ? "UPDATE" : "CREATE", changes);
     return done();
   });
 }
@@ -268,6 +273,7 @@ export async function saveTenderPolicy(_prev: FormState, data: FormData): Promis
 
 /// Which pack a sourcing method assembles (TENDER, QUOTATION, none), or not set; with its provenance.
 export async function saveMethodDocumentPack(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -286,7 +292,7 @@ export async function saveMethodDocumentPack(_prev: FormState, data: FormData): 
     await tx.sourcingMethod.update({ where: { id }, data: v });
     const words = (x: { documentPackKind: string | null; documentPackKindProvenance: string | null }) => ({ documentPack: x.documentPackKind ? PACK_KIND_LABEL[x.documentPackKind as keyof typeof PACK_KIND_LABEL] : NOT_SET, documentPackComesFrom: prov(x.documentPackKindProvenance) });
     const changes = diffFields(words(before), words(v));
-    if (changes.length) await writeAudit(tx, { organisationId: org.id, entity: "SourcingMethod", entityId: id, entityLabel: before.nameEn, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+    if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "SourcingMethod", entityId: id, entityLabel: before.nameEn, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
     revalidatePath("/configuration/reference-data");
     return done();
   });

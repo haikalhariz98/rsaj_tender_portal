@@ -17,6 +17,7 @@ import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
 import { SUPPLIER_LIST_KINDS, type RegistrationValueKind } from "@/lib/suppliers/types";
 
 import { DocumentTypeDrawer, EditPortalIntake, EditStandingRules, EditSupplierPolicy, ListValueDrawer, RetireListValueDrawer, RetireStandingReasonDrawer, RetireTypeDrawer, RetireValueDrawer, StandingReasonDrawer, ValueDrawer } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ const tri = (v: boolean | null) => (v === true ? "yes" : v === false ? "no" : "u
  * customer's seed. Each value says where it comes from; each unset switch says what it holds back.
  */
 export default async function SupplierRegisterConfigPage() {
+  await requireStaff();
   const org = await supplierOrg();
   if (!org) {
     return (

@@ -16,6 +16,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 
 import { Section, Stat, Stats } from "../records-ui";
 import { AspectDrawer, BasisRouteDrawer, MethodModelDrawer, ModelDrawer, PolicyDrawer, RetireAspectDrawer } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,7 @@ function Setting({ value, unset }: { value: ReactNode | null; unset: string }) {
  * basis's route; and each method's usual model. None ships: every number is the customer's.
  */
 export default async function EvaluationConfigurationPage() {
+  await requireStaff();
   const org = await exerciseOrg();
   if (!org) {
     return (

@@ -114,6 +114,7 @@ import {
   SatisfyConditionDrawer,
   SubmitAwardDrawer,
 } from "../editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -144,6 +145,7 @@ function FaultList({ faults }: { faults: readonly Finding[] }) {
 }
 
 export default async function AwardPage(props: PageProps<"/awards/[id]">) {
+  await requireStaff();
   const [{ id }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
   const l = await loadAward(id);
   if (!l) notFound();
@@ -1403,7 +1405,7 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
       <CardHeader
         icon={<ClockIcon size={17} />}
         title="History"
-        subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this award and what is under it. "}Nobody is signed in, so no change is attributed. The identity card number is masked here.`}
+        subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this award and what is under it. "}Each change names who made it; any from before sign-in is not attributed. The identity card number is masked here.`}
         divided={entries.length === 0}
       />
       {entries.length === 0 ? (

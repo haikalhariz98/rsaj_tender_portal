@@ -10,6 +10,7 @@ import { awardFacts, loadAward } from "@/lib/award/repo";
 import { formatDate, formatOrgDay } from "@/lib/format";
 
 import { PrintButton } from "./print-button";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export const dynamic = "force-dynamic";
  * the text is rendered live and marked as a draft on every page.
  */
 export default async function PrintPage(props: PageProps<"/awards/[id]/print/[kind]">) {
+  await requireStaff();
   const { id, kind: slug } = await props.params;
   const kind = kindOfSlug(slug);
   const l = await loadAward(id);

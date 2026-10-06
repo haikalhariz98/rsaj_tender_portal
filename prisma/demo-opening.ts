@@ -36,6 +36,7 @@ import { formatDate } from "../src/lib/format";
 import { parseSen, senToDecimalString, type Sen } from "../src/lib/money";
 import { calendarOf, FIRMS } from "./demo-window";
 import { demoPdf, writeDemoDocs } from "./demo-documents";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -71,7 +72,7 @@ export async function configureOpeningDemo(db: Db, organisationId: string) {
   const later = (m: number) => new Date(at.getTime() + m * 60_000);
   const trail: Entry[] = [];
   let n = 0;
-  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}bauoc${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}bauoc${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
   const units = (await db.orgUnit.findMany({ where: { organisationId }, select: { code: true } })).map((u) => u.code);
 
   const people = [
@@ -133,7 +134,7 @@ export async function loadOpeningDemo(db: Db, organisationId: string) {
   const sec = (at: Date, s: number) => new Date(at.getTime() + s * 1000);
   const trail: Entry[] = [];
   let n = 0;
-  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}bauo${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}bauo${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
   const acts = new OpeningActs(db, organisationId, tz, entry);
   const now = new Date();
 
@@ -543,7 +544,7 @@ export class OpeningActs {
       estimate: { required: snap.estimate.requires === true, lodged, paperAnswered: paper != null },
       personActive: true,
     }));
-    const disclosed = lodged && c.estimateFacts ? await discloseAtFinalising(this.db as never, { organisationId: this.org, reference: l.ex.reference, facts: c.estimateFacts, at, person, paper, benchmarkLabelEn: c.scopePolicy.benchmarkLabelEn }) : null;
+    const disclosed = lodged && c.estimateFacts ? await discloseAtFinalising(this.db as never, { kind: "SYSTEM", label: "demo loader" }, { organisationId: this.org, reference: l.ex.reference, facts: c.estimateFacts, at, person, paper, benchmarkLabelEn: c.scopePolicy.benchmarkLabelEn }) : null;
     const rows = c.openings.filter((x) => x.sequenceNo <= o.sequenceNo).flatMap((x) => x.bids.map((b) => ({ listingNo: b.listingNo, bidderName: b.bidderNameAsRead, registrationClass: b.registrationClassAsRead, registrationStatus: b.registrationStatusAsRead, price: parseSen(b.priceAsRead.toString()), period: b.completionPeriod != null && b.completionUnit ? { value: b.completionPeriod, unit: b.completionUnit } : null, isAlternative: b.isAlternative, parentListingNo: b.parentOpenedBid?.listingNo ?? null, openingSequence: x.sequenceNo })));
     const mainSchedule = o.kind === "SUPPLEMENTARY" ? (c.main?.scheduleSnapshot as { benchmark?: { sealed: false; label: string | null; companyEstimate: string } | { notRequired: true } } | null) : null;
     const prior = mainSchedule?.benchmark;

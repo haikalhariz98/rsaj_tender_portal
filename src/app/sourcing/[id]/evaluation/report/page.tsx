@@ -17,6 +17,7 @@ import { reportFromSnapshot, type ReportSnapshot } from "@/lib/evaluation/report
 import type { EvaluationRoute, Side, StageKind } from "@/lib/evaluation/types";
 import { formatMoney, parseSen } from "@/lib/money";
 import { exerciseOrg } from "@/lib/method/repo";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export const dynamic = "force-dynamic";
  * is the paper route while an uploaded SULIT scan cannot be downloaded (E-3, E-11).
  */
 export default async function EvaluationReportPrint(props: PageProps<"/sourcing/[id]/evaluation/report">) {
+  await requireStaff();
   const { id } = await props.params;
   const wanted = Number((await props.searchParams).version) || null;
   const org = await exerciseOrg();

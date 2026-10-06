@@ -19,6 +19,7 @@ import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 
 import { AddCheck, AddTarget, EditCheck, EditRoutingType, EditTarget, RemoveCheck, RemoveTarget, RetireRoutingType } from "../editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export const dynamic = "force-dynamic";
  * its targets, banded by an exact percentage where the sheet bands them (ADR 0024).
  */
 export default async function RoutingTypePage(props: PageProps<"/configuration/routing-sheets/[id]">) {
+  await requireStaff();
   const { id } = await props.params;
   const org = await exerciseOrg();
   if (!org) notFound();

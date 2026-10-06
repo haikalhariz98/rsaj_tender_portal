@@ -13,6 +13,7 @@ import { CLOSING_SOON_DAYS, closesSoon } from "@/lib/window/closing-soon";
 import { windowColumns } from "@/lib/window/read";
 
 import { ExerciseList } from "./exercise-list";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ const TONE = { brand: "brand", info: "info", ok: "ok", neutral: undefined } as c
  * and basis — while the sourcing itself still runs outside the portal (§13.3).
  */
 export default async function SourcingPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  await requireStaff();
   const { view } = await searchParams;
   const { org, rows, total } = await listExercises();
   const cfg = org ? await loadMethodConfig(org.id) : null;

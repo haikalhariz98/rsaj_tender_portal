@@ -71,7 +71,7 @@ describe("the acts record and check it (source scan)", () => {
   it("citation at award refuses a decision on another version, after the bundle check and before the write", () => {
     // Founder, 2026-10-05: the citation moved, unchanged, to the module's route writer, the one function its act and a sitting's outcome both run.
     const routeWrite = read("src", "lib", "award", "route-write.ts");
-    expect(awards).toMatch(/citeAppointmentStep\(tx, l, stepId, decisionId\)/);
+    expect(awards).toMatch(/citeAppointmentStep\(tx, toAuditActor\(actor\), l, stepId, decisionId\)/); // Phase 1b: who acted is the argument after the transaction
     expect(routeWrite.indexOf("const gate = await loadEvaluationGate(l.ex.id, tx);")).toBeGreaterThan(routeWrite.indexOf("export async function citeAppointmentStep("));
     const cite = routeWrite.slice(routeWrite.indexOf("const gate = await loadEvaluationGate(l.ex.id, tx);"));
     expect(cite.indexOf("bundleFaults(gate.bundle)")).toBeLessThan(cite.indexOf("tabledVersionFault("));

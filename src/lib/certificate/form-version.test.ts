@@ -24,7 +24,7 @@ describe("a form's version moves with its blocks and its list", () => {
     for (const name of ["saveSignatureBlock", "removeSignatureBlock", "saveDistributionRow", "removeDistributionRow"]) {
       const at = src.indexOf(`export async function ${name}(`);
       const body = src.slice(at, src.indexOf("\nexport async function ", at + 10) === -1 ? undefined : src.indexOf("\nexport async function ", at + 10));
-      expect(body, name).toMatch(/await bumpFormVersion\(tx, t, /);
+      expect(body, name).toMatch(/await bumpFormVersion\(tx, toAuditActor\(actor\), t, /); // Phase 1b: who acted is the argument after the transaction
       expect(body, name).toMatch(/return onTemplate\(templateId/);
     }
     expect(src).toMatch(/FOR UPDATE/);

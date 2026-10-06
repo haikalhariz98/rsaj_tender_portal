@@ -18,6 +18,8 @@ import { figuresFor, transferFaults, type Movement } from "@/lib/budget/codes";
 import { syncReadiness } from "@/lib/budget/finance";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { splitValues } from "@/lib/ui/select-logic";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/budget";
@@ -36,6 +38,7 @@ const NO_ORG: FormState = {
 };
 
 export async function saveAllocation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -79,6 +82,7 @@ export async function saveAllocation(_prev: FormState, data: FormData): Promise<
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "BudgetAllocation",
     entityLabel: `${v.costCentreCode} / ${v.accountCodeCode} — ${v.periodLabel}`,
@@ -103,6 +107,7 @@ export async function saveAllocation(_prev: FormState, data: FormData): Promise<
 }
 
 export async function saveCommitment(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -129,6 +134,7 @@ export async function saveCommitment(_prev: FormState, data: FormData): Promise<
 
   await auditedCreate(
     {
+      actor: toAuditActor(actor),
       organisationId: orgId,
       entity: "BudgetCommitment",
       entityLabel: `${reference} against ${allocation.costCentreCode}`,
@@ -149,6 +155,7 @@ export async function saveCommitment(_prev: FormState, data: FormData): Promise<
  * show a balance nobody can reconstruct.
  */
 export async function releaseCommitment(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -163,6 +170,7 @@ export async function releaseCommitment(_prev: FormState, data: FormData): Promi
   const releasedOn = new Date();
   await auditedUpdate(
     {
+      actor: toAuditActor(actor),
       organisationId: orgId,
       entity: "BudgetCommitment",
       entityId: id,
@@ -183,6 +191,7 @@ export async function releaseCommitment(_prev: FormState, data: FormData): Promi
 /// reads. Judged first for a quick answer, then again on the locked row, inside the transaction
 /// that writes it: an end recorded while this act waited is seen there.
 export async function endAllocation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -216,7 +225,7 @@ export async function endAllocation(_prev: FormState, data: FormData): Promise<F
       await tx.budgetAllocation.update({ where: { id }, data: { effectiveTo } });
       await writeAudit(
         tx,
-        { organisationId: orgId, entity: "BudgetAllocation", entityId: id, entityLabel: `${locked.row.costCentreCode} / ${locked.row.accountCodeCode}`, reason },
+        { actor: toAuditActor(actor), organisationId: orgId, entity: "BudgetAllocation", entityId: id, entityLabel: `${locked.row.costCentreCode} / ${locked.row.accountCodeCode}`, reason },
         "UPDATE",
         diffFields({ effectiveTo: null }, { effectiveTo }),
       );
@@ -240,6 +249,7 @@ export async function endAllocation(_prev: FormState, data: FormData): Promise<F
  * to live — the two would disagree the first time a revision was recorded.
  */
 export async function saveBudgetCode(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -279,6 +289,7 @@ export async function saveBudgetCode(_prev: FormState, data: FormData): Promise<
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "BudgetCode",
     entityLabel: `${code} — ${v.descriptionEn}`,
@@ -316,12 +327,13 @@ export async function saveBudgetCode(_prev: FormState, data: FormData): Promise<
  * decision, so neither is a single click: each asks why, and the reason is kept.
  */
 export async function changePeriod(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
-  return setPeriodOpen(String(data.get("id") ?? ""), data.get("open") === "yes", reason);
+  return setPeriodOpen(toAuditActor(actor), String(data.get("id") ?? ""), data.get("open") === "yes", reason);
 }
 
-async function setPeriodOpen(periodId: string, open: boolean, reason: string): Promise<FormState> {
+async function setPeriodOpen(by: AuditActor, periodId: string, open: boolean, reason: string): Promise<FormState> {
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -344,6 +356,7 @@ async function setPeriodOpen(periodId: string, open: boolean, reason: string): P
 
   await auditedUpdate(
     {
+      actor: by,
       organisationId: orgId,
       entity: "BudgetPeriod",
       entityId: periodId,
@@ -361,6 +374,7 @@ async function setPeriodOpen(periodId: string, open: boolean, reason: string): P
 
 /// Whether unspent allocation carries into the next year, for one year.
 export async function setRollForward(year: number, on: boolean): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -369,6 +383,7 @@ export async function setRollForward(year: number, on: boolean): Promise<FormSta
   });
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "BudgetYear",
     entityLabel: String(year),
@@ -422,6 +437,7 @@ function toPeriod(row: {
 
 /// Revise an allocation up or down. A movement on the ledger, never an edit to a total.
 export async function addRevision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -467,6 +483,7 @@ export async function addRevision(_prev: FormState, data: FormData): Promise<For
 
   await auditedCreate(
     {
+      actor: toAuditActor(actor),
       organisationId: orgId,
       entity: "BudgetMovement",
       entityLabel: `${code.code} — revision ${reference}`,
@@ -488,6 +505,7 @@ export async function addRevision(_prev: FormState, data: FormData): Promise<For
  * where it went.
  */
 export async function transferBetweenCodes(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -571,6 +589,7 @@ export async function transferBetweenCodes(_prev: FormState, data: FormData): Pr
     await writeAudit(
       tx,
       {
+        actor: toAuditActor(actor),
         organisationId: orgId,
         entity: "BudgetMovement",
         // The pair is one act; the outgoing side identifies it.
@@ -597,6 +616,7 @@ export async function transferBetweenCodes(_prev: FormState, data: FormData): Pr
  * customer's policy for them.
  */
 export async function saveBudgetControls(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -635,6 +655,7 @@ export async function saveBudgetControls(_prev: FormState, data: FormData): Prom
 
   const before = await db.budgetSettings.findUnique({ where: { organisationId: orgId } });
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "BudgetSettings",
     entityLabel: "Budget controls",
@@ -663,6 +684,7 @@ export async function saveBudgetControls(_prev: FormState, data: FormData): Prom
  * software — so what it restores is the unset state, and it says so.
  */
 export async function clearBudgetControls(): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -682,6 +704,7 @@ export async function clearBudgetControls(): Promise<FormState> {
 
   await auditedUpdate(
     {
+      actor: toAuditActor(actor),
       organisationId: orgId,
       entity: "BudgetSettings",
       entityId: before.id,
@@ -701,6 +724,7 @@ export async function clearBudgetControls(): Promise<FormState> {
 
 /// How and how often the portal reconciles with the customer's finance system.
 export async function saveFinanceSettings(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -716,6 +740,7 @@ export async function saveFinanceSettings(_prev: FormState, data: FormData): Pro
 
   const before = await db.financeIntegration.findUnique({ where: { organisationId: orgId } });
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "FinanceIntegration",
     entityLabel: "Finance & Operations",
@@ -745,6 +770,7 @@ export async function saveFinanceSettings(_prev: FormState, data: FormData): Pro
  * tried as readily as when it last worked.
  */
 export async function synchroniseNow(): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -769,6 +795,7 @@ export async function synchroniseNow(): Promise<FormState> {
 
   await auditedCreate(
     {
+      actor: toAuditActor(actor),
       organisationId: orgId,
       entity: "FinanceSyncRun",
       entityLabel: "Synchronisation attempt",
@@ -789,6 +816,7 @@ export async function synchroniseNow(): Promise<FormState> {
  * decided which side was right, is exactly what an audit asks about later.
  */
 export async function acceptPortalFigure(varianceId: string): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -803,6 +831,7 @@ export async function acceptPortalFigure(varianceId: string): Promise<FormState>
 
   await auditedUpdate(
     {
+      actor: toAuditActor(actor),
       organisationId: orgId,
       entity: "FinanceVariance",
       entityId: varianceId,

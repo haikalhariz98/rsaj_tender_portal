@@ -25,6 +25,8 @@ import { FormReader } from "@/lib/validate";
 import { chooseFaults } from "@/lib/evaluation/pin";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, notes } from "./shared";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Writes for 6.5's window (plan §4.1–4.3): the notice's items and the fee with its basis, the
@@ -42,6 +44,7 @@ import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW,
  * closing change.
  */
 export async function saveWindow(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const inspectionPlace = r.text("inspectionPlace", "Where the documents are inspected", { max: 400 });
@@ -66,18 +69,19 @@ export async function saveWindow(_prev: FormState, data: FormData): Promise<Form
       const { method } = pathOf(d);
       if (!method) return refuse([{ code: "PATH_NOT_SET", level: "block" }]);
       const w = await tx.exerciseWindow.create({ data: { organisationId: l.org.id, exerciseId, path: method, ...after } });
-      await audit(tx, l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "CREATE", diffFields(null, windowFields({ ...after, path: method })));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "CREATE", diffFields(null, windowFields({ ...after, path: method })));
       return { ok: true };
     }
     const w = d.window;
     await tx.exerciseWindow.update({ where: { id: w.id }, data: after });
-    await audit(tx, l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "UPDATE", diffFields(windowFields(w), windowFields({ ...after })));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "UPDATE", diffFields(windowFields(w), windowFields({ ...after })));
     return { ok: true };
   });
 }
 
 /// Add or change a line of the fee's cost basis. The amount is the lib's (`lineAmount`), never the form's.
 export async function saveFeeLine(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const lineId = String(data.get("lineId") ?? "") || null;
   const r = new FormReader(data);
@@ -98,16 +102,17 @@ export async function saveFeeLine(_prev: FormState, data: FormData): Promise<For
       const before = d.window.feeLines.find((x) => x.id === lineId);
       if (!before) return { ok: false, message: "That line is no longer on the basis." };
       await tx.windowFeeLine.update({ where: { id: lineId }, data: row });
-      await audit(tx, l.org.id, ENTITY.feeLine, lineId, label(l, "Fee basis"), "UPDATE", diffFields(feeLineFields(before), feeLineFields(row)));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.feeLine, lineId, label(l, "Fee basis"), "UPDATE", diffFields(feeLineFields(before), feeLineFields(row)));
     } else {
       const created = await tx.windowFeeLine.create({ data: { organisationId: l.org.id, windowId: d.window.id, sortOrder: d.window.feeLines.length, ...row } });
-      await audit(tx, l.org.id, ENTITY.feeLine, created.id, label(l, "Fee basis"), "CREATE", diffFields(null, feeLineFields(row)));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.feeLine, created.id, label(l, "Fee basis"), "CREATE", diffFields(null, feeLineFields(row)));
     }
     return { ok: true };
   });
 }
 
 export async function removeFeeLine(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const lineId = String(data.get("lineId") ?? "");
   return inWindow(exerciseId, async (tx, l, d) => {
@@ -116,7 +121,7 @@ export async function removeFeeLine(_prev: FormState, data: FormData): Promise<F
     const line = d.window?.feeLines.find((x) => x.id === lineId);
     if (!line) return { ok: false, message: "That line is no longer on the basis." };
     await tx.windowFeeLine.delete({ where: { id: line.id } });
-    await audit(tx, l.org.id, ENTITY.feeLine, line.id, label(l, "Fee basis"), "DELETE", snapshotFields(feeLineFields(line)));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.feeLine, line.id, label(l, "Fee basis"), "DELETE", snapshotFields(feeLineFields(line)));
     return { ok: true };
   });
 }
@@ -124,18 +129,19 @@ export async function removeFeeLine(_prev: FormState, data: FormData): Promise<F
 // ------------------------------------------------------------------ the invitee list (ADR 0015)
 
 /// Withdraw every name route pending or approved: it no longer describes the list (BD-19's label).
-async function withdrawNameRoutes(tx: Parameters<Parameters<typeof inWindow>[1]>[0], l: Parameters<Parameters<typeof inWindow>[1]>[1], why: string) {
+async function withdrawNameRoutes(tx: Parameters<Parameters<typeof inWindow>[1]>[0], actor: AuditActor, l: Parameters<Parameters<typeof inWindow>[1]>[1], why: string) {
   const routes = nameRoutesOf(l.ex.approvalInstances);
   for (const inst of routesWithdrawnByListChange(routes)) {
     const warning = { code: WITHDRAWN_ON_CHANGE, level: "warn", messageEn: `${why} The route no longer describes the invitee list, so it was withdrawn.` };
     const moved = await tx.approvalInstance.updateMany({ where: { id: inst.id, status: inst.status }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "ApprovalInstance", inst.id, label(l, exerciseRouteMatter(NAME_APPROVAL_DOMAIN).auditNoun), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), why);
+    await audit(tx, actor, l.org.id, "ApprovalInstance", inst.id, label(l, exerciseRouteMatter(NAME_APPROVAL_DOMAIN).auditNoun), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), why);
   }
 }
 
 /// Propose a contractor for invitation. A change of the list withdraws the name route.
 export async function proposeInvitee(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const name = r.text("name", "Contractor", { required: true, max: 240 });
@@ -152,14 +158,15 @@ export async function proposeInvitee(_prev: FormState, data: FormData): Promise<
     if (d.parties.some((p) => regKey(p.registrationNo) === regKey(registrationNo))) return { ok: false, errors: { registrationNo: windowFindingText({ code: "DUPLICATE", level: "block" }) } };
     const row = { source: "PROPOSED_INVITEE" as const, name, registrationNo, address, phone, fax, email };
     const party = await tx.exerciseParty.create({ data: { organisationId: l.org.id, exerciseId, ...row } });
-    await audit(tx, l.org.id, ENTITY.party, party.id, label(l, `Invitee ${name}`), "CREATE", diffFields(null, partyFields(row)));
-    await withdrawNameRoutes(tx, l, `${name} was added to the invitee list.`);
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.party, party.id, label(l, `Invitee ${name}`), "CREATE", diffFields(null, partyFields(row)));
+    await withdrawNameRoutes(tx, toAuditActor(actor), l, `${name} was added to the invitee list.`);
     return { ok: true };
   });
 }
 
 /// Take a proposed contractor off the list, with a reason. Not once invited; not one with records.
 export async function removeInvitee(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const partyId = String(data.get("partyId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -174,8 +181,8 @@ export async function removeInvitee(_prev: FormState, data: FormData): Promise<F
     const attendance = await tx.siteEventAttendance.count({ where: { partyId } });
     if (letters + sales + attendance > 0) return refuse([{ code: "PARTY_HAS_RECORDS", level: "block" }]);
     await tx.exerciseParty.delete({ where: { id: p.id } });
-    await audit(tx, l.org.id, ENTITY.party, p.id, label(l, `Invitee ${p.name}`), "DELETE", snapshotFields(partyFields(p)), reason);
-    await withdrawNameRoutes(tx, l, `${p.name} was taken off the invitee list: ${reason}`);
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.party, p.id, label(l, `Invitee ${p.name}`), "DELETE", snapshotFields(partyFields(p)), reason);
+    await withdrawNameRoutes(tx, toAuditActor(actor), l, `${p.name} was taken off the invitee list: ${reason}`);
     return { ok: true };
   });
 }
@@ -184,6 +191,7 @@ export async function removeInvitee(_prev: FormState, data: FormData): Promise<F
 
 /// Record an advertised exercise's publication on a channel, by a named Person (recorded on their behalf, not signed).
 export async function recordPublication(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const channelId = r.text("channelId", "Channel", { required: true });
@@ -208,13 +216,14 @@ export async function recordPublication(_prev: FormState, data: FormData): Promi
     });
     if (fs.length) return fs.length === 1 && fs[0].code === "PERSON_REQUIRED" ? { ok: false, errors: { recordedByPersonId: windowFindingText(fs[0]) } } : refuse(fs, "Not recorded:");
     const row = await tx.publicationRecord.create({ data: { organisationId: l.org.id, windowId: d.window.id, channelId, channelName: channel!.nameEn, publishedOn: on, reference, recordedByPersonId: person!.id } });
-    await audit(tx, l.org.id, ENTITY.publication, row.id, label(l, `Publication · ${channel!.nameEn}`), "CREATE", diffFields(null, { channel: channel!.nameEn, publishedOn: formatDate(storedDay(on)), reference: reference || null, recordedBy: person!.name, recordedOnBehalf: "not signed" }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.publication, row.id, label(l, `Publication · ${channel!.nameEn}`), "CREATE", diffFields(null, { channel: channel!.nameEn, publishedOn: formatDate(storedDay(on)), reference: reference || null, recordedBy: person!.name, recordedOnBehalf: "not signed" }));
     return { ok: true };
   });
 }
 
 /// Remove a publication recorded in error, with a reason, before the exercise is published.
 export async function removePublication(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const publicationId = String(data.get("publicationId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -224,7 +233,7 @@ export async function removePublication(_prev: FormState, data: FormData): Promi
     const p = d.window?.publications.find((x) => x.id === publicationId);
     if (!p) return { ok: false, message: "That publication is no longer recorded." };
     await tx.publicationRecord.delete({ where: { id: p.id } });
-    await audit(tx, l.org.id, ENTITY.publication, p.id, label(l, `Publication · ${p.channelName}`), "DELETE", snapshotFields({ channel: p.channelName, publishedOn: formatDate(storedDay(p.publishedOn)), reference: p.reference || null }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.publication, p.id, label(l, `Publication · ${p.channelName}`), "DELETE", snapshotFields({ channel: p.channelName, publishedOn: formatDate(storedDay(p.publishedOn)), reference: p.reference || null }), reason);
     return { ok: true };
   });
 }
@@ -239,6 +248,7 @@ export async function removePublication(_prev: FormState, data: FormData): Promi
  * the exercise moved by its one act (`via: PUBLICATION`). Warnings are said, never refused.
  */
 export async function publishWindow(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   return inWindow(exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
@@ -264,13 +274,13 @@ export async function publishWindow(_prev: FormState, data: FormData): Promise<F
     const m = d.evaluation.model!;
     const pinned = await tx.sourcingExercise.updateMany({ where: { id: exerciseId, evaluationModelId: m.id, evaluationModelPinnedAt: null }, data: { evaluationModelSnapshot: m.contentSnapshot as Prisma.InputJsonValue, evaluationModelPinnedAt: now } });
     if (pinned.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ evaluationModelPinned: null }, { evaluationModelPinned: `${m.nameEn}, version ${m.version}` }));
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ evaluationModelPinned: null }, { evaluationModelPinned: `${m.nameEn}, version ${m.version}` }));
     if (j.path === "ADVERTISED") {
       const t = d.templates.notice!;
       await tx.exerciseWindow.update({ where: { id: w.id }, data: { advertisementDay: dayToDate(day), publishedAt: now, policySnapshot: snapshot as unknown as Prisma.InputJsonValue, noticeText: j.notice!.text, noticeTemplateCode: t.code, noticeTemplateBodyVersion: t.bodyVersion } });
-      await audit(tx, l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "UPDATE", diffFields({ advertisedOn: null }, { advertisedOn: formatDate(day), notice: `${t.nameEn}, text version ${t.bodyVersion}`, rulesRecorded: "yes" }));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "UPDATE", diffFields({ advertisedOn: null }, { advertisedOn: formatDate(day), notice: `${t.nameEn}, text version ${t.bodyVersion}`, rulesRecorded: "yes" }));
       await moveExercise(tx, l.ex, "ADVERTISED", { today: l.org.today, via: "PUBLICATION", publishFaults: 0 });
-      await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "ADVERTISED" }));
+      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "ADVERTISED" }));
     } else {
       const t = d.templates.invitation!;
       const route = d.method?.requiresNameApproval ? approvedNameRoute(nameRoutesWithLists(l.ex, d.invitees)) : null;
@@ -290,12 +300,12 @@ export async function publishWindow(_prev: FormState, data: FormData): Promise<F
             frozenAt: now,
           },
         });
-        await audit(tx, l.org.id, ENTITY.letter, row.id, label(l, `Letter of invitation · ${letter.party.name}`), "CREATE", diffFields(null, { invitee: letter.party.name, frozenFrom: `${t.nameEn}, text version ${t.bodyVersion}`, language: letter.rendered.language === "MS" ? "Malay" : "English" }));
+        await audit(tx, toAuditActor(actor), l.org.id, ENTITY.letter, row.id, label(l, `Letter of invitation · ${letter.party.name}`), "CREATE", diffFields(null, { invitee: letter.party.name, frozenFrom: `${t.nameEn}, text version ${t.bodyVersion}`, language: letter.rendered.language === "MS" ? "Malay" : "English" }));
       }
       await tx.exerciseWindow.update({ where: { id: w.id }, data: { advertisementDay: dayToDate(day), publishedAt: now, policySnapshot: snapshot as unknown as Prisma.InputJsonValue } });
-      await audit(tx, l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "UPDATE", diffFields({ invitedOn: null }, { invitedOn: formatDate(day), letters: j.letters.length, rulesRecorded: "yes" }));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.window, w.id, label(l, "Invitation window"), "UPDATE", diffFields({ invitedOn: null }, { invitedOn: formatDate(day), letters: j.letters.length, rulesRecorded: "yes" }));
       await moveExercise(tx, l.ex, "INVITED", { today: l.org.today, via: "PUBLICATION", publishFaults: 0 });
-      await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "INVITED" }));
+      await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "INVITED" }));
     }
     const said = notes(j.result.findings.filter((f) => f.level === "warn"));
     return { ok: true, message: `${j.path === "ADVERTISED" ? "Advertised" : `Invited: ${proposedInvitees(d.parties).length} letters issued`}.${said ? ` ${said}` : ""}` };
@@ -308,6 +318,7 @@ export async function publishWindow(_prev: FormState, data: FormData): Promise<F
  * against the basis's is judged with the publication, so the card and the act give the same reason.
  */
 export async function chooseEvaluationModel(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const modelId = r.text("evaluationModelId", "Evaluation model", { required: true });
@@ -319,13 +330,14 @@ export async function chooseEvaluationModel(_prev: FormState, data: FormData): P
     if (l.ex.evaluationModelId === row!.id) return { ok: true };
     const before = d.evaluation.model ? `${d.evaluation.model.nameEn}, version ${d.evaluation.model.version}` : null;
     await tx.sourcingExercise.update({ where: { id: exerciseId }, data: { evaluationModelId: row!.id } });
-    await audit(tx, l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ evaluationModel: before }, { evaluationModel: `${row!.nameEn}, version ${row!.version}` }));
+    await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", exerciseId, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ evaluationModel: before }, { evaluationModel: `${row!.nameEn}, version ${row!.version}` }));
     return { ok: true };
   });
 }
 
 /// How a letter of invitation went: recorded, never sent (INT-09 is not built).
 export async function recordLetterDelivery(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const letterId = String(data.get("letterId") ?? "");
   const r = new FormReader(data);
@@ -342,7 +354,7 @@ export async function recordLetterDelivery(_prev: FormState, data: FormData): Pr
     if (fs.length) return refuse(fs, "Not recorded:");
     const after = { method, consignmentRef, despatchedOn: sent, acknowledgedOn: ack };
     await tx.invitationLetter.update({ where: { id: letter.id }, data: after });
-    await audit(tx, l.org.id, ENTITY.letter, letter.id, label(l, `Letter of invitation · ${letter.party.name}`), "UPDATE", diffFields(deliveryFields(letter), deliveryFields(after)));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.letter, letter.id, label(l, `Letter of invitation · ${letter.party.name}`), "UPDATE", diffFields(deliveryFields(letter), deliveryFields(after)));
     return { ok: true };
   });
 }

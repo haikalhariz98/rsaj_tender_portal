@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { publicAllows, surfaceOf, type PublicRequest } from "./surface";
+import { gate, publicAllows, surfaceOf, type GateRequest, type PublicRequest } from "./surface";
 
 const get = (pathname: string, o: Partial<PublicRequest> = {}) => publicAllows({ method: "GET", pathname, hasServerAction: false, ...o });
 
@@ -53,5 +53,44 @@ describe("the public copy", () => {
     expect(publicAllows({ method: "POST", pathname: "/supplier/register", hasServerAction: true })).toBe(false);
     expect(publicAllows({ method: "POST", pathname: "/supplier/register/submit", hasServerAction: true })).toBe(false);
     expect(get("/supplier", { hasServerAction: true })).toBe(false);
+  });
+});
+
+const ask = (o: Partial<GateRequest> & { pathname: string }) => gate({ surface: "internal", method: "GET", hasServerAction: false, staffCookie: false, supplierCookie: false, ...o }).kind;
+
+describe("the route boundary with sign-in (Phase 1b)", () => {
+  it("the staff copy: no cookie, a page goes to sign in, a post or an API call is told so", () => {
+    expect(ask({ pathname: "/" })).toBe("signIn");
+    expect(ask({ pathname: "/sourcing/x", method: "HEAD" })).toBe("signIn");
+    expect(ask({ pathname: "/configuration/awards", method: "POST", hasServerAction: true })).toBe("unauthorised");
+    expect(ask({ pathname: "/api/documents" })).toBe("unauthorised");
+    expect(ask({ pathname: "/requisitions/line-template" })).toBe("signIn");
+  });
+
+  it("the staff copy: a cookie passes everything (the guards judge it); a supplier's cookie is not found", () => {
+    for (const pathname of ["/", "/sourcing/x", "/api/documents", "/configuration/accounts"]) expect(ask({ pathname, staffCookie: true })).toBe("next");
+    expect(ask({ pathname: "/sourcing/x", staffCookie: true, supplierCookie: true })).toBe("notFound");
+    expect(ask({ pathname: "/sign-in", supplierCookie: true })).toBe("notFound");
+  });
+
+  it("the staff copy: with no cookie only the sign-in screens, the portal, the logo and the platform's files", () => {
+    for (const pathname of ["/sign-in", "/sign-in/code", "/supplier", "/supplier/results", "/organisation/logo/abc", "/_next/static/a.js", "/favicon.ico"]) expect(ask({ pathname }), pathname).toBe("next");
+    expect(ask({ pathname: "/sign-in", method: "POST", hasServerAction: true })).toBe("next");
+    expect(ask({ pathname: "/supplier/register/submit", method: "POST" })).toBe("next");
+    for (const pathname of ["/account", "/welcome", "/supplier/anything", "/_next/image", "/_next/data/x.json"]) expect(ask({ pathname }), pathname).not.toBe("next");
+  });
+
+  it("the development server's channels are open only in development", () => {
+    expect(ask({ pathname: "/_next/webpack-hmr" })).toBe("signIn");
+    expect(ask({ pathname: "/_next/webpack-hmr", development: true })).toBe("next");
+    expect(ask({ pathname: "/__nextjs_original-stack-frames", development: true })).toBe("next");
+    expect(ask({ pathname: "/sourcing/x", development: true })).toBe("signIn");
+  });
+
+  it("the public copy: a staff cookie is not found, whatever it asks for; sign-in is not served at all", () => {
+    expect(ask({ surface: "public", pathname: "/supplier", staffCookie: true })).toBe("notFound");
+    expect(ask({ surface: "public", pathname: "/supplier" })).toBe("next");
+    for (const pathname of ["/sign-in", "/sign-in/code", "/account", "/welcome"]) expect(ask({ surface: "public", pathname })).toBe("notFound");
+    expect(ask({ surface: "public", pathname: "/sign-in", method: "POST", hasServerAction: true })).toBe("notFound");
   });
 });

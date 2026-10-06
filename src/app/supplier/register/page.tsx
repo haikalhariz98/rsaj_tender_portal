@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * no status page. No bank details are asked and nothing is uploaded.
  */
 export default async function SupplierRegisterPage() {
-  const [{ organisation }, form] = await Promise.all([loadShell(), loadRegistrationForm()]);
+  const [{ organisation }, form] = await Promise.all([loadShell({ counts: false }), loadRegistrationForm()]);
   const open = form.ready && form.missing.length === 0;
 
   return (

@@ -31,6 +31,8 @@ import { loadRoster } from "@/lib/people/load";
 import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, exerciseIdOf, inWindow, label, type LockedWindow } from "../window/shared";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Writes for 6.6's envelope register (plan §4). Each runs in one transaction that locks the
@@ -78,7 +80,7 @@ function readReceipt(r: FormReader) {
  * Record a receipt, stamped now by the server. `stated` is the after-the-fact path's: the
  * officer's stated time and reason, kept beside the stamp and never judged (OD-3 amended).
  */
-async function receive(exerciseId: string, v: ReturnType<typeof readReceipt>, stated: { at: Date; reason: string } | null, now: Date): Promise<FormState> {
+async function receive(actor: AuditActor, exerciseId: string, v: ReturnType<typeof readReceipt>, stated: { at: Date; reason: string } | null, now: Date): Promise<FormState> {
   return inWindow(exerciseId, async (tx, l) => {
     const r = await locked(tx, l);
     const person = await nameOf(tx, l.org.id, v.receivedByPersonId);
@@ -106,7 +108,7 @@ async function receive(exerciseId: string, v: ReturnType<typeof readReceipt>, st
         parentEnvelopeId: parent ? parent.id : null,
       },
     });
-    await audit(tx, l.org.id, BID_ENTITY.envelope, row.id, label(l, `Envelope ${sequence}`), "CREATE",
+    await audit(tx, actor, l.org.id, BID_ENTITY.envelope, row.id, label(l, `Envelope ${sequence}`), "CREATE",
       diffFields(null, envelopeFields({ ...row, receivedBy: person!.name, parentSequence: parent ? parent.sequence : null }, l.org.timeZone)), stated?.reason ?? "");
     const said = warnings(fs);
     return { ok: true, message: `Envelope ${sequence} recorded${judged.late ? ", late" : ", in time"}.${said ? ` ${said}` : ""}` };
@@ -115,15 +117,17 @@ async function receive(exerciseId: string, v: ReturnType<typeof readReceipt>, st
 
 /// FR-BID-002: record an envelope received now. The server stamps it; there is no time on this form.
 export async function recordReceiptNow(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const v = readReceipt(r);
   if (r.failed) return { ok: false, errors: r.errors };
-  return receive(exerciseIdOf(data), v, null, now);
+  return receive(toAuditActor(actor), exerciseIdOf(data), v, null, now);
 }
 
 /// OD-3 amended: a receipt recorded after the event. The server still stamps it and the stamp decides; the officer's stated time and reason are kept beside it, shown.
 export async function recordReceiptAfterTheFact(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const v = readReceipt(r);
@@ -136,7 +140,7 @@ export async function recordReceiptAfterTheFact(_prev: FormState, data: FormData
   const tz = await organisationTimeZone();
   const at = instantAt(statedDay, statedTime, tz);
   if (!at) return { ok: false, errors: tz ? { statedTime: "Give a time of day, as HH:MM." } : {}, message: tz ? undefined : bidFindingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
-  return receive(exerciseId, v, { at, reason }, now);
+  return receive(toAuditActor(actor), exerciseId, v, { at, reason }, now);
 }
 
 /**
@@ -145,6 +149,7 @@ export async function recordReceiptAfterTheFact(_prev: FormState, data: FormData
  * the box is matched at opening. The letter is attached to the withdrawal (SULIT) from its row.
  */
 export async function recordWithdrawal(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const envelopeId = r.optionalText("envelopeId");
@@ -160,11 +165,11 @@ export async function recordWithdrawal(_prev: FormState, data: FormData): Promis
     const fs = withdrawFaults({ exercise: reg.exercise, now, envelope: env ? { kind: env.kind, late: env.late, status: env.status, withdrawn: env.withdrawal != null } : null, markings, personActive: !!person });
     if (blocking(fs).length) return refuse(fs);
     const w = await tx.bidWithdrawal.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, receivedAt: now, receivedByPersonId: person!.id, markings, closingAtJudged: l.ex.closingAt!, envelopeId: env?.id ?? null } });
-    await audit(tx, l.org.id, BID_ENTITY.withdrawal, w.id, label(l, env ? `Withdrawal of envelope ${env.sequence}` : "Withdrawal of an envelope in the box"), "CREATE", diffFields(null, withdrawalFields({ receivedAt: w.receivedAt, markings, receivedBy: person!.name, envelopeSequence: env?.sequence ?? null }, l.org.timeZone)));
+    await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.withdrawal, w.id, label(l, env ? `Withdrawal of envelope ${env.sequence}` : "Withdrawal of an envelope in the box"), "CREATE", diffFields(null, withdrawalFields({ receivedAt: w.receivedAt, markings, receivedBy: person!.name, envelopeSequence: env?.sequence ?? null }, l.org.timeZone)));
     if (env) {
       const moved = await tx.bidEnvelope.updateMany({ where: { id: env.id, status: "RECEIVED" }, data: { status: "WITHDRAWN" } });
       if (moved.count !== 1) return { ok: false, message: "The envelope changed while this was being saved. Reload and try again." };
-      await audit(tx, l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE", diffFields(statusField("RECEIVED"), statusField("WITHDRAWN")));
+      await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE", diffFields(statusField("RECEIVED"), statusField("WITHDRAWN")));
     }
     return { ok: true, message: "Withdrawal recorded. Attach the letter to it in the Received section of Bids and opening." };
   });
@@ -172,6 +177,7 @@ export async function recordWithdrawal(_prev: FormState, data: FormData): Promis
 
 /// Record that a withdrawn envelope was handed back unopened, on a day.
 export async function recordReturnedUnopened(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const r = new FormReader(data);
   const envelopeId = r.text("envelopeId", "Envelope", { required: true });
   const day = r.text("returnedOn", "Handed back on", { required: true, max: 10 });
@@ -186,13 +192,14 @@ export async function recordReturnedUnopened(_prev: FormState, data: FormData): 
     if (fs.length) return { ok: false, errors: { returnedOn: fs.map(bidFindingText).join(" ") } };
     const on = dayToDate(day);
     await tx.bidEnvelope.update({ where: { id: env.id }, data: { returnedUnopenedOn: on, returnNote: note } });
-    await audit(tx, l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE", diffFields({ returnedUnopened: null, note: null }, returnFields({ returnedUnopenedOn: on, note })));
+    await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE", diffFields({ returnedUnopened: null, note: null }, returnFields({ returnedUnopenedOn: on, note })));
     return { ok: true };
   });
 }
 
 /// FR-BID-005: a clerical correction of the markings, the channel or the receiving officer, before the closing, with a reason.
 export async function correctEnvelope(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const envelopeId = r.text("envelopeId", "Envelope", { required: true });
@@ -213,7 +220,7 @@ export async function correctEnvelope(_prev: FormState, data: FormData): Promise
     if (blocking(fs).length) return refuse(fs);
     const next = { markings: change.markings ?? env.markings, channel: (change.channel ?? env.channel) as EnvelopeChannel, receivedByPersonId: person!.id };
     await tx.bidEnvelope.update({ where: { id: env.id }, data: { ...next, correctedAt: now } });
-    await audit(tx, l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE",
       diffFields(correctionFields({ channel: env.channel, markings: env.markings, receivedBy: env.receivedBy.name }), correctionFields({ channel: next.channel, markings: next.markings, receivedBy: person!.name })), reason);
     return { ok: true };
   });
@@ -221,6 +228,7 @@ export async function correctEnvelope(_prev: FormState, data: FormData): Promise
 
 /// Record the box locked at the closing, by a named officer, stamped now. Refused before the closing.
 export async function lockBox(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
   const personId = r.optionalText("personId");
@@ -234,7 +242,7 @@ export async function lockBox(_prev: FormState, data: FormData): Promise<FormSta
     if (blocking(fs).length) return refuse(fs);
     const at = now;
     const row = await tx.boxEvent.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, kind: "LOCKED", occurredAt: at, personId: person!.id, note } });
-    await audit(tx, l.org.id, BID_ENTITY.box, row.id, label(l, "Tender box locked"), "CREATE", diffFields(null, boxFields({ at, by: person!.name, note }, l.org.timeZone)));
+    await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.box, row.id, label(l, "Tender box locked"), "CREATE", diffFields(null, boxFields({ at, by: person!.name, note }, l.org.timeZone)));
     return { ok: true };
   });
 }
@@ -247,6 +255,7 @@ export async function lockBox(_prev: FormState, data: FormData): Promise<FormSta
  * admission: CARRIED admits, NOT_CARRIED does not; it is decided at the sitting like any matter.
  */
 export async function tableLateMatter(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const r = new FormReader(data);
   const envelopeId = r.text("envelopeId", "Envelope", { required: true });
   const meetingId = r.text("meetingId", "Sitting", { required: true });
@@ -276,7 +285,7 @@ export async function tableLateMatter(_prev: FormState, data: FormData): Promise
     const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     // The committee decides admission itself: its decision is the act (BD-66-6).
     const row = await tx.committeeDecision.create({ data: { meetingId: s.meeting.id, subject, domain: LATE_DOMAIN, matterKind: "LATE_TENDER", matterRef: l.ex.reference, bidEnvelopeId: env.id, act: "A", tabledByPersonId, tabledAt, sequence } });
-    await audit(tx, l.org.id, "CommitteeDecision", row.id, label(l, subject), "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "CommitteeDecision", row.id, label(l, subject), "CREATE",
       diffFields(null, { matter: subject, envelope: `Envelope ${env.sequence}`, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s.today!), recordedOnBehalf: "yes" }));
     return { ok: true, message: `Tabled at ${s.meeting.reference}. It is decided there, at the sitting.` };
   });
@@ -292,6 +301,7 @@ export async function tableLateMatter(_prev: FormState, data: FormData): Promise
  * (named by the officer and attested until 6.8; OD-7). It is applied once the consent is attached.
  */
 export async function recordValidityExtension(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const r = new FormReader(data);
   const toExpiry = r.text("toExpiry", "New expiry", { required: true, max: 10 });
   const reason = r.text("reason", "Reason", { required: true, max: 1000 });
@@ -328,13 +338,14 @@ export async function recordValidityExtension(_prev: FormState, data: FormData):
     });
     if (blocking(fs).length) return refuse(fs);
     const row = await tx.validityExtension.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, fromExpiry: dayToDate(v.expiry!), toExpiry: dayToDate(toExpiry), reason, consentPartyId: party!.id, consentReceivedOn: dayToDate(consentOn), recordedByPersonId: person!.id } });
-    await audit(tx, l.org.id, BID_ENTITY.extension, row.id, label(l, `Validity extension to ${formatDate(toExpiry)}`), "CREATE", diffFields(null, extensionFields({ ...row, consentParty: party!.name, recordedBy: person!.name })), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.extension, row.id, label(l, `Validity extension to ${formatDate(toExpiry)}`), "CREATE", diffFields(null, extensionFields({ ...row, consentParty: party!.name, recordedBy: person!.name })), reason);
     return { ok: true, message: "Extension recorded. Attach the tenderer's written consent to it, then apply it." };
   });
 }
 
 /// Apply a recorded extension, once its consent is attached and it is still later than the expiry that stands.
 export async function applyValidityExtension(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const extensionId = String(data.get("extensionId") ?? "");
   return inWindow(exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
@@ -349,7 +360,7 @@ export async function applyValidityExtension(_prev: FormState, data: FormData): 
     const appliedAt = new Date();
     const moved = await tx.validityExtension.updateMany({ where: { id: x.id, appliedAt: null }, data: { appliedAt } });
     if (moved.count !== 1) return { ok: false, message: "The extension changed while this was being saved. Reload and try again." };
-    await audit(tx, l.org.id, BID_ENTITY.extension, x.id, label(l, `Validity extension to ${formatDate(storedDay(x.toExpiry))}`), "UPDATE", diffFields({ applied: null }, appliedFields(appliedAt, l.org.timeZone)));
+    await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.extension, x.id, label(l, `Validity extension to ${formatDate(storedDay(x.toExpiry))}`), "UPDATE", diffFields({ applied: null }, appliedFields(appliedAt, l.org.timeZone)));
     revalidatePath("/awards");
     return { ok: true };
   });
@@ -361,6 +372,7 @@ export async function applyValidityExtension(_prev: FormState, data: FormData): 
  * published, only an unset validity may be recorded, once, with a reason (`bidFieldsFaults`).
  */
 export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const r = new FormReader(data);
   const days = r.int("bidValidityDays", "Bids valid for (days)", { min: 1 });
   const provenance = r.choice("bidValidityProvenance", "Where the days came from", PROVENANCES);
@@ -381,7 +393,7 @@ export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<
     if (exit && !person) return { ok: false, errors: { recordedByPersonId: "Name the officer recording it." } };
     const next = { bidValidityDays: days, bidValidityProvenance: days == null ? null : provenance, alternativesPermitted };
     await tx.exerciseWindow.update({ where: { id: w.id }, data: next });
-    await audit(tx, l.org.id, "ExerciseWindow", w.id, label(l, "Bids and opening, Received · window answers"), "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ExerciseWindow", w.id, label(l, "Bids and opening, Received · window answers"), "UPDATE",
       diffFields(bidAnswerFields(w), { ...bidAnswerFields(next), ...(person ? { [EXIT_RECORDED_BY_FIELD]: `${person.name}, recorded on their behalf, not signed` } : {}) }), reason);
     return { ok: true };
   });

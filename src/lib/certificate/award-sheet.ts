@@ -26,6 +26,7 @@ import { checksOf, routesOf, routingTypeNow } from "./repo";
 import { awardSheetFaults, checkFaults, freezeRoutingType, latestRouteState, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
 import type { Finding } from "./types";
 import { CertificateRefusal } from "./write";
+import type { AuditActor } from "@/lib/auth/types";
 
 const refuse = (lead: string, fs: readonly Finding[]): never => {
   throw new CertificateRefusal(refusalText(lead, fs));
@@ -52,9 +53,9 @@ const appointmentRoutes = (l: LoadedAward) => routesOf(l.award.approvalInstances
 export const awardSheetClosed = (l: LoadedAward): Finding[] => awardSheetFaults(l.award.status === "CANCELLED", latestRouteState(appointmentRoutes(l)));
 const label = (l: LoadedAward) => `${l.award.reference} · routing sheet`;
 
-async function audit(tx: Tx, l: LoadedAward, entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE", changes: ReturnType<typeof diffFields>) {
+async function audit(tx: Tx, actor: AuditActor, l: LoadedAward, entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE", changes: ReturnType<typeof diffFields>) {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: l.org.id, entity, entityId, entityLabel: suffix ? `${label(l)} · ${suffix}` : label(l) }, action, changes);
+  await writeAudit(tx, { actor, organisationId: l.org.id, entity, entityId, entityLabel: suffix ? `${label(l)} · ${suffix}` : label(l) }, action, changes);
 }
 
 export async function loadAwardSheetRows(awardId: string, client: Tx): Promise<AwardSheetRows> {
@@ -63,7 +64,7 @@ export async function loadAwardSheetRows(awardId: string, client: Tx): Promise<A
 }
 
 /// Start the award's routing sheet on a type with subject AWARD, frozen as it stands today.
-export async function startAwardSheet(tx: Tx, l: LoadedAward, typeId: string, now: Date, today: string) {
+export async function startAwardSheet(tx: Tx, actor: AuditActor, l: LoadedAward, typeId: string, now: Date, today: string) {
   // Not on a cancelled award, nor once its appointment route is decided: the sheet would have nothing to record.
   const closed = awardSheetClosed(l);
   if (closed.length) refuse("Not started:", closed);
@@ -74,11 +75,11 @@ export async function startAwardSheet(tx: Tx, l: LoadedAward, typeId: string, no
   if (fs.length) refuse("Not started:", fs);
   const frozen = freezeRoutingType(t!, today);
   const row = await tx.awardRoutingSheet.create({ data: { organisationId: l.org.id, awardId: l.award.id, typeId, typeSnapshot: frozen as unknown as Prisma.InputJsonValue, startedAt: now } });
-  await audit(tx, l, "AwardRoutingSheet", row.id, "", "CREATE", diffFields(null, { routingSheet: frozen.labelEn, checks: frozen.checks.map((c) => c.labelEn).join(", ") || "none", frozenOn: today }));
+  await audit(tx, actor, l, "AwardRoutingSheet", row.id, "", "CREATE", diffFields(null, { routingSheet: frozen.labelEn, checks: frozen.checks.map((c) => c.labelEn).join(", ") || "none", frozenOn: today }));
 }
 
 /// DATE (1) on the award's sheet: entered, never in the future, never after its first check, never after the route opened or decided (R-5), and not once the route is decided (R-6).
-export async function recordAwardReceived(tx: Tx, l: LoadedAward, received: string, now: Date, today: string) {
+export async function recordAwardReceived(tx: Tx, actor: AuditActor, l: LoadedAward, received: string, now: Date, today: string) {
   const rows = await loadAwardSheetRows(l.award.id, tx);
   if (!rows.sheet) throw new CertificateRefusal("Start the routing sheet first: choose its type.");
   const sheet = awardSheetOf(l, rows, today)!;
@@ -90,11 +91,11 @@ export async function recordAwardReceived(tx: Tx, l: LoadedAward, received: stri
   const before = rows.sheet.receivedOn ? storedDay(rows.sheet.receivedOn) : null;
   await tx.awardRoutingSheet.update({ where: { awardId: l.award.id }, data: { receivedOn: dayToDate(received), receivedRecordedAt: now } });
   // The sheet's own row, as its start was audited under (one entity id for the sheet's trail).
-  await audit(tx, l, "AwardRoutingSheet", rows.sheet.id, "", "UPDATE", diffFields({ receivedOn: before }, { receivedOn: received }));
+  await audit(tx, actor, l, "AwardRoutingSheet", rows.sheet.id, "", "UPDATE", diffFields({ receivedOn: before }, { receivedOn: received }));
 }
 
 /// An internal check on the award's sheet, in the sheet's order.
-export async function recordAwardCheck(tx: Tx, l: LoadedAward, defOrder: number, personId: string, on: string, note: string, now: Date, today: string) {
+export async function recordAwardCheck(tx: Tx, actor: AuditActor, l: LoadedAward, defOrder: number, personId: string, on: string, note: string, now: Date, today: string) {
   const rows = await loadAwardSheetRows(l.award.id, tx);
   const sheet = rows.sheet ? awardSheetOf(l, rows, today) : null;
   if (!sheet) throw new CertificateRefusal("Start the routing sheet first: choose its type.");
@@ -113,5 +114,5 @@ export async function recordAwardCheck(tx: Tx, l: LoadedAward, defOrder: number,
   const fs = checkFaults({ open: true, sheet, defOrder, person, holders, on, today });
   if (fs.length) refuse("Not recorded:", fs);
   const row = await tx.routingCheck.create({ data: { organisationId: l.org.id, awardId: l.award.id, iteration: sheet.current.n, defOrder, kind: slot!.def.kind, label: slot!.def.labelEn, personId: person!.id, personName: person!.name, on: dayToDate(on), note, recordedAt: now } });
-  await audit(tx, l, "RoutingCheck", row.id, slot!.def.labelEn, "CREATE", diffFields(null, { check: `${CHECK_KIND_WORDS[slot!.def.kind].en} (${slot!.def.labelEn})`, round: sheet.current.n, by: person!.name, on, note: note || null, recordedOnBehalf: ON_BEHALF }));
+  await audit(tx, actor, l, "RoutingCheck", row.id, slot!.def.labelEn, "CREATE", diffFields(null, { check: `${CHECK_KIND_WORDS[slot!.def.kind].en} (${slot!.def.labelEn})`, round: sheet.current.n, by: person!.name, on, note: note || null, recordedOnBehalf: ON_BEHALF }));
 }

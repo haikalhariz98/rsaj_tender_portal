@@ -17,6 +17,7 @@ import { formatOrgDay } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 
 import { BandDrawer, BandSetDrawer, CriterionDrawer, DiscardDraftDrawer, FactorDrawer, IssueModelDrawer, ModelDrawer, NewVersionDrawer, RemoveBandDrawer, RemoveBandSetDrawer, RemoveCriterionDrawer, RemoveFactorDrawer, RemoveStageDrawer, RetireModelDrawer, StageDrawer } from "../editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ const dash = <span className="text-ink-3">—</span>;
  * issued or retired version is shown as it was frozen, with a new version as the way to change it.
  */
 export default async function EvaluationModelPage(props: PageProps<"/configuration/evaluation/[modelId]">) {
+  await requireStaff();
   const { modelId } = await props.params;
   const org = await exerciseOrg();
   if (!org) notFound();

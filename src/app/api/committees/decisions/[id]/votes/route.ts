@@ -1,3 +1,5 @@
+import { staffRoute } from "@/app/_auth/route";
+import { toAuditActor } from "@/app/_auth/actor";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import { VOTE_FAULT_MESSAGE } from "@/lib/committee/labels";
@@ -15,6 +17,8 @@ import { db } from "@/lib/db";
  * Body: `{ personId, choice: "SETUJU" | "TIDAK_SETUJU", comment?, votedAt: "YYYY-MM-DD" }`,
  * where `votedAt` is the date on the member's signed sheet.
  *
+ *   401  nobody is signed in; 403  the request is not from a page of this origin
+ *   415  the body is not JSON
  *   400  malformed input
  *   404  no such matter
  *   403  not a present voting member of the sitting, or recused on this matter
@@ -27,6 +31,9 @@ import { db } from "@/lib/db";
  * row, with the before and after, are written in one transaction.
  */
 export async function POST(request: Request, ctx: RouteContext<"/api/committees/decisions/[id]/votes">) {
+  // Who is asking, and that the request came from a page of this origin with a JSON body (a cross-site form can send text/plain, never this).
+  const guard = await staffRoute({ contentTypes: ["application/json"] });
+  if (!guard.ok) return guard.response;
   const { id } = await ctx.params;
 
   let body: unknown;
@@ -96,6 +103,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
       await writeAudit(
         tx,
         {
+          actor: toAuditActor(guard.actor),
           organisationId: sitting.organisationId,
           entity: "Vote",
           entityId: vote.id,

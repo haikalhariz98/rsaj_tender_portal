@@ -78,6 +78,7 @@ import { saleAnnotation, saleFaults } from "../src/lib/window/sale";
 import type { CertSighted, DeliveryMethod, FeeCostKind, Finding, PartySource, SiteEventKind } from "../src/lib/window/types";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 import { answer, conditionsFor, confirm, decide, enterAppendix, markAllReady, moveIntoPreparation, startPack, submit, type Add } from "./demo-tender-docs";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -154,7 +155,7 @@ export async function loadWindowDemo(db: Db, organisationId: string, hooks: Wind
   const trail: Entry[] = [];
   let n = 0;
   const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") =>
-    trail.push({ id: `${P}wau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+    trail.push({ id: `${P}wau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
   const flush = async () => {
     await db.auditEntry.createMany({ data: trail.splice(0) as never });
   };
@@ -508,7 +509,7 @@ async function loadRequisitions(db: Db, organisationId: string, W: (k: number) =
     const label = `${REQ(r.n)} · ${r.title}`;
     const rlabel = `${REQ(r.n)} · approval route`;
     let k = 0;
-    const e = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", at: Date, changes: object[], reason = "") => entries.push({ id: `${rq}_au${++k}`, organisationId, entity, entityId, entityLabel, action, at, changes, reason, unattributed: true });
+    const e = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", at: Date, changes: object[], reason = "") => entries.push({ id: `${rq}_au${++k}`, organisationId, entity, entityId, entityLabel, action, at, changes, reason, ...DEMO_ACTOR });
     e("Requisition", rq, label, "CREATE", T(raised, "09:00"), diffFields(null, { reference: REQ(r.n), title: r.title, justification: r.justification, needStatement: r.need, requestingUnitCode: "NTH", sectionUnitCode: "NTH-MNT", requestingPersonId: `${P}p11`, costCentreCode: "CC-200", accountCode: "7400400", budgetCodeId: `${P}bcode9`, siteCode: "NTH-WKS", placeOfDelivery: "Northern network", dateRequired: dayToDate(W(-120)), estimatedValue: r.value, fundingRouteCode: "capex", contractTypeCode: null, lines: 1, status: "DRAFT" }));
     e("RequisitionEndorsement", `${P}en${r.id}a`, `${REQ(r.n)} · Section endorsement`, "CREATE", T(endorsed, "09:00"), diffFields(null, { tier: "SECTION", unit: "Maintenance Section", person: "Lim Kok Seng", endorsedOn: dayToDate(endorsed), note: "" }));
     e("RequisitionEndorsement", `${P}en${r.id}b`, `${REQ(r.n)} · Department endorsement`, "CREATE", T(endorsed, "10:00"), diffFields(null, { tier: "DEPARTMENT", unit: "Northern Region", person: "Imran Hakim", endorsedOn: dayToDate(endorsed), note: "" }));

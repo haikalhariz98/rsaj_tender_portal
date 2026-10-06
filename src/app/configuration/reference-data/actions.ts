@@ -14,6 +14,8 @@ import { diffFields, snapshotFields } from "@/lib/audit/diff";
 import { DELIVERABLE_KINDS } from "@/lib/method/types";
 import { contractTypeConfigFaults, dominanceShareFault, methodConfigFaults } from "@/lib/method/config";
 import { PERMIT_LIST_MAPPING_FAULT_TEXT, permitListMappingFaults } from "@/lib/method/taxonomy";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/reference-data";
@@ -94,6 +96,7 @@ function readFundingRoute(data: FormData, taken: string[], storedCode: string | 
 }
 
 export async function saveFundingRoute(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -110,6 +113,7 @@ export async function saveFundingRoute(_prev: FormState, data: FormData): Promis
   const v = parsed.value;
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "FundingRoute",
     entityLabel: v.nameEn,
@@ -173,6 +177,7 @@ function readSourcingMethod(data: FormData, taken: string[], storedCode: string 
 }
 
 export async function saveSourcingMethod(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -204,11 +209,11 @@ export async function saveSourcingMethod(_prev: FormState, data: FormData): Prom
     if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, f.message])) };
     if (!before) {
       const row = await tx.sourcingMethod.create({ data: { organisationId: orgId, ...v } });
-      await writeAudit(tx, { organisationId: orgId, entity: "SourcingMethod", entityId: row.id, entityLabel: v.nameEn, reason }, "CREATE", diffFields(null, v));
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "SourcingMethod", entityId: row.id, entityLabel: v.nameEn, reason }, "CREATE", diffFields(null, v));
     } else {
       await tx.sourcingMethod.update({ where: { id: before.id }, data: v });
       const changes = diffFields(before, v);
-      if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "SourcingMethod", entityId: before.id, entityLabel: v.nameEn, reason }, "UPDATE", changes);
+      if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "SourcingMethod", entityId: before.id, entityLabel: v.nameEn, reason }, "UPDATE", changes);
     }
     revalidatePath(PATH);
     return { ok: true };
@@ -218,6 +223,7 @@ export async function saveSourcingMethod(_prev: FormState, data: FormData): Prom
 // ---------------------------------------------------------------- contract types
 
 export async function saveContractType(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -259,13 +265,13 @@ export async function saveContractType(_prev: FormState, data: FormData): Promis
     if (!id) {
       if (await tx.contractType.findFirst({ where: { organisationId: orgId, code: row.code } })) return { ok: false, errors: { code: "Code is already in use." } };
       const created = await tx.contractType.create({ data: { organisationId: orgId, ...row } });
-      await writeAudit(tx, { organisationId: orgId, entity: "ContractType", entityId: created.id, entityLabel: row.nameEn, reason }, "CREATE", diffFields(null, row));
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "ContractType", entityId: created.id, entityLabel: row.nameEn, reason }, "CREATE", diffFields(null, row));
     } else {
       const before = await tx.contractType.findUnique({ where: { id } });
       if (!before) return { ok: false, message: "That contract type no longer exists." };
       await tx.contractType.update({ where: { id }, data: row });
       const changes = diffFields(before, row);
-      if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "ContractType", entityId: id, entityLabel: row.nameEn, reason }, "UPDATE", changes);
+      if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "ContractType", entityId: id, entityLabel: row.nameEn, reason }, "UPDATE", changes);
     }
     revalidatePath(PATH);
     return { ok: true };
@@ -291,7 +297,7 @@ const TABLES = {
 } as const;
 
 /// Retire or restore. The same three lists, the same shape, the opposite act.
-async function setRetired(data: FormData, retire: boolean): Promise<FormState> {
+async function setRetired(by: AuditActor, data: FormData, retire: boolean): Promise<FormState> {
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -312,7 +318,7 @@ async function setRetired(data: FormData, retire: boolean): Promise<FormState> {
 
   const retiredOn = retire ? new Date() : null;
   await auditedUpdate(
-    { organisationId: orgId, entity, entityId: id, entityLabel: before.nameEn, reason },
+    { actor: by, organisationId: orgId, entity, entityId: id, entityLabel: before.nameEn, reason },
     { retiredOn: before.retiredOn },
     { retiredOn },
     (tx) => (tx[key] as unknown as typeof db.contractType).update({ where: { id }, data: { retiredOn } }),
@@ -323,12 +329,14 @@ async function setRetired(data: FormData, retire: boolean): Promise<FormState> {
 }
 
 export async function retireEntry(_prev: FormState, data: FormData): Promise<FormState> {
-  return setRetired(data, true);
+  const actor = await requireStaff();
+  return setRetired(toAuditActor(actor), data, true);
 }
 
 /// Put a retired entry back on offer. It keeps its code, which is still its own.
 export async function restoreEntry(_prev: FormState, data: FormData): Promise<FormState> {
-  return setRetired(data, false);
+  const actor = await requireStaff();
+  return setRetired(toAuditActor(actor), data, false);
 }
 
 // ---------------------------------------------------------- 6.3 classification
@@ -344,6 +352,7 @@ const list = (raw: string) => raw.split(/[\n,]/).map((x) => x.trim()).filter(Boo
  * the screens say rather than reading it as "no".
  */
 export async function saveContractBehaviours(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -373,7 +382,7 @@ export async function saveContractBehaviours(_prev: FormState, data: FormData): 
   if (unknown.length) r.reject("administratorRoleCodes", "Choose offices that are configured under Users & roles.");
   if (v.claimsApprovalCommitteeCode && !known.has(v.claimsApprovalCommitteeCode)) r.reject("claimsApprovalCommitteeCode", "Choose a body configured under Users & roles.");
   if (r.failed) return { ok: false, errors: r.errors };
-  await auditedUpdate({ organisationId: orgId, entity: "ContractType", entityId: id, entityLabel: before.nameEn, reason: String(data.get("reason") ?? "") }, before, v, (tx) =>
+  await auditedUpdate({ actor: toAuditActor(actor), organisationId: orgId, entity: "ContractType", entityId: id, entityLabel: before.nameEn, reason: String(data.get("reason") ?? "") }, before, v, (tx) =>
     tx.contractType.update({ where: { id }, data: v }),
   );
   revalidatePath(PATH);
@@ -382,6 +391,7 @@ export async function saveContractBehaviours(_prev: FormState, data: FormData): 
 
 /// A method's proposal item (FR-MTD-006), in the customer's words.
 export async function saveChecklistItem(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -407,11 +417,11 @@ export async function saveChecklistItem(_prev: FormState, data: FormData): Promi
     if (!before) {
       if (method.checklistItems.some((i) => i.key.toLowerCase() === key!.toLowerCase())) return { ok: false, errors: { key: "Key is already in use." } };
       const row = await tx.methodChecklistItem.create({ data: { sourcingMethodId: method.id, key: key!, ...v } });
-      await writeAudit(tx, { organisationId: orgId, entity: "MethodChecklistItem", entityId: row.id, entityLabel: label, reason }, "CREATE", diffFields(null, { key, ...v }));
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "MethodChecklistItem", entityId: row.id, entityLabel: label, reason }, "CREATE", diffFields(null, { key, ...v }));
     } else {
       await tx.methodChecklistItem.update({ where: { id: before.id }, data: v });
       const changes = diffFields(before, v);
-      if (changes.length) await writeAudit(tx, { organisationId: orgId, entity: "MethodChecklistItem", entityId: before.id, entityLabel: label, reason }, "UPDATE", changes);
+      if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "MethodChecklistItem", entityId: before.id, entityLabel: label, reason }, "UPDATE", changes);
     }
     revalidatePath(PATH);
     return { ok: true };
@@ -419,6 +429,7 @@ export async function saveChecklistItem(_prev: FormState, data: FormData): Promi
 }
 
 export async function retireChecklistItem(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -428,7 +439,7 @@ export async function retireChecklistItem(_prev: FormState, data: FormData): Pro
   if (!item) return { ok: false, message: "That item no longer exists." };
   if (item.retiredOn) return { ok: false, message: "That item is already retired." };
   const retiredOn = new Date();
-  await auditedUpdate({ organisationId: orgId, entity: "MethodChecklistItem", entityId: id, entityLabel: `${item.sourcingMethod.nameEn} — ${item.labelEn}`, reason }, { retiredOn: null }, { retiredOn }, (tx) =>
+  await auditedUpdate({ actor: toAuditActor(actor), organisationId: orgId, entity: "MethodChecklistItem", entityId: id, entityLabel: `${item.sourcingMethod.nameEn} — ${item.labelEn}`, reason }, { retiredOn: null }, { retiredOn }, (tx) =>
     tx.methodChecklistItem.update({ where: { id }, data: { retiredOn } }),
   );
   revalidatePath(PATH);
@@ -437,6 +448,7 @@ export async function retireChecklistItem(_prev: FormState, data: FormData): Pro
 
 /// A reason a direct appointment may be justified by (FR-MTD-009).
 export async function saveJustificationReason(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -455,7 +467,7 @@ export async function saveJustificationReason(_prev: FormState, data: FormData):
   };
   if (v.sourcingMethodCode && !(await db.sourcingMethod.findFirst({ where: { organisationId: orgId, code: v.sourcingMethodCode } }))) r.reject("sourcingMethodCode", "That method no longer exists.");
   if (r.failed) return { ok: false, errors: r.errors };
-  const ctx = { organisationId: orgId, entity: "JustificationReason", entityLabel: v.nameEn, reason: String(data.get("reason") ?? "") };
+  const ctx = { actor: toAuditActor(actor), organisationId: orgId, entity: "JustificationReason", entityLabel: v.nameEn, reason: String(data.get("reason") ?? "") };
   const row = { ...v, provenance: v.provenance! };
   if (!before) await auditedCreate(ctx, row, (tx) => tx.justificationReason.create({ data: { organisationId: orgId, ...row } }));
   else await auditedUpdate({ ...ctx, entityId: before.id }, before, row, (tx) => tx.justificationReason.update({ where: { id: before.id }, data: row }));
@@ -465,6 +477,7 @@ export async function saveJustificationReason(_prev: FormState, data: FormData):
 
 /// A contract basis (FR-MTD-013). Always chosen by the officer (6.3 ruling R-9).
 export async function saveContractBasis(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -483,7 +496,7 @@ export async function saveContractBasis(_prev: FormState, data: FormData): Promi
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
   if (r.failed) return { ok: false, errors: r.errors };
-  const ctx = { organisationId: orgId, entity: "ContractBasis", entityLabel: v.nameEn, reason: String(data.get("reason") ?? "") };
+  const ctx = { actor: toAuditActor(actor), organisationId: orgId, entity: "ContractBasis", entityLabel: v.nameEn, reason: String(data.get("reason") ?? "") };
   const row = { ...v, provenance: v.provenance! };
   if (!before) await auditedCreate(ctx, row, (tx) => tx.contractBasis.create({ data: { organisationId: orgId, ...row } }));
   else await auditedUpdate({ ...ctx, entityId: before.id }, before, row, (tx) => tx.contractBasis.update({ where: { id: before.id }, data: row }));
@@ -493,6 +506,7 @@ export async function saveContractBasis(_prev: FormState, data: FormData): Promi
 
 /// Another classification a contract carries (FR-MTD-014), with its values.
 export async function saveTaxonomy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -509,7 +523,7 @@ export async function saveTaxonomy(_prev: FormState, data: FormData): Promise<Fo
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
   if (r.failed) return { ok: false, errors: r.errors };
-  const ctx = { organisationId: orgId, entity: "ClassificationTaxonomy", entityLabel: v.nameEn, reason: String(data.get("reason") ?? "") };
+  const ctx = { actor: toAuditActor(actor), organisationId: orgId, entity: "ClassificationTaxonomy", entityLabel: v.nameEn, reason: String(data.get("reason") ?? "") };
   const row = { ...v, provenance: v.provenance! };
   if (!before) await auditedCreate(ctx, row, (tx) => tx.classificationTaxonomy.create({ data: { organisationId: orgId, ...row } }));
   else await auditedUpdate({ ...ctx, entityId: before.id }, before, row, (tx) => tx.classificationTaxonomy.update({ where: { id: before.id }, data: row }));
@@ -518,6 +532,7 @@ export async function saveTaxonomy(_prev: FormState, data: FormData): Promise<Fo
 }
 
 export async function saveTaxonomyValue(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const taxonomyId = String(data.get("taxonomyId") ?? "");
@@ -535,7 +550,7 @@ export async function saveTaxonomyValue(_prev: FormState, data: FormData): Promi
     retiredOn: r.bool("retired") ? (before?.retiredOn ?? new Date()) : null,
   };
   if (r.failed) return { ok: false, errors: r.errors };
-  const ctx = { organisationId: orgId, entity: "TaxonomyValue", entityLabel: `${tax.nameEn} — ${v.nameEn}`, reason: String(data.get("reason") ?? "") };
+  const ctx = { actor: toAuditActor(actor), organisationId: orgId, entity: "TaxonomyValue", entityLabel: `${tax.nameEn} — ${v.nameEn}`, reason: String(data.get("reason") ?? "") };
   if (!before) await auditedCreate(ctx, v, (tx) => tx.taxonomyValue.create({ data: { taxonomyId, ...v } }));
   else await auditedUpdate({ ...ctx, entityId: before.id }, before, v, (tx) => tx.taxonomyValue.update({ where: { id: before.id }, data: v }));
   revalidatePath(PATH);
@@ -545,6 +560,7 @@ export async function saveTaxonomyValue(_prev: FormState, data: FormData): Promi
 /// A contract type's value in a classification, optionally only when the basis or
 /// another classification's value says so (FR-MTD-014).
 export async function saveTaxonomyMapping(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
@@ -582,7 +598,7 @@ export async function saveTaxonomyMapping(_prev: FormState, data: FormData): Pro
     const permitFaults = permitListMappingFaults(v, permitList);
     if (permitFaults.length) return { ok: false, errors: Object.fromEntries(permitFaults.map((f) => [f.field, PERMIT_LIST_MAPPING_FAULT_TEXT[f.code]])) };
     const created = await tx.taxonomyMapping.create({ data: { organisationId: orgId, ...row } });
-    await writeAudit(tx, { organisationId: orgId, entity: "TaxonomyMapping", entityId: created.id, entityLabel: `${type!.nameEn} — ${tax!.nameEn}`, reason: String(data.get("reason") ?? "") }, "CREATE", diffFields(null, named));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TaxonomyMapping", entityId: created.id, entityLabel: `${type!.nameEn} — ${tax!.nameEn}`, reason: String(data.get("reason") ?? "") }, "CREATE", diffFields(null, named));
     return null;
   });
   if (result) return result;
@@ -591,6 +607,7 @@ export async function saveTaxonomyMapping(_prev: FormState, data: FormData): Pro
 }
 
 export async function removeTaxonomyMapping(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -604,7 +621,7 @@ export async function removeTaxonomyMapping(_prev: FormState, data: FormData): P
   ]);
   await db.$transaction(async (tx) => {
     await tx.taxonomyMapping.delete({ where: { id } });
-    await writeAudit(tx, { organisationId: orgId, entity: "TaxonomyMapping", entityId: id, entityLabel: `${type?.nameEn ?? "A type no longer configured"} — ${tax?.nameEn ?? "a classification no longer configured"}`, reason }, "DELETE", snapshotFields({ contractType: type?.nameEn ?? null, classification: tax?.nameEn ?? null, value: tax?.values.find((x) => x.code === row.valueCode)?.nameEn ?? null, conditioned: row.whenBasisCode || row.whenTaxonomyCode ? "yes" : "no", provenance: row.provenance }));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TaxonomyMapping", entityId: id, entityLabel: `${type?.nameEn ?? "A type no longer configured"} — ${tax?.nameEn ?? "a classification no longer configured"}`, reason }, "DELETE", snapshotFields({ contractType: type?.nameEn ?? null, classification: tax?.nameEn ?? null, value: tax?.values.find((x) => x.code === row.valueCode)?.nameEn ?? null, conditioned: row.whenBasisCode || row.whenTaxonomyCode ? "yes" : "no", provenance: row.provenance }));
   });
   revalidatePath(PATH);
   return { ok: true };
@@ -615,6 +632,7 @@ export async function removeTaxonomyMapping(_prev: FormState, data: FormData): P
  * default for mixed scope. A set threshold says where it comes from.
  */
 export async function saveClassificationPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
@@ -630,7 +648,7 @@ export async function saveClassificationPolicy(_prev: FormState, data: FormData)
     const before = await tx.classificationPolicy.findUnique({ where: { organisationId: orgId } });
     const row = await tx.classificationPolicy.upsert({ where: { organisationId: orgId }, create: { organisationId: orgId, ...v }, update: v });
     const changes = diffFields(before ? { ...before, dominanceSharePct: before.dominanceSharePct?.toString() ?? null } : null, v);
-    if (!before || changes.length) await writeAudit(tx, { organisationId: orgId, entity: "ClassificationPolicy", entityId: row.id, entityLabel: "Mixed-scope classification", reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
+    if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "ClassificationPolicy", entityId: row.id, entityLabel: "Mixed-scope classification", reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
   });
   revalidatePath(PATH);
   return { ok: true };

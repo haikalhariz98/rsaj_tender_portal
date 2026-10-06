@@ -68,6 +68,7 @@ import { variationRefusal } from "@/lib/variation/labels";
 const VARIATION_APPROVED_KINDS: readonly string[] = ["VARIATION_APPLICATION", "VARIATION"];
 
 import { AcknowledgeDrawer, CheckDrawer, ChooseRejectionDrawer, CorrectDateDrawer, DecideRouteStepDrawer, DespatchDrawer, FinancePaymentDrawer, OverrideDrawer, ReceivedDrawer, SendForApprovalDrawer, SendForRoutingDrawer, SendToSigningDrawer, SignatureDrawer, VoidDrawer } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,7 @@ const NOTE_ID = "certificate-action-note";
  * issue; the frozen text and its form after) and History. Every refusal shown is the act's own rule.
  */
 export default async function CertificatePage(props: PageProps<"/projects/[id]/certificates/[certId]">) {
+  await requireStaff();
   const [{ id, certId }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
   const l = await loadCertificate(certId);
   if (!l || l.contract.id !== id) notFound();
@@ -726,7 +728,7 @@ const chipped = (field: string, value: string | null, entity: string) => (isSuli
 function HistoryPanel({ entries, total, timeZone }: { entries: { id: string; entity: string; entityLabel: string; action: "CREATE" | "UPDATE" | "DELETE"; at: Date; reason: string; changes: unknown }[]; total: number; timeZone: string | null }) {
   return (
     <Card className="overflow-hidden">
-      <CardHeader icon={<CheckIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this certificate. "}Nobody is signed in, so no change is attributed. Identity-card numbers are masked.`} divided={entries.length === 0} />
+      <CardHeader icon={<CheckIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this certificate. "}Each change names who made it; any from before sign-in is not attributed. Identity-card numbers are masked.`} divided={entries.length === 0} />
       {entries.length === 0 ? (
         <EmptyState size="sm" title="No recorded changes">Changes made through the portal appear here.</EmptyState>
       ) : (

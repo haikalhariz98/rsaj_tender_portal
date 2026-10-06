@@ -18,6 +18,7 @@ import { isRetentionRule, type RetentionRule } from "./retention";
 import type { BlobStore } from "./store";
 import type { AccessKind, Finding, SecurityClass, StorePolicy } from "./types";
 import { nextVersionFault, nextVersionNo } from "./versioning";
+import type { AuditActor } from "@/lib/auth/types";
 
 export interface DocumentOrg {
   id: string;
@@ -111,7 +112,7 @@ export const retentionOf = (snapshot: unknown): RetentionRule | null => (isReten
  * version — the document's versions under its row lock. Refusals throw `UploadRefusal`,
  * so nothing is written.
  */
-export async function storeUpload(i: UploadInput): Promise<UploadResult> {
+export async function storeUpload(actor: AuditActor, i: UploadInput): Promise<UploadResult> {
   const received = receivedOnFault(i.receivedOn, i.org.today);
   if (received) throw new UploadRefusal(received);
   const nameFault = filenameFault(i.originalFilename);
@@ -158,7 +159,7 @@ export async function storeUpload(i: UploadInput): Promise<UploadResult> {
             retentionSnapshot: retentionSnapshotOf(cls) as unknown as Prisma.InputJsonValue,
           },
         });
-        await writeAudit(tx, { organisationId: i.org.id, entity: "Document", entityId: doc.id, entityLabel: `Document · ${doc.title}` }, "CREATE", documentCreated({ title: doc.title, className: cls.nameEn, classification: cls.classification, status: "STAGED" }));
+        await writeAudit(tx, { actor, organisationId: i.org.id, entity: "Document", entityId: doc.id, entityLabel: `Document · ${doc.title}` }, "CREATE", documentCreated({ title: doc.title, className: cls.nameEn, classification: cls.classification, status: "STAGED" }));
         documentId = doc.id;
         versionNo = 1;
         status = "STAGED";
@@ -186,7 +187,7 @@ export async function storeUpload(i: UploadInput): Promise<UploadResult> {
       const title = (await tx.document.findUniqueOrThrow({ where: { id: documentId }, select: { title: true } })).title;
       await writeAudit(
         tx,
-        { organisationId: i.org.id, entity: "DocumentVersion", entityId: version.id, entityLabel: `Document · ${title} · version ${versionNo}` },
+        { actor, organisationId: i.org.id, entity: "DocumentVersion", entityId: version.id, entityLabel: `Document · ${title} · version ${versionNo}` },
         "CREATE",
         versionCreated({ versionNo, sha256: i.sha256, byteSize: version.byteSize, mediaType: i.mediaType, originalFilename: version.originalFilename, receivedOn: i.receivedOn, recordedBy: person.name, note: i.note }),
       );

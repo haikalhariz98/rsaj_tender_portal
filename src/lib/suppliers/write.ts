@@ -11,6 +11,7 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 
 import { lockSupplierRow } from "./lock";
 import { supplierOrg, type SupplierOrg } from "./repo";
+import type { AuditActor } from "@/lib/auth/types";
 
 export const NO_ORG: FormState = { ok: false, message: "No organisation is configured. Run npm run setup before recording suppliers." };
 export const GONE: FormState = { ok: false, message: "That supplier no longer exists." };
@@ -23,9 +24,9 @@ export class Refusal extends Error {
   }
 }
 
-export async function audit(tx: Tx, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
+export async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: FieldChange[], reason = "") {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
+  await writeAudit(tx, { actor, organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
 }
 
 /// Every supplier row's audit label starts with the supplier's reference, so its History finds it.

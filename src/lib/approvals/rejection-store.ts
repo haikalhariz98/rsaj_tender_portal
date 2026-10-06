@@ -10,6 +10,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { successorSteps, type DestinationRow, type RejectionKind, type RejectionOutcome, type RouteSnapshot } from "@/lib/authority/rejection";
 import { REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
+import type { AuditActor } from "@/lib/auth/types";
 
 export async function loadDestinations(tx: Tx, organisationId: string): Promise<DestinationRow[]> {
   const rows = await tx.rejectionDestination.findMany({ where: { organisationId } });
@@ -35,14 +36,14 @@ interface Who {
  */
 /// `at`: the act's server stamp, read once at its entry (6.13 Part A step 3: a certificate's route passes it; the
 /// earlier callers keep reading the clock here, as they did).
-export async function closeRejected(tx: Tx, who: Who, inst: { id: string; status: string }, outcome: RejectionOutcome, reason: string, decidedBy?: string, at: Date = new Date()) {
+export async function closeRejected(tx: Tx, actor: AuditActor, who: Who, inst: { id: string; status: string }, outcome: RejectionOutcome, reason: string, decidedBy?: string, at: Date = new Date()) {
   const data: Prisma.ApprovalInstanceUpdateInput =
     "apply" in outcome
       ? { status: "REJECTED", closedAt: at, rejectionApplied: outcome.apply, rejectionSource: outcome.source, rejectionReason: reason }
       : { status: "REJECTED", closedAt: at, rejectionChoices: outcome.choose, rejectionChoiceWhy: outcome.why, rejectionReason: reason };
   const moved = await tx.approvalInstance.updateMany({ where: { id: inst.id, status: "PENDING" }, data: data as Prisma.ApprovalInstanceUpdateManyMutationInput });
   if (moved.count !== 1) throw new Error("The route changed while the rejection was being recorded.");
-  await writeAudit(tx, { organisationId: who.organisationId, entity: "ApprovalInstance", entityId: inst.id, entityLabel: who.routeLabel, reason }, "UPDATE",
+  await writeAudit(tx, { actor, organisationId: who.organisationId, entity: "ApprovalInstance", entityId: inst.id, entityLabel: who.routeLabel, reason }, "UPDATE",
     diffFields(
       { status: inst.status },
       "apply" in outcome
@@ -52,13 +53,13 @@ export async function closeRejected(tx: Tx, who: Who, inst: { id: string; status
 }
 
 /// Record the officer's choice on a rejected route (ruling CO-5): theirs, never policy.
-export async function recordChoice(tx: Tx, who: Who, instId: string, kind: RejectionKind, personId: string, personName: string, reason: string) {
+export async function recordChoice(tx: Tx, actor: AuditActor, who: Who, instId: string, kind: RejectionKind, personId: string, personName: string, reason: string) {
   const moved = await tx.approvalInstance.updateMany({
     where: { id: instId, status: "REJECTED", rejectionApplied: null },
     data: { rejectionApplied: kind, rejectionSource: "OFFICER_CHOICE", rejectionChosenByPersonId: personId },
   });
   if (moved.count !== 1) throw new Error("The route changed while the choice was being recorded.");
-  await writeAudit(tx, { organisationId: who.organisationId, entity: "ApprovalInstance", entityId: instId, entityLabel: who.routeLabel, reason }, "UPDATE",
+  await writeAudit(tx, { actor, organisationId: who.organisationId, entity: "ApprovalInstance", entityId: instId, entityLabel: who.routeLabel, reason }, "UPDATE",
     diffFields({ goesTo: null }, { goesTo: REJECTION_KIND_LABEL[kind], chosenBy: personName, recordedOnBehalf: "not signed", source: "officer's choice" }));
 }
 
@@ -68,7 +69,7 @@ export async function recordChoice(tx: Tx, who: Who, instId: string, kind: Rejec
  * approval continued, not a new resolution — steps before the target carried, the
  * rest pending. Returns the new route's id.
  */
-export async function openSuccessor(tx: Tx, who: Who, rejectedId: string, returnToSeq: number, openedAt: Date): Promise<string> {
+export async function openSuccessor(tx: Tx, actor: AuditActor, who: Who, rejectedId: string, returnToSeq: number, openedAt: Date): Promise<string> {
   const r = await tx.approvalInstance.findUniqueOrThrow({ where: { id: rejectedId }, include: { steps: true } });
   const next = await tx.approvalInstance.create({
     data: {
@@ -129,7 +130,7 @@ export async function openSuccessor(tx: Tx, who: Who, rejectedId: string, return
     },
   });
   const target = r.steps.find((s) => s.sequence === returnToSeq);
-  await writeAudit(tx, { organisationId: who.organisationId, entity: "ApprovalInstance", entityId: next.id, entityLabel: who.routeLabel }, "CREATE",
+  await writeAudit(tx, { actor, organisationId: who.organisationId, entity: "ApprovalInstance", entityId: next.id, entityLabel: who.routeLabel }, "CREATE",
     diffFields(null, {
       continues: "the rejected route",
       returnsTo: target?.roleLabel ?? "an earlier step",

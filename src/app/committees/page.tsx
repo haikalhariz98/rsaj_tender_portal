@@ -16,6 +16,7 @@ import { ACT_LABEL } from "@/lib/labels";
 import { patternFaults } from "@/lib/numbering/series";
 
 import { ScheduleSitting, type ProposedItem } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ const TONE = { info: "info", brand: "brand", ok: "ok", neutral: undefined } as c
  * before them (ruling 5.1).
  */
 export default async function SittingsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  await requireStaff();
   const { page: raw } = await searchParams;
   const requested = Math.max(0, Number.parseInt(raw ?? "0", 10) || 0);
   const { sittings, committees, total, page, counts } = await listSittings(requested);

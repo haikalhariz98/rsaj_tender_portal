@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { staffRoute } from "@/app/_auth/route";
 
 import { readUpload } from "@/lib/requisition/line-import-file";
 
@@ -8,6 +9,8 @@ import { readUpload } from "@/lib/requisition/line-import-file";
  * A route handler rather than a Server Action, because an action's body is capped at 1 MB.
  */
 export async function POST(req: NextRequest) {
+  const guard = await staffRoute({ contentTypes: ["multipart/form-data"] });
+  if (!guard.ok) return guard.response;
   let file: FormDataEntryValue | null = null;
   try {
     file = (await req.formData()).get("file");

@@ -27,6 +27,7 @@ import { checkResultsDemo, loadResultsDemo, resultsDemoState } from "./demo-resu
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
+import { DEMO_ACTOR } from "./demo-actor";
 
 /**
  * A demonstration dataset, loaded deliberately and never by default.
@@ -2382,7 +2383,7 @@ async function requisitionTrail(organisationId: string, rq: 13 | 14) {
   ] as const;
   let n = 0;
   const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", at: string, changes: object[], reason = "") =>
-    ({ id: `${reqId}_au${++n}`, organisationId, entity, entityId, entityLabel, action, at: day(at), changes: changes as object, reason, unattributed: true });
+    ({ id: `${reqId}_au${++n}`, organisationId, entity, entityId, entityLabel, action, at: day(at), changes: changes as object, reason, ...DEMO_ACTOR });
   return [
     entry("Requisition", reqId, label, "CREATE", d.raised, diffFields(null, {
       reference: d.ref, title: d.title, justification: d.justification, needStatement: d.need, requestingUnitCode: "NTH", sectionUnitCode: "NTH-MNT", requestingPersonId: `${P}p11`,
@@ -2418,11 +2419,11 @@ async function nameRouteTrail(organisationId: string) {
   await db.auditEntry.createMany({
     data: [
       {
-        id: `${P}ai20_au1`, organisationId, entity: "ApprovalInstance", entityId: `${P}ai20`, entityLabel: "DEMO/SX/0003/2026 · name approval", action: "CREATE", at: day("2026-09-21"), unattributed: true,
+        id: `${P}ai20_au1`, organisationId, entity: "ApprovalInstance", entityId: `${P}ai20`, entityLabel: "DEMO/SX/0003/2026 · name approval", action: "CREATE", at: day("2026-09-21"), ...DEMO_ACTOR,
         changes: diffFields(null, { matrix: "Demo limits, issue 1", rule: "Name approval, selected tender", route: chain.map(([r, a]) => `${r} (${ACT_LABEL[a]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: false }) as object,
       },
       {
-        id: `${P}as20_1_au1`, organisationId, entity: "ApprovalStep", entityId: `${P}as20_1`, entityLabel: "DEMO/SX/0003/2026 · Section Head, Pre-contract", action: "UPDATE", at: day("2026-09-22"), unattributed: true,
+        id: `${P}as20_1_au1`, organisationId, entity: "ApprovalStep", entityId: `${P}as20_1`, entityLabel: "DEMO/SX/0003/2026 · Section Head, Pre-contract", action: "UPDATE", at: day("2026-09-22"), ...DEMO_ACTOR,
         changes: diffFields({ decision: "PENDING" }, { decision: "DONE", decidedBy: "Eng Siew Mei", decidedOn: day("2026-09-22"), recordedOnBehalf: "not signed", underDelegation: null }) as object,
       },
     ],
@@ -2521,7 +2522,7 @@ async function determineExercises(ids: string[], preparedDates: Readonly<Record<
       }
       if (l.ex.status === "CANCELLED") trail.push({ entity: "SourcingExercise", entityId: id, entityLabel: label, at: day("2026-09-06"), action: "UPDATE", changes: diffFields({ status: "DRAFT" }, { status: "CANCELLED" }), reason: l.ex.cancelReason });
       await db.auditEntry.createMany({
-        data: trail.map((e, i) => ({ id: `${id}_au${i + 1}`, organisationId: l.org.id, entity: e.entity, entityId: e.entityId, entityLabel: e.entityLabel, action: e.action, changes: e.changes as object, reason: e.reason ?? "", at: e.at, unattributed: true })),
+        data: trail.map((e, i) => ({ id: `${id}_au${i + 1}`, organisationId: l.org.id, entity: e.entity, entityId: e.entityId, entityLabel: e.entityLabel, action: e.action, changes: e.changes as object, reason: e.reason ?? "", at: e.at, ...DEMO_ACTOR })),
       });
       for (const t of ev.taxonomies.filter((x) => x.state === "DERIVED" && x.valueCode)) {
         await db.exerciseTaxonomyValue.create({ data: { id: `${id}tv_${t.taxonomyCode}`, exerciseId: id, taxonomyCode: t.taxonomyCode, valueCode: t.valueCode!, pick: "DERIVED" } });

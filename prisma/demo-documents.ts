@@ -32,6 +32,7 @@ import type { AttachmentPurpose, SecurityClass } from "../src/lib/documents/type
 import { initialsLogo } from "../src/lib/organisation/png";
 import { bqImportAudit } from "../src/lib/scope/audit-view";
 import { sx15BillCsv } from "./demo-scope";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -210,7 +211,7 @@ export async function writeDemoDocs(db: Db, organisationId: string, docs: readon
   const audit: { id: string; organisationId: string; entity: string; entityId: string; entityLabel: string; action: "CREATE" | "UPDATE"; at: Date; changes: object[]; reason: string; unattributed: boolean }[] = [];
   let n = 0;
   const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") =>
-    audit.push({ id: `${auditPrefix}${++n}`, organisationId, entity, entityId, entityLabel, action, at: at(when), changes, reason, unattributed: true });
+    audit.push({ id: `${auditPrefix}${++n}`, organisationId, entity, entityId, entityLabel, action, at: at(when), changes, reason, ...DEMO_ACTOR });
 
   for (const d of docs) {
     for (const v of d.versions) {

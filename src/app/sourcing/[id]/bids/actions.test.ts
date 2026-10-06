@@ -23,6 +23,8 @@ const h = vi.hoisted(() => ({
 const advance = (ms: number) => vi.setSystemTime(new Date(Date.now() + ms));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+// Phase 1b: every action asks who is signed in first; these tests are not about sign-in, so a signed-in officer stands in for the session.
+vi.mock("@/app/_auth/actor", async () => (await import("@/lib/test-support/staff")).actorModule());
 vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("@/lib/org-time", () => ({ organisationTimeZone: async () => "Asia/Kuala_Lumpur" }));
 vi.mock("@/lib/people/load", () => ({ loadRoster: async () => null }));
@@ -47,7 +49,8 @@ vi.mock("@/lib/bids/repo", async (importOriginal) => {
 vi.mock("../window/shared", () => ({
   exerciseIdOf: () => "x1",
   label: (_l: unknown, s: string) => s,
-  audit: async (_tx: unknown, _org: string, entity: string, _id: string, _label: string, _action: string, changes: { field: string; before: string | null; after: string | null }[], reason = "") => {
+  // Phase 1b: the shared audit helper takes who acted as its second argument.
+  audit: async (_tx: unknown, _actor: unknown, _org: string, entity: string, _id: string, _label: string, _action: string, changes: { field: string; before: string | null; after: string | null }[], reason = "") => {
     h.audits.push({ entity, changes, reason });
   },
   activePerson: async (_tx: unknown, _org: string, id: string | null) => (id ? { id, name: "Clerk" } : null),

@@ -35,6 +35,7 @@ import { variationRefusal } from "./labels";
 import { consentOf, factsOf, issuedAdjustments, loadAdjustments, loadVariations, orderNetOf } from "./load";
 import { orderApprovalFaults } from "./order";
 import type { Finding } from "./types";
+import type { AuditActor } from "@/lib/auth/types";
 
 const VARIATION_KINDS = ["VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT"] as const;
 
@@ -108,7 +109,7 @@ async function adjustmentIssueRefusal(tx: Tx, l: LoadedContract, cert: { id: str
  * After an adjustment of the contract sum is issued (the last signature, under the contract's lock): the S.O. resolved
  * again at the revised sum where the switch is on (OD-A7 A); a refusal rolls the issue back, naming the matrix.
  */
-export async function afterCertificateIssue(tx: Tx, l: LoadedContract, cert: { id: string; kind: string }, now: Date, today: string): Promise<string | null> {
+export async function afterCertificateIssue(tx: Tx, actor: AuditActor, l: LoadedContract, cert: { id: string; kind: string }, now: Date, today: string): Promise<string | null> {
   if (cert.kind !== "SUM_ADJUSTMENT") return null;
   const policy = await tx.postAwardPolicy.findUnique({ where: { organisationId: l.org.id }, select: { soReResolve: true } });
   if (policy?.soReResolve !== true) return null;
@@ -127,7 +128,7 @@ export async function afterCertificateIssue(tx: Tx, l: LoadedContract, cert: { i
   const row = await tx.contractSoAssignment.create({
     data: { organisationId: l.org.id, contractId: l.contract.id, roleCode: r.roleCode, roleLabel: r.roleLabel, reason: "RE_RESOLVED", matrixLabel: issue.label, ruleKey: r.ruleKey, ruleLabel: r.ruleLabel, clause: r.clause, contractValue: senToDecimalString(revised), regime: l.ex.regime, warnings: r.notes.map((n) => n.messageEn) as Prisma.InputJsonValue, effectiveOn: dayToDate(today), recordedAt: now },
   });
-  await writeAudit(tx, { organisationId: l.org.id, entity: "ContractSoAssignment", entityId: row.id, entityLabel: `Contract ${l.contract.number} · ${l.award.awardeeName} · Superintending Officer resolved again`, reason: "The revised contract sum crossed a band." }, "CREATE",
+  await writeAudit(tx, { actor, organisationId: l.org.id, entity: "ContractSoAssignment", entityId: row.id, entityLabel: `Contract ${l.contract.number} · ${l.award.awardeeName} · Superintending Officer resolved again`, reason: "The revised contract sum crossed a band." }, "CREATE",
     diffFields({ office: current?.roleLabel ?? null }, { office: r.roleLabel, resolvedFrom: `${issue.label}: ${r.ruleLabel} (${r.clause})`, revisedContractSum: senToDecimalString(revised), effectiveOn: today }));
   return null;
 }

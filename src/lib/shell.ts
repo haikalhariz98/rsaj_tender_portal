@@ -26,7 +26,8 @@ export interface ShellOrganisation {
   logo: { sha: string; width: number; height: number } | null;
 }
 
-export async function loadShell(): Promise<{
+/// `counts: false` is for whoever is not signed in: the frame still names the organisation, but how much work is outstanding is the staff's to see (Phase 1b: the layout is a loader too).
+export async function loadShell(opts: { counts: boolean }): Promise<{
   counts: Record<string, number>;
   organisation: ShellOrganisation;
 }> {
@@ -43,7 +44,7 @@ export async function loadShell(): Promise<{
     });
     if (!org) return fallback;
 
-    const pending = await db.committeeDecision.count({
+    const pending = !opts.counts ? 0 : await db.committeeDecision.count({
       where: {
         outcome: "PENDING",
         withdrawnAt: null,

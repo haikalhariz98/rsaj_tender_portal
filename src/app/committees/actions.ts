@@ -79,6 +79,8 @@ import { NumberingError } from "@/lib/numbering/issue";
 import { patternFaults } from "@/lib/numbering/series";
 import { MATTER_REF_TEXT, resolveMatterRef } from "@/lib/requisition/matter-link";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Writes for committee sittings.
@@ -123,6 +125,7 @@ function permit(s: LoadedSitting, act: SittingAct): FormState | null {
 
 async function audit(
   tx: Tx,
+  actor: AuditActor,
   s: LoadedSitting,
   entity: string,
   entityId: string,
@@ -132,7 +135,7 @@ async function audit(
   reason = "",
 ) {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: s.organisationId, entity, entityId, entityLabel, reason }, action, changes);
+  await writeAudit(tx, { actor, organisationId: s.organisationId, entity, entityId, entityLabel, reason }, action, changes);
 }
 
 /// Run a sitting write under the lock; a missing sitting reads as gone.
@@ -165,7 +168,7 @@ async function appointmentExerciseOf(decisionId: string): Promise<string | null>
  * before the sitting; once the outcome is written, it is offered to the route's committee step by the
  * award's own citation (`citeAppointmentStep`), after the loop-back, as a citation by hand would follow it.
  */
-async function inSittingAfterExercise(meetingId: string, exerciseId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>, appointment: { awardId: string; decisionId: string } | null = null): Promise<FormState> {
+async function inSittingAfterExercise(actor: AuditActor, meetingId: string, exerciseId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>, appointment: { awardId: string; decisionId: string } | null = null): Promise<FormState> {
   const requisitionId = await requisitionOfExercise(exerciseId);
   if (!requisitionId) return inSitting(meetingId, fn);
   const roster = await loadRoster(ORGANISATION_CODE);
@@ -180,11 +183,11 @@ async function inSittingAfterExercise(meetingId: string, exerciseId: string, fn:
       if (!s) return null;
       const done = await fn(tx, s);
       if (!done.ok || !award || !appointment) return done;
-      await linkOutcome(tx, {
+      await linkOutcome(tx, actor, {
         organisationId: s.organisationId,
         decisionId: appointment.decisionId,
         routes: award.award.approvalInstances.map(linkRoute(`EXERCISE:${exerciseId}`)),
-        cite: (stepId) => citeAppointmentStep(tx, award, stepId, appointment.decisionId, "OUTCOME"),
+        cite: (stepId) => citeAppointmentStep(tx, actor, award, stepId, appointment.decisionId, "OUTCOME"),
         refusal: (e) => (e instanceof AwardRefusal ? e.state : null),
       });
       return done;
@@ -220,7 +223,7 @@ async function variationMatterOf(decisionId: string): Promise<{ id: string; cont
  * Founder, 2026-10-05: once the outcome is written, it is offered to the variation's open route's committee step by
  * the variation's own citation (`citeVariationDecision`), under the same locks and the same row of the table.
  */
-async function inSittingAfterContract(meetingId: string, variation: { id: string; contractId: string }, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>, link: { decisionId: string; now: Date } | null = null): Promise<FormState> {
+async function inSittingAfterContract(actor: AuditActor, meetingId: string, variation: { id: string; contractId: string }, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>, link: { decisionId: string; now: Date } | null = null): Promise<FormState> {
   const roster = await loadRoster(ORGANISATION_CODE);
   const result = await withLockedContract(variation.contractId, async (tx, l): Promise<FormState | null> => {
     const refused = actStatusFault("VARIATION", l.contract.status as ContractStatus);
@@ -232,8 +235,8 @@ async function inSittingAfterContract(meetingId: string, variation: { id: string
     if (!done.ok || !link || !s.today) return done;
     const v = (await loadVariations(l.contract.id, tx)).find((x) => x.id === variation.id);
     if (!v) return done;
-    const c = { tx, l, now: link.now, today: s.today };
-    await linkOutcome(tx, {
+    const c = { tx, actor, l, now: link.now, today: s.today };
+    await linkOutcome(tx, actor, {
       organisationId: s.organisationId,
       decisionId: link.decisionId,
       routes: v.approvals.map((a) => linkRoute(`VARIATION:${v.id}`)(a.approvalInstance)),
@@ -286,13 +289,13 @@ const outcomeRecordKey = (r: OutcomeRecord) => (r.kind === "CONTRACT" ? `CONTRAC
  *   asked (ADR 0031; CANCELLED refuses in its words), the matter and its record (`lockMatter`), then the sitting;
  *   `citeMatterDecision`. The order the run 1b design gives the outcome on a contract matter.
  */
-async function inSittingAfterRecord(meetingId: string, record: OutcomeRecord, decisionId: string, now: Date, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState> {
+async function inSittingAfterRecord(actor: AuditActor, meetingId: string, record: OutcomeRecord, decisionId: string, now: Date, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState> {
   const roster = await loadRoster(ORGANISATION_CODE);
   let result: FormState | null;
   let paths: string[] = [];
   try {
     if (record.kind === "CONTRACT") {
-      result = await inContractMatterForOutcome(record, now, meetingId, roster, decisionId, fn);
+      result = await inContractMatterForOutcome(actor, record, now, meetingId, roster, decisionId, fn);
       paths = [`/projects/${record.contractId}`];
     } else if (record.kind === "NAME") {
       result = await withLockedRequisitionForSourcing(record.requisitionId, record.exerciseId, async (tx, l) => {
@@ -303,11 +306,11 @@ async function inSittingAfterRecord(meetingId: string, record: OutcomeRecord, de
         const done = await fn(tx, s);
         if (!done.ok) return done;
         // The name's citation reads the exercise's matters again on this transaction; its routes are as read.
-        await linkOutcome(tx, {
+        await linkOutcome(tx, actor, {
           organisationId: s.organisationId,
           decisionId,
           routes: nameRoutesOf(ex.approvalInstances).map(linkRoute(`EXERCISE:${ex.id}`)),
-          cite: (stepId) => citeNameStep(tx, { org: l.org, ex }, stepId, decisionId, "OUTCOME"),
+          cite: (stepId) => citeNameStep(tx, actor, { org: l.org, ex }, stepId, decisionId, "OUTCOME"),
           refusal: (e) => (e instanceof NameRouteRefusal ? e.state : null),
         });
         return done;
@@ -321,12 +324,12 @@ async function inSittingAfterRecord(meetingId: string, record: OutcomeRecord, de
         if (!done.ok) return done;
         // Read again: the matter's outcome was written after the requisition was read.
         const fresh = (await loadRequisition(l.req.id, tx)) ?? l;
-        await linkOutcome(tx, {
+        await linkOutcome(tx, actor, {
           organisationId: s.organisationId,
           decisionId,
           routes: fresh.req.approvalInstances.map(linkRoute(`REQUISITION:${fresh.req.id}`)),
           cite: async (stepId) => {
-            const out = await citeCommitteeStep(tx, fresh, stepId, decisionId, "OUTCOME");
+            const out = await citeCommitteeStep(tx, actor, fresh, stepId, decisionId, "OUTCOME");
             return { ok: out.ok, message: out.message, errors: out.errors };
           },
           refusal: (e) => (e instanceof MoveRefused ? { ok: false, message: e.fault.code === "CHANGED" ? REQUISITION_CHANGED.message : transitionFaultText(e.fault) } : null),
@@ -345,13 +348,13 @@ async function inSittingAfterRecord(meetingId: string, record: OutcomeRecord, de
 }
 
 /// The contract matter's path for an outcome (see inSittingAfterRecord): its own function, so the scan reads the table asked.
-async function inContractMatterForOutcome(record: Extract<OutcomeRecord, { kind: "CONTRACT" }>, now: Date, meetingId: string, roster: Awaited<ReturnType<typeof loadRoster>>, decisionId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState | null> {
+async function inContractMatterForOutcome(actor: AuditActor, record: Extract<OutcomeRecord, { kind: "CONTRACT" }>, now: Date, meetingId: string, roster: Awaited<ReturnType<typeof loadRoster>>, decisionId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState | null> {
   const family = MATTER_FAMILY[record.matterKind as ContractMatterKind];
   try {
     return await withLockedContract(record.contractId, async (tx, l): Promise<FormState | null> => {
       const refused = actStatusFault(family, l.contract.status as ContractStatus);
       if (refused) return tableRefusal(refused);
-      const c = actCtx(tx, l, now);
+      const c = actCtx(tx, l, now, actor);
       if (!c) return NO_ZONE_STATE;
       await lockMatter(c, record.id);
       const s = await lockSittingIn(tx, meetingId, roster);
@@ -361,7 +364,7 @@ async function inContractMatterForOutcome(record: Extract<OutcomeRecord, { kind:
       // Read again: the matter's committee decision was written after the matter was read.
       const m = (await loadMatters(l.contract.id, tx)).find((x) => x.id === record.id);
       if (!m) return done;
-      await linkOutcome(tx, {
+      await linkOutcome(tx, actor, {
         organisationId: s.organisationId,
         decisionId,
         routes: m.routes.map(linkRoute(`CONTRACT:${m.id}`)),
@@ -392,6 +395,7 @@ async function inContractMatterForOutcome(record: Extract<OutcomeRecord, { kind:
  * "Table a matter" locks none.
  */
 export async function scheduleSitting(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -442,9 +446,9 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
         // Sign-in programme Phase 0: the number is issued by the one issuer, which locks the series row before it reads it.
         // The series read above only decides what the form must ask for; this is the one that counts.
         const { row } = await createNumberedSitting(tx, { organisationId: orgId, committeeId: committee.id, meetingDate, agenda, typedReference: typed, day });
-        await writeAudit(tx, { organisationId: orgId, entity: "Meeting", entityId: row.id, entityLabel: `${committee.nameEn} sitting`, reason: "" }, "CREATE",
+        await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "Meeting", entityId: row.id, entityLabel: `${committee.nameEn} sitting`, reason: "" }, "CREATE",
           diffFields(null, { committee: committee.nameEn, meetingDate, agenda, reference: typed ?? "(from numbering)" }));
-        if (chosen.length) await tableWaiting(tx, row.id, committee.code, chosen, tabledByPersonId, roster!);
+        if (chosen.length) await tableWaiting(tx, toAuditActor(actor), row.id, committee.code, chosen, tabledByPersonId, roster!);
         return row;
       },
       // An appointment's tabling reads the bids' and the evaluation's gates.
@@ -477,7 +481,7 @@ class Refusal extends Error {
  * locked and re-read before each, so each takes the next agenda place; each item is read again from its route
  * (`loadWaiting` on this transaction) and must still be waiting for this committee and tabled at a sitting.
  */
-async function tableWaiting(tx: Tx, meetingId: string, committeeCode: string, chosen: readonly string[], tabledByPersonId: string | null, roster: Awaited<ReturnType<typeof loadRoster>>) {
+async function tableWaiting(tx: Tx, by: AuditActor, meetingId: string, committeeCode: string, chosen: readonly string[], tabledByPersonId: string | null, roster: Awaited<ReturnType<typeof loadRoster>>) {
   const W = SCHEDULE_WORDS;
   const entries = (await loadWaiting(tx))?.entries ?? [];
   for (const stepId of chosen) {
@@ -490,7 +494,7 @@ async function tableWaiting(tx: Tx, meetingId: string, committeeCode: string, ch
     const refusal = permit(s, "TABLE");
     if (refusal) throw new Refusal(refusal);
     const r = new FormReader(new FormData());
-    const done = await tableInto(tx, s, r, { subject: t.subject, domain: t.domain, matterKind: t.matterKind, matterRef: t.matterRef, amount: t.amount, act, tabledByPersonId, dependsOnDecisionId: null });
+    const done = await tableInto(tx, by, s, r, { subject: t.subject, domain: t.domain, matterKind: t.matterKind, matterRef: t.matterRef, amount: t.amount, act, tabledByPersonId, dependsOnDecisionId: null });
     if (done.ok) continue;
     const errors = done.errors ?? {};
     // Who tables is the drawer's own field: said there. Anything else names the item.
@@ -502,6 +506,7 @@ async function tableWaiting(tx: Tx, meetingId: string, committeeCode: string, ch
 
 /// Edit a sitting's date and agenda. The date moves only before it starts.
 export async function editSitting(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const meetingId = String(data.get("meetingId") ?? "");
   const r = new FormReader(data);
   const meetingDate = r.date("meetingDate", "Date", { required: true });
@@ -518,7 +523,7 @@ export async function editSitting(_prev: FormState, data: FormData): Promise<For
     if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
     await tx.meeting.update({ where: { id: m.id }, data: { meetingDate: meetingDate!, agenda } });
-    await audit(tx, s, "Meeting", m.id, m.reference, "UPDATE",
+    await audit(tx, toAuditActor(actor), s, "Meeting", m.id, m.reference, "UPDATE",
       diffFields({ meetingDate: m.meetingDate, agenda: m.agenda }, { meetingDate, agenda }));
     return { ok: true };
   });
@@ -534,6 +539,7 @@ export async function editSitting(_prev: FormState, data: FormData): Promise<For
  * the sitting renders from what stood on the day, not from today's configuration.
  */
 export async function changeStatus(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const meetingId = String(data.get("meetingId") ?? "");
   const to = String(data.get("to") ?? "") as MeetingStatus;
   const reason = String(data.get("reason") ?? "").trim();
@@ -588,7 +594,7 @@ export async function changeStatus(_prev: FormState, data: FormData): Promise<Fo
       data: { ...after, ...(registerSnapshot ? { registerSnapshot: registerSnapshot as object } : {}) },
     });
     if (moved.count !== 1) return { ok: false, message: "The sitting changed while this was being saved. Reload and try again." };
-    await audit(tx, s, "Meeting", m.id, m.reference, "UPDATE",
+    await audit(tx, toAuditActor(actor), s, "Meeting", m.id, m.reference, "UPDATE",
       // 68-C5: minutedAt is an instant, written on the organisation's clock (never renderValue's UTC day).
       diffFields({ status: m.status, cancelledReason: m.cancelledReason, minutedAt: m.minutedAt ? formatOrgDateTime(m.minutedAt, s.timeZone) : null }, { ...after, ...(minutedAt ? { minutedAt: formatOrgDateTime(minutedAt, s.timeZone) } : {}) }), reason);
     return { ok: true };
@@ -596,6 +602,7 @@ export async function changeStatus(_prev: FormState, data: FormData): Promise<Fo
 }
 
 export async function saveMinutes(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const meetingId = String(data.get("meetingId") ?? "");
   const r = new FormReader(data);
   const minutes = r.text("minutes", "Minutes", { required: true, max: 20000 });
@@ -607,7 +614,7 @@ export async function saveMinutes(_prev: FormState, data: FormData): Promise<For
     if (refusal) return refusal;
     const m = s.meeting;
     await tx.meeting.update({ where: { id: m.id }, data: { minutes } });
-    await audit(tx, s, "Meeting", m.id, m.reference, "UPDATE", diffFields({ minutes: m.minutes }, { minutes }));
+    await audit(tx, toAuditActor(actor), s, "Meeting", m.id, m.reference, "UPDATE", diffFields({ minutes: m.minutes }, { minutes }));
     return { ok: true };
   });
 }
@@ -623,6 +630,7 @@ export async function saveMinutes(_prev: FormState, data: FormData): Promise<For
  * the register.
  */
 export async function recordAttendance(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const meetingId = String(data.get("meetingId") ?? "");
   const r = new FormReader(data);
   const personId = r.text("personId", "Person", { required: true });
@@ -680,7 +688,7 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
       update: { attended, standingInForSeatId },
       create: { meetingId, personId, attended, standingInForSeatId },
     });
-    await audit(tx, s, "MeetingAttendance", row.id, `${name} at ${s.meeting.reference}`, before ? "UPDATE" : "CREATE",
+    await audit(tx, toAuditActor(actor), s, "MeetingAttendance", row.id, `${name} at ${s.meeting.reference}`, before ? "UPDATE" : "CREATE",
       diffFields(before && { attended: before.attended, standingInForSeatId: before.standingInForSeatId }, { attended, standingInForSeatId }));
     return { ok: true };
   });
@@ -697,6 +705,7 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
  * sitting's lock, so a matter cannot be tabled onto a sitting being minuted.
  */
 export async function tableMatter(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const meetingId = String(data.get("meetingId") ?? "");
   const r = new FormReader(data);
   const subject = r.text("subject", "Subject", { required: true, max: 400 });
@@ -716,7 +725,7 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
   return inSitting(meetingId, async (tx, s) => {
     const refusal = permit(s, "TABLE");
     if (refusal) return refusal;
-    return tableInto(tx, s, r, { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, dependsOnDecisionId });
+    return tableInto(tx, toAuditActor(actor), s, r, { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, dependsOnDecisionId });
   });
 }
 
@@ -738,7 +747,7 @@ interface TablingFields {
  * then the row and its audit. A refusal is put on `r`'s fields and returned; nothing is written. Founder, 2026-10-05:
  * scheduling a sitting tables each waiting item it proposes through this same writer, so nothing is retyped.
  */
-async function tableInto(tx: Tx, s: LoadedSitting, r: FormReader, input: TablingFields): Promise<FormState> {
+async function tableInto(tx: Tx, by: AuditActor, s: LoadedSitting, r: FormReader, input: TablingFields): Promise<FormState> {
   const { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, dependsOnDecisionId } = input;
   const meetingId = s.meeting.id;
   const code = s.meeting.committee.secretariatRoleCode;
@@ -811,13 +820,14 @@ async function tableInto(tx: Tx, s: LoadedSitting, r: FormReader, input: Tabling
   const row = await tx.committeeDecision.create({
     data: { meetingId, subject, domain, matterKind, matterRef, requisitionId, exerciseId, amount, act: act!, tabledByPersonId, tabledAt, dependsOnDecisionId, sequence, evaluationVersion },
   });
-  await audit(tx, s, "CommitteeDecision", row.id, subject, "CREATE",
+  await audit(tx, by, s, "CommitteeDecision", row.id, subject, "CREATE",
     diffFields(null, { ...v, linkedRequisition: requisitionReference, linkedExercise: exerciseReference, tabledOnEvaluationVersion: evaluationVersion, tabledBy: tabledByPersonId ? s.names[tabledByPersonId] : null, tabledAt, sequence }));
   return { ok: true };
 }
 
 /// Declare a recusal on one matter. The member leaves that matter's vote and quorum.
 export async function declareRecusal(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const decisionId = String(data.get("decisionId") ?? "");
   const meetingId = await meetingOf(decisionId);
   if (!meetingId) return { ok: false, message: "That matter no longer exists." };
@@ -866,7 +876,7 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
     }
     const name = s.names[personId] ?? "Member";
     const row = await tx.decisionRecusal.create({ data: { decisionId, personId, reason, declaredAt: new Date() } });
-    await audit(tx, s, "DecisionRecusal", row.id, `${name} on ${decision.subject}`, "CREATE", diffFields(null, { member: name, reason }));
+    await audit(tx, toAuditActor(actor), s, "DecisionRecusal", row.id, `${name} on ${decision.subject}`, "CREATE", diffFields(null, { member: name, reason }));
     return { ok: true };
   });
 }
@@ -883,6 +893,7 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
  * outcome's name and kind.
  */
 export async function recordOutcome(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   // 6.8 fix R-9: the server's clock is read once, at the act's entry, truncated to the second (6.6 CR-3).
   const now = toSecond(new Date());
   const decisionId = String(data.get("decisionId") ?? "");
@@ -953,21 +964,21 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
     // Guarded on PENDING as well as locked: exactly one outcome lands.
     const done = await tx.committeeDecision.updateMany({ where: { id: decisionId, outcome: "PENDING" }, data: after });
     if (done.count !== 1) return { ok: false, message: "The matter has already been decided." };
-    await audit(tx, s, "CommitteeDecision", decisionId, decision.subject, "UPDATE",
+    await audit(tx, toAuditActor(actor), s, "CommitteeDecision", decisionId, decision.subject, "UPDATE",
       diffFields({ outcome: decision.outcome, decisionDate: decision.decisionDate, outcomeNote: decision.outcomeNote, notApprovedOutcomeId: decision.notApprovedOutcomeId }, after));
     // 6.8 (E-8, flagged): an appointment not carried, with a LOOP outcome whose key is the evaluation's,
     // opens the next evaluation version in this transaction. Locks (fix M-2): the exercise's, taken before
     // the sitting (inSittingAfterExercise), then the evaluations (lock.ts). Only for an exercise published
     // through its window with a pinned model.
-    const said = outcome === "NOT_CARRIED" && decision.domain === APPOINTMENT_DOMAIN && decision.exerciseId ? await loopBack(tx, s, decision.exerciseId, decisionId, chosen ?? null, now) : null;
+    const said = outcome === "NOT_CARRIED" && decision.domain === APPOINTMENT_DOMAIN && decision.exerciseId ? await loopBack(tx, toAuditActor(actor), s, decision.exerciseId, decisionId, chosen ?? null, now) : null;
     return said ? { ok: true, message: said } : { ok: true };
   };
   return exerciseId
-    ? inSittingAfterExercise(meetingId, exerciseId, run, awardId ? { awardId, decisionId } : null)
+    ? inSittingAfterExercise(toAuditActor(actor), meetingId, exerciseId, run, awardId ? { awardId, decisionId } : null)
     : variation
-      ? inSittingAfterContract(meetingId, variation, run, { decisionId, now })
+      ? inSittingAfterContract(toAuditActor(actor), meetingId, variation, run, { decisionId, now })
       : record
-        ? inSittingAfterRecord(meetingId, record, decisionId, now, run)
+        ? inSittingAfterRecord(toAuditActor(actor), meetingId, record, decisionId, now, run)
         : inSitting(meetingId, run);
 }
 
@@ -976,7 +987,7 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
  * refuses. The caller holds requisition → exercise → window → openings → sitting (fix M-2); the
  * evaluations are locked here, last. `now` is the act's one clock read (fix R-9).
  */
-async function loopBack(tx: Tx, s: LoadedSitting, exerciseId: string, decisionId: string, chosen: { kind: "LOOP" | "TERMINAL"; returnsToStage: string | null } | null, now: Date): Promise<string | null> {
+async function loopBack(tx: Tx, actor: AuditActor, s: LoadedSitting, exerciseId: string, decisionId: string, chosen: { kind: "LOOP" | "TERMINAL"; returnsToStage: string | null } | null, now: Date): Promise<string | null> {
   await lockEvaluationRows(tx, exerciseId);
   const ev = await loadEvaluationGate(exerciseId, tx);
   if (!ev.bundle.applies || ev.version == null) return null;
@@ -988,7 +999,7 @@ async function loopBack(tx: Tx, s: LoadedSitting, exerciseId: string, decisionId
   const vf = tabledVersionFault({ applies: true, tabledOn: tabled, inForce: ev.version });
   if (vf) return evaluationFindingText({ ...vf, code: vf.code === "TABLED_ON_EARLIER_VERSION" ? "LOOP_ON_EARLIER_VERSION" : "LOOP_VERSION_NOT_RECORDED" });
   const ex = await tx.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { id: true, reference: true, title: true, status: true, regime: true, boundaryValue: true, boundaryOperator: true } });
-  const v = await openNewVersion(tx, { organisationId: s.organisationId, exercise: ex, ceiling: ceilingOf(ex), today: s.today, timeZone: s.timeZone, now }, { trigger: "LOOP", decisionId, key, personId: null });
+  const v = await openNewVersion(tx, actor, { organisationId: s.organisationId, exercise: ex, ceiling: ceilingOf(ex), today: s.today, timeZone: s.timeZone, now }, { trigger: "LOOP", decisionId, key, personId: null });
   return v ? `Evaluation version ${v} of ${ex.reference} is opened: ${LOOP_KEY_LABEL[key].toLowerCase()}.` : null;
 }
 
@@ -999,6 +1010,7 @@ async function loopBack(tx: Tx, s: LoadedSitting, exerciseId: string, decisionId
  * progress a pending matter is deferred instead, with a note.
  */
 export async function withdrawMatter(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const decisionId = String(data.get("decisionId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   const meetingId = await meetingOf(decisionId);
@@ -1013,7 +1025,7 @@ export async function withdrawMatter(_prev: FormState, data: FormData): Promise<
     const withdrawnAt = new Date();
     const moved = await tx.committeeDecision.updateMany({ where: { id: decision.id, outcome: "PENDING", withdrawnAt: null }, data: { withdrawnAt, withdrawnReason: reason } });
     if (moved.count !== 1) return { ok: false, message: "The matter changed while this was being saved. Reload and try again." };
-    await audit(tx, s, "CommitteeDecision", decision.id, decision.subject, "UPDATE", diffFields({ withdrawnAt: null }, { withdrawnAt: formatOrgDateTime(withdrawnAt, s.timeZone), withdrawn: "from the agenda, before the sitting opened" }), reason);
+    await audit(tx, toAuditActor(actor), s, "CommitteeDecision", decision.id, decision.subject, "UPDATE", diffFields({ withdrawnAt: null }, { withdrawnAt: formatOrgDateTime(withdrawnAt, s.timeZone), withdrawn: "from the agenda, before the sitting opened" }), reason);
     return { ok: true };
   });
 }

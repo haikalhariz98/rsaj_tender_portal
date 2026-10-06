@@ -30,6 +30,7 @@ import { dayIn, dayToDate, instantAt, storedDay, todayIn } from "../src/lib/date
 import { formatDate } from "../src/lib/format";
 import { parseSen, senFromDecimal, senToDecimalString } from "../src/lib/money";
 import { calendarOf } from "./demo-window";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -192,7 +193,7 @@ export async function configureEvaluationDemo(db: Db, organisationId: string) {
   const later = (m: number) => new Date(at.getTime() + m * 60_000);
   const trail: Entry[] = [];
   let n = 0;
-  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}evcau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}evcau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
 
   // ---- aspects (FR-EVL-003), required on the traditional route
   for (const [i, a] of ASPECTS.entries()) {
@@ -636,7 +637,7 @@ export class EvaluationActs {
     await this.db.approvalStep.update({ where: { id: step.id }, data: personDecisionWrite({ decision, person: { id: p.id, name: p.name }, decidedOn: dayToDate(on), delegationId: check.delegationId, reason, recordedAt: at }) });
     this.entry("ApprovalStep", step.id, `${l.ex.reference} · ${step.roleLabel}`, "UPDATE", at, diffFields({ decision: step.decision }, { decision, decidedBy: p.name, decidedOn: dayToDate(on), recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
     const routeLabel = `${l.ex.reference} · ${exerciseRouteMatter(NEGOTIATION_DOMAIN).auditNoun}`;
-    if (decision === "REJECTED") await closeRejected(this.db as never, { organisationId: this.org, routeLabel }, full as never, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, reason, NEGOTIATION_REFUSED_DECIDED_BY);
+    if (decision === "REJECTED") await closeRejected(this.db as never, { kind: "SYSTEM", label: "demo loader" }, { organisationId: this.org, routeLabel }, full as never, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, reason, NEGOTIATION_REFUSED_DECIDED_BY);
   }
 }
 
@@ -662,7 +663,7 @@ export async function loadEvaluationDemo(db: Db, organisationId: string, hooks: 
   const ago = (m: number) => new Date(now.getTime() - m * 60_000);
   const trail: Entry[] = [];
   let n = 0;
-  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}evau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}evau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
   const acts = new EvaluationActs(db, organisationId, tz, entry);
   let doc = 110;
   const nextDoc = () => `${P}doc${doc++}`;
@@ -785,7 +786,7 @@ async function loadQuotation(db: Db, organisationId: string, tz: string, W: (k: 
   const L = todayIn(new Date(), tz)!;
   const trail: Entry[] = [];
   let n = 0;
-  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}evqau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}evqau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
   const iso = (at: Date) => at.toISOString().slice(0, 16);
   const docs = async (ds: Parameters<typeof writeDemoDocs>[2]) => {
     if (!ds.length) return;

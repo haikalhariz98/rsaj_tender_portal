@@ -23,6 +23,7 @@
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -99,7 +100,7 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
   const l0 = (await loadContract(CON))!;
   if (l0.contract.status !== "STAMPED") throw new Error(`demo supervision: ${CON} is ${l0.contract.status}, not stamped`);
   const contract = contractLabel({ number: l0.contract.number, award: { awardeeName: l0.award.awardeeName } });
-  const audit = (entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") => audits.push({ id: `${P}wtr${++n}`, organisationId, entity, entityId, entityLabel: `${contract} · ${suffix}`, action, at: at(when), changes, reason, unattributed: true });
+  const audit = (entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") => audits.push({ id: `${P}wtr${++n}`, organisationId, entity, entityId, entityLabel: `${contract} · ${suffix}`, action, at: at(when), changes, reason, ...DEMO_ACTOR });
   const assignment = await db.contractSoAssignment.findUniqueOrThrow({ where: { id: `${P}wso_con3` } });
   /// The S.O. office on a day, as `soOfficeOn` reads it.
   const soOffice = async (on: string) => {
@@ -156,7 +157,7 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
     audit("Possession", `${P}wpo1`, "possession of site", "CREATE", when, diffFields(null, { possessionOn, dateForCompletion: after.dateForCompletion, recordedFor: `${people.chen.name}, as ${assignment.roleLabel}`, startOfWork: judgedUnder.startOfWork === "WITHOUT_SECURITIES" ? "this contract type starts without its securities" : "the bond and the required insurance verified", recordedOnBehalf: ON_BEHALF }), "Site handed over at the reservoir gate (demo).");
     if (contractTransition("STAMPED", "ACTIVE", { act: "POSSESSION" })) throw new Error("demo possession: STAMPED → ACTIVE refused");
     await db.contract.update({ where: { id: CON }, data: { status: "ACTIVE" } });
-    audits.push({ id: `${P}wtr${++n}`, organisationId, entity: "Contract", entityId: CON, entityLabel: contract, action: "UPDATE", at: at(when), changes: diffFields({ status: "STAMPED" }, { status: "ACTIVE" }), reason: "", unattributed: true });
+    audits.push({ id: `${P}wtr${++n}`, organisationId, entity: "Contract", entityId: CON, entityLabel: contract, action: "UPDATE", at: at(when), changes: diffFields({ status: "STAMPED" }, { status: "ACTIVE" }), reason: "", ...DEMO_ACTOR });
   }
 
   // ------------------------------------------------ the programme: submitted and scrutinised 1–2 Oct, approved 2 Oct

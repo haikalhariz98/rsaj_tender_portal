@@ -28,12 +28,14 @@ describe("component hints come from labels (D6)", () => {
   });
 
   it("the moved words are the words the screens showed", () => {
-    expect(ON_BEHALF_HINT).toBe("Recorded on their behalf, not signed: nobody is signed in.");
+    // Phase 1b: someone is signed in now, and the history names them, so the hint no longer says nobody is. The person picked is still only recorded, not signing.
+    expect(ON_BEHALF_HINT).toBe("Recorded on their behalf, not signed: the officer who is signed in records it, and the history names them.");
     expect(DOCUMENT_TITLE_HINT).toBe("What this document is called in lists.");
     expect(DOCUMENT_CLASS_HINT).toBe("Decides its classification and how long it is kept. A SULIT or unclassified document is listed but never opened in the portal.");
     expect(DOCUMENT_NOTE_HINT).toBe("Optional. Anything the next reader should know about this file.");
     expect(ATTACH_PURPOSE_HINT).toBe("Where a purpose is closed, its reason is under it.");
-    expect(REASON_HINT).toBe("Recorded in the audit trail. Nobody is signed in, so this is the only account of why the change was made.");
+    // Phase 1b: the trail names who made the change, so the reason is the only account of why, not of who.
+    expect(REASON_HINT).toBe("Recorded in the audit trail with who made the change. This is the only account of why it was made.");
     expect(PROVENANCE_HINT).toEqual({ STATED: "Written in a governing document", OBSERVED: "Seen in practice, not written down", ASSUMED: "A working default, awaiting sign-off" });
     expect(PROVENANCE_NOT_SET_HINT).toBe("Nobody has said where this came from");
     expect(SIMULATOR_HINT).toEqual({

@@ -12,6 +12,8 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { exerciseOrg } from "@/lib/method/repo";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Routing sheet configuration (6.14 increment 1, FR-CRT-007, 008; ADR 0023, 0024): the types, each with its
@@ -33,10 +35,10 @@ const done = (typeId?: string): FormState => {
   return { ok: true };
 };
 
-async function audit(tx: Tx, orgId: string, entity: string, entityId: string, label: string, before: Record<string, unknown> | null, after: Record<string, unknown>, reason: string) {
+async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, entityId: string, label: string, before: Record<string, unknown> | null, after: Record<string, unknown>, reason: string) {
   const changes = diffFields(before, after);
   if (before && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
+  await writeAudit(tx, { actor, organisationId: orgId, entity, entityId, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
 }
 
 const edgeWords = (v: boolean | null) => (v == null ? "not decided" : v ? "the band it closes: up to and including the edge" : "the band it opens: from the edge up");
@@ -50,6 +52,7 @@ const typeWords = (t: { labelEn: string; labelMs: string | null; subject: (typeo
 });
 
 export async function saveRoutingType(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await exerciseOrg();
   if (!o) return NO_ORG;
   const r = new FormReader(data);
@@ -78,17 +81,18 @@ export async function saveRoutingType(_prev: FormState, data: FormData): Promise
       const before = await tx.routingSheetType.findFirst({ where: { id, organisationId: o.id } });
       if (!before) return { ok: false, message: "That routing sheet type no longer exists." } as FormState;
       const row = await tx.routingSheetType.update({ where: { id }, data: { ...v, subject: v.subject!, provenance: v.provenance! } });
-      await audit(tx, o.id, "RoutingSheetType", row.id, row.labelEn, typeWords(before), typeWords(row), reason);
+      await audit(tx, toAuditActor(actor), o.id, "RoutingSheetType", row.id, row.labelEn, typeWords(before), typeWords(row), reason);
       return done(id);
     }
     if (await tx.routingSheetType.findFirst({ where: { organisationId: o.id, code: code! }, select: { id: true } })) return { ok: false, errors: { code: "Another type has that code." } } as FormState;
     const row = await tx.routingSheetType.create({ data: { organisationId: o.id, code: code!, ...v, subject: v.subject!, provenance: v.provenance! } });
-    await audit(tx, o.id, "RoutingSheetType", row.id, row.labelEn, null, typeWords(row), reason);
+    await audit(tx, toAuditActor(actor), o.id, "RoutingSheetType", row.id, row.labelEn, null, typeWords(row), reason);
     return done();
   });
 }
 
 export async function retireRoutingType(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const o = await exerciseOrg();
   if (!o?.today) return { ok: false, message: "Set the organisation's time zone first: a type retires from the organisation's day." };
   const id = String(data.get("id") ?? "");
@@ -100,7 +104,7 @@ export async function retireRoutingType(_prev: FormState, data: FormData): Promi
     if (!before) return { ok: false, message: "That routing sheet type no longer exists." } as FormState;
     if (before.retiredOn) return { ok: false, message: `Already retired from ${storedDay(before.retiredOn)}.` } as FormState;
     await tx.routingSheetType.update({ where: { id }, data: { retiredOn: dayToDate(o.today!) } });
-    await audit(tx, o.id, "RoutingSheetType", id, before.labelEn, { retiredFrom: null }, { retiredFrom: o.today }, reason);
+    await audit(tx, toAuditActor(actor), o.id, "RoutingSheetType", id, before.labelEn, { retiredFrom: null }, { retiredFrom: o.today }, reason);
     return done(id);
   });
 }
@@ -119,6 +123,7 @@ async function onType(typeId: string, fn: (tx: Tx, t: { id: string; organisation
 const checkWords = (d: { order: number; kind: (typeof ROUTING_CHECK_KINDS)[number]; labelEn: string; labelMs: string | null; targetDays: number | null }, office: string | null) => ({ order: d.order, check: `${CHECK_KIND_WORDS[d.kind].en} (${d.labelEn})`, labelMalay: d.labelMs, office: office ?? "any officer", printedDays: d.targetDays });
 
 export async function saveCheckDef(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const r = new FormReader(data);
   const typeId = r.text("typeId", "Type", { required: true });
   const id = r.optionalText("id");
@@ -140,13 +145,14 @@ export async function saveCheckDef(_prev: FormState, data: FormData): Promise<Fo
     if (fs.length) return { ok: false, message: configFaultText(fs) };
     const name = (c: string | null) => roles.find((x) => x.code === c)?.nameEn ?? null;
     const row = before ? await tx.routingCheckDef.update({ where: { id: before.id }, data: v }) : await tx.routingCheckDef.create({ data: { organisationId: t.organisationId, typeId: t.id, ...v } });
-    await audit(tx, t.organisationId, "RoutingCheckDef", row.id, `${t.labelEn} · ${v.labelEn}`, before ? checkWords(before, name(before.officeCode)) : null, checkWords(v, name(v.officeCode)), String(data.get("reason") ?? ""));
+    await audit(tx, toAuditActor(actor), t.organisationId, "RoutingCheckDef", row.id, `${t.labelEn} · ${v.labelEn}`, before ? checkWords(before, name(before.officeCode)) : null, checkWords(v, name(v.officeCode)), String(data.get("reason") ?? ""));
     return { ok: true };
   });
   return res.ok ? done(typeId) : res;
 }
 
 export async function removeCheckDef(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const typeId = String(data.get("typeId") ?? "");
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
@@ -155,7 +161,7 @@ export async function removeCheckDef(_prev: FormState, data: FormData): Promise<
     const row = await tx.routingCheckDef.findFirst({ where: { id, typeId: t.id } });
     if (!row) return { ok: false, message: "That check is no longer on this type." };
     await tx.routingCheckDef.delete({ where: { id } });
-    await writeAudit(tx, { organisationId: t.organisationId, entity: "RoutingCheckDef", entityId: id, entityLabel: `${t.labelEn} · ${row.labelEn}`, reason }, "DELETE", snapshotFields(checkWords(row, null)));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: t.organisationId, entity: "RoutingCheckDef", entityId: id, entityLabel: `${t.labelEn} · ${row.labelEn}`, reason }, "DELETE", snapshotFields(checkWords(row, null)));
     return { ok: true };
   });
   return res.ok ? done(typeId) : res;
@@ -164,6 +170,7 @@ export async function removeCheckDef(_prev: FormState, data: FormData): Promise<
 const targetWords = (t: { pctMin: string | null; pctMax: string | null; targetDays: number; provenance: string }) => ({ band: t.pctMin == null && t.pctMax == null ? "every percentage" : `${t.pctMin == null ? "from nothing" : `from ${t.pctMin}%`} ${t.pctMax == null ? "upwards" : `to ${t.pctMax}%`}`, targetDays: t.targetDays, provenance: t.provenance });
 
 export async function saveTarget(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const r = new FormReader(data);
   const typeId = r.text("typeId", "Type", { required: true });
   const id = r.optionalText("id");
@@ -184,13 +191,14 @@ export async function saveTarget(_prev: FormState, data: FormData): Promise<Form
     const fs = targetFaults(v, rows.filter((x) => x.id !== id).map(str));
     if (fs.length) return { ok: false, message: configFaultText(fs) };
     const row = before ? await tx.routingTarget.update({ where: { id: before.id }, data: { ...v, provenance, notes } }) : await tx.routingTarget.create({ data: { organisationId: t.organisationId, typeId: t.id, ...v, provenance, notes } });
-    await audit(tx, t.organisationId, "RoutingTarget", row.id, `${t.labelEn} · target`, before ? targetWords({ ...str(before), provenance: before.provenance }) : null, targetWords({ ...v, provenance }), String(data.get("reason") ?? ""));
+    await audit(tx, toAuditActor(actor), t.organisationId, "RoutingTarget", row.id, `${t.labelEn} · target`, before ? targetWords({ ...str(before), provenance: before.provenance }) : null, targetWords({ ...v, provenance }), String(data.get("reason") ?? ""));
     return { ok: true };
   });
   return res.ok ? done(typeId) : res;
 }
 
 export async function removeTarget(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const typeId = String(data.get("typeId") ?? "");
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
@@ -199,7 +207,7 @@ export async function removeTarget(_prev: FormState, data: FormData): Promise<Fo
     const row = await tx.routingTarget.findFirst({ where: { id, typeId: t.id } });
     if (!row) return { ok: false, message: "That target is no longer on this type." };
     await tx.routingTarget.delete({ where: { id } });
-    await writeAudit(tx, { organisationId: t.organisationId, entity: "RoutingTarget", entityId: id, entityLabel: `${t.labelEn} · target`, reason }, "DELETE", snapshotFields(targetWords({ pctMin: row.pctMin?.toString() ?? null, pctMax: row.pctMax?.toString() ?? null, targetDays: row.targetDays, provenance: row.provenance })));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: t.organisationId, entity: "RoutingTarget", entityId: id, entityLabel: `${t.labelEn} · target`, reason }, "DELETE", snapshotFields(targetWords({ pctMin: row.pctMin?.toString() ?? null, pctMax: row.pctMax?.toString() ?? null, targetDays: row.targetDays, provenance: row.provenance })));
     return { ok: true };
   });
   return res.ok ? done(typeId) : res;

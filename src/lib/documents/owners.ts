@@ -33,6 +33,7 @@ import { addendumFacts, awardFacts, CANCELLATION_OWNER_SELECT, cancellationOwner
 import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
+import type { AuditActor } from "@/lib/auth/types";
 
 export interface LockedOwner {
   ref: OwnerRef;
@@ -53,7 +54,7 @@ export interface LockedOwner {
 }
 
 /// Run `fn` with the owner locked, inside one transaction. Null when the owner does not exist.
-export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOwner) => Promise<T>): Promise<T | null> {
+export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (tx: Tx, o: LockedOwner) => Promise<T>): Promise<T | null> {
   switch (ref.kind) {
     case "meeting":
       return withLockedSitting(ref.id, (tx, s) =>
@@ -108,7 +109,7 @@ export async function withLockedOwner<T>(ref: OwnerRef, fn: (tx: Tx, o: LockedOw
           paths: [`/awards/${a.id}`, "/awards"],
           reliance: (purpose, live, versionId) => reliedOn(purpose, facts, live, versionId),
           // OD-5, BD-12: the scan that completes the return accepts the award in the same act.
-          afterChange: (tx) => acceptOnCompleteReturn(tx, l),
+          afterChange: (tx) => acceptOnCompleteReturn(tx, actor, l),
         });
       });
     case "specificationPanel": {

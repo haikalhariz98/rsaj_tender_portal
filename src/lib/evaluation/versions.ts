@@ -31,6 +31,7 @@ import { evaluationLabel } from "./lock";
 import { inForce, loadEvaluations } from "./repo";
 import { NEGOTIATION_DOMAIN } from "./types";
 import { senFromDecimal, formatMoney } from "@/lib/money";
+import type { AuditActor } from "@/lib/auth/types";
 
 export type NewVersionCause = { trigger: "LOOP"; decisionId: string; key: LoopStageKey; personId: null } | { trigger: "SUPPLEMENTARY_OPENING"; openingId: string; personId: string };
 
@@ -46,6 +47,7 @@ export function exclusionReason(j: ReturnType<typeof ceilingExclusion>): string 
  */
 export async function openNewVersion(
   tx: Tx,
+  actor: AuditActor,
   x: { organisationId: string; exercise: { id: string; reference: string; title: string; status: ExerciseStatus }; ceiling: CeilingSnapshot; today: string | null; timeZone: string | null; now: Date },
   cause: NewVersionCause,
 ): Promise<number | null> {
@@ -61,13 +63,13 @@ export async function openNewVersion(
 
   await tx.evaluation.update({ where: { id: prev.id }, data: { state: "SUPERSEDED", supersededAt: x.now } });
   const prevLabel = evaluationLabel({ version: prev.version, exercise: { reference: x.exercise.reference } });
-  await writeAudit(tx, { organisationId: x.organisationId, entity: EVALUATION_ENTITY.evaluation, entityId: prev.id, entityLabel: prevLabel, reason: "" }, "UPDATE", diffFields({ state: prev.state === "ISSUED" ? "Report issued" : "In progress" }, { state: "Superseded", supersededBy: `Version ${version}` }));
+  await writeAudit(tx, { actor, organisationId: x.organisationId, entity: EVALUATION_ENTITY.evaluation, entityId: prev.id, entityLabel: prevLabel, reason: "" }, "UPDATE", diffFields({ state: prev.state === "ISSUED" ? "Report issued" : "In progress" }, { state: "Superseded", supersededBy: `Version ${version}` }));
   // R-7: the superseded version's negotiation routes still with approval are withdrawn, as cancellation withdraws an exercise's routes.
   for (const n of pendingRoutes(prev.negotiations)) {
     const inst = n.approvalInstance;
     const note = supersededRouteNote(WITHDRAWN_ON_CHANGE, prev.version, version);
     const moved = await tx.approvalInstance.updateMany({ where: { id: inst.id, status: "PENDING" }, data: { status: "RECALLED", closedAt: x.now, warnings: [...((inst.warnings as object[] | null) ?? []), note] as unknown as Prisma.InputJsonValue } });
-    if (moved.count === 1) await writeAudit(tx, { organisationId: x.organisationId, entity: "ApprovalInstance", entityId: inst.id, entityLabel: `${x.exercise.reference} · ${exerciseRouteMatter(NEGOTIATION_DOMAIN).auditNoun}`, reason: note.messageEn }, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }));
+    if (moved.count === 1) await writeAudit(tx, { actor, organisationId: x.organisationId, entity: "ApprovalInstance", entityId: inst.id, entityLabel: `${x.exercise.reference} · ${exerciseRouteMatter(NEGOTIATION_DOMAIN).auditNoun}`, reason: note.messageEn }, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }));
   }
 
   const next = await tx.evaluation.create({
@@ -142,7 +144,7 @@ export async function openNewVersion(
   }
   const { scoresShownAt: _unchanged, ...started } = startFields({ version, trigger: cause.trigger, model: "As pinned at publication", at: x.now, by, bidders: set.length, excluded, decimals: null }, x.timeZone);
   void _unchanged;
-  await writeAudit(tx, { organisationId: x.organisationId, entity: EVALUATION_ENTITY.evaluation, entityId: next.id, entityLabel: label, reason: "" }, "CREATE", diffFields(null, {
+  await writeAudit(tx, { actor, organisationId: x.organisationId, entity: EVALUATION_ENTITY.evaluation, entityId: next.id, entityLabel: label, reason: "" }, "CREATE", diffFields(null, {
     ...started,
     carried: `${plan.carried.length} ${plan.carried.length === 1 ? "bid's record" : "bids' records"} carried, each score labelled`,
     newBids: plan.fresh.length || null,
@@ -150,7 +152,7 @@ export async function openNewVersion(
   }));
   if (x.exercise.status === "EVALUATED") {
     await moveExercise(tx, { id: x.exercise.id, status: "EVALUATED" }, "UNDER_EVALUATION", { today: x.today, via: "EVALUATION_REOPENED" });
-    await writeAudit(tx, { organisationId: x.organisationId, entity: "SourcingExercise", entityId: x.exercise.id, entityLabel: `${x.exercise.reference} · ${x.exercise.title}`, reason: "" }, "UPDATE", diffFields({ status: "EVALUATED" }, { status: "UNDER_EVALUATION" }));
+    await writeAudit(tx, { actor, organisationId: x.organisationId, entity: "SourcingExercise", entityId: x.exercise.id, entityLabel: `${x.exercise.reference} · ${x.exercise.title}`, reason: "" }, "UPDATE", diffFields({ status: "EVALUATED" }, { status: "UNDER_EVALUATION" }));
   }
   return version;
 }
@@ -160,12 +162,12 @@ export async function openNewVersion(
  * as cancelled, in the same transaction; its records are kept (an issued report stays as issued). The
  * caller holds the evaluations' rows (after the openings'). Returns the version closed, or null.
  */
-export async function closeOnCancellation(tx: Tx, x: { organisationId: string; exercise: { id: string; reference: string }; now: Date; reason: string }): Promise<number | null> {
+export async function closeOnCancellation(tx: Tx, actor: AuditActor, x: { organisationId: string; exercise: { id: string; reference: string }; now: Date; reason: string }): Promise<number | null> {
   const current = await tx.evaluation.findFirst({ where: { exerciseId: x.exercise.id, state: { in: ["OPEN", "ISSUED"] } }, select: { id: true, version: true, state: true } });
   if (!current) return null;
   const moved = await tx.evaluation.updateMany({ where: { id: current.id, state: current.state }, data: { state: "CANCELLED", cancelledAt: x.now } });
   if (moved.count !== 1) throw new Error("The evaluation changed while the exercise was being cancelled.");
   const label = evaluationLabel({ version: current.version, exercise: { reference: x.exercise.reference } });
-  await writeAudit(tx, { organisationId: x.organisationId, entity: EVALUATION_ENTITY.evaluation, entityId: current.id, entityLabel: label, reason: x.reason }, "UPDATE", diffFields({ state: current.state === "ISSUED" ? "Report issued" : "In progress" }, { state: "Closed: exercise cancelled" }));
+  await writeAudit(tx, { actor, organisationId: x.organisationId, entity: EVALUATION_ENTITY.evaluation, entityId: current.id, entityLabel: label, reason: x.reason }, "UPDATE", diffFields({ state: current.state === "ISSUED" ? "Report issued" : "In progress" }, { state: "Closed: exercise cancelled" }));
   return current.version;
 }

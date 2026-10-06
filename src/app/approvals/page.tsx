@@ -10,6 +10,7 @@ import { WAITING_RULE_TEXT } from "@/lib/approvals/queue";
 import { ESCALATION_KIND_LABEL } from "@/lib/authority/escalation-labels";
 import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export const dynamic = "force-dynamic";
  * to everyone, and nobody is notified.
  */
 export default async function ApprovalsPage() {
+  await requireStaff();
   const w = await loadWorklist();
   const all = w?.groups.flatMap((g) => g.items) ?? [];
   const rows: Row[] = all.map((i) => ({

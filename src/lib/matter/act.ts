@@ -18,6 +18,7 @@ import { actStatusText } from "@/lib/contract/act-status";
 import { contractLabel, type LoadedContract } from "@/lib/contract/repo";
 import { dayOf } from "@/lib/dates";
 import type { Tx } from "@/lib/audit/record";
+import type { AuditActor } from "@/lib/auth/types";
 import { capacityFor, type ActNeed, type Capacity } from "@/lib/supervision/authority";
 import { supervisionRefusal } from "@/lib/supervision/labels";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
@@ -39,6 +40,8 @@ export class ActRefusal extends Error {
 
 export interface ActCtx {
   tx: Tx;
+  /// Who acted: the signed-in person of the request, for the audit rows the act writes.
+  actor: AuditActor;
   l: LoadedContract;
   now: Date;
   today: string;
@@ -54,9 +57,9 @@ export const tableRefusal = (refused: Parameters<typeof actStatusText>[0]): Form
   refused.code === "CONTRACT_CANCELLED" ? CANCELLED : { ok: false, message: actStatusText(refused) };
 
 /// The act's context on the locked transaction, or null where the organisation's time zone is unset.
-export function actCtx(tx: Tx, l: LoadedContract, now: Date): ActCtx | null {
+export function actCtx(tx: Tx, l: LoadedContract, now: Date, actor: AuditActor): ActCtx | null {
   const today = dayOf(now, l.org.timeZone);
-  return today ? { tx, l, now, today, label: contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } }) } : null;
+  return today ? { tx, actor, l, now, today, label: contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } }) } : null;
 }
 export const NO_ZONE_STATE = NO_ZONE;
 

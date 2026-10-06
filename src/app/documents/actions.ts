@@ -19,14 +19,15 @@ import { withdrawFault } from "@/lib/documents/versioning";
 import { drawerView, panelView, type DrawerView, type PanelOptions, type PanelView } from "@/lib/documents/views";
 import { db } from "@/lib/db";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * The document store's acts (plan §2, §3, step 5). Each is reachable by a direct POST,
  * so each re-runs its pure check inside one transaction on locked rows: the owner first
  * (by its own module's lock), then the document. The write and its audit row share the
- * transaction; a refusal writes nothing and names what to do instead. Nobody is signed
- * in: a hold names the Person it was placed by, recorded on their behalf, and the audit
- * stays unattributed.
+ * transaction; a refusal writes nothing and names what to do instead. The signed-in
+ * officer is named on every audit row; a hold names the Person it was placed by, recorded on their behalf.
  *
  * The upload itself is the Route Handler `POST /api/documents` (Server Actions cap a
  * body at 1 MB); attaching what it stored is `attachDocument`, with the `versionId` it returned.
@@ -42,11 +43,11 @@ const GONE: FormState = { ok: false, message: "That record no longer exists." };
 const refuse = (fs: readonly Finding[]): FormState => ({ ok: false, message: fs.map(documentFaultText).join(" ") });
 const docLabel = (title: string) => `Document · ${title}`;
 
-async function inOwner(ref: OwnerRef, fn: (tx: Tx, o: LockedOwner) => Promise<FormState>): Promise<FormState> {
+async function inOwner(actor: AuditActor, ref: OwnerRef, fn: (tx: Tx, o: LockedOwner) => Promise<FormState>): Promise<FormState> {
   let paths: string[] = [];
   let result: FormState | null;
   try {
-    result = await withLockedOwner(ref, async (tx, o) => {
+    result = await withLockedOwner(actor, ref, async (tx, o) => {
       paths = o.paths;
       return fn(tx, o);
     });
@@ -95,6 +96,7 @@ async function attachmentOwner(attachmentId: string): Promise<OwnerRef | null> {
  * (`afterChange`), all in one act.
  */
 export async function attachDocument(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const r = new FormReader(data);
   const kind = r.choice("ownerKind", "Record", OWNER_KINDS, { required: true });
   const ownerId = r.text("ownerId", "Record", { required: true });
@@ -102,7 +104,7 @@ export async function attachDocument(_prev: FormState, data: FormData): Promise<
   const versionId = r.text("versionId", "Document", { required: true });
   if (r.failed || !kind || !purpose) return { ok: false, errors: r.errors };
   const ref: OwnerRef = { kind, id: ownerId };
-  return inOwner(ref, async (tx, o) => {
+  return inOwner(toAuditActor(actor), ref, async (tx, o) => {
     // The document is locked before the version is judged (`lockVersion`): a withdrawal
     // committed while this act waited is seen here, never pinned.
     const v = await lockVersion(tx, versionId, o.organisationId);
@@ -114,11 +116,11 @@ export async function attachDocument(_prev: FormState, data: FormData): Promise<
     const blocks = blocking(faults);
     if (blocks.length) return refuse(blocks);
     const row = await tx.documentAttachment.create({ data: { organisationId: o.organisationId, purpose, versionId: v.id, [col]: ownerId } });
-    await writeAudit(tx, { organisationId: o.organisationId, entity: "DocumentAttachment", entityId: row.id, entityLabel: `${o.label} · ${PURPOSE_LABEL[purpose]}` }, "CREATE",
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.organisationId, entity: "DocumentAttachment", entityId: row.id, entityLabel: `${o.label} · ${PURPOSE_LABEL[purpose]}` }, "CREATE",
       attached({ purpose, title: doc.title, versionNo: v.versionNo, sha256: v.sha256, owner: o.label }));
     if (doc.status === "STAGED") {
       await tx.document.update({ where: { id: doc.id }, data: { status: "FILED", filedAt: new Date() } });
-      await writeAudit(tx, { organisationId: o.organisationId, entity: "Document", entityId: doc.id, entityLabel: docLabel(doc.title) }, "UPDATE", filed());
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.organisationId, entity: "Document", entityId: doc.id, entityLabel: docLabel(doc.title) }, "UPDATE", filed());
     }
     const after = o.afterChange ? await o.afterChange(tx) : null;
     const warns = faults.filter((f) => f.level === "warn").map(documentFaultText);
@@ -128,12 +130,13 @@ export async function attachDocument(_prev: FormState, data: FormData): Promise<
 
 /// Take an attachment off its owner, with the reason; never one a judged record stands on.
 export async function detachDocument(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const attachmentId = String(data.get("attachmentId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "Give the reason it is taken off." } };
   const ref = await attachmentOwner(attachmentId);
   if (!ref) return GONE;
-  return inOwner(ref, async (tx, o) => {
+  return inOwner(toAuditActor(actor), ref, async (tx, o) => {
     const a = await tx.documentAttachment.findFirst({ where: { id: attachmentId, organisationId: o.organisationId, [OWNER_COLUMN[ref.kind]]: ref.id }, include: { version: { select: { versionNo: true, withdrawnAt: true, document: { select: { title: true } } } } } });
     if (!a) return GONE;
     const live = await tx.documentAttachment.count({ where: { [OWNER_COLUMN[ref.kind]]: ref.id, purpose: a.purpose, detachedAt: null, version: { withdrawnAt: null } } });
@@ -141,7 +144,7 @@ export async function detachDocument(_prev: FormState, data: FormData): Promise<
     const faults = detachFault({ purpose: a.purpose, owner: o.facts, reason, reliedOn: reliedOnAttachment(a, () => o.reliance(a.purpose, live, a.versionId)), detachedAt: a.detachedAt });
     if (faults.length) return refuse(faults);
     await tx.documentAttachment.update({ where: { id: a.id }, data: { detachedAt: new Date(), detachReason: reason } });
-    await writeAudit(tx, { organisationId: o.organisationId, entity: "DocumentAttachment", entityId: a.id, entityLabel: `${o.label} · ${PURPOSE_LABEL[a.purpose]}`, reason }, "UPDATE",
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.organisationId, entity: "DocumentAttachment", entityId: a.id, entityLabel: `${o.label} · ${PURPOSE_LABEL[a.purpose]}`, reason }, "UPDATE",
       detached({ purpose: a.purpose, title: a.version.document.title, versionNo: a.version.versionNo, reason }));
     const after = o.afterChange ? await o.afterChange(tx) : null;
     return { ok: true, message: after ?? undefined };
@@ -155,12 +158,13 @@ export async function detachDocument(_prev: FormState, data: FormData): Promise<
  * the owner is frozen; judged records keep their own snapshots.
  */
 export async function attachNewVersion(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const attachmentId = String(data.get("attachmentId") ?? "");
   const versionId = String(data.get("versionId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   const ref = await attachmentOwner(attachmentId);
   if (!ref) return GONE;
-  return inOwner(ref, async (tx, o) => {
+  return inOwner(toAuditActor(actor), ref, async (tx, o) => {
     const col = OWNER_COLUMN[ref.kind];
     const a = await tx.documentAttachment.findFirst({ where: { id: attachmentId, organisationId: o.organisationId, [col]: ref.id }, include: { version: { select: { id: true, documentId: true, versionNo: true } } } });
     if (!a) return GONE;
@@ -177,7 +181,7 @@ export async function attachNewVersion(_prev: FormState, data: FormData): Promis
     // Each attachment's trail under its own id: the old one closed, the new one opened.
     const entityLabel = `${o.label} · ${PURPOSE_LABEL[a.purpose]}`;
     for (const e of repinAudit({ purpose: a.purpose, title: to.document.title, owner: o.label, reason, from: { attachmentId: a.id, versionNo: a.version.versionNo }, to: { attachmentId: row.id, versionNo: to.versionNo, sha256: to.sha256 } })) {
-      await writeAudit(tx, { organisationId: o.organisationId, entity: "DocumentAttachment", entityId: e.entityId, entityLabel, reason }, e.action, e.changes);
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.organisationId, entity: "DocumentAttachment", entityId: e.entityId, entityLabel, reason }, e.action, e.changes);
     }
     const after = o.afterChange ? await o.afterChange(tx) : null;
     return { ok: true, message: after ?? undefined };
@@ -189,6 +193,7 @@ export async function attachNewVersion(_prev: FormState, data: FormData): Promis
 /// Withdraw a version, once, with its reason. Never refused because something relied on
 /// it: a judged record that pinned it learns at its next act (an award's issue refuses).
 export async function withdrawVersion(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const versionId = String(data.get("versionId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   const org = await documentOrg();
@@ -202,7 +207,7 @@ export async function withdrawVersion(_prev: FormState, data: FormData): Promise
     const f = withdrawFault(v, reason);
     if (f) return f.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: documentFaultText(f) } } : refuse([f]);
     await tx.documentVersion.update({ where: { id: v.id }, data: { withdrawnAt: new Date(), withdrawnReason: reason } });
-    await writeAudit(tx, { organisationId: orgId, entity: "DocumentVersion", entityId: v.id, entityLabel: `${docLabel(v.document.title)} · version ${v.versionNo}`, reason }, "UPDATE", versionWithdrawn({ versionNo: v.versionNo, reason }));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "DocumentVersion", entityId: v.id, entityLabel: `${docLabel(v.document.title)} · version ${v.versionNo}`, reason }, "UPDATE", versionWithdrawn({ versionNo: v.versionNo, reason }));
     return { ok: true };
   });
 }
@@ -211,6 +216,7 @@ export async function withdrawVersion(_prev: FormState, data: FormData): Promise
 /// unset, and an unset one never set below its class's classification as it stands now
 /// (BD-DS-11 as ruled, security audit C-4).
 export async function reclassifyDocument(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const documentId = String(data.get("documentId") ?? "");
   const r = new FormReader(data);
   const next = r.choice("classification", "Classification", SECURITY_CLASSES, { required: true });
@@ -225,7 +231,7 @@ export async function reclassifyDocument(_prev: FormState, data: FormData): Prom
     const faults = reclassifyFault(doc.classificationSnapshot, next, reason, doc.documentClass.classification);
     if (faults.length) return refuse(faults);
     await tx.document.update({ where: { id: doc.id }, data: { classificationSnapshot: next } });
-    await writeAudit(tx, { organisationId: orgId, entity: "Document", entityId: doc.id, entityLabel: docLabel(doc.title), reason: `${reclassifyKind(doc.classificationSnapshot, next!) === "SET" ? "Classification set" : reclassifyKind(doc.classificationSnapshot, next!) === "RAISED" ? "Classification raised" : "Classification lowered"}: ${reason}` }, "UPDATE",
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "Document", entityId: doc.id, entityLabel: docLabel(doc.title), reason: `${reclassifyKind(doc.classificationSnapshot, next!) === "SET" ? "Classification set" : reclassifyKind(doc.classificationSnapshot, next!) === "RAISED" ? "Classification raised" : "Classification lowered"}: ${reason}` }, "UPDATE",
       reclassified({ from: doc.classificationSnapshot, to: next! }));
     return { ok: true };
   });
@@ -233,6 +239,7 @@ export async function reclassifyDocument(_prev: FormState, data: FormData): Prom
 
 /// Place a legal hold, by a named Person, with the reason (NFR-RET-002).
 export async function placeLegalHold(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const documentId = String(data.get("documentId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   const personId = String(data.get("personId") ?? "").trim() || null;
@@ -243,13 +250,14 @@ export async function placeLegalHold(_prev: FormState, data: FormData): Promise<
     const faults = holdFaults({ reason, personId: person?.id ?? null, standing: doc.holds });
     if (faults.length) return refuse(faults);
     const hold = await tx.legalHold.create({ data: { organisationId: orgId, documentId, reason, placedByPersonId: person!.id } });
-    await writeAudit(tx, { organisationId: orgId, entity: "LegalHold", entityId: hold.id, entityLabel: `${docLabel(doc.title)} · legal hold`, reason }, "CREATE", holdPlaced({ reason, placedBy: person!.name }));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "LegalHold", entityId: hold.id, entityLabel: `${docLabel(doc.title)} · legal hold`, reason }, "CREATE", holdPlaced({ reason, placedBy: person!.name }));
     return { ok: true };
   });
 }
 
 /// Release a standing legal hold, by a named Person, with the reason.
 export async function releaseLegalHold(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const holdId = String(data.get("holdId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   const personId = String(data.get("personId") ?? "").trim() || null;
@@ -265,7 +273,7 @@ export async function releaseLegalHold(_prev: FormState, data: FormData): Promis
     const faults = releaseFaults({ hold, reason, personId: person?.id ?? null });
     if (faults.length) return refuse(faults);
     await tx.legalHold.update({ where: { id: hold.id }, data: { releasedAt: new Date(), releaseReason: reason, releasedByPersonId: person!.id } });
-    await writeAudit(tx, { organisationId: orgId, entity: "LegalHold", entityId: hold.id, entityLabel: `${docLabel(hold.document.title)} · legal hold`, reason }, "UPDATE", holdReleased({ reason, releasedBy: person!.name }));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "LegalHold", entityId: hold.id, entityLabel: `${docLabel(hold.document.title)} · legal hold`, reason }, "UPDATE", holdReleased({ reason, releasedBy: person!.name }));
     return { ok: true };
   });
 }
@@ -276,6 +284,7 @@ export async function releaseLegalHold(_prev: FormState, data: FormData): Promis
  * VERIFIED or INTEGRITY_FAILED.
  */
 export async function verifyVersion(_prev: FormState, data: FormData): Promise<FormState> {
+  await requireStaff();
   const versionId = String(data.get("versionId") ?? "");
   const org = await documentOrg();
   if (!org) return refuse([{ code: "NO_ORGANISATION", level: "block" }]);
@@ -296,12 +305,14 @@ export async function verifyVersion(_prev: FormState, data: FormData): Promise<F
 
 /// One document for the drawer, as words and dates. Null when it does not exist.
 export async function loadDocumentDrawer(documentId: string): Promise<DrawerView | null> {
+  await requireStaff();
   const [org, d] = await Promise.all([documentOrg(), documentDrawer(String(documentId))]);
   return d ? drawerView(d, org?.timeZone ?? null) : null;
 }
 
 /// An owner's panel, for a drawer that opens it on request (a delegation's documents).
 export async function loadOwnerPanel(ref: OwnerRef, opts: PanelOptions = {}): Promise<PanelView | null> {
+  await requireStaff();
   if (!OWNER_KINDS.includes(ref.kind)) return null;
   const [org, panel, upload] = await Promise.all([documentOrg(), ownerPanel(ref), uploadContext()]);
   return panel && upload ? panelView(panel, upload, org?.timeZone ?? null, opts) : null;
@@ -309,6 +320,7 @@ export async function loadOwnerPanel(ref: OwnerRef, opts: PanelOptions = {}): Pr
 
 /// The records of one kind a received document can be attached to, with what each keeps and whether it is open. `cap` says how many are listed at most.
 export async function loadAttachTargets(kind: string) {
+  await requireStaff();
   const k = OWNER_KINDS.find((x) => x === kind);
   if (!k) return null;
   return { ...(await attachTargetsOf(k)), cap: TARGET_CAP };

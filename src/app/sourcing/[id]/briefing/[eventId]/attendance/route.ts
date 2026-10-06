@@ -1,3 +1,4 @@
+import { staffRoute } from "@/app/_auth/route";
 import { attendanceRegisterCsv } from "@/lib/window/read";
 
 /**
@@ -6,6 +7,8 @@ import { attendanceRegisterCsv } from "@/lib/window/read";
  * on behalf of the officer, not signed. Served as an attachment, never inline.
  */
 export async function GET(_req: Request, ctx: RouteContext<"/sourcing/[id]/briefing/[eventId]/attendance">) {
+  const guard = await staffRoute();
+  if (!guard.ok) return guard.response;
   const { id, eventId } = await ctx.params;
   const file = await attendanceRegisterCsv(id, eventId);
   if (!file) return new Response("That event is not on this exercise.", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });

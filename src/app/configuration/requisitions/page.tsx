@@ -19,6 +19,7 @@ import { formatMoney, parseSen } from "@/lib/money";
 import { storedDay } from "@/lib/dates";
 
 import { EditCheckSource, EditPolicy, GateRuleEditor } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,7 @@ function Setting({ value, unset, action }: { value: React.ReactNode | null; unse
  * stops or what the portal does instead.
  */
 export default async function RequisitionControlsPage() {
+  await requireStaff();
   const org = await requisitionOrg();
   if (!org) {
     return (

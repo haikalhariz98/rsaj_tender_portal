@@ -28,6 +28,7 @@ import { dayToDate, instantAt, todayIn } from "../src/lib/dates";
 import { formatDate } from "../src/lib/format";
 import { ORGANISATION_CODE } from "../src/lib/org";
 import { calendarOf } from "./demo-window";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -95,7 +96,7 @@ export async function configureSuppliersDemo(db: Db, organisationId: string) {
   const later = (m: number) => new Date(at.getTime() + m * 60_000);
   const trail: Entry[] = [];
   let n = 0;
-  const entry = (entity: string, entityId: string, entityLabel: string, action: Entry["action"], when: Date, changes: object[], reason = "") => trail.push({ id: `${P}vcau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+  const entry = (entity: string, entityId: string, entityLabel: string, action: Entry["action"], when: Date, changes: object[], reason = "") => trail.push({ id: `${P}vcau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
 
   for (const [i, l] of LISTS.entries()) {
     await db.supplierListValue.create({ data: { ...l, organisationId, provenance: "ASSUMED" } });
@@ -176,7 +177,7 @@ class Acts {
   scan = 0;
   constructor(readonly db: Db, readonly org: string, readonly tz: string, readonly L: string) {}
   entry(entity: string, entityId: string, entityLabel: string, action: Entry["action"], when: Date, changes: object[], reason = "") {
-    this.trail.push({ id: `${P}vau${++this.n}`, organisationId: this.org, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+    this.trail.push({ id: `${P}vau${++this.n}`, organisationId: this.org, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
   }
   at(day: string, time: string) {
     return instantAt(day, time, this.tz)!;

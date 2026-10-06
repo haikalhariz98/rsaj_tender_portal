@@ -13,6 +13,7 @@
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";
+import { DEMO_ACTOR } from "./demo-actor";
 
 const HOUR = 3_600_000;
 const MINUTE = 60_000;
@@ -134,7 +135,7 @@ export async function loadSittingTrail(db: PrismaClient, organisationId: string,
     await db.auditEntry.createMany({
       data: trail.map((e, i) => ({
         id: `${m.id}_au${i + 1}`, organisationId, entity: e.entity, entityId: e.entityId, entityLabel: e.entityLabel,
-        action: e.action, at: e.at, changes: e.changes as object, reason: e.reason ?? "", unattributed: true,
+        action: e.action, at: e.at, changes: e.changes as object, reason: e.reason ?? "", ...DEMO_ACTOR,
       })),
     });
   }

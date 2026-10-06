@@ -34,6 +34,7 @@ import { parseSen, senToDecimalString } from "../src/lib/money";
 
 import { act, actRoute, at as onDay, seedActIds } from "./demo-acts";
 import type { Add } from "./demo-tender-docs";
+import { DEMO_ACTOR } from "./demo-actor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -137,7 +138,7 @@ export async function loadResultsDemo(db: Db, organisationId: string, hooks: Res
 
   const trail: { id: string; organisationId: string; entity: string; entityId: string; entityLabel: string; action: "CREATE" | "UPDATE" | "DELETE"; at: Date; changes: object[]; reason: string; unattributed: boolean }[] = [];
   let n = 0;
-  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}rsau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, unattributed: true });
+  const entry: Add = (entity, entityId, entityLabel, action, when, changes, reason = "") => trail.push({ id: `${P}rsau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
   let doc = 200;
   const nextDoc = () => `${P}doc${doc++}`;
   const docs = async (ds: Parameters<typeof writeDemoDocs>[2]) => {

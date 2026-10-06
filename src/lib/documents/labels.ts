@@ -39,7 +39,8 @@ export const RECORDED_ON_BEHALF_SENTENCE = "Recorded on behalf of, not signed";
 
 // Phase 1 carry D6: the attachment components' field hints, here rather than as literals in the components.
 /// Under a "Recorded by", "Placed by" or "Released by" person picker: a named Person, never a signature.
-export const ON_BEHALF_HINT = "Recorded on their behalf, not signed: nobody is signed in.";
+// Phase 1b: someone is signed in now, and the history names them; the person picked is still only recorded, not signing (Phase 2b changes that).
+export const ON_BEHALF_HINT = "Recorded on their behalf, not signed: the officer who is signed in records it, and the history names them.";
 /// Under a new document's title.
 export const DOCUMENT_TITLE_HINT = "What this document is called in lists.";
 /// Under a new document's class.

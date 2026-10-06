@@ -8,10 +8,12 @@ import { AddRule, EditRule } from "./editors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { HistoryButton } from "@/components/history-drawer";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
 export default async function NotificationsPage() {
+  await requireStaff();
   const [rules, roster] = await Promise.all([
     loadNotificationRules(ORGANISATION_CODE),
     loadRoster(ORGANISATION_CODE),

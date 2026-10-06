@@ -8,6 +8,7 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { formOptions, loadRequisition } from "@/lib/requisition/repo";
 
 import { RequisitionForm } from "../../requisition-form";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ function backToDraft(status: string): string {
 }
 
 export default async function EditRequisitionPage(props: PageProps<"/requisitions/[id]/edit">) {
+  await requireStaff();
   const { id } = await props.params;
   const l = await loadRequisition(id);
   if (!l) notFound();

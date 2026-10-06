@@ -18,6 +18,7 @@ import type { LoadedAward } from "./repo";
 import { countedReturnComplete, RETURN_SCANS, scansMissing, type ReturnRecord, type ReturnScan } from "./stage-two";
 import { awardTransition } from "./status";
 import type { InstrumentKind } from "./types";
+import type { AuditActor } from "@/lib/auth/types";
 
 const day = (d: Date | null) => (d ? storedDay(d) : null);
 
@@ -49,7 +50,7 @@ export async function returnScans(awardId: string, kind: InstrumentKind, client:
  * Returns a line for the officer: accepted, or what is still to come; null where
  * nothing applies (not issued, or no return opened).
  */
-export async function acceptOnCompleteReturn(tx: Tx, l: LoadedAward, rec?: ReturnRecord): Promise<string | null> {
+export async function acceptOnCompleteReturn(tx: Tx, actor: AuditActor, l: LoadedAward, rec?: ReturnRecord): Promise<string | null> {
   const a = l.award;
   if (a.status !== "ISSUED" || !a.awardReturn || !l.org.today) return null;
   const kind = a.instrumentKind as InstrumentKind;
@@ -65,7 +66,7 @@ export async function acceptOnCompleteReturn(tx: Tx, l: LoadedAward, rec?: Retur
   if (moved.count !== 1) return null;
   await writeAudit(
     tx,
-    { organisationId: l.org.id, entity: "Award", entityId: a.id, entityLabel: `${a.reference} · ${a.awardeeName}`, reason: kind === "LETTER_OF_ACCEPTANCE" ? "All three documents returned, each with its scan attached." : "The acceptance page is complete, with its scan attached." },
+    { actor, organisationId: l.org.id, entity: "Award", entityId: a.id, entityLabel: `${a.reference} · ${a.awardeeName}`, reason: kind === "LETTER_OF_ACCEPTANCE" ? "All three documents returned, each with its scan attached." : "The acceptance page is complete, with its scan attached." },
     "UPDATE",
     diffFields({ status: a.status }, { status: "ACCEPTED", scansAttached: snapshot.pins.length }),
   );

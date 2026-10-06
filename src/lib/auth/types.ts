@@ -46,6 +46,9 @@ export interface StaffActor {
   sourceAddress: string | null;
   /// The account must choose a new password before anything else (it was reset or created with a temporary one).
   mustChangePassword: boolean;
+  /// Set only for a loader run (the demo loaders call the product's own acts outside any request, with no sign-in): the acts then write their audit
+  /// rows as this system actor. Never set for a request, and nothing a request carries can set it (see `src/app/_auth/loader.ts`).
+  system?: { label: string };
 }
 
 export interface SupplierActor {

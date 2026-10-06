@@ -17,6 +17,8 @@ import { activePerson, loadRateIssues } from "@/lib/scope/repo";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Configuration › Scope and estimate (6.2 plan §4, increment 1): the scope policy, the
@@ -42,10 +44,10 @@ function done(): FormState {
   return { ok: true };
 }
 
-async function audit(tx: Tx, organisationId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", before: Record<string, unknown> | null, after: Record<string, unknown>, reason = "") {
+async function audit(tx: Tx, actor: AuditActor, organisationId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", before: Record<string, unknown> | null, after: Record<string, unknown>, reason = "") {
   const changes = diffFields(before, after);
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId, entity, entityId, entityLabel, reason }, action, changes);
+  await writeAudit(tx, { actor, organisationId, entity, entityId, entityLabel, reason }, action, changes);
 }
 
 const triState = (v: string | null): boolean | null => (v === "yes" ? true : v === "no" ? false : null);
@@ -60,6 +62,7 @@ async function lockOrganisation(tx: Tx, organisationId: string) {
 // ------------------------------------------------------------------ policy
 
 export async function saveScopePolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
@@ -109,7 +112,7 @@ export async function saveScopePolicy(_prev: FormState, data: FormData): Promise
         panelProjectStatusTaxonomyCode: name(lists, p.panelProjectStatusTaxonomyCode),
       };
     };
-    await audit(tx, orgId, "ScopePolicy", row.id, "Scope and estimate policy", before ? "UPDATE" : "CREATE", before ? named({ ...v, ...before, notes: before.notes }) : null, named(v));
+    await audit(tx, toAuditActor(actor), orgId, "ScopePolicy", row.id, "Scope and estimate policy", before ? "UPDATE" : "CREATE", before ? named({ ...v, ...before, notes: before.notes }) : null, named(v));
     return done();
   });
 }
@@ -117,6 +120,7 @@ export async function saveScopePolicy(_prev: FormState, data: FormData): Promise
 // ------------------------------------------------------------------ qualifications
 
 export async function saveQualification(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -137,20 +141,21 @@ export async function saveQualification(_prev: FormState, data: FormData): Promi
       const before = await tx.qualification.findFirst({ where: { id, organisationId: orgId } });
       if (!before) return GONE;
       const row = await tx.qualification.update({ where: { id }, data: { ...v, provenance: v.provenance! } });
-      await audit(tx, orgId, "Qualification", row.id, row.nameEn, "UPDATE", before, v);
+      await audit(tx, toAuditActor(actor), orgId, "Qualification", row.id, row.nameEn, "UPDATE", before, v);
       return done();
     }
     await lockOrganisation(tx, orgId);
     const taken = await tx.qualification.findFirst({ where: { organisationId: orgId, code: codeRaw! }, select: { id: true } });
     if (taken) return { ok: false, errors: { code: "Code is already in use." } };
     const row = await tx.qualification.create({ data: { organisationId: orgId, code: codeRaw!, ...v, provenance: v.provenance! } });
-    await audit(tx, orgId, "Qualification", row.id, row.nameEn, "CREATE", null, { code: codeRaw, ...v });
+    await audit(tx, toAuditActor(actor), orgId, "Qualification", row.id, row.nameEn, "CREATE", null, { code: codeRaw, ...v });
     return done();
   });
 }
 
 /// A person's holding of a qualification over days (FR-EST-003), with its evidence.
 export async function savePersonQualification(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -177,11 +182,11 @@ export async function savePersonQualification(_prev: FormState, data: FormData):
       await tx.personQualification.update({ where: { id }, data: v });
       // The holding may move to another qualification: the trail names the old one too, never its code.
       const priorRows = before.qualificationCode === qualificationCode ? [{ code: qualificationCode, nameEn: q.nameEn }] : await tx.qualification.findMany({ where: { organisationId: orgId, code: before.qualificationCode }, select: { code: true, nameEn: true } });
-      await audit(tx, orgId, "PersonQualification", id, entityLabel, "UPDATE", { person: before.person.name, qualification: qualificationName(priorRows, before.qualificationCode), validFrom: before.validFrom, validTo: before.validTo, evidence: before.evidenceNote }, view);
+      await audit(tx, toAuditActor(actor), orgId, "PersonQualification", id, entityLabel, "UPDATE", { person: before.person.name, qualification: qualificationName(priorRows, before.qualificationCode), validFrom: before.validFrom, validTo: before.validTo, evidence: before.evidenceNote }, view);
       return done();
     }
     const row = await tx.personQualification.create({ data: { organisationId: orgId, ...v } });
-    await audit(tx, orgId, "PersonQualification", row.id, entityLabel, "CREATE", null, view);
+    await audit(tx, toAuditActor(actor), orgId, "PersonQualification", row.id, entityLabel, "CREATE", null, view);
     return done();
   });
 }
@@ -189,6 +194,7 @@ export async function savePersonQualification(_prev: FormState, data: FormData):
 // ------------------------------------------------------------------ bill templates and panel columns
 
 export async function saveBqTemplate(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -208,18 +214,19 @@ export async function saveBqTemplate(_prev: FormState, data: FormData): Promise<
       const before = await tx.bqTemplate.findFirst({ where: { id, organisationId: orgId } });
       if (!before) return GONE;
       await tx.bqTemplate.update({ where: { id }, data: { ...v, provenance: v.provenance! } });
-      await audit(tx, orgId, "BqTemplate", id, v.nameEn, "UPDATE", before, v);
+      await audit(tx, toAuditActor(actor), orgId, "BqTemplate", id, v.nameEn, "UPDATE", before, v);
       return done();
     }
     await lockOrganisation(tx, orgId);
     if (await tx.bqTemplate.findFirst({ where: { organisationId: orgId, code: code! }, select: { id: true } })) return { ok: false, errors: { code: "Code is already in use." } };
     const row = await tx.bqTemplate.create({ data: { organisationId: orgId, code: code!, ...v, provenance: v.provenance! } });
-    await audit(tx, orgId, "BqTemplate", row.id, v.nameEn, "CREATE", null, { code, ...v });
+    await audit(tx, toAuditActor(actor), orgId, "BqTemplate", row.id, v.nameEn, "CREATE", null, { code, ...v });
     return done();
   });
 }
 
 export async function saveBqTemplateSection(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -235,16 +242,17 @@ export async function saveBqTemplateSection(_prev: FormState, data: FormData): P
       const before = await tx.bqTemplateSection.findFirst({ where: { id, templateId } });
       if (!before) return GONE;
       await tx.bqTemplateSection.update({ where: { id }, data: v });
-      await audit(tx, orgId, "BqTemplateSection", id, `${t.nameEn} · ${v.number}`, "UPDATE", before, v);
+      await audit(tx, toAuditActor(actor), orgId, "BqTemplateSection", id, `${t.nameEn} · ${v.number}`, "UPDATE", before, v);
       return done();
     }
     const row = await tx.bqTemplateSection.create({ data: { organisationId: orgId, templateId, ...v } });
-    await audit(tx, orgId, "BqTemplateSection", row.id, `${t.nameEn} · ${v.number}`, "CREATE", null, v);
+    await audit(tx, toAuditActor(actor), orgId, "BqTemplateSection", row.id, `${t.nameEn} · ${v.number}`, "CREATE", null, v);
     return done();
   });
 }
 
 export async function saveSpecPanelColumn(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -266,13 +274,13 @@ export async function saveSpecPanelColumn(_prev: FormState, data: FormData): Pro
       const before = await tx.specPanelColumn.findFirst({ where: { id, organisationId: orgId } });
       if (!before) return GONE;
       await tx.specPanelColumn.update({ where: { id }, data: { ...v, provenance: v.provenance! } });
-      await audit(tx, orgId, "SpecPanelColumn", id, v.labelEn, "UPDATE", before, v);
+      await audit(tx, toAuditActor(actor), orgId, "SpecPanelColumn", id, v.labelEn, "UPDATE", before, v);
       return done();
     }
     await lockOrganisation(tx, orgId);
     if (await tx.specPanelColumn.findFirst({ where: { organisationId: orgId, code: code! }, select: { id: true } })) return { ok: false, errors: { code: "Code is already in use." } };
     const row = await tx.specPanelColumn.create({ data: { organisationId: orgId, code: code!, ...v, provenance: v.provenance! } });
-    await audit(tx, orgId, "SpecPanelColumn", row.id, v.labelEn, "CREATE", null, { code, ...v });
+    await audit(tx, toAuditActor(actor), orgId, "SpecPanelColumn", row.id, v.labelEn, "CREATE", null, { code, ...v });
     return done();
   });
 }
@@ -281,6 +289,7 @@ export async function saveSpecPanelColumn(_prev: FormState, data: FormData): Pro
 
 /// Whether a sourcing method needs a lodged company estimate: yes, no or not set, with its provenance.
 export async function saveMethodEstimateRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -295,7 +304,7 @@ export async function saveMethodEstimateRule(_prev: FormState, data: FormData): 
     const before = await tx.sourcingMethod.findFirst({ where: { id, organisationId: orgId }, select: { nameEn: true, requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: true } });
     if (!before) return GONE;
     await tx.sourcingMethod.update({ where: { id }, data: v });
-    await audit(tx, orgId, "SourcingMethod", id, before.nameEn, "UPDATE", before, v);
+    await audit(tx, toAuditActor(actor), orgId, "SourcingMethod", id, before.nameEn, "UPDATE", before, v);
     revalidatePath("/configuration/reference-data");
     return done();
   });
@@ -303,6 +312,7 @@ export async function saveMethodEstimateRule(_prev: FormState, data: FormData): 
 
 /// Whether a contract basis is let on a bill of quantities: yes, no or not set, with its provenance.
 export async function saveBasisBqRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -317,7 +327,7 @@ export async function saveBasisBqRule(_prev: FormState, data: FormData): Promise
     const before = await tx.contractBasis.findFirst({ where: { id, organisationId: orgId }, select: { nameEn: true, requiresBq: true, requiresBqProvenance: true } });
     if (!before) return GONE;
     await tx.contractBasis.update({ where: { id }, data: v });
-    await audit(tx, orgId, "ContractBasis", id, before.nameEn, "UPDATE", before, v);
+    await audit(tx, toAuditActor(actor), orgId, "ContractBasis", id, before.nameEn, "UPDATE", before, v);
     revalidatePath("/configuration/reference-data");
     return done();
   });
@@ -327,6 +337,7 @@ export async function saveBasisBqRule(_prev: FormState, data: FormData): Promise
 
 /// Whether a method needs its scope approved by a committee: yes (naming the committee), no, or not set; with its provenance.
 export async function saveMethodScopeRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -350,7 +361,7 @@ export async function saveMethodScopeRule(_prev: FormState, data: FormData): Pro
     // The act is one of AUTHORITY_ACTS: the form read it as one, and scopeRuleFaults refused any other.
     const v = { ...saved, scopeAct: saved.scopeAct as AuthorityAct | null };
     await tx.sourcingMethod.update({ where: { id }, data: v });
-    await audit(tx, orgId, "SourcingMethod", id, before.nameEn, "UPDATE", { scopeApprovalRequired: before.scopeApprovalRequired, scopeApprovalProvenance: before.scopeApprovalProvenance, scopeCommitteeCode: before.scopeCommitteeCode, scopeAct: before.scopeAct, scopeActProvenance: before.scopeActProvenance }, v);
+    await audit(tx, toAuditActor(actor), orgId, "SourcingMethod", id, before.nameEn, "UPDATE", { scopeApprovalRequired: before.scopeApprovalRequired, scopeApprovalProvenance: before.scopeApprovalProvenance, scopeCommitteeCode: before.scopeCommitteeCode, scopeAct: before.scopeAct, scopeActProvenance: before.scopeActProvenance }, v);
     revalidatePath("/configuration/reference-data");
     revalidatePath("/sourcing", "layout");
     return done();
@@ -372,6 +383,7 @@ async function lockSchedule(tx: Tx, organisationId: string, label: string) {
  * copied item by item from its latest issue. One draft at a time per schedule.
  */
 export async function startRateIssue(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
@@ -391,10 +403,10 @@ export async function startRateIssue(_prev: FormState, data: FormData): Promise<
     const issueNo = nextIssueNo(issues, label);
     const from = issues.filter((i) => i.label === label).sort((a, b) => b.issueNo - a.issueNo)[0] ?? null;
     const row = await tx.rateSchedule.create({ data: { organisationId: orgId, label, issueNo, status: "DRAFT", provenance, governingSource, notes } });
-    await audit(tx, orgId, RATE_ENTITY.schedule, row.id, issueLabel(label, issueNo), "CREATE", null, { schedule: label, issue: issueNo, status: RATE_SCHEDULE_STATUS_LABEL.DRAFT, provenance, governingSource, ...(from ? { copiedFrom: `issue ${from.issueNo}`, items: from.items.length } : {}) });
+    await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, row.id, issueLabel(label, issueNo), "CREATE", null, { schedule: label, issue: issueNo, status: RATE_SCHEDULE_STATUS_LABEL.DRAFT, provenance, governingSource, ...(from ? { copiedFrom: `issue ${from.issueNo}`, items: from.items.length } : {}) });
     for (const i of from?.items ?? []) {
       const item = await tx.rateScheduleItem.create({ data: { organisationId: orgId, scheduleId: row.id, code: i.code, descriptionEn: i.descriptionEn, descriptionMs: i.descriptionMs, unit: i.unit, rate: senToDecimalString(i.rate), sortOrder: i.sortOrder } });
-      await audit(tx, orgId, RATE_ENTITY.item, item.id, `${issueLabel(label, issueNo)} · ${i.code}`, "CREATE", null, { code: i.code, description: i.descriptionEn, unit: i.unit, rate: formatSen(i.rate) });
+      await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.item, item.id, `${issueLabel(label, issueNo)} · ${i.code}`, "CREATE", null, { code: i.code, description: i.descriptionEn, unit: i.unit, rate: formatSen(i.rate) });
     }
     return done();
   });
@@ -412,6 +424,7 @@ async function lockedIssue(tx: Tx, orgId: string, scheduleId: string) {
 
 /// Add or edit an item of a draft issue. An issued issue is never changed.
 export async function saveRateItem(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const scheduleId = String(data.get("scheduleId") ?? "");
@@ -436,7 +449,7 @@ export async function saveRateItem(_prev: FormState, data: FormData): Promise<Fo
     if (itemId && !before) return GONE;
     const row = { code: code.trim(), descriptionEn, unit, rate: senToDecimalString(rate), sortOrder };
     const saved = before ? await tx.rateScheduleItem.update({ where: { id: before.id }, data: row }) : await tx.rateScheduleItem.create({ data: { organisationId: orgId, scheduleId, ...row } });
-    await audit(tx, orgId, RATE_ENTITY.item, saved.id, `${issueLabel(l.issue.label, l.issue.issueNo)} · ${row.code}`, before ? "UPDATE" : "CREATE",
+    await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.item, saved.id, `${issueLabel(l.issue.label, l.issue.issueNo)} · ${row.code}`, before ? "UPDATE" : "CREATE",
       before ? { code: before.code, description: before.descriptionEn, unit: before.unit, rate: formatSen(before.rate) } : null, { code: row.code, description: descriptionEn, unit, rate: formatSen(rate) });
     return done();
   });
@@ -444,6 +457,7 @@ export async function saveRateItem(_prev: FormState, data: FormData): Promise<Fo
 
 /// Remove an item of a draft issue, its whole row kept in the trail.
 export async function removeRateItem(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const scheduleId = String(data.get("scheduleId") ?? "");
@@ -456,7 +470,7 @@ export async function removeRateItem(_prev: FormState, data: FormData): Promise<
     const item = l.issue.items.find((i) => i.id === itemId);
     if (!item) return GONE;
     await tx.rateScheduleItem.delete({ where: { id: item.id } });
-    await writeAudit(tx, { organisationId: orgId, entity: RATE_ENTITY.item, entityId: item.id, entityLabel: `${issueLabel(l.issue.label, l.issue.issueNo)} · ${item.code}` }, "DELETE",
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: RATE_ENTITY.item, entityId: item.id, entityLabel: `${issueLabel(l.issue.label, l.issue.issueNo)} · ${item.code}` }, "DELETE",
       diffFields({ code: item.code, description: item.descriptionEn, unit: item.unit, rate: formatSen(item.rate) }, {}));
     return done();
   });
@@ -468,6 +482,7 @@ export async function removeRateItem(_prev: FormState, data: FormData): Promise<
  * superseded in the same act; lines already priced from it keep what it said.
  */
 export async function issueRateSchedule(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const scheduleId = String(data.get("scheduleId") ?? "");
@@ -491,10 +506,10 @@ export async function issueRateSchedule(_prev: FormState, data: FormData): Promi
     }
     if (supersedes) {
       await tx.rateSchedule.update({ where: { id: supersedes.id }, data: { status: "SUPERSEDED", supersededOn: dayToDate(today!) } });
-      await audit(tx, orgId, RATE_ENTITY.schedule, supersedes.id, issueLabel(supersedes.label, supersedes.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED }, { status: RATE_SCHEDULE_STATUS_LABEL.SUPERSEDED, supersededBy: `issue ${l.issue.issueNo}`, supersededOn: today });
+      await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, supersedes.id, issueLabel(supersedes.label, supersedes.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED }, { status: RATE_SCHEDULE_STATUS_LABEL.SUPERSEDED, supersededBy: `issue ${l.issue.issueNo}`, supersededOn: today });
     }
     await tx.rateSchedule.update({ where: { id: l.issue.id }, data: { status: "ISSUED", effectiveFrom: dayToDate(effective!), issuedOn: dayToDate(today!), issuedByPersonId: issuer!.id } });
-    await audit(tx, orgId, RATE_ENTITY.schedule, l.issue.id, issueLabel(l.issue.label, l.issue.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED, effectiveFrom: effective, issuedOn: today, issuedBy: `${issuer!.name} (recorded on behalf of, not signed)`, items: l.issue.items.length });
+    await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, l.issue.id, issueLabel(l.issue.label, l.issue.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED, effectiveFrom: effective, issuedOn: today, issuedBy: `${issuer!.name} (recorded on behalf of, not signed)`, items: l.issue.items.length });
     revalidatePath("/sourcing", "layout");
     return done();
   });
@@ -502,6 +517,7 @@ export async function issueRateSchedule(_prev: FormState, data: FormData): Promi
 
 /// Discard a draft issue (never an issued one), with its items; the trail keeps every row.
 export async function discardRateIssue(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
   const scheduleId = String(data.get("scheduleId") ?? "");
@@ -512,10 +528,10 @@ export async function discardRateIssue(_prev: FormState, data: FormData): Promis
     if (fault) return scheduleRefusal([fault]);
     for (const i of l.issue.items) {
       await tx.rateScheduleItem.delete({ where: { id: i.id } });
-      await writeAudit(tx, { organisationId: orgId, entity: RATE_ENTITY.item, entityId: i.id, entityLabel: `${issueLabel(l.issue.label, l.issue.issueNo)} · ${i.code}` }, "DELETE", diffFields({ code: i.code, description: i.descriptionEn, unit: i.unit, rate: formatSen(i.rate) }, {}));
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: RATE_ENTITY.item, entityId: i.id, entityLabel: `${issueLabel(l.issue.label, l.issue.issueNo)} · ${i.code}` }, "DELETE", diffFields({ code: i.code, description: i.descriptionEn, unit: i.unit, rate: formatSen(i.rate) }, {}));
     }
     await tx.rateSchedule.delete({ where: { id: l.issue.id } });
-    await writeAudit(tx, { organisationId: orgId, entity: RATE_ENTITY.schedule, entityId: l.issue.id, entityLabel: issueLabel(l.issue.label, l.issue.issueNo) }, "DELETE", diffFields({ schedule: l.issue.label, issue: l.issue.issueNo, status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, {}));
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: RATE_ENTITY.schedule, entityId: l.issue.id, entityLabel: issueLabel(l.issue.label, l.issue.issueNo) }, "DELETE", diffFields({ schedule: l.issue.label, issue: l.issue.issueNo, status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, {}));
     return done();
   });
 }

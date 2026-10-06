@@ -16,6 +16,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import { DELAY_BASIS } from "@/lib/supervision/labels";
 import { inDelayContractIds } from "@/lib/supervision/load";
 import { commencedPendingAll } from "@/lib/variation/view";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ const DERIVE_CAP = 200;
  * configuration read once and the endorsed contracts' gate rows in one query (6.12 review).
  */
 export default async function ProjectsPage(props: PageProps<"/projects">) {
+  await requireStaff();
   const { page: p, view } = (await props.searchParams) as { page?: string; view?: string };
   const page = Math.max(0, Number.parseInt(p ?? "0", 10) || 0);
   // 6.13 Part A review 14: In Delay is a view over the whole set, judged across every possessed contract, then paged.

@@ -18,6 +18,8 @@ import { ADVERTISEMENT_DAY_RULES, type AdvertisementDayRule } from "@/lib/window
 import { FormReader } from "@/lib/validate";
 import { BID_RULE_FAULT_TEXT, bidRuleFaults, bidRuleToSave } from "@/lib/bids/config";
 import { methodOpeningFaults, methodOpeningToSave, OPENING_CONFIG_FAULT_TEXT, openingPolicyFaults, openingPolicyToSave, type OpeningConfigFault } from "@/lib/opening/config";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Configuration › Invitation controls (6.5): the window policy, publication channels, document fee
@@ -48,8 +50,8 @@ function done(): FormState {
   revalidatePath("/sourcing");
   return { ok: true };
 }
-const audit = (tx: Tx, organisationId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: ReturnType<typeof diffFields>, reason = "") =>
-  action === "UPDATE" && changes.length === 0 ? Promise.resolve() : writeAudit(tx, { organisationId, entity, entityId, entityLabel, reason }, action, changes);
+const audit = (tx: Tx, actor: AuditActor, organisationId: string, entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE" | "DELETE", changes: ReturnType<typeof diffFields>, reason = "") =>
+  action === "UPDATE" && changes.length === 0 ? Promise.resolve() : writeAudit(tx, { actor, organisationId, entity, entityId, entityLabel, reason }, action, changes);
 const refusal = (fs: readonly { code: string; level: "block" | "warn" | "info"; data?: Record<string, string | number | null> }[]): FormState => ({ ok: false, message: `Nothing was saved: ${fs.map(configFaultText).join(" ")}` });
 
 // ------------------------------------------------------------------ the window policy
@@ -59,6 +61,7 @@ const refusal = (fs: readonly { code: string; level: "block" | "warn" | "info"; 
  * it then blocks the act it governs, naming itself; nothing is defaulted.
  */
 export async function saveWindowPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const r = new FormReader(data);
@@ -121,10 +124,10 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
     const row = { ...v };
     if (!before) {
       const created = await tx.windowPolicy.create({ data: { organisationId: org.id, ...row } });
-      await audit(tx, org.id, "WindowPolicy", created.id, "Invitation controls · policy", "CREATE", diffFields(null, words(v)!), reason);
+      await audit(tx, toAuditActor(actor), org.id, "WindowPolicy", created.id, "Invitation controls · policy", "CREATE", diffFields(null, words(v)!), reason);
     } else {
       await tx.windowPolicy.update({ where: { id: before.id }, data: row });
-      await audit(tx, org.id, "WindowPolicy", before.id, "Invitation controls · policy", "UPDATE", diffFields(words(before), words(v)!), reason);
+      await audit(tx, toAuditActor(actor), org.id, "WindowPolicy", before.id, "Invitation controls · policy", "UPDATE", diffFields(words(before), words(v)!), reason);
     }
     return done();
   });
@@ -144,6 +147,7 @@ const channelWords = (c: { nameEn: string; nameMs: string | null; requiredWhenAd
 
 /// Add or change a publication channel (FR-ADV-001). Whether it is required may be left not set: it then blocks publication, naming it.
 export async function saveChannel(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
@@ -169,10 +173,10 @@ export async function saveChannel(_prev: FormState, data: FormData): Promise<For
     const row = { ...v, code, provenance: v.provenance! };
     if (!before) {
       const created = await tx.publicationChannel.create({ data: { organisationId: org.id, ...row } });
-      await audit(tx, org.id, "PublicationChannel", created.id, `Publication channel · ${row.nameEn}`, "CREATE", diffFields(null, channelWords(created)), reason);
+      await audit(tx, toAuditActor(actor), org.id, "PublicationChannel", created.id, `Publication channel · ${row.nameEn}`, "CREATE", diffFields(null, channelWords(created)), reason);
     } else {
       const after = await tx.publicationChannel.update({ where: { id: before.id }, data: row });
-      await audit(tx, org.id, "PublicationChannel", before.id, `Publication channel · ${row.nameEn}`, "UPDATE", diffFields(channelWords(before), channelWords(after)), reason);
+      await audit(tx, toAuditActor(actor), org.id, "PublicationChannel", before.id, `Publication channel · ${row.nameEn}`, "UPDATE", diffFields(channelWords(before), channelWords(after)), reason);
     }
     return done();
   });
@@ -180,6 +184,7 @@ export async function saveChannel(_prev: FormState, data: FormData): Promise<For
 
 /// Retire a channel (it stays on the publications recorded through it), or bring it back.
 export async function setChannelRetired(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -193,7 +198,7 @@ export async function setChannelRetired(_prev: FormState, data: FormData): Promi
     const today = todayIn(new Date(), org.timeZone);
     if (!today) return { ok: false, message: "The organisation's time zone is not set, so no day can be recorded. Set it under Configuration, Organisation." };
     const after = await tx.publicationChannel.update({ where: { id }, data: { retiredOn: retire ? dayToDate(today) : null } });
-    await audit(tx, org.id, "PublicationChannel", id, `Publication channel · ${before.nameEn}`, "UPDATE", diffFields(channelWords(before), channelWords(after)), reason);
+    await audit(tx, toAuditActor(actor), org.id, "PublicationChannel", id, `Publication channel · ${before.nameEn}`, "UPDATE", diffFields(channelWords(before), channelWords(after)), reason);
     return done();
   });
 }
@@ -208,6 +213,7 @@ const floorWords = (f: { regime: string; minimum: { toString(): string }; govern
 });
 
 export async function saveFeeFloor(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
@@ -231,10 +237,10 @@ export async function saveFeeFloor(_prev: FormState, data: FormData): Promise<Fo
     const row = { regime: v.regime, minimum: v.minimum!, governingSource: v.governingSource, provenance: v.provenance!, notes: v.notes };
     if (!before) {
       const created = await tx.documentFeeFloor.create({ data: { organisationId: org.id, ...row } });
-      await audit(tx, org.id, "DocumentFeeFloor", created.id, `Fee floor · ${REGIME_LABEL[row.regime as Regime] ?? row.regime}`, "CREATE", diffFields(null, floorWords(created)), reason);
+      await audit(tx, toAuditActor(actor), org.id, "DocumentFeeFloor", created.id, `Fee floor · ${REGIME_LABEL[row.regime as Regime] ?? row.regime}`, "CREATE", diffFields(null, floorWords(created)), reason);
     } else {
       const after = await tx.documentFeeFloor.update({ where: { id: before.id }, data: row });
-      await audit(tx, org.id, "DocumentFeeFloor", before.id, `Fee floor · ${REGIME_LABEL[row.regime as Regime] ?? row.regime}`, "UPDATE", diffFields(floorWords(before), floorWords(after)), reason);
+      await audit(tx, toAuditActor(actor), org.id, "DocumentFeeFloor", before.id, `Fee floor · ${REGIME_LABEL[row.regime as Regime] ?? row.regime}`, "UPDATE", diffFields(floorWords(before), floorWords(after)), reason);
     }
     return done();
   });
@@ -242,6 +248,7 @@ export async function saveFeeFloor(_prev: FormState, data: FormData): Promise<Fo
 
 /// Remove a floor, with a reason: the band then has none, and its exercises' publication blocks naming it.
 export async function removeFeeFloor(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -252,7 +259,7 @@ export async function removeFeeFloor(_prev: FormState, data: FormData): Promise<
     const before = await tx.documentFeeFloor.findFirst({ where: { id, organisationId: org.id } });
     if (!before) return GONE;
     await tx.documentFeeFloor.delete({ where: { id } });
-    await audit(tx, org.id, "DocumentFeeFloor", id, `Fee floor · ${REGIME_LABEL[before.regime as Regime] ?? before.regime}`, "DELETE", diffFields(floorWords(before), { band: null, minimumFee: null, governingSource: null, whereItComesFrom: null }), reason);
+    await audit(tx, toAuditActor(actor), org.id, "DocumentFeeFloor", id, `Fee floor · ${REGIME_LABEL[before.regime as Regime] ?? before.regime}`, "DELETE", diffFields(floorWords(before), { band: null, minimumFee: null, governingSource: null, whereItComesFrom: null }), reason);
     return done();
   });
 }
@@ -269,6 +276,7 @@ const calendarWords = (c: { name: string; weekendDays: number[]; weekendProvenan
 });
 
 export async function saveCalendar(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
@@ -297,10 +305,10 @@ export async function saveCalendar(_prev: FormState, data: FormData): Promise<Fo
     const row = { ...v, code, weekendDays: [...new Set(weekendDays)].sort(), provenance: v.provenance! };
     if (!before) {
       const created = await tx.holidayCalendar.create({ data: { organisationId: org.id, ...row } });
-      await audit(tx, org.id, "HolidayCalendar", created.id, `Holiday calendar · ${row.name}`, "CREATE", diffFields(null, calendarWords(created)), reason);
+      await audit(tx, toAuditActor(actor), org.id, "HolidayCalendar", created.id, `Holiday calendar · ${row.name}`, "CREATE", diffFields(null, calendarWords(created)), reason);
     } else {
       const after = await tx.holidayCalendar.update({ where: { id: before.id }, data: row });
-      await audit(tx, org.id, "HolidayCalendar", before.id, `Holiday calendar · ${row.name}`, "UPDATE", diffFields(calendarWords(before), calendarWords(after)), reason);
+      await audit(tx, toAuditActor(actor), org.id, "HolidayCalendar", before.id, `Holiday calendar · ${row.name}`, "UPDATE", diffFields(calendarWords(before), calendarWords(after)), reason);
     }
     return done();
   });
@@ -308,6 +316,7 @@ export async function saveCalendar(_prev: FormState, data: FormData): Promise<Fo
 
 /// Retire a calendar (a policy naming it then refuses to save until it names another), or bring it back.
 export async function setCalendarRetired(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -321,7 +330,7 @@ export async function setCalendarRetired(_prev: FormState, data: FormData): Prom
     const today = todayIn(new Date(), org.timeZone);
     if (!today) return { ok: false, message: "The organisation's time zone is not set, so no day can be recorded. Set it under Configuration, Organisation." };
     const after = await tx.holidayCalendar.update({ where: { id }, data: { retiredOn: retire ? dayToDate(today) : null } });
-    await audit(tx, org.id, "HolidayCalendar", id, `Holiday calendar · ${before.name}`, "UPDATE", diffFields(calendarWords(before), calendarWords(after)), reason);
+    await audit(tx, toAuditActor(actor), org.id, "HolidayCalendar", id, `Holiday calendar · ${before.name}`, "UPDATE", diffFields(calendarWords(before), calendarWords(after)), reason);
     return done();
   });
 }
@@ -331,6 +340,7 @@ export async function setCalendarRetired(_prev: FormState, data: FormData): Prom
  * closing in a year not complete blocks). Marking it complete is the customer's statement.
  */
 export async function saveCalendarYear(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const calendarId = String(data.get("calendarId") ?? "");
@@ -352,10 +362,10 @@ export async function saveCalendarYear(_prev: FormState, data: FormData): Promis
     const row = { complete, source, provenance };
     if (!before) {
       const created = await tx.holidayCalendarYear.create({ data: { organisationId: org.id, calendarId, year, ...row } });
-      await audit(tx, org.id, "HolidayCalendarYear", created.id, `Holiday calendar · ${cal.name} · ${year}`, "CREATE", diffFields(null, words(created)!), reason);
+      await audit(tx, toAuditActor(actor), org.id, "HolidayCalendarYear", created.id, `Holiday calendar · ${cal.name} · ${year}`, "CREATE", diffFields(null, words(created)!), reason);
     } else {
       await tx.holidayCalendarYear.update({ where: { id: before.id }, data: row });
-      await audit(tx, org.id, "HolidayCalendarYear", before.id, `Holiday calendar · ${cal.name} · ${year}`, "UPDATE", diffFields(words(before), words(row)!), reason);
+      await audit(tx, toAuditActor(actor), org.id, "HolidayCalendarYear", before.id, `Holiday calendar · ${cal.name} · ${year}`, "UPDATE", diffFields(words(before), words(row)!), reason);
     }
     return done();
   });
@@ -365,6 +375,7 @@ const holidayWords = (h: { day: Date; nameEn: string; nameMs: string | null; gaz
 
 /// Add a public holiday to a calendar.
 export async function saveHoliday(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const calendarId = String(data.get("calendarId") ?? "");
@@ -383,13 +394,14 @@ export async function saveHoliday(_prev: FormState, data: FormData): Promise<For
     if (await tx.publicHoliday.findUnique({ where: { calendarId_day: { calendarId, day } } })) return { ok: false, errors: { day: configFaultText({ code: "HOLIDAY_EXISTS", level: "block", data: { day: formatDate(storedDay(day)) } }) } };
     const row = { day, nameEn, nameMs, gazetteRef, provenance };
     const created = await tx.publicHoliday.create({ data: { organisationId: org.id, calendarId, ...row } });
-    await audit(tx, org.id, "PublicHoliday", created.id, `Holiday calendar · ${cal.name} · ${nameEn}`, "CREATE", diffFields(null, holidayWords(created)), reason);
+    await audit(tx, toAuditActor(actor), org.id, "PublicHoliday", created.id, `Holiday calendar · ${cal.name} · ${nameEn}`, "CREATE", diffFields(null, holidayWords(created)), reason);
     return done();
   });
 }
 
 /// Remove a public holiday added in error, with a reason.
 export async function removeHoliday(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -400,7 +412,7 @@ export async function removeHoliday(_prev: FormState, data: FormData): Promise<F
     if (!h) return GONE;
     await tx.$queryRaw`SELECT id FROM "HolidayCalendar" WHERE id = ${h.calendarId} FOR UPDATE`;
     await tx.publicHoliday.delete({ where: { id } });
-    await audit(tx, org.id, "PublicHoliday", id, `Holiday calendar · ${h.calendar.name} · ${h.nameEn}`, "DELETE", diffFields(holidayWords(h), { day: null, name: null, nameInMalay: null, gazette: null, whereItComesFrom: null }), reason);
+    await audit(tx, toAuditActor(actor), org.id, "PublicHoliday", id, `Holiday calendar · ${h.calendar.name} · ${h.nameEn}`, "DELETE", diffFields(holidayWords(h), { day: null, name: null, nameInMalay: null, gazette: null, whereItComesFrom: null }), reason);
     return done();
   });
 }
@@ -411,6 +423,7 @@ export async function removeHoliday(_prev: FormState, data: FormData): Promise<F
  * the year is then complete is said separately (`saveCalendarYear`).
  */
 export async function importHolidayYear(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const calendarId = String(data.get("calendarId") ?? "");
@@ -430,7 +443,7 @@ export async function importHolidayYear(_prev: FormState, data: FormData): Promi
     if (parsed.faults.length) return { ok: false, errors: { csv: parsed.faults.map(configFaultText).join(" ") } };
     for (const h of parsed.rows) {
       const created = await tx.publicHoliday.create({ data: { organisationId: org.id, calendarId, day: dayToDate(h.day), nameEn: h.nameEn, nameMs: h.nameMs, gazetteRef: h.gazetteRef, provenance } });
-      await audit(tx, org.id, "PublicHoliday", created.id, `Holiday calendar · ${cal.name} · ${h.nameEn}`, "CREATE", diffFields(null, holidayWords(created)), `Imported for ${year}`);
+      await audit(tx, toAuditActor(actor), org.id, "PublicHoliday", created.id, `Holiday calendar · ${cal.name} · ${h.nameEn}`, "CREATE", diffFields(null, holidayWords(created)), `Imported for ${year}`);
     }
     revalidatePath(PATH);
     return { ok: true, message: `${parsed.rows.length} holiday${parsed.rows.length === 1 ? "" : "s"} imported for ${year}. Say whether ${year} is now maintained in full.` };
@@ -446,6 +459,7 @@ export async function importHolidayYear(_prev: FormState, data: FormData): Promi
  * from. Locks the method's row, judges the draft (`bidRuleFaults`) and writes with its audit row.
  */
 export async function saveMethodBidRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -468,7 +482,7 @@ export async function saveMethodBidRule(_prev: FormState, data: FormData): Promi
     const v = bidRuleToSave(draft) as { lateAdmissionCommitteeCode: string | null; lateAdmissionProvenance: Prov | null; minimumBids: number | null; minimumBidsProvenance: Prov | null; completenessEliminates: boolean | null; completenessProvenance: Prov | null };
     await tx.sourcingMethod.update({ where: { id }, data: v });
     const { nameEn, ...was } = before;
-    await audit(tx, org.id, "SourcingMethod", id, nameEn, "UPDATE", diffFields(was, v));
+    await audit(tx, toAuditActor(actor), org.id, "SourcingMethod", id, nameEn, "UPDATE", diffFields(was, v));
     revalidatePath("/configuration/reference-data");
     return done();
   });
@@ -489,6 +503,7 @@ const fieldRefusal = (fs: readonly { code: OpeningConfigFault; field: string }[]
  * never reaches an opening already started. Locks the method's row and writes with its audit row.
  */
 export async function saveMethodOpeningRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -515,7 +530,7 @@ export async function saveMethodOpeningRule(_prev: FormState, data: FormData): P
       aBidWithNoLivePurchase: m.unpurchasedBidConsequence == null ? NOT_SET : UNPURCHASED_WORDS[m.unpurchasedBidConsequence as (typeof UNPURCHASED)[number]],
       aBidWithNoLivePurchaseFrom: m.unpurchasedBidConsequence == null ? null : prov(m.unpurchasedProvenance),
     });
-    await audit(tx, org.id, "SourcingMethod", id, before.nameEn, "UPDATE", diffFields(words(before), words(v)), String(data.get("reason") ?? ""));
+    await audit(tx, toAuditActor(actor), org.id, "SourcingMethod", id, before.nameEn, "UPDATE", diffFields(words(before), words(v)), String(data.get("reason") ?? ""));
     revalidatePath("/configuration/reference-data");
     return done();
   });
@@ -527,6 +542,7 @@ export async function saveMethodOpeningRule(_prev: FormState, data: FormData): P
  * (not set reads the product's own words, never a borrowed one). A change asks for a reason.
  */
 export async function saveOpeningPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const r = new FormReader(data);
@@ -564,10 +580,10 @@ export async function saveOpeningPolicy(_prev: FormState, data: FormData): Promi
     });
     if (!before) {
       const created = await tx.openingPolicy.create({ data: { organisationId: org.id, ...v } });
-      await audit(tx, org.id, "OpeningPolicy", created.id, "Opening policy", "CREATE", diffFields(null, words(v)), reason);
+      await audit(tx, toAuditActor(actor), org.id, "OpeningPolicy", created.id, "Opening policy", "CREATE", diffFields(null, words(v)), reason);
     } else {
       await tx.openingPolicy.update({ where: { id: before.id }, data: v });
-      await audit(tx, org.id, "OpeningPolicy", before.id, "Opening policy", "UPDATE", diffFields(words(before), words(v)), reason);
+      await audit(tx, toAuditActor(actor), org.id, "OpeningPolicy", before.id, "Opening policy", "UPDATE", diffFields(words(before), words(v)), reason);
     }
     return done();
   });

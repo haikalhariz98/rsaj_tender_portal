@@ -7,6 +7,7 @@ import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Callout } from "@/components/ui/feedback";
 import { loadExercise } from "@/lib/method/repo";
 import { saleRegister } from "@/lib/window/read";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
  * reads "recorded on behalf of the officer, not signed": nobody is signed in.
  */
 export default async function SaleLabelPage(props: PageProps<"/sourcing/[id]/label/[saleId]">) {
+  await requireStaff();
   const { id, saleId } = await props.params;
   const [l, register] = await Promise.all([loadExercise(id), saleRegister(id)]);
   const sale = register?.rows.find((r) => r.id === saleId);

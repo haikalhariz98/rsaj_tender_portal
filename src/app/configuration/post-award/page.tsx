@@ -20,6 +20,7 @@ import { BASE_WORDS, BASIS_WORDS, SCHEDULE_FORM_WORDS } from "@/lib/variation/la
 import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/variation/types";
 
 import { EditClockRule, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditVariationPolicy } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 /// The certificates the payment and damages chain raises, each on its configured form (the acts' own list).
 const PAYMENT_KINDS = ["INTERIM_PAYMENT", "ADVANCE_PAYMENT", "LAD_WARNING", "NON_COMPLETION"] as const;
@@ -59,6 +60,7 @@ function Setting({ value, unset, provenance }: { value: ReactNode | null; unset:
  * a band (OD-A7), and the forms the delegation letters print on. Everything ships unset; nothing is assumed.
  */
 export default async function PostAwardControlsPage() {
+  await requireStaff();
   const org = await exerciseOrg();
   if (!org) {
     return (

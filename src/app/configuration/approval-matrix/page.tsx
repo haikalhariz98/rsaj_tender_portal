@@ -58,6 +58,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { ActionsCol, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,7 @@ export default async function ApprovalMatrixPage({
 }: {
   searchParams: Promise<{ issue?: string }>;
 }) {
+  await requireStaff();
   const { issue: requested } = await searchParams;
   // The vocabulary this customer has configured. Which funding routes override the
   // matrix is a property of the route, not of its name.

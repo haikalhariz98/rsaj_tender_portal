@@ -185,13 +185,13 @@ describe("ContractMatter's place (BD-613-117): /approvals' escalation and a sitt
     const committee = read("src/app/committees/actions.ts");
     const rec = committee.slice(committee.indexOf("export async function recordOutcome("), committee.indexOf("\n}\n", committee.indexOf("export async function recordOutcome(")));
     expect(rec).toMatch(/const record = exerciseId \|\| variation \? null : await outcomeRecordOf\(decisionId\);/);
-    expect(rec).toMatch(/: record\s+\? inSittingAfterRecord\(meetingId, record, decisionId, now, run\)/);
+    expect(rec).toMatch(/: record\s+\? inSittingAfterRecord\(toAuditActor\(actor\), meetingId, record, decisionId, now, run\)/);
     // The matter locked before the sitting is still the decision's, checked before any write.
     const key = rec.indexOf("matterKey(decision) !== outcomeRecordKey(record)");
     expect(key).toBeGreaterThan(-1);
     expect(key).toBeLessThan(rec.indexOf("tx.committeeDecision.updateMany("));
     // The contract matter's record is dispatched to its own function, which takes the locks in order.
-    expect(committee).toMatch(/if \(record\.kind === "CONTRACT"\) \{\s+result = await inContractMatterForOutcome\(record, now, meetingId, roster, decisionId, fn\);/);
+    expect(committee).toMatch(/if \(record\.kind === "CONTRACT"\) \{\s+result = await inContractMatterForOutcome\(actor, record, now, meetingId, roster, decisionId, fn\);/);
     const w0 = committee.indexOf("async function inContractMatterForOutcome(");
     expect(w0).toBeGreaterThan(-1);
     const wrap = committee.slice(w0, committee.indexOf("\n}\n", w0));

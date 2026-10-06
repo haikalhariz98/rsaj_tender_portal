@@ -44,7 +44,7 @@ describe("(a) only a certificate form takes blocks and recipients", () => {
       const body = src.slice(at, src.indexOf("\nexport async function ", at + 10));
       expect(body, name).toMatch(/if \(t\.uses\.length\) return \{ ok: false, message: notACertificateFormText\(t\.uses\)\.en \};/);
     }
-    expect(src).toMatch(/async function bumpFormVersion\(tx: Tx, t: LockedTemplate, what: string\) \{\n  if \(t\.uses\.length\) return;/);
+    expect(src).toMatch(/async function bumpFormVersion\(tx: Tx, actor: AuditActor, t: LockedTemplate, what: string\) \{\n  if \(t\.uses\.length\) return;/);
     expect(src).toMatch(/_count: \{ select: USE_COUNTS \}/);
   });
 });

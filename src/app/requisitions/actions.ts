@@ -83,6 +83,8 @@ import {
 } from "@/lib/requisition/approval-write";
 import { ACT_LABEL } from "@/lib/labels";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Writes for requisitions.
@@ -91,9 +93,7 @@ import { FormReader } from "@/lib/validate";
  * write to an existing requisition runs inside `withLockedRequisition`, which locks
  * the row and re-reads it in the write's own transaction, and the pure check runs on
  * that data before anything is written. The write and its audit row share the
- * transaction. A refusal saves nothing and names what blocks it. Nobody is signed in:
- * a decision records the Person the officer names, "recorded on behalf of, not
- * signed", and the audit stays unattributed.
+ * transaction. A refusal saves nothing and names what blocks it. Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that).
  */
 
 const NO_ORG: FormState = { ok: false, message: "No organisation is configured. Run npm run setup first." };
@@ -240,6 +240,7 @@ const safeLines = (lines: DraftLine[]) =>
  * saved half-written; what it does give must be real. Redirects to the new record.
  */
 export async function createRequisition(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await requisitionOrg();
   if (!org) return NO_ORG;
   if (!org.today) return NO_ZONE;
@@ -263,7 +264,7 @@ export async function createRequisition(_prev: FormState, data: FormData): Promi
       const row = await tx.requisition.create({
         data: { organisationId: org.id, reference, origin: "PORTAL", raisedOn: dayToDate(today), ...draftData(draft), lines: { create: lineData(draft.lines) } },
       });
-      await audit(tx, org.id, "Requisition", row.id, labelOf(row), "CREATE",
+      await audit(tx, toAuditActor(actor), org.id, "Requisition", row.id, labelOf(row), "CREATE",
         diffFields(null, { reference, ...draftData(draft), lines: draft.lines.length, status: "DRAFT" }));
       return row.id;
     });
@@ -290,6 +291,7 @@ export async function createRequisition(_prev: FormState, data: FormData): Promi
  * edit withdraws them, in the same transaction and on the record (a build decision).
  */
 export async function editDraft(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const draft = readDraft(r, data);
@@ -308,7 +310,7 @@ export async function editDraft(_prev: FormState, data: FormData): Promise<FormS
     const after = draftData(draft);
     await tx.requisitionLine.deleteMany({ where: { requisitionId: id } });
     await tx.requisition.update({ where: { id }, data: { ...after, lines: { create: lineData(draft.lines) } } });
-    await audit(tx, l.org.id, "Requisition", id, labelOf(before), "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(before), "UPDATE",
       diffFields(
         {
           ...before,
@@ -319,7 +321,7 @@ export async function editDraft(_prev: FormState, data: FormData): Promise<FormS
       ));
     for (const e of before.endorsements) {
       await tx.requisitionEndorsement.delete({ where: { id: e.id } });
-      await audit(tx, l.org.id, "RequisitionEndorsement", e.id, `${before.reference} · ${TIER_LABEL[e.tier as OrgUnitKind]}`, "DELETE",
+      await audit(tx, toAuditActor(actor), l.org.id, "RequisitionEndorsement", e.id, `${before.reference} · ${TIER_LABEL[e.tier as OrgUnitKind]}`, "DELETE",
         snapshotFields({ tier: e.tier, person: e.person.name, endorsedOn: e.endorsedOn }),
         "Withdrawn: the draft was edited after it was endorsed.");
     }
@@ -334,6 +336,7 @@ const unitOf = (req: RequisitionRow) => req.sectionUnitCode || req.requestingUni
 
 /// Record one tier's endorsement (FR-REQ-003) on a draft.
 export async function recordEndorsement(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const tier = r.choice("tier", "Tier", TIERS, { required: true });
@@ -363,7 +366,7 @@ export async function recordEndorsement(_prev: FormState, data: FormData): Promi
     const row = await tx.requisitionEndorsement.create({
       data: { requisitionId: id, tier, unitCode: unit.code, personId, endorsedOn: on, note },
     });
-    await audit(tx, l.org.id, "RequisitionEndorsement", row.id, `${l.req.reference} · ${TIER_LABEL[tier]}`, "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "RequisitionEndorsement", row.id, `${l.req.reference} · ${TIER_LABEL[tier]}`, "CREATE",
       diffFields(null, { tier, unit: unit.nameEn, person: person.name, endorsedOn: on, note }));
     return { ok: true };
   });
@@ -396,13 +399,14 @@ async function leaveDraftContext(tx: Tx, l: LoadedRequisition): Promise<Transiti
  * caller's transaction, so what it cannot do it leaves alone: the endorsement or the
  * funding change stands, and the Check budget button (and its blocker) remain on the page.
  */
-async function checkAutomatically(tx: Tx, l: LoadedRequisition): Promise<void> {
+async function checkAutomatically(tx: Tx, actor: AuditActor, l: LoadedRequisition): Promise<void> {
   const controls = await loadControls(l.org.id, tx);
-  if (autoCheck(controls.budgetCheckSource, l.req.status, l.req.budgetCodeId, l.org.today).run) await runBudgetCheck(tx, l, portalLedger);
+  if (autoCheck(controls.budgetCheckSource, l.req.status, l.req.budgetCodeId, l.org.today).run) await runBudgetCheck(tx, actor, l, portalLedger);
 }
 
 /// Draft to Endorsed: complete, and every tier endorsed by its head.
 export async function markEndorsed(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   return inRequisition(id, async (tx, l): Promise<FormState> => {
     const ctx = await leaveDraftContext(tx, l);
@@ -410,19 +414,20 @@ export async function markEndorsed(_prev: FormState, data: FormData): Promise<Fo
     if (fault) return { ok: false, message: transitionFaultText(fault) };
     const from = l.req.status;
     await mustMove(tx, l, "ENDORSED", ctx);
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "ENDORSED" }));
+    await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "ENDORSED" }));
     // Once endorsed it is a live requisition: committee matters waiting for it are linked
     // now (this ran at Register, a step since removed).
-    await linkMatchingMatters(tx, l.org.id, id);
+    await linkMatchingMatters(tx, toAuditActor(actor), l.org.id, id);
     // Founder, 2026-10-06: where the budget check needs nothing typed it runs now, so the
     // requisition leaves here Budget checked (or Over budget), not waiting for a click.
-    await checkAutomatically(tx, l);
+    await checkAutomatically(tx, toAuditActor(actor), l);
     return { ok: true };
   });
 }
 
 /// Endorsed to Returned: the completeness return (FR-REQ-010), with reason, recipient and date.
 export async function returnRequisition(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const reason = r.text("reason", "Reason", { max: 2000 });
@@ -448,7 +453,7 @@ export async function returnRequisition(_prev: FormState, data: FormData): Promi
     const after = { status: "RETURNED" as const, returnedReason: reason, returnedToPersonId: to, returnedOn: on };
     const before = { status: l.req.status, returnedReason: l.req.returnedReason, returnedToPersonId: l.req.returnedToPersonId, returnedOn: l.req.returnedOn };
     await mustMove(tx, l, "RETURNED", ctx, after);
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields(before, after), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields(before, after), reason);
     return { ok: true };
   });
 }
@@ -456,6 +461,7 @@ export async function returnRequisition(_prev: FormState, data: FormData): Promi
 /// Returned or recalled, back to Draft. A rejected one goes where its rejection says
 /// (FR-APR-016): `chooseWhereItGoes`, recorded as the officer's choice.
 export async function reopenDraft(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   return inRequisition(id, async (tx, l): Promise<FormState> => {
@@ -464,13 +470,14 @@ export async function reopenDraft(_prev: FormState, data: FormData): Promise<For
     if (fault) return { ok: false, message: transitionFaultText(fault) };
     const from = l.req.status;
     await mustMove(tx, l, "DRAFT", { today: l.org.today });
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "DRAFT" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "DRAFT" }), reason);
     return { ok: true };
   });
 }
 
 /// Withdrawn before approval (§7.3.1). Reason mandatory.
 export async function cancelRequisition(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   return inRequisition(id, async (tx, l): Promise<FormState> => {
@@ -478,7 +485,7 @@ export async function cancelRequisition(_prev: FormState, data: FormData): Promi
     if (fault) return fault.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: transitionFaultText(fault) } } : { ok: false, message: transitionFaultText(fault) };
     const before = { status: l.req.status, cancelReason: l.req.cancelReason };
     await mustMove(tx, l, "CANCELLED", { today: l.org.today, reason }, { cancelReason: reason });
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields(before, { status: "CANCELLED", cancelReason: reason }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields(before, { status: "CANCELLED", cancelReason: reason }), reason);
     return { ok: true };
   });
 }
@@ -491,6 +498,7 @@ export async function cancelRequisition(_prev: FormState, data: FormData): Promi
  * approval is open (recall it first). The route's posture is re-read and stored.
  */
 export async function changeFunding(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const code = r.text("fundingRouteCode", "Funding route", { required: true });
@@ -512,17 +520,18 @@ export async function changeFunding(_prev: FormState, data: FormData): Promise<F
       : {};
     const after = { fundingRouteCode: code, ...snapshot };
     await tx.requisition.update({ where: { id }, data: after });
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE",
       diffFields({ fundingRouteCode: l.req.fundingRouteCode, sourcingPermitted: l.req.sourcingPermitted }, after), reason);
     l.req.fundingRouteCode = code;
     // Founder, 2026-10-06: a changed funding route re-checks the budget where one can be checked.
-    await checkAutomatically(tx, l);
+    await checkAutomatically(tx, toAuditActor(actor), l);
     return { ok: true };
   });
 }
 
 /// Record the external body's authority where the funding route requires one (FR-REQ-005).
 export async function recordExternalAuthority(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const ref = r.text("externalAuthorityRef", "Reference", { required: true, max: 200 });
@@ -533,7 +542,7 @@ export async function recordExternalAuthority(_prev: FormState, data: FormData):
     if (successorOpenFault(l.req.approvalInstances)) return { ok: false, message: SUCCESSOR_OPEN_TEXT };
     if (l.req.externalAuthorityRef && !reason) return { ok: false, errors: { reason: "Say why the recorded reference is being changed." } };
     await tx.requisition.update({ where: { id }, data: { externalAuthorityRef: ref } });
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ externalAuthorityRef: l.req.externalAuthorityRef }, { externalAuthorityRef: ref }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ externalAuthorityRef: l.req.externalAuthorityRef }, { externalAuthorityRef: ref }), reason);
     return { ok: true };
   });
 }
@@ -550,6 +559,7 @@ const SOURCE_NOT_SET =
  * figures typed from the finance system and stored as typed. Unset runs nothing.
  */
 export async function checkBudget(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const typed = {
@@ -588,7 +598,7 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
         budgetCodeCode: l.req.budgetCode?.code ?? null,
       });
     }
-    await runBudgetCheck(tx, l, provider, asAt);
+    await runBudgetCheck(tx, toAuditActor(actor), l, provider, asAt);
     return { ok: true };
   });
 }
@@ -602,6 +612,7 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
  * it is computed on the locked row first and written only if nothing refuses.
  */
 export async function submitRequisition(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const invoked = data.get("invokeOverBudget") != null;
 
@@ -699,7 +710,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
     // stored; routes opened before keep the check their approvers saw.
 
     // Nothing refused: write.
-    const checkRow = check ? await writeCheck(tx, l, check, today) : last;
+    const checkRow = check ? await writeCheck(tx, toAuditActor(actor), l, check, today) : last;
     const issue = resolved.source === "OVERRIDE" && override ? override : dal;
     const rule = resolved.resolution.rule!;
     const roleLabel = (code: string) => issue.matrix.roles[code]?.nameEn ?? dal.matrix.roles[code]?.nameEn ?? "An office no longer configured";
@@ -770,7 +781,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
     };
     const beforeStatus = { status: req.status, sourcingPermitted: req.sourcingPermitted };
     await mustMove(tx, l, "PENDING_APPROVAL", { today: l.org.today }, after);
-    await audit(tx, l.org.id, "ApprovalInstance", instance.id, `${req.reference} · approval route`, "CREATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", instance.id, `${req.reference} · approval route`, "CREATE",
       diffFields(null, {
         matrix: dal.label,
         rule: rule.labelEn,
@@ -778,7 +789,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
         overBudget: disposition.cond === "over_budget",
         fundingOverrideApplied: resolved.fundingOverrideApplied,
       }));
-    await audit(tx, l.org.id, "Requisition", id, labelOf(req), "UPDATE", diffFields(beforeStatus, after));
+    await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(req), "UPDATE", diffFields(beforeStatus, after));
     return { ok: true };
   });
 }
@@ -794,6 +805,7 @@ const GATE_RULE_MISSING =
 
 /// Determine the gates of a requisition approved before gates existed, or while the route's setting was unset.
 export async function checkCommitteeGates(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   return inRequisition(id, async (tx, l): Promise<FormState> => {
     if (!["APPROVED", "SOURCING"].includes(l.req.status)) return { ok: false, message: "Committee gates are checked once the requisition is approved." };
@@ -801,7 +813,7 @@ export async function checkCommitteeGates(_prev: FormState, data: FormData): Pro
     if (!l.org.today) return NO_ZONE;
     const approved = l.req.approvalInstances.find((i) => i.status === "APPROVED");
     if (!approved) return { ok: false, message: "This requisition has no approved route on record, so there is no approved value to judge its gates by." };
-    const found = await determineGates(tx, l, routedValue(approved));
+    const found = await determineGates(tx, toAuditActor(actor), l, routedValue(approved));
     if (found.state === "NOT_SET") return { ok: false, message: GATES_NOT_SET };
     if (found.state === "RULE_MISSING") return { ok: false, message: GATE_RULE_MISSING };
     return { ok: true };
@@ -810,6 +822,7 @@ export async function checkCommitteeGates(_prev: FormState, data: FormData): Pro
 
 /// Cite a committee's decision against one of the requisition's gates (FR-REQ-012).
 export async function citeGateDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const gateId = String(data.get("gateId") ?? "");
   const decisionId = String(data.get("committeeDecisionId") ?? "");
@@ -840,7 +853,7 @@ export async function citeGateDecision(_prev: FormState, data: FormData): Promis
     if (fault) return { ok: false, errors: { committeeDecisionId: GATE_CITATION_TEXT[fault] } };
     const linked = await tx.committeeDecision.updateMany({ where: { id: matter.id, requisitionGateId: null }, data: { requisitionGateId: gate.id } });
     if (linked.count !== 1) return CHANGED;
-    await audit(tx, l.org.id, "RequisitionGate", gate.id, `${l.req.reference} · gate: ${gate.committeeLabel}`, "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "RequisitionGate", gate.id, `${l.req.reference} · gate: ${gate.committeeLabel}`, "UPDATE",
       diffFields({ matter: null }, { matter: `${matter.meeting.reference} · ${matter.subject}`, outcome: matter.outcome }));
     return { ok: true };
   });
@@ -852,6 +865,7 @@ export async function citeGateDecision(_prev: FormState, data: FormData): Promis
  * it stays on the ledger, marked released. Any other abandonment stays with RSAJ.
  */
 export async function closeWithoutSourcing(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
@@ -862,13 +876,13 @@ export async function closeWithoutSourcing(_prev: FormState, data: FormData): Pr
     if (fault) return { ok: false, message: transitionFaultText(fault) };
     const today = dayToDate(l.org.today!);
     await mustMove(tx, l, "CLOSED", ctx, { closedReason: reason });
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: "APPROVED", closedReason: "" }, { status: "CLOSED", closedReason: reason }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: "APPROVED", closedReason: "" }, { status: "CLOSED", closedReason: reason }), reason);
     if (l.req.commitmentMovementId) {
       const movement = await tx.budgetMovement.findUnique({ where: { id: l.req.commitmentMovementId } });
       if (movement && !movement.releasedOn) {
         const note = `Released: ${l.req.reference} closed without sourcing — ${reason}`;
         await tx.budgetMovement.update({ where: { id: movement.id }, data: { releasedOn: today, releaseNote: note } });
-        await audit(tx, l.org.id, "BudgetMovement", movement.id, `${l.req.budgetCode?.code ?? "Budget code"} · commitment for ${l.req.reference}`, "UPDATE",
+        await audit(tx, toAuditActor(actor), l.org.id, "BudgetMovement", movement.id, `${l.req.budgetCode?.code ?? "Budget code"} · commitment for ${l.req.reference}`, "UPDATE",
           diffFields({ releasedOn: null, releaseNote: "" }, { releasedOn: today, releaseNote: note }), reason);
       }
     }
@@ -882,6 +896,7 @@ export async function closeWithoutSourcing(_prev: FormState, data: FormData): Pr
  * decision is dated after today. The last step done approves the requisition.
  */
 export async function recordDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);
@@ -928,7 +943,7 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
     }
     // The last step done approves: the gate runs before the step is recorded.
     const final = decision === "DONE" && inst.steps.every((s) => s.id === step.id || s.decision === "DONE");
-    const gate = final ? await approvalGate(tx, l, inst.id) : null;
+    const gate = final ? await approvalGate(tx, toAuditActor(actor), l, inst.id) : null;
     if (gate?.kind === "refuse") return gate.state;
     if (gate?.kind === "return") {
       refresh(id);
@@ -937,17 +952,17 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
     const after = personDecisionWrite({ decision, person: { id: personId, name: person!.name }, decidedOn: on, delegationId: check.delegationId, reason, recordedAt: new Date() });
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) return CHANGED;
-    await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.req.reference} · ${step.roleLabel}`, "UPDATE",
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${l.req.reference} · ${step.roleLabel}`, "UPDATE",
       diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
 
     if (decision === "REJECTED") {
       // FR-APR-016: the destination snapshotted at open says where it goes; unset, the
       // officer chooses. Rejection is never refused.
       const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee: null, steps: inst.steps, rejectingSeq: step.sequence, supports: REQUISITION_SUPPORTS });
-      await rejectAndApply(tx, l, inst, outcome, reason);
+      await rejectAndApply(tx, toAuditActor(actor), l, inst, outcome, reason);
       return { ok: true };
     }
-    if (gate?.kind === "ok") await approve(tx, l, inst.id, gate);
+    if (gate?.kind === "ok") await approve(tx, toAuditActor(actor), l, inst.id, gate);
     return { ok: true };
   });
 }
@@ -958,13 +973,14 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
  * also runs to discharge the step by itself (founder, 2026-10-05).
  */
 export async function citeCommitteeDecision(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const decisionId = String(data.get("committeeDecisionId") ?? "");
   if (!decisionId) return { ok: false, errors: { committeeDecisionId: "Choose the committee's decision." } };
 
   return inRequisition(id, async (tx, l): Promise<FormState> => {
-    const { returned, ...state } = await citeCommitteeStep(tx, l, stepId, decisionId);
+    const { returned, ...state } = await citeCommitteeStep(tx, toAuditActor(actor), l, stepId, decisionId);
     if (returned) refresh(id);
     return state;
   });
@@ -980,6 +996,7 @@ export async function citeCommitteeDecision(_prev: FormState, data: FormData): P
  * destinations existed.
  */
 export async function chooseWhereItGoes(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
@@ -1003,14 +1020,15 @@ export async function chooseWhereItGoes(_prev: FormState, data: FormData): Promi
     }
     const person = await tx.person.findFirst({ where: { id: personId!, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
     if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
-    await recordChoice(tx, { organisationId: l.org.id, routeLabel: routeLabelOf(l) }, inst!.id, kind!, person.id, person.name, reason);
-    await sendRejected(tx, l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
+    await recordChoice(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel: routeLabelOf(l) }, inst!.id, kind!, person.id, person.name, reason);
+    await sendRejected(tx, toAuditActor(actor), l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
     return { ok: true };
   });
 }
 
 /// Pending approval to Recalled, before the first decision (FR-APR-017).
 export async function recallRequisition(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
@@ -1020,11 +1038,11 @@ export async function recallRequisition(_prev: FormState, data: FormData): Promi
     if (fault) return { ok: false, message: transitionFaultText(fault) };
     if (inst) {
       await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date() } });
-      await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${l.req.reference} · approval route`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), reason);
+      await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, `${l.req.reference} · approval route`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), reason);
     }
     const from = l.req.status;
     await mustMove(tx, l, "RECALLED", { today: l.org.today, anyStepDone: inst?.steps.some((s) => s.decision !== "PENDING") ?? false });
-    await audit(tx, l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "RECALLED" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "RECALLED" }), reason);
     return { ok: true };
   });
 }

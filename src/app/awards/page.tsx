@@ -10,6 +10,7 @@ import { returnReadsComplete } from "@/lib/award/stage-two";
 import { isLive } from "@/lib/documents/evidence";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
 import { storedDay } from "@/lib/dates";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ const day = (d: Date | null) => (d ? storedDay(d) : null);
  * tab of its exercise; this is the work list beside it.
  */
 export default async function AwardsPage() {
+  await requireStaff();
   const { org, rows, total, policy, counts } = await listAwards();
   const today = org?.today ?? null;
   const list: Row[] = rows.map((r) => {

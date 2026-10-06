@@ -1,3 +1,4 @@
+import { staffRoute } from "@/app/_auth/route";
 import { loadMatrix, NoActiveMatrixError } from "@/lib/authority/load";
 import { resolveApproval } from "@/lib/authority/resolve";
 import type { ResolveQuery } from "@/lib/authority/types";
@@ -33,6 +34,8 @@ function percentOrNull(raw: string | null): ExactRatio | null | "bad" {
  * routing decision back to the printed manual.
  */
 export async function GET(request: Request) {
+  const guard = await staffRoute();
+  if (!guard.ok) return guard.response;
   const params = new URL(request.url).searchParams;
 
   const domain = params.get("domain");

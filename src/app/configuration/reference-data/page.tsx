@@ -50,6 +50,7 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { Stat } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,7 @@ const POSTURE_TONE: Record<keyof typeof POSTURE_LABEL, Tone> = {
 const TABLE_MIN = 880;
 
 export default async function ReferenceDataPage() {
+  await requireStaff();
   const on = new Date();
   const data = await loadReferenceData(ORGANISATION_CODE);
   const readiness = assessReferenceData(data, on);

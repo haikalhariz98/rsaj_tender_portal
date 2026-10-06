@@ -18,6 +18,7 @@ import { issueReference } from "@/lib/numbering/issue";
 import { manualSnapshot } from "@/lib/requisition/budget";
 import { linkMatchingMatters } from "@/lib/requisition/repo";
 import type { ExternalRequisition } from "@/lib/requisition/intake";
+import type { AuditActor } from "@/lib/auth/types";
 
 export type { ExternalRequisition };
 
@@ -30,6 +31,8 @@ export type IntakeTerms =
 
 export interface IntakeContext {
   organisationId: string;
+  /// Who received it: the signed-in person who entered it by hand (an automatic feed, when one exists, names itself as a system actor).
+  actor: AuditActor;
   /// The organisation's today, YYYY-MM-DD.
   today: string;
   /// The funding route as configured, snapshotted as a portal requisition's is at submission.
@@ -123,7 +126,7 @@ export const manualIntake: RequisitionIntake = {
         },
       });
       const auditOf = (entity: string, entityId: string, entityLabel: string, changes: Record<string, unknown>) =>
-        writeAudit(tx, { organisationId: ctx.organisationId, entity, entityId, entityLabel, reason: "Received by hand from the finance system" }, "CREATE", diffFields(null, changes));
+        writeAudit(tx, { actor: ctx.actor, organisationId: ctx.organisationId, entity, entityId, entityLabel, reason: "Received by hand from the finance system" }, "CREATE", diffFields(null, changes));
       await auditOf("RequisitionBudgetCheck", check.id, `${reference} · budget check`, {
         source: check.source, asAt: check.asAt, verdict: check.verdict, balanceAsAt: check.balanceAsAt?.toString(), requestedAmount: check.requestedAmount.toString(),
       });
@@ -179,7 +182,7 @@ export const manualIntake: RequisitionIntake = {
       }
       await writeAudit(
         tx,
-        { organisationId: ctx.organisationId, entity: "Requisition", entityId: req.id, entityLabel: `${reference} · ${p.title}`, reason: "Received by hand from the finance system" },
+        { actor: ctx.actor, organisationId: ctx.organisationId, entity: "Requisition", entityId: req.id, entityLabel: `${reference} · ${p.title}`, reason: "Received by hand from the finance system" },
         "CREATE",
         diffFields(null, {
           reference,
@@ -194,7 +197,7 @@ export const manualIntake: RequisitionIntake = {
         }),
       );
       // ADR 0002: a matter tabled earlier by this requisition's reference now links.
-      await linkMatchingMatters(tx, ctx.organisationId, req.id);
+      await linkMatchingMatters(tx, ctx.actor, ctx.organisationId, req.id);
       return { ok: true as const, id: req.id, reference };
     });
   },

@@ -26,7 +26,7 @@ const LINK_ICON = { opportunities: GlobeIcon, results: AwardIcon, register: Buil
 const SIGN_IN_ICON = [InboxIcon, ToolsIcon, UserIcon] as const;
 
 export default async function SupplierHomePage() {
-  const { organisation } = await loadShell();
+  const { organisation } = await loadShell({ counts: false });
 
   return (
     <>

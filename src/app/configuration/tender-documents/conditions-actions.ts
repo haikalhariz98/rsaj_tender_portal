@@ -13,6 +13,8 @@ import { clauseConfigFaultText } from "@/lib/tender-docs/conditions-labels";
 import { BODY_CONFIG_FAULT_TEXT, bodyConfigFaults } from "@/lib/tender-docs/config-conditions";
 import { NOT_SET, yesNoNotSet } from "@/lib/tender-docs/labels";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Configuration › Tender documents, increment 2: the registration bodies an exercise's
@@ -55,6 +57,7 @@ const bodyWords = (b: { code: string; labelEn: string; labelMs: string | null; q
 
 /// Add or change a registration body.
 export async function saveRegistrationBody(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || undefined;
@@ -82,11 +85,11 @@ export async function saveRegistrationBody(_prev: FormState, data: FormData): Pr
     if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [String(f.data?.field), BODY_CONFIG_FAULT_TEXT[f.code]])) };
     if (!before) {
       const created = await tx.registrationBody.create({ data: { organisationId: org.id, ...row } });
-      await writeAudit(tx, { organisationId: org.id, entity: "RegistrationBody", entityId: created.id, entityLabel: `Registration body · ${row.labelEn}`, reason }, "CREATE", diffFields(null, bodyWords(created)));
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "RegistrationBody", entityId: created.id, entityLabel: `Registration body · ${row.labelEn}`, reason }, "CREATE", diffFields(null, bodyWords(created)));
     } else {
       const after = await tx.registrationBody.update({ where: { id: before.id }, data: row });
       const changes = diffFields(bodyWords(before), bodyWords(after));
-      if (changes.length) await writeAudit(tx, { organisationId: org.id, entity: "RegistrationBody", entityId: before.id, entityLabel: `Registration body · ${row.labelEn}`, reason }, "UPDATE", changes);
+      if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "RegistrationBody", entityId: before.id, entityLabel: `Registration body · ${row.labelEn}`, reason }, "UPDATE", changes);
     }
     return done();
   });
@@ -94,10 +97,12 @@ export async function saveRegistrationBody(_prev: FormState, data: FormData): Pr
 
 /// Retire a body from a day (an exercise cannot add it from then; one that requires it is told at submission), with the reason.
 export async function retireRegistrationBody(_prev: FormState, data: FormData): Promise<FormState> {
-  return setRetired("registrationBody", data);
+  const actor = await requireStaff();
+  return setRetired(toAuditActor(actor), "registrationBody", data);
 }
 export async function restoreRegistrationBody(_prev: FormState, data: FormData): Promise<FormState> {
-  return setRetired("registrationBody", data, true);
+  const actor = await requireStaff();
+  return setRetired(toAuditActor(actor), "registrationBody", data, true);
 }
 
 // ------------------------------------------------------------------ clauses
@@ -115,6 +120,7 @@ const clauseWords = (c: { code: string; titleEn: string; titleMs: string | null;
 
 /// Add or change a clause. Its words are literal (no merge field); a change to them raises its text version.
 export async function saveClause(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || undefined;
@@ -144,26 +150,28 @@ export async function saveClause(_prev: FormState, data: FormData): Promise<Form
     const bodyVersion = nextBodyVersion(before, row);
     if (!before) {
       const created = await tx.clauseText.create({ data: { organisationId: org.id, ...row, bodyVersion } });
-      await writeAudit(tx, { organisationId: org.id, entity: "ClauseText", entityId: created.id, entityLabel: `Clause · ${row.titleEn}`, reason }, "CREATE", diffFields(null, clauseWords(created)));
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "ClauseText", entityId: created.id, entityLabel: `Clause · ${row.titleEn}`, reason }, "CREATE", diffFields(null, clauseWords(created)));
     } else {
       const after = await tx.clauseText.update({ where: { id: before.id }, data: { ...row, bodyVersion } });
       const changes = diffFields(clauseWords(before), { ...clauseWords(after), ...(bodyVersion !== before.bodyVersion ? { textChanged: "yes" } : {}) });
-      if (changes.length) await writeAudit(tx, { organisationId: org.id, entity: "ClauseText", entityId: before.id, entityLabel: `Clause · ${row.titleEn}`, reason }, "UPDATE", changes);
+      if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "ClauseText", entityId: before.id, entityLabel: `Clause · ${row.titleEn}`, reason }, "UPDATE", changes);
     }
     return done();
   });
 }
 
 export async function retireClause(_prev: FormState, data: FormData): Promise<FormState> {
-  return setRetired("clauseText", data);
+  const actor = await requireStaff();
+  return setRetired(toAuditActor(actor), "clauseText", data);
 }
 export async function restoreClause(_prev: FormState, data: FormData): Promise<FormState> {
-  return setRetired("clauseText", data, true);
+  const actor = await requireStaff();
+  return setRetired(toAuditActor(actor), "clauseText", data, true);
 }
 
 // ------------------------------------------------------------------ retiring
 
-async function setRetired(model: "registrationBody" | "clauseText", data: FormData, restore = false): Promise<FormState> {
+async function setRetired(by: AuditActor, model: "registrationBody" | "clauseText", data: FormData, restore = false): Promise<FormState> {
   const org = await organisation();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -182,7 +190,7 @@ async function setRetired(model: "registrationBody" | "clauseText", data: FormDa
     if (!before) return GONE;
     if (model === "registrationBody") await tx.registrationBody.update({ where: { id }, data: { retiredOn: on } });
     else await tx.clauseText.update({ where: { id }, data: { retiredOn: on } });
-    await writeAudit(tx, { organisationId: org.id, entity, entityId: id, entityLabel: before.label, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }, { retiredOn: on ? storedDay(on) : null }));
+    await writeAudit(tx, { actor: by, organisationId: org.id, entity, entityId: id, entityLabel: before.label, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }, { retiredOn: on ? storedDay(on) : null }));
     return done();
   });
 }

@@ -29,6 +29,8 @@ import { saleSupplier } from "@/lib/suppliers/sale";
 import { registerAtSale } from "@/lib/suppliers/sale-hook";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, notes, refuse, Refusal, type LockedWindow } from "./shared";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Writes for 6.5's registers (plan §4.4–4.6): the sale of the documents (FR-ADV-009–012), the
@@ -54,13 +56,13 @@ async function receiptGuarded(run: () => Promise<FormState>, refused: FormState)
 }
 
 /// The party a register act names: an existing one by id, or one found or made by registration number.
-async function partyFor(tx: Tx, l: LockedWindow, d: WindowData, r: { partyId: string | null; name: string; registrationNo: string; address: string; phone: string; fax: string; email: string }, source: PartySource) {
+async function partyFor(tx: Tx, actor: AuditActor, l: LockedWindow, d: WindowData, r: { partyId: string | null; name: string; registrationNo: string; address: string; phone: string; fax: string; email: string }, source: PartySource) {
   if (r.partyId) return d.parties.find((p) => p.id === r.partyId) ?? null;
   const known = d.parties.find((p) => regKey(p.registrationNo) === regKey(r.registrationNo));
   if (known) return known;
   const row = { source, name: r.name, registrationNo: r.registrationNo, address: r.address, phone: r.phone, fax: r.fax, email: r.email };
   const party = await tx.exerciseParty.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, ...row } });
-  await audit(tx, l.org.id, ENTITY.party, party.id, label(l, `Contractor ${r.name}`), "CREATE", diffFields(null, partyFields(row)));
+  await audit(tx, actor, l.org.id, ENTITY.party, party.id, label(l, `Contractor ${r.name}`), "CREATE", diffFields(null, partyFields(row)));
   return party;
 }
 
@@ -85,6 +87,7 @@ function readParty(r: FormReader) {
  * for a sale, which refuses it.
  */
 export async function recordSale(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const party = readParty(r);
@@ -166,13 +169,13 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
     });
     if (receiptNo) for (const rf of manualFeeReceipt.check({ number: receiptNo, recordedOn: l.org.today }, { pattern: null, today: l.org.today, taken: false })) fs.push({ code: rf, level: "block" });
     if (fs.some((f) => f.level === "block")) return refuse(fs, "Not sold:");
-    const buyer = await partyFor(tx, l, d, party, "PURCHASER");
+    const buyer = await partyFor(tx, toAuditActor(actor), l, d, party, "PURCHASER");
     if (!buyer) return { ok: false, message: "That contractor is not on this exercise." };
     if (linkAtSale) {
       // OD-9: the explicit link, audited as the link act audits it, recorded at the sale.
       await tx.exerciseParty.update({ where: { id: buyer.id }, data: { vendorId: linkAtSale.supplier.id } });
       const differs = linkAtSale.findings.find((f) => f.code === "NUMBER_DIFFERS");
-      await audit(tx, l.org.id, SUPPLIER_ENTITY.party, buyer.id, `${l.ex.reference} · Party ${buyer.name}`, "UPDATE",
+      await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.party, buyer.id, `${l.ex.reference} · Party ${buyer.name}`, "UPDATE",
         diffFields({ supplier: null }, { supplier: `${linkAtSale.supplier.reference} · ${linkAtSale.supplier.registeredName}`, numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: linkReason || null, linkedBy: `${person.name}, named on the sale`, recordedOnBehalf: "not signed" }), linkReason);
     }
     const soldOn = dayToDate(l.org.today);
@@ -196,12 +199,12 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
       noSupplierNamed: !register.linked,
     };
     const sale = await tx.documentSale.create({ data: { organisationId: l.org.id, windowId: w.id, ...row, annotation: annotation as unknown as Prisma.InputJsonValue, ...(register.snapshot ? { eligibilitySnapshot: register.snapshot as unknown as Prisma.InputJsonValue } : {}) } });
-    await audit(tx, l.org.id, ENTITY.sale, sale.id, label(l, `Sale · ${buyer.name}`), "CREATE", diffFields(null, { ...saleFields({ ...row, partyName: buyer.name, issuedBy: person.name }), ...(register.snapshot ? { supplierRegister: `${register.snapshot.supplierReference}: ${register.snapshot.verdict === "ELIGIBLE" ? "eligible" : register.snapshot.verdict === "NOT_ELIGIBLE" ? "not eligible" : "not assessed"}, judged ${formatDate(register.snapshot.judgedOn)}` } : {}) }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.sale, sale.id, label(l, `Sale · ${buyer.name}`), "CREATE", diffFields(null, { ...saleFields({ ...row, partyName: buyer.name, issuedBy: person.name }), ...(register.snapshot ? { supplierRegister: `${register.snapshot.supplierReference}: ${register.snapshot.verdict === "ELIGIBLE" ? "eligible" : register.snapshot.verdict === "NOT_ELIGIBLE" ? "not eligible" : "not assessed"}, judged ${formatDate(register.snapshot.judgedOn)}` } : {}) }));
     // Every addendum issued so far goes with the documents (FR-ADV-014).
     for (const a of addendaForNewPurchaser(w.addenda)) {
       if (a.recipients.some((x) => x.partyId === buyer.id)) continue;
       const copy = await tx.addendumRecipient.create({ data: { organisationId: l.org.id, addendumId: a.id, partyId: buyer.id, withDocuments: true } });
-      await audit(tx, l.org.id, ENTITY.addendumCopy, copy.id, label(l, `Addendum ${a.number} · ${buyer.name}`), "CREATE", diffFields(null, { recipient: buyer.name, given: "with the documents" }));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.addendumCopy, copy.id, label(l, `Addendum ${a.number} · ${buyer.name}`), "CREATE", diffFields(null, { recipient: buyer.name, given: "with the documents" }));
     }
     const said = [notes(fs), ...register.check.findings.filter((f) => f.level !== "block").map((f) => supplierFaultText(f)), ...(linkAtSale ? [`Linked to ${linkAtSale.supplier.reference} · ${linkAtSale.supplier.registeredName} on the supplier register.`, ...linkAtSale.findings.filter((f) => f.level === "warn").map((f) => supplierFaultText(f))] : [])].filter(Boolean).join(" ");
     return { ok: true, message: `Sold to ${buyer.name}.${said ? ` ${said}` : ""}` };
@@ -210,6 +213,7 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
 
 /// Void a sale recorded in error, with a reason; refused once the window has closed (X-11), and for a party holding a bid envelope (65-C2).
 export async function voidSale(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const saleId = String(data.get("saleId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -225,13 +229,14 @@ export async function voidSale(_prev: FormState, data: FormData): Promise<FormSt
     if (f) return f.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: windowFindingText(f) } } : refuse([f], "Not voided:");
     const moved = await tx.documentSale.updateMany({ where: { id: s.id, voidedAt: null }, data: { voidedAt: new Date(), voidReason: reason } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, ENTITY.sale, s.id, label(l, `Sale · ${s.party.name}`), "UPDATE", diffFields({ voided: "no" }, { voided: "yes" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.sale, s.id, label(l, `Sale · ${s.party.name}`), "UPDATE", diffFields({ voided: "no" }, { voided: "yes" }), reason);
     return { ok: true };
   });
 }
 
 /// Record the finance receipt number of a sale that has none yet (OD-11: consumed, unique, never minted).
 export async function recordReceipt(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const saleId = String(data.get("saleId") ?? "");
   const r = new FormReader(data);
@@ -247,7 +252,7 @@ export async function recordReceipt(_prev: FormState, data: FormData): Promise<F
     if (fs.length) return { ok: false, errors: { financeReceiptNo: fs.map((code) => windowFindingText({ code, level: "block" })).join(" ") } };
     const on = dayToDate(l.org.today);
     await tx.documentSale.update({ where: { id: s.id }, data: { financeReceiptNo: number, receiptRecordedOn: on } });
-    await audit(tx, l.org.id, ENTITY.sale, s.id, label(l, `Sale · ${s.party.name}`), "UPDATE", diffFields({ financeReceipt: null }, { financeReceipt: number, receiptRecordedOn: formatDate(l.org.today), source: "typed by an officer from the finance receipt" }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.sale, s.id, label(l, `Sale · ${s.party.name}`), "UPDATE", diffFields({ financeReceipt: null }, { financeReceipt: number, receiptRecordedOn: formatDate(l.org.today), source: "typed by an officer from the finance receipt" }));
     return { ok: true };
   }), { ok: false, errors: { financeReceiptNo: windowFindingText({ code: "TAKEN", level: "block" }) } });
 }
@@ -259,6 +264,7 @@ export async function recordReceipt(_prev: FormState, data: FormData): Promise<F
  * time and place together; mandatory only where the policy permits it (OD-8), and then answered.
  */
 export async function scheduleEvent(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const kind = r.choice("kind", "Event", SITE_EVENT_KINDS, { required: true }) as SiteEventKind | null;
@@ -279,13 +285,14 @@ export async function scheduleEvent(_prev: FormState, data: FormData): Promise<F
     const blocks = eventFaults(ev, d.policy.mandatoryAttendancePermitted, l.ex.closingAt).filter((f) => f.code === "MANDATORY_NOT_PERMITTED" || f.code === "EVENT_AFTER_CLOSING");
     if (blocks.length) return refuse(blocks, "Not scheduled:");
     const row = await tx.siteEvent.create({ data: { organisationId: l.org.id, windowId: d.window.id, kind, startsAt, place, mandatory: tri(mandatory), notes: notesText } });
-    await audit(tx, l.org.id, ENTITY.event, row.id, label(l, `${kind === "BRIEFING" ? "Tender briefing" : "Site visit"}`), "CREATE", diffFields(null, eventFields({ ...row }, l.org.timeZone)));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.event, row.id, label(l, `${kind === "BRIEFING" ? "Tender briefing" : "Site visit"}`), "CREATE", diffFields(null, eventFields({ ...row }, l.org.timeZone)));
     return { ok: true };
   });
 }
 
 /// Answer whether attendance at an event is mandatory, while the window is prepared (OD-8).
 export async function setEventMandatory(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const eventId = String(data.get("eventId") ?? "");
   const r = new FormReader(data);
@@ -299,7 +306,7 @@ export async function setEventMandatory(_prev: FormState, data: FormData): Promi
     const answer = tri(mandatory);
     if (answer === true && d.policy.mandatoryAttendancePermitted !== true) return refuse([{ code: "MANDATORY_NOT_PERMITTED", level: "block", data: { kind: e.kind, permitted: d.policy.mandatoryAttendancePermitted == null ? "not set" : "no" } }]);
     await tx.siteEvent.update({ where: { id: e.id }, data: { mandatory: answer } });
-    await audit(tx, l.org.id, ENTITY.event, e.id, label(l, e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"), "UPDATE", diffFields({ mandatory: e.mandatory == null ? "Not answered" : e.mandatory ? "Yes" : "No" }, { mandatory: answer == null ? "Not answered" : answer ? "Yes" : "No" }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.event, e.id, label(l, e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"), "UPDATE", diffFields({ mandatory: e.mandatory == null ? "Not answered" : e.mandatory ? "Yes" : "No" }, { mandatory: answer == null ? "Not answered" : answer ? "Yes" : "No" }));
     return { ok: true };
   });
 }
@@ -309,6 +316,7 @@ export async function setEventMandatory(_prev: FormState, data: FormData): Promi
  * notice stated it, so the purchasers are told by an addendum (the screen says so).
  */
 export async function cancelEvent(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const eventId = String(data.get("eventId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -319,7 +327,7 @@ export async function cancelEvent(_prev: FormState, data: FormData): Promise<For
     if (!e || e.cancelledAt) return { ok: false, message: "That event is not scheduled on this exercise." };
     if (e.heldOn) return refuse([{ code: "ALREADY_HELD", level: "block" }]);
     await tx.siteEvent.update({ where: { id: e.id }, data: { cancelledAt: new Date(), cancelReason: reason } });
-    await audit(tx, l.org.id, ENTITY.event, e.id, label(l, e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"), "UPDATE", diffFields({ cancelled: "no" }, { cancelled: "yes" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.event, e.id, label(l, e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"), "UPDATE", diffFields({ cancelled: "no" }, { cancelled: "yes" }), reason);
     const published = isPublished(l.ex.status);
     return { ok: true, message: published ? "Cancelled. The published notice stated it: tell the purchasers by an addendum." : "Cancelled." };
   });
@@ -327,6 +335,7 @@ export async function cancelEvent(_prev: FormState, data: FormData): Promise<For
 
 /// Record an event held, on a day not before its start and not after today.
 export async function markEventHeld(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const eventId = String(data.get("eventId") ?? "");
   const r = new FormReader(data);
@@ -339,13 +348,14 @@ export async function markEventHeld(_prev: FormState, data: FormData): Promise<F
     const f = heldFault({ startsAt: e.startsAt, heldOn: e.heldOn ? storedDay(e.heldOn) : null, cancelled: e.cancelledAt != null }, storedDay(on), l.org.today, l.org.timeZone);
     if (f) return f.code === "HELD_BEFORE_START" || f.code === "HELD_IN_FUTURE" ? { ok: false, errors: { heldOn: windowFindingText(f) } } : refuse([f]);
     await tx.siteEvent.update({ where: { id: e.id }, data: { heldOn: on } });
-    await audit(tx, l.org.id, ENTITY.event, e.id, label(l, e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"), "UPDATE", diffFields({ heldOn: null }, { heldOn: formatDate(storedDay(on)) }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.event, e.id, label(l, e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"), "UPDATE", diffFields({ heldOn: null }, { heldOn: formatDate(storedDay(on)) }));
     return { ok: true };
   });
 }
 
 /// Record a contractor's attendance at a held event, by a named Person (recorded on their behalf, not signed).
 export async function recordAttendance(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const eventId = String(data.get("eventId") ?? "");
   const r = new FormReader(data);
@@ -368,10 +378,10 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
     if (known && e.attendance.some((a) => a.partyId === known.id)) return { ok: false, message: `${known.name} is already on this event's register.` };
     // On the invited path only the invitees attend (they alone may buy).
     if (pathOf(d).path === "INVITED" && (!known || known.source !== "PROPOSED_INVITEE")) return refuse([{ code: "NOT_INVITED", level: "block" }]);
-    const attendee = await partyFor(tx, l, d, party, "ATTENDEE");
+    const attendee = await partyFor(tx, toAuditActor(actor), l, d, party, "ATTENDEE");
     if (!attendee) return { ok: false, message: "That contractor is not on this exercise." };
     const row = await tx.siteEventAttendance.create({ data: { organisationId: l.org.id, eventId: e.id, partyId: attendee.id, representative, recordedByPersonId: person.id } });
-    await audit(tx, l.org.id, ENTITY.attendance, row.id, label(l, `${e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"} · ${attendee.name}`), "CREATE", diffFields(null, { contractor: attendee.name, representative, recordedBy: person.name, recordedOnBehalf: "not signed" }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.attendance, row.id, label(l, `${e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"} · ${attendee.name}`), "CREATE", diffFields(null, { contractor: attendee.name, representative, recordedBy: person.name, recordedOnBehalf: "not signed" }));
     return { ok: true };
   });
 }
@@ -380,6 +390,7 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
 
 /// Draft an addendum during the window: its title and what it changes; the signed copy is attached to it.
 export async function saveAddendum(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const addendumId = String(data.get("addendumId") ?? "") || null;
   const r = new FormReader(data);
@@ -398,10 +409,10 @@ export async function saveAddendum(_prev: FormState, data: FormData): Promise<Fo
       const a = w.addenda.find((x) => x.id === addendumId);
       if (!a || a.status !== "DRAFT") return refuse([{ code: "NOT_DRAFT", level: "block" }]);
       await tx.addendum.update({ where: { id: a.id }, data: row });
-      await audit(tx, l.org.id, ENTITY.addendum, a.id, label(l, `Addendum (draft), ${title}`), "UPDATE", diffFields({ title: a.title, whatChanged: a.whatChanged }, { title, whatChanged }));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.addendum, a.id, label(l, `Addendum (draft), ${title}`), "UPDATE", diffFields({ title: a.title, whatChanged: a.whatChanged }, { title, whatChanged }));
     } else {
       const a = await tx.addendum.create({ data: { organisationId: l.org.id, windowId: w.id, ...row } });
-      await audit(tx, l.org.id, ENTITY.addendum, a.id, label(l, `Addendum (draft), ${title}`), "CREATE", diffFields(null, addendumFields({ ...a })));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.addendum, a.id, label(l, `Addendum (draft), ${title}`), "CREATE", diffFields(null, addendumFields({ ...a })));
     }
     return { ok: true };
   });
@@ -409,6 +420,7 @@ export async function saveAddendum(_prev: FormState, data: FormData): Promise<Fo
 
 /// Void a draft addendum, with a reason. It never took a number.
 export async function voidAddendum(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const addendumId = String(data.get("addendumId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -421,7 +433,7 @@ export async function voidAddendum(_prev: FormState, data: FormData): Promise<Fo
     if (!a || a.status !== "DRAFT") return refuse([{ code: "NOT_DRAFT", level: "block" }]);
     const moved = await tx.addendum.updateMany({ where: { id: a.id, status: "DRAFT" }, data: { status: "VOID", voidReason: reason } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, ENTITY.addendum, a.id, label(l, `Addendum (draft), ${a.title}`), "UPDATE", diffFields({ status: "Draft" }, { status: "Voided" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.addendum, a.id, label(l, `Addendum (draft), ${a.title}`), "UPDATE", diffFields({ status: "Draft" }, { status: "Voided" }), reason);
     return { ok: true };
   });
 }
@@ -432,6 +444,7 @@ export async function voidAddendum(_prev: FormState, data: FormData): Promise<Fo
  * stands (FR-ADV-012). Delivery is then recorded per recipient; nothing is sent.
  */
 export async function issueAddendum(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const addendumId = String(data.get("addendumId") ?? "");
   return inWindow(exerciseId, async (tx, l, d) => {
@@ -451,11 +464,11 @@ export async function issueAddendum(_prev: FormState, data: FormData): Promise<F
     const issuedOn = dayToDate(l.org.today);
     const moved = await tx.addendum.updateMany({ where: { id: a.id, status: "DRAFT" }, data: { status: "ISSUED", number, issuedOn, renderedText: rendered.text!, templateCode: t.code, templateBodyVersion: t.bodyVersion, frozenAt: new Date() } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, ENTITY.addendum, a.id, label(l, `Addendum ${number}, ${a.title}`), "UPDATE", diffFields({ status: "Draft", number: null }, { status: "Issued", number, issuedOn: formatDate(l.org.today), frozenFrom: `${t.nameEn}, text version ${t.bodyVersion}`, recipients: recipients.length }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.addendum, a.id, label(l, `Addendum ${number}, ${a.title}`), "UPDATE", diffFields({ status: "Draft", number: null }, { status: "Issued", number, issuedOn: formatDate(l.org.today), frozenFrom: `${t.nameEn}, text version ${t.bodyVersion}`, recipients: recipients.length }));
     for (const partyId of recipients) {
       const p = d.parties.find((x) => x.id === partyId)!;
       const copy = await tx.addendumRecipient.create({ data: { organisationId: l.org.id, addendumId: a.id, partyId } });
-      await audit(tx, l.org.id, ENTITY.addendumCopy, copy.id, label(l, `Addendum ${number} · ${p.name}`), "CREATE", diffFields(null, { recipient: p.name }));
+      await audit(tx, toAuditActor(actor), l.org.id, ENTITY.addendumCopy, copy.id, label(l, `Addendum ${number} · ${p.name}`), "CREATE", diffFields(null, { recipient: p.name }));
     }
     return { ok: true, message: recipients.length ? `Addendum ${number} issued to ${recipients.length} recipient${recipients.length === 1 ? "" : "s"}. Record each copy's delivery.` : `Addendum ${number} issued. ${windowFindingText({ code: "NO_RECIPIENTS", level: "info" })}` };
   });
@@ -463,6 +476,7 @@ export async function issueAddendum(_prev: FormState, data: FormData): Promise<F
 
 /// How a copy of an addendum went: recorded, never sent.
 export async function recordAddendumDelivery(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const recipientId = String(data.get("recipientId") ?? "");
   const r = new FormReader(data);
@@ -479,7 +493,7 @@ export async function recordAddendumDelivery(_prev: FormState, data: FormData): 
     if (fs.length) return refuse(fs, "Not recorded:");
     const after = { method, consignmentRef, despatchedOn: sent, acknowledgedOn: ack };
     await tx.addendumRecipient.update({ where: { id: copy.id }, data: after });
-    await audit(tx, l.org.id, ENTITY.addendumCopy, copy.id, label(l, `Addendum ${a.number} · ${copy.party.name}`), "UPDATE", diffFields(deliveryFields(copy), deliveryFields(after)));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.addendumCopy, copy.id, label(l, `Addendum ${a.number} · ${copy.party.name}`), "UPDATE", diffFields(deliveryFields(copy), deliveryFields(after)));
     return { ok: true };
   });
 }

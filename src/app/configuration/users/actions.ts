@@ -26,6 +26,9 @@ import { checkPeriod, FormReader } from "@/lib/validate";
 import { issuedInForce } from "@/lib/authority/issue";
 import { inProgressSittingRefusal } from "@/lib/committee/sittings";
 import { splitValues } from "@/lib/ui/select-logic";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { disableAccountOfLeaver, LeaverRefused } from "@/lib/auth/administration";
+import type { AuditActor } from "@/lib/auth/types";
 
 const PATH = "/configuration/users";
 
@@ -52,6 +55,7 @@ const NO_ORG: FormState = {
  * a staff number and mark every edited person a leaver.
  */
 export async function savePerson(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -104,6 +108,7 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "Person",
     entityLabel: v.name,
@@ -133,6 +138,7 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
  * only account of why.
  */
 export async function setPersonActive(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -157,12 +163,22 @@ export async function setPersonActive(_prev: FormState, data: FormData): Promise
   });
   if (sitting) return { ok: false, message: sitting };
 
-  await auditedUpdate(
-    { organisationId: orgId, entity: "Person", entityId: id, entityLabel: before.name, reason },
-    { isActive: before.isActive },
-    { isActive },
-    (tx) => tx.person.update({ where: { id }, data: { isActive } }),
-  );
+  try {
+    await auditedUpdate(
+      { actor: toAuditActor(actor), organisationId: orgId, entity: "Person", entityId: id, entityLabel: before.name, reason },
+      { isActive: before.isActive },
+      { isActive },
+      async (tx) => {
+        const row = await tx.person.update({ where: { id }, data: { isActive } });
+        // Phase 1b: a leaver's sign-in account is disabled, and its sessions end, in this same transaction (every request re-checks the person as well; this makes it a recorded fact).
+        if (!isActive) await disableAccountOfLeaver(tx, { personId: id, organisationId: orgId, actor: toAuditActor(actor), reason });
+        return row;
+      },
+    );
+  } catch (error) {
+    if (error instanceof LeaverRefused) return { ok: false, message: error.fault.en };
+    throw error;
+  }
 
   revalidatePath(PATH);
   return { ok: true };
@@ -185,6 +201,7 @@ export async function setGrant(
   capabilityId: string,
   granted: boolean,
 ): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -207,6 +224,7 @@ export async function setGrant(
   if (Boolean(existing) === granted) return { ok: true };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "RoleCapability",
     entityLabel: `${role.nameEn} — ${capability.nameEn}`,
@@ -325,6 +343,7 @@ class DelegationRefused extends Error {
  * nobody is expecting it to.
  */
 export async function saveDelegation(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -367,6 +386,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
 
   const label = "Delegation";
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "Delegation",
     entityLabel: label,
@@ -445,7 +465,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
         const changes = diffFields(locked, v);
         if (changes.length) await writeAudit(tx, { ...ctx, entityId: id }, "UPDATE", changes);
       }
-      if (recommendationVersionId) await attachRecommendation(tx, orgId, delegationId, recommendationVersionId);
+      if (recommendationVersionId) await attachRecommendation(tx, toAuditActor(actor), orgId, delegationId, recommendationVersionId);
     });
   } catch (e) {
     if (e instanceof DelegationRefused) return e.state;
@@ -460,6 +480,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
 // ----------------------------------------------------------------------- offices
 
 export async function saveOffice(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -512,6 +533,7 @@ export async function saveOffice(_prev: FormState, data: FormData): Promise<Form
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "AuthorityRole",
     entityLabel: v.nameEn,
@@ -537,6 +559,7 @@ export async function saveOffice(_prev: FormState, data: FormData): Promise<Form
 // ------------------------------------------------------------------- assignments
 
 export async function saveAssignment(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -610,6 +633,7 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
 
   const label = `${roleCode} assignment`;
   const ctx = {
+    actor: toAuditActor(actor),
     organisationId: orgId,
     entity: "RoleAssignment",
     entityLabel: label,
@@ -635,6 +659,7 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
 /// against the organisation's today (`endAssignment`). The record stays: a decision signed
 /// under it must keep resolving to the person who signed.
 export async function endAssignment(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const orgId = await organisationId();
   if (!orgId) return NO_ORG;
 
@@ -678,7 +703,7 @@ export async function endAssignment(_prev: FormState, data: FormData): Promise<F
       await tx.roleAssignment.update({ where: { id }, data: { effectiveTo: locked.result.effectiveTo } });
       await writeAudit(
         tx,
-        { organisationId: orgId, entity: "RoleAssignment", entityId: id, entityLabel: `${locked.row.roleCode} — ${locked.row.person.name}`, reason },
+        { actor: toAuditActor(actor), organisationId: orgId, entity: "RoleAssignment", entityId: id, entityLabel: `${locked.row.roleCode} — ${locked.row.person.name}`, reason },
         "UPDATE",
         diffFields({ effectiveTo: null }, { effectiveTo: locked.result.effectiveTo }),
       );
@@ -700,7 +725,7 @@ class RecommendationRefused extends Error {}
  * (and locked, on an edit). `attachFault` runs on what is read here; the attachment, the
  * document's filing and their audit rows share the transaction.
  */
-async function attachRecommendation(tx: Tx, orgId: string, delegationId: string, versionId: string) {
+async function attachRecommendation(tx: Tx, actor: AuditActor, orgId: string, delegationId: string, versionId: string) {
   // The document is locked before the version is judged (`lockVersion`): a withdrawal
   // committed while this act waited is seen here, never pinned.
   const v = await lockVersion(tx, versionId, orgId);
@@ -718,10 +743,10 @@ async function attachRecommendation(tx: Tx, orgId: string, delegationId: string,
   if (faults.length) throw new RecommendationRefused(faults.map(documentFaultText).join(" "));
   const owner = `Delegation · ${d.fromPerson.name} to ${d.toPerson.name}`;
   const row = await tx.documentAttachment.create({ data: { organisationId: orgId, purpose: "HOLDER_RECOMMENDATION", versionId: v.id, delegationId } });
-  await writeAudit(tx, { organisationId: orgId, entity: "DocumentAttachment", entityId: row.id, entityLabel: `${owner} · ${PURPOSE_LABEL.HOLDER_RECOMMENDATION}` }, "CREATE",
+  await writeAudit(tx, { actor, organisationId: orgId, entity: "DocumentAttachment", entityId: row.id, entityLabel: `${owner} · ${PURPOSE_LABEL.HOLDER_RECOMMENDATION}` }, "CREATE",
     attached({ purpose: "HOLDER_RECOMMENDATION", title: doc.title, versionNo: v.versionNo, sha256: v.sha256, owner }));
   if (doc.status === "STAGED") {
     await tx.document.update({ where: { id: doc.id }, data: { status: "FILED", filedAt: new Date() } });
-    await writeAudit(tx, { organisationId: orgId, entity: "Document", entityId: doc.id, entityLabel: `Document · ${doc.title}` }, "UPDATE", filed());
+    await writeAudit(tx, { actor, organisationId: orgId, entity: "Document", entityId: doc.id, entityLabel: `Document · ${doc.title}` }, "UPDATE", filed());
   }
 }

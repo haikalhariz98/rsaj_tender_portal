@@ -27,6 +27,7 @@ import { moveRequisition } from "@/lib/requisition/move";
 import { loadControls, loadGateRules, recordOf, type LoadedRequisition } from "@/lib/requisition/repo";
 import type { TransitionContext } from "@/lib/requisition/status";
 import type { RequisitionStatus } from "@/lib/requisition/types";
+import type { AuditActor } from "@/lib/auth/types";
 
 type Act = "P" | "JP" | "R" | "JR" | "MR" | "MJR" | "A" | "MA";
 
@@ -39,6 +40,7 @@ export const CHANGED: FormState = { ok: false, message: "The requisition changed
 
 export async function audit(
   tx: Tx,
+  actor: AuditActor,
   orgId: string,
   entity: string,
   entityId: string,
@@ -48,7 +50,7 @@ export async function audit(
   reason = "",
 ) {
   if (action === "UPDATE" && changes.length === 0) return;
-  await writeAudit(tx, { organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
+  await writeAudit(tx, { actor, organisationId: orgId, entity, entityId, entityLabel, reason }, action, changes);
 }
 
 export const labelOf = (r: { reference: string; title: string }) => `${r.reference} · ${r.title}`;
@@ -65,7 +67,7 @@ export async function mustMove(tx: Tx, l: LoadedRequisition, to: RequisitionStat
 }
 
 /// Write one check snapshot. Returns its row.
-export async function writeCheck(tx: Tx, l: LoadedRequisition, s: BudgetSnapshot & { budgetCodeCode: string | null }, asAt: Date) {
+export async function writeCheck(tx: Tx, actor: AuditActor, l: LoadedRequisition, s: BudgetSnapshot & { budgetCodeCode: string | null }, asAt: Date) {
   const dec = (v: bigint | null) => (v == null ? null : senToDecimalString(v));
   const row = await tx.requisitionBudgetCheck.create({
     data: {
@@ -84,7 +86,7 @@ export async function writeCheck(tx: Tx, l: LoadedRequisition, s: BudgetSnapshot
       outcome: s.warnings.join(" "),
     },
   });
-  await audit(tx, l.org.id, "RequisitionBudgetCheck", row.id, `${l.req.reference} · budget check`, "CREATE",
+  await audit(tx, actor, l.org.id, "RequisitionBudgetCheck", row.id, `${l.req.reference} · budget check`, "CREATE",
     diffFields(null, { source: s.source, asAt, budgetCode: s.budgetCodeCode, verdict: s.verdict, balanceAsAt: dec(s.balanceAsAt), requestedAmount: senToDecimalString(s.requested) }));
   return row;
 }
@@ -97,7 +99,7 @@ export async function writeCheck(tx: Tx, l: LoadedRequisition, s: BudgetSnapshot
  * caller has already established that a check may run (`budgetCheckRefusal`) and holds
  * the requisition's lock; `asAt` is the day the figures are as at (today where the source reads now).
  */
-export async function runBudgetCheck(tx: Tx, l: LoadedRequisition, provider: BudgetCheckProvider, asAt?: Date) {
+export async function runBudgetCheck(tx: Tx, actor: AuditActor, l: LoadedRequisition, provider: BudgetCheckProvider, asAt?: Date) {
   const todayDay = l.org.today;
   if (!todayDay) throw new Error("A budget check needs the organisation's today; the caller checks it first.");
   const today = dayToDate(todayDay);
@@ -108,12 +110,12 @@ export async function runBudgetCheck(tx: Tx, l: LoadedRequisition, provider: Bud
     requested: parseSen(l.req.estimatedValue.toString()),
     on: today,
   });
-  await writeCheck(tx, l, snapshot, asAt ?? today);
+  await writeCheck(tx, actor, l, snapshot, asAt ?? today);
   const to: RequisitionStatus = snapshot.verdict === "EXCEEDS" ? "OVER_BUDGET" : "BUDGET_CHECKED";
   if (to !== l.req.status) {
     const from = l.req.status;
     await mustMove(tx, l, to, { today: todayDay });
-    await audit(tx, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: to }));
+    await audit(tx, actor, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: to }));
   }
   return snapshot;
 }
@@ -146,7 +148,7 @@ export type Gate =
   | { kind: "return"; state: FormState }
   | { kind: "ok"; commit: ReturnType<typeof approvalCommitment>; routeCommits: boolean | null; commitOnApproval: boolean | null };
 
-export async function approvalGate(tx: Tx, l: LoadedRequisition, instanceId: string): Promise<Gate> {
+export async function approvalGate(tx: Tx, actor: AuditActor, l: LoadedRequisition, instanceId: string): Promise<Gate> {
   const req = l.req;
   const today = dayToDate(l.org.today!);
   const inst = req.approvalInstances.find((i) => i.id === instanceId)!;
@@ -195,7 +197,7 @@ export async function approvalGate(tx: Tx, l: LoadedRequisition, instanceId: str
     };
   }
   if (outcome === "RETURN") {
-    await writeCheck(tx, l, fresh, today);
+    await writeCheck(tx, actor, l, fresh, today);
     const returned = {
       code: RETURNED_AT_APPROVAL,
       level: "err",
@@ -206,12 +208,12 @@ export async function approvalGate(tx: Tx, l: LoadedRequisition, instanceId: str
       where: { id: inst.id },
       data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), returned] as unknown as Prisma.InputJsonValue },
     });
-    await audit(tx, l.org.id, "ApprovalInstance", inst.id, `${req.reference} · approval route`, "UPDATE",
+    await audit(tx, actor, l.org.id, "ApprovalInstance", inst.id, `${req.reference} · approval route`, "UPDATE",
       // The marker lets the trail read the route as returned at approval, not recalled.
       diffFields({ status: inst.status, returnedAtApproval: null }, { status: "RECALLED", returnedAtApproval: true }), "Returned at approval: the budget no longer covers it.");
     const from = req.status;
     await mustMove(tx, l, "OVER_BUDGET", { today: l.org.today });
-    await audit(tx, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE", diffFields({ status: from }, { status: "OVER_BUDGET" }),
+    await audit(tx, actor, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE", diffFields({ status: from }, { status: "OVER_BUDGET" }),
       "Returned at approval: the budget no longer covers it.");
     return {
       kind: "return",
@@ -226,7 +228,7 @@ export async function approvalGate(tx: Tx, l: LoadedRequisition, instanceId: str
 }
 
 /// Close an approved route: the commitment where the gate says so, and the status.
-export async function approve(tx: Tx, l: LoadedRequisition, instanceId: string, gate: Extract<Gate, { kind: "ok" }>) {
+export async function approve(tx: Tx, actor: AuditActor, l: LoadedRequisition, instanceId: string, gate: Extract<Gate, { kind: "ok" }>) {
   const req = l.req;
   const today = dayToDate(l.org.today!);
   let commitmentMovementId: string | null = null;
@@ -235,21 +237,21 @@ export async function approve(tx: Tx, l: LoadedRequisition, instanceId: string, 
       data: { budgetCodeId: req.budgetCodeId!, kind: "COMMITMENT", reference: req.reference, description: req.title, amount: req.estimatedValue, occurredOn: today },
     });
     commitmentMovementId = movement.id;
-    await audit(tx, l.org.id, "BudgetMovement", movement.id, `${req.budgetCode?.code ?? "Budget code"} · commitment for ${req.reference}`, "CREATE",
+    await audit(tx, actor, l.org.id, "BudgetMovement", movement.id, `${req.budgetCode?.code ?? "Budget code"} · commitment for ${req.reference}`, "CREATE",
       diffFields(null, { kind: "COMMITMENT", budgetCode: req.budgetCode?.code, reference: req.reference, committedEstimate: req.estimatedValue.toString(), occurredOn: today }));
   }
   await tx.approvalInstance.update({
     where: { id: instanceId },
     data: { status: "APPROVED", closedAt: new Date(), commitOnApproval: gate.commitOnApproval, routeCommitsBudget: gate.routeCommits },
   });
-  await audit(tx, l.org.id, "ApprovalInstance", instanceId, `${req.reference} · approval route`, "UPDATE",
+  await audit(tx, actor, l.org.id, "ApprovalInstance", instanceId, `${req.reference} · approval route`, "UPDATE",
     diffFields({ status: "PENDING" }, { status: "APPROVED", commitment: gate.commit === "WRITE" ? "written" : "not written" }));
   const from = req.status;
   await mustMove(tx, l, "APPROVED", { today: l.org.today }, { commitmentMovementId });
-  await audit(tx, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE",
+  await audit(tx, actor, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE",
     diffFields({ status: from }, { status: "APPROVED" }));
   // The committee gates are determined as the route closes approved (FR-REQ-012, CO-1).
-  await determineGates(tx, l, parseSen(req.estimatedValue.toString()));
+  await determineGates(tx, actor, l, parseSen(req.estimatedValue.toString()));
 }
 
 // ------------------------------------------------------------- committee gate
@@ -260,7 +262,7 @@ export async function approve(tx: Tx, l: LoadedRequisition, instanceId: string, 
  * Unset, or a gate required with no rule in force, writes nothing: the requisition
  * stays undetermined and opening an exercise is refused, naming the setting (C2).
  */
-export async function determineGates(tx: Tx, l: LoadedRequisition, approved: bigint): Promise<GatesFinding> {
+export async function determineGates(tx: Tx, actor: AuditActor, l: LoadedRequisition, approved: bigint): Promise<GatesFinding> {
   const req = l.req;
   const on = l.org.today ? dayToDate(l.org.today) : new Date();
   const route = req.fundingRouteCode
@@ -270,7 +272,7 @@ export async function determineGates(tx: Tx, l: LoadedRequisition, approved: big
   if (found.state === "NOT_SET" || found.state === "RULE_MISSING") return found;
   const after = { gatesDeterminedOn: on, gateRequired: route!.committeeGateRequired, gateRequiredProvenance: route!.committeeGateProvenance };
   await tx.requisition.update({ where: { id: req.id }, data: after });
-  await audit(tx, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE",
+  await audit(tx, actor, l.org.id, "Requisition", req.id, labelOf(req), "UPDATE",
     diffFields({ gatesDeterminedOn: null, gateRequired: null }, { gatesDeterminedOn: on, gateRequired: route!.committeeGateRequired, gates: found.state === "RULES" ? found.rules.length : 0 }));
   if (found.state === "RULES") {
     const committees = await tx.committee.findMany({ where: { organisationId: l.org.id, code: { in: found.rules.map((r) => r.committeeCode) } }, select: { code: true, nameEn: true } });
@@ -289,7 +291,7 @@ export async function determineGates(tx: Tx, l: LoadedRequisition, approved: big
           determinedOn: on,
         },
       });
-      await audit(tx, l.org.id, "RequisitionGate", row.id, `${req.reference} · gate: ${committeeLabel}`, "CREATE",
+      await audit(tx, actor, l.org.id, "RequisitionGate", row.id, `${req.reference} · gate: ${committeeLabel}`, "CREATE",
         diffFields(null, { committee: committeeLabel, subject: rule.subjectEn, act: rule.act, aboveValue: rule.aboveValue, provenance: rule.provenance, determinedOn: on }));
     }
   }
@@ -304,7 +306,7 @@ export async function determineGates(tx: Tx, l: LoadedRequisition, approved: big
  * outcome (founder, 2026-10-05; `via` then says so in the step's History). The caller holds
  * the requisition's lock. `returned`: the route went back at approval, its writes kept.
  */
-export async function citeCommitteeStep(tx: Tx, l: LoadedRequisition, stepId: string, decisionId: string, via: CiteVia = "BY_HAND"): Promise<FormState & { returned?: true }> {
+export async function citeCommitteeStep(tx: Tx, actor: AuditActor, l: LoadedRequisition, stepId: string, decisionId: string, via: CiteVia = "BY_HAND"): Promise<FormState & { returned?: true }> {
   const inst = openInstance(l);
   if (l.req.status !== "PENDING_APPROVAL" || !inst) return { ok: false, message: "No approval is open on this requisition." };
   if (!l.org.today) return NO_ZONE;
@@ -337,13 +339,13 @@ export async function citeCommitteeStep(tx: Tx, l: LoadedRequisition, stepId: st
     return { ok: false, errors: { committeeDecisionId: "The committee decided that matter before this route was opened." } };
   }
   const final = s.decision === "DONE" && inst.steps.every((x) => x.id === step.id || x.decision === "DONE");
-  const gate = final ? await approvalGate(tx, l, inst.id) : null;
+  const gate = final ? await approvalGate(tx, actor, l, inst.id) : null;
   if (gate?.kind === "refuse") return gate.state;
   if (gate?.kind === "return") return { ...gate.state, returned: true };
   const after = committeeCitationWrite({ decision: s.decision, committeeName: s.citation!.committee, decidedOn: s.decidedOn, committeeDecisionId: matter.id, recordedAt: new Date() });
   const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) return CHANGED;
-  await audit(tx, l.org.id, "ApprovalStep", step.id, `${l.req.reference} · ${step.roleLabel}`, "UPDATE",
+  await audit(tx, actor, l.org.id, "ApprovalStep", step.id, `${l.req.reference} · ${step.roleLabel}`, "UPDATE",
     diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn, ...linkedVia(via) }));
 
   if (s.decision === "REJECTED") {
@@ -352,10 +354,10 @@ export async function citeCommitteeStep(tx: Tx, l: LoadedRequisition, stepId: st
     // goes (ruling CO-3): a loop back to the originator, a terminal outcome ends it.
     const why = `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}`;
     const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee: record?.notApproved ?? null, steps: inst.steps, rejectingSeq: step.sequence, supports: REQUISITION_SUPPORTS });
-    await rejectAndApply(tx, l, inst, outcome, why);
+    await rejectAndApply(tx, actor, l, inst, outcome, why);
     return { ok: true };
   }
-  if (gate?.kind === "ok") await approve(tx, l, inst.id, gate);
+  if (gate?.kind === "ok") await approve(tx, actor, l, inst.id, gate);
   return { ok: true };
 }
 
@@ -369,29 +371,29 @@ export type OpenRoute = NonNullable<ReturnType<typeof openInstance>>;
 
 /// Close the route as rejected, move the requisition to Rejected, and send it where the
 /// outcome says — or leave it there for the officer's choice.
-export async function rejectAndApply(tx: Tx, l: LoadedRequisition, inst: OpenRoute, outcome: RejectionOutcome, reason: string) {
-  await closeRejected(tx, { organisationId: l.org.id, routeLabel: routeLabelOf(l) }, inst, outcome, reason);
+export async function rejectAndApply(tx: Tx, actor: AuditActor, l: LoadedRequisition, inst: OpenRoute, outcome: RejectionOutcome, reason: string) {
+  await closeRejected(tx, actor, { organisationId: l.org.id, routeLabel: routeLabelOf(l) }, inst, outcome, reason);
   const from = l.req.status;
   await mustMove(tx, l, "REJECTED", { today: l.org.today, reason });
-  await audit(tx, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "REJECTED" }), reason);
-  if ("apply" in outcome) await sendRejected(tx, l, inst.id, outcome.apply, outcome.returnToSeq ?? null, reason);
+  await audit(tx, actor, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: from }, { status: "REJECTED" }), reason);
+  if ("apply" in outcome) await sendRejected(tx, actor, l, inst.id, outcome.apply, outcome.returnToSeq ?? null, reason);
 }
 
 /// Move a rejected requisition to its destination, through the state machine.
-export async function sendRejected(tx: Tx, l: LoadedRequisition, instId: string, kind: RejectionKind, returnToSeq: number | null, reason: string) {
+export async function sendRejected(tx: Tx, actor: AuditActor, l: LoadedRequisition, instId: string, kind: RejectionKind, returnToSeq: number | null, reason: string) {
   const today = l.org.today;
   if (kind === "RETURN_TO_ORIGINATOR") {
     await mustMove(tx, l, "DRAFT", { today });
-    await audit(tx, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: "REJECTED" }, { status: "DRAFT" }), `Returned to whoever raised it: ${reason}`);
+    await audit(tx, actor, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: "REJECTED" }, { status: "DRAFT" }), `Returned to whoever raised it: ${reason}`);
   } else if (kind === "TERMINATE") {
     await mustMove(tx, l, "CLOSED", { today, reason }, { closedReason: reason });
-    await audit(tx, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: "REJECTED", closedReason: "" }, { status: "CLOSED", closedReason: reason }), reason);
+    await audit(tx, actor, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: "REJECTED", closedReason: "" }, { status: "CLOSED", closedReason: reason }), reason);
   } else {
     // C3: the successor opens under the requisition's lock; while it is open nothing on
     // the requisition can be edited (its status is Pending approval again).
-    await openSuccessor(tx, { organisationId: l.org.id, routeLabel: routeLabelOf(l) }, instId, returnToSeq!, dayToDate(today!));
+    await openSuccessor(tx, actor, { organisationId: l.org.id, routeLabel: routeLabelOf(l) }, instId, returnToSeq!, dayToDate(today!));
     await mustMove(tx, l, "PENDING_APPROVAL", { today, successor: true });
-    await audit(tx, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: "REJECTED" }, { status: "PENDING_APPROVAL" }), `Returned to an earlier step: ${reason}`);
+    await audit(tx, actor, l.org.id, "Requisition", l.req.id, labelOf(l.req), "UPDATE", diffFields({ status: "REJECTED" }, { status: "PENDING_APPROVAL" }), `Returned to an earlier step: ${reason}`);
   }
 }
 

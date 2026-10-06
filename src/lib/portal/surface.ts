@@ -1,8 +1,10 @@
+import { isSignInPath } from "@/lib/auth/routes";
+
 /**
  * Which door a running copy of the product is the front of.
  *
- * Sign-in does not exist yet, so nothing in the staff screens or their server actions asks who is
- * calling. The supplier portal is meant for strangers, so a copy that is reachable by them must serve
+ * Staff sign-in now exists, and every staff screen, action and route handler asks who is calling (Phase 1b); this is
+ * the outer layer. The supplier portal is meant for strangers, so a copy that is reachable by them must serve
  * the portal and nothing else: no staff screen, no staff API, no staff server action. This module
  * decides that, as pure rules, and `src/proxy.ts` applies it to every request.
  *
@@ -50,4 +52,44 @@ export function publicAllows({ method, pathname, hasServerAction }: PublicReques
   if (m === "POST") return path === SUBMIT_PATH;
   if (m !== "GET" && m !== "HEAD") return false;
   return PUBLIC_PAGES.has(path) || OPPORTUNITY.test(path) || LOGO.test(path) || PLATFORM.test(path) || path === ICON;
+}
+
+/**
+ * What the route boundary does with a request, now that there is sign-in (Phase 1b, threat model F3).
+ *
+ * This is the outer layer only. It looks at which cookie is there, never at whether it is good (it imports no database): the guard in every page,
+ * action and route handler asks the database. Its job is to keep the two copies apart and to turn away the plainly signed-out before any work is done.
+ *
+ * - The public copy serves the portal and nothing else, as before; and a request that carries a staff cookie is refused there, since a staff session
+ *   means nothing on the public copy and its presence says the request is not what that copy is for.
+ * - The staff copy refuses a supplier cookie the same way, and sends anyone with no staff cookie to sign in (a page), or answers 401 (an API call or a post).
+ *   What stays open without one is `PUBLIC_ENTRY_POINTS` in effect: the sign-in screens, the portal's pages and its registration post, the logo and the platform files.
+ */
+export interface GateRequest {
+  surface: Surface;
+  method: string;
+  pathname: string;
+  hasServerAction: boolean;
+  staffCookie: boolean;
+  supplierCookie: boolean;
+  /// The development server's own channels (hot reload) are let through unsigned; a production copy has none.
+  development?: boolean;
+}
+
+export type Gate = { kind: "next" } | { kind: "notFound" } | { kind: "signIn" } | { kind: "unauthorised" };
+
+const DEV_CHANNELS = /^\/(_next\/webpack-hmr|_next\/turbopack-hmr|__nextjs_[a-z_-]+)(\/|$)/;
+
+export function gate(r: GateRequest): Gate {
+  if (r.surface === "public") {
+    if (r.staffCookie) return { kind: "notFound" };
+    return publicAllows(r) ? { kind: "next" } : { kind: "notFound" };
+  }
+  if (r.supplierCookie) return { kind: "notFound" };
+  const path = r.pathname.length > 1 && r.pathname.endsWith("/") ? r.pathname.slice(0, -1) : r.pathname;
+  const m = r.method.toUpperCase();
+  const open = isSignInPath(path) || publicAllows({ method: m, pathname: path, hasServerAction: false }) || (r.development === true && DEV_CHANNELS.test(path));
+  if (open || r.staffCookie) return { kind: "next" };
+  // Nobody is signed in. A person looking at a page is sent to sign in; anything else (a post, a call to the API) is told so.
+  return (m === "GET" || m === "HEAD") && !path.startsWith("/api/") ? { kind: "signIn" } : { kind: "unauthorised" };
 }

@@ -13,6 +13,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 
 import { Section, Stat, Stats } from "../records-ui";
 import { AddRoutingType, EditRoutingType } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export const dynamic = "force-dynamic";
  * A tenth sheet is a row here. Ships empty: the spec's ICC targets are the customer's seed.
  */
 export default async function RoutingSheetsPage() {
+  await requireStaff();
   const org = await exerciseOrg();
   const [types, templates] = org
     ? await Promise.all([

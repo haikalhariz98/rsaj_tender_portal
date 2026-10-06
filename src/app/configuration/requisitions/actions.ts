@@ -12,6 +12,7 @@ import { gateRuleFaults, type GateRuleFault } from "@/lib/requisition/gate";
 import { requisitionOrg } from "@/lib/requisition/repo";
 import { FormReader } from "@/lib/validate";
 import { splitValues } from "@/lib/ui/select-logic";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /**
  * Requisition controls: the customer's policy for requisitions, every field unset
@@ -29,6 +30,7 @@ const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const list = (data: FormData, name: string) => splitValues(data.get(name));
 
 export async function savePolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await requisitionOrg();
   if (!org) return NO_ORG;
   const r = new FormReader(data);
@@ -51,7 +53,7 @@ export async function savePolicy(_prev: FormState, data: FormData): Promise<Form
     const flat = (x: typeof v | NonNullable<typeof before>) => ({ budgetRecheckDays: x.budgetRecheckDays, endorsementTiers: x.endorsementTiers.join(", "), provenance: x.provenance, notes: x.notes });
     const changes = diffFields(before ? flat(before) : null, flat(v));
     if (!before || changes.length > 0) {
-      await writeAudit(tx, { organisationId: org.id, entity: "RequisitionPolicy", entityId: row.id, entityLabel: "Requisition controls", reason }, before ? "UPDATE" : "CREATE", changes);
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "RequisitionPolicy", entityId: row.id, entityLabel: "Requisition controls", reason }, before ? "UPDATE" : "CREATE", changes);
     }
   });
   revalidatePath(PATH);
@@ -60,6 +62,7 @@ export async function savePolicy(_prev: FormState, data: FormData): Promise<Form
 
 /// Where the budget check comes from (FinanceIntegration.budgetCheckSource). Unset runs none.
 export async function saveBudgetCheckSource(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await requisitionOrg();
   if (!org) return NO_ORG;
   const r = new FormReader(data);
@@ -75,7 +78,7 @@ export async function saveBudgetCheckSource(_prev: FormState, data: FormData): P
     });
     const changes = diffFields({ budgetCheckSource: before?.budgetCheckSource ?? null }, { budgetCheckSource: source });
     if (changes.length > 0) {
-      await writeAudit(tx, { organisationId: org.id, entity: "FinanceIntegration", entityId: row.id, entityLabel: "Budget check source", reason }, before ? "UPDATE" : "CREATE", changes);
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "FinanceIntegration", entityId: row.id, entityLabel: "Budget check source", reason }, before ? "UPDATE" : "CREATE", changes);
     }
   });
   revalidatePath(PATH);
@@ -91,6 +94,7 @@ const FORMAT_KEYS = ["erp_requisition_no", "erp_note_no", "erp_indent_no"] as co
  * can only check them against a shape somebody has set. Cleared, it is not checked.
  */
 export async function saveErpFormat(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await requisitionOrg();
   if (!org) return NO_ORG;
   const r = new FormReader(data);
@@ -116,7 +120,7 @@ export async function saveErpFormat(_prev: FormState, data: FormData): Promise<F
     if (!pattern) {
       if (!before) return;
       await tx.codeFormat.delete({ where: { id: before.id } });
-      await writeAudit(tx, { organisationId: org.id, entity: "CodeFormat", entityId: before.id, entityLabel: label, reason }, "DELETE",
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "CodeFormat", entityId: before.id, entityLabel: label, reason }, "DELETE",
         diffFields({ pattern: before.pattern, example: before.example }, { pattern: null, example: null }));
       return;
     }
@@ -128,7 +132,7 @@ export async function saveErpFormat(_prev: FormState, data: FormData): Promise<F
     });
     const changes = diffFields(before, v);
     if (!before || changes.length > 0) {
-      await writeAudit(tx, { organisationId: org.id, entity: "CodeFormat", entityId: row.id, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "CodeFormat", entityId: row.id, entityLabel: label, reason }, before ? "UPDATE" : "CREATE", changes);
     }
   });
   revalidatePath(PATH);
@@ -155,6 +159,7 @@ const GATE_RULE_TEXT: Record<GateRuleFault, { field: string; message: string }> 
  * they read when it was approved, so an edit here changes nothing already determined.
  */
 export async function saveGateRule(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const org = await requisitionOrg();
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -188,14 +193,14 @@ export async function saveGateRule(_prev: FormState, data: FormData): Promise<Fo
   await db.$transaction(async (tx) => {
     if (!id) {
       const row = await tx.committeeGateRule.create({ data: { organisationId: org.id, ...write } });
-      await writeAudit(tx, { organisationId: org.id, entity: "CommitteeGateRule", entityId: row.id, entityLabel: `Committee gate: ${v.subjectEn}`, reason }, "CREATE", diffFields(null, write));
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "CommitteeGateRule", entityId: row.id, entityLabel: `Committee gate: ${v.subjectEn}`, reason }, "CREATE", diffFields(null, write));
       return;
     }
     const before = await tx.committeeGateRule.findFirst({ where: { id, organisationId: org.id } });
     if (!before) return;
     await tx.committeeGateRule.update({ where: { id }, data: write });
     const changes = diffFields({ ...before, aboveValue: before.aboveValue?.toString() ?? null }, write);
-    if (changes.length > 0) await writeAudit(tx, { organisationId: org.id, entity: "CommitteeGateRule", entityId: id, entityLabel: `Committee gate: ${v.subjectEn}`, reason }, "UPDATE", changes);
+    if (changes.length > 0) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "CommitteeGateRule", entityId: id, entityLabel: `Committee gate: ${v.subjectEn}`, reason }, "UPDATE", changes);
   });
   revalidatePath(PATH);
   return { ok: true };

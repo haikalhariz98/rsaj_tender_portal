@@ -20,13 +20,14 @@
  *   figures the route was sent on, frozen then (BD-613-52).
  * - A refusal goes where the route's snapshot says, else waits for the officer's choice (CO-5): back to whoever sent it
  *   (it may be sent again), back to an earlier step (a successor route, ADR 0009), or the variation ends (closed).
- * Nobody is signed in: who sends and who decides are named Persons, recorded on their behalf, not signed.
+ * The signed-in officer is named on every audit row; who sends and who decides are named Persons, recorded on their behalf, not signed.
  */
 
 import type { Prisma } from "@/generated/prisma/client";
 import { closeRejected, loadDestinations, openSuccessor, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
+import type { AuditActor } from "@/lib/auth/types";
 import { absentOffices } from "@/lib/authority/absence";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { committeeCitationWrite, personDecisionWrite } from "@/lib/authority/decided-step";
@@ -73,6 +74,8 @@ export class VariationRefusal extends Error {
 
 export interface VariationCtx {
   tx: Tx;
+  /// Who acted, for the audit rows the act writes.
+  actor: AuditActor;
   l: LoadedContract;
   /// The server's instant, read once at the act's entry, to the second.
   now: Date;
@@ -170,7 +173,7 @@ export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: Se
   const label = routePercentLabel(src.matrix.rules, domain, ratioOf(i.reading));
   const reading: Reading = { ...i.reading, domain, label, edges: edgesOf(src.matrix.rules, domain) };
   const appr = await c.tx.variationApproval.create({ data: { organisationId: c.l.org.id, variationId: v.id, event: i.event, approvalInstanceId: inst.id, value: senToDecimalString(i.value), reading: reading as unknown as Prisma.InputJsonValue, sentByPersonId: i.submittedBy.id, sentOn: on, sentAt: c.now } });
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalInstance", entityId: inst.id, entityLabel: routeLabel(c, v), reason: "" }, "CREATE",
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "ApprovalInstance", entityId: inst.id, entityLabel: routeLabel(c, v), reason: "" }, "CREATE",
     diffFields(null, {
       approval: EVENT_WORDS[i.event].en,
       matrix: m.issue.label,
@@ -237,7 +240,7 @@ export async function decideVariationStep(c: VariationCtx, v: VariationRow, i: D
   const after = personDecisionWrite({ decision: i.decision, person: { id: person!.id, name: person!.name }, decidedOn: dayToDate(i.decidedOn), receivedOn: i.receivedOn ? dayToDate(i.receivedOn) : null, delegationId: check.delegationId, reason: i.reason.trim(), recordedAt: c.now });
   const done = await c.tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) throw new VariationRefusal("The step changed while this was being saved. Reload and try again.");
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${variationLabel(c.l, v)} · ${step.roleLabel}`, reason: i.reason.trim() }, "UPDATE",
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${variationLabel(c.l, v)} · ${step.roleLabel}`, reason: i.reason.trim() }, "UPDATE",
     diffFields({ decision: step.decision, receivedOn: null }, { decision: i.decision, decidedBy: person!.name, decidedOn: i.decidedOn, receivedOn: i.receivedOn, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }));
   await afterStep(c, v, a, step.id, i.decision, i.reason.trim(), null);
 }
@@ -271,7 +274,7 @@ export async function citeVariationDecision(c: VariationCtx, v: VariationRow, st
   const done = await c.tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) throw new VariationRefusal("The step changed while this was being saved. Reload and try again.");
   const minuted = matter.meeting.status === "MINUTED";
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${variationLabel(c.l, v)} · ${step.roleLabel}`, reason: "" }, "UPDATE",
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${variationLabel(c.l, v)} · ${step.roleLabel}`, reason: "" }, "UPDATE",
     diffFields({ decision: step.decision }, { decision: s.decision, committee: s.citation!.committee, sitting: s.citation!.meetingReference, decidedOn: s.decidedOn, minuted: minuted ? "yes" : "no", ...linkedVia(via) }));
   const reason = s.decision === "REJECTED" ? `Not carried by ${s.citation!.committee} at ${s.citation!.meetingReference}${record?.note ? `: ${record.note}` : ""}` : "";
   await afterStep(c, v, a, step.id, s.decision === "DONE" ? "DONE" : "REJECTED", reason, record?.notApproved ?? null);
@@ -286,7 +289,7 @@ async function afterStep(c: VariationCtx, v: VariationRow, a: VariationRow["appr
     // route only. Residual S1: the committee's outcome goes in as decided; a terminal one there is not supported, so
     // the officer chooses among the returns, never recorded as the committee's.
     const outcome = variationRefusalOutcome({ v: factsOf(v), event: a.event as VariationEvent, snapshot: snapshotOf(inst), committee, steps: inst.steps, rejectingSeq: step.sequence });
-    await closeRejected(c.tx, { organisationId: c.l.org.id, routeLabel: routeLabel(c, v) }, inst, outcome, reason, undefined, c.now);
+    await closeRejected(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c, v) }, inst, outcome, reason, undefined, c.now);
     if ("apply" in outcome) await sendRefused(c, v, a, outcome.apply, outcome.returnToSeq ?? null, reason);
     return;
   }
@@ -298,7 +301,7 @@ async function afterStep(c: VariationCtx, v: VariationRow, a: VariationRow["appr
   if (noForm) refuse("Not approved:", [noForm]);
   const moved = await c.tx.approvalInstance.updateMany({ where: { id: inst.id, status: "PENDING" }, data: { status: "APPROVED", closedAt: c.now } });
   if (moved.count !== 1) throw new VariationRefusal("The route changed while this was being saved. Reload and try again.");
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "ApprovalInstance", entityId: inst.id, entityLabel: routeLabel(c, v), reason: "" }, "UPDATE", diffFields({ status: "PENDING" }, { status: "APPROVED" }));
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "ApprovalInstance", entityId: inst.id, entityLabel: routeLabel(c, v), reason: "" }, "UPDATE", diffFields({ status: "PENDING" }, { status: "APPROVED" }));
   if (a.event === "PRIOR") await openApplication(c, v, form!);
 }
 
@@ -314,17 +317,17 @@ export async function applicationFormNow(c: Pick<VariationCtx, "tx" | "l">): Pro
 async function openApplication(c: VariationCtx, v: VariationRow, templateId: string) {
   const snap = readComputedSnapshot(v.applicationReading);
   if (!snap) throw new VariationRefusal("The application's figures were not frozen when it was sent. Reload and try again.");
-  const certId = await openCertificate(c.tx, c.l, { kind: "VARIATION_APPLICATION", templateId, routingTypeId: null, sectionId: null, computed: snap }, c.now, c.today);
+  const certId = await openCertificate(c.tx, c.actor, c.l, { kind: "VARIATION_APPLICATION", templateId, routingTypeId: null, sectionId: null, computed: snap }, c.now, c.today);
   const moved = await c.tx.variation.updateMany({ where: { id: v.id, applicationCertificateId: null }, data: { applicationCertificateId: certId } });
   if (moved.count !== 1) throw new VariationRefusal("The variation changed while this was being saved. Reload and try again.");
-  await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "Variation", entityId: v.id, entityLabel: variationLabel(c.l, v), reason: "" }, "UPDATE", diffFields({ application: null }, { application: "opened from the figures it was approved on" }));
+  await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "Variation", entityId: v.id, entityLabel: variationLabel(c.l, v), reason: "" }, "UPDATE", diffFields({ application: null }, { application: "opened from the figures it was approved on" }));
 }
 
 /// Send a refused route where its refusal says: back to whoever sent it (nothing moves; it may be sent again), back to
 /// an earlier step (a successor route, with its reading), or the variation ends (closed).
 async function sendRefused(c: VariationCtx, v: VariationRow, a: VariationRow["approvals"][number], kind: RejectionKind, returnToSeq: number | null, reason: string) {
   if (kind === "RETURN_TO_STEP") {
-    const next = await openSuccessor(c.tx, { organisationId: c.l.org.id, routeLabel: routeLabel(c, v) }, a.approvalInstance.id, returnToSeq!, dayToDate(c.today));
+    const next = await openSuccessor(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c, v) }, a.approvalInstance.id, returnToSeq!, dayToDate(c.today));
     await c.tx.variationApproval.create({ data: { organisationId: c.l.org.id, variationId: v.id, event: a.event, approvalInstanceId: next, value: a.value, reading: a.reading as Prisma.InputJsonValue, sentByPersonId: a.sentByPersonId, sentOn: dayToDate(c.today), sentAt: c.now } });
     return;
   }
@@ -332,7 +335,7 @@ async function sendRefused(c: VariationCtx, v: VariationRow, a: VariationRow["ap
     if (!refusalKinds(factsOf(v), a.event as VariationEvent).includes("TERMINATE")) throw new VariationRefusal("Not recorded: the variation stands approved, so a refused route for its increase, agreed rates or re-measurement ends that route only: send it back instead.");
     const moved = await c.tx.variation.updateMany({ where: { id: v.id, status: { not: "CLOSED" } }, data: { status: "CLOSED", closedOn: dayToDate(c.today), closedReason: `Its approval route was refused and the variation ends: ${reason}` } });
     if (moved.count !== 1) throw new VariationRefusal("The variation changed while this was being saved. Reload and try again.");
-    await writeAudit(c.tx, { organisationId: c.l.org.id, entity: "Variation", entityId: v.id, entityLabel: variationLabel(c.l, v), reason }, "UPDATE", diffFields({ stage: "open" }, { stage: "closed", closedOn: c.today }));
+    await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "Variation", entityId: v.id, entityLabel: variationLabel(c.l, v), reason }, "UPDATE", diffFields({ stage: "open" }, { stage: "closed", closedOn: c.today }));
   }
 }
 
@@ -348,7 +351,7 @@ export async function chooseVariationRejection(c: VariationCtx, v: VariationRow,
   }
   const person = await c.tx.person.findFirst({ where: { id: i.personId!, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
   if (!person) throw new VariationRefusal("Not recorded.", { personId: "Choose someone on record and active." });
-  await recordChoice(c.tx, { organisationId: c.l.org.id, routeLabel: routeLabel(c, v) }, inst!.id, i.kind!, person.id, person.name, i.reason.trim());
+  await recordChoice(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c, v) }, inst!.id, i.kind!, person.id, person.name, i.reason.trim());
   await sendRefused(c, v, a!, i.kind!, i.kind === "RETURN_TO_STEP" ? i.returnToSeq : null, i.reason.trim());
 }
 

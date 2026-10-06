@@ -21,6 +21,8 @@ import { timeRefusal } from "@/lib/time/labels";
 import { eotCondOf } from "@/lib/time/route";
 import { BEST_ENDEAVOURS, CONCURRENCIES, DELAY_NOTICE_PATHS, ENTITLEMENTS, EOT_PACK_ITEMS, FINANCIAL_IMPACTS, type EotInstrumentKind, type Finding, type PackAnswer } from "@/lib/time/types";
 import { FormReader } from "@/lib/validate";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { AuditActor } from "@/lib/auth/types";
 
 /**
  * Delays and extensions of time on a contract (6.13 Part B run 1b: FR-EOT-001–007; design note 6.13B-run1b-design.md
@@ -28,19 +30,19 @@ import { FormReader } from "@/lib/validate";
  * chain locked in the canonical order, the EOT family's row of the act × status table asked, CANCELLED first, an unset
  * time zone refused), locks the matter and then its claim (`lockMatter`: ContractMatter the first domain row), re-reads
  * the rows on the locked transaction, re-runs the pure rule, writes, and audits before and after in the same
- * transaction. A refusal throws, so nothing is half-written. Nobody is signed in: each act records the Person the
+ * transaction. A refusal throws, so nothing is half-written. The signed-in officer is named on every audit row; each act records the Person the
  * officer names, "recorded on behalf of, not signed".
  */
 
 /// The contract's lock, the act × status table's row for the act's family (CANCELLED first), the organisation's day, then
 /// the act (BD-613-130: the gate is asked here, in this file, as in every contract action file).
-async function inContract(id: string, now: Date, family: ContractAct, fn: (c: ActCtx) => Promise<FormState>, alsoRevalidate: readonly string[] = []): Promise<FormState> {
+async function inContract(actor: AuditActor, id: string, now: Date, family: ContractAct, fn: (c: ActCtx) => Promise<FormState>, alsoRevalidate: readonly string[] = []): Promise<FormState> {
   let result: FormState | null;
   try {
     result = await withLockedContract(id, async (tx, l) => {
       const refused = actStatusFault(family, l.contract.status as ContractStatus);
       if (refused) return tableRefusal(refused);
-      const c = actCtx(tx, l, now);
+      const c = actCtx(tx, l, now, actor);
       return c ? fn(c) : NO_ZONE_STATE;
     });
   } catch (e) {
@@ -56,7 +58,7 @@ const refuse = (lead: string, fs: readonly Finding[]): never => {
   throw new ActRefusal({ ok: false, message: timeRefusal(lead, fs) });
 };
 const audit = (c: ActCtx, entity: string, id: string, label: string, action: "CREATE" | "UPDATE" | "DELETE", changes: ReturnType<typeof diffFields>, reason = "") =>
-  action === "UPDATE" && changes.length === 0 ? Promise.resolve() : writeAudit(c.tx, { organisationId: c.l.org.id, entity, entityId: id, entityLabel: label, reason }, action, changes);
+  action === "UPDATE" && changes.length === 0 ? Promise.resolve() : writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity, entityId: id, entityLabel: label, reason }, action, changes);
 
 /// The claim of a matter, locked (the matter first, then the claim).
 async function lockClaim(c: ActCtx, claimId: string) {
@@ -78,6 +80,7 @@ const claimLabel = (c: ActCtx, m: { kind: string; reference: string | null }) =>
 // ------------------------------------------------------------------ FR-EOT-001: the delay notice
 
 export async function recordDelayNotice(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const path = r.choice("path", "How it came", DELAY_NOTICE_PATHS, { required: true });
@@ -87,7 +90,7 @@ export async function recordDelayNotice(_prev: FormState, data: FormData): Promi
   const personId = r.text("personId", "Received for (the S.O. or a representative)", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !path || !occurredOn || !receivedOn) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "EOT", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const fs = noticeFaults({ cause, occurredOn: storedDay(occurredOn), receivedOn: storedDay(receivedOn), today: c.today });
     if (fs.length) refuse("Not recorded:", fs);
     const who = await recordedFor(c, personId, { act: "CONTRACTOR_COMMUNICATION" }, storedDay(receivedOn));
@@ -100,6 +103,7 @@ export async function recordDelayNotice(_prev: FormState, data: FormData): Promi
 // ------------------------------------------------------------------ FR-EOT-002–006: the claim
 
 export async function openEotClaim(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const noticeIds = data.getAll("noticeId").map(String).filter(Boolean);
@@ -114,7 +118,7 @@ export async function openEotClaim(_prev: FormState, data: FormData): Promise<Fo
   const excludedByConditionId = r.optionalText("excludedByConditionId");
   const personId = r.text("personId", "Recorded by", { required: true });
   if (r.failed || !scope || proposedDays == null || !financialImpact) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "EOT", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const who = await recordedFor(c, personId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const notices = noticeIds.length ? await c.tx.delayNotice.findMany({ where: { id: { in: noticeIds }, organisationId: c.l.org.id }, select: { id: true, contractId: true } }) : [];
     const programme = programmeId ? await c.tx.workProgramme.findFirst({ where: { id: programmeId, contractId: c.l.contract.id }, select: { id: true, decision: true } }) : null;
@@ -132,7 +136,7 @@ export async function openEotClaim(_prev: FormState, data: FormData): Promise<Fo
       instrument: instrumentFaults(instrument.kind, "EOT", instrument.name),
     });
     if (fs.length) refuse("Not recorded:", fs);
-    const matterId = await openMatter(c.tx, c.l, "EOT", who.person.id, who.person.name, c.now);
+    const matterId = await openMatter(c.tx, toAuditActor(actor), c.l, "EOT", who.person.id, who.person.name, c.now);
     const row = await c.tx.eotClaim.create({
       data: { organisationId: c.l.org.id, matterId, contractId: c.l.contract.id, scope, sectionRef: scope === "SECTION" ? sectionRef : null, groundClause: groundClause.trim(), cause: cause.trim(), programmeId: programme!.id, financialImpact, proposedDays, isWeather, pack: [] as unknown as Prisma.InputJsonValue, excludedByConditionId, personId: who.person.id, recordedAt: c.now },
     });
@@ -147,6 +151,7 @@ function readPack(data: FormData): PackAnswer[] {
 }
 
 export async function answerEotClaim(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const claimId = r.text("claimId", "Claim", { required: true });
@@ -159,7 +164,7 @@ export async function answerEotClaim(_prev: FormState, data: FormData): Promise<
   const personId = r.text("personId", "Recorded by", { required: true });
   const pack = readPack(data);
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "EOT", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const { m, claim } = await lockClaim(c, claimId);
     const who = await recordedFor(c, personId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const fs = answerFaults({ closed: m.closedAt ? { reason: m.closeReason } : null, determined: claim.entitlement != null, canComplete, estimatedCompletion: day(estimatedCompletion), actualDelayDays, earthworksDays });
@@ -180,6 +185,7 @@ export async function answerEotClaim(_prev: FormState, data: FormData): Promise<
 }
 
 export async function addEotReason(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const claimId = r.text("claimId", "Claim", { required: true });
@@ -191,7 +197,7 @@ export async function addEotReason(_prev: FormState, data: FormData): Promise<Fo
   const concurrency = r.choice("concurrency", "Concurrent or consecutive", CONCURRENCIES, { required: true });
   const group = r.optionalText("group");
   if (r.failed || !delayFrom || !delayUntil || extensionDays == null || !concurrency) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "EOT", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const { m, claim } = await lockClaim(c, claimId);
     const fs = reasonFaults({ closed: m.closedAt ? { reason: m.closeReason } : null, determined: claim.entitlement != null, clause, reason, delayFrom: storedDay(delayFrom), delayUntil: storedDay(delayUntil), extensionDays, concurrency, group });
     if (fs.length) refuse("Not recorded:", fs);
@@ -202,11 +208,12 @@ export async function addEotReason(_prev: FormState, data: FormData): Promise<Fo
 }
 
 export async function removeEotReason(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const reasonId = r.text("reasonId", "Reason", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "EOT", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const pre = await c.tx.eotReason.findFirst({ where: { id: reasonId, claim: { contractId: c.l.contract.id } }, select: { claimId: true } });
     if (!pre) return { ok: false, message: "That reason is not on this contract." };
     const { m, claim } = await lockClaim(c, pre.claimId);
@@ -220,6 +227,7 @@ export async function removeEotReason(_prev: FormState, data: FormData): Promise
 
 /// FR-EOT-002–005: the S.O.'s determination. Not entitled closes the claim and opens the damages decision.
 export async function determineEotClaim(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const claimId = r.text("claimId", "Claim", { required: true });
@@ -229,7 +237,7 @@ export async function determineEotClaim(_prev: FormState, data: FormData): Promi
   const overrideReason = r.text("exclusionOverrideReason", "Why the condition is overridden", { max: 2000 });
   const personId = r.text("personId", "Determined by (the S.O.)", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "EOT", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const { m, claim } = await lockClaim(c, claimId);
     const who = await recordedFor(c, personId, { soOnly: true }, c.today);
     const cond = claim.excludedByCondition;
@@ -256,19 +264,20 @@ export async function determineEotClaim(_prev: FormState, data: FormData): Promi
     await audit(c, "EotClaim", claim.id, claimLabel(c, m), "UPDATE", diffFields({ entitlement: null }, { entitlement: entitlement === "ENTITLED" ? "entitled" : "not entitled", why: reason.trim(), bestEndeavours: entitlement === "ENTITLED" ? bestEndeavours : null, conditionOverridden: exclusion && overrideReason.trim() ? `${exclusion.name}: ${overrideReason.trim()}` : null, determinedBy: who.person.name, recordedOnBehalf: ON_BEHALF }), exclusion ? overrideReason.trim() : "");
     // FR-EOT-002: a failed entitlement closes the EOT path (its matter) and opens the damages decision.
     const effect = determinationEffect({ entitlement: entitlement ?? null, reason });
-    if (effect.closeMatter) await closeMatter(c.tx, c.l, m, effect.closeMatter, c.now);
+    if (effect.closeMatter) await closeMatter(c.tx, toAuditActor(actor), c.l, m, effect.closeMatter, c.now);
     return { ok: true, message: effect.opensDamages ? "Determined not entitled: the claim is closed, and the damages decision may now be recorded (Payments › Damages)." : undefined };
   });
 }
 
 /// FR-EOT-007: send an entitled claim for approval, routed on the cause of its financial impact.
 export async function sendEotClaim(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const claimId = r.text("claimId", "Claim", { required: true });
   const personId = r.text("personId", "Sent by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inContract(idOf(data), now, "EOT", async (c) => {
+  return inContract(toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const { m, claim } = await lockClaim(c, claimId);
     const sender = await recordedFor(c, personId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const cond = eotCondOf(claim.financialImpact);

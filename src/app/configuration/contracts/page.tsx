@@ -18,6 +18,7 @@ import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 
 import { AddCopyRecipient, AddDocumentPart, EditContractPolicy, EditCopyRecipient, EditDocumentPart, RetireContractRow } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ const INSTRUMENTS = ["LETTER_OF_ACCEPTANCE", "WORK_INDENT"];
  * unset, and names it.
  */
 export default async function ContractControlsPage() {
+  await requireStaff();
   const org = await exerciseOrg();
   if (!org) {
     return (

@@ -22,6 +22,7 @@ import { FormReader } from "@/lib/validate";
 
 import { audit, exerciseIdOf, inWindow } from "../window/shared";
 import { evLabel, GONE_BIDDER, refuse } from "./shared";
+import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 /**
  * Table a two-stage tender's first-stage matter for one bidder (FR-EVL-005) at a sitting of the
@@ -31,6 +32,7 @@ import { evLabel, GONE_BIDDER, refuse } from "./shared";
  * matter carries no amount. Tabled on the Secretariat's holder's behalf, not signed.
  */
 export async function tableStageOneMatter(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
   const meetingId = r.text("meetingId", "Sitting", { required: true });
@@ -69,7 +71,7 @@ export async function tableStageOneMatter(_prev: FormState, data: FormData): Pro
     const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     // The committee decides the first stage itself: its decision is the act.
     const m = await tx.committeeDecision.create({ data: { meetingId: s.meeting.id, subject, domain: EVALUATION_STAGE_DOMAIN, matterKind: "EVALUATION_STAGE", matterRef: l.ex.reference, evaluationBidderId: b.id, act: "A", tabledByPersonId, tabledAt: dayToDate(s.today!), sequence } });
-    await audit(tx, l.org.id, "CommitteeDecision", m.id, evLabel(l, e!.version, subject), "CREATE", diffFields(null, { matter: subject, bid: `No. ${b.listingNo}`, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s.today!), recordedOnBehalf: "yes" }));
+    await audit(tx, toAuditActor(actor), l.org.id, "CommitteeDecision", m.id, evLabel(l, e!.version, subject), "CREATE", diffFields(null, { matter: subject, bid: `No. ${b.listingNo}`, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s.today!), recordedOnBehalf: "yes" }));
     return { ok: true, message: `Tabled at ${s.meeting.reference}. The committee decides it there.` };
   });
   if (result.ok) {

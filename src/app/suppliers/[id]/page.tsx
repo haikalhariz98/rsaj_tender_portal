@@ -65,6 +65,7 @@ import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 
 import { EligibilityPanel, ParticipationPanel, StandingPanel } from "./standing-panels";
 import { ContactDrawer, DecideStepDrawer, LodgeDocumentDrawer, OpenApplicationDrawer, PaperDaysDrawer, RecordLapseDrawer, RejectApplicationDrawer, ResubmissionDrawer, SubmitApplicationDrawer, VendorCodeDrawer, VerifyDocumentDrawer } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +80,7 @@ const first = (fs: readonly Finding[]) => (blocking(fs).length ? supplierFaultTe
  * would refuse is said beside the act's button, from the same rule the act runs.
  */
 export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) {
+  await requireStaff();
   const [{ id }, { tab, exercise, fromAward }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; exercise?: string; fromAward?: string }>]);
   const l = await loadSupplier(id);
   if (!l) notFound();
@@ -501,7 +503,7 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
       <CardHeader
         icon={<ClockIcon size={17} />}
         title="History"
-        subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this supplier and what is under it. "}Nobody is signed in, so no change is attributed. A contact's details read with the SULIT chip and are withheld from the audit export.`}
+        subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this supplier and what is under it. "}Each change names who made it; any from before sign-in is not attributed. A contact's details read with the SULIT chip and are withheld from the audit export.`}
         divided={entries.length === 0}
       />
       {entries.length === 0 ? (

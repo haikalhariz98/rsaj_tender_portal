@@ -21,6 +21,7 @@ import {
   EditNotApprovedOutcome,
   RetireNotApprovedOutcome,
 } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ const ACTION_TONE: Record<string, Tone> = {
 };
 
 export default async function CommitteesPage() {
+  await requireStaff();
   const [committees, outcomes, roster] = await Promise.all([
     listCommittees(),
     listNotApprovedOutcomes(),

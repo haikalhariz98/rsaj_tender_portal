@@ -8,6 +8,7 @@ import { formatDate } from "@/lib/format";
 import { STATUS_LABEL, STATUS_ORDER, STATUS_TONE } from "@/lib/requisition/labels";
 import { listRequisitions, REQUISITIONS_PAGE } from "@/lib/requisition/repo";
 import { SENT_BACK_LABEL } from "@/lib/requisition/sent-back";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ const TONE = { neutral: undefined, brand: "brand", ok: "ok", warn: "warn", err: 
  * Work rather than Sourcing: a supervision-only requisition never becomes sourcing.
  */
 export default async function RequisitionsPage() {
+  await requireStaff();
   const { org, rows, total, counts } = await listRequisitions();
 
   const list: Row[] = rows.map((r) => {

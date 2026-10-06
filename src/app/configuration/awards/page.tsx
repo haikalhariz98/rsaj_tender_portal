@@ -23,6 +23,7 @@ import { bandSetFaults } from "@/lib/securities/liability";
 
 import { EditErpFormat } from "../requisitions/editors";
 import { AddBand, AddConditionKind, AddIssuer, AddRecipient, AddRequirement, AddVariant, EditAwardPolicy, EditBand, EditConditionKind, EditIssuer, EditRecipient, EditRequirement, EditVariant, RetireRow } from "./editors";
+import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,7 @@ function Section({ title, subtitle, icon, count, action, empty, children }: { ti
  * insurance requirements, liability bands and approved issuers. Everything ships unset.
  */
 export default async function AwardControlsPage() {
+  await requireStaff();
   const org = await exerciseOrg();
   if (!org) {
     return (

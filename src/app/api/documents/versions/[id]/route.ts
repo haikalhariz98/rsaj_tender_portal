@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { staffRoute } from "@/app/_auth/route";
 
 import { dispositionFilename, downloadDecision, EXTENSION_FOR } from "@/lib/documents/access";
 import { DOWNLOAD_REFUSAL_TEXT } from "@/lib/documents/labels";
@@ -18,6 +19,8 @@ import { blobStore, sha256Hex } from "@/lib/documents/store";
  * still served: it is withdrawn, not deleted, and the drawer lists it as withdrawn.
  */
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/documents/versions/[id]">) {
+  const guard = await staffRoute();
+  if (!guard.ok) return guard.response;
   // Before anything is read or logged: a download another site started writes nothing (audit C-2).
   if (downloadRequestFault(req.headers.get("sec-fetch-site"))) return plain(403, "This file is opened from the portal's own pages. Open the portal and download it from there.");
   // The cap on downloads in flight (audit C-1): each holds a whole file in memory. Over it,

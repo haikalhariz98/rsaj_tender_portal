@@ -481,7 +481,7 @@ function AccessEvents({ d }: { d: DrawerView }) {
           {e.reason && <span className="text-ink-3">{e.reason}</span>}
         </li>
       ))}
-      <li className="px-5 py-3 text-[12.5px] text-ink-3">Nobody is signed in, so these do not say who.</li>
+      <li className="px-5 py-3 text-[12.5px] text-ink-3">These events do not say who yet: reads and downloads carry no actor until access to documents is governed by who is signed in.</li>
     </ul>
   );
 }
@@ -509,7 +509,7 @@ function History({ d }: { d: DrawerView }) {
           {e.reason && <span className="text-[12.5px] text-ink-3">Reason: {e.reason}</span>}
         </li>
       ))}
-      <li className="px-5 py-3 text-[12.5px] text-ink-3">Nobody is signed in, so no change is attributed.</li>
+      <li className="px-5 py-3 text-[12.5px] text-ink-3">Each change names who made it; any from before sign-in is not attributed.</li>
     </ul>
   );
 }
