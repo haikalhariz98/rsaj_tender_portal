@@ -108,3 +108,13 @@ describe("breadcrumbs on every page (6.14 residual)", () => {
     expect(labels(trail("/configuration/evaluation/m1", "Two-envelope model"))).toEqual(["Configuration", "Evaluation models", "Two-envelope model"]);
   });
 });
+
+describe("breadcrumbs of the public portal's opportunity pages", () => {
+  it("the board, then an opportunity named by its reference (Opportunity before the page names it)", () => {
+    expect(labels(trail("/supplier/opportunities", null))).toEqual(["Supplier portal", "Opportunities"]);
+    const c = trail("/supplier/opportunities/demo_sx18", "DEMO/SX/0018/2026");
+    expect(labels(c)).toEqual(["Supplier portal", "Opportunities", "DEMO/SX/0018/2026"]);
+    expect(labels(trail("/supplier/opportunities/demo_sx18", null))).toEqual(["Supplier portal", "Opportunities", "Opportunity"]);
+    for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
+  });
+});

@@ -106,6 +106,9 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   "prisma/demo-bids.ts": "reads the closings the demo's receipts, box and extension are judged against; writes nothing",
   // 6.15a (listed, flagged): the register's window check reads the closing's day (FR-VND-009).
   "src/lib/suppliers/standing-repo.ts": "selects the exercise's closing for the register's window check; writes nothing",
+  // The public portal (founder, 2026-10-06): the opportunities page reads the closing to say when an advertised exercise closes.
+  "src/lib/portal/select.ts": "selects the exercise's closing for the public opportunity pages; writes nothing",
+  "src/lib/portal/public.ts": "states the closing in the organisation's time and judges open or closed from it; writes nothing",
 };
 
 describe("X-2: the closing is written nowhere else, by any route (carry a)", () => {

@@ -68,6 +68,8 @@ const RECORD_LABEL: Record<string, string> = {
   templates: "Template",
   "routing-sheets": "Routing sheet type",
   sourcing: "Exercise",
+  // The public portal: an advertised opportunity; the page names it by its reference (RecordCrumb).
+  opportunities: "Opportunity",
   evaluation: "Evaluation model",
   label: "Sale label",
 };
