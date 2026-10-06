@@ -1,0 +1,2 @@
+-- CreateEnum
+CREATE TYPE "AccountStatus" AS ENUM ('ACTIVE', 'DISABLED', 'PENDING_ACTIVATION');

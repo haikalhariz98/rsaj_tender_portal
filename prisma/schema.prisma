@@ -196,6 +196,11 @@ model Organisation {
   contractTypes   ContractType[]
   orgUnits        OrgUnit[]
   auditEntries    AuditEntry[]
+  staffAccounts   StaffAccount[]
+  staffSessions   StaffSession[]
+  oneTimeCodes    OneTimeCode[]
+  securityPolicy  SecurityPolicy?
+  signInEvents    SignInEvent[]
   costCentres     CostCentre[]
   accountCodes    AccountCode[]
   sites             Site[]
@@ -483,6 +488,8 @@ model Person {
   meetingAttendance MeetingAttendance[]
   votes             Vote[]
   auditEntries      AuditEntry[]
+  staffAccount      StaffAccount?
+  codesIssued       OneTimeCode[] @relation("CodeIssuedBy")
   delegationsGiven  Delegation[] @relation("DelegationFrom")
   delegationsTaken  Delegation[] @relation("DelegationTo")
   mattersTabled     CommitteeDecision[] @relation("TabledBy")
@@ -1618,6 +1625,20 @@ model AuditEntry {
   actorPerson   Person? @relation(fields: [actorPersonId], references: [id], onDelete: Restrict)
   /// True where no sign-in existed to attribute the change to.
   unattributed Boolean @default(true)
+
+  /// Who acted (ADR 0034 D11). Null on every row written before sign-in, and exactly then: the CHECK
+  /// AuditEntry_actor_matches_kind holds `actorKind IS NULL` to mean `unattributed`, and holds exactly one
+  /// actor reference to match the kind. No foreign key on the supplier account or the session: the trail
+  /// has to outlive them, and the supplier tables arrive in Phase 4.
+  actorKind              ActorKind?
+  actorSupplierAccountId String?
+  /// For a SYSTEM actor: what ran, in words ("bootstrap command", "demo loader").
+  actorSystemLabel       String?
+  actorSessionId         String?
+  /// The offices the actor held when they acted: [{ roleCode, scope }].
+  actorOffices           Json?
+  /// Where the request came from, where one is known.
+  sourceAddress          String?
 
   at DateTime @default(now())
 
@@ -10667,4 +10688,238 @@ model SumAdjustmentLine {
   sortOrder              Int
 
   @@index([sumAdjustmentId])
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Sign-in (ADR 0034). Person stays identity; an account is the way a person signs in. Accounts and sessions are never
+// deleted, only disabled and revoked.
+// ---------------------------------------------------------------------------------------------------------------------
+
+/// Who or what acts (ADR 0034 D11): a staff account, a supplier account, or the system (a command or a loader, always labelled).
+enum ActorKind {
+  STAFF
+  SUPPLIER
+  SYSTEM
+}
+
+/// ACTIVE may sign in. PENDING_ACTIVATION is waiting for its one-time code. DISABLED is never deleted.
+enum AccountStatus {
+  ACTIVE
+  DISABLED
+  PENDING_ACTIVATION
+}
+
+/// Why a session ended. A session is revoked, never deleted.
+enum SessionRevokeReason {
+  SIGNED_OUT
+  SIGNED_OUT_EVERYWHERE
+  IDLE
+  ABSOLUTE
+  PASSWORD_CHANGED
+  CODE_USED
+  CONCURRENT_LIMIT
+  ACCOUNT_DISABLED
+  ACCOUNT_CHANGED
+  REPLACED
+  ADMINISTRATOR
+}
+
+/// What a one-time code is for. It is handed over by hand; the system never sends it.
+enum CodePurpose {
+  ACTIVATION
+  RESET
+}
+
+/// One row of the sign-in log per event (ADR 0034 D16).
+enum SignInEventKind {
+  SIGNED_IN
+  FAILED
+  LOCKED_OUT
+  THROTTLED
+  SESSION_LIMIT
+  SIGNED_OUT
+  IDLE_EXPIRED
+  ABSOLUTE_EXPIRED
+  REVOKED
+  PASSWORD_CHANGED
+  CODE_ISSUED
+  CODE_USED
+  STEP_UP_OK
+  STEP_UP_FAILED
+  ACCOUNT_CREATED
+  ACCOUNT_DISABLED
+  UNLOCKED
+}
+
+/// What happens when an account is already at its concurrent-session limit. The customer's choice: unset is null.
+enum ConcurrentSessionAction {
+  REVOKE_OLDEST
+  REFUSE_NEW
+}
+
+/// Whether a decision taken on paper may be recorded by someone else on the decider's behalf. The customer's choice: unset is null.
+enum PaperSignatureRecording {
+  ALLOWED
+  REFUSED
+}
+
+/// A staff member's way in: one per Person, bound for good once made. The password is held only as a hash
+/// (scrypt, PHC format, parameters in the string). Its CHECKs (hand-appended in the migration) keep the sign-in key
+/// the lower-cased name and a disabled account dated.
+model StaffAccount {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  personId String @unique
+  person   Person @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  /// As the person types it, for display; `loginKey` is the same lower-cased and is what is compared and unique.
+  loginName String
+  loginKey  String @unique
+
+  passwordHash      String
+  passwordChangedAt DateTime
+  /// Set where the next sign-in must be followed by choosing a new password.
+  mustChangePassword Boolean @default(false)
+  /// Administration is kept apart from every transactional capability (NFR-SEC-004, Phase 2a).
+  isAdministrator    Boolean @default(false)
+  status             AccountStatus
+
+  /// Counted in the database so every instance shares it. Reset by a good sign-in and when a lock ends.
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  lastSignInAt   DateTime?
+  disabledAt     DateTime?
+  disabledReason String    @default("")
+  /// A reset was done to this account: said once, at the next sign-in, until acknowledged.
+  resetNoticePending Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions StaffSession[]
+  codes    OneTimeCode[]
+  events   SignInEvent[]
+
+  @@index([organisationId])
+}
+
+/// A signed-in browser. Only the SHA-256 of its 256-bit token is stored; the cookie carries the token. There is no
+/// `assurance` column: a later second factor attaches at the password re-entry step, not here.
+model StaffSession {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  accountId      String
+  account        StaffAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  tokenHash String @unique
+
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime
+  /// Fixed when the session is made and never extended.
+  absoluteExpiresAt DateTime
+  /// When the password was last re-entered in this session (Phase 2 reads it).
+  stepUpAt DateTime?
+
+  /// Ordinary editable columns, under the sign-in-detail retention setting (ADR 0034 D16).
+  sourceAddress String?
+  userAgent     String  @default("")
+
+  revokedAt     DateTime?
+  revokedReason SessionRevokeReason?
+
+  @@index([accountId, revokedAt])
+}
+
+/// One-time code to activate an account or reset its password. 128 random bits, shown once, held as SHA-256. Handed
+/// over by an officer who says how identity was checked. The supplier account has no foreign key until Phase 4.
+model OneTimeCode {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  store             ActorKind
+  staffAccountId    String?
+  staffAccount      StaffAccount? @relation(fields: [staffAccountId], references: [id], onDelete: Restrict)
+  supplierAccountId String?
+
+  purpose   CodePurpose
+  codeHash  String      @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  issuedByPersonId String
+  issuedBy         Person @relation("CodeIssuedBy", fields: [issuedByPersonId], references: [id], onDelete: Restrict)
+  /// Why it was issued, and (for a supplier) how the caller's identity was checked outside the system.
+  reason        String
+  identityCheck String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@index([staffAccountId])
+}
+
+/// How long and how many, per organisation: every column nullable, with a CHECK range and no default. Unset means
+/// sign-in refuses and says which setting is unset. Ranges are validity bounds, not policy.
+model SecurityPolicy {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  staffIdleMinutes         Int?
+  staffAbsoluteMinutes     Int?
+  supplierIdleMinutes      Int?
+  supplierAbsoluteMinutes  Int?
+  maxConcurrentSessions    Int?
+  concurrentSessionAction  ConcurrentSessionAction?
+  maxFailedAttempts        Int?
+  lockoutMinutes           Int?
+  addressThrottleAttempts  Int?
+  addressThrottleMinutes   Int?
+  /// At least 8 (NIST SP 800-63B), at most 256.
+  passwordMinLength        Int?
+  resetCodeValidityMinutes Int?
+  paperSignatureRecording  PaperSignatureRecording?
+  /// O-1: how long the source address and user agent of a sign-in event are kept before the operator may purge them.
+  /// At least the address-throttle window, or the throttle would lose its own evidence. Unset: they are kept.
+  signInDetailRetentionDays Int?
+
+  updatedAt DateTime @updatedAt
+}
+
+/// The permanent sign-in log: append-only (its refusal trigger lands in Phase 1d, with no bypass). It holds no
+/// personal data beyond which account: the address and user agent are in SignInEventDetail (O-1). The supplier
+/// account has no foreign key until Phase 4.
+model SignInEvent {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  store             ActorKind
+  /// The account the attempt was matched to, if any. An unknown name matches none.
+  staffAccountId    String?
+  staffAccount      StaffAccount? @relation(fields: [staffAccountId], references: [id], onDelete: Restrict)
+  supplierAccountId String?
+  kind              SignInEventKind
+  at                DateTime        @default(now())
+
+  detail SignInEventDetail?
+
+  @@index([staffAccountId, at])
+  @@index([kind, at])
+  @@index([organisationId, at])
+}
+
+/// The source address and user agent of a sign-in event, kept apart so the permanent row holds neither (O-1). Its
+/// trigger (Phase 1d) refuses every UPDATE, and refuses a DELETE unless the row is older than the organisation's
+/// retention setting, and always while that is unset; no database login is exempt.
+model SignInEventDetail {
+  eventId String      @id
+  event   SignInEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  sourceAddress String?
+  userAgent     String  @default("")
+
+  @@index([sourceAddress])
 }
