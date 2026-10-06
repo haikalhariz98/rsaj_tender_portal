@@ -5,6 +5,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { lockOrganisation } from "@/lib/authority/locks";
 import { db } from "@/lib/db";
+import { formatOrgDateTime } from "@/lib/format";
 
 import { auditActorOfStaff } from "./audit-actor";
 import { createAccountFaults, disableFaults, enableFaults, issueCodeFaults, lastAdministrator, officeHolderNotice, unlockFaults } from "./administration-rules";
@@ -262,7 +263,7 @@ export async function issueCode(
       },
       "UPDATE",
       [
-        { field: "oneTimeCode", before: voided.count > 0 ? `${voided.count} open, voided` : null, after: `${input.purpose === "ACTIVATION" ? "activation" : "reset"} code issued, valid until ${expiresAt.toISOString()}` },
+        { field: "oneTimeCode", before: voided.count > 0 ? `${voided.count} open, voided` : null, after: `${input.purpose === "ACTIVATION" ? "activation" : "reset"} code issued, valid until ${formatOrgDateTime(expiresAt, actor.organisationTimeZone)}` },
       ],
     );
     await recordSignInEvent(tx, { organisationId: actor.organisationId, staffAccountId: target!.id, kind: "CODE_ISSUED", request, at: now });

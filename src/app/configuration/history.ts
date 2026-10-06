@@ -20,6 +20,7 @@ import { ORGANISATION_CODE } from "@/lib/org";
 import { ACT_LABEL } from "@/lib/labels";
 import { formatOrgDateTime } from "@/lib/format";
 import { requireStaff } from "@/app/_auth/actor";
+import { ACCOUNT_STATUS_WORDS } from "@/lib/auth/words";
 
 /// The entities whose history a screen may ask for. Anything else is refused rather
 /// than read, so the action cannot be used to page through the whole trail.
@@ -141,7 +142,7 @@ const ENTITY_VALUE_LABEL: Record<string, Record<string, Record<string, string>>>
   FinanceIntegration: { budgetCheckSource: SOURCE_LABEL },
   DocumentClass: { classification: CLASSIFICATION_LABEL, retentionTrigger: RETENTION_TRIGGER_LABEL, disposalMethod: DISPOSAL_METHOD_LABEL },
   SourcingMethod: { scopeAct: ACT_LABEL },
-  StaffAccount: { status: { ACTIVE: "Active", PENDING_ACTIVATION: "Waiting for activation", DISABLED: "Disabled" } },
+  StaffAccount: { status: ACCOUNT_STATUS_WORDS },
 };
 /// Yes or No where a stored flag is a boolean.
 const FLAG_FIELDS = new Set(["requiresCompanyEstimate", "requiresBq", "scopeApprovalRequired", "completenessEliminates"]);

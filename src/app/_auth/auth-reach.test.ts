@@ -61,9 +61,13 @@ const firstAwait = (body: string): string | null => {
   const at = body.search(/\bawait\b/);
   return at < 0 ? null : body.slice(at, at + 80);
 };
+/// Nothing is started before the guard: between the opening brace and the first await there is at most a declaration of what the guard's answer is kept in
+/// (and, for an account action that answers a form, the `try {` it is asked inside). A read started and not awaited is still a read before it.
+const BEFORE_GUARD = /^\{\s*(?:let \w+;\s*try \{\s*)?(?:(?:const|let)\s+\w+\s*=\s*|\w+\s*=\s*)?$/;
 const asksFirst = (e: Entry) => {
   const first = firstAwait(e.body);
-  return first != null && GUARDS.some((g) => new RegExp(String.raw`^await\s+${g.replace("(", "\\(")}`).test(first));
+  if (first == null || !GUARDS.some((g) => new RegExp(String.raw`^await\s+${g.replace("(", "\\(")}`).test(first))) return false;
+  return BEFORE_GUARD.test(e.body.slice(0, e.body.search(/\bawait\b/)).trim());
 };
 
 const ACTION_FILES = FILES.filter((f) => isServerModule(f.src) && !publicEntry(f.file));
@@ -86,7 +90,9 @@ describe("the scan finds what it should", () => {
     const late = exportsOf("a.ts", 'export async function save(a) {\n  const x = await read();\n  const actor = await requireStaff();\n}');
     const none = exportsOf("a.ts", "export async function save(a) {\n  return 1;\n}");
     const inString = exportsOf("a.ts", 'export async function save(a) {\n  const s = "await requireStaff()";\n  await read();\n}');
-    expect([guarded, late, none, inString].map((e) => asksFirst(e[0]))).toEqual([true, false, false, false]);
+    const started = exportsOf("a.ts", "export async function save(a) {\n  const pending = read();\n  const actor = await requireStaff();\n}");
+    const tried = exportsOf("a.ts", 'export async function save(a) {\n  let actor;\n  try {\n    actor = await requireStaff({ on: "throw" });\n  } catch (e) {\n    return 1;\n  }\n}');
+    expect([guarded, late, none, inString, started, tried].map((e) => asksFirst(e[0]))).toEqual([true, false, false, false, false, true]);
   });
 });
 

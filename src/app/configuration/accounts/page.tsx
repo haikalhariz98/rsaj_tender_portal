@@ -7,6 +7,7 @@ import { HistoryButton } from "@/components/history-drawer";
 import { officeHolderNotice } from "@/lib/auth/administration-rules";
 import { loadAccountsView, type AccountRow } from "@/lib/auth/administration-view";
 import { settingLabels } from "@/lib/auth/policy";
+import { ACCOUNT_STATUS_WORDS } from "@/lib/auth/words";
 import { formatOrgDateTime } from "@/lib/format";
 
 import { Section, Stat, Stats } from "../records-ui";
@@ -14,7 +15,6 @@ import { CreateAccount, DisableAccount, EnableAccount, IssueCode, UnlockAccount 
 
 export const dynamic = "force-dynamic";
 
-const STATUS_WORDS = { ACTIVE: "Active", PENDING_ACTIVATION: "Waiting for activation", DISABLED: "Disabled" } as const;
 const STATUS_TONE = { ACTIVE: "ok", PENDING_ACTIVATION: "warn", DISABLED: "err" } as const;
 
 /**
@@ -102,7 +102,7 @@ export default async function AccountsPage() {
                 </Td>
                 <Td label="Standing">
                   <div className="flex flex-col items-start gap-1">
-                    <Badge tone={STATUS_TONE[r.status]}>{STATUS_WORDS[r.status]}</Badge>
+                    <Badge tone={STATUS_TONE[r.status]}>{ACCOUNT_STATUS_WORDS[r.status]}</Badge>
                     {r.lockedUntil && r.lockedUntil > now && <Badge tone="warn">Locked until {formatOrgDateTime(r.lockedUntil, zone)}</Badge>}
                     {r.openCode && <span className="text-[12.5px] text-ink-3">{r.openCode.purpose === "ACTIVATION" ? "Activation" : "Reset"} code valid until {formatOrgDateTime(r.openCode.expiresAt, zone)}</span>}
                     {r.status === "DISABLED" && r.disabledReason && <span className="text-[12.5px] text-ink-3">{r.disabledReason}</span>}

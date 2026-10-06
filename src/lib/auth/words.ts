@@ -53,3 +53,6 @@ export const AUTH_WORDS = {
     ms: "Alamat sumber tidak direkodkan: salinan ini belum diberitahu bilangan proksi di hadapannya, jadi alamat permintaan tidak boleh dipercayai. Had log masuk gagal dari satu alamat itu tidak dikenakan, dan hanya kunci pada setiap akaun yang menyekat tekaan, sehingga ia ditetapkan.",
   },
 } as const satisfies Record<string, Words>;
+
+/// A sign-in account's standing, in words, wherever it is shown: the accounts screen, History and the audit export. A code never reaches a screen.
+export const ACCOUNT_STATUS_WORDS: Readonly<Record<string, string>> = { ACTIVE: "Active", PENDING_ACTIVATION: "Waiting for activation", DISABLED: "Disabled" };

@@ -122,3 +122,15 @@ describe("no audit writer builds a label or a value from a code (the scan)", () 
     expect(codeWords("x.ts", T("// audit(c, \"X\", id, `«kind.toLowerCase()}`)\nconst s = 1;"))).toEqual([]);
   });
 });
+
+describe("a sign-in account's trail reads in words (Phase 1b)", () => {
+  it("its standing is never a code, in History's values or the export's", () => {
+    expect(historyValueWords("StaffAccount", "status", "PENDING_ACTIVATION")).toBe("Waiting for activation");
+    expect(historyValueWords("StaffAccount", "status", "DISABLED")).toBe("Disabled");
+    expect(historyValueWords("StaffAccount", "status", "ACTIVE")).toBe("Active");
+    // What is not its standing, or not its trail, is as stored.
+    expect(historyValueWords("StaffAccount", "loginName", "ahmad.z")).toBe("ahmad.z");
+    expect(historyValueWords("Requisition", "status", "DISABLED")).toBe("DISABLED");
+    expect(historyValueWords("StaffAccount", "status", null)).toBeNull();
+  });
+});
