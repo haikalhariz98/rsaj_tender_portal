@@ -17,7 +17,7 @@ import { choiceFault, rejectionOutcome, rejectionSnapshot, REJECTION_KINDS, type
 import { CHOICE_FAULT_TEXT } from "@/lib/authority/rejection-labels";
 import { auditCreate, auditPair } from "@/lib/method/audit-view";
 import { determinationDrift } from "@/lib/method/drift";
-import { DETAILS_FAULT_TEXT, detailsFault, WORK_CODE_MAX, workCodeOf } from "@/lib/method/details";
+import { DETAILS_FAULT_TEXT, detailsFault, personInChargeTrail, WORK_CODE_MAX, workCodeOf } from "@/lib/method/details";
 import { keptForMethod, nameRoutesToWithdraw } from "@/lib/method/config";
 import { remainingOf } from "@/lib/method/value";
 import { evaluateExercise, saveBlockers, type Evaluation, type ExerciseDraft } from "@/lib/method/evaluate";
@@ -816,7 +816,8 @@ export async function saveExerciseDetails(_prev: FormState, data: FormData): Pro
   if (r.failed) return { ok: false, errors: r.errors };
   return inExercise(id, async (tx, l) => {
     const ex = l.ex;
-    const stop = detailsFault(ex);
+    const awards = await tx.award.findMany({ where: { exerciseId: ex.id }, select: { status: true } });
+    const stop = detailsFault({ status: ex.status, awards });
     if (stop) return { ok: false, message: DETAILS_FAULT_TEXT[stop] };
     let person: { id: string; name: string } | null = null;
     if (personId && personId === ex.personInChargeId && ex.personInCharge) person = ex.personInCharge;
@@ -824,8 +825,10 @@ export async function saveExerciseDetails(_prev: FormState, data: FormData): Pro
       person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
       if (!person) return { ok: false, errors: { personInChargeId: "Choose someone on record and active." } };
     }
-    const before = { personInCharge: ex.personInCharge?.name ?? null, workCode: ex.workCode };
-    const after = { personInCharge: person?.name ?? null, workCode };
+    // Two people may share a name: a change between them must still leave a visible difference in History.
+    const trail = personInChargeTrail(ex.personInCharge ?? null, person);
+    const before = { personInCharge: trail.before, workCode: ex.workCode };
+    const after = { personInCharge: trail.after, workCode };
     if ((person?.id ?? null) === ex.personInChargeId && workCode === ex.workCode) return { ok: true };
     await tx.sourcingExercise.update({ where: { id: ex.id }, data: { personInChargeId: person?.id ?? null, workCode } });
     await audit(tx, l.org.id, "SourcingExercise", ex.id, labelOf(ex), "UPDATE", diffFields(before, after));

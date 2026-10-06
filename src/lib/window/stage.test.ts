@@ -17,6 +17,12 @@ describe("the Invitation tab's stage", () => {
     for (const s of EXERCISE_STATUSES) if (!["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING"].includes(s)) expect(invitationStage(s), s).toBe("live");
   });
 
+  it("an exercise with no pack has no window to prepare, before it is published", () => {
+    for (const s of ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING"]) expect(invitationStage(s, true), s).toBe("no_window");
+    expect(invitationStage("CANCELLED", true)).toBe("live");
+    expect(invitationStage("DOCUMENTS_IN_PREPARATION", false)).toBe("preparing");
+  });
+
   it("the preparation view is offered only where the server lets the window be written, and a draft only where it does not", () => {
     for (const s of EXERCISE_STATUSES) {
       const stage = invitationStage(s);

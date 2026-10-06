@@ -89,7 +89,7 @@ import { exerciseMatters } from "@/lib/award/repo";
 import { RouteSteps } from "./route-steps";
 import { tenderingRouteLabel, trailLabel } from "@/lib/tender-docs/labels";
 import { tenderingStepperSteps } from "@/lib/tender-docs/route-flow";
-import { DETAILS_FAULT_TEXT, detailsFault } from "@/lib/method/details";
+import { DETAILS_LOCKED_TEXT, detailsFault } from "@/lib/method/details";
 import { exerciseFlow, flowShape } from "@/lib/method/lifecycle";
 import { loadOverviewReads } from "@/lib/method/overview-read";
 import { activeTabOf } from "@/lib/method/overview-tab";
@@ -226,9 +226,13 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     const g = await loadEvaluationGate(ex.id);
     return g.gate.applies ? evaluationFindings({ facts: g.gate, awardeePartyId: null }).map(awardFindingText) : [];
   })() : [];
+  // Founder, 2026-10-05: the Overview, read only while it is the tab being looked at (its own reads: the
+  // tender conditions, the pack's proposed dates, the window's briefings and the organisation's closing time).
+  const overviewPack = draft ? (method?.documentPackKind ?? null) : ex.packKindSnapshot;
+  const noPack = flowShape(ex.status, overviewPack, !!ex.preparedAt) === "NO_PACK";
   const inv =
     tab === "invitation"
-      ? await loadInvitation(invitationSectionOf(section), { exerciseId: ex.id, reference: ex.reference, status: ex.status, today, timeZone: org.timeZone, routes: latestFirst(windowChangeRoutesOf(ex.approvalInstances)), people: activePeople, suggestions })
+      ? await loadInvitation(invitationSectionOf(section), { exerciseId: ex.id, reference: ex.reference, status: ex.status, noPack, today, timeZone: org.timeZone, routes: latestFirst(windowChangeRoutesOf(ex.approvalInstances)), people: activePeople, suggestions })
       : null;
 
   // Asked in draft or in preparation, and again after a refusal or withdrawal (ruling on BD-4).
@@ -343,14 +347,11 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   );
 
   const restricted = ex.restricted;
-  // Founder, 2026-10-05: the Overview, read only while it is the tab being looked at (its own reads: the
-  // tender conditions, the pack's proposed dates, the window's briefings and the organisation's closing time).
-  const overviewPack = draft ? (method?.documentPackKind ?? null) : ex.packKindSnapshot;
   // Only the scope tab's own strip is drawn from this, so it is read only while that tab is the one looked at.
   const scopeSections = tab === "scope" ? visibleScopeSections(await scopeSectionFacts(ex.id)) : ALL_SCOPE_SECTIONS;
   const scopeSection = scopeSectionOf(section, scopeSections);
-  const overview = tab === "overview" ? await loadOverviewReads(ex, ex.closingAt, org, flowShape(ex.status, overviewPack, !!ex.preparedAt) !== "NO_PACK") : null;
-  const detailsRefused = detailsFault(ex);
+  const overview = tab === "overview" ? await loadOverviewReads(ex, ex.closingAt, org, { kind: overviewPack, noPack }) : null;
+  const detailsRefused = detailsFault({ status: ex.status, awards });
   const tenderingRoute = latestFirst(tenderingRoutesOf(ex.approvalInstances))[0] ?? null;
   const cancelledEntry = ex.status === "CANCELLED" ? history.entries.find((e) => e.entity === "SourcingExercise" && e.changes.some((c) => c.field === "status" && c.after === "CANCELLED")) : null;
   const tabs = [
@@ -369,13 +370,15 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
               packKind: overviewPack,
               path: overview.windowPath ?? windowPathOf(method),
               windowPhase: windowGateNow.phase,
-              routes: ex.approvalInstances,
+              routes: tenderingRoutesOf(ex.approvalInstances),
               awards,
               on: {
                 prepared: ex.preparedAt ? formatOrgDay(ex.preparedAt, org.timeZone) : null,
                 approvedForTendering: ex.approvedForTenderingAt ? formatOrgDay(ex.approvedForTenderingAt, org.timeZone) : null,
                 published: overview.publishedAt ? formatOrgDay(overview.publishedAt, org.timeZone) : null,
                 closing: ex.closingAt ? formatOrgDateTime(ex.closingAt, org.timeZone) : null,
+                opened: overview.openedAt ? formatOrgDay(overview.openedAt, org.timeZone) : null,
+                reportIssued: overview.reportIssuedAt ? formatOrgDay(overview.reportIssuedAt, org.timeZone) : null,
                 cancelled: cancelledEntry ? formatOrgDay(cancelledEntry.at, org.timeZone) : null,
               },
             })}
@@ -401,7 +404,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             keyDates={overview.keyDates}
             // The person named now stays on the list even if since retired, so the drawer shows who it is.
             people={people.filter((x) => x.isActive || x.id === ex.personInChargeId).map((x) => ({ value: x.id, label: x.isActive ? x.name : `${x.name} (no longer active)` }))}
-            detailsBlocker={detailsRefused ? DETAILS_FAULT_TEXT[detailsRefused] : null}
+            detailsBlocker={detailsRefused ? DETAILS_LOCKED_TEXT[detailsRefused] : null}
           />
         ),
     },

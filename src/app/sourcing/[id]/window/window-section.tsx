@@ -50,6 +50,8 @@ export interface WindowContext {
   exerciseId: string;
   reference: string;
   status: string;
+  /// The exercise assembles no tender or quotation documents, so it has no window.
+  noPack: boolean;
   today: string | null;
   timeZone: string | null;
   /// The exercise's `window_change` routes, newest first.

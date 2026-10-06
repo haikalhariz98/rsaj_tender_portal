@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { dayToDate } from "@/lib/dates";
 
-import { CLOSING_NOT_GIVEN, keyDatesView, NO_EVENTS_TEXT, START_NOT_GIVEN, type KeyDatesInput } from "./key-dates";
+import { CLOSING_NOT_GIVEN, keyDatesView, NO_EVENTS_TEXT, NO_WINDOW_TEXT, START_NOT_GIVEN, type KeyDatesInput } from "./key-dates";
 
-const base: KeyDatesInput = { tenderingStartOn: null, closing: null, packs: [], defaultClosingTime: null, closingTimeProvenance: null, events: [], timeZone: "Asia/Kuala_Lumpur" };
+const base: KeyDatesInput = { tenderingStartOn: null, closing: null, packs: [], noPack: false, canSchedule: true, defaultClosingTime: null, closingTimeProvenance: null, events: [], timeZone: "Asia/Kuala_Lumpur" };
 // 06:30 UTC is 14:30 in Kuala Lumpur.
 const closing = new Date("2026-10-15T06:30:00.000Z");
 
@@ -16,18 +16,18 @@ describe("Key dates on the Overview (founder, 2026-10-05)", () => {
   });
 
   it("a proposal entered at submission reads as proposed, with its version, the closing on the organisation's clock", () => {
-    const v = keyDatesView({ ...base, packs: [{ versionNo: 2, proposedStartOn: dayToDate("2026-10-01"), proposedClosingAt: closing }] });
+    const v = keyDatesView({ ...base, packs: [{ versionNo: 2, status: "SUBMITTED", proposedStartOn: dayToDate("2026-10-01"), proposedClosingAt: closing }] });
     expect(v.start).toEqual({ state: "PROPOSED", label: "Proposed", text: "01 Oct 2026 · version 2" });
     expect(v.closing).toEqual({ state: "PROPOSED", label: "Proposed", text: "15 Oct 2026 · 14:30 · version 2" });
   });
 
   it("the newest version that has a proposal counts; a newer draft with none does not hide it", () => {
-    const v = keyDatesView({ ...base, packs: [{ versionNo: 3, proposedStartOn: null, proposedClosingAt: null }, { versionNo: 2, proposedStartOn: dayToDate("2026-10-01"), proposedClosingAt: closing }] });
+    const v = keyDatesView({ ...base, packs: [{ versionNo: 3, status: "SUBMITTED", proposedStartOn: null, proposedClosingAt: null }, { versionNo: 2, status: "SUBMITTED", proposedStartOn: dayToDate("2026-10-01"), proposedClosingAt: closing }] });
     expect(v.start.text).toBe("01 Oct 2026 · version 2");
   });
 
   it("the approved dates win over any proposal", () => {
-    const v = keyDatesView({ ...base, tenderingStartOn: dayToDate("2026-10-02"), closing, packs: [{ versionNo: 1, proposedStartOn: dayToDate("2026-10-01"), proposedClosingAt: new Date("2026-10-14T06:30:00.000Z") }] });
+    const v = keyDatesView({ ...base, tenderingStartOn: dayToDate("2026-10-02"), closing, packs: [{ versionNo: 1, status: "SUBMITTED", proposedStartOn: dayToDate("2026-10-01"), proposedClosingAt: new Date("2026-10-14T06:30:00.000Z") }] });
     expect(v.start).toEqual({ state: "APPROVED", label: "Approved", text: "02 Oct 2026" });
     expect(v.closing).toEqual({ state: "APPROVED", label: "Approved", text: "15 Oct 2026 · 14:30" });
   });
@@ -54,5 +54,23 @@ describe("Key dates on the Overview (founder, 2026-10-05)", () => {
     ]);
     expect(keyDatesView(base).events).toEqual([]);
     expect(NO_EVENTS_TEXT).toBe("None scheduled");
+  });
+
+  it("a returned version's proposal was refused, so a draft that follows it shows no proposal", () => {
+    const v = keyDatesView({ ...base, packs: [{ versionNo: 2, status: "DRAFT", proposedStartOn: null, proposedClosingAt: null }, { versionNo: 1, status: "RETURNED", proposedStartOn: dayToDate("2026-11-01"), proposedClosingAt: closing }] });
+    expect(v.start.state).toBe("NOT_GIVEN");
+    expect(v.closing.state).toBe("NOT_GIVEN");
+  });
+
+  it("an exercise that issues no documents has no window: dates are not applicable, with no briefing to schedule", () => {
+    const v = keyDatesView({ ...base, noPack: true, canSchedule: true, events: [] });
+    expect(v.start).toEqual({ state: "NOT_APPLICABLE", label: null, text: NO_WINDOW_TEXT });
+    expect(v.closing.state).toBe("NOT_APPLICABLE");
+    expect(v.canSchedule).toBe(false);
+  });
+
+  it("offers scheduling only where the server would allow it", () => {
+    expect(keyDatesView({ ...base, canSchedule: false }).canSchedule).toBe(false);
+    expect(keyDatesView(base).canSchedule).toBe(true);
   });
 });

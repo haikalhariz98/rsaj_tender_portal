@@ -52,11 +52,21 @@ export const invitationSectionsFor = (status: string) => (invitationStage(status
  */
 export async function loadInvitation(section: InvitationSectionId, c: WindowContext): Promise<InvitationView> {
   const none = { actions: null, notes: [] as [string, string][], cancel: null };
-  const stage = invitationStage(c.status);
+  const stage = invitationStage(c.status, c.noPack);
   if (stage === "preparing") {
     const [w, b] = await Promise.all([windowTab(c.exerciseId), briefingTab(c.exerciseId)]);
     if (!w || !b) return { ...none, panel: GONE };
     return { ...none, panel: <PreparingSection w={w} b={b} c={c} /> };
+  }
+  if (stage === "no_window") {
+    return {
+      ...none,
+      panel: (
+        <Card>
+          <EmptyState title="This exercise has no invitation window">This exercise assembles no tender or quotation documents, so there is nothing to advertise, invite or schedule.</EmptyState>
+        </Card>
+      ),
+    };
   }
   if (stage === "not_yet") {
     return {

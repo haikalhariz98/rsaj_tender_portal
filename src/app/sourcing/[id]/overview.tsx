@@ -632,38 +632,51 @@ function KeyDatesCard({ p }: { p: OverviewProps }) {
       <CardHeader icon={<ClipboardIcon size={17} />} title="Key dates & person in charge" subtitle="When tendering starts and closes, and who is looking after it." />
       <CardBody>
         <ul className="divide-y divide-line/70 rounded-2xl border border-line">
-          <Row title="Tendering starts" value={dateValue(k.start)} />
-          <Row title="Closing" value={dateValue(k.closing)}>
-            <span className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-3">
-              Organisation&apos;s usual closing time:{" "}
-              {k.cutoff.text ? (
-                <>
-                  <span className="text-ink-2">{k.cutoff.text}</span>
-                  <ProvenanceBadge value={k.cutoff.provenance} />
-                </>
-              ) : (
-                <>
-                  <Badge tone="warn">{CUTOFF_NOT_SET}</Badge>
-                  <Link href="/configuration/invitation">Set it under Invitation controls</Link>
-                </>
-              )}
-            </span>
-          </Row>
-          <Row title="Briefing and site visits">
-            {k.events.length === 0 ? (
-              <span className="text-[13px] text-ink-2">
-                {NO_EVENTS_TEXT}. <Link href={`/sourcing/${ex.id}?tab=invitation&section=briefing`}>Schedule one under Invitation, Briefing</Link>
-              </span>
-            ) : (
-              <ul className="flex flex-col gap-1 text-[13.5px] text-ink">
-                {k.events.map((e) => (
-                  <li key={e.id} className="break-words">
-                    {e.text}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Row>
+          {k.start.state === "NOT_APPLICABLE" ? (
+            <Row title="Tendering window" value={<span className="text-ink-3">{k.start.text}</span>}>
+              <span className="text-[12.5px] text-ink-3">This exercise issues no tender documents, so there is no start, closing or briefing to set.</span>
+            </Row>
+          ) : (
+            <>
+              <Row title="Tendering starts" value={dateValue(k.start)} />
+              <Row title="Closing" value={dateValue(k.closing)}>
+                <span className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-3">
+                  Organisation&apos;s usual closing time:{" "}
+                  {k.cutoff.text ? (
+                    <>
+                      <span className="text-ink-2">{k.cutoff.text}</span>
+                      <ProvenanceBadge value={k.cutoff.provenance} />
+                    </>
+                  ) : (
+                    <>
+                      <Badge tone="warn">{CUTOFF_NOT_SET}</Badge>
+                      <Link href="/configuration/invitation">Set it under Invitation controls</Link>
+                    </>
+                  )}
+                </span>
+              </Row>
+              <Row title="Briefing and site visits">
+                {k.events.length === 0 ? (
+                  <span className="text-[13px] text-ink-2">
+                    {NO_EVENTS_TEXT}
+                    {k.canSchedule && (
+                      <>
+                        . <Link href={`/sourcing/${ex.id}?tab=invitation&section=briefing`}>Schedule one under Invitation, Briefing</Link>
+                      </>
+                    )}
+                  </span>
+                ) : (
+                  <ul className="flex flex-col gap-1 text-[13.5px] text-ink">
+                    {k.events.map((e) => (
+                      <li key={e.id} className="break-words">
+                        {e.text}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Row>
+            </>
+          )}
           <Row
             title="Person in charge"
             value={pic ? <span className="break-words">{pic.isActive ? pic.name : `${pic.name} (no longer active)`}</span> : <Badge tone="warn">Not recorded</Badge>}

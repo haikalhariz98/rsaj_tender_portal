@@ -255,7 +255,8 @@ export function EditDetailsDrawer({ id, people, personInChargeId, workCode, bloc
   // Beside a value already recorded it changes it; beside "Not recorded" it adds one.
   const recorded = what === "work code" ? !!workCode : what === "person in charge" ? !!personInChargeId : true;
   const label = !what ? "Edit details" : recorded ? "Change" : "Add";
-  if (blocker) return <Blocked label={label} reason={blocker} />;
+  const ariaLabel = what ? `${recorded ? "Change" : "Add"} the ${what}` : undefined;
+  if (blocker) return <Blocked label={label} reason={blocker} ariaLabel={ariaLabel} />;
   return (
     <RecordEditor
       title="Edit details"
@@ -268,7 +269,7 @@ export function EditDetailsDrawer({ id, people, personInChargeId, workCode, bloc
       values={{ id, personInChargeId: personInChargeId ?? "", workCode: workCode ?? "" }}
       action={saveExerciseDetails}
       submitLabel="Save details"
-      trigger={{ label, className: buttonClass(what ? "ghost" : "secondary", "sm"), ariaLabel: what ? `${recorded ? "Change" : "Add"} the ${what}` : undefined }}
+      trigger={{ label, className: buttonClass(what ? "ghost" : "secondary", "sm"), ariaLabel }}
       size="md"
     />
   );

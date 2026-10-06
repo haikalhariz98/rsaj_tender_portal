@@ -14,7 +14,7 @@ import type { Provenance } from "@/lib/reference/types";
 import { SITE_EVENT_KIND_LABEL } from "@/lib/window/labels";
 import type { SiteEventKind } from "@/lib/window/types";
 
-export type DateState = "APPROVED" | "PROPOSED" | "NOT_GIVEN";
+export type DateState = "APPROVED" | "PROPOSED" | "NOT_GIVEN" | "NOT_APPLICABLE";
 
 export interface KeyDate {
   state: DateState;
@@ -29,8 +29,13 @@ export interface KeyDatesInput {
   tenderingStartOn: Date | null;
   /// The closing as the exercise holds it now (named `closing`: it is read here, never written).
   closing: Date | null;
-  /// The tender pack versions, newest first (any status): only a proposal entered at submission counts.
-  packs: readonly { versionNo: number; proposedStartOn: Date | null; proposedClosingAt: Date | null }[];
+  /// The tender pack versions, newest first: only a proposal on the version now submitted counts. A returned
+  /// version's proposal was refused, and a draft's is not entered until it is submitted (as the Tender documents tab).
+  packs: readonly { versionNo: number; status: string; proposedStartOn: Date | null; proposedClosingAt: Date | null }[];
+  /// The exercise issues no tender or quotation documents (the no-pack path): it has no window, so no dates to give.
+  noPack: boolean;
+  /// A briefing or site visit may be scheduled now (`windowEditFault` allows it).
+  canSchedule: boolean;
   /// "HH:MM" and where it came from, as the window policy holds them.
   defaultClosingTime: string | null;
   closingTimeProvenance: Provenance | null;
@@ -40,6 +45,7 @@ export interface KeyDatesInput {
 
 export const START_NOT_GIVEN = "Proposed when the documents are submitted";
 export const CLOSING_NOT_GIVEN = "Proposed when the documents are submitted";
+export const NO_WINDOW_TEXT = "Not applicable: this exercise has no tendering window";
 export const NO_EVENTS_TEXT = "None scheduled";
 export const CUTOFF_NOT_SET = "Not set";
 
@@ -49,10 +55,14 @@ export interface KeyDatesView {
   /// The organisation's usual closing time; text null where it is not set.
   cutoff: { text: string | null; provenance: Provenance | null };
   events: { id: string; text: string }[];
+  /// Whether to point the officer at scheduling one: only where the server would allow it.
+  canSchedule: boolean;
 }
 
 export function keyDatesView(i: KeyDatesInput): KeyDatesView {
-  const proposed = i.packs.find((p) => p.proposedStartOn != null || p.proposedClosingAt != null) ?? null;
+  const none: KeyDate = { state: "NOT_APPLICABLE", label: null, text: NO_WINDOW_TEXT };
+  if (i.noPack) return { start: none, closing: none, cutoff: { text: null, provenance: null }, events: [], canSchedule: false };
+  const proposed = i.packs.find((p) => p.status === "SUBMITTED" && (p.proposedStartOn != null || p.proposedClosingAt != null)) ?? null;
   const start: KeyDate = i.tenderingStartOn
     ? { state: "APPROVED", label: "Approved", text: formatDate(i.tenderingStartOn) }
     : proposed?.proposedStartOn
@@ -69,5 +79,5 @@ export function keyDatesView(i: KeyDatesInput): KeyDatesView {
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
     .map((e) => ({ id: e.id, text: `${SITE_EVENT_KIND_LABEL[e.kind]} · ${formatOrgDateTime(e.startsAt, i.timeZone)} · ${e.place.trim() || "place not recorded"}${e.mandatory === true ? " · attendance is mandatory" : ""}` }));
   const time = i.defaultClosingTime?.trim() ? i.defaultClosingTime.trim() : null;
-  return { start, closing, cutoff: { text: time, provenance: time ? i.closingTimeProvenance : null }, events };
+  return { start, closing, cutoff: { text: time, provenance: time ? i.closingTimeProvenance : null }, events, canSchedule: i.canSchedule };
 }
