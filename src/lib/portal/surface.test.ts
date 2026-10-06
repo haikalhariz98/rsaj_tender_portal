@@ -30,6 +30,11 @@ describe("the public copy", () => {
     }
   });
 
+  it("serves the platform's static files and not its image optimiser or its data routes", () => {
+    expect(get("/_next/static/media/font.woff2")).toBe(true);
+    for (const p of ["/_next/image", "/_next/data/x.json", "/_next", "/_next/", "/_next/server/app/x.js", "/_nextx/static/a"]) expect(get(p), p).toBe(false);
+  });
+
   it("refuses a look-alike path: a deeper path, a traversal, an encoded slash, a different case", () => {
     for (const p of ["/supplier/opportunities/demo_sx18/documents", "/supplier/opportunities/../../sourcing/x", "/supplier/opportunities/..%2Fsourcing%2Fx", "/supplier/opportunities/a/b", "/Supplier", "/supplier//opportunities", "/supplier/register/submit/x", "/supplierx", "/supplier/anything", "/organisation/logo", "/organisation/logo/a/b", "/_nextx/a", "//sourcing/x"]) {
       expect(get(p), p).toBe(false);

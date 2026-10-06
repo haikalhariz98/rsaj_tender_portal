@@ -20,6 +20,7 @@ describe("the route boundary", () => {
     process.env.PORTAL_SURFACE = "public";
     expect(passes(call("/supplier/opportunities/demo_sx18"))).toBe(true);
     expect(passes(call("/_next/static/chunks/a.js"))).toBe(true);
+    expect(call("/_next/image?url=%2Fapi%2Fdocuments%2Fx&w=640&q=75").status).toBe(404);
     const staff = call("/sourcing/demo_sx18");
     expect(staff.status).toBe(404);
     expect(passes(staff)).toBe(false);

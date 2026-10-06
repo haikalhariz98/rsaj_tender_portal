@@ -152,7 +152,7 @@ describe("setting an online application aside", () => {
   });
 
   it("will not decide an application twice, or one that is not there", async () => {
-    h.portal = { ...WAITING, status: "ACCEPTED" };
+    h.portal = { ...WAITING, status: "RECORDED" };
     expect((await discard()).message).toMatch(/not waiting any more/);
     h.portal = null;
     expect((await discard()).message).toMatch(/no longer exists/);
@@ -174,7 +174,7 @@ describe("recording the supplier from an online application", () => {
   it("marks the online application recorded, links the supplier, and erases the applicant's own words", async () => {
     await expect(record()).rejects.toThrow(/REDIRECT/);
     const u = h.updates.find((x) => x.model === "portalApplication")!;
-    expect(u.data).toMatchObject({ status: "ACCEPTED", acceptedSupplierId: "s1", decidedByPersonId: "p1" });
+    expect(u.data).toMatchObject({ status: "RECORDED", acceptedSupplierId: "s1", decidedByPersonId: "p1" });
     for (const f of PERSONAL) expect(u.data[f], f).toBe("");
     const audit = h.audits.find((a) => a.entity === "PortalApplication")!;
     expect(JSON.stringify(audit)).not.toMatch(/Sampel|202001000123|Aini/);

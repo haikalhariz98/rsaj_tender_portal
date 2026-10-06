@@ -7506,7 +7506,7 @@ enum PortalApplicationStatus {
   /// Sent, and waiting for an officer.
   RECEIVED
   /// An officer recorded the supplier from it.
-  ACCEPTED
+  RECORDED
   /// An officer set it aside, with a reason.
   DISCARDED
 }

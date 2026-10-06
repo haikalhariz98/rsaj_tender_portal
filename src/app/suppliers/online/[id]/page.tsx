@@ -18,7 +18,7 @@ import { DiscardOnlineApplicationDrawer } from "./discard-drawer";
 
 export const dynamic = "force-dynamic";
 
-const STATUS = { RECEIVED: { text: "Waiting for an officer", tone: "info" }, ACCEPTED: { text: "Recorded as a supplier", tone: "ok" }, DISCARDED: { text: "Set aside", tone: "neutral" } } as const;
+const STATUS = { RECEIVED: { text: "Waiting for an officer", tone: "info" }, RECORDED: { text: "Recorded as a supplier", tone: "ok" }, DISCARDED: { text: "Set aside", tone: "neutral" } } as const;
 
 /**
  * One online application, in full, for an officer: what the applicant typed, what the register holds
@@ -96,7 +96,7 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
                 { label: "Outcome", value: status.text },
                 { label: "Decided", value: formatOrgDay(a.decidedAt, org.timeZone) },
                 { label: "By", value: a.decidedBy?.name ?? "—" },
-                ...(a.status === "ACCEPTED" && a.acceptedSupplier ? [{ label: "Supplier", value: <Link href={`/suppliers/${a.acceptedSupplier.id}`}>{a.acceptedSupplier.registeredName} ({a.acceptedSupplier.reference})</Link> }] : []),
+                ...(a.status === "RECORDED" && a.acceptedSupplier ? [{ label: "Supplier", value: <Link href={`/suppliers/${a.acceptedSupplier.id}`}>{a.acceptedSupplier.registeredName} ({a.acceptedSupplier.reference})</Link> }] : []),
                 ...(a.status === "DISCARDED" ? [{ label: "Why it was set aside", value: <span className="whitespace-pre-line">{a.discardReason}</span> }] : []),
               ]}
             />

@@ -155,7 +155,7 @@ export function EditPortalIntake({ values }: { values: Record<string, string> })
         { kind: "textarea", name: "personalDataNoticeMs", label: "Notice about personal details (Malay)" },
         provenance("personalDataProvenance", "Where the notice comes from"),
         { kind: "number", name: "portalDailyLimit", label: "Applications taken in any 24 hours", min: 1, hint: "Once reached, the form says it is busy and takes no more until the earliest have aged out." },
-        { kind: "number", name: "portalDailyLimitPerNumber", label: "Applications taken for one registration number in 24 hours", min: 1, hint: "Stops one number being sent over and over. Must not be more than the figure beside it." },
+        { kind: "number", name: "portalDailyLimitPerNumber", label: "Applications taken for one registration number in 24 hours", min: 1, hint: "Stops one number being sent over and over. Must not be more than the figure beside it. The cost: anyone can send a company's number this many times and turn that company away online for 24 hours. It can still apply on paper, and the busy message sends it to the office." },
         provenance("portalLimitProvenance", "Where the limits come from"),
       ]}
       values={values}

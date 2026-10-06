@@ -26,8 +26,10 @@ const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier
 const OPPORTUNITY = /^\/supplier\/opportunities\/[A-Za-z0-9_-]+$/;
 /// The organisation's logo, addressed by its own fingerprint.
 const LOGO = /^\/organisation\/logo\/[A-Za-z0-9_-]+$/;
-/// The platform's own files: scripts, styles and fonts.
-const PLATFORM = /^\/_next\//;
+/// The platform's own files: scripts, styles and fonts, and nothing else under /_next. The image optimiser
+/// (/_next/image) is left out on purpose: its job is to fetch other local paths, and nothing on the portal
+/// needs it (the logo is a plain image, the fonts are static files).
+const PLATFORM = /^\/_next\/static\//;
 const ICON = "/favicon.ico";
 /// The only door that accepts a write from a stranger.
 export const SUBMIT_PATH = "/supplier/register/submit";
