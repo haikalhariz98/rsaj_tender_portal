@@ -324,7 +324,8 @@ const RAW_ALLOW: Readonly<Record<string, RegExp>> = {
   // 6.14 increment 2 residual (consider): which issued certificates still say an alias being removed, matched by whole
   // words in the database so only their numbers are read. A read only: exactly this text.
   [`${P("src/lib/certificate/term-use.ts")} › aliasInUse`]: /^\$queryRaw<\{ number: string \| null; total: number \}\[\]>`SELECT x\."number", count\(\*\) OVER \(\)::int AS total FROM \(SELECT DISTINCT c\."id", c\."number" FROM "CertificateDocument" d JOIN "Certificate" c ON c\."id" = d\."certificateId" WHERE d\."organisationId" = \$\{organisationId\} AND c\."status" = 'ISSUED' AND d\."renderedText" ~\* \$\{pattern\}\) x ORDER BY x\."number" COLLATE "C" ASC NULLS LAST, x\."id" COLLATE "C" ASC LIMIT \$\{ALIAS_USE_SHOWN\}`$/,
-  [`${P("src/app/approvals/actions.ts")} › escalateStep`]: /^\$queryRaw`SELECT id FROM "(Requisition|SourcingExercise|Award|Contract|Certificate|Variation|Supplier|SupplierApplication|StandingRequest|SpecialPermission)" WHERE id = \$\{[\w.]+\} FOR UPDATE`$/,
+  // Phase 0 (stash@{0}, 6.13 Part B run 1b C8b): escalating a contract matter's route locks the matter's row after its contract's, as every matter act does.
+  [`${P("src/app/approvals/actions.ts")} › escalateStep`]: /^\$queryRaw`SELECT id FROM "(Requisition|SourcingExercise|Award|Contract|Certificate|Variation|ContractMatter|Supplier|SupplierApplication|StandingRequest|SpecialPermission)" WHERE id = \$\{[\w.]+\} FOR UPDATE`$/,
 };
 const TABLE_ALT = CERT_TABLES.join("|");
 const WRITE_SQL = new RegExp(`\\b(UPDATE|INSERT\\s+INTO|DELETE\\s+FROM|MERGE\\s+INTO|TRUNCATE(?:\\s+TABLE)?|COPY|ALTER\\s+TABLE|DROP\\s+TABLE)\\s+(?:ONLY\\s+)?(?:\\\\?["\`]?\\w+\\\\?["\`]?\\s*\\.\\s*)?\\\\?["'\`]?(${TABLE_ALT})\\\\?["'\`]?(?![\\w])`, "gi");

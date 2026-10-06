@@ -561,3 +561,83 @@ describe("the scan catches each evasion (self-tests)", () => {
     for (const s of ['import x from "y";\n"use server";', '// "use server"\nexport const a = 1;']) expect(isServerModule(s), JSON.stringify(s)).toBe(false);
   });
 });
+
+/// Sign-in programme Phase 0 (group E, 2026-10-06): the three configuration saves that checked on a stale read, and the
+/// numbering floor. Each now reads what it decides on under a lock, in the transaction that writes. The order is the
+/// configuration editors' own, consistent with the rest of the file: the parent (Organisation) before a child row
+/// (AuthorityMatrix, then FundingRoute share-locked); a series row on its own. None of these takes a lock from the
+/// post-award chain above, and no post-award act takes one of these, so the two orders never meet. Source scans, as above.
+/// Blind spots (declared): they read the text of each function in order; a helper the function calls is read only where it
+/// is named (fundingRouteFault, lockOrganisation, lockIssue), and the rows' actual blocking is proven by running the saves
+/// against a database, which this suite does not have (scripts/check-numbering-concurrency.ts does so for numbering).
+describe("configuration saves read under their lock (Phase 0, group E)", () => {
+  const MATRIX = "src/app/configuration/approval-matrix/actions.ts";
+  const ORG = "src/app/configuration/organisation/actions.ts";
+  const NUMBERING = "src/app/configuration/numbering/actions.ts";
+  const body = (file: string, name: string) => lex(actions(read(file)).get(name)!, { only: "comments" });
+  const order = (src: string, marks: string[]) => marks.map((m) => src.indexOf(m));
+  const inOrder = (src: string, marks: string[]) => {
+    const at = order(src, marks);
+    expect(at.every((x) => x > -1), `${marks.join(" | ")} -> ${at}`).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+  };
+
+  it("saveTimeZone: the zone the trail records as 'before' is the row as locked, not the one read for the form", () => {
+    const b = body(ORG, "saveTimeZone");
+    inOrder(b, ["db.$transaction(", "lockOrganisation(tx, org.id)", "tx.organisation.findUniqueOrThrow(", "tx.organisation.update("]);
+    expect(b).toContain("{ timeZone: locked.timeZone }");
+    expect(b).not.toContain("org.timeZone");
+    expect(b).not.toContain("auditedUpdate");
+  });
+
+  it("saveMatrix: the stored issues, the label, the funding route and the boundary are read inside the transaction, after the locks", () => {
+    const b = body(MATRIX, "saveMatrix");
+    inOrder(b, ["db.$transaction(", "lockOrganisation(tx, orgId)", "lockIssue(tx, id)", "tx.authorityMatrix.findMany(", "fundingRouteFault(tx, orgId, fundingRouteCode)", "boundaryMove(locked, tx)", "r.finish(v)", "tx.authorityMatrix.create(", "tx.authorityMatrix.update("]);
+    // Nothing about a stored issue or a funding route is read on the pool; the only `db.` is the transaction itself.
+    expect([...b.matchAll(/\bdb\./g)].length).toBe(1);
+    expect(b).not.toMatch(/auditedCreate|auditedUpdate/);
+    // The fault helper share-locks the route before it reads it, on the transaction.
+    const src = read(MATRIX);
+    const helper = src.slice(src.indexOf("async function fundingRouteFault("));
+    inOrder(helper.slice(0, helper.indexOf("\n}\n")), ['FROM "FundingRoute"', "FOR SHARE", "tx.fundingRoute.findFirst("]);
+  });
+
+  it("saveRule: the issue is locked first, then the rule, the key clash, the siblings and the offices are read under it", () => {
+    const b = body(MATRIX, "saveRule");
+    inOrder(b, ["db.$transaction(", "lockIssue(tx, authorityMatrixId)", "tx.authorityMatrix.findFirst(", "tx.authorityRule.findFirst({ where: { id, authorityMatrixId } })", "tx.authorityRule.findFirst({\n      where: { authorityMatrixId, ruleKey", "tx.authorityRole.findMany(", "tx.authorityRule.findMany(", "issueIn(tx, authorityMatrixId)", "tx.authorityRule.create(", "tx.authorityRule.update("]);
+    expect([...b.matchAll(/\bdb\./g)].length).toBe(1);
+    expect(b).not.toMatch(/auditedCreate|auditedUpdate/);
+    // A rule is found within the issue that was locked, so another issue's rule is never edited through this one.
+    expect(b).not.toContain("authorityRule.findUnique");
+  });
+
+  it("every function that takes both the organisation's lock and an issue's takes the organisation's first", () => {
+    const src = read(MATRIX);
+    const both: string[] = [];
+    for (const [name, fn] of actions(src)) {
+      const text = lex(fn, { only: "comments" });
+      const org = text.indexOf("lockOrganisation(tx");
+      const issue = text.indexOf("lockIssue(tx");
+      if (org > -1 && issue > -1) {
+        both.push(name);
+        expect(org, name).toBeLessThan(issue);
+      }
+    }
+    expect(both.sort()).toEqual(["saveMatrix", "startRevision"]);
+    // No function of the file takes the organisation's row after it has taken an issue's.
+    expect(src.indexOf("async function lockOrganisation(")).toBeLessThan(src.indexOf("async function lockIssue("));
+  });
+
+  it("saveSeries (the numbering floor): the series row is locked before the stored serial is read, and the floor is checked against it", () => {
+    const b = body(NUMBERING, "saveSeries");
+    inOrder(b, ["db.$transaction(", `FROM "NumberingSeries" WHERE id = \${current.id} FOR UPDATE`, "stored = await tx.numberingSeries.findFirst(", "serialFor(storedSeries, now)", "r.finish(v)", "afterConfiguring(", "tx.numberingSeries.update("]);
+    // The pre-lock read is the list of keys alone (a new series' key is checked for being taken); the row is read on tx.
+    expect(b).not.toMatch(/db\.numberingSeries\.find(?:Unique|First)/);
+  });
+
+  it("the sitting's reference is issued under the series lock: scheduleSitting numbers through issueReference, never a read of the series", () => {
+    const b = body("src/app/committees/actions.ts", "scheduleSitting");
+    inOrder(b, ["db.$transaction(", "createNumberedSitting(tx,", "writeAudit(tx,", "tableWaiting(tx,"]);
+    expect(b).not.toMatch(/numberingSeries\.update|nextSerial|formatReference/);
+  });
+});

@@ -120,7 +120,10 @@ describe("the outcome locks the record before the sitting, then links (founder, 
   });
   it("scheduling a sitting with waiting items creates it, then locks it and tables each through the one writer; it locks no record", () => {
     const schedule = between(committee, "export async function scheduleSitting(", "\n}\n");
-    inOrder(schedule, ["tx.meeting.create(", "tableWaiting(tx, row.id"]);
+    // Phase 0 of the sign-in programme: the sitting is created, and numbered under the series lock, by createNumberedSitting
+    // (sitting-number.ts), which makes the meeting row with tx.meeting.create; the order asserted is unchanged: create, then table.
+    inOrder(schedule, ["createNumberedSitting(tx,", "tableWaiting(tx, row.id"]);
+    inOrder(read("src", "lib", "committee", "sitting-number.ts"), ["issueReference(tx,", "tx.meeting.create("]);
     const table = between(committee, "async function tableWaiting(", "\n}\n");
     inOrder(table, ["loadWaiting(tx)", "lockSittingIn(tx, meetingId, roster)", 'permit(s, "TABLE")', "tableInto(tx, s, r,"]);
     expect(table).not.toMatch(/withLocked|FOR UPDATE/);

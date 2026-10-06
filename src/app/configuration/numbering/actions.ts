@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
-import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
+import { diffFields } from "@/lib/audit/diff";
+import { writeAudit } from "@/lib/audit/record";
 import { organisationDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { afterConfiguring, patternFaults, serialFor, type Series } from "@/lib/numbering/series";
@@ -87,22 +88,7 @@ export async function saveSeries(_prev: FormState, data: FormData): Promise<Form
     return { ok: false, message: "A series' serial belongs to the period of the organisation's day, and its time zone is not set. Set it under Configuration, Organisation first." };
   }
   const now = day;
-  const stored = current ? await db.numberingSeries.findUnique({ where: { id } }) : null;
-  const storedSeries: Series | null = stored;
-
   const nextSerial = r.int("nextSerial", "Next serial", { min: 1 });
-  if (storedSeries && nextSerial != null) {
-    // A serial never goes backwards: an allocated reference is never reused, and a
-    // gap is evidence while a duplicate is a defect. Measured against what the series
-    // would issue today, so a due yearly reset may be confirmed at 1.
-    const floor = serialFor(storedSeries, now);
-    if (nextSerial < floor) {
-      r.reject(
-        "nextSerial",
-        `The serial cannot go back. It is at ${floor}; an allocated reference is never reused.`,
-      );
-    }
-  }
 
   const v = {
     key,
@@ -115,34 +101,61 @@ export async function saveSeries(_prev: FormState, data: FormData): Promise<Form
     notes: r.text("notes", "Notes", { max: 2000 }),
   };
 
-  const parsed = r.finish(v);
-  if (!parsed.ok) return { ok: false, errors: parsed.errors };
-
-  // Blank keeps the stored serial; a typed one is stamped with today's period.
-  const serial = afterConfiguring(
-    storedSeries,
-    { resetOn: v.resetOn, financialYearStartMonth: v.financialYearStartMonth },
-    nextSerial,
-    now,
-  );
-
   const ctx = {
     organisationId: orgId,
     entity: "NumberingSeries",
     entityLabel: v.nameEn,
     reason: String(data.get("reason") ?? ""),
   };
-  const write = { ...v, ...serial, resetOn: v.resetOn, provenance: v.provenance! };
 
-  if (!stored) {
-    await auditedCreate(ctx, write, (tx) =>
-      tx.numberingSeries.create({ data: { organisationId: orgId, ...write } }),
+  // Sign-in programme Phase 0 (group E): the series row is locked, FOR UPDATE, before it is read: the lock `issueReference`
+  // takes to issue a number. The stored serial the floor is measured against, and the one a blank "next serial" keeps, are
+  // the row as it stands under the lock. Read before it, a number issued in between would be overwritten by a stale serial
+  // (a reference issued twice), and the floor would be checked against a serial that had already moved.
+  const saved = await db.$transaction(async (tx): Promise<FormState> => {
+    let stored: Awaited<ReturnType<typeof tx.numberingSeries.findFirst>> = null;
+    if (current) {
+      await tx.$queryRaw`SELECT id FROM "NumberingSeries" WHERE id = ${current.id} FOR UPDATE`;
+      stored = await tx.numberingSeries.findFirst({ where: { id: current.id, organisationId: orgId } });
+      if (!stored) return { ok: false, message: "That series no longer exists." };
+    }
+    const storedSeries: Series | null = stored;
+    if (storedSeries && nextSerial != null) {
+      // A serial never goes backwards: an allocated reference is never reused, and a
+      // gap is evidence while a duplicate is a defect. Measured against what the series
+      // would issue today, so a due yearly reset may be confirmed at 1.
+      const floor = serialFor(storedSeries, now);
+      if (nextSerial < floor) {
+        r.reject(
+          "nextSerial",
+          `The serial cannot go back. It is at ${floor}; an allocated reference is never reused.`,
+        );
+      }
+    }
+
+    const parsed = r.finish(v);
+    if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+    // Blank keeps the stored serial; a typed one is stamped with today's period.
+    const serial = afterConfiguring(
+      storedSeries,
+      { resetOn: v.resetOn, financialYearStartMonth: v.financialYearStartMonth },
+      nextSerial,
+      now,
     );
-  } else {
-    await auditedUpdate({ ...ctx, entityId: stored.id }, stored, write, (tx) =>
-      tx.numberingSeries.update({ where: { id: stored.id }, data: write }),
-    );
-  }
+    const write = { ...v, ...serial, resetOn: v.resetOn, provenance: v.provenance! };
+
+    if (!stored) {
+      const created = await tx.numberingSeries.create({ data: { organisationId: orgId, ...write } });
+      await writeAudit(tx, { ...ctx, entityId: created.id }, "CREATE", diffFields(null, write));
+    } else {
+      await tx.numberingSeries.update({ where: { id: stored.id }, data: write });
+      const changes = diffFields(stored, write);
+      if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: stored.id }, "UPDATE", changes);
+    }
+    return { ok: true };
+  });
+  if (!saved.ok) return saved;
 
   revalidatePath(PATH);
   return { ok: true };

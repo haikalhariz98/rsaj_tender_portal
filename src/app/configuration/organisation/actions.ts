@@ -289,12 +289,18 @@ export async function saveTimeZone(_prev: FormState, data: FormData): Promise<Fo
   const parsed = r.finish({ timeZone });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-  await auditedUpdate(
-    { organisationId: org.id, entity: "Organisation", entityId: org.id, entityLabel: org.name, reason: String(data.get("reason") ?? "") },
-    { timeZone: org.timeZone },
-    { timeZone },
-    (tx) => tx.organisation.update({ where: { id: org.id }, data: { timeZone } }),
-  );
+  // Sign-in programme Phase 0 (group E): the "before" is the zone as it stands under the organisation's row lock, the one
+  // every write to the organisation takes (lockOrganisation), not the one read for the form: two saves cannot both
+  // record the same "before".
+  await db.$transaction(async (tx) => {
+    await lockOrganisation(tx, org.id);
+    const locked = await tx.organisation.findUniqueOrThrow({ where: { id: org.id } });
+    const changes = diffFields({ timeZone: locked.timeZone }, { timeZone });
+    await tx.organisation.update({ where: { id: org.id }, data: { timeZone } });
+    if (changes.length > 0) {
+      await writeAudit(tx, { organisationId: org.id, entity: "Organisation", entityId: org.id, entityLabel: locked.name, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+    }
+  });
   revalidatePath(PATH);
   return { ok: true };
 }

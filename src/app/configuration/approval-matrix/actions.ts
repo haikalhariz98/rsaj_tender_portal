@@ -114,6 +114,12 @@ async function refusable(run: () => Promise<FormState>): Promise<FormState> {
   }
 }
 
+/// Lock the organisation's row for the rest of the transaction. Taken before any issue's row, never after one: a check that
+/// spans the organisation's issues (a label is unique across them) has no single issue to lock, and the parent serialises it.
+async function lockOrganisation(tx: Tx, id: string) {
+  await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${id} FOR UPDATE`;
+}
+
 /// Lock an issue's row for the rest of the transaction: every write to an issue, its
 /// rules or its core routing takes it, so issuing cannot take a half-made change.
 async function lockIssue(tx: Tx, authorityMatrixId: string) {
@@ -168,12 +174,9 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
 
-  const before = id
-    ? await db.authorityMatrix.findFirst({ where: { id, organisationId: orgId } })
-    : null;
-  if (id && !before) return { ok: false, message: "That issue no longer exists." };
-  if (before?.issuedAt) return FROZEN;
-
+  // Sign-in programme Phase 0 (group E): nothing about the stored issues is read here. The duplicate-label and funding-route
+  // checks, the frozen test and the boundary check all run inside the transaction, under the organisation's lock and then
+  // the issue's, so what they decide on is what the write replaces.
   const label = r.text("label", "Label", { required: true, max: 120 });
   // A draft's date is when it is meant to start. Nothing is in force until it is
   // issued, and issuing is where the period is checked and the predecessor ended.
@@ -203,31 +206,10 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     }
   }
 
-  const existing = await db.authorityMatrix.findMany({
-    where: { organisationId: orgId, ...(id ? { NOT: { id } } : {}) },
-    select: { label: true },
-  });
-  if (existing.some((e) => e.label === label)) {
-    r.reject("label", "An issue with that label already exists.");
-  }
-
   // A funder's rule set is an issue for one funding route (FR-REQ-006). Only a route
   // whose funder supersedes the limits is ever routed by one, so any other is refused
-  // rather than saved as a rule set nothing would read.
+  // rather than saved as a rule set nothing would read. Checked in the transaction (fundingRouteFault).
   const fundingRouteCode = r.optionalText("fundingRouteCode");
-  if (fundingRouteCode) {
-    const route = await db.fundingRoute.findFirst({
-      where: { organisationId: orgId, code: fundingRouteCode },
-      select: { supersedesAuthority: true, retiredOn: true },
-    });
-    if (!route) r.reject("fundingRouteCode", "That funding route no longer exists.");
-    else if (!route.supersedesAuthority) {
-      r.reject(
-        "fundingRouteCode",
-        "This funding route's funder does not supersede the limits, so its rule set would never route anything. Set that on the route under Reference data first.",
-      );
-    }
-  }
 
   const v = {
     label,
@@ -263,13 +245,6 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     const refusal = boundaryRefusal(rows, boundaryValue) ?? (await termsRefusal(stored.id, boundaryValue, client));
     return refusal ? { field: moved ? onForm("boundaryValue") : "boundaryInclusive", message: refusal } : null;
   };
-  if (before) {
-    const refusal = await boundaryMove(before, db);
-    if (refusal) r.reject(refusal.field, refusal.message);
-  }
-
-  const parsed = r.finish(v);
-  if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const ctx = {
     organisationId: orgId,
@@ -278,42 +253,82 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     reason: String(data.get("reason") ?? ""),
   };
 
-  if (!id) {
-    const created = await auditedCreate(ctx, v, (tx) =>
-      tx.authorityMatrix.create({ data: { organisationId: orgId, ...v } }),
+  const outcome = await db.$transaction(async (tx): Promise<FormState & { createdId?: string }> => {
+    // The parent first, then the issue (the order lockOrganisation says): the label is unique across the organisation's issues.
+    await lockOrganisation(tx, orgId);
+    let locked: Awaited<ReturnType<typeof tx.authorityMatrix.findFirst>> = null;
+    if (id) {
+      await lockIssue(tx, id);
+      locked = await tx.authorityMatrix.findFirst({ where: { id, organisationId: orgId } });
+      if (!locked) return { ok: false, message: "That issue no longer exists." };
+      // It may have been issued, or its rules changed, since the form was shown.
+      if (locked.issuedAt) return FROZEN;
+    }
+
+    const existing = await tx.authorityMatrix.findMany({
+      where: { organisationId: orgId, ...(id ? { NOT: { id } } : {}) },
+      select: { label: true },
+    });
+    if (existing.some((e) => e.label === label)) r.reject("label", "An issue with that label already exists.");
+
+    if (fundingRouteCode) {
+      const fault = await fundingRouteFault(tx, orgId, fundingRouteCode);
+      if (fault) r.reject("fundingRouteCode", fault);
+    }
+
+    // Moving the boundary (or flipping its side) re-checks the rules and terms bands on the issue as it stands under the lock.
+    if (locked) {
+      const refusal = await boundaryMove(locked, tx);
+      if (refusal) r.reject(refusal.field, refusal.message);
+    }
+
+    const parsed = r.finish(v);
+    if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+    if (!locked) {
+      const created = await tx.authorityMatrix.create({ data: { organisationId: orgId, ...v } });
+      await writeAudit(tx, { ...ctx, entityId: created.id }, "CREATE", diffFields(null, v));
+      return { ok: true, createdId: created.id };
+    }
+    // The trail's "before" is the row as it stood under the lock.
+    await tx.authorityMatrix.update({ where: { id: locked.id }, data: v });
+    const changes = diffFields(
+      {
+        ...locked,
+        boundaryValue: locked.boundaryValue.toString(),
+        quotationFloor: locked.quotationFloor.toString(),
+        tenderFloor: locked.tenderFloor.toString(),
+        requisitionBoundary: locked.requisitionBoundary.toString(),
+      },
+      v,
     );
+    if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: locked.id }, "UPDATE", changes);
+    return { ok: true };
+  });
+  if (!outcome.ok) return outcome;
+  if (outcome.createdId) {
     // Straight to the new draft (UX review).
     revalidatePath(PATH);
-    redirect(`${PATH}?issue=${created.id}`);
-  } else if (before) {
-    // Under the issue's lock: it may have been issued, or its rules changed, since the
-    // form was checked. The trail's "before" is the row as it stood under the lock.
-    const saved = await db.$transaction(async (tx): Promise<FormState> => {
-      await lockIssue(tx, before.id);
-      const locked = await tx.authorityMatrix.findFirst({ where: { id: before.id, organisationId: orgId } });
-      if (!locked) return { ok: false, message: "That issue no longer exists." };
-      if (locked.issuedAt) return FROZEN;
-      const refusal = await boundaryMove(locked, tx);
-      if (refusal) return { ok: false, errors: { [refusal.field]: refusal.message } };
-      await tx.authorityMatrix.update({ where: { id: locked.id }, data: v });
-      const changes = diffFields(
-        {
-          ...locked,
-          boundaryValue: locked.boundaryValue.toString(),
-          quotationFloor: locked.quotationFloor.toString(),
-          tenderFloor: locked.tenderFloor.toString(),
-          requisitionBoundary: locked.requisitionBoundary.toString(),
-        },
-        v,
-      );
-      if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: locked.id }, "UPDATE", changes);
-      return { ok: true };
-    });
-    if (!saved.ok) return saved;
+    redirect(`${PATH}?issue=${outcome.createdId}`);
   }
 
   revalidatePath(PATH);
   return { ok: true };
+}
+
+/// Whether a funding route may carry an issue of its own: it must exist and its funder must supersede the limits. The route's
+/// row is share-locked for the rest of the transaction, so a change to it waits for this write or is seen by it.
+async function fundingRouteFault(tx: Tx, orgId: string, code: string): Promise<string | null> {
+  await tx.$queryRaw`SELECT id FROM "FundingRoute" WHERE "organisationId" = ${orgId} AND code = ${code} FOR SHARE`;
+  const route = await tx.fundingRoute.findFirst({
+    where: { organisationId: orgId, code },
+    select: { supersedesAuthority: true, retiredOn: true },
+  });
+  if (!route) return "That funding route no longer exists.";
+  if (!route.supersedesAuthority) {
+    return "This funding route's funder does not supersede the limits, so its rule set would never route anything. Set that on the route under Reference data first.";
+  }
+  return null;
 }
 
 /**
@@ -331,195 +346,190 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
   const id = String(data.get("id") ?? "");
   const authorityMatrixId = String(data.get("authorityMatrixId") ?? "");
 
-  const matrix = await db.authorityMatrix.findFirst({
-    where: { id: authorityMatrixId, organisationId: orgId },
-    select: { id: true, label: true, issuedAt: true, boundaryValue: true },
-  });
-  if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." };
-  if (matrix.issuedAt) return FROZEN;
-
-  const before = id ? await db.authorityRule.findUnique({ where: { id } }) : null;
-  if (id && !before) return { ok: false, message: "That rule no longer exists." };
-
-  const r = new FormReader(data);
-  const ruleKey = r.text("ruleKey", "Rule key", { required: true, max: 120 });
-
-  const clash = await db.authorityRule.findFirst({
-    where: { authorityMatrixId, ruleKey, ...(id ? { NOT: { id } } : {}) },
-    select: { id: true },
-  });
-  if (clash) r.reject("ruleKey", "A rule with that key already exists in this issue.");
-
-  const minValue = r.money("minValue", "From value");
-  const maxValue = r.money("maxValue", "To value");
-  if (minValue && maxValue && compareAmounts(maxValue, minValue) <= 0) {
-    r.reject("maxValue", "The upper bound must be above the lower.");
-  }
-
-  const isGap = r.bool("isGap");
-  const approverCode = r.optionalText("approverCode");
-  const committeeCode = r.optionalText("committeeCode");
-
-  // A row that routes to nobody would resolve to nothing. Recording it as a gap is a
-  // decision; leaving it empty by accident is a defect, and the two must not look
-  // alike.
-  if (!isGap && !approverCode && !committeeCode) {
-    r.reject(
-      "approverCode",
-      "A rule needs an approver or a committee. Tick “this is a known gap” to record that the source is silent.",
-    );
-  }
-  if (isGap && !r.optionalText("gapNote")) {
-    r.reject("gapNote", "Say what the gap is, so the warning on a matter can explain itself.");
-  }
-
-  const known = new Set(
-    (
-      await db.authorityRole.findMany({
-        where: { organisationId: orgId },
-        select: { code: true },
-      })
-    ).map((o) => o.code),
-  );
-  for (const [field, code] of [
-    ["approverCode", approverCode],
-    ["proposerCode", r.optionalText("proposerCode")],
-    ["committeeCode", committeeCode],
-  ] as const) {
-    if (code && !known.has(code)) {
-      r.reject(field, `${code} is not an office. Add it under Users & roles first.`);
-    }
-  }
-
-  const v = {
-    authorityMatrixId,
-    ruleKey,
-    domain: r.text("domain", "Matter", { required: true, max: 60 }),
-    method: r.optionalText("method"),
-    // FR-APR-002: a field the form never sent is kept as stored.
-    contractTypeCode: data.has("contractTypeCode") ? r.optionalText("contractTypeCode") : (before?.contractTypeCode ?? null),
-    // The rule drawer does not carry the variation bands or the condition. A field the
-    // form never sent is kept as stored rather than written as empty — otherwise every
-    // save of a variation rule would quietly strip the band it routes on.
-    cond: data.has("cond") ? r.optionalText("cond") : (before?.cond ?? null),
-    minValue,
-    maxValue,
-    pctMin: before?.pctMin?.toString() ?? null,
-    pctMax: before?.pctMax?.toString() ?? null,
-    contractValueMin: before?.contractValueMin?.toString() ?? null,
-    contractValueMax: before?.contractValueMax?.toString() ?? null,
-    followsBoundarySwitch: (() => {
-      const f = r.choice("followsBoundarySwitch", "At the boundary value", ["yes", "no"] as const);
-      return f == null ? null : f === "yes";
-    })(),
-    labelEn: r.text("labelEn", "Label", { required: true, max: 240 }),
-    labelMs: r.optionalText("labelMs"),
-    proposerCode: r.optionalText("proposerCode"),
-    approverCode,
-    committeeCode,
-    committeeAct: r.choice("committeeAct", "Committee acts as", COMMITTEE_ACTS) ?? null,
-    nonDelegable: r.bool("nonDelegable"),
-    approverMandatory: r.bool("approverMandatory"),
-    isGap,
-    gapNote: r.optionalText("gapNote"),
-    note: r.text("note", "Note", { max: 2000 }),
-    clause: r.text("clause", "Clause", { required: true, max: 120 }),
-    sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
-    // Where the chain beneath the approver comes from (FR-APR-004): not set, generated
-    // from the core routing, or as entered — a decision not to check, which needs its
-    // reason (ruling OQ-4). The reason is kept only with that decision.
-    ...(() => {
-      const c = r.choice("generateCoreChain", "Chain beneath the approver", ["yes", "no"] as const);
-      const generateCoreChain = c == null ? null : c === "yes";
-      const why = r.text("coreChainReason", "Why the chain is as entered", { max: 1000 });
-      if (generateCoreChain === false && !why) r.reject("coreChainReason", "Say why this rule's chain is not taken from the core routing — the clause that states it, for example.");
-      return { generateCoreChain, coreChainReason: generateCoreChain === false ? why : null };
-    })(),
-  };
-  // BD-613-6 ruling: only a matter whose routing passes a contract type takes a row confined to one.
-  if (v.contractTypeCode && !takesContractType(v.domain)) r.reject("contractTypeCode", `Only these matters are routed with a contract type: ${contractTypeDomainWords()}. On any other, a row for one type would never be read: leave it for any type.`);
-
-  // Two rules that tie for some matter leave its route to row order. Refused here, as
-  // the resolver flags it on a matter; gap rows are exempt, overlapping is their job.
-  const siblings = await db.authorityRule.findMany({
-    where: { authorityMatrixId, ...(before ? { NOT: { id: before.id } } : {}) },
-  });
-  const asBands = (x: typeof v | (typeof siblings)[number]) =>
-    ({
-      ruleKey: x.ruleKey,
-      labelEn: x.labelEn,
-      domain: x.domain,
-      method: x.method ?? null,
-      contractTypeCode: x.contractTypeCode ?? null,
-      cond: x.cond ?? null,
-      isGap: x.isGap,
-      minValue: x.minValue == null ? null : Number(x.minValue.toString()),
-      maxValue: x.maxValue == null ? null : Number(x.maxValue.toString()),
-      // ADR 0024 Amendment 1: percentage edges as decimal strings, compared exactly.
-      pctMin: x.pctMin == null ? null : x.pctMin.toString(),
-      pctMax: x.pctMax == null ? null : x.pctMax.toString(),
-      contractValueMin: x.contractValueMin == null ? null : Number(x.contractValueMin.toString()),
-      contractValueMax: x.contractValueMax == null ? null : Number(x.contractValueMax.toString()),
-      followsBoundarySwitch: x.followsBoundarySwitch ?? null,
-    }) as Rule;
-  if (!r.failed) {
-    // An edge on the boundary must say whether it follows the switch, and two rules
-    // meeting there must agree (6.1 ruling OD-4).
-    const boundary = boundaryRuleFault(asBands(v), { boundaryValue: Number(matrix.boundaryValue.toString()) }, siblings.map(asBands));
-    if (boundary === "BOUNDARY_SWITCH_UNDECIDED") {
-      r.reject(
-        "followsBoundarySwitch",
-        "An edge of this band is the value where the bands meet. Decide whether the band follows the boundary switch there.",
-      );
-    } else if (boundary === "BOUNDARY_SWITCH_DISAGREES") {
-      r.reject(
-        "followsBoundarySwitch",
-        "The neighbouring rule for the same matter meets this one at the boundary and decides the other way. Make them agree, or a value exactly on the boundary would fall in both bands or neither.",
-      );
-    }
-  }
-  if (!r.failed) {
-    const tied = rulesTiedWith(asBands(v), siblings.map(asBands));
-    if (tied.length > 0) {
-      r.reject(
-        "minValue",
-        `This band overlaps “${tied[0].labelEn}” for the same matter. A value in both would route by row order — narrow one of the bands, or record this one as a known gap.`,
-      );
-    }
-  }
-
-  const parsed = r.finish(v);
-  if (!parsed.ok) return { ok: false, errors: parsed.errors };
-
-  const ctx = {
-    organisationId: orgId,
-    entity: "AuthorityRule",
-    entityLabel: `${matrix.label} — ${v.labelEn}`,
-    reason: String(data.get("reason") ?? ""),
-  };
-
-  // Re-checked under the issue's lock, on the core routing as it stands in the same
-  // transaction, so a core row changed or the issue issued meanwhile is seen.
-  const guard = async (tx: Tx) => {
+  const saved = await refusable(() => db.$transaction(async (tx): Promise<FormState> => {
     await lockIssue(tx, authorityMatrixId);
-    const locked = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { issuedAt: true } });
-    if (locked.issuedAt) throw new Refused(FROZEN);
-    if (v.generateCoreChain !== true) return;
-    const issue = await issueIn(tx, authorityMatrixId);
-    const steps = issue?.matrix.rules.find((x) => x.ruleKey === before?.ruleKey)?.recommenders ?? [];
-    const fault = issue && coreSaveFault({ approverCode: v.approverCode, proposerCode: v.proposerCode, recommenders: steps }, issue.matrix.coreRouting ?? [], issue.matrix.roles);
-    if (fault) throw new Refused({ ok: false, errors: { generateCoreChain: fault } });
-  };
+    const matrix = await tx.authorityMatrix.findFirst({
+      where: { id: authorityMatrixId, organisationId: orgId },
+      select: { id: true, label: true, issuedAt: true, boundaryValue: true },
+    });
+    if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." };
+    if (matrix.issuedAt) return FROZEN;
 
-  const saved = await refusable(async () => {
+    // A rule is found within the issue that is locked: one of another issue (an issued one) is not edited through this one.
+    const before = id ? await tx.authorityRule.findFirst({ where: { id, authorityMatrixId } }) : null;
+    if (id && !before) return { ok: false, message: "That rule no longer exists." };
+
+    const r = new FormReader(data);
+    const ruleKey = r.text("ruleKey", "Rule key", { required: true, max: 120 });
+
+    const clash = await tx.authorityRule.findFirst({
+      where: { authorityMatrixId, ruleKey, ...(id ? { NOT: { id } } : {}) },
+      select: { id: true },
+    });
+    if (clash) r.reject("ruleKey", "A rule with that key already exists in this issue.");
+
+    const minValue = r.money("minValue", "From value");
+    const maxValue = r.money("maxValue", "To value");
+    if (minValue && maxValue && compareAmounts(maxValue, minValue) <= 0) {
+      r.reject("maxValue", "The upper bound must be above the lower.");
+    }
+
+    const isGap = r.bool("isGap");
+    const approverCode = r.optionalText("approverCode");
+    const committeeCode = r.optionalText("committeeCode");
+
+    // A row that routes to nobody would resolve to nothing. Recording it as a gap is a
+    // decision; leaving it empty by accident is a defect, and the two must not look
+    // alike.
+    if (!isGap && !approverCode && !committeeCode) {
+      r.reject(
+        "approverCode",
+        "A rule needs an approver or a committee. Tick “this is a known gap” to record that the source is silent.",
+      );
+    }
+    if (isGap && !r.optionalText("gapNote")) {
+      r.reject("gapNote", "Say what the gap is, so the warning on a matter can explain itself.");
+    }
+
+    const known = new Set(
+      (
+        await tx.authorityRole.findMany({
+          where: { organisationId: orgId },
+          select: { code: true },
+        })
+      ).map((o) => o.code),
+    );
+    for (const [field, code] of [
+      ["approverCode", approverCode],
+      ["proposerCode", r.optionalText("proposerCode")],
+      ["committeeCode", committeeCode],
+    ] as const) {
+      if (code && !known.has(code)) {
+        r.reject(field, `${code} is not an office. Add it under Users & roles first.`);
+      }
+    }
+
+    const v = {
+      authorityMatrixId,
+      ruleKey,
+      domain: r.text("domain", "Matter", { required: true, max: 60 }),
+      method: r.optionalText("method"),
+      // FR-APR-002: a field the form never sent is kept as stored.
+      contractTypeCode: data.has("contractTypeCode") ? r.optionalText("contractTypeCode") : (before?.contractTypeCode ?? null),
+      // The rule drawer does not carry the variation bands or the condition. A field the
+      // form never sent is kept as stored rather than written as empty — otherwise every
+      // save of a variation rule would quietly strip the band it routes on.
+      cond: data.has("cond") ? r.optionalText("cond") : (before?.cond ?? null),
+      minValue,
+      maxValue,
+      pctMin: before?.pctMin?.toString() ?? null,
+      pctMax: before?.pctMax?.toString() ?? null,
+      contractValueMin: before?.contractValueMin?.toString() ?? null,
+      contractValueMax: before?.contractValueMax?.toString() ?? null,
+      followsBoundarySwitch: (() => {
+        const f = r.choice("followsBoundarySwitch", "At the boundary value", ["yes", "no"] as const);
+        return f == null ? null : f === "yes";
+      })(),
+      labelEn: r.text("labelEn", "Label", { required: true, max: 240 }),
+      labelMs: r.optionalText("labelMs"),
+      proposerCode: r.optionalText("proposerCode"),
+      approverCode,
+      committeeCode,
+      committeeAct: r.choice("committeeAct", "Committee acts as", COMMITTEE_ACTS) ?? null,
+      nonDelegable: r.bool("nonDelegable"),
+      approverMandatory: r.bool("approverMandatory"),
+      isGap,
+      gapNote: r.optionalText("gapNote"),
+      note: r.text("note", "Note", { max: 2000 }),
+      clause: r.text("clause", "Clause", { required: true, max: 120 }),
+      sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
+      // Where the chain beneath the approver comes from (FR-APR-004): not set, generated
+      // from the core routing, or as entered — a decision not to check, which needs its
+      // reason (ruling OQ-4). The reason is kept only with that decision.
+      ...(() => {
+        const c = r.choice("generateCoreChain", "Chain beneath the approver", ["yes", "no"] as const);
+        const generateCoreChain = c == null ? null : c === "yes";
+        const why = r.text("coreChainReason", "Why the chain is as entered", { max: 1000 });
+        if (generateCoreChain === false && !why) r.reject("coreChainReason", "Say why this rule's chain is not taken from the core routing — the clause that states it, for example.");
+        return { generateCoreChain, coreChainReason: generateCoreChain === false ? why : null };
+      })(),
+    };
+    // BD-613-6 ruling: only a matter whose routing passes a contract type takes a row confined to one.
+    if (v.contractTypeCode && !takesContractType(v.domain)) r.reject("contractTypeCode", `Only these matters are routed with a contract type: ${contractTypeDomainWords()}. On any other, a row for one type would never be read: leave it for any type.`);
+
+    // Two rules that tie for some matter leave its route to row order. Refused here, as
+    // the resolver flags it on a matter; gap rows are exempt, overlapping is their job.
+    const siblings = await tx.authorityRule.findMany({
+      where: { authorityMatrixId, ...(before ? { NOT: { id: before.id } } : {}) },
+    });
+    const asBands = (x: typeof v | (typeof siblings)[number]) =>
+      ({
+        ruleKey: x.ruleKey,
+        labelEn: x.labelEn,
+        domain: x.domain,
+        method: x.method ?? null,
+        contractTypeCode: x.contractTypeCode ?? null,
+        cond: x.cond ?? null,
+        isGap: x.isGap,
+        minValue: x.minValue == null ? null : Number(x.minValue.toString()),
+        maxValue: x.maxValue == null ? null : Number(x.maxValue.toString()),
+        // ADR 0024 Amendment 1: percentage edges as decimal strings, compared exactly.
+        pctMin: x.pctMin == null ? null : x.pctMin.toString(),
+        pctMax: x.pctMax == null ? null : x.pctMax.toString(),
+        contractValueMin: x.contractValueMin == null ? null : Number(x.contractValueMin.toString()),
+        contractValueMax: x.contractValueMax == null ? null : Number(x.contractValueMax.toString()),
+        followsBoundarySwitch: x.followsBoundarySwitch ?? null,
+      }) as Rule;
+    if (!r.failed) {
+      // An edge on the boundary must say whether it follows the switch, and two rules
+      // meeting there must agree (6.1 ruling OD-4).
+      const boundary = boundaryRuleFault(asBands(v), { boundaryValue: Number(matrix.boundaryValue.toString()) }, siblings.map(asBands));
+      if (boundary === "BOUNDARY_SWITCH_UNDECIDED") {
+        r.reject(
+          "followsBoundarySwitch",
+          "An edge of this band is the value where the bands meet. Decide whether the band follows the boundary switch there.",
+        );
+      } else if (boundary === "BOUNDARY_SWITCH_DISAGREES") {
+        r.reject(
+          "followsBoundarySwitch",
+          "The neighbouring rule for the same matter meets this one at the boundary and decides the other way. Make them agree, or a value exactly on the boundary would fall in both bands or neither.",
+        );
+      }
+    }
+    if (!r.failed) {
+      const tied = rulesTiedWith(asBands(v), siblings.map(asBands));
+      if (tied.length > 0) {
+        r.reject(
+          "minValue",
+          `This band overlaps “${tied[0].labelEn}” for the same matter. A value in both would route by row order — narrow one of the bands, or record this one as a known gap.`,
+        );
+      }
+    }
+
+    const parsed = r.finish(v);
+    if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+    const ctx = {
+      organisationId: orgId,
+      entity: "AuthorityRule",
+      entityLabel: `${matrix.label} — ${v.labelEn}`,
+      reason: String(data.get("reason") ?? ""),
+    };
+
+    // The core chain is re-checked on the core routing as it stands in this transaction.
+    if (v.generateCoreChain === true) {
+      const issue = await issueIn(tx, authorityMatrixId);
+      const steps = issue?.matrix.rules.find((x) => x.ruleKey === before?.ruleKey)?.recommenders ?? [];
+      const fault = issue && coreSaveFault({ approverCode: v.approverCode, proposerCode: v.proposerCode, recommenders: steps }, issue.matrix.coreRouting ?? [], issue.matrix.roles);
+      if (fault) return { ok: false, errors: { generateCoreChain: fault } };
+    }
+
     if (!before) {
-      await auditedCreate(ctx, v, async (tx) => {
-        await guard(tx);
-        return tx.authorityRule.create({ data: v });
-      });
+      const created = await tx.authorityRule.create({ data: v });
+      await writeAudit(tx, { ...ctx, entityId: created.id }, "CREATE", diffFields(null, v));
     } else {
-      await auditedUpdate(
-        { ...ctx, entityId: id },
+      await tx.authorityRule.update({ where: { id: before.id }, data: v });
+      const changes = diffFields(
         {
           ...before,
           minValue: before.minValue?.toString() ?? null,
@@ -530,14 +540,11 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
           contractValueMax: before.contractValueMax?.toString() ?? null,
         },
         v,
-        async (tx) => {
-          await guard(tx);
-          return tx.authorityRule.update({ where: { id }, data: v });
-        },
       );
+      if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: before.id }, "UPDATE", changes);
     }
     return { ok: true };
-  });
+  }));
   if (!saved.ok) return saved;
 
   revalidatePath(PATH);
@@ -656,6 +663,8 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
   const result = await db.$transaction(async (tx): Promise<FormState & { draftId?: string }> => {
+    // The label is unique across the organisation's issues, so the parent is locked first (as saveMatrix does).
+    await lockOrganisation(tx, orgId);
     // The source is read under its lock, with everything it owns: its rules, its terms
     // bands and its own core routing — never another issue's (6.9 note D-1, OQ-7).
     await lockIssue(tx, fromId);

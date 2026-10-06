@@ -74,7 +74,9 @@ import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { loadWaiting } from "@/lib/committee/waiting-load";
 import { dayToDate, organisationDay, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { afterIssuing, formatReference, patternFaults, serialFor } from "@/lib/numbering/series";
+import { createNumberedSitting } from "@/lib/committee/sitting-number";
+import { NumberingError } from "@/lib/numbering/issue";
+import { patternFaults } from "@/lib/numbering/series";
 import { MATTER_REF_TEXT, resolveMatterRef } from "@/lib/requisition/matter-link";
 import { FormReader } from "@/lib/validate";
 
@@ -380,7 +382,7 @@ async function inContractMatterForOutcome(record: Extract<OutcomeRecord, { kind:
  *
  * The sitting number is drawn from the numbering series keyed `meeting` where one is
  * configured and valid, in the same transaction as the sitting; otherwise it is typed.
- * Issuance is not atomic across concurrent users (handoff.md).
+ * Issuance is atomic: `issueReference` locks the series row (Phase 0 of the sign-in programme).
  *
  * Founder, 2026-10-05: in the same transaction, each waiting item the drawer proposed and
  * the officer left ticked is tabled onto the new sitting through the "Table a matter"
@@ -437,19 +439,9 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
   try {
     created = await db.$transaction(
       async (tx) => {
-        let reference = typed;
-        if (!reference && usable) {
-          const on = day!;
-          reference = formatReference(usable, on, serialFor(usable, on));
-          const next = afterIssuing(usable, on);
-          await tx.numberingSeries.update({
-            where: { id: usable.id },
-            data: { nextSerial: next.nextSerial, serialPeriod: next.serialPeriod },
-          });
-        }
-        const row = await tx.meeting.create({
-          data: { committeeId: committee.id, reference: reference!, meetingDate, agenda },
-        });
+        // Sign-in programme Phase 0: the number is issued by the one issuer, which locks the series row before it reads it.
+        // The series read above only decides what the form must ask for; this is the one that counts.
+        const { row } = await createNumberedSitting(tx, { organisationId: orgId, committeeId: committee.id, meetingDate, agenda, typedReference: typed, day });
         await writeAudit(tx, { organisationId: orgId, entity: "Meeting", entityId: row.id, entityLabel: `${committee.nameEn} sitting`, reason: "" }, "CREATE",
           diffFields(null, { committee: committee.nameEn, meetingDate, agenda, reference: typed ?? "(from numbering)" }));
         if (chosen.length) await tableWaiting(tx, row.id, committee.code, chosen, tabledByPersonId, roster!);
@@ -460,6 +452,8 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
     );
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    // The series was removed or broken between the form and the write: nothing was numbered, and the sitting is not saved.
+    if (e instanceof NumberingError) return { ok: false, errors: { reference: W.sittingNumberRequired.en } };
     throw e;
   }
 
