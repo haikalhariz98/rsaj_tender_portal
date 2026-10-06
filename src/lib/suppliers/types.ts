@@ -34,9 +34,11 @@ export const SUPPLIER_STATUSES: readonly SupplierStatus[] = ["APPLICANT", "REGIS
 export type ApplicationKind = "NEW" | "RENEWAL" | "UPGRADE";
 export const APPLICATION_KINDS: readonly ApplicationKind[] = ["NEW", "RENEWAL", "UPGRADE"];
 
-/// How the paper application reached the organisation.
-export type ApplicationChannel = "COUNTER" | "POST" | "EMAIL";
-export const APPLICATION_CHANNELS: readonly ApplicationChannel[] = ["COUNTER", "POST", "EMAIL"];
+/// How an application reached the organisation. PORTAL is the public form: no officer recorded it.
+export type ApplicationChannel = "COUNTER" | "POST" | "EMAIL" | "PORTAL";
+export const APPLICATION_CHANNELS: readonly ApplicationChannel[] = ["COUNTER", "POST", "EMAIL", "PORTAL"];
+/// The channels an officer may record a paper application under. PORTAL is never one of them: only the public form writes it.
+export const PAPER_CHANNELS: readonly ApplicationChannel[] = ["COUNTER", "POST", "EMAIL"];
 
 export type ApplicationStatus = "RECEIVED" | "RESUBMISSION_REQUESTED" | "APPROVED" | "REJECTED";
 export const APPLICATION_STATUSES: readonly ApplicationStatus[] = ["RECEIVED", "RESUBMISSION_REQUESTED", "APPROVED", "REJECTED"];

@@ -83,6 +83,7 @@ export const CHANNEL_LABEL: Readonly<Record<ApplicationChannel, Words>> = {
   COUNTER: w("Over the counter", "Di kaunter"),
   POST: w("By post", "Melalui pos"),
   EMAIL: w("By email", "Melalui e-mel"),
+  PORTAL: w("Through the supplier portal", "Melalui portal pembekal"),
 };
 
 export const APPLICATION_STATUS_LABEL: Readonly<Record<ApplicationStatus, Words>> = {

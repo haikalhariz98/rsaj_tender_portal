@@ -55,7 +55,7 @@ import {
 import { documentFacts, loadSupplier, loadSupplierConfig, supplierHistory, type LoadedSupplier, type SupplierConfig } from "@/lib/suppliers/repo";
 import { applicationKindFaults, decisionFaults, fileFacts, isDecisionSnapshot, isOpen, openApplicationFaults, queueState, submitFaults, type BlacklistInEffect, type CancellationInEffect } from "@/lib/suppliers/review";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
-import { APPLICATION_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, type ApplicationKind, type Finding, type SupplierStatus } from "@/lib/suppliers/types";
+import { PAPER_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, type ApplicationKind, type Finding, type SupplierStatus } from "@/lib/suppliers/types";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
 
 import { expiryBand } from "@/lib/suppliers/expiry";
@@ -356,7 +356,7 @@ async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { 
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[13px] text-ink-3">{NOT_SENT.en}</p>
-        <OpenApplicationDrawer supplierId={s.id} kinds={kinds} channels={APPLICATION_CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABEL[c].en }))} people={people} today={today} blocker={openBlocker} />
+        <OpenApplicationDrawer supplierId={s.id} kinds={kinds} channels={PAPER_CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABEL[c].en }))} people={people} today={today} blocker={openBlocker} />
       </div>
       {s.applications.length === 0 && (
         <Card>
@@ -379,7 +379,7 @@ async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { 
             <CardHeader
               icon={<ClipboardIcon size={17} />}
               title={`${APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en}, received ${formatDate(day(a.receivedOn))}`}
-              subtitle={`${CHANNEL_LABEL[a.channel].en} · recorded by ${a.recordedBy.name}, on their behalf, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}`}
+              subtitle={a.recordedBy ? `${CHANNEL_LABEL[a.channel].en} · recorded by ${a.recordedBy.name}, on their behalf, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}` : `${CHANNEL_LABEL[a.channel].en} · sent by the applicant, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}. No officer recorded it: the signed declaration is still to come on paper.`}
               actions={<Badge tone={QUEUE_STATE_TONE[st]} dot>{QUEUE_STATE_LABEL[st].en}</Badge>}
             />
             <CardBody className="flex flex-col gap-4">

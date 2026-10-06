@@ -12,7 +12,7 @@ import { formatDate } from "@/lib/format";
 import { routeState } from "@/lib/suppliers/blacklist";
 import { documentStates, stateCounts } from "@/lib/suppliers/documents";
 import { expiryBand, reminderDue, startsOn, worstBand, type ExpiryBand } from "@/lib/suppliers/expiry";
-import { APPLICATION_KIND_LABEL, blacklistEndWords, eventReasonWords, renewalUpcomingWords, DOCUMENT_STATE_LABEL, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, QUEUE_STATE_LABEL, QUEUE_STATE_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords, SUPPLIER_STATUS_LABEL, SUPPLIER_STATUS_TONE } from "@/lib/suppliers/labels";
+import { APPLICATION_KIND_LABEL, blacklistEndWords, CHANNEL_LABEL, eventReasonWords, renewalUpcomingWords, DOCUMENT_STATE_LABEL, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, QUEUE_STATE_LABEL, QUEUE_STATE_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords, SUPPLIER_STATUS_LABEL, SUPPLIER_STATUS_TONE } from "@/lib/suppliers/labels";
 import { documentFacts, listSuppliers, loadSupplierConfig, supplierOrg, SUPPLIERS_PAGE } from "@/lib/suppliers/repo";
 import { queueState, type QueueState } from "@/lib/suppliers/review";
 import { standing } from "@/lib/suppliers/standing";
@@ -111,10 +111,10 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     return {
       id: a.id,
       views: [st === "WITH_APPROVAL" ? "approval" : st === "LAPSED" ? "lapsed" : st === "RESUBMISSION_REQUESTED" ? "resubmission" : "received"],
-      search: [s.registeredName, s.reference, APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en, QUEUE_STATE_LABEL[st].en].join(" "),
+      search: [s.registeredName, s.reference, APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en, CHANNEL_LABEL[a.channel].en, QUEUE_STATE_LABEL[st].en].join(" "),
       sortKeys: { received },
       cells: {
-        supplier: { kind: "link", text: s.registeredName, href: `/suppliers/${s.id}?tab=applications`, sub: `${s.reference} · ${APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en}` },
+        supplier: { kind: "link", text: s.registeredName, href: `/suppliers/${s.id}?tab=applications`, sub: `${s.reference} · ${APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en} · ${CHANNEL_LABEL[a.channel].en}` },
         received: { kind: "stack", title: formatDate(received), sub: age == null ? "Days not counted: no time zone" : age === 0 ? "Today" : `${plural(age, "day", "days")} ago` },
         state: { kind: "badge", text: QUEUE_STATE_LABEL[st].en, tone: TONE[QUEUE_STATE_TONE[st]] },
         deadline: { kind: "text", text: a.resubmitBy && a.status === "RESUBMISSION_REQUESTED" ? `Resubmit by ${formatDate(day(a.resubmitBy))}` : "—", dim: !a.resubmitBy },
@@ -235,7 +235,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
             exportName="supplier-applications"
             searchPlaceholder="Search by supplier"
             emptyTitle="Nothing awaiting a decision"
-            emptyBody="An application recorded from paper appears here until it is decided."
+            emptyBody="An application, recorded from paper or sent through the supplier portal, appears here until it is decided."
             views={[
               { id: "received", label: "Received" },
               { id: "approval", label: "With approval" },
@@ -334,13 +334,13 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     <>
       <PageHeader
         title="Suppliers"
-        subtitle="Suppliers recorded from paper applications, their documents and decisions."
+        subtitle="Suppliers from paper or portal applications, with their documents and decisions."
         meta={[plural(registered, "registered", "registered"), plural(data.queueTotal, "application awaiting a decision", "applications awaiting a decision"), paged ? `${attention} with documents to see to on this page` : plural(attention, "with documents to see to", "with documents to see to"), barredCount == null ? "Suspended or blacklisted: not judged, the time zone is not set" : plural(barredCount, "suspended or blacklisted", "suspended or blacklisted"), `${unsynced} ${ERP_NOT_SYNCED.en.toLowerCase()}`]}
         actions={<ButtonLink href="/suppliers/new" size="sm" variant="primary">Record a paper application</ButtonLink>}
       />
       <div className="mb-6 flex flex-col gap-3">
         <Callout tone="info" title="Not here yet">
-          Contractor performance reports and the grade they give arrive with contractor performance (6.16). Self-registration, online purchase of documents and bids by the suppliers themselves arrive with the vendor portal, once vendors can sign in (6.15b); so do reminders and notices sent to a supplier. Until then every supplier is recorded here by an officer from its paper application, and every reminder and notice is shown here, not sent.
+          Contractor performance reports and the grade they give arrive with contractor performance (6.16). A supplier may apply to register through the public form on the supplier portal; that application waits here as received, marked as sent through the portal, until the office has its signed declaration on paper. Online purchase of documents and bids by the suppliers themselves, and reminders and notices sent to a supplier, arrive with the vendor portal, once vendors can sign in (6.15b). Until then every reminder and notice is shown here, not sent.
         </Callout>
       </div>
       <Tabs initial={tab} label="Suppliers" tabs={tabs} />

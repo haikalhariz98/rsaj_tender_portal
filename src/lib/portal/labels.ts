@@ -298,3 +298,96 @@ export const RESULTS = {
     ),
   },
 };
+
+// ------------------------------------------------------------------ registration application
+
+/// The public application form's words. The duplicate wording never says who holds a number.
+export const APPLY = {
+  title: w("Register as a supplier", "Daftar sebagai pembekal"),
+  subtitle: (organisation: string): Words => w(`Apply to join the supplier register of ${organisation}`, `Mohon menyertai daftar pembekal ${organisation}`),
+  info: w(
+    "Sending this form does not register your company. It puts your application in front of the procurement office, which reviews every one.",
+    "Menghantar borang ini tidak mendaftarkan syarikat anda. Ia meletakkan permohonan anda di hadapan pejabat perolehan, yang menyemak setiap satu.",
+  ),
+  backToHome: w("Back to the supplier portal", "Kembali ke portal pembekal"),
+  beforeTitle: w("Before you start", "Sebelum anda mula"),
+  beforeItems: [
+    w("You need the company's registered name, registration number and registered address, as on its certificate.", "Anda memerlukan nama berdaftar, nombor pendaftaran dan alamat berdaftar syarikat, seperti pada sijilnya."),
+    w("You need a person we can reach: a name, and an email or a telephone number.", "Anda memerlukan seorang yang boleh dihubungi: nama, dan e-mel atau nombor telefon."),
+    w("Nothing is uploaded here, and we do not ask for bank details.", "Tiada apa dimuat naik di sini, dan kami tidak meminta butiran bank."),
+    w("Nothing you enter is shown on the portal's public pages.", "Tiada apa yang anda masukkan dipaparkan pada halaman awam portal."),
+  ] satisfies Words[],
+  companyTitle: w("The company", "Syarikat"),
+  companySubtitle: w("As its registration certificate states it.", "Seperti yang dinyatakan pada sijil pendaftarannya."),
+  contactTitle: w("Who we can reach", "Siapa yang boleh dihubungi"),
+  contactSubtitle: w("A person at the company. This is not a sign-in.", "Seorang di syarikat. Ini bukan log masuk."),
+  fields: {
+    registeredName: w("Registered name", "Nama berdaftar"),
+    registrationNo: w("Registration number", "Nombor pendaftaran"),
+    entityType: w("Type of company", "Jenis syarikat"),
+    country: w("Country", "Negara"),
+    companyEmail: w("Company email", "E-mel syarikat"),
+    registeredAddress: w("Registered address", "Alamat berdaftar"),
+    contactName: w("Name", "Nama"),
+    contactDesignation: w("Position", "Jawatan"),
+    contactEmail: w("Email", "E-mel"),
+    contactPhone: w("Telephone", "Telefon"),
+  },
+  choose: w("Choose", "Pilih"),
+  reachHint: w("Give an email or a telephone number, or both.", "Berikan e-mel atau nombor telefon, atau kedua-duanya."),
+  numberFormatHint: (example: string): Words => w(`For example ${example}.`, `Contohnya ${example}.`),
+  submit: w("Send application", "Hantar permohonan"),
+  sending: w("Sending…", "Menghantar…"),
+  nothingSent: w("Nothing was sent. Check the fields marked below and send it again.", "Tiada apa dihantar. Semak ruangan yang ditanda di bawah dan hantar semula."),
+  tooLong: (label: string, max: number): Words => w(`${label} must be ${max} characters or fewer.`, `${label} mestilah ${max} aksara atau kurang.`),
+  closedTitle: w("Online applications are not open yet", "Permohonan dalam talian belum dibuka"),
+  closedBody: w(
+    "The procurement office has not finished setting up the supplier register, so this form cannot take an application yet. Please come back later, or ask the procurement office.",
+    "Pejabat perolehan belum selesai menyediakan daftar pembekal, jadi borang ini belum boleh menerima permohonan. Sila datang semula nanti, atau tanya pejabat perolehan.",
+  ),
+  noOrganisation: w("This organisation has not been set up in the system, so it cannot take applications. Please contact the procurement office.", "Organisasi ini belum disediakan dalam sistem, jadi belum boleh menerima permohonan. Sila hubungi pejabat perolehan."),
+  closedMissing: w("Still to be set up:", "Masih perlu disediakan:"),
+  notOpenOnSubmit: w("Online applications are not open yet, so nothing was sent.", "Permohonan dalam talian belum dibuka, jadi tiada apa dihantar."),
+  tryAgainLater: w("Something went wrong on our side and nothing was sent. Please try again in a few minutes.", "Sesuatu tidak kena di pihak kami dan tiada apa dihantar. Sila cuba lagi dalam beberapa minit."),
+  sentTitle: w("Your application was sent", "Permohonan anda telah dihantar"),
+  sentNoReference: w("Your application was received.", "Permohonan anda telah diterima."),
+  referenceLabel: w("Your reference", "Rujukan anda"),
+  keepReference: w(
+    "Write this reference down and quote it whenever you contact the procurement office. There is no page to look up the status of an application.",
+    "Catat rujukan ini dan nyatakannya setiap kali anda menghubungi pejabat perolehan. Tiada halaman untuk menyemak status permohonan.",
+  ),
+  nextTitle: w("What happens next", "Apa yang berlaku seterusnya"),
+  nextItems: [
+    w("The procurement office sees your application in its review queue.", "Pejabat perolehan melihat permohonan anda dalam senarai semakannya."),
+    w(
+      "It is not decided until the office holds your signed declaration on paper and has checked your supporting documents. Contact the procurement office, quoting your reference, to hand them in.",
+      "Ia tidak diputuskan sehingga pejabat memegang perakuan bertandatangan anda secara bertulis dan telah menyemak dokumen sokongan anda. Hubungi pejabat perolehan, dengan menyatakan rujukan anda, untuk menyerahkannya.",
+    ),
+    w("Applying does not register your company or invite it to bid.", "Memohon tidak mendaftarkan syarikat anda atau menjemputnya membida."),
+  ] satisfies Words[],
+  officeNoticeTitle: w("A note from the procurement office", "Catatan daripada pejabat perolehan"),
+  /// Every blocking fault the public form can show.
+  faults: {
+    NAME_REQUIRED: w("Enter the company's registered name.", "Masukkan nama berdaftar syarikat."),
+    REGISTRATION_NO_REQUIRED: w("Enter the company's registration number.", "Masukkan nombor pendaftaran syarikat."),
+    FORMAT_MISMATCH: w("This registration number is not written the way we expect. Check it against the certificate.", "Nombor pendaftaran ini tidak ditulis seperti yang dijangka. Semaknya dengan sijil."),
+    DUPLICATE: w("This registration number cannot be accepted online. Please contact the procurement office.", "Nombor pendaftaran ini tidak boleh diterima dalam talian. Sila hubungi pejabat perolehan."),
+    ENTITY_TYPE_REQUIRED: w("Choose the type of company.", "Pilih jenis syarikat."),
+    ENTITY_TYPE_NOT_LISTED: w("Choose one of the types of company in the list.", "Pilih salah satu jenis syarikat dalam senarai."),
+    COUNTRY_REQUIRED: w("Choose the country.", "Pilih negara."),
+    COUNTRY_NOT_LISTED: w("Choose one of the countries in the list.", "Pilih salah satu negara dalam senarai."),
+    ADDRESS_REQUIRED: w("Enter the company's registered address.", "Masukkan alamat berdaftar syarikat."),
+    EMAIL_REQUIRED: w("Enter the company's email address.", "Masukkan alamat e-mel syarikat."),
+    EMAIL_NOT_VALID: w("This email address does not look right. Check it for a typing mistake.", "Alamat e-mel ini nampaknya tidak betul. Semak kesilapan menaip."),
+    CONTACT_NAME_REQUIRED: w("Enter the name of the person we can reach.", "Masukkan nama orang yang boleh dihubungi."),
+    CONTACT_REACH_REQUIRED: w("Give an email address or a telephone number for the contact.", "Berikan alamat e-mel atau nombor telefon untuk orang yang dihubungi."),
+    CONTACT_EMAIL_NOT_VALID: w("The contact's email address does not look right. Check it for a typing mistake.", "Alamat e-mel orang yang dihubungi nampaknya tidak betul. Semak kesilapan menaip."),
+  },
+  /// What the register still lacks before it can take an application, in plain words.
+  missing: {
+    timeZone: w("the office's time zone", "zon masa pejabat"),
+    entityTypes: w("the types of company", "jenis syarikat"),
+    countries: w("the list of countries", "senarai negara"),
+    numbering: w("the way application references are numbered", "cara rujukan permohonan dinomborkan"),
+  },
+};

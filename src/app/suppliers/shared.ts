@@ -20,6 +20,9 @@ import { lockSupplierRow } from "@/lib/suppliers/lock";
 import { supplierOrg, type SupplierOrg } from "@/lib/suppliers/repo";
 import { blocking, type Finding } from "@/lib/suppliers/types";
 
+/// The organisation row, locked: recording a new supplier is serialised on it (the number, the series).
+export const lockOrganisation = (tx: Tx, id: string) => tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${id} FOR UPDATE`;
+
 export const NO_ORG: FormState = { ok: false, message: "No organisation is configured. Run npm run setup before recording suppliers." };
 export const GONE: FormState = { ok: false, message: "That supplier no longer exists." };
 export const CHANGED: FormState = { ok: false, message: "The record changed while this was being saved. Reload and try again." };

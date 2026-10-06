@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { db } from "@/lib/db";
 import { CHANNEL_LABEL, NOT_RESTRICTED_CHIP, PAPER_CALLOUT } from "@/lib/suppliers/labels";
 import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
-import { APPLICATION_CHANNELS } from "@/lib/suppliers/types";
+import { PAPER_CHANNELS } from "@/lib/suppliers/types";
 
 import { ApplicationForm } from "./application-form";
 
@@ -37,7 +37,7 @@ export default async function NewSupplierApplicationPage() {
       <ApplicationForm
         entityTypes={list("ENTITY_TYPE")}
         countries={list("COUNTRY")}
-        channels={APPLICATION_CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABEL[c].en }))}
+        channels={PAPER_CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABEL[c].en }))}
         people={people.map((p) => ({ value: p.id, label: p.name }))}
         formatExample={cfg.format?.example || null}
         today={org.today}

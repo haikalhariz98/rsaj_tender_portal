@@ -33,11 +33,11 @@ import { documentFacts, loadSupplierConfig, supplierOrg, typeFacts } from "@/lib
 import { approveFaults, decisionFaults, decisionSnapshot, fileFacts, isOpen, lapseFaults, openApplicationFaults, submitFaults, type FileFacts } from "@/lib/suppliers/review";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 import { standingOf } from "@/lib/suppliers/standing-repo";
-import { APPLICATION_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_SERIES_KEY, VERIFICATION_STATES, type ApplicationKind, type Finding, type RegistrationValueKind, type SupplierStatus } from "@/lib/suppliers/types";
+import { PAPER_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_SERIES_KEY, VERIFICATION_STATES, type ApplicationKind, type Finding, type RegistrationValueKind, type SupplierStatus } from "@/lib/suppliers/types";
 import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 
-import { activePerson, audit, CHANGED, GONE, inSupplier, label, NO_ORG, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
+import { activePerson, audit, CHANGED, GONE, inSupplier, label, lockOrganisation, NO_ORG, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
 
 /**
  * The staff-side supplier register's acts (plan 6.15 §4.1, increment a1; ADR 0019). An officer records a
@@ -93,8 +93,6 @@ function refusal(fs: readonly Finding[]): FormState {
 
 const listWords = (cfg: Awaited<ReturnType<typeof loadSupplierConfig>>, kind: "ENTITY_TYPE" | "COUNTRY", code: string | null) => (code ? (cfg.listName(kind, code) ?? "A value no longer listed") : NOT_SET);
 
-/// The organisation row, locked: recording a new supplier is serialised on it (the number, the series).
-const lockOrganisation = (tx: Tx, id: string) => tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${id} FOR UPDATE`;
 
 // ------------------------------------------------------------------ recording (FR-VND-001, 006)
 
@@ -123,7 +121,7 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
     registeredAddress: r.text("registeredAddress", "Registered address", { max: 1000 }),
     companyEmail: r.text("companyEmail", "Company email", { max: 240 }),
     receivedOn: r.optionalText("receivedOn"),
-    channel: r.choice("channel", "How it came in", APPLICATION_CHANNELS),
+    channel: r.choice("channel", "How it came in", PAPER_CHANNELS),
     declarationSignedOn: r.optionalText("declarationSignedOn"),
     epaymentFormReceivedOn: r.optionalText("epaymentFormReceivedOn"),
     recordedByPersonId: r.optionalText("recordedByPersonId"),
@@ -204,7 +202,7 @@ export async function openApplication(_prev: FormState, data: FormData): Promise
   const r = new FormReader(data);
   const kind = r.choice("kind", "What it is for", APPLICATION_KINDS);
   const receivedOn = r.optionalText("receivedOn");
-  const channel = r.choice("channel", "How it came in", APPLICATION_CHANNELS);
+  const channel = r.choice("channel", "How it came in", PAPER_CHANNELS);
   const declarationSignedOn = r.optionalText("declarationSignedOn");
   const epaymentFormReceivedOn = r.optionalText("epaymentFormReceivedOn");
   const personId = r.optionalText("recordedByPersonId");

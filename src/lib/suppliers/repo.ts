@@ -249,7 +249,7 @@ export async function listSuppliers(page = 0, today: string | null = null, horiz
       where: { ...where, ...OPEN_APPLICATION },
       orderBy: [{ receivedOn: "asc" }, { createdAt: "asc" }],
       take: SUPPLIERS_PAGE,
-      select: { id: true, kind: true, status: true, receivedOn: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } }, supplier: { select: { id: true, reference: true, registeredName: true } } },
+      select: { id: true, kind: true, status: true, channel: true, receivedOn: true, resubmitBy: true, lapsedRecordedAt: true, routes: { select: { status: true } }, supplier: { select: { id: true, reference: true, registeredName: true } } },
     }),
     client.supplierApplication.count({ where: { ...where, ...OPEN_APPLICATION } }),
     // Soonest expiry first: each supplier by its earliest expiring document in force.
