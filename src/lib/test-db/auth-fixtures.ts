@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 
+import { AccountStatus } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
 import type { RequestFacts } from "@/lib/auth/request";
@@ -85,7 +86,7 @@ export async function makeAccount(
 
 /// Sign-in refuses while the organisation has no administrator, so a test that is not about that makes sure there is one.
 export async function ensureAdministrator(organisationId: string) {
-  const existing = await db.staffAccount.count({ where: { organisationId, isAdministrator: true, status: "ACTIVE" } });
+  const existing = await db.staffAccount.count({ where: { organisationId, isAdministrator: true, status: AccountStatus.ACTIVE } });
   if (existing === 0) await makeAccount(organisationId, { admin: true });
 }
 

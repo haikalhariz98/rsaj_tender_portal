@@ -138,3 +138,26 @@ export function fillUnset(existing: SecurityPolicyValues | null, supplied: Parti
   }
   return { values, filled };
 }
+
+/// The validity range of each numeric setting: the bounds the database CHECK holds (`SecurityPolicy_ranges`), repeated here so a screen or a command says it in words before the write. They keep a typing mistake out. They are not policy: nothing says what a customer should choose within them.
+export const SETTING_RANGES: Partial<Record<SecurityPolicyKey, { min: number; max: number; unit: string }>> = {
+  staffIdleMinutes: { min: 1, max: 10080, unit: "minutes" },
+  staffAbsoluteMinutes: { min: 1, max: 43200, unit: "minutes" },
+  supplierIdleMinutes: { min: 1, max: 10080, unit: "minutes" },
+  supplierAbsoluteMinutes: { min: 1, max: 43200, unit: "minutes" },
+  maxConcurrentSessions: { min: 1, max: 100, unit: "sessions" },
+  maxFailedAttempts: { min: 1, max: 100, unit: "attempts" },
+  lockoutMinutes: { min: 1, max: 10080, unit: "minutes" },
+  addressThrottleAttempts: { min: 1, max: 10000, unit: "attempts" },
+  addressThrottleMinutes: { min: 1, max: 10080, unit: "minutes" },
+  passwordMinLength: { min: 8, max: 256, unit: "characters" },
+  resetCodeValidityMinutes: { min: 1, max: 10080, unit: "minutes" },
+  signInDetailRetentionDays: { min: 1, max: 3650, unit: "days" },
+};
+
+export function rangeFault(key: SecurityPolicyKey, value: number): string | null {
+  const range = SETTING_RANGES[key];
+  if (!range) return null;
+  if (!Number.isInteger(value) || value < range.min || value > range.max) return `Enter a whole number from ${range.min} to ${range.max} ${range.unit}.`;
+  return null;
+}

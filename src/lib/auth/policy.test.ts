@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fillUnset, policyFault, retentionStatement, SETTING_LABELS, settingLabels, signInSettings, unsetSettings } from "./policy";
+import { fillUnset, policyFault, rangeFault, retentionStatement, SETTING_LABELS, settingLabels, signInSettings, unsetSettings } from "./policy";
 import type { SecurityPolicyValues } from "./types";
 
 const unset: SecurityPolicyValues = {
@@ -139,5 +139,16 @@ describe("fillUnset", () => {
 
   it("treats a zero as set", () => {
     expect(fillUnset({ ...unset, maxConcurrentSessions: 0 }, { maxConcurrentSessions: 3 }).filled).toEqual([]);
+  });
+});
+
+describe("rangeFault", () => {
+  it("holds a number to the range the database holds, whole numbers only", () => {
+    expect(rangeFault("passwordMinLength", 8)).toBeNull();
+    expect(rangeFault("passwordMinLength", 7)).toMatch(/8 to 256/);
+    expect(rangeFault("passwordMinLength", 257)).not.toBeNull();
+    expect(rangeFault("lockoutMinutes", 1.5)).not.toBeNull();
+    expect(rangeFault("staffIdleMinutes", 0)).not.toBeNull();
+    expect(rangeFault("concurrentSessionAction", 1)).toBeNull(); // not numeric: nothing to hold it to
   });
 });

@@ -1,4 +1,5 @@
 import { writeAudit } from "@/lib/audit/record";
+import { AccountStatus } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 
 import { codeVerdict, hashCode, normaliseCode } from "./codes";
@@ -143,7 +144,7 @@ export async function redeemOneTimeCode(input: { loginName: string; code: string
     const resetNoticePending = row.purpose === "RESET";
     await tx.staffAccount.update({
       where: { id: account.id },
-      data: { passwordHash, passwordChangedAt: now, mustChangePassword: false, status: "ACTIVE", failedAttempts: 0, lockedUntil: null, resetNoticePending },
+      data: { passwordHash, passwordChangedAt: now, mustChangePassword: false, status: AccountStatus.ACTIVE, failedAttempts: 0, lockedUntil: null, resetNoticePending },
     });
     await revokeAccountSessions(tx, account.id, "CODE_USED", now);
     const actor = await auditActorOf(tx, account.personId, null, organisation.id, request, now);

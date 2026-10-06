@@ -1,4 +1,5 @@
 import type { Tx } from "@/lib/audit/record";
+import { AccountStatus } from "@/generated/prisma/client";
 import { writeAudit } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 
@@ -55,7 +56,7 @@ export async function lockAccount(tx: Tx, accountId: string): Promise<void> {
 }
 
 export async function hasAdministrator(organisationId: string): Promise<boolean> {
-  return (await db.staffAccount.count({ where: { organisationId, isAdministrator: true, status: "ACTIVE" } })) > 0;
+  return (await db.staffAccount.count({ where: { organisationId, isAdministrator: true, status: AccountStatus.ACTIVE } })) > 0;
 }
 
 const MAX_LOGIN_NAME = 128;
@@ -141,12 +142,23 @@ export async function authenticateStaff(credentials: Credentials, request: Reque
   // One hash for every attempt that gets this far: against the real hash where the account can sign in, else against a dummy.
   const eligible = account != null && account.status === "ACTIVE" && account.person.isActive && verdict === "ALLOW";
   const stored = eligible ? account.passwordHash : await dummyHash();
-  const checked = await hashPool.run(() => verifyPassword(stored, credentials.password));
-
-  if (!eligible || !checked.ok) {
-    await failAttempt(organisation.id, account, verdict === "LOCKED" ? "LOCKED" : "ALLOW", settings, request, now);
-    return { ok: false, kind: "FAILED" };
-  }
+  const since = throttleSince(now, settings.addressThrottleMinutes);
+  const checked = await hashPool.run(async () => {
+    // The count above was taken before this attempt waited for a hash slot, and a burst of attempts all take it before any has failed. Take it
+    // again at the front of the queue, so that a burst is held to the limit (and the slots in flight) rather than all passing a count of nothing.
+    if ((await failedSignInsFrom(db, organisation.id, request.sourceAddress, since)) >= settings.addressThrottleAttempts) {
+      await recordSignInEvent(db, { organisationId: organisation.id, staffAccountId: account?.id ?? null, kind: "THROTTLED", request, at: now });
+      return null;
+    }
+    const result = await verifyPassword(stored, credentials.password);
+    // A failure is written before the slot is given up, or the next attempt in the queue would count without it.
+    if (!eligible || !result.ok) {
+      await failAttempt(organisation.id, account, verdict === "LOCKED" ? "LOCKED" : "ALLOW", settings, request, now);
+      return null;
+    }
+    return result;
+  });
+  if (checked === null || !eligible) return { ok: false, kind: "FAILED" };
 
   const upgraded = checked.needsRehash ? await hashPool.run(() => hashPassword(credentials.password)) : null;
   return completeSignIn({ organisationId: organisation.id, accountId: account.id, settings, request, replacingToken, upgradedHash: upgraded, previousHash: account.passwordHash, now });

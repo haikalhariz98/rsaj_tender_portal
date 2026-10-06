@@ -1,4 +1,5 @@
 import { diffFields } from "@/lib/audit/diff";
+import { AccountStatus } from "@/generated/prisma/client";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { lockOrganisation } from "@/lib/authority/locks";
 import { db } from "@/lib/db";
@@ -92,7 +93,7 @@ export async function bootstrapAdministrator(input: BootstrapInput, now: Date = 
   const run = async (tx: Tx): Promise<BootstrapResult> => {
     // One bootstrap at a time, and the check for an existing administrator is made under the lock, so two operators cannot each be "first".
     await lockOrganisation(tx, organisation.id);
-    const administrators = await tx.staffAccount.count({ where: { organisationId: organisation.id, isAdministrator: true, status: "ACTIVE" } });
+    const administrators = await tx.staffAccount.count({ where: { organisationId: organisation.id, isAdministrator: true, status: AccountStatus.ACTIVE } });
     if (input.mode === "FIRST" && administrators > 0) {
       return fail("ADMINISTRATOR_EXISTS", "An administrator already exists. To add a second one run this command with --additional. If the only administrator is locked out, run it with --recover.");
     }
@@ -128,7 +129,7 @@ export async function bootstrapAdministrator(input: BootstrapInput, now: Date = 
       const faults = passwordFaults(input.password, { loginName: account.loginName, minLength });
       if (faults.length > 0) return fail("BAD_PASSWORD", faults[0].en);
       const passwordHash = await hashPassword(input.password);
-      await tx.staffAccount.update({ where: { id: account.id }, data: { passwordHash, passwordChangedAt: now, mustChangePassword: false, status: "ACTIVE", disabledAt: null, disabledReason: "", failedAttempts: 0, lockedUntil: null, resetNoticePending: true } });
+      await tx.staffAccount.update({ where: { id: account.id }, data: { passwordHash, passwordChangedAt: now, mustChangePassword: false, status: AccountStatus.ACTIVE, disabledAt: null, disabledReason: "", failedAttempts: 0, lockedUntil: null, resetNoticePending: true } });
       await revokeAccountSessions(tx, account.id, "ACCOUNT_CHANGED", now);
       await writeAudit(
         tx,
@@ -136,7 +137,7 @@ export async function bootstrapAdministrator(input: BootstrapInput, now: Date = 
         "UPDATE",
         [
           { field: "passwordChangedAt", before: account.passwordChangedAt.toISOString(), after: now.toISOString() },
-          ...diffFields({ status: account.status, failedAttempts: account.failedAttempts, resetNoticePending: account.resetNoticePending }, { status: "ACTIVE", failedAttempts: 0, resetNoticePending: true }),
+          ...diffFields({ status: account.status, failedAttempts: account.failedAttempts, resetNoticePending: account.resetNoticePending }, { status: AccountStatus.ACTIVE, failedAttempts: 0, resetNoticePending: true }),
           ...(account.lockedUntil ? [{ field: "lockedUntil", before: account.lockedUntil.toISOString(), after: null }] : []),
         ],
       );
@@ -172,14 +173,14 @@ export async function bootstrapAdministrator(input: BootstrapInput, now: Date = 
 
     const passwordHash = await hashPassword(input.password);
     const account = await tx.staffAccount.create({
-      data: { organisationId: organisation.id, personId, loginName, loginKey: loginName.toLowerCase(), passwordHash, passwordChangedAt: now, isAdministrator: true, status: "ACTIVE" },
+      data: { organisationId: organisation.id, personId, loginName, loginKey: loginName.toLowerCase(), passwordHash, passwordChangedAt: now, isAdministrator: true, status: AccountStatus.ACTIVE },
       select: { id: true },
     });
     await writeAudit(
       tx,
       { organisationId: organisation.id, entity: "StaffAccount", entityId: account.id, entityLabel: `Sign-in account of ${personName}`, reason: input.mode === "FIRST" ? "The first administrator, created by the bootstrap command" : "A further administrator, created by the bootstrap command (--additional)", actor },
       "CREATE",
-      diffFields(null, { loginName, isAdministrator: true, status: "ACTIVE", person: personName }),
+      diffFields(null, { loginName, isAdministrator: true, status: AccountStatus.ACTIVE, person: personName }),
     );
     await recordSignInEvent(tx, { organisationId: organisation.id, staffAccountId: account.id, kind: "ACCOUNT_CREATED", at: now });
     return { ok: true, mode: input.mode, accountId: account.id, personId, policyFilled: filled, policyStillUnset: [] };

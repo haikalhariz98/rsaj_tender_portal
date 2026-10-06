@@ -226,6 +226,19 @@ describe("what a stranger can tell", () => {
     expect((await signIn(loginName, password, address, null, new Date(t0.getTime() + 31 * 60_000))).ok).toBe(true);
   });
 
+  it("holds a burst from one address to the limit, not to the limit times the burst: the count is taken again at the front of the hash queue", async () => {
+    await setPolicy(organisationId, { ...SETTINGS, addressThrottleAttempts: 3, maxFailedAttempts: 100 });
+    const address = randomAddress();
+    const burst = 40;
+    await Promise.all(Array.from({ length: burst }, () => signIn(`nobody.${randomId()}`, "whatever", address)));
+    const failed = await db.signInEvent.count({ where: { kind: "FAILED", detail: { is: { sourceAddress: address } } } });
+    const held = await db.signInEvent.count({ where: { kind: "THROTTLED", detail: { is: { sourceAddress: address } } } });
+    // Up to the limit, plus the attempts already past the check when it was reached (at most one per hash slot).
+    expect(failed).toBeGreaterThanOrEqual(3);
+    expect(failed).toBeLessThanOrEqual(3 + 4);
+    expect(failed + held).toBe(burst);
+  });
+
   it("does not throttle an address it does not know", async () => {
     await setPolicy(organisationId, { ...SETTINGS, addressThrottleAttempts: 1 });
     const { password, loginName } = await makeAccount(organisationId);
