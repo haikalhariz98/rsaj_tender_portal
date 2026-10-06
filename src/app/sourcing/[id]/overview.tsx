@@ -598,8 +598,10 @@ function DetailsCard({ p }: { p: OverviewProps }) {
               )}
             </ul>
             {live && !live.edit.allowed && <p className="text-[12.5px] text-ink-3">{live.edit.reason}</p>}
-            {/* Where these findings say "on the Overview tab", this is it: they say "here". */}
-            {live && live.edit.allowed && <Findings items={[...live.eligibility.findings, ...live.restriction.findings, ...live.permit.findings].map((f) => ({ ...f, text: f.text.split(DETAILS_PLACE).join("here") }))} />}
+            {/* Where these findings say "on the Overview tab", this is it: they say "here". Founder, 2026-10-05:
+                what blocks approval is not listed (the rows above already say "Not set", and the submit refuses
+                with the reasons); only warnings and notes show. */}
+            {live && live.edit.allowed && <Findings items={[...live.eligibility.findings, ...live.restriction.findings, ...live.permit.findings].filter((f) => f.level !== "block").map((f) => ({ ...f, text: f.text.split(DETAILS_PLACE).join("here") }))} />}
             {(frozen || before) && (
               <p className="text-[12.5px] text-ink-3">
                 {frozen ? `As frozen with version ${frozen.frozen.version}, judged ${frozen.frozen.judgedOn}. They change only in a new version, after a return.` : `Version ${before!.version} was frozen before they were recorded with it.`}{" "}
