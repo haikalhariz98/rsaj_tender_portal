@@ -57,7 +57,7 @@ vi.mock("../../suppliers/shared", () => ({
   },
 }));
 
-import { submitApplication } from "./actions";
+import { receiveApplication } from "./receive";
 
 const FORM = {
   registeredName: "Sampel Works Sdn Bhd",
@@ -76,7 +76,7 @@ const form = (o: Record<string, string> = {}) => {
   for (const [k, v] of Object.entries({ ...FORM, ...o })) f.set(k, v);
   return f;
 };
-const send = (o?: Record<string, string>) => submitApplication({ ok: false }, form(o));
+const send = (o?: Record<string, string>) => receiveApplication(form(o));
 const row = (model: string) => h.created.find((c) => c.model === model)?.data;
 
 beforeEach(() => {

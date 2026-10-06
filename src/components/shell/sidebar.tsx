@@ -68,6 +68,7 @@ export function Sidebar({
   counts,
   onNavigate,
   onClose,
+  portalOnly = false,
 }: {
   organisation: ShellOrganisation;
   strapline: string;
@@ -77,6 +78,8 @@ export function Sidebar({
   onNavigate?: () => void;
   /// Present only in the mobile drawer.
   onClose?: () => void;
+  /// The public copy of the product: the supplier portal is the whole of it, so there is no other workspace to switch to.
+  portalOnly?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -179,11 +182,12 @@ export function Sidebar({
         <button
           type="button"
           ref={trigger}
-          aria-haspopup="menu"
-          aria-expanded={switching}
-          aria-label={`Viewing as ${workspaceName}. Switch workspace`}
+          aria-haspopup={portalOnly ? undefined : "menu"}
+          aria-expanded={portalOnly ? undefined : switching}
+          aria-label={portalOnly ? workspaceName : `Viewing as ${workspaceName}. Switch workspace`}
+          disabled={portalOnly}
           onClick={() => setSwitching((open) => !open)}
-          className="flex w-full items-center gap-3 rounded-2xl border border-line bg-sunken px-3 py-2.5 text-left transition hover:border-line-2 hover:bg-surface"
+          className="flex w-full items-center gap-3 rounded-2xl border border-line bg-sunken px-3 py-2.5 text-left transition not-disabled:hover:border-line-2 not-disabled:hover:bg-surface disabled:cursor-default"
         >
           <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface text-brand-700 shadow-[0_1px_2px_rgb(15_23_42/0.08)]">
             {workspace === "supplier" ? <UserIcon size={16} /> : <BuildingIcon size={16} />}
@@ -192,10 +196,10 @@ export function Sidebar({
             <span className="block truncate text-[13.5px] font-bold text-ink">{workspaceName}</span>
             <span className="block truncate text-[12px] text-ink-3">{strapline}</span>
           </span>
-          <ChevronDown size={16} className="shrink-0 text-ink-3" />
+          {!portalOnly && <ChevronDown size={16} className="shrink-0 text-ink-3" />}
         </button>
 
-        {switching && (
+        {switching && !portalOnly && (
           <div
             role="menu"
             aria-label="Switch workspace"

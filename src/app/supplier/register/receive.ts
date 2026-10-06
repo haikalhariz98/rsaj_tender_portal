@@ -1,12 +1,10 @@
-"use server";
-
 import { revalidatePath } from "next/cache";
 
 import { diffFields } from "@/lib/audit/diff";
 import { dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { issueReference, NumberingError } from "@/lib/numbering/issue";
-import { APPLICATION_LIMITS, honeypotTripped, HONEYPOT_FIELD, portalApplicationFaults, portalRefusal } from "@/lib/portal/apply";
+import { APPLICATION_LIMITS, honeypotTripped, type ApplyState, HONEYPOT_FIELD, portalApplicationFaults, portalRefusal } from "@/lib/portal/apply";
 import { APPLY } from "@/lib/portal/labels";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { normaliseRegistrationNo } from "@/lib/suppliers/identity";
@@ -17,15 +15,6 @@ import { SUPPLIER_SERIES_KEY } from "@/lib/suppliers/types";
 import { FormReader } from "@/lib/validate";
 
 import { audit, label, lockOrganisation, stampNow } from "../../suppliers/shared";
-
-/// What the public form is told. Never an echo of what was typed, and never a name from the register.
-export interface ApplyState {
-  ok: boolean;
-  errors?: Record<string, string>;
-  message?: string;
-  /// The application's reference. Null on a success that created nothing (a dropped bot).
-  reference?: string | null;
-}
 
 const closed = (): ApplyState => ({ ok: false, message: APPLY.notOpenOnSubmit.en });
 
@@ -41,7 +30,7 @@ const closed = (): ApplyState => ({ ok: false, message: APPLY.notOpenOnSubmit.en
  * The application's reference is the supplier's register reference, returned once to the applicant. No
  * route reads an application back by reference.
  */
-export async function submitApplication(_prev: ApplyState, data: FormData): Promise<ApplyState> {
+export async function receiveApplication(data: FormData): Promise<ApplyState> {
   // A filled bait field is a script: drop it, create nothing, and say only that it was received.
   if (honeypotTripped(data.get(HONEYPOT_FIELD))) return { ok: true, reference: null };
 

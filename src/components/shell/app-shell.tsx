@@ -14,12 +14,15 @@ export function AppShell({
   strapline,
   counts,
   user,
+  portalOnly = false,
   children,
 }: {
   organisation: ShellOrganisation;
   strapline: string;
   counts: Record<string, number>;
   user: ShellUser | null;
+  /// The public copy of the product: only the supplier portal is served, so the frame offers nothing else.
+  portalOnly?: boolean;
   children: ReactNode;
 }) {
   // Closed by the sidebar itself on every link and workspace switch (`onNavigate`),
@@ -42,7 +45,7 @@ export function AppShell({
           overscroll never shows the canvas under it. */}
       <div aria-hidden="true" className="absolute inset-y-0 left-0 z-0 hidden w-68 border-r border-line/70 bg-surface lg:block print:hidden" />
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-68 border-r border-line/70 bg-surface lg:block print:hidden">
-        <Sidebar organisation={organisation} strapline={strapline} counts={counts} />
+        <Sidebar organisation={organisation} strapline={strapline} counts={counts} portalOnly={portalOnly} />
       </aside>
 
       {open && (
@@ -59,6 +62,7 @@ export function AppShell({
               counts={counts}
               onNavigate={() => setOpen(false)}
               onClose={() => setOpen(false)}
+              portalOnly={portalOnly}
             />
           </aside>
         </div>

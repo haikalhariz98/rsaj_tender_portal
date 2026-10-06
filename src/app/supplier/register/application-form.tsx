@@ -8,12 +8,22 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
-import { HONEYPOT_FIELD } from "@/lib/portal/apply";
+import { HONEYPOT_FIELD, type ApplyState } from "@/lib/portal/apply";
 import { APPLY, PORTAL_PATH } from "@/lib/portal/labels";
-
-import { submitApplication, type ApplyState } from "./actions";
+import { SUBMIT_PATH } from "@/lib/portal/surface";
 
 type Option = { value: string; label: string };
+
+/// The one write the public copy accepts, as a plain POST to its own route (a server action is refused there).
+async function send(data: FormData): Promise<ApplyState> {
+  try {
+    const res = await fetch(SUBMIT_PATH, { method: "POST", body: data });
+    if (!(res.headers.get("content-type") ?? "").includes("application/json")) return { ok: false, message: APPLY.tryAgainLater.en };
+    return (await res.json()) as ApplyState;
+  } catch {
+    return { ok: false, message: APPLY.tryAgainLater.en };
+  }
+}
 
 /**
  * The public registration form. What was typed is kept on a refused send; every rule is the server's
@@ -86,7 +96,7 @@ export function ApplicationForm({ entityTypes, countries, formatExample, notice 
   );
 
   return (
-    <form onSubmit={(e) => { const data = formDataOf(e); startTransition(async () => setState(await submitApplication(state, data))); }} className="flex flex-col gap-6" noValidate>
+    <form onSubmit={(e) => { const data = formDataOf(e); startTransition(async () => setState(await send(data))); }} className="flex flex-col gap-6" noValidate>
       {state.message && <Callout tone="err">{state.message}</Callout>}
       <Card>
         <CardHeader title={APPLY.companyTitle.en} subtitle={APPLY.companySubtitle.en} />

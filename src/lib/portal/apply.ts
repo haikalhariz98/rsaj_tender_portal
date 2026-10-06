@@ -18,6 +18,15 @@ import { blocking, type Finding } from "@/lib/suppliers/types";
 
 import { APPLY, type Words } from "./labels";
 
+/// What the public form is told. Never an echo of what was typed, and never a name from the register.
+export interface ApplyState {
+  ok: boolean;
+  errors?: Record<string, string>;
+  message?: string;
+  /// The application's reference. Null on a success that created nothing (a dropped bot).
+  reference?: string | null;
+}
+
 /// The longest each field may be: the staff form's own limits.
 export const APPLICATION_LIMITS = {
   registeredName: 240,
@@ -29,6 +38,9 @@ export const APPLICATION_LIMITS = {
   contactEmail: 240,
   contactPhone: 60,
 } as const;
+
+/// The most bytes a submission may weigh: every field at its limit is under 4 KB, so this is generous and still small.
+export const APPLICATION_BODY_LIMIT = 32 * 1024;
 
 /// The name of the form's bait field. A person never sees it; a script that fills every field does.
 export const HONEYPOT_FIELD = "faxNumber";
