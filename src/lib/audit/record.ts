@@ -3,6 +3,9 @@ import type { ITXClientDenyList } from "@prisma/client/runtime/client";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 
+import type { AuditActor } from "@/lib/auth/types";
+
+import { actorColumns } from "./actor";
 import { diffFields, snapshotFields, type FieldChange } from "./diff";
 
 /**
@@ -26,6 +29,8 @@ export interface AuditContext {
   /// How the row read at the time. A deleted row is still legible in the trail.
   entityLabel: string;
   reason?: string;
+  /// Who acted. Optional until Phase 1b makes every caller give one.
+  actor?: AuditActor;
 }
 
 export async function writeAudit(
@@ -43,8 +48,7 @@ export async function writeAudit(
       action,
       changes: changes as unknown as Prisma.InputJsonValue,
       reason: ctx.reason ?? "",
-      actorPersonId: null,
-      unattributed: true,
+      ...actorColumns(ctx.actor),
     },
   });
 }

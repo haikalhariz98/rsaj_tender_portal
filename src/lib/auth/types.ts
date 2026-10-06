@@ -1,0 +1,90 @@
+/**
+ * The contracts of sign-in (ADR 0034). Types only: nothing here runs.
+ *
+ * Amended from the ADR's first draft: there is no `assurance` on a session and no `stepUpWindowSeconds`. The password
+ * is asked again at every signature-class act, and a second sign-in factor, when the founder authorises one, attaches
+ * at that same step.
+ */
+
+/// The closed list of product permissions. Product vocabulary, not policy: which role holds which is configuration
+/// (Phase 2a). Until then nobody holds any by role, and the administrator flag grants only what ADR D8 says it does.
+export type PermissionKey =
+  | "accounts.manage"
+  | "security.policy"
+  | "permissions.grant"
+  | "configuration.draft"
+  | "configuration.issue"
+  | "audit.read"
+  | "supplierAccounts.manage"
+  | "sulit.read.organisation"
+  | "acts.recordOnBehalf";
+
+export interface Office {
+  roleCode: string;
+  scope: string | null;
+}
+
+export interface StaffActor {
+  kind: "STAFF";
+  accountId: string;
+  sessionId: string;
+  personId: string;
+  personName: string;
+  /// The person's job title as recorded, for the shell. Null where none is.
+  jobTitle: string | null;
+  isAdministrator: boolean;
+  organisationId: string;
+  organisationCode: string;
+  organisationTimeZone: string | null;
+  /// The roles the person holds on the organisation's today. Empty where no zone is set (today is not known).
+  offices: readonly Office[];
+  /// Filled by Phase 2a (`resolvePermissions`). Until then empty: a permission nobody has decided is refused.
+  permissions: ReadonlySet<PermissionKey>;
+  stepUpAt: Date | null;
+  sourceAddress: string | null;
+  /// The account must choose a new password before anything else (it was reset or created with a temporary one).
+  mustChangePassword: boolean;
+}
+
+export interface SupplierActor {
+  kind: "SUPPLIER";
+  accountId: string;
+  sessionId: string;
+  contactId: string;
+  supplierId: string;
+  organisationId: string;
+  sourceAddress: string | null;
+}
+
+export type AuditActor =
+  /// `sessionId` is null where the act is the account holder's own but no session exists yet: using a one-time code.
+  | { kind: "STAFF"; personId: string; sessionId: string | null; offices: readonly Office[]; sourceAddress: string | null }
+  | { kind: "SUPPLIER"; supplierAccountId: string; sessionId: string | null; sourceAddress: string | null }
+  | { kind: "SYSTEM"; label: string };
+
+/// The settings of an organisation's `SecurityPolicy`, each null while the customer has not decided. Nothing has a default.
+export interface SecurityPolicyValues {
+  staffIdleMinutes: number | null;
+  staffAbsoluteMinutes: number | null;
+  supplierIdleMinutes: number | null;
+  supplierAbsoluteMinutes: number | null;
+  maxConcurrentSessions: number | null;
+  concurrentSessionAction: "REVOKE_OLDEST" | "REFUSE_NEW" | null;
+  maxFailedAttempts: number | null;
+  lockoutMinutes: number | null;
+  addressThrottleAttempts: number | null;
+  addressThrottleMinutes: number | null;
+  passwordMinLength: number | null;
+  resetCodeValidityMinutes: number | null;
+  paperSignatureRecording: "ALLOWED" | "REFUSED" | null;
+  signInDetailRetentionDays: number | null;
+}
+
+export type SecurityPolicyKey = keyof SecurityPolicyValues;
+
+/// A fault found while checking an input, in both languages. `code` is for code to branch on, never shown.
+export interface Fault {
+  code: string;
+  en: string;
+  ms: string;
+}
