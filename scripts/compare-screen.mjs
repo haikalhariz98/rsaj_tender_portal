@@ -19,6 +19,8 @@ import { readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { JSDOM } from "jsdom";
 
+import { signedInFetch } from "./signed-in-fetch.mjs";
+
 const args = process.argv.slice(2);
 const asJson = args.includes("--json");
 const [section, ourPath, tab] = args.filter((a) => !a.startsWith("--"));
@@ -89,7 +91,7 @@ function renderPrototype() {
 }
 
 async function fetchOurs() {
-  const res = await fetch(`${BASE}${OUR_PATH}`);
+  const res = await signedInFetch(`${BASE}${OUR_PATH}`);
   if (!res.ok) throw new Error(`${BASE}${OUR_PATH} returned ${res.status}. Is npm run dev up?`);
   return res.text();
 }

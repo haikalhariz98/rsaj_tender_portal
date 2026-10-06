@@ -10,6 +10,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { JSDOM } from "jsdom";
 
+import { signedInFetch } from "./signed-in-fetch.mjs";
+
 const out = process.argv[2];
 const base = process.argv[3] ?? "http://localhost:3000";
 if (!out) throw new Error("usage: node scripts/text-snapshot.mjs <out-dir> [base-url]");
@@ -83,7 +85,7 @@ for (const [list, re] of [
   ["/awards", /href="(\/awards\/[0-9A-Za-z_-]{4,})"/],
   ["/committees", /href="(\/committees\/[0-9A-Za-z_-]{4,})"/],
 ]) {
-  const hit = re.exec(await (await fetch(base + list)).text());
+  const hit = re.exec(await (await signedInFetch(base + list)).text());
   if (hit) ROUTES.push(hit[1], ...(list === "/awards" || list === "/committees" ? [] : [`${hit[1]}/edit`]));
 }
 
@@ -91,7 +93,7 @@ ROUTES.push(...process.argv.slice(4));
 
 mkdirSync(out, { recursive: true });
 for (const route of ROUTES) {
-  const res = await fetch(base + route);
+  const res = await signedInFetch(base + route);
   const name = (route === "/" ? "dashboard" : route.slice(1)).replace(/[/?=]/g, "__") + ".txt";
   writeFileSync(join(out, name), `# ${route} (${res.status})\n` + lines(await res.text()));
   console.log(res.status, route);

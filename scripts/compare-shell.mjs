@@ -4,10 +4,12 @@
 import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 
+import { signedInFetch } from "./signed-in-fetch.mjs";
+
 const [protoFile, appUrl] = process.argv.slice(2);
 
 const proto = new JSDOM(readFileSync(protoFile, "utf8")).window.document;
-const app = new JSDOM(await (await fetch(appUrl)).text()).window.document;
+const app = new JSDOM(await (await signedInFetch(appUrl)).text()).window.document;
 
 const SKIP = /^(svg|path|circle|rect|line|polyline|g|defs|img)$/;
 
