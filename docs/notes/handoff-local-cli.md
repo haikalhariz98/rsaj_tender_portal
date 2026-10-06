@@ -51,6 +51,8 @@ it with `git stash pop` before resuming Run 1b. Expect conflicts in `src/lib/com
 and `src/app/committees/actions.ts` if the committee auto-tabling work (founder, 2026-10-05) has
 changed them; resolve by keeping both.
 
+**Settled 2026-10-06 (sign-in programme, Phase 0).** The stash's work is committed (`30407e2`, with its red file). It is kept in the stash list, not dropped, as a record. Do not `git stash pop` it: it would re-apply what is already in the tree. Its third lock-order test was rewritten against the outcome path that landed (`inContractMatterForOutcome`); see the decisions log, 2026-10-06 · Phase 0.
+
 ## Finishing Run 1b
 
 - The plan: `plans/6.13-post-award-lifecycle.md`, "Part B — full plan", Run 1b in B10.

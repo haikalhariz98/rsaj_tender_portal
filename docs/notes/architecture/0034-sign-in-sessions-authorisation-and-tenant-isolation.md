@@ -197,6 +197,8 @@ ActAttribution {
   - exactly one recorder is set (a person, a supplier account, or a system label, so that demo, fixture and migration acts are attributed honestly);
   - `RECORDED_ON_BEHALF` requires `paperReference` or `reason`.
 - Each row is written in the same transaction as the act and its audit row, by one writer, `attributeAct`.
+- **Separation-of-duties checks run against both people:** the signed-in actor and the attested person the act is recorded for (self-approval, requester is not the approver, endorser, opening-panel independence, delegation to self, FR-APR-009 conflict).
+- **The committee votes route** stops reading `personId` from the request body. The voter is the session's person, or the actor holds the secretariat seat for that sitting; both people are stored.
 - A registry, `ACT_SLOTS` in `src/lib/auth/act-slots.ts`, lists each person slot: key, entity, field, whether it is signature-class (approve, sign or unseal), and its label.
   - A schema scan checks that every `Person` relation on a non-configuration model is either in `ACT_SLOTS` or in `NOT_AN_ACT` with a reason.
 - **Reading an attribution.** It is never inferred from a date:
@@ -228,7 +230,7 @@ ActAttribution {
   - **Restricted exercises (FR-MTD-007).** If `SourcingExercise.restricted` is set, only named people are granted. `sulit.read.organisation` does not open a restricted exercise.
 - Loaders return `Sulit<T>`, never the bare value. The shared `SulitValue` component renders "SULIT · withheld" or the value.
 - Every SULIT field rendered, allowed or refused, writes a `SulitAccessEvent`: actor, record, field set, outcome and basis. Within one request it is de-duplicated with `cache()`.
-- Exports, reports and search call the same rule.
+- Exports, reports and search call the same rule. Every export with a SULIT column is audited and limited to entitled users; the audit export needs `audit.read`.
 - The sealed company estimate (ADR 0012) stays sealed whoever is signed in.
 
 **D15. Maker-checker.**
@@ -240,8 +242,8 @@ ActAttribution {
   - Fields: `kind`, `payload`, a `before` snapshot, `proposedBy`, `decidedBy`, and status `PROPOSED → APPLIED | DECLINED | WITHDRAWN | STALE`.
   - Proposer and decider must be different people. The decider needs the kind's permission.
   - Applying re-validates the payload. If the current values no longer equal `before`, the change becomes `STALE`.
-  - Kinds in this phase: `PERMISSION_GRANT`, `ADMINISTRATOR_GRANT`, `ADMINISTRATOR_REVOKE`, `SECURITY_POLICY` and `COMMITTEE_QUORUM` (6.10's controlled quorum change).
-- Rolling it out to every other configuration editor (NFR-USE-004) is a product-owner ruling (OQ-1). The mechanism is generic so that it can be rolled out.
+  - Kinds in Phase 2c: `SECURITY_POLICY`, `PERMISSION_GRANT`, `ADMINISTRATOR_GRANT`, `ADMINISTRATOR_REVOKE` and `ACCOUNT_CODE` (activation or reset of the account of a Person who holds an office, seat or delegation; the second person issues the code and is shown it, D6). Phase 5a adds quorum (FR-CTE-003), the opening panel size, classification downgrades (BD-DS-11), the 6.12 corrections (`correctBaseline`, `correctAwardTerm`) and the BD-24 award-return correction; Phase 5b moves every remaining Configuration section onto it, people and assignments included.
+- OQ-1 is settled by the specification (NFR-USE-004, NFR-SEC-004): maker-checker applies to every configuration editor. Transactional acts (window extensions, bid handling) are signed and attributed, with no second person.
 - An organisation with one administrator cannot grant or issue, and the screen says a second person is needed. The product never fakes a second approval.
 
 **D16. Sign-in events.**
@@ -292,7 +294,7 @@ ActAttribution {
 - The "recorded on behalf of" picker disappears from acts the actor performs themselves. It stays, now with the actor as recorder, only where an act is genuinely recorded from paper.
 - `/approvals` can show "my steps".
 - Self-approval and conflict checks finally see the real actor.
-- FR-APR-011 becomes partly enforceable: the grantor is now the signed-in actor. The superior and line-subordinate checks stay deferred because the data still has no reporting lines; `faultsIn` keeps saying so.
+- FR-APR-011 becomes partly enforceable: the grantor is now the signed-in actor. Reporting lines (FR-APR-010/011) are built in Phase 3c as configuration per organisation and left **unset**: while unset, the superior and line-subordinate checks stay as `faultsIn` says, the screen says "reporting line not set", and a step is never silently promoted.
 - Every screen and loader now takes an actor. That is a large, mechanical change, driven by compile errors and the scans.
 - The demo and fixture loaders must pass a `SYSTEM` actor.
 - Ruled out:
@@ -304,8 +306,10 @@ ActAttribution {
   - a Prisma extension that adds `organisationId` automatically: it cannot cover child tables;
   - reusing `Capability` for product permissions: it is customer vocabulary with provenance.
 - Still blocked after this ADR:
-  - 6.15c: needs D6, the SK002 §7.7 amendment and electronic opening;
-  - buying documents online and FR-VND-005's payment and bank flow: need a payment service.
+  - 6.15c (NFR-SEC-003, FR-BID-001, the sealed bid in FR-VND-013, FR-BID-008, the electronic half of FR-DOC-009, the unseal half of FR-OPN-003): needs D6, the SK002 §7.7 amendment and an outside cryptography review;
+  - paying for tender documents online (INT-10), sending email or SMS (INT-09), signing in through a corporate directory (INT-14), registry checks (INT-11, which stay manual).
+  - FR-VND-005 is not blocked: it is a SULIT bank-details form the vendor fills in, and needs no payment service. FR-VND-012 is built up to payment: the vendor can request documents and sees the FR-ADV-010 pre-sale checks, and `electronicDocumentRelease` is left unset.
+- **Go-live conditions:** a review by the security auditor and an outside review; a public-copy database role (SELECT on portal views only); RSAJ's written acceptance of the missing second factor and the founder's go-ahead (D19); the one-organisation-per-database limit holds until the cross-organisation suite covers every action (D10).
 
 ---
 
@@ -394,7 +398,7 @@ attributionLabel(row: ActAttribution | null, auditAttributed: boolean): { state:
   - NFR-SEC-001, 002 (the restriction half), 004, 006
   - NFR-AUD-001 (actor, role held, source address) and NFR-AUD-004
   - FR-APR-020 maker-checker at issue
-  - 6.10 controlled quorum change
+  - 6.10 controlled quorum change (on `ConfigurationChange` in Phase 5a)
   - FR-MTD-007: hiding and access logging
   - the 6.7 authorisations and 6.8 scoring, now signed
   - the per-actor `/approvals` queue, with an in-product count rather than email
@@ -402,15 +406,15 @@ attributionLabel(row: ActAttribution | null, auditAttributed: boolean): { state:
   - the 6.10 tabler and secretariat checked against the actor
   - FR-DOC-011 endorser and FR-DOC-014 assurance actor checked
   - 6.11 IC-number masking turned into real restriction
-  - 6.15b: FR-VND-001 with an account, FR-VND-006, 011, 012, 013 (attendance, acknowledgement, own-bid status) and 014, FR-DOC-010 inspection log, FR-AWD-010, and notices shown in the portal (no email)
+  - 6.15b: FR-VND-001 with an account, FR-VND-004 to 008, 011, 013 (attendance, acknowledgement, own-bid status; not the sealed bid) and 014, FR-DOC-010 inspection log, FR-AWD-010 (with the D7 switch left unset), and notices shown in the portal (no email). FR-VND-012 was listed here in the first draft in error: it is built up to payment only.
   - every "not restricted until sign-in" or "recorded on behalf" label replaced
 - **Partly unblocked:**
-  - FR-APR-011: the grantor is now known; reporting lines are still missing.
+  - FR-APR-011: the grantor is now known; reporting lines are built as configuration and left unset (Phase 3c).
   - NFR-SEC-005: separate stores yes; MFA not met, by user ruling.
   - Savings on `/reports`: reporting is out of this build.
 - **Still blocked:**
   - 6.15c: NFR-SEC-003, the FR-VND-013 sealed bid, FR-BID-008, and the electronic half of FR-DOC-009. These need D6, the SK002 §7.7 amendment and electronic opening.
-  - FR-VND-005 and online document purchase: need a payment service.
+  - Online document purchase (INT-10), email and SMS (INT-09), directory sign-in (INT-14).
 
 ## Component list, in build order
 
@@ -454,7 +458,7 @@ attributionLabel(row: ActAttribution | null, auditAttributed: boolean): { state:
     - `attribution.ts` (the writer `attributeAct` and `attributionLabel`); retire `ON_BEHALF`, `RECORDED_ON_BEHALF` and the literal in `rejection-store.ts`
     - `maker-checker.ts`
     - `configuration-change.ts` (a parser and applier per kind, and the staleness check)
-13. **workflow-engineer:** the matrix issue path (makers and adoption). The `ConfigurationChange` lifecycle for the five kinds, including moving 6.10's quorum change onto it.
+13. **workflow-engineer:** the matrix issue path (makers and adoption). The `ConfigurationChange` lifecycle for the five Phase 2c kinds (the quorum change moves onto it in Phase 5a).
 14. **api-engineer:** every act that holds a person slot gets `attributeAct`. Signature-class acts get `stepUp`. Person pickers stay only on acts recorded from paper, gated by `acts.recordOnBehalf` and `paperSignatureRecording`.
 15. **frontend-engineer:**
     - the permissions grid gets a "Product permissions" group with three states
@@ -490,7 +494,7 @@ attributionLabel(row: ActAttribution | null, auditAttributed: boolean): { state:
 23. **frontend-engineer:** `/supplier/sign-in`, `/supplier/activate`, `/supplier/account`, and the 6.15b screens.
 24. **security-auditor:** the threat-model checklist, the go-live conditions, and the outside review.
 
-**Phase 5, depending on OQ-1:** roll `ConfigurationChange` out to the remaining configuration editors.
+**Phase 5 (OQ-1 settled):** roll `ConfigurationChange` out to every remaining configuration editor.
 
 ## Product-owner rulings
 
