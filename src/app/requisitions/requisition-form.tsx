@@ -67,7 +67,6 @@ function totalOf(lines: Line[]): bigint | null {
 /// An amount as the form shows it: "100,000.00" (founder, 2026-10-05: xx,xxx.xx). The commas are
 /// display only: the action strips them, as parseSen and FormReader.money already do.
 const grouped = (sen: bigint) => `${(sen / 100n).toLocaleString("en-MY")}.${(sen % 100n).toString().padStart(2, "0")}`;
-const rm = (sen: bigint) => `RM${grouped(sen)}`;
 const typed = grouped;
 
 /// A typed amount rewritten as "100,000.00" when the field is left. Anything that is not an
@@ -98,13 +97,14 @@ export function RequisitionForm({
   const [lines, setLines] = useState<Line[]>(initialLines?.length ? initialLines : [{ ...BLANK_LINE }]);
   const [unit, setUnit] = useState(values.requestingUnitCode ?? "");
   const [account, setAccount] = useState(values.accountCode ?? "");
-  const [value, setValue] = useState(values.estimatedValue ?? "");
   const e = state.errors ?? {};
 
   const sections = useMemo(() => options.sections.filter((s) => s.parentCode === unit), [options.sections, unit]);
   const budgetCodes = useMemo(() => (account ? options.budgetCodes.filter((b) => b.accountCode === account) : options.budgetCodes), [options.budgetCodes, account]);
   const total = totalOf(lines);
-  const valueSen = senOf(value);
+  // Founder, 2026-10-06: the estimated value is the lines' total, worked out as they are typed (the
+  // action still requires the two to agree, so typing it separately only invited a mismatch).
+  const value = total != null && total > 0n ? grouped(total) : "";
 
   const action = mode === "new" ? createRequisition : editDraft;
   const submit = (data: FormData) => {
@@ -133,17 +133,12 @@ export function RequisitionForm({
       }),
     );
   };
-  /// An upload replaces the lines (the upload asked first where some were typed). The
-  /// estimated value is filled from the lines only while it is empty; otherwise the line
-  /// under it says whether they match.
+  /// An upload replaces the lines (the upload asked first where some were typed); the estimated
+  /// value follows them, as it does typed lines.
   const applyImport = (imported: ImportedLine[]) => {
     const next = imported.map((l) => ({ ...l, estimatedUnitPrice: l.estimatedUnitPrice ? tidy(l.estimatedUnitPrice) : "", estimatedAmount: tidy(l.estimatedAmount) }));
     setLines(next);
     setOwnAmount(next.map(() => true));
-    if (value.trim() === "") {
-      const sum = totalOf(next);
-      if (sum != null) setValue(grouped(sum));
-    }
   };
   const typedLines = lines.filter((l) => Object.values(l).some((v) => v.trim() !== "")).length;
   const removeLine = (i: number) => {
@@ -226,7 +221,7 @@ export function RequisitionForm({
         <CardHeader
           icon={<FileIcon size={17} />}
           title="Line items"
-          subtitle="List each item. The lines must add up to the estimated value."
+          subtitle="List each item. The estimated value is their total."
         />
         <CardBody className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -235,22 +230,15 @@ export function RequisitionForm({
                 id="rq-estimatedValue"
                 prefix="RM"
                 name="estimatedValue"
-                inputMode="decimal"
                 value={value}
-                onChange={(ev) => setValue(ev.target.value)}
-                onBlur={() => setValue(tidy(value))}
+                readOnly
+                placeholder="The total of the lines"
                 aria-invalid={e.estimatedValue ? true : undefined}
-                className="[&_input]:text-right"
+                className="[&_input]:bg-sunken [&_input]:text-right"
               />
             </Field>
             <div className="flex items-end pb-2 text-[13px] text-ink-3" aria-live="polite">
-              {total == null
-                ? "A line amount is not a figure yet."
-                : valueSen == null
-                  ? `Lines come to ${rm(total)}.`
-                  : total === valueSen
-                    ? `Lines come to ${rm(total)}, the estimated value.`
-                    : `Lines come to ${rm(total)}, which is not the estimated value.`}
+              {total == null ? "A line amount is not a figure yet, so there is no total." : "Worked out from the lines below."}
             </div>
           </div>
           {e.lines && <Callout tone="err">{e.lines}</Callout>}
