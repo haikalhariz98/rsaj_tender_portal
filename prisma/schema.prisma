@@ -3433,6 +3433,10 @@ model AwardPolicy {
   quotationContractKey  QuotationContractKey?
   /// The customer's words for works that need the regulator's copy (FR-AWD-004).
   regulatedActivityLabel String?
+  /// Whether the public Results page shows the awarded value. Null: not set, and not set means not shown.
+  publishAwardedValue           Boolean?
+  /// Where that choice came from, apart from the controls' own provenance: a disclosure is its own decision.
+  publishAwardedValueProvenance Provenance?
 
   loaTemplateId          String?
   loaTemplate            DocumentTemplate? @relation("PolicyLoaTemplate", fields: [loaTemplateId], references: [id], onDelete: Restrict)

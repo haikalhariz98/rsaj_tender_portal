@@ -8,7 +8,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { exerciseOrg } from "@/lib/method/repo";
 
-import { OPPORTUNITY_SELECT } from "./select";
+import { ISSUED_AWARD_STATUSES, OPPORTUNITY_SELECT, resultSelect } from "./select";
+import { toPublicResult, type PublicResult, type ResultRow } from "./results";
 import { PUBLISHED_OR_CANCELLED, toPublicOpportunity, type OpportunityRow, type PublicOpportunity } from "./public";
 
 /// What the query lets through, before the rule runs again on each row.
@@ -47,4 +48,29 @@ export async function loadOpportunity(id: string): Promise<PublicOpportunity | n
     context(org.id, org.timeZone),
   ]);
   return row ? toPublicOpportunity(row as unknown as OpportunityRow, ctx) : null;
+}
+
+/**
+ * The public results: advertised exercises with an issued award, newest award first. The value is
+ * read only where `AwardPolicy.publishAwardedValue` is Yes; `showsValue` tells the page whether to
+ * draw the column at all, so "not published" and "no results" are never confused.
+ */
+export async function loadResults(): Promise<{ ready: boolean; showsValue: boolean; results: PublicResult[] }> {
+  const org = await exerciseOrg();
+  if (!org) return { ready: false, showsValue: false, results: [] };
+  const [methods, policy] = await Promise.all([
+    db.sourcingMethod.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true } }),
+    db.awardPolicy.findUnique({ where: { organisationId: org.id }, select: { publishAwardedValue: true } }),
+  ]);
+  const publish = policy?.publishAwardedValue === true;
+  const rows = await db.sourcingExercise.findMany({
+    where: { organisationId: org.id, ...PUBLIC_WHERE, awards: { some: { status: { in: [...ISSUED_AWARD_STATUSES] } } } },
+    select: resultSelect(publish),
+  });
+  const ctx = { now: new Date(), timeZone: org.timeZone, methodNames: new Map(methods.map((m) => [m.code, m.nameEn])), publishAwardedValue: publish };
+  const results = (rows as unknown as ResultRow[])
+    .map((r) => toPublicResult(r, ctx))
+    .filter((r): r is PublicResult => r !== null)
+    .sort((a, b) => (b.awardedDay ?? "").localeCompare(a.awardedDay ?? "") || a.reference.localeCompare(b.reference));
+  return { ready: true, showsValue: publish, results };
 }

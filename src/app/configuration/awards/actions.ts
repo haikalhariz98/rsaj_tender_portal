@@ -61,6 +61,8 @@ export async function saveAwardPolicy(_prev: FormState, data: FormData): Promise
     postContractUnitCode: r.optionalText("postContractUnitCode"),
     quotationContractKey: r.choice("quotationContractKey", "Quotation contract number", ["INDENT_NUMBER", "CONTRACT_SERIES"] as const),
     regulatedActivityLabel: r.optionalText("regulatedActivityLabel"),
+    publishAwardedValue: ((c) => (c === "YES" ? true : c === "NO" ? false : null))(r.choice("publishAwardedValue", "Publish the awarded value", ["YES", "NO"] as const)),
+    publishAwardedValueProvenance: r.choice("publishAwardedValueProvenance", "Where the publishing choice came from", PROVENANCE),
     loaTemplateId: r.optionalText("loaTemplateId"),
     declarationTemplateId: r.optionalText("declarationTemplateId"),
     coveringMemoTemplateId: r.optionalText("coveringMemoTemplateId"),

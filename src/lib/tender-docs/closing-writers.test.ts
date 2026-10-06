@@ -109,6 +109,7 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   // The public portal (founder, 2026-10-06): the opportunities page reads the closing to say when an advertised exercise closes.
   "src/lib/portal/select.ts": "selects the exercise's closing for the public opportunity pages; writes nothing",
   "src/lib/portal/public.ts": "states the closing in the organisation's time and judges open or closed from it; writes nothing",
+  "src/lib/portal/results.ts": "passes the closing to the public rule that decides whether an awarded exercise is listed; writes nothing",
 };
 
 describe("X-2: the closing is written nowhere else, by any route (carry a)", () => {

@@ -44,3 +44,31 @@ export const OPPORTUNITY_SELECT = {
     },
   },
 } satisfies Prisma.SourcingExerciseSelect;
+
+/// The awards that count as a result: issued, or issued and accepted. Shared with the rule in results.ts.
+export const ISSUED_AWARD_STATUSES = ["ISSUED", "ACCEPTED"] as const;
+
+/**
+ * The read behind the public Results page. An exercise's award is reduced to when it was issued and
+ * who won it. The awarded value is selected only when the organisation has chosen to publish it
+ * (`AwardPolicy.publishAwardedValue` is Yes): otherwise it never leaves the database. It names no
+ * registration number, address, IC number, vendor, signatory, party or term of the award.
+ */
+export function resultSelect(showValue: boolean) {
+  return {
+    id: true,
+    reference: true,
+    title: true,
+    status: true,
+    restricted: true,
+    closingAt: true,
+    sourcingMethodCode: true,
+    window: { select: { path: true, publishedAt: true } },
+    awards: {
+      where: { status: { in: [...ISSUED_AWARD_STATUSES] } },
+      select: showValue
+        ? { status: true, issuedAt: true, awardeeName: true, awardedValue: true }
+        : { status: true, issuedAt: true, awardeeName: true },
+    },
+  } satisfies Prisma.SourcingExerciseSelect;
+}

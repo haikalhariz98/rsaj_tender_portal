@@ -260,3 +260,41 @@ export const SITE_EVENT_KIND_WORDS: Record<"BRIEFING" | "SITE_VISIT", Words> = {
   BRIEFING: w("Briefing", "Taklimat"),
   SITE_VISIT: w("Site visit", "Lawatan tapak"),
 };
+
+/* Results (the public list of awarded exercises) */
+
+export const RESULTS = {
+  title: w("Results", "Keputusan"),
+  subtitle: (organisation: string): Words => w(`Advertised tenders and quotations awarded by ${organisation}`, `Tender dan sebut harga yang diiklankan dan diawardkan oleh ${organisation}`),
+  info: w(
+    "Only exercises that were advertised and then awarded are listed, with who won them and the day the award was issued. Exercises that invited named suppliers are not shown here.",
+    "Hanya pelawaan yang diiklankan dan kemudian diawardkan disenaraikan, bersama pemenang dan tarikh award dikeluarkan. Pelawaan yang menjemput pembekal tertentu tidak dipaparkan di sini.",
+  ),
+  valueNotPublished: w("The awarded value is not published.", "Nilai award tidak diterbitkan."),
+  listTitle: w("Awarded exercises", "Pelawaan yang diawardkan"),
+  listSubtitle: w("Search by title, reference or the company that won. The latest awards are first.", "Cari mengikut tajuk, rujukan atau syarikat yang menang. Award terkini di atas."),
+  search: w("Search by title, reference or awardee", "Cari mengikut tajuk, rujukan atau penerima award"),
+  columns: {
+    exercise: w("Opportunity", "Peluang"),
+    awardee: w("Awarded to", "Diawardkan kepada"),
+    awardedOn: w("Awarded on", "Tarikh award"),
+    method: w("Method", "Kaedah"),
+    value: w("Awarded value", "Nilai award"),
+  },
+  awardeeNotStated: w("Not stated", "Tidak dinyatakan"),
+  emptyTitle: w("No awards to show yet", "Belum ada award untuk dipaparkan"),
+  emptyBody: w(
+    "An advertised opportunity appears here once it has been awarded. Open opportunities are under Opportunities.",
+    "Peluang yang diiklankan dipaparkan di sini selepas diawardkan. Peluang yang dibuka berada di bawah Peluang.",
+  ),
+  count: (n: number): Words => w(n === 1 ? "1 award" : `${n} awards`, `${n} award`),
+  viewResults: w("View results", "Lihat keputusan"),
+  viewOpportunities: w("View opportunities", "Lihat peluang"),
+  notSetUp: {
+    title: w("Results are not available yet", "Keputusan belum tersedia"),
+    body: w(
+      "This organisation has not been set up in the system, so there is nothing to list. Please contact the procurement office.",
+      "Organisasi ini belum disediakan dalam sistem, jadi tiada apa untuk disenaraikan. Sila hubungi pejabat perolehan.",
+    ),
+  },
+};

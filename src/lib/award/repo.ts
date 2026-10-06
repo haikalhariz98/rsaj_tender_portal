@@ -147,12 +147,14 @@ export async function withLockedExerciseForAward<T>(exerciseId: string, fn: (tx:
   );
 }
 
-export async function loadAwardPolicy(organisationId: string, client: Tx = db): Promise<AwardPolicy & { id: string | null; notes: string }> {
+export async function loadAwardPolicy(organisationId: string, client: Tx = db): Promise<AwardPolicy & { id: string | null; notes: string; publishAwardedValue: boolean | null; publishAwardedValueProvenance: Provenance | null }> {
   const p = await client.awardPolicy.findUnique({ where: { organisationId } });
-  if (!p) return { ...UNSET_AWARD_POLICY, id: null, notes: "" };
+  if (!p) return { ...UNSET_AWARD_POLICY, id: null, notes: "", publishAwardedValue: null, publishAwardedValueProvenance: null };
   return {
     id: p.id,
     notes: p.notes,
+    publishAwardedValue: p.publishAwardedValue,
+    publishAwardedValueProvenance: p.publishAwardedValueProvenance as Provenance | null,
     tenderInstrument: p.tenderInstrument as InstrumentKind | null,
     quotationInstrument: p.quotationInstrument as InstrumentKind | null,
     indentValidityDays: p.indentValidityDays,
