@@ -1,10 +1,13 @@
 import { DataList, type Row } from "@/components/data-list";
-import { BuildingIcon, ClipboardIcon, ClockIcon, ShieldIcon } from "@/components/icons";
+import { BuildingIcon, ClipboardIcon, ClockIcon, GlobeIcon, ShieldIcon } from "@/components/icons";
 import { Tabs } from "@/components/tabs";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { loadRegistrationForm } from "@/lib/portal/apply-repo";
+import { flagWords } from "@/lib/portal/queue";
+import { loadPortalQueue } from "@/lib/portal/queue-repo";
 import { daysBetween } from "@/lib/requisition/types";
 import { storedDay } from "@/lib/dates";
 import { addDays } from "@/lib/securities/period";
@@ -49,6 +52,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
     return <PageHeader title="Suppliers" subtitle="The supplier register." />;
   }
   const { suppliers, expiring, standing: standingSuppliers, queue: openApplications } = data;
+  const [online, intake] = await Promise.all([loadPortalQueue(org0.id), loadRegistrationForm()]);
   const pages = Math.max(1, Math.ceil(data.total / SUPPLIERS_PAGE));
   const typeExpires = new Map(cfg.types.map((t) => [t.id, t.expires]));
 
@@ -121,6 +125,29 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       },
     };
   });
+  // ------------------------------------------------------------------ online applications, staged until an officer records them
+  const onlineRows: Row[] = online.rows.map((a) => {
+    const clash = a.flags.some((f) => f.code === "NUMBER_ON_REGISTER");
+    const again = a.flags.some((f) => f.code === "NUMBER_SENT_AGAIN");
+    const age = today ? daysBetween(a.receivedOn, today) : null;
+    return {
+      id: a.id,
+      views: [...(clash ? ["clash"] : []), ...(again ? ["again"] : [])],
+      search: [a.registeredName, a.reference, a.registrationNo].join(" "),
+      sortKeys: { received: a.receivedOn },
+      cells: {
+        supplier: { kind: "link", text: a.registeredName, href: `/suppliers/online/${a.id}`, sub: `${a.reference} · ${a.registrationNo}` },
+        received: { kind: "stack", title: formatDate(a.receivedOn), sub: age == null ? "Days not counted: no time zone" : age === 0 ? "Today" : `${plural(age, "day", "days")} ago` },
+        check: {
+          kind: "chips",
+          items: a.flags.length
+            ? a.flags.map((f) => ({ text: f.code === "NUMBER_ON_REGISTER" ? `Number held by ${f.holder.reference}` : `Number sent ${f.others + 1} times`, tone: flagWords(f).tone === "err" ? ("err" as const) : ("warn" as const) }))
+            : [{ text: "No clash with the register", tone: "ok" as const }],
+        },
+      },
+    };
+  });
+
   // Oldest first: the order a queue is worked in.
   queue.sort((a, b) => String(a.sortKeys?.received ?? "").localeCompare(String(b.sortKeys?.received ?? "")));
   // ------------------------------------------------------------------ a2: expiring (FR-VND-008), shown and never sent
@@ -255,6 +282,46 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       ),
     },
     {
+      id: "portal",
+      label: "Online",
+      icon: <GlobeIcon size={15} />,
+      count: online.total,
+      panel: (
+        <div className="flex flex-col gap-4">
+          {intake.ready && intake.missing.length > 0 && (
+            <Callout tone="warn" title="The public form is closed" action={<ButtonLink href="/configuration/suppliers#online-applications" size="sm">Open the settings</ButtonLink>}>
+              Nothing can arrive until it is set up. Still to be set: {intake.missing.map((m) => m.en).join(", ")}.
+            </Callout>
+          )}
+          <Card className="overflow-hidden">
+            <CardHeader icon={<GlobeIcon size={17} />} title="Online applications waiting" subtitle="Sent through the supplier portal and not yet on the register: none holds a registration number's place, and none is a supplier until an officer records it. Oldest first." divided={false} />
+            <DataList
+              flat
+              selectable={false}
+              exportName="online-applications"
+              searchPlaceholder="Search by company, reference or registration number"
+              emptyTitle="No online application is waiting"
+              emptyBody="An application sent through the supplier portal appears here until an officer records the supplier from it or sets it aside."
+              views={[
+                { id: "clash", label: "Number on the register" },
+                { id: "again", label: "Number sent more than once" },
+              ]}
+              rowAction={{ label: "Open", hrefTemplate: "/suppliers/online/{id}" }}
+              rowOpens
+              stackBelow="xl"
+              columns={[
+                { key: "supplier", label: "Company", mobile: "primary" },
+                { key: "received", label: "Sent", width: "170px", sortable: true, mobile: "meta" },
+                { key: "check", label: "Against the register", width: "260px", mobile: "meta" },
+              ]}
+              rows={onlineRows}
+            />
+            {online.total > onlineRows.length && <CardFooter className="text-[12.5px] text-ink-3">Showing the oldest {onlineRows.length} of {online.total}.</CardFooter>}
+          </Card>
+        </div>
+      ),
+    },
+    {
       id: "expiring",
       label: "Expiring",
       icon: <ClockIcon size={15} />,
@@ -340,7 +407,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
       />
       <div className="mb-6 flex flex-col gap-3">
         <Callout tone="info" title="Not here yet">
-          Contractor performance reports and the grade they give arrive with contractor performance (6.16). A supplier may apply to register through the public form on the supplier portal; that application waits here as received, marked as sent through the portal, until the office has its signed declaration on paper. Online purchase of documents and bids by the suppliers themselves, and reminders and notices sent to a supplier, arrive with the vendor portal, once vendors can sign in (6.15b). Until then every reminder and notice is shown here, not sent.
+          Contractor performance reports and the grade they give arrive with contractor performance (6.16). A company may apply to register through the public form on the supplier portal; that application waits on the Online tab, apart from the register, until an officer checks it against the certificate and records the supplier from it. It becomes an application here, marked as sent through the portal, and is not decided until the office has its signed declaration on paper. Online purchase of documents and bids by the suppliers themselves, and reminders and notices sent to a supplier, arrive with the vendor portal, once vendors can sign in (6.15b). Until then every reminder and notice is shown here, not sent.
         </Callout>
       </div>
       <Tabs initial={tab} label="Suppliers" tabs={tabs} />

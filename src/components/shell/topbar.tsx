@@ -70,6 +70,7 @@ const RECORD_LABEL: Record<string, string> = {
   sourcing: "Exercise",
   // The public portal: an advertised opportunity; the page names it by its reference (RecordCrumb).
   opportunities: "Opportunity",
+  online: "Online application",
   evaluation: "Evaluation model",
   label: "Sale label",
 };
@@ -84,6 +85,8 @@ const NESTED_LABEL: Record<string, string> = {
   // 6.15a: the register's configuration, and recording a paper application.
   "configuration/suppliers": "Supplier register",
   "suppliers/new": "New application",
+  // Online applications waiting for an officer: the list is the Online tab, one application sits under it.
+  "suppliers/online": "Online applications",
   // 6.14 residual: every page names its crumbs (crumbs.test.ts walks every page).
   "sourcing/new": "New exercise",
   "configuration/contracts": "Contract controls",

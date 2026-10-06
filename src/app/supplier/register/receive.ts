@@ -1,34 +1,51 @@
-import { revalidatePath } from "next/cache";
-
-import { diffFields } from "@/lib/audit/diff";
 import { dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { issueReference, NumberingError } from "@/lib/numbering/issue";
-import { APPLICATION_LIMITS, honeypotTripped, type ApplyState, HONEYPOT_FIELD, portalApplicationFaults, portalRefusal } from "@/lib/portal/apply";
+import {
+  APPLICATION_LIMITS,
+  honeypotTripped,
+  HONEYPOT_FIELD,
+  portalApplicationFaults,
+  portalCapacity,
+  PORTAL_APPLICATION_SERIES_KEY,
+  portalRefusal,
+  type ApplyState,
+} from "@/lib/portal/apply";
 import { APPLY } from "@/lib/portal/labels";
-import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { normaliseRegistrationNo } from "@/lib/suppliers/identity";
-import { APPLICATION_KIND_LABEL, CHANNEL_LABEL } from "@/lib/suppliers/labels";
-import { supplierApplicationLabel } from "@/lib/suppliers/lock";
 import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
-import { SUPPLIER_SERIES_KEY } from "@/lib/suppliers/types";
 import { FormReader } from "@/lib/validate";
 
-import { audit, label, lockOrganisation, stampNow } from "../../suppliers/shared";
+import { stampNow } from "../../suppliers/shared";
 
 const closed = (): ApplyState => ({ ok: false, message: APPLY.notOpenOnSubmit.en });
 
+/// A refusal thrown from inside the transaction, so the reference it took is given back with everything else.
+class Turned extends Error {
+  constructor(readonly state: ApplyState) {
+    super("Turned away");
+  }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
- * A stranger applies to join the supplier register (no sign-in). It makes exactly what an officer's
- * paper application makes (the applicant supplier, its primary contact, the application received, each
- * audited in the same transaction) so it appears in the staff review queue, but with the channel fixed
- * to the portal, the day fixed to the organisation's today, and nobody named as the recorder.
+ * A stranger applies to join the supplier register (no sign-in). The application is staged: it is a
+ * `PortalApplication`, not a supplier, so it holds no registration number's place on the register,
+ * spends no supplier reference, and writes nothing to the audit trail. An officer checks it against
+ * the certificate and records the supplier from it, or discards it.
  *
- * Only the identity and contact fields are read. A channel, a recorder, a received day, a declaration
- * day or an E-Payment day posted by hand is ignored: they are not this form's to say (OD-3).
+ * Whatever the register holds is never asked here. A number already on the register gets the same
+ * reply as any other, so the form cannot be used to find out who is registered; the officer is shown
+ * the clash when they record the supplier.
  *
- * The application's reference is the supplier's register reference, returned once to the applicant. No
- * route reads an application back by reference.
+ * It is open only when the organisation has set the applicant notice and both limits. The limits are
+ * counted from what has been received (any 24 hours, and for one registration number), under the lock
+ * of the application series, so two sends at once cannot both take the last place. No lock is taken
+ * on the organisation: staff writes are never made to wait behind a stranger.
+ *
+ * Only the identity and contact fields are read. A channel, a recorder, a received day or a paper day
+ * posted by hand is ignored: they are not this form's to say (OD-3).
  */
 export async function receiveApplication(data: FormData): Promise<ApplyState> {
   // A filled bait field is a script: drop it, create nothing, and say only that it was received.
@@ -54,60 +71,64 @@ export async function receiveApplication(data: FormData): Promise<ApplyState> {
   if (r.failed) return { ok: false, errors: r.errors, message: APPLY.nothingSent.en };
 
   try {
-    let reference: string | null = null;
-    const result = await db.$transaction(
-      async (tx): Promise<ApplyState> => {
-        const org = await supplierOrg(tx);
-        if (!org) return closed();
-        await lockOrganisation(tx, org.id);
-        const cfg = await loadSupplierConfig(org.id, tx);
-        const key = normaliseRegistrationNo(v.registrationNo);
-        // Only whether the number is taken is carried forward; who holds it is never read out.
-        const taken = key ? (await tx.supplier.count({ where: { organisationId: org.id, registrationNoKey: key } })) > 0 : false;
-        const faults = portalApplicationFaults({ ...v, contact }, { today: org.today, formatPattern: cfg.format?.pattern ?? null, entityTypeCodes: cfg.liveCodes("ENTITY_TYPE", org.today), countryCodes: cfg.liveCodes("COUNTRY", org.today), numberTaken: taken });
-        const refusal = portalRefusal(faults);
-        if (refusal?.closed) return closed();
-        if (refusal) return { ok: false, errors: refusal.errors, message: refusal.message };
+    const org = await supplierOrg();
+    if (!org) return closed();
+    const cfg = await loadSupplierConfig(org.id);
+    const policy = cfg.policy;
+    // The form is open only on a notice in both languages and both limits: nothing is assumed (see whatIsMissing).
+    if (!policy?.personalDataNoticeEn?.trim() || !policy.personalDataNoticeMs?.trim() || policy.portalDailyLimit == null || policy.portalDailyLimitPerNumber == null) return closed();
 
-        const today = org.today!;
-        let issued: string;
-        try {
-          issued = await issueReference(tx, org.id, SUPPLIER_SERIES_KEY, dayToDate(today));
-        } catch (e) {
-          if (e instanceof NumberingError) return closed();
-          throw e;
-        }
-        const supplier = await tx.supplier.create({
-          data: {
-            organisationId: org.id,
-            reference: issued,
-            registeredName: v.registeredName,
-            registrationNo: v.registrationNo.trim(),
-            registrationNoKey: key,
-            entityTypeCode: v.entityTypeCode!,
-            countryCode: v.countryCode!,
-            registeredAddress: v.registeredAddress,
-            companyEmail: v.companyEmail,
-          },
-        });
-        const c = await tx.supplierContact.create({ data: { organisationId: org.id, supplierId: supplier.id, name: contact.name, designation: contact.designation, email: contact.email, phone: contact.phone, isPrimary: true } });
-        const app = await tx.supplierApplication.create({
-          data: { organisationId: org.id, supplierId: supplier.id, kind: "NEW", receivedOn: dayToDate(today), channel: "PORTAL", recordedByPersonId: null, recordedAt: now, declarationSignedOn: null, epaymentFormReceivedOn: null },
-          include: { supplier: { select: { reference: true } } },
-        });
-        const words = (kind: "ENTITY_TYPE" | "COUNTRY", code: string) => cfg.listName(kind, code) ?? "A value no longer listed";
-        await audit(tx, org.id, SUPPLIER_ENTITY.supplier, supplier.id, label(supplier, supplier.registeredName), "CREATE",
-          diffFields(null, { reference: issued, registeredName: supplier.registeredName, registrationNo: supplier.registrationNo, formatChecked: faults.some((f) => f.code === "FORMAT_NOT_CHECKED") ? "Not checked: no format is set" : "Matches the configured format", entityType: words("ENTITY_TYPE", supplier.entityTypeCode), country: words("COUNTRY", supplier.countryCode), registeredAddress: supplier.registeredAddress, companyEmail: supplier.companyEmail, status: "Applicant" }));
-        await audit(tx, org.id, SUPPLIER_ENTITY.contact, c.id, label(supplier, "Primary contact"), "CREATE", diffFields(null, { contactName: c.name, contactDesignation: c.designation || null, contactEmail: c.email || null, contactPhone: c.phone || null, primary: true }));
-        await audit(tx, org.id, SUPPLIER_ENTITY.application, app.id, supplierApplicationLabel(app), "CREATE",
-          diffFields(null, { kind: APPLICATION_KIND_LABEL.NEW.en, receivedOn: today, channel: CHANNEL_LABEL.PORTAL.en, recordedBy: "Nobody: sent by the applicant through the supplier portal", declarationSignedOn: null, epaymentFormReceivedOn: null }));
-        reference = issued;
-        return { ok: true };
-      },
-      { timeout: 20_000, maxWait: 10_000 },
-    );
-    if (!result.ok) return result;
-    revalidatePath("/suppliers");
+    const faults = portalApplicationFaults({ ...v, contact }, { today: org.today, formatPattern: cfg.format?.pattern ?? null, entityTypeCodes: cfg.liveCodes("ENTITY_TYPE", org.today), countryCodes: cfg.liveCodes("COUNTRY", org.today) });
+    const refusal = portalRefusal(faults);
+    if (refusal?.closed) return closed();
+    if (refusal) return { ok: false, errors: refusal.errors, message: refusal.message };
+
+    const today = org.today!;
+    const key = normaliseRegistrationNo(v.registrationNo);
+    const limits = { daily: policy.portalDailyLimit, perNumber: policy.portalDailyLimitPerNumber };
+    let reference: string | null = null;
+    try {
+      await db.$transaction(
+        async (tx) => {
+          // The series row is the lock: issuing takes it, and the counts below are read while it is held.
+          const issued = await issueReference(tx, org.id, PORTAL_APPLICATION_SERIES_KEY, dayToDate(today));
+          const since = new Date(now.getTime() - DAY_MS);
+          const [lastDay, forNumber] = await Promise.all([
+            tx.portalApplication.count({ where: { organisationId: org.id, receivedAt: { gte: since } } }),
+            tx.portalApplication.count({ where: { organisationId: org.id, registrationNoKey: key, receivedAt: { gte: since } } }),
+          ]);
+          const capacity = portalCapacity({ lastDay, forNumber }, limits);
+          if (capacity === "NOT_SET") throw new Turned(closed());
+          // Alike for both limits, so the form never says that this particular number has been sent before.
+          if (capacity === "BUSY") throw new Turned({ ok: false, message: APPLY.busy.en });
+          await tx.portalApplication.create({
+            data: {
+              organisationId: org.id,
+              reference: issued,
+              receivedOn: dayToDate(today),
+              receivedAt: now,
+              registeredName: v.registeredName,
+              registrationNo: v.registrationNo.trim(),
+              registrationNoKey: key,
+              entityTypeCode: v.entityTypeCode!,
+              countryCode: v.countryCode!,
+              registeredAddress: v.registeredAddress,
+              companyEmail: v.companyEmail,
+              contactName: contact.name,
+              contactDesignation: contact.designation,
+              contactEmail: contact.email,
+              contactPhone: contact.phone,
+            },
+          });
+          reference = issued;
+        },
+        { timeout: 10_000, maxWait: 5_000 },
+      );
+    } catch (e) {
+      if (e instanceof Turned) return e.state;
+      if (e instanceof NumberingError) return closed();
+      throw e;
+    }
     return { ok: true, reference };
   } catch (e) {
     // The applicant is told nothing of the cause; the server's log holds it.

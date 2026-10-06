@@ -335,6 +335,7 @@ model Organisation {
   suppliers                Supplier[]
   supplierContacts         SupplierContact[]
   supplierApplications     SupplierApplication[]
+  portalApplications       PortalApplication[]
   applicationDecisions     ApplicationDecision[]
   resubmissionItems        ResubmissionItem[]
   supplierDocuments        SupplierDocument[]
@@ -551,6 +552,7 @@ model Person {
   supplierApplicationsRecorded  SupplierApplication[] @relation("SupplierApplicationRecordedBy")
   supplierApplicationsSubmitted SupplierApplication[] @relation("SupplierApplicationSubmittedBy")
   applicationDecisions          ApplicationDecision[] @relation("ApplicationDecidedBy")
+  portalApplicationsDecided     PortalApplication[]   @relation("PortalApplicationDecidedBy")
   supplierDocumentsRecorded     SupplierDocument[]    @relation("SupplierDocumentRecordedBy")
   supplierDocumentsVerified     SupplierDocument[]    @relation("SupplierDocumentVerifiedBy")
 
@@ -7373,6 +7375,16 @@ model SupplierPolicy {
   restrictionEvidenceTypeId String?
   restrictionEvidenceType   SupplierDocumentType? @relation("RestrictionEvidence", fields: [restrictionEvidenceTypeId], references: [id], onDelete: Restrict)
   restrictionProvenance     Provenance?
+  /// The notice an applicant reads before sending the public form (PDPA 2010 s.7), in the customer's own words.
+  /// Null: not set, and the public form stays closed.
+  personalDataNoticeEn   String?
+  personalDataNoticeMs   String?
+  personalDataProvenance Provenance?
+  /// How many online applications the form takes in any 24 hours, and how many for one registration number.
+  /// Null: not set, and the public form stays closed (nothing is assumed).
+  portalDailyLimit          Int?
+  portalDailyLimitPerNumber Int?
+  portalLimitProvenance     Provenance?
   /// OD-6 A: what follows at an opening from a linked bidder found not eligible. Null: not set, and an
   /// opening holding such a bid cannot finalise, naming this setting.
   ineligibleBidConsequence IneligibleBidConsequence?
@@ -7421,6 +7433,8 @@ model Supplier {
   /// a2 (OD-9): the parties and awards explicitly linked to it. Never inferred.
   parties ExerciseParty[]
   awards  Award[]
+  /// The online application an officer recorded this supplier from, where it came through the portal.
+  portalApplications PortalApplication[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, registrationNoKey])
@@ -7486,6 +7500,60 @@ model SupplierApplication {
   attachments DocumentAttachment[]
 
   @@index([supplierId])
+}
+
+enum PortalApplicationStatus {
+  /// Sent, and waiting for an officer.
+  RECEIVED
+  /// An officer recorded the supplier from it.
+  ACCEPTED
+  /// An officer set it aside, with a reason.
+  DISCARDED
+}
+
+/// An application sent through the public form, before an officer has looked at it. It is not a supplier:
+/// it holds no registration number's place on the register, spends no supplier reference and fails no
+/// one else's application. An officer checks it against the certificate and records the supplier from
+/// it (the register's own duplicate check applies then), or discards it. The applicant's own words are
+/// erased once it is decided: what remains is the reference, the days and the outcome.
+model PortalApplication {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  /// Issued from NumberingSeries `portal_application`. Shown once to the applicant, who has no way to look it up.
+  reference  String
+  status     PortalApplicationStatus @default(RECEIVED)
+  /// The organisation's day it was sent, and the server's time.
+  receivedOn DateTime
+  receivedAt DateTime
+
+  /// As typed. Blank once erased.
+  registeredName     String    @default("")
+  registrationNo     String    @default("")
+  /// The number as compared (spaces collapsed, capitals). Not unique: anyone may send any number.
+  registrationNoKey  String    @default("")
+  entityTypeCode     String    @default("")
+  countryCode        String    @default("")
+  registeredAddress  String    @default("")
+  companyEmail       String    @default("")
+  contactName        String    @default("")
+  contactDesignation String    @default("")
+  contactEmail       String    @default("")
+  contactPhone       String    @default("")
+  erasedAt           DateTime?
+
+  decidedAt          DateTime?
+  decidedByPersonId  String?
+  decidedBy          Person?   @relation("PortalApplicationDecidedBy", fields: [decidedByPersonId], references: [id], onDelete: Restrict)
+  /// Why it was set aside, as the officer wrote it. Never holds the applicant's details.
+  discardReason      String    @default("")
+  acceptedSupplierId String?
+  acceptedSupplier   Supplier? @relation(fields: [acceptedSupplierId], references: [id], onDelete: Restrict)
+
+  @@unique([organisationId, reference])
+  @@index([organisationId, status, receivedAt])
+  @@index([organisationId, registrationNoKey])
 }
 
 /// An outcome recorded on an application (FR-VND-007). Append-only. `policySnapshot` holds what the

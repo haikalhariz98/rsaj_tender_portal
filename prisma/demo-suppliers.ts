@@ -118,6 +118,11 @@ export async function configureSuppliersDemo(db: Db, organisationId: string) {
     await db.numberingSeries.create({ data: { id: `${P}n21`, organisationId, key: "supplier", nameEn: "Suppliers", pattern: "DEMO/SUP/{SERIAL}/{YEAR}", padding: 4, resetOn: "NEVER", nextSerial: 1, serialPeriod: "", provenance: "ASSUMED" } });
     entry("NumberingSeries", `${P}n21`, "Numbering · Suppliers", "CREATE", later(51), diffFields(null, { name: "Suppliers", pattern: "DEMO/SUP/{SERIAL}/{YEAR}", provenance: "ASSUMED" }));
   }
+  // The public application form's own series (a stranger's application takes no supplier reference) and its demo settings.
+  if (!(await db.numberingSeries.findFirst({ where: { organisationId, key: "portal_application" } }))) {
+    await db.numberingSeries.create({ data: { id: `${P}n22`, organisationId, key: "portal_application", nameEn: "Online supplier applications", pattern: "DEMO/APP/{SERIAL}/{YEAR}", padding: 4, resetOn: "CALENDAR_YEAR", nextSerial: 1, serialPeriod: "", provenance: "ASSUMED" } });
+    entry("NumberingSeries", `${P}n22`, "Numbering · Online supplier applications", "CREATE", later(51), diffFields(null, { name: "Online supplier applications", pattern: "DEMO/APP/{SERIAL}/{YEAR}", provenance: "ASSUMED" }));
+  }
   if (!(await db.codeFormat.findFirst({ where: { organisationId, key: "supplier_registration_no" } }))) {
     await db.codeFormat.create({ data: { id: `${P}f6`, organisationId, key: "supplier_registration_no", pattern: "\\d{12} \\(\\d{6}-[A-Z]\\)|[A-Z]{2,4}-?\\d{4,7}-[A-Z]", example: "201001000101 (000101-A)", description: "Twelve digits with the old number in brackets, or an older letter-prefixed number (demo, invented).", provenance: "ASSUMED" } });
     entry("CodeFormat", `${P}f6`, "Code format · supplier registration number", "CREATE", later(52), diffFields(null, { example: "201001000101 (000101-A)", provenance: "ASSUMED" }));
@@ -142,6 +147,10 @@ export async function configureSuppliersDemo(db: Db, organisationId: string) {
     // consequence are left not set, to show what each holds back (OD-4..OD-7).
     const rules = { criticalDays: 30, warningDays: 60, upcomingDays: 90, bandsProvenance: "ASSUMED" as const, blacklistFirstOffenceMonths: 60, blacklistProvenance: "ASSUMED" as const, restrictionEvidenceTypeId: `${P}sdt4`, restrictionProvenance: "ASSUMED" as const };
     await db.supplierPolicy.update({ where: { organisationId }, data: rules });
+    // Demo wording and figures, invented and ASSUMED: a customer writes its own notice and sets its own limits.
+    const intake = { personalDataNoticeEn: "The details you enter are used only to review your application to join the supplier register. Only officers of the procurement office see them. They are kept while the application is considered and erased once it is decided. To ask for access or a correction, contact the procurement office quoting your reference (demo wording, invented).", personalDataNoticeMs: "Butiran yang anda masukkan hanya digunakan untuk menyemak permohonan anda menyertai daftar pembekal. Hanya pegawai pejabat perolehan melihatnya. Ia disimpan semasa permohonan dipertimbangkan dan dipadam selepas diputuskan. Untuk meminta akses atau pembetulan, hubungi pejabat perolehan dengan menyatakan rujukan anda (teks demo, rekaan).", personalDataProvenance: "ASSUMED" as const, portalDailyLimit: 100, portalDailyLimitPerNumber: 3, portalLimitProvenance: "ASSUMED" as const };
+    await db.supplierPolicy.update({ where: { organisationId }, data: intake });
+    entry("SupplierPolicy", `${P}spol1`, "Supplier register · online applications", "UPDATE", later(66), diffFields({ personalDataNotice: "Not set", personalDataNoticeInMalay: "Not set", noticeFrom: "Not set", applicationsPerDay: "Not set", applicationsPerNumberPerDay: "Not set", limitsFrom: "Not set" }, { personalDataNotice: intake.personalDataNoticeEn, personalDataNoticeInMalay: intake.personalDataNoticeMs, noticeFrom: "Assumed", applicationsPerDay: 100, applicationsPerNumberPerDay: 3, limitsFrom: "Assumed" }));
     entry("SupplierPolicy", `${P}spol1`, "Supplier register · standing rules", "UPDATE", later(65), diffFields({ expiryBands: "Not set", firstOffenceMonths: "Not set", restrictionEvidence: "Not set" }, { expiryBands: "critical within 30 days, warning within 60, upcoming within 90", bandsFrom: "Assumed", firstOffenceMonths: 60, periodFrom: "Assumed", restrictionEvidence: "Status certificate", restrictionFrom: "Assumed" }));
   }
   await db.authorityRule.createMany({
@@ -797,6 +806,8 @@ export async function wipeSuppliersDemo(db: Db, organisationId: string, dependen
   await db.supplierDocument.deleteMany({ where: { id: { in: docs } } });
   await db.supplierApplication.deleteMany({ where: { id: { in: apps } } });
   await db.supplierContact.deleteMany({ where: { supplierId: { in: ids } } });
+  // An online application names the supplier recorded from it and the officer who decided it: those go first.
+  await db.portalApplication.deleteMany({ where: { organisationId } });
   await db.supplier.deleteMany({ where: { id: { in: ids } } });
   // The configuration: the matrix's rule goes with the matrix's own wipe. The policy first: it names a type and a reason.
   await db.supplierPolicy.deleteMany({ where: { organisationId, id: demoRef } });
@@ -807,7 +818,7 @@ export async function wipeSuppliersDemo(db: Db, organisationId: string, dependen
   await db.supplierListValue.deleteMany({ where: { organisationId, id: demoRef } });
   await db.supplierPolicy.deleteMany({ where: { organisationId, id: demoRef } });
   await db.standingReason.deleteMany({ where: { organisationId, id: demoRef } });
-  await db.numberingSeries.deleteMany({ where: { organisationId, id: `${P}n21` } });
+  await db.numberingSeries.deleteMany({ where: { organisationId, id: { in: [`${P}n21`, `${P}n22`] } } });
   await db.codeFormat.deleteMany({ where: { organisationId, id: `${P}f6` } });
   const entities = ["Supplier", "SupplierContact", "SupplierApplication", "ApplicationDecision", "SupplierDocument", "ApprovalInstance", "ApprovalStep", "RegistrationValue", "SupplierDocumentType", "StandingEvent", "StandingRequest", "SpecialPermission"];
   await db.auditEntry.deleteMany({ where: { organisationId, entity: { in: entities }, OR: [{ entityId: { in: [...ids, ...apps, ...docs, ...routes, ...decisions, ...dependents.valueIds, ...dependents.typeIds, ...permissions, ...requests, ...events, ...a2Routes] } }, ...supplierIds.map((s) => ({ entityLabel: { startsWith: `${s.reference} ·` } }))] } });

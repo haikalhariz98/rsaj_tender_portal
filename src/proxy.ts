@@ -11,6 +11,8 @@ import { publicAllows, SURFACE_ENV, surfaceOf } from "@/lib/portal/surface";
  */
 export function proxy(request: NextRequest) {
   if (surfaceOf(process.env[SURFACE_ENV]) === "internal") return NextResponse.next();
+  // The public copy has no home page of its own: the portal's is the front door.
+  if (request.method === "GET" && request.nextUrl.pathname === "/") return new NextResponse(null, { status: 307, headers: { location: "/supplier" } }); // relative: behind a reverse proxy the request's own host is not the public one
   const allowed = publicAllows({ method: request.method, pathname: request.nextUrl.pathname, hasServerAction: request.headers.has("next-action") });
   return allowed ? NextResponse.next() : new NextResponse("Not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
 }

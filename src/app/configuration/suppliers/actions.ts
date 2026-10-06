@@ -9,6 +9,7 @@ import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
+import { validLimit } from "@/lib/portal/apply";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { documentTypeFaults, listValueFaults, valueFaults } from "@/lib/suppliers/config";
 import { bandPolicyFaults } from "@/lib/suppliers/expiry";
@@ -264,6 +265,54 @@ export async function saveSupplierPolicy(_prev: FormState, data: FormData): Prom
     } else {
       await tx.supplierPolicy.update({ where: { id: before.id }, data: v });
       await audit(tx, org.id, "SupplierPolicy", before.id, "Supplier register · policy", "UPDATE", diffFields(words(before), words(v)!), String(data.get("reason") ?? ""));
+    }
+    return done();
+  });
+}
+
+/**
+ * How the public application form is opened: the notice about personal details (both languages) and how
+ * many applications it takes. Nothing is defaulted: until the notice and both limits are set, the form
+ * says it is not open and names what is missing. Each figure says where it comes from.
+ */
+export async function savePortalIntake(_prev: FormState, data: FormData): Promise<FormState> {
+  const org = await organisation();
+  if (!org) return NO_ORG;
+  const r = new FormReader(data);
+  const v = {
+    personalDataNoticeEn: r.optionalText("personalDataNoticeEn"),
+    personalDataNoticeMs: r.optionalText("personalDataNoticeMs"),
+    personalDataProvenance: r.choice("personalDataProvenance", "Where the notice comes from", PROVENANCE),
+    portalDailyLimit: r.int("portalDailyLimit", "Applications taken in any 24 hours", { min: 1 }),
+    portalDailyLimitPerNumber: r.int("portalDailyLimitPerNumber", "Applications taken for one registration number in 24 hours", { min: 1 }),
+    portalLimitProvenance: r.choice("portalLimitProvenance", "Where the limits come from", PROVENANCE),
+  };
+  if ((v.personalDataNoticeEn || v.personalDataNoticeMs) && !v.personalDataProvenance) r.reject("personalDataProvenance", "Say where the notice comes from.");
+  if ((v.portalDailyLimit != null || v.portalDailyLimitPerNumber != null) && !v.portalLimitProvenance) r.reject("portalLimitProvenance", "Say where the limits come from.");
+  if ((v.portalDailyLimit == null) !== (v.portalDailyLimitPerNumber == null)) r.reject(v.portalDailyLimit == null ? "portalDailyLimit" : "portalDailyLimitPerNumber", "Set both limits, or neither.");
+  for (const f of ["portalDailyLimit", "portalDailyLimitPerNumber"] as const) if (v[f] != null && !validLimit(v[f]!)) r.reject(f, "Use a whole number from 1 to 100,000.");
+  if (v.portalDailyLimit != null && v.portalDailyLimitPerNumber != null && v.portalDailyLimitPerNumber > v.portalDailyLimit) r.reject("portalDailyLimitPerNumber", "One number cannot take more than the whole day's limit.");
+  if (r.failed) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await lockOrganisation(tx, org.id);
+    const before = await tx.supplierPolicy.findUnique({ where: { organisationId: org.id } });
+    const words = (p: typeof v | NonNullable<typeof before> | null) =>
+      p
+        ? {
+            personalDataNotice: p.personalDataNoticeEn ?? "Not set",
+            personalDataNoticeInMalay: p.personalDataNoticeMs ?? "Not set",
+            noticeFrom: prov(p.personalDataProvenance),
+            applicationsPerDay: p.portalDailyLimit ?? "Not set",
+            applicationsPerNumberPerDay: p.portalDailyLimitPerNumber ?? "Not set",
+            limitsFrom: prov(p.portalLimitProvenance),
+          }
+        : null;
+    if (!before) {
+      const created = await tx.supplierPolicy.create({ data: { organisationId: org.id, ...v } });
+      await audit(tx, org.id, "SupplierPolicy", created.id, "Supplier register · online applications", "CREATE", diffFields(null, words(v)!), String(data.get("reason") ?? ""));
+    } else {
+      await tx.supplierPolicy.update({ where: { id: before.id }, data: v });
+      await audit(tx, org.id, "SupplierPolicy", before.id, "Supplier register · online applications", "UPDATE", diffFields(words(before), words(v)!), String(data.get("reason") ?? ""));
     }
     return done();
   });

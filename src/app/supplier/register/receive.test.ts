@@ -1,61 +1,70 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The public application makes what an officer's paper application makes, but through the portal
- * channel, on the organisation's day, with nobody named as the recorder. The database is a recording
+ * The public application is staged: a PortalApplication row and nothing else. No supplier, no
+ * contact, no supplier reference, no audit row, no organisation lock. The database is a recording
  * stand-in: these tests read what would be written.
  */
 
 const h = vi.hoisted(() => ({
   created: [] as { model: string; data: Record<string, unknown> }[],
-  audits: [] as { entity: string; action: string; changes: { field: string; after: string | null }[] }[],
   transactions: 0,
-  issued: 0,
+  issued: [] as string[],
   numbering: "ok" as "ok" | "missing",
   today: "2026-10-06" as string | null,
-  holders: 0,
+  /// What the counts return: [in the last 24 hours, for this number].
+  counts: [0, 0] as [number, number],
+  countWheres: [] as Record<string, unknown>[],
   lists: { ENTITY_TYPE: ["sdn_bhd"], COUNTRY: ["my"] } as Record<string, string[]>,
+  policy: { personalDataNoticeEn: "We use your details to review this application.", personalDataNoticeMs: "Kami menggunakan butiran anda untuk menyemak permohonan ini.", portalDailyLimit: 50, portalDailyLimitPerNumber: 3 } as Record<string, unknown> | null,
+  /// Anything that touches the register or the audit trail is recorded here: the public path must leave it empty.
+  touched: [] as string[],
 }));
 
-vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("@/lib/db", () => ({
   db: {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
       h.transactions += 1;
-      const model = (name: string) => ({
-        create: async ({ data }: { data: Record<string, unknown> }) => {
-          h.created.push({ model: name, data });
-          return { id: `${name}1`, reference: data.reference, registeredName: data.registeredName, registrationNo: data.registrationNo, entityTypeCode: data.entityTypeCode, countryCode: data.countryCode, registeredAddress: data.registeredAddress, companyEmail: data.companyEmail, name: data.name, designation: data.designation, email: data.email, phone: data.phone, receivedOn: data.receivedOn, supplier: { reference: "DEMO/SUP/008/2026" } };
+      const trap = (name: string) => new Proxy({}, { get: (_t, op) => async () => { h.touched.push(`${name}.${String(op)}`); return null; } });
+      return fn({
+        portalApplication: {
+          create: async ({ data }: { data: Record<string, unknown> }) => {
+            h.created.push({ model: "portalApplication", data });
+            return { id: "pa1", ...data };
+          },
+          count: async ({ where }: { where: Record<string, unknown> }) => {
+            h.countWheres.push(where);
+            return h.countWheres.length % 2 === 1 ? h.counts[0] : h.counts[1];
+          },
         },
-        count: async () => h.holders,
+        supplier: trap("supplier"),
+        supplierContact: trap("supplierContact"),
+        supplierApplication: trap("supplierApplication"),
+        auditEntry: trap("auditEntry"),
+        $queryRaw: async () => {
+          h.touched.push("$queryRaw");
+          return [];
+        },
       });
-      return fn({ supplier: model("supplier"), supplierContact: model("supplierContact"), supplierApplication: model("supplierApplication") });
     },
   },
 }));
 vi.mock("@/lib/suppliers/repo", () => ({
   supplierOrg: async () => ({ id: "o1", timeZone: "Asia/Kuala_Lumpur", today: h.today }),
-  loadSupplierConfig: async () => ({ format: null, liveCodes: (kind: string) => h.lists[kind] ?? [], listName: (_k: string, code: string) => code }),
+  loadSupplierConfig: async () => ({ policy: h.policy, format: null, liveCodes: (kind: string) => h.lists[kind] ?? [] }),
 }));
 vi.mock("@/lib/numbering/issue", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/numbering/issue")>();
   return {
     ...real,
-    issueReference: async () => {
-      if (h.numbering === "missing") throw new real.NumberingError("SERIES_MISSING", "supplier");
-      h.issued += 1;
-      return "DEMO/SUP/008/2026";
+    issueReference: async (_tx: unknown, _org: string, key: string) => {
+      if (h.numbering === "missing") throw new real.NumberingError("SERIES_MISSING", key);
+      h.issued.push(key);
+      return "DEMO/APP/0007/2026";
     },
   };
 });
-vi.mock("../../suppliers/shared", () => ({
-  lockOrganisation: async () => undefined,
-  stampNow: () => new Date("2026-10-06T03:00:00.000Z"),
-  label: (s: { reference: string }, what: string) => `${s.reference} · ${what}`,
-  audit: async (_tx: unknown, _org: string, entity: string, _id: string, _label: string, action: string, changes: { field: string; after: string | null }[]) => {
-    h.audits.push({ entity, action, changes });
-  },
-}));
+vi.mock("../../suppliers/shared", () => ({ stampNow: () => new Date("2026-10-06T03:00:00.000Z") }));
 
 import { receiveApplication } from "./receive";
 
@@ -77,48 +86,48 @@ const form = (o: Record<string, string> = {}) => {
   return f;
 };
 const send = (o?: Record<string, string>) => receiveApplication(form(o));
-const row = (model: string) => h.created.find((c) => c.model === model)?.data;
+const row = () => h.created.find((c) => c.model === "portalApplication")?.data;
 
+const PRISTINE = { notice: "We use your details to review this application." };
 beforeEach(() => {
   h.created = [];
-  h.audits = [];
   h.transactions = 0;
-  h.issued = 0;
+  h.issued = [];
   h.numbering = "ok";
   h.today = "2026-10-06";
-  h.holders = 0;
+  h.counts = [0, 0];
+  h.countWheres = [];
   h.lists = { ENTITY_TYPE: ["sdn_bhd"], COUNTRY: ["my"] };
+  h.policy = { personalDataNoticeEn: PRISTINE.notice, personalDataNoticeMs: "Kami menggunakan butiran anda untuk menyemak permohonan ini.", portalDailyLimit: 50, portalDailyLimitPerNumber: 3 };
+  h.touched = [];
 });
 
 describe("a public application, as written", () => {
-  it("creates the supplier, its primary contact and an application received through the portal, with no recorder", async () => {
+  it("stages one application with its own reference, on the organisation's day, and touches nothing else", async () => {
     const r = await send();
-    expect(r).toEqual({ ok: true, reference: "DEMO/SUP/008/2026" });
-    expect(h.created.map((c) => c.model)).toEqual(["supplier", "supplierContact", "supplierApplication"]);
-    expect(row("supplierContact")).toMatchObject({ isPrimary: true, name: "Aini", email: "aini@sampel.example" });
-    const app = row("supplierApplication")!;
-    expect(app).toMatchObject({ kind: "NEW", channel: "PORTAL", recordedByPersonId: null, declarationSignedOn: null, epaymentFormReceivedOn: null });
+    expect(r).toEqual({ ok: true, reference: "DEMO/APP/0007/2026" });
+    expect(h.created.map((c) => c.model)).toEqual(["portalApplication"]);
+    expect(h.issued).toEqual(["portal_application"]);
+    const app = row()!;
+    expect(app).toMatchObject({ reference: "DEMO/APP/0007/2026", registeredName: "Sampel Works Sdn Bhd", registrationNoKey: "202001000123", contactName: "Aini", contactEmail: "aini@sampel.example" });
     expect(app.receivedOn).toEqual(new Date("2026-10-06T00:00:00.000Z"));
-    expect(app.recordedAt).toEqual(new Date("2026-10-06T03:00:00.000Z"));
+    expect(app.receivedAt).toEqual(new Date("2026-10-06T03:00:00.000Z"));
+    // No supplier, no contact, no supplier reference, no audit row and no lock on anything.
+    expect(h.touched).toEqual([]);
   });
 
-  it("audits the three rows, naming nobody as the recorder", async () => {
-    await send();
-    expect(h.audits.map((a) => [a.entity, a.action])).toHaveLength(3);
-    expect(h.audits.every((a) => a.action === "CREATE")).toBe(true);
-    const application = h.audits[2].changes;
-    expect(application.find((c) => c.field === "recordedBy")?.after).toMatch(/Nobody/);
-  });
-
-  it("ignores a channel, a recorder, a received day and a paper day posted by hand", async () => {
-    await send({ channel: "COUNTER", recordedByPersonId: "p1", receivedOn: "2020-01-01", declarationSignedOn: "2026-10-01", epaymentFormReceivedOn: "2026-10-01" });
-    expect(row("supplierApplication")).toMatchObject({ channel: "PORTAL", recordedByPersonId: null, declarationSignedOn: null, epaymentFormReceivedOn: null });
-    expect((row("supplierApplication")!.receivedOn as Date).toISOString()).toBe("2026-10-06T00:00:00.000Z");
+  it("ignores a status, a recorder, a received day and a paper day posted by hand", async () => {
+    await send({ status: "ACCEPTED", channel: "COUNTER", recordedByPersonId: "p1", receivedOn: "2020-01-01", declarationSignedOn: "2026-10-01", acceptedSupplierId: "s1" });
+    const app = row()!;
+    expect(app).not.toHaveProperty("status");
+    expect(app).not.toHaveProperty("decidedByPersonId");
+    expect(app).not.toHaveProperty("acceptedSupplierId");
+    expect((app.receivedOn as Date).toISOString()).toBe("2026-10-06T00:00:00.000Z");
   });
 
   it("takes no bank field and no file", async () => {
     await send({ bankAccount: "1234", bankName: "X" });
-    for (const c of h.created) expect(JSON.stringify(c.data)).not.toMatch(/1234|bank/i);
+    expect(JSON.stringify(row())).not.toMatch(/1234|bank/i);
   });
 });
 
@@ -130,14 +139,11 @@ describe("what a stranger can and cannot do", () => {
     expect(h.created).toEqual([]);
   });
 
-  it("refuses a number already on the register in neutral words, and spends no serial", async () => {
-    h.holders = 1;
-    const r = await send();
-    expect(r.ok).toBe(false);
-    expect(r.errors?.registrationNo).toBe("This registration number cannot be accepted online. Please contact the procurement office.");
-    expect(JSON.stringify(r)).not.toMatch(/DEMO\/SUP|Sampel/);
-    expect(h.issued).toBe(0);
-    expect(h.created).toEqual([]);
+  it("gives a number already on the register the same reply as any other: the register is never asked", async () => {
+    // The register's table is a trap: any read of it is recorded, and there must be none.
+    const r = await send({ registrationNo: "SUPPLIER-ALREADY-REGISTERED" });
+    expect(r).toEqual({ ok: true, reference: "DEMO/APP/0007/2026" });
+    expect(h.touched).toEqual([]);
   });
 
   it("refuses a field over its limit, in plain words, before any write", async () => {
@@ -153,22 +159,47 @@ describe("what a stranger can and cannot do", () => {
     expect(Object.keys(r.errors ?? {}).sort()).toEqual(["contactEmail", "contactName", "registeredName"]);
     expect(h.created).toEqual([]);
   });
+});
 
-  it("does not take an application while the register is not set up, and says so without a setting's name", async () => {
-    for (const set of [() => { h.today = null; }, () => { h.lists.COUNTRY = []; }, () => { h.lists.ENTITY_TYPE = []; }, () => { h.numbering = "missing"; }]) {
-      beforeEachReset();
-      set();
-      const r = await send();
-      expect(r.ok).toBe(false);
-      expect(r.message).toBe("Online applications are not open yet, so nothing was sent.");
-      expect(h.created).toEqual([]);
-    }
+describe("the form is closed until it is set up", () => {
+  const closedBy: [string, () => void][] = [
+    ["no time zone", () => { h.today = null; }],
+    ["no countries", () => { h.lists.COUNTRY = []; }],
+    ["no company types", () => { h.lists.ENTITY_TYPE = []; }],
+    ["no numbering series", () => { h.numbering = "missing"; }],
+    ["no English notice", () => { h.policy = { ...h.policy, personalDataNoticeEn: null }; }],
+    ["a blank Malay notice", () => { h.policy = { ...h.policy, personalDataNoticeMs: "  " }; }],
+    ["no daily limit", () => { h.policy = { ...h.policy, portalDailyLimit: null }; }],
+    ["no limit per number", () => { h.policy = { ...h.policy, portalDailyLimitPerNumber: null }; }],
+    ["no policy at all", () => { h.policy = null; }],
+  ];
+  it.each(closedBy)("with %s it takes nothing and says so without naming a setting", async (_name, set) => {
+    set();
+    const r = await send();
+    expect(r.ok).toBe(false);
+    expect(r.message).toBe("Online applications are not open yet, so nothing was sent.");
+    expect(h.created).toEqual([]);
   });
 });
 
-function beforeEachReset() {
-  h.created = [];
-  h.today = "2026-10-06";
-  h.numbering = "ok";
-  h.lists = { ENTITY_TYPE: ["sdn_bhd"], COUNTRY: ["my"] };
-}
+describe("the limits", () => {
+  it("counts the last 24 hours and the number's, and takes the application while under both", async () => {
+    h.counts = [49, 2];
+    expect((await send()).ok).toBe(true);
+    const [all, number] = h.countWheres;
+    expect(all).toMatchObject({ organisationId: "o1" });
+    expect((all.receivedAt as { gte: Date }).gte).toEqual(new Date("2026-10-05T03:00:00.000Z"));
+    expect(number).toMatchObject({ registrationNoKey: "202001000123" });
+  });
+
+  it("turns away at the daily limit, and at the limit for one number, with the same words, and writes nothing", async () => {
+    h.counts = [50, 0];
+    const day = await send();
+    h.created = [];
+    h.counts = [1, 3];
+    const num = await send();
+    expect(day).toEqual({ ok: false, message: expect.stringMatching(/receiving a lot of applications/) });
+    expect(num).toEqual(day);
+    expect(h.created).toEqual([]);
+  });
+});

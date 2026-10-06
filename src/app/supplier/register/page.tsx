@@ -42,7 +42,7 @@ export default async function SupplierRegisterPage() {
               ))}
             </ul>
           </Callout>
-          <ApplicationForm entityTypes={form.entityTypes} countries={form.countries} formatExample={form.formatExample} notice={form.notice} />
+          <ApplicationForm entityTypes={form.entityTypes} countries={form.countries} formatExample={form.formatExample} notice={form.notice} personalDataNotice={form.personalDataNotice!} />
         </div>
       )}
     </>

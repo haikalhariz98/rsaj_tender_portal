@@ -1,16 +1,16 @@
 /**
- * The public registration application: what a stranger's form must satisfy before it lands in the
- * supplier register's review queue. Pure: the lists, the format, the day and "the number is taken" are
- * passed in.
+ * The public registration application: what a stranger's form must satisfy before it is staged for an
+ * officer. Pure: the lists, the format and the day are passed in.
  *
  * It reuses the staff identity and contact rules (`identityFaults`, `contactFaults`) and leaves out
  * `receiptFaults`: a public application has no recorder, no receipt channel to choose and no day to
  * type, so the server fixes the channel and the day. Nothing about the paper declaration or the
  * E-Payment form is asked or accepted here (OD-3).
  *
- * What the applicant is told is the portal's own wording (`APPLY.faults`). The staff wording for a
- * duplicate names the supplier that holds the number; a stranger must never read that, so the
- * duplicate reaches this module as a yes or no and never as a name or a reference.
+ * What the applicant is told is the portal's own wording (`APPLY.faults`). Nothing here depends on what
+ * is on the register: whether a registration number is already held is never asked on this path, so
+ * the form cannot be used to find out which companies are registered. The officer sees that, when
+ * recording the supplier from the application (`portalFlags`).
  */
 
 import { contactFaults, identityFaults, type ContactInput, type IdentityFault, type IdentityInput } from "@/lib/suppliers/identity";
@@ -26,6 +26,9 @@ export interface ApplyState {
   /// The application's reference. Null on a success that created nothing (a dropped bot).
   reference?: string | null;
 }
+
+/// The series that numbers online applications: its own, so no supplier reference is spent on a stranger.
+export const PORTAL_APPLICATION_SERIES_KEY = "portal_application";
 
 /// The longest each field may be: the staff form's own limits.
 export const APPLICATION_LIMITS = {
@@ -58,8 +61,6 @@ export interface PortalApplicationContext {
   formatPattern: string | null;
   entityTypeCodes: readonly string[];
   countryCodes: readonly string[];
-  /// Whether the number is already on the register. Only a yes or no: who holds it is not passed in.
-  numberTaken: boolean;
 }
 
 /// The faults that mean the register cannot take applications yet, whatever was typed.
@@ -73,7 +74,8 @@ export function portalApplicationFaults(i: PortalApplicationInput, ctx: PortalAp
       formatPattern: ctx.formatPattern,
       entityTypeCodes: ctx.entityTypeCodes,
       countryCodes: ctx.countryCodes,
-      duplicate: ctx.numberTaken ? { reference: "", name: "" } : null,
+      // Never asked of the register here: a stranger must not learn which numbers are held.
+      duplicate: null,
     }),
     ...contactFaults(i.contact),
   ];
@@ -84,7 +86,6 @@ export const PORTAL_FIELD_OF: Partial<Record<IdentityFault, string>> = {
   NAME_REQUIRED: "registeredName",
   REGISTRATION_NO_REQUIRED: "registrationNo",
   FORMAT_MISMATCH: "registrationNo",
-  DUPLICATE: "registrationNo",
   ENTITY_TYPE_REQUIRED: "entityTypeCode",
   ENTITY_TYPE_NOT_LISTED: "entityTypeCode",
   COUNTRY_REQUIRED: "countryCode",
@@ -116,12 +117,37 @@ export function portalRefusal(findings: readonly Finding<IdentityFault>[]): Port
   return { closed: false, errors, message: (unplaced ? APPLY.cantAccept : APPLY.nothingSent).en };
 }
 
+/// How many online applications the form takes, from the organisation's own settings. Null: not set.
+export interface PortalLimits {
+  daily: number | null;
+  perNumber: number | null;
+}
+
+/// What has arrived in the last 24 hours, in all and for the one registration number being sent.
+export interface PortalLoad {
+  lastDay: number;
+  forNumber: number;
+}
+
+/// Whether one more application may be taken: a limit not set means closed (nothing is assumed), and a limit reached means busy.
+export type PortalCapacity = "OPEN" | "NOT_SET" | "BUSY";
+
+export function portalCapacity(load: PortalLoad, limits: PortalLimits): PortalCapacity {
+  if (limits.daily == null || limits.perNumber == null) return "NOT_SET";
+  return load.lastDay >= limits.daily || load.forNumber >= limits.perNumber ? "BUSY" : "OPEN";
+}
+
+/// Whether a limit is a figure an officer may set: a whole number of at least one.
+export const validLimit = (n: number) => Number.isInteger(n) && n >= 1 && n <= 100_000;
+
 /// What the register still lacks before it can take an application, in the order a person would set it.
-export function whatIsMissing(c: { today: string | null; entityTypeCodes: readonly string[]; countryCodes: readonly string[]; numberingReady: boolean }): Words[] {
+export function whatIsMissing(c: { today: string | null; entityTypeCodes: readonly string[]; countryCodes: readonly string[]; numberingReady: boolean; noticeSet: boolean; limitsSet: boolean }): Words[] {
   return [
     ...(c.today == null ? [APPLY.missing.timeZone] : []),
     ...(c.entityTypeCodes.length === 0 ? [APPLY.missing.entityTypes] : []),
     ...(c.countryCodes.length === 0 ? [APPLY.missing.countries] : []),
     ...(c.numberingReady ? [] : [APPLY.missing.numbering]),
+    ...(c.noticeSet ? [] : [APPLY.missing.notice]),
+    ...(c.limitsSet ? [] : [APPLY.missing.limits]),
   ];
 }

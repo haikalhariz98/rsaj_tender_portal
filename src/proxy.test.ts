@@ -27,6 +27,14 @@ describe("the route boundary", () => {
     expect(call("/configuration/awards").status).toBe(404);
   });
 
+  it("on the public copy: the root is the portal's front door, nothing else is", () => {
+    process.env.PORTAL_SURFACE = "public";
+    const root = call("/");
+    expect(root.status).toBe(307);
+    expect(root.headers.get("location")).toBe("/supplier");
+    expect(call("/", { method: "POST" }).status).toBe(404);
+  });
+
   it("on the public copy: a staff server action posted to the portal's own form is refused", () => {
     process.env.PORTAL_SURFACE = "public";
     for (const path of ["/supplier/register", "/supplier/register/submit", "/configuration/awards", "/sourcing/demo_sx18"]) {

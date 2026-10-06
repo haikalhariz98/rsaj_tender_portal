@@ -3,7 +3,7 @@ import { buttonClass } from "@/components/ui/button";
 import { REGISTRATION_VALUE_KINDS } from "@/lib/suppliers/types";
 import { VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
 
-import { saveDocumentType, saveListValue, saveRegistrationValue, saveStandingReason, saveStandingRules, saveSupplierPolicy, setDocumentTypeRetired, setListValueRetired, setRegistrationValueRetired, setStandingReasonRetired } from "./actions";
+import { saveDocumentType, saveListValue, savePortalIntake, saveRegistrationValue, saveStandingReason, saveStandingRules, saveSupplierPolicy, setDocumentTypeRetired, setListValueRetired, setRegistrationValueRetired, setStandingReasonRetired } from "./actions";
 
 /**
  * Configuration › Supplier register drawers. No field carries a default: a switch left not set blocks
@@ -140,6 +140,29 @@ export function EditSupplierPolicy({ values }: { values: Record<string, string> 
       reason={{ label: "Why the policy changes" }}
       action={saveSupplierPolicy}
       trigger={{ label: "Edit the policy", className: buttonClass("primary", "sm") }}
+    />
+  );
+}
+
+export function EditPortalIntake({ values }: { values: Record<string, string> }) {
+  return (
+    <RecordEditor
+      title="Edit online applications"
+      description="The public form stays closed until the notice is set in both languages and both limits are set. Nothing is assumed: an applicant who is not told how their details are used cannot send the form."
+      columns={2}
+      fields={[
+        { kind: "textarea", name: "personalDataNoticeEn", label: "Notice about personal details", hint: "Say why the details are collected, that they are needed to review the application, who sees them, how long they are kept and how to ask for access or correction. Shown above the send button." },
+        { kind: "textarea", name: "personalDataNoticeMs", label: "Notice about personal details (Malay)" },
+        provenance("personalDataProvenance", "Where the notice comes from"),
+        { kind: "number", name: "portalDailyLimit", label: "Applications taken in any 24 hours", min: 1, hint: "Once reached, the form says it is busy and takes no more until the earliest have aged out." },
+        { kind: "number", name: "portalDailyLimitPerNumber", label: "Applications taken for one registration number in 24 hours", min: 1, hint: "Stops one number being sent over and over. Must not be more than the figure beside it." },
+        provenance("portalLimitProvenance", "Where the limits come from"),
+      ]}
+      values={values}
+      reason={{ label: "Why this changes" }}
+      action={savePortalIntake}
+      trigger={{ label: "Edit online applications", className: buttonClass("secondary", "sm") }}
+      size="lg"
     />
   );
 }

@@ -10,6 +10,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
+import { formatDate } from "@/lib/format";
 import { ON_BEHALF_HINT } from "@/lib/documents/labels";
 
 import { recordApplication } from "../actions";
@@ -21,10 +22,10 @@ type Option = { value: string; label: string };
  * refused save; every rule is the action's (`applicationFaults`). The contact is the supplier's, never
  * a Person, and readable by anyone until sign-in (condition 2).
  */
-export function ApplicationForm({ entityTypes, countries, channels, people, formatExample, today, notRestricted }: { entityTypes: Option[]; countries: Option[]; channels: Option[]; people: Option[]; formatExample: string | null; today: string | null; notRestricted: string }) {
+export function ApplicationForm({ entityTypes, countries, channels, people, formatExample, today, notRestricted, portal }: { entityTypes: Option[]; countries: Option[]; channels: Option[]; people: Option[]; formatExample: string | null; today: string | null; notRestricted: string; portal?: { id: string; reference: string; receivedOn: string; initial: Record<string, string> } }) {
   const [state, setState] = useState<FormState>({ ok: false });
   const [pending, startTransition] = useTransition();
-  const [v, setV] = useState<Record<string, string>>({});
+  const [v, setV] = useState<Record<string, string>>(portal?.initial ?? {});
   const set = (k: string) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
   const err = (k: string) => state.errors?.[k];
   const text = (name: string, label: string, opts: { required?: boolean; hint?: string; type?: string } = {}) => (
@@ -47,8 +48,9 @@ export function ApplicationForm({ entityTypes, countries, channels, people, form
   return (
     <form onSubmit={(e) => { const data = formDataOf(e); startTransition(async () => setState(await recordApplication(state, data))); }} className="flex flex-col gap-6">
       {state.message && <Callout tone="err">{state.message}</Callout>}
+      {portal && <input type="hidden" name="portalApplicationId" value={portal.id} />}
       <Card>
-        <CardHeader title="The company" subtitle="As the application and its certificate state it." />
+        <CardHeader title="The company" subtitle={portal ? "As the applicant typed it. Check each against the certificate and correct what differs." : "As the application and its certificate state it."} />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">{text("registeredName", "Registered name", { required: true })}</div>
           {text("registrationNo", "Registration number", { required: true, hint: formatExample ? `In the configured format, for example ${formatExample}.` : "No format is set: the number is recorded as typed and marked “format not checked”." })}
@@ -71,6 +73,22 @@ export function ApplicationForm({ entityTypes, countries, channels, people, form
           {text("contactPhone", "Telephone")}
         </CardBody>
       </Card>
+      {portal ? (
+        <Card>
+          <CardHeader title="Sent through the supplier portal" subtitle="The channel and the day it was sent are the portal's, not typed here. The signed declaration is recorded on the application once the office holds it." />
+          <CardBody className="grid gap-4 sm:grid-cols-2">
+            <div className="text-[14px] text-ink-2">
+              <p className="text-[12.5px] font-semibold text-ink-3">Online reference</p>
+              <p className="mt-0.5 font-semibold text-ink">{portal.reference}</p>
+            </div>
+            <div className="text-[14px] text-ink-2">
+              <p className="text-[12.5px] font-semibold text-ink-3">Sent on</p>
+              <p className="mt-0.5 font-semibold text-ink">{formatDate(portal.receivedOn)}</p>
+            </div>
+            {select("recordedByPersonId", "Recorded by", people, { required: true, hint: ON_BEHALF_HINT })}
+          </CardBody>
+        </Card>
+      ) : (
       <Card>
         <CardHeader title="The paper application" subtitle="How and when it arrived, and who is recording it. The signed declaration's scan and the E-Payment form's scan are attached on the application once recorded." />
         <CardBody className="grid gap-4 sm:grid-cols-2">
@@ -81,6 +99,7 @@ export function ApplicationForm({ entityTypes, countries, channels, people, form
           {select("recordedByPersonId", "Recorded by", people, { required: true, hint: ON_BEHALF_HINT })}
         </CardBody>
       </Card>
+      )}
       <div className="flex flex-wrap items-center justify-end gap-2">
         <ButtonLink href="/suppliers" variant="ghost" size="md">
           Cancel

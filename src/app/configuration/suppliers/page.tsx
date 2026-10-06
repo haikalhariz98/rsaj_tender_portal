@@ -16,7 +16,7 @@ import { asHeading, LIST_KIND_LABEL, VALUE_KIND_LABEL } from "@/lib/suppliers/la
 import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
 import { SUPPLIER_LIST_KINDS, type RegistrationValueKind } from "@/lib/suppliers/types";
 
-import { DocumentTypeDrawer, EditStandingRules, EditSupplierPolicy, ListValueDrawer, RetireListValueDrawer, RetireStandingReasonDrawer, RetireTypeDrawer, RetireValueDrawer, StandingReasonDrawer, ValueDrawer } from "./editors";
+import { DocumentTypeDrawer, EditPortalIntake, EditStandingRules, EditSupplierPolicy, ListValueDrawer, RetireListValueDrawer, RetireStandingReasonDrawer, RetireTypeDrawer, RetireValueDrawer, StandingReasonDrawer, ValueDrawer } from "./editors";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +66,7 @@ export default async function SupplierRegisterConfigPage() {
   const listsEmpty = SUPPLIER_LIST_KINDS.filter((k) => cfg.liveCodes(k, org.today).length === 0);
   const p = cfg.policy;
   // a2: the standing rules, each "Not set" until decided (OD-4..OD-7, condition 4).
-  const rulesNotSet = [p?.criticalDays, p?.expiryOnClosingDayCounts, p?.autoSuspendOnLapse, p?.blacklistFirstOffenceMonths, p?.registerRequiredForSale, p?.restrictionEvidenceTypeId, p?.ineligibleBidConsequence].filter((x) => x == null).length;
+  const rulesNotSet = [p?.criticalDays, p?.expiryOnClosingDayCounts, p?.autoSuspendOnLapse, p?.blacklistFirstOffenceMonths, p?.registerRequiredForSale, p?.restrictionEvidenceTypeId, p?.ineligibleBidConsequence, p?.personalDataNoticeEn, p?.personalDataNoticeMs, p?.portalDailyLimit, p?.portalDailyLimitPerNumber].filter((x) => x == null).length;
   const reasonName = (id: string | null | undefined) => cfg.reasons.find((x) => x.id === id)?.nameEn ?? null;
   const typeName = (id: string | null | undefined) => cfg.types.find((x) => x.id === id)?.nameEn ?? null;
   const rule = (set: boolean, value: React.ReactNode, from: string | null | undefined, unset: string) =>
@@ -102,6 +102,31 @@ export default async function SupplierRegisterConfigPage() {
                 { label: "Verification notice (Malay)", value: p?.verificationNoticeMs || <Badge tone="warn">Not set</Badge> },
                 { label: "Where it is written", value: p?.governingSource || "No source is cited" },
                 { label: "Registration number format", value: cfg.format ? `${cfg.format.example ? `For example ${cfg.format.example}` : "Set"}` : <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><span className="text-[12px] text-ink-3">Numbers are recorded as typed, marked &quot;format not checked&quot;. Set it under <Link href="/configuration/reference-data">Reference data</Link>.</span></span> },
+              ]}
+            />
+          </CardBody>
+        </Card>
+
+        <Card id="online-applications" className="scroll-mt-24">
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title="Online applications"
+            subtitle="The public form on the supplier portal. It stays closed until the notice about personal details is written in both languages and both limits are set. The applications themselves are kept apart from the register until an officer records the supplier."
+            actions={
+              <span className="flex flex-wrap items-center gap-2">
+                {p && <HistoryButton entity="SupplierPolicy" entityId={p.id} label="online applications" />}
+                <EditPortalIntake values={{ personalDataNoticeEn: p?.personalDataNoticeEn ?? "", personalDataNoticeMs: p?.personalDataNoticeMs ?? "", personalDataProvenance: p?.personalDataProvenance ?? "", portalDailyLimit: p?.portalDailyLimit?.toString() ?? "", portalDailyLimitPerNumber: p?.portalDailyLimitPerNumber?.toString() ?? "", portalLimitProvenance: p?.portalLimitProvenance ?? "" }} />
+              </span>
+            }
+          />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={[
+                { label: "Notice about personal details", value: rule(!!p?.personalDataNoticeEn?.trim(), <span className="whitespace-pre-line">{p?.personalDataNoticeEn}</span>, p?.personalDataProvenance, "The public form stays closed.") },
+                { label: "Notice about personal details (Malay)", value: rule(!!p?.personalDataNoticeMs?.trim(), <span className="whitespace-pre-line">{p?.personalDataNoticeMs}</span>, p?.personalDataProvenance, "The public form stays closed.") },
+                { label: "Applications in any 24 hours", value: rule(p?.portalDailyLimit != null, `${p?.portalDailyLimit} at most`, p?.portalLimitProvenance, "The public form stays closed.") },
+                { label: "Applications for one registration number in 24 hours", value: rule(p?.portalDailyLimitPerNumber != null, `${p?.portalDailyLimitPerNumber} at most`, p?.portalLimitProvenance, "The public form stays closed.") },
               ]}
             />
           </CardBody>

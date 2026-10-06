@@ -96,6 +96,9 @@ const listWords = (cfg: Awaited<ReturnType<typeof loadSupplierConfig>>, kind: "E
 
 // ------------------------------------------------------------------ recording (FR-VND-001, 006)
 
+/// What an online application holds once it is decided: nothing the applicant typed.
+const ERASED = { registeredName: "", registrationNo: "", registrationNoKey: "", entityTypeCode: "", countryCode: "", registeredAddress: "", companyEmail: "", contactName: "", contactDesignation: "", contactEmail: "", contactPhone: "" } as const;
+
 function readContact(r: FormReader) {
   return {
     name: r.text("contactName", "Contact's name", { max: 240 }),
@@ -113,6 +116,9 @@ function readContact(r: FormReader) {
 export async function recordApplication(_prev: FormState, data: FormData): Promise<FormState> {
   const now = stampNow();
   const r = new FormReader(data);
+  // Recorded from an online application: the portal fixes the channel and the day it came in, and the
+  // paper's days are not asked (the declaration is recorded on the application once it is signed).
+  const portalApplicationId = String(data.get("portalApplicationId") ?? "").trim() || null;
   const v = {
     registeredName: r.text("registeredName", "Registered name", { max: 240 }),
     registrationNo: r.text("registrationNo", "Registration number", { max: 120 }),
@@ -120,10 +126,10 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
     countryCode: r.optionalText("countryCode"),
     registeredAddress: r.text("registeredAddress", "Registered address", { max: 1000 }),
     companyEmail: r.text("companyEmail", "Company email", { max: 240 }),
-    receivedOn: r.optionalText("receivedOn"),
-    channel: r.choice("channel", "How it came in", PAPER_CHANNELS),
-    declarationSignedOn: r.optionalText("declarationSignedOn"),
-    epaymentFormReceivedOn: r.optionalText("epaymentFormReceivedOn"),
+    receivedOn: portalApplicationId ? null : r.optionalText("receivedOn"),
+    channel: portalApplicationId ? null : r.choice("channel", "How it came in", PAPER_CHANNELS),
+    declarationSignedOn: portalApplicationId ? null : r.optionalText("declarationSignedOn"),
+    epaymentFormReceivedOn: portalApplicationId ? null : r.optionalText("epaymentFormReceivedOn"),
     recordedByPersonId: r.optionalText("recordedByPersonId"),
   };
   const contact = readContact(r);
@@ -134,6 +140,14 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
       const org = await supplierOrg(tx);
       if (!org) return NO_ORG;
       await lockOrganisation(tx, org.id);
+      let portal: Awaited<ReturnType<typeof tx.portalApplication.findFirst>> = null;
+      if (portalApplicationId) {
+        await tx.$queryRaw`SELECT id FROM "PortalApplication" WHERE id = ${portalApplicationId} AND "organisationId" = ${org.id} FOR UPDATE`;
+        portal = await tx.portalApplication.findFirst({ where: { id: portalApplicationId, organisationId: org.id } });
+        if (!portal || portal.status !== "RECEIVED") return { ok: false, message: "That online application is not waiting any more: it was recorded or set aside already. Nothing was saved." };
+        v.receivedOn = storedDay(portal.receivedOn);
+        v.channel = "PORTAL";
+      }
       const cfg = await loadSupplierConfig(org.id, tx);
       const key = normaliseRegistrationNo(v.registrationNo);
       const dup = key ? await tx.supplier.findFirst({ where: { organisationId: org.id, registrationNoKey: key }, select: { reference: true, registeredName: true } }) : null;
@@ -184,7 +198,13 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
         diffFields(null, { reference, registeredName: supplier.registeredName, registrationNo: supplier.registrationNo, formatChecked: fs.some((f) => f.code === "FORMAT_NOT_CHECKED") ? "Not checked: no format is set" : "Matches the configured format", entityType: listWords(cfg, "ENTITY_TYPE", supplier.entityTypeCode), country: listWords(cfg, "COUNTRY", supplier.countryCode), registeredAddress: supplier.registeredAddress, companyEmail: supplier.companyEmail, status: "Applicant" }));
       await audit(tx, org.id, SUPPLIER_ENTITY.contact, c.id, label(supplier, "Primary contact"), "CREATE", diffFields(null, { contactName: c.name, contactDesignation: c.designation || null, contactEmail: c.email || null, contactPhone: c.phone || null, primary: true }));
       await audit(tx, org.id, SUPPLIER_ENTITY.application, app.id, supplierApplicationLabel(app), "CREATE",
-        diffFields(null, { kind: APPLICATION_KIND_LABEL.NEW.en, receivedOn: v.receivedOn, channel: CHANNEL_LABEL[v.channel!].en, recordedBy: person!.name, recordedOnBehalf: "not signed", declarationSignedOn: v.declarationSignedOn, epaymentFormReceivedOn: v.epaymentFormReceivedOn }));
+        diffFields(null, { kind: APPLICATION_KIND_LABEL.NEW.en, receivedOn: v.receivedOn, channel: CHANNEL_LABEL[v.channel!].en, recordedBy: person!.name, recordedOnBehalf: "not signed", declarationSignedOn: v.declarationSignedOn, epaymentFormReceivedOn: v.epaymentFormReceivedOn, ...(portal ? { onlineApplication: portal.reference } : {}) }));
+      if (portal) {
+        // The supplier record now holds what the officer checked, so the applicant's own words are erased: nothing is kept twice.
+        await tx.portalApplication.update({ where: { id: portal.id }, data: { status: "ACCEPTED", acceptedSupplierId: supplier.id, decidedAt: now, decidedByPersonId: person!.id, erasedAt: now, ...ERASED } });
+        await audit(tx, org.id, SUPPLIER_ENTITY.onlineApplication, portal.id, label({ reference: portal.reference }, "Online application"), "UPDATE",
+          diffFields({ status: "Received", personalDetails: "Held on the application" }, { status: "Recorded as a supplier", supplier: supplier.reference, decidedBy: person!.name, personalDetails: "Erased: the supplier record holds them" }));
+      }
       created = supplier.id;
       return { ok: true };
     },
@@ -193,6 +213,43 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
   if (!result.ok || !created) return result;
   revalidatePath("/suppliers");
   redirect(`/suppliers/${created}?tab=documents`);
+}
+
+/**
+ * Set an online application aside, with a reason. Its personal details are erased at the same time (the
+ * applicant's own words are not kept once nobody will act on them); what remains is the reference, the
+ * days, who set it aside and why. The audit row carries the reason and none of the applicant's details,
+ * so nothing in the append-only trail needs erasing later. The reason is the officer's own words, so it
+ * must not repeat the applicant's details.
+ */
+export async function discardPortalApplication(_prev: FormState, data: FormData): Promise<FormState> {
+  const now = stampNow();
+  const id = String(data.get("portalApplicationId") ?? "").trim();
+  const r = new FormReader(data);
+  const reason = r.text("reason", "Why it is set aside", { required: true, max: 2000 });
+  const personId = r.optionalText("recordedByPersonId");
+  if (r.failed) return { ok: false, errors: r.errors };
+  const result = await db.$transaction(
+    async (tx): Promise<FormState> => {
+      const org = await supplierOrg(tx);
+      if (!org) return NO_ORG;
+      await tx.$queryRaw`SELECT id FROM "PortalApplication" WHERE id = ${id} AND "organisationId" = ${org.id} FOR UPDATE`;
+      const pa = await tx.portalApplication.findFirst({ where: { id, organisationId: org.id } });
+      if (!pa) return { ok: false, message: "That online application no longer exists." };
+      if (pa.status !== "RECEIVED") return { ok: false, message: "That online application is not waiting any more: it was recorded or set aside already. Nothing was changed." };
+      const person = await activePerson(tx, org.id, personId);
+      if (!person) return { ok: false, errors: { recordedByPersonId: supplierFaultText({ code: "RECORDER_REQUIRED", level: "block" }) } };
+      await tx.portalApplication.update({ where: { id: pa.id }, data: { status: "DISCARDED", decidedAt: now, decidedByPersonId: person.id, discardReason: reason, erasedAt: now, ...ERASED } });
+      await audit(tx, org.id, SUPPLIER_ENTITY.onlineApplication, pa.id, label({ reference: pa.reference }, "Online application"), "UPDATE",
+        diffFields({ status: "Received", personalDetails: "Held on the application" }, { status: "Set aside", decidedBy: person.name, personalDetails: "Erased" }), reason);
+      return { ok: true };
+    },
+    { timeout: 20_000, maxWait: 10_000 },
+  );
+  if (!result.ok) return result;
+  revalidatePath("/suppliers");
+  revalidatePath(`/suppliers/online/${id}`);
+  return { ok: true, href: "/suppliers?tab=portal" };
 }
 
 /// Open a further application for a supplier on the register: a first registration again after a rejection, or a renewal or upgrade.

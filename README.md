@@ -120,6 +120,20 @@ node scripts/compare-shell.mjs out/rendered-screen.html http://localhost:3000/
 A prototype may inject a second stylesheet from its JavaScript; `extract-runtime-css.mjs`
 pulls that out. Porting only the `<style>` block leaves screens unstyled.
 
+## Putting the supplier portal on a public address
+
+There is no sign-in, so every staff screen and staff action answers whoever can reach the copy. The
+supplier portal (`/supplier`) is meant for strangers, so it must be served by its own copy of the
+product, started with `PORTAL_SURFACE=public`: that copy answers only the portal's pages and the
+one registration POST, and gives a 404 to everything else. The officers' copy is started without
+it and stays on the officers' network. Both read the same database. `src/proxy.ts` is the
+boundary and `src/lib/portal/surface.ts` holds its rules, with tests.
+
+The public registration form stays closed until the organisation has set its numbering series for
+online applications, the notice about personal details (English and Malay) and both limits, under
+Configuration, Supplier register. It does not defend itself against a determined flood: per-address
+limits and a challenge belong at the edge in front of the public copy.
+
 ## Notes for a second customer
 
 `organisationId` is on every configuration table, so a second organisation is a seed
