@@ -10,6 +10,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "check": "npm run typecheck && npm run lint",
     "test": "vitest run",
+    "test:db": "vitest run --config vitest.db.config.mts",
     "test:watch": "vitest",
     "setup": "npm run db:up && npm run db:migrate && npm run db:seed",
     "db:up": "docker compose up -d --wait",
