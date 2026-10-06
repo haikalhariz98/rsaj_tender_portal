@@ -31,3 +31,9 @@ Founder, 2026-10-04 (chat): "let skip part b acceptance and bundle and 6.16 and 
 (none yet)
 
 - **Splitting check leftovers (founder removed FR-REQ-015, 2026-10-05).** `assessSplitting`, `justifierFaults` and `splitApprovalFault` in `src/lib/requisition/splitting.ts` have no caller (only `splitStateLabel` is used, by History). The RequisitionPolicy columns `splittingWindowDays`, `splittingMatchOn`, `splittingAggregateAcrossYear`, `splitJustifyingRoleCode`, and the demo data that writes them, are unused. Drop them with a migration once past split checks no longer need to be read.
+
+## Go-live conditions (met before the public copy is exposed, not after)
+
+| Item | Why it is here | Record |
+| --- | --- | --- |
+| Supplier portal: an edge rate limit or challenge, and a retention period for undecided online applications | Product owner (for the founder), 2026-10-06, ruling 3. A CAPTCHA (needs a third-party service), a signed form token (needs a server-secret decision), a per-address limit (only the edge in front of the public copy can say who an address is) and a purge of online applications nobody decided (no scheduler, and the retention period is customer policy, unset) are not built. The public copy is not exposed to the open internet until an edge rate limit or challenge exists and the customer has decided that retention period. | decisions log, 2026-10-06 ruling 3 and the "Not built, on purpose" entry |
