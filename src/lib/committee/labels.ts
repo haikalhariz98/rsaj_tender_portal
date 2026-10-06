@@ -17,6 +17,7 @@ import { SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
 import { EVALUATION_STAGE_DOMAIN, NEGOTIATION_DOMAIN } from "@/lib/evaluation/types";
 import { SPECIAL_PERMISSION_DOMAIN, SUPPLIER_BLACKLIST_DOMAIN, SUPPLIER_REGISTRATION_DOMAIN } from "@/lib/suppliers/types";
 import { VARIATION_DOMAINS } from "@/lib/variation/domains";
+import { CONTRACT_MATTER_DOMAINS } from "@/lib/matter/matter";
 
 export const MEETING_STATUS_LABEL = {
   SCHEDULED: "Scheduled",
@@ -100,7 +101,8 @@ export const NEVER_TABLED_MATTER_KINDS: readonly MatterKind[] = ["SUPPLIER", "CE
 export const SITTING_TABLED_MATTER_KINDS = MATTER_KINDS.filter((k) => !RECORD_TABLED_MATTER_KINDS.includes(k) && !NEVER_TABLED_MATTER_KINDS.includes(k));
 
 /// Matter domains tabled only from their own record, for the same reasons.
-export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN, LATE_DOMAIN, EVALUATION_STAGE_DOMAIN, ...VARIATION_DOMAINS];
+/// 6.13 Part B run 1b C8b (BD-613-117): every contract-matter domain, tabled from its matter (tablingOf, CONTRACT keys).
+export const RECORD_TABLED_DOMAINS: readonly string[] = [SCOPE_DOMAIN, LATE_DOMAIN, EVALUATION_STAGE_DOMAIN, ...VARIATION_DOMAINS, ...CONTRACT_MATTER_DOMAINS];
 export const RECORD_TABLED_DOMAIN_TEXT = "Scope approval is tabled from the exercise, under Scope and estimate, Scope, which names the bill version the committee decides on.";
 export const LATE_TABLED_TEXT = "Late tender admission is tabled from the exercise, in the Received section of Bids and opening, which names the envelope the committee decides on.";
 export const VARIATION_TABLED_TEXT = "A variation's matter is tabled from the variation, on its contract's Variations tab, which names the variation and the approval the committee decides on.";
@@ -138,7 +140,7 @@ export function recordTabledText(domainOrKind: string): string | null {
   if (domainOrKind === NEGOTIATION_DOMAIN) return NEGOTIATION_NOT_TABLED_TEXT;
   if (domainOrKind === SUPPLIER_REGISTRATION_DOMAIN || domainOrKind === SUPPLIER_BLACKLIST_DOMAIN || domainOrKind === SPECIAL_PERMISSION_DOMAIN || domainOrKind === "SUPPLIER") return SUPPLIER_NOT_TABLED_TEXT;
   if (domainOrKind === "CERTIFICATE") return CERTIFICATE_NOT_TABLED_TEXT;
-  if (domainOrKind === "CONTRACT") return CONTRACT_TABLED_WORDS.en;
+  if (CONTRACT_MATTER_DOMAINS.includes(domainOrKind) || domainOrKind === "CONTRACT") return CONTRACT_TABLED_WORDS.en;
   return null;
 }
 

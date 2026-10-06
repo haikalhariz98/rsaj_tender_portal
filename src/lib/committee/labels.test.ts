@@ -116,6 +116,31 @@ describe("6.13 Part A step 4: a variation's matter is tabled from the variation"
       expect(recordTabledText(d), d).toBe(VARIATION_TABLED_TEXT);
     }
     expect(recordTabledText("VARIATION")).toMatch(/Variations tab/);
-    expect(sittingTablesDomain("eot")).toBe(true);
+    // 6.13 Part B run 1b C8b (flagged against accepted 6.10, stricter; BD-613-117, trace T9): "eot" is a contract
+    // matter's domain, tabled from the matter, never from a sitting; every contract-matter domain is asserted below.
+    expect(sittingTablesDomain("eot")).toBe(false);
+  });
+});
+
+describe("6.13 Part B run 1b C8b (BD-613-117): every contract-matter domain is tabled from its matter", () => {
+  it("no sitting tables any of them, and the refusal names where, in the contract matter's words", async () => {
+    const { CONTRACT_MATTER_DOMAINS } = await import("@/lib/matter/matter");
+    const { recordTabledText, CONTRACT_TABLED_WORDS, RECORD_TABLED_DOMAINS } = await import("./labels");
+    expect(CONTRACT_MATTER_DOMAINS).toEqual(["eot", "contract_period_extension", "lad_waiver", "termination", "nominated_increase", "nomination", "loss_expense"]);
+    for (const d of CONTRACT_MATTER_DOMAINS) {
+      expect(sittingTablesDomain(d), d).toBe(false);
+      expect(RECORD_TABLED_DOMAINS, d).toContain(d);
+      expect(recordTabledText(d), d).toBe(CONTRACT_TABLED_WORDS.en);
+    }
+    expect(recordTabledText("CONTRACT")).toBe(CONTRACT_TABLED_WORDS.en);
+  });
+  it("the sitting's drawer, built from the labels, offers none of them", async () => {
+    const { CONTRACT_MATTER_DOMAINS } = await import("@/lib/matter/matter");
+    const matters = (await import("@/lib/labels.json")).default as Record<string, unknown>;
+    const offered = Object.keys(matters).filter(sittingTablesDomain);
+    for (const d of CONTRACT_MATTER_DOMAINS) {
+      expect(Object.keys(matters), d).toContain(d);
+      expect(offered, d).not.toContain(d);
+    }
   });
 });

@@ -141,6 +141,67 @@ describe("one lock order, run 1b's acts (ContractMatter the first domain row, th
   });
 });
 
+/// 6.13 Part B run 1b C8b (BD-613-117, trace T9, T10): ContractMatter's place where a contract matter is reached from
+/// outside the contract's pages: /approvals' escalation (Requisition → Exercise → Award → Contract → ContractMatter, then
+/// the matter's family row of ACT_STATUS, restating no state list) and a sitting's outcome on a CONTRACT matter
+/// (Contract → ContractMatter → the sitting, the order tabling takes). Blind spots (declared): these read the source's
+/// text in order; a lock taken in a helper these files call is not followed (none is), and the family is read from
+/// MATTER_FAMILY by name (matter-family's own test pins that map).
+describe("ContractMatter's place (BD-613-117): /approvals' escalation and a sitting's outcome", () => {
+  const escalate = (() => {
+    const src = read("src/app/approvals/actions.ts");
+    return src.slice(src.indexOf("export async function escalateStep"));
+  })();
+  const at = (s: string, t: string) => s.indexOf(`FROM "${t}" WHERE id`);
+
+  it("escalation locks the requisition, the exercise, the award, the contract, then the matter, before it reads the route", () => {
+    const matter = at(escalate, "ContractMatter");
+    expect(matter).toBeGreaterThan(-1);
+    const contract = escalate.lastIndexOf('FROM "Contract" WHERE id', matter);
+    expect(contract).toBeGreaterThan(at(escalate, "Award"));
+    expect(at(escalate, "Award")).toBeGreaterThan(at(escalate, "SourcingExercise"));
+    expect(at(escalate, "SourcingExercise")).toBeGreaterThan(at(escalate, "Requisition"));
+    expect(escalate.indexOf("tx.approvalInstance.findUnique")).toBeGreaterThan(matter);
+    // The requisition behind the matter's contract is the chain's first lock.
+    expect(escalate).toMatch(/route\.contractMatter\?\.contract\.award\.exercise\.requisitionId/);
+  });
+
+  it("escalation asks the matter's family row of the one table, and refuses a closed matter, before the step moves", () => {
+    const gate = escalate.indexOf("actStatusFault(MATTER_FAMILY[inst.contractMatter.kind as ContractMatterKind], inst.contractMatter.contract.status as ContractStatus)");
+    const closed = escalate.indexOf("inst.contractMatter?.closedAt");
+    const write = escalate.indexOf("tx.approvalStep.updateMany");
+    for (const x of [gate, closed]) {
+      expect(x).toBeGreaterThan(at(escalate, "ContractMatter"));
+      expect(x).toBeLessThan(write);
+    }
+    expect(escalate).toContain('matterRefused.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: its matters are kept as they were, and their routes are not escalated." : actStatusText(matterRefused)');
+  });
+
+  it("a sitting's outcome on a CONTRACT matter: the contract's chain, its family row, the matter, then the sitting", () => {
+    // Reconciled 2026-10-06 (Phase 0 of the sign-in programme): this test was written before the outcome path existed, naming
+    // helpers (contractMatterOf, inSittingAfterContractMatter) that the code never had. The path that landed is
+    // outcomeRecordOf -> inSittingAfterRecord -> inContractMatterForOutcome (founder, 2026-10-05); the same four properties
+    // are asserted against it, none dropped.
+    const committee = read("src/app/committees/actions.ts");
+    const rec = committee.slice(committee.indexOf("export async function recordOutcome("), committee.indexOf("\n}\n", committee.indexOf("export async function recordOutcome(")));
+    expect(rec).toMatch(/const record = exerciseId \|\| variation \? null : await outcomeRecordOf\(decisionId\);/);
+    expect(rec).toMatch(/: record\s+\? inSittingAfterRecord\(meetingId, record, decisionId, now, run\)/);
+    // The matter locked before the sitting is still the decision's, checked before any write.
+    const key = rec.indexOf("matterKey(decision) !== outcomeRecordKey(record)");
+    expect(key).toBeGreaterThan(-1);
+    expect(key).toBeLessThan(rec.indexOf("tx.committeeDecision.updateMany("));
+    // The contract matter's record is dispatched to its own function, which takes the locks in order.
+    expect(committee).toMatch(/if \(record\.kind === "CONTRACT"\) \{\s+result = await inContractMatterForOutcome\(record, now, meetingId, roster, decisionId, fn\);/);
+    const w0 = committee.indexOf("async function inContractMatterForOutcome(");
+    expect(w0).toBeGreaterThan(-1);
+    const wrap = committee.slice(w0, committee.indexOf("\n}\n", w0));
+    const order = ["withLockedContract(record.contractId", "actStatusFault(family, l.contract.status as ContractStatus)", "lockMatter(c, record.id)", "lockSittingIn(tx, meetingId, roster)", "fn(tx, s)"].map((x) => wrap.indexOf(x));
+    expect(order.every((x) => x > -1), String(order)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect(wrap).toContain("MATTER_FAMILY[record.matterKind as ContractMatterKind]");
+  });
+});
+
 describe("single writers", () => {
   it("only the RSAJ signature and its audited correction write the Contract Date", () => {
     const acts = actions(read(ACTIONS));

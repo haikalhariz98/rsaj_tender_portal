@@ -1,0 +1,55 @@
+6.13 Part B Run 1b C8b — red evidence (record-tabled contract-matter domains; ContractMatter's place in /approvals' escalation and a sitting's outcome)
+Recorded 2026-10-04T14:45:59Z on build-all-modules (tip 950a939 + the tests below written first), local Windows machine, Linux container (scripts/test-linux.ps1).
+
+Tests written before the code: committee/labels.test.ts (the 'eot' flip and the new describe), contract/lock-order.test.ts ("ContractMatter's place (BD-613-117)").
+
+== Verbatim excerpt (ANSI stripped) ==
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/lib/committee/labels.test.ts > 6.13 Part A step 4: a variation's matter is tabled from the variation > neither the kind nor its domains are tabled from a sitting, and the refusal names where
+AssertionError: expected true to be false // Object.is equality
+ FAIL  src/lib/committee/labels.test.ts > 6.13 Part B run 1b C8b (BD-613-117): every contract-matter domain is tabled from its matter > no sitting tables any of them, and the refusal names where, in the contract matter's words
+AssertionError: eot: expected true to be false // Object.is equality
+ FAIL  src/lib/committee/labels.test.ts > 6.13 Part B run 1b C8b (BD-613-117): every contract-matter domain is tabled from its matter > the sitting's drawer, built from the labels, offers none of them
+AssertionError: eot: expected [ 'requisition', 'appointment', …(31) ] to not include 'eot'
+ FAIL  src/lib/contract/lock-order.test.ts > ContractMatter's place (BD-613-117): /approvals' escalation and a sitting's outcome > escalation locks the requisition, the exercise, the award, the contract, then the matter, before it reads the route
+AssertionError: expected -1 to be greater than -1
+ FAIL  src/lib/contract/lock-order.test.ts > ContractMatter's place (BD-613-117): /approvals' escalation and a sitting's outcome > escalation asks the matter's family row of the one table, and refuses a closed matter, before the step moves
+AssertionError: expected -1 to be greater than -1
+ FAIL  src/lib/contract/lock-order.test.ts > ContractMatter's place (BD-613-117): /approvals' escalation and a sitting's outcome > a sitting's outcome on a CONTRACT matter: the contract's chain, its family row, the matter, then the sitting
+AssertionError: expected 'export async function recordOutcome(_…' to match /const contractMatter = exerciseId \|\…/
+ Test Files  2 failed (2)
+      Tests  6 failed | 39 passed (45)
+   Start at  14:46:02
+
+== BD-613-117 pre-check on the local perolehan database (the cloud's ran on a database that no longer exists) ==
+SQL:
+SELECT now() AS run_at, current_database();
+SELECT id, domain, "matterKind", "contractMatterId", "meetingId", outcome, "withdrawnAt" FROM "CommitteeDecision" WHERE domain IN ('eot','contract_period_extension','lad_waiver','termination','nominated_increase','nomination','loss_expense') ORDER BY id;
+SELECT CAST(count(*) AS integer) AS sitting_matters_on_contract_matter_domains_without_a_matter FROM "CommitteeDecision" WHERE domain IN ('eot','contract_period_extension','lad_waiver','termination','nominated_increase','nomination','loss_expense') AND "contractMatterId" IS NULL;
+SELECT id, domain, "matterKind", "contractMatterId", status FROM "ApprovalInstance" WHERE domain IN ('eot','contract_period_extension','lad_waiver','termination','nominated_increase','nomination','loss_expense') ORDER BY id;
+SELECT CAST(count(*) AS integer) AS contract_matters FROM "ContractMatter";
+
+Output:
+            run_at             | current_database 
+-------------------------------+------------------
+ 2026-10-04 14:45:00.838759+00 | perolehan
+(1 row)
+
+ id | domain | matterKind | contractMatterId | meetingId | outcome | withdrawnAt 
+----+--------+------------+------------------+-----------+---------+-------------
+(0 rows)
+
+ sitting_matters_on_contract_matter_domains_without_a_matter 
+-------------------------------------------------------------
+                                                           0
+(1 row)
+
+ id | domain | matterKind | contractMatterId | status 
+----+--------+------------+------------------+--------
+(0 rows)
+
+ contract_matters 
+------------------
+                0
+(1 row)
+
