@@ -12,9 +12,11 @@ import { lex } from "@/lib/scan/source";
  * (a read-modify-write of `nextSerial` in a server action, as the sitting reference did until Phase 0) can issue one number
  * twice, so a new writer is a failing test and a decision, not a quiet addition.
  *
- * Scope: `src/`, the product. The demo loaders in `prisma/` seed series on a quiet database and are not the product's issuers.
- * Blind spots (declared): a series reached through a variable that was not named `numberingSeries`, or raw SQL assembled
- * from pieces, is not seen; the raw-SQL pattern reads the table named in a template or string.
+ * Scope: `src/`, `prisma/` and `scripts/`: the demo loaders run additively on a live development database, so they are not
+ * exempt from the rule that nothing but the issuer advances a series. They may seed or remove a series (the demo's own
+ * configuration) and one may only raise a serial that a later load must not set back (`raiseSeries`, never back); each file's
+ * allowance is named below, with its reason. Blind spots (declared): a series reached through a variable that was not named
+ * `numberingSeries`, or raw SQL assembled from pieces, is not seen; the raw-SQL pattern reads the table named in a template.
  */
 
 const ROOT = path.join(__dirname, "../../..");
@@ -24,40 +26,56 @@ const ALLOWED = [ISSUER, EDITOR];
 
 const READS = "findUnique|findFirst|findMany|findUniqueOrThrow|findFirstOrThrow|count|aggregate|groupBy";
 
-/// What in a source touches a numbering series other than by reading it.
+/// What a source does to a numbering series other than read it: the verbs of every use of the model's client delegate that is
+/// not a plain read ("alias" where it is not called, so the scan cannot follow it), and the verbs of raw SQL naming the table.
 export function seriesWrites(src: string): string[] {
   const text = lex(src, { only: "comments" });
   const found: string[] = [];
-  // Every use of the model's client delegate that is not a plain read: a write, or an alias the scan cannot follow.
-  for (const m of text.matchAll(new RegExp(`\\bnumberingSeries\\b(?!\\s*\\??\\.\\s*(?:${READS})\\b)`, "g"))) {
-    found.push(`numberingSeries${text.slice(m.index! + "numberingSeries".length, m.index! + "numberingSeries".length + 24).split("\n")[0]}`.trim());
-  }
-  for (const m of text.matchAll(/\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM|TRUNCATE)\s+(?:TABLE\s+)?"NumberingSeries"/gi)) found.push(`raw SQL ${m[0]}`);
+  for (const m of text.matchAll(new RegExp(`\\bnumberingSeries\\b(?!\\s*\\??\\.\\s*(?:${READS})\\b)(?:\\s*\\??\\.\\s*(\\w+))?`, "g"))) found.push(m[1] ?? "alias");
+  for (const m of text.matchAll(/\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM|TRUNCATE)\s+(?:TABLE\s+)?"NumberingSeries"/gi)) found.push(`raw ${m[1].toUpperCase().replace(/\s+/g, " ")}`);
   return found;
 }
+
+/// Who may do what to a series besides the issuer and the editor, and why. A verb not listed for a file is a failure.
+const SEEDERS: Readonly<Record<string, { verbs: readonly string[]; why: string }>> = {
+  "prisma/demo.ts": { verbs: ["createMany", "deleteMany"], why: "seeds the demo's series, and removes them when the demo is wiped" },
+  "prisma/demo-award.ts": { verbs: ["create"], why: "seeds the demo's award series" },
+  "prisma/demo-evaluation.ts": { verbs: ["create"], why: "seeds the demo's evaluation-report series" },
+  "prisma/demo-suppliers.ts": { verbs: ["create", "deleteMany"], why: "seeds the demo's supplier series, and removes them when the supplier demo is wiped" },
+  "prisma/demo-lifecycle.ts": { verbs: ["create", "update"], why: "seeds the variation series, then raises serials the demo took past what the portal would issue (never back, raiseSeries)" },
+  "prisma/demo-series.ts": { verbs: ["update", "alias"], why: "raiseSeries: moves a series on to a serial a loaded part took, never back; its parameter is typed Pick<PrismaClient, \"numberingSeries\"> (the alias)" },
+  "scripts/check-numbering-concurrency.ts": { verbs: ["create", "delete"], why: "makes and removes its own temporary series" },
+};
 
 function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = `${dir}/${f}`;
-    if (rel === "src/generated") return [];
+    if (rel === "src/generated" || rel === "prisma/migrations") return [];
     return statSync(path.join(ROOT, rel)).isDirectory() ? files(rel) : /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) ? [rel] : [];
   });
 }
 
 describe("one issuer of references (sign-in programme Phase 0)", () => {
-  it("no file in src writes a numbering series except the issuer and the configuration editor", () => {
+  it("nothing in src, prisma or scripts writes a series except the issuer, the editor and the named seeders, and only in their named ways", () => {
     const offenders: string[] = [];
-    for (const f of files("src")) {
+    const seen = new Set<string>();
+    for (const f of [...files("src"), ...files("prisma"), ...files("scripts")]) {
       if (ALLOWED.includes(f)) continue;
       const w = seriesWrites(readFileSync(path.join(ROOT, f), "utf8"));
-      if (w.length > 0) offenders.push(`${f}: ${w.join("; ")}`);
+      if (w.length === 0) continue;
+      seen.add(f);
+      const ok = SEEDERS[f]?.verbs ?? [];
+      const bad = w.filter((v) => !ok.includes(v));
+      if (bad.length > 0) offenders.push(`${f}: ${bad.join(", ")}${SEEDERS[f] ? " (allowed: " + ok.join(", ") + ")" : ""}`);
     }
     expect(offenders).toEqual([]);
+    // An allowance for a file that no longer writes a series is stale: remove it.
+    expect([...Object.keys(SEEDERS)].filter((f) => !seen.has(f))).toEqual([]);
   });
 
   it("no other file forms a reference from a series or advances one: formatReference and afterIssuing are the issuer's", () => {
     const offenders: string[] = [];
-    for (const f of files("src")) {
+    for (const f of [...files("src"), ...files("prisma"), ...files("scripts")]) {
       if (f === ISSUER || f === "src/lib/numbering/series.ts") continue;
       if (/\b(?:formatReference|afterIssuing)\b/.test(lex(readFileSync(path.join(ROOT, f), "utf8"), { only: "comments" }))) offenders.push(f);
     }
@@ -96,10 +114,11 @@ describe("one issuer of references (sign-in programme Phase 0)", () => {
 
   describe("the scan itself", () => {
     it("catches a write, an alias, and raw SQL; passes a read", () => {
-      expect(seriesWrites("await tx.numberingSeries.update({ where: { id }, data: { nextSerial: 2 } });")).toHaveLength(1);
-      expect(seriesWrites("await db.numberingSeries.upsert({});")).toHaveLength(1);
-      expect(seriesWrites("const s = tx.numberingSeries;\nawait s.update({});")).toHaveLength(1);
-      expect(seriesWrites('await tx.$executeRaw`UPDATE "NumberingSeries" SET "nextSerial" = 9`;')).toHaveLength(1);
+      expect(seriesWrites("await tx.numberingSeries.update({ where: { id }, data: { nextSerial: 2 } });")).toEqual(["update"]);
+      expect(seriesWrites("await db.numberingSeries.upsert({});")).toEqual(["upsert"]);
+      expect(seriesWrites("await db.numberingSeries.createMany({});")).toEqual(["createMany"]);
+      expect(seriesWrites("const s = tx.numberingSeries;\nawait s.update({});")).toEqual(["alias"]);
+      expect(seriesWrites('await tx.$executeRaw`UPDATE "NumberingSeries" SET "nextSerial" = 9`;')).toEqual(["raw UPDATE"]);
       expect(seriesWrites('await tx.$executeRaw`INSERT INTO "NumberingSeries" (id) VALUES (1)`;')).toHaveLength(1);
       expect(seriesWrites("const s = await db.numberingSeries.findUnique({ where: { id } });")).toEqual([]);
       expect(seriesWrites("const n = await tx.numberingSeries.count();")).toEqual([]);

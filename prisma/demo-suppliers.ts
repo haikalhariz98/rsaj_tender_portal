@@ -194,18 +194,14 @@ class Acts {
   /// recordApplication, as the action judges it.
   async record(id: string, appId: string, contactId: string, s: { name: string; no: string; entity: string; country: string; address: string; email: string; contact: { name: string; designation: string; email: string; phone: string } }, receivedOn: string, declarationSignedOn: string | null, epayment: string | null, when: Date) {
     const { applicationFaults, normaliseRegistrationNo } = await import("../src/lib/suppliers/identity");
-    const { formatReference, serialFor, afterIssuing } = await import("../src/lib/numbering/series");
+    const { issueReference } = await import("../src/lib/numbering/issue");
     const cfg = await this.config();
     const today = this.dayOf(when);
     const key = normaliseRegistrationNo(s.no);
     const dup = await this.db.supplier.findFirst({ where: { organisationId: this.org, registrationNoKey: key } });
     refuse(`recording ${s.name}`, applicationFaults({ registeredName: s.name, registrationNo: s.no, entityTypeCode: s.entity, countryCode: s.country, registeredAddress: s.address, companyEmail: s.email, contact: s.contact, receivedOn, channel: "COUNTER", declarationSignedOn, recorderActive: true }, { today, formatPattern: cfg.format?.pattern ?? null, entityTypeCodes: cfg.liveCodes("ENTITY_TYPE", today), countryCodes: cfg.liveCodes("COUNTRY", today), duplicate: dup ? { reference: dup.reference, name: dup.registeredName } : null }));
-    const series = await this.db.numberingSeries.findFirstOrThrow({ where: { organisationId: this.org, key: "supplier" } });
-    const on = dayToDate(today);
-    const ser = { ...series, resetOn: series.resetOn as never };
-    const reference = formatReference(ser, on, serialFor(ser, on));
-    const next = afterIssuing(ser, on);
-    await this.db.numberingSeries.update({ where: { id: series.id }, data: { nextSerial: next.nextSerial, serialPeriod: next.serialPeriod } });
+    // Sign-in programme Phase 0: drawn by the one issuer, under the series lock, as the product draws it.
+    const reference = await this.db.$transaction((tx) => issueReference(tx, this.org, "supplier", dayToDate(today)));
     await this.db.supplier.create({ data: { id, organisationId: this.org, reference, registeredName: s.name, registrationNo: s.no, registrationNoKey: key, entityTypeCode: s.entity, countryCode: s.country, registeredAddress: s.address, companyEmail: s.email, createdAt: when } });
     await this.db.supplierContact.create({ data: { id: contactId, organisationId: this.org, supplierId: id, ...s.contact, isPrimary: true, createdAt: when } });
     await this.db.supplierApplication.create({ data: { id: appId, organisationId: this.org, supplierId: id, kind: "NEW", receivedOn: dayToDate(receivedOn), channel: "COUNTER", recordedByPersonId: OFFICER.id, recordedAt: when, declarationSignedOn: declarationSignedOn ? dayToDate(declarationSignedOn) : null, epaymentFormReceivedOn: epayment ? dayToDate(epayment) : null, createdAt: when } });
