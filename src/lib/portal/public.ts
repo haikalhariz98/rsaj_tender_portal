@@ -85,6 +85,9 @@ export function opportunityState(f: { status: ExerciseStatus; closingAt: Date | 
   return "OPEN";
 }
 
+/// An award counts only once issued (and still standing if accepted): the one definition the board and Results share.
+export const isIssuedAward = (status: string): boolean => status === "ISSUED" || status === "ACCEPTED";
+
 /// The statuses an advertised exercise is read in, for the query (the rule above is still the authority).
 export const PUBLISHED_OR_CANCELLED: readonly ExerciseStatus[] = ["ADVERTISED", "OPENING_IN_PROGRESS", "OPENED", "UNDER_EVALUATION", "EVALUATED", "CANCELLED"];
 
@@ -199,7 +202,7 @@ const saleOf = (state: ReturnType<typeof windowPhase>["phase"]): SaleState => {
 export function toPublicOpportunity(row: OpportunityRow, ctx: ProjectionContext): PublicOpportunity | null {
   if (!isPublicOpportunity({ status: row.status, restricted: row.restricted, closingAt: row.closingAt, window: row.window ? { path: row.window.path, publishedAt: row.window.publishedAt } : null })) return null;
   const w = row.window!;
-  const awarded = row.awards.some((a) => a.status === "ISSUED" || a.status === "ACCEPTED");
+  const awarded = row.awards.some((a) => isIssuedAward(a.status));
   const state = opportunityState(row, awarded, ctx.now);
   const base = { id: row.id, reference: row.reference, title: row.title, method: ctx.methodNames.get(row.sourcingMethodCode) ?? "", state };
 

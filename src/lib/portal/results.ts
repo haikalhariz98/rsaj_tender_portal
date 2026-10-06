@@ -13,10 +13,7 @@ import { formatDay } from "@/lib/award/fields";
 import { senFromDecimal } from "@/lib/money";
 import type { ExerciseStatus } from "@/lib/method/types";
 
-import { isPublicOpportunity, opportunityState } from "./public";
-
-/// An award counts as a result only once issued (and still standing if accepted).
-export const isIssuedAward = (status: string): boolean => status === "ISSUED" || status === "ACCEPTED";
+import { isIssuedAward, isPublicOpportunity, opportunityState } from "./public";
 
 /// What `resultSelect` returns (select.ts). Declared here so the projection is testable without a database.
 export interface ResultRow {

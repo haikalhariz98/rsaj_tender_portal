@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { EXERCISE_STATUSES, type ExerciseStatus } from "@/lib/method/types";
 import { SULIT_FIELDS } from "@/lib/sulit-fields";
 
-import { isIssuedAward, toPublicResult, type ResultContext, type ResultRow } from "./results";
+import { isIssuedAward } from "./public";
+import { toPublicResult, type ResultContext, type ResultRow } from "./results";
 import { ISSUED_AWARD_STATUSES, resultSelect } from "./select";
 
 const NOW = new Date("2026-10-06T04:00:00.000Z");
