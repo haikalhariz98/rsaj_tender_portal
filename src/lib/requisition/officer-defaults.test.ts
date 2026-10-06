@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { officerDefaults, type CostCentreRow, type UnitRow } from "./officer-defaults";
+import { officerDefaults, prefillFromOfficer, type CostCentreRow, type PrefillValues, type UnitRow } from "./officer-defaults";
 
 const UNITS: UnitRow[] = [
   { code: "CO", kind: "COMPANY", parentCode: null },
@@ -47,5 +47,54 @@ describe("what the requesting officer's unit fills in", () => {
 
   it("fills nothing for a section whose parent is not a department", () => {
     expect(officerDefaults("ODD", UNITS, [cc("C1", "ODD")])).toEqual({ departmentCode: null, sectionCode: null, costCentreCode: null });
+  });
+});
+
+describe("applying an officer's defaults to the form", () => {
+  const empty: PrefillValues = { unit: "", section: "", costCentre: "" };
+  const d1s1 = { departmentCode: "D1", sectionCode: "D1-S1", costCentreCode: "C1" };
+
+  it("fills all three into an empty form and records what it set", () => {
+    const r = prefillFromOfficer(empty, {}, d1s1);
+    expect(r.values).toEqual({ unit: "D1", section: "D1-S1", costCentre: "C1" });
+    expect(r.filled).toEqual(["unit", "section", "costCentre"]);
+    expect(r.filledBy).toEqual(r.values);
+  });
+
+  it("does not fill section or cost centre from another department when the user chose the department", () => {
+    const r = prefillFromOfficer({ ...empty, unit: "D2" }, {}, d1s1);
+    expect(r.values).toEqual({ unit: "D2", section: "", costCentre: "" });
+    expect(r.otherDepartment).toBe(true);
+    expect(r.filled).toEqual([]);
+  });
+
+  it("keeps what the user chose and says so", () => {
+    const mine = { unit: "D1", section: "D1-S2", costCentre: "C7" };
+    const r = prefillFromOfficer(mine, {}, d1s1);
+    expect(r.values).toEqual(mine);
+    expect(r.kept).toEqual(["unit", "section", "costCentre"]);
+    expect(r.filled).toEqual([]);
+  });
+
+  it("lets a later officer replace what an earlier one filled, and releases a section of the old department", () => {
+    const first = prefillFromOfficer(empty, {}, d1s1);
+    const r = prefillFromOfficer(first.values, first.filledBy, { departmentCode: "D2", sectionCode: null, costCentreCode: "C9" });
+    expect(r.values).toEqual({ unit: "D2", section: "", costCentre: "C9" });
+  });
+
+  it("fills the department only, and leaves a cost centre it cannot settle for the user", () => {
+    const r = prefillFromOfficer(empty, {}, { departmentCode: "D1", sectionCode: null, costCentreCode: null });
+    expect(r.values).toEqual({ unit: "D1", section: "", costCentre: "" });
+    expect(r.filled).toEqual(["unit"]);
+    expect(r.left).toEqual(["costCentre"]);
+  });
+
+  it("clears what an earlier officer filled when this officer's unit gives nothing, never the user's own", () => {
+    const first = prefillFromOfficer(empty, {}, d1s1);
+    const cleared = prefillFromOfficer(first.values, first.filledBy, { departmentCode: null, sectionCode: null, costCentreCode: null });
+    expect(cleared.values).toEqual(empty);
+    expect(cleared.gave).toBe(false);
+    const mine = prefillFromOfficer({ unit: "D1", section: "", costCentre: "C7" }, {}, { departmentCode: null, sectionCode: null, costCentreCode: null });
+    expect(mine.values).toEqual({ unit: "D1", section: "", costCentre: "C7" });
   });
 });

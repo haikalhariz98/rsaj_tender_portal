@@ -12,7 +12,7 @@ import { AffixInput, Field, Input, Select, Textarea } from "@/components/ui/fiel
 import { formDataOf } from "@/components/ui/form-submit";
 import { lineAmount } from "@/lib/requisition/lines";
 import type { ImportedLine } from "@/lib/requisition/line-import";
-import { officerDefaults, type UnitRow } from "@/lib/requisition/officer-defaults";
+import { officerDefaults, prefillFromOfficer, type PrefillField, type PrefillResult, type UnitRow } from "@/lib/requisition/officer-defaults";
 
 import { createRequisition, editDraft } from "./actions";
 import { LineUpload } from "./line-upload";
@@ -78,6 +78,21 @@ const tidy = (v: string) => {
   return sen == null ? v : grouped(sen);
 };
 
+const FIELD_NAME: Record<PrefillField, string> = { unit: "department", section: "section", costCentre: "cost centre" };
+const names = (fields: PrefillField[]) => fields.map((f) => FIELD_NAME[f]).join(", ");
+
+/// What choosing the officer did, in words: only the fields it actually filled, and why any were not.
+function officerNoteText(note: PrefillResult | "no-unit"): string {
+  if (note === "no-unit") return "No unit is recorded for this officer, so nothing is filled in.";
+  if (!note.gave) return "Nothing could be filled in from this officer's unit.";
+  const parts: string[] = [];
+  if (note.filled.length) parts.push(`Filled in from the officer's unit: ${names(note.filled)}.`);
+  if (note.otherDepartment) parts.push("The officer is in a different department from the one you chose, so section and cost centre were left alone.");
+  else if (note.kept.length) parts.push(`Kept as you chose: ${names(note.kept)}.`);
+  if (note.left.length) parts.push(`Left for you to choose: ${names(note.left)}.`);
+  return parts.join(" ") || "Your choices already match this officer's unit.";
+}
+
 export function RequisitionForm({
   mode,
   options,
@@ -105,7 +120,7 @@ export function RequisitionForm({
   // What choosing the officer filled in, per field: a value still equal to it was never the user's own, so
   // a later officer may replace it. A field the user then chooses leaves this record.
   const [filled, setFilled] = useState<{ unit?: string; section?: string; costCentre?: string }>({});
-  const [officerNote, setOfficerNote] = useState<"filled" | "nothing" | "no-unit" | null>(null);
+  const [officerNote, setOfficerNote] = useState<PrefillResult | "no-unit" | null>(null);
   const e = state.errors ?? {};
 
   const sections = useMemo(() => options.sections.filter((s) => s.parentCode === unit), [options.sections, unit]);
@@ -118,27 +133,13 @@ export function RequisitionForm({
       setOfficerNote(null);
       return;
     }
-    const d = officerDefaults(person.orgUnitCode, options.units, options.costCentres);
-    // Only a field still empty, or one an earlier officer filled, is touched.
-    const open = (current: string, was?: string) => current === "" || current === was;
-    const next: typeof filled = {};
-    let any = false;
-    const fill = (key: keyof typeof filled, current: string, was: string | undefined, wanted: string | null, set: (v: string) => void) => {
-      if (!open(current, was)) return;
-      if (wanted) {
-        set(wanted);
-        next[key] = wanted;
-        any = true;
-      } else if (current !== "") {
-        set("");
-      }
-    };
-    fill("unit", unit, filled.unit, d.departmentCode, setUnit);
-    fill("section", section, filled.section, d.sectionCode, setSectionChoice);
-    fill("costCentre", costCentre, filled.costCentre, d.costCentreCode, setCostCentre);
+    const result = prefillFromOfficer({ unit, section, costCentre }, filled, officerDefaults(person.orgUnitCode, options.units, options.costCentres));
+    setUnit(result.values.unit);
+    setSectionChoice(result.values.section);
+    setCostCentre(result.values.costCentre);
     // A field the user chose themselves stays on record as theirs.
-    setFilled(next);
-    setOfficerNote(!person.orgUnitCode ? "no-unit" : any ? "filled" : "nothing");
+    setFilled(result.filledBy);
+    setOfficerNote(!person.orgUnitCode ? "no-unit" : result);
   };
   const budgetCodes = useMemo(() => (account ? options.budgetCodes.filter((b) => b.accountCode === account) : options.budgetCodes), [options.budgetCodes, account]);
   const total = totalOf(lines);
@@ -236,9 +237,7 @@ export function RequisitionForm({
           {/* Founder, 2026-10-06: the officer comes first, and their unit fills in department, section and cost centre. */}
           {select("requestingPersonId", "Requesting officer", options.people.map((p) => ({ value: p.id, label: p.name })), { required: true, value: officer, onChange: chooseOfficer })}
           <div className="flex items-end pb-2 text-[13px] text-ink-3" aria-live="polite">
-            {officerNote === "filled" && "Department, section and cost centre are filled in from the officer's unit."}
-            {officerNote === "no-unit" && "No unit is recorded for this officer, so nothing is filled in."}
-            {officerNote === "nothing" && "Nothing could be filled in from this officer's unit."}
+            {officerNote && officerNoteText(officerNote)}
           </div>
           {select("requestingUnitCode", "Requesting department", options.departments.map((d) => ({ value: d.code, label: d.name })), {
             required: true,

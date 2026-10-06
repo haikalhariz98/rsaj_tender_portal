@@ -76,7 +76,7 @@ export function MarkEndorsed({ id, blocker, source }: { id: string; blocker: str
       title="Mark as endorsed"
       description={
         source === "PORTAL_LEDGER"
-          ? "Every tier has endorsed it. From here its fields are fixed. The budget is checked automatically, from the portal's budget ledger, as it is endorsed; it is then submitted."
+          ? "Every tier has endorsed it. From here its fields are fixed. The budget is checked automatically, from the portal's budget ledger, as it is endorsed; it is then submitted. Once checked it can no longer be returned as incomplete, so confirm the pack is complete first."
           : "Every tier has endorsed it. From here its fields are fixed; it is budget-checked and submitted."
       }
       fields={[hidden("id")]}
