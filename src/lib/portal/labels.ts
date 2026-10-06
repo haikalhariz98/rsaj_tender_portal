@@ -338,6 +338,7 @@ export const APPLY = {
   numberFormatHint: (example: string): Words => w(`For example ${example}.`, `Contohnya ${example}.`),
   submit: w("Send application", "Hantar permohonan"),
   sending: w("Sending…", "Menghantar…"),
+  cantAccept: w("Something in this application could not be accepted, so nothing was sent. Check each field and send it again, or contact the procurement office.", "Sesuatu dalam permohonan ini tidak dapat diterima, jadi tiada apa dihantar. Semak setiap ruangan dan hantar semula, atau hubungi pejabat perolehan."),
   nothingSent: w("Nothing was sent. Check the fields marked below and send it again.", "Tiada apa dihantar. Semak ruangan yang ditanda di bawah dan hantar semula."),
   tooLong: (label: string, max: number): Words => w(`${label} must be ${max} characters or fewer.`, `${label} mestilah ${max} aksara atau kurang.`),
   closedTitle: w("Online applications are not open yet", "Permohonan dalam talian belum dibuka"),

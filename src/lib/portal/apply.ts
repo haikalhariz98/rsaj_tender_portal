@@ -85,7 +85,7 @@ export const PORTAL_FIELD_OF: Partial<Record<IdentityFault, string>> = {
   CONTACT_EMAIL_NOT_VALID: "contactEmail",
 };
 
-export type PortalRefusal = { closed: true } | { closed: false; errors: Record<string, string> };
+export type PortalRefusal = { closed: true } | { closed: false; errors: Record<string, string>; message: string };
 
 /// What a refusal tells the applicant: the register is not open, or one plain sentence per field. Null: nothing blocks.
 export function portalRefusal(findings: readonly Finding<IdentityFault>[]): PortalRefusal | null {
@@ -93,12 +93,15 @@ export function portalRefusal(findings: readonly Finding<IdentityFault>[]): Port
   if (blocks.length === 0) return null;
   if (blocks.some((f) => CLOSED_FAULTS.includes(f.code))) return { closed: true };
   const errors: Record<string, string> = {};
+  let unplaced = false;
   for (const f of blocks) {
     const field = PORTAL_FIELD_OF[f.code];
     const words = (APPLY.faults as Partial<Record<IdentityFault, Words>>)[f.code];
-    if (field && words && !errors[field]) errors[field] = words.en;
+    if (field && words) errors[field] ??= words.en;
+    else unplaced = true;
   }
-  return { closed: false, errors };
+  // A blocking fault with no field to mark must still be said, never left as "check the marked fields" with none marked.
+  return { closed: false, errors, message: (unplaced ? APPLY.cantAccept : APPLY.nothingSent).en };
 }
 
 /// What the register still lacks before it can take an application, in the order a person would set it.

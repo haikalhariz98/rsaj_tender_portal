@@ -68,9 +68,16 @@ describe("a public registration application", () => {
     // Nothing a holder could be recognised by passes through: not a reference, not a name.
     expect(JSON.stringify(fs)).not.toMatch(/DEMO\/SUP|Sampel Works/);
     const refusal = portalRefusal(fs);
-    expect(refusal).toEqual({ closed: false, errors: { registrationNo: APPLY.faults.DUPLICATE.en } });
+    expect(refusal).toEqual({ closed: false, errors: { registrationNo: APPLY.faults.DUPLICATE.en }, message: APPLY.nothingSent.en });
     expect(APPLY.faults.DUPLICATE.en).not.toMatch(/already|registered to|held by|reference|supplier/i);
     expect(APPLY.faults.DUPLICATE.ms).not.toMatch(/sudah|didaftarkan oleh/i);
+  });
+
+  it("a blocking fault with no field to mark is still said, in a message of its own", () => {
+    const r = portalRefusal([{ code: "SOMETHING_NEW" as never, level: "block" }]);
+    expect(r).toEqual({ closed: false, errors: {}, message: APPLY.cantAccept.en });
+    const placed = portalRefusal([{ code: "NAME_REQUIRED", level: "block" }]);
+    expect(placed && !placed.closed && placed.message).toBe(APPLY.nothingSent.en);
   });
 
   it("one plain sentence per field, never a code", () => {

@@ -78,7 +78,7 @@ export async function submitApplication(_prev: ApplyState, data: FormData): Prom
         const faults = portalApplicationFaults({ ...v, contact }, { today: org.today, formatPattern: cfg.format?.pattern ?? null, entityTypeCodes: cfg.liveCodes("ENTITY_TYPE", org.today), countryCodes: cfg.liveCodes("COUNTRY", org.today), numberTaken: taken });
         const refusal = portalRefusal(faults);
         if (refusal?.closed) return closed();
-        if (refusal) return { ok: false, errors: refusal.errors, message: APPLY.nothingSent.en };
+        if (refusal) return { ok: false, errors: refusal.errors, message: refusal.message };
 
         const today = org.today!;
         let issued: string;
@@ -111,7 +111,7 @@ export async function submitApplication(_prev: ApplyState, data: FormData): Prom
           diffFields(null, { reference: issued, registeredName: supplier.registeredName, registrationNo: supplier.registrationNo, formatChecked: faults.some((f) => f.code === "FORMAT_NOT_CHECKED") ? "Not checked: no format is set" : "Matches the configured format", entityType: words("ENTITY_TYPE", supplier.entityTypeCode), country: words("COUNTRY", supplier.countryCode), registeredAddress: supplier.registeredAddress, companyEmail: supplier.companyEmail, status: "Applicant" }));
         await audit(tx, org.id, SUPPLIER_ENTITY.contact, c.id, label(supplier, "Primary contact"), "CREATE", diffFields(null, { contactName: c.name, contactDesignation: c.designation || null, contactEmail: c.email || null, contactPhone: c.phone || null, primary: true }));
         await audit(tx, org.id, SUPPLIER_ENTITY.application, app.id, supplierApplicationLabel(app), "CREATE",
-          diffFields(null, { kind: APPLICATION_KIND_LABEL.NEW.en, receivedOn: today, channel: CHANNEL_LABEL.PORTAL.en, recordedBy: "Nobody: sent by the applicant through the supplier portal", recordedOnBehalf: "not signed", declarationSignedOn: null, epaymentFormReceivedOn: null }));
+          diffFields(null, { kind: APPLICATION_KIND_LABEL.NEW.en, receivedOn: today, channel: CHANNEL_LABEL.PORTAL.en, recordedBy: "Nobody: sent by the applicant through the supplier portal", declarationSignedOn: null, epaymentFormReceivedOn: null }));
         reference = issued;
         return { ok: true };
       },
