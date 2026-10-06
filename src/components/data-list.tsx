@@ -15,6 +15,7 @@ import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter } from "@/components/ui/feedback";
 import { provenanceLabel, ProvenanceBadge } from "@/components/ui/provenance";
 import { Select } from "@/components/ui/select";
+import { listToCsv } from "@/lib/csv-cell";
 import { formatRM } from "@/lib/format";
 import { compareSenOrNone, formatMoney, senToDecimalString } from "@/lib/money";
 import { needsPaging, PAGE_SIZES } from "@/lib/paging";
@@ -505,9 +506,7 @@ export function DataList({
     const header = cols.map((c) => c.label);
     // The whole filtered list, not just the page being looked at.
     const lines = visible.map((r) => cols.map((c) => cellText(r.cells[c.key])));
-    const csv = [header, ...lines]
-      .map((cells) => cells.map((v) => `"${v.replace(/"/g, '""')}"`).join(","))
-      .join("\r\n");
+    const csv = listToCsv(header, lines);
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;

@@ -17,6 +17,7 @@
  * gives back what was exported.
  */
 
+import { csvCell } from "@/lib/csv-cell";
 import { MoneyFormatError, parseSen, senToDecimalString, type Sen } from "@/lib/money";
 
 import { bqTotals, isQuantity, itemAmount, keyedMismatch, lineSizeFaults, unpricedBq, type FrozenBq } from "./bq";
@@ -337,11 +338,7 @@ export function importBlock(parsed: ParsedBqCsv | null, ctx: { draftLines: numbe
 
 // ------------------------------------------------------------------ export
 
-/// A cell as written: quoted where it holds a comma, quote or line break; a formula-looking start guarded.
-export function csvCell(value: string): string {
-  const guarded = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  return /[",\r\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded;
-}
+export { csvCell } from "@/lib/csv-cell";
 
 /**
  * The bill as CSV, with a byte-order mark so a spreadsheet reads it as UTF-8, CRLF line
