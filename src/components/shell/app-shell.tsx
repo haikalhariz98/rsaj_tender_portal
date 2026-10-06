@@ -1,6 +1,9 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+
+import { isSignInPath } from "@/lib/auth/routes";
 
 import type { ShellOrganisation, ShellUser } from "@/lib/shell";
 
@@ -15,6 +18,7 @@ export function AppShell({
   counts,
   user,
   portalOnly = false,
+  signOut,
   children,
 }: {
   organisation: ShellOrganisation;
@@ -23,11 +27,14 @@ export function AppShell({
   user: ShellUser | null;
   /// The public copy of the product: only the supplier portal is served, so the frame offers nothing else.
   portalOnly?: boolean;
+  /// The sign-out action (a POST), passed from the layout.
+  signOut: (data: FormData) => Promise<void>;
   children: ReactNode;
 }) {
   // Closed by the sidebar itself on every link and workspace switch (`onNavigate`),
   // by the scrim, and by Escape.
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) return;
@@ -37,6 +44,18 @@ export function AppShell({
   }, [open]);
 
   const hasAlerts = Object.values(counts).some((n) => n > 0);
+
+  // The sign-in screens are for someone who is not in yet: no navigation, no counts, nothing of the staff side to see.
+  if (isSignInPath(pathname)) {
+    return (
+      <div className="grid min-h-dvh place-items-center px-4 py-10">
+        <main className="w-full max-w-[460px]">
+          <div className="mb-6 text-center text-[13.5px] font-semibold text-ink-3">{organisation.name}</div>
+          {children}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-dvh">
@@ -74,6 +93,7 @@ export function AppShell({
           user={user}
           hasAlerts={hasAlerts}
           onMenu={() => setOpen(true)}
+          signOut={signOut}
         />
         <main className="min-w-0 flex-1 px-4 pt-7 pb-16 sm:px-6 lg:px-8 print:p-0">
           <div className="mx-auto w-full max-w-[1400px]">{children}</div>

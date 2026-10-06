@@ -27,7 +27,7 @@ import { phaseSummary, statusBreakdown } from "@/lib/method/phase";
 import { loadDashboard } from "@/lib/dashboard";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { matterLabel } from "@/lib/labels";
-import { loadShell } from "@/lib/shell";
+import { currentStaffOrNull } from "./_auth/actor";
 import { greetingAt } from "@/lib/dates";
 import { organisationTimeZone } from "@/lib/org-time";
 
@@ -65,7 +65,7 @@ const COMING = [
 ];
 
 export default async function Dashboard() {
-  const [data, shell, timeZone] = await Promise.all([loadDashboard(), loadShell(), organisationTimeZone()]);
+  const [data, actor, timeZone] = await Promise.all([loadDashboard(), currentStaffOrNull(), organisationTimeZone()]);
 
   if (!data) {
     return (
@@ -79,11 +79,8 @@ export default async function Dashboard() {
   }
 
   const now = new Date();
-  // Greet by name only when there is a name. Splitting the old placeholder produced
-  // "Good afternoon, Signed".
-  // Until sign-in names the user, a local placeholder name may be set (PEROLEHAN_GREETING_NAME in .env,
-  // never committed: no person ships with the product). Unset: the greeting alone.
-  const firstName = shell.user?.name.split(/\s+/)[0] ?? (process.env.PEROLEHAN_GREETING_NAME?.trim() || null);
+  // Greet by the name of whoever is signed in, from their session. Nobody signed in: the greeting alone.
+  const firstName = actor?.personName.split(/\s+/)[0] ?? null;
   const waiting = data.queue.length + data.requisitions.length;
   // Waiting days are shown as a count, with no judgement: there is no configured
   // target to call one "aged" against until FR-APR-018's targets exist (ruling R5).
@@ -98,10 +95,10 @@ export default async function Dashboard() {
             : `${waiting} ${waiting === 1 ? "item is" : "items are"} awaiting a decision.`
         }
         meta={[
-          shell.user && (
+          actor?.jobTitle && (
             <>
               <UserIcon size={14} />
-              {shell.user.jobTitle}
+              {actor.jobTitle}
             </>
           ),
           <>

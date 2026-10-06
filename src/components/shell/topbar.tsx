@@ -5,19 +5,18 @@ import { usePathname } from "next/navigation";
 
 import {
   BellIcon,
-  ChevronDown,
   ChevronRight,
   HelpCircle,
   MenuIcon,
   SearchIcon,
   UserIcon,
 } from "@/components/icons";
-import { Avatar } from "@/components/ui/avatar";
-import { iconButtonClass } from "@/components/ui/button";
+import { ButtonLink, iconButtonClass } from "@/components/ui/button";
 import { workspaceFor } from "@/lib/nav";
 import type { ShellUser } from "@/lib/shell";
 
 import { useRecordCrumb, useRecordParentCrumb } from "./record-crumb";
+import { UserMenu } from "./user-menu";
 
 /// Path segment to the label the breadcrumb should read.
 const SEGMENT_LABEL: Record<string, string> = {
@@ -43,6 +42,9 @@ const SEGMENT_LABEL: Record<string, string> = {
   awards: "Awards",
   securities: "Securities",
   approvals: "My approvals",
+  account: "Your account",
+  welcome: "Welcome",
+  "sign-in": "Sign in",
   audit: "Audit trail",
   print: "Print",
   // Short: the crumb shares the bar with search. The page title says the rest.
@@ -77,6 +79,8 @@ const RECORD_LABEL: Record<string, string> = {
 
 /// Segments whose label depends on where they sit.
 const NESTED_LABEL: Record<string, string> = {
+  // The sign-in screens, shown without the frame but named for the breadcrumb test.
+  "sign-in/code": "Use a code",
   "configuration/requisitions": "Requisition controls",
   "requisitions/new": "New requisition",
   "configuration/awards": "Award controls",
@@ -192,6 +196,7 @@ export function Topbar({
   user,
   hasAlerts,
   onMenu,
+  signOut,
 }: {
   organisation: string;
   /// Null until authentication exists. Rendered as "not signed in", never as a person.
@@ -199,6 +204,8 @@ export function Topbar({
   /// Whether anything is waiting. The bell's dot claims there is; it must not lie.
   hasAlerts: boolean;
   onMenu: () => void;
+  /// The sign-out action, from the layout.
+  signOut: (data: FormData) => Promise<void>;
 }) {
   const pathname = usePathname();
   const workspace = workspaceFor(pathname);
@@ -298,30 +305,13 @@ export function Topbar({
 
       <span className="mx-1.5 hidden h-6 w-px bg-line-2 sm:block" />
 
-      {/* No sign-in yet, so there is nobody to name. An avatar with initials and a
-          job title would assert an identity the system does not have. */}
+      {/* Who is signed in, from the session. Nobody signed in is said as such, with the way in: no avatar and no name is shown that is not a person's. */}
       {user ? (
-        <button
-          type="button"
-          disabled
-          className="flex items-center gap-2.5 rounded-full py-1 pr-2 pl-1 hover:bg-ink/5"
-        >
-          <Avatar name={user.name} size="sm" />
-          <span className="hidden min-w-0 text-left leading-tight md:block">
-            <span className="block truncate text-[13px] font-semibold text-ink">{user.name}</span>
-            <span className="block truncate text-[12px] text-ink-3">{user.jobTitle}</span>
-          </span>
-          <ChevronDown size={15} className="text-ink-3" />
-        </button>
+        <UserMenu user={user} signOut={signOut} />
       ) : (
-        <span className="flex items-center gap-2.5" title="Sign-in not built yet">
-          <Avatar size="sm">
-            <UserIcon size={15} />
-          </Avatar>
-          <span className="hidden truncate text-[12.5px] text-ink-3 2xl:inline">
-            Sign-in not built yet
-          </span>
-        </span>
+        <ButtonLink href="/sign-in" variant="secondary" size="sm" icon={<UserIcon size={15} />}>
+          Sign in
+        </ButtonLink>
       )}
     </header>
   );

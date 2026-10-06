@@ -78,6 +78,7 @@ export async function readStaffSession(token: string | undefined | null, request
     // Phase 2a resolves permissions from roles and grants. Until then none is held, and a permission nobody has decided is refused.
     permissions: new Set(),
     stepUpAt: session.stepUpAt,
+    sessionCreatedAt: session.createdAt,
     sourceAddress: request.sourceAddress,
     mustChangePassword: account.mustChangePassword,
   };

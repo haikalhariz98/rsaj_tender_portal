@@ -4,7 +4,8 @@ import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
 
 export interface ShellUser {
   name: string;
-  jobTitle: string;
+  /// As the person's record has it. Null where none is recorded: nothing is made up to fill the line.
+  jobTitle: string | null;
 }
 
 /**
@@ -14,11 +15,9 @@ export interface ShellUser {
  * Counts only appear for modules that exist. A nought on an unbuilt module would
  * read as "nothing to do" rather than "nothing here yet".
  *
- * `user` is null until authentication arrives, and callers must say so plainly. It
- * used to fall back to a label reading "Signed out / No user configured", which the
- * dashboard then greeted as a person — "Good afternoon, Signed". Worse, once officers
- * exist this returned whichever name sorts first and presented them as the signed-in
- * user: a guess wearing the shape of a fact.
+ * Who is signed in is not decided here: the layout asks `currentStaffOrNull` (src/app/_auth/actor.ts)
+ * and passes the person on, so that this module stays free of the request. Nothing here may ever
+ * name a person who is not the one signed in (it once returned whichever name sorted first).
  */
 /// How the organisation shows in the frame. `name` is the short name where there is one,
 /// else the legal name. `logo` is null until one is uploaded: the product mark is shown.
@@ -28,13 +27,11 @@ export interface ShellOrganisation {
 }
 
 export async function loadShell(): Promise<{
-  user: ShellUser | null;
   counts: Record<string, number>;
   organisation: ShellOrganisation;
 }> {
   // The environment name is only for a deployment with no organisation row yet.
   const fallback = {
-    user: null,
     counts: {} as Record<string, number>,
     organisation: { name: ORGANISATION_NAME, logo: null } as ShellOrganisation,
   };
@@ -55,9 +52,6 @@ export async function loadShell(): Promise<{
     });
 
     return {
-      // Deliberately not "the first person on record". Nobody is signed in until
-      // sign-in exists, and naming an arbitrary officer would misattribute the screen.
-      user: null as ShellUser | null,
       counts: pending > 0 ? { "/": pending } : {},
       organisation: {
         name: displayName(org),

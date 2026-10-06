@@ -41,6 +41,8 @@ export interface StaffActor {
   /// Filled by Phase 2a (`resolvePermissions`). Until then empty: a permission nobody has decided is refused.
   permissions: ReadonlySet<PermissionKey>;
   stepUpAt: Date | null;
+  /// When this session began: the sign-in that made it, for "your previous sign-in" to be the one before.
+  sessionCreatedAt: Date;
   sourceAddress: string | null;
   /// The account must choose a new password before anything else (it was reset or created with a temporary one).
   mustChangePassword: boolean;

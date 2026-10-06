@@ -1,0 +1,44 @@
+import { ClockIcon } from "@/components/icons";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Callout } from "@/components/ui/feedback";
+import { KeyValues } from "@/components/ui/stat";
+import { AUTH_WORDS } from "@/lib/auth/words";
+import { formatOrgDateTime } from "@/lib/format";
+import type { PreviousSignIn } from "@/lib/auth/session-store";
+
+/**
+ * When and from where this account last signed in before now, and how many times someone failed to get in since (ruling O-2).
+ *
+ * With no second sign-in factor, this is how a person notices that their password is in someone else's hands. It sits on the page after
+ * sign-in and on the account page, in the same words. Failures against a name that matched no account cannot be attributed to anyone and are not counted.
+ */
+export function LastSignIn({ info, timeZone }: { info: PreviousSignIn; timeZone: string | null }) {
+  const failed = info.failedSince ?? 0;
+  return (
+    <Card>
+      <CardHeader icon={<ClockIcon size={18} />} title={AUTH_WORDS.previousTitle.en} subtitle="Check that this was you. If it was not, change your password and tell an administrator." />
+      <CardBody>
+        {info.previous ? (
+          <div className="flex flex-col gap-4">
+            <KeyValues
+              columns={2}
+              items={[
+                { label: "When", value: formatOrgDateTime(info.previous.at, timeZone) },
+                { label: "From address", value: info.previous.sourceAddress ?? AUTH_WORDS.addressUnknown.en },
+              ]}
+            />
+            {failed > 0 ? (
+              <Callout tone="warn" title={failed === 1 ? "1 failed attempt to sign in to your account since then" : `${failed} failed attempts to sign in to your account since then`}>
+                Someone entered a wrong password for this account, or it was locked while they tried. If you did not do this, change your password now.
+              </Callout>
+            ) : (
+              <p className="text-[13.5px] text-ink-3">{AUTH_WORDS.noFailures.en}</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-[13.5px] text-ink-3">{AUTH_WORDS.previousFirst.en}</p>
+        )}
+      </CardBody>
+    </Card>
+  );
+}

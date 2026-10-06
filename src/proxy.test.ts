@@ -49,3 +49,26 @@ describe("the route boundary", () => {
     expect(call("/supplier/register", { method: "POST" }).status).toBe(404);
   });
 });
+
+describe("staff sign-in is not on the public copy (Phase 1a)", () => {
+  const staffAuth = ["/sign-in", "/sign-in/code", "/account", "/welcome"];
+
+  it("answers every staff sign-in and account path with 404, to a read and to a post", () => {
+    process.env.PORTAL_SURFACE = "public";
+    for (const path of staffAuth) {
+      expect(call(path).status, `GET ${path}`).toBe(404);
+      expect(call(path, { method: "POST" }).status, `POST ${path}`).toBe(404);
+      expect(call(path, { method: "POST", headers: { "next-action": "40abcdef" } }).status, `action ${path}`).toBe(404);
+    }
+  });
+
+  it("a staff session cookie does not open anything on the public copy", () => {
+    process.env.PORTAL_SURFACE = "public";
+    const cookie = { cookie: "__Host-perolehan-staff=" + "A".repeat(43) };
+    for (const path of [...staffAuth, "/sourcing/demo_sx18", "/configuration/security"]) expect(call(path, { headers: cookie }).status, path).toBe(404);
+  });
+
+  it("on the staff copy the sign-in screens pass through (what they are shown to is the page's own check)", () => {
+    for (const path of staffAuth) expect(passes(call(path)), path).toBe(true);
+  });
+});
