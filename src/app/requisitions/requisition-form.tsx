@@ -185,7 +185,8 @@ export function RequisitionForm({
         <CardBody className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">{text("title", "Title", { required: true })}</div>
           {text("justification", "Justification", { area: true, required: true })}
-          {text("needStatement", "Need statement", { area: true, required: true })}
+          {/* Founder, 2026-10-06: no need statement is asked for. One saved before is kept as it was. */}
+          {values.needStatement ? <input type="hidden" name="needStatement" value={values.needStatement} /> : null}
         </CardBody>
       </Card>
 

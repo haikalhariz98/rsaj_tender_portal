@@ -55,6 +55,11 @@ describe("a requisition's fields (FR-REQ-001)", () => {
     expect(c).toEqual(expect.arrayContaining(["title:REQUIRED", "placeOfDelivery:REQUIRED", "costCentreCode:REQUIRED", "lines:NO_LINES"]));
   });
 
+  // Founder, 2026-10-06: the need statement is no longer asked for.
+  it("does not require a need statement", () => {
+    expect(codes(draft({ needStatement: "" }))).toEqual([]);
+  });
+
   it("requires the lines to sum to the estimated value", () => {
     expect(codes(draft({ estimatedValue: "1500.01" }))).toContain("lines:LINES_DO_NOT_SUM");
   });

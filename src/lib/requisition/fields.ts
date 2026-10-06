@@ -85,7 +85,6 @@ export function blocking(faults: readonly FieldFault[]): FieldFault[] {
 const REQUIRED: [keyof RequisitionDraft, string][] = [
   ["title", "title"],
   ["justification", "justification"],
-  ["needStatement", "needStatement"],
   ["requestingUnitCode", "requestingUnitCode"],
   ["requestingPersonId", "requestingPersonId"],
   ["costCentreCode", "costCentreCode"],

@@ -313,7 +313,7 @@ export async function buildPrPdf(data: PrPdfData): Promise<Uint8Array> {
     ["Supplier", data.purpose.supplier],
     ["Receiving location", data.purpose.receivingLocation],
     ["Justification", data.purpose.justification],
-    ["Need statement", data.purpose.needStatement],
+    ...(data.purpose.needStatement.trim() ? ([["Need statement", data.purpose.needStatement]] as [string, string][]) : []),
   ]);
 
   // ---- 2. budget

@@ -152,7 +152,8 @@ export function prDataOf(r: PrSource, c: PrContext): PrPdfData {
       supplier: "Not yet chosen",
       receivingLocation: r.placeOfDelivery || "Not set",
       justification: r.justification || "Not set",
-      needStatement: r.needStatement || "Not set",
+      // Founder, 2026-10-06: no longer asked for; printed only where one was recorded.
+      needStatement: r.needStatement,
     },
     budget: {
       headers: ["Cost centre", "Account code", "Actual budget (RM)", check ? `Balance as at ${formatDate(check.asAt)} (RM)` : "Balance as at (RM)", "Approved account (RM)", "Projected balance (RM)"],

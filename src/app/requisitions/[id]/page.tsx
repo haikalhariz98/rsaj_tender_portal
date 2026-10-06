@@ -806,10 +806,13 @@ function Overview({
               <div className="text-[12px] font-semibold text-ink-3">Justification</div>
               <p className="mt-1 text-[14px] break-words whitespace-pre-line text-ink">{r.justification || <span className="text-ink-3">Not set</span>}</p>
             </div>
-            <div className="min-w-0">
-              <div className="text-[12px] font-semibold text-ink-3">Need statement</div>
-              <p className="mt-1 text-[14px] break-words whitespace-pre-line text-ink">{r.needStatement || <span className="text-ink-3">Not set</span>}</p>
-            </div>
+            {/* Founder, 2026-10-06: no longer asked for; one recorded before still shows. */}
+            {r.needStatement && (
+              <div className="min-w-0">
+                <div className="text-[12px] font-semibold text-ink-3">Need statement</div>
+                <p className="mt-1 text-[14px] break-words whitespace-pre-line text-ink">{r.needStatement}</p>
+              </div>
+            )}
           </div>
         </CardBody>
       </Card>
