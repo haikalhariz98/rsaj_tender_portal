@@ -39,7 +39,7 @@ export const APPLICATION_KINDS: readonly ApplicationKind[] = ["NEW", "RENEWAL", 
 /// recorder on the paper channels, and no code writes one on any channel).
 export type ApplicationChannel = "COUNTER" | "POST" | "EMAIL" | "PORTAL";
 export const APPLICATION_CHANNELS: readonly ApplicationChannel[] = ["COUNTER", "POST", "EMAIL", "PORTAL"];
-/// The channels an officer may record a paper application under. PORTAL is never one of them: only the public form writes it.
+/// The channels an officer may record a paper application under. PORTAL is never one of them: an officer records it only from a staged online application.
 export const PAPER_CHANNELS: readonly ApplicationChannel[] = ["COUNTER", "POST", "EMAIL"];
 
 export type ApplicationStatus = "RECEIVED" | "RESUBMISSION_REQUESTED" | "APPROVED" | "REJECTED";

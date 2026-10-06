@@ -38,7 +38,7 @@ import type { Add } from "./demo-tender-docs";
 type Db = PrismaClient;
 const P = "demo_";
 
-/// The fixture's own ids: a range no earlier module uses (demo-results.test.ts holds it there).
+/// The fixture's own ids: a range no earlier module uses (src/lib/demo/results-fixture.test.ts holds it there).
 export const RESULTS_EXERCISE = `${P}sx30`;
 const SX_NO = 30;
 const RQ = `${P}rq50`;
