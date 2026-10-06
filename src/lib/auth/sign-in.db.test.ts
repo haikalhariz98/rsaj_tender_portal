@@ -10,6 +10,8 @@ vi.mock("./password", async (importOriginal) => {
   return { ...original, verifyPassword: vi.fn(original.verifyPassword) };
 });
 
+import { changePassword } from "./account-store";
+import { HASH_CONCURRENCY, HASH_QUEUE_LIMIT, hashPool } from "./hash-pool";
 import { authenticateStaff, confirmStaffPassword, signOutEverywhere } from "./identity";
 import { verifyPassword } from "./password";
 import { listOpenSessions, previousSignIn, readStaffSession, signOutToken } from "./session-store";
@@ -112,7 +114,9 @@ describe("session limits", () => {
     const { account, password, loginName } = await makeAccount(organisationId);
     const outcome = await signIn(loginName, password);
     if (!outcome.ok) throw new Error("sign-in failed");
-    const later = new Date(Date.now() + (SETTINGS.staffIdleMinutes! + 1) * 60_000);
+    // Review fix (Phase 1a): the read at +60s writes last-seen, and the idle verdict allows one touch interval (a minute) on top of the limit, so the session
+    // is idle at the limit plus two minutes from now, where this test held "plus one" before the allowance.
+    const later = new Date(Date.now() + (SETTINGS.staffIdleMinutes! + 2) * 60_000);
     expect(await readStaffSession(outcome.token, { sourceAddress: null }, new Date(Date.now() + 60_000))).toMatchObject({ ok: true });
     expect(await readStaffSession(outcome.token, { sourceAddress: null }, later)).toEqual({ ok: false, reason: "IDLE" });
     // A page render cannot delete the cookie, so the next read finds the session revoked and writes nothing more.
@@ -237,6 +241,76 @@ describe("what a stranger can tell", () => {
     expect(failed).toBeGreaterThanOrEqual(3);
     expect(failed).toBeLessThanOrEqual(3 + 4);
     expect(failed + held).toBe(burst);
+  });
+
+  it("counts the refusals of a locked account against the address: knocking on a locked name is held back like a wrong password, and costs no hash once it is", async () => {
+    await setPolicy(organisationId, { ...SETTINGS, addressThrottleAttempts: 3, maxFailedAttempts: 100 });
+    const locked = await makeAccount(organisationId);
+    await db.staffAccount.update({ where: { id: locked.account.id }, data: { failedAttempts: 100, lockedUntil: new Date(Date.now() + 600_000) } });
+    const address = randomAddress();
+    for (let i = 0; i < 3; i++) expect(await signIn(locked.loginName, locked.password, address)).toEqual({ ok: false, kind: "FAILED" });
+    expect(await kindsOf(locked.account.id)).toEqual(["LOCKED_OUT", "LOCKED_OUT", "LOCKED_OUT"]);
+    verify.mockClear();
+    expect(await signIn(locked.loginName, locked.password, address)).toEqual({ ok: false, kind: "FAILED" });
+    expect(verify).not.toHaveBeenCalled();
+    expect((await kindsOf(locked.account.id)).slice(-1)).toEqual(["THROTTLED"]);
+  });
+
+  it("holds a burst against a locked name from one address to the limit", async () => {
+    await setPolicy(organisationId, { ...SETTINGS, addressThrottleAttempts: 3, maxFailedAttempts: 100 });
+    const locked = await makeAccount(organisationId);
+    await db.staffAccount.update({ where: { id: locked.account.id }, data: { failedAttempts: 100, lockedUntil: new Date(Date.now() + 600_000) } });
+    const address = randomAddress();
+    const burst = 40;
+    verify.mockClear();
+    await Promise.all(Array.from({ length: burst }, () => signIn(locked.loginName, locked.password, address)));
+    const kinds = await kindsOf(locked.account.id);
+    const refused = kinds.filter((k) => k === "LOCKED_OUT").length;
+    expect(refused).toBeGreaterThanOrEqual(3);
+    expect(refused).toBeLessThanOrEqual(3 + 4);
+    expect(kinds.filter((k) => k === "THROTTLED").length + refused).toBe(burst);
+    // Only the ones let through were hashed.
+    expect(verify.mock.calls.length).toBe(refused);
+  });
+
+  it("refuses at once, with no hash, when the queue for a hash slot is full", async () => {
+    const { account, password, loginName } = await makeAccount(organisationId);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    // Fill every slot and the whole queue with tasks that wait for the gate.
+    const held = Array.from({ length: HASH_CONCURRENCY + HASH_QUEUE_LIMIT }, () => hashPool.run(() => gate));
+    try {
+      expect(hashPool.waiting).toBe(HASH_QUEUE_LIMIT);
+      verify.mockClear();
+      expect(await signIn(loginName, password)).toEqual({ ok: false, kind: "FAILED" });
+      expect(verify).not.toHaveBeenCalled();
+      expect(await kindsOf(account.id)).toEqual(["THROTTLED"]);
+    } finally {
+      release();
+      await Promise.all(held);
+    }
+    expect((await signIn(loginName, password)).ok).toBe(true);
+  });
+
+  it("does not make a session for a password that was checked before the password was changed, and does not write a re-made hash over the new one", async () => {
+    const owner = await makeAccount(organisationId);
+    const ownerIn = await signIn(owner.loginName, owner.password);
+    if (!ownerIn.ok) throw new Error("sign-in failed");
+    const read = await readStaffSession(ownerIn.token, { sourceAddress: null });
+    if (!read.ok) throw new Error("read failed");
+    const next = randomPassword();
+    const original = await vi.importActual<typeof import("./password")>("./password");
+    // The attacker's check of the old password is the point at which the owner changes it. It also says the hash needs re-making, so that the second half of the race is open.
+    verify.mockImplementationOnce(async (stored, password) => {
+      const result = await original.verifyPassword(stored, password);
+      expect((await changePassword(read.actor, { current: owner.password, next }, facts())).ok).toBe(true);
+      return { ...result, needsRehash: true };
+    });
+    expect(await signIn(owner.loginName, owner.password)).toEqual({ ok: false, kind: "FAILED" });
+    // Only the owner's own session stands (the change gave it a new token); nothing was made for the attacker.
+    expect(await db.staffSession.count({ where: { accountId: owner.account.id, revokedAt: null } })).toBe(1);
+    expect((await signIn(owner.loginName, owner.password)).ok).toBe(false);
+    expect((await signIn(owner.loginName, next)).ok).toBe(true);
   });
 
   it("does not throttle an address it does not know", async () => {

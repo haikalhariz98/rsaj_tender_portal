@@ -19,6 +19,7 @@ import { AccountStatus } from "../src/generated/prisma/client";
 import { passwordFaults } from "../src/lib/auth/password";
 import { rangeFault, SETTING_LABELS, SETTING_RANGES, unsetSettings } from "../src/lib/auth/policy";
 import { loadSecurityPolicy } from "../src/lib/auth/policy-store";
+import { trustedProxyHops } from "../src/lib/auth/request";
 import type { SecurityPolicyKey, SecurityPolicyValues } from "../src/lib/auth/types";
 import { db } from "../src/lib/db";
 
@@ -151,6 +152,10 @@ async function main() {
     await num("lockoutMinutes", "How long a locked account stays locked");
     await num("addressThrottleAttempts", "Failed sign-ins from one address before that address is held back");
     await num("addressThrottleMinutes", "How far back failed sign-ins from one address are counted");
+    if (unset.includes("addressThrottleAttempts") && trustedProxyHops(process.env.TRUSTED_PROXY_HOPS) == null) {
+      console.log("\n  Note: TRUSTED_PROXY_HOPS is not set on this server, so source addresses are not known and the address limit just chosen will not be applied");
+      console.log("  until it is (behind a proxy only; see .env.example). The lock on each account holds either way.\n");
+    }
     await num("passwordMinLength", "The shortest password allowed");
     await num("resetCodeValidityMinutes", "How long a one-time code stays valid once issued");
     console.log("");

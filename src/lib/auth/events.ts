@@ -27,10 +27,15 @@ export async function recordSignInEvent(
   });
 }
 
-/// How many failed sign-ins came from this address since `since`. Counted in the database so every instance shares the count. An unknown address is never counted (it is not an address).
+/// The kinds of event that are a failure to get in or to confirm a password, and so count against the address they came from. A locked account's
+/// refusals (`LOCKED_OUT`) count as well as a wrong password (`FAILED`) and a wrong step-up (`STEP_UP_FAILED`): left out, a locked name would
+/// be a free target that costs a hash every time and is never held back. `THROTTLED` and `SESSION_LIMIT` do not: neither is a guess.
+export const ADDRESS_COUNTED_KINDS: SignInEventKind[] = ["FAILED", "LOCKED_OUT", "STEP_UP_FAILED"];
+
+/// How many failed attempts came from this address since `since`. Counted in the database so every instance shares the count. An unknown address is never counted (it is not an address).
 export async function failedSignInsFrom(client: Tx, organisationId: string, sourceAddress: string | null, since: Date): Promise<number> {
   if (sourceAddress == null) return 0;
   return client.signInEvent.count({
-    where: { organisationId, store: "STAFF", kind: "FAILED", at: { gte: since }, detail: { is: { sourceAddress } } },
+    where: { organisationId, store: "STAFF", kind: { in: ADDRESS_COUNTED_KINDS }, at: { gte: since }, detail: { is: { sourceAddress } } },
   });
 }

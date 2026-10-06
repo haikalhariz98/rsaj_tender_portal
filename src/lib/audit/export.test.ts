@@ -40,7 +40,8 @@ describe("the audit export (FR-APR-015)", () => {
   it("quotes what CSV must quote, and says an entry was not attributed rather than leaving it blank", () => {
     const file = auditCsv([row("b", "2026-09-30T02:00:00Z", { reason: 'Said "no", then yes' })], "UTC");
     expect(file).toContain('"Said ""no"", then yes"');
-    expect(file).toContain("Not attributed: no sign-in");
+    // Review fix (Phase 1a): an unattributed row is no longer only one from before sign-in (existing screens write them while signed in), so the text says what is true of every one: who acted was not recorded.
+    expect(file).toContain("Not attributed: who acted was not recorded");
     expect(file.endsWith("\r\n")).toBe(true);
   });
 

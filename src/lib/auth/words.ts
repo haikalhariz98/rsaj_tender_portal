@@ -49,7 +49,7 @@ export const AUTH_WORDS = {
     ms: "Langkah log masuk kedua belum dibina — pelulus log masuk dengan kata laluan sahaja (NFR-SEC-005 tidak dipenuhi).",
   },
   addressesNotRecorded: {
-    en: "Source addresses are not recorded: this copy has not been told how many proxies sit in front of it, so a request's address cannot be trusted. Failed sign-ins are not held back by address until it is set.",
-    ms: "Alamat sumber tidak direkodkan: salinan ini belum diberitahu bilangan proksi di hadapannya, jadi alamat permintaan tidak boleh dipercayai. Log masuk gagal tidak disekat mengikut alamat sehingga ia ditetapkan.",
+    en: "Source addresses are not recorded: this copy has not been told how many proxies sit in front of it, so a request's address cannot be trusted. The limit on failed sign-ins from one address is therefore not applied, and only the lock on each account holds back guessing, until it is set.",
+    ms: "Alamat sumber tidak direkodkan: salinan ini belum diberitahu bilangan proksi di hadapannya, jadi alamat permintaan tidak boleh dipercayai. Had log masuk gagal dari satu alamat itu tidak dikenakan, dan hanya kunci pada setiap akaun yang menyekat tekaan, sehingga ia ditetapkan.",
   },
 } as const satisfies Record<string, Words>;

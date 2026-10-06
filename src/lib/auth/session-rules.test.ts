@@ -19,9 +19,23 @@ describe("sessionVerdict", () => {
     expect(sessionVerdict(session(), limits, at("09:29"))).toBe("VALID");
   });
 
-  it("ends at the idle limit, to the minute", () => {
-    expect(sessionVerdict(session(), limits, at("09:29"))).toBe("VALID");
-    expect(sessionVerdict(session(), limits, at("09:30"))).toBe("IDLE");
+  // Review fix (Phase 1a): last-seen is written at most once a minute (TOUCH_INTERVAL_MS), so it can trail the last request by up to a minute. The
+  // verdict allows that minute on top of the limit, so an active person is never ended early. The boundary this test held ("09:30") moved to 09:31.
+  it("ends at the idle limit plus the one touch interval last-seen can trail by, to the minute", () => {
+    expect(sessionVerdict(session(), limits, at("09:30"))).toBe("VALID");
+    expect(sessionVerdict(session(), limits, new Date(at("09:31").getTime() - 1))).toBe("VALID");
+    expect(sessionVerdict(session(), limits, at("09:31"))).toBe("IDLE");
+  });
+
+  it("never ends a person who is active inside the limit, however small the limit and however seldom last-seen is written", () => {
+    // Idle limit of one minute; a request every 30 seconds, last-seen written only when a minute has passed since it was.
+    const limit = { idleMinutes: 1, absoluteMinutes: 480 };
+    let lastSeenAt = at("09:00");
+    for (let seconds = 30; seconds <= 600; seconds += 30) {
+      const now = new Date(at("09:00").getTime() + seconds * 1000);
+      expect(sessionVerdict(session({ lastSeenAt }), limit, now), `request at ${seconds}s`).toBe("VALID");
+      if (touchDue(lastSeenAt, now)) lastSeenAt = now;
+    }
   });
 
   it("ends at the absolute limit however recently it was used", () => {

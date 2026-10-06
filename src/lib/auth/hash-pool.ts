@@ -42,7 +42,16 @@ export function createPool(max: number): Pool {
   };
 }
 
-export const HASH_CONCURRENCY = 4;
+/**
+ * Hashes run on libuv's thread pool, which is also what file reads, compression and name lookups wait on (default 4 threads, set by
+ * `UV_THREADPOOL_SIZE` in the process environment before it starts, never from code). Holding every thread with hashes would stall
+ * the rest of the application, so at most one fewer than the pool has runs at once, up to 4 (ADR 0034 D3). With the default pool that is 3.
+ */
+const libuvThreads = Number(process.env.UV_THREADPOOL_SIZE);
+export const HASH_CONCURRENCY = Math.max(1, Math.min(4, (Number.isInteger(libuvThreads) && libuvThreads >= 1 ? libuvThreads : 4) - 1));
+
+/// The most attempts left waiting for a hash slot. Past it a sign-in is refused at once, without being hashed: the queue is not allowed to grow without bound under a flood.
+export const HASH_QUEUE_LIMIT = 64;
 
 const globalForPool = globalThis as unknown as { hashPool?: Pool };
 /// One pool for the process, kept across hot reloads in development.

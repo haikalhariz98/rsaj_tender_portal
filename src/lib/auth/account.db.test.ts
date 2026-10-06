@@ -1,8 +1,15 @@
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { db } from "@/lib/db";
 import { ensureAdministrator, eventsOf, facts, kindsOf, makeAccount, randomAddress, randomId, randomPassword, setPolicy, SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
+// Every hash made goes through here, so a test can change the account at the moment its password is being hashed.
+vi.mock("./password", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./password")>();
+  return { ...original, hashPassword: vi.fn(original.hashPassword) };
+});
+
+import { hashPassword } from "./password";
 import { acknowledgeResetNotice, changePassword, redeemOneTimeCode } from "./account-store";
 import { codeExpiry, formatCode, generateCode, hashCode } from "./codes";
 import { authenticateStaff } from "./identity";
@@ -163,6 +170,38 @@ describe("a one-time code", () => {
     const results = await Promise.all([1, 2, 3].map(() => redeemOneTimeCode({ loginName: me.loginName, code, password: randomPassword() }, facts())));
     expect(results.filter((r) => r.ok)).toHaveLength(1);
     expect(await db.oneTimeCode.count({ where: { staffAccountId: me.account.id, usedAt: { not: null } } })).toBe(1);
+  });
+
+  it("voids every other code still open for the account when one is used, so a letter left over cannot be used later", async () => {
+    const pending = await makeAccount(organisationId, { status: "PENDING_ACTIVATION" });
+    const first = await issueCode(pending.account.id, "ACTIVATION");
+    const second = await issueCode(pending.account.id, "ACTIVATION");
+    const reset = await issueCode(pending.account.id, "RESET");
+    const password = randomPassword();
+    expect(await redeemOneTimeCode({ loginName: pending.loginName, code: second, password }, facts())).toEqual({ ok: true });
+    expect(await db.oneTimeCode.count({ where: { staffAccountId: pending.account.id, usedAt: null } })).toBe(0);
+    for (const code of [first, reset]) expect(await redeemOneTimeCode({ loginName: pending.loginName, code, password: randomPassword() }, facts())).toEqual({ ok: false, kind: "FAILED" });
+    expect((await authenticateStaff({ loginName: pending.loginName, password }, facts(), null)).ok).toBe(true);
+  });
+
+  it("does not let an activation code set the password of an account that is already active, and leaves that code unused", async () => {
+    const me = await makeAccount(organisationId);
+    const code = await issueCode(me.account.id, "ACTIVATION");
+    expect(await redeemOneTimeCode({ loginName: me.loginName, code, password: randomPassword() }, facts())).toEqual({ ok: false, kind: "FAILED" });
+    expect((await authenticateStaff({ loginName: me.loginName, password: me.password }, facts(), null)).ok).toBe(true);
+  });
+
+  it("judges the account again under its lock: one disabled while the new password was being hashed is not re-enabled, and the code is not spent", async () => {
+    const me = await makeAccount(organisationId);
+    const code = await issueCode(me.account.id, "RESET");
+    const original = await vi.importActual<typeof import("./password")>("./password");
+    vi.mocked(hashPassword).mockImplementationOnce(async (password) => {
+      await db.staffAccount.update({ where: { id: me.account.id }, data: { status: "DISABLED", disabledAt: new Date(), disabledReason: "test" } });
+      return original.hashPassword(password);
+    });
+    expect(await redeemOneTimeCode({ loginName: me.loginName, code, password: randomPassword() }, facts())).toEqual({ ok: false, kind: "FAILED" });
+    expect((await db.staffAccount.findUniqueOrThrow({ where: { id: me.account.id } })).status).toBe("DISABLED");
+    expect((await db.oneTimeCode.findUniqueOrThrow({ where: { codeHash: hashCode(code.replace(/-/g, "")) } })).usedAt).toBeNull();
   });
 
   it("holds the new password to the rules and leaves the code unused when it is not good enough", async () => {

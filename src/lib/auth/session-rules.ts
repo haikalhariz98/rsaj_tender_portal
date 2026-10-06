@@ -7,6 +7,9 @@
 
 const MINUTE = 60_000;
 
+/// Last-seen is written at most once a minute: a page that reads the session ten times does not write ten times.
+export const TOUCH_INTERVAL_MS = MINUTE;
+
 export interface SessionTimes {
   createdAt: Date;
   lastSeenAt: Date;
@@ -32,7 +35,9 @@ export function sessionVerdict(session: SessionTimes, limits: SessionLimits, now
   if (limits.idleMinutes == null || limits.absoluteMinutes == null) return "POLICY_NOT_SET";
   const absoluteEnd = Math.min(session.absoluteExpiresAt.getTime(), session.createdAt.getTime() + limits.absoluteMinutes * MINUTE);
   if (now.getTime() >= absoluteEnd) return "ABSOLUTE";
-  if (now.getTime() >= session.lastSeenAt.getTime() + limits.idleMinutes * MINUTE) return "IDLE";
+  // `lastSeenAt` is up to one touch interval behind the last request, so that interval is allowed on top of the limit: a person who was active inside the
+  // limit is never signed out for being idle. The cost is that a session can outlive the limit by up to one touch interval (the absolute limit is exact).
+  if (now.getTime() >= session.lastSeenAt.getTime() + limits.idleMinutes * MINUTE + TOUCH_INTERVAL_MS) return "IDLE";
   return "VALID";
 }
 
@@ -47,8 +52,6 @@ export function cookieMaxAgeSeconds(session: Pick<SessionTimes, "createdAt" | "a
   return Math.max(0, Math.floor((end - now.getTime()) / 1000));
 }
 
-/// Last-seen is written at most once a minute: a page that reads the session ten times does not write ten times.
-export const TOUCH_INTERVAL_MS = MINUTE;
 export function touchDue(lastSeenAt: Date, now: Date): boolean {
   return now.getTime() - lastSeenAt.getTime() >= TOUCH_INTERVAL_MS;
 }

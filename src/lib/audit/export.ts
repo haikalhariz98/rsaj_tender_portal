@@ -100,7 +100,7 @@ export function auditCsv(rows: readonly ExportRow[], timeZone: string): string {
         r.action,
         JSON.stringify(labelledChanges(r.changes, r.entity)),
         r.reason,
-        r.unattributed ? "Not attributed: no sign-in" : (r.actorName ?? "A person no longer on record"),
+        r.unattributed ? "Not attributed: who acted was not recorded" : (r.actorName ?? "A person no longer on record"),
       ]
         .map(field)
         .join(","),

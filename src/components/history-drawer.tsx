@@ -100,7 +100,7 @@ export function HistoryButton({
                       </div>
                       {e.part && <p className="mt-1.5 text-[13px] font-semibold break-words text-ink">{e.part}</p>}
                       <p className="mt-1 text-[12.5px] text-ink-3">
-                        {e.actorName ?? (e.unattributed ? "Not attributed — before sign-in" : "Unknown")}
+                        {e.actorName ?? (e.unattributed ? "Not attributed — this screen does not yet record who acted" : "Unknown")}
                       </p>
                       {e.reason && (
                         <p className="mt-1.5 rounded-xl bg-sunken px-3 py-2 text-[13px] text-ink-2">“{e.reason}”</p>

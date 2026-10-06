@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 
 import { signInOrganisation } from "./deployment";
 import { failedSignInsFrom, recordSignInEvent } from "./events";
-import { hashPool } from "./hash-pool";
+import { HASH_QUEUE_LIMIT, hashPool } from "./hash-pool";
 import { afterFailedAttempt, afterSuccess, isLocked, lockoutVerdict, throttleSince, type AccountLockState } from "./lockout";
 import { dummyHash, hashParameters, hashPassword, verifyPassword } from "./password";
 import { loadSecurityPolicy } from "./policy-store";
@@ -143,6 +143,11 @@ export async function authenticateStaff(credentials: Credentials, request: Reque
   const eligible = account != null && account.status === "ACTIVE" && account.person.isActive && verdict === "ALLOW";
   const stored = eligible ? account.passwordHash : await dummyHash();
   const since = throttleSince(now, settings.addressThrottleMinutes);
+  // The queue for a hash slot has a limit: past it the attempt is refused as a held-back one, at once and with no hash. No `await` lies between this check and `run`.
+  if (hashPool.waiting >= HASH_QUEUE_LIMIT) {
+    await recordSignInEvent(db, { organisationId: organisation.id, staffAccountId: account?.id ?? null, kind: "THROTTLED", request, at: now });
+    return { ok: false, kind: "FAILED" };
+  }
   const checked = await hashPool.run(async () => {
     // The count above was taken before this attempt waited for a hash slot, and a burst of attempts all take it before any has failed. Take it
     // again at the front of the queue, so that a burst is held to the limit (and the slots in flight) rather than all passing a count of nothing.
@@ -181,6 +186,12 @@ async function completeSignIn(input: {
     const account = await tx.staffAccount.findUniqueOrThrow({ where: { id: accountId }, include: { person: { select: { isActive: true, name: true } } } });
     if (account.status !== "ACTIVE" || !account.person.isActive || isLocked(account, now)) {
       await recordSignInEvent(tx, { organisationId, staffAccountId: accountId, kind: isLocked(account, now) ? "LOCKED_OUT" : "FAILED", request, at: now });
+      return { ok: false, kind: "FAILED" };
+    }
+    // The password was checked against the hash read before this attempt waited for a hash slot. If the password was changed or reset since (which also
+    // ended every session), this check is of a password that no longer opens the account: no session, and the new hash is not written over.
+    if (account.passwordHash !== input.previousHash) {
+      await recordSignInEvent(tx, { organisationId, staffAccountId: accountId, kind: "FAILED", request, at: now });
       return { ok: false, kind: "FAILED" };
     }
 

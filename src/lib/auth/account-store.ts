@@ -128,7 +128,7 @@ export async function redeemOneTimeCode(input: { loginName: string; code: string
     row.organisationId === organisation.id &&
     codeVerdict(row, now) === "VALID" &&
     account.person.isActive &&
-    (row.purpose === "ACTIVATION" ? account.status === "PENDING_ACTIVATION" || account.status === "ACTIVE" : account.status === "ACTIVE");
+    codeFitsAccount(row.purpose, account.status);
   if (!usable) return refuse();
 
   const faults = passwordFaults(input.password, { loginName: account.loginName, minLength: policy.passwordMinLength });
@@ -137,10 +137,17 @@ export async function redeemOneTimeCode(input: { loginName: string; code: string
   const passwordHash = await hashPool.run(() => hashPassword(input.password));
   const done = await db.$transaction(async (tx) => {
     await lockAccount(tx, account.id);
+    // What was true when the code was judged may not be now: the hash took a while, and an account may have been disabled or its person made inactive. Judged again under the lock, before anything is written (and so before the code is spent).
+    const before = await tx.staffAccount.findUniqueOrThrow({
+      where: { id: account.id },
+      select: { status: true, mustChangePassword: true, resetNoticePending: true, passwordChangedAt: true, person: { select: { isActive: true } } },
+    });
+    if (!before.person.isActive || !codeFitsAccount(row.purpose, before.status)) return false;
     // Used once: the first transaction to mark it wins, and any other finds it already marked.
     const marked = await tx.oneTimeCode.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: now } });
     if (marked.count !== 1) return false;
-    const before = await tx.staffAccount.findUniqueOrThrow({ where: { id: account.id }, select: { status: true, mustChangePassword: true, resetNoticePending: true, passwordChangedAt: true } });
+    // Every other code still open for the account is spent with it, so a letter left over cannot set a password later. "Used" here also means "voided by a later one".
+    const voided = await tx.oneTimeCode.updateMany({ where: { store: "STAFF", staffAccountId: account.id, usedAt: null, id: { not: row.id } }, data: { usedAt: now } });
     const resetNoticePending = row.purpose === "RESET";
     await tx.staffAccount.update({
       where: { id: account.id },
@@ -164,6 +171,7 @@ export async function redeemOneTimeCode(input: { loginName: string; code: string
         ...(before.status !== "ACTIVE" ? [{ field: "status", before: before.status, after: "ACTIVE" }] : []),
         ...(before.mustChangePassword ? [{ field: "mustChangePassword", before: "yes", after: "no" }] : []),
         ...(before.resetNoticePending !== resetNoticePending ? [{ field: "resetNoticePending", before: before.resetNoticePending ? "yes" : "no", after: resetNoticePending ? "yes" : "no" }] : []),
+        ...(voided.count > 0 ? [{ field: "otherOpenOneTimeCodes", before: String(voided.count), after: "0" }] : []),
       ],
     );
     await recordSignInEvent(tx, { organisationId: organisation.id, staffAccountId: account.id, kind: "CODE_USED", request, at: now });
@@ -171,6 +179,11 @@ export async function redeemOneTimeCode(input: { loginName: string; code: string
     return true;
   });
   return done ? { ok: true } : refuse();
+}
+
+/// Which code may be used on an account in which state. An activation code is for an account that has not been activated: after that it is a dead letter, not a way to set the password of a live account. A reset code is for one that is active.
+function codeFitsAccount(purpose: "ACTIVATION" | "RESET", status: string): boolean {
+  return purpose === "ACTIVATION" ? status === "PENDING_ACTIVATION" : status === "ACTIVE";
 }
 
 /// "Your password was reset" is said until the person says they have seen it.
