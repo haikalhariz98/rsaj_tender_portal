@@ -97,3 +97,43 @@ export function parseNoFields(entries: Entries): Parsed<Record<string, never>> {
   const { errors } = collect(entries, []);
   return done(errors, {});
 }
+
+// ---------------------------------------------------------------------------------------------- account administration (Phase 1b)
+
+const REASON_MAX = 2000;
+const ID_MAX = 64;
+
+export interface CreateAccountForm {
+  personId: string;
+  loginName: string;
+}
+export function parseCreateAccount(entries: Entries): Parsed<CreateAccountForm> {
+  const { values, errors } = collect(entries, ["personId", "loginName"]);
+  const personId = text(values, errors, "personId", "The person", { max: ID_MAX, trim: true });
+  const loginName = text(values, errors, "loginName", "The sign-in name", { max: NAME_MAX, trim: true });
+  return done(errors, { personId, loginName });
+}
+
+/// An act on one account with a reason (disable, put back, unlock). The account is named by id; the reason is the only account of why.
+export interface AccountActForm {
+  accountId: string;
+  reason: string;
+}
+export function parseAccountAct(entries: Entries): Parsed<AccountActForm> {
+  const { values, errors } = collect(entries, ["accountId", "reason"]);
+  const accountId = text(values, errors, "accountId", "The account", { max: ID_MAX, trim: true });
+  const reason = text(values, errors, "reason", "The reason", { max: REASON_MAX, trim: true });
+  return done(errors, { accountId, reason });
+}
+
+export interface IssueCodeForm extends AccountActForm {
+  purpose: "ACTIVATION" | "RESET";
+}
+export function parseIssueCode(entries: Entries): Parsed<IssueCodeForm> {
+  const { values, errors } = collect(entries, ["accountId", "purpose", "reason"]);
+  const accountId = text(values, errors, "accountId", "The account", { max: ID_MAX, trim: true });
+  const reason = text(values, errors, "reason", "The reason", { max: REASON_MAX, trim: true });
+  const purposeText = text(values, errors, "purpose", "What the code is for", { max: 16, trim: true });
+  if (purposeText && purposeText !== "ACTIVATION" && purposeText !== "RESET") errors.purpose ??= "A code is for activating an account or for resetting a password.";
+  return done(errors, { accountId, reason, purpose: purposeText === "RESET" ? "RESET" : "ACTIVATION" });
+}

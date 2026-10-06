@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseChangePassword, parseCodeForm, parseNoFields, parseSignIn, type Entries } from "./forms";
+import { parseAccountAct, parseChangePassword, parseCodeForm, parseCreateAccount, parseIssueCode, parseNoFields, parseSignIn, type Entries } from "./forms";
 
 const form = (o: Record<string, string>): Entries => Object.entries(o);
 
@@ -65,5 +65,31 @@ describe("parseNoFields", () => {
   it("takes a form with nothing in it, and refuses one with something", () => {
     expect(parseNoFields(form({ $ACTION_ID_x: "" }))).toEqual({ ok: true, value: {} });
     expect(parseNoFields(form({ personId: "p1" }))).toMatchObject({ ok: false });
+  });
+});
+
+describe("the account administration forms (Phase 1b)", () => {
+  it("creating takes a person and a sign-in name, trims the name, and refuses any other field", () => {
+    expect(parseCreateAccount(form({ personId: "p1", loginName: "  ahmad.z " }))).toEqual({ ok: true, value: { personId: "p1", loginName: "ahmad.z" } });
+    expect(parseCreateAccount(form({ personId: "p1", loginName: "a.b.c", isAdministrator: "yes" }))).toEqual({ ok: false, errors: { isAdministrator: "This form does not take this field." } });
+    expect(parseCreateAccount(form({ personId: "", loginName: "" }))).toMatchObject({ ok: false, errors: { personId: expect.any(String), loginName: expect.any(String) } });
+  });
+
+  it("disabling, putting back and unlocking take an account and a reason, and the reason is trimmed and required", () => {
+    expect(parseAccountAct(form({ accountId: "a1", reason: "  left  " }))).toEqual({ ok: true, value: { accountId: "a1", reason: "left" } });
+    expect(parseAccountAct(form({ accountId: "a1", reason: "   " }))).toMatchObject({ ok: false, errors: { reason: expect.any(String) } });
+    // The acting person is the session's, never a field.
+    expect(parseAccountAct(form({ accountId: "a1", reason: "x", actorPersonId: "p9" }))).toMatchObject({ ok: false, errors: { actorPersonId: expect.any(String) } });
+  });
+
+  it("issuing names what the code is for, and only activation or reset", () => {
+    expect(parseIssueCode(form({ accountId: "a1", purpose: "RESET", reason: "forgot it" }))).toEqual({ ok: true, value: { accountId: "a1", purpose: "RESET", reason: "forgot it" } });
+    expect(parseIssueCode(form({ accountId: "a1", purpose: "ACTIVATION", reason: "new" }))).toMatchObject({ ok: true });
+    expect(parseIssueCode(form({ accountId: "a1", purpose: "ADMIN", reason: "x" }))).toMatchObject({ ok: false, errors: { purpose: expect.any(String) } });
+  });
+
+  it("refuses a field sent twice, and a file where text is taken", () => {
+    expect(parseAccountAct([["accountId", "a1"], ["accountId", "a2"], ["reason", "x"]])).toMatchObject({ ok: false, errors: { accountId: "This field was sent more than once." } });
+    expect(parseAccountAct([["accountId", new File(["x"], "f.txt")], ["reason", "x"]])).toMatchObject({ ok: false, errors: { accountId: "This field takes text." } });
   });
 });

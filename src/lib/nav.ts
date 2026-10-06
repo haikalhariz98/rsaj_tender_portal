@@ -284,6 +284,14 @@ export const CONFIG_SECTIONS: {
         icon: "inbox",
         built: true,
       },
+      // Phase 1b: the administrator's screen for who can sign in. Staff reach it by the link; the page itself says so to anyone who is not an administrator.
+      {
+        href: "/configuration/accounts",
+        label: "Sign-in accounts",
+        description: "Who can sign in, and how they get their first password.",
+        icon: "shield",
+        built: true,
+      },
     ],
   },
 ];
