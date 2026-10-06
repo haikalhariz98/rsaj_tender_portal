@@ -32,6 +32,13 @@ vi.mock("@/lib/db", () => ({
           h.locks.push(strings.join("?"));
           return [];
         },
+        // Setting aside runs in the lib (src/lib/suppliers/application-acts.ts), which reads the person and writes the audit row itself.
+        person: { findFirst: async () => h.person },
+        auditEntry: {
+          create: async ({ data }: { data: { entity: string; entityLabel: string; action: string; changes: { field: string; before: unknown; after: unknown }[]; reason: string } }) => {
+            h.audits.push({ entity: data.entity, label: data.entityLabel, action: data.action, changes: data.changes, reason: data.reason });
+          },
+        },
         portalApplication: {
           findFirst: async () => h.portal,
           update: async ({ where, data }: { where: Row; data: Row }) => {

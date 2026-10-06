@@ -23,6 +23,7 @@ import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { ORGANISATION_CODE } from "@/lib/org";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ableToAct, deciderFaults } from "@/lib/requisition/holders";
+import { appInclude, ERASED, recordOutcome, rejectApplicant, setAsideOnlineApplication } from "@/lib/suppliers/application-acts";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { lodgeFaults, verifyFaults } from "@/lib/suppliers/documents";
 import { applicationFaults, contactFaults, normaliseRegistrationNo, receiptFaults } from "@/lib/suppliers/identity";
@@ -30,7 +31,7 @@ import type { DocumentState } from "@/lib/suppliers/documents";
 import { APPLICATION_KIND_LABEL, approvedWords, CHANNEL_LABEL, DOCUMENT_STATE_LABEL, OUTCOME_LABEL, REGISTRATION_MATTER, REGISTRATION_REFUSED_DECIDED_BY, SUPPLIER_DECIDER_TEXT, SUPPLIER_STATUS_LABEL, supplierFaultText, VERIFICATION_LABEL } from "@/lib/suppliers/labels";
 import { supplierApplicationLabel, supplierDocumentLabel, supplierOfApplication, supplierOfDocument } from "@/lib/suppliers/lock";
 import { documentFacts, loadSupplierConfig, supplierOrg, typeFacts } from "@/lib/suppliers/repo";
-import { approveFaults, decisionFaults, decisionSnapshot, fileFacts, isOpen, lapseFaults, openApplicationFaults, submitFaults, type FileFacts } from "@/lib/suppliers/review";
+import { approveFaults, decisionSnapshot, fileFacts, isOpen, lapseFaults, openApplicationFaults, submitFaults, type FileFacts } from "@/lib/suppliers/review";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 import { standingOf } from "@/lib/suppliers/standing-repo";
 import { PAPER_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_SERIES_KEY, VERIFICATION_STATES, type ApplicationKind, type Finding, type RegistrationValueKind, type SupplierStatus } from "@/lib/suppliers/types";
@@ -95,9 +96,6 @@ const listWords = (cfg: Awaited<ReturnType<typeof loadSupplierConfig>>, kind: "E
 
 
 // ------------------------------------------------------------------ recording (FR-VND-001, 006)
-
-/// What an online application holds once it is decided: nothing the applicant typed.
-const ERASED = { registeredName: "", registrationNo: "", registrationNoKey: "", entityTypeCode: "", countryCode: "", registeredAddress: "", companyEmail: "", contactName: "", contactDesignation: "", contactEmail: "", contactPhone: "" } as const;
 
 function readContact(r: FormReader) {
   return {
@@ -215,13 +213,7 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
   redirect(`/suppliers/${created}?tab=documents`);
 }
 
-/**
- * Set an online application aside, with a reason. Its personal details are erased at the same time (the
- * applicant's own words are not kept once nobody will act on them); what remains is the reference, the
- * days, who set it aside and why. The audit row carries the reason and none of the applicant's details,
- * so nothing in the append-only trail needs erasing later. The reason is the officer's own words, so it
- * must not repeat the applicant's details.
- */
+/// Set an online application aside, with a reason (the core, with what it erases and audits, is `setAsideOnlineApplication`).
 export async function discardPortalApplication(_prev: FormState, data: FormData): Promise<FormState> {
   const now = stampNow();
   const id = String(data.get("portalApplicationId") ?? "").trim();
@@ -233,16 +225,7 @@ export async function discardPortalApplication(_prev: FormState, data: FormData)
     async (tx): Promise<FormState> => {
       const org = await supplierOrg(tx);
       if (!org) return NO_ORG;
-      await tx.$queryRaw`SELECT id FROM "PortalApplication" WHERE id = ${id} AND "organisationId" = ${org.id} FOR UPDATE`;
-      const pa = await tx.portalApplication.findFirst({ where: { id, organisationId: org.id } });
-      if (!pa) return { ok: false, message: "That online application no longer exists." };
-      if (pa.status !== "RECEIVED") return { ok: false, message: "That online application is not waiting any more: it was recorded or set aside already. Nothing was changed." };
-      const person = await activePerson(tx, org.id, personId);
-      if (!person) return { ok: false, errors: { recordedByPersonId: supplierFaultText({ code: "RECORDER_REQUIRED", level: "block" }) } };
-      await tx.portalApplication.update({ where: { id: pa.id }, data: { status: "DISCARDED", decidedAt: now, decidedByPersonId: person.id, discardReason: reason, erasedAt: now, ...ERASED } });
-      await audit(tx, org.id, SUPPLIER_ENTITY.onlineApplication, pa.id, label({ reference: pa.reference }, "Online application"), "UPDATE",
-        diffFields({ status: "Received", personalDetails: "Held on the application" }, { status: "Set aside", decidedBy: person.name, personalDetails: "Erased" }), reason);
-      return { ok: true };
+      return setAsideOnlineApplication(tx, org.id, { id, reason, personId, now });
     },
     { timeout: 20_000, maxWait: 10_000 },
   );
@@ -487,7 +470,6 @@ async function fileOf(tx: Tx, l: LockedSupplier, a: { kind: string; status: File
   return { f, provenanceOf: (typeLabel: string) => types.find((t) => t.nameEn === typeLabel)?.provenance ?? null };
 }
 
-const appInclude = { supplier: { select: { reference: true } }, routes: { include: { steps: { orderBy: { sequence: "asc" as const } } } }, attachments: { select: { purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } } };
 
 
 /**
@@ -682,63 +664,7 @@ export async function decideApplication(_prev: FormState, data: FormData): Promi
   }
   const supplierId = await supplierOfApplication(applicationId);
   if (!supplierId) return GONE;
-  return inSupplier(supplierId, async (tx, l) => {
-    await tx.$queryRaw`SELECT id FROM "SupplierApplication" WHERE id = ${applicationId} FOR UPDATE`;
-    const a = await tx.supplierApplication.findFirst({ where: { id: applicationId, supplierId }, include: appInclude });
-    if (!a) return GONE;
-    const person = await activePerson(tx, l.org.id, personId);
-    const [docs, types] = await Promise.all([tx.supplierDocument.findMany({ where: { supplierId }, select: { id: true, typeLabelSnapshot: true, reference: true } }), tx.supplierDocumentType.findMany({ where: { organisationId: l.org.id }, select: { id: true, nameEn: true } })]);
-    const fs = decisionFaults(
-      { outcome: outcome === "RESUBMIT" ? "RESUBMIT" : "REJECT", remarks, resubmitBy, items: outcome === "RESUBMIT" ? items : [], personActive: !!person },
-      { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((x) => x.status === "PENDING") },
-      { today: l.org.today, documentIds: docs.map((d) => d.id), typeIds: types.map((t) => t.id) },
-    );
-    if (blocking(fs).length) {
-      const errors: Record<string, string> = {};
-      const rest: string[] = [];
-      for (const f of blocking(fs)) {
-        const field = f.code === "PERSON_REQUIRED" ? "personId" : f.code === "DEADLINE_REQUIRED" || f.code === "DEADLINE_NOT_AFTER_TODAY" ? "resubmitBy" : f.code === "REMARKS_REQUIRED" ? "remarks" : null;
-        if (field) errors[field] = supplierFaultText(f);
-        else rest.push(supplierFaultText(f));
-      }
-      return { ok: false, errors, ...(rest.length ? { message: `Nothing was saved: ${[...new Set(rest)].join(" ")}` } : {}) };
-    }
-    const today = l.org.today!;
-    const dec = await tx.applicationDecision.create({
-      data: {
-        organisationId: l.org.id,
-        applicationId: a.id,
-        outcome: outcome === "RESUBMIT" ? "RESUBMIT" : "REJECT",
-        remarks,
-        resubmitBy: outcome === "RESUBMIT" ? dayToDate(resubmitBy!) : null,
-        decidedByPersonId: person!.id,
-        decidedOn: dayToDate(today),
-        decidedAt: now,
-        items: {
-          create: (outcome === "RESUBMIT" ? items : []).map((it) => {
-            const d = it.documentId ? docs.find((x) => x.id === it.documentId)! : null;
-            return { organisationId: l.org.id, supplierDocumentId: d?.id ?? null, documentTypeId: d ? null : it.typeId, labelSnapshot: d ? `${d.typeLabelSnapshot}${d.reference ? ` ${d.reference}` : ""}` : (types.find((t) => t.id === it.typeId)?.nameEn ?? "A document type"), remarks: it.remarks };
-          }),
-        },
-      },
-      include: { items: true },
-    });
-    const status = outcome === "RESUBMIT" ? "RESUBMISSION_REQUESTED" : "REJECTED";
-    const moved = await tx.supplierApplication.updateMany({ where: { id: a.id, status: a.status, lapsedRecordedAt: null }, data: { status, resubmitBy: outcome === "RESUBMIT" ? dayToDate(resubmitBy!) : a.resubmitBy, ...(outcome === "REJECT" ? { decidedAt: now } : {}) } });
-    if (moved.count !== 1) throw new Refusal(CHANGED);
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.decision, dec.id, supplierApplicationLabel(a), "CREATE",
-      diffFields(null, { outcome: OUTCOME_LABEL[dec.outcome].en, remarks: remarks || null, resubmitBy: outcome === "RESUBMIT" ? resubmitBy : null, items: dec.items.length ? dec.items.map((i) => `${i.labelSnapshot}: ${i.remarks}`).join(" | ") : null, decidedBy: person!.name, decidedOn: today, recordedOnBehalf: "not signed" }), remarks);
-    await audit(tx, l.org.id, SUPPLIER_ENTITY.application, a.id, supplierApplicationLabel(a), "UPDATE", diffFields({ status: a.status, resubmitBy: day(a.resubmitBy) }, { status, resubmitBy: outcome === "RESUBMIT" ? resubmitBy : day(a.resubmitBy) }));
-    if (outcome === "REJECT") await rejectApplicant(tx, l, a.kind);
-    return { ok: true, message: `${OUTCOME_LABEL[dec.outcome].en}. The notice to the supplier is shown here, not sent.` };
-  });
-}
-
-/// A first registration rejected (or lapsed) leaves an applicant not registered.
-async function rejectApplicant(tx: Tx, l: LockedSupplier, kind: string) {
-  if (kind !== "NEW" || l.supplier.status !== "APPLICANT") return;
-  await tx.supplier.update({ where: { id: l.supplier.id }, data: { status: "REJECTED" } });
-  await audit(tx, l.org.id, SUPPLIER_ENTITY.supplier, l.supplier.id, label(l.supplier, l.supplier.registeredName), "UPDATE", diffFields({ status: "Applicant" }, { status: "Not registered: application rejected" }));
+  return inSupplier(supplierId, (tx, l) => recordOutcome(tx, l, { applicationId, outcome, remarks, resubmitBy, personId, items, now }));
 }
 
 /**

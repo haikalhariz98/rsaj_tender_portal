@@ -34,7 +34,9 @@ export const SUPPLIER_STATUSES: readonly SupplierStatus[] = ["APPLICANT", "REGIS
 export type ApplicationKind = "NEW" | "RENEWAL" | "UPGRADE";
 export const APPLICATION_KINDS: readonly ApplicationKind[] = ["NEW", "RENEWAL", "UPGRADE"];
 
-/// How an application reached the organisation. PORTAL is the public form: no officer recorded it.
+/// How an application reached the organisation. PORTAL: it came in online, through the supplier portal, and an officer
+/// recorded it from the staged online application, as every application is recorded (the database refuses a missing
+/// recorder on the paper channels, and no code writes one on any channel).
 export type ApplicationChannel = "COUNTER" | "POST" | "EMAIL" | "PORTAL";
 export const APPLICATION_CHANNELS: readonly ApplicationChannel[] = ["COUNTER", "POST", "EMAIL", "PORTAL"];
 /// The channels an officer may record a paper application under. PORTAL is never one of them: only the public form writes it.

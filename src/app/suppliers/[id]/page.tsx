@@ -379,7 +379,7 @@ async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { 
             <CardHeader
               icon={<ClipboardIcon size={17} />}
               title={`${APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en}, received ${formatDate(day(a.receivedOn))}`}
-              subtitle={a.recordedBy ? `${CHANNEL_LABEL[a.channel].en} · recorded by ${a.recordedBy.name}, on their behalf, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}` : `${CHANNEL_LABEL[a.channel].en} · sent by the applicant, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}. No officer recorded it.${a.declarationSignedOn ? "" : " The signed declaration is still to come on paper."}`}
+              subtitle={a.recordedBy ? `${CHANNEL_LABEL[a.channel].en} · recorded by ${a.recordedBy.name}, on their behalf, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}` : `${CHANNEL_LABEL[a.channel].en} · came in through an earlier online form, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}. No officer is on file as having recorded it.${a.declarationSignedOn ? "" : " The signed declaration is still to come on paper."}`}
               actions={<Badge tone={QUEUE_STATE_TONE[st]} dot>{QUEUE_STATE_LABEL[st].en}</Badge>}
             />
             <CardBody className="flex flex-col gap-4">

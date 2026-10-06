@@ -7474,7 +7474,9 @@ model SupplierApplication {
   /// The organisation's day the paper arrived, as the officer records it (never after the day recorded).
   receivedOn DateTime
   channel    ApplicationChannel
-  /// The officer who recorded the paper. Null for PORTAL: the applicant sent it and nobody is named in their place.
+  /// The officer who recorded the application, from the paper or from the staged online application. Every write names one.
+  /// Nullable only for the one test record the superseded direct portal path made (rejected, kept as history): the CHECK
+  /// SupplierApplication_recorder_portal_only refuses a null on any channel but PORTAL.
   recordedByPersonId String?
   recordedBy         Person?  @relation("SupplierApplicationRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
   /// The server's time it was recorded or received.
