@@ -35,8 +35,8 @@ export const AUTH_WORDS = {
   wrongOrigin: { en: "That request did not come from this site, so it was refused.", ms: "Permintaan itu tidak datang daripada laman ini, jadi ia ditolak." },
   resetNoticeTitle: { en: "Your password was reset", ms: "Kata laluan anda telah ditetapkan semula" },
   resetNoticeBody: {
-    en: "An administrator reset this account's password with a one-time code. If that was not you, or you did not ask for it, tell the administrator now.",
-    ms: "Seorang pentadbir menetapkan semula kata laluan akaun ini dengan kod sekali guna. Jika itu bukan anda, atau anda tidak memintanya, beritahu pentadbir sekarang.",
+    en: "This account's password was reset by someone else: with a one-time code from an administrator, or by an operator on the server. If that was not you, or you did not ask for it, tell an administrator now.",
+    ms: "Kata laluan akaun ini telah ditetapkan semula oleh orang lain: dengan kod sekali guna daripada pentadbir, atau oleh operator di pelayan. Jika itu bukan anda, atau anda tidak memintanya, beritahu pentadbir sekarang.",
   },
   mustChangeTitle: { en: "Choose a new password", ms: "Pilih kata laluan baharu" },
   mustChangeBody: { en: "This account must have a new password before anything else is done with it.", ms: "Akaun ini mesti mempunyai kata laluan baharu sebelum apa-apa dilakukan." },

@@ -169,7 +169,8 @@ export async function loadAudit(
     changes: (e.changes ?? []) as unknown as FieldChange[],
     reason: e.reason,
     unattributed: e.unattributed,
-    actorName: e.actorPerson?.name ?? null,
+    // A person by name; the system by what ran ("System: bootstrap command"), so that a row it wrote is never read as "Unknown".
+    actorName: e.actorPerson?.name ?? (e.actorSystemLabel ? `System: ${e.actorSystemLabel}` : null),
     at: e.at,
   }));
 }

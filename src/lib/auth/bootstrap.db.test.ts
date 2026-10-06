@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { loadAudit } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { randomId, randomPassword, SETTINGS } from "@/lib/test-db/auth-fixtures";
 
@@ -51,6 +52,11 @@ describe("the first administrator", () => {
     expect(JSON.stringify(audit)).not.toContain(password);
     expect(JSON.stringify(audit)).not.toContain("$scrypt$");
     expect(await db.signInEvent.count({ where: { staffAccountId: result.accountId, kind: "ACCOUNT_CREATED" } })).toBe(1);
+
+    // History reads these rows as the system, by what ran: not as "Unknown", and not as a person.
+    const shown = await loadAudit(code, { entity: "StaffAccount" });
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toMatchObject({ unattributed: false, actorName: "System: bootstrap command" });
   });
 
   it("refuses to run again once an administrator exists, and says which flag to use", async () => {
