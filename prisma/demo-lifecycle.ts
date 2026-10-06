@@ -163,7 +163,9 @@ export async function configureLifecycleDemo(db: Db, organisationId: string) {
     ],
   });
   await db.numberingSeries.create({ data: { id: `${P}n8`, organisationId, key: "variation", nameEn: "Variations", pattern: "DEMO/VO/{SERIAL}/{YEAR}", padding: 3, resetOn: "CALENDAR_YEAR", nextSerial: 1, serialPeriod: "2026", provenance: "ASSUMED" } });
-  await db.clauseText.create({ data: { id: `${P}cl2`, organisationId, code: "demo_valuation_of_variations", titleEn: "Valuation of variations (demo)", titleMs: "Penilaian perubahan kerja (demo)", bodyEn: "Variations are valued at the contract's rates where they apply, at rates derived from them where they do not, and otherwise at fair rates (invented demo text).", provenance: "ASSUMED", sortOrder: 2 } });
+  await db.clauseText.create({ data: { id: `${P}cl2`, organisationId, code: "demo_valuation_of_variations", titleEn: "Valuation of variations (demo)", titleMs: "Penilaian perubahan kerja (demo)", bodyEn: "Variations are valued at the contract's rates where they apply, at rates derived from them where they do not, and otherwise at fair rates (invented demo text).", provenance: "ASSUMED", sortOrder: 2,
+    // Ruling 4 (2026-10-06): set, or no pack could be submitted after this loads (a live clause's "mandatory" unset refuses every submission). ASSUMED.
+    mandatoryInAgreements: false, notes: "Invented for the demo: not every agreement need carry it." } });
   // The works type provides for these adjustments (invented, ASSUMED on the demo's own type row).
   await db.contractType.update({ where: { id: `${P}ct1` }, data: { sumAdjustmentTriggers: ["VARIATION", "PC_AND_PROVISIONAL_SUMS", "PRICE_FLUCTUATION", "REMEASUREMENT"] } });
   await db.contractType.update({ where: { id: `${P}ct3` }, data: { sumAdjustmentTriggers: ["VARIATION"] } });
@@ -569,7 +571,9 @@ export async function loadLifecycleDemo(db: Db, organisationId: string) {
   await act("2026-07-15T11:00", "VOC minutes", C.saveMinutes, { meetingId: voc1, minutes: "The Committee recommended the two additional air valve chambers (demo)." });
   await act("2026-07-16T09:00", "VOC minuted", C.changeStatus, { meetingId: voc1, to: "MINUTED" });
   const r1 = (await db.variationApproval.findFirstOrThrow({ where: { variationId: av, event: "PRIOR" }, include: { approvalInstance: { include: { steps: { orderBy: { sequence: "asc" } } } } } })).approvalInstance;
-  await act("2026-07-16T10:00", "VOC cited", V.citeVariationCommittee, { id, variationId: av, stepId: r1.steps.find((x) => x.committeeCode === "VOC")!.id, committeeDecisionId: matter });
+  // Since b431b86 (founder, 2026-10-05) the carried outcome cites the step itself; cited by hand only where it did not.
+  const vocStep = r1.steps.find((x) => x.committeeCode === "VOC")!;
+  if (vocStep.decision === "PENDING") await act("2026-07-16T10:00", "VOC cited", V.citeVariationCommittee, { id, variationId: av, stepId: vocStep.id, committeeDecisionId: matter });
   for (const st of r1.steps.filter((x) => !x.committeeCode)) await act("2026-07-17T10:00", `approved by ${st.roleCode}`, V.decideVariationApprovalStep, { id, variationId: av, stepId: st.id, decision: "DONE", personId: holderOf[st.roleCode ?? ""].id, decidedOn: "2026-07-17", receivedOn: "2026-07-16", reason: "" });
   await sign((await db.variation.findUniqueOrThrow({ where: { id: av } })).applicationCertificateId!, "2026-07-17", soBlock("2026-07-17"), "2026-07-17");
   await instruct(av, "2026-07-20", avText);

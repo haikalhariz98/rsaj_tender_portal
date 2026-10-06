@@ -23,6 +23,7 @@ import { checkBidsDemo, configureBidsDemo, loadBidsDemo, wipeBidsDemo } from "./
 import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo, wipeOpeningDemo } from "./demo-opening";
 import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo, wipeEvaluationDemo } from "./demo-evaluation";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo, suppliersDemoDependents, wipeSuppliersDemo } from "./demo-suppliers";
+import { checkResultsDemo, loadResultsDemo, resultsDemoState } from "./demo-results";
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
@@ -1278,6 +1279,10 @@ async function load() {
     await checkLifecycleDemo(db);
     await checkFidelityDemo(db);
   }
+  // Ruling 4 (2026-10-06): one advertised quotation taken to an issued award, so the public Results page has a row;
+  // last, on everything above (prisma/demo-results.ts). `npm run demo:results` applies it alone to a loaded database.
+  await loadResultsDemo(db, organisationId, { determine: determineExercises });
+  await checkResultsDemo(db);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("Remove it with: npm run demo:wipe");
@@ -2549,16 +2554,35 @@ async function snapshotMinuted(ids: string[]) {
   }
 }
 
+/**
+ * Ruling 4 (2026-10-06): the Results fixture alone, added to a database the demo is already loaded in, without a wipe.
+ * Nothing where it is already issued; refused, touching nothing, where it stands part-made (only a wipe removes that).
+ */
+async function results() {
+  const org = await organisation();
+  if ((await db.orgUnit.count({ where: { id: { startsWith: P } } })) === 0) {
+    console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
+    return;
+  }
+  const state = await resultsDemoState(db);
+  if (state === "PARTIAL") throw new Error("The Results fixture stands part-made (its requisition or exercise exists without an issued award). Nothing was written. Only npm run demo:wipe removes it.");
+  if (state === "ABSENT") {
+    const made = await loadResultsDemo(db, org.id, { determine: determineExercises });
+    console.log(`Results fixture added: ${made.reference}, its award issued.`);
+  } else console.log("The Results fixture is already loaded: nothing was written.");
+  await checkResultsDemo(db);
+}
+
 const mode = process.argv[2];
 /// Opt-in: let the wipe remove non-demo records that point at demo records (BD-27).
 const REMOVE_DEPENDENTS = process.argv.slice(3).includes("--remove-dependents");
 
-if (mode !== "load" && mode !== "wipe") {
-  console.error("usage: tsx prisma/demo.ts <load|wipe> [--remove-dependents]");
+if (mode !== "load" && mode !== "wipe" && mode !== "results") {
+  console.error("usage: tsx prisma/demo.ts <load|wipe|results> [--remove-dependents]");
   process.exit(2);
 }
 
-(mode === "load" ? load() : wipe())
+(mode === "load" ? load() : mode === "results" ? results() : wipe())
   .catch((error) => {
     console.error(error);
     process.exit(1);

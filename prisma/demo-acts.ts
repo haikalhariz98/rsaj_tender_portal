@@ -128,6 +128,13 @@ export const ACT_PREFIX: Readonly<Record<string, string>> = {
   MeetingAttendance: "lat",
   Vote: "lvt",
   DecisionRecusal: "lrx",
+  // The award opened and issued by its own acts (prisma/demo-results.ts, ruling 4 of 2026-10-06).
+  Award: "law",
+  Contract: "lcn",
+  CaseOwnershipEvent: "lce",
+  AwardDistribution: "ldt",
+  AwardDocument: "ldc",
+  AwardReturn: "lrn",
 };
 /// Numbered ranges claimed in the plan (6.13 Part A: routes 131–159, sittings 20–29, matters 60–79).
 const NUMBERED: Readonly<Record<string, { prefix: string; from: number; to: number }>> = {
@@ -157,6 +164,34 @@ export function demoIdFor(model: string): string {
 const numberedFloor: Record<string, number> = {};
 export function claimNumbered(model: keyof typeof NUMBERED, upTo: number) {
   numberedFloor[model] = Math.max(numberedFloor[model] ?? 0, upTo);
+}
+
+/**
+ * Continue every id series after the ids the database already holds (ruling 4 of 2026-10-06): a step run on a
+ * database loaded by an earlier process starts its counters at the largest suffix there, so it never reuses an id. A
+ * numbered model counts only ids inside its claimed range. Reads only, through the client (no raw SQL).
+ */
+export async function seedActIds(client: PrismaClient): Promise<void> {
+  type Reader = { findMany(a: { where: { id: { startsWith: string } }; select: { id: true } }): Promise<{ id: string }[]> };
+  const top = async (model: string, prefix: string, within?: { from: number; to: number }) => {
+    const reader = (client as unknown as Record<string, Reader>)[model.charAt(0).toLowerCase() + model.slice(1)];
+    if (!reader) throw new Error(`demo acts: no client model ${model}`);
+    const re = new RegExp(`^${P}${prefix}(\\d+)$`);
+    const ns = (await reader.findMany({ where: { id: { startsWith: `${P}${prefix}` } }, select: { id: true } }))
+      .map((r) => re.exec(r.id))
+      .filter((m): m is RegExpExecArray => m != null)
+      .map((m) => Number(m[1]))
+      .filter((x) => !within || (x >= within.from && x <= within.to));
+    return ns.length ? Math.max(...ns) : 0;
+  };
+  for (const [model, pre] of Object.entries(ACT_PREFIX)) {
+    const n = await top(model, pre);
+    if (n > (counters.get(model) ?? 0)) counters.set(model, n);
+  }
+  for (const [model, r] of Object.entries(NUMBERED)) {
+    const n = await top(model, r.prefix, r);
+    if (n > 0) claimNumbered(model as keyof typeof NUMBERED, n);
+  }
 }
 
 /// The relations of every model, read from the schema (which nested `create` makes which model), and the columns
@@ -269,7 +304,14 @@ export async function act(when: string, what: string, action: Action, fields: Re
   const outerIds = idsOn;
   idsOn = opts.ids ?? true;
   try {
-    const r = await onDemoClock(when, () => action({ ok: false }, form));
+    // An act that opens a page on success (createAward) ends in Next's redirect, thrown after its transaction
+    // committed: outside Next that throw is the act's success, and nothing else is.
+    const r = await onDemoClock(when, () =>
+      action({ ok: false }, form).catch((e: unknown) => {
+        if (typeof (e as { digest?: unknown })?.digest === "string" && (e as { digest: string }).digest.startsWith("NEXT_REDIRECT")) return { ok: true } as FormState;
+        throw e;
+      }),
+    );
     if (!r.ok) throw new Error(`Demo act refused (${what}, ${when}): ${r.message ?? ""} ${r.errors ? JSON.stringify(r.errors) : ""}`.trim());
     return r;
   } finally {

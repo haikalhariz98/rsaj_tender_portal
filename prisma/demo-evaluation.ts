@@ -269,7 +269,7 @@ export async function configureEvaluationDemo(db: Db, organisationId: string) {
 
 type Ctx = Awaited<ReturnType<typeof import("../src/lib/evaluation/repo")["loadEvaluationContext"]>>;
 
-class EvaluationActs {
+export class EvaluationActs {
   constructor(
     private readonly db: Db,
     private readonly org: string,

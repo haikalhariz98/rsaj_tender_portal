@@ -22,6 +22,7 @@
     "postinstall": "prisma generate",
     "demo:load": "tsx prisma/demo.ts load",
     "demo:wipe": "tsx prisma/demo.ts wipe",
+    "demo:results": "tsx prisma/demo.ts results",
     "compare": "node scripts/compare-screen.mjs",
     "compare:drawer": "node scripts/compare-drawer.mjs"
   },
