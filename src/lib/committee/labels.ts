@@ -445,6 +445,10 @@ export const SCHEDULE_WORDS = {
     en: "The sittings series numbers by the organisation's day, and its time zone is not set. Set it under Configuration, Organisation, or type the sitting number.",
     ms: "Siri sidang bernombor mengikut hari organisasi, dan zon waktunya belum ditetapkan. Tetapkannya di bawah Konfigurasi, Organisasi, atau taip nombor sidang.",
   },
+  sittingNumberSeriesInvalid: {
+    en: "The sittings numbering series is not valid. Correct it under Configuration, Numbering, or type the sitting number.",
+    ms: "Siri penomboran sidang tidak sah. Betulkannya di bawah Konfigurasi, Penomboran, atau taip nombor sidang.",
+  },
   sittingNumberClash: {
     en: "This committee already has a sitting with that number.",
     ms: "Jawatankuasa ini sudah mempunyai sidang dengan nombor itu.",

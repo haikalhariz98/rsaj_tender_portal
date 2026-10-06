@@ -284,7 +284,7 @@ export async function loadLifecycleAward(db: Db, organisationId: string): Promis
 
   // The award's reference from the award series, as the award is made (never typed): the register stays continuous.
   const { issueReference } = await import("../src/lib/numbering/issue");
-  AWD_REF = await issueReference(db as never, organisationId, "award", day("2026-05-08"));
+  AWD_REF = await db.$transaction((tx) => issueReference(tx as never, organisationId, "award", day("2026-05-08")));
   await db.award.create({
     data: {
       id: AW, organisationId, reference: AWD_REF, exerciseId: SX, status: "APPROVED", instrumentKind: "LETTER_OF_ACCEPTANCE", awardeeName: AWARDEE.name, awardeeRegistrationNo: AWARDEE.reg, awardeeAddress: AWARDEE.address,

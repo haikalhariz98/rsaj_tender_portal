@@ -303,7 +303,7 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
     const on = plan.at(-1)!.on;
     const plan2 = copiesFor(rev.distribution, { liveBond: null, consultingEngineer: l.contract.consultingEngineer });
     fail(`${certId} copies`, plan2.faults);
-    const number = await issueReference(db as never, organisationId, "certificate", day(on));
+    const number = await db.$transaction((tx) => issueReference(tx as never, organisationId, "certificate", day(on)));
     const issued = await db.certificate.findMany({ where: { contractId: l.contract.id, status: "ISSUED" }, select: { kind: true, sequence: true } });
     const sequence = nextSequence(issued, kind);
     const overrides = await db.certificateOverride.findMany({ where: { certificateId: certId } });

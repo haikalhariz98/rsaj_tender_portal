@@ -13,6 +13,7 @@ import { boundaryFaultsAcross, boundaryRuleFault, rulesTiedWith } from "@/lib/au
 import type { AuthorityAct, CoreLevel, Rule } from "@/lib/authority/types";
 import type { Tx } from "@/lib/audit/record";
 import { loadIssue } from "@/lib/authority/load";
+import { lockIssue, lockOrganisation, shareLockFundingRoute } from "@/lib/authority/locks";
 import { coreRoutingEntryLabel } from "@/lib/audit/core-routing-trail";
 import { copyCoreRouting, CORE_ACTS, coreChainFaultsAcross, coreLevelFaults, coreLevelFor, ruleCoreFault, type CoreLevelRow } from "@/lib/authority/core-routing";
 import { coreLevelFaultText, issueRefusal, ruleSaveRefusal } from "@/lib/authority/core-routing-labels";
@@ -112,18 +113,6 @@ async function refusable(run: () => Promise<FormState>): Promise<FormState> {
     if (e instanceof Refused) return e.state;
     throw e;
   }
-}
-
-/// Lock the organisation's row for the rest of the transaction. Taken before any issue's row, never after one: a check that
-/// spans the organisation's issues (a label is unique across them) has no single issue to lock, and the parent serialises it.
-async function lockOrganisation(tx: Tx, id: string) {
-  await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${id} FOR UPDATE`;
-}
-
-/// Lock an issue's row for the rest of the transaction: every write to an issue, its
-/// rules or its core routing takes it, so issuing cannot take a half-made change.
-async function lockIssue(tx: Tx, authorityMatrixId: string) {
-  await tx.$queryRaw`SELECT id FROM "AuthorityMatrix" WHERE id = ${authorityMatrixId} FOR UPDATE`;
 }
 
 /// Lock the issue a core row belongs to, found by the row's id, and return the issue's
@@ -254,7 +243,7 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
   };
 
   const outcome = await db.$transaction(async (tx): Promise<FormState & { createdId?: string }> => {
-    // The parent first, then the issue (the order lockOrganisation says): the label is unique across the organisation's issues.
+    // The parent first, then the issue (the order src/lib/authority/locks.ts says): the label is unique across the organisation's issues.
     await lockOrganisation(tx, orgId);
     let locked: Awaited<ReturnType<typeof tx.authorityMatrix.findFirst>> = null;
     if (id) {
@@ -319,7 +308,7 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
 /// Whether a funding route may carry an issue of its own: it must exist and its funder must supersede the limits. The route's
 /// row is share-locked for the rest of the transaction, so a change to it waits for this write or is seen by it.
 async function fundingRouteFault(tx: Tx, orgId: string, code: string): Promise<string | null> {
-  await tx.$queryRaw`SELECT id FROM "FundingRoute" WHERE "organisationId" = ${orgId} AND code = ${code} FOR SHARE`;
+  await shareLockFundingRoute(tx, orgId, code);
   const route = await tx.fundingRoute.findFirst({
     where: { organisationId: orgId, code },
     select: { supersedesAuthority: true, retiredOn: true },

@@ -47,6 +47,15 @@ const SEEDERS: Readonly<Record<string, { verbs: readonly string[]; why: string }
   "scripts/check-numbering-concurrency.ts": { verbs: ["create", "delete"], why: "makes and removes its own temporary series" },
 };
 
+/// The first argument of every call of `issueReference(`: the client it is given. A call's declaration (`function issueReference(`)
+/// and an import are not calls. The cast on the argument is kept in what is returned (`tx as never`), so it can be read.
+export function issuerClients(src: string): string[] {
+  const text = lex(src, { only: "comments" });
+  const found: string[] = [];
+  for (const m of text.matchAll(/(?<!function\s)(?<![\w.$])issueReference\s*\(\s*([^,)]+?)\s*,/g)) found.push(m[1]);
+  return found;
+}
+
 function files(dir: string): string[] {
   return readdirSync(path.join(ROOT, dir)).flatMap((f) => {
     const rel = `${dir}/${f}`;
@@ -80,6 +89,27 @@ describe("one issuer of references (sign-in programme Phase 0)", () => {
       if (/\b(?:formatReference|afterIssuing)\b/.test(lex(readFileSync(path.join(ROOT, f), "utf8"), { only: "comments" }))) offenders.push(f);
     }
     expect(offenders).toEqual([]);
+  });
+
+  it("every call of the issuer passes a transaction's client: its FOR UPDATE does nothing outside one", () => {
+    const offenders: string[] = [];
+    let calls = 0;
+    for (const f of [...files("src"), ...files("prisma"), ...files("scripts")]) {
+      for (const client of issuerClients(readFileSync(path.join(ROOT, f), "utf8"))) {
+        calls++;
+        if (!/^(?:tx|c|trx)\b/.test(client)) offenders.push(`${f}: issueReference(${client}, ...)`);
+      }
+    }
+    expect(calls).toBeGreaterThan(0);
+    expect(offenders).toEqual([]);
+  });
+
+  it("the issuer's own transaction rule", () => {
+    expect(issuerClients("await issueReference(db as never, org, 'x', d);")).toEqual(["db as never"]);
+    expect(issuerClients("await db.$transaction((tx) => issueReference(tx as never, org, 'x', d));")).toEqual(["tx as never"]);
+    expect(issuerClients("issueReference(this.db, a, b, c)")).toEqual(["this.db"]);
+    expect(issuerClients("// issueReference(db, a)\nconst a = 1;")).toEqual([]);
+    expect(issuerClients("import { issueReference } from 'x'; export async function issueReference(tx: Tx, a: string) {}")).toEqual([]);
   });
 
   it("the two writers lock the series row before they read it, and the editor writes only under that lock", () => {

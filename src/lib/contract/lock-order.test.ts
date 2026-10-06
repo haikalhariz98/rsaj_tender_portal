@@ -563,15 +563,19 @@ describe("the scan catches each evasion (self-tests)", () => {
 });
 
 /// Sign-in programme Phase 0 (group E, 2026-10-06): the three configuration saves that checked on a stale read, and the
-/// numbering floor. Each now reads what it decides on under a lock, in the transaction that writes. The order is the
-/// configuration editors' own, consistent with the rest of the file: the parent (Organisation) before a child row
-/// (AuthorityMatrix, then FundingRoute share-locked); a series row on its own. None of these takes a lock from the
-/// post-award chain above, and no post-award act takes one of these, so the two orders never meet. Source scans, as above.
-/// Blind spots (declared): they read the text of each function in order; a helper the function calls is read only where it
-/// is named (fundingRouteFault, lockOrganisation, lockIssue), and the rows' actual blocking is proven by running the saves
-/// against a database, which this suite does not have (scripts/check-numbering-concurrency.ts does so for numbering).
+/// numbering floor. Each now reads what it decides on under a lock, in the transaction that writes. The order the matrix
+/// editor takes is the organisation, then an issue, then the funding route (share-locked); a series row on its own. None of
+/// these takes a lock from the post-award chain above, and no post-award act takes one of these.
+/// Source scans, as above. Blind spots (declared): they read the text of each function in order; a helper the function calls
+/// is read only where it is named (fundingRouteFault, lockOrganisation, lockIssue). They CANNOT see the locks a foreign key
+/// takes: inserting an AuditEntry, an AuthorityMatrix or a FundingRoute takes FOR KEY SHARE on its Organisation row, which
+/// FOR UPDATE conflicts with and FOR NO KEY UPDATE does not. A writer that holds an issue and then audits therefore asks for
+/// the organisation while holding the issue, and an organisation lock taken FOR UPDATE ahead of it is a deadlock (the first
+/// Phase 0 version of this order was one, found in review). So the assertions below pin the lock MODE, and the cycles
+/// themselves are run against a database by scripts/check-config-lock-order.ts, with a control that must deadlock.
 describe("configuration saves read under their lock (Phase 0, group E)", () => {
   const MATRIX = "src/app/configuration/approval-matrix/actions.ts";
+  const LOCKS = "src/lib/authority/locks.ts";
   const ORG = "src/app/configuration/organisation/actions.ts";
   const NUMBERING = "src/app/configuration/numbering/actions.ts";
   const body = (file: string, name: string) => lex(actions(read(file)).get(name)!, { only: "comments" });
@@ -596,10 +600,11 @@ describe("configuration saves read under their lock (Phase 0, group E)", () => {
     // Nothing about a stored issue or a funding route is read on the pool; the only `db.` is the transaction itself.
     expect([...b.matchAll(/\bdb\./g)].length).toBe(1);
     expect(b).not.toMatch(/auditedCreate|auditedUpdate/);
-    // The fault helper share-locks the route before it reads it, on the transaction.
+    // The fault helper share-locks the route before it reads it, on the transaction, through the one lock module.
     const src = read(MATRIX);
     const helper = src.slice(src.indexOf("async function fundingRouteFault("));
-    inOrder(helper.slice(0, helper.indexOf("\n}\n")), ['FROM "FundingRoute"', "FOR SHARE", "tx.fundingRoute.findFirst("]);
+    inOrder(helper.slice(0, helper.indexOf("\n}\n")), ["shareLockFundingRoute(tx, orgId, code)", "tx.fundingRoute.findFirst("]);
+    expect(lex(read(LOCKS), { only: "comments" })).toMatch(/FROM "FundingRoute" WHERE "organisationId" = \$\{organisationId\} AND code = \$\{code\} FOR SHARE/);
   });
 
   it("saveRule: the issue is locked first, then the rule, the key clash, the siblings and the offices are read under it", () => {
@@ -624,8 +629,18 @@ describe("configuration saves read under their lock (Phase 0, group E)", () => {
       }
     }
     expect(both.sort()).toEqual(["saveMatrix", "startRevision"]);
-    // No function of the file takes the organisation's row after it has taken an issue's.
-    expect(src.indexOf("async function lockOrganisation(")).toBeLessThan(src.indexOf("async function lockIssue("));
+  });
+
+  it("the organisation's row is locked FOR NO KEY UPDATE, never FOR UPDATE: a foreign-key insert's KEY SHARE must not wait on it", () => {
+    const locks = lex(read(LOCKS), { only: "comments" });
+    // The one organisation lock of the matrix editor, and its mode.
+    expect(locks).toMatch(/SELECT id FROM "Organisation" WHERE id = \$\{id\} FOR NO KEY UPDATE/);
+    expect(locks).not.toMatch(/"Organisation"[^`]*FOR UPDATE/);
+    // The editor takes the organisation only through that helper: no statement of its own, in any mode.
+    const src = lex(read(MATRIX), { only: "comments" });
+    expect(src).not.toContain('"Organisation"');
+    expect(src).toContain('import { lockIssue, lockOrganisation, shareLockFundingRoute } from "@/lib/authority/locks"');
+    expect(src).not.toMatch(/async function lock(?:Organisation|Issue)\(/);
   });
 
   it("saveSeries (the numbering floor): the series row is locked before the stored serial is read, and the floor is checked against it", () => {

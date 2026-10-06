@@ -454,7 +454,8 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
     if (e instanceof Refusal) return e.state;
     // The series was removed or broken between the form and the write: nothing was numbered, and the sitting is not saved.
     if (e instanceof NumberingError) {
-      const said = e.fault === "SERIES_MISSING" ? W.sittingNumberRequired.en : !day ? W.sittingNumberNoZone.en : "The sittings numbering series is not valid. Correct it under Configuration, Numbering, or type the sitting number.";
+      // No "no time zone" arm: with no series number typed and no day known, the request was refused above, before this transaction.
+      const said = e.fault === "SERIES_MISSING" ? W.sittingNumberRequired.en : W.sittingNumberSeriesInvalid.en;
       return { ok: false, errors: { reference: said } };
     }
     throw e;
