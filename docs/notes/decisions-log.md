@@ -1449,3 +1449,4 @@ reported an empty migration (exit 0). The migrations are good on the native tool
 - 2026-10-06 · Founder: a requisition's estimated value is the total of its lines, worked out on the form as they are typed or uploaded; it is no longer typed. The action still requires the two to agree.
 
 - 2026-10-06 · Founder: the need statement is removed from the requisition form and is no longer required. One recorded before is kept as it was (shown on the requisition and printed on the PR only where it exists); the column stays.
+- 2026-10-06 · Founder: on the requisition form the requesting officer is chosen first, and their unit fills in the department, section and cost centre (only fields still empty or filled by an earlier officer; a cost centre only where exactly one carries the unit).

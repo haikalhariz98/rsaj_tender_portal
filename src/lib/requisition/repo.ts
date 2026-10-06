@@ -68,7 +68,7 @@ export async function loadLookups(organisationId: string, client: Tx = db) {
     client.accountCode.findMany({ where, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
     client.site.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
     client.budgetCode.findMany({ where, orderBy: { code: "asc" } }),
-    client.person.findMany({ where, orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true, jobTitle: true } }),
+    client.person.findMany({ where, orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true, jobTitle: true, orgUnitCode: true } }),
     client.fundingRoute.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
     client.codeFormat.findMany({ where }),
     client.contractType.findMany({ where, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
@@ -96,7 +96,7 @@ export async function loadLookups(organisationId: string, client: Tx = db) {
 export type LoadedLookups = Omit<Lookups, "units" | "budgetCodes" | "people" | "fundingRoutes"> & {
   units: (OrgUnit & { id: string })[];
   budgetCodes: (PureBudgetCode & { code: string })[];
-  people: { id: string; name: string; isActive: boolean; jobTitle: string | null }[];
+  people: { id: string; name: string; isActive: boolean; jobTitle: string | null; orgUnitCode: string | null }[];
   fundingRoutes: FundingRouteRow[];
 };
 
@@ -343,10 +343,12 @@ export async function formOptions(organisationId: string, on: Date) {
   const inForce = <T extends { effectiveFrom: Date; effectiveTo: Date | null }>(x: T) => x.effectiveFrom <= on && (x.effectiveTo == null || x.effectiveTo > on);
   const units = lookups.units.filter(inForce);
   return {
+    // What the officer's defaults read: the units in force, with their kind and parent.
+    units: units.map((u) => ({ code: u.code, kind: u.kind, parentCode: u.parentCode })),
     departments: units.filter((u) => u.kind === "DEPARTMENT").map((u) => ({ code: u.code, name: u.nameEn })),
     sections: units.filter((u) => u.kind === "SECTION").map((u) => ({ code: u.code, name: u.nameEn, parentCode: u.parentCode })),
-    people: lookups.people.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name })),
-    costCentres: costCentres.filter(inForce).map((c) => ({ code: c.code, name: c.nameEn })),
+    people: lookups.people.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name, orgUnitCode: p.orgUnitCode })),
+    costCentres: costCentres.filter(inForce).map((c) => ({ code: c.code, name: c.nameEn, orgUnitCode: c.orgUnitCode })),
     accounts: accountCodes.filter(inForce).map((a) => ({ code: a.code, name: a.nameEn })),
     budgetCodes: lookups.budgetCodes.filter((b) => b.isActive && inForce(b)).map((b) => ({ id: b.id, code: b.code, name: b.descriptionEn, accountCode: b.accountCode })),
     sites: sites.filter(inForce).map((x) => ({ code: x.code, name: x.nameEn })),

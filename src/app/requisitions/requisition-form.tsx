@@ -12,6 +12,7 @@ import { AffixInput, Field, Input, Select, Textarea } from "@/components/ui/fiel
 import { formDataOf } from "@/components/ui/form-submit";
 import { lineAmount } from "@/lib/requisition/lines";
 import type { ImportedLine } from "@/lib/requisition/line-import";
+import { officerDefaults, type UnitRow } from "@/lib/requisition/officer-defaults";
 
 import { createRequisition, editDraft } from "./actions";
 import { LineUpload } from "./line-upload";
@@ -23,10 +24,11 @@ import { LineUpload } from "./line-upload";
  */
 
 export interface FormOptions {
+  units: UnitRow[];
   departments: { code: string; name: string }[];
   sections: { code: string; name: string; parentCode: string | null }[];
-  people: { id: string; name: string }[];
-  costCentres: { code: string; name: string }[];
+  people: { id: string; name: string; orgUnitCode: string | null }[];
+  costCentres: { code: string; name: string; orgUnitCode: string | null }[];
   accounts: { code: string; name: string }[];
   budgetCodes: { id: string; code: string; name: string; accountCode: string }[];
   sites: { code: string; name: string }[];
@@ -95,11 +97,49 @@ export function RequisitionForm({
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const [lines, setLines] = useState<Line[]>(initialLines?.length ? initialLines : [{ ...BLANK_LINE }]);
+  const [officer, setOfficer] = useState(values.requestingPersonId ?? "");
   const [unit, setUnit] = useState(values.requestingUnitCode ?? "");
+  const [sectionChoice, setSectionChoice] = useState(values.sectionUnitCode ?? "");
+  const [costCentre, setCostCentre] = useState(values.costCentreCode ?? "");
   const [account, setAccount] = useState(values.accountCode ?? "");
+  // What choosing the officer filled in, per field: a value still equal to it was never the user's own, so
+  // a later officer may replace it. A field the user then chooses leaves this record.
+  const [filled, setFilled] = useState<{ unit?: string; section?: string; costCentre?: string }>({});
+  const [officerNote, setOfficerNote] = useState<"filled" | "nothing" | "no-unit" | null>(null);
   const e = state.errors ?? {};
 
   const sections = useMemo(() => options.sections.filter((s) => s.parentCode === unit), [options.sections, unit]);
+  // The section follows the department: one that does not belong to it is not a choice.
+  const section = sections.some((s) => s.code === sectionChoice) ? sectionChoice : "";
+  const chooseOfficer = (personId: string) => {
+    setOfficer(personId);
+    const person = options.people.find((p) => p.id === personId);
+    if (!person) {
+      setOfficerNote(null);
+      return;
+    }
+    const d = officerDefaults(person.orgUnitCode, options.units, options.costCentres);
+    // Only a field still empty, or one an earlier officer filled, is touched.
+    const open = (current: string, was?: string) => current === "" || current === was;
+    const next: typeof filled = {};
+    let any = false;
+    const fill = (key: keyof typeof filled, current: string, was: string | undefined, wanted: string | null, set: (v: string) => void) => {
+      if (!open(current, was)) return;
+      if (wanted) {
+        set(wanted);
+        next[key] = wanted;
+        any = true;
+      } else if (current !== "") {
+        set("");
+      }
+    };
+    fill("unit", unit, filled.unit, d.departmentCode, setUnit);
+    fill("section", section, filled.section, d.sectionCode, setSectionChoice);
+    fill("costCentre", costCentre, filled.costCentre, d.costCentreCode, setCostCentre);
+    // A field the user chose themselves stays on record as theirs.
+    setFilled(next);
+    setOfficerNote(!person.orgUnitCode ? "no-unit" : any ? "filled" : "nothing");
+  };
   const budgetCodes = useMemo(() => (account ? options.budgetCodes.filter((b) => b.accountCode === account) : options.budgetCodes), [options.budgetCodes, account]);
   const total = totalOf(lines);
   // Founder, 2026-10-06: the estimated value is the lines' total, worked out as they are typed (the
@@ -146,12 +186,12 @@ export function RequisitionForm({
     setOwnAmount((o) => o.filter((_, j) => j !== i));
   };
 
-  const select = (name: string, label: string, opts: { value: string; label: string }[], o: { required?: boolean; placeholder?: string; hint?: string; searchable?: boolean; onChange?: (v: string) => void } = {}) => (
+  const select = (name: string, label: string, opts: { value: string; label: string }[], o: { required?: boolean; placeholder?: string; hint?: string; searchable?: boolean; value?: string; onChange?: (v: string) => void } = {}) => (
     <Field label={label} htmlFor={`rq-${name}`} required={o.required} hint={o.hint} error={e[name]}>
       <Select
         id={`rq-${name}`}
         name={name}
-        defaultValue={values[name] ?? ""}
+        {...(o.value !== undefined ? { value: o.value } : { defaultValue: values[name] ?? "" })}
         searchable={o.searchable}
         aria-invalid={e[name] ? true : undefined}
         onChange={o.onChange ? (ev) => o.onChange!(ev.target.value) : undefined}
@@ -193,16 +233,42 @@ export function RequisitionForm({
       <Card>
         <CardHeader icon={<RouteIcon size={17} />} title="Requester and budget" subtitle="Who is asking, and which budget pays for it." />
         <CardBody className="grid gap-4 sm:grid-cols-2">
-          {select("requestingUnitCode", "Requesting department", options.departments.map((d) => ({ value: d.code, label: d.name })), { required: true, onChange: setUnit })}
+          {/* Founder, 2026-10-06: the officer comes first, and their unit fills in department, section and cost centre. */}
+          {select("requestingPersonId", "Requesting officer", options.people.map((p) => ({ value: p.id, label: p.name })), { required: true, value: officer, onChange: chooseOfficer })}
+          <div className="flex items-end pb-2 text-[13px] text-ink-3" aria-live="polite">
+            {officerNote === "filled" && "Department, section and cost centre are filled in from the officer's unit."}
+            {officerNote === "no-unit" && "No unit is recorded for this officer, so nothing is filled in."}
+            {officerNote === "nothing" && "Nothing could be filled in from this officer's unit."}
+          </div>
+          {select("requestingUnitCode", "Requesting department", options.departments.map((d) => ({ value: d.code, label: d.name })), {
+            required: true,
+            value: unit,
+            onChange: (v) => {
+              setUnit(v);
+              setFilled((f) => ({ ...f, unit: undefined }));
+            },
+          })}
           {select("sectionUnitCode", "Section", sections.map((s) => ({ value: s.code, label: s.name })), {
             placeholder: sections.length ? "None" : "No section in this department",
+            value: section,
+            onChange: (v) => {
+              setSectionChoice(v);
+              setFilled((f) => ({ ...f, section: undefined }));
+            },
           })}
-          {select("requestingPersonId", "Requesting officer", options.people.map((p) => ({ value: p.id, label: p.name })), { required: true })}
+          {/* Founder, 2026-10-05: these lists grow long once data is migrated, so each takes typing: type a code or a word to narrow it. */}
+          {select("costCentreCode", "Cost centre", coded(options.costCentres), {
+            required: true,
+            searchable: true,
+            value: costCentre,
+            onChange: (v) => {
+              setCostCentre(v);
+              setFilled((f) => ({ ...f, costCentre: undefined }));
+            },
+          })}
           {select("fundingRouteCode", "Funding route", options.fundingRoutes.map((r) => ({ value: r.code, label: r.name })), {
             hint: "Required to submit.",
           })}
-          {/* Founder, 2026-10-05: these lists grow long once data is migrated, so each takes typing: type a code or a word to narrow it. */}
-          {select("costCentreCode", "Cost centre", coded(options.costCentres), { required: true, searchable: true })}
           {select("accountCode", "Account code", coded(options.accounts), { required: true, searchable: true, onChange: setAccount })}
           {/* Founder, 2026-10-05: required. Only the budget codes on the chosen account are offered, so the pair always agrees. */}
           {select("budgetCodeId", "Budget code", budgetCodes.map((b) => ({ value: b.id, label: `${b.code} · ${b.name}` })), {
