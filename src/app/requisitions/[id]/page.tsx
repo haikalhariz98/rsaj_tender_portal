@@ -396,7 +396,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
           <MarkEndorsed id={r.id} blocker={endorseText} source={controls.budgetCheckSource} />
         </>
       )}
-      {r.status === "ENDORSED" && <ReturnDrawer id={r.id} people={people} today={today} />}
+      {/* Founder, 2026-10-06: returnable as incomplete until it is submitted, also after the budget check. */}
+      {["ENDORSED", "REGISTERED", "BUDGET_CHECKED", "OVER_BUDGET"].includes(r.status) && <ReturnDrawer id={r.id} people={people} today={today} />}
       {PRE_SUBMIT.includes(r.status) && (
         <>
           <CheckBudgetDrawer id={r.id} source={controls.budgetCheckSource} blocker={checkBlocker} today={today} />

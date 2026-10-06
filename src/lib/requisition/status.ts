@@ -22,9 +22,11 @@ export const TRANSITIONS: Record<RequisitionStatus, readonly RequisitionStatus[]
   // straight to the budget check. Registered stays for requisitions registered before.
   ENDORSED: ["BUDGET_CHECKED", "OVER_BUDGET", "RETURNED", "CANCELLED"],
   RETURNED: ["DRAFT", "CANCELLED"],
-  REGISTERED: ["BUDGET_CHECKED", "OVER_BUDGET", "CANCELLED"],
-  BUDGET_CHECKED: ["BUDGET_CHECKED", "PENDING_APPROVAL", "OVER_BUDGET", "CANCELLED"],
-  OVER_BUDGET: ["OVER_BUDGET", "BUDGET_CHECKED", "PENDING_APPROVAL", "CANCELLED"],
+  // Founder, 2026-10-06: the budget is checked automatically at endorsement, so the completeness
+  // return (FR-REQ-010) stays open after the check too, until the requisition is submitted.
+  REGISTERED: ["BUDGET_CHECKED", "OVER_BUDGET", "RETURNED", "CANCELLED"],
+  BUDGET_CHECKED: ["BUDGET_CHECKED", "PENDING_APPROVAL", "OVER_BUDGET", "RETURNED", "CANCELLED"],
+  OVER_BUDGET: ["OVER_BUDGET", "BUDGET_CHECKED", "PENDING_APPROVAL", "RETURNED", "CANCELLED"],
   // Over budget: returned at approval when the budget no longer covers it (ruling Q2).
   PENDING_APPROVAL: ["APPROVED", "REJECTED", "RECALLED", "OVER_BUDGET"],
   // Back to approval only on a successor route, opened from an earlier step by the

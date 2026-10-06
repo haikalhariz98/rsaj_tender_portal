@@ -11,6 +11,10 @@ describe("the requisition state machine (§7.3.1)", () => {
     ["ENDORSED", "BUDGET_CHECKED"],
     ["ENDORSED", "OVER_BUDGET"],
     ["ENDORSED", "RETURNED"],
+    // Founder, 2026-10-06: returnable after the automatic budget check too, until submitted.
+    ["BUDGET_CHECKED", "RETURNED"],
+    ["OVER_BUDGET", "RETURNED"],
+    ["REGISTERED", "RETURNED"],
     ["RETURNED", "DRAFT"],
     ["REGISTERED", "BUDGET_CHECKED"],
     ["BUDGET_CHECKED", "PENDING_APPROVAL"],

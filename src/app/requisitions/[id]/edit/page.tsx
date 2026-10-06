@@ -15,6 +15,9 @@ export const dynamic = "force-dynamic";
 function backToDraft(status: string): string {
   switch (status) {
     case "ENDORSED":
+    case "REGISTERED":
+    case "BUDGET_CHECKED":
+    case "OVER_BUDGET":
       return "To change them, return it as incomplete from the requisition, then reopen it as a draft.";
     case "RETURNED":
     case "RECALLED":
@@ -22,10 +25,6 @@ function backToDraft(status: string): string {
       return "To change them, reopen it as a draft from the requisition.";
     case "PENDING_APPROVAL":
       return "To change them, recall it from approval before anyone decides, then reopen it as a draft.";
-    case "REGISTERED":
-    case "BUDGET_CHECKED":
-    case "OVER_BUDGET":
-      return "Once its budget has been checked it cannot go back to draft. Cancel it and raise a new requisition to change them.";
     default:
       return "It can no longer be changed.";
   }
