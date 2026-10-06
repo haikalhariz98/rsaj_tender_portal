@@ -89,6 +89,10 @@ const NESTED_LABEL: Record<string, string> = {
   "configuration/evaluation": "Evaluation models",
   "evaluation/report": "Evaluation report",
   "evaluation/proposal": "Kertas Cadangan",
+  // The supplier portal's own words, where a segment is also a staff section's name ("projects" is Contracts there).
+  "supplier/projects": "My Projects",
+  "supplier/results": "Results",
+  "supplier/register": "Register as a supplier",
 };
 
 /**
@@ -270,7 +274,7 @@ export function Topbar({
         className={iconButtonClass()}
       >
         <BellIcon size={19} />
-        {hasAlerts && (
+        {hasAlerts && workspace !== "supplier" && (
           <span className="absolute top-2 right-2.5 size-2 rounded-full bg-rose-500 ring-2 ring-canvas" />
         )}
       </button>

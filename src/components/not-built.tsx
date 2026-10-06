@@ -19,12 +19,24 @@ export function NotBuilt({
   summary,
   willInclude,
   note,
+  badgeLabel = "Not built yet",
+  back = { href: "/", label: "Back to the dashboard" },
+  reason = {
+    title: "This module has not been built",
+    text: "It is in the plan and it is in the navigation, so the shape of the portal is visible. Nothing here is working yet.",
+  },
 }: {
   title: string;
   summary: string;
   willInclude: string[];
   /// What a reader can do today instead, said above the plan (a link to where it lives now).
   note?: ReactNode;
+  /// The badge beside the title, where "Not built yet" is not the whole story (a part that waits for sign-in).
+  badgeLabel?: string;
+  /// Where the way out leads. The dashboard for staff screens; the portal's home for the supplier side.
+  back?: { href: string; label: string };
+  /// What the empty card says: why nothing is here.
+  reason?: { title: string; text: string };
 }) {
   return (
     <>
@@ -32,7 +44,7 @@ export function NotBuilt({
         title={title}
         badge={
           <Badge tone="warn" dot>
-            Not built yet
+            {badgeLabel}
           </Badge>
         }
         subtitle={summary}
@@ -44,15 +56,14 @@ export function NotBuilt({
         <Card>
           <EmptyState
             icon={<SparkleIcon size={24} />}
-            title="This module has not been built"
+            title={reason.title}
             action={
-              <ButtonLink href="/" size="sm">
-                Back to the dashboard
+              <ButtonLink href={back.href} size="sm">
+                {back.label}
               </ButtonLink>
             }
           >
-            It is in the plan and it is in the navigation, so the shape of the portal is visible.
-            Nothing here is working yet.
+            {reason.text}
           </EmptyState>
         </Card>
 

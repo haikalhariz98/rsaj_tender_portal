@@ -65,7 +65,7 @@ export const STAFF_NAV: NavGroup[] = [
   {
     label: "Records",
     items: [
-      // 6.15a: the staff-side register (ADR 0019). The vendor workspace below stays not built until sign-in (6.15b).
+      // 6.15a: the staff-side register (ADR 0019). The supplier's own workspace (bids, projects, company) waits for sign-in (6.15b); the public pages do not.
       { href: "/suppliers", label: "Suppliers", icon: "building", built: true },
       // 6.14 increment 2: the documents register (Library, Distribution, Routing sheets; the review queue waits for sign-in).
       { href: "/documents", label: "Documents", icon: "files", built: true },
@@ -80,19 +80,25 @@ export const STAFF_NAV: NavGroup[] = [
 export const SUPPLIER_NAV: NavGroup[] = [
   {
     label: "Overview",
-    items: [{ href: "/supplier", label: "Home", icon: "grid" }],
+    items: [{ href: "/supplier", label: "Home", icon: "grid", built: true }],
   },
   {
-    label: "Business",
+    // Open to anyone: no sign-in (founder, 2026-10-06). Words are in src/lib/portal/labels.ts.
+    label: "Open to everyone",
     items: [
-      { href: "/supplier/opportunities", label: "Opportunities", icon: "globe" },
-      { href: "/supplier/bids", label: "My Bids", icon: "inbox" },
-      { href: "/supplier/projects", label: "My Projects", icon: "tools" },
+      { href: "/supplier/opportunities", label: "Opportunities", icon: "globe", built: true },
+      { href: "/supplier/results", label: "Results", icon: "award", built: true },
+      { href: "/supplier/register", label: "Register as a supplier", icon: "building", built: true },
     ],
   },
   {
-    label: "My company",
-    items: [{ href: "/supplier/company", label: "Company", icon: "building" }],
+    // Each of these needs to know who is asking, so it waits for sign-in and says so on its own page.
+    label: "With sign-in",
+    items: [
+      { href: "/supplier/bids", label: "My Bids", icon: "inbox" },
+      { href: "/supplier/projects", label: "My Projects", icon: "tools" },
+      { href: "/supplier/company", label: "Company", icon: "building" },
+    ],
   },
 ];
 

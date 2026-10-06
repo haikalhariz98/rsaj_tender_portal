@@ -1,4 +1,5 @@
 import { NotBuilt } from "@/components/not-built";
+import { BACK_TO_PORTAL, PORTAL_PATH, SIGN_IN_BADGE, SIGN_IN_REASON } from "@/lib/portal/labels";
 
 export default function SupplierProjectsPage() {
   return (
@@ -12,6 +13,9 @@ export default function SupplierProjectsPage() {
         "Variation and adjustment certificates to sign or dispute",
         "Notices: delay causes, defects to rectify, and the statutory declaration at close",
       ]}
+      badgeLabel={SIGN_IN_BADGE.en}
+      back={{ href: PORTAL_PATH.home, label: BACK_TO_PORTAL.en }}
+      reason={{ title: SIGN_IN_BADGE.en, text: SIGN_IN_REASON.en }}
     />
   );
 }
