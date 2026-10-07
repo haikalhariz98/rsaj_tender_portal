@@ -19,6 +19,7 @@ import { awardAuditCreate, awardAuditPair } from "@/lib/award/audit-view";
 import { termsUpdate } from "@/lib/award/terms";
 import { BASELINE_FIELDS, baselineOf, baselineSnapshot, isSumField, ladOnValueChange, prefill, REASON_COLUMN, reasonsOnSave, SUM_FIELD_COLUMN, worksAppendixAmount, type AwardTerms, type BaselineField, type FrozenTender } from "@/lib/award/appendix-baseline";
 import { percentAboveZero } from "@/lib/securities/money";
+import { sulitWriteRefusal } from "@/lib/auth/sulit-store";
 import { icNumberFault } from "@/lib/award/mask";
 import { despatchFaults } from "@/lib/award/distribution";
 import { evaluateAward } from "@/lib/award/evaluate";
@@ -842,6 +843,10 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
   return inAward(actor, id, async (tx, l) => {
     const a = l.award;
     if (!l.org.today) return NO_ZONE;
+    // Phase 3b (FR-AWD-008): the return holds the contractor's identity-card number, which is SULIT. Recording or correcting it writes the number, and an edit that left it out would erase
+    // it, so it is done by someone the number is open to, and the access is logged in this transaction.
+    const closed = await sulitWriteRefusal(tx, actor, { scope: "exercise", exerciseId: a.exerciseId }, ["icNumber"]);
+    if (closed) return { ok: false, message: `Nothing was saved: the identity card number is SULIT and is closed to you. ${closed}` };
     // An accepted award's return may be corrected, with a reason, but never left incomplete.
     const correcting = a.status === "ACCEPTED";
     if (!(a.status === "ISSUED" || correcting) || !a.awardReturn || !a.issuedAt) return { ok: false, message: "The return is recorded once the instrument is issued." };

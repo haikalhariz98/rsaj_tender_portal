@@ -9,6 +9,8 @@ import { STATUS_LABEL, STATUS_ORDER, STATUS_TONE } from "@/lib/requisition/label
 import { listRequisitions, REQUISITIONS_PAGE } from "@/lib/requisition/repo";
 import { SENT_BACK_LABEL } from "@/lib/requisition/sent-back";
 import { requireStaff } from "@/app/_auth/actor";
+import { sulitGates } from "@/app/_auth/sulit";
+import { sulitCell } from "@/components/sulit-cell";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,9 @@ export default async function RequisitionsPage() {
   const actor = await requireStaff();
   const { org, rows, total, counts } = await listRequisitions(actor.organisationId);
 
+  // The department estimate is SULIT: a requisition keeps no list of who is named, so only the organisation-wide permission opens it (undecided until decided).
+  // Judged for each row and logged, as a record's own page would; a withheld cell carries no figure and no sort key.
+  const gates = await sulitGates(actor, rows.map((r) => ({ scope: "requisition" as const, entity: "Requisition", id: r.id, label: r.reference })), ["estimatedValue"]);
   const list: Row[] = rows.map((r) => {
     const erp = r.erpRequisitionNo ?? null;
     const statusText = r.sentBack ? SENT_BACK_LABEL : STATUS_LABEL[r.status];
@@ -38,11 +43,11 @@ export default async function RequisitionsPage() {
       ],
       // A finance-system number finds the requisition, as its own reference does.
       search: [r.title, r.reference, r.erpRequisitionNo, r.erpNoteNo, r.requesterName, r.unitName, r.routeName, statusText].filter(Boolean).join(" "),
-      sortKeys: { value: r.estimatedValue, required: r.dateRequired.getTime(), title: r.title },
+      sortKeys: { ...(gates.get(r.id)?.state === "GRANTED" ? { value: r.estimatedValue } : {}), required: r.dateRequired.getTime(), title: r.title },
       cells: {
         title: { kind: "link", text: r.title, href: `/requisitions/${r.id}`, sub: erp ? `${erp} · ${r.reference}` : r.reference },
         funding: { kind: "text", text: r.routeName ?? "Funding route not set" },
-        value: { kind: "money", value: r.estimatedValue },
+        value: sulitCell(gates.get(r.id)!, () => ({ kind: "money", value: r.estimatedValue })),
         status: { kind: "badge", text: statusText, tone: TONE[statusTone] },
         // Founder, 2026-10-04: who asked, and for which department, in place of the checks
         // column. The budget check stays on the requisition's own Checks tab.

@@ -142,12 +142,13 @@ export const EXPORT_FAULT_TEXT: Record<ExportFault, string> = {
 };
 
 /**
- * Who may take the trail away. The file holds every record's changes, among them the sign-in accounts' (their sign-in names, why codes were issued), which History
- * shows to an administrator only. A filtered file would no longer be the whole range its digest and its record attest, so the whole export is for an administrator
- * (until permissions arrive in Phase 2a, which replaces the flag with a permission).
+ * Who may take the trail away (Phase 3b, ADR 0034 D14: "the audit export needs `audit.read`"). The file holds every record's changes, among them the sign-in accounts' (their
+ * sign-in names, why codes were issued). A filtered file would no longer be the whole range its digest and its record attest, so the whole export is for a holder of the
+ * permission: an administrator holds it as one, and the organisation may grant it to a role (an auditor's). The file carries no SULIT value: a registered field is withheld
+ * from it byte for byte (`SULIT_WITHHELD`), so what leaves is the trail and not the figures.
  */
-export const EXPORT_NOT_ADMINISTRATOR_TEXT = "Only an administrator exports the audit trail: it holds the sign-in accounts' history, which is for administrators.";
+export const EXPORT_NEEDS_AUDIT_READ_TEXT = "Reading and exporting the audit trail needs the permission to read and export it: it holds every change, among them the sign-in accounts' history.";
 
-export const exportMayBeMadeBy = (isAdministrator: boolean): boolean => isAdministrator;
+export const exportMayBeMadeBy = (holdsAuditRead: boolean): boolean => holdsAuditRead;
 
 export const exportFileName = (fromDay: string, toDay: string) => `audit-trail_${fromDay}_to_${toDay}.csv`;

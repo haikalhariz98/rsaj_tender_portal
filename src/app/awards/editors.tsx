@@ -364,7 +364,7 @@ export function ReturnDrawer({ id, loa, values, people, correcting }: { id: stri
     { kind: "date", name: "authorisationReceivedOn", label: "Letter of authorisation received" },
   ];
   const pageFields: Field[] = [
-    { kind: "note", text: "The acceptance page, as the contractor returned it. The identity card number is shown in full only here and on the Return tab; masking elsewhere is not access control until sign-in exists." },
+    { kind: "note", text: "The acceptance page, as the contractor returned it. The identity card number is shown in full only here and on the Return tab; it is SULIT, shown in full to the people entitled to it, and masked everywhere else." },
     { kind: "date", name: "signedLetterReceivedOn", label: "Acceptance page received on" },
     { kind: "text", name: "signatoryName", label: "Contractor's signatory" },
     { kind: "text", name: "icNumber", label: "Identity card number", mono: true, hint: "Twelve digits, with or without the hyphens: 900101-14-5678." },

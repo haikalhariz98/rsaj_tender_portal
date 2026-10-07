@@ -15,11 +15,7 @@ import type { AccessKind, AttachmentPurpose, DisposalMethod, DocumentStatus, Fin
 
 /// Said once on every panel and on the drawer (plan §4). Nothing claims "restricted" or "secure".
 export const ACCESS_STATEMENT =
-  "Stored and listed. Anyone who can reach the portal can open a document that is not SULIT; there is no sign-in to restrict it.";
-
-/// Beside a value that is SULIT by the organisation's own rule but cannot yet be held back
-/// from a reader (6.2 OD-8): there is no sign-in to say who is reading.
-export const VALUE_SULIT_LABEL = "SULIT · not restricted until sign-in";
+  "Stored and listed. A document that is not SULIT opens for signed-in staff who can open the record it hangs on; one restricted to its named people reads as not there to anyone else. A SULIT one opens only for the people that record names and the roles the organisation has chosen. Every download, and every refusal, is logged.";
 
 /// What a fingerprint proves, and what it does not (OD-9).
 export const FINGERPRINT_STATEMENT =
@@ -240,7 +236,7 @@ const RELIANCE_TEXT: Readonly<Record<Reliance, string>> = {
 };
 
 export const DOWNLOAD_REFUSAL_TEXT: Readonly<Record<DownloadRefusal, string>> = {
-  SULIT: "SULIT documents are listed but not opened in the portal until there is sign-in to say who is reading. The request was refused and logged.",
+  SULIT: "This document is SULIT. It is opened only by the people the record it hangs on names and the roles the organisation has chosen, and you are not among them. The request was refused and logged.",
   UNCLASSIFIED: "This document's classification is not set, so it is not opened in the portal. Set its classification first. The request was refused and logged.",
   THREAT: "Malware was found in this file, so it is not opened. The request was refused and logged.",
 };

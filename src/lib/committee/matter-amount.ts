@@ -39,3 +39,15 @@ export const surfaceChipsAmounts = (kinds: "ANY" | readonly MatterKind[]): boole
 
 /// The kinds whose amounts are SULIT or not decided.
 export const SULIT_AMOUNT_KINDS: readonly MatterKind[] = MATTER_KINDS.filter((k) => matterAmountIsSulit(k));
+
+/**
+ * Whose record decides who may read an amount of this kind (Phase 3b): the scope, or null where the amount is not SULIT (an appointment matter's is the awarded value, ruled
+ * not SULIT; a scope, first-stage or supplier matter carries none). A requisition's gate matter carries the department estimate, so the requisition's scope; a contract,
+ * variation or certificate matter carries a figure of the contract; a late tender's figure is a price as read, and a manual matter (no kind) may hold any figure. The three
+ * of them keep no list of who is named, so only the organisation-wide permission opens them, and which of the three they are changes nothing but the name in the log.
+ */
+export function matterAmountScope(kind: MatterKind | null): "requisition" | "contract" | null {
+  if (!matterAmountIsSulit(kind)) return null;
+  if (kind === "CONTRACT" || kind === "VARIATION" || kind === "CERTIFICATE") return "contract";
+  return "requisition";
+}

@@ -1,5 +1,7 @@
 import { cache } from "react";
 
+import { matterAmountScope } from "@/lib/committee/matter-amount";
+import type { MatterKind } from "@/lib/committee/labels";
 import { hiddenDecisionIds } from "@/lib/committee/hidden";
 import { applyDecision, sulitWithheld, type Sulit, type SulitDecision } from "@/lib/auth/sulit-access";
 import {
@@ -129,6 +131,19 @@ export async function sulitGates(actor: StaffActor, subjects: readonly GateSubje
 
 export async function sulitGate(actor: StaffActor, subject: GateSubject, fields: readonly string[]): Promise<Sulit<true>> {
   return (await sulitGates(actor, [subject], fields)).get(subject.id)!;
+}
+
+/**
+ * The reader's standing with each committee matter's amount (Phase 3b). A matter's kind says whose figure its amount is (`matterAmountScope`): null where it is not SULIT
+ * (the awarded value of an appointment), else a requisition's or a contract's, which only the organisation-wide permission opens. The map holds a gate for the matters whose
+ * amount is SULIT and nothing for the others, which are shown as they are; a matter with no amount is not asked about.
+ */
+export async function sulitMatterAmounts(actor: StaffActor, matters: readonly { id: string; label: string; kind: MatterKind | null; hasAmount: boolean }[]): Promise<Map<string, Sulit<true>>> {
+  const asked = matters.flatMap((m) => {
+    const scope = m.hasAmount ? matterAmountScope(m.kind) : null;
+    return scope ? [{ scope, entity: "CommitteeDecision", id: m.id, label: m.label }] : [];
+  });
+  return sulitGates(actor, asked, ["matterAmount"]);
 }
 
 /// `sulitGate` for an exercise (or its evaluation) named by its id: the reference is read for the log. An exercise that is not the organisation's is withheld.

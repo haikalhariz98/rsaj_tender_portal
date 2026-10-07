@@ -53,7 +53,10 @@ describe("a certificate's figures are SULIT (R-7)", () => {
 
   it("the certificate's History chips them", () => {
     const page = read("src/app/projects/[id]/certificates/[certId]/page.tsx");
-    expect(page).toMatch(/isSulitField\(field\) && value \? <SulitValue>/);
+    // Phase 3b, a deliberate change to this test (logged): shown or withheld as the contract's one answer says (`sulitHistoryValue`), never the children form.
+    expect(page).toMatch(/sulitHistoryValue\(field, "contract", sulit, historyValue\(/);
+    expect(page).toMatch(/<SulitValue of=\{held\} \/>/);
+    expect(page).not.toMatch(/<SulitValue>/);
   });
 });
 

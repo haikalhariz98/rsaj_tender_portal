@@ -4,7 +4,6 @@ import { actorField } from "@/lib/auth/actor-field";
 import { ACT_LABEL, matterLabel } from "@/lib/labels";
 import matters from "@/lib/labels.json";
 import { MATTER_KIND_LABEL, MINUTES_EDITOR_DESCRIPTION, SCHEDULE_WORDS, SITTING_TABLED_MATTER_KINDS, sittingTablesDomain, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
-import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 
 import {
   changeStatus,
@@ -293,7 +292,7 @@ export function TableMatter({
           options: SITTING_TABLED_MATTER_KINDS.map((k) => ({ value: k, label: MATTER_KIND_LABEL[k] })),
         },
         { kind: "text", name: "matterRef", label: "Record reference", mono: true },
-        { kind: "money", name: "amount", label: "Amount", hint: `${VALUE_SULIT_LABEL}: a requisition's amount is its department estimate.` },
+        { kind: "money", name: "amount", label: "Amount", hint: "SULIT: a requisition's amount is its department estimate, shown only to those entitled to it, so it is filled in only for them. It may be left blank." },
         {
           kind: "select",
           name: "dependsOnDecisionId",

@@ -152,10 +152,14 @@ export const LIST_KIND_SINGULAR: Readonly<Record<SupplierListKind, Words>> = {
   COUNTRY: w("Country", "Negara"),
 };
 
-/// Condition (2): contacts and scans are readable by anyone at the portal until sign-in.
-export const NOT_RESTRICTED_CHIP = w("Not restricted until sign-in", "Tidak terhad sehingga log masuk");
-/// OD-3 B: the E-Payment form's scan is SULIT at upload and never downloadable before sign-in.
-export const EPAYMENT_SULIT_CHIP = w("SULIT · not downloadable until sign-in", "SULIT · tidak boleh dimuat turun sehingga log masuk");
+/// Condition (2), as Phase 3b closes it: a supplier's contacts and the scans of its papers are SULIT. A supplier keeps no list of who is named on it, so they are read by the
+/// roles the organisation has chosen (`sulit.read.organisation`), and by no one else until it chooses. Every reading and every download is logged.
+export const SCANS_SULIT = w(
+  "Scans are SULIT: they are downloaded by the roles the organisation has chosen, and every download, allowed or refused, is logged.",
+  "Imbasan adalah SULIT: ia dimuat turun oleh peranan yang dipilih oleh organisasi, dan setiap muat turun, dibenarkan atau ditolak, direkodkan.",
+);
+/// OD-3 B: the E-Payment form carries bank details and is SULIT at upload.
+export const EPAYMENT_SULIT = w("The E-Payment form is SULIT at upload, and its downloads are logged.", "Borang E-Payment adalah SULIT semasa dimuat naik, dan muat turunnya direkodkan.");
 export const PAPER_CALLOUT = w(
   "Recorded from the paper application by an officer; the supplier cannot sign in yet.",
   "Direkodkan daripada permohonan bertulis oleh pegawai; pembekal belum boleh log masuk.",

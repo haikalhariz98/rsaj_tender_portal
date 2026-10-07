@@ -31,9 +31,11 @@ describe("the arithmetic variance is SULIT", () => {
     expect(csv).toContain(SULIT_WITHHELD);
     expect(csv).not.toContain("-34.50");
   });
-  it("chipped in History and on the Overview and Formation tab", () => {
-    expect(read("src/app/projects/[id]/page.tsx")).toMatch(/isSulitField\(field\) && value \? <SulitValue>/);
-    expect(read("src/app/projects/[id]/page.tsx")).toMatch(/<SulitValue>\{`\$\{variance < 0n \? "−" : "\+"\}/);
-    expect(read("src/app/projects/[id]/formation-panels.tsx")).toMatch(/Variance against the tendered figures: <SulitValue>/);
+  // Phase 3b, a deliberate change to this test (logged): shown, or withheld, as the contract's one answer says, in History and on both screens. The children form is gone.
+  it("held to the contract's one answer in History and on the Overview and Formation tab", () => {
+    expect(read("src/app/projects/[id]/page.tsx")).toMatch(/sulitHistoryValue\(field, "contract", sulit, read\(field, value, entity\)\)/);
+    expect(read("src/app/projects/[id]/page.tsx")).toMatch(/<SulitValue of=\{through\(sulit, `\$\{variance < 0n \? "−" : "\+"\}/);
+    expect(read("src/app/projects/[id]/formation-panels.tsx")).toMatch(/Variance against the tendered figures: <SulitValue of=\{through\(sulit, /);
+    expect(read("src/app/projects/[id]/page.tsx")).not.toMatch(/<SulitValue>/);
   });
 });

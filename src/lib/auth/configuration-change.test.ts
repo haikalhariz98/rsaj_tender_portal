@@ -190,11 +190,21 @@ describe("who reads the queue of changes (review of Phase 2c)", () => {
 
   it("a person reads the kinds whose permission they hold, and nobody who holds none reads the queue", () => {
     expect(mayReadQueue(held())).toBe(false);
-    expect(mayReadQueue(held("audit.read", "configuration.draft"))).toBe(false);
+    expect(mayReadQueue(held("configuration.draft"))).toBe(false);
     expect(kindsReadBy(held("permissions.grant"))).toEqual(["PERMISSION_GRANT"]);
     expect(kindsReadBy(held("security.policy"))).toEqual(["SECURITY_POLICY"]);
     expect(kindsReadBy(held("accounts.manage"))).toEqual(["ADMINISTRATOR_GRANT", "ADMINISTRATOR_REVOKE", "ACCOUNT_CODE"]);
     expect(mayReadQueue(held("accounts.manage"))).toBe(true);
+  });
+
+  // Phase 3b, the product owner's ruling of 2026-10-07 (the 2c review, item 5; item 8 of the 2026-10-08 rulings): a holder of audit.read reads every change, read-only.
+  // This was "audit.read alone reads nothing" until audit.read was wired; deciding stays with each kind's own permission, so the reader decides none.
+  it("a holder of audit.read reads every kind, and decides none of them", () => {
+    expect(kindsReadBy(held("audit.read"))).toEqual(["SECURITY_POLICY", "PERMISSION_GRANT", "ADMINISTRATOR_GRANT", "ADMINISTRATOR_REVOKE", "ACCOUNT_CODE"]);
+    expect(mayReadQueue(held("audit.read"))).toBe(true);
+    for (const kind of ["SECURITY_POLICY", "PERMISSION_GRANT", "ADMINISTRATOR_GRANT", "ADMINISTRATOR_REVOKE", "ACCOUNT_CODE"] as const) {
+      expect(decisionFaults({ kind, status: "PROPOSED", proposedByPersonId: "maker" }, { personId: "auditor", permissions: new Set<PermissionKey>(["audit.read"]) }).map((f) => f.code)).toContain("NOT_PERMITTED");
+    }
   });
 });
 

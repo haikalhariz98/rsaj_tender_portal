@@ -83,9 +83,10 @@ export const KIND_PERMISSION: Record<ChangeKind, PermissionKey> = {
  * The kinds of change a person may read in the queue (review of Phase 2c): those whose permission they hold. A change names who is being made or unmade an
  * administrator, whose account is getting a code, the settings that keep password guessing out, and the reason, which for a code records how identity was checked,
  * so it is read by those who decide that kind, as the screens of the same settings are (and as History keeps these trails to administrators). A person always
- * reads the changes they proposed themselves.
+ * reads the changes they proposed themselves. A holder of the permission to read the audit trail reads every change, reasons included (they are audit evidence), and decides none: deciding
+ * is by the kind's own permission (Phase 3b, the product owner's ruling of 2026-10-07).
  */
-export const kindsReadBy = (permissions: ReadonlySet<PermissionKey>): ChangeKind[] => CHANGE_KINDS.filter((k) => permissions.has(KIND_PERMISSION[k]));
+export const kindsReadBy = (permissions: ReadonlySet<PermissionKey>): ChangeKind[] => CHANGE_KINDS.filter((k) => permissions.has("audit.read") || permissions.has(KIND_PERMISSION[k]));
 
 /// Whether a person may read the queue at all: they hold the permission of at least one kind.
 export const mayReadQueue = (permissions: ReadonlySet<PermissionKey>): boolean => kindsReadBy(permissions).length > 0;

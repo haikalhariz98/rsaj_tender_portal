@@ -283,6 +283,8 @@ export async function sittingHistory(s: LoadedSitting, hiddenMatters: ReadonlySe
   const entries = rows.map((r) => ({
     id: r.id,
     entity: r.entity,
+    /// The record the row is about, so a screen can judge a SULIT value on it by that record (Phase 3b).
+    entityId: r.entityId,
     entityLabel: r.entityLabel,
     action: r.action,
     at: r.at,

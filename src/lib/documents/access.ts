@@ -1,21 +1,18 @@
 /**
- * Whether a version's bytes are served (OD-2, OD-4).
- *
- * Nobody signs in yet, so the portal cannot say who is reading. Anything served is
- * served to anyone who can reach the portal — so SULIT and unclassified documents are
- * listed but never served, and a direct request is refused and logged. A version found
- * to carry a threat is never served. Verifying a fingerprint reads the bytes but serves
- * nothing, so it is allowed for every version.
+ * Whether a version's bytes are served (OD-2, OD-4; Phase 3b). A version found to carry a threat is never served, and neither is one whose classification is not set.
+ * A SULIT one is served only to a reader who is entitled to it (`entitled`, decided from the record it hangs on by `documentBytesAccess`); a caller that has not asked
+ * the question passes nothing and the answer is a refusal. Anything else is served to signed-in staff who can open the record it hangs on. Verifying a fingerprint reads
+ * the bytes but serves nothing, so it is allowed for every version.
  */
 
 import type { Finding, ScanState, SecurityClass } from "./types";
 
 export type DownloadRefusal = "SULIT" | "UNCLASSIFIED" | "THREAT";
 
-export function downloadDecision(i: { classification: SecurityClass | null; scanState: ScanState }): { allow: true } | { allow: false; reason: DownloadRefusal } {
+export function downloadDecision(i: { classification: SecurityClass | null; scanState: ScanState; entitled?: boolean | null }): { allow: true } | { allow: false; reason: DownloadRefusal } {
   if (i.scanState === "THREAT") return { allow: false, reason: "THREAT" };
   if (i.classification == null) return { allow: false, reason: "UNCLASSIFIED" };
-  if (i.classification === "SULIT") return { allow: false, reason: "SULIT" };
+  if (i.classification === "SULIT" && i.entitled !== true) return { allow: false, reason: "SULIT" };
   return { allow: true };
 }
 

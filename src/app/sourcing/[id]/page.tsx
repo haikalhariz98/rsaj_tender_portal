@@ -123,8 +123,9 @@ import { ScopeWorkspace } from "./scope/workspace";
 import { money, OverviewPanel, pct, tone } from "./overview";
 import type { ReactNode } from "react";
 import { requireStaff } from "@/app/_auth/actor";
-import { exerciseIsHidden, sulitExerciseValue } from "@/app/_auth/sulit";
-import { sulitWithheld, type Sulit } from "@/lib/auth/sulit-access";
+import { exerciseIsHidden, sulitExerciseValue, sulitExerciseGate } from "@/app/_auth/sulit";
+import { fieldIsFor, sulitWithheld, type Sulit } from "@/lib/auth/sulit-access";
+import { sulitHistoryValue } from "@/lib/auth/sulit-history";
 import { estimateCustodyForHistory } from "@/lib/opening/read";
 import { namingOthersRefusal } from "@/lib/auth/sulit-store";
 
@@ -164,6 +165,14 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // (and nothing logged) where no row carries one. An estimate that is void, or none, is not in anyone's custody.
   const custodyRows = history.entries.some((e) => e.changes.some((c) => CUSTODY_FIELDS.has(c.field) && (c.before || c.after)));
   const custody: Sulit<string> | null = custodyRows ? await estimateCustodyForHistory(actor, ex.id) : null;
+  // Any other registered SULIT field in the trail (a price as read, a score, a bill's rate) is judged by the record it belongs to: the exercise's own answer for what an exercise
+  // carries, the evaluation's for what an evaluation carries; asked (and logged) only where a row carries one, and withheld for any other kind of record.
+  const present = new Set(history.entries.flatMap((e) => e.changes.filter((c) => (c.before || c.after) && isSulitField(c.field) && !CUSTODY_FIELDS.has(c.field) && c.field !== "estimatedValue").map((c) => c.field)));
+  const ofScope = (scope: "exercise" | "evaluation") => [...present].filter((f) => fieldIsFor(f, scope));
+  const trailGates: TrailGates = {
+    exercise: ofScope("exercise").length ? await sulitExerciseGate(actor, ex.id, "exercise", ofScope("exercise")) : null,
+    evaluation: ofScope("evaluation").length ? await sulitExerciseGate(actor, ex.id, "evaluation", ofScope("evaluation")) : null,
+  };
   // Naming a person opens the exercise's classified figures to them, so the control is offered only to someone who may use it (`namingRefusal`).
   const namingBlock = await namingOthersRefusal(db, actor, ex.id);
   // Dossier evidence and the scope document, as the document store counts them.
@@ -630,6 +639,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       panel: (
         <HistoryPanel
           estimate={estimate}
+          trailGates={trailGates}
           custody={custody}
           entries={history.entries}
           total={history.total}
@@ -1071,8 +1081,11 @@ const MONEY = new Set(["estimatedValue", "amount", "boundaryValue"]);
 /// The History's fields that carry the disclosed company estimate (an opening's finalising writes both).
 const CUSTODY_FIELDS: ReadonlySet<string> = new Set(["companyEstimate", "estimatePaperCopy"]);
 
+type TrailGates = { exercise: Sulit<true> | null; evaluation: Sulit<true> | null };
+
 function HistoryPanel({
   estimate,
+  trailGates,
   custody,
   entries,
   total,
@@ -1085,6 +1098,8 @@ function HistoryPanel({
   tenderingRouteIds,
   routeDomains,
 }: {
+  /// What the other registered SULIT fields in the trail are judged by (Phase 3b): the exercise's answer, and the evaluation's, each asked only where a row carries one of its fields.
+  trailGates: TrailGates;
   /// The department estimate as this reader may see it: its changes in the trail are shown, or withheld, as the figure is (Phase 3a).
   estimate: Sulit<string>;
   /// The reader's standing with the disclosed company estimate (FR-EST-008), judged as the opening's schedule judges it. Null where no row carries the figure.
@@ -1111,7 +1126,10 @@ function HistoryPanel({
     // The disclosed company estimate and the paper copy's figure are judged by custody, never by the exercise's own access.
     if (CUSTODY_FIELDS.has(field)) return custody && custody.state === "GRANTED" ? <SulitValue of={{ ...custody, value: read(field, value, entityId, entity) }} /> : <SulitValue of={(custody ?? sulitWithheld<ReactNode>("NOT_IN_CUSTODY", "exercise")) as Sulit<ReactNode>} />;
     if (isEstimate) return estimate.state === "GRANTED" ? <SulitValue of={{ ...estimate, value: read(field, value, entityId, entity) }} /> : <SulitValue of={estimate as Sulit<ReactNode>} />;
-    return <SulitValue>{read(field, value, entityId, entity)}</SulitValue>;
+    const scope = fieldIsFor(field, "exercise") ? "exercise" : fieldIsFor(field, "evaluation") ? "evaluation" : null;
+    const gate = scope ? trailGates[scope] : null;
+    // A field that is neither an exercise's nor an evaluation's is not shown on a guess.
+    return <SulitValue of={scope && gate ? sulitHistoryValue(field, scope, gate, read(field, value, entityId, entity))! : sulitWithheld<string>("FIELD_NOT_FOR_THIS_RECORD", "exercise")} />;
   };
   const read = (field: string, value: string | null, entityId: string, entity: string): string => {
     if (value == null || value === "") return "—";

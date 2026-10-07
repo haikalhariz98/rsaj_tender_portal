@@ -15,7 +15,8 @@ import { Field, Input } from "@/components/ui/field";
 import { KeyValues } from "@/components/ui/stat";
 import { Toggle } from "@/components/ui/toggle";
 import { VOTE_LABEL } from "@/lib/committee/labels";
-import { formatDate, formatRM } from "@/lib/format";
+import type { Sulit } from "@/lib/auth/sulit-access";
+import { formatDate } from "@/lib/format";
 
 /**
  * One matter at a sitting: who may vote on it, how each voted, and whether it may be
@@ -58,7 +59,8 @@ export interface PanelMatter {
   /// What of the record the matter concerns, in words, after its reference (a scope
   /// matter's bill version). Null where the reference says it all.
   recordNote?: string | null;
-  amount: number | null;
+  /// The matter's amount, formatted on the server: `text` where it is not SULIT, `sulit` (a `Sulit<string>`, judged for the reader and carrying no figure when withheld) where it is. Null: no amount.
+  amount: { text: string; sulit?: undefined } | { sulit: Sulit<string>; text?: undefined } | null;
   act: string;
   mandatory: boolean;
   outcome: "PENDING" | "CARRIED" | "NOT_CARRIED" | "DEFERRED";
@@ -132,9 +134,8 @@ export function DecisionPanel({
           {matter.subject}
         </span>
         {matter.amount != null && (
-          // A requisition's gate matter is pre-filled from its estimated value, which is SULIT; an amount
-          // on any matter is shown the same way, since the sitting cannot tell them apart.
-          <span className="text-[13.5px] font-semibold text-ink"><SulitValue>{formatRM(matter.amount)}</SulitValue></span>
+          // A requisition's gate matter carries its department estimate, which is SULIT: the kind of matter says whose figure the amount is, and the server has judged it.
+          <span className="text-[13.5px] font-semibold text-ink">{matter.amount.sulit ? <SulitValue of={matter.amount.sulit} /> : matter.amount.text}</span>
         )}
         <Badge tone={OUTCOME_TONE[matter.outcome]} dot>
           {matter.outcomeLabel}

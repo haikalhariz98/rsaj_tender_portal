@@ -48,7 +48,11 @@ import { isFrozen, meetingTransition } from "@/lib/committee/meeting";
 import type { VotingSeat } from "@/lib/committee/sitting";
 import { loadSitting, redactHiddenMatters, sittingHistory, type LoadedSitting } from "@/lib/committee/sittings";
 import { HIDDEN_MATTER_SUBJECT, hiddenDecisionIds } from "@/lib/committee/hidden";
-import { hiddenExercises } from "@/app/_auth/sulit";
+import { hiddenExercises, sulitGate, sulitMatterAmounts } from "@/app/_auth/sulit";
+import { formatRM } from "@/lib/format";
+import { historyAmount } from "@/lib/committee/matter-history";
+import type { MatterKind } from "@/lib/committee/labels";
+import { through, type Sulit } from "@/lib/auth/sulit-access";
 import { tablePrefillFromQuery } from "@/lib/committee/table-prefill";
 import { tablingAmount } from "@/lib/committee/repo";
 import { notLinkedFor } from "@/lib/committee/auto-link-write";
@@ -103,13 +107,18 @@ export default async function SittingPage({
   // server, never carried in the URL (a requisition's is the SULIT department estimate).
   const asked = tablePrefillFromQuery(sp);
   const hidden = await hiddenExercises(actor);
-  const askedAmount = asked ? await tablingAmount(actor.organisationId, asked.source, hidden) : null;
+  // A requisition's gate matter is pre-filled from its department estimate, which is SULIT: the form is told it only if this reader may read it (the matter may be tabled
+  // without an amount, and a gate matter with none is accepted). An award's awarded value is not SULIT.
+  const askedAllowed = asked?.source?.kind === "requisition" ? (await sulitGate(actor, { scope: "requisition", entity: "Requisition", id: asked.source.id, label: "Tabled from its record" }, ["estimatedValue"])).state === "GRANTED" : true;
+  const askedAmount = asked && askedAllowed ? await tablingAmount(actor.organisationId, asked.source, hidden) : null;
   const prefill = asked ? { ...asked.values, ...(askedAmount != null ? { amount: askedAmount } : {}) } : undefined;
   const whole = await loadSitting(actor, id);
   if (!whole) notFound();
   // FR-MTD-007: the matters of an exercise restricted to its named people keep their place on the agenda and lose what names them; the reader is told.
   const hiddenMatters = await hiddenDecisionIds(whole.meeting.decisions.map((d) => d.id), hidden);
   const s = redactHiddenMatters(whole, hiddenMatters);
+  // Each matter's amount is SULIT by its kind (matter-amount.ts): judged for this reader and logged. A matter of a kind whose amount is not SULIT is shown as it is.
+  const matterGates = await sulitMatterAmounts(actor, s.meeting.decisions.map((d) => ({ id: d.id, label: d.subject, kind: (d.matterKind as MatterKind | null) ?? null, hasAmount: !hiddenMatters.has(d.id) })));
 
   const m = s.meeting;
   const c = m.committee;
@@ -243,7 +252,7 @@ export default async function SittingPage({
             label: "Agenda and decisions",
             icon: <FileIcon size={15} />,
             count: m.decisions.length,
-            panel: <AgendaPanel s={s} prefill={prefill} notLinked={notLinked} hiddenMatters={hiddenMatters} />,
+            panel: <AgendaPanel s={s} prefill={prefill} notLinked={notLinked} hiddenMatters={hiddenMatters} matterGates={matterGates} />,
           },
           {
             id: "attendance",
@@ -259,7 +268,7 @@ export default async function SittingPage({
             label: "History",
             icon: <ClockIcon size={15} />,
             count: history.total,
-            panel: <HistoryPanel s={s} entries={history.entries} total={history.total} nameOf={nameOf} />,
+            panel: <HistoryPanel s={s} entries={history.entries} total={history.total} nameOf={nameOf} matterGates={matterGates} />,
           },
         ]}
       />
@@ -301,7 +310,7 @@ function ConfigurationGaps({ s }: { s: LoadedSitting }) {
 
 // ------------------------------------------------------------------ agenda
 
-async function AgendaPanel({ s, prefill, notLinked, hiddenMatters }: { s: LoadedSitting; prefill?: Record<string, string>; notLinked: ReadonlyMap<string, string>; hiddenMatters: ReadonlySet<string> }) {
+async function AgendaPanel({ s, prefill, notLinked, hiddenMatters, matterGates }: { s: LoadedSitting; prefill?: Record<string, string>; notLinked: ReadonlyMap<string, string>; hiddenMatters: ReadonlySet<string>; matterGates: ReadonlyMap<string, Sulit<true>> }) {
   const m = s.meeting;
   // Who tabled each matter and who cast each vote, signed or recorded from paper, is read from the attributions (Phase 2b): the screen never says it by itself.
   const attributed = await loadAttributions(db, s.organisationId, [
@@ -415,7 +424,7 @@ async function AgendaPanel({ s, prefill, notLinked, hiddenMatters }: { s: Loaded
       matterRef: d.matterRef,
       matterHref: d.bqVersion ? `/sourcing/${d.bqVersion.exerciseId}?tab=scope&section=scope` : d.exerciseId ? `/sourcing/${d.exerciseId}` : d.requisitionId ? `/requisitions/${d.requisitionId}` : null,
       recordNote: d.bqVersion ? scopeMatterRecordNote(d.bqVersion) : null,
-      amount: d.amount,
+      amount: d.amount == null ? null : matterGates.has(d.id) ? { sulit: through(matterGates.get(d.id)!, formatRM(d.amount)) } : { text: formatRM(d.amount) },
       act: d.act,
       mandatory: MANDATORY_ACTS.has(d.act),
       outcome: d.outcome,
@@ -760,7 +769,9 @@ function HistoryPanel({
   entries,
   total,
   nameOf,
+  matterGates,
 }: {
+  matterGates: ReadonlyMap<string, Sulit<true>>;
   s: LoadedSitting;
   entries: Awaited<ReturnType<typeof sittingHistory>>["entries"];
   total: number;
@@ -795,9 +806,13 @@ function HistoryPanel({
     if (field === "tabledByPersonId") return nameOf(value);
     return value;
   };
-  // A matter's amount may be a requisition's department estimate (SULIT); the trail cannot tell
-  // one matter's amount from another's, so every amount it shows carries the chip, as on the agenda.
-  const shown = (field: string, value: string | null): ReactNode => (field === "amount" && value ? <SulitValue>{read(field, value)}</SulitValue> : read(field, value));
+  // A matter's amount is SULIT by the matter's kind: the trail shows it as the agenda does, judged for this reader. A change to a matter this sitting no longer holds is not
+  // shown (nothing is shown on a guess); a matter whose amount is not SULIT is shown as it is (see `historyAmount`).
+  const known = new Set(s.meeting.decisions.map((d) => d.id));
+  const shown = (field: string, value: string | null, entityId: string, entity: string): ReactNode => {
+    const amount = value ? historyAmount({ field, entity, entityId, known: known.has(entityId), gate: matterGates.get(entityId) ?? null, text: read(field, value) }) : null;
+    return amount ? (amount.sulit ? <SulitValue of={amount.sulit} /> : amount.text) : read(field, value);
+  };
 
   return (
     <Card className="overflow-hidden">
@@ -832,8 +847,8 @@ function HistoryPanel({
                 <ul className="text-[12.5px] text-ink-3">
                   {shownChanges(e.changes).map((ch) => (
                     <li key={ch.field}>
-                      {fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{shown(ch.field, ch.before)} → </>}
-                      <span className="text-ink-2">{shown(ch.field, ch.after)}</span>
+                      {fieldLabel(ch.field)}: {e.action === "UPDATE" && <>{shown(ch.field, ch.before, e.entityId, e.entity)} → </>}
+                      <span className="text-ink-2">{shown(ch.field, ch.after, e.entityId, e.entity)}</span>
                     </li>
                   ))}
                 </ul>

@@ -33,8 +33,10 @@ describe("an arithmetical correction's figures are SULIT", () => {
     const demo = read("prisma/demo-contracts.ts");
     expect(demo).toMatch(/tenderedLineAmount: x\.tendered, correctedLineAmount: x\.corrected/);
   });
-  it("the Formation tab shows them with the chip", () => {
+  // Phase 3b, a deliberate change to this test (logged): the Formation tab holds them to the contract's one answer, not a chip.
+  it("the Formation tab shows them as the contract's one answer says", () => {
     const panel = read("src/app/projects/[id]/formation-panels.tsx");
-    expect(panel).toMatch(/<SulitValue>\{`\$\{money\(x\.tendered\)\} as tendered → \$\{money\(x\.corrected\)\} corrected`\}<\/SulitValue>/);
+    expect(panel).toMatch(/<SulitValue of=\{through\(sulit, `\$\{money\(x\.tendered\)\} as tendered → \$\{money\(x\.corrected\)\} corrected`\)\} \/>/);
+    expect(panel).not.toMatch(/<SulitValue>/);
   });
 });

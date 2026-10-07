@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { ActAttributionFields } from "@/components/act-attribution-fields";
 import { SaveIcon } from "@/components/icons";
 import type { FormState } from "@/components/record-editor";
-import { Chip } from "@/components/ui/badge";
+import { SulitTag } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
@@ -21,9 +21,9 @@ type Option = { value: string; label: string };
 /**
  * Recording a new supplier from its paper application (FR-VND-001, a1). What was typed is kept on a
  * refused save; every rule is the action's (`applicationFaults`). The contact is the supplier's, never
- * a Person, and readable by anyone until sign-in (condition 2).
+ * a Person, and SULIT: read by the roles the organisation has chosen (condition 2).
  */
-export function ApplicationForm({ entityTypes, countries, channels, formatExample, today, notRestricted, portal }: { entityTypes: Option[]; countries: Option[]; channels: Option[]; formatExample: string | null; today: string | null; notRestricted: string; portal?: { id: string; reference: string; receivedOn: string; initial: Record<string, string> } }) {
+export function ApplicationForm({ entityTypes, countries, channels, formatExample, today, portal }: { entityTypes: Option[]; countries: Option[]; channels: Option[]; formatExample: string | null; today: string | null; portal?: { id: string; reference: string; receivedOn: string; initial: Record<string, string> } }) {
   const [state, setState] = useState<FormState>({ ok: false });
   const [pending, startTransition] = useTransition();
   const [v, setV] = useState<Record<string, string>>(portal?.initial ?? {});
@@ -66,7 +66,7 @@ export function ApplicationForm({ entityTypes, countries, channels, formatExampl
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Primary contact" subtitle="A person at the supplier, as the application names them. Not a user of this portal." actions={<Chip tone="warn">{notRestricted}</Chip>} />
+        <CardHeader title="Primary contact" subtitle="A person at the supplier, as the application names them. Not a user of this portal." actions={<SulitTag />} />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           {text("contactName", "Name", { required: true })}
           {text("contactDesignation", "Designation")}
@@ -96,7 +96,7 @@ export function ApplicationForm({ entityTypes, countries, channels, formatExampl
           {text("receivedOn", "Received on", { required: true, type: "date", hint: "The day it arrived; not after today." })}
           {select("channel", "How it came in", channels, { required: true })}
           {text("declarationSignedOn", "Declaration signed on", { type: "date", hint: "The day on the signed false-declaration and blacklisting declaration. Needed before it is sent for decision." })}
-          {text("epaymentFormReceivedOn", "E-Payment form received on", { type: "date", hint: "Only that it was received: no bank detail is recorded before sign-in. Its scan is SULIT." })}
+          {text("epaymentFormReceivedOn", "E-Payment form received on", { type: "date", hint: "Only that it was received: no bank detail is recorded here. Its scan is SULIT." })}
           <ActAttributionFields spec={actorField("SupplierApplication.recordedBy", { name: "recordedByPersonId", hint: "Recorded by you, from your sign-in." })} errors={state.errors} />
         </CardBody>
       </Card>

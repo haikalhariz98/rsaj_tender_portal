@@ -91,9 +91,6 @@ export const OPENING_STATEMENT = {
   body: "Two officers authorise the opening: each signs in with their password, or has their paper authorisation recorded for them and not signed.",
 } as const;
 
-/// The chip beside every price as read (C-4).
-export const SULIT_PRICE_CHIP = "SULIT · not restricted until sign-in";
-
 /// The benchmark row before disclosure (OD-2 A).
 export const SEALED_UNTIL_FINALISED = "Sealed until the schedule is finalised";
 

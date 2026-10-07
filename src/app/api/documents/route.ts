@@ -54,7 +54,7 @@ async function upload(scope: StaffActor, req: NextRequest, actor: AuditActor) {
   const declaredLength = req.headers.get("content-length");
   const offered = declaredLength && /^\d{1,20}$/.test(declaredLength.trim()) ? BigInt(declaredLength.trim()) : null;
   const refuse = async (status: number, f: Finding, extra: { filename?: string | null; bytes?: bigint | null } = {}) => {
-    await logAccess({ organisationId: org.id, kind: "REFUSED", reasonCode: f.code, offeredFilename: extra.filename ?? null, offeredBytes: extra.bytes ?? offered });
+    await logAccess({ organisationId: org.id, kind: "REFUSED", reasonCode: f.code, offeredFilename: extra.filename ?? null, offeredBytes: extra.bytes ?? offered, actor: scope });
     return refusal(status, f);
   };
 

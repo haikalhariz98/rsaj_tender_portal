@@ -3,6 +3,7 @@ import { FileIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
+import { ownerBytesEntitled } from "@/lib/documents/entitlement";
 import { ownerPanel, uploadContext } from "@/lib/documents/read";
 import type { OwnerRef } from "@/lib/documents/repo";
 import { documentOrg } from "@/lib/documents/service";
@@ -34,8 +35,10 @@ export async function OwnerAttachments({ owner, title, subtitle, collapseWhenEmp
   compact?: boolean;
 } & PanelOptions) {
   // Whose documents: the signed-in person's organisation (ADR 0034 D10). Every page that draws this has already asked who is signed in; the read is cached per request.
-  const { organisationId } = await requireStaff();
-  const [org, panel, upload] = await Promise.all([documentOrg(organisationId), ownerPanel(organisationId, owner), uploadContext(organisationId)]);
+  const actor = await requireStaff();
+  const { organisationId } = actor;
+  const entitled = await ownerBytesEntitled(db, actor, owner.kind, owner.id);
+  const [org, panel, upload] = await Promise.all([documentOrg(organisationId), ownerPanel(organisationId, owner, entitled), uploadContext(organisationId)]);
   if (!panel || !upload) {
     return (
       <EmptyState size="sm" title="Its documents cannot be shown">

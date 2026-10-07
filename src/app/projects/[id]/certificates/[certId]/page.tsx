@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ActedBy } from "@/components/attribution";
 import Link from "next/link";
 import type { CertificateKind } from "@/lib/certificate/types";
@@ -42,7 +43,6 @@ import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { formatSen as formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { paymentFaultWords } from "@/lib/payment/labels";
 import { ratioPercentText } from "@/lib/percent-band";
-import { isSulitField } from "@/lib/sulit-fields";
 import { isSupervisedRule, type SupervisedRule } from "@/lib/supervision/blocks";
 import { loadPostAwardPolicy, supervisedHoldersOn } from "@/lib/supervision/load";
 import { fieldsNamed } from "@/lib/templates/merge";
@@ -69,6 +69,10 @@ const VARIATION_APPROVED_KINDS: readonly string[] = ["VARIATION_APPLICATION", "V
 
 import { AcknowledgeDrawer, CheckDrawer, ChooseRejectionDrawer, CorrectDateDrawer, DecideRouteStepDrawer, DespatchDrawer, FinancePaymentDrawer, OverrideDrawer, ReceivedDrawer, SendForApprovalDrawer, SendForRoutingDrawer, SendToSigningDrawer, SignatureDrawer, VoidDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { sulitGate } from "@/app/_auth/sulit";
+import { sulitHistoryValue } from "@/lib/auth/sulit-history";
+import type { Sulit } from "@/lib/auth/sulit-access";
+import { fieldsOfScope } from "@/lib/sulit-fields";
 import { loadAttributions, stepActed } from "@/lib/auth/attribution-read";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +97,8 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
   const l = await loadCertificate(actor.organisationId, certId);
   if (!l || l.contract.id !== id) notFound();
   const cert = l.cert;
+  // A certificate's override figures and supported-up-to amounts are SULIT (6.14 R-7): its contract keeps no list of who is named, so only the organisation-wide permission opens them (Phase 3b). One answer for the page, logged.
+  const sulit = await sulitGate(actor, { scope: "contract", entity: "Contract", id: l.contract.id, label: l.contract.number }, fieldsOfScope("contract"));
   const certStatusRefused = actStatusFault(certificateAct(cert.kind as CertificateKind, certificatePhase(cert.status as CertificateStatus)), l.contract.status as ContractStatus);
   // Code re-review S-2: the acts' own gates (the void's by S-1's rule), in the acts' words. They wrap the header's acts and
   // the tabs, so every drawer and blocked control on the page says what its act would.
@@ -175,7 +181,7 @@ export default async function CertificatePage(props: PageProps<"/projects/[id]/c
     { id: "routing", label: "Routing sheet", icon: <RouteIcon size={15} />, panel: <RoutingPanel l={l} sheet={sheet} people={peopleOptions} today={today} roles={roles} /> },
     { id: "distribution", label: "Distribution", icon: <InboxIcon size={15} />, count: cert.copies.length, panel: <DistributionPanel l={l} today={today} /> },
     { id: "print", label: "Print", icon: <PrinterIcon size={15} />, panel: <PrintPanel l={l} figures={figures} revision={pinned} form={form} sheet={sheet} /> },
-    { id: "history", label: "History", icon: <ClockIcon size={15} />, count: historyTotal, panel: <HistoryPanel entries={history} total={historyTotal} timeZone={l.org.timeZone} /> },
+    { id: "history", label: "History", icon: <ClockIcon size={15} />, count: historyTotal, panel: <HistoryPanel sulit={sulit} entries={history} total={historyTotal} timeZone={l.org.timeZone} /> },
   ];
 
   const voidBlocker = cert.approvalInstances.some((i) => i.status === "PENDING") ? "Its approval route is still waiting for a decision: refuse it on the route first (Approvals)." : null;
@@ -726,10 +732,13 @@ function PrintedFieldsCard({ title, rows, none, issued = false }: { title: strin
 const ACTION_LABEL = { CREATE: "Created", UPDATE: "Changed", DELETE: "Removed" } as const;
 const ENTITY_LABEL: Record<string, string> = { Certificate: "Certificate", CertificateSignature: "Signature", CertificateOverride: "Override", RoutingCheck: "Routing check", IssuedCopy: "Copy", ApprovalInstance: RECORD_TYPE_WORDS.ApprovalInstance.en, ApprovalStep: RECORD_TYPE_WORDS.ApprovalStep.en, FinancePayment: RECORD_TYPE_WORDS.FinancePayment.en };
 
-/// A SULIT field's value (an override's figures, a supported-up-to amount) shown with the chip (R-7).
-const chipped = (field: string, value: string | null, entity: string) => (isSulitField(field) && value ? <SulitValue>{historyValue(field, value, formatDate, entity)}</SulitValue> : historyValue(field, value, formatDate, entity));
+/// A SULIT field's value (an override's figures, a supported-up-to amount) shown, or withheld, as the contract's one answer says (R-7, Phase 3b).
+const chipped = (sulit: Sulit<true>, field: string, value: string | null, entity: string): ReactNode => {
+  const held = value ? sulitHistoryValue(field, "contract", sulit, historyValue(field, value, formatDate, entity)) : null;
+  return held ? <SulitValue of={held} /> : historyValue(field, value, formatDate, entity);
+};
 
-function HistoryPanel({ entries, total, timeZone }: { entries: { id: string; entity: string; entityLabel: string; action: "CREATE" | "UPDATE" | "DELETE"; at: Date; reason: string; changes: unknown }[]; total: number; timeZone: string | null }) {
+function HistoryPanel({ sulit, entries, total, timeZone }: { sulit: Sulit<true>; entries: { id: string; entity: string; entityLabel: string; action: "CREATE" | "UPDATE" | "DELETE"; at: Date; reason: string; changes: unknown }[]; total: number; timeZone: string | null }) {
   return (
     <Card className="overflow-hidden">
       <CardHeader icon={<CheckIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this certificate. "}Each change names who made it; any from before sign-in is not attributed. Identity-card numbers are masked.`} divided={entries.length === 0} />
@@ -751,8 +760,8 @@ function HistoryPanel({ entries, total, timeZone }: { entries: { id: string; ent
                   .filter((ch) => !/(Code|Key|Id)$/.test(ch.field))
                   .map((ch) => (
                     <li key={ch.field}>
-                      {historyFieldLabel(ch.field, e.entity)}: {(e.action === "UPDATE" || ch.before != null) && <>{chipped(ch.field, ch.before, e.entity)} → </>}
-                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entity)}</span>
+                      {historyFieldLabel(ch.field, e.entity)}: {(e.action === "UPDATE" || ch.before != null) && <>{chipped(sulit, ch.field, ch.before, e.entity)} → </>}
+                      <span className="text-ink-2">{chipped(sulit, ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entity)}</span>
                     </li>
                   ))}
               </ul>

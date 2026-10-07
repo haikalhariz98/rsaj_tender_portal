@@ -651,6 +651,7 @@ model Person {
   configurationChangesDecided  ConfigurationChange[] @relation("ChangeDecidedBy")
   // Phase 3a (ADR 0034 D14): the SULIT values this person was shown or refused.
   sulitAccessEvents            SulitAccessEvent[]
+  documentAccessEvents         DocumentAccessEvent[] @relation("DocumentAccessActor")
 }
 
 /// Who holds an authority office, and when.
@@ -4562,6 +4563,13 @@ model DocumentAccessEvent {
 
   kind       DocumentAccessKind
   reasonCode String             @default("")
+  /// Who asked (Phase 3b, ADR 0034 D14: every download and every refusal carries the actor): a signed-in person with their session and address, or a loader run by its label.
+  /// All null on every row written before sign-in, and on a row for an act no one asked for (a refused upload by a stranger).
+  actorPersonId    String?
+  actorPerson      Person? @relation("DocumentAccessActor", fields: [actorPersonId], references: [id], onDelete: Restrict)
+  actorSystemLabel String?
+  actorSessionId   String?
+  sourceAddress    String?
   /// For a refused upload: the name and size as offered. Never the bytes.
   offeredFilename String?
   offeredBytes    BigInt?

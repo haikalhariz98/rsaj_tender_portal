@@ -1,4 +1,8 @@
-import { hiddenExercises, sulitExerciseValues } from "@/app/_auth/sulit";
+import type { ReactNode } from "react";
+import { hiddenExercises, sulitExerciseValues, sulitGate } from "@/app/_auth/sulit";
+import { sulitHistoryValue } from "@/lib/auth/sulit-history";
+import { through, type Sulit } from "@/lib/auth/sulit-access";
+import { fieldsOfScope } from "@/lib/sulit-fields";
 import Link from "next/link";
 import { MISSING_BUDGET_CODE_TEXT, missingBudgetCode } from "@/lib/requisition/budget-code";
 import { historyEntityLabel } from "@/lib/audit/entity-labels";
@@ -13,7 +17,6 @@ import { EscalateDrawer } from "@/app/approvals/editors";
 import { escalationText } from "@/lib/authority/escalation-labels";
 import { absentOffices } from "@/lib/authority/absence";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
-import { isSulitField } from "@/lib/sulit-fields";
 import { buttonClass, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -147,6 +150,11 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   const today = l.org.today;
   const on = today ? dayToDate(today) : new Date();
 
+  // The department estimate is SULIT (NFR-SEC-002, ADR 0034 D14): a requisition keeps no list of who is named on it, so only the organisation-wide permission opens
+  // it, and it is undecided until the organisation decides. One answer for the page, logged; everything made of the estimate (its lines, the commitment, the
+  // balance it leaves) is held to it.
+  const estimate = await sulitGate(actor, { scope: "requisition", entity: "Requisition", id, label: r.reference }, fieldsOfScope("requisition"));
+  const rm = (text: string) => through(estimate, text);
   // FR-MTD-007: an exercise restricted to its named people is not listed to anyone else.
   const hiddenExerciseIds = await hiddenExercises(actor);
   const [policy, controls, { lookups, formats, costCentres, accountCodes, sites }, roster, delegations, history, everyExercise, methodCount] = await Promise.all([
@@ -465,7 +473,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
           // Founder, 2026-10-05: the reference in the header's own font, and the finance system's
           // number only once one is recorded (no "not recorded" placeholder).
           <span key="ref">{r.erpRequisitionNo ? erpFirst : r.reference}</span>,
-          <SulitValue key="v">{formatRM(num(r.estimatedValue))}</SulitValue>,
+          <SulitValue key="v" of={rm(formatRM(num(r.estimatedValue)))} />,
           `Required by ${formatDate(r.dateRequired)}`,
           route ? route.nameEn : "Funding route not set",
         ]}
@@ -551,6 +559,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
             icon: <ClipboardIcon size={15} />,
             panel: (
               <Overview
+                estimate={estimate}
                 l={l}
                 facts={{
                   department: unitName(r.requestingUnitCode) ?? "Not set",
@@ -596,6 +605,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
             panel: (
               <div className="flex flex-col gap-6">
                 <BudgetPanel
+                estimate={estimate}
                   l={l}
                   unposted={
                     r.origin === "EXTERNAL" && !r.commitmentMovementId
@@ -635,10 +645,12 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
             icon: <RouteIcon size={15} />,
             panel: (
               <ApprovalPanel
+                estimate={estimate}
                 l={l}
                 officeName={(code) => (code ? (roster.offices.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : null)}
                 gates={
                   <GatesCard
+                estimate={estimate}
                     l={l}
                     view={gateView}
                     exerciseBlock={exerciseFault && exerciseFault.code.startsWith("GATE") ? findingText(exerciseFault) : null}
@@ -685,7 +697,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 <CardHeader
                   icon={<GlobeIcon size={17} />}
                   title="Sourcing exercises"
-                  subtitle={approvedRoute && remaining != null ? (sumsShown ? `Approved for ${formatMoney(routedValue(approvedRoute))} · ${formatMoney(inExercises)} in live exercises · ${formatMoney(remaining)} left.` : `Approved for ${formatMoney(routedValue(approvedRoute))}. What is in live exercises and what is left are made of exercise estimates you may not read, so they are not shown.`) : "Opened once the requisition is approved."}
+                  subtitle={approvedRoute && remaining != null ? (sumsShown && estimate.state === "GRANTED" ? `Approved for ${formatMoney(routedValue(approvedRoute))} · ${formatMoney(inExercises)} in live exercises · ${formatMoney(remaining)} left.` : estimate.state === "WITHHELD" ? "Approved. What it was approved for, what is in live exercises and what is left are made of the department estimate, which you may not read, so they are not shown." : `Approved for ${formatMoney(routedValue(approvedRoute))}. What is in live exercises and what is left are made of exercise estimates you may not read, so they are not shown.`) : "Opened once the requisition is approved."}
                   actions={
                     exerciseFault ? (
                       <Blocked label="New exercise" reason={findingText(exerciseFault)} />
@@ -738,6 +750,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
             count: history.total,
             panel: (
               <HistoryPanel
+                estimate={estimate}
                 entries={history.entries}
                 total={history.total}
                 timeZone={l.org.timeZone}
@@ -766,12 +779,14 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
 // ------------------------------------------------------------------ overview
 
 async function Overview({
+  estimate,
   l,
   facts,
   fieldNotes,
   locked,
   endorsement,
 }: {
+  estimate: Sulit<true>;
   l: LoadedRequisition;
   facts: Record<"department" | "section" | "costCentre" | "account" | "site", string>;
   fieldNotes: string[];
@@ -786,6 +801,7 @@ async function Overview({
     today: string | null;
   };
 }) {
+  const rm = (text: string) => through(estimate, text);
   const r = l.req;
   // How each endorsement was recorded, signed or from paper, is read from its attribution (Phase 2b).
   const endorsed = await loadAttributions(db, l.org.id, [{ entity: "RequisitionEndorsement", slot: "person", ids: r.endorsements.map((e) => e.id) }]);
@@ -820,7 +836,7 @@ async function Overview({
               { label: "Site", value: facts.site },
               { label: "Place of delivery", value: r.placeOfDelivery || <span className="text-ink-3">Not set</span> },
               { label: "Date required", value: formatDate(r.dateRequired) },
-              { label: "Estimated value", value: <SulitValue>{formatRM(num(r.estimatedValue))}</SulitValue> },
+              { label: "Estimated value", value: <SulitValue of={rm(formatRM(num(r.estimatedValue)))} /> },
               { label: "Raised on", value: formatDate(r.raisedOn) },
               { label: "Entered", value: r.origin === "EXTERNAL" ? "Received by hand from the finance system" : "Raised in the portal" },
             ]}
@@ -845,7 +861,7 @@ async function Overview({
         <CardHeader
           icon={<ClipboardIcon size={17} />}
           title="Line items"
-          subtitle={linesSubtitle(r.lines.length, lineTotal)}
+          subtitle={estimate.state === "GRANTED" ? linesSubtitle(r.lines.length, lineTotal) : `${r.lines.length} ${r.lines.length === 1 ? "line" : "lines"}. What they come to is the department estimate, which you may not read.`}
         />
         {r.lines.length === 0 ? (
           <EmptyState size="sm" title="No lines">
@@ -877,9 +893,9 @@ async function Overview({
                     </span>
                   </Td>
                   <Td label="Quantity" numeric>{x.quantity == null ? "—" : `${Number(x.quantity.toString())}${x.unit ? ` ${x.unit}` : ""}`}</Td>
-                  <Td label="Unit price" numeric>{x.estimatedUnitPrice == null ? "—" : formatRM(num(x.estimatedUnitPrice))}</Td>
+                  <Td label="Unit price" numeric>{x.estimatedUnitPrice == null ? "—" : <SulitValue of={rm(formatRM(num(x.estimatedUnitPrice)))} />}</Td>
                   <Td label="Amount" numeric className="font-semibold">
-                    {formatRM(num(x.estimatedAmount))}
+                    <SulitValue of={rm(formatRM(num(x.estimatedAmount)))} />
                   </Td>
                 </Tr>
               ))}
@@ -975,12 +991,14 @@ async function Overview({
 // -------------------------------------------------------------------- budget
 
 function BudgetPanel({
+  estimate,
   l,
   controls,
   recheckDays,
   checkAction,
   unposted,
 }: {
+  estimate: Sulit<true>;
   l: LoadedRequisition;
   /// Why a received requisition has no ledger commitment, from the settings in force.
   unposted: UnpostedReason | null;
@@ -989,6 +1007,7 @@ function BudgetPanel({
   controls: { availabilityCheck: string | null; commitOnApproval: boolean | null; budgetCheckSource: string | null };
   recheckDays: number | null;
 }) {
+  const rm = (text: string) => through(estimate, text);
   const r = l.req;
   const c = r.budgetChecks[0] ?? null;
   const identity =
@@ -1068,7 +1087,7 @@ function BudgetPanel({
                   }
                   value={money(c.approvedAccount)}
                 />
-                <Stat variant="inset" size="sm" tone="neutral" label="Projected balance" value={money(c.projectedBalance)} hint={`After ${formatRM(num(c.requestedAmount))}`} />
+                <Stat variant="inset" size="sm" tone="neutral" label="Projected balance" value={<SulitValue of={rm(money(c.projectedBalance))} />} hint={estimate.state === "GRANTED" ? `After ${formatRM(num(c.requestedAmount))}` : "What the requisition would leave is made of the department estimate, which you may not read."} />
               </div>
               <p className="text-[12.5px] text-ink-3">
                 {c.source === "PORTAL_LEDGER"
@@ -1146,6 +1165,7 @@ function BudgetPanel({
 type Step = LoadedRequisition["req"]["approvalInstances"][number]["steps"][number];
 
 async function ApprovalPanel({
+  estimate,
   l,
   gates,
   officeName,
@@ -1159,6 +1179,7 @@ async function ApprovalPanel({
   previewNote,
   previewRefusal,
 }: {
+  estimate: Sulit<true>;
   /// Why this route would be refused at submission: a step only the requester could act for (R1).
   previewRefusal: string | null;
   /// Said on the preview where a newer issue is in force today than on the raised-on day.
@@ -1417,7 +1438,7 @@ async function ApprovalPanel({
       {inst.status === "APPROVED" && inst.checkedAgainstMatrix && (
         <Callout tone={r.commitmentMovementId ? "ok" : "info"} title={r.commitmentMovementId ? "Budget committed on approval" : "No commitment written"}>
           {r.commitmentMovementId
-            ? `A commitment of ${formatRM(num(r.estimatedValue))} was written against the budget code on the day it was approved.`
+            ? (estimate.state === "GRANTED" ? `A commitment of ${formatRM(num(r.estimatedValue))} was written against the budget code on the day it was approved.` : "A commitment was written against the budget code on the day it was approved. Its amount is the department estimate, which you may not read.")
             : {
                 SETTING_NOT_SET: "Commit on approval was not set when it was approved, so no commitment was written.",
                 SETTING_OFF: "Commit on approval is set off, so approval wrote no commitment.",
@@ -1480,11 +1501,13 @@ async function ApprovalPanel({
  * and the outcome is named in the committee's own words (ruling CO-2).
  */
 function GatesCard({
+  estimate,
   l,
   view,
   exerciseBlock,
   tableHref,
 }: {
+  estimate: Sulit<true>;
   l: LoadedRequisition;
   view: NonNullable<Awaited<ReturnType<typeof gatesForRequisition>>>;
   exerciseBlock: string | null;
@@ -1500,7 +1523,7 @@ function GatesCard({
   const actions = (
     <>
       {live && undetermined && <CheckGatesDrawer id={r.id} blocker={l.org.today ? null : transitionFaultText({ code: "TIME_ZONE_UNSET" })} />}
-      {r.status === "APPROVED" && ended && <CloseWithoutSourcingDrawer id={r.id} commitment={r.commitmentMovementId ? formatRM(num(r.estimatedValue)) : null} />}
+      {r.status === "APPROVED" && ended && <CloseWithoutSourcingDrawer id={r.id} commitment={r.commitmentMovementId ? (estimate.state === "GRANTED" ? formatRM(num(r.estimatedValue)) : "its amount (the department estimate, which you may not read)") : null} />}
     </>
   );
   return (
@@ -1727,11 +1750,13 @@ const ACTION_LABEL = { CREATE: "Recorded", UPDATE: "Changed", DELETE: "Withdrawn
 
 
 function HistoryPanel({
+  estimate,
   entries,
   total,
   labelFor,
   timeZone,
 }: {
+  estimate: Sulit<true>;
   entries: Awaited<ReturnType<typeof requisitionHistory>>["entries"];
   total: number;
   timeZone: string | null;
@@ -1740,7 +1765,10 @@ function HistoryPanel({
 }) {
   type Entry = (typeof entries)[number];
   // The department estimate (a registered SULIT field) reads with the SULIT chip in the trail too.
-  const chipped = (field: string, value: string | null, e: Entry) => (isSulitField(field) && value ? <SulitValue>{read(field, value, e)}</SulitValue> : read(field, value, e));
+  const chipped = (field: string, value: string | null, e: Entry): ReactNode => {
+    const sulit = value ? sulitHistoryValue(field, "requisition", estimate, read(field, value, e)) : null;
+    return sulit ? <SulitValue of={sulit} /> : read(field, value, e);
+  };
   const read = (field: string, value: string | null, e: Entry): string => {
     if (value == null || value === "") return "—";
     const named = labelFor(field, value);

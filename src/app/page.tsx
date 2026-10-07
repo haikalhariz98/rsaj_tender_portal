@@ -1,4 +1,5 @@
-import { hiddenExercises } from "@/app/_auth/sulit";
+import { hiddenExercises, sulitGate, sulitGates, sulitMatterAmounts } from "@/app/_auth/sulit";
+import { sulitCell } from "@/components/sulit-cell";
 import { formatMoney } from "@/lib/money";
 import {
   AwardIcon,
@@ -14,7 +15,7 @@ import {
   UsersIcon,
 } from "@/components/icons";
 import { DataList } from "@/components/data-list";
-import { Badge, Dot } from "@/components/ui/badge";
+import { Badge, Dot, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/feedback";
@@ -80,6 +81,11 @@ export default async function Dashboard() {
     );
   }
 
+  // The figures on this page are SULIT (founder, item 26): a matter's amount by what kind of matter it is, a requisition's estimate, and the total of what was approved. Each is
+  // judged for the reader and logged; a figure the reader may not read is "SULIT · withheld" with the reason, in the list, the sort and the total.
+  const matterGates = await sulitMatterAmounts(actor, data.queue.map((q) => ({ id: q.decisionId, label: q.subject, kind: q.matterKind, hasAmount: q.amount != null })));
+  const requisitionGates = await sulitGates(actor, data.requisitions.map((q) => ({ scope: "requisition" as const, entity: "Requisition", id: q.id, label: q.reference })), ["estimatedValue"]);
+  const totalGate = await sulitGate(actor, { scope: "requisition", entity: "Dashboard", id: "value-approved", label: "Value approved" }, ["matterAmount"]);
   const now = new Date();
   // Greet by the name of whoever is signed in, from their session. Nobody signed in: the greeting alone.
   const firstName = actor.personName.split(/\s+/)[0];
@@ -149,7 +155,7 @@ export default async function Dashboard() {
         />
         <Stat
           label="Value approved"
-          value={formatMoney(data.committedSen)}
+          value={totalGate.state === "GRANTED" ? formatMoney(data.committedSen) : <SulitValue of={totalGate} />}
           tone="info"
           icon={<GavelIcon size={17} />}
           hint={`across ${data.decidedCount} decided matters${data.committedWithoutAmount ? ` · ${data.committedWithoutAmount} stated no amount` : ""}`}
@@ -204,7 +210,7 @@ export default async function Dashboard() {
                 search: `${item.subject} ${item.matterRef ?? ""} ${item.committeeName}`,
                 views: item.amount != null ? ["financial"] : [],
                 sortKeys: {
-                  value: item.amount ?? -1,
+                  ...(item.amount == null ? { value: -1 } : matterGates.get(item.decisionId) && matterGates.get(item.decisionId)!.state !== "GRANTED" ? {} : { value: item.amount }),
                   waiting: item.waitingDays,
                   item: item.subject,
                   type: matterLabel(item.domain),
@@ -217,7 +223,7 @@ export default async function Dashboard() {
                     monoSub: true,
                   },
                   type: { kind: "text", text: matterLabel(item.domain), dim: true },
-                  value: { kind: "money", value: item.amount },
+                  value: matterGates.has(item.decisionId) ? sulitCell(matterGates.get(item.decisionId)!, () => ({ kind: "money" as const, value: item.amount })) : { kind: "money", value: item.amount },
                   waiting: { kind: "badge", text: `${item.waitingDays}d` },
                   with: {
                     kind: "link",
@@ -263,7 +269,7 @@ export default async function Dashboard() {
                 cells: {
                   item: { kind: "link", text: q.title, href: `/requisitions/${q.id}`, sub: q.reference },
                   on: q.waitingOn ? { kind: "stack", title: q.waitingOn, sub: q.escalatedFrom ? `escalated from ${q.escalatedFrom}` : undefined } : { kind: "text", text: "No step pending", dim: true },
-                  value: { kind: "money", value: q.estimatedValue },
+                  value: sulitCell(requisitionGates.get(q.id)!, () => ({ kind: "money" as const, value: q.estimatedValue })),
                   waiting: { kind: "badge", text: q.waitingDays == null ? "Not counted" : `${q.waitingDays}d` },
                 },
               }))}

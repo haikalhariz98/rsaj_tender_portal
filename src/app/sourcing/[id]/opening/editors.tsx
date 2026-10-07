@@ -198,7 +198,7 @@ export function WithdrawalFindingDrawer({ exerciseId, openingId, withdrawalId, a
 // ------------------------------------------------------------------ opening an envelope
 
 const offerFields = (): Field[] => [
-  { kind: "money", name: "price", label: "Price as read", required: true, hint: "As read out from the form of tender. SULIT: not restricted until sign-in." },
+  { kind: "money", name: "price", label: "Price as read", required: true, hint: "As read out from the form of tender. SULIT: shown to the people the prices are open to, and every reading is logged." },
   { kind: "number", name: "validityDays", label: "Validity stated (days)", min: 1 },
   { kind: "number", name: "periodValue", label: "Completion period", min: 1 },
   { kind: "select", name: "periodUnit", label: "Unit", placeholder: "Not stated", options: PERIOD_UNITS },

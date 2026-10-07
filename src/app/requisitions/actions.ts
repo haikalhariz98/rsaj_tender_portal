@@ -1,5 +1,6 @@
 "use server";
 
+import { sulitWriteRefusal } from "@/lib/auth/sulit-store";
 import { autoCheck, budgetCheckRefusal } from "@/lib/requisition/auto-check";
 import { MISSING_BUDGET_CODE_TEXT, missingBudgetCode } from "@/lib/requisition/budget-code";
 import { routedValue } from "@/lib/approvals/routed-value";
@@ -312,6 +313,9 @@ export async function editDraft(_prev: FormState, data: FormData): Promise<FormS
 
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (l.req.status !== "DRAFT") return { ok: false, message: `Only a draft can be edited. This one is ${STATUS_LABEL[l.req.status].toLowerCase()}.` };
+    // Phase 3b: an edit changes the department estimate and what is made of it, so whoever may not read it may not change it, and is told why (logged in this transaction).
+    const closed = await sulitWriteRefusal(tx, actor, { scope: "requisition", entity: "Requisition", id, label: l.req.reference }, ["estimatedValue"]);
+    if (closed) return { ok: false, message: `Nothing was saved: the department estimate is SULIT and is closed to you. ${closed}` };
     // The requesting officer is set when the requisition is raised (attributed then): an edit keeps them.
     draft.requestingPersonId = l.req.requestingPersonId;
     if (!l.org.today) return NO_ZONE;

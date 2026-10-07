@@ -34,6 +34,9 @@ export interface Viewer extends OrgScope {
   readonly system?: unknown;
 }
 
+/// A reader the rule can be asked about: one that can be written into the log and carries the permissions it holds. A `StaffActor` is one.
+export type SulitReader = Reader & Pick<StaffActor, "permissions" | "organisationTimeZone">;
+
 /// A reader that can also be written into the log: the viewer with its session and address. A `StaffActor` is one.
 export type Reader = Viewer & Pick<StaffActor, "sessionId" | "sourceAddress"> & { readonly system?: { label: string } };
 
@@ -184,7 +187,7 @@ export async function namingRefusal(client: Tx, actor: StaffActor, exerciseId: s
 export const namingOthersRefusal = (client: Tx, actor: StaffActor, exerciseId: string): Promise<string | null> => namingRefusal(client, actor, exerciseId, ["someone else"]);
 
 /// The state of `sulit.read.organisation` for the actor, for the rule's last step. Held through a role: no read of the explanation is needed.
-export async function organisationPermissionState(client: Tx, actor: StaffActor): Promise<PermissionState> {
+export async function organisationPermissionState(client: Tx, actor: SulitReader): Promise<PermissionState> {
   if (actor.permissions.has("sulit.read.organisation")) return { state: "ROLE", roleCodes: [] };
   if (actor.system) return { state: "UNDECIDED" };
   const { state } = await explainRefusal(client, { organisationId: actor.organisationId, personId: actor.personId, isAdministrator: actor.isAdministrator, timeZone: actor.organisationTimeZone, now: new Date() }, "sulit.read.organisation");
@@ -192,14 +195,14 @@ export async function organisationPermissionState(client: Tx, actor: StaffActor)
 }
 
 /// The decision for a record of one scope, from the facts read for it.
-export function decisionFor(actor: StaffActor, scope: SulitScope, field: string, record: { restricted: boolean; named: ExerciseNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
+export function decisionFor(actor: SulitReader, scope: SulitScope, field: string, record: { restricted: boolean; named: ExerciseNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
   const sulitActor = sulitActorOf(actor);
   const namedAs = namedOn(scope, record.named, sulitActor.personId);
   return { decision: sulitAccess(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission }, field), namedAs };
 }
 
 /// The decision for several fields of one record of one scope (a tab asks once for everything it shows from the record).
-export function decisionForFields(actor: StaffActor, scope: SulitScope, fields: readonly string[], record: { restricted: boolean; named: ExerciseNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
+export function decisionForFields(actor: SulitReader, scope: SulitScope, fields: readonly string[], record: { restricted: boolean; named: ExerciseNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
   const sulitActor = sulitActorOf(actor);
   const namedAs = namedOn(scope, record.named, sulitActor.personId);
   return { decision: sulitAccessAll(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission }, fields), namedAs };
@@ -258,7 +261,7 @@ export type WriteSubject =
   | { scope: "exercise" | "evaluation"; exerciseId: string }
   | { scope: "requisition" | "contract" | "supplier"; entity: string; id: string; label: string };
 
-export async function sulitWriteRefusal(client: Tx, actor: StaffActor, subject: WriteSubject, fields: readonly string[]): Promise<string | null> {
+export async function sulitWriteRefusal(client: Tx, actor: SulitReader, subject: WriteSubject, fields: readonly string[]): Promise<string | null> {
   if (actor.system) return null;
   const permission = await organisationPermissionState(client, actor);
   let decision: SulitDecision;

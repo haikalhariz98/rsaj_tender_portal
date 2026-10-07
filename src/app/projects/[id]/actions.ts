@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
 import type { Prisma } from "@/generated/prisma/client";
+import { sulitWriteRefusal } from "@/lib/auth/sulit-store";
 import { diffFields, snapshotFields, type FieldChange } from "@/lib/audit/diff";
 import { custodyItemLabel, formationCheckLabel, reconciliationLabel } from "@/lib/audit/entity-labels";
 import { writeAudit, type Tx } from "@/lib/audit/record";
@@ -305,6 +306,10 @@ export async function addCorrection(_prev: FormState, data: FormData): Promise<F
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = openCheck(c, checkId);
     if (k.kind !== "ARITHMETIC") return { ok: false, message: "Corrections are recorded on the arithmetic check." };
+    // Phase 3b: the priced working of a contract is SULIT; whoever may not read it may not add to it, and is told why (logged in this transaction).
+    const closed = await sulitWriteRefusal(c.tx, actor, { scope: "contract", entity: "Contract", id: c.l.contract.id, label: c.l.contract.number }, ["tenderedLineAmount", "correctedLineAmount"]);
+    if (closed) return { ok: false, message: `Nothing was saved: this is SULIT and is closed to you. ${closed}` };
+
     const row = await c.tx.arithmeticCorrection.create({ data: { organisationId: c.l.org.id, checkId: k.id, itemRef, description, tendered: senToDecimalString(parseSen(tendered)), corrected: senToDecimalString(parseSen(corrected)), reason, recordedAt: now } });
     // The priced figures are SULIT (6.8's correctedPrice precedent): kept under their registered keys, chipped in History, withheld from the export.
     await audit(c, "ArithmeticCorrection", row.id, `correction ${itemRef}`, "CREATE", diffFields(null, { itemRef, tenderedLineAmount: senToDecimalString(parseSen(tendered)), correctedLineAmount: senToDecimalString(parseSen(corrected)), reason }));
@@ -327,6 +332,10 @@ export async function addRate(_prev: FormState, data: FormData): Promise<FormSta
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = openCheck(c, checkId);
     if (k.kind !== "FRONT_LOADING") return { ok: false, message: "Rates are compared on the front-loading check." };
+    // Phase 3b: the priced working of a contract is SULIT; whoever may not read it may not add to it, and is told why (logged in this transaction).
+    const closed = await sulitWriteRefusal(c.tx, actor, { scope: "contract", entity: "Contract", id: c.l.contract.id, label: c.l.contract.number }, ["estimateRate"]);
+    if (closed) return { ok: false, message: `Nothing was saved: this is SULIT and is closed to you. ${closed}` };
+
     const row = await c.tx.rateComparison.create({ data: { organisationId: c.l.org.id, checkId: k.id, itemRef, description, provisional, tenderedRate: senToDecimalString(parseSen(tenderedRate)), estimateRate: senToDecimalString(parseSen(estimateRate)), recordedAt: now } });
     // The estimate rate is SULIT: it is kept out of the trail, which is exported.
     await audit(c, "RateComparison", row.id, `rate ${itemRef}`, "CREATE", diffFields(null, { itemRef, provisional, tenderedRate: senToDecimalString(parseSen(tenderedRate)) }));

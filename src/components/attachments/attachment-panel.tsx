@@ -21,8 +21,7 @@ import { NewVersionButton, UploadButton, type Notice, type OwnerKey } from "./up
  * row's download, detach and replace decisions arrive from `read.ts` with the words
  * why, and a disabled act shows that reason beside it.
  *
- * The access statement is said once, here: nothing on this panel says a document is
- * restricted or secure, because without sign-in it is neither.
+ * The access statement is said once, here: it says who opens a document that is SULIT, and that every download is logged.
  */
 export function AttachmentPanel({
   title = "Documents",

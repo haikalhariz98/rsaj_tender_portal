@@ -4,9 +4,18 @@ import { dispositionFilename, downloadDecision, filenameFault, MAX_FILENAME_CODE
 import { reclassifyFault, reclassifyKind } from "./classification";
 import { ACCESS_STATEMENT, documentFaultText, DOWNLOAD_REFUSAL_TEXT, SCAN_LABEL } from "./labels";
 
-describe("which bytes are served before sign-in (OD-2, OD-4)", () => {
-  it("SULIT is listed, never served", () => {
+describe("which bytes are served (OD-2, OD-4; Phase 3b: SULIT to the entitled)", () => {
+  // Phase 3b, a deliberate change to this test (logged): "SULIT is listed, never served" was true while nothing could say who was reading. It is served to a reader the record it hangs on
+  // admits (`entitled`), and to no one else, and a caller that has not asked is refused.
+  it("SULIT is served only to an entitled reader; a caller that has not asked, or an unentitled one, is refused", () => {
     expect(downloadDecision({ classification: "SULIT", scanState: "NOT_SCANNED" })).toEqual({ allow: false, reason: "SULIT" });
+    expect(downloadDecision({ classification: "SULIT", scanState: "NOT_SCANNED", entitled: false })).toEqual({ allow: false, reason: "SULIT" });
+    expect(downloadDecision({ classification: "SULIT", scanState: "NOT_SCANNED", entitled: null })).toEqual({ allow: false, reason: "SULIT" });
+    expect(downloadDecision({ classification: "SULIT", scanState: "NOT_SCANNED", entitled: true })).toEqual({ allow: true });
+  });
+  it("entitlement opens nothing that is unclassified or carries a threat", () => {
+    expect(downloadDecision({ classification: null, scanState: "NOT_SCANNED", entitled: true })).toEqual({ allow: false, reason: "UNCLASSIFIED" });
+    expect(downloadDecision({ classification: "SULIT", scanState: "THREAT", entitled: true })).toEqual({ allow: false, reason: "THREAT" });
   });
   it("an unclassified document is not served either", () => {
     expect(downloadDecision({ classification: null, scanState: "NOT_SCANNED" })).toEqual({ allow: false, reason: "UNCLASSIFIED" });
@@ -18,8 +27,10 @@ describe("which bytes are served before sign-in (OD-2, OD-4)", () => {
     expect(downloadDecision({ classification: "PUBLIC", scanState: "NOT_SCANNED" })).toEqual({ allow: true });
     expect(downloadDecision({ classification: "INTERNAL", scanState: "NOT_SCANNED" })).toEqual({ allow: true });
     expect(SCAN_LABEL.NOT_SCANNED).toBe("Not scanned for malware — scanning not built");
-    expect(ACCESS_STATEMENT).toMatch(/no sign-in/);
-    expect(ACCESS_STATEMENT).not.toMatch(/restricted|secure|confidential/i);
+    // Phase 3b: the statement says who opens what and that every download is logged; it still claims nothing it does not do (secure, confidential), and no longer says there is no sign-in.
+    expect(ACCESS_STATEMENT).toMatch(/SULIT/);
+    expect(ACCESS_STATEMENT).toMatch(/logged/);
+    expect(ACCESS_STATEMENT).not.toMatch(/secure|confidential|no sign-in|until sign-in/i);
   });
   it("a refusal says it was logged", () => {
     for (const t of Object.values(DOWNLOAD_REFUSAL_TEXT)) expect(t).toMatch(/refused and logged/);

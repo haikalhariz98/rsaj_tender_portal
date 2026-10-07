@@ -349,6 +349,7 @@ export const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "OneTimeCode.issuedBy": "The issuer of a code is the signed-in actor of an account-administration act, written in the sign-in log and the audit trail.",
   "AuditEntry.actorPerson": "The audit trail itself: it records the actor.",
   "SulitAccessEvent.actorPerson": "The SULIT access log itself (Phase 3a): it records who read or was refused a value, and is append-only.",
+  "DocumentAccessEvent.actorPerson": "The document access log itself (Phase 3b): it records who downloaded, checked or was refused a file, and is append-only for the app login.",
   "ActAttribution.subjectPerson": "The attribution itself.",
   "ActAttribution.recordedByPerson": "The attribution itself.",
   "BqVersion.preparer": "A designation: the officer a bill of quantities is prepared by, named in its header and checked against their qualification when the bill is finalised. Who edited the header is in the audit row, and the version's own acts (saving a line, finalising) are the editor's.",

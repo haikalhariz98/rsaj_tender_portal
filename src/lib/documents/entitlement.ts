@@ -1,0 +1,153 @@
+import type { Tx } from "@/lib/audit/record";
+import { refusalWords, type SulitDecision } from "@/lib/auth/sulit-access";
+import {
+  decisionForFields,
+  exerciseAccessFacts,
+  organisationPermissionState,
+  writeSulitEvents,
+  type SulitEventRow,
+  type SulitReader,
+} from "@/lib/auth/sulit-store";
+import { db } from "@/lib/db";
+import type { SulitScope } from "@/lib/sulit-fields";
+
+import { exerciseOfOwner } from "./hidden";
+import { OWNER_COLUMN, OWNER_KINDS, type OwnerKind } from "./types";
+
+/**
+ * Who may open the bytes of a SULIT document (OD-2, NFR-SEC-001, NFR-AUD-004; Phase 3b). A document is filed once and attached to the records it is evidence for, and a
+ * record's own rule says who may read its SULIT values (`sulitAccess`): so a document is opened by whoever may read one of the records it hangs on, by the scope of
+ * that record. The tender papers of an exercise are read by the people named on the exercise; a contract's statutory declaration, a supplier's scan and a requisition's
+ * papers by the roles the organisation has chosen (`sulit.read.organisation`, undecided until it chooses). An administrator is never entitled, and neither is a loader run.
+ *
+ * A document that hangs on no record is judged as a record that keeps no list of who is named: only the organisation-wide permission opens it.
+ *
+ * Reads and writes the log: every bytes access a request decides is a `SulitAccessEvent` for the record it was judged by, allowed or refused, and `logRead: false` is
+ * for a screen that only needs to know whether to offer the link (listing a document is not opening it).
+ */
+
+/// The record a document's bytes are judged by.
+export interface DocumentSubject {
+  scope: SulitScope;
+  /// Set when the record is an exercise's (the scope is then `exercise` or `evaluation`, judged by who is named on the exercise).
+  exerciseId: string | null;
+  entity: string;
+  id: string;
+  label: string;
+}
+
+/// What each owner kind is, for the log and for the scope that judges it. An exercise's papers (including its award, bill, tender pack and opening) are an exercise’s; an evaluation’s, its own.
+const EVALUATION_OWNERS: readonly OwnerKind[] = ["evaluation", "evaluationMeeting", "evaluationBidder"];
+const SUPPLIER_OWNERS: readonly OwnerKind[] = ["supplierDocument", "supplierApplication", "standingEvent"];
+const CONTRACT_OWNERS: readonly OwnerKind[] = ["contract", "variationInstruction", "delayNotice", "eotClaim"];
+
+const ENTITY_OF: Readonly<Record<OwnerKind, string>> = {
+  meeting: "Meeting",
+  exercise: "SourcingExercise",
+  award: "Award",
+  delegation: "Delegation",
+  specificationPanel: "SpecificationPanel",
+  bqVersion: "BqVersion",
+  tenderPackPart: "TenderPackPart",
+  addendum: "Addendum",
+  bidWithdrawal: "BidWithdrawal",
+  validityExtension: "ValidityExtension",
+  opening: "Opening",
+  evaluation: "Evaluation",
+  evaluationMeeting: "EvaluationMeeting",
+  evaluationBidder: "EvaluationBidder",
+  supplierDocument: "SupplierDocument",
+  supplierApplication: "SupplierApplication",
+  contract: "Contract",
+  variationInstruction: "VariationInstruction",
+  standingEvent: "StandingEvent",
+  delayNotice: "DelayNotice",
+  eotClaim: "EotClaim",
+};
+
+/// The scope that judges an owner of this kind: the pure half of `subjectOfOwner`.
+export function scopeOfOwner(kind: OwnerKind, exerciseId: string | null): SulitScope {
+  if (exerciseId) return EVALUATION_OWNERS.includes(kind) ? "evaluation" : "exercise";
+  if (SUPPLIER_OWNERS.includes(kind)) return "supplier";
+  if (CONTRACT_OWNERS.includes(kind)) return "contract";
+  return "requisition";
+}
+
+/// The record an owner of documents is judged as (read without a lock).
+export async function subjectOfOwner(client: Tx | typeof db, kind: OwnerKind, id: string): Promise<DocumentSubject> {
+  const exerciseId = await exerciseOfOwner(kind, id, client);
+  const scope = scopeOfOwner(kind, exerciseId);
+  if (exerciseId) {
+    const ex = await client.sourcingExercise.findUnique({ where: { id: exerciseId }, select: { reference: true } });
+    return { scope, exerciseId, entity: "SourcingExercise", id: exerciseId, label: ex?.reference ?? "" };
+  }
+  return { scope, exerciseId: null, entity: ENTITY_OF[kind], id, label: ENTITY_OF[kind] };
+}
+
+/// The records a document hangs on (live or past), once each, as the records that judge its bytes.
+export async function subjectsOfDocument(client: Tx | typeof db, documentId: string): Promise<DocumentSubject[]> {
+  const rows = await client.documentAttachment.findMany({ where: { version: { documentId } }, select: Object.fromEntries(OWNER_KINDS.map((k) => [OWNER_COLUMN[k], true])) as Record<string, true> });
+  const seen = new Map<string, { kind: OwnerKind; id: string }>();
+  for (const r of rows as unknown as Record<string, string | null>[]) {
+    for (const k of OWNER_KINDS) {
+      const id = r[OWNER_COLUMN[k]];
+      if (id) seen.set(`${k}:${id}`, { kind: k, id });
+    }
+  }
+  const out = new Map<string, DocumentSubject>();
+  for (const { kind, id } of seen.values()) {
+    const s = await subjectOfOwner(client, kind, id);
+    out.set(`${s.entity}:${s.id}`, s);
+  }
+  if (out.size === 0) {
+    const d = await client.document.findUnique({ where: { id: documentId }, select: { title: true } });
+    return [{ scope: "requisition", exerciseId: null, entity: "Document", id: documentId, label: d?.title ?? "A document" }];
+  }
+  return [...out.values()];
+}
+
+export interface BytesAccess {
+  /// Whether the actor may open the bytes.
+  entitled: boolean;
+  /// The decision that granted, or (all refused) the first refusal, with the record it was for.
+  decision: SulitDecision;
+  /// In words, why it was refused (English), or null.
+  refusal: string | null;
+}
+
+/**
+ * The actor's standing with a SULIT document's bytes: granted if any record it hangs on admits them. Each record judged is written to the access log (unless
+ * `logRead` is false). Judged in the caller’s client, so a download that is refused inside a transaction keeps its row if the transaction commits.
+ */
+export async function documentBytesAccess(client: Tx, actor: SulitReader, documentId: string, opts: { logRead?: boolean } = {}): Promise<BytesAccess> {
+  const subjects = await subjectsOfDocument(client, documentId);
+  const permission = await organisationPermissionState(client, actor);
+  const exerciseFacts = await exerciseAccessFacts(client, actor.organisationId, subjects.flatMap((s) => (s.exerciseId ? [s.exerciseId] : [])));
+  const rows: SulitEventRow[] = [];
+  let first: SulitDecision | null = null;
+  let granted: SulitDecision | null = null;
+  for (const s of subjects) {
+    const f = s.exerciseId ? exerciseFacts.get(s.exerciseId) : null;
+    // A record that is not the organisation’s is not one the actor can be named on.
+    const decision: SulitDecision = s.exerciseId && !f ? { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" } : decisionForFields(actor, s.scope, ["documentBytes"], { restricted: f?.restricted ?? false, named: f?.named ?? null }, permission).decision;
+    rows.push({ scope: s.scope, entity: s.entity, entityId: s.id, entityLabel: s.label, fields: ["documentBytes"], decision });
+    first ??= decision;
+    if (decision.state === "GRANTED") {
+      granted = decision;
+      break;
+    }
+  }
+  if (opts.logRead !== false) await writeSulitEvents(client, actor, rows);
+  const decision = granted ?? first ?? ({ state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" } as SulitDecision);
+  const lastScope = subjects[subjects.length - 1]?.scope ?? "requisition";
+  return { entitled: granted != null, decision, refusal: decision.state === "WITHHELD" ? refusalWords(decision.basis, lastScope).en : null };
+}
+
+/// Whether the actor may open the SULIT bytes of documents attached to this owner: the owner's own record judges (a panel lists many documents of one owner). Nothing is logged: showing a link is not opening a file.
+export async function ownerBytesEntitled(client: Tx, actor: SulitReader, kind: OwnerKind, id: string): Promise<boolean> {
+  const s = await subjectOfOwner(client, kind, id);
+  const permission = await organisationPermissionState(client, actor);
+  const f = s.exerciseId ? (await exerciseAccessFacts(client, actor.organisationId, [s.exerciseId])).get(s.exerciseId) : null;
+  if (s.exerciseId && !f) return false;
+  return decisionForFields(actor, s.scope, ["documentBytes"], { restricted: f?.restricted ?? false, named: f?.named ?? null }, permission).decision.state === "GRANTED";
+}

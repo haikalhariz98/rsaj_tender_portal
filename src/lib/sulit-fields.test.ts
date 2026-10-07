@@ -90,21 +90,24 @@ describe("a History trail shows a registered SULIT field's change with the chip 
     expect(isSulitField("subject")).toBe(false);
   });
   // The trails that show a requisition's or an exercise's department estimate as it changed.
-  // Phase 3a, a deliberate change to this test: the exercise's History no longer chips the estimate with the one form `isSulitField(field) && value ? <SulitValue>`.
-  // The estimate's changes are shown or withheld as the figure is (`estimate`, a `Sulit<string>` judged for this reader, ADR 0034 D14), and any other registered
-  // field keeps the chip until its module rolls out (3b). What still holds for both trails: the History reads the registry, and every value it prints goes
-  // through the chipping reader, never the bare one.
+  // Phase 3a, a deliberate change to this test: the exercise's History no longer chips the estimate with the one form `isSulitField(field) && value ? <SulitValue>`; the estimate's changes
+  // are shown or withheld as the figure is (`estimate`, a `Sulit<string>` judged for this reader, ADR 0034 D14).
+  // Phase 3b, a deliberate change to this test (logged): the children form of `<SulitValue>` is retired. Every other registered field in either trail is judged by the record it
+  // belongs to (`sulitHistoryValue`: the requisition's, the exercise's or the evaluation's own answer) and withheld on a guess. What still holds for both trails: the History reads the
+  // registry, every value it prints goes through the chipping reader, never the bare one, and none is drawn without a judgement.
   for (const file of ["src/app/requisitions/[id]/page.tsx", "src/app/sourcing/[id]/page.tsx"]) {
     it(file, () => {
       const src = readFileSync(join(process.cwd(), file), "utf8");
       const history = src.slice(src.indexOf("function HistoryPanel("));
       if (file.includes("sourcing")) {
-        expect(history, "the exercise's History reads the registry, shows the estimate as the reader may see it, and chips every other registered field").toMatch(/isSulitField\(field\)/);
+        expect(history, "the exercise's History reads the registry, shows the estimate as the reader may see it, and judges every other registered field by its record").toMatch(/isSulitField\(field\)/);
         expect(history).toMatch(/<SulitValue of=\{/);
-        expect(history).toMatch(/return <SulitValue>\{read\(field/);
+        expect(history).toMatch(/sulitHistoryValue\(field, scope, gate, read\(field/);
       } else {
-        expect(history, "the History reads the SULIT registry and chips what it names").toMatch(/isSulitField\(field\) && value \? <SulitValue>/);
+        expect(history, "the requisition's History judges the registry's fields by the requisition's one answer").toMatch(/sulitHistoryValue\(field, "requisition", estimate, read\(field/);
+        expect(history).toMatch(/<SulitValue of=\{sulit\} \/>/);
       }
+      expect(history, "no value is drawn from the children form").not.toMatch(/<SulitValue>/);
       // Every value the trail prints goes through the chipping reader, never the bare one.
       expect(history).not.toMatch(/\{read\(ch\.field/);
       expect(history).toMatch(/\{chipped\(ch\.field/);

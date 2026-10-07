@@ -132,7 +132,8 @@ export async function readOwner(organisationId: string, ref: OwnerRef): Promise<
  * attachment, live and past, with its document, pinned version, the document's latest
  * version and whether the pinned one may be downloaded (and if not, why).
  */
-export async function ownerPanel(organisationId: string, ref: OwnerRef) {
+/// `entitled`: whether the reader may open the SULIT bytes of this owner's documents (`ownerBytesEntitled`, OD-2): a SULIT version's link is offered only to them.
+export async function ownerPanel(organisationId: string, ref: OwnerRef, entitled: boolean) {
   const owner = await readOwner(organisationId, ref);
   if (!owner) return null;
   const rows = await db.documentAttachment.findMany({
@@ -167,7 +168,7 @@ export async function ownerPanel(organisationId: string, ref: OwnerRef) {
     const d = r.version.document;
     const purpose = r.purpose as AttachmentPurpose;
     const offPast = r.detachedAt != null;
-    const decision = downloadDecision({ classification: d.classificationSnapshot, scanState: r.version.scanState });
+    const decision = downloadDecision({ classification: d.classificationSnapshot, scanState: r.version.scanState, entitled });
     const latest = currentVersion(d.versions);
     return {
       attachmentId: r.id,
@@ -190,7 +191,8 @@ export async function ownerPanel(organisationId: string, ref: OwnerRef) {
 }
 
 /// The document drawer: versions, where it is attached, holds, access events and its trail.
-export async function documentDrawer(organisationId: string, documentId: string) {
+/// `entitled`: whether the reader may open the bytes of this document if it is SULIT (`documentBytesAccess`, OD-2).
+export async function documentDrawer(organisationId: string, documentId: string, entitled: boolean) {
   const org = await documentOrg(organisationId);
   if (!org) return null;
   const d = await db.document.findFirst({
@@ -202,7 +204,7 @@ export async function documentDrawer(organisationId: string, documentId: string)
         select: {
           ...versionSelect,
           attachments: { select: { id: true, purpose: true, attachedAt: true, detachedAt: true, detachReason: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, meeting: { select: { reference: true } }, exercise: { select: { reference: true } }, award: { select: { reference: true } }, delegation: { select: { fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } } }, specificationPanel: { select: { exerciseId: true, exercise: { select: { reference: true } } } }, bqVersionId: true, bqVersion: { select: { versionNo: true, exerciseId: true, exercise: { select: { reference: true } } } }, tenderPackPartId: true, tenderPackPart: { select: PACK_PART_FACTS_SELECT }, addendumId: true, addendum: { select: ADDENDUM_FACTS_SELECT }, bidWithdrawalId: true, bidWithdrawal: { select: WITHDRAWAL_FACTS_SELECT }, validityExtensionId: true, validityExtension: { select: EXTENSION_FACTS_SELECT }, openingId: true, opening: { select: OPENING_FACTS_SELECT }, evaluationId: true, evaluation: { select: EVALUATION_FACTS_SELECT }, evaluationMeetingId: true, evaluationMeeting: { select: EVALUATION_MEETING_FACTS_SELECT }, evaluationBidderId: true, evaluationBidder: { select: EVALUATION_BIDDER_FACTS_SELECT }, supplierDocumentId: true, supplierDocument: { select: SUPPLIER_DOCUMENT_FACTS_SELECT }, supplierApplicationId: true, supplierApplication: { select: SUPPLIER_APPLICATION_FACTS_SELECT }, contractId: true, contract: { select: CONTRACT_FACTS_SELECT }, variationInstructionId: true, variationInstruction: { select: VARIATION_INSTRUCTION_FACTS_SELECT }, standingEventId: true, standingEvent: { select: CANCELLATION_OWNER_SELECT }, delayNoticeId: true, delayNotice: { select: DELAY_NOTICE_FACTS_SELECT }, eotClaimId: true, eotClaim: { select: EOT_CLAIM_FACTS_SELECT } } },
-          accessEvents: { orderBy: { at: "desc" }, take: 50, select: { id: true, kind: true, reasonCode: true, at: true } },
+          accessEvents: { orderBy: { at: "desc" }, take: 50, select: { id: true, kind: true, reasonCode: true, at: true, actorSystemLabel: true, actorPerson: { select: { name: true } } } },
         },
       },
       holds: { orderBy: { placedAt: "desc" }, include: { placedBy: { select: { name: true } }, releasedBy: { select: { name: true } } } },
@@ -254,12 +256,12 @@ export async function documentDrawer(organisationId: string, documentId: string)
     createdAt: d.createdAt,
     filedAt: d.filedAt,
     versions: d.versions.map((v) => {
-      const decision = downloadDecision({ classification: d.classificationSnapshot, scanState: v.scanState });
+      const decision = downloadDecision({ classification: d.classificationSnapshot, scanState: v.scanState, entitled });
       return {
         ...v,
         byteSize: v.byteSize.toString(),
         download: decision.allow ? { allowed: true as const, href: `/api/documents/versions/${v.id}` } : { allowed: false as const, reason: DOWNLOAD_REFUSAL_TEXT[decision.reason].replace(/ The request was refused and logged\.$/, "") },
-        accessEvents: v.accessEvents.map((e) => ({ id: e.id, kind: e.kind, at: e.at, reason: accessReasonText(e.reasonCode) })),
+        accessEvents: v.accessEvents.map((e) => ({ id: e.id, kind: e.kind, at: e.at, reason: accessReasonText(e.reasonCode), by: e.actorPerson?.name ?? e.actorSystemLabel ?? null })),
         attachments: v.attachments.map((a) => ({ id: a.id, purpose: a.purpose, attachedAt: a.attachedAt, detachedAt: a.detachedAt, detachReason: a.detachReason, owner: ownerLabel(a), href: hrefOf(a) })),
       };
     }),

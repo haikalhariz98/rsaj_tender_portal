@@ -14,6 +14,7 @@ import { holdFaults, releaseFaults } from "@/lib/documents/hold";
 import { documentFaultText, FINGERPRINT_STATEMENT, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { ownerOf, withLockedOwner, type LockedOwner } from "@/lib/documents/owners";
 import type { OwnerRef } from "@/lib/documents/repo";
+import { documentBytesAccess, ownerBytesEntitled } from "@/lib/documents/entitlement";
 import { attachTargetsOf, documentDrawer, ownerPanel, TARGET_CAP, uploadContext } from "@/lib/documents/read";
 import { documentOrg, lockDocument, lockVersion, LOCKED_VERSION_SELECT, logAccess } from "@/lib/documents/service";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
@@ -317,7 +318,7 @@ export async function verifyVersion(_prev: FormState, data: FormData): Promise<F
   if ("fault" in s) return refuse([{ code: s.fault, level: "block" }]);
   const bytes = await s.store.get(org.id, v.sha256);
   const ok = !!bytes && sha256Hex(bytes) === v.sha256;
-  await logAccess({ organisationId: org.id, kind: ok ? "VERIFIED" : "INTEGRITY_FAILED", reasonCode: ok ? "" : bytes ? "DIGEST_MISMATCH" : "BYTES_MISSING", versionId: v.id });
+  await logAccess({ organisationId: org.id, kind: ok ? "VERIFIED" : "INTEGRITY_FAILED", reasonCode: ok ? "" : bytes ? "DIGEST_MISMATCH" : "BYTES_MISSING", versionId: v.id, actor });
   revalidatePath("/", "layout");
   return ok
     ? { ok: true, message: `The fingerprint matches what was stored. ${FINGERPRINT_STATEMENT}` }
@@ -329,7 +330,8 @@ export async function verifyVersion(_prev: FormState, data: FormData): Promise<F
 /// One document for the drawer, as words and dates. Null when it does not exist.
 export async function loadDocumentDrawer(documentId: string): Promise<DrawerView | null> {
   const actor = await requireStaff();
-  const [org, d] = await Promise.all([documentOrg(actor.organisationId), documentDrawer(actor.organisationId, String(documentId))]);
+  const entitled = (await documentBytesAccess(db, actor, String(documentId), { logRead: false })).entitled;
+  const [org, d] = await Promise.all([documentOrg(actor.organisationId), documentDrawer(actor.organisationId, String(documentId), entitled)]);
   if (!d) return null;
   // FR-MTD-007: a document hanging on an exercise restricted to its named people reads as one that does not exist, and the attempt is logged.
   const under = await hiddenExerciseOfDocument(d.id, await restrictedExercises(actor));
@@ -346,7 +348,8 @@ export async function loadOwnerPanel(ref: OwnerRef, opts: PanelOptions = {}): Pr
   // FR-MTD-007: the documents of an exercise restricted to its named people (or of anything under it) read as nobody's, and the attempt is logged.
   const owning = await exerciseOfOwner(ref.kind, ref.id);
   if (owning && (await exerciseIsHidden(actor, owning))) return null;
-  const [org, panel, upload] = await Promise.all([documentOrg(actor.organisationId), ownerPanel(actor.organisationId, ref), uploadContext(actor.organisationId)]);
+  const entitled = await ownerBytesEntitled(db, actor, ref.kind, ref.id);
+  const [org, panel, upload] = await Promise.all([documentOrg(actor.organisationId), ownerPanel(actor.organisationId, ref, entitled), uploadContext(actor.organisationId)]);
   if (!panel || !upload) return null;
   const acted = await loadAttributions(db, actor.organisationId, panelAttributionQueries(panel));
   return panelView(panel, upload, org?.timeZone ?? null, opts, acted);

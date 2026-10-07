@@ -4,13 +4,12 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
-import { EXPORT_NOT_ADMINISTRATOR_TEXT } from "@/lib/audit/export";
 import { todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 
 import { AuditExportForm } from "./export-form";
-import { requireStaff } from "@/app/_auth/actor";
+import { permissionGate, requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +32,7 @@ export default async function AuditTrailPage() {
     );
   }
   const today = todayIn(new Date(), org.timeZone);
+  const exportGate = await permissionGate(actor, "audit.read");
   const [count, first, exports] = await Promise.all([
     db.auditEntry.count({ where: { organisationId: org.id } }),
     db.auditEntry.findFirst({ where: { organisationId: org.id }, orderBy: { at: "asc" }, select: { at: true } }),
@@ -53,11 +53,11 @@ export default async function AuditTrailPage() {
         <Card>
           <CardHeader icon={<FileIcon size={17} />} title="Export" subtitle="Every entry recorded on the organisation's days chosen, oldest first." />
           <CardBody>
-            {actor.isAdministrator ? (
+            {exportGate.ok ? (
               <AuditExportForm today={today} />
             ) : (
-              <Callout tone="info" title="For an administrator">
-                {EXPORT_NOT_ADMINISTRATOR_TEXT}
+              <Callout tone="info" title="For those who may read and export the trail">
+                {exportGate.message}
               </Callout>
             )}
           </CardBody>

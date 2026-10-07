@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { diffFields } from "@/lib/audit/diff";
 import { actorDisplayName } from "@/lib/audit/actor";
-import { auditCsv, entriesOnDays, EXPORT_FAULT_TEXT, EXPORT_NOT_ADMINISTRATOR_TEXT, exportFault, exportFileName, exportMayBeMadeBy, sha256Hex } from "@/lib/audit/export";
+import { auditCsv, entriesOnDays, EXPORT_FAULT_TEXT, exportFault, exportFileName, sha256Hex } from "@/lib/audit/export";
 import { writeAudit } from "@/lib/audit/record";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { staffForPermission, toAuditActor } from "@/app/_auth/actor";
 
 export interface ExportResult {
   ok: boolean;
@@ -27,11 +27,13 @@ const DAY_MS = 86_400_000;
  * read, the file built and digested, and the export recorded — with its own audit
  * entry — in one transaction, so the record of what was handed over and the file
  * cannot disagree. The file comes back to the browser to save; the portal keeps only
- * its digest. An administrator's act: the trail includes the sign-in accounts' history.
+ * its digest. Needs the permission to read and export the trail: the trail includes the sign-in accounts' history.
  */
 export async function exportAuditTrail(_prev: ExportResult, data: FormData): Promise<ExportResult> {
-  const actor = await requireStaff();
-  if (!exportMayBeMadeBy(actor.isAdministrator)) return { ok: false, message: EXPORT_NOT_ADMINISTRATOR_TEXT };
+  // The permission to read and export the trail (audit.read), judged by the one gate: its refusal says which permission and why it is not held.
+  const gate = await staffForPermission("audit.read");
+  if (!gate.ok) return { ok: false, message: gate.state.message };
+  const actor = gate.actor;
   const fromDay = String(data.get("fromDay") ?? "").trim() || null;
   const toDay = String(data.get("toDay") ?? "").trim() || null;
   const org = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true, timeZone: true } });

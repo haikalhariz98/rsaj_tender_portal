@@ -22,7 +22,7 @@ export function ContactDrawer({ supplierId, contact }: { supplierId: string; con
   return (
     <RecordEditor
       title={contact ? `Edit ${contact.name}` : "Add a contact"}
-      description="A person at the supplier, as the supplier names them: not a user of this portal. Readable by anyone at the portal until sign-in; History and the audit export withhold the details."
+      description="A person at the supplier, as the supplier names them: not a user of this portal. SULIT: shown to the roles the organisation has chosen, and withheld from everyone else, in History and in the audit export too."
       columns={2}
       fields={[
         hidden("supplierId"),
@@ -122,7 +122,7 @@ export function OpenApplicationDrawer({ supplierId, kinds, channels, people, tod
         { kind: "date", name: "receivedOn", label: "Received on", required: true },
         { kind: "select", name: "channel", label: "How it came in", required: true, placeholder: "Choose", options: channels },
         { kind: "date", name: "declarationSignedOn", label: "Declaration signed on" },
-        { kind: "date", name: "epaymentFormReceivedOn", label: "E-Payment form received on", hint: "Only that it was received: no bank detail before sign-in." },
+        { kind: "date", name: "epaymentFormReceivedOn", label: "E-Payment form received on", hint: "Only that it was received: no bank detail is recorded here." },
         actorField("SupplierApplication.recordedBy", { name: "recordedByPersonId", people }),
       ]}
       values={{ supplierId, receivedOn: today }}
@@ -138,7 +138,7 @@ export function PaperDaysDrawer({ applicationId, values }: { applicationId: stri
   return (
     <RecordEditor
       title="Record the paper's days"
-      description="When the signed declaration was signed, and when the paper E-Payment form was received (no bank detail is recorded before sign-in). Their scans are attached below."
+      description="When the signed declaration was signed, and when the paper E-Payment form was received (no bank detail is recorded here). Their scans are attached below."
       fields={[hidden("applicationId"), { kind: "date", name: "declarationSignedOn", label: "Declaration signed on" }, { kind: "date", name: "epaymentFormReceivedOn", label: "E-Payment form received on" }]}
       values={{ applicationId, ...values }}
       action={recordApplicationPaper}

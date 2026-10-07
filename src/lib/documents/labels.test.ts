@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { versionCreated, attached, policyView } from "./audit-view";
-import { accessReasonText, CLASSIFICATION_LABEL, classChoiceText, classificationBadge, documentFaultText, endSentence, plural, withdrawnLine, WITHDRAW_NOTE, formatBytes, mediaLabel, PURPOSE_LABEL, shortFingerprint, STATUS_LABEL, VALUE_SULIT_LABEL } from "./labels";
+import { accessReasonText, CLASSIFICATION_LABEL, classChoiceText, classificationBadge, documentFaultText, endSentence, plural, withdrawnLine, WITHDRAW_NOTE, formatBytes, mediaLabel, PURPOSE_LABEL, shortFingerprint, STATUS_LABEL } from "./labels";
+import { SULIT_COLUMN_WORDS, SULIT_VALUE_WORDS } from "@/lib/sulit-fields";
 import { bytesToMegabytes, megabytesToBytes, policyFaults } from "./policy";
 import { ATTACHMENT_PURPOSES, KNOWN_MEDIA_TYPES, SECURITY_CLASSES } from "./types";
 
@@ -150,8 +151,14 @@ describe("small sentences", () => {
   });
 });
 
-describe("the SULIT chip on a value that is not yet restricted (6.2 OD-8)", () => {
-  it("says it is SULIT and that nothing restricts it until sign-in", () => {
-    expect(VALUE_SULIT_LABEL).toBe("SULIT · not restricted until sign-in");
+// Phase 3b, a deliberate change to this file (logged): the chip that said "SULIT · not restricted until sign-in" is retired with the screens that drew it. What a SULIT value says
+// now is judged for its reader (`Sulit<T>`), and the general sentence beside a lock promises nothing about who the reader is.
+describe("no sentence says a SULIT value is not restricted until sign-in (6.2 OD-8, retired)", () => {
+  it("the general words for a SULIT value and a SULIT column promise no protection and deny none", () => {
+    for (const t of [SULIT_VALUE_WORDS, SULIT_COLUMN_WORDS]) {
+      expect(t).toMatch(/^SULIT\./);
+      expect(t).not.toMatch(/until sign-in|not restricted/);
+      expect(t).toMatch(/entitled/);
+    }
   });
 });

@@ -44,6 +44,8 @@ export interface WaitingEntry {
   reference: string;
   title: string;
   href: string;
+  /// The id of the record the route approves (a requisition, an exercise, a variation, a contract matter), for judging its value by that record (Phase 3b).
+  recordId: string;
   /// The value the route was routed on, in sen as a decimal string; null where it routes on none. SULIT (a requisition's
   /// is the department estimate): registered in SULIT_FIELDS, shown only in a flagged column.
   waitingValue: string | null;
@@ -126,6 +128,7 @@ export async function loadWaiting(organisationId: string, hidden: readonly strin
       reference: r.reference,
       title: r.title,
       href: r.href,
+      recordId: r.route.recordKey.slice(r.route.recordKey.indexOf(":") + 1),
       waitingValue: r.value == null ? null : senFromDecimal(r.value).toString(),
       tabledAt: r.tabling ? "SITTING" : "RECORD",
       tabling: r.tabling ? { ...r.tabling, act: w.act } : null,

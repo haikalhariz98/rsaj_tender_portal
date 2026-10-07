@@ -1,4 +1,4 @@
-import { exerciseIsHidden } from "@/app/_auth/sulit";
+import { exerciseIsHidden, sulitExerciseGate } from "@/app/_auth/sulit";
 import Link from "next/link";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
@@ -107,13 +107,15 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
   const carried = opening.applies ? (evaluation.recommended ? opening.carried.filter((p) => p.id === evaluation.recommended!.party.id) : opening.carried) : null;
   const register = carried ? await partyRegister(carried.map((p) => p.id), org, formatDate) : new Map();
   const bands = isBandSnapshot(ex.bandSnapshot) ? ex.bandSnapshot : null;
+  // The exercise's estimate is SULIT: read by the people named on the exercise and the roles the organisation has chosen, and withheld from the rest with the reason (logged).
+  const estimate = await sulitExerciseGate(actor, ex.id, "exercise", ["estimatedValue"]);
   const facts = [
     { label: "Exercise", value: `${ex.reference} · ${ex.title}` },
     { label: "Method", value: method?.nameEn ?? "A method no longer configured" },
     { label: "Contract type", value: cfg.config.types.find((t) => t.code === ex.contractTypeCode)?.nameEn ?? "Not set" },
     { label: "Band", value: ex.regime ? REGIME_LABEL[ex.regime as Regime] : "Not determined" },
     { label: "Contract terms band", value: bands?.terms.label ?? (ex.termsState === "NONE_IN_REGIME" ? "Not applicable" : "Not set") },
-    { label: "Estimate", value: formatMoney(parseSen(ex.estimatedValue.toString())) },
+    { label: "Estimate", value: estimate.state === "GRANTED" ? formatMoney(parseSen(ex.estimatedValue.toString())) : `SULIT · withheld. ${estimate.words.en}` },
     { label: "Instrument", value: "kind" in instrument ? INSTRUMENT_LABEL[instrument.kind] : "Not set" },
     // 64-C4 (6.4 Q-1 B): the terms open as the frozen tender Appendix states them.
     ...(tender ? [{ label: "Letter's terms", value: `Opened from the tender Appendix (documents version ${tender.packVersion}); a percentage is worked out on the awarded value` }] : []),

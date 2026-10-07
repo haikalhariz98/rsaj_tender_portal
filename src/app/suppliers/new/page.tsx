@@ -7,7 +7,7 @@ import { storedDay } from "@/lib/dates";
 import { flagWords } from "@/lib/portal/queue";
 import { formatDate } from "@/lib/format";
 import { loadPortalApplication } from "@/lib/portal/queue-repo";
-import { CHANNEL_LABEL, NOT_RESTRICTED_CHIP, PAPER_CALLOUT } from "@/lib/suppliers/labels";
+import { CHANNEL_LABEL, PAPER_CALLOUT } from "@/lib/suppliers/labels";
 import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
 import { PAPER_CHANNELS } from "@/lib/suppliers/types";
 
@@ -80,7 +80,6 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
        
         formatExample={cfg.format?.example || null}
         today={org.today}
-        notRestricted={NOT_RESTRICTED_CHIP.en}
         portal={a ? { id: a.id, reference: a.reference, receivedOn: storedDay(a.receivedOn), initial: { registeredName: a.registeredName, registrationNo: a.registrationNo, entityTypeCode: a.entityTypeCode, countryCode: a.countryCode, registeredAddress: a.registeredAddress, companyEmail: a.companyEmail, contactName: a.contactName, contactDesignation: a.contactDesignation, contactEmail: a.contactEmail, contactPhone: a.contactPhone } } : undefined}
       />
     </>

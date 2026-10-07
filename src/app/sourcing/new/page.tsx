@@ -24,7 +24,8 @@ const plainAmount = (sen: bigint) => senToDecimalString(sen).replace(/\.00$/, ""
 
 import { ExerciseForm } from "../exercise-form";
 import { requireStaff } from "@/app/_auth/actor";
-import { hiddenExercises } from "@/app/_auth/sulit";
+import { hiddenExercises, sulitGate, sulitGates } from "@/app/_auth/sulit";
+import { sulitCell } from "@/components/sulit-cell";
 
 export const dynamic = "force-dynamic";
 
@@ -75,21 +76,23 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       const partHidden = q.exercises.some((x) => hidden.includes(x.id));
       return { q, approved, remaining, fault, partHidden };
     }));
+    // The approved value and what is still to source are made of the department estimate, which is SULIT: judged for each requisition, logged (Phase 3b).
+    const gates = await sulitGates(actor, judged.map((x) => ({ scope: "requisition" as const, entity: "Requisition", id: x.q.id, label: x.q.reference })), ["estimatedValue"]);
     // Founder, 2026-10-05: only the requisitions an exercise can be opened on are listed.
     const row = (x: (typeof judged)[number]): Row => ({
       id: x.q.id,
       search: `${x.q.reference} ${x.q.title}`,
       cells: {
         title: { kind: "link", text: x.q.title, href: `/sourcing/new?requisition=${x.q.id}`, sub: x.q.reference },
-        approved: { kind: "text", text: x.approved ? formatMoney(x.approved.value) : "No approved route" },
-        open: { kind: "text", text: x.partHidden ? "Not shown: part is in a restricted exercise" : x.remaining != null ? formatMoney(x.remaining) : "—" },
+        approved: x.approved ? sulitCell(gates.get(x.q.id)!, () => ({ kind: "text" as const, text: formatMoney(x.approved!.value) })) : { kind: "text", text: "No approved route" },
+        open: x.partHidden ? { kind: "text", text: "Not shown: part is in a restricted exercise" } : x.remaining != null ? sulitCell(gates.get(x.q.id)!, () => ({ kind: "text" as const, text: formatMoney(x.remaining!) })) : { kind: "text", text: "—" },
       },
     });
     const open = judged.filter((x) => !x.fault || x.fault.code === "TIME_ZONE_UNSET");
     const columns = (third: string) => [
       { key: "title", label: "Requisition", mobile: "primary" as const },
       { key: "approved", label: "Approved value", width: "150px", sulit: true, mobile: "meta" as const },
-      { key: "open", label: third, width: "240px", mobile: "meta" as const },
+      { key: "open", label: third, width: "240px", sulit: true, mobile: "meta" as const },
     ];
     return (
       <>
@@ -131,6 +134,8 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
   // Where part of the requisition is in an exercise this reader may not see, what is already in other exercises and what is still to source would give
   // its value away: neither is stated or pre-filled (FR-MTD-007). The act still judges the value against every exercise.
   const partHidden = l.req.exercises.some((x) => hidden.includes(x.id));
+  // The approved value is the department estimate's: only a reader it is open to is told it or has it pre-filled (Phase 3b).
+  const estimate = await sulitGate(actor, { scope: "requisition", entity: "Requisition", id: l.req.id, label: l.req.reference }, ["estimatedValue"]);
   const gate = (await gatesForRequisition(l.req.id))?.finding ?? { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const };
   const fault = openFault({ status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!approved, remaining }, { today: org.today, methodsConfigured: options.methods.length > 0, gate });
   return (
@@ -160,10 +165,10 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
             reference: l.req.reference,
             title: l.req.title,
             // Founder, 2026-10-05: said only where part of the requisition is already in another exercise.
-            approved: partHidden ? "Part of this requisition is in an exercise restricted to its named people, so what is left to source is not shown." : approved && remaining != null && remaining < approved.value ? `${formatMoney(approved.value - remaining)} of this requisition is already in other exercises; ${formatMoney(remaining)} is still to source.` : "",
+            approved: estimate.state === "WITHHELD" ? `What the requisition was approved for, and what is left to source, are made of the department estimate, which you may not read. ${estimate.words.en}` : partHidden ? "Part of this requisition is in an exercise restricted to its named people, so what is left to source is not shown." : approved && remaining != null && remaining < approved.value ? `${formatMoney(approved.value - remaining)} of this requisition is already in other exercises; ${formatMoney(remaining)} is still to source.` : "",
           }}
           options={options}
-          initial={{ title: l.req.title, estimatedValue: !partHidden && remaining != null && remaining > 0n ? plainAmount(remaining) : "", contractTypeCode: "" }}
+          initial={{ title: l.req.title, estimatedValue: estimate.state === "GRANTED" && !partHidden && remaining != null && remaining > 0n ? plainAmount(remaining) : "", contractTypeCode: "" }}
           cancelHref={`/requisitions/${l.req.id}?tab=sourcing`}
         />
       )}

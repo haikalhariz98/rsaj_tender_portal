@@ -52,7 +52,9 @@ describe("the contract's History reads a stored value", () => {
     const page = readFileSync(path.join(__dirname, "../../app/projects/[id]/page.tsx"), "utf8");
     expect(page).toContain("historyValue(");
     expect(page).not.toMatch(/\/\^\[A-Z\]\[A-Z_\]\+\$\//);
-    expect(page).toMatch(/isSulitField\(field\) && value \? <SulitValue>/);
+    // Phase 3b, a deliberate change to this test (logged): a registered SULIT field is judged by the contract's one answer (`sulitHistoryValue`), never the children form.
+    expect(page).toMatch(/sulitHistoryValue\(field, "contract", sulit, read\(field, value, entity\)\)/);
+    expect(page).not.toMatch(/<SulitValue>/);
   });
 });
 

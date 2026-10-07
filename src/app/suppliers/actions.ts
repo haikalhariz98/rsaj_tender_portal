@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
+import { sulitWriteRefusal } from "@/lib/auth/sulit-store";
 import type { Prisma } from "@/generated/prisma/client";
 import { closeRejected } from "@/lib/approvals/rejection-store";
 import { diffFields } from "@/lib/audit/diff";
@@ -342,6 +343,12 @@ export async function saveContact(_prev: FormState, data: FormData): Promise<For
   return inSupplier(actor, supplierId, async (tx, l) => {
     const fs = contactFaults(c);
     if (blocking(fs).length) return refusal(fs);
+    // Phase 3b: changing a contact already on record writes SULIT details that the form shows, so it is done by someone they are open to, and the access is logged in this
+    // transaction. Adding one reads nothing back and is not asked.
+    if (contactId) {
+      const closed = await sulitWriteRefusal(tx, actor, { scope: "supplier", entity: "Supplier", id: supplierId, label: l.supplier.reference }, ["contactName", "contactEmail", "contactPhone"]);
+      if (closed) return { ok: false, message: `Nothing was saved: a supplier's contacts are SULIT and are closed to you. ${closed}` };
+    }
     const before = contactId ? await tx.supplierContact.findFirst({ where: { id: contactId, supplierId, retiredOn: null, organisationId: actor.organisationId } }) : null;
     if (contactId && !before) return GONE;
     const words = (x: { name: string; designation: string; email: string; phone: string; isPrimary: boolean } | null) => (x ? { contactName: x.name, contactDesignation: x.designation || null, contactEmail: x.email || null, contactPhone: x.phone || null, primary: x.isPrimary } : null);

@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
+import { SULIT_COLUMN_WORDS } from "@/lib/sulit-fields";
 
 import { canExport, DataList, exportColumns, hasRowAction, type Column, type Row } from "./data-list";
 
@@ -31,11 +31,12 @@ describe("a SULIT column and the list's export", () => {
     expect(html([{ key: "value", label: "Value", sulit: true }])).not.toMatch(/CSV/);
   });
   it("the header carries the SULIT lock with the whole sentence in its tooltip and to a screen reader", () => {
-    // Founder, 2026-10-04: a lock beside the column name replaces the "SULIT" chip. The mark stays:
-    // the whole sentence (classified, not yet restricted) is both the tooltip and the sr-only text.
+    // Founder, 2026-10-04: a lock beside the column name replaces the "SULIT" chip. The mark stays: the whole sentence is both the tooltip and the sr-only text.
+    // Phase 3b (a deliberate change to this test, logged): the sentence no longer says "not restricted until sign-in"; cells are judged for the reader, and it says who sees them.
     const out = html(flagged);
-    expect(out).toContain(`title="${VALUE_SULIT_LABEL}"`);
-    expect(out).toContain(`<span class="sr-only">${VALUE_SULIT_LABEL}</span>`);
+    expect(out).toContain(`title="${SULIT_COLUMN_WORDS}"`);
+    expect(out).toContain(`<span class="sr-only">${SULIT_COLUMN_WORDS}</span>`);
+    expect(SULIT_COLUMN_WORDS).not.toMatch(/until sign-in|not restricted/);
     expect(html(plain)).not.toContain("SULIT");
   });
   it("every flagged column among many is left out, and only those", () => {

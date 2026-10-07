@@ -1,4 +1,5 @@
-import { exerciseIsHidden } from "@/app/_auth/sulit";
+import { exerciseIsHidden, sulitExerciseGate } from "@/app/_auth/sulit";
+import { through, type Sulit } from "@/lib/auth/sulit-access";
 import { actStatusFault } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import Link from "next/link";
@@ -14,7 +15,7 @@ import { Tabs } from "@/components/tabs";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { escalationText } from "@/lib/authority/escalation-labels";
-import { Badge, Chip } from "@/components/ui/badge";
+import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { recommendationDifferences } from "@/lib/evaluation/award-gate";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -295,6 +296,9 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
       </span>
     ) : null;
 
+  // The exercise's estimate and the contractor's identity-card number are SULIT (NFR-SEC-002, FR-AWD-008): the award is an exercise's, so those named on the exercise and the roles
+  // the organisation has chosen read them. One answer for the page, logged.
+  const sulit = await sulitExerciseGate(actor, award.exerciseId, "exercise", ["estimatedValue", "icNumber"]);
   // ------------------------------------------------------------------- the tabs
   const ret: ReturnRecord | null = award.awardReturn
     ? {
@@ -320,7 +324,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const policies = award.contract?.policies ?? [];
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} ev={ev} awardee={awardee} recommendation={f.facts.exercise.evaluation?.facts.issued ?? null} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} /> },
+    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel sulit={sulit} l={l} ev={ev} awardee={awardee} recommendation={f.facts.exercise.evaluation?.facts.issued ?? null} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} /> },
     {
       id: "approval",
       label: "Approval",
@@ -334,7 +338,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
       icon: <InboxIcon size={15} />,
       panel: <DistributionPanel l={l} ev={ev} />,
     },
-    { id: "return", label: "Return", icon: <ClipboardIcon size={15} />, panel: <ReturnPanel l={l} ret={ret} people={people} /> },
+    { id: "return", label: "Return", icon: <ClipboardIcon size={15} />, panel: <ReturnPanel sulit={sulit} l={l} ret={ret} people={people} /> },
     {
       id: "conditions",
       label: "Conditions",
@@ -500,7 +504,7 @@ function tenderInsurance(b: NonNullable<AwardEvaluation["appendix"]>["baseline"]
   ];
 }
 
-function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, policyLabel, validityDays, expiredRule, unitName }: { l: LoadedAward; ev: AwardEvaluation; awardee: AwardStanding | null; recommendation: { price: bigint; period: { value: number; unit: "DAYS" | "WEEKS" | "MONTHS" } | null } | null; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: boolean; unitName: (code: string | null) => string | null }) {
+function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodName, typeName, policyLabel, validityDays, expiredRule, unitName }: { sulit: Sulit<true>; l: LoadedAward; ev: AwardEvaluation; awardee: AwardStanding | null; recommendation: { price: bigint; period: { value: number; unit: "DAYS" | "WEEKS" | "MONTHS" } | null } | null; methodName: string; typeName: string; policyLabel: string | null; validityDays: number | null; expiredRule: boolean; unitName: (code: string | null) => string | null }) {
   const { award, ex, req } = l;
   const kind = award.instrumentKind as InstrumentKind;
   const c = award.contract;
@@ -529,7 +533,7 @@ function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, p
               // 6.15a fix S-3: its standing, as the register derives it today; a barred supplier is warned of, not refused.
               ...(award.vendor ? [{ label: "Standing on the register", value: awardee ? <span className="flex flex-col items-start gap-1"><Badge tone={awardee.tone} dot>{awardee.words.en}</Badge>{awardee.warning && <span className="text-[12.5px] break-words text-amber-900">{awardee.warning.en}</span>}</span> : notSet("Not read: the organisation's time zone is not set") }] : []),
               { label: "Awarded value", value: <FromRecommendation differs={differs.includes("value")} reason={award.recValueDiffersReason} recommended={recommendation ? formatMoney(recommendation.price) : null}><span className="tabular-nums">{money(award.awardedValue)}</span></FromRecommendation> },
-              { label: "Exercise's estimate", value: <span className="tabular-nums">{money(ex.estimatedValue)}</span> },
+              { label: "Exercise's estimate", value: <SulitValue of={through(sulit, money(ex.estimatedValue))} /> },
               { label: "Completion period", value: <FromRecommendation differs={differs.includes("period")} reason={award.recPeriodDiffersReason} recommended={recommendation?.period ? periodText(recommendation.period.value, recommendation.period.unit) : recommendation ? "No period stated" : null}>{periodText(award.completionPeriod, award.completionUnit)}</FromRecommendation> },
               { label: "Stated start date", value: award.startDate ? formatDate(award.startDate) : notSet() },
               { label: "Completion", value: ev.completion ? formatDate(ev.completion) : notSet("Not known until the start date is set") },
@@ -1036,13 +1040,13 @@ function DistributionPanel({ l, ev }: { l: LoadedAward; ev: AwardEvaluation }) {
 
 // -------------------------------------------------------------------- return
 
-function ReturnPanel({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
+function ReturnPanel({ sulit, l, ret, people }: { sulit: Sulit<true>; l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
   const { award } = l;
   // OD-5: the return counts with its scans, except for an award accepted before they were required.
   const scansAreRequired = scansRequired(award.status, award.returnScanSnapshot != null);
   return (
     <div className="flex flex-col gap-6">
-      <ReturnRecordCard l={l} ret={ret} people={people} />
+      <ReturnRecordCard sulit={sulit} l={l} ret={ret} people={people} />
       <OwnerAttachments
         owner={{ kind: "award", id: award.id }}
         title="Scans of what came back"
@@ -1055,7 +1059,7 @@ function ReturnPanel({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | n
   );
 }
 
-async function ReturnRecordCard({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
+async function ReturnRecordCard({ sulit, l, ret, people }: { sulit: Sulit<true>; l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
   const { award } = l;
   const returnIndex = await loadAttributions(db, l.org.id, [{ entity: "AwardReturn", slot: "receivedBy", ids: award.awardReturn ? [award.awardReturn.id] : [] }]);
   const loa = award.instrumentKind === "LETTER_OF_ACCEPTANCE";
@@ -1081,7 +1085,7 @@ async function ReturnRecordCard({ l, ret, people }: { l: LoadedAward; ret: Retur
         icon={<ClipboardIcon size={17} />}
         title={loa ? "What came back (integrity pact, second stage)" : "The acceptance page"}
         subtitle={loa ? (state.complete ? "All three documents are back." : `Still to come: ${state.missing.map((m) => RETURN_ITEM_LABEL[m]).join(", ")}.`) : page.length === 0 ? "Every field is recorded." : `Still to record: ${page.map((x) => ACCEPTANCE_FAULT_LABEL[x]).join(", ")}.`}
-        actions={award.status === "ISSUED" || award.status === "ACCEPTED" ? <ReturnDrawer id={award.id} loa={loa} people={people} correcting={award.status === "ACCEPTED"} values={{ ...ret, contractorSigned: yesNo(ret.contractorSigned), stampAffixed: yesNo(ret.stampAffixed), witnessSigned: yesNo(ret.witnessSigned), receivedByPersonId: r.receivedByPersonId, whereHeld: r.whereHeld }} /> : undefined}
+        actions={(award.status === "ISSUED" || award.status === "ACCEPTED") && sulit.state === "GRANTED" ? <ReturnDrawer id={award.id} loa={loa} people={people} correcting={award.status === "ACCEPTED"} values={{ ...ret, contractorSigned: yesNo(ret.contractorSigned), stampAffixed: yesNo(ret.stampAffixed), witnessSigned: yesNo(ret.witnessSigned), receivedByPersonId: r.receivedByPersonId, whereHeld: r.whereHeld }} /> : undefined}
       />
       <CardBody className="flex flex-col gap-5">
         {loa ? (
@@ -1095,13 +1099,13 @@ async function ReturnRecordCard({ l, ret, people }: { l: LoadedAward; ret: Retur
           />
         ) : (
           <>
-            <Callout tone="info">The identity card number is shown in full here only; everywhere else it is masked. Masking is not access control: who may see the number is enforced once sign-in exists.</Callout>
+            <Callout tone="info">The identity card number is SULIT. It is shown in full here, and only to the people entitled to it; everywhere else it is masked. {sulit.state === "WITHHELD" ? `It is withheld from you, so the return cannot be recorded or corrected by you: recording it would write the number. ${sulit.words.en}` : ""}</Callout>
             <KeyValues
               columns={2}
               items={[
                 { label: "Acceptance page received", value: ret.signedLetterReceivedOn ? `Received ${formatDate(ret.signedLetterReceivedOn)}` : notSet("Not received") },
                 { label: "Contractor's signatory", value: ret.signatoryName || notSet("Not recorded") },
-                { label: "Identity card number", value: ret.icNumber ? <span className="font-mono text-[13px]">{ret.icNumber}</span> : notSet("Not recorded") },
+                { label: "Identity card number", value: ret.icNumber ? <span className="font-mono text-[13px]"><SulitValue of={through(sulit, ret.icNumber)} /></span> : notSet("Not recorded") },
                 { label: "Occupation", value: ret.occupation || notSet("Not recorded") },
                 { label: "Address", value: ret.address || notSet("Not recorded") },
                 { label: "Signed in the capacity of", value: ret.capacity || notSet("Not recorded") },

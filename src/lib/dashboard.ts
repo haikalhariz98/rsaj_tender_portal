@@ -5,6 +5,7 @@ import { todayIn } from "@/lib/dates";
 import { EXERCISE_STATUS_ORDER } from "@/lib/method/labels";
 import type { ExerciseStatus } from "@/lib/method/types";
 import { exerciseNotHidden } from "@/lib/auth/sulit-store";
+import type { MatterKind } from "@/lib/committee/labels";
 import { hiddenDecisionIds } from "@/lib/committee/hidden";
 import { db } from "@/lib/db";
 import type { FieldChange } from "@/lib/audit/diff";
@@ -22,6 +23,8 @@ export interface QueueItem {
   matterRef: string | null;
   domain: string;
   amount: number | null;
+  /// What kind of matter it is, which says whose figure its amount is (`matterAmountScope`).
+  matterKind: MatterKind | null;
   act: string;
   meetingReference: string;
   meetingDate: Date;
@@ -90,6 +93,7 @@ export async function loadDashboard(organisationId: string, hidden: readonly str
       matterRef: d.matterRef,
       domain: d.domain,
       amount: num(d.amount),
+      matterKind: (d.matterKind as MatterKind | null) ?? null,
       act: d.act,
       meetingReference: d.meeting.reference,
       meetingDate: d.meeting.meetingDate,

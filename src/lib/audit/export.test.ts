@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { actorDisplayName } from "./actor";
-import { auditCsv, entriesOnDays, EXPORT_NOT_ADMINISTRATOR_TEXT, exportFault, exportMayBeMadeBy, recordTypeLabel, sha256Hex, type ExportRow } from "./export";
+import { auditCsv, entriesOnDays, EXPORT_NEEDS_AUDIT_READ_TEXT, exportFault, exportMayBeMadeBy, recordTypeLabel, sha256Hex, type ExportRow } from "./export";
 
 const row = (id: string, at: string, over: Partial<ExportRow> = {}): ExportRow => ({
   id,
@@ -61,10 +61,12 @@ describe("the audit export (FR-APR-015)", () => {
     expect(lines.filter((l) => l.includes("no longer on record"))).toHaveLength(1);
   });
 
-  it("is for an administrator: the trail holds the sign-in accounts' history, which History shows to administrators only", () => {
+  // Phase 3b, a deliberate change to this test (with a decisions-log line): the export is for a holder of audit.read, which an administrator holds as one and which the organisation may
+  // grant to a role, not for the administrator flag alone (ADR 0034 D14: "the audit export needs audit.read").
+  it("is for a holder of the permission to read and export the trail: the trail holds the sign-in accounts' history", () => {
     expect(exportMayBeMadeBy(true)).toBe(true);
     expect(exportMayBeMadeBy(false)).toBe(false);
-    expect(EXPORT_NOT_ADMINISTRATOR_TEXT).toMatch(/administrator/);
+    expect(EXPORT_NEEDS_AUDIT_READ_TEXT).toMatch(/permission/);
   });
 
   it("takes the organisation's day, not UTC's: 23:30 UTC on 30 September is 1 October in Kuala Lumpur", () => {

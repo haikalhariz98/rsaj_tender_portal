@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker, actStatusText } from "@/lib/contract/act-status";
@@ -33,7 +34,10 @@ import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
-import { isSulitField } from "@/lib/sulit-fields";
+import { fieldsOfScope } from "@/lib/sulit-fields";
+import { sulitGate } from "@/app/_auth/sulit";
+import { sulitHistoryValue } from "@/lib/auth/sulit-history";
+import { through, type Sulit } from "@/lib/auth/sulit-access";
 
 import { BaselinePanel } from "./baseline-panel";
 import { DocumentsPanel } from "./documents-panel";
@@ -63,6 +67,9 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
   const l = await loadContract(actor.organisationId, id);
   if (!l) notFound();
   const c = l.contract;
+  // The contract's priced working (the arithmetic corrections, the estimate rates a tendered rate is set against, the figures a certificate's override trail names) is SULIT; a
+  // contract keeps no list of who is named on it, so only the organisation-wide permission opens it (undecided until decided). One answer for the page, logged.
+  const sulit = await sulitGate(actor, { scope: "contract", entity: "Contract", id: c.id, label: c.number }, fieldsOfScope("contract"));
   const status = c.status as ContractStatus;
   const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
   const [people, history, facts, certificates, supervision] = await Promise.all([
@@ -86,14 +93,14 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
   const pageNo = Math.max(0, Number.parseInt(page ?? "0", 10) || 0);
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel l={l} facts={facts} today={today} supervision={supervision} payments={payments} variations={variations} /> },
+    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel sulit={sulit} l={l} facts={facts} today={today} supervision={supervision} payments={payments} variations={variations} /> },
     {
       id: "formation",
       label: "Formation",
       icon: <ToolsIcon size={15} />,
       sections: [...FORMATION_SECTIONS],
       section: formationSection,
-      panel: tab === "formation" && facts ? <FormationPanel l={l} section={formationSection} facts={facts} people={peopleOptions} today={today} /> : null,
+      panel: tab === "formation" && facts ? <FormationPanel sulit={sulit} l={l} section={formationSection} facts={facts} people={peopleOptions} today={today} /> : null,
     },
     { id: "baseline", label: "Baseline", icon: <FileIcon size={15} />, count: c.baselines.filter((b) => b.version != null).length, lazy: true, panel: tab === "baseline" && facts ? <BaselinePanel l={l} facts={facts} timeZone={l.org.timeZone} /> : null },
     // 6.13 Part A: who supervises the contract, and what happens on site.
@@ -132,7 +139,7 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
     { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: c.securities.length + c.policies.length, panel: <SecuritiesPanel l={l} people={peopleOptions} today={today} /> },
     // 6.14 increment 1 (plan §5): every certificate of the contract, by kind and status.
     { id: "documents", label: "Documents", icon: <FilesIcon size={15} />, count: certificates, lazy: true, panel: tab === "documents" ? <DocumentsPanel contractId={c.id} page={pageNo} /> : null },
-    { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel entries={history.entries} total={history.total} timeZone={l.org.timeZone} /> },
+    { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel sulit={sulit} entries={history.entries} total={history.total} timeZone={l.org.timeZone} /> },
   ];
 
   return (
@@ -177,7 +184,7 @@ type Facts = NonNullable<Awaited<ReturnType<typeof signingFacts>>>;
 
 // ------------------------------------------------------------------ overview
 
-async function OverviewPanel({ l, facts, today, supervision, payments, variations }: { l: LoadedContract; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView; variations: VariationView }) {
+async function OverviewPanel({ sulit, l, facts, today, supervision, payments, variations }: { sulit: Sulit<true>; l: LoadedContract; facts: Facts | null; today: string | null; supervision: SupervisionView; payments: PaymentView; variations: VariationView }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -225,7 +232,7 @@ async function OverviewPanel({ l, facts, today, supervision, payments, variation
               { label: "Contract number", value: <span className="flex flex-col items-start gap-1"><span className="font-mono text-[13px]">{c.number}</span>{year.seriesNumber && <span className="text-[12.5px] text-ink-3">{CONTRACT_YEAR_WORDS.series(year.issueYear).en}</span>}</span> },
               { label: "Contractor", value: l.award.awardeeName },
               { label: "Contract sum", value: <span className="flex flex-col items-start gap-1"><span className="tabular-nums">{formatMoney(senFromDecimal(c.contractSum))}</span><span className="text-[12.5px] text-ink-3">The Letter of Acceptance&apos;s sum (assumed: corrections do not change it).</span></span> },
-              { label: "Arithmetic corrections", value: variance == null ? notSet("None recorded") : <span className="flex flex-col items-start gap-1"><SulitValue>{`${variance < 0n ? "−" : "+"}${formatMoney(variance < 0n ? -variance : variance)}`}</SulitValue><span className="text-[12.5px] text-ink-3">Against the tendered figures: shown, not applied.</span></span> },
+              { label: "Arithmetic corrections", value: variance == null ? notSet("None recorded") : <span className="flex flex-col items-start gap-1"><SulitValue of={through(sulit, `${variance < 0n ? "−" : "+"}${formatMoney(variance < 0n ? -variance : variance)}`)} /><span className="text-[12.5px] text-ink-3">Against the tendered figures: shown, not applied.</span></span> },
               {
                 label: "Contract Date",
                 value: c.contractDate ? (
@@ -358,11 +365,14 @@ const ENTITY_LABEL: Record<string, string> = {
   // 6.13 Part A step 4: variations, the matters tabled from them, and the adjustment of the contract sum.
   ...Object.fromEntries(VARIATION_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
 };
-function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null }) {
+function HistoryPanel({ sulit, entries, total, timeZone }: { sulit: Sulit<true>; entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null }) {
   // Known codes in words; real values (LHDN, PS) as they are; a code without words never shown.
   const read = (field: string, value: string | null, entity: string): string => historyValue(field, value, formatDate, entity);
-  // A registered SULIT field's value carries the chip, as on the sibling History panels.
-  const chipped = (field: string, value: string | null, entity: string) => (isSulitField(field) && value ? <SulitValue>{read(field, value, entity)}</SulitValue> : read(field, value, entity));
+  // A registered SULIT field's value is shown or withheld as the contract's one answer says, as on the sibling History panels.
+  const chipped = (field: string, value: string | null, entity: string): ReactNode => {
+    const held = value ? sulitHistoryValue(field, "contract", sulit, read(field, value, entity)) : null;
+    return held ? <SulitValue of={held} /> : read(field, value, entity);
+  };
   return (
     <Card className="overflow-hidden">
       <CardHeader icon={<ClockIcon size={17} />} title="History" subtitle={`${total > entries.length ? `Showing the latest ${entries.length} of ${total} changes. ` : "Every change to this contract and what is under it. "}Each change names who made it; any from before sign-in is not attributed. Identity-card numbers are masked here.`} divided={entries.length === 0} />

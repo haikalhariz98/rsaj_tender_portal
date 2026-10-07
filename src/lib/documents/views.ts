@@ -248,7 +248,7 @@ export interface DrawerVersionView {
   withdrawn: { on: string; reason: string } | null;
   download: DownloadView;
   attachments: { id: string; label: string; owner: string; href: string; attachedOn: string; takenOff: { on: string; reason: string } | null }[];
-  accessEvents: { id: string; kind: string; at: string; reason: string | null }[];
+  accessEvents: { id: string; kind: string; at: string; reason: string | null; by: string | null }[];
 }
 
 export interface DrawerView {
@@ -345,7 +345,7 @@ export function drawerView(d: Drawer, timeZone: string | null, acted: Attributio
         attachedOn: formatOrgDay(a.attachedAt, timeZone),
         takenOff: a.detachedAt ? { on: formatOrgDay(a.detachedAt, timeZone), reason: a.detachReason ?? "" } : null,
       })),
-      accessEvents: v.accessEvents.map((e) => ({ id: e.id, kind: ACCESS_KIND_LABEL[e.kind], at: formatOrgDateTime(e.at, timeZone), reason: e.reason })),
+      accessEvents: v.accessEvents.map((e) => ({ id: e.id, kind: ACCESS_KIND_LABEL[e.kind], at: formatOrgDateTime(e.at, timeZone), reason: e.reason, by: e.by })),
     })),
     holds: d.holds.map((h) => ({
       id: h.id,

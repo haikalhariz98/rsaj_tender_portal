@@ -1,4 +1,7 @@
-import { hiddenExercises } from "@/app/_auth/sulit";
+import { hiddenExercises, sulitGates, type GateSubject } from "@/app/_auth/sulit";
+import { sulitCell } from "@/components/sulit-cell";
+import type { StaffActor } from "@/lib/auth/types";
+import type { WaitingEntry } from "@/lib/committee/waiting-load";
 import { CalendarIcon, ClockIcon } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
 import { ButtonLink } from "@/components/ui/button";
@@ -97,7 +100,7 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
         actions={schedulable.length > 0 ? <ScheduleSitting committees={schedulable} numbered={numbered} proposed={proposed} fromRecord={fromRecord} /> : undefined}
       />
 
-      <WaitingToBeTabled waiting={waiting} />
+      <WaitingToBeTabled actor={actor} waiting={waiting} />
 
       <Card className="overflow-hidden">
         <CardHeader
@@ -167,9 +170,28 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
  * tabled for it yet (`waiting.ts`). Grouped by committee through the filter; scheduling a sitting of the committee
  * offers the ones a sitting tables. The value is SULIT, so its column carries the lock and the list exports without it.
  */
-function WaitingToBeTabled({ waiting }: { waiting: Awaited<ReturnType<typeof loadWaiting>> }) {
+/// What the value of a waiting route is read as: the record it belongs to and whose scope judges it. Null where it is not SULIT (an appointment's awarded value).
+function waitingSubject(e: WaitingEntry): GateSubject | null {
+  switch (e.kind) {
+    case "REQUISITION":
+      return { scope: "requisition", entity: "Requisition", id: e.recordId, label: e.reference };
+    case "NAME":
+      return { scope: "exercise", id: e.recordId, label: e.reference };
+    case "VARIATION":
+      return { scope: "contract", entity: "Variation", id: e.recordId, label: e.reference };
+    case "CONTRACT":
+      return { scope: "contract", entity: "ContractMatter", id: e.recordId, label: e.reference };
+    case "APPOINTMENT":
+      return null;
+  }
+}
+
+async function WaitingToBeTabled({ actor, waiting }: { actor: StaffActor; waiting: Awaited<ReturnType<typeof loadWaiting>> }) {
   const W = WAITING_WORDS;
   const entries = waiting?.entries ?? [];
+  // The value a route waits on is SULIT (founder, 2026-10-05; Phase 3b): a requisition's is the department estimate, a name approval's the exercise's, a variation's or a contract matter's
+  // a figure of the contract. An appointment's is the awarded value, ruled not SULIT. Judged for each entry by the record it belongs to, and logged.
+  const gates = await sulitGates(actor, entries.flatMap((e) => { const g = waitingSubject(e); return g ? [g] : []; }), ["waitingValue"]);
   const rows: Row[] = entries.map((e) => ({
     id: e.stepId,
     search: [e.reference, e.title, e.committeeName, WAITING_KIND_WORDS[e.kind].en].join(" "),
@@ -179,7 +201,7 @@ function WaitingToBeTabled({ waiting }: { waiting: Awaited<ReturnType<typeof loa
       kind: { kind: "text", text: WAITING_KIND_WORDS[e.kind].en },
       committee: { kind: "text", text: e.committeeName },
       act: { kind: "text", text: ACT_LABEL[e.act] ?? "Not on record" },
-      amount: { kind: "money", sen: e.waitingValue },
+      amount: waitingSubject(e) ? sulitCell(gates.get(e.recordId)!, () => ({ kind: "money" as const, sen: e.waitingValue })) : { kind: "money", sen: e.waitingValue },
       waiting:
         e.waitingDays == null
           ? { kind: "text", text: W.daysUnset.en, dim: true }

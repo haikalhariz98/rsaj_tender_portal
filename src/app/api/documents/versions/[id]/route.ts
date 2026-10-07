@@ -1,6 +1,7 @@
 import { exerciseIsHidden, restrictedExercises } from "@/app/_auth/sulit";
 import { hiddenExerciseOfVersion } from "@/lib/documents/hidden";
-import type { Reader } from "@/lib/auth/sulit-store";
+import type { StaffActor } from "@/lib/auth/types";
+import { documentBytesAccess } from "@/lib/documents/entitlement";
 import type { NextRequest } from "next/server";
 import { staffRoute } from "@/app/_auth/route";
 
@@ -13,8 +14,8 @@ import { DOWNLOAD_POLICY } from "@/lib/security-headers";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
 
 /**
- * Download one version (plan §2, §4). `downloadDecision` first: SULIT, unclassified and
- * threat-flagged versions are never served, and the refusal is logged. Then the bytes
+ * Download one version (plan §2, §4). `downloadDecision` first: a SULIT version is served only to a reader its records admit (OD-2, Phase 3b); unclassified and
+ * threat-flagged versions are never served; every refusal and every download names who asked and is logged. Then the bytes
  * are read through the façade and their SHA-256 recomputed; a mismatch (or missing
  * bytes) is logged as INTEGRITY_FAILED and refused with 500 (OD-9). What is served is
  * served as an attachment, never inline, with the stored (sniffed) type, `nosniff`, a
@@ -38,33 +39,36 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/documents/ve
   }
 }
 
-async function download(scope: Reader, ctx: RouteContext<"/api/documents/versions/[id]">) {
+async function download(scope: StaffActor, ctx: RouteContext<"/api/documents/versions/[id]">) {
   const { id } = await ctx.params;
   const org = await documentOrg(scope.organisationId);
   if (!org) return plain(503, "No organisation is configured.");
   const { db } = await import("@/lib/db");
   const version = await db.documentVersion.findFirst({
     where: { id, organisationId: org.id },
-    select: { id: true, sha256: true, byteSize: true, mediaType: true, originalFilename: true, scanState: true, document: { select: { classificationSnapshot: true } } },
+    select: { id: true, documentId: true, sha256: true, byteSize: true, mediaType: true, originalFilename: true, scanState: true, document: { select: { classificationSnapshot: true } } },
   });
   if (!version) return plain(404, "No such document version.");
   // FR-MTD-007: a version hanging on an exercise restricted to its named people (or on anything under it) reads as one that does not exist, and the attempt is logged.
   const under = await hiddenExerciseOfVersion(version.id, await restrictedExercises(scope));
   if (under && (await exerciseIsHidden(scope, under))) return plain(404, "No such document version.");
 
-  const decision = downloadDecision({ classification: version.document.classificationSnapshot, scanState: version.scanState });
+  // OD-2 (Phase 3b): a SULIT version is served to a reader its records admit, judged from the records the document hangs on, and the access is logged for each record judged, allowed or
+  // refused. Anything else is served to signed-in staff who can open the record it hangs on (a restricted exercise's read as not there, above).
+  const bytesAccess = version.document.classificationSnapshot === "SULIT" ? await documentBytesAccess(db, scope, version.documentId) : null;
+  const decision = downloadDecision({ classification: version.document.classificationSnapshot, scanState: version.scanState, entitled: bytesAccess?.entitled ?? null });
   if (!decision.allow) {
-    await logAccess({ organisationId: org.id, kind: "REFUSED", reasonCode: decision.reason, versionId: version.id });
-    return plain(403, DOWNLOAD_REFUSAL_TEXT[decision.reason]);
+    await logAccess({ organisationId: org.id, kind: "REFUSED", reasonCode: decision.reason, versionId: version.id, actor: scope });
+    return plain(403, bytesAccess?.refusal && decision.reason === "SULIT" ? `${DOWNLOAD_REFUSAL_TEXT.SULIT} ${bytesAccess.refusal}` : DOWNLOAD_REFUSAL_TEXT[decision.reason]);
   }
   const s = blobStore();
   if ("fault" in s) {
-    await logAccess({ organisationId: org.id, kind: "REFUSED", reasonCode: s.fault, versionId: version.id });
+    await logAccess({ organisationId: org.id, kind: "REFUSED", reasonCode: s.fault, versionId: version.id, actor: scope });
     return plain(503, "The deployment's document store is not configured. Whoever runs the portal sets DOCUMENT_STORE_DRIVER.");
   }
   const bytes = await s.store.get(org.id, version.sha256);
   if (!bytes || sha256Hex(bytes) !== version.sha256) {
-    await logAccess({ organisationId: org.id, kind: "INTEGRITY_FAILED", reasonCode: bytes ? "DIGEST_MISMATCH" : "BYTES_MISSING", versionId: version.id });
+    await logAccess({ organisationId: org.id, kind: "INTEGRITY_FAILED", reasonCode: bytes ? "DIGEST_MISMATCH" : "BYTES_MISSING", versionId: version.id, actor: scope });
     return plain(500, "The stored file does not match its fingerprint, so it is not served. This has been logged; report it to whoever runs the portal.");
   }
   // Everything that can fail is built before the download is logged: an entry saying a
@@ -87,7 +91,7 @@ async function download(scope: Reader, ctx: RouteContext<"/api/documents/version
   } catch {
     return plain(500, "The file could not be prepared for download, so it was not served and no download was logged. Report it to whoever runs the portal.");
   }
-  await logAccess({ organisationId: org.id, kind: "DOWNLOADED", versionId: version.id });
+  await logAccess({ organisationId: org.id, kind: "DOWNLOADED", versionId: version.id, actor: scope });
   return response;
 }
 

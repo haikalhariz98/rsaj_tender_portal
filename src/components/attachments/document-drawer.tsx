@@ -477,12 +477,12 @@ function AccessEvents({ d }: { d: DrawerView }) {
         <li key={e.id} className="flex flex-col gap-0.5 px-5 py-3 text-[13px]">
           <span className="flex flex-wrap items-center gap-2">
             <span className="font-semibold text-ink">{e.kind}</span>
-            <span className="text-ink-3">version {e.versionNo} · {e.at}</span>
+            <span className="text-ink-3">version {e.versionNo} · {e.at} · {e.by ?? "Not attributed — before sign-in"}</span>
           </span>
           {e.reason && <span className="text-ink-3">{e.reason}</span>}
         </li>
       ))}
-      <li className="px-5 py-3 text-[12.5px] text-ink-3">These events do not say who yet: reads and downloads carry no actor until access to documents is governed by who is signed in.</li>
+      <li className="px-5 py-3 text-[12.5px] text-ink-3">Each download, check and refusal names who asked; any from before sign-in has no name.</li>
     </ul>
   );
 }

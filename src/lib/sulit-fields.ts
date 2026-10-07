@@ -10,6 +10,11 @@
 /// Entries name the property a screen reads, so a module not yet built is caught the day it arrives. Add the field here when its
 /// module adds it; the source scan in `sulit-fields.test.ts` does the rest. Keep names specific: the scan matches whole words.
 
+/// What the lock beside a SULIT value, and the lock on a SULIT column's header, say (Phase 3b): the figure is shown only to those entitled to it, and the screen promises
+/// nothing about who the reader is. A column's cells are judged one by one for the reader and a list never exports them.
+export const SULIT_VALUE_WORDS = "SULIT. Shown only to the people entitled to it, and every reading is logged.";
+export const SULIT_COLUMN_WORDS = "SULIT. Shown to the people entitled to it and withheld from everyone else, and every reading is logged. Not exported.";
+
 /// The record a SULIT value belongs to, for who is "named on the record" (ADR 0034 D14):
 /// - `exercise`: a sourcing exercise (its estimate, the prices read at opening, the sealed company estimate);
 /// - `evaluation`: an exercise's evaluation (scores, evaluated prices, who is recommended);
@@ -33,7 +38,7 @@ export interface SulitField {
 export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "estimatedValue", scope: "requisition", alsoIn: ["exercise"], what: "the department estimate on a requisition or a sourcing exercise" },
   // Founder, 2026-10-05: the value an open route was routed on, on the sittings page's "Waiting to be tabled" list.
-  { field: "waitingValue", scope: "requisition", what: "the value a route waiting to be tabled was routed on (a requisition's is the department estimate)" },
+  { field: "waitingValue", scope: "requisition", alsoIn: ["exercise", "contract"], what: "the value a route waiting to be tabled was routed on (a requisition's is the department estimate)" },
   { field: "companyEstimate", scope: "exercise", what: "the sealed company estimate" },
   { field: "openingPrice", scope: "exercise", what: "a price read out at bid opening" },
   { field: "openingPrices", scope: "exercise", what: "prices read out at bid opening" },
@@ -96,6 +101,12 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "bqRate", scope: "exercise", what: "a bill of quantities line's rate (6.2, Phase 3b)" },
   { field: "bqAmount", scope: "exercise", what: "a bill of quantities line's amount (6.2, Phase 3b)" },
   { field: "bqTotals", scope: "exercise", what: "a bill of quantities version's total, firm value and the sums that make it up (6.2, Phase 3b)" },
+  // Phase 3b: a committee matter's amount (`matter-amount.ts` says which kinds): a requisition's gate matter carries the department estimate, a contract matter its routed value,
+  // and a manual matter or one not yet decided is read as SULIT. A record that keeps no list of who is named, so only the organisation-wide permission opens it.
+  { field: "matterAmount", scope: "requisition", alsoIn: ["contract"], what: "a committee matter's amount, where its kind is SULIT or not decided (Phase 3b)" },
+  // Phase 3b (OD-2, doc store): the bytes of a document classified SULIT. Every kind of record can hold one (an exercise's tender papers, a requisition's, a contract's statutory
+  // declaration, a supplier's scan), so the field belongs to whichever record the document hangs on: it is read by the people that record's scope names.
+  { field: "documentBytes", scope: "exercise", alsoIn: ["evaluation", "requisition", "contract", "supplier"], what: "the bytes of a document classified SULIT, downloaded from the record it hangs on (OD-2)" },
   // Phase 3b (FR-AWD-008, 6.11 ruling; 6.11 R20): the identity card number of the contractor's signatory, on the award's return and on the contract's signature.
   { field: "icNumber", scope: "exercise", alsoIn: ["contract"], what: "the identity card number of a contractor's signatory (FR-AWD-008, 6.11)" },
 ];

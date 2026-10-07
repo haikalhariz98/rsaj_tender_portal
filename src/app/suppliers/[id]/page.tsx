@@ -1,4 +1,8 @@
-import { hiddenExercises } from "@/app/_auth/sulit";
+import type { ReactNode } from "react";
+import { sulitHistoryValue } from "@/lib/auth/sulit-history";
+import { fieldsOfScope } from "@/lib/sulit-fields";
+import type { Sulit } from "@/lib/auth/sulit-access";
+import { hiddenExercises, sulitGate } from "@/app/_auth/sulit";
 import { ActedBy } from "@/components/attribution";
 import Link from "next/link";
 import { historyEntityLabel, historyValueWords } from "@/lib/audit/entity-labels";
@@ -11,7 +15,7 @@ import { BuildingIcon, ClipboardIcon, ClockIcon, FileIcon, LinkIcon, RouteIcon, 
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { isMandatoryAct } from "@/components/ui/act";
-import { Badge, Chip, SulitValue } from "@/components/ui/badge";
+import { Badge, Chip, SulitTag, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -23,14 +27,12 @@ import { routeCoreText } from "@/lib/authority/core-routing-labels";
 import { loadIssue } from "@/lib/authority/load";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 import { isLive } from "@/lib/documents/evidence";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { matchesFormat } from "@/lib/integration/award-commitment";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
-import { isSulitField } from "@/lib/sulit-fields";
 import { SUPPLIER_ENTITY_LABEL, supplierFieldName } from "@/lib/suppliers/audit-view";
 import { chainOrder, documentStates, lodgeFaults, verifyFaults } from "@/lib/suppliers/documents";
 import {
@@ -38,9 +40,9 @@ import {
   CHANNEL_LABEL,
   DOCUMENT_STATE_LABEL,
   DOCUMENT_STATE_TONE,
-  EPAYMENT_SULIT_CHIP,
+  EPAYMENT_SULIT,
   ERP_NOT_SYNCED,
-  NOT_RESTRICTED_CHIP,
+  SCANS_SULIT,
   NOT_SENT,
   NOT_VALIDATED,
   OUTCOME_LABEL,
@@ -87,6 +89,9 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
   const l = await loadSupplier(actor.organisationId, id, await hiddenExercises(actor));
   if (!l) notFound();
   const { supplier: s, org } = l;
+  // A supplier's contacts and the figures held about it (its contractor performance percentage) are SULIT: it keeps no list of who is named on it, so only the organisation-wide
+  // permission opens them (undecided until decided). One answer for the page, logged.
+  const sulit = await sulitGate(actor, { scope: "supplier", entity: "Supplier", id: s.id, label: s.reference }, fieldsOfScope("supplier"));
   const today = org.today;
   const [cfg, people, history] = await Promise.all([loadSupplierConfig(org.id), db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }), supplierHistory(l)]);
   const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));
@@ -99,13 +104,13 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
   const linkedCount = s.parties.length + s.awards.filter((a) => !a.awardeePartyId).length;
 
   const tabs = [
-    { id: "profile", label: "Profile", icon: <BuildingIcon size={15} />, panel: <ProfilePanel l={l} cfg={cfg} /> },
+    { id: "profile", label: "Profile", icon: <BuildingIcon size={15} />, panel: <ProfilePanel sulit={sulit} l={l} cfg={cfg} /> },
     { id: "documents", label: "Documents", icon: <FileIcon size={15} />, count: s.documents.length, panel: <DocumentsPanel l={l} cfg={cfg} people={peopleOptions} /> },
     { id: "applications", label: "Applications", icon: <ClipboardIcon size={15} />, count: s.applications.length, panel: <ApplicationsPanel l={l} cfg={cfg} people={peopleOptions} blacklist={reading?.blacklist ?? null} cancellation={reading?.cancellation ?? null} /> },
     { id: "standing", label: "Standing", icon: <ShieldIcon size={15} />, count: s.standingEvents.length, panel: <StandingPanel l={l} cfg={cfg} reading={reading} people={peopleOptions} fromAward={fromAward ?? null} /> },
     { id: "eligibility", label: "Eligibility", icon: <ScaleIcon size={15} />, panel: <EligibilityPanel l={l} exerciseId={exercise ?? null} /> },
     { id: "participation", label: "Participation", icon: <LinkIcon size={15} />, count: linkedCount, panel: <ParticipationPanel l={l} people={peopleOptions} /> },
-    { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel entries={history.entries} total={history.total} timeZone={org.timeZone} /> },
+    { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel sulit={sulit} entries={history.entries} total={history.total} timeZone={org.timeZone} /> },
   ];
   const issues = states.filter((x) => x.mandatory && x.state !== "VALID" && x.state !== "NOT_APPLICABLE");
 
@@ -150,7 +155,7 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
 
 // ------------------------------------------------------------------ profile
 
-function ProfilePanel({ l, cfg }: { l: LoadedSupplier; cfg: SupplierConfig }) {
+function ProfilePanel({ sulit, l, cfg }: { sulit: Sulit<true>; l: LoadedSupplier; cfg: SupplierConfig }) {
   const s = l.supplier;
   const fits = matchesFormat(s.registrationNo, cfg.format?.pattern ?? null);
   const contacts = s.contacts.filter((c) => c.retiredOn == null);
@@ -180,7 +185,7 @@ function ProfilePanel({ l, cfg }: { l: LoadedSupplier; cfg: SupplierConfig }) {
           icon={<UsersIcon size={17} />}
           title="Contacts"
           subtitle="People at the supplier, as it names them: not users of this portal, and never staff records."
-          actions={<span className="flex flex-wrap items-center gap-2"><Chip tone="err">{VALUE_SULIT_LABEL}</Chip><ContactDrawer supplierId={s.id} /></span>}
+          actions={<span className="flex flex-wrap items-center gap-2"><SulitTag /><ContactDrawer supplierId={s.id} /></span>}
           divided={contacts.length === 0}
         />
         {contacts.length === 0 ? (
@@ -202,12 +207,12 @@ function ProfilePanel({ l, cfg }: { l: LoadedSupplier; cfg: SupplierConfig }) {
             <tbody>
               {contacts.map((c) => (
                 <Tr key={c.id}>
-                  <Td label="Contact"><CellStack title={c.name} sub={[c.designation, c.isPrimary ? "Primary contact" : null].filter(Boolean).join(" · ") || undefined} /></Td>
-                  <Td label="Email"><span className="break-all">{c.email || "—"}</span></Td>
-                  <Td label="Telephone">{c.phone || "—"}</Td>
+                  <Td label="Contact">{sulit.state === "GRANTED" ? <CellStack title={c.name} sub={[c.designation, c.isPrimary ? "Primary contact" : null].filter(Boolean).join(" · ") || undefined} /> : <SulitValue of={sulit} />}</Td>
+                  <Td label="Email">{sulit.state === "GRANTED" ? <span className="break-all">{c.email || "—"}</span> : <SulitValue of={sulit} />}</Td>
+                  <Td label="Telephone">{sulit.state === "GRANTED" ? c.phone || "—" : <SulitValue of={sulit} />}</Td>
                   <Td>
                     <RowActions>
-                      <ContactDrawer supplierId={s.id} contact={{ id: c.id, name: c.name, values: { contactId: c.id, contactName: c.name, contactDesignation: c.designation, contactEmail: c.email, contactPhone: c.phone, primary: c.isPrimary } }} />
+                      {sulit.state === "GRANTED" && <ContactDrawer supplierId={s.id} contact={{ id: c.id, name: c.name, values: { contactId: c.id, contactName: c.name, contactDesignation: c.designation, contactEmail: c.email, contactPhone: c.phone, primary: c.isPrimary } }} />}
                     </RowActions>
                   </Td>
                 </Tr>
@@ -257,8 +262,8 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
         <CardHeader
           icon={<FileIcon size={17} />}
           title="Statutory documents"
-          subtitle="By type, mandatory ones first. A type's state is its newest verified document's, on the organisation's day; a renewal counts once verified. Scans are not restricted until sign-in."
-          actions={<span className="flex flex-wrap items-center gap-2"><Chip tone="warn">{NOT_RESTRICTED_CHIP.en}</Chip><LodgeDocumentDrawer supplierId={s.id} types={lodgeable} values={values(null)} people={people} blocker={lodgeBlocker} /></span>}
+          subtitle="By type, mandatory ones first. A type's state is its newest verified document's, on the organisation's day; a renewal counts once verified. Scans are SULIT: downloaded by the roles the organisation has chosen, and every download is logged."
+          actions={<span className="flex flex-wrap items-center gap-2"><SulitTag /><LodgeDocumentDrawer supplierId={s.id} types={lodgeable} values={values(null)} people={people} blocker={lodgeBlocker} /></span>}
           divided={states.length === 0}
         />
         {states.length === 0 ? (
@@ -468,7 +473,7 @@ async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { 
               <OwnerAttachments
                 owner={{ kind: "supplierApplication", id: a.id }}
                 title="The paper"
-                subtitle={`The signed declaration (${NOT_RESTRICTED_CHIP.en.toLowerCase()}) and the E-Payment form (${EPAYMENT_SULIT_CHIP.en}). No bank detail is recorded before sign-in.`}
+                subtitle={`The signed declaration (SULIT) and the E-Payment form. ${SCANS_SULIT.en} ${EPAYMENT_SULIT.en} No bank detail is recorded in the portal itself.`}
                 only={["SUPPLIER_DECLARATION", "SUPPLIER_EPAYMENT_FORM"]}
                 required={{ SUPPLIER_DECLARATION: isOpenNow }}
               />
@@ -484,7 +489,7 @@ async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { 
 
 const ACTION_LABEL = { CREATE: "Created", UPDATE: "Changed", DELETE: "Removed" } as const;
 
-function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnType<typeof supplierHistory>>["entries"]; total: number; timeZone: string | null }) {
+function HistoryPanel({ sulit, entries, total, timeZone }: { sulit: Sulit<true>; entries: Awaited<ReturnType<typeof supplierHistory>>["entries"]; total: number; timeZone: string | null }) {
   type Entry = (typeof entries)[number];
   const read = (field: string, stored: string | null, e: Entry): string => {
     // 612-C2: a value an older writer built from a code reads through the label map.
@@ -499,8 +504,11 @@ function HistoryPanel({ entries, total, timeZone }: { entries: Awaited<ReturnTyp
     if (/^[A-Z][A-Z_]+$/.test(value)) return "—";
     return value;
   };
-  // A registered SULIT field (a contact's details, condition 2) reads with the SULIT chip in the trail too.
-  const chipped = (field: string, value: string | null, e: Entry) => (isSulitField(field) && value ? <SulitValue>{read(field, value, e)}</SulitValue> : read(field, value, e));
+  // A registered SULIT field (a contact's details, condition 2) is shown or withheld in the trail as the supplier's one answer says.
+  const chipped = (field: string, value: string | null, e: Entry): ReactNode => {
+    const held = value ? sulitHistoryValue(field, "supplier", sulit, read(field, value, e)) : null;
+    return held ? <SulitValue of={held} /> : read(field, value, e);
+  };
   const shown = (field: string, ch: { before: string | null; after: string | null }, action: string) => !/(Code|Key|Id)$/.test(field) && (action !== "UPDATE" || ch.before !== ch.after);
   return (
     <Card className="overflow-hidden">

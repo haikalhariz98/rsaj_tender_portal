@@ -9,6 +9,8 @@ import { formOptions, loadRequisition } from "@/lib/requisition/repo";
 
 import { RequisitionForm } from "../../requisition-form";
 import { requireStaff } from "@/app/_auth/actor";
+import { sulitGate } from "@/app/_auth/sulit";
+import { fieldsOfScope } from "@/lib/sulit-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -37,12 +39,18 @@ export default async function EditRequisitionPage(props: PageProps<"/requisition
   const l = await loadRequisition(actor.organisationId, id);
   if (!l) notFound();
   const r = l.req;
+  // The form shows the department estimate, which is SULIT: whoever may not read it may not edit it (Phase 3b), and is told why.
+  const estimate = await sulitGate(actor, { scope: "requisition", entity: "Requisition", id, label: r.reference }, fieldsOfScope("requisition"));
   const options = await formOptions(l.org.id, l.org.today ? dayToDate(l.org.today) : new Date());
   return (
     <>
       <RecordCrumb label={r.reference} />
       <PageHeader eyebrow={<Link href={`/requisitions/${id}`}>{r.reference}</Link>} title={`Edit ${r.title}`} subtitle="Only a draft can be edited." />
-      {r.status !== "DRAFT" ? (
+      {estimate.state === "WITHHELD" ? (
+        <Callout tone="warn" title="The department estimate is SULIT and is closed to you">
+          Editing a requisition changes its estimate, so it is open only to those who may read it. {estimate.words.en}
+        </Callout>
+      ) : r.status !== "DRAFT" ? (
         <Callout tone="warn" title="This requisition is no longer a draft">
           Its fields are fixed once it is endorsed. {backToDraft(r.status)}
         </Callout>

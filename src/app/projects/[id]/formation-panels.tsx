@@ -5,6 +5,7 @@ import { actStatusBlocker } from "@/lib/contract/act-status";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { CheckIcon, FileIcon, InboxIcon, ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
+import { through, type Sulit } from "@/lib/auth/sulit-access";
 import { Blocked } from "@/components/ui/blocked";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -71,7 +72,7 @@ const notSet = (what = "Not set") => <span className="text-ink-4">{what}</span>;
 const open = (s: string) => s === "IN_PREPARATION" || s === "RETURNED_FOR_AMENDMENT";
 const money = (v: { toString(): string }) => formatMoney(senFromDecimal(v));
 
-export function FormationPanel({ l, section, facts, people, today }: { l: LoadedContract; section: FormationSection; facts: Facts; people: Option[]; today: string | null }) {
+export function FormationPanel({ sulit, l, section, facts, people, today }: { sulit: Sulit<true>; l: LoadedContract; section: FormationSection; facts: Facts; people: Option[]; today: string | null }) {
   const status = l.contract.status as ContractStatus;
   const notStarted = status === "NUMBER_ALLOCATED";
   return (
@@ -82,7 +83,7 @@ export function FormationPanel({ l, section, facts, people, today }: { l: Loaded
         </Callout>
       )}
       {!notStarted && section === "assembly" && <AssemblySection l={l} facts={facts} />}
-      {!notStarted && section === "checks" && <ChecksSection l={l} facts={facts} people={people} today={today} />}
+      {!notStarted && section === "checks" && <ChecksSection sulit={sulit} l={l} facts={facts} people={people} today={today} />}
       {!notStarted && section === "legal" && <LegalSection l={l} facts={facts} people={people} today={today} />}
       {!notStarted && section === "signing" && <SigningSection l={l} facts={facts} people={people} today={today} />}
       {!notStarted && section === "copies" && <CopiesSection l={l} people={people} today={today} />}
@@ -127,7 +128,7 @@ function AssemblySection({ l, facts }: { l: LoadedContract; facts: Facts }) {
 
 // ------------------------------------------------------------------ reconciliation and checks
 
-function ChecksSection({ l, facts, people, today }: { l: LoadedContract; facts: Facts; people: Option[]; today: string | null }) {
+function ChecksSection({ sulit, l, facts, people, today }: { sulit: Sulit<true>; l: LoadedContract; facts: Facts; people: Option[]; today: string | null }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -179,14 +180,14 @@ function ChecksSection({ l, facts, people, today }: { l: LoadedContract; facts: 
       </Card>
       {(facts.form.applicable ?? []).map((kind) => {
         const k = c.checks.find((x) => x.kind === kind);
-        return k ? <CheckCard key={kind} l={l} check={k} people={people} today={today} editable={editable} preparationOn={facts.form.snap?.startedOn ?? null} applicable={facts.form.applicable} /> : null;
+        return k ? <CheckCard sulit={sulit} key={kind} l={l} check={k} people={people} today={today} editable={editable} preparationOn={facts.form.snap?.startedOn ?? null} applicable={facts.form.applicable} /> : null;
       })}
     </>
     </ActGate>
   );
 }
 
-function CheckCard({ l, check: k, people, today, editable, preparationOn, applicable }: { l: LoadedContract; check: LoadedContract["contract"]["checks"][number]; people: Option[]; today: string | null; editable: boolean; preparationOn: string | null; applicable: readonly FormationCheckKind[] | null }) {
+function CheckCard({ sulit, l, check: k, people, today, editable, preparationOn, applicable }: { sulit: Sulit<true>; l: LoadedContract; check: LoadedContract["contract"]["checks"][number]; people: Option[]; today: string | null; editable: boolean; preparationOn: string | null; applicable: readonly FormationCheckKind[] | null }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("FORMATION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -223,7 +224,7 @@ function CheckCard({ l, check: k, people, today, editable, preparationOn, applic
                   <span className="block text-[13.5px] font-semibold break-words text-ink">{[x.itemRef, x.description].filter(Boolean).join(" · ")}</span>
                   {/* The priced figures are SULIT (6.8's correctedPrice precedent): shown with the chip. */}
                   <span className="flex flex-wrap items-center gap-x-2 text-[12.5px] break-words text-ink-3">
-                    <SulitValue>{`${money(x.tendered)} as tendered → ${money(x.corrected)} corrected`}</SulitValue>
+                    <SulitValue of={through(sulit, `${money(x.tendered)} as tendered → ${money(x.corrected)} corrected`)} />
                     <span>{x.reason}</span>
                   </span>
                 </span>
@@ -231,7 +232,7 @@ function CheckCard({ l, check: k, people, today, editable, preparationOn, applic
               </li>
             ))}
           </ul>
-          <div className="border-t border-line px-5 py-3 text-[13px] text-ink-2 sm:px-6"><span className="flex flex-wrap items-center gap-x-2">Variance against the tendered figures: <SulitValue>{variance! < 0n ? `−${formatMoney(-variance!)}` : `+${formatMoney(variance!)}`}</SulitValue></span> The accepted contract sum stands (an assumed reading, to be confirmed).</div>
+          <div className="border-t border-line px-5 py-3 text-[13px] text-ink-2 sm:px-6"><span className="flex flex-wrap items-center gap-x-2">Variance against the tendered figures: <SulitValue of={through(sulit, variance! < 0n ? `−${formatMoney(-variance!)}` : `+${formatMoney(variance!)}`)} /></span> The accepted contract sum stands (an assumed reading, to be confirmed).</div>
         </>
       )}
       {kind === "FRONT_LOADING" && (
@@ -250,12 +251,13 @@ function CheckCard({ l, check: k, people, today, editable, preparationOn, applic
                       <span className="flex flex-wrap items-center gap-x-2 text-[12.5px] text-ink-3">
                         <span className="tabular-nums">{`Tendered ${formatMoney(x.tenderedRate)}`}</span>
                         <span>against an estimate rate of</span>
-                        <SulitValue>{formatMoney(x.estimateRate)}</SulitValue>
+                        <SulitValue of={through(sulit, formatMoney(x.estimateRate))} />
                       </span>
                     </span>
                     <span className="flex shrink-0 flex-wrap items-center gap-2">
-                      {above && <Chip tone="warn">Above the ratio</Chip>}
-                      {at && <Chip tone="info">Exactly at the ratio</Chip>}
+                      {/* Whether a rate is above the ratio is worked out from the estimate rate, so it is said only to a reader who may read that rate. */}
+                      {sulit.state === "GRANTED" && above && <Chip tone="warn">Above the ratio</Chip>}
+                      {sulit.state === "GRANTED" && at && <Chip tone="info">Exactly at the ratio</Chip>}
                       {editable && !done && <RemoveLineDrawer id={c.id} checkId={k.id} lineId={x.id} label={`rate ${x.itemRef}`} />}
                     </span>
                   </li>

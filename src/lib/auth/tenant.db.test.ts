@@ -431,8 +431,8 @@ describe("the loaders the pages read through return A's records to A and nothing
     const { readOwner, documentDrawer } = await import("@/lib/documents/read");
     expect(await readOwner(fx.actorA.organisationId, { kind: "exercise", id: A.exercise })).not.toBeNull();
     expect(await readOwner(fx.actorB.organisationId, { kind: "exercise", id: A.exercise })).toBeNull();
-    expect(await documentDrawer(fx.actorA.organisationId, A.document)).not.toBeNull();
-    expect(await documentDrawer(fx.actorB.organisationId, A.document)).toBeNull();
+    expect(await documentDrawer(fx.actorA.organisationId, A.document, false)).not.toBeNull();
+    expect(await documentDrawer(fx.actorB.organisationId, A.document, false)).toBeNull();
   });
 
   it("the sourcing list's columns, a tabling link's amount and the requisition list", async () => {

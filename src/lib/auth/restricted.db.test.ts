@@ -29,7 +29,8 @@ let requisitionId = "";
 let exerciseId = "";
 let openExerciseId = "";
 const who = { named: "", outsider: "", admin: "", custodian: "", otherDeptHolder: "", auditor: "", preparer: "" };
-const reader = (personId: string, over: Partial<Reader & { organisationTimeZone: string | null }> = {}): Reader & { organisationTimeZone: string | null } => ({
+const reader = (personId: string, over: Partial<Reader & { organisationTimeZone: string | null }> = {}): Reader & { organisationTimeZone: string | null; permissions: ReadonlySet<never> } => ({
+  permissions: new Set<never>(),
   organisationId,
   organisationCode: "AUTH_TEST",
   personId,
@@ -237,7 +238,7 @@ describe("the queues and matters of a hidden exercise are left out", () => {
     await db.documentAttachment.create({ data: { organisationId, purpose: "DOSSIER_EVIDENCE", versionId: version.id, exerciseId } });
     const org = await documentOrg(organisationId);
     const store = { transactional: true, put: async (tx: typeof db, org: string, sha256: string, bytes: Uint8Array) => { await tx.blobContent.upsert({ where: { organisationId_sha256: { organisationId: org, sha256 } }, create: { organisationId: org, sha256, byteSize: BigInt(bytes.length), bytes: Buffer.from(bytes) }, update: {} }); } } as never;
-    const upload = (bytes: Uint8Array, as: Reader) =>
+    const upload = (bytes: Uint8Array, as: ReturnType<typeof reader>) =>
       storeUpload({ kind: "STAFF", personId: as.personId, sessionId: null, offices: [], sourceAddress: as.sourceAddress }, { org: org!, store, bytes, sha256: createHash("sha256").update(bytes).digest("hex"), mediaType: "text/plain", originalFilename: "x.txt", title: "", documentClassId: null, documentId: doc.id, recordedByPersonId: as.personId, reader: as, receivedOn: null, note: "" });
     const before = await db.sulitAccessEvent.count({ where: { entityId: exerciseId, actorPersonId: who.outsider } });
     // The identical file and a different one are refused in the same words, 404: the first would otherwise be a 409 that confirms the content.

@@ -18,8 +18,9 @@ import type { BlobStore } from "./store";
 import type { AccessKind, Finding, SecurityClass, StorePolicy } from "./types";
 import { nextVersionFault, nextVersionNo } from "./versioning";
 import type { ActWriter } from "@/lib/auth/act-writer";
-import type { AuditActor } from "@/lib/auth/types";
-import { hiddenExerciseIds, refuseHiddenExercise, restrictedExerciseIds, type Reader } from "@/lib/auth/sulit-store";
+import type { AuditActor, StaffActor } from "@/lib/auth/types";
+import { documentBytesAccess } from "./entitlement";
+import { hiddenExerciseIds, refuseHiddenExercise, restrictedExerciseIds, type Reader, type SulitReader } from "@/lib/auth/sulit-store";
 
 import { hiddenExerciseOfDocument } from "./hidden";
 
@@ -43,16 +44,24 @@ export async function loadStorePolicy(organisationId: string, client: Tx = db): 
   return { id: p.id, allowedMediaTypes: p.allowedMediaTypes, maxBytes: p.maxBytes, provenance: p.provenance, notes: p.notes };
 }
 
-/// Append one access event. Refusals and downloads are logged even where nothing else is written.
+/// Who asked, for an access event: a signed-in person with their session and address, or a loader run by its label (Phase 3b).
+export type AccessActor = Pick<StaffActor, "organisationId" | "personId" | "sessionId" | "sourceAddress"> & { system?: { label: string } };
+
+/// Append one access event. Refusals and downloads are logged even where nothing else is written. `actor` names who asked; none for an act nobody was signed in to ask.
 export async function logAccess(
-  e: { organisationId: string; kind: AccessKind; reasonCode?: string; versionId?: string | null; offeredFilename?: string | null; offeredBytes?: bigint | null },
+  e: { organisationId: string; kind: AccessKind; reasonCode?: string; versionId?: string | null; offeredFilename?: string | null; offeredBytes?: bigint | null; actor?: AccessActor | null },
   client: Tx = db,
 ): Promise<void> {
+  const who = e.actor ?? null;
   await client.documentAccessEvent.create({
     data: {
       organisationId: e.organisationId,
       kind: e.kind,
       reasonCode: e.reasonCode ?? "",
+      actorPersonId: who && !who.system ? who.personId : null,
+      actorSystemLabel: who?.system ? who.system.label : null,
+      actorSessionId: who && !who.system ? who.sessionId || null : null,
+      sourceAddress: who?.sourceAddress ?? null,
       versionId: e.versionId ?? null,
       // A log field, so cut (by code point, never through a surrogate pair), unlike a stored name.
       offeredFilename: e.offeredFilename ? Array.from(e.offeredFilename).slice(0, 255).join("") : null,
@@ -83,7 +92,7 @@ export interface UploadInput {
   recordedByPersonId: string;
   /// Whoever is uploading, for a version added to an existing document: a document hanging on an exercise restricted to its named people reads as one that does
   /// not exist to anyone not named on it (FR-MTD-007). A loader that stores directly has none and is hidden from nothing.
-  reader?: Reader;
+  reader?: SulitReader;
   /// How the upload was recorded, attributed in the same transaction (Phase 2b). A loader that stores directly has none.
   act?: ActWriter;
   receivedOn: string | null;
@@ -129,7 +138,10 @@ export async function storeUpload(actor: AuditActor, i: UploadInput): Promise<Up
   if (nameFault) throw new UploadRefusal(nameFault);
   // A refusal is thrown from inside the transaction and rolls it back, which would take the access log with it: the access to a restricted exercise is logged
   // first, in its own commit, and the same judgement is made again under the document's lock.
-  if (i.documentId && i.reader) await refuseUploadToHiddenDocument(i.reader, i.org.id, i.documentId);
+  if (i.documentId && i.reader) {
+    await refuseUploadToHiddenDocument(i.reader, i.org.id, i.documentId);
+    await refuseUploadToClosedDocument(i.reader, i.org.id, i.documentId);
+  }
   return db.$transaction(
     async (tx) => {
       const person = await tx.person.findFirst({ where: { id: i.recordedByPersonId, organisationId: i.org.id, isActive: true }, select: { id: true, name: true } });
@@ -147,6 +159,12 @@ export async function storeUpload(actor: AuditActor, i: UploadInput): Promise<Up
         await lockDocument(tx, doc.id);
         // Before the versions are read or compared: whether the same file is already there must not be told to someone who may not see the document.
         if (i.reader && (await hiddenExerciseOfDocument(doc.id, await hiddenExerciseIds(tx, i.reader), tx))) throw new UploadRefusal({ code: "DOCUMENT_UNKNOWN", level: "block" }, 404);
+        // C-6, against per-person access (Phase 3b): "this file is identical to version N" confirms a guess of a SULIT document’s bytes, so it is told only to someone who may open
+        // them. Anyone else adding a version to it is refused first, as to a document they cannot open, whatever the file is.
+        if (i.reader && !i.reader.system) {
+          const held = await tx.document.findUniqueOrThrow({ where: { id: doc.id }, select: { classificationSnapshot: true } });
+          if (held.classificationSnapshot === "SULIT" && !(await documentBytesAccess(tx, i.reader, doc.id, { logRead: false })).entitled) throw new UploadRefusal({ code: "DOCUMENT_UNKNOWN", level: "block" }, 404);
+        }
         const locked = await tx.document.findUniqueOrThrow({ where: { id: doc.id }, include: { versions: { select: { versionNo: true, sha256: true, withdrawnAt: true } } } });
         const fault = nextVersionFault(locked.versions, i.sha256);
         if (fault) throw new UploadRefusal(fault, 409);
@@ -219,6 +237,15 @@ async function refuseUploadToHiddenDocument(reader: Reader, organisationId: stri
   if (!found) return;
   const under = await hiddenExerciseOfDocument(documentId, await restrictedExerciseIds(db, organisationId));
   if (under && (await refuseHiddenExercise(db, reader, under))) throw new UploadRefusal({ code: "DOCUMENT_UNKNOWN", level: "block" }, 404);
+}
+
+/// C-6 (Phase 3b): adding a version to a SULIT document is asking whether a file is already in it, which confirms a guess at its bytes; so it is asked of someone who may open them. The access
+/// is logged, allowed or refused, in its own commit (the refusal is thrown from outside the upload’s transaction), and judged again under the document’s lock.
+async function refuseUploadToClosedDocument(reader: SulitReader, organisationId: string, documentId: string): Promise<void> {
+  if (reader.system) return;
+  const found = await db.document.findFirst({ where: { id: documentId, organisationId }, select: { classificationSnapshot: true } });
+  if (found?.classificationSnapshot !== "SULIT") return;
+  if (!(await documentBytesAccess(db, reader, documentId)).entitled) throw new UploadRefusal({ code: "DOCUMENT_UNKNOWN", level: "block" }, 404);
 }
 
 /// A stored day as YYYY-MM-DD, or null.

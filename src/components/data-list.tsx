@@ -10,6 +10,7 @@ import {
 } from "@/components/icons";
 import { AvatarStack, Avatar } from "@/components/ui/avatar";
 import { Badge, Chip, SulitLock, SulitWithheld } from "@/components/ui/badge";
+import { SULIT_COLUMN_WORDS } from "@/lib/sulit-fields";
 import { Button, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter } from "@/components/ui/feedback";
@@ -85,14 +86,13 @@ export interface Column {
   /// `hide` columns are left out. A column with no flag counts as `hide`. Desktop is
   /// unchanged. Sorting is a table feature and is not offered in the stacked layout.
   mobile?: "primary" | "meta" | "hide";
-  /// The column shows a SULIT figure that nothing yet restricts (6.2 OD-8): its header
-  /// carries the SULIT chip, and the list offers no export in any form. Search, filters
+  /// The column shows a SULIT figure, judged for the reader cell by cell (a `Sulit` made a cell by `sulitCell`): its header
+  /// carries the SULIT lock, and the list offers no export of it in any form. Search, filters
   /// and sort stay. Files that must leave are built on the server and recorded, never
   /// downloaded from a list (NFR-SEC-002, NFR-AUD-004). The registry of fields that
   /// require this flag is `src/lib/sulit-fields.ts`; a test scans the screens for it.
   sulit?: boolean;
-  /// What the column's lock says, for a column whose cells a loader has judged for the reader (`Sulit<T>`, Phase 3a): the figure is shown to those entitled and
-  /// withheld from the rest, so the default sentence ("not restricted until sign-in") would be untrue of it. Left out, the default stands until the column's module rolls out (3b).
+  /// What the column's lock says where the default (`SULIT_COLUMN_WORDS`) is not the whole truth of the column: who sees it, in the column's own words.
   sulitLabel?: string;
 }
 
@@ -111,7 +111,7 @@ export function canExport(columns: readonly Column[]): boolean {
 /// The mark a SULIT column's header carries: the shared lock beside the column name, the
 /// whole sentence in the tooltip and to a screen reader (founder, 2026-10-04: a lock, not a chip).
 function SulitMark({ label }: { label?: string }) {
-  return <SulitLock size={12} label={label} />;
+  return <SulitLock size={12} label={label ?? SULIT_COLUMN_WORDS} />;
 }
 // Written out whole for Tailwind (see HIDE_COL_BELOW): the stacked list below the breakpoint, the table from it.
 const STACKED_BELOW = { md: "md:hidden", xl: "xl:hidden", "2xl": "2xl:hidden" } as const;
