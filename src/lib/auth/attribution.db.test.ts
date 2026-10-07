@@ -173,6 +173,18 @@ describe("the one writer", () => {
     expect(await db.actAttribution.count({ where: { entityId: input.entityId } })).toBe(0);
   });
 
+  it("refuses a person of another organisation, as the subject or as the recorder, and writes nothing", async () => {
+    const other = await db.organisation.upsert({ where: { code: "AUTH_TEST_OTHER" }, update: {}, create: { code: "AUTH_TEST_OTHER", name: "Another organisation", timeZone: "Asia/Kuala_Lumpur" } });
+    const stranger = await makePerson(other.id);
+    // A slot that is not signature-class, so the only fault is the Person.
+    const record = { entity: "Requisition", entityId: `rq_${randomId()}`, slot: "requestingPerson", mode: "RECORDED_ON_BEHALF" as const, reason: "the form named someone of another organisation" };
+    const asSubject = { ...record, actor: actor(), subject: { kind: "PERSON" as const, personId: stranger.id } };
+    await expect(db.$transaction((tx) => attributeAct(tx, asSubject))).rejects.toMatchObject({ faults: [{ code: "NO_SUCH_PERSON" }] });
+    const asRecorder = { ...record, actor: actor({ personId: stranger.id }), subject: { kind: "PERSON" as const, personId: p2 } };
+    await expect(db.$transaction((tx) => attributeAct(tx, asRecorder))).rejects.toMatchObject({ faults: [{ code: "NO_SUCH_PERSON" }] });
+    expect(await db.actAttribution.count({ where: { entityId: record.entityId } })).toBe(0);
+  });
+
   it("refuses to sign for another person: the F1 hole, closed at the writer", async () => {
     const input = { ...base(), actor: actor(), subject: { kind: "PERSON" as const, personId: p2 }, mode: "SIGNED" as const, stepUpAt: new Date() };
     await expect(db.$transaction((tx) => attributeAct(tx, input))).rejects.toMatchObject({ faults: [{ code: "SIGNED_BY_ANOTHER" }] });

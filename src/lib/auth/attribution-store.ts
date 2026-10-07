@@ -53,5 +53,11 @@ export async function attributeAct(tx: Tx, input: AttributeActInput) {
   };
   const faults = attributionFaults(request);
   if (faults.length > 0) throw new AttributionRefused(faults);
+  // Every Person named belongs to the actor's organisation (ADR 0034 D10): the attested person of a form is whoever the form said, and a Person of
+  // another organisation reads as no longer existing. A system recorder names no Person.
+  const personIds = [...new Set([request.subject, request.recorder].flatMap((p) => (p.kind === "PERSON" ? [p.personId] : [])))];
+  if (personIds.length > 0 && (await tx.person.count({ where: { id: { in: personIds }, organisationId: input.actor.organisationId } })) !== personIds.length) {
+    throw new AttributionRefused([{ code: "NO_SUCH_PERSON", en: "That person no longer exists.", ms: "Orang itu tidak lagi wujud." }]);
+  }
   return tx.actAttribution.create({ data: { organisationId: input.actor.organisationId, ...attributionRow(request) } });
 }

@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
-import { makeAccount, makePerson, randomId, randomPassword, setPolicy, SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
+import { ensureAdministrator, makeAccount, makePerson, randomId, randomPassword, setPolicy, SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
 import { assertCanHold, HoldingRefused, holdingsOf, makeAdministratorConflict } from "./administration-guard";
 import { bootstrapAdministrator } from "./bootstrap";
@@ -21,6 +21,8 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   await setPolicy(organisationId, SETTINGS);
+  // The bootstrap command adds a second administrator only where one exists: a fresh scratch database has none until a test makes one.
+  await ensureAdministrator(organisationId);
 });
 
 const code = () => `R_${randomId()}`;
@@ -64,7 +66,6 @@ describe("making a Person an administrator", () => {
   it("is refused by the bootstrap command for a Person who holds an office, with the same words", async () => {
     const p = await makePerson(organisationId);
     await office(p.id);
-    await db.staffAccount.count();
     const result = await bootstrapAdministrator({
       organisationCode: "AUTH_TEST",
       mode: "ADDITIONAL",
