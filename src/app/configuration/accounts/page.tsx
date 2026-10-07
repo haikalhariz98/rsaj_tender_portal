@@ -57,8 +57,12 @@ export default async function AccountsPage() {
         <Callout tone="warn" title="This copy is connected to its database with too much authority" className="mb-5">
           It runs as {RUNTIME_ROLE_WORDS[role.reason]}.{" "}
           {role.refuseSignIn
-            ? "Sign-in is refused until the operator sets the app's own role up."
-            : "This is allowed while developing only: a production copy refuses every sign-in like this. The operator sets the app's own role up as the README describes (Running in production)."}
+            ? role.reason === "TRAIL_WRITABLE"
+              ? "Sign-in is refused until the operator brings the role's rights back into line and restarts the app."
+              : "Sign-in is refused until the operator sets the app's own role up."
+            : role.reason === "TRAIL_WRITABLE"
+              ? "This is allowed while developing only: a production copy refuses every sign-in like this. The operator brings the role's rights back into line as the README describes (Running in production), then restarts the app."
+              : "This is allowed while developing only: a production copy refuses every sign-in like this. The operator sets the app's own role up as the README describes (Running in production)."}
         </Callout>
       )}
 

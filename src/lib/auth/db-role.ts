@@ -121,7 +121,7 @@ export function runtimeRoleVerdict(facts: RuntimeRoleFacts, production: boolean)
 
 /// What the screen and the server log say about each reason. Words, never the code.
 export const RUNTIME_ROLE_WORDS: Record<RuntimeRoleReason, string> = {
-  SUPERUSER: "the database superuser, not the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
-  OWNER: "the owner of the tables, not the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
+  SUPERUSER: "the database superuser, not as the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
+  OWNER: "the owner of the tables, not as the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
   TRAIL_WRITABLE: "a login that can still change or remove records the app should only add to (the audit trail, the sign-in log, document access history or stored document content), or reach the migration history",
 };

@@ -88,6 +88,15 @@ describe("who the running app is", () => {
     expect(runtimeRoleVerdict({ ...app, isSuperuser: true, ownsSchemaObjects: true, withheldHeld: ["AuditEntry"] }, true)).toMatchObject({ reason: "SUPERUSER" });
     expect(runtimeRoleVerdict({ ...app, ownsSchemaObjects: true, withheldHeld: ["AuditEntry"] }, true)).toMatchObject({ reason: "OWNER" });
   });
+  it("the owner and superuser sentences on the accounts screen are the ones it showed before the words moved here", () => {
+    // The screen renders "It runs as " + words + ".". These are the sentences its JSX rendered before the Phase 1d review.
+    expect(`It runs as ${RUNTIME_ROLE_WORDS.OWNER}.`).toBe(
+      "It runs as the owner of the tables, not as the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log.",
+    );
+    expect(`It runs as ${RUNTIME_ROLE_WORDS.SUPERUSER}.`).toBe(
+      "It runs as the database superuser, not as the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log.",
+    );
+  });
   it("every reason has words for the screen, and none of them is a code", () => {
     for (const words of Object.values(RUNTIME_ROLE_WORDS)) expect(words).not.toMatch(/[A-Z]{2,}_|[a-z]+[A-Z][a-z]+[A-Z]|_prisma/);
   });
