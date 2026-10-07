@@ -187,7 +187,8 @@ function outcomeGateFaults(src: string): string[] {
   const wrap = fnBody("inSittingAfterContract");
   if (!outcome) return ["no recordOutcome"];
   // Founder, 2026-10-05: the path also carries what the outcome's link to the variation's route needs (decision, clock). Phase 1b: and who acted, first.
-  if (!/\bvariation\s*\?\s*inSittingAfterContract\((?:toAuditActor\(actor\), )?meetingId, variation, run[,)]/.test(outcome)) out.push("recordOutcome does not route a variation's matter through inSittingAfterContract");
+  // Phase 1c (ADR 0034 D10): and, before that, the signed-in person's organisation (`actor`), which the self-test's forms leave out.
+  if (!/\bvariation\s*\?\s*inSittingAfterContract\((?:actor, )?(?:toAuditActor\(actor\), )?meetingId, variation, run[,)]/.test(outcome)) out.push("recordOutcome does not route a variation's matter through inSittingAfterContract");
   if (!/decision\.variationId !== \(variation\?\.id \?\? null\)/.test(outcome)) out.push("recordOutcome does not check, under the locks, that the matter is still the variation's");
   if (!wrap) return [...out, "no inSittingAfterContract"];
   const gate = wrap.indexOf('actStatusFault("VARIATION", l.contract.status as ContractStatus)');

@@ -209,7 +209,8 @@ export function recordOf(d: DecisionRow): DecisionRecord | null {
 export async function withLockedRequisition<T>(organisationId: string, id: string, fn: (tx: Tx, l: LoadedRequisition) => Promise<T>): Promise<T | null> {
   return db.$transaction(
     async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${id} FOR UPDATE`;
+      // Only the organisation's own row is locked (ADR 0034 D10): another organisation's id locks nothing and reads as gone.
+      await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${id} AND "organisationId" = ${organisationId} FOR UPDATE`;
       const l = await loadRequisition(organisationId, id, tx);
       if (!l) return null;
       return fn(tx, l);

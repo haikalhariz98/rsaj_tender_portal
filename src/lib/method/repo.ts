@@ -178,8 +178,9 @@ export async function withLockedRequisitionForSourcing<T>(organisationId: string
 ): Promise<T | null> {
   return db.$transaction(
     async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${requisitionId} FOR UPDATE`;
-      if (exerciseId) await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${exerciseId} FOR UPDATE`;
+      // Only the organisation's own rows are locked (ADR 0034 D10): another organisation's ids lock nothing and read as gone.
+      await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${requisitionId} AND "organisationId" = ${organisationId} FOR UPDATE`;
+      if (exerciseId) await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${exerciseId} AND "organisationId" = ${organisationId} FOR UPDATE`;
       const r = await loadRequisitionForSourcing(organisationId, requisitionId, tx);
       if (!r) return null;
       let ex: ExerciseRow | null = null;
