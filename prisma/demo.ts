@@ -53,6 +53,9 @@ import { demoOrgId, demoScope } from "./demo-org";
  * which the database now refuses to change or delete. So nothing here deletes a row, and the wipe that used to is gone:
  * a demonstration database is thrown away whole, never emptied. A load runs once. If it finds any demo row, finished or
  * not, it writes nothing; a load that stopped part way is not finished by running it again, it is replaced by a new database.
+ * That whole-load guard is this loader's choice, not something the permanent trail forces (Phase 1d review): createMany with
+ * skipDuplicates is INSERT ... ON CONFLICT DO NOTHING and needs no UPDATE, so per-step guards (skip a step whose stable-id rows
+ * exist; write a step's audit rows only when it inserted, as `demo:results` does) could finish a part-made load. They are not built.
  */
 
 const db = new PrismaClient({
@@ -108,7 +111,7 @@ async function load() {
   // Whether an earlier load finished cannot be told from here (a load can stop after any step), so the words do not claim it did.
   if (await demoStarted(db)) {
     console.log(
-      "Demo data is already present, loaded wholly or in part: nothing was written. It cannot be finished or removed (the trail is permanent); for a fresh demo, use a new database.",
+      "Demo data is already present, loaded wholly or in part: nothing was written. This loader runs once per database and does not finish a part-made load; nothing removes it (the trail is permanent). For a fresh demo, use a new database.",
     );
     return;
   }
@@ -2061,7 +2064,7 @@ async function results() {
     return;
   }
   const state = await resultsDemoState(db);
-  if (state === "PARTIAL") throw new Error("The Results fixture stands part-made (its requisition or exercise exists without an issued award). Nothing was written. It cannot be finished or removed (the trail is permanent, Phase 1d); use a new database.");
+  if (state === "PARTIAL") throw new Error("The Results fixture stands part-made (its requisition or exercise exists without an issued award). Nothing was written. This loader does not finish a part-made fixture, and nothing removes it (the trail is permanent, Phase 1d); use a new database.");
   if (state === "ABSENT") {
     const made = await loadResultsDemo(db, org.id, { determine: determineExercises });
     console.log(`Results fixture added: ${made.reference}, its award issued.`);
