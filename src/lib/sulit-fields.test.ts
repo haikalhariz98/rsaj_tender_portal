@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { dataListRegions, isSulitField, SULIT_FIELDS, sulitFieldsIn, unflaggedSulitFields } from "./sulit-fields";
+import { dataListRegions, isSulitField, SULIT_FIELDS, SULIT_SCOPES, sulitFieldsIn, unflaggedSulitFields } from "./sulit-fields";
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -21,6 +21,23 @@ describe("the SULIT-field registry", () => {
     expect(sulitFieldsIn("r.estimatedValue")).toHaveLength(1);
     expect(sulitFieldsIn("r.estimatedValueBand")).toHaveLength(0);
     expect(sulitFieldsIn("scoreboard")).toHaveLength(0);
+  });
+});
+
+// Phase 3a (ADR 0034 D14), a deliberate change to this group-J file: the registry gains `scope`, the record that decides who may read a field.
+describe("every registered field says whose record it belongs to", () => {
+  it("each entry has one of the five scopes", () => {
+    for (const f of SULIT_FIELDS) expect(SULIT_SCOPES as readonly string[], f.field).toContain(f.scope);
+  });
+  it("a field is registered once", () => {
+    const names = SULIT_FIELDS.map((f) => f.field);
+    expect(new Set(names).size).toBe(names.length);
+  });
+  it("the department estimate is a requisition's and also an exercise's, and the company estimate an exercise's", () => {
+    const by = (n: string) => SULIT_FIELDS.find((f) => f.field === n)!;
+    expect(by("estimatedValue")).toMatchObject({ scope: "requisition", alsoIn: ["exercise"] });
+    expect(by("companyEstimate").scope).toBe("exercise");
+    expect(by("score").scope).toBe("evaluation");
   });
 });
 

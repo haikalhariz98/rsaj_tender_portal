@@ -198,6 +198,7 @@ model Organisation {
   contractTypes   ContractType[]
   orgUnits        OrgUnit[]
   auditEntries    AuditEntry[]
+  sulitAccessEvents SulitAccessEvent[]
   staffAccounts   StaffAccount[]
   staffSessions   StaffSession[]
   oneTimeCodes    OneTimeCode[]
@@ -648,6 +649,8 @@ model Person {
   matricesIssued             AuthorityMatrix[]       @relation("MatrixIssuedBy")
   configurationChangesProposed ConfigurationChange[] @relation("ChangeProposedBy")
   configurationChangesDecided  ConfigurationChange[] @relation("ChangeDecidedBy")
+  // Phase 3a (ADR 0034 D14): the SULIT values this person was shown or refused.
+  sulitAccessEvents            SulitAccessEvent[]
 }
 
 /// Who holds an authority office, and when.
@@ -3234,7 +3237,8 @@ model SourcingExercise {
   /// later happens to the method's items. Null while it is being prepared.
   proposalRecord           Json?
 
-  /// The method's restriction as it stood (FR-MTD-007). Not enforced until sign-in.
+  /// The method's restriction as it stood (FR-MTD-007). Since Phase 3a it is enforced: a restricted exercise is hidden from everyone not named
+  /// on it (`src/lib/auth/exercise-access.ts`), and the SULIT values on it are read by the named only.
   restricted Boolean @default(false)
 
   /// The decided record, written on the move into preparation; the exercise renders
@@ -11163,4 +11167,45 @@ enum ConfigurationChangeStatus {
   DECLINED
   WITHDRAWN
   STALE
+}
+
+/// Whether a SULIT value was shown or withheld.
+enum SulitOutcome {
+  GRANTED
+  WITHHELD
+}
+
+/// Every access to a SULIT value, allowed or refused (NFR-AUD-004, ADR 0034 D14): who, which record, which fields, the outcome and why.
+/// Append-only: the Phase 1d trigger refuses every UPDATE, DELETE and TRUNCATE (migration 20261008110100), and the app's login holds none
+/// of those rights. The record is text, as the audit trail's is, so the log outlives the row. `scope` and `basis` are text held to closed
+/// lists by CHECK constraints (hand-appended in the migration), so an unknown value refuses rather than passes.
+model SulitAccessEvent {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  /// Who: a signed-in person, or (a loader run) the system by label. Exactly one.
+  actorPersonId    String?
+  actorPerson      Person? @relation(fields: [actorPersonId], references: [id], onDelete: Restrict)
+  actorSystemLabel String?
+  actorSessionId   String?
+  sourceAddress    String?
+
+  /// Which kind of record decides who may read it (`SULIT_SCOPES`), and the record: its model, its id and how it read ("EX-0007").
+  scope       String
+  entity      String
+  entityId    String
+  entityLabel String @default("")
+  /// The fields asked for, by their registry names, or "record" where the record itself was reached and refused (a restricted exercise opened by id).
+  fields      String[]
+
+  outcome SulitOutcome
+  /// Why (`SULIT_GRANT_BASES`, `SULIT_REFUSAL_BASES`).
+  basis   String
+
+  at DateTime @default(now())
+
+  @@index([organisationId, at])
+  @@index([entity, entityId])
+  @@index([actorPersonId, at])
 }

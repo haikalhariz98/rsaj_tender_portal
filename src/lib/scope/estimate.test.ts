@@ -220,7 +220,9 @@ describe("sealed until disclosure (OD-1, FR-EST-010): the worked example", () =>
   });
 });
 
-describe("custody, built for sign-in (OD-1: not wired to any reveal)", () => {
+// Phase 3a (FR-EST-008): custody is now wired (to who may read a disclosed figure, never to a reveal before disclosure, OD-1). The title said
+// "built for sign-in, not wired"; the cases below are unchanged and the department-scoped cases that follow are new.
+describe("custody (FR-EST-008, wired in Phase 3a; still no reveal before disclosure, OD-1)", () => {
   const holders = [{ personId: "p3", roleCode: "HOD_CP", from: "2024-01-01", to: null }, { personId: "p9", roleCode: "AUDIT", from: "2024-01-01", to: "2026-06-30" }];
   it("an office unset says which, never 'nobody'", () => {
     expect(custodyList({ estimateCustodianRoleCode: "HOD_CP", estimateAuditRoleCode: null }, holders, "p11", "2026-10-01")).toEqual({ state: "NOT_SET", missing: ["AUDIT"] });
@@ -235,6 +237,33 @@ describe("custody, built for sign-in (OD-1: not wired to any reveal)", () => {
     expect(viewFault("p11", est({ state: "DISCLOSED" }), custody)).toBeNull();
     expect(viewFault("p4", est({ state: "DISCLOSED" }), custody)).toBe("NOT_IN_CUSTODY");
     expect(viewFault("p11", est({ state: "DISCLOSED" }), { state: "NOT_SET", missing: ["AUDIT"] })).toBe("CUSTODY_NOT_SET");
+  });
+  describe("where an office is held (Phase 3a: a department's head does not hold every department's estimate)", () => {
+    const scoped = [
+      { personId: "hodA", roleCode: "HOD_CP", scope: "DEPT_A", from: "2024-01-01", to: null },
+      { personId: "hodB", roleCode: "HOD_CP", scope: "DEPT_B", from: "2024-01-01", to: null },
+      { personId: "hodAll", roleCode: "HOD_CP", scope: null, from: "2024-01-01", to: null },
+      { personId: "aud", roleCode: "AUDIT", scope: null, from: "2024-01-01", to: null },
+    ];
+    const policy = { estimateCustodianRoleCode: "HOD_CP", estimateAuditRoleCode: "AUDIT" };
+    it("the nearest unit on the path that has a holder wins, and another department's holder does not count", () => {
+      expect(custodyList(policy, scoped, "p11", "2026-10-01", ["SECTION_A1", "DEPT_A", "ROOT"])).toEqual({ state: "SET", personIds: ["p11", "hodA", "aud"] });
+      expect(custodyList(policy, scoped, "p11", "2026-10-01", ["DEPT_B", "ROOT"])).toEqual({ state: "SET", personIds: ["p11", "hodB", "aud"] });
+    });
+    it("a unit with no holder of its own falls back to the organisation-wide holders", () => {
+      expect(custodyList(policy, scoped, "p11", "2026-10-01", ["DEPT_C", "ROOT"])).toEqual({ state: "SET", personIds: ["p11", "hodAll", "aud"] });
+    });
+    it("an empty path (the unit is not known) counts the organisation-wide holders only", () => {
+      expect(custodyList(policy, scoped, "p11", "2026-10-01", [])).toEqual({ state: "SET", personIds: ["p11", "hodAll", "aud"] });
+    });
+    it("a holder whose spell has ended, or not begun, does not count", () => {
+      const spells = [{ personId: "old", roleCode: "HOD_CP", scope: null, from: "2020-01-01", to: "2023-12-31" }, { personId: "new", roleCode: "HOD_CP", scope: null, from: "2027-01-01", to: null }, { personId: "aud", roleCode: "AUDIT", scope: null, from: "2024-01-01", to: null }];
+      expect(custodyList(policy, spells, "p11", "2026-10-01", [])).toEqual({ state: "SET", personIds: ["p11", "aud"] });
+    });
+    it("with no path given, scope is not considered (the original behaviour)", () => {
+      expect(custodyList(policy, scoped, "p11", "2026-10-01").state).toBe("SET");
+      expect((custodyList(policy, scoped, "p11", "2026-10-01") as { personIds: string[] }).personIds).toEqual(["p11", "hodA", "hodB", "hodAll", "aud"]);
+    });
   });
 });
 
