@@ -642,6 +642,7 @@ model Person {
   // Phase 2a (ADR 0034 D12, D15): the attribution of acts, and the two-person records of configuration.
   actsAttributedAsSubject    ActAttribution[]        @relation("ActSubject")
   actsAttributedAsRecorder   ActAttribution[]        @relation("ActRecordedBy")
+  actsBackdateAuthorised     ActAttribution[]        @relation("ActBackdateAuthorisedBy")
   matrixMaking               AuthorityMatrixMaker[]
   matricesIssued             AuthorityMatrix[]       @relation("MatrixIssuedBy")
   configurationChangesProposed ConfigurationChange[] @relation("ChangeProposedBy")
@@ -11060,6 +11061,19 @@ model ActAttribution {
   /// The paper the act was recorded from, and why, for RECORDED_ON_BEHALF. One of them is required there.
   paperReference String @default("")
   reason         String @default("")
+
+  /// NFR-SIG-001: what a signature-class act signed, exactly (the model and id of the document or record), and the office the signer held when they did.
+  /// Both null for an act that signs nothing. The role is a configuration key: a screen reads its label.
+  documentEntity String?
+  documentId     String?
+  roleCode       String?
+
+  /// NFR-AUD-005 and 006: the server stamps the time of the act (`at`), never the person. A signed act dated earlier than the day it is recorded is a
+  /// recorded exception: the day it is dated, why, and the person who authorised it (named by the actor: attested, not signed). All three or none.
+  effectiveOn                  DateTime? @db.Date
+  backdateReason               String    @default("")
+  backdateAuthorisedByPersonId String?
+  backdateAuthorisedByPerson   Person?   @relation("ActBackdateAuthorisedBy", fields: [backdateAuthorisedByPersonId], references: [id], onDelete: Restrict)
 
   at DateTime @default(now())
 
