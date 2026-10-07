@@ -9,7 +9,8 @@ export const CONTROL =
   "disabled:cursor-not-allowed disabled:bg-sunken disabled:text-ink-3 " +
   "aria-invalid:border-rose-400 aria-invalid:focus:ring-rose-500/15";
 
-export const HEIGHT = { sm: "h-9 px-3 text-[13px]", md: "h-10 px-3.5 text-[14px]" } as const;
+/// 16px below the `sm` breakpoint: a text field under 16px makes iOS zoom the page in when it takes focus.
+export const HEIGHT = { sm: "h-9 px-3 text-[16px] sm:text-[13px]", md: "h-10 px-3.5 text-[16px] sm:text-[14px]" } as const;
 
 export type ControlSize = keyof typeof HEIGHT;
 

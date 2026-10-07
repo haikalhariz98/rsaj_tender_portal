@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 import { CheckIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
+import { cx } from "@/components/ui/cx";
+import { showsNameBesideLogo } from "@/lib/organisation/details";
 import type { SignInBranding } from "@/lib/organisation/sign-in-load";
 
 /**
@@ -14,28 +16,36 @@ import type { SignInBranding } from "@/lib/organisation/sign-in-load";
  */
 export function SignInScreen({ branding, children }: { branding: SignInBranding; children: ReactNode }) {
   const { view, imageSha, logo } = branding;
+  /// A square or near-square mark is drawn taller (as the sidebar draws it) so its small wordmark can be read; a wide one is already wide.
+  const beside = logo ? showsNameBesideLogo(logo.width, logo.height) : false;
   return (
     <div className={view.hasPanel ? "min-h-dvh lg:grid lg:grid-cols-2" : "min-h-dvh"}>
       {view.hasPanel && (
         <aside className="relative isolate flex min-h-60 flex-col justify-between gap-8 overflow-hidden bg-brand-900 px-6 py-8 text-white sm:px-10 lg:min-h-dvh lg:px-14 lg:py-12">
           {imageSha && (
             // eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint
-            <img src={`/sign-in/image/${imageSha}`} alt="" className="absolute inset-0 -z-20 size-full object-cover object-[20%_bottom]" />
+            <img src={`/sign-in/image/${imageSha}`} alt="" fetchPriority="high" decoding="async" className="absolute inset-0 -z-20 size-full object-cover object-[20%_bottom]" />
           )}
           <div aria-hidden="true" className="absolute inset-0 -z-10 bg-linear-to-b from-ink/75 via-ink/55 to-ink/70 lg:bg-linear-to-r lg:from-ink/85 lg:via-ink/72 lg:to-ink/62" />
 
           <div className="min-h-12">
             {logo && (
-              <span className="inline-flex rounded-2xl bg-white p-2.5 shadow-card">
+              <span className={cx("inline-flex rounded-2xl bg-white shadow-card", beside ? "p-3 lg:p-4" : "p-2.5 lg:p-3")}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint */}
-                <img src={`/organisation/logo/${logo.sha}`} alt={view.organisationName ? `${view.organisationName} logo` : "Organisation logo"} className="h-10 w-auto max-w-56 object-contain lg:h-12" />
+                <img
+                  src={`/organisation/logo/${logo.sha}`}
+                  width={logo.width}
+                  height={logo.height}
+                  alt={view.organisationName ? `${view.organisationName} logo` : "Organisation logo"}
+                  className={cx("w-auto object-contain", beside ? "h-16 max-w-40 lg:h-24 lg:max-w-56" : "h-12 max-w-64 lg:h-14")}
+                />
               </span>
             )}
           </div>
 
           <div className="max-w-xl">
             {view.portalName && <p className="text-[12.5px] font-semibold tracking-[0.22em] text-white uppercase">{view.portalName}</p>}
-            {view.headline && <h2 className="mt-3 text-[30px] leading-[1.1] font-extrabold tracking-[-0.02em] text-balance sm:text-[36px] lg:text-[52px]">{view.headline}</h2>}
+            {view.headline && <p className="mt-3 text-[30px] leading-[1.1] font-extrabold tracking-[-0.02em] text-balance sm:text-[36px] lg:text-[52px]">{view.headline}</p>}
             {view.supportingText && <p className="mt-5 hidden max-w-md text-[16px] leading-relaxed text-white lg:block">{view.supportingText}</p>}
             {view.highlights.length > 0 && (
               <ul className="mt-10 hidden flex-wrap gap-x-8 gap-y-5 lg:flex">
@@ -70,7 +80,7 @@ export function SignInScreen({ branding, children }: { branding: SignInBranding;
               <span aria-hidden="true" className="text-ink-4">
                 |
               </span>
-              <a href={l.href} target="_blank" rel="noopener noreferrer" className="rounded font-medium text-ink-2 underline decoration-ink-4 underline-offset-2 hover:text-ink">
+              <a href={l.href} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded px-1 font-medium text-ink-2 underline decoration-ink-4 underline-offset-2 hover:text-ink sm:min-h-6">
                 {l.label}
                 <span className="sr-only"> (opens in a new tab)</span>
               </a>

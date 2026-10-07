@@ -91,6 +91,7 @@ export function IconButton({
   label,
   size = "md",
   bordered,
+  touchTarget,
   className,
   children,
   type = "button",
@@ -99,13 +100,16 @@ export function IconButton({
   label: string;
   size?: keyof typeof ICON_SIZE;
   bordered?: boolean;
+  /// Below the `sm` breakpoint, grow the pressable area 6px past the drawn box on every side (a 32px button reaches 44px) without changing what is
+  /// drawn. For a button that has to sit inside a box no taller than itself, such as the eye inside a text field.
+  touchTarget?: boolean;
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       type={type}
       aria-label={label}
       title={label}
-      className={iconButtonClass(size, bordered, className)}
+      className={iconButtonClass(size, bordered, cx(touchTarget && "after:absolute after:-inset-1.5 after:content-[''] sm:after:hidden", className))}
       {...props}
     >
       {children}

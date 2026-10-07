@@ -19,7 +19,7 @@ import { AUTH_WORDS } from "@/lib/auth/words";
  * action answers with `href` the form goes there; otherwise a success message is shown and the form is emptied.
  *
  * A password field may carry a show/hide button (`reveal`). It never submits, never moves focus, is never remembered, and goes back to hidden on
- * every submit; and because a shown password is a text input, the clearing after an answer goes by the declared password fields, not by input type.
+ * every submit (its name stays "Show password" and `aria-pressed` says which way it is, as a toggle button's does; only the hover tip switches); and because a shown password is a text input, the clearing after an answer goes by the declared password fields, not by input type.
  */
 
 const FIELD_ICON = { person: UserIcon, lock: LockIcon } as const;
@@ -103,7 +103,7 @@ export function AuthForm({
               icon={Icon ? <Icon size={16} /> : undefined}
               trailing={
                 f.reveal && f.type === "password" ? (
-                  <IconButton size="sm" label={visible ? AUTH_WORDS.hidePassword.en : AUTH_WORDS.showPassword.en} aria-pressed={visible} onClick={() => setShown((prev) => ({ ...prev, [f.name]: !prev[f.name] }))}>
+                  <IconButton size="sm" touchTarget label={AUTH_WORDS.showPassword.en} title={visible ? AUTH_WORDS.hidePassword.en : AUTH_WORDS.showPassword.en} aria-pressed={visible} onClick={() => setShown((prev) => ({ ...prev, [f.name]: !prev[f.name] }))}>
                     {visible ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
                   </IconButton>
                 ) : undefined

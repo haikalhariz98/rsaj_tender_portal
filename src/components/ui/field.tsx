@@ -32,7 +32,7 @@ export function Input({
     <input
       className={inputClass(
         size,
-        cx(mono && "font-mono text-[13px]", numeric && "text-right tabular-nums", icon && "pl-9", trailing && "pr-11", className),
+        cx(mono && "font-mono text-[16px] sm:text-[13px]", numeric && "text-right tabular-nums", icon && "pl-9", trailing && "pr-11", className),
       )}
       {...props}
       {...fieldAria(ctx, props)}
@@ -129,7 +129,7 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   const ctx = useFieldContext();
   return (
     <textarea
-      className={cx(CONTROL, "min-h-24 px-3.5 py-2.5 text-[14px] leading-relaxed", className)}
+      className={cx(CONTROL, "min-h-24 px-3.5 py-2.5 text-[16px] leading-relaxed sm:text-[14px]", className)}
       {...props}
       {...fieldAria(ctx, props)}
     />

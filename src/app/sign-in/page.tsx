@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { LockIcon, ShieldIcon } from "@/components/icons";
@@ -17,6 +18,8 @@ import { SURFACE_ENV, surfaceOf } from "@/lib/portal/surface";
 
 import { currentStaffOrNull } from "../_auth/actor";
 import { signInAction } from "./actions";
+
+export const metadata: Metadata = { title: AUTH_WORDS.signInButton.en };
 
 export const dynamic = "force-dynamic";
 

@@ -1,11 +1,15 @@
 /**
  * What the sign-in screens need to draw the organisation: its logo, its sign-in image and its sign-in words, read for one organisation.
  *
+ * The organisation is named as the shell names it, by its short name and else its legal one (`displayName`), so the page, the logo's alt text and the footer
+ * agree with the sidebar.
+ *
  * Not a deployment module: the caller names the organisation (the sign-in page has it from `signInOrganisation()`), so this file never reaches for the
  * deployment's one.
  */
 import { db } from "@/lib/db";
 
+import { displayName } from "./details";
 import { signInView, type SignInView } from "./sign-in-page";
 
 export interface SignInBranding {
@@ -18,7 +22,22 @@ export interface SignInBranding {
 
 /// What the page draws when nothing can be read: the card alone. The picture and words are decoration around the form, so a fault reading them is
 /// logged and never closes sign-in (as the frame's own loader treats its decoration).
-const bare = (now: Date): SignInBranding => ({ view: signInView(null, { organisationName: "", hasImage: false, hasLogo: false, now, timeZone: null }), imageSha: null, logo: null });
+const bare = (now: Date, organisationName: string, timeZone: string | null): SignInBranding => ({
+  view: signInView(null, { organisationName, hasImage: false, hasLogo: false, now, timeZone }),
+  imageSha: null,
+  logo: null,
+});
+
+/// What a fault reading the picture and words can still say: the organisation's name and zone, which sit on its own row (a second, narrow read; empty if that fails too).
+async function plainFacts(organisationId: string | null): Promise<{ name: string; timeZone: string | null }> {
+  if (!organisationId) return { name: "", timeZone: null };
+  try {
+    const org = await db.organisation.findUnique({ where: { id: organisationId }, select: { name: true, shortName: true, timeZone: true } });
+    return org ? { name: displayName(org), timeZone: org.timeZone } : { name: "", timeZone: null };
+  } catch {
+    return { name: "", timeZone: null };
+  }
+}
 
 export async function loadSignInBranding(organisationId: string | null, now: Date = new Date()): Promise<SignInBranding> {
   let org;
@@ -28,6 +47,7 @@ export async function loadSignInBranding(organisationId: string | null, now: Dat
           where: { id: organisationId },
           select: {
             name: true,
+            shortName: true,
             timeZone: true,
             logo: { select: { sha256: true, width: true, height: true } },
             signInImage: { select: { sha256: true } },
@@ -37,10 +57,11 @@ export async function loadSignInBranding(organisationId: string | null, now: Dat
       : null;
   } catch (error) {
     console.error("The sign-in page's picture and words could not be read; the form is shown alone.", error);
-    return bare(now);
+    const plain = await plainFacts(organisationId);
+    return bare(now, plain.name, plain.timeZone);
   }
   const logo = org?.logo ? { sha: org.logo.sha256, width: org.logo.width, height: org.logo.height } : null;
   const imageSha = org?.signInImage?.sha256 ?? null;
-  const view = signInView(org?.signInPage ?? null, { organisationName: org?.name ?? "", hasImage: imageSha != null, hasLogo: logo != null, now, timeZone: org?.timeZone ?? null });
+  const view = signInView(org?.signInPage ?? null, { organisationName: org ? displayName(org) : "", hasImage: imageSha != null, hasLogo: logo != null, now, timeZone: org?.timeZone ?? null });
   return { view, imageSha, logo };
 }

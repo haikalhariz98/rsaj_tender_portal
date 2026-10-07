@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AuthForm } from "@/components/auth/auth-form";
@@ -15,6 +16,8 @@ import { SURFACE_ENV, surfaceOf } from "@/lib/portal/surface";
 
 import { redeemCodeAction } from "../actions";
 
+export const metadata: Metadata = { title: AUTH_WORDS.useCodeTitle.en };
+
 export const dynamic = "force-dynamic";
 
 export default async function UseCodePage() {
@@ -26,7 +29,7 @@ export default async function UseCodePage() {
 
   return (
     <SignInScreen branding={branding}>
-      <PageHeader title="Use a one-time code" subtitle="Activate your account or set a new password with a code an administrator gave you." />
+      <PageHeader title={AUTH_WORDS.useCodeTitle.en} subtitle="Activate your account or set a new password with a code an administrator gave you." />
       {unset.length > 0 && (
         <Callout tone="warn" title={AUTH_WORDS.policyNotSet.en} className="mb-5">
           {settingLabels(unset).join("; ")}. {AUTH_WORDS.policyNotSetHow.en}

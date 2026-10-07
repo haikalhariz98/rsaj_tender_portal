@@ -63,6 +63,7 @@ export const AUTH_WORDS = {
   showPassword: { en: "Show password", ms: "Tunjukkan kata laluan" },
   hidePassword: { en: "Hide password", ms: "Sembunyikan kata laluan" },
   orDivider: { en: "OR", ms: "ATAU" },
+  useCodeTitle: { en: "Use a one-time code", ms: "Guna kod sekali guna" },
   useCodeButton: { en: "Use a one-time code from an administrator", ms: "Guna kod sekali guna daripada pentadbir" },
   forgotHint: { en: "Forgot your password? Ask an administrator for a one-time code.", ms: "Terlupa kata laluan? Minta kod sekali guna daripada pentadbir." },
   recordedNote: { en: "Every sign-in and failed attempt is recorded.", ms: "Setiap log masuk dan percubaan yang gagal direkodkan." },
