@@ -25,8 +25,9 @@ import { checkPeriod, FormReader } from "@/lib/validate";
 import { issuedInForce } from "@/lib/authority/issue";
 import { inProgressSittingRefusal } from "@/lib/committee/sittings";
 import { splitValues } from "@/lib/ui/select-logic";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, staffForPermission, toAuditActor } from "@/app/_auth/actor";
 import { disableAccountOfLeaver, LeaverRefused } from "@/lib/auth/administration";
+import { delegationPersonsToCheck, delegationWhat, holdingGrows, officeWhat } from "@/lib/auth/administration-conflict";
 import { assertCanHold, HoldingRefused } from "@/lib/auth/administration-guard";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -203,7 +204,9 @@ export async function setGrant(
   capabilityId: string,
   granted: boolean,
 ): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
@@ -345,7 +348,9 @@ class DelegationRefused extends Error {
  * nobody is expecting it to.
  */
 export async function saveDelegation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
@@ -457,9 +462,14 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
       }
 
       // Administration is kept apart from transactions (ADR 0034 D9): neither the grantor nor the delegate is a Person whose account is an administrator's.
-      // Taken after the delegation's own lock, the Persons' in id order.
+      // Asked only of what the edit gives or extends (a new delegation, another Person or office, an earlier start, a later or open end), so that a
+      // delegation that already breaks the rule can still be ended or shortened (review of Phase 2a). Taken after the delegation's own lock, in id order.
+      const askedOf = delegationPersonsToCheck(
+        stored ? { fromPersonId: stored.fromPersonId, toPersonId: stored.toPersonId, what: delegationWhat(stored.roleCode, stored.capabilityCodes), effectiveFrom: stored.effectiveFrom, effectiveTo: stored.effectiveTo } : null,
+        { fromPersonId, toPersonId, what: delegationWhat(roleCode, capabilityCodes), effectiveFrom: v.effectiveFrom, effectiveTo: v.effectiveTo ?? null },
+      );
       try {
-        await assertCanHold(tx, [fromPersonId, toPersonId], "DELEGATION");
+        if (askedOf.length > 0) await assertCanHold(tx, askedOf, "DELEGATION");
       } catch (e) {
         if (e instanceof HoldingRefused) throw new DelegationRefused({ ok: false, errors: { [e.personId === fromPersonId ? "fromPersonId" : "toPersonId"]: e.fault.en } });
         throw e;
@@ -491,7 +501,9 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
 // ----------------------------------------------------------------------- offices
 
 export async function saveOffice(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
@@ -570,7 +582,9 @@ export async function saveOffice(_prev: FormState, data: FormData): Promise<Form
 // ------------------------------------------------------------------- assignments
 
 export async function saveAssignment(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
@@ -663,7 +677,10 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
       const before = await db.roleAssignment.findUnique({ where: { id, person: { organisationId: actor.organisationId } } });
       if (!before) return { ok: false, message: "That assignment no longer exists." };
       await auditedUpdate({ ...ctx, entityId: id }, before, v, async (tx) => {
-        await assertCanHold(tx, [personId!], "OFFICE");
+        // Asked only where the edit gives or extends the office: one that ends or shortens it gives nothing, and must stay possible (review of Phase 2a).
+        const stored = await tx.roleAssignment.findUnique({ where: { id, person: { organisationId: actor.organisationId } }, select: { personId: true, roleCode: true, scope: true, effectiveFrom: true, effectiveTo: true } });
+        const was = stored && { personId: stored.personId, what: officeWhat(stored.roleCode, stored.scope), effectiveFrom: stored.effectiveFrom, effectiveTo: stored.effectiveTo };
+        if (holdingGrows(was, { personId: personId!, what: officeWhat(roleCode, scope ?? null), effectiveFrom: v.effectiveFrom, effectiveTo: v.effectiveTo ?? null })) await assertCanHold(tx, [personId!], "OFFICE");
         return tx.roleAssignment.update({ where: { id, person: { organisationId: actor.organisationId } }, data: v });
       });
     }

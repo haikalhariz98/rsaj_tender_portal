@@ -229,7 +229,9 @@ export async function recordReconciliation(_prev: FormState, data: FormData): Pr
 
 /// An amendment to recorded information, with both signatures recorded on their behalf.
 export async function addAmendment(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("SIGNATURE");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const reconciliationId = r.text("reconciliationId", "Comparison", { required: true });

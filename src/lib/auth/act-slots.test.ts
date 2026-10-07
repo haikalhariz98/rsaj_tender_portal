@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { lex, spans } from "@/lib/scan/source";
 
-import { ACT_SLOTS, NOT_AN_ACT, SIGNATURE_SLOTS, slotKey, slotOf } from "./act-slots";
+import { ACT_SLOTS, NOT_AN_ACT, OTHER_HOLDER_ENTRY_POINTS, SIGNATURE_SLOTS, slotKey, slotOf } from "./act-slots";
 
 /**
  * The person slots of every act (ADR 0034 D12, Phase 2a). The schema is the source of truth for which columns name a Person, and this scan holds
@@ -104,10 +104,29 @@ describe("the signature-class acts", () => {
     );
   });
 
-  it("each says which kind of act an administrator account is refused at, except the checker's decision, which an administrator makes", () => {
+  /// The signature-class acts an administrator may do, each with the reason. Everything else that is signature-class is refused to an administrator account.
+  const ADMINISTRATOR_MAY: Record<string, string> = {
+    "ConfigurationChange.decidedBy": "The checker's decision on an administrator grant is made by an administrator (ADR 0034 D15).",
+    "AuthorityMatrix.issuedByPerson": "`configuration.issue` is held through the administrator flag (ADR 0034 D8): refusing the act here would refuse every administrator the permission they hold. An open item for the product owner.",
+  };
+
+  it("each says which kind of act an administrator account is refused at, except the two an administrator makes", () => {
     for (const s of SIGNATURE_SLOTS) {
-      if (slotKey(s.entity, s.field) === "ConfigurationChange.decidedBy") expect(s.holder).toBeUndefined();
-      else expect(s.holder, slotKey(s.entity, s.field)).toBeDefined();
+      const key = slotKey(s.entity, s.field);
+      if (key in ADMINISTRATOR_MAY) expect(s.holder, key).toBeUndefined();
+      else expect(s.holder, key).toBeDefined();
+    }
+    for (const [key, why] of Object.entries(ADMINISTRATOR_MAY)) {
+      expect(SIGNATURE_SLOTS.map((s) => slotKey(s.entity, s.field)), key).toContain(key);
+      expect(why.length, key).toBeGreaterThan(30);
+    }
+  });
+
+  it("a slot that names a kind of act it refuses an administrator names where it does, and the reverse: the registry claims no refusal nothing makes (review of Phase 2a)", () => {
+    for (const s of ACT_SLOTS) {
+      const key = slotKey(s.entity, s.field);
+      if (s.holder) expect(s.entryPoints?.length ?? 0, `${key} says it refuses an administrator and names no entry point that does`).toBeGreaterThan(0);
+      else expect(s.entryPoints, `${key} names entry points but no kind of act`).toBeUndefined();
     }
   });
 
@@ -119,10 +138,14 @@ describe("the signature-class acts", () => {
 
 /// The server actions the registry says refuse an administrator account, each asked first (Phase 2a).
 describe("every wired entry point asks whether an administrator account may act, first", () => {
-  const wired = ACT_SLOTS.flatMap((s) => (s.entryPoints ?? []).map((e) => ({ slot: s, entry: e })));
+  const wired = [
+    ...ACT_SLOTS.flatMap((s) => (s.entryPoints ?? []).map((e) => ({ slot: { holder: s.holder! }, entry: e }))),
+    ...OTHER_HOLDER_ENTRY_POINTS.map((o) => ({ slot: { holder: o.holder }, entry: o.entry })),
+  ];
 
   it("there are entry points, and each names a file and a function", () => {
-    expect(wired.length).toBeGreaterThan(8);
+    expect(wired.length).toBeGreaterThanOrEqual(30);
+    for (const o of OTHER_HOLDER_ENTRY_POINTS) expect(o.why.length, o.entry).toBeGreaterThan(20);
     for (const w of wired) expect(w.entry, w.entry).toMatch(/^src\/.+\.tsx?#\w+$/);
   });
 
@@ -144,9 +167,11 @@ describe("every wired entry point asks whether an administrator account may act,
       }
       // The lexed text (strings blanked, same length) finds the first await; the raw text reads the act it names.
       const at = m.slice(span.from, span.to).search(/\bawait\b/);
-      const first = at < 0 ? "" : raw.slice(span.from + at, span.from + at + 80);
-      const expected = new RegExp(String.raw`^await\s+staffForAct\(\s*"${w.slot.holder}"`);
-      if (!expected.test(first)) wrong.push(`${w.entry}: first await is "${first.split("\n")[0]}", not staffForAct("${w.slot.holder}")`);
+      const first = at < 0 ? "" : raw.slice(span.from + at, span.from + at + 200);
+      // A route handler asks `staffRoute({ ..., holder: "..." })`, an action `staffForAct("...")`.
+      const isRoute = /\/route\.ts$/.test(file);
+      const expected = isRoute ? new RegExp(String.raw`^await\s+staffRoute\(\{[^}]*\bholder:\s*"${w.slot.holder}"`) : new RegExp(String.raw`^await\s+staffForAct\(\s*"${w.slot.holder}"`);
+      if (!expected.test(first)) wrong.push(`${w.entry}: first await is "${first.split("\n")[0]}", not ${isRoute ? `staffRoute({ holder: "${w.slot.holder}" })` : `staffForAct("${w.slot.holder}")`}`);
     }
     expect(wrong).toEqual([]);
   });

@@ -2,7 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { StaffActor } from "@/lib/auth/types";
+import type { AdministratorAct } from "@/lib/auth/administration-conflict";
+import type { PermissionKey, StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 
 /**
@@ -19,6 +20,7 @@ const who = vi.hoisted(() => ({ actor: null as StaffActor | null }));
 
 vi.mock("@/app/_auth/actor", async () => {
   const { actorModule } = await import("@/lib/test-support/staff");
+  const { administrationConflict } = await import("@/lib/auth/administration-conflict");
   const base = actorModule();
   return {
     ...base,
@@ -26,6 +28,16 @@ vi.mock("@/app/_auth/actor", async () => {
     requireStaff: async () => {
       if (!who.actor) throw new Error("no actor set");
       return who.actor;
+    },
+    // The two wrappers an action asks first (Phase 2a and its review), judged on whoever is signed in as the real ones are.
+    staffForAct: async (act: AdministratorAct) => {
+      if (!who.actor) throw new Error("no actor set");
+      const fault = administrationConflict({ kind: "ACT", act, actorIsAdministrator: who.actor.isAdministrator });
+      return fault ? { ok: false as const, state: { ok: false as const, message: fault.en } } : { ok: true as const, actor: who.actor };
+    },
+    staffForPermission: async (key: PermissionKey) => {
+      if (!who.actor) throw new Error("no actor set");
+      return who.actor.permissions.has(key) ? { ok: true as const, actor: who.actor } : { ok: false as const, state: { ok: false as const, message: `Not permitted: ${key}` } };
     },
   };
 });
@@ -176,12 +188,15 @@ function actorOf(org: { id: string; code: string; timeZone: string | null }, per
     personId,
     personName,
     jobTitle: null,
-    isAdministrator: true,
+    // Not an administrator, with the permission to draft configuration (review of Phase 2a): an administrator is refused the acts of an office holder
+    // (the approval step this test escalates), and a configuration editor is refused without the permission, before either reaches the isolation
+    // check this test is about. Each of these actions would otherwise refuse before ever being asked about organisation B.
+    isAdministrator: false,
     organisationId: org.id,
     organisationCode: org.code,
     organisationTimeZone: org.timeZone,
     offices: [],
-    permissions: new Set(),
+    permissions: new Set<PermissionKey>(["configuration.draft", "configuration.issue"]),
     stepUpAt: null,
     sessionCreatedAt: new Date(),
     sourceAddress: null,

@@ -117,7 +117,9 @@ export async function tableContractMatter(_prev: FormState, data: FormData): Pro
 
 /// Discharge a committee's step from its decision on a matter tabled from this matter.
 export async function citeContractMatterDecision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const matterId = r.text("matterId", "Matter", { required: true });

@@ -14,7 +14,8 @@ import { compareAmounts } from "@/lib/money";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { checkAlternateLink } from "@/lib/committee/sitting";
 import { inProgressSittingRefusal } from "@/lib/committee/sittings";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, staffForPermission, toAuditActor } from "@/app/_auth/actor";
+import { holdingGrows, seatWhat } from "@/lib/auth/administration-conflict";
 import { assertCanHold, HoldingRefused } from "@/lib/auth/administration-guard";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -197,7 +198,9 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
  * the sitting; a seat with both is two different rules for the same chair.
  */
 export async function saveMember(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
@@ -317,7 +320,10 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
       const before = await db.committeeMember.findUnique({ where: { id, committee: { organisationId: actor.organisationId } } });
       if (!before) return { ok: false, message: "That seat no longer exists." };
       await auditedUpdate({ ...ctx, entityId: id }, before, v, async (tx) => {
-        if (write.personId) await assertCanHold(tx, [write.personId], "SEAT");
+        // Asked only where the edit gives or extends the seat: one that ends or shortens it gives nothing, and must stay possible (review of Phase 2a).
+        const stored = await tx.committeeMember.findUnique({ where: { id, committee: { organisationId: actor.organisationId } }, select: { personId: true, committeeId: true, position: true, isAlternate: true, effectiveFrom: true, effectiveTo: true } });
+        const was = stored && { personId: stored.personId ?? "", what: seatWhat(stored.committeeId, stored.position, stored.isAlternate), effectiveFrom: stored.effectiveFrom, effectiveTo: stored.effectiveTo };
+        if (write.personId && holdingGrows(was, { personId: write.personId, what: seatWhat(committeeId, write.position, write.isAlternate), effectiveFrom: write.effectiveFrom, effectiveTo: write.effectiveTo ?? null })) await assertCanHold(tx, [write.personId], "SEAT");
         return tx.committeeMember.update({ where: { id, committee: { organisationId: actor.organisationId } }, data: write });
       });
     }

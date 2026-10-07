@@ -104,6 +104,22 @@ export async function staffForAct(act: AdministratorAct): Promise<{ ok: true; ac
   return fault ? { ok: false, state: { ok: false, message: fault.en } } : { ok: true, actor };
 }
 
+/**
+ * For a server action that answers a form and that only someone holding a product permission may do (drafting or issuing configuration, granting an
+ * office): the signed-in actor, or the refusal as the form's own state, in words that say which permission and why it is not held (review of Phase 2a).
+ * Asked first, like `requireStaff`, which it calls. The administrator flag confers the permissions an administrator may hold; nobody else holds one
+ * until the organisation grants it to a role.
+ *
+ *   const guard = await staffForPermission("configuration.draft");
+ *   if (!guard.ok) return guard.state;
+ *   const actor = guard.actor;
+ */
+export async function staffForPermission(key: PermissionKey): Promise<{ ok: true; actor: StaffActor } | { ok: false; state: FormState }> {
+  const actor = await requireStaff();
+  const gate = await permissionGate(actor, key);
+  return gate.ok ? { ok: true, actor } : { ok: false, state: { ok: false, message: gate.message } };
+}
+
 /// The actor an audit row is written with.
 export const toAuditActor: (actor: StaffActor) => AuditActor = auditActorOfStaff;
 

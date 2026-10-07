@@ -1,6 +1,6 @@
 import type { Tx } from "@/lib/audit/record";
 
-import { administrationConflict, type HoldingKind, type Holdings } from "./administration-conflict";
+import { administrationConflict, holdingsInWords, type HoldingKind, type Holdings } from "./administration-conflict";
 import type { Fault } from "./types";
 
 /**
@@ -60,4 +60,36 @@ export async function assertCanHold(tx: Tx, personIds: readonly string[], holdin
     const fault = administrationConflict({ kind: "GIVE_HOLDING", holding, personIsAdministrator: await personIsAdministrator(tx, personId) });
     if (fault) throw new HoldingRefused(fault, personId);
   }
+}
+
+/// An administrator's Person who holds something that has not ended, which ADR 0034 D9 keeps apart. Found, never changed.
+export interface AdministratorHoldingViolation {
+  organisationId: string;
+  personId: string;
+  personName: string;
+  loginName: string;
+  status: string;
+  holdings: Holdings;
+  /// What they hold, in words: "2 offices, 1 delegation".
+  words: string;
+}
+
+/**
+ * Every administrator account whose Person holds a live office, seat or delegation (review of Phase 2a). Read only. The rule was made after
+ * offices, seats and delegations could be given to any Person, so a database from before it may already break it, and nothing else would say so.
+ * A disabled administrator account counts, as it does for the rule (it can be enabled again).
+ */
+export async function administratorHoldingViolations(tx: Tx, now: Date): Promise<AdministratorHoldingViolation[]> {
+  const accounts = await tx.staffAccount.findMany({
+    where: { isAdministrator: true },
+    select: { organisationId: true, personId: true, loginName: true, status: true, person: { select: { name: true } } },
+    orderBy: [{ organisationId: "asc" }, { loginName: "asc" }],
+  });
+  const out: AdministratorHoldingViolation[] = [];
+  for (const a of accounts) {
+    const holdings = await holdingsOf(tx, a.personId, now);
+    const words = holdingsInWords(holdings);
+    if (words) out.push({ organisationId: a.organisationId, personId: a.personId, personName: a.person.name, loginName: a.loginName, status: a.status, holdings, words: words.en });
+  }
+  return out;
 }

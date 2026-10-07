@@ -32,7 +32,7 @@ import { earlyActionFaults, handoverFaults, meetingFaults, onSiteFaults, partyFa
 import { resolveActFaults, resolveSo, soFaults } from "@/lib/supervision/so";
 import { COMPLIANCE_AREAS, CONTRACT_PARTY_KINDS, DELEGATE_KINDS, DIARY_ENDORSERS, DIRECTION_CAUSES, EARLY_ACTION_BRANCHES, PROGRAMME_DECISIONS, PROGRAMME_KINDS, SITE_RECORDS_SETS, SUPERVISION_ACTS, type DelegationVariant, type Finding } from "@/lib/supervision/types";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -373,7 +373,9 @@ export async function scrutiniseProgramme(_prev: FormState, data: FormData): Pro
 
 /// The Principal S.O. Representative approves the revision (the baseline for progress from then) or returns it for revision.
 export async function decideProgramme(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const programmeId = r.text("programmeId", "Programme", { required: true });
@@ -502,7 +504,9 @@ export async function disputeDiary(_prev: FormState, data: FormData): Promise<Fo
 
 /// An endorsement of the diary at a site visit, over the days it covers (FR-SUP-008).
 export async function endorseDiary(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("SIGNATURE");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const role = r.choice("role", "Endorsed as", DIARY_ENDORSERS, { required: true });

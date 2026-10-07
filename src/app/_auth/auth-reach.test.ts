@@ -35,7 +35,8 @@ const publicEntry = (file: string) => isPublicEntryFile(file);
 
 /// The calls that count as asking who is signed in. `staffOrSignIn` is the account page's own wrapper of `requireStaff`, which sends nobody-signed-in to sign in.
 /// `staffForAct` (Phase 2a) is the wrapper an action uses for an act only an office holder may do: it calls `requireStaff` first, and hands an administrator's refusal back as the form's state.
-const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct("];
+/// `staffForPermission` (review of Phase 2a) is the same for an action that only someone holding a product permission may do: it calls `requireStaff` first and hands the refusal, in words, back as the form's state.
+const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct(", "staffForPermission("];
 
 interface Entry {
   file: string;

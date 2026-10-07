@@ -24,7 +24,7 @@ import { MATTER_KIND_WORDS } from "@/lib/matter/write";
 import { holdersFor } from "@/lib/requisition/holders";
 import { supplierHolders } from "@/lib/suppliers/route";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 
 /**
  * Escalate a pending person step (FR-APR-009, FR-APR-010, FR-APR-012; rulings CO-6,
@@ -39,7 +39,9 @@ import { requireStaff, toAuditActor } from "@/app/_auth/actor";
  * on their behalf, not signed) are written beside it with the audit row.
  */
 export async function escalateStep(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const r = new FormReader(data);
   const stepId = r.text("stepId", "Step", { required: true });
   const kind = r.choice("kind", "Why", ["NO_AVAILABLE_HOLDER", "CONFLICT_DECLARED"] as const, { required: true });

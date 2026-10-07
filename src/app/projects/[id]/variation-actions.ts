@@ -372,7 +372,9 @@ async function principalCapable(c: Ctx, personId: string | null, on: string | nu
  * originator, or the variation ends), or, where none is configured, where the officer chooses (CO-5).
  */
 export async function decideVariation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -492,7 +494,9 @@ export async function decideVariationApprovalStep(_prev: FormState, data: FormDa
 
 /// Discharge a committee's step from its decision on a matter tabled from this variation (FR-VAR-010, 013).
 export async function citeVariationCommittee(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });

@@ -696,7 +696,9 @@ export async function chooseNameRejection(_prev: FormState, data: FormData): Pro
  * outcome says; deferred or undecided leaves it waiting.
  */
 export async function citeNameDecision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const decisionId = String(data.get("committeeDecisionId") ?? "");

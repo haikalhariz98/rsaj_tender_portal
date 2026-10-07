@@ -11,8 +11,9 @@
  * list below is the one the programme names (the award signatory, contract signing, certificate blocks, the decision of an approval step,
  * the opening authorisation and signature, the Superintending Officer's decisions); Phase 2b revisits it act by act.
  *
- * `entryPoints` names the server actions that perform the act as `path#function`, where Phase 2a has wired them to refuse an administrator
- * account (`staffForAct`): a source scan (`act-slots.test.ts`) holds each to asking first. Phase 2b adds the rest as it rewrites each act.
+ * `entryPoints` names the server actions that perform the act as `path#function`, where they refuse an administrator account (`staffForAct`; for a
+ * route handler `staffRoute({ holder })`): a source scan (`act-slots.test.ts`) holds each to asking first. A slot that names a `holder` must name at least
+ * one entry point, or the registry would claim a refusal nothing makes (review of Phase 2a). Phase 2b adds the rest as it rewrites each act.
  *
  * The labels are English. The Malay arrives with the shared attribution component of Phase 2b, which is the first place a slot is read aloud.
  */
@@ -25,7 +26,8 @@ export interface ActSlot {
   /// "Decided by": the phrase that precedes the person's name where the act is shown.
   label: string;
   signatureClass: boolean;
-  /// What kind of act an administrator account is refused at, where it is wired. Absent where it is not wired yet.
+  /// What kind of act an administrator account is refused at. Absent where an administrator may do the act (the checker's decision on an administrator
+  /// grant, the issue of an approval matrix: both are administrator acts, ADR 0034 D8) or where it is not wired yet. Present only with `entryPoints`.
   holder?: AdministratorAct;
   entryPoints?: readonly string[];
 }
@@ -37,14 +39,16 @@ const slot = (entity: string, field: string, label: string, extra: Partial<Pick<
   signatureClass: false,
   ...extra,
 });
-const signed = (entity: string, field: string, label: string, holder: AdministratorAct, entryPoints?: readonly string[]): ActSlot =>
-  slot(entity, field, label, { signatureClass: true, holder, ...(entryPoints ? { entryPoints } : {}) });
+const signed = (entity: string, field: string, label: string, holder: AdministratorAct, entryPoints: readonly string[]): ActSlot =>
+  slot(entity, field, label, { signatureClass: true, holder, entryPoints });
+/// An act only the holder of an office may do, that is not a signature.
+const held = (entity: string, field: string, label: string, entryPoints: readonly string[], holder: AdministratorAct = "HOLDER_CHECKED"): ActSlot => slot(entity, field, label, { holder, entryPoints });
 
 export const ACT_SLOTS: readonly ActSlot[] = [
   // ---- committees and approvals
   slot("CommitteeDecision", "tabledBy", "Tabled by"),
   slot("DecisionRecusal", "person", "Recusal declared by"),
-  slot("Vote", "person", "Vote cast by"),
+  held("Vote", "person", "Vote cast by", ["src/app/api/committees/decisions/[id]/votes/route.ts#POST"]),
   slot("Delegation", "fromPerson", "Granted by"),
   slot("Requisition", "requestingPerson", "Requested by"),
   slot("RequisitionEndorsement", "person", "Endorsed by"),
@@ -65,12 +69,12 @@ export const ACT_SLOTS: readonly ActSlot[] = [
     "src/app/suppliers/link-actions.ts#decidePermissionStep",
     "src/app/suppliers/standing-actions.ts#decideStandingStep",
   ]),
-  slot("ApprovalStep", "declaredBy", "Conflict declared by"),
+  held("ApprovalStep", "declaredBy", "Conflict declared by", ["src/app/approvals/actions.ts#escalateStep"]),
   slot("SourcingExercise", "overriddenBy", "Contract type overridden by"),
   slot("SourcingExercise", "proposalReviewer", "Proposal reviewed by"),
 
   // ---- awards, securities, insurance
-  signed("Award", "signatoryPerson", "Signed by", "SIGNATURE"),
+  signed("Award", "signatoryPerson", "Signed by", "SIGNATURE", ["src/app/awards/actions.ts#issueAward"]),
   slot("AwardReturn", "receivedBy", "Return received by"),
   slot("SecurityInstrument", "verifiedBy", "Verified by"),
   slot("InsurancePolicy", "verifiedBy", "Verified by"),
@@ -143,7 +147,7 @@ export const ACT_SLOTS: readonly ActSlot[] = [
 
   // ---- contract formation and certificates
   slot("ContractReconciliation", "checkedBy", "Checked by"),
-  signed("ReconciliationAmendment", "officer", "Signed for the employer by", "SIGNATURE"),
+  signed("ReconciliationAmendment", "officer", "Signed for the employer by", "SIGNATURE", ["src/app/projects/[id]/actions.ts#addAmendment"]),
   slot("FormationCheck", "completedBy", "Completed by"),
   slot("LegalReview", "submittedBy", "Submitted by"),
   slot("LegalReview", "reviewer", "Reviewed by"),
@@ -157,10 +161,10 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("SoDelegation", "grantorPerson", "Granted by"),
   slot("Possession", "recordedBy", "Recorded by"),
   slot("WorkProgramme", "scrutinisedBy", "Scrutinised by"),
-  signed("WorkProgramme", "decidedBy", "Decided by", "HOLDER_CHECKED"),
+  signed("WorkProgramme", "decidedBy", "Decided by", "HOLDER_CHECKED", ["src/app/projects/[id]/supervision-actions.ts#decideProgramme"]),
   slot("ProgressRecord", "recordedBy", "Recorded by"),
   slot("SiteDiaryEntry", "officer", "Kept by"),
-  signed("DiaryEndorsement", "person", "Endorsed by", "SIGNATURE"),
+  signed("DiaryEndorsement", "person", "Endorsed by", "SIGNATURE", ["src/app/projects/[id]/supervision-actions.ts#endorseDiary"]),
   slot("SiteMeeting", "chair", "Chaired by"),
   slot("ComplianceObservation", "person", "Observed by"),
   slot("ProgrammeDirection", "person", "Directed by"),
@@ -174,10 +178,10 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("AdvancePayment", "person", "Recorded by"),
   slot("FinancePayment", "person", "Recorded by"),
   slot("LadWarning", "person", "Warned by"),
-  signed("NonCompletion", "person", "Decided by", "HOLDER_CHECKED"),
+  signed("NonCompletion", "person", "Decided by", "HOLDER_CHECKED", ["src/app/projects/[id]/payment-actions.ts#recordNonCompletion"]),
   slot("ContractMatter", "person", "Recorded by"),
   slot("DelayNotice", "person", "Recorded by"),
-  signed("EotClaim", "determinedBy", "Determined by", "HOLDER_CHECKED"),
+  signed("EotClaim", "determinedBy", "Determined by", "HOLDER_CHECKED", ["src/app/projects/[id]/time-actions.ts#determineEotClaim"]),
   slot("EotClaim", "person", "Recorded by"),
   slot("ExtensionOfTime", "person", "Granted by"),
   slot("LossExpenseClaim", "valuedBy", "Valued by"),
@@ -188,7 +192,7 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("Variation", "originator", "Originated by"),
   slot("Variation", "reviewedBy", "Reviewed by"),
   slot("Variation", "principal", "Passed on by"),
-  signed("Variation", "soDecidedBy", "Decided by the Superintending Officer", "HOLDER_CHECKED"),
+  signed("Variation", "soDecidedBy", "Decided by the Superintending Officer", "HOLDER_CHECKED", ["src/app/projects/[id]/variation-actions.ts#decideVariation"]),
   slot("Variation", "commencedSupport", "Commencement supported by"),
   slot("Variation", "closedBy", "Closed by"),
   slot("VariationApproval", "sentBy", "Sent by"),
@@ -199,10 +203,27 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("SumAdjustment", "person", "Raised by"),
 
   // ---- configuration that is decided by a second person or issued (Phase 2c)
-  signed("AuthorityMatrix", "issuedByPerson", "Issued by", "SIGNATURE"),
+  // Issuing a matrix is signature-class (the password is asked), but it is an administrator act: `configuration.issue` is held through the administrator flag
+  // (ADR 0034 D8), so it has no `holder`. An open item for the product owner (review of Phase 2a, in the decisions log): whether it is that, or an office
+  // holder's signature, which would make `configuration.issue` grant-only.
+  slot("AuthorityMatrix", "issuedByPerson", "Issued by", { signatureClass: true }),
   slot("ConfigurationChange", "proposedBy", "Proposed by"),
   // The checker's decision. Made by an administrator for some kinds (an administrator grant), so it is never refused to one: no `holder`.
   slot("ConfigurationChange", "decidedBy", "Decided by", { signatureClass: true }),
+];
+
+/**
+ * Entry points an administrator account is refused that attribute no Person slot: they discharge a step of an approval route from a committee's
+ * decision (`cite*Decision`), which writes the committee's outcome and not a person's, so there is no slot to hang them on (an open item for the
+ * product owner: whether citing is a holder-checked act at all). The default is the restrictive one, and it locks out no office holder.
+ * Held to the same scan as the slots' entry points.
+ */
+export const OTHER_HOLDER_ENTRY_POINTS: readonly { entry: string; holder: AdministratorAct; why: string }[] = [
+  { entry: "src/app/requisitions/actions.ts#citeCommitteeDecision", holder: "HOLDER_CHECKED", why: "Discharges a committee step of a requisition's approval route." },
+  { entry: "src/app/sourcing/actions.ts#citeNameDecision", holder: "HOLDER_CHECKED", why: "Discharges a committee step of the route that names a sourcing exercise's method." },
+  { entry: "src/app/awards/actions.ts#citeAppointmentDecision", holder: "HOLDER_CHECKED", why: "Discharges a committee step of an award's appointment route." },
+  { entry: "src/app/projects/[id]/matter-actions.ts#citeContractMatterDecision", holder: "HOLDER_CHECKED", why: "Discharges a committee step of a contract matter's route." },
+  { entry: "src/app/projects/[id]/variation-actions.ts#citeVariationCommittee", holder: "HOLDER_CHECKED", why: "Discharges a committee step of a variation's route." },
 ];
 
 /**

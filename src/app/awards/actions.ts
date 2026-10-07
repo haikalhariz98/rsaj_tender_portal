@@ -594,7 +594,9 @@ export async function decideAppointmentStep(_prev: FormState, data: FormData): P
  * carried refuses the route and returns the award to Draft; deferred leaves it waiting.
  */
 export async function citeAppointmentDecision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const decisionId = String(data.get("committeeDecisionId") ?? "");
@@ -647,7 +649,9 @@ export async function recordCommitment(_prev: FormState, data: FormData): Promis
  * issued — each audited. Anything the gate or the signatory check finds refuses all of it.
  */
 export async function issueAward(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("SIGNATURE");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const personId = r.text("signatoryPersonId", "Signed by", { required: true });

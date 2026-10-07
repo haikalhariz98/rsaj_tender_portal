@@ -975,7 +975,9 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
  * also runs to discharge the step by itself (founder, 2026-10-05).
  */
 export async function citeCommitteeDecision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const decisionId = String(data.get("committeeDecisionId") ?? "");

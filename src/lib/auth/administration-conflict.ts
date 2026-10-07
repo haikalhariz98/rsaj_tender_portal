@@ -57,6 +57,50 @@ export function holdingsInWords(h: Holdings): { en: string; ms: string } | null 
   return { en: en.join(", "), ms: ms.join(", ") };
 }
 
+/**
+ * What an edit of an office, a seat or a delegation does to the holding, judged by the terms before and after (review of Phase 2a). Pure.
+ *
+ * The rule asks "may this Person be given a holding?", which an edit that only ENDS or SHORTENS one does not do: it gives nothing, and
+ * refusing it would leave a holding that already breaks the rule (made before the rule, or by a Person later made an administrator) impossible to end.
+ * So the question is asked of an edit only when it gives or extends the holding: a new one, another Person, another office or seat, an earlier start,
+ * or a later or open end.
+ */
+export interface HoldingTerms {
+  personId: string;
+  /// What is held: the office and its scope, the seat, the delegated office with what is delegated. Another one is a new holding.
+  what: string;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+}
+
+export function holdingGrows(before: HoldingTerms | null, after: HoldingTerms): boolean {
+  if (!before) return true;
+  if (before.personId !== after.personId || before.what !== after.what) return true;
+  if (after.effectiveFrom.getTime() < before.effectiveFrom.getTime()) return true;
+  if (after.effectiveTo === null) return before.effectiveTo !== null;
+  return before.effectiveTo !== null && after.effectiveTo.getTime() > before.effectiveTo.getTime();
+}
+
+/// What is held, written so that two holdings are the same exactly when their `what` is equal.
+export const officeWhat = (roleCode: string, scope: string | null): string => `office|${roleCode}|${scope ?? ""}`;
+export const seatWhat = (committeeId: string, position: string, isAlternate: boolean): string => `seat|${committeeId}|${position}|${isAlternate ? "alternate" : "member"}`;
+/// A delegation is the office it delegates and what of it: widening or changing what is delegated gives something, so it is another holding.
+export const delegationWhat = (roleCode: string, capabilityCodes: readonly string[]): string => `delegation|${roleCode}|${[...capabilityCodes].sort().join(",")}`;
+
+export interface DelegationHolding extends Omit<HoldingTerms, "personId"> {
+  fromPersonId: string;
+  toPersonId: string;
+}
+
+/// The Persons of a delegation an edit gives or extends something to: the grantor and the delegate, each judged on its own. A new delegation names both.
+export function delegationPersonsToCheck(before: DelegationHolding | null, after: DelegationHolding): string[] {
+  const side = (h: DelegationHolding, personId: string): HoldingTerms => ({ personId, what: h.what, effectiveFrom: h.effectiveFrom, effectiveTo: h.effectiveTo });
+  const out: string[] = [];
+  if (holdingGrows(before && side(before, before.fromPersonId), side(after, after.fromPersonId))) out.push(after.fromPersonId);
+  if (holdingGrows(before && side(before, before.toPersonId), side(after, after.toPersonId))) out.push(after.toPersonId);
+  return out;
+}
+
 export function administrationConflict(q: AdministrationQuestion): Fault | null {
   switch (q.kind) {
     case "MAKE_ADMINISTRATOR": {

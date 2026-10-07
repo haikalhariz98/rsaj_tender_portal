@@ -36,7 +36,7 @@ import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervisio
 import { supervisionRefusal } from "@/lib/supervision/labels";
 import { formatDate } from "@/lib/format";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -713,7 +713,9 @@ function readPack(data: FormData): PackAnswer[] {
  * Locks: the contract (inContract), the named claim's matter and the claim, then the scope's live decision.
  */
 export async function recordNonCompletion(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const outcome = r.choice("decisionOutcome", "Decision", NON_COMPLETION_OUTCOMES, { required: true });

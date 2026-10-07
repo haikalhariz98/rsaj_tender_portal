@@ -27,7 +27,7 @@ import { overlappingBands } from "@/lib/method/bands";
 import { matrixPolicyFaults, termsBandBoundaryFault } from "@/lib/method/boundary";
 import { contractTypeDomainWords, takesContractType } from "@/lib/authority/contract-type-domains";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { staffForPermission, toAuditActor } from "@/app/_auth/actor";
 import type { OrgScope } from "@/lib/org-scope";
 
 /// A recommender proposes or recommends. Approving is the approver's act, set on
@@ -158,7 +158,9 @@ function coreSaveFault(rule: Pick<Rule, "approverCode" | "proposerCode" | "recom
  * refused outright.
  */
 export async function saveMatrix(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
@@ -332,7 +334,9 @@ async function fundingRouteFault(tx: Tx, orgId: string, code: string): Promise<s
  * gap is recorded.
  */
 export async function saveRule(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
@@ -547,7 +551,9 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
 
 /// A recommender on a rule, in sequence. Mandatory acts cannot be skipped later.
 export async function saveRecommender(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
@@ -611,7 +617,9 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
 
 /// Take a recommender off a draft's rule.
 export async function removeRecommender(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
@@ -649,7 +657,9 @@ export async function removeRecommender(_prev: FormState, data: FormData): Promi
  * every recommender — to be changed and then issued. The issue it copies is untouched.
  */
 export async function startRevision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
@@ -744,7 +754,9 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
  * two issues in force or none.
  */
 export async function issueDraft(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.issue");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
@@ -858,7 +870,9 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
  * row lock, so an issue being issued cannot take a band edited at the same moment.
  */
 export async function saveTermsBand(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -931,7 +945,9 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
 }
 
 export async function removeTermsBand(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -956,7 +972,9 @@ export async function removeTermsBand(_prev: FormState, data: FormData): Promise
  * record with a reason. An issued issue is never discarded — decisions ran under it.
  */
 export async function discardDraft(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -1012,7 +1030,9 @@ const PROVENANCES = ["STATED", "OBSERVED", "ASSUMED"] as const;
  * transaction.
  */
 export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -1063,7 +1083,9 @@ export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<F
 
 /// Take an approving office's row out of a draft's core routing, with its steps. Asks why.
 export async function removeCoreLevel(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -1102,7 +1124,9 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
 /// An office beneath the approver in a draft's core row, in order. Its act is one of
 /// the four the core routing holds (6.9 note D-4).
 export async function saveCoreStep(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const levelId = String(data.get("coreRoutingLevelId") ?? "");
@@ -1143,7 +1167,9 @@ export async function saveCoreStep(_prev: FormState, data: FormData): Promise<Fo
 
 /// Take a step out of a draft's core row. Asks why.
 export async function removeCoreStep(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
@@ -1182,7 +1208,9 @@ const DESTINATION_KINDS = ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"
  * (ruling CO-4).
  */
 export async function saveRejectionDestination(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return { ok: false, message: "No organisation is configured. Run npm run setup first." };
   const r = new FormReader(data);
@@ -1224,7 +1252,9 @@ export async function saveRejectionDestination(_prev: FormState, data: FormData)
 
 /// Back to not set from a day: the officer chooses again from then (ruling CO-5).
 export async function endRejectionDestination(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return { ok: false, message: "No organisation is configured. Run npm run setup first." };
   const r = new FormReader(data);

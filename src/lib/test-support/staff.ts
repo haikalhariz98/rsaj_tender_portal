@@ -1,5 +1,6 @@
+import { administrationConflict, type AdministratorAct } from "@/lib/auth/administration-conflict";
 import { auditActorOfStaff } from "@/lib/auth/audit-actor";
-import type { StaffActor } from "@/lib/auth/types";
+import type { PermissionKey, StaffActor } from "@/lib/auth/types";
 
 /**
  * A signed-in person for the tests of server actions and route handlers, which now ask who is signed in before anything else (Phase 1b). The
@@ -35,7 +36,22 @@ export class RefusalForTest extends Error {
 }
 
 export function actorModule(who: StaffActor | null = STAFF_FIXTURE) {
+  const signedIn = (): StaffActor => {
+    if (!who) throw new RefusalForTest("NOT_SIGNED_IN", "Sign in to continue.");
+    return who;
+  };
   return {
+    // The two wrappers an action asks for who may act (`staffForAct`, `staffForPermission`), with the real rules: the pure administration rule, and the
+    // permissions the actor carries. A test that signs in an administrator at a holder-checked act is refused, as it would be.
+    staffForAct: async (act: AdministratorAct) => {
+      const actor = signedIn();
+      const fault = administrationConflict({ kind: "ACT", act, actorIsAdministrator: actor.isAdministrator });
+      return fault ? { ok: false as const, state: { ok: false as const, message: fault.en } } : { ok: true as const, actor };
+    },
+    staffForPermission: async (key: PermissionKey) => {
+      const actor = signedIn();
+      return actor.permissions.has(key) ? { ok: true as const, actor } : { ok: false as const, state: { ok: false as const, message: `Not permitted: ${key}` } };
+    },
     AuthRefusal: RefusalForTest,
     currentStaffOrNull: async () => who,
     requireStaff: async () => {

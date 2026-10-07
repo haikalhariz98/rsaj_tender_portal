@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { administrationConflict, holdingsInWords, type AdministratorAct, type HoldingKind } from "./administration-conflict";
+import { administrationConflict, delegationPersonsToCheck, holdingGrows, holdingsInWords, type AdministratorAct, type HoldingKind } from "./administration-conflict";
 
 const none = { offices: 0, seats: 0, delegations: 0 };
 
@@ -67,5 +67,51 @@ describe("an administrator account attempting an act that needs a holder", () =>
 
   it.each(acts)("is allowed for %s to everyone who is not an administrator", (act) => {
     expect(administrationConflict({ kind: "ACT", act, actorIsAdministrator: false })).toBeNull();
+  });
+});
+
+describe("an edit of a holding that an administrator's Person already has (review of Phase 2a)", () => {
+  const d = (s: string) => new Date(`${s}T00:00:00Z`);
+  const held = { personId: "p1", what: "HOD|", effectiveFrom: d("2026-01-01"), effectiveTo: d("2026-12-31") };
+
+  it("is asked of a new holding, another Person, another office, an earlier start, and a later or open end", () => {
+    expect(holdingGrows(null, held)).toBe(true);
+    expect(holdingGrows(held, { ...held, personId: "p2" })).toBe(true);
+    expect(holdingGrows(held, { ...held, what: "CEO|" })).toBe(true);
+    expect(holdingGrows(held, { ...held, effectiveFrom: d("2025-12-31") })).toBe(true);
+    expect(holdingGrows(held, { ...held, effectiveTo: d("2027-01-01") })).toBe(true);
+    expect(holdingGrows(held, { ...held, effectiveTo: null })).toBe(true);
+  });
+
+  it("is not asked of an edit that ends or shortens it, moves the start later, or changes nothing in the holding", () => {
+    expect(holdingGrows(held, { ...held, effectiveTo: d("2026-06-30") })).toBe(false);
+    expect(holdingGrows(held, { ...held, effectiveFrom: d("2026-02-01") })).toBe(false);
+    expect(holdingGrows(held, { ...held })).toBe(false);
+    expect(holdingGrows({ ...held, effectiveTo: null }, { ...held, effectiveTo: d("2026-06-30") })).toBe(false);
+    expect(holdingGrows({ ...held, effectiveTo: null }, { ...held, effectiveTo: null })).toBe(false);
+  });
+
+  const del = { fromPersonId: "a", toPersonId: "b", what: "HOD", effectiveFrom: d("2026-01-01"), effectiveTo: d("2026-12-31") as Date | null };
+
+  it("asks of a new delegation both its Persons", () => {
+    expect(delegationPersonsToCheck(null, del)).toEqual(["a", "b"]);
+  });
+
+  it("asks of an edit that only ends or shortens a delegation no one, so one that already breaks the rule can be ended", () => {
+    expect(delegationPersonsToCheck(del, { ...del, effectiveTo: d("2026-06-30") })).toEqual([]);
+    expect(delegationPersonsToCheck({ ...del, effectiveTo: null }, { ...del, effectiveTo: d("2026-06-30") })).toEqual([]);
+    expect(delegationPersonsToCheck(del, { ...del })).toEqual([]);
+  });
+
+  it("asks of an edit that extends it, or moves its start earlier, or changes the office, both Persons", () => {
+    expect(delegationPersonsToCheck(del, { ...del, effectiveTo: null })).toEqual(["a", "b"]);
+    expect(delegationPersonsToCheck(del, { ...del, effectiveTo: d("2027-03-01") })).toEqual(["a", "b"]);
+    expect(delegationPersonsToCheck(del, { ...del, effectiveFrom: d("2025-06-01") })).toEqual(["a", "b"]);
+    expect(delegationPersonsToCheck(del, { ...del, what: "CEO" })).toEqual(["a", "b"]);
+  });
+
+  it("asks of an edit that changes one Person only that one", () => {
+    expect(delegationPersonsToCheck(del, { ...del, toPersonId: "c" })).toEqual(["c"]);
+    expect(delegationPersonsToCheck(del, { ...del, fromPersonId: "z", effectiveTo: d("2026-06-30") })).toEqual(["z"]);
   });
 });

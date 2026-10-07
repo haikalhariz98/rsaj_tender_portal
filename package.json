@@ -11,6 +11,7 @@
     "check": "npm run typecheck && npm run lint",
     "test": "vitest run",
     "auth:bootstrap": "tsx scripts/bootstrap-administrator.ts",
+    "auth:holdings": "tsx scripts/check-administrator-holdings.ts",
     "demo:accounts": "tsx scripts/demo-accounts.ts",
     "test:db": "vitest run --config vitest.db.config.mts",
     "test:watch": "vitest",
