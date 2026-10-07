@@ -2,15 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import { APPEND_ONLY_TABLES, grantStatements, notYetPresent, roleNameFault, RUNTIME_ROLE_WORDS, runtimeRoleVerdict, WITHHELD } from "./db-role";
 
-// BlobContent joined the protected tables in the Phase 1d review (stored bytes are never rewritten), so the "every table exists" set has it.
-const ALL = new Set(["Organisation", "AuditEntry", "SignInEvent", "SignInEventDetail", "DocumentAccessEvent", "SulitAccessEvent", "BlobContent", "_prisma_migrations"]);
+// BlobContent joined the protected tables in the Phase 1d review (stored bytes are never rewritten), and ActAttribution in Phase 2a (ADR 0034 D12),
+// so the "every table exists" set has both.
+const ALL = new Set(["Organisation", "AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "SulitAccessEvent", "BlobContent", "_prisma_migrations"]);
 const grants = (existing: ReadonlySet<string> = ALL) => grantStatements({ role: "perolehan_app", owner: "perolehan", schema: "public", existing });
 
 describe("the app role's grants (ADR 0034 D11)", () => {
   it("revokes UPDATE, DELETE and TRUNCATE on every append-only table, including the O-1 side table", () => {
     const s = grants();
     for (const t of APPEND_ONLY_TABLES) expect(s).toContain(`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE "public"."${t}" FROM "perolehan_app"`);
-    expect(APPEND_ONLY_TABLES).toEqual(expect.arrayContaining(["AuditEntry", "SignInEvent", "SignInEventDetail", "SulitAccessEvent", "DocumentAccessEvent"]));
+    expect(APPEND_ONLY_TABLES).toEqual(expect.arrayContaining(["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent"]));
   });
 
   it("revokes only after the broad grant, so a re-run never leaves the trail writable", () => {
@@ -47,7 +48,7 @@ describe("the app role's grants (ADR 0034 D11)", () => {
 
   it("skips a listed table that does not exist yet, and reports it", () => {
     // BlobContent is in this set since the Phase 1d review, so the one table still to come is SulitAccessEvent, as before.
-    const now = new Set(["AuditEntry", "SignInEvent", "SignInEventDetail", "DocumentAccessEvent", "BlobContent"]);
+    const now = new Set(["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "BlobContent"]);
     expect(grants(now).some((x) => x.includes("SulitAccessEvent"))).toBe(false);
     expect(notYetPresent(now)).toEqual(["SulitAccessEvent"]);
     expect(notYetPresent(ALL)).toEqual([]);

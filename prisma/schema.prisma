@@ -201,6 +201,9 @@ model Organisation {
   oneTimeCodes    OneTimeCode[]
   securityPolicy  SecurityPolicy?
   signInEvents    SignInEvent[]
+  rolePermissions RolePermission[]
+  actAttributions ActAttribution[]
+  configurationChanges ConfigurationChange[]
   costCentres     CostCentre[]
   accountCodes    AccountCode[]
   sites             Site[]
@@ -634,6 +637,13 @@ model Person {
   ladWarningsRecorded    LadWarning[]              @relation("LadWarningBy")
   nonCompletionsDecided  NonCompletion[]           @relation("NonCompletionBy")
   routesSubmitted        ApprovalInstance[]        @relation("RouteSubmittedBy")
+  // Phase 2a (ADR 0034 D12, D15): the attribution of acts, and the two-person records of configuration.
+  actsAttributedAsSubject    ActAttribution[]        @relation("ActSubject")
+  actsAttributedAsRecorder   ActAttribution[]        @relation("ActRecordedBy")
+  matrixMaking               AuthorityMatrixMaker[]
+  matricesIssued             AuthorityMatrix[]       @relation("MatrixIssuedBy")
+  configurationChangesProposed ConfigurationChange[] @relation("ChangeProposedBy")
+  configurationChangesDecided  ConfigurationChange[] @relation("ChangeDecidedBy")
 }
 
 /// Who holds an authority office, and when.
@@ -762,6 +772,15 @@ model AuthorityMatrix {
   coreRouting       CoreRoutingLevel[]
   approvalInstances ApprovalInstance[] @relation("InstanceMatrix")
   overrideInstances ApprovalInstance[] @relation("InstanceOverrideMatrix")
+
+  /// Maker-checker at issue (ADR 0034 D15, Phase 2a). Who issued it: never one of its makers. Null while a draft, and on every
+  /// issue made before sign-in.
+  issuedByPersonId String?
+  issuedByPerson   Person? @relation("MatrixIssuedBy", fields: [issuedByPersonId], references: [id], onDelete: Restrict)
+  /// A draft that existed when sign-in landed: who made it is not known. Set once, by the migration, for every draft then in the
+  /// database; a new draft is false. Such a draft must be adopted (an attributed edit, or an explicit adopt act) before it is issued.
+  makersUnknownAtLanding Boolean @default(false)
+  makers                 AuthorityMatrixMaker[]
 
   @@unique([organisationId, label])
   @@index([organisationId, effectiveFrom])
@@ -10926,4 +10945,139 @@ model SignInEventDetail {
   userAgent     String  @default("")
 
   @@index([sourceAddress])
+}
+
+/// Who has edited a draft of the approval matrix, one row per person (ADR 0034 D15). The issuer of the draft is never one of these.
+model AuthorityMatrixMaker {
+  id       String          @id @default(cuid())
+  matrixId String
+  matrix   AuthorityMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+  personId String
+  person   Person          @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  /// The first edit of this draft by this person.
+  firstAt DateTime @default(now())
+
+  @@unique([matrixId, personId])
+  @@index([personId])
+}
+
+/// Which roles hold which product permission (ADR 0034 D8). The key is product vocabulary (a closed list in code), the role is the
+/// customer's, and the decision is the customer's: no row is UNDECIDED, which is refused but shown as undecided, never as withheld.
+/// A key is text, not an enum: the list of keys is code, and a new key must not need a migration. The role is a code, as a rule's is
+/// (no key), so a retired role's decision stays legible.
+model RolePermission {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  permissionKey String
+  roleCode      String
+  decision      PermissionDecision
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organisationId, permissionKey, roleCode])
+}
+
+/// One act's attribution (ADR 0034 D12): who it is attributed to and who recorded it, in one row per (act, slot), written by the one
+/// writer (`attributeAct`) in the act's own transaction. No foreign key to the act (the entity is text), as `AuditEntry`'s has none; and
+/// none on the supplier accounts, whose table arrives in Phase 4a. A row is evidence: a trigger refuses every UPDATE and DELETE
+/// (migration 20261007130200). The CHECKs, hand-appended in the migration: exactly one subject, exactly one recorder, SIGNED only where
+/// the recorder is the subject, and RECORDED_ON_BEHALF only with a paper reference or a reason.
+model ActAttribution {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  /// The act's own row: its model, its id, and which person slot of it (`ACT_SLOTS`).
+  entity   String
+  entityId String
+  slot     String
+
+  /// Whom the act is attributed to: a person, or (Phase 4) a supplier's account. Exactly one.
+  subjectPersonId          String?
+  subjectPerson            Person? @relation("ActSubject", fields: [subjectPersonId], references: [id], onDelete: Restrict)
+  subjectSupplierAccountId String?
+
+  /// Who recorded it: a person, a supplier's account, or (a demo loader, a fixture, a migration) the system by label. Exactly one.
+  recordedByPersonId          String?
+  recordedByPerson            Person? @relation("ActRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  recordedBySupplierAccountId String?
+  recordedBySystemLabel       String?
+
+  mode ActMode
+  /// Where the password was asked again for this act (a signature-class act), and the session it was asked in.
+  stepUpAt  DateTime?
+  sessionId String?
+  /// The paper the act was recorded from, and why, for RECORDED_ON_BEHALF. One of them is required there.
+  paperReference String @default("")
+  reason         String @default("")
+
+  at DateTime @default(now())
+
+  @@unique([entity, entityId, slot])
+  @@index([organisationId, at])
+  @@index([subjectPersonId])
+  @@index([recordedByPersonId])
+}
+
+/// A change to high-risk configuration that a second person decides (ADR 0034 D15, Phase 2c). The payload is what is proposed,
+/// `before` what the proposer saw: if the live values differ from `before` when it is decided, the change is STALE and nothing is
+/// applied. The proposer and the person who decides are different Persons, and the database holds that too.
+model ConfigurationChange {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  kind    ConfigurationChangeKind
+  payload Json
+  before  Json
+  status  ConfigurationChangeStatus @default(PROPOSED)
+  /// Why it is proposed, in the proposer's words.
+  reason  String                    @default("")
+
+  proposedByPersonId String
+  proposedBy         Person   @relation("ChangeProposedBy", fields: [proposedByPersonId], references: [id], onDelete: Restrict)
+  proposedAt         DateTime @default(now())
+
+  /// Set exactly when the change is no longer PROPOSED. WITHDRAWN is the proposer's own; the others are a second person's.
+  decidedByPersonId String?
+  decidedBy         Person?   @relation("ChangeDecidedBy", fields: [decidedByPersonId], references: [id], onDelete: Restrict)
+  decidedAt         DateTime?
+  decisionReason    String    @default("")
+
+  @@index([organisationId, status])
+  @@index([organisationId, kind])
+}
+
+/// How an act is attributed. SIGNED: the person did it, in their own session. RECORDED_ON_BEHALF: an officer recorded it for them from
+/// a paper record, and it is not a signature.
+enum ActMode {
+  SIGNED
+  RECORDED_ON_BEHALF
+}
+
+/// A role's decision on a product permission. There is no UNDECIDED value: no row is undecided.
+enum PermissionDecision {
+  GRANTED
+  WITHHELD
+}
+
+/// What a ConfigurationChange changes. Phase 5 adds more, each with its own migration.
+enum ConfigurationChangeKind {
+  SECURITY_POLICY
+  PERMISSION_GRANT
+  ADMINISTRATOR_GRANT
+  ADMINISTRATOR_REVOKE
+  ACCOUNT_CODE
+}
+
+enum ConfigurationChangeStatus {
+  PROPOSED
+  APPLIED
+  DECLINED
+  WITHDRAWN
+  STALE
 }

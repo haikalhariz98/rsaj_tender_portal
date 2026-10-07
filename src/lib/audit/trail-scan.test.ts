@@ -10,7 +10,7 @@ import { lex } from "@/lib/scan/source";
  * the app's login), so no code may try to change or remove it: such code could only fail at run time. This scan finds it first.
  *
  * Scope: `src/`, `prisma/` and `scripts/`, tests excluded (the database tests attempt exactly these writes, to see them refused).
- * Banned on AuditEntry, SignInEvent, SignInEventDetail, DocumentAccessEvent (and SulitAccessEvent when 3a adds it): every client verb but
+ * Banned on AuditEntry, SignInEvent, SignInEventDetail, ActAttribution (Phase 2a), DocumentAccessEvent (and SulitAccessEvent when 3a adds it): every client verb but
  * create, createMany and the reads, and raw UPDATE, DELETE FROM or TRUNCATE naming the table. An upsert is banned too: ON CONFLICT DO
  * UPDATE needs the UPDATE privilege even when it only inserts. On DocumentVersion: delete and upsert anywhere, and update only in the
  * withdrawal action, the one change the trigger lets through. On BlobContent (the stored bytes, Phase 1d review): update and upsert
@@ -20,8 +20,8 @@ import { lex } from "@/lib/scan/source";
  */
 
 const ROOT = path.join(__dirname, "../../..");
-const APPEND_ONLY = ["auditEntry", "signInEvent", "signInEventDetail", "documentAccessEvent", "sulitAccessEvent"];
-const TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "DocumentAccessEvent", "SulitAccessEvent", "DocumentVersion"];
+const APPEND_ONLY = ["auditEntry", "signInEvent", "signInEventDetail", "actAttribution", "documentAccessEvent", "sulitAccessEvent"];
+const TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "DocumentAccessEvent", "SulitAccessEvent", "DocumentVersion"];
 /// Changed by nobody, but an orphan may be deleted: so UPDATE and TRUNCATE only.
 const KEPT_CONTENT = ["BlobContent"];
 const ALLOWED_VERBS = "create|createMany|createManyAndReturn|findUnique|findFirst|findMany|findUniqueOrThrow|findFirstOrThrow|count|aggregate|groupBy|fields";
