@@ -176,6 +176,27 @@ describe("a signature-class act asks the password where it is signed", () => {
     expect(wrong).toEqual([]);
   });
 
+  it("every signature-class act names the exact document or record it signs, in its options or in what its function writes (the writer refuses a signature that names none)", () => {
+    const signature = new Set(ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field)));
+    const without: string[] = [];
+    let checked = 0;
+    for (const f of ACT_SOURCES.filter((x) => !x.file.startsWith("src/lib/auth/") && x.file !== "src/app/_auth/act.ts")) {
+      const m = lex(f.text);
+      const fns = spans(m);
+      for (const call of f.text.matchAll(/\bbeginAct(?:From)?\(/g)) {
+        const text = callsOf(f.text.slice(call.index!), /^beginAct(?:From)?\(/g)[0];
+        const key = [...text.matchAll(/"([A-Z]\w+\.\w+)"/g)].map((k) => k[1]).find((k) => signature.has(k));
+        if (!key) continue;
+        checked++;
+        const fn = fns.filter((sp) => sp.from <= call.index! && call.index! <= sp.to).sort((a, b) => b.from - a.from)[0];
+        const body = fn ? f.text.slice(fn.from, fn.to) : text;
+        if (!/\bdocument:\s*(?:\{|\w)/.test(text) && !/\bdocument:\s*(?:\{|\w)/.test(body)) without.push(`${f.file}#${fn?.name ?? "?"}: ${key}`);
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+    expect(without).toEqual([]);
+  });
+
   it("beginAct asks the password for exactly the acts that need it, before the act's transaction, and nowhere else is stepUp called", () => {
     const begin = FILES.find((f) => f.file === "src/lib/auth/act-begin.ts")!.text;
     expect(begin).toMatch(/if \(intent\.passwordRequired\) \{\s*const asked = await deps\.stepUp\(/);

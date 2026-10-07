@@ -74,6 +74,31 @@ describe("one lock order (withLockedContract)", () => {
     }
   });
 
+  // Phase 2b (decisions log, 2026-10-07): the attribution of an act is begun before the lock (it may ask for the password, whose hash is slow, and reads the
+  // organisation's switch) and written inside the locked transaction, with the act and its audit row. A write on any other client would be outside the lock.
+  it("an act's attribution is begun before the contract is locked and written inside the lock, on the act's own transaction", () => {
+    let begun = 0;
+    let written = 0;
+    for (const file of [...CONTRACT_ACT_FILES, ...RUN_1B_ACT_FILES]) {
+      const src = read(file);
+      for (const [name, body] of actions(src)) {
+        const entry = body.indexOf(file === MATTER ? "return run(" : "return inContract(");
+        expect(entry, `${file}#${name}`).toBeGreaterThan(-1);
+        for (const m of body.matchAll(/\bbeginAct(?:From)?\(/g)) {
+          begun++;
+          expect(m.index!, `${file}#${name}: beginAct after the lock was taken`).toBeLessThan(entry);
+        }
+        for (const m of body.matchAll(/\b(?:act0?|input\.act|i\.act|o\.act)\.(?:write|writeAlso)\(\s*([^,)]+)/g)) {
+          written++;
+          expect(m.index!, `${file}#${name}: an attribution written outside the lock`).toBeGreaterThan(entry);
+          expect(m[1].trim(), `${file}#${name}: an attribution written on another client`).toMatch(/^(?:c\.)?tx$/);
+        }
+      }
+    }
+    expect(begun).toBeGreaterThan(30);
+    expect(written).toBeGreaterThan(30);
+  });
+
   it("an act locks only domain rows itself, after the contract; never a parent, and never the supplier", () => {
     const DOMAIN: Record<string, readonly string[]> = {
       [ACTIONS]: ["InsurancePolicy", "IssuedCopy", "CustodyItem"],
