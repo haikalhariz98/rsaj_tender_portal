@@ -134,8 +134,9 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
  *
  * Its own action rather than a field on the drawer: it is not an edit to their
  * details, it stops every office they hold from resolving, and the sample's drawer
- * has no control for it. A reason is required — nobody is signed in, so it is the
- * only account of why.
+ * has no control for it. A reason is required: it is the account of why. Where the person has
+ * a sign-in account this also disables it, so it is an administrator's act and never one's own
+ * (`leaverFaults`); anyone else is refused and nothing is changed.
  */
 export async function setPersonActive(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
@@ -171,7 +172,7 @@ export async function setPersonActive(_prev: FormState, data: FormData): Promise
       async (tx) => {
         const row = await tx.person.update({ where: { id }, data: { isActive } });
         // Phase 1b: a leaver's sign-in account is disabled, and its sessions end, in this same transaction (every request re-checks the person as well; this makes it a recorded fact).
-        if (!isActive) await disableAccountOfLeaver(tx, { personId: id, organisationId: orgId, actor: toAuditActor(actor), reason });
+        if (!isActive) await disableAccountOfLeaver(tx, { personId: id, organisationId: orgId, actor: toAuditActor(actor), by: { isAdministrator: actor.isAdministrator, accountId: actor.accountId }, reason });
         return row;
       },
     );

@@ -228,10 +228,11 @@ describe("disabling an account", () => {
 describe("a person who leaves", () => {
   it("has the account disabled and the sessions ended in the transaction that makes them inactive; their next request is refused", async () => {
     const target = await signedIn();
-    const actor = auditActorOfStaff((await administrator()).actor);
+    const admin = await administrator();
+    const actor = auditActorOfStaff(admin.actor);
     await db.$transaction(async (tx) => {
       await tx.person.update({ where: { id: target.person.id }, data: { isActive: false } });
-      await disableAccountOfLeaver(tx, { personId: target.person.id, organisationId, actor, reason: "Retired" });
+      await disableAccountOfLeaver(tx, { personId: target.person.id, organisationId, actor, by: { isAdministrator: true, accountId: admin.account.id }, reason: "Retired" });
     });
     expect(await readStaffSession(target.token, { sourceAddress: null })).toMatchObject({ ok: false });
     expect((await db.staffSession.findUniqueOrThrow({ where: { tokenHash: hashToken(target.token) } })).revokedReason).toBe("ACCOUNT_DISABLED");
@@ -241,8 +242,11 @@ describe("a person who leaves", () => {
 
   it("does nothing for a person with no account, or an account already disabled", async () => {
     const person = await makePerson(organisationId);
-    const actor = auditActorOfStaff((await administrator()).actor);
-    await db.$transaction((tx) => disableAccountOfLeaver(tx, { personId: person.id, organisationId, actor, reason: "x" }));
+    const admin = await administrator();
+    const actor = auditActorOfStaff(admin.actor);
+    await db.$transaction((tx) => disableAccountOfLeaver(tx, { personId: person.id, organisationId, actor, by: { isAdministrator: true, accountId: admin.account.id }, reason: "x" }));
+    // Nor is it refused to someone who is not an administrator: there is nothing to disable.
+    await db.$transaction((tx) => disableAccountOfLeaver(tx, { personId: person.id, organisationId, actor, by: { isAdministrator: false, accountId: "someone" }, reason: "x" }));
     expect(await db.auditEntry.count({ where: { entity: "StaffAccount", entityLabel: { contains: person.name } } })).toBe(0);
   });
 
@@ -252,10 +256,36 @@ describe("a person who leaves", () => {
     await expect(
       db.$transaction(async (tx) => {
         await tx.person.update({ where: { id: only.person.id }, data: { isActive: false } });
-        await disableAccountOfLeaver(tx, { personId: only.person.id, organisationId: org.id, actor: { kind: "SYSTEM", label: "test" }, reason: "x" });
+        await disableAccountOfLeaver(tx, { personId: only.person.id, organisationId: org.id, actor: { kind: "SYSTEM", label: "test" }, by: { isAdministrator: true, accountId: "another" }, reason: "x" });
       }),
     ).rejects.toBeInstanceOf(LeaverRefused);
     expect((await db.person.findUniqueOrThrow({ where: { id: only.person.id } })).isActive).toBe(true);
+  });
+
+  it("is refused to a person who is not an administrator, with the person still active, the account active and its sessions open (Phase 1b review)", async () => {
+    const target = await signedIn();
+    const officer = await signedIn();
+    await expect(
+      db.$transaction(async (tx) => {
+        await tx.person.update({ where: { id: target.person.id }, data: { isActive: false } });
+        await disableAccountOfLeaver(tx, { personId: target.person.id, organisationId, actor: auditActorOfStaff(officer.actor), by: { isAdministrator: officer.actor.isAdministrator, accountId: officer.account.id }, reason: "Gone" });
+      }),
+    ).rejects.toMatchObject({ name: "LeaverRefused", fault: { code: "NOT_ADMINISTRATOR_FOR_LEAVER" } });
+    expect((await db.person.findUniqueOrThrow({ where: { id: target.person.id } })).isActive).toBe(true);
+    expect(await db.staffAccount.findUniqueOrThrow({ where: { id: target.account.id } })).toMatchObject({ status: "ACTIVE" });
+    expect(await readStaffSession(target.token, { sourceAddress: null })).toMatchObject({ ok: true });
+    expect(await auditsOf(target.account.id)).toHaveLength(0);
+  });
+
+  it("is refused for an administrator's own account, so an administrator cannot disable themselves by this door", async () => {
+    const admin = await administrator();
+    await expect(
+      db.$transaction(async (tx) => {
+        await tx.person.update({ where: { id: admin.person.id }, data: { isActive: false } });
+        await disableAccountOfLeaver(tx, { personId: admin.person.id, organisationId, actor: auditActorOfStaff(admin.actor), by: { isAdministrator: true, accountId: admin.account.id }, reason: "Gone" });
+      }),
+    ).rejects.toMatchObject({ name: "LeaverRefused", fault: { code: "OWN_ACCOUNT" } });
+    expect(await db.staffAccount.findUniqueOrThrow({ where: { id: admin.account.id } })).toMatchObject({ status: "ACTIVE" });
   });
 });
 

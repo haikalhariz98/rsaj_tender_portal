@@ -61,6 +61,25 @@ export function disableFaults(i: {
   return out;
 }
 
+/**
+ * Faults in making a person inactive where that disables their sign-in account (they left: `disableAccountOfLeaver`). It is the same act as disabling the
+ * account, reached by another door, so it has the same rules (Phase 1b review): only an administrator, never one's own account, never the only active
+ * administrator's. `account` is null for a person with no account, and an account already disabled has nothing left to do: neither is refused here.
+ */
+export function leaverFaults(i: {
+  isAdministrator: boolean;
+  actorAccountId: string;
+  account: { id: string; status: AccountStatus; isAdministrator: boolean } | null;
+  activeAdministrators: number;
+}): Fault[] {
+  if (!i.account || i.account.status === "DISABLED") return [];
+  if (!i.isAdministrator) return [fault("NOT_ADMINISTRATOR_FOR_LEAVER", "This person has a sign-in account, and making them inactive disables it. Only an administrator does that: ask one, or have them disable the account under Sign-in accounts.", "Orang ini mempunyai akaun log masuk, dan menjadikan mereka tidak aktif melumpuhkannya. Hanya pentadbir boleh berbuat demikian: minta seorang, atau minta mereka melumpuhkan akaun di bawah Akaun log masuk.")];
+  const out: Fault[] = [];
+  if (i.account.id === i.actorAccountId) out.push(fault("OWN_ACCOUNT", "You cannot disable your own account. Ask another administrator.", "Anda tidak boleh melumpuhkan akaun anda sendiri. Minta pentadbir lain."));
+  else if (i.account.isAdministrator && i.account.status === "ACTIVE" && i.activeAdministrators <= 1) out.push(lastAdministrator());
+  return out;
+}
+
 /// Why the only active administrator cannot be disabled, or made inactive: nobody could administer sign-in after.
 export const lastAdministrator = (): Fault =>
   fault(

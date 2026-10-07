@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createAccountFaults, disableFaults, enableFaults, issueCodeFaults, officeHolderNotice, unlockFaults } from "./administration-rules";
+import { createAccountFaults, disableFaults, enableFaults, issueCodeFaults, leaverFaults, officeHolderNotice, unlockFaults } from "./administration-rules";
 
 const codes = (faults: { code: string }[]) => faults.map((f) => f.code);
 const NOW = new Date("2026-10-06T10:00:00Z");
@@ -40,6 +40,26 @@ describe("disabling an account", () => {
     expect(disableFaults({ ...ok, target: { ...target, isAdministrator: true }, activeAdministrators: 2 })).toEqual([]);
     // An administrator already waiting or disabled is not one of the active ones.
     expect(disableFaults({ ...ok, target: { ...target, isAdministrator: true, status: "PENDING_ACTIVATION" }, activeAdministrators: 1 })).toEqual([]);
+  });
+});
+
+describe("making a person inactive, which disables their account (Phase 1b review)", () => {
+  const account = { id: "a2", status: "ACTIVE" as const, isAdministrator: false };
+  const ok = { isAdministrator: true, actorAccountId: "a1", account, activeAdministrators: 2 };
+  it("is an administrator's act: anyone else is refused, whoever the person is", () => {
+    expect(leaverFaults(ok)).toEqual([]);
+    expect(codes(leaverFaults({ ...ok, isAdministrator: false }))).toEqual(["NOT_ADMINISTRATOR_FOR_LEAVER"]);
+    expect(codes(leaverFaults({ ...ok, isAdministrator: false, account: { ...account, isAdministrator: true } }))).toEqual(["NOT_ADMINISTRATOR_FOR_LEAVER"]);
+    for (const f of leaverFaults({ ...ok, isAdministrator: false })) expect(f.ms.length).toBeGreaterThan(10);
+  });
+  it("is never one's own account, and never the only active administrator's", () => {
+    expect(codes(leaverFaults({ ...ok, account: { ...account, id: "a1" } }))).toEqual(["OWN_ACCOUNT"]);
+    expect(codes(leaverFaults({ ...ok, account: { ...account, isAdministrator: true }, activeAdministrators: 1 }))).toEqual(["LAST_ADMINISTRATOR"]);
+    expect(leaverFaults({ ...ok, account: { ...account, isAdministrator: true }, activeAdministrators: 2 })).toEqual([]);
+  });
+  it("asks nothing where there is no account, or it is already disabled, even of a person who is not an administrator", () => {
+    expect(leaverFaults({ ...ok, isAdministrator: false, account: null })).toEqual([]);
+    expect(leaverFaults({ ...ok, isAdministrator: false, account: { ...account, status: "DISABLED" } })).toEqual([]);
   });
 });
 

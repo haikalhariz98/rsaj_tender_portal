@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { formatOrgDateTime } from "@/lib/format";
 
 import { auditActorOfStaff } from "./audit-actor";
-import { createAccountFaults, disableFaults, enableFaults, issueCodeFaults, lastAdministrator, officeHolderNotice, unlockFaults } from "./administration-rules";
+import { createAccountFaults, disableFaults, enableFaults, issueCodeFaults, leaverFaults, officeHolderNotice, unlockFaults } from "./administration-rules";
 import { codeExpiry, formatCode, generateCode, hashCode } from "./codes";
 import { recordSignInEvent } from "./events";
 import { hashPool } from "./hash-pool";
@@ -127,7 +127,7 @@ async function disableTarget(
   return sessionsEnded;
 }
 
-/// Refused: making this person inactive would leave nobody to administer sign-in.
+/// Refused: making this person inactive would disable a sign-in account the actor may not disable, or leave nobody to administer sign-in.
 export class LeaverRefused extends Error {
   constructor(readonly fault: Fault) {
     super(fault.en);
@@ -138,18 +138,21 @@ export class LeaverRefused extends Error {
 /**
  * A person is made inactive (they left): their account is disabled and its sessions end in the same transaction as the change to the person, so that no
  * session outlives it by even a request (every request re-checks the person as well; this makes it a recorded fact). Nothing happens for a person with no account,
- * or whose account is already disabled. Throws `LeaverRefused` where the account is the only active administrator's.
+ * or whose account is already disabled. Throws `LeaverRefused` (so the person's own change rolls back with it) unless `by` is an administrator, where the account
+ * is the actor's own, or where it is the only active administrator's: the rules of disabling the account directly (`leaverFaults`).
  */
-export async function disableAccountOfLeaver(tx: Tx, input: { personId: string; organisationId: string; actor: AuditActor; reason: string; now?: Date }): Promise<void> {
+export async function disableAccountOfLeaver(
+  tx: Tx,
+  input: { personId: string; organisationId: string; actor: AuditActor; by: { isAdministrator: boolean; accountId: string }; reason: string; now?: Date },
+): Promise<void> {
   const now = input.now ?? new Date();
   await lockOrganisation(tx, input.organisationId);
   const account = await tx.staffAccount.findFirst({ where: { personId: input.personId, organisationId: input.organisationId }, include: { person: { select: { name: true } } } });
   if (!account || account.status === AccountStatus.DISABLED) return;
   await lockAccount(tx, account.id);
-  if (account.isAdministrator && account.status === AccountStatus.ACTIVE) {
-    const active = await tx.staffAccount.count({ where: { organisationId: input.organisationId, isAdministrator: true, status: AccountStatus.ACTIVE } });
-    if (active <= 1) throw new LeaverRefused(lastAdministrator());
-  }
+  const activeAdministrators = account.isAdministrator && account.status === AccountStatus.ACTIVE ? await tx.staffAccount.count({ where: { organisationId: input.organisationId, isAdministrator: true, status: AccountStatus.ACTIVE } }) : 0;
+  const faults = leaverFaults({ isAdministrator: input.by.isAdministrator, actorAccountId: input.by.accountId, account, activeAdministrators });
+  if (faults.length > 0) throw new LeaverRefused(faults[0]);
   await disableTarget(tx, account, { reason: input.reason, why: `The person was made inactive, so the account is disabled: ${input.reason}`, audit: input.actor, organisationId: input.organisationId, request: null, now });
 }
 
