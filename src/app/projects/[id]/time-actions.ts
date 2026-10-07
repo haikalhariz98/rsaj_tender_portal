@@ -172,8 +172,9 @@ export async function answerEotClaim(_prev: FormState, data: FormData): Promise<
   const estimate = r.money("lossExpenseEstimate", "Loss-and-expense estimate");
   const pack = readPack(data);
   if (r.failed) return { ok: false, errors: r.errors };
-  // The answer is attributed through the loss-and-expense record it creates or updates; an answer with no estimate has no person column, and the audit row names who.
-  const begun = await beginAct(actor, data, "LossExpenseClaim.person", { personField: "personId" });
+  // The answer has its own slot, `EotClaim.answeredBy`, so one answer is attributed the same way whether or not it carries a loss-and-expense estimate (the estimate's record
+  // is attributed beside it, through the same act).
+  const begun = await beginAct(actor, data, "EotClaim.answeredBy", { personField: "personId" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
@@ -181,17 +182,18 @@ export async function answerEotClaim(_prev: FormState, data: FormData): Promise<
     const who = await recordedFor(c, act.subjectPersonId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const fs = answerFaults({ closed: m.closedAt ? { reason: m.closeReason } : null, determined: claim.entitlement != null, canComplete, estimatedCompletion: day(estimatedCompletion), actualDelayDays, earthworksDays });
     if (fs.length) refuse("Not recorded:", fs);
-    const moved = await c.tx.eotClaim.updateMany({ where: { id: claim.id, entitlement: null }, data: { actualDelayDays, exceptional: claim.isWeather ? exceptional : null, earthworksDays, canComplete, estimatedCompletion, pack: pack as unknown as Prisma.InputJsonValue } });
+    const moved = await c.tx.eotClaim.updateMany({ where: { id: claim.id, entitlement: null }, data: { actualDelayDays, exceptional: claim.isWeather ? exceptional : null, earthworksDays, canComplete, estimatedCompletion, pack: pack as unknown as Prisma.InputJsonValue, answeredByPersonId: who.person.id } });
     if (moved.count !== 1) throw new ActRefusal({ ok: false, message: "The claim changed while this was being saved. Reload and try again." });
+    await act.write(c.tx, claim.id, { roleCode: who.soRoleCode });
     // FR-EOT-006: the loss-and-expense estimate creates (or, while unvalued and unsent, updates) its linked record.
     if (estimate) {
       const linked = claim.lossExpenseClaims.find((x) => x.valued == null && x.matterId == null) ?? null;
       if (linked) {
         await c.tx.lossExpenseClaim.updateMany({ where: { id: linked.id, valued: null, matterId: null }, data: { claimed: estimate } });
-        await act.write(c.tx, linked.id, { roleCode: who.soRoleCode });
+        await act.writeAlso(c.tx, "LossExpenseClaim.person", linked.id, { roleCode: who.soRoleCode });
       } else {
         const made = await c.tx.lossExpenseClaim.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, claimId: claim.id, claimed: estimate, personId: who.person.id, recordedAt: c.now } });
-        await act.write(c.tx, made.id, { roleCode: who.soRoleCode });
+        await act.writeAlso(c.tx, "LossExpenseClaim.person", made.id, { roleCode: who.soRoleCode });
       }
     }
     await audit(c, "EotClaim", claim.id, claimLabel(c, m), "UPDATE", diffFields(

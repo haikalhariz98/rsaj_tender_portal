@@ -363,7 +363,8 @@ describe("the route handlers answer organisation B's person as if A's records di
     const { POST } = await import("@/app/api/committees/decisions/[id]/votes/route");
     const before = await snapshotA(fx.a.id);
     const ask = async (id: string) => {
-      const res = await POST(new Request("http://localhost/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ personId: A.person, choice: "FOR", votedAt: "2026-10-05" }) }), { params: Promise.resolve({ id }) } as never);
+      // Product owner's ruling, 2026-10-07: the old `personId` key is refused with a 400, so this asks for A's person through `onBehalfOf`, the key that now carries it.
+      const res = await POST(new Request("http://localhost/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ onBehalfOf: A.person, choice: "FOR", votedAt: "2026-10-05" }) }), { params: Promise.resolve({ id }) } as never);
       return { status: res.status, body: await res.json() };
     };
     const withA = await ask(A.decision);

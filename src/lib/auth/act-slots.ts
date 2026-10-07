@@ -113,6 +113,7 @@ export const LABEL_MS: Readonly<Record<string, string>> = {
   "Cancelled by": "Dibatalkan oleh",
   "Authorised by": "Dibenarkan oleh",
   "Assessed by": "Dinilai oleh",
+  "Answered by": "Dijawab oleh",
 };
 
 type SlotExtra = Partial<Pick<ActSlot, "signatureClass" | "onBehalf" | "paperGated" | "holder" | "entryPoints">>;
@@ -282,6 +283,10 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   paper("DelayNotice", "person", "Recorded by"),
   signed("EotClaim", "determinedBy", "Determined by", "HOLDER_CHECKED", ["src/app/projects/[id]/time-actions.ts#determineEotClaim"]),
   paper("EotClaim", "person", "Recorded by"),
+  // The answer to the claim (the pack, the delay, the completion date) is its own act, with its own slot (product owner's ruling, 2026-10-07): an answer with no loss-and-expense
+  // estimate writes no `LossExpenseClaim`, so there was no row to carry who answered. The flags are those of `LossExpenseClaim.person`, which the same act writes when an estimate is
+  // given: paper-capable, not gated, so one answer is judged the same whether or not it carries an estimate.
+  paper("EotClaim", "answeredBy", "Answered by"),
   gated("ExtensionOfTime", "person", "Granted by"),
   gated("LossExpenseClaim", "valuedBy", "Valued by"),
   paper("LossExpenseClaim", "person", "Recorded by"),

@@ -624,6 +624,7 @@ model Person {
   delayNoticesRecorded   DelayNotice[]             @relation("DelayNoticeRecordedFor")
   eotClaimsRecorded      EotClaim[]                @relation("EotClaimRecordedBy")
   eotClaimsDetermined    EotClaim[]                @relation("EotClaimDeterminedBy")
+  eotClaimsAnswered      EotClaim[]                @relation("EotClaimAnsweredBy")
   extensionsRaised       ExtensionOfTime[]         @relation("ExtensionOfTimeRaisedBy")
   lossExpenseRecorded    LossExpenseClaim[]        @relation("LossExpenseRecordedBy")
   lossExpenseValued      LossExpenseClaim[]        @relation("LossExpenseValuedBy")
@@ -10322,6 +10323,11 @@ model EotClaim {
   personId                String
   person                  Person             @relation("EotClaimRecordedBy", fields: [personId], references: [id], onDelete: Restrict)
   recordedAt              DateTime
+  /// Who answered the claim (the pack, the delay and the completion date), as its own act: an answer with no loss-and-expense estimate has no other row to carry
+  /// the attribution (ADR 0034 D12, product owner's ruling of 2026-10-07). Null on a claim not yet answered, and on every claim answered before sign-in: no
+  /// backfill, so null there reads "before sign-in".
+  answeredByPersonId      String?
+  answeredBy              Person?            @relation("EotClaimAnsweredBy", fields: [answeredByPersonId], references: [id], onDelete: Restrict)
 
   notices           EotClaimNotice[]
   reasons           EotReason[]

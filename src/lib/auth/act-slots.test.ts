@@ -98,6 +98,24 @@ describe("every Person relation is an act slot or is accounted for", () => {
   });
 });
 
+// Product owner's ruling, 2026-10-07 (2b(c)): an EOT claim answered with no loss-and-expense estimate has its own person column, registered with the flags of the slot the same act
+// writes when an estimate is given, so one answer is judged the same whether or not it carries an estimate.
+describe("the answer to an EOT claim has its own slot", () => {
+  const flags = (s: { onBehalf: boolean; paperGated: boolean; signatureClass: boolean; holder?: string }) => ({ onBehalf: s.onBehalf, paperGated: s.paperGated, signatureClass: s.signatureClass, holder: s.holder });
+  it("is registered with the same flags as LossExpenseClaim.person: paper-capable, not gated, not a signature, no administrator refusal", () => {
+    const answer = slotOf("EotClaim", "answeredBy");
+    const estimate = slotOf("LossExpenseClaim", "person");
+    expect(answer).toBeDefined();
+    expect(estimate).toBeDefined();
+    expect(flags(answer!)).toEqual(flags(estimate!));
+    expect(flags(answer!)).toEqual({ onBehalf: true, paperGated: false, signatureClass: false, holder: undefined });
+  });
+  it("is a column of the schema that is nullable, so a claim answered before sign-in reads \"before sign-in\" and no row is backfilled", () => {
+    const model = /\nmodel EotClaim \{([\s\S]*?)\n\}/.exec(SCHEMA)![1];
+    expect(model).toMatch(/\n\s+answeredByPersonId\s+String\?/);
+  });
+});
+
 describe("the acts that move money, time or authority are recorded from paper only with the permission and the paper's reference (an open item for the product owner)", () => {
   it("are the ones the review named, each paper-capable and none a signature", () => {
     const gated = ACT_SLOTS.filter((s) => s.paperGated);
