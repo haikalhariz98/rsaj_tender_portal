@@ -32,3 +32,11 @@ export function actorColumns(actor: AuditActor | undefined): Pick<
       return { unattributed: false, actorKind: "SYSTEM", actorSystemLabel: actor.label };
   }
 }
+
+/**
+ * Who an entry says acted, in words: the person by name; the system by what ran ("System: bootstrap command"), so that a row it wrote is never read as a
+ * person who is gone. Null where neither is named. One rule for History and for the export, so the two cannot disagree.
+ */
+export function actorDisplayName(row: { actorPerson?: { name: string } | null; actorSystemLabel?: string | null }): string | null {
+  return row.actorPerson?.name ?? (row.actorSystemLabel ? `System: ${row.actorSystemLabel}` : null);
+}

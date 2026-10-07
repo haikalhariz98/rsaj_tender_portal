@@ -4,6 +4,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { EXPORT_NOT_ADMINISTRATOR_TEXT } from "@/lib/audit/export";
 import { todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
  * deletes an entry. The export is what an outside auditor takes away.
  */
 export default async function AuditTrailPage() {
-  await requireStaff();
+  const actor = await requireStaff();
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
   if (!org) {
     return (
@@ -53,7 +54,13 @@ export default async function AuditTrailPage() {
         <Card>
           <CardHeader icon={<FileIcon size={17} />} title="Export" subtitle="Every entry recorded on the organisation's days chosen, oldest first." />
           <CardBody>
-            <AuditExportForm today={today} />
+            {actor.isAdministrator ? (
+              <AuditExportForm today={today} />
+            ) : (
+              <Callout tone="info" title="For an administrator">
+                {EXPORT_NOT_ADMINISTRATOR_TEXT}
+              </Callout>
+            )}
           </CardBody>
         </Card>
         <Card className="overflow-hidden">

@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 
 import type { AuditActor } from "@/lib/auth/types";
 
-import { actorColumns } from "./actor";
+import { actorColumns, actorDisplayName } from "./actor";
 import { diffFields, snapshotFields, type FieldChange } from "./diff";
 
 /**
@@ -170,7 +170,7 @@ export async function loadAudit(
     reason: e.reason,
     unattributed: e.unattributed,
     // A person by name; the system by what ran ("System: bootstrap command"), so that a row it wrote is never read as "Unknown".
-    actorName: e.actorPerson?.name ?? (e.actorSystemLabel ? `System: ${e.actorSystemLabel}` : null),
+    actorName: actorDisplayName(e),
     at: e.at,
   }));
 }

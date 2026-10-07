@@ -3,7 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { auditCsv, entriesOnDays, exportFault, recordTypeLabel, sha256Hex, type ExportRow } from "./export";
+import { actorDisplayName } from "./actor";
+import { auditCsv, entriesOnDays, EXPORT_NOT_ADMINISTRATOR_TEXT, exportFault, exportMayBeMadeBy, recordTypeLabel, sha256Hex, type ExportRow } from "./export";
 
 const row = (id: string, at: string, over: Partial<ExportRow> = {}): ExportRow => ({
   id,
@@ -43,6 +44,27 @@ describe("the audit export (FR-APR-015)", () => {
     // Phase 1b (the plan changes this wording, and says so): every writer now passes who acted, so an unattributed row is one from before sign-in, and says so. (Phase 1a's interim wording, "who acted was not recorded", was true while existing screens still wrote unattributed rows while signed in.)
     expect(file).toContain("Not attributed: before sign-in");
     expect(file.endsWith("\r\n")).toBe(true);
+  });
+
+  it("names who acted: a person by name, the system by what ran, never a person gone for a row the system wrote (Phase 1b review)", () => {
+    const written = (id: string, who: { actorPerson?: { name: string } | null; actorSystemLabel?: string | null }, unattributed = false) =>
+      row(id, "2026-09-30T01:00:00Z", { unattributed, actorName: actorDisplayName(who) });
+    const lines = auditCsv(
+      [written("sys", { actorSystemLabel: "demo loader" }), written("staff", { actorPerson: { name: "Aminah Rahman" } }), written("old", {}, true), written("gone", {})],
+      "UTC",
+    ).split("\r\n");
+    expect(lines[1].endsWith(",System: demo loader")).toBe(true);
+    expect(lines[2].endsWith(",Aminah Rahman")).toBe(true);
+    expect(lines[3].endsWith(",Not attributed: before sign-in")).toBe(true);
+    // Only a row naming neither person nor system reads as a person no longer on record.
+    expect(lines[4].endsWith(",A person no longer on record")).toBe(true);
+    expect(lines.filter((l) => l.includes("no longer on record"))).toHaveLength(1);
+  });
+
+  it("is for an administrator: the trail holds the sign-in accounts' history, which History shows to administrators only", () => {
+    expect(exportMayBeMadeBy(true)).toBe(true);
+    expect(exportMayBeMadeBy(false)).toBe(false);
+    expect(EXPORT_NOT_ADMINISTRATOR_TEXT).toMatch(/administrator/);
   });
 
   it("takes the organisation's day, not UTC's: 23:30 UTC on 30 September is 1 October in Kuala Lumpur", () => {

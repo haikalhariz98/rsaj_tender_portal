@@ -141,4 +141,13 @@ export const EXPORT_FAULT_TEXT: Record<ExportFault, string> = {
   RANGE_IN_FUTURE: "The last day cannot be after today.",
 };
 
+/**
+ * Who may take the trail away. The file holds every record's changes, among them the sign-in accounts' (their sign-in names, why codes were issued), which History
+ * shows to an administrator only. A filtered file would no longer be the whole range its digest and its record attest, so the whole export is for an administrator
+ * (until permissions arrive in Phase 2a, which replaces the flag with a permission).
+ */
+export const EXPORT_NOT_ADMINISTRATOR_TEXT = "Only an administrator exports the audit trail: it holds the sign-in accounts' history, which is for administrators.";
+
+export const exportMayBeMadeBy = (isAdministrator: boolean): boolean => isAdministrator;
+
 export const exportFileName = (fromDay: string, toDay: string) => `audit-trail_${fromDay}_to_${toDay}.csv`;
