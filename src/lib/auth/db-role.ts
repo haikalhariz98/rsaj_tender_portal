@@ -71,6 +71,7 @@ export const notYetPresent = (existing: ReadonlySet<string>) => APPEND_ONLY_TABL
 export interface RuntimeRoleFacts {
   /// The login the app is connected as.
   name: string;
+  /// A superuser, or a member of one (it could SET ROLE to it).
   isSuperuser: boolean;
   /// The login owns (or is a member of the owner of) a table in the app's schema, or the schema itself. An owner can drop a trigger.
   ownsSchemaObjects: boolean;

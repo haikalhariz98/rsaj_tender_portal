@@ -105,9 +105,11 @@ async function load() {
   const organisationId = org.id;
 
   // Refuse to stack one demo run on another, or to run over one that stopped part way: either way nothing is written (Phase 1d).
+  // Whether an earlier load finished cannot be told from here (a load can stop after any step), so the words do not claim it did.
   if (await demoStarted(db)) {
-    if (await demoIsLoaded(db)) console.log("Demo data is already loaded: nothing was written.");
-    else console.log("A demo load stopped part way on this database: nothing was written. It cannot be finished or removed (the trail is permanent); use a new database.");
+    console.log(
+      "Demo data is already present, loaded wholly or in part: nothing was written. It cannot be finished or removed (the trail is permanent); for a fresh demo, use a new database.",
+    );
     return;
   }
 

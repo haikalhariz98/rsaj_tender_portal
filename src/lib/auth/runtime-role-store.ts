@@ -10,13 +10,14 @@ import { runtimeRoleVerdict, type RuntimeRoleFacts, type RuntimeRoleVerdict } fr
 type Client = Pick<typeof db, "$queryRaw">;
 
 export async function readRuntimeRole(client: Client = db): Promise<RuntimeRoleFacts> {
-  // Ownership counts membership in the owning role (pg_has_role USAGE), as the database itself does: a member of the owner can drop a trigger.
+  // Membership counts, not just the role itself: a member of the owner (or of a superuser) can SET ROLE to it and drop a trigger,
+  // whether or not it inherits. So both tests use pg_has_role MEMBER, never USAGE (the app role is NOINHERIT, for which USAGE is false).
   const rows = await client.$queryRaw<{ name: string; isSuperuser: boolean; ownsSchemaObjects: boolean }[]>`
     SELECT current_user::text AS "name",
-           r.rolsuper AS "isSuperuser",
+           (r.rolsuper OR EXISTS (SELECT 1 FROM pg_roles s WHERE s.rolsuper AND pg_has_role(current_user, s.oid, 'MEMBER'))) AS "isSuperuser",
            (EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-                     WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND pg_has_role(current_user, c.relowner, 'USAGE'))
-            OR EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname = current_schema() AND pg_has_role(current_user, n.nspowner, 'USAGE'))) AS "ownsSchemaObjects"
+                     WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND pg_has_role(current_user, c.relowner, 'MEMBER'))
+            OR EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname = current_schema() AND pg_has_role(current_user, n.nspowner, 'MEMBER'))) AS "ownsSchemaObjects"
       FROM pg_roles r WHERE r.rolname = current_user`;
   const row = rows[0];
   if (!row) throw new Error("The database did not report the current login.");

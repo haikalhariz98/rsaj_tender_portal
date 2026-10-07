@@ -52,7 +52,7 @@ describe("the demo loader is additive (Phase 1d)", () => {
 
     const second = demo("load");
     expect(second.status, second.out).toBe(0);
-    expect(second.out).toMatch(/already loaded: nothing was written/);
+    expect(second.out).toMatch(/already present, loaded wholly or in part: nothing was written/);
     expect(await counts()).toEqual(after1);
   });
 
