@@ -9,7 +9,7 @@ import type { SignInBranding } from "@/lib/organisation/sign-in-load";
  *
  * Everything on the left is the organisation's own and optional. With none of it set there is no panel at all and the card stands alone on the page, as
  * it did before. The logo is the one the sidebar shows, on a white chip so it reads over any picture; with none uploaded the spot stays empty. The picture
- * is decoration (an empty `alt`), darkened under the words so white text keeps its contrast whatever the photograph is. On a phone the panel is a short
+ * is decoration (an empty `alt`), darkened across the whole text column (never fading out under the words) so white text keeps 4.5:1 against even the brightest pixels of any photograph. On a phone the panel is a short
  * band above the card and carries only the logo, the portal name and the headline.
  */
 export function SignInScreen({ branding, children }: { branding: SignInBranding; children: ReactNode }) {
@@ -22,7 +22,7 @@ export function SignInScreen({ branding, children }: { branding: SignInBranding;
             // eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint
             <img src={`/sign-in/image/${imageSha}`} alt="" className="absolute inset-0 -z-20 size-full object-cover object-[20%_bottom]" />
           )}
-          <div aria-hidden="true" className="absolute inset-0 -z-10 bg-linear-to-b from-ink/75 via-ink/55 to-ink/70 lg:bg-linear-to-r lg:from-ink/80 lg:via-ink/55 lg:to-ink/15" />
+          <div aria-hidden="true" className="absolute inset-0 -z-10 bg-linear-to-b from-ink/75 via-ink/55 to-ink/70 lg:bg-linear-to-r lg:from-ink/85 lg:via-ink/72 lg:to-ink/62" />
 
           <div className="min-h-12">
             {logo && (
