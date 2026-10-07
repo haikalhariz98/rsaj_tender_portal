@@ -56,7 +56,7 @@ import { parseSen, senToDecimalString } from "../src/lib/money";
 import { pathTo } from "../src/lib/organisation/structure";
 import type { OrgUnit } from "../src/lib/organisation/types";
 import { committeeStepFrom } from "../src/lib/requisition/committee-step";
-import { deciderFaults, holdersFor } from "../src/lib/requisition/holders";
+import { deciderFaults, NO_EARLIER_RECORDERS, holdersFor } from "../src/lib/requisition/holders";
 import { estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, verificationAudit, ENTITY as SCOPE_ENTITY } from "../src/lib/scope/audit-view";
 import { packStatusAudit, ENTITY as PACK_ENTITY } from "../src/lib/tender-docs/audit-view";
 import { addendaForNewPurchaser, deliveryFaults, issueFaults, nextAddendumNumber, recipientsFor } from "../src/lib/window/addendum";
@@ -1001,7 +1001,7 @@ export class Acts {
     for (const pid of [...holders.holderIds, ...holders.delegates.map((x) => x.personId)]) {
       const person = await this.db.person.findUnique({ where: { id: pid }, select: { id: true, name: true, isActive: true } });
       const check = deciderFaults(step, {
-        today, holders, declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [], person, requesterId: req.requestingPersonId, endorserIds: [], otherDeciderIds: others,
+        today, holders, declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [], person, requesterId: req.requestingPersonId, endorserIds: [], earlier: NO_EARLIER_RECORDERS, otherDeciderIds: others,
         earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"), decidedOn, openedOn: storedDay(inst.openedAt), value: parseSen(inst.exercise!.estimatedValue.toString()),
       });
       if (check.faults.length === 0 && person) {

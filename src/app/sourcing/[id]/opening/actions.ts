@@ -49,6 +49,7 @@ import { findingFaults, matchFaults, openFault } from "@/lib/opening/withdrawals
 import { activePerson, audit, exerciseIdOf, inWindow, label, Refusal, type LockedWindow } from "../window/shared";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct, type PreparedAct } from "@/app/_auth/act";
+import { loadRecorders, recorderKey } from "@/lib/auth/attribution-recorders";
 import type { StaffActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -324,7 +325,10 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
     if (!o) return GONE_OPENING;
     const state = stateOf(o, l.ex.status);
     const person = await nameOf(tx, l.org.id, personId);
-    const fs = authorisationFaults({ state, panel: panelOf(o), auths: o.authorisations, personId, now, closing: l.ex.closingAt, boxLocked: lockedAtOrAfterClosing(c.events, l.ex.closingAt) });
+    // Whoever keyed an earlier authorisation of this sitting from a member's paper is a hand behind it as well: two people act, never one (Phase 2b review).
+    const keyedBy = await loadRecorders(tx, l.org.id, [{ entity: "OpeningAuthorisation", slot: "person", ids: o.authorisations.map((a) => a.id) }]);
+    const auths = o.authorisations.map((a) => ({ ...a, recordedByPersonId: keyedBy.get(recorderKey({ entity: "OpeningAuthorisation", slot: "person", id: a.id })) ?? null }));
+    const fs = authorisationFaults({ state, panel: panelOf(o), auths, personId, recorderId: act.recorderId, now, closing: l.ex.closingAt, boxLocked: lockedAtOrAfterClosing(c.events, l.ex.closingAt) });
     if (!person) fs.push({ code: "NOT_ON_PANEL", level: "block" });
     if (blocking(fs).length) return refuse(fs);
     const row = await tx.openingAuthorisation.create({ data: { organisationId: l.org.id, openingId: o.id, personId, sittingNo: state.sittingNo, recordedAt: now } });

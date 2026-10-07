@@ -209,6 +209,8 @@ export function supervisionFaultWords(f: Finding): Words {
       return w("A representative never delegates: the S.O.'s authority is not delegated twice.", "Wakil tidak boleh mewakilkan semula.");
     case "DELEGATE_IS_GRANTOR":
       return w("The S.O. does not delegate to themselves.", "P.P. tidak mewakilkan kepada diri sendiri.");
+    case "RECORDER_IS_DELEGATE":
+      return w("You cannot record the S.O.'s delegation to yourself on their behalf. Another officer records it, or the S.O. signs in and delegates.", "Anda tidak boleh merekodkan perwakilan P.P. kepada diri anda bagi pihaknya. Pegawai lain merekodkannya, atau P.P. log masuk dan mewakilkan.");
     case "DELEGATE_INACTIVE":
       return w("Choose a delegate on record and active.", "Pilih wakil yang aktif.");
     case "ALREADY_DELEGATED":

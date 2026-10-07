@@ -25,6 +25,7 @@ import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
+import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
 import { deciderFaultText } from "@/lib/requisition/labels";
 import { windowChangeRejectionSnapshot } from "@/lib/window/edit";
 import { FormReader } from "@/lib/validate";
@@ -269,6 +270,8 @@ export async function recordNegotiationDecision(_prev: FormState, data: FormData
       requesterId: l.req.requestingPersonId,
       recorderId: act.recorderId,
       endorserIds: [],
+      // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).
+      earlier: await earlierRecordersOf(tx, l.org.id, { requisitionId: l.req.id, otherStepIds: full.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.id) }),
       otherDeciderIds: full.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
       earlierDone: full.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
       decidedOn,

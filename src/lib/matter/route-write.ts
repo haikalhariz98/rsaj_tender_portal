@@ -45,6 +45,7 @@ import type { ExactRatio } from "@/lib/percent-band";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { committeeStepFrom } from "@/lib/requisition/committee-step";
 import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
+import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
 import { methodKeyOf } from "@/lib/supervision/load";
 import { resolveMatterRoute } from "@/lib/time/route";
 import { timeRefusal } from "@/lib/time/labels";
@@ -221,6 +222,8 @@ export async function decideMatterStep(c: MatterCtx, m: MatterRow, i: DecideInpu
     requesterId: inst.submittedByPersonId ?? "",
     recorderId: i.act.recorderId,
     endorserIds: [],
+    // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).
+    earlier: await earlierRecordersOf(c.tx, c.l.org.id, { otherStepIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.id) }),
     otherDeciderIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
     earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
     decidedOn: i.decidedOn,

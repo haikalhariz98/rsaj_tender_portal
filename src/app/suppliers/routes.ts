@@ -21,6 +21,7 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ableToAct, deciderFaults } from "@/lib/requisition/holders";
+import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
 import { SUPPLIER_DECIDER_TEXT } from "@/lib/suppliers/labels";
 import type { SupplierOrg } from "@/lib/suppliers/repo";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
@@ -126,6 +127,8 @@ export async function decideSupplierStep(
     requesterId: d.requesterId,
     recorderId: d.act.recorderId,
     endorserIds: [],
+    // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).
+    earlier: await earlierRecordersOf(tx, org.id, { otherStepIds: full.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.id) }),
     otherDeciderIds: full.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
     earlierDone: full.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
     decidedOn,

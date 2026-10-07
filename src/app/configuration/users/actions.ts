@@ -258,6 +258,7 @@ export async function setGrant(
 /// Which field an entry fault belongs against, and what it says there.
 const DELEGATION_FAULTS: Record<DelegationFault, { field: string; message: string }> = {
   TO_SELF: { field: "toPersonId", message: "Nobody delegates to themselves." },
+  RECORDER_IS_DELEGATE: { field: "toPersonId", message: "You cannot record a delegation to yourself on someone else's behalf: the authority would be granted and received by one person. Another officer records it, or the grantor signs in and gives it." },
   ENDS_BEFORE_IT_STARTS: {
     field: "effectiveTo",
     message: "A delegation cannot end before it starts.",
@@ -449,6 +450,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
         existing.map(asDelegation),
         held.map((c) => c.code),
         {
+          recorderId: act.recorderId,
           grantorHoldsOffice,
           officeHasMandatoryActs: mandatory > 0,
           grantorUnavailable: grantor ? !grantor.isAvailable : false,

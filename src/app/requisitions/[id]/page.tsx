@@ -39,7 +39,8 @@ import { ageDay, approvalCommitment, identityHolds, isStale, overBudgetDispositi
 import { eligibleEndorsers, endorsementFaults, endorsersFor } from "@/lib/requisition/endorsement";
 import { blocking, requisitionFaults } from "@/lib/requisition/fields";
 import { fundingGate } from "@/lib/requisition/funding";
-import { ableToAct, deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
+import { ableToAct, deciderFaults, holdersFor, NO_EARLIER_RECORDERS, requesterHoldsApprover } from "@/lib/requisition/holders";
+import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
 import { requesterOnlySteps, requesterOnlyText } from "@/lib/authority/requester-only";
 import {
   approvalRouteLabel,
@@ -313,6 +314,14 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     DELEGATION_NOT_PERMITTED: "a delegate, and this step cannot be delegated",
     INACTIVE: "recorded as having left",
   };
+  // Who keyed the requisition, an endorsement or another step for someone else, step by step as the action reads them: they are barred as the person they keyed it for is.
+  const earlierByStep = new Map(
+    open
+      ? await Promise.all(
+          open.steps.map(async (s) => [s.id, await earlierRecordersOf(db, l.org.id, { requisitionId: r.id, otherStepIds: open.steps.filter((x) => x.id !== s.id && x.decidedByPersonId).map((x) => x.id) })] as const),
+        )
+      : [],
+  );
   const deciderOptions = (step: { id: string; roleCode: string | null; actingRoleCode: string | null; declaredByPersonId: string | null; committeeCode: string | null; nonDelegable: boolean; decision: string }) => {
     const office = step.actingRoleCode ?? step.roleCode;
     if (!open || !today || !office) return { options: people, candidates: 0, eligible: 0, barred: [] as string[] };
@@ -331,6 +340,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         holders: h,
         person,
         requesterId: r.requestingPersonId,
+        earlier: earlierByStep.get(step.id) ?? NO_EARLIER_RECORDERS,
         endorserIds: [],
         endorsements: r.endorsements.map((e) => ({ personId: e.personId, unitCode: e.unitCode })),
         rootUnitCode: path[path.length - 1] ?? null,

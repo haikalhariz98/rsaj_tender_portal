@@ -198,7 +198,7 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
     ? "Set the organisation's time zone first."
     : !executed
       ? "Representatives are delegated once the contract is executed."
-      : say(delegationFaults({ kind: "PRINCIPAL", grantorId: "", delegate: null, competencyConfirmed: true, competencyNote: "x", scope: ["DIARY"] }, { so: v.so?.office ?? null, delegations: delegationFactsOf(v.s), today, variant, typeName: v.type?.nameEn ?? null, forms }).filter((f) => ["NO_SO", "VARIANT_NOT_SET", "FORMS_NOT_SET"].includes(f.code)));
+      : say(delegationFaults({ kind: "PRINCIPAL", grantorId: "", recorderId: null, delegate: null, competencyConfirmed: true, competencyNote: "x", scope: ["DIARY"] }, { so: v.so?.office ?? null, delegations: delegationFactsOf(v.s), today, variant, typeName: v.type?.nameEn ?? null, forms }).filter((f) => ["NO_SO", "VARIANT_NOT_SET", "FORMS_NOT_SET"].includes(f.code)));
   const partyBlocker = executed ? null : "Nominated parties and assignees are recorded once the contract is executed.";
   return (
     <ActGate blocker={shut}>

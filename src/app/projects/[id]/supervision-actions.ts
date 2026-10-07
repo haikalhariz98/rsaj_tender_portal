@@ -203,7 +203,7 @@ export async function recordDelegation(_prev: FormState, data: FormData): Promis
     const type = c.l.ex.contractTypeCode ? await c.tx.contractType.findFirst({ where: { organisationId: c.l.org.id, code: c.l.ex.contractTypeCode }, select: { nameEn: true, delegationVariant: true } }) : null;
     const variant = (type?.delegationVariant ?? null) as DelegationVariant | null;
     const forms = formsFor(await loadPostAwardPolicy(c.l.org.id, c.tx), variant);
-    const fs = delegationFaults({ kind, grantorId, delegate, competencyConfirmed, competencyNote, scope }, { so: so?.office ?? null, delegations: delegationFactsOf(s), today: c.today, variant, typeName: type?.nameEn ?? null, forms });
+    const fs = delegationFaults({ kind, grantorId, recorderId: act.recorderId, delegate, competencyConfirmed, competencyNote, scope }, { so: so?.office ?? null, delegations: delegationFactsOf(s), today: c.today, variant, typeName: type?.nameEn ?? null, forms });
     if (fs.length) refuse("Not delegated:", fs);
     const grantor = (await personOf(c, grantorId))!;
     // FR-SUP-003: the letter pair, through the certificate core, in this transaction (Contract → Certificate → the delegation).
@@ -550,14 +550,18 @@ export async function endorseDiary(_prev: FormState, data: FormData): Promise<Fo
     // Review 8: the superior officer is someone on record and active, as every other person named (recordedFor checks the S.O.).
     const named = role === "SUPERINTENDING_OFFICER" ? null : await personOf(c, act.subjectPersonId);
     if (role !== "SUPERINTENDING_OFFICER" && (!named || !named.isActive)) return { ok: false, errors: { personId: "Choose someone on record and active." } };
-    const person = role === "SUPERINTENDING_OFFICER" ? (await recordedFor(c, s, act.subjectPersonId, { soOnly: true }, storedDay(visitedOn))).person : named!;
+    const soFor = role === "SUPERINTENDING_OFFICER" ? await recordedFor(c, s, act.subjectPersonId, { soOnly: true }, storedDay(visitedOn)) : null;
+    const person = soFor ? soFor.person : named!;
     const from = storedDay(coversFrom);
     const to = storedDay(coversTo);
     const fs = endorseFaults({ possessionOn: day(s.possession?.possessionOn), visitedOn: storedDay(visitedOn), coversFrom: from, coversTo: to, today: c.today, entriesInCover: s.siteDiaryEntries.filter((x) => storedDay(x.day) >= from && storedDay(x.day) <= to).length });
     if (fs.length) refuse("Not recorded:", fs);
     const row = await c.tx.diaryEndorsement.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, role, personId: person.id, visitedOn, coversFrom, coversTo, note, recordedAt: c.now } });
     await audit(c, "DiaryEndorsement", row.id, `site diary endorsed ${formatDate(storedDay(visitedOn))}`, "CREATE", diffFields(null, { endorsedAs: ENDORSER_WORDS[role].en, endorsedBy: person.name, visitedOn: storedDay(visitedOn), coversFrom: from, coversTo: to }), note);
-    await act.write(c.tx, row.id, { document: { entity: "DiaryEndorsement", id: row.id } });
+    // What is endorsed is the diary the cover reaches: the last entry of the days it covers (never the endorsement itself, which is the signature). The S.O. endorses in
+    // the office they hold; the superior officer is named without an office on record (no reporting lines yet), so none is recorded for them.
+    const reaches = s.siteDiaryEntries.filter((x) => storedDay(x.day) >= from && storedDay(x.day) <= to).sort((a, b) => storedDay(a.day).localeCompare(storedDay(b.day))).at(-1)!;
+    await act.write(c.tx, row.id, { document: { entity: "SiteDiaryEntry", id: reaches.id }, roleCode: soFor?.soRoleCode ?? null });
     return { ok: true };
   });
 }

@@ -315,7 +315,7 @@ class Acts {
 
   /// decideRegistrationStep on the route's one step, approved: deciderFaults, then the file judged again, then the application approved.
   async approve(appId: string, routeId: string, when: Date) {
-    const { deciderFaults } = await import("../src/lib/requisition/holders");
+    const { deciderFaults, NO_EARLIER_RECORDERS } = await import("../src/lib/requisition/holders");
     const { approveFaults, decisionSnapshot } = await import("../src/lib/suppliers/review");
     const { supplierHolders } = await import("../src/lib/suppliers/route");
     const { loadRoster, loadDelegations } = await import("../src/lib/people/load");
@@ -326,7 +326,7 @@ class Acts {
     const delegations = await loadDelegations(ORGANISATION_CODE, this.db as never);
     const { a, f, types } = await this.file(appId, today);
     for (const step of inst.steps) {
-      const check = deciderFaults(step, { today, holders: supplierHolders(step.roleCode!, roster, delegations, today), person: { id: APPROVER.id, isActive: true }, requesterId: a.submittedByPersonId ?? "", endorserIds: [], otherDeciderIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!), earlierDone: true, decidedOn: today, openedOn: inst.openedAt.toISOString().slice(0, 10), value: 0n });
+      const check = deciderFaults(step, { today, holders: supplierHolders(step.roleCode!, roster, delegations, today), person: { id: APPROVER.id, isActive: true }, requesterId: a.submittedByPersonId ?? "", endorserIds: [], earlier: NO_EARLIER_RECORDERS, otherDeciderIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!), earlierDone: true, decidedOn: today, openedOn: inst.openedAt.toISOString().slice(0, 10), value: 0n });
       if (check.faults.length) fail(`deciding ${step.id}: ${check.faults.join(", ")}`);
       await this.db.approvalStep.update({ where: { id: step.id }, data: personDecisionWrite({ decision: "DONE", person: APPROVER, decidedOn: dayToDate(today), delegationId: null, reason: "", recordedAt: when }) });
       this.entry("ApprovalStep", step.id, `${a.supplier.reference} · Registration approval route · ${step.roleLabel}`, "UPDATE", when, diffFields({ decision: "PENDING" }, { decision: "DONE", decidedBy: APPROVER.name, decidedOn: today, recordedOnBehalf: "not signed" }));
@@ -459,7 +459,7 @@ class Acts {
 
   /// decideSupplierStep on every step of a route, approved by `who`: deciderFaults on each.
   async approveRoute(routeId: string, who: { id: string; name: string }, requesterId: string, routeLabel: string, when: Date) {
-    const { deciderFaults } = await import("../src/lib/requisition/holders");
+    const { deciderFaults, NO_EARLIER_RECORDERS } = await import("../src/lib/requisition/holders");
     const { supplierHolders } = await import("../src/lib/suppliers/route");
     const { loadRoster, loadDelegations } = await import("../src/lib/people/load");
     const { personDecisionWrite } = await import("../src/lib/authority/decided-step");
@@ -468,7 +468,7 @@ class Acts {
     const roster = await loadRoster(ORGANISATION_CODE, this.db as never);
     const delegations = await loadDelegations(ORGANISATION_CODE, this.db as never);
     for (const step of inst.steps) {
-      const check = deciderFaults(step, { today, holders: supplierHolders(step.roleCode!, roster, delegations, today), person: { id: who.id, isActive: true }, requesterId, endorserIds: [], otherDeciderIds: [], earlierDone: true, decidedOn: today, openedOn: inst.openedAt.toISOString().slice(0, 10), value: 0n });
+      const check = deciderFaults(step, { today, holders: supplierHolders(step.roleCode!, roster, delegations, today), person: { id: who.id, isActive: true }, requesterId, endorserIds: [], earlier: NO_EARLIER_RECORDERS, otherDeciderIds: [], earlierDone: true, decidedOn: today, openedOn: inst.openedAt.toISOString().slice(0, 10), value: 0n });
       if (check.faults.length) fail(`deciding ${step.id}: ${check.faults.join(", ")}`);
       await this.db.approvalStep.update({ where: { id: step.id }, data: personDecisionWrite({ decision: "DONE", person: who, decidedOn: dayToDate(today), delegationId: null, reason: "", recordedAt: when }) });
       this.entry("ApprovalStep", step.id, `${routeLabel} · ${step.roleLabel}`, "UPDATE", when, diffFields({ decision: "PENDING" }, { decision: "DONE", decidedBy: who.name, decidedOn: today, recordedOnBehalf: "not signed" }));

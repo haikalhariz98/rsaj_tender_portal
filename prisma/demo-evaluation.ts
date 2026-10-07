@@ -624,7 +624,7 @@ export class EvaluationActs {
     const { loadDelegations, loadRoster } = await import("../src/lib/people/load");
     const { ORGANISATION_CODE } = await import("../src/lib/org");
     const { pathTo } = await import("../src/lib/organisation/structure");
-    const { deciderFaults, holdersFor } = await import("../src/lib/requisition/holders");
+    const { deciderFaults, NO_EARLIER_RECORDERS, holdersFor } = await import("../src/lib/requisition/holders");
     const { l } = await this.ctx(exerciseId);
     const full = await this.db.approvalInstance.findUniqueOrThrow({ where: { id: routeId }, include: { steps: { orderBy: { sequence: "asc" } } } });
     const step = full.steps.find((s) => s.decision === "PENDING") ?? fail("no step to decide");
@@ -633,7 +633,7 @@ export class EvaluationActs {
     const units = await this.db.orgUnit.findMany({ where: { organisationId: this.org } });
     const unitPath = pathTo(units as never, l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(on)).reverse().map((u) => u.code);
     const p = await this.db.person.findUniqueOrThrow({ where: { id: person.id }, select: { id: true, name: true, isActive: true } });
-    const check = deciderFaults(step, { today: dayIn(at, this.tz), holders: actingOffice(step) ? holdersFor(actingOffice(step)!, unitPath, roster, delegations, on) : { scope: null, holderIds: [], delegates: [] }, declaredConflictIds: [], person: p, requesterId: l.req.requestingPersonId, endorserIds: [], otherDeciderIds: [], earlierDone: true, decidedOn: on, openedOn: storedDay(full.openedAt), value: parseSen(l.ex.estimatedValue.toString()) });
+    const check = deciderFaults(step, { today: dayIn(at, this.tz), holders: actingOffice(step) ? holdersFor(actingOffice(step)!, unitPath, roster, delegations, on) : { scope: null, holderIds: [], delegates: [] }, declaredConflictIds: [], person: p, requesterId: l.req.requestingPersonId, endorserIds: [], earlier: NO_EARLIER_RECORDERS, otherDeciderIds: [], earlierDone: true, decidedOn: on, openedOn: storedDay(full.openedAt), value: parseSen(l.ex.estimatedValue.toString()) });
     if (check.faults.length) fail(`the negotiation's decision is refused (${check.faults.join(", ")})`);
     await this.db.approvalStep.update({ where: { id: step.id }, data: personDecisionWrite({ decision, person: { id: p.id, name: p.name }, decidedOn: dayToDate(on), delegationId: check.delegationId, reason, recordedAt: at }) });
     this.entry("ApprovalStep", step.id, `${l.ex.reference} · ${step.roleLabel}`, "UPDATE", at, diffFields({ decision: step.decision }, { decision, decidedBy: p.name, decidedOn: dayToDate(on), recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);

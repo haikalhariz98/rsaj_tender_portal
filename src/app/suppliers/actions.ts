@@ -22,6 +22,7 @@ import { ACT_LABEL } from "@/lib/labels";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ableToAct, deciderFaults } from "@/lib/requisition/holders";
+import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
 import { appInclude, ERASED, recordOutcome, rejectApplicant, setAsideOnlineApplication } from "@/lib/suppliers/application-acts";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { lodgeFaults, verifyFaults } from "@/lib/suppliers/documents";
@@ -646,6 +647,8 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
       requesterId: a.submittedByPersonId ?? "",
       recorderId: act.recorderId,
       endorserIds: [],
+      // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).
+      earlier: await earlierRecordersOf(tx, l.org.id, { otherStepIds: full.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.id) }),
       otherDeciderIds: full.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
       earlierDone: full.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
       decidedOn,
@@ -711,7 +714,7 @@ export async function decideApplication(_prev: FormState, data: FormData): Promi
   const remarks = r.text("remarks", "Remarks", { max: 4000 }) || String(data.get("reason") ?? "").trim();
   const resubmitBy = r.optionalText("resubmitBy");
   if (r.failed || !outcome) return { ok: false, errors: r.errors };
-  const begun = await beginAct(actor, data, "ApplicationDecision.decidedBy", { personField: "personId" });
+  const begun = await beginAct(actor, data, "ApplicationDecision.decidedBy", { personField: "personId", onBehalf: false });
   if (!begun.ok) return begun.state;
   const act = begun.act;
   const personId = act.subjectPersonId;

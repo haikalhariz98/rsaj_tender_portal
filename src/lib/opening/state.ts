@@ -20,6 +20,8 @@ export interface SittingFacts {
 
 export interface AuthorisationFacts {
   personId: string;
+  /// Who keyed this authorisation for the member from their paper, where it was recorded for them (Phase 2b review): the member did not act in this session.
+  recordedByPersonId?: string | null;
   sittingNo: number;
   recordedAt: Date;
   lapsedAt: Date | null;

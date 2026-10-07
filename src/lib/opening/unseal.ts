@@ -1,6 +1,6 @@
 /**
  * FR-OPN-003, 004 (C-2, OD-1 A, OD-11): authorising the opening. Each authorisation is one panel
- * member's own act, stamped by the server, recorded on their behalf (not signed); the second distinct
+ * member's own act, stamped by the server: signed with their password, or keyed from their paper by another officer; the second distinct
  * present member's authorisation opens the box (the unseal) — or, at a resumed sitting, lets the
  * sitting record again. The server clock must be after the closing, to the second: at the closing
  * second itself the box is refused (a bid recorded in that second is in time, FR-BID-002, BD-66-3,
@@ -13,13 +13,15 @@ import { isLate } from "@/lib/bids/lateness";
 import { sittingAuthorisers, type AuthorisationFacts, type OpeningState, type PanelMemberFacts } from "./state";
 import type { Finding } from "./types";
 
-export type AuthorisationFault = "CANCELLED" | "FINALISED" | "ADJOURNED" | "ALREADY_AUTHORISED" | "SITTING_AUTHORISED" | "NOT_ON_PANEL" | "ABSENT" | "AT_OR_BEFORE_CLOSING" | "CLOSING_NOT_SET" | "BOX_NOT_LOCKED";
+export type AuthorisationFault = "CANCELLED" | "FINALISED" | "ADJOURNED" | "ALREADY_AUTHORISED" | "SITTING_AUTHORISED" | "NOT_ON_PANEL" | "ABSENT" | "AT_OR_BEFORE_CLOSING" | "CLOSING_NOT_SET" | "BOX_NOT_LOCKED" | "SAME_HAND";
 
 export function authorisationFaults(i: {
   state: OpeningState;
   panel: readonly PanelMemberFacts[];
   auths: readonly AuthorisationFacts[];
   personId: string;
+  /// The signed-in officer who is keying this authorisation from the member's paper, where it is recorded for them; null where the member signs in their own session.
+  recorderId: string | null;
   /// The server's stamp, read at the act's entry, to the second (6.6 CR-3).
   now: Date;
   closing: Date | null;
@@ -37,6 +39,11 @@ export function authorisationFaults(i: {
   const done = sittingAuthorisers(i.state.sittingNo, i.auths, i.panel);
   if (i.auths.some((a) => a.sittingNo === i.state.sittingNo && a.personId === i.personId && a.lapsedAt == null)) f("ALREADY_AUTHORISED");
   else if (done.length >= 2) f("SITTING_AUTHORISED");
+  // Two people authorise: two distinct humans act. The member's authorisation keyed by an officer is that officer's hand as well as the member's, so no officer is a
+  // hand of both (they cannot record one authorisation and give the other, nor record both), whoever the authorisations are attributed to.
+  const mine = new Set([i.personId, ...(i.recorderId ? [i.recorderId] : [])]);
+  const live = i.auths.filter((a) => a.sittingNo === i.state.sittingNo && a.lapsedAt == null);
+  if (live.some((a) => a.personId !== i.personId && ((i.recorderId != null && (a.personId === i.recorderId || a.recordedByPersonId === i.recorderId)) || (a.recordedByPersonId != null && mine.has(a.recordedByPersonId))))) f("SAME_HAND");
   if (!i.closing) f("CLOSING_NOT_SET");
   // OD-11: refused at the closing second, allowed from the next.
   else if (!isLate(i.now, i.closing)) f("AT_OR_BEFORE_CLOSING");

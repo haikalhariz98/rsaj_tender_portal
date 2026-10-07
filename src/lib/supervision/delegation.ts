@@ -15,6 +15,7 @@ export type DelegationFault =
   | "GRANTOR_NOT_SO"
   | "SUB_DELEGATION"
   | "DELEGATE_IS_GRANTOR"
+  | "RECORDER_IS_DELEGATE"
   | "DELEGATE_INACTIVE"
   | "ALREADY_DELEGATED"
   | "COMPETENCY_NOT_CONFIRMED"
@@ -25,6 +26,8 @@ export type DelegationFault =
 export interface DelegationInput {
   kind: DelegateKind;
   grantorId: string;
+  /// The signed-in officer where the delegation is recorded for the S.O. from their letter, else null (Phase 2b review).
+  recorderId: string | null;
   delegate: { id: string; isActive: boolean } | null;
   competencyConfirmed: boolean;
   competencyNote: string;
@@ -44,6 +47,8 @@ export function delegationFaults(i: DelegationInput, ctx: { so: SoOffice | null;
   if (!i.delegate) f("DELEGATE_INACTIVE");
   else {
     if (i.delegate.id === i.grantorId) f("DELEGATE_IS_GRANTOR");
+    // The officer who keys the S.O.'s letter may not be the one it delegates to: they would grant the S.O.'s powers to themselves.
+    else if (i.recorderId && i.recorderId === i.delegate.id) f("RECORDER_IS_DELEGATE");
     if (!i.delegate.isActive) f("DELEGATE_INACTIVE");
     if (ctx.delegations.some((d) => d.delegatePersonId === i.delegate!.id && d.revokedOn == null)) f("ALREADY_DELEGATED");
   }

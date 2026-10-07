@@ -302,7 +302,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       seat: p.seatLabelSnapshot,
       present: p.present,
       authorised: authorisers.includes(p.personId),
-      authorise: p.present ? allowedOf(authorisationFaults({ state, panel, auths: o.authorisations, personId: p.personId, now: x.now, closing, boxLocked })) : null,
+      authorise: p.present ? allowedOf(authorisationFaults({ state, panel, auths: o.authorisations, personId: p.personId, recorderId: null, now: x.now, closing, boxLocked })) : null,
     })),
     authorisations: o.authorisations.map((a) => `Sitting ${a.sittingNo}: ${x.authorisedBy.read({ entity: "OpeningAuthorisation", id: a.id, slot: "person" }, a.person.name).en}, ${time(a.recordedAt, tz)}${a.lapsedAt ? " · lapsed when the sitting was adjourned" : ""}`),
     adjourn: state.adjourned || state.finalised ? null : allowedOf(adjournFaults({ state, reason: "-", personActive: true, resume: false })),

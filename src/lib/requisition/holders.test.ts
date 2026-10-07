@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Delegation } from "@/lib/people/delegation";
 import type { Roster } from "@/lib/people/roster";
 
-import { ableToAct, deciderFaults, holdersFor, requesterHoldsApprover, type DeciderContext } from "./holders";
+import { ableToAct, deciderFaults, holdersFor, NO_EARLIER_RECORDERS, requesterHoldsApprover, type DeciderContext } from "./holders";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const person = (id: string, isActive = true) => ({
@@ -47,7 +47,7 @@ describe("who may discharge a step (ruling OD-12)", () => {
     person: { id: "hodNth", isActive: true },
     requesterId: "req",
     endorserIds: [],
-    otherDeciderIds: [],
+    otherDeciderIds: [], earlier: NO_EARLIER_RECORDERS,
     earlierDone: true,
     decidedOn: "2026-09-30",
     openedOn: "2026-09-20",
@@ -88,6 +88,37 @@ describe("who may discharge a step (ruling OD-12)", () => {
     expect(deciderFaults(step, ctx({ recorderId: "clerk" })).faults).toEqual([]);
   });
 
+  // Review of Phase 2b: the slot holds the colleague an act was keyed "for", so the officer who keyed it is read from the attribution (`earlier`).
+  describe("the officer who keyed an earlier act for someone else is judged as its author", () => {
+    const keyed = (over: Partial<DeciderContext["earlier"]>) => ({ ...NO_EARLIER_RECORDERS, ...over });
+    it("exploit A: raises a requisition for a colleague, then signs the approval step as the holder: self-approval", () => {
+      // The requester on record is B; A (the holder) keyed it for B.
+      expect(deciderFaults(step, ctx({ requesterId: "colleagueB", earlier: keyed({ requesterRecorderIds: ["hodNth"] }) })).faults).toEqual(["SELF_APPROVAL"]);
+      // A different holder is not affected.
+      expect(deciderFaults(step, ctx({ requesterId: "colleagueB", earlier: keyed({ requesterRecorderIds: ["someoneElse"] }) })).faults).toEqual([]);
+    });
+    it("exploit A: records the head's endorsement for them, then decides the step as a direct holder: the BD-1 allowance does not reach a keyer", () => {
+      const endorsed = { endorsements: [{ personId: "head", unitCode: "NTH" }], earlier: keyed({ endorsementRecorderIds: ["hodNth"] }) };
+      expect(deciderFaults(step, ctx(endorsed)).faults).toEqual(["ENDORSED_IT"]);
+      // The head's own endorsement, as a direct holder tied to the tier, is still allowed (BD-1): nobody keyed it.
+      expect(deciderFaults(step, ctx({ endorsements: [{ personId: "hodNth", unitCode: "NTH" }] })).faults).toEqual([]);
+    });
+    it("exploit B: records one step for the approver, then signs another step of the route: one person discharging two steps", () => {
+      expect(deciderFaults(step, ctx({ earlier: keyed({ otherDeciderRecorderIds: ["hodNth"] }) })).faults).toEqual(["ALREADY_DISCHARGED_A_STEP"]);
+    });
+    it("the same, as the recorder of this decision for someone else", () => {
+      expect(deciderFaults(step, ctx({ recorderId: "clerk", earlier: keyed({ requesterRecorderIds: ["clerk"] }) })).faults).toEqual(["RECORDER_IS_REQUESTER"]);
+      expect(deciderFaults(step, ctx({ recorderId: "clerk", earlier: keyed({ endorsementRecorderIds: ["clerk"] }) })).faults).toEqual(["RECORDER_ENDORSED_IT"]);
+      expect(deciderFaults(step, ctx({ recorderId: "clerk", earlier: keyed({ otherDeciderRecorderIds: ["clerk"] }) })).faults).toEqual(["RECORDER_DECIDED_ANOTHER_STEP"]);
+    });
+    it("says each once, and nothing where nobody keyed anything", () => {
+      const both = deciderFaults(step, ctx({ requesterId: "hodNth", earlier: keyed({ requesterRecorderIds: ["hodNth"] }) })).faults;
+      expect(both.filter((f) => f === "SELF_APPROVAL")).toHaveLength(1);
+      expect(deciderFaults(step, ctx({ recorderId: "clerk", requesterId: "clerk", earlier: keyed({ requesterRecorderIds: ["clerk"] }) })).faults).toEqual(["RECORDER_IS_REQUESTER"]);
+      expect(deciderFaults(step, ctx({ earlier: NO_EARLIER_RECORDERS })).faults).toEqual([]);
+    });
+  });
+
   it("does not judge the person themselves twice: a decider who is the recorder is the ordinary case", () => {
     expect(deciderFaults(step, ctx({ requesterId: "hodNth", recorderId: "hodNth" })).faults).toEqual(["SELF_APPROVAL"]);
     expect(deciderFaults(step, ctx({ recorderId: "hodNth" })).faults).toEqual([]);
@@ -109,7 +140,7 @@ describe("who may discharge a step (ruling OD-12)", () => {
 describe("an endorser deciding a step (ruling BD-1)", () => {
   const step = { committeeCode: null, nonDelegable: false, decision: "PENDING" };
   const base = {
-    today: "2026-09-30", person: { id: "hodNth", isActive: true }, requesterId: "req", endorserIds: [] as string[], otherDeciderIds: [] as string[],
+    today: "2026-09-30", person: { id: "hodNth", isActive: true }, requesterId: "req", endorserIds: [] as string[], otherDeciderIds: [] as string[], earlier: NO_EARLIER_RECORDERS,
     earlierDone: true, decidedOn: "2026-09-30", openedOn: "2026-09-20", value: 3_800_000n,
   };
 
@@ -153,7 +184,7 @@ describe("an endorser holding the office's delegation for the same unit (round 3
     const holders = holdersFor("DEPT_HEAD", PATH, ROSTER, [delegation()], "2026-09-30");
     expect(holders.scope).toBe("NTH");
     const r = deciderFaults(step, {
-      today: "2026-09-30", holders, person: { id: "deputy", isActive: true }, requesterId: "req", endorserIds: [], otherDeciderIds: [],
+      today: "2026-09-30", holders, person: { id: "deputy", isActive: true }, requesterId: "req", endorserIds: [], otherDeciderIds: [], earlier: NO_EARLIER_RECORDERS,
       earlierDone: true, decidedOn: "2026-09-30", openedOn: "2026-09-20", value: 3_800_000n,
       endorsements: [{ personId: "deputy", unitCode: "NTH" }],
     });
@@ -170,7 +201,7 @@ describe("an endorser holding an organisation-wide office (ruling R1)", () => {
     assignments: [assignment("c1", "ceo", "CEO", null), assignment("c2", "hod", "CEO", null)],
   };
   const base = {
-    today: "2026-09-30", requesterId: "req", endorserIds: [] as string[], otherDeciderIds: [] as string[],
+    today: "2026-09-30", requesterId: "req", endorserIds: [] as string[], otherDeciderIds: [] as string[], earlier: NO_EARLIER_RECORDERS,
     earlierDone: true, decidedOn: "2026-09-30", openedOn: "2026-09-20", value: 3_800_000n, rootUnitCode: "GRP",
   };
 
@@ -212,7 +243,7 @@ describe("a declared conflict bars the declarer (FR-APR-009)", () => {
         person: { id: "p1", isActive: true },
         requesterId: "p9",
         endorserIds: [],
-        otherDeciderIds: [],
+        otherDeciderIds: [], earlier: NO_EARLIER_RECORDERS,
         declaredConflictIds: ["p1"],
         earlierDone: true,
         decidedOn: "2026-10-01",

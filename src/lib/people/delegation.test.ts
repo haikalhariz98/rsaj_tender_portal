@@ -73,6 +73,11 @@ describe("faults refused at entry", () => {
 
   it("refuses delegating to yourself", () => {
     expect(faultsIn(d({ id: "new", toPersonId: "p1" }), [], held)).toContain("TO_SELF");
+    // The officer who keys a delegation from the grantor's letter may not be the delegate (review of Phase 2b): one person would grant it and hold it.
+    expect(faultsIn(d({ id: "new" }), [], held, { recorderId: "p2" })).toContain("RECORDER_IS_DELEGATE");
+    expect(faultsIn(d({ id: "new" }), [], held, { recorderId: "clerk" })).not.toContain("RECORDER_IS_DELEGATE");
+    expect(faultsIn(d({ id: "new" }), [], held, { recorderId: null })).not.toContain("RECORDER_IS_DELEGATE");
+    expect(faultsIn(d({ id: "new" }), [], held)).not.toContain("RECORDER_IS_DELEGATE");
   });
 
   it("refuses a period that ends before it starts", () => {

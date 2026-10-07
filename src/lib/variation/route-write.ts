@@ -51,6 +51,7 @@ import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { deciderFaults, holdersFor } from "@/lib/requisition/holders";
+import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
 import { methodKeyOf } from "@/lib/supervision/load";
 
 import { EVENT_WORDS, variationRefusal } from "./labels";
@@ -228,6 +229,8 @@ export async function decideVariationStep(c: VariationCtx, v: VariationRow, i: D
     requesterId: inst.submittedByPersonId ?? "",
     recorderId: i.act.recorderId,
     endorserIds: [],
+    // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).
+    earlier: await earlierRecordersOf(c.tx, c.l.org.id, { otherStepIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.id) }),
     otherDeciderIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
     earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
     decidedOn: i.decidedOn,

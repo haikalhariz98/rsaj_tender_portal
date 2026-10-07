@@ -488,7 +488,7 @@ export async function submit(db: Db, organisationId: string, s: { packId: string
 export async function decide(db: Db, organisationId: string, d: { packId: string; decision: "DONE" | "REJECTED"; personId: string; decidedOn: string; at: Date; reason: string; dates?: { startOn: string; closingDay: string; closingTime: string } }, entry: Add) {
   const repo = await import("../src/lib/method/repo");
   const { loadRoster, loadDelegations } = await import("../src/lib/people/load");
-  const { holdersFor, deciderFaults } = await import("../src/lib/requisition/holders");
+  const { holdersFor, deciderFaults, NO_EARLIER_RECORDERS } = await import("../src/lib/requisition/holders");
   const { pathTo } = await import("../src/lib/organisation/structure");
   const { transitionFault } = await import("../src/lib/method/exercise");
   const { ORGANISATION_CODE } = await import("../src/lib/org");
@@ -502,7 +502,7 @@ export async function decide(db: Db, organisationId: string, d: { packId: string
   const person = await db.person.findUniqueOrThrow({ where: { id: d.personId }, select: { id: true, name: true, isActive: true } });
   const check = deciderFaults(step, {
     today: l.org.today, holders: holdersFor(step.roleCode!, unitPath, roster, delegations, d.decidedOn), declaredConflictIds: [], person, requesterId: l.req.requestingPersonId, endorserIds: [],
-    otherDeciderIds: [], earlierDone: true, decidedOn: d.decidedOn, openedOn: inst.openedAt.toISOString().slice(0, 10), value: parseSen(l.ex.estimatedValue.toString()),
+    earlier: NO_EARLIER_RECORDERS, otherDeciderIds: [], earlierDone: true, decidedOn: d.decidedOn, openedOn: inst.openedAt.toISOString().slice(0, 10), value: parseSen(l.ex.estimatedValue.toString()),
   });
   if (check.faults.length) throw new Error(`Demo decision on ${inst.id} fails its checks: ${check.faults.join(", ")}`);
   const ref = l.ex.reference;

@@ -46,7 +46,7 @@ describe("who may be recorded for an act", () => {
 
 describe("making a delegation", () => {
   const ctx = { so, delegations: ds, today: "2026-10-03", variant: "CONVENTIONAL" as const, typeName: "Works", forms: { letter: "t1", notice: "t2" } };
-  const ok = { kind: "SPECIALIST" as const, grantorId: "aminah", delegate: { id: "lee", isActive: true }, competencyConfirmed: true, competencyNote: "Ten years on water mains.", scope: ["OBSERVATION" as const] };
+  const ok = { kind: "SPECIALIST" as const, grantorId: "aminah", recorderId: null as string | null, delegate: { id: "lee", isActive: true }, competencyConfirmed: true, competencyNote: "Ten years on water mains.", scope: ["OBSERVATION" as const] };
   it("by the S.O., with the competency confirmation and a scope", () => {
     expect(delegationFaults(ok, ctx)).toEqual([]);
   });
@@ -60,6 +60,14 @@ describe("making a delegation", () => {
     expect(codes(delegationFaults({ ...ok, competencyConfirmed: false }, ctx))).toEqual(["COMPETENCY_NOT_CONFIRMED"]);
     expect(codes(delegationFaults({ ...ok, competencyNote: "" }, ctx))).toEqual(["COMPETENCY_NOT_CONFIRMED"]);
     expect(codes(delegationFaults({ ...ok, scope: [] }, ctx))).toEqual(["SCOPE_EMPTY"]);
+  });
+  it("the officer who keys the S.O.'s delegation from their letter is never its delegate (review of Phase 2b)", () => {
+    // X is a staff officer with no authority: they record "the S.O. delegates to X". The S.O.'s powers would be granted by one person and received by the same.
+    expect(codes(delegationFaults({ ...ok, recorderId: "lee" }, ctx))).toEqual(["RECORDER_IS_DELEGATE"]);
+    expect(supervisionFaultWords({ code: "RECORDER_IS_DELEGATE", level: "block" }).en).toMatch(/to yourself on their behalf/);
+    // Another officer keying it for the S.O. is as before; so is the S.O. delegating in their own session.
+    expect(delegationFaults({ ...ok, recorderId: "clerk" }, ctx)).toEqual([]);
+    expect(delegationFaults({ ...ok, recorderId: null }, ctx)).toEqual([]);
   });
   it("the letter pair: the type's variant and its forms, each unset blocking and naming the setting", () => {
     expect(codes(delegationFaults(ok, { ...ctx, variant: null }))).toEqual(["VARIANT_NOT_SET"]);

@@ -73,6 +73,8 @@ export function coverFor(
  */
 export type DelegationFault =
   | "TO_SELF"
+  /// The officer keying a delegation from the grantor's letter is the delegate (Phase 2b review): one person would grant the authority and receive it.
+  | "RECORDER_IS_DELEGATE"
   | "OVERLAPS_EXISTING"
   | "SUB_DELEGATION_FORBIDDEN"
   | "CAPABILITY_NOT_HELD"
@@ -89,6 +91,9 @@ export type DelegationFault =
  * Optional so a check that has not looked stays silent rather than guessing.
  */
 export interface DelegationContext {
+  /// The signed-in officer, where the delegation is recorded for another grantor from their letter (`PreparedAct.recorderId`). Null where the grantor signs in
+  /// their own session. The grantor may not be the only check: the officer who keys it may not be its delegate either.
+  recorderId?: string | null;
   /// Whether the person delegating holds the office over the whole period.
   grantorHoldsOffice?: boolean;
   /// Whether an approval rule gives the office a mandatory act (MR, MJR, MA).
@@ -124,6 +129,7 @@ export function faultsIn(
   const faults: DelegationFault[] = [];
 
   if (proposed.fromPersonId === proposed.toPersonId) faults.push("TO_SELF");
+  if (context.recorderId && context.recorderId === proposed.toPersonId && proposed.fromPersonId !== proposed.toPersonId) faults.push("RECORDER_IS_DELEGATE");
 
   // Time-limited or task-limited, or it is not a delegation — it is a transfer of the
   // office with no way back. No end date and the whole role is neither.

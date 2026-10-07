@@ -70,6 +70,11 @@ describe("the requesting officer (code review, item 9)", () => {
     expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "sh")).toEqual({ code: "REQUESTER" });
     expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "someone-else")).toBeNull();
   });
+  it("nor may the officer who keyed the requisition for the requester from paper (review of Phase 2b): the requester on record is the colleague, the author is both", () => {
+    const e = { tier: "SECTION" as const, unitCode: "SEC", personId: "sh", endorsedOn: "2026-09-10" };
+    expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "colleague", undefined, ["sh"])).toEqual({ code: "REQUESTER" });
+    expect(endorsementEntryFault(e, "SEC", ["SECTION"], UNITS, today, "colleague", undefined, ["another"])).toBeNull();
+  });
 });
 
 describe("the endorsement date (UX review, M1)", () => {

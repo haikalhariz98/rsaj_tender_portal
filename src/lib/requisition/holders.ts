@@ -78,6 +78,24 @@ export type DeciderFault =
   | "RECORDER_DECIDED_ANOTHER_STEP"
   | "RECORDER_DECLARED_CONFLICT";
 
+/**
+ * The officers who keyed an earlier act of this matter for someone else, from paper (Phase 2b review). A slot holds the person an act is attributed to, so the
+ * checks below that read slots alone see the colleague a requisition was raised "for", an endorsement or a step was recorded "for", and never the officer who
+ * keyed it. That officer is the author of the act as much as the colleague is, and is judged as they are: they do not approve a requisition they raised for
+ * another, one they endorsed for another, or a second step of a route whose first they recorded.
+ */
+export interface EarlierRecorders {
+  /// Who recorded the requisition's requesting officer (or the matter's submitter) for them.
+  requesterRecorderIds: readonly string[];
+  /// Who recorded an endorsement for the head it names.
+  endorsementRecorderIds: readonly string[];
+  /// Who recorded another step's decision for the person it names.
+  otherDeciderRecorderIds: readonly string[];
+}
+
+/// Nobody recorded anything for anyone: the matter's earlier acts were each its own person's, or none was recorded from paper. Not a default: a caller says it.
+export const NO_EARLIER_RECORDERS: EarlierRecorders = { requesterRecorderIds: [], endorsementRecorderIds: [], otherDeciderRecorderIds: [] };
+
 export interface DeciderContext {
   today: string | null;
   holders: Holders;
@@ -100,6 +118,8 @@ export interface DeciderContext {
   /// approving their own matter, or one they endorsed or already decided a step of, run on them too. Not the holder or delegation checks: a person
   /// recording from paper need not hold the office. Absent or the same as `person` where the decider is the person signed in.
   recorderId?: string | null;
+  /// Who keyed the earlier acts of this matter for someone else: judged against the decider and the recorder alike.
+  earlier: EarlierRecorders;
   /// Whether every earlier step is done.
   earlierDone: boolean;
   /// YYYY-MM-DD: the decision date, and the day the route was opened.
@@ -135,6 +155,13 @@ export function deciderFaults(
     if (ctx.otherDeciderIds.includes(rid)) faults.push("RECORDER_DECIDED_ANOTHER_STEP");
     if (ctx.declaredConflictIds?.includes(rid)) faults.push("RECORDER_DECLARED_CONFLICT");
   }
+  // The officer who keyed an earlier act for someone else, as the recorder of this one or as its person (Phase 2b review).
+  const keyed = ctx.earlier;
+  if (rid && rid !== ctx.person?.id) {
+    if (keyed.requesterRecorderIds.includes(rid) && !faults.includes("RECORDER_IS_REQUESTER")) faults.push("RECORDER_IS_REQUESTER");
+    if (keyed.endorsementRecorderIds.includes(rid) && !faults.includes("RECORDER_ENDORSED_IT")) faults.push("RECORDER_ENDORSED_IT");
+    if (keyed.otherDeciderRecorderIds.includes(rid) && !faults.includes("RECORDER_DECIDED_ANOTHER_STEP")) faults.push("RECORDER_DECIDED_ANOTHER_STEP");
+  }
 
   const pid = ctx.person?.id ?? null;
   if (!ctx.person || !pid) return { faults: [...faults, "NOT_HOLDER"], delegationId };
@@ -150,7 +177,7 @@ export function deciderFaults(
       if (via.delegation.valueCeiling != null && ctx.value > parseSen(via.delegation.valueCeiling)) faults.push("OVER_CEILING");
     }
   }
-  if (pid === ctx.requesterId) faults.push("SELF_APPROVAL");
+  if (pid === ctx.requesterId || keyed.requesterRecorderIds.includes(pid)) faults.push("SELF_APPROVAL");
   // Ruling BD-1: having endorsed does not disqualify a direct holder of the office tied
   // to the tier they endorsed at — the office held for the unit they endorsed for. It
   // still bars them from deciding any step as a delegate, or any other office.
@@ -163,7 +190,9 @@ export function deciderFaults(
     const tied = heldFor != null && endorsedAt.some((e) => e.unitCode === heldFor);
     if (!(direct && tied)) faults.push("ENDORSED_IT");
   }
-  if (ctx.otherDeciderIds.includes(pid)) faults.push("ALREADY_DISCHARGED_A_STEP");
+  // Having keyed an endorsement for the head is not having been the head: the BD-1 allowance for a direct holder of the tier's office does not reach it.
+  if (keyed.endorsementRecorderIds.includes(pid) && !faults.includes("ENDORSED_IT")) faults.push("ENDORSED_IT");
+  if (ctx.otherDeciderIds.includes(pid) || keyed.otherDeciderRecorderIds.includes(pid)) faults.push("ALREADY_DISCHARGED_A_STEP");
   if (ctx.declaredConflictIds?.includes(pid)) faults.push("DECLARED_CONFLICT");
   return { faults, delegationId };
 }

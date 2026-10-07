@@ -333,7 +333,7 @@ export class OpeningActs {
     const { moveExercise } = await import("../src/lib/method/move");
     const { l, c, o } = await this.opening(exerciseId, openingId, at);
     const state = stateOf(o, l.ex.status);
-    refuse(`${person.name}'s authorisation of ${openingId}`, authorisationFaults({ state, panel: panelOf(o), auths: o.authorisations, personId: person.id, now: at, closing: l.ex.closingAt, boxLocked: lockedAtOrAfterClosing(c.events, l.ex.closingAt) }));
+    refuse(`${person.name}'s authorisation of ${openingId}`, authorisationFaults({ state, panel: panelOf(o), auths: o.authorisations, personId: person.id, recorderId: null, now: at, closing: l.ex.closingAt, boxLocked: lockedAtOrAfterClosing(c.events, l.ex.closingAt) }));
     const id = `${openingId}a${o.authorisations.length + 1}`;
     await this.db.openingAuthorisation.create({ data: { id, organisationId: this.org, openingId, personId: person.id, sittingNo: state.sittingNo, recordedAt: at } });
     const after = unsealState(state.sittingNo, [...o.authorisations, { personId: person.id, sittingNo: state.sittingNo, recordedAt: at, lapsedAt: null }], panelOf(o));

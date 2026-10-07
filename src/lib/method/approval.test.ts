@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { deciderFaults } from "@/lib/requisition/holders";
+import { deciderFaults, NO_EARLIER_RECORDERS } from "@/lib/requisition/holders";
 import { nameCitationFault } from "@/lib/window/name-citation";
 
 import { appointmentPreview, invitationFault, resolveNameApproval, type FunderContext } from "./approval";
@@ -72,7 +72,7 @@ describe("approval of the name (FR-MTD-008)", () => {
     const step = { committeeCode: found!.committeeCode ?? null, act: found!.act as string };
     // A person's decision on the committee step is refused: it is discharged by the committee's decision.
     const holders = { scope: null, holderIds: ["p1"], delegates: [] };
-    const person = deciderFaults({ committeeCode: step.committeeCode, nonDelegable: false, decision: "PENDING" }, { today: "2026-10-01", holders, declaredConflictIds: [], person: { id: "p1", isActive: true }, requesterId: "p9", endorserIds: [], otherDeciderIds: [], earlierDone: true, decidedOn: "2026-10-01", openedOn: "2026-10-01", value: 8_000_000n });
+    const person = deciderFaults({ committeeCode: step.committeeCode, nonDelegable: false, decision: "PENDING" }, { today: "2026-10-01", holders, declaredConflictIds: [], person: { id: "p1", isActive: true }, requesterId: "p9", endorserIds: [], otherDeciderIds: [], earlier: NO_EARLIER_RECORDERS, earlierDone: true, decidedOn: "2026-10-01", openedOn: "2026-10-01", value: 8_000_000n });
     expect(person.faults).toEqual(["COMMITTEE_STEP"]);
     // While the step waits, the route is pending and invitation is refused.
     expect(invitationFault(m("selective_quotation"), [{ status: "PENDING", openedAt: new Date("2026-10-01") }])?.code).toBe("NAME_NOT_APPROVED");

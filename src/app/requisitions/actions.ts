@@ -28,6 +28,7 @@ import { absentOffices } from "@/lib/authority/absence";
 import { actingOffice } from "@/lib/authority/escalation";
 import { personDecisionWrite } from "@/lib/authority/decided-step";
 import { ableToAct, deciderFaults, holdersFor, requesterHoldsApprover } from "@/lib/requisition/holders";
+import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
 import { requesterOnlySteps, requesterOnlyText } from "@/lib/authority/requester-only";
 import {
   GATE_CITATION_TEXT,
@@ -365,8 +366,10 @@ export async function recordEndorsement(_prev: FormState, data: FormData): Promi
 
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (l.req.status !== "DRAFT") return { ok: false, message: "Endorsements are recorded while the requisition is a draft." };
-    // The requester does not record an endorsement of their own requisition for someone else (F1).
-    if (act.recorderId && act.recorderId === l.req.requestingPersonId) return { ok: false, message: "You raised this requisition. Nobody records the endorsement of their own requisition for someone else." };
+    // The requester does not record an endorsement of their own requisition for someone else (F1), and neither does the officer who keyed the requisition for them
+    // (Phase 2b review: a requisition recorded "for" a colleague is as much its keyer's as the colleague's).
+    const keyedIt = (await earlierRecordersOf(tx, l.org.id, { requisitionId: l.req.id, otherStepIds: [] })).requesterRecorderIds;
+    if (act.recorderId && (act.recorderId === l.req.requestingPersonId || keyedIt.includes(act.recorderId))) return { ok: false, message: "You raised this requisition. Nobody records the endorsement of their own requisition for someone else." };
     const policy = await loadPolicy(l.org.id, tx);
     if (!policy.endorsementTiers.includes(tier)) {
       return { ok: false, errors: { tier: policy.endorsementTiers.length === 0 ? endorsementFaultText({ code: "NOT_SET" }) : "The policy does not ask for this tier's endorsement." } };
@@ -377,7 +380,7 @@ export async function recordEndorsement(_prev: FormState, data: FormData): Promi
     if (!person) return { ok: false, errors: { personId: "That person is not on file." } };
     if (!person.isActive) return { ok: false, errors: { personId: "That person is recorded as having left." } };
     const endorsedOn = storedDay(on);
-    const fault = endorsementEntryFault({ tier, unitCode: "", personId, endorsedOn }, unitOf(l.req), policy.endorsementTiers, lookups.units, l.org.today, l.req.requestingPersonId, storedDay(l.req.raisedOn));
+    const fault = endorsementEntryFault({ tier, unitCode: "", personId, endorsedOn }, unitOf(l.req), policy.endorsementTiers, lookups.units, l.org.today, l.req.requestingPersonId, storedDay(l.req.raisedOn), keyedIt);
     if (fault) {
       const text = endorsementFaultText(fault, () => person.name);
       return fault.code === "NOT_HEAD" || fault.code === "REQUESTER" ? { ok: false, errors: { personId: text } } : fault.code === "FUTURE_DATE" || fault.code === "BEFORE_RAISED" ? { ok: false, errors: { endorsedOn: text } } : { ok: false, message: text };
@@ -956,6 +959,8 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
       person,
       requesterId: l.req.requestingPersonId,
       recorderId: act.recorderId,
+      // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).
+      earlier: await earlierRecordersOf(tx, l.org.id, { requisitionId: l.req.id, otherStepIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.id) }),
       endorserIds: [],
       endorsements: l.req.endorsements.map((e) => ({ personId: e.personId, unitCode: e.unitCode })),
       rootUnitCode: unitPath[unitPath.length - 1] ?? null,

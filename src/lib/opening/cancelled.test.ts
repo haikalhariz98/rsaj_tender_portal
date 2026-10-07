@@ -40,7 +40,7 @@ describe("every act refuses CANCELLED, first and alone", () => {
     expect(actFaults(open({ cancelled: true, finalised: true }))).toEqual([{ code: "CANCELLED", level: "block" }]);
   });
   it("recordAuthorisation", () => {
-    expect(codes(authorisationFaults({ state: { ...cancelled, unsealed: false, sittingAuthorised: false }, panel: PANEL, auths: [], personId: "p1", now: at(S), closing: CLOSING, boxLocked: true }))).toEqual(["CANCELLED"]);
+    expect(codes(authorisationFaults({ state: { ...cancelled, unsealed: false, sittingAuthorised: false }, panel: PANEL, auths: [], personId: "p1", recorderId: null, now: at(S), closing: CLOSING, boxLocked: true }))).toEqual(["CANCELLED"]);
   });
   it("sittingAct: neither adjourned nor resumed", () => {
     expect(codes(adjournFaults({ state: cancelled, reason: "x", personActive: true, resume: false }))).toEqual(["CANCELLED"]);
@@ -94,7 +94,7 @@ describe("cancelling while an opening sits (C-9 as tightened by M-1)", () => {
     expect(codes(cancelFaults({ ...base, status: "OPENING_IN_PROGRESS", openingAdjourned: false, openingInProgress: true }))).toEqual(["OPENING_NOT_ADJOURNED"]);
     const adjournedThenCancelled = openingState({ kind: "MAIN", unsealedAt: at(S), finalisedAt: null, exerciseStatus: "CANCELLED" }, [{ sittingNo: 1, adjournedAt: at(600 * S) }], [], PANEL);
     expect(codes(adjournFaults({ state: adjournedThenCancelled, reason: "Resume", personActive: true, resume: true }))).toEqual(["CANCELLED"]);
-    expect(codes(authorisationFaults({ state: { ...adjournedThenCancelled, sittingNo: 2, adjourned: false }, panel: PANEL, auths: [], personId: "p1", now: at(900 * S), closing: CLOSING, boxLocked: true }))).toEqual(["CANCELLED"]);
+    expect(codes(authorisationFaults({ state: { ...adjournedThenCancelled, sittingNo: 2, adjourned: false }, panel: PANEL, auths: [], personId: "p1", recorderId: null, now: at(900 * S), closing: CLOSING, boxLocked: true }))).toEqual(["CANCELLED"]);
   });
   it("every caller asks whether any opening is in progress", () => {
     for (const p of ["src/app/sourcing/[id]/window/change-actions.ts", "src/lib/window/read.ts"]) {

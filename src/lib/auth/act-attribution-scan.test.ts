@@ -109,13 +109,13 @@ describe("no actor's person is read from a form except through beginAct", () => 
     expect(readers).toEqual([]);
   });
 
-  it("every decision of an approval step judges the person recording it as well as the person it is for (a requester does not record the approver's approval)", () => {
+  it("every decision of an approval step, and every delegation, judges the person recording it as well as the person it is for (a requester does not record the approver's approval; an officer does not record a delegation to themselves)", () => {
     const wrong: string[] = [];
     const all = [...walk(path.join(ROOT, "src", "app")), ...walk(path.join(ROOT, "src", "lib"))]
       .map((p) => ({ file: path.relative(ROOT, p).split(path.sep).join("/"), text: readFileSync(p, "utf8") }))
       .filter((f) => !/\/page\.tsx$/.test(f.file));
     for (const f of all) {
-      for (const m of f.text.matchAll(/\bdeciderFaults\(/g)) {
+      for (const m of f.text.matchAll(/\b(?:deciderFaults|faultsIn|delegationFaults)\(/g)) {
         if (/export function $/.test(f.text.slice(Math.max(0, m.index! - 20), m.index!))) continue;
         let depth = 0;
         let i = m.index! + m[0].length - 1;

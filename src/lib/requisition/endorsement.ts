@@ -109,9 +109,11 @@ export function endorsementEntryFault(
   requesterId?: string,
   /// YYYY-MM-DD the requisition was raised: nothing endorses it before it existed.
   raisedOn?: string,
+  /// The officers who keyed the requisition for its requester from paper (Phase 2b review): they raised it as much as the requester did, and do not endorse it.
+  keyedRequesterIds: readonly string[] = [],
 ): EndorsementFault | null {
   if (today == null) return { code: "TIME_ZONE_UNSET" };
-  if (requesterId && e.personId === requesterId) return { code: "REQUESTER" };
+  if ((requesterId && e.personId === requesterId) || keyedRequesterIds.includes(e.personId)) return { code: "REQUESTER" };
   if (tiers.length === 0) return { code: "NOT_SET" };
   if (e.endorsedOn > today) return { code: "FUTURE_DATE", tier: e.tier };
   if (raisedOn && e.endorsedOn < raisedOn) return { code: "BEFORE_RAISED", tier: e.tier };

@@ -159,6 +159,7 @@ const TEXT: Readonly<Record<string, (f: Finding) => string>> = {
   // ---- authorisations (C-2, OD-11)
   ALREADY_AUTHORISED: () => "That member has already authorised this sitting. The second authorisation must be another member's.",
   SITTING_AUTHORISED: () => "Two members have already authorised this sitting.",
+  SAME_HAND: () => "The two authorisations must come from two different people acting. This one would be keyed by, or keyed for, the person behind the other authorisation of this sitting.",
   NOT_ON_PANEL: () => "That person is not on this opening's panel.",
   ABSENT: () => "That member is recorded as absent from the opening.",
   AT_OR_BEFORE_CLOSING: () => "The box is opened only after the closing, from the next second: an envelope recorded in the closing second itself is in time.",

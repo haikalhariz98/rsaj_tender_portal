@@ -9,9 +9,9 @@ import { adjournFaults, authorisationFaults, lapsedByAdjourning, opensTheBox, un
  */
 
 const notYet = open({ unsealed: false, sittingAuthorised: false });
-const base: Parameters<typeof authorisationFaults>[0] = { state: notYet, panel: PANEL, auths: [], personId: "p1", now: at(S), closing: CLOSING, boxLocked: true };
+const base: Parameters<typeof authorisationFaults>[0] = { state: notYet, panel: PANEL, auths: [], personId: "p1", recorderId: null, now: at(S), closing: CLOSING, boxLocked: true };
 const codes = (x: Partial<typeof base>) => authorisationFaults({ ...base, ...x }).map((f) => f.code);
-const auth = (personId: string, sittingNo = 1, lapsed = false) => ({ id: `a-${personId}-${sittingNo}`, personId, sittingNo, recordedAt: at(2 * S), lapsedAt: lapsed ? at(3 * S) : null });
+const auth = (personId: string, sittingNo = 1, lapsed = false, keyedBy: string | null = null) => ({ id: `a-${personId}-${sittingNo}`, personId, sittingNo, recordedAt: at(2 * S), lapsedAt: lapsed ? at(3 * S) : null, recordedByPersonId: keyedBy });
 
 describe("authorising the opening (OD-11 at the closing second)", () => {
   it("closing 2026-11-17 14:30:00 KL: at 14:30:00 refused (a bid in that second is in time), at 14:30:01 allowed", () => {
@@ -40,6 +40,33 @@ describe("authorising the opening (OD-11 at the closing second)", () => {
   it("finalised or adjourned: refused", () => {
     expect(codes({ state: open({ finalised: true }) })).toEqual(["FINALISED"]);
     expect(codes({ state: { ...notYet, adjourned: true } })).toEqual(["ADJOURNED"]);
+  });
+});
+
+describe("two people authorise: one officer is never the hand behind both (review of Phase 2b)", () => {
+  // p1 and p2 are present panel members; "clerk" is an officer who holds the permission to key a paper authorisation and is not on the panel.
+  it("a member who keyed the other's paper authorisation does not also give their own", () => {
+    expect(codes({ personId: "p1", recorderId: null, auths: [auth("p2", 1, false, "p1")] })).toEqual(["SAME_HAND"]);
+  });
+  it("nor does a member key the other's paper authorisation after giving their own", () => {
+    expect(codes({ personId: "p2", recorderId: "p1", auths: [auth("p1")] })).toEqual(["SAME_HAND"]);
+  });
+  it("one officer who keys both is the hand behind both, whoever the two are", () => {
+    expect(codes({ personId: "p1", recorderId: "clerk", auths: [auth("p2", 1, false, "clerk")] })).toEqual(["SAME_HAND"]);
+  });
+  it("a clerk who keys one and a member who signs the other are two people acting", () => {
+    expect(codes({ personId: "p1", recorderId: null, auths: [auth("p2", 1, false, "clerk")] })).toEqual([]);
+    expect(codes({ personId: "p2", recorderId: "clerk", auths: [auth("p1")] })).toEqual([]);
+  });
+  it("two clerks keying one each are two people acting", () => {
+    expect(codes({ personId: "p1", recorderId: "clerk2", auths: [auth("p2", 1, false, "clerk")] })).toEqual([]);
+  });
+  it("an authorisation that lapsed when the sitting was adjourned, or one of another sitting, does not bind the new one", () => {
+    expect(codes({ personId: "p1", auths: [auth("p2", 1, true, "p1")] })).toEqual([]);
+    expect(codes({ personId: "p1", state: open({ sittingNo: 2, sittingAuthorised: false }), auths: [auth("p2", 1, false, "p1")] })).toEqual([]);
+  });
+  it("the pair of two members each signing in their own session is untouched", () => {
+    expect(codes({ personId: "p2", auths: [auth("p1")] })).toEqual([]);
   });
 });
 

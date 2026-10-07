@@ -121,7 +121,7 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
   {
     const on = "2026-10-01";
     const scope = ["DIARY", "PROGRAMME_SCRUTINY", "PROGRESS", "OBSERVATION"] as const;
-    fail("delegation", delegationFaults({ kind: "PRINCIPAL", grantorId: people.chen.id, delegate: people.daniel, competencyConfirmed: true, competencyNote: "x", scope: [...scope] }, { so: await soOffice(on), delegations: [], today: on, variant: "CONVENTIONAL", typeName: type.nameEn, forms: { letter: `${P}dt33`, notice: `${P}dt34` } }));
+    fail("delegation", delegationFaults({ kind: "PRINCIPAL", grantorId: people.chen.id, recorderId: null, delegate: people.daniel, competencyConfirmed: true, competencyNote: "x", scope: [...scope] }, { so: await soOffice(on), delegations: [], today: on, variant: "CONVENTIONAL", typeName: type.nameEn, forms: { letter: `${P}dt33`, notice: `${P}dt34` } }));
     const versions = baselineRows(l0.contract).versions.map((b) => ({ ...b, recordedOn: b.recordedOn ? storedDay(b.recordedOn) : null }));
     const b = baselineFor(versions, on)!;
     for (const [id, kind, templateId] of [[`${P}wlt1`, "DELEGATION_LETTER", `${P}dt33`], [`${P}wlt2`, "DELEGATION_NOTICE", `${P}dt34`]] as const) {
