@@ -9,7 +9,11 @@ export default defineConfig({
     path: "prisma/migrations",
     seed: "tsx prisma/seed.ts",
   },
+  // Migrations run as the owner (Phase 1d, ADR 0034 D11). Once the running app connects as its own role (DATABASE_URL names
+  // perolehan_app), MIGRATE_DATABASE_URL names the owner. Unset, DATABASE_URL is used, as before: a development copy that still
+  // runs as the owner needs nothing new. Careful: with MIGRATE_DATABASE_URL set, pointing DATABASE_URL at another database on
+  // the command line no longer moves the Prisma CLI.
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: process.env["MIGRATE_DATABASE_URL"] ?? process.env["DATABASE_URL"],
   },
 });

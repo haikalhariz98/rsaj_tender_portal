@@ -6,6 +6,7 @@ import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui
 import { HistoryButton } from "@/components/history-drawer";
 import { officeHolderNotice } from "@/lib/auth/administration-rules";
 import { loadAccountsView, type AccountRow } from "@/lib/auth/administration-view";
+import { runtimeRoleCheck } from "@/lib/auth/runtime-role-store";
 import { settingLabels } from "@/lib/auth/policy";
 import { ACCOUNT_STATUS_WORDS } from "@/lib/auth/words";
 import { formatOrgDateTime } from "@/lib/format";
@@ -38,6 +39,8 @@ export default async function AccountsPage() {
 
   const now = new Date();
   const view = await loadAccountsView(actor, now);
+  // Phase 1d: whether the app runs as its own database role. A failed check says nothing rather than guessing.
+  const role = await runtimeRoleCheck().catch(() => null);
   const waiting = view.rows.filter((r) => r.status === "PENDING_ACTIVATION").length;
   const locked = view.rows.filter((r) => r.lockedUntil && r.lockedUntil > now).length;
 
@@ -48,6 +51,16 @@ export default async function AccountsPage() {
         subtitle="Who can sign in, and how they get their first password."
         actions={<CreateAccount people={view.people} />}
       />
+
+      {role && !role.safe && (
+        <Callout tone="warn" title="This copy is connected to its database with too much authority" className="mb-5">
+          It runs as the {role.reason === "SUPERUSER" ? "database superuser" : "owner of the tables"}, not as the app&apos;s own database role, so nothing but the
+          trail&apos;s triggers stops a change to the audit trail or the sign-in log.{" "}
+          {role.refuseSignIn
+            ? "Sign-in is refused until the operator sets the app's own role up."
+            : "This is allowed while developing only: a production copy refuses every sign-in like this. The operator sets the app's own role up as the README describes (Running in production)."}
+        </Callout>
+      )}
 
       {view.codeSettingsUnset.length > 0 && (
         <Callout tone="warn" title="Codes cannot be issued yet" className="mb-5">

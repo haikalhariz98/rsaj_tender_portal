@@ -40,6 +40,8 @@ export async function signInAction(_prev: FormState, data: FormData): Promise<Fo
       return { ok: false, message: AUTH_WORDS.notConfigured.en };
     case "NO_ADMINISTRATOR":
       return { ok: false, message: AUTH_WORDS.noAdministrator.en };
+    case "UNSAFE_DATABASE_ROLE":
+      return { ok: false, message: AUTH_WORDS.unsafeDatabaseRole.en };
     case "POLICY_NOT_SET":
       return { ok: false, message: `${AUTH_WORDS.policyNotSet.en}: ${settingLabels(outcome.unset).join("; ")}.` };
     case "FAILED":
@@ -64,6 +66,8 @@ export async function redeemCodeAction(_prev: FormState, data: FormData): Promis
       return { ok: false, message: AUTH_WORDS.notConfigured.en };
     case "NO_ADMINISTRATOR":
       return { ok: false, message: AUTH_WORDS.noAdministrator.en };
+    case "UNSAFE_DATABASE_ROLE":
+      return { ok: false, message: AUTH_WORDS.unsafeDatabaseRole.en };
     case "POLICY_NOT_SET":
       return { ok: false, message: `${AUTH_WORDS.policyNotSet.en}: ${settingLabels(outcome.unset).join("; ")}.` };
     case "FAILED":

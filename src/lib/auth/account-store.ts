@@ -12,6 +12,7 @@ import { hashPassword, passwordFaults } from "./password";
 import { loadSecurityPolicy } from "./policy-store";
 import { signInSettings, unsetSettings } from "./policy";
 import type { RequestFacts } from "./request";
+import { signInRefusedForRole } from "./runtime-role-store";
 import { cookieMaxAgeSeconds } from "./session-rules";
 import { revokeAccountSessions } from "./session-store";
 import { hashToken, newToken } from "./token";
@@ -87,6 +88,7 @@ export type UseCodeOutcome =
   | { ok: false; kind: "FIELDS"; faults: FieldFaults }
   | { ok: false; kind: "NOT_CONFIGURED" }
   | { ok: false; kind: "NO_ADMINISTRATOR" }
+  | { ok: false; kind: "UNSAFE_DATABASE_ROLE" }
   | { ok: false; kind: "POLICY_NOT_SET"; unset: SecurityPolicyKey[] };
 
 /**
@@ -97,6 +99,8 @@ export type UseCodeOutcome =
 export async function redeemOneTimeCode(input: { loginName: string; code: string; password: string }, request: RequestFacts, now: Date = new Date()): Promise<UseCodeOutcome> {
   const organisation = await signInOrganisation();
   if (!organisation) return { ok: false, kind: "NOT_CONFIGURED" };
+  // As at sign-in (Phase 1d): a code sets a password only while the app runs as its own database role, in production.
+  if (await signInRefusedForRole()) return { ok: false, kind: "UNSAFE_DATABASE_ROLE" };
   const policy = await loadSecurityPolicy(db, organisation.id);
   const unset = unsetSettings(policy, "SIGN_IN", "SET_PASSWORD");
   const settings = signInSettings(policy);

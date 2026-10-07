@@ -11,6 +11,7 @@ import { dummyHash, hashParameters, hashPassword, verifyPassword } from "./passw
 import { loadSecurityPolicy } from "./policy-store";
 import { signInSettings, unsetSettings, type SignInSettings } from "./policy";
 import type { RequestFacts } from "./request";
+import { signInRefusedForRole } from "./runtime-role-store";
 import { officesHeld, openSessions, createStaffSession, revokeAccountSessions } from "./session-store";
 import { concurrentSessionPlan, cookieMaxAgeSeconds } from "./session-rules";
 import { hashToken, looksLikeToken, newToken } from "./token";
@@ -39,6 +40,7 @@ export type SignInOutcome =
   | { ok: false; kind: "SESSION_LIMIT" }
   | { ok: false; kind: "NOT_CONFIGURED" }
   | { ok: false; kind: "NO_ADMINISTRATOR" }
+  | { ok: false; kind: "UNSAFE_DATABASE_ROLE" }
   | { ok: false; kind: "POLICY_NOT_SET"; unset: SecurityPolicyKey[] };
 
 export type ConfirmOutcome = { ok: true; at: Date } | { ok: false; kind: "WRONG" | "LOCKED" | "POLICY_NOT_SET" };
@@ -116,6 +118,8 @@ export const DirectoryCredentials: IdentityProvider = {
 export async function authenticateStaff(credentials: Credentials, request: RequestFacts, replacingToken: string | null, now: Date = new Date()): Promise<SignInOutcome> {
   const organisation = await signInOrganisation();
   if (!organisation) return { ok: false, kind: "NOT_CONFIGURED" };
+  // Phase 1d: in production nobody signs in while the app is connected as the owner or a superuser (the trail's grants would mean nothing).
+  if (await signInRefusedForRole()) return { ok: false, kind: "UNSAFE_DATABASE_ROLE" };
 
   const policy = await loadSecurityPolicy(db, organisation.id);
   const unset = unsetSettings(policy, "SIGN_IN");

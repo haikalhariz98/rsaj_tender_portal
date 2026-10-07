@@ -19,6 +19,10 @@ export const AUTH_WORDS = {
     en: "No administrator yet. An operator creates the first one on the server with: npm run auth:bootstrap",
     ms: "Belum ada pentadbir. Operator mencipta yang pertama di pelayan dengan: npm run auth:bootstrap",
   },
+  unsafeDatabaseRole: {
+    en: "Sign-in is closed: this copy is connected to its database with too much authority. Tell the operator.",
+    ms: "Log masuk ditutup: salinan ini disambungkan ke pangkalan datanya dengan kuasa yang terlalu luas. Maklumkan kepada operator.",
+  },
   policyNotSet: { en: "Sign-in is closed until the organisation sets", ms: "Log masuk ditutup sehingga organisasi menetapkan" },
   policyNotSetHow: {
     en: "These are the organisation's own to choose. The operator sets them when creating the first administrator.",
