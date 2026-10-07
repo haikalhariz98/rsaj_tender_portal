@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 
+import { parseAllowedOrigins } from "@/lib/auth/allowed-origins";
 import { originFault, type OriginFault } from "@/lib/auth/origin";
 import { requestFacts, trustedProxyHops, type RequestFacts } from "@/lib/auth/request";
 import { STAFF_COOKIE } from "@/lib/auth/routes";
@@ -43,5 +44,12 @@ export async function currentRequestFacts(): Promise<RequestFacts> {
  */
 export async function refuseForeignPost(contentTypes: readonly string[] | null = null): Promise<OriginFault | null> {
   const h = await headers();
-  return originFault({ method: "POST", header: (name) => h.get(name), contentTypes, trustForwardedHost: trustedProxyHops(process.env.TRUSTED_PROXY_HOPS) != null });
+  return originFault({
+    method: "POST",
+    header: (name) => h.get(name),
+    contentTypes,
+    trustForwardedHost: trustedProxyHops(process.env.TRUSTED_PROXY_HOPS) != null,
+    // The same list Next's own check reads (next.config.ts), through the same parser.
+    allowedHosts: parseAllowedOrigins(process.env.SERVER_ACTION_ALLOWED_ORIGINS).hosts,
+  });
 }

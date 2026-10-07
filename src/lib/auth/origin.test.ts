@@ -36,6 +36,20 @@ describe("originFault", () => {
     expect(originFault(request({ ...page, origin: "https://evil.example" }))?.code).toBe("WRONG_ORIGIN");
   });
 
+  it("accepts the public host of a proxy that rewrites the Host header, when it is named in the configured list (Phase 1b review)", () => {
+    // The browser is on perolehan.example.org; the proxy forwards to the app as its internal name, so Host differs from Origin.
+    const proxied = { ...page, host: "app.internal:3000", origin: "https://perolehan.example.org" };
+    expect(originFault(request(proxied))?.code).toBe("WRONG_ORIGIN");
+    expect(originFault(request(proxied, { allowedHosts: ["perolehan.example.org"] }))).toBeNull();
+    expect(originFault(request(proxied, { allowedHosts: ["PEROLEHAN.example.org"] }))).toBeNull();
+    // Only the host named: not another, and not a sibling of it.
+    expect(originFault(request({ ...proxied, origin: "https://evil.example" }, { allowedHosts: ["perolehan.example.org"] }))?.code).toBe("WRONG_ORIGIN");
+    expect(originFault(request({ ...proxied, origin: "https://other.perolehan.example.org" }, { allowedHosts: ["perolehan.example.org"] }))?.code).toBe("WRONG_ORIGIN");
+    // The list never lets another site through: Fetch Metadata and the content type are still judged.
+    expect(originFault(request({ ...proxied, "sec-fetch-site": "cross-site" }, { allowedHosts: ["perolehan.example.org"] }))?.code).toBe("CROSS_SITE");
+    expect(originFault(request({ ...proxied, "content-type": "text/plain" }, { allowedHosts: ["perolehan.example.org"] }))?.code).toBe("WRONG_CONTENT_TYPE");
+  });
+
   it("accepts a browser that sends no Fetch Metadata when the origin matches, and refuses one that says nothing at all", () => {
     expect(originFault(request(older))).toBeNull();
     expect(originFault(request({ host: "app.example", "content-type": "application/json" }))?.code).toBe("NO_ORIGIN");

@@ -22,6 +22,8 @@ export interface OriginCheck {
   contentTypes: readonly string[] | null;
   /// Whether `X-Forwarded-Host` may be believed: only behind a proxy the deployment trusts (`TRUSTED_PROXY_HOPS`).
   trustForwardedHost?: boolean;
+  /// Further hosts an Origin may name (`SERVER_ACTION_ALLOWED_ORIGINS`, parsed by `parseAllowedOrigins`): the proxy's public host where it rewrites the Host header.
+  allowedHosts?: readonly string[];
 }
 
 const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -46,7 +48,9 @@ export function originFault(check: OriginCheck): OriginFault | null {
     }
     const forwarded = check.trustForwardedHost ? check.header("x-forwarded-host") : null;
     const host = (forwarded ?? check.header("host") ?? "").split(",")[0].trim();
-    if (host === "" || originHost.toLowerCase() !== host.toLowerCase()) return { code: "WRONG_ORIGIN", message: "The request came from a different address than the one it was sent to." };
+    const named = originHost.toLowerCase();
+    const allowed = check.allowedHosts?.some((h) => h.toLowerCase() === named) ?? false;
+    if (!allowed && (host === "" || named !== host.toLowerCase())) return { code: "WRONG_ORIGIN", message: "The request came from a different address than the one it was sent to." };
   }
 
   if (check.contentTypes) {

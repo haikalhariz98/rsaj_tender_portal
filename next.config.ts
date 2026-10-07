@@ -1,17 +1,17 @@
 import type { NextConfig } from "next";
 
+import { allowedOriginsOrThrow } from "./src/lib/auth/allowed-origins";
 import { headerRules } from "./src/lib/security-headers";
 
 /**
  * `serverActions.allowedOrigins`: the extra origins a server action may be called from (Phase 1b, threat model F9). Next compares a server action's Origin with
  * the Host it was sent to and refuses a mismatch; behind a reverse proxy that rewrites the host the two differ, and the proxy's public host has to be named here
- * or every form is refused. Deployment configuration, not customer policy: `SERVER_ACTION_ALLOWED_ORIGINS`, a comma-separated list of hosts (`perolehan.example.org`,
- * `*.example.org`). Unset: none beyond the request's own host, which is right for a copy with no proxy in front of it and for development.
+ * or every form is refused. Deployment configuration, not customer policy: `SERVER_ACTION_ALLOWED_ORIGINS`, a comma-separated list of EXACT hosts
+ * (`perolehan.example.org`). The product's own guard on the sign-in and account actions (`refuseForeignPost`) reads the same list through the same parser.
+ * A pattern (`*.example.org`) is refused and the server does not start: Next would accept it for every server action, and a sibling subdomain is the same site.
+ * Unset: none beyond the request's own host, which is right for a copy with no proxy in front of it and for development.
  */
-const allowedOrigins = (process.env.SERVER_ACTION_ALLOWED_ORIGINS ?? "")
-  .split(",")
-  .map((o) => o.trim())
-  .filter(Boolean);
+const allowedOrigins = allowedOriginsOrThrow(process.env.SERVER_ACTION_ALLOWED_ORIGINS);
 
 const nextConfig: NextConfig = {
   async headers() {
