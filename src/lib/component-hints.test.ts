@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ATTACH_PURPOSE_HINT, DOCUMENT_CLASS_HINT, DOCUMENT_NOTE_HINT, DOCUMENT_TITLE_HINT, ON_BEHALF_HINT } from "@/lib/documents/labels";
+import { ATTACH_PURPOSE_HINT, DOCUMENT_CLASS_HINT, DOCUMENT_NOTE_HINT, DOCUMENT_TITLE_HINT } from "@/lib/documents/labels";
 import { PROVENANCE_HINT, PROVENANCE_NOT_SET_HINT, REASON_HINT, SIMULATOR_HINT } from "@/lib/labels";
 
 /**
@@ -28,8 +28,8 @@ describe("component hints come from labels (D6)", () => {
   });
 
   it("the moved words are the words the screens showed", () => {
-    // Phase 1b: someone is signed in now, and the history names them, so the hint no longer says nobody is. The person picked is still only recorded, not signing.
-    expect(ON_BEHALF_HINT).toBe("Recorded on their behalf, not signed: the officer who is signed in records it, and the history names them.");
+    // Phase 2b: ON_BEHALF_HINT is retired (decisions log, 2026-10-07). The person who acts is the one signed in, and the shared attribution component says so; the
+    // words it uses are held by act-text.test.ts.
     expect(DOCUMENT_TITLE_HINT).toBe("What this document is called in lists.");
     expect(DOCUMENT_CLASS_HINT).toBe("Decides its classification and how long it is kept. A SULIT or unclassified document is listed but never opened in the portal.");
     expect(DOCUMENT_NOTE_HINT).toBe("Optional. Anything the next reader should know about this file.");

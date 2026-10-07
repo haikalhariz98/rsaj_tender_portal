@@ -2,6 +2,7 @@ import type { Tx } from "@/lib/audit/record";
 
 import { uniqueViolationIndex } from "@/lib/scope/unique-violation";
 
+import { slotOf } from "./act-slots";
 import { attributionFaults, attributionRow, needsStepUp, stepUpFault, type ActModeName, type ActRecorder, type ActSubject } from "./attribution";
 import { loadSecurityPolicy } from "./policy-store";
 import type { Fault, StaffActor } from "./types";
@@ -34,6 +35,12 @@ export interface AttributeActInput {
   stepUpAt?: Date | null;
   paperReference?: string;
   reason?: string;
+  /// NFR-SIG-001, for a signature-class act: the exact document or record signed, and the office held.
+  document?: { entity: string; id: string } | null;
+  roleCode?: string | null;
+  /// NFR-AUD-006: the day the act is dated and, where that is earlier than the day it is recorded, why and who authorised it.
+  effectiveOn?: string | null;
+  backdate?: { reason: string; authorisedByPersonId: string } | null;
 }
 
 export const recorderOf = (actor: StaffActor): ActRecorder => (actor.system ? { kind: "SYSTEM", label: actor.system.label } : { kind: "PERSON", personId: actor.personId, sessionId: actor.sessionId });
@@ -50,6 +57,10 @@ export async function attributeAct(tx: Tx, input: AttributeActInput) {
     stepUpAt: input.stepUpAt ?? null,
     paperReference: input.paperReference,
     reason: input.reason,
+    document: input.document ?? null,
+    roleCode: input.roleCode ?? null,
+    effectiveOn: input.effectiveOn ?? null,
+    backdate: input.backdate ?? null,
     recorderPermissions: input.actor.permissions,
     paperSignatureRecording: policy?.paperSignatureRecording ?? null,
   };
@@ -65,7 +76,12 @@ export async function attributeAct(tx: Tx, input: AttributeActInput) {
   }
   // Every Person named belongs to the actor's organisation (ADR 0034 D10): the attested person of a form is whoever the form said, and a Person of
   // another organisation reads as no longer existing. A system recorder names no Person.
-  const personIds = [...new Set([request.subject, request.recorder].flatMap((p) => (p.kind === "PERSON" ? [p.personId] : [])))];
+  const personIds = [
+    ...new Set([
+      ...[request.subject, request.recorder].flatMap((p) => (p.kind === "PERSON" ? [p.personId] : [])),
+      ...(request.backdate ? [request.backdate.authorisedByPersonId] : []),
+    ]),
+  ];
   if (personIds.length > 0 && (await tx.person.count({ where: { id: { in: personIds }, organisationId: input.actor.organisationId } })) !== personIds.length) {
     throw new AttributionRefused([{ code: "NO_SUCH_PERSON", en: "That person no longer exists.", ms: "Orang itu tidak lagi wujud." }]);
   }
@@ -84,4 +100,30 @@ export async function attributeAct(tx: Tx, input: AttributeActInput) {
     }
     throw e;
   }
+}
+
+/**
+ * The attribution of a row copied into a new version of its record (an evaluation's next version carries its scores, assessments, submissions and each bid's
+ * record forward unchanged). The copy is a new row with a new id, and its person column is the original's, so it must read as attributed and not as missing:
+ * it is written for that person by the system, "carried forward from the earlier version". It is not a signature, and says so; the original row keeps its own
+ * attribution, signed or not, in the earlier version. (Phase 2b: an open item for the product owner, whether a carried row should instead point at its source's.)
+ */
+export const CARRIED_FORWARD = "carried forward from the earlier version";
+
+export async function carryAttribution(tx: Tx, organisationId: string, c: { entity: string; slot: string; entityId: string; personId: string }) {
+  if (!slotOf(c.entity, c.slot)) throw new Error(`"${c.entity}.${c.slot}" is not an act slot.`);
+  await tx.actAttribution.create({
+    data: {
+      organisationId,
+      ...attributionRow({
+        entity: c.entity,
+        entityId: c.entityId,
+        slot: c.slot,
+        subject: { kind: "PERSON", personId: c.personId },
+        recorder: { kind: "SYSTEM", label: CARRIED_FORWARD },
+        mode: "RECORDED_ON_BEHALF",
+        reason: "Carried forward unchanged into the next version of the record.",
+      }),
+    },
+  });
 }

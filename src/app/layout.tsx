@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 
+import { ActorProvider } from "@/components/auth/actor-context";
 import { AppShell } from "@/components/shell/app-shell";
 import { loadShell } from "@/lib/shell";
 import { currentStaffOrNull } from "./_auth/actor";
@@ -34,16 +35,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={jakarta.variable} style={{ colorScheme: "light" }}>
       <body>
-        <AppShell
-          organisation={shell.organisation}
-          strapline={ORGANISATION_STRAPLINE}
-          counts={portalOnly ? {} : shell.counts}
-          user={user}
-          portalOnly={portalOnly}
-          signOut={signOutAction}
-        >
-          {children}
-        </AppShell>
+        <ActorProvider name={actor?.personName ?? null} personId={actor?.personId ?? null}>
+          <AppShell
+            organisation={shell.organisation}
+            strapline={ORGANISATION_STRAPLINE}
+            counts={portalOnly ? {} : shell.counts}
+            user={user}
+            portalOnly={portalOnly}
+            signOut={signOutAction}
+          >
+            {children}
+          </AppShell>
+        </ActorProvider>
       </body>
     </html>
   );

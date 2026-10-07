@@ -1,3 +1,5 @@
+import { actFormFromJson, attributionRefusalState, beginActFromWith, beginActWith, parseSlotKey, readActForm, type ActDeps } from "@/lib/auth/act-begin";
+import { ACT_FIELDS, actFieldNames } from "@/lib/auth/act-field-names";
 import { administrationConflict, type AdministratorAct } from "@/lib/auth/administration-conflict";
 import { auditActorOfStaff } from "@/lib/auth/audit-actor";
 import type { PermissionKey, StaffActor } from "@/lib/auth/types";
@@ -70,4 +72,59 @@ export function routeModule(who: StaffActor = STAFF_FIXTURE) {
     refusalResponse: (code: string, message?: string) => Response.json({ ok: false, code, message: message ?? code, error: message ?? code }, { status: code === "NOT_SIGNED_IN" ? 401 : 403 }),
     staffRoute: async () => ({ ok: true as const, actor: who }),
   };
+}
+
+/// One attribution a test act wrote: what `act.write` / `writeAlso` was asked to record, for the test to read.
+export interface WrittenAttribution {
+  entity: string;
+  entityId: string;
+  slot: string;
+  subjectPersonId: string | null;
+  mode: string;
+  paperReference: string | undefined;
+  reason: string | undefined;
+  roleCode: string | null | undefined;
+  document: { entity: string; id: string } | null | undefined;
+}
+
+/**
+ * What `@/app/_auth/act` answers with in a test of a server action or a route: the real reading of the form (`act-begin.ts`, so a person a form names is
+ * read exactly as in a request, and an act recorded for someone else needs its paper), with the three things it asks of the world faked: the organisation's
+ * switch for a signature recorded from paper (`paperSignatureRecording`, unset by default, so a paper signature is refused as in a fresh organisation), the
+ * password (any password signs; a test of a refusal passes `stepUp`), and the write, which is recorded in `written` for the test to read.
+ *
+ *   const { module: actMod, written } = actModule();
+ *   vi.mock("@/app/_auth/act", () => actMod)   // hoisted: build it in vi.hoisted
+ */
+export function actModule(opts: { now?: Date; paperSignatureRecording?: "ALLOWED" | "REFUSED" | null; stepUp?: ActDeps["stepUp"] } = {}) {
+  const written: WrittenAttribution[] = [];
+  const deps: ActDeps = {
+    now: () => opts.now ?? new Date("2026-10-07T04:00:00Z"),
+    paperSignatureRecording: async () => opts.paperSignatureRecording ?? null,
+    stepUp: opts.stepUp ?? (async () => ({ ok: true as const, at: new Date("2026-10-07T04:00:00Z") })),
+    attribute: async (_tx, i) => {
+      written.push({
+        entity: i.entity,
+        entityId: i.entityId,
+        slot: i.slot,
+        subjectPersonId: i.subject.kind === "PERSON" ? i.subject.personId : null,
+        mode: i.mode,
+        paperReference: i.paperReference,
+        reason: i.reason,
+        roleCode: i.roleCode,
+        document: i.document,
+      });
+    },
+  };
+  const actMod = {
+    beginAct: (actor: StaffActor, data: FormData, key: string, o: Parameters<typeof beginActWith>[4]) => beginActWith(deps, actor, data, key, o),
+    beginActFrom: (actor: StaffActor, form: Parameters<typeof beginActFromWith>[2], key: string, o: Parameters<typeof beginActFromWith>[4]) => beginActFromWith(deps, actor, form, key, o),
+    actFormFromJson,
+    attributionRefusalState,
+    parseSlotKey,
+    readActForm,
+    actFieldNames,
+    ACT_FIELDS,
+  };
+  return { module: actMod, written };
 }

@@ -4,6 +4,8 @@ import { useActGate } from "@/components/act-gate";
 import { formDataOf } from "@/components/ui/form-submit";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 
+import { actPostedNames, ActAttributionFields } from "@/components/act-attribution-fields";
+import type { ActorFieldSpec } from "@/lib/auth/actor-field";
 import { PlusIcon, SaveIcon } from "@/components/icons";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
@@ -105,6 +107,9 @@ export type Field =
   | { kind: "readonly"; name: string; label: string; hint?: string; text: string }
   /// Carried through the form without being shown — a row id, a record type.
   | { kind: "hidden"; name: string }
+  /// Who is acting (Phase 2b): the signed-in person, shown and not chosen, with the password where the act is signed and the paper record where it may be
+  /// recorded for someone else (`ActAttributionFields`). The action reads it through `beginAct`, and nothing else.
+  | ({ kind: "actor" } & ActorFieldSpec)
   | { kind: "note"; text: string };
 
 /// Show a field only while another select of the same form holds one of the given
@@ -276,6 +281,7 @@ export function RecordEditor({
   const confirmOnly = fields.every((f) => f.kind === "hidden") && !sections && !asksReason;
   const blocked = asksReason != null && reason.trim().length === 0;
   const placed = new Set(fields.filter((f) => f.kind !== "hidden" && "name" in f).map((f) => (f as { name: string }).name));
+  for (const f of fields) if (f.kind === "actor") for (const n of actPostedNames(f.name)) placed.add(n);
   if (asksReason) placed.add("reason");
   const unplaced = Object.entries(state.errors ?? {})
     .filter(([k]) => !placed.has(k))
@@ -406,6 +412,7 @@ export function RecordEditor({
                               field={resolved(field)}
                               value={values?.[field.name] ?? null}
                               error={state.errors?.[field.name]}
+                              errors={state.errors}
                             />
                           </fieldset>
                         ),
@@ -467,14 +474,21 @@ function FieldInput({
   field,
   value,
   error,
+  errors,
 }: {
   field: Exclude<Field, { kind: "note" } | { kind: "hidden" }>;
   value: string | boolean | null;
   error?: string;
+  /// Every error the form holds, for the one field that places several (the actor's).
+  errors?: Record<string, string>;
 }) {
   const required = "required" in field && field.required;
   const hint = "hint" in field ? field.hint : undefined;
   const id = `field-${field.name}`;
+
+  if (field.kind === "actor") {
+    return <ActAttributionFields spec={field} errors={errors} initial={value} />;
+  }
 
   if (field.kind === "switch") {
     return (

@@ -16,6 +16,7 @@ const signed = (over: Partial<AttributionRequest> = {}): AttributionRequest => (
   recorder: person("p1"),
   mode: "SIGNED",
   stepUpAt: new Date("2026-10-07T01:00:00Z"),
+  document: { entity: "Requisition", id: "rq1" },
   ...over,
 });
 
@@ -27,6 +28,7 @@ const onBehalf = (over: Partial<AttributionRequest> = {}): AttributionRequest =>
   paperReference: "Minute 4/2026",
   recorderPermissions: new Set<PermissionKey>(["acts.recordOnBehalf"]),
   paperSignatureRecording: "ALLOWED",
+  document: { entity: "Requisition", id: "rq1" },
   ...over,
 });
 
@@ -228,5 +230,68 @@ describe("how an attribution reads", () => {
     expect(ON_BEHALF_PHRASE).toBe("recorded on behalf of, not signed");
     expect(ON_BEHALF_SENTENCE).toBe("Recorded on behalf of, not signed");
     expect(NOT_SIGNED_WORDS).toBe("not signed");
+  });
+});
+
+describe("what a signature signs (NFR-SIG-001, Phase 2b)", () => {
+  it("is named: a signature-class act without its document is refused, signed or recorded from paper", () => {
+    expect(codes(signed({ document: null }))).toEqual(["DOCUMENT_REQUIRED"]);
+    expect(codes(onBehalf({ document: undefined }))).toEqual(["DOCUMENT_REQUIRED"]);
+    expect(codes(signed({ document: { entity: " ", id: "x" } }))).toEqual(["DOCUMENT_REQUIRED"]);
+  });
+
+  it("is not asked of an act that signs nothing", () => {
+    expect(codes({ ...ORDINARY, subject: { kind: "PERSON", personId: "p1" }, recorder: person("p1"), mode: "SIGNED" })).toEqual([]);
+  });
+
+  it("is kept on the row with the office held", () => {
+    const row = attributionRow(signed({ roleCode: "HEAD", effectiveOn: null }));
+    expect(row).toMatchObject({ documentEntity: "Requisition", documentId: "rq1", roleCode: "HEAD", effectiveOn: null, backdateReason: "", backdateAuthorisedByPersonId: null });
+    expect(attributionRow({ ...ORDINARY, subject: { kind: "PERSON", personId: "p1" }, recorder: person("p1"), mode: "SIGNED" })).toMatchObject({ documentEntity: null, documentId: null, roleCode: null });
+  });
+});
+
+describe("back-dating a signed act (NFR-AUD-006, Phase 2b)", () => {
+  const back = { reason: "Away on leave", authorisedByPersonId: "boss" };
+
+  it("is allowed on a signed act with the reason and an authoriser who is not the recorder, and is kept on the row", () => {
+    const req = signed({ effectiveOn: "2026-10-01", backdate: back });
+    expect(codes(req)).toEqual([]);
+    const row = attributionRow(req);
+    expect(row.backdateReason).toBe("Away on leave");
+    expect(row.backdateAuthorisedByPersonId).toBe("boss");
+    expect(row.effectiveOn?.toISOString().slice(0, 10)).toBe("2026-10-01");
+  });
+
+  it("is refused without a reason, or when the recorder authorised it themselves", () => {
+    expect(codes(signed({ effectiveOn: "2026-10-01", backdate: { ...back, reason: " " } }))).toEqual(["BACKDATE_REASON_REQUIRED"]);
+    expect(codes(signed({ effectiveOn: "2026-10-01", backdate: { ...back, authorisedByPersonId: "p1" } }))).toEqual(["BACKDATE_SELF_AUTHORISED"]);
+  });
+
+  it("is refused on an act recorded from paper, which is dated by its paper, and without the day it is dated", () => {
+    expect(codes(onBehalf({ effectiveOn: "2026-10-01", backdate: back }))).toEqual(["BACKDATE_NOT_SIGNED"]);
+    expect(codes(signed({ effectiveOn: null, backdate: back }))).toEqual(["BACKDATE_NOT_SIGNED"]);
+  });
+});
+
+describe("how a signed act that is not a signature reads", () => {
+  const slot = { label: "Received by", ms: "Diterima oleh", signatureClass: false };
+
+  it("reads in the slot's own words, not as a signature", () => {
+    const r = attributionLabel({ row: { mode: "SIGNED", recordedBySystemLabel: null }, subjectName: "Aminah", recorderName: "Aminah", auditAttributed: true, slot });
+    expect(r.en).toBe("Received by Aminah");
+    expect(r.ms).toBe("Diterima oleh Aminah");
+  });
+
+  it("a signature still reads as signed, and a back-dated one says so and by whom", () => {
+    const r = attributionLabel({
+      row: { mode: "SIGNED", recordedBySystemLabel: null, effectiveOn: "2026-10-01", backdateAuthorisedByName: "Zul" },
+      subjectName: "Aminah",
+      recorderName: "Aminah",
+      auditAttributed: true,
+      slot: { label: "Decided by", ms: "Diputuskan oleh", signatureClass: true },
+    });
+    expect(r.en).toBe("Signed by Aminah, dated 2026-10-01 (back-dated, authorised by Zul)");
+    expect(r.ms).toContain("dibenarkan oleh Zul");
   });
 });

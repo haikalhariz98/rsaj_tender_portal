@@ -15,7 +15,11 @@
  * route handler `staffRoute({ holder })`): a source scan (`act-slots.test.ts`) holds each to asking first. A slot that names a `holder` must name at least
  * one entry point, or the registry would claim a refusal nothing makes (review of Phase 2a). Phase 2b adds the rest as it rewrites each act.
  *
- * The labels are English. The Malay arrives with the shared attribution component of Phase 2b, which is the first place a slot is read aloud.
+ * Each slot has its label in both languages (`LABEL_MS`): the shared attribution component of Phase 2b is the first place a slot is read aloud.
+ *
+ * `onBehalf` marks the slots whose act may be recorded for someone else, from a paper record (ADR 0034 D12): decisions, endorsements and signatures, where
+ * the person who decided is not the officer entering it. Every other slot is the actor's own: the officer who received the bid, started the opening or
+ * recorded the payment is the signed-in officer, with no picker (Phase 2b: "Person pickers remain only on acts genuinely recorded from paper").
  */
 
 import type { AdministratorAct } from "./administration-conflict";
@@ -25,33 +29,115 @@ export interface ActSlot {
   field: string;
   /// "Decided by": the phrase that precedes the person's name where the act is shown.
   label: string;
+  /// The same, in Malay.
+  ms: string;
   signatureClass: boolean;
+  /// Whether the act may be recorded on someone's behalf from a paper record. Signature-class acts that are, need `acts.recordOnBehalf`, a paper reference and
+  /// the organisation's `paperSignatureRecording = ALLOWED`; the others need the paper or the reason.
+  onBehalf: boolean;
   /// What kind of act an administrator account is refused at. Absent where an administrator may do the act (the checker's decision on an administrator
   /// grant, the issue of an approval matrix: both are administrator acts, ADR 0034 D8) or where it is not wired yet. Present only with `entryPoints`.
   holder?: AdministratorAct;
   entryPoints?: readonly string[];
 }
 
-const slot = (entity: string, field: string, label: string, extra: Partial<Pick<ActSlot, "signatureClass" | "holder" | "entryPoints">> = {}): ActSlot => ({
+/// The Malay of every label a slot is read by. A slot whose label is not here fails `act-slots.test.ts`.
+export const LABEL_MS: Readonly<Record<string, string>> = {
+  "Recorded by": "Direkodkan oleh",
+  "Decided by": "Diputuskan oleh",
+  "Verified by": "Disahkan oleh",
+  "Signed by": "Ditandatangani oleh",
+  "Requested by": "Dimohon oleh",
+  "Granted by": "Diberi oleh",
+  "Submitted by": "Dihantar oleh",
+  "Raised by": "Ditimbulkan oleh",
+  "Prepared by": "Disediakan oleh",
+  "Issued by": "Dikeluarkan oleh",
+  "Endorsed by": "Disokong oleh",
+  "Checked by": "Disemak oleh",
+  "Withdrawn by": "Ditarik balik oleh",
+  "Valued by": "Dinilai oleh",
+  "Started by": "Dimulakan oleh",
+  "Sent by": "Dihantar oleh",
+  "Reviewed by": "Dikaji semula oleh",
+  "Received by": "Diterima oleh",
+  "Closed by": "Ditutup oleh",
+  "Warned by": "Diberi amaran oleh",
+  "Wages check recorded by": "Semakan upah direkodkan oleh",
+  "Vote cast by": "Undi diberikan oleh",
+  "Tabled by": "Dibentangkan oleh",
+  "Split check overridden by": "Semakan pemecahan diatasi oleh",
+  "Signed for the employer by": "Ditandatangani bagi pihak majikan oleh",
+  "Shortlisted by": "Disenarai pendek oleh",
+  "Scrutinised by": "Diteliti oleh",
+  "Scored by": "Dimarkahkan oleh",
+  "Return received by": "Pulangan diterima oleh",
+  "Report issued by": "Laporan dikeluarkan oleh",
+  "Rendered by": "Dijana oleh",
+  "Released by": "Dilepaskan oleh",
+  "Rejection route chosen by": "Laluan penolakan dipilih oleh",
+  "Recusal declared by": "Penarikan diri diisytiharkan oleh",
+  "Recommended by": "Disyorkan oleh",
+  "Proposed by": "Dicadangkan oleh",
+  "Proposal reviewed by": "Cadangan dikaji semula oleh",
+  "Passed on by": "Disampaikan oleh",
+  "Panel override recorded by": "Pengecualian panel direkodkan oleh",
+  "Overridden by": "Diatasi oleh",
+  "Originated by": "Dimulakan asalnya oleh",
+  "Opened by": "Dibuka oleh",
+  "Observed by": "Diperhatikan oleh",
+  "Moved by": "Dipindahkan oleh",
+  "Kept by": "Disimpan oleh",
+  "Inputs recorded by": "Input direkodkan oleh",
+  "Initialled by": "Diparaf oleh",
+  "Hold released by": "Tahanan dilepaskan oleh",
+  "Hold placed by": "Tahanan dikenakan oleh",
+  "Handed over by": "Diserahkan oleh",
+  "Formed by": "Dibentuk oleh",
+  "Finding recorded by": "Dapatan direkodkan oleh",
+  "Directed by": "Diarahkan oleh",
+  "Determined by": "Ditentukan oleh",
+  "Decided by the Superintending Officer": "Diputuskan oleh Pegawai Penguasa",
+  "Corrected by": "Dibetulkan oleh",
+  "Contract type overridden by": "Jenis kontrak diatasi oleh",
+  "Conflict declared by": "Konflik diisytiharkan oleh",
+  "Confirmed by": "Disahkan oleh",
+  "Completed by": "Dilengkapkan oleh",
+  "Commencement supported by": "Permulaan disokong oleh",
+  "Chaired by": "Dipengerusikan oleh",
+  "Cancelled by": "Dibatalkan oleh",
+  "Authorised by": "Dibenarkan oleh",
+  "Assessed by": "Dinilai oleh",
+};
+
+type SlotExtra = Partial<Pick<ActSlot, "signatureClass" | "onBehalf" | "holder" | "entryPoints">>;
+const slot = (entity: string, field: string, label: string, extra: SlotExtra = {}): ActSlot => ({
   entity,
   field,
   label,
+  ms: LABEL_MS[label] ?? "",
   signatureClass: false,
+  onBehalf: false,
   ...extra,
 });
+/// A signature-class act: it may also be recorded from paper.
 const signed = (entity: string, field: string, label: string, holder: AdministratorAct, entryPoints: readonly string[]): ActSlot =>
-  slot(entity, field, label, { signatureClass: true, holder, entryPoints });
+  slot(entity, field, label, { signatureClass: true, onBehalf: true, holder, entryPoints });
 /// An act only the holder of an office may do, that is not a signature.
 const held = (entity: string, field: string, label: string, entryPoints: readonly string[], holder: AdministratorAct = "HOLDER_CHECKED"): ActSlot => slot(entity, field, label, { holder, entryPoints });
+/// A decision, endorsement, confirmation or record that is not a signature but may come from a paper record: the person it is attributed to (an S.O. or a
+/// representative, a signatory, a member) may not be the officer entering it. The 6.13 contract acts are all of this kind: they are recorded for the S.O. or
+/// a representative, judged on the capacity that person holds on the day.
+const paper = (entity: string, field: string, label: string, extra: SlotExtra = {}): ActSlot => slot(entity, field, label, { onBehalf: true, ...extra });
 
 export const ACT_SLOTS: readonly ActSlot[] = [
   // ---- committees and approvals
   slot("CommitteeDecision", "tabledBy", "Tabled by"),
-  slot("DecisionRecusal", "person", "Recusal declared by"),
-  held("Vote", "person", "Vote cast by", ["src/app/api/committees/decisions/[id]/votes/route.ts#POST"]),
+  paper("DecisionRecusal", "person", "Recusal declared by"),
+  paper("Vote", "person", "Vote cast by", { holder: "HOLDER_CHECKED", entryPoints: ["src/app/api/committees/decisions/[id]/votes/route.ts#POST"] }),
   slot("Delegation", "fromPerson", "Granted by"),
-  slot("Requisition", "requestingPerson", "Requested by"),
-  slot("RequisitionEndorsement", "person", "Endorsed by"),
+  paper("Requisition", "requestingPerson", "Requested by"),
+  paper("RequisitionEndorsement", "person", "Endorsed by"),
   slot("RequisitionSplitCheck", "overriddenBy", "Split check overridden by"),
   slot("ApprovalInstance", "submittedBy", "Submitted by"),
   slot("ApprovalInstance", "rejectionChosenBy", "Rejection route chosen by"),
@@ -86,12 +172,11 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("LegalHold", "releasedBy", "Hold released by"),
 
   // ---- scope, estimates and the tender pack
-  slot("BqVersion", "preparer", "Prepared by"),
   slot("RateSchedule", "issuedBy", "Issued by"),
   slot("SpecPanelVerification", "person", "Verified by"),
   slot("CompanyEstimate", "preparer", "Prepared by"),
   slot("CompanyEstimateVersion", "preparer", "Prepared by"),
-  slot("EstimateEvent", "person", "Recorded by"),
+  paper("EstimateEvent", "person", "Recorded by"),
   slot("ClauseOverride", "person", "Endorsed by"),
   slot("PackAssurance", "person", "Confirmed by"),
   slot("PublicationRecord", "recordedBy", "Recorded by"),
@@ -108,7 +193,7 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("Opening", "panelOverrideBy", "Panel override recorded by"),
   slot("OpeningSitting", "recordedBy", "Recorded by"),
   signed("OpeningAuthorisation", "person", "Authorised by", "UNSEAL", ["src/app/sourcing/[id]/opening/actions.ts#recordAuthorisation"]),
-  slot("OpenedBidInitial", "person", "Initialled by"),
+  paper("OpenedBidInitial", "person", "Initialled by"),
   signed("OpeningSignature", "person", "Signed by", "SIGNATURE", ["src/app/sourcing/[id]/opening/actions.ts#recordSignature"]),
   slot("EstimateCopyExplanation", "recordedBy", "Recorded by"),
 
@@ -128,8 +213,8 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("TendererCommunication", "recordedBy", "Recorded by"),
   slot("Recommendation", "formedBy", "Formed by"),
   slot("ProposalPaper", "renderedBy", "Rendered by"),
-  slot("ProposalPaper", "checkedBy", "Checked by"),
-  slot("ProposalPaper", "recommendedBy", "Recommended by"),
+  paper("ProposalPaper", "checkedBy", "Checked by"),
+  paper("ProposalPaper", "recommendedBy", "Recommended by"),
 
   // ---- the supplier register
   slot("SupplierApplication", "recordedBy", "Recorded by"),
@@ -150,57 +235,57 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   signed("ReconciliationAmendment", "officer", "Signed for the employer by", "SIGNATURE", ["src/app/projects/[id]/actions.ts#addAmendment"]),
   slot("FormationCheck", "completedBy", "Completed by"),
   slot("LegalReview", "submittedBy", "Submitted by"),
-  slot("LegalReview", "reviewer", "Reviewed by"),
+  paper("LegalReview", "reviewer", "Reviewed by"),
   signed("ContractSignature", "person", "Signed by", "SIGNATURE", ["src/app/projects/[id]/actions.ts#recordRsajSignature"]),
-  slot("CustodyMovement", "person", "Moved by"),
+  paper("CustodyMovement", "person", "Moved by"),
   signed("CertificateSignature", "person", "Signed by", "SIGNATURE", ["src/app/projects/[id]/certificates/[certId]/actions.ts#recordCertificateSignature"]),
   slot("CertificateOverride", "person", "Overridden by"),
-  slot("RoutingCheck", "person", "Checked by"),
+  paper("RoutingCheck", "person", "Checked by"),
 
   // ---- 6.13: supervision, payment, time, variations
-  slot("SoDelegation", "grantorPerson", "Granted by"),
-  slot("Possession", "recordedBy", "Recorded by"),
-  slot("WorkProgramme", "scrutinisedBy", "Scrutinised by"),
+  paper("SoDelegation", "grantorPerson", "Granted by"),
+  paper("Possession", "recordedBy", "Recorded by"),
+  paper("WorkProgramme", "scrutinisedBy", "Scrutinised by"),
   signed("WorkProgramme", "decidedBy", "Decided by", "HOLDER_CHECKED", ["src/app/projects/[id]/supervision-actions.ts#decideProgramme"]),
-  slot("ProgressRecord", "recordedBy", "Recorded by"),
-  slot("SiteDiaryEntry", "officer", "Kept by"),
+  paper("ProgressRecord", "recordedBy", "Recorded by"),
+  paper("SiteDiaryEntry", "officer", "Kept by"),
   signed("DiaryEndorsement", "person", "Endorsed by", "SIGNATURE", ["src/app/projects/[id]/supervision-actions.ts#endorseDiary"]),
-  slot("SiteMeeting", "chair", "Chaired by"),
-  slot("ComplianceObservation", "person", "Observed by"),
-  slot("ProgrammeDirection", "person", "Directed by"),
-  slot("PendingDeduction", "person", "Recorded by"),
-  slot("EarlyActionDecision", "person", "Decided by"),
-  slot("SiteRecordsHandover", "person", "Handed over by"),
-  slot("OpeningPosition", "person", "Recorded by"),
-  slot("PaymentCalendar", "person", "Recorded by"),
-  slot("InterimValuation", "person", "Valued by"),
-  slot("RetentionRelease", "person", "Released by"),
-  slot("AdvancePayment", "person", "Recorded by"),
-  slot("FinancePayment", "person", "Recorded by"),
-  slot("LadWarning", "person", "Warned by"),
+  paper("SiteMeeting", "chair", "Chaired by"),
+  paper("ComplianceObservation", "person", "Observed by"),
+  paper("ProgrammeDirection", "person", "Directed by"),
+  paper("PendingDeduction", "person", "Recorded by"),
+  paper("EarlyActionDecision", "person", "Decided by"),
+  paper("SiteRecordsHandover", "person", "Handed over by"),
+  paper("OpeningPosition", "person", "Recorded by"),
+  paper("PaymentCalendar", "person", "Recorded by"),
+  paper("InterimValuation", "person", "Valued by"),
+  paper("RetentionRelease", "person", "Released by"),
+  paper("AdvancePayment", "person", "Recorded by"),
+  paper("FinancePayment", "person", "Recorded by"),
+  paper("LadWarning", "person", "Warned by"),
   signed("NonCompletion", "person", "Decided by", "HOLDER_CHECKED", ["src/app/projects/[id]/payment-actions.ts#recordNonCompletion"]),
-  slot("ContractMatter", "person", "Recorded by"),
-  slot("DelayNotice", "person", "Recorded by"),
+  paper("ContractMatter", "person", "Recorded by"),
+  paper("DelayNotice", "person", "Recorded by"),
   signed("EotClaim", "determinedBy", "Determined by", "HOLDER_CHECKED", ["src/app/projects/[id]/time-actions.ts#determineEotClaim"]),
-  slot("EotClaim", "person", "Recorded by"),
-  slot("ExtensionOfTime", "person", "Granted by"),
-  slot("LossExpenseClaim", "valuedBy", "Valued by"),
-  slot("LossExpenseClaim", "person", "Recorded by"),
-  slot("PeriodExtension", "person", "Recorded by"),
-  slot("PeriodAgreement", "person", "Raised by"),
-  slot("LadWaiver", "person", "Recorded by"),
-  slot("Variation", "originator", "Originated by"),
-  slot("Variation", "reviewedBy", "Reviewed by"),
-  slot("Variation", "principal", "Passed on by"),
+  paper("EotClaim", "person", "Recorded by"),
+  paper("ExtensionOfTime", "person", "Granted by"),
+  paper("LossExpenseClaim", "valuedBy", "Valued by"),
+  paper("LossExpenseClaim", "person", "Recorded by"),
+  paper("PeriodExtension", "person", "Recorded by"),
+  paper("PeriodAgreement", "person", "Raised by"),
+  paper("LadWaiver", "person", "Recorded by"),
+  paper("Variation", "originator", "Originated by"),
+  paper("Variation", "reviewedBy", "Reviewed by"),
+  paper("Variation", "principal", "Passed on by"),
   signed("Variation", "soDecidedBy", "Decided by the Superintending Officer", "HOLDER_CHECKED", ["src/app/projects/[id]/variation-actions.ts#decideVariation"]),
-  slot("Variation", "commencedSupport", "Commencement supported by"),
-  slot("Variation", "closedBy", "Closed by"),
-  slot("VariationApproval", "sentBy", "Sent by"),
-  slot("VariationInstruction", "person", "Recorded by"),
-  slot("VariationMeasurement", "person", "Recorded by"),
-  slot("DayworkRecord", "person", "Recorded by"),
-  slot("VariationCertificate", "person", "Raised by"),
-  slot("SumAdjustment", "person", "Raised by"),
+  paper("Variation", "commencedSupport", "Commencement supported by"),
+  paper("Variation", "closedBy", "Closed by"),
+  paper("VariationApproval", "sentBy", "Sent by"),
+  paper("VariationInstruction", "person", "Recorded by"),
+  paper("VariationMeasurement", "person", "Recorded by"),
+  paper("DayworkRecord", "person", "Recorded by"),
+  paper("VariationCertificate", "person", "Raised by"),
+  paper("SumAdjustment", "person", "Raised by"),
 
   // ---- configuration that is decided by a second person or issued (Phase 2c)
   // Issuing a matrix is signature-class (the password is asked), but it is an administrator act: `configuration.issue` is held through the administrator flag
@@ -246,6 +331,8 @@ export const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "AuditEntry.actorPerson": "The audit trail itself: it records the actor.",
   "ActAttribution.subjectPerson": "The attribution itself.",
   "ActAttribution.recordedByPerson": "The attribution itself.",
+  "BqVersion.preparer": "A designation: the officer a bill of quantities is prepared by, named in its header and checked against their qualification when the bill is finalised. Who edited the header is in the audit row, and the version's own acts (saving a line, finalising) are the editor's.",
+  "ActAttribution.backdateAuthorisedByPerson": "The attribution itself: the officer a signed act's back-dating was authorised by (NFR-AUD-006), named by the actor and kept on the attribution row, which is append-only.",
   "AuthorityMatrixMaker.person": "The maker record itself: written for the signed-in actor by the draft's own edit.",
   "MeetingAttendance.person": "The attendee: the subject of a recorded fact (who was present), not the author of an act.",
   "Delegation.toPerson": "The delegate: who receives the authority, not who granted it. The act is the grant, whose slot is `Delegation.fromPerson`.",

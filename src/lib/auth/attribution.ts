@@ -1,3 +1,5 @@
+import { dayToDate } from "@/lib/dates";
+
 import { slotOf } from "./act-slots";
 import type { Fault, PermissionKey } from "./types";
 
@@ -49,6 +51,12 @@ export interface AttributionRequest {
   /// What the recorder holds (a person recorder), and the organisation's switch: both judged for a signature-class act recorded from paper.
   recorderPermissions?: ReadonlySet<PermissionKey>;
   paperSignatureRecording?: "ALLOWED" | "REFUSED" | null;
+  /// NFR-SIG-001: the exact document or record a signature-class act signed, and the office the signer held. The document is required for a signature-class act.
+  document?: { entity: string; id: string } | null;
+  roleCode?: string | null;
+  /// NFR-AUD-006: a signed act dated earlier than the day it is recorded is an exception, with its reason and the person who authorised it.
+  effectiveOn?: string | null;
+  backdate?: { reason: string; authorisedByPersonId: string } | null;
 }
 
 const fault = (code: string, en: string, ms: string): Fault => ({ code, en, ms });
@@ -104,6 +112,20 @@ export function attributionFaults(req: AttributionRequest): Fault[] {
   }
   const signatureClass = registered.signatureClass;
   const system = req.recorder.kind === "SYSTEM";
+  if (signatureClass && !(req.document?.entity.trim() && req.document.id.trim())) {
+    out.push(fault("DOCUMENT_REQUIRED", "A signature names the exact document or record it signs.", "Tandatangan menamakan dokumen atau rekod tepat yang ditandatangani."));
+  }
+  if (req.backdate) {
+    if (req.mode !== "SIGNED" || !req.effectiveOn) {
+      out.push(fault("BACKDATE_NOT_SIGNED", "Only a signed act is back-dated, and it names the day it is dated.", "Hanya tindakan yang ditandatangani boleh dibertarikh lalu, dan ia menamakan hari bertarikhnya."));
+    }
+    if (req.backdate.reason.trim() === "") {
+      out.push(fault("BACKDATE_REASON_REQUIRED", "Dating an act earlier than today needs the reason.", "Mentarikhkan tindakan lebih awal daripada hari ini memerlukan sebabnya."));
+    }
+    if (req.recorder.kind === "PERSON" && req.backdate.authorisedByPersonId === req.recorder.personId) {
+      out.push(fault("BACKDATE_SELF_AUTHORISED", "Dating an act earlier than today is authorised by someone other than the person who records it.", "Mentarikhkan tindakan lebih awal daripada hari ini dibenarkan oleh orang lain selain yang merekodkannya."));
+    }
+  }
   if (req.recorder.kind === "SYSTEM" && req.recorder.label.trim() === "") {
     out.push(fault("SYSTEM_UNLABELLED", "A system act says what it is.", "Tindakan sistem menyatakan apa ia."));
   }
@@ -185,6 +207,12 @@ export function attributionRow(req: AttributionRequest) {
     sessionId: req.recorder.kind === "SYSTEM" ? null : req.recorder.sessionId,
     paperReference: (req.paperReference ?? "").trim(),
     reason: (req.reason ?? "").trim(),
+    documentEntity: req.document ? req.document.entity.trim() : null,
+    documentId: req.document ? req.document.id.trim() : null,
+    roleCode: req.roleCode?.trim() || null,
+    effectiveOn: req.effectiveOn ? dayToDate(req.effectiveOn) : null,
+    backdateReason: req.backdate ? req.backdate.reason.trim() : "",
+    backdateAuthorisedByPersonId: req.backdate ? req.backdate.authorisedByPersonId : null,
   } as const;
 }
 
@@ -208,18 +236,30 @@ export interface AttributionRead {
 
 export interface AttributionFacts {
   /// The act's attribution row, or null where there is none.
-  row: { mode: ActModeName; recordedBySystemLabel: string | null } | null;
+  row: {
+    mode: ActModeName;
+    recordedBySystemLabel: string | null;
+    /// Set where the act was back-dated: the day it is dated, and who authorised it.
+    effectiveOn?: string | null;
+    backdateAuthorisedByName?: string | null;
+  } | null;
   /// The name of the person the act is attributed to (the slot's own value).
   subjectName: string;
   /// The name of whoever recorded it: the person, or the supplier's contact. Unused for a system recorder.
   recorderName: string | null;
   /// Whether the act's audit row names an actor: false for everything written before sign-in.
   auditAttributed: boolean;
+  /// The slot, where it is known: a signed act that is not a signature reads in the slot's own words ("Received by X"), not as a signature.
+  slot?: { label: string; ms: string; signatureClass: boolean };
 }
 
 export function attributionLabel(f: AttributionFacts): AttributionRead {
   if (f.row) {
-    if (f.row.mode === "SIGNED") return { state: "SIGNED", en: `Signed by ${f.subjectName}`, ms: `Ditandatangani oleh ${f.subjectName}` };
+    if (f.row.mode === "SIGNED") {
+      const back = f.row.effectiveOn ? { en: `, dated ${f.row.effectiveOn} (back-dated${f.row.backdateAuthorisedByName ? `, authorised by ${f.row.backdateAuthorisedByName}` : ""})`, ms: `, bertarikh ${f.row.effectiveOn} (bertarikh lalu${f.row.backdateAuthorisedByName ? `, dibenarkan oleh ${f.row.backdateAuthorisedByName}` : ""})` } : { en: "", ms: "" };
+      if (f.slot && !f.slot.signatureClass) return { state: "SIGNED", en: `${f.slot.label} ${f.subjectName}${back.en}`, ms: `${f.slot.ms} ${f.subjectName}${back.ms}` };
+      return { state: "SIGNED", en: `Signed by ${f.subjectName}${back.en}`, ms: `Ditandatangani oleh ${f.subjectName}${back.ms}` };
+    }
     const by = f.row.recordedBySystemLabel ?? f.recorderName ?? "a person no longer on record";
     return {
       state: "ON_BEHALF",

@@ -13,6 +13,7 @@
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
+import { AttributionRefused } from "@/lib/auth/attribution-store";
 import { CertificateRefusal } from "@/lib/certificate/write";
 import { actStatusText } from "@/lib/contract/act-status";
 import { contractLabel, type LoadedContract } from "@/lib/contract/repo";
@@ -30,7 +31,6 @@ import { MatterChanged } from "./write";
 const GONE: FormState = { ok: false, message: "That contract no longer exists." };
 const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zone under Configuration › Organisation first: every act here records the organisation's day, never UTC's." };
 const CANCELLED: FormState = { ok: false, message: "The contract is cancelled: it is kept as it was." };
-export const ON_BEHALF = "recorded on behalf of, not signed";
 
 export class ActRefusal extends Error {
   constructor(readonly state: FormState) {
@@ -68,6 +68,7 @@ export function thrownState(e: unknown): FormState {
   if (e instanceof ActRefusal) return e.state;
   if (e instanceof MatterRefusal || e instanceof CertificateRefusal) return { ok: false, message: e.message, ...(e.errors ? { errors: e.errors } : {}) };
   if (e instanceof MatterChanged) return { ok: false, message: e.message };
+  if (e instanceof AttributionRefused) return { ok: false, message: e.faults.map((f) => f.en).join(" ") };
   throw e;
 }
 
@@ -94,13 +95,13 @@ export async function personNamed(c: ActCtx, personId: string | null, field = "p
 
 /// The Person named, and the capacity they may be recorded in on the day (the S.O., or a representative whose delegation
 /// in force covers the act); refused otherwise.
-export async function recordedFor(c: ActCtx, personId: string | null, need: ActNeed, on: string, field = "personId"): Promise<{ person: { id: string; name: string }; capacity: Capacity; soLabel: string }> {
+export async function recordedFor(c: ActCtx, personId: string | null, need: ActNeed, on: string, field = "personId"): Promise<{ person: { id: string; name: string }; capacity: Capacity; soLabel: string; soRoleCode: string }> {
   const person = await personNamed(c, personId, field);
   const s = await loadSupervision(c.l.contract.id, c.tx);
   const so = await soOfficeOn(c.l, s, on, c.tx);
   const r = capacityFor(person.id, need, so?.office ?? null, delegationFactsOf(s), on);
   if (!r.capacity) throw new ActRefusal({ ok: false, message: supervisionRefusal("Not recorded:", r.faults) });
-  return { person, capacity: r.capacity, soLabel: so!.office.roleLabel };
+  return { person, capacity: r.capacity, soLabel: so!.office.roleLabel, soRoleCode: so!.assignment.roleCode };
 }
 
 /// The matter's record table, locked after the matter (the first domain row).

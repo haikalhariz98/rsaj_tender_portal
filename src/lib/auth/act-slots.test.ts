@@ -80,6 +80,22 @@ describe("every Person relation is an act slot or is accounted for", () => {
       expect(s.label, slotKey(s.entity, s.field)).not.toMatch(/[_.]|Id$/);
     }
   });
+
+  it("every label is also in Malay, and the Malay is not the English (Phase 2b: the shared attribution component reads a slot aloud)", () => {
+    for (const s of ACT_SLOTS) {
+      expect(s.ms.length, slotKey(s.entity, s.field)).toBeGreaterThan(3);
+      expect(s.ms, slotKey(s.entity, s.field)).not.toBe(s.label);
+      expect(s.ms, slotKey(s.entity, s.field)).not.toMatch(/[_.]|Id$/);
+    }
+  });
+
+  it("every signature-class slot a person signs may also be recorded from paper, except the two configuration ones, which are not", () => {
+    for (const s of SIGNATURE_SLOTS) {
+      const key = slotKey(s.entity, s.field);
+      const config = key === "AuthorityMatrix.issuedByPerson" || key === "ConfigurationChange.decidedBy";
+      expect(s.onBehalf, key).toBe(!config);
+    }
+  });
 });
 
 describe("the signature-class acts", () => {
