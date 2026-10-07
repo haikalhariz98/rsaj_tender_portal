@@ -49,7 +49,7 @@ vi.mock("@/app/_auth/act", async () => {
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 vi.mock("next/navigation", () => ({ redirect: (to: string) => { throw new Error(`redirect ${to}`); } }));
 
-import { adoptDraft, issueDraft, saveCoreLevel } from "@/app/configuration/approval-matrix/actions";
+import { adoptDraft, issueDraft, saveCoreLevel, startRevision } from "@/app/configuration/approval-matrix/actions";
 
 let organisationId = "";
 let organisationCode = "";
@@ -237,6 +237,54 @@ describe("an edit of a draft makes its maker", () => {
     const rows = await db.authorityMatrixMaker.findMany({ where: { matrixId: draft.id } });
     expect(rows).toHaveLength(1);
     expect(rows[0].firstAt.toISOString()).toBe(first.toISOString());
+  });
+});
+
+describe("a revision started from an issue", () => {
+  it("is a draft with no issuer: the issue it copies was issued by a second person, and the draft is made by whoever started it and issued by another (review of Phase 2c)", async () => {
+    // Its own organisation: one draft at a time, and the others in this file leave theirs.
+    const org = await db.organisation.create({ data: { code: `MX_${randomId()}`, name: "Revision", timeZone: "Asia/Kuala_Lumpur" } });
+    await setPolicy(org.id, SETTINGS);
+    await db.authorityRole.create({ data: { organisationId: org.id, code: "MX_OFFICER", nameEn: "Matrix officer", nameMs: "Pegawai" } });
+    const a = await signedIn({ admin: true, org: org.id });
+    const b = await signedIn({ admin: true, org: org.id });
+    const c = await signedIn({ admin: true, org: org.id });
+    const first = await unknownDraft(org.id);
+    as(a);
+    expect(await adoptDraft({ ok: false }, form({ id: first.id, reason: "reviewed" }))).toEqual({ ok: true });
+    as(b);
+    expect(await issueDraft({ ok: false }, issueForm(first.id, b.password))).toEqual({ ok: true });
+    expect((await stored(first.id)).issuedByPersonId).toBe(b.person.id);
+
+    // Anyone starts a revision from that issue. Before the fix, the issuer was carried onto the draft and the database refused it (23514).
+    as(c);
+    const started = await startRevision({ ok: false }, form({ fromId: first.id, label: `Revision ${randomId()}`, effectiveFrom: "2060-01-01" })).catch((e: Error) => e);
+    const draftId = /issue=([^&\s]+)/.exec(String((started as Error).message))?.[1];
+    expect(draftId, String(started)).toBeTruthy();
+    const draft = await stored(draftId!);
+    expect(draft).toMatchObject({ issuedAt: null, issuedByPersonId: null, makersUnknownAtLanding: false });
+    expect((await loadMakers(db, draft.id)).personIds).toEqual([c.person.id]);
+
+    // The starter made it, so the starter does not issue it; a person who did not make it does, and is written down.
+    expect(await issueDraft({ ok: false }, form({ id: draft.id, effectiveFrom: "2060-01-01", reason: "The resolution", [actFieldNames("personId").password]: c.password }))).toMatchObject({ ok: false, message: expect.stringContaining("You made this draft") });
+    as(a);
+    expect(await issueDraft({ ok: false }, form({ id: draft.id, effectiveFrom: "2060-01-01", reason: "The resolution", [actFieldNames("personId").password]: a.password }))).toEqual({ ok: true });
+    expect((await stored(draft.id)).issuedByPersonId).toBe(a.person.id);
+  });
+
+  it("a revision of a landing draft is not itself a landing draft: the flag is a fact about the draft that existed when sign-in landed", async () => {
+    const org = await db.organisation.create({ data: { code: `MX_${randomId()}`, name: "Revision of a landing draft", timeZone: "Asia/Kuala_Lumpur" } });
+    await setPolicy(org.id, SETTINGS);
+    await db.authorityRole.create({ data: { organisationId: org.id, code: "MX_OFFICER", nameEn: "Matrix officer", nameMs: "Pegawai" } });
+    const a = await signedIn({ admin: true, org: org.id });
+    const source = await db.authorityMatrix.create({
+      data: { organisationId: org.id, label: `Landing ${randomId()}`, effectiveFrom: new Date("2020-01-01T00:00:00Z"), issuedAt: new Date("2020-01-01T00:00:00Z"), boundaryValue: "1.00", quotationFloor: "1.00", tenderFloor: "1.00", requisitionBoundary: "1.00", makersUnknownAtLanding: true },
+    });
+    as(a);
+    const started = await startRevision({ ok: false }, form({ fromId: source.id, label: `Revision ${randomId()}`, effectiveFrom: "2060-01-01" })).catch((e: Error) => e);
+    const draftId = /issue=([^&\s]+)/.exec(String((started as Error).message))?.[1];
+    expect(draftId, String(started)).toBeTruthy();
+    expect(await stored(draftId!)).toMatchObject({ makersUnknownAtLanding: false });
   });
 });
 

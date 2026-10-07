@@ -29,6 +29,7 @@ import { contractTypeDomainWords, takesContractType } from "@/lib/authority/cont
 import { FormReader } from "@/lib/validate";
 import { staffForPermission, toAuditActor } from "@/app/_auth/actor";
 import { loadMakers, noteMaker } from "@/lib/authority/maker-store";
+import { draftFromIssue } from "@/lib/authority/revision";
 import { beginAct, attributionRefusalState } from "@/app/_auth/act";
 import { makerCheckerFault } from "@/lib/auth/maker-checker";
 import { eligibleFor } from "@/lib/auth/eligibility-store";
@@ -709,15 +710,8 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
     if (drafts > 0) return { ok: false, message: "A draft issue already exists. Issue or finish that one first." };
 
     const { rules, termsBands, coreRouting, ...policy } = source;
-    // A new row: the source's id is dropped, everything else carried.
-    const draftPolicy = {
-      ...policy,
-      id: undefined,
-      label,
-      effectiveFrom: effectiveFrom!,
-      effectiveTo: null,
-      issuedAt: null,
-    };
+    // A new row: the policy columns are carried one by one, and what records the source's own life (its id, its issue, its issuer) starts again.
+    const draftPolicy = draftFromIssue(policy, { label, effectiveFrom: effectiveFrom! });
 
     // Decimal columns pass straight through: never via a number.
     const draft = await tx.authorityMatrix.create({ data: draftPolicy });
