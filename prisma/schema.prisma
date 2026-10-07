@@ -10995,6 +10995,9 @@ model ActAttribution {
   entity   String
   entityId String
   slot     String
+  /// A slot written again (a variation returned and decided again, a conflict declared twice on one step) is a new occurrence, from 1. The
+  /// earlier rows stay as the evidence of who acted before, and the highest occurrence is the one in force (`latestAttribution`).
+  occurrence Int @default(1)
 
   /// Whom the act is attributed to: a person, or (Phase 4) a supplier's account. Exactly one.
   subjectPersonId          String?
@@ -11017,7 +11020,10 @@ model ActAttribution {
 
   at DateTime @default(now())
 
-  @@unique([entity, entityId, slot])
+  @@unique([entity, entityId, slot, occurrence])
+  /// One password entry signs one act: a signature-class row keeps the session and the stamp `stepUp` gave it, and no two rows share them.
+  /// Other rows keep no stamp, and a null is never equal to another, so they do not collide.
+  @@unique([sessionId, stepUpAt])
   @@index([organisationId, at])
   @@index([subjectPersonId])
   @@index([recordedByPersonId])

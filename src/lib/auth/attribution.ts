@@ -65,6 +65,36 @@ export function actingPeople(req: Pick<AttributionRequest, "subject" | "recorder
   return [...out];
 }
 
+/**
+ * Whether the password was really asked again for this signature (review of Phase 2a). The caller hands over the time `stepUp` gave it, but the
+ * writer does not trust it: it must be the stamp the act's own session carries now (so a stamp from an earlier step-up, or a time made up, is not
+ * it), and no earlier attribution may already have been signed on it (so one password entry signs one act). There is no time window: the single
+ * use is what makes "asked at every approval, signature and unseal" true.
+ */
+export interface StepUpFacts {
+  passed: Date | null | undefined;
+  /// The stamp the session carries now, or null where it has none (or the session has ended).
+  onSession: Date | null;
+  /// Whether an attribution already carries this session and this stamp.
+  consumed: boolean;
+}
+
+export function stepUpFault(f: StepUpFacts): Fault | null {
+  if (!f.passed) return fault("STEP_UP_REQUIRED", "This act needs the password again. Enter it to sign.", "Tindakan ini memerlukan kata laluan sekali lagi. Masukkannya untuk menandatangani.");
+  if (!f.onSession || f.onSession.getTime() !== f.passed.getTime()) {
+    return fault("STEP_UP_NOT_CURRENT", "The password was not asked for this act in this session. Enter it again to sign.", "Kata laluan tidak ditanya untuk tindakan ini dalam sesi ini. Masukkannya sekali lagi untuk menandatangani.");
+  }
+  if (f.consumed) return fault("STEP_UP_USED", "That password entry has already signed an act. Enter the password again to sign this one.", "Kemasukan kata laluan itu sudah menandatangani satu tindakan. Masukkan kata laluan sekali lagi untuk menandatangani yang ini.");
+  return null;
+}
+
+/// Whether this request is signed with the password asked again: a signature-class act signed in a session (not the system's, and not on someone's behalf).
+const signedWithPassword = (req: Pick<AttributionRequest, "entity" | "slot" | "mode" | "recorder">): boolean =>
+  req.mode === "SIGNED" && req.recorder.kind !== "SYSTEM" && slotOf(req.entity, req.slot)?.signatureClass === true;
+
+/// Whether the writer checks the stamp against a staff session: the same, for a person's session. (A supplier's session has no table until Phase 4.)
+export const needsStepUp = (req: Pick<AttributionRequest, "entity" | "slot" | "mode" | "recorder">): boolean => signedWithPassword(req) && req.recorder.kind === "PERSON";
+
 /// What stops this attribution being written, in both languages. Empty: it may be written.
 export function attributionFaults(req: AttributionRequest): Fault[] {
   const out: Fault[] = [];
@@ -99,6 +129,16 @@ export function attributionFaults(req: AttributionRequest): Fault[] {
   const why = (req.reason ?? "").trim();
   if (paper === "" && why === "") {
     out.push(fault("PAPER_OR_REASON_REQUIRED", "Recording an act on someone's behalf needs the paper it came from or the reason it is recorded.", "Merekodkan tindakan bagi pihak seseorang memerlukan kertas asalnya atau sebab ia direkodkan."));
+  }
+  if (sameParty(req.subject, req.recorder)) {
+    // A person who records their own act "on their behalf" would skip the password a signature asks, and says nothing true: it is signed, or it is not theirs.
+    out.push(
+      fault(
+        "ON_BEHALF_OF_SELF",
+        "An act recorded on someone's behalf is recorded for another person. To act as yourself, sign it.",
+        "Tindakan yang direkodkan bagi pihak seseorang direkodkan untuk orang lain. Untuk bertindak sebagai diri sendiri, tandatanganinya.",
+      ),
+    );
   }
   if (signatureClass && !system) {
     if (!req.recorderPermissions?.has("acts.recordOnBehalf")) {
@@ -140,7 +180,8 @@ export function attributionRow(req: AttributionRequest) {
     recordedBySupplierAccountId: req.recorder.kind === "SUPPLIER_ACCOUNT" ? req.recorder.supplierAccountId : null,
     recordedBySystemLabel: req.recorder.kind === "SYSTEM" ? req.recorder.label.trim() : null,
     mode: req.mode,
-    stepUpAt: req.recorder.kind === "SYSTEM" ? null : (req.stepUpAt ?? null),
+    // Kept only where it is the proof of a signature: it is also the key that lets one password entry sign one act (`@@unique([sessionId, stepUpAt])`).
+    stepUpAt: signedWithPassword(req) ? (req.stepUpAt ?? null) : null,
     sessionId: req.recorder.kind === "SYSTEM" ? null : req.recorder.sessionId,
     paperReference: (req.paperReference ?? "").trim(),
     reason: (req.reason ?? "").trim(),
@@ -148,6 +189,14 @@ export function attributionRow(req: AttributionRequest) {
 }
 
 // --------------------------------------------------------------------------------------------- reading one
+
+/// An act's slot may be written again (a variation returned and decided again, a conflict declared a second time on one step): each write is a new
+/// occurrence, numbered from 1, and the one in force is the highest. Earlier ones stay as the evidence of who acted before.
+export function latestAttribution<T extends { occurrence: number }>(rows: readonly T[]): T | null {
+  let best: T | null = null;
+  for (const r of rows) if (!best || r.occurrence > best.occurrence) best = r;
+  return best;
+}
 
 export type AttributionState = "SIGNED" | "ON_BEHALF" | "LEGACY" | "MISSING";
 

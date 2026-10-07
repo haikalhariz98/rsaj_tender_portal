@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { actingPeople, attributionFaults, attributionLabel, attributionRow, NOT_SIGNED_WORDS, ON_BEHALF_PHRASE, ON_BEHALF_SENTENCE, type AttributionRequest } from "./attribution";
+import { actingPeople, attributionFaults, attributionLabel, attributionRow, latestAttribution, needsStepUp, NOT_SIGNED_WORDS, ON_BEHALF_PHRASE, ON_BEHALF_SENTENCE, stepUpFault, type AttributionRequest } from "./attribution";
 import type { PermissionKey } from "./types";
 
 const person = (personId: string, sessionId: string | null = "s1") => ({ kind: "PERSON", personId, sessionId }) as const;
@@ -89,6 +89,64 @@ describe("an act recorded on someone's behalf", () => {
   it("lets the system record a signature-class act for a person, with a reason, and no permission or switch of a person", () => {
     expect(codes(onBehalf({ recorder: { kind: "SYSTEM", label: "demo loader" }, recorderPermissions: undefined, paperSignatureRecording: null, paperReference: "", reason: "history made by the demo loader" }))).toEqual([]);
     expect(codes(onBehalf({ recorder: { kind: "SYSTEM", label: " " }, paperReference: "x" }))).toEqual(["SYSTEM_UNLABELLED"]);
+  });
+});
+
+describe("an act recorded on the recorder's own behalf", () => {
+  it("is refused: it would skip the password a signature asks, and says nothing true", () => {
+    expect(codes(onBehalf({ subject: { kind: "PERSON", personId: "p1" } }))).toEqual(["ON_BEHALF_OF_SELF"]);
+    expect(codes({ ...ORDINARY, mode: "RECORDED_ON_BEHALF", reason: "mine", subject: { kind: "PERSON", personId: "p1" }, recorder: person("p1") })).toEqual(["ON_BEHALF_OF_SELF"]);
+    const supplier = { ...ORDINARY, mode: "RECORDED_ON_BEHALF", reason: "mine", subject: { kind: "SUPPLIER_ACCOUNT", supplierAccountId: "a1" } } as const;
+    expect(codes({ ...supplier, recorder: { kind: "SUPPLIER_ACCOUNT", supplierAccountId: "a1", sessionId: null } })).toEqual(["ON_BEHALF_OF_SELF"]);
+    // Another person, another supplier account, and the system are not the same party.
+    expect(codes({ ...supplier, recorder: { kind: "SUPPLIER_ACCOUNT", supplierAccountId: "a2", sessionId: null } })).toEqual([]);
+    expect(codes({ ...supplier, recorder: { kind: "SYSTEM", label: "demo loader" } })).toEqual([]);
+  });
+});
+
+describe("the password asked again, judged against the session", () => {
+  const at = new Date("2026-10-07T01:00:00Z");
+  it("is current when it is the stamp the session carries now and no act has signed on it", () => {
+    expect(stepUpFault({ passed: at, onSession: new Date(at), consumed: false })).toBeNull();
+  });
+
+  it("is refused when none was passed, when the session carries another stamp or none, and when it has signed an act already", () => {
+    expect(stepUpFault({ passed: null, onSession: at, consumed: false })?.code).toBe("STEP_UP_REQUIRED");
+    expect(stepUpFault({ passed: new Date(at.getTime() + 1), onSession: at, consumed: false })?.code).toBe("STEP_UP_NOT_CURRENT");
+    expect(stepUpFault({ passed: at, onSession: null, consumed: false })?.code).toBe("STEP_UP_NOT_CURRENT");
+    expect(stepUpFault({ passed: at, onSession: at, consumed: true })?.code).toBe("STEP_UP_USED");
+  });
+
+  it("says each in both languages, the Malay not the English", () => {
+    for (const f of [{ passed: null, onSession: at, consumed: false }, { passed: at, onSession: null, consumed: false }, { passed: at, onSession: at, consumed: true }]) {
+      const fault = stepUpFault(f)!;
+      expect(fault.ms).not.toBe(fault.en);
+      expect(fault.ms.length).toBeGreaterThan(10);
+    }
+  });
+
+  it("is asked of a signature-class act signed by a person, and of nothing else", () => {
+    expect(needsStepUp(signed())).toBe(true);
+    expect(needsStepUp(signed({ ...ORDINARY }))).toBe(false);
+    expect(needsStepUp(onBehalf())).toBe(false);
+    expect(needsStepUp(signed({ recorder: { kind: "SYSTEM", label: "x" } }))).toBe(false);
+    expect(needsStepUp(signed({ subject: { kind: "SUPPLIER_ACCOUNT", supplierAccountId: "a" }, recorder: { kind: "SUPPLIER_ACCOUNT", supplierAccountId: "a", sessionId: null } }))).toBe(false);
+  });
+
+  it("keeps the stamp on the row only where it is the proof of a signature, so one entry cannot collide with an ordinary act", () => {
+    const stamp = new Date("2026-10-07T01:00:00Z");
+    expect(attributionRow(signed({ stepUpAt: stamp })).stepUpAt).toEqual(stamp);
+    expect(attributionRow({ ...ORDINARY, subject: { kind: "PERSON", personId: "p1" }, recorder: person("p1"), mode: "SIGNED", stepUpAt: stamp }).stepUpAt).toBeNull();
+    expect(attributionRow(onBehalf({ stepUpAt: stamp })).stepUpAt).toBeNull();
+  });
+});
+
+describe("a slot written again", () => {
+  it("is read as its highest occurrence, whatever order the rows come in, and as nothing when there are none", () => {
+    const rows = [{ occurrence: 2, id: "b" }, { occurrence: 1, id: "a" }, { occurrence: 3, id: "c" }];
+    expect(latestAttribution(rows)?.id).toBe("c");
+    expect(latestAttribution([...rows].reverse())?.id).toBe("c");
+    expect(latestAttribution([])).toBeNull();
   });
 });
 

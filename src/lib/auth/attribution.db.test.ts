@@ -3,8 +3,9 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { applyAppRole } from "../../../scripts/db-role-apply";
-import { makePerson, randomId, setPolicy, SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
+import { makeAccount, makePerson, randomId, setPolicy, SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
+import { latestAttribution } from "./attribution";
 import { attributeAct, AttributionRefused } from "./attribution-store";
 import type { PermissionKey, StaffActor } from "./types";
 
@@ -40,9 +41,20 @@ const asApp = <T>(fn: (tx: Tx) => Promise<T>) =>
 let organisationId = "";
 let p1 = "";
 let p2 = "";
+let accountId = "";
+
+/// A live session that has been asked for the password at `stepUpAt`: what `stepUp` leaves behind, which is all the writer accepts as proof.
+async function sessionAskedAt(stepUpAt: Date | null): Promise<string> {
+  const now = new Date();
+  const row = await db.staffSession.create({
+    data: { organisationId, accountId, tokenHash: `tok_${randomId()}${randomId()}`, lastSeenAt: now, absoluteExpiresAt: new Date(now.getTime() + 3_600_000), stepUpAt },
+  });
+  return row.id;
+}
 
 beforeAll(async () => {
   organisationId = (await testOrganisation()).id;
+  accountId = (await makeAccount(organisationId)).account.id;
   p1 = (await makePerson(organisationId)).id;
   p2 = (await makePerson(organisationId)).id;
   const applied = await db.$transaction((tx) => applyAppRole(tx, { role: TEST_ROLE, password: null }));
@@ -97,11 +109,31 @@ describe("the CHECKs of ActAttribution", () => {
     expect(await refusal(make({ ...base, recordedBySystemLabel: "  " }))).toBe("23514");
   });
 
-  it("holds an act's person slot once: a second attribution of the same slot is refused", async () => {
+  it("holds an act's person slot once per occurrence: the same occurrence twice is refused, the next is a new row", async () => {
     const row = signedRow();
     expect(await refusal(make(row))).toBeNull();
     expect(await refusal(make({ ...row, recordedByPersonId: p1 }))).toBe("23505");
     expect(await refusal(make({ ...row, slot: "declaredBy" }))).toBeNull();
+    expect(await refusal(make({ ...row, occurrence: 2 }))).toBeNull();
+    expect(await refusal(make({ ...row, occurrence: 0 }))).toBe("23514");
+  });
+
+  it("refuses an act recorded on someone's behalf for the person who recorded it, in the person pair and the supplier pair", async () => {
+    const base = () => ({ ...fresh(), mode: "RECORDED_ON_BEHALF" as const, paperReference: "Minute 4" });
+    expect(await refusal(make({ ...base(), subjectPersonId: p1, recordedByPersonId: p1 }))).toBe("23514");
+    expect(await refusal(make({ ...base(), subjectSupplierAccountId: "a1", recordedBySupplierAccountId: "a1" }))).toBe("23514");
+    expect(await refusal(make({ ...base(), subjectSupplierAccountId: "a1", recordedBySupplierAccountId: "a2" }))).toBeNull();
+    // A person and a supplier account that share an id are not the same party.
+    expect(await refusal(make({ ...base(), subjectSupplierAccountId: p1, recordedByPersonId: p1 }))).toBeNull();
+  });
+
+  it("holds one password entry to one act: two rows never share a session and a stamp, while rows with no stamp do", async () => {
+    const stamp = new Date();
+    expect(await refusal(make(signedRow({ sessionId: "sess_x", stepUpAt: stamp })))).toBeNull();
+    expect(await refusal(make(signedRow({ sessionId: "sess_x", stepUpAt: stamp })))).toBe("23505");
+    expect(await refusal(make(signedRow({ sessionId: "sess_y", stepUpAt: stamp })))).toBeNull();
+    expect(await refusal(make(signedRow({ sessionId: "sess_x" })))).toBeNull();
+    expect(await refusal(make(signedRow({ sessionId: "sess_x" })))).toBeNull();
   });
 });
 
@@ -159,12 +191,89 @@ describe("the one writer", () => {
   });
   const base = () => ({ entity: "ApprovalStep", entityId: `step_${randomId()}`, slot: "decidedBy" });
 
+  // Changed with the review of Phase 2a, to match the fix, not weakened: these tests handed the writer `new Date()` as the password stamp with no
+  // `stepUp` ever asked. The writer now takes the stamp only from the session, so each signs in a session that was asked the password at that time.
+  const signedWith = async (at: Date) => {
+    const sessionId = await sessionAskedAt(at);
+    return { ...base(), actor: actor({ sessionId }), subject: { kind: "PERSON" as const, personId: p1 }, mode: "SIGNED" as const, stepUpAt: at };
+  };
+
   it("writes a signed act with the session and the password stamp, and nothing else is guessed", async () => {
     const at = new Date();
-    const input = { ...base(), actor: actor(), subject: { kind: "PERSON" as const, personId: p1 }, mode: "SIGNED" as const, stepUpAt: at };
+    const input = await signedWith(at);
     const row = await db.$transaction((tx) => attributeAct(tx, input));
-    expect(row).toMatchObject({ organisationId, subjectPersonId: p1, recordedByPersonId: p1, recordedBySystemLabel: null, mode: "SIGNED", sessionId: "sess_1" });
+    expect(row).toMatchObject({ organisationId, subjectPersonId: p1, recordedByPersonId: p1, recordedBySystemLabel: null, mode: "SIGNED", sessionId: input.actor.sessionId, occurrence: 1 });
     expect(row.stepUpAt?.getTime()).toBe(at.getTime());
+  });
+
+  it("refuses a stamp that is not the session's now: a stale one, a made-up time, and one for a session never asked", async () => {
+    const asked = new Date(Date.now() - 3_600_000);
+    const sessionId = await sessionAskedAt(asked);
+    const subject = { kind: "PERSON" as const, personId: p1 };
+    const stale = { ...base(), actor: actor({ sessionId }), subject, mode: "SIGNED" as const, stepUpAt: new Date(asked.getTime() - 60_000) };
+    await expect(db.$transaction((tx) => attributeAct(tx, stale))).rejects.toMatchObject({ faults: [{ code: "STEP_UP_NOT_CURRENT" }] });
+    const madeUp = { ...stale, stepUpAt: new Date() };
+    await expect(db.$transaction((tx) => attributeAct(tx, madeUp))).rejects.toMatchObject({ faults: [{ code: "STEP_UP_NOT_CURRENT" }] });
+    const neverAsked = { ...stale, actor: actor({ sessionId: await sessionAskedAt(null) }), stepUpAt: new Date() };
+    await expect(db.$transaction((tx) => attributeAct(tx, neverAsked))).rejects.toMatchObject({ faults: [{ code: "STEP_UP_NOT_CURRENT" }] });
+    const noSession = { ...stale, actor: actor({ sessionId: "sess_that_does_not_exist" }), stepUpAt: new Date() };
+    await expect(db.$transaction((tx) => attributeAct(tx, noSession))).rejects.toMatchObject({ faults: [{ code: "STEP_UP_NOT_CURRENT" }] });
+    for (const i of [stale, madeUp, neverAsked, noSession]) expect(await db.actAttribution.count({ where: { entityId: i.entityId } })).toBe(0);
+  });
+
+  it("refuses a stamp from a session that has ended", async () => {
+    const input = await signedWith(new Date());
+    await db.staffSession.update({ where: { id: input.actor.sessionId }, data: { revokedAt: new Date(), revokedReason: "SIGNED_OUT" } });
+    await expect(db.$transaction((tx) => attributeAct(tx, input))).rejects.toMatchObject({ faults: [{ code: "STEP_UP_NOT_CURRENT" }] });
+  });
+
+  it("lets one password entry sign one act: the same stamp signs a second act no more", async () => {
+    const input = await signedWith(new Date());
+    await db.$transaction((tx) => attributeAct(tx, input));
+    const second = { ...input, entityId: `step_${randomId()}` };
+    await expect(db.$transaction((tx) => attributeAct(tx, second))).rejects.toMatchObject({ faults: [{ code: "STEP_UP_USED" }] });
+    expect(await db.actAttribution.count({ where: { entityId: second.entityId } })).toBe(0);
+  });
+
+  it("lets two acts racing on one password entry sign one of them, the other refused", async () => {
+    const input = await signedWith(new Date());
+    const results = await Promise.allSettled([db.$transaction((tx) => attributeAct(tx, input)), db.$transaction((tx) => attributeAct(tx, { ...input, entityId: `step_${randomId()}` }))]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const refused = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect(refused.reason).toBeInstanceOf(AttributionRefused);
+    expect((refused.reason as AttributionRefused).faults[0].code).toBe("STEP_UP_USED");
+  });
+
+  it("writes a slot decided again as the next occurrence, keeps the first, and reads the latest as the one in force", async () => {
+    const entityId = `var_${randomId()}`;
+    const again = async () => {
+      const input = { ...(await signedWith(new Date())), entity: "Variation", entityId, slot: "soDecidedBy" };
+      return db.$transaction((tx) => attributeAct(tx, input));
+    };
+    const first = await again();
+    const second = await again();
+    expect([first.occurrence, second.occurrence]).toEqual([1, 2]);
+    const rows = await db.actAttribution.findMany({ where: { entityId } });
+    expect(rows).toHaveLength(2);
+    expect(latestAttribution(rows)?.id).toBe(second.id);
+  });
+
+  it("refuses the second of two people acting on one slot at the same moment, with words, and writes one row", async () => {
+    const entityId = `var_${randomId()}`;
+    const mk = async () => ({ ...(await signedWith(new Date())), entity: "Variation", entityId, slot: "soDecidedBy" });
+    const [a, b] = await Promise.all([mk(), mk()]);
+    const results = await Promise.allSettled([db.$transaction((tx) => attributeAct(tx, a)), db.$transaction((tx) => attributeAct(tx, b))]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const refused = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect((refused.reason as AttributionRefused).faults[0].code).toBe("ATTRIBUTION_CONFLICT");
+    expect(await db.actAttribution.count({ where: { entityId } })).toBe(1);
+  });
+
+  it("refuses an act recorded on the recorder's own behalf, and writes nothing", async () => {
+    await setPolicy(organisationId, { ...SETTINGS, paperSignatureRecording: "ALLOWED" });
+    const input = { ...base(), actor: actor({ permissions: new Set<PermissionKey>(["acts.recordOnBehalf"]) }), subject: { kind: "PERSON" as const, personId: p1 }, mode: "RECORDED_ON_BEHALF" as const, paperReference: "Minute 9/2026" };
+    await expect(db.$transaction((tx) => attributeAct(tx, input))).rejects.toMatchObject({ faults: [{ code: "ON_BEHALF_OF_SELF" }] });
+    expect(await db.actAttribution.count({ where: { entityId: input.entityId } })).toBe(0);
   });
 
   it("refuses a signature-class act signed without the password again, and writes nothing", async () => {
@@ -215,7 +324,7 @@ describe("the one writer", () => {
   });
 
   it("is written with the act's own transaction: when the act is rolled back, so is its attribution", async () => {
-    const input = { ...base(), actor: actor(), subject: { kind: "PERSON" as const, personId: p1 }, mode: "SIGNED" as const, stepUpAt: new Date() };
+    const input = await signedWith(new Date());
     await expect(
       db.$transaction(async (tx) => {
         await attributeAct(tx, input);
