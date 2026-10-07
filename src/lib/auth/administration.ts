@@ -8,12 +8,12 @@ import { db } from "@/lib/db";
 import { formatOrgDateTime } from "@/lib/format";
 
 import { auditActorOfStaff } from "./audit-actor";
-import { createAccountFaults, disableFaults, enableFaults, issueCodeFaults, leaverFaults, officeHolderNotice, unlockFaults } from "./administration-rules";
+import { createAccountFaults, disableFaults, enableFaults, issueCodeFaults, leaverFaults, OFFICE_HOLDER_NEEDS_SECOND_PERSON, officeHolderNotice, unlockFaults } from "./administration-rules";
 import { codeExpiry, formatCode, generateCode, hashCode } from "./codes";
 import { recordSignInEvent } from "./events";
 import { hashPool } from "./hash-pool";
 import { lockAccount, loginKeyOf } from "./identity";
-import { holdingsOf } from "./administration-guard";
+import { holdingsOf, lockPersons } from "./administration-guard";
 import { LOGIN_NAME } from "./bootstrap";
 import { hashPassword } from "./password";
 import { loadSecurityPolicy } from "./policy-store";
@@ -27,9 +27,9 @@ import type { AuditActor, Fault, SecurityPolicyKey, StaffActor } from "./types";
  * issue a one-time code. Each act is one transaction that writes the change, its audit row (with the administrator as actor) and its sign-in log row together,
  * under the organisation's lock and then the account's (the order bootstrap takes them in). No password, hash, token or code is ever written to the trail.
  *
- * Who may administer is `isAdministrator` until permissions arrive (Phase 2a). Nobody issues a code for, or disables, their own account. Activating or
- * resetting an office holder's account is meant to need a second person (Phase 2c): that check is not built, and `officeHolderNotice` says so on the screen
- * and the audit row records that the person holds an office, rather than the product implying an approval that did not happen.
+ * Who may administer is `accounts.manage`, which only an administrator holds (Phase 2a). Nobody issues a code for, or disables, their own account. Activating
+ * or resetting the account of a person who holds an office, a committee seat or a delegation needs a second person (Phase 2c, ADR 0034 D6): `issueCode`
+ * refuses it, and the code is made by deciding an `ACCOUNT_CODE` change (`change-store.ts`), which a second administrator issues and is the one shown.
  */
 
 export type AdminOutcome<T extends object = object> =
@@ -206,8 +206,6 @@ export interface IssuedCode {
   /// Grouped for reading out. Shown once and never stored: only its hash is.
   code: string;
   expiresAt: Date;
-  /// What to say beside it where the person holds an office, a seat or a delegation; null otherwise.
-  officeHolderNotice: string | null;
 }
 
 /**
@@ -238,8 +236,11 @@ export async function issueCode(
     });
     if (faults.length > 0) return refuse(faults);
 
+    // An office holder's account is not reset by one person: the Person's row is locked (the order every path takes: the account, then the Person), so a
+    // holding given a moment ago is seen, and the code is made by a second person through a change.
+    await lockPersons(tx, [target!.personId]);
     const holdings = await holdingsOf(tx, target!.personId, now);
-    const notice = officeHolderNotice(holdings);
+    if (officeHolderNotice(holdings)) return refuse([OFFICE_HOLDER_NEEDS_SECOND_PERSON]);
     const expiresAt = codeExpiry(now, validity);
     const voided = await tx.oneTimeCode.updateMany({ where: { store: "STAFF", staffAccountId: target!.id, usedAt: null }, data: { usedAt: now } });
     await tx.oneTimeCode.create({
@@ -262,7 +263,7 @@ export async function issueCode(
         entity: "StaffAccount",
         entityId: target!.id,
         entityLabel: accountLabel(target!.person.name),
-        reason: `${input.reason.trim()}${notice ? " (the person holds an office, a seat or a delegation; the second-person check for this is not built yet)" : ""}`,
+        reason: input.reason.trim(),
         actor: auditActorOfStaff(actor),
       },
       "UPDATE",
@@ -271,6 +272,6 @@ export async function issueCode(
       ],
     );
     await recordSignInEvent(tx, { organisationId: actor.organisationId, staffAccountId: target!.id, kind: "CODE_ISSUED", request, at: now });
-    return { ok: true, issued: { code: formatCode(code), expiresAt, officeHolderNotice: notice } };
+    return { ok: true, issued: { code: formatCode(code), expiresAt } };
   });
 }

@@ -292,6 +292,21 @@ export const CONFIG_SECTIONS: {
         icon: "shield",
         built: true,
       },
+      // Phase 2c: the sign-in settings, and the queue of changes that need a second person to decide them.
+      {
+        href: "/configuration/security",
+        label: "Sign-in settings",
+        description: "How long a session lasts, when an account is locked, and how long a password must be.",
+        icon: "sliders",
+        built: true,
+      },
+      {
+        href: "/configuration/changes",
+        label: "Changes awaiting a second person",
+        description: "High-risk changes that one person proposes and a different person decides.",
+        icon: "clipboard",
+        built: true,
+      },
     ],
   },
 ];

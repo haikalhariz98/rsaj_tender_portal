@@ -2,12 +2,12 @@
 
 import { useRef, useState, useTransition } from "react";
 
-import { LockIcon, XIcon } from "@/components/icons";
+import { LockIcon } from "@/components/icons";
+import { CodeDialog } from "@/components/auth/code-dialog";
 import { EMPTY_FORM_STATE, RecordEditor } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { Field, Textarea } from "@/components/ui/field";
-import { CONFIRM_SCRIM, confirmPanelClass, DrawerHeader } from "@/components/ui/drawer";
 import { formDataOf } from "@/components/ui/form-submit";
 
 import { createAccountAction, disableAccountAction, enableAccountAction, issueCodeAction, unlockAccountAction, type IssueCodeState } from "./actions";
@@ -97,13 +97,10 @@ export function IssueCode({
   accountId,
   name,
   purpose,
-  notice,
 }: {
   accountId: string;
   name: string;
   purpose: "ACTIVATION" | "RESET";
-  /// Said beside the form where the person holds an office, a seat or a delegation.
-  notice: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<IssueCodeState>(EMPTY_FORM_STATE);
@@ -124,55 +121,36 @@ export function IssueCode({
         {activation ? "Issue activation code" : "Issue reset code"}
       </button>
       {open && (
-        <div className={CONFIRM_SCRIM} onPointerDown={(e) => e.target === e.currentTarget && !state.issued && close()}>
-          <aside className={confirmPanelClass()} role="dialog" aria-modal="true" aria-label={activation ? `Activation code for ${name}` : `Reset code for ${name}`}>
-            <DrawerHeader
-              title={activation ? `Activation code for ${name}` : `Reset code for ${name}`}
-              subtitle={activation ? "Lets them choose their first password." : "Lets them choose a new password. Their current one keeps working until they use it."}
-              onClose={close}
-            />
-            {state.issued ? (
-              <div className="flex flex-col gap-4 px-6 py-5">
-                <Callout tone="ok" title="Shown once">
-                  Read it out or write it down now. It cannot be shown again, and it is not kept anywhere you can read it back. Valid until {state.issued.validUntil}; it works once.
-                </Callout>
-                <p className="rounded-xl border border-line bg-sunken px-4 py-3 text-center font-mono text-[20px] font-bold tracking-wider break-all text-ink select-all" aria-label="The code">
-                  {state.issued.code}
-                </p>
-                {state.issued.officeHolderNotice && <Callout tone="warn">{state.issued.officeHolderNotice}</Callout>}
-                <div className="flex justify-end">
-                  <Button type="button" variant="primary" onClick={close}>
-                    <XIcon size={15} /> I have it, close
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <form
-                className="flex flex-col gap-4 px-6 py-5"
-                onSubmit={(e) => {
-                  const data = formDataOf(e);
-                  start(async () => setState(await issueCodeAction(EMPTY_FORM_STATE, data)));
-                }}
-              >
-                {notice && <Callout tone="warn">{notice}</Callout>}
-                {state.message && <Callout tone="err">{state.message}</Callout>}
-                <input type="hidden" name="accountId" value={accountId} />
-                <input type="hidden" name="purpose" value={purpose} />
-                <Field label="Why is it being issued?" htmlFor="reason" required error={state.errors?.reason}>
-                  <Textarea id="reason" name="reason" rows={3} disabled={pending} />
-                </Field>
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="secondary" onClick={close} disabled={pending}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" variant="primary" disabled={pending}>
-                    {pending ? "Issuing…" : "Issue code"}
-                  </Button>
-                </div>
-              </form>
-            )}
-          </aside>
-        </div>
+        <CodeDialog
+          label={activation ? `Activation code for ${name}` : `Reset code for ${name}`}
+          title={activation ? `Activation code for ${name}` : `Reset code for ${name}`}
+          subtitle={activation ? "Lets them choose their first password." : "Lets them choose a new password. Their current one keeps working until they use it."}
+          shown={state.issued ? { code: state.issued.code, validUntil: state.issued.validUntil } : null}
+          onClose={close}
+        >
+          <form
+            className="flex flex-col gap-4 px-6 py-5"
+            onSubmit={(e) => {
+              const data = formDataOf(e);
+              start(async () => setState(await issueCodeAction(EMPTY_FORM_STATE, data)));
+            }}
+          >
+            {state.message && <Callout tone="err">{state.message}</Callout>}
+            <input type="hidden" name="accountId" value={accountId} />
+            <input type="hidden" name="purpose" value={purpose} />
+            <Field label="Why is it being issued?" htmlFor="reason" required error={state.errors?.reason}>
+              <Textarea id="reason" name="reason" rows={3} disabled={pending} />
+            </Field>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={close} disabled={pending}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" disabled={pending}>
+                {pending ? "Issuing…" : "Issue code"}
+              </Button>
+            </div>
+          </form>
+        </CodeDialog>
       )}
     </>
   );

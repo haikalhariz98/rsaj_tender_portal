@@ -23,6 +23,7 @@ import {
   AddRecommender,
   AddRule,
   AddTermsBand,
+  AdoptDraft,
   DiscardDraft,
   EditCoreLevel,
   EditMatrix,
@@ -58,6 +59,9 @@ import { KeyValues, Stat } from "@/components/ui/stat";
 import { ActionsCol, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
 import { requireStaff } from "@/app/_auth/actor";
+import { loadMakers } from "@/lib/authority/maker-store";
+import { eligibleFor } from "@/lib/auth/eligibility-store";
+import { makerCheckerFault } from "@/lib/auth/maker-checker";
 
 export const dynamic = "force-dynamic";
 
@@ -158,6 +162,17 @@ export default async function ApprovalMatrixPage({
     db.authorityMatrix.findUniqueOrThrow({ where: { id: selected.id, organisationId: actor.organisationId }, select: { boundaryProvenance: true, boundarySource: true } }),
   ]);
   const consistency = bandConsistencyFaults(matrix, termsBands);
+  // Phase 2c (ADR 0034 D15): who made this draft, and whether the person looking may issue it. The issue is never the maker's.
+  const makers = editable ? await loadMakers(db, selected.id) : null;
+  const issuance = editable
+    ? makerCheckerFault({
+        makerPersonIds: makers!.personIds,
+        makersUnknownAtLanding: (await db.authorityMatrix.findUniqueOrThrow({ where: { id: selected.id, organisationId: actor.organisationId }, select: { makersUnknownAtLanding: true } })).makersUnknownAtLanding,
+        issuerPersonId: actor.personId,
+        eligiblePersonIds: await eligibleFor(db, { organisationId: actor.organisationId, timeZone: actor.organisationTimeZone, now: on }, "configuration.issue"),
+      })
+    : null;
+  const needsAdopting = editable && makers!.personIds.length === 0;
   // The core routing (FR-APR-004): this issue's own rows, in the offices' order, and the
   // flagged rules that would not issue against it.
   const officeName = (code: string) => matrix.roles[code]?.nameEn ?? "An office no longer configured";
@@ -274,11 +289,13 @@ export default async function ApprovalMatrixPage({
             />
             <AddRule matrixId={matrixId} offices={offices} contractTypes={contractTypeOptions} />
             <DiscardDraft id={matrixId} label={selected.label} />
+            {needsAdopting && <AdoptDraft id={matrixId} label={selected.label} />}
             <IssueDraft
               id={matrixId}
               label={selected.label}
               meantFrom={selected.effectiveFrom}
               replaces={replaces?.label ?? null}
+              blocked={issuance?.en ?? null}
             />
           </>
           ) : draftIssue ? (
@@ -329,6 +346,10 @@ export default async function ApprovalMatrixPage({
           <Callout tone="warn" title="This is a draft">
             Nothing in it routes a matter until it is issued. Change the thresholds and rules
             here, then issue it from a date. The simulator below still uses the issue in force.
+            {" "}
+            {needsAdopting
+              ? "Nobody is on record as having made it, so someone must adopt it first, and then a different person issues it."
+              : `Made by ${makers!.names.join(", ")}. ${issuance ? issuance.en : "A person who did not make it issues it, with their password."}`}
           </Callout>
         ) : inForce && selectedRoute ? (
           <Callout tone="info" title={`In force since ${formatDate(selected.effectiveFrom)}`}>

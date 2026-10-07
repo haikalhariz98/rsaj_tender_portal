@@ -104,9 +104,8 @@ describe("issuing a code", () => {
     const outcome = await issueCode(admin.actor, { accountId, purpose: "ACTIVATION", reason: "New starter, identity checked at the desk" }, facts());
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
-    const { code, expiresAt, officeHolderNotice } = outcome.issued;
+    const { code, expiresAt } = outcome.issued;
     expect(code).toMatch(/^[0-9A-Z]{4}(-[0-9A-Z]{4}){5}-[0-9A-Z]{2}$/);
-    expect(officeHolderNotice).toBeNull();
     expect(expiresAt.getTime()).toBeGreaterThan(Date.now() + 59 * 60_000);
 
     const stored = await db.oneTimeCode.findFirstOrThrow({ where: { staffAccountId: accountId } });
@@ -165,14 +164,14 @@ describe("issuing a code", () => {
     expect(await db.oneTimeCode.count({ where: { staffAccountId: accountId } })).toBe(0);
   });
 
-  it("says, for an office holder, that the second-person check is not built, and records that the person holds an office", async () => {
+  // Phase 2c (ADR 0034 D6 as amended): the second-person check is built, so one administrator no longer issues an office holder's code. This test said the
+  // check was not built and that one administrator could; it now holds the refusal, and that nothing was written. The two-person path is in change.db.test.ts.
+  it("refuses, for an office holder, a code issued by one administrator, and writes nothing", async () => {
     const { admin, person, accountId } = await pending();
     await db.roleAssignment.create({ data: { personId: person.id, roleCode: "TEST_OFFICE", effectiveFrom: new Date("2020-01-01") } });
     const outcome = await issueCode(admin.actor, { accountId, purpose: "ACTIVATION", reason: "new officer" }, facts());
-    if (!outcome.ok) throw new Error("issue failed");
-    expect(outcome.issued.officeHolderNotice).toContain("1 office");
-    expect(outcome.issued.officeHolderNotice).toContain("not built yet");
-    expect((await auditsOf(accountId)).at(-1)!.reason).toContain("second-person check for this is not built yet");
+    expect(outcome).toMatchObject({ ok: false, kind: "FAULTS", faults: [{ code: "OFFICE_HOLDER_NEEDS_SECOND_PERSON" }] });
+    expect(await db.oneTimeCode.count({ where: { staffAccountId: accountId } })).toBe(0);
   });
 });
 

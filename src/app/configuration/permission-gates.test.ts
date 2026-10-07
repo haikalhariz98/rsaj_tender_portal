@@ -26,10 +26,21 @@ const firstAwait = (src: string, fn: string): string | null => {
   return at < 0 ? null : src.slice(span.from + at, span.from + at + 80);
 };
 
-type Key = "configuration.draft" | "configuration.issue";
+type Key = "configuration.draft" | "configuration.issue" | "accounts.manage" | "security.policy" | "permissions.grant";
 
 /// Every export of the matrix editor is a draft edit, and the issue.
 const MATRIX = exportsOf(source("approval-matrix")).map((fn): [string, Key] => [fn, fn === "issueDraft" ? "configuration.issue" : "configuration.draft"]);
+
+/// Phase 2c: the sign-in accounts are `accounts.manage`'s, and each proposal of a two-person change is its kind's permission. Deciding a change asks only who is signed in
+/// (`requireStaff`): the permission that decides it is the kind's, judged in `change-store.ts` against the change as it stands under its lock.
+const ACCOUNTS = ["createAccountAction", "disableAccountAction", "enableAccountAction", "unlockAccountAction", "issueCodeAction"].map((fn): [string, Key] => [fn, "accounts.manage"]);
+const PROPOSALS: [string, Key][] = [
+  ["proposeSecurityPolicy", "security.policy"],
+  ["proposePermissionGrant", "permissions.grant"],
+  ["proposeAdministratorChange", "accounts.manage"],
+  ["proposeAccountCode", "accounts.manage"],
+];
+const DECISIONS = ["applyChangeAction", "declineChangeAction", "withdrawChangeAction"];
 
 /// What gives authority in the other two: who holds an office, a delegation, a role's capabilities, a committee seat.
 const GIVES_AUTHORITY: Record<string, [string, Key][]> = {
@@ -55,7 +66,7 @@ const NOT_YET: Record<string, string> = {
 };
 
 /// The other configuration editors, none of which asks for a permission yet (each asks only who is signed in). Named, so that a new editor is not silently one.
-const OTHER_EDITORS = ["accounts", "audit", "awards", "budget", "contracts", "documents", "evaluation", "invitation", "notifications", "numbering", "organisation", "post-award", "reference-data", "requisitions", "routing-sheets", "scope", "suppliers", "templates", "tender-documents"];
+const OTHER_EDITORS = ["audit", "awards", "budget", "contracts", "documents", "evaluation", "invitation", "notifications", "numbering", "organisation", "post-award", "reference-data", "requisitions", "routing-sheets", "scope", "suppliers", "templates", "tender-documents"];
 
 describe("the approval route is changed only by someone who holds the permission", () => {
   it("finds the matrix editor's exports, and the issue among them", () => {
@@ -70,6 +81,22 @@ describe("the approval route is changed only by someone who holds the permission
     const src = source(dir);
     const wrong = named.filter(([fn, key]) => !new RegExp(String.raw`^await\s+staffForPermission\(\s*"${key}"\s*\)`).test(firstAwait(src, fn) ?? "")).map(([fn, key]) => `${dir}/${fn}: not staffForPermission("${key}") first`);
     expect(wrong).toEqual([]);
+  });
+
+  it("accounts: every action asks staffForPermission(\"accounts.manage\"), first, and none is left out", () => {
+    const src = source("accounts");
+    expect(exportsOf(src).sort()).toEqual(ACCOUNTS.map(([f]) => f).sort());
+    const wrong = ACCOUNTS.filter(([fn, key]) => !new RegExp(String.raw`^await\s+staffForPermission\(\s*"${key}"\s*\)`).test(firstAwait(src, fn) ?? "")).map(([fn]) => fn);
+    expect(wrong).toEqual([]);
+  });
+
+  it("changes: each proposal asks its kind's permission first, each decision asks who is signed in first, and nothing else is exported", () => {
+    const src = source("changes");
+    expect(exportsOf(src).sort()).toEqual([...PROPOSALS.map(([f]) => f), ...DECISIONS].sort());
+    const proposals = PROPOSALS.filter(([fn, key]) => !new RegExp(String.raw`^await\s+staffForPermission\(\s*"${key}"\s*\)`).test(firstAwait(src, fn) ?? "")).map(([fn]) => fn);
+    expect(proposals).toEqual([]);
+    const decisions = DECISIONS.filter((fn) => !/^await\s+requireStaff\(\)/.test(firstAwait(src, fn) ?? ""));
+    expect(decisions).toEqual([]);
   });
 
   it("every export of the users and committees editors is gated or named, with its reason, as not gated yet", () => {
@@ -88,7 +115,7 @@ describe("the approval route is changed only by someone who holds the permission
 
   it("every other configuration editor is named, so a new one is not silently ungated", () => {
     const dirs = readdirSync(CONFIG, { withFileTypes: true }).filter((d) => d.isDirectory() && readdirSync(path.join(CONFIG, d.name)).includes("actions.ts")).map((d) => d.name);
-    const known = new Set(["approval-matrix", ...Object.keys(GIVES_AUTHORITY), ...OTHER_EDITORS]);
+    const known = new Set(["approval-matrix", "accounts", "changes", ...Object.keys(GIVES_AUTHORITY), ...OTHER_EDITORS]);
     expect(dirs.filter((d) => !known.has(d))).toEqual([]);
     expect([...known].filter((d) => !dirs.includes(d))).toEqual([]);
   });

@@ -1,5 +1,6 @@
-import { requireStaff } from "@/app/_auth/actor";
+import { permissionGate, requireStaff } from "@/app/_auth/actor";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -13,6 +14,7 @@ import { ACCOUNT_STATUS_WORDS } from "@/lib/auth/words";
 import { formatOrgDateTime } from "@/lib/format";
 
 import { Section, Stat, Stats } from "../records-ui";
+import { ProposeAccountCode, ProposeAdministrator } from "../changes/editors";
 import { CreateAccount, DisableAccount, EnableAccount, IssueCode, UnlockAccount } from "./editors";
 
 export const dynamic = "force-dynamic";
@@ -21,18 +23,21 @@ const STATUS_TONE = { ACTIVE: "ok", PENDING_ACTIVATION: "warn", DISABLED: "err" 
 
 /**
  * Sign-in accounts (Phase 1b): who can sign in, and the administrator's acts on them. An account is made for a person on record; it waits for an
- * activation code that an administrator issues and hands over by hand (the product sends nothing). Reached only by an administrator until permissions arrive.
+ * activation code that an administrator issues and hands over by hand (the product sends nothing). Reached by whoever holds `accounts.manage`, which only an
+ * administrator holds (Phase 2c). A code for the account of someone who holds an office, a seat or a delegation, and making or ending an administrator, need a
+ * second person: they are proposed here and decided under Changes awaiting a second person.
  */
 export default async function AccountsPage() {
   const actor = await requireStaff();
   const zone = actor.organisationTimeZone;
 
-  if (!actor.isAdministrator) {
+  const gate = await permissionGate(actor, "accounts.manage");
+  if (!gate.ok) {
     return (
       <>
         <PageHeader title="Sign-in accounts" subtitle="Who can sign in, and how they get their first password." />
         <Callout tone="warn" title="Only an administrator manages sign-in accounts">
-          You are signed in, but this screen is for administrators. Ask one if somebody needs an account or a code.
+          {gate.message} Ask an administrator if somebody needs an account or a code.
         </Callout>
       </>
     );
@@ -50,7 +55,14 @@ export default async function AccountsPage() {
       <PageHeader
         title="Sign-in accounts"
         subtitle="Who can sign in, and how they get their first password."
-        actions={<CreateAccount people={view.people} />}
+        actions={
+          <>
+            <ButtonLink href="/configuration/changes" variant="secondary" size="sm">
+              Changes awaiting a second person
+            </ButtonLink>
+            <CreateAccount people={view.people} />
+          </>
+        }
       />
 
       {role && !role.safe && (
@@ -80,7 +92,7 @@ export default async function AccountsPage() {
 
       <Section
         title="Accounts"
-        blurb="A person has at most one account. A code is shown once, to the administrator who issues it, who hands it over by hand; nobody issues a code for their own account."
+        blurb="A person has at most one account. A code is shown once, to the administrator who issues it, who hands it over by hand; nobody issues a code for their own account. For someone who holds an office, a seat or a delegation, a second administrator issues it."
         empty="No account exists yet. Create one for a person on record, then issue an activation code."
         count={view.rows.length}
       >
@@ -153,10 +165,15 @@ function holdingsWords(r: AccountRow): string | null {
 function rowActions(r: AccountRow, now: Date) {
   const notice = officeHolderNotice(r.holdings);
   const locked = (r.lockedUntil != null && r.lockedUntil > now) || r.failedAttempts > 0;
+  // An office holder's code is made by two people: proposed here, issued by a second administrator. Everyone else's is issued directly.
+  const codeFor = (purpose: "ACTIVATION" | "RESET") =>
+    notice ? <ProposeAccountCode accountId={r.id} name={r.personName} purpose={purpose} notice={notice} /> : <IssueCode accountId={r.id} name={r.personName} purpose={purpose} />;
   return (
     <>
-      {r.status === "PENDING_ACTIVATION" && <IssueCode accountId={r.id} name={r.personName} purpose="ACTIVATION" notice={notice} />}
-      {r.status === "ACTIVE" && !r.isYou && <IssueCode accountId={r.id} name={r.personName} purpose="RESET" notice={notice} />}
+      {r.status === "PENDING_ACTIVATION" && codeFor("ACTIVATION")}
+      {r.status === "ACTIVE" && !r.isYou && codeFor("RESET")}
+      {r.status === "ACTIVE" && r.personActive && !r.isAdministrator && !notice && <ProposeAdministrator accountId={r.id} name={r.personName} direction="GRANT" />}
+      {r.status === "ACTIVE" && r.isAdministrator && <ProposeAdministrator accountId={r.id} name={r.personName} direction="REVOKE" />}
       {locked && r.status !== "DISABLED" && <UnlockAccount accountId={r.id} name={r.personName} />}
       {r.status === "DISABLED" ? <EnableAccount accountId={r.id} name={r.personName} /> : !r.isYou && <DisableAccount accountId={r.id} name={r.personName} loginName={r.loginName} />}
     </>

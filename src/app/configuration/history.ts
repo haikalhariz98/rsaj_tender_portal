@@ -100,6 +100,9 @@ const ENTITIES = new Set([
   "SupplierPolicy",
   // Phase 1b: a sign-in account's trail (who made it, disabled it, issued it a code). Administrators only: see `historyOf`.
   "StaffAccount",
+  // Phase 2c: the organisation's sign-in settings, and a two-person change with who proposed and who decided it. Administrators only: see `historyOf`.
+  "SecurityPolicy",
+  "ConfigurationChange",
 ]);
 
 /// Entities whose configuration key is not part of what their history shows (the name is); older rows carry it.
@@ -201,7 +204,7 @@ export async function historyOf(entity: string, entityId: string): Promise<Histo
   const actor = await requireStaff();
   if (!ENTITIES.has(entity) || !entityId) return [];
   // A sign-in account's trail names sign-in names and why codes were issued: for the people who administer accounts.
-  if (entity === "StaffAccount" && !actor.isAdministrator) return [];
+  if ((entity === "StaffAccount" || entity === "SecurityPolicy" || entity === "ConfigurationChange") && !actor.isAdministrator) return [];
   const issue = entity === "AuthorityMatrix" ? await db.authorityMatrix.findUnique({ where: { id: entityId, organisationId: actor.organisationId }, select: { label: true } }) : null;
   const [own, core, read, org] = await Promise.all([
     loadAudit(actor.organisationCode, { entity, entityId, take: 100 }),

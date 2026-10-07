@@ -234,7 +234,9 @@ export function planChange(change: ParsedChange, live: LiveState): Plan {
       const why = policyFaultWords(merged);
       if (why) return { ok: false, faults: [f("POLICY_FAULT", why.en, why.ms)] };
       const before = Object.fromEntries(Object.keys(change.payload.changes).map((k) => [k, current[k as SecurityPolicyKey]]));
-      return { ok: true, after: { ...change.payload.changes }, changes: diffFields(before, change.payload.changes) };
+      const changes = diffFields(before, change.payload.changes);
+      if (changes.length === 0) return { ok: false, faults: [f("NO_CHANGE", "Every setting named already stands as this proposes.", "Setiap tetapan yang dinamakan sudah seperti yang dicadangkan.")] };
+      return { ok: true, after: { ...change.payload.changes }, changes };
     }
     case "PERMISSION_GRANT": {
       const l = live as Extract<LiveState, { kind: "PERMISSION_GRANT" }>;
@@ -268,12 +270,78 @@ export function planChange(change: ParsedChange, live: LiveState): Plan {
       if (!l.account) return { ok: false, faults: [f("NO_SUCH_ACCOUNT", "That account no longer exists.", "Akaun itu tidak lagi wujud.")] };
       const out: Fault[] = [];
       if (!l.account.personActive) out.push(f("PERSON_INACTIVE", "That person is no longer active.", "Orang itu tidak lagi aktif."));
-      else if (change.payload.purpose === "ACTIVATION" && l.account.status !== "PENDING_ACTIVATION") out.push(f("NOT_AWAITING_ACTIVATION", "An activation code is for an account that has not been activated.", "Kod pengaktifan untuk akaun yang belum diaktifkan."));
+      else if (!l.holdsOffice) {
+        out.push(
+          f(
+            "NO_OFFICE_HELD",
+            "That person holds no office, seat or delegation now, so a second person is not needed: an administrator issues the code directly under Sign-in accounts.",
+            "Orang itu tidak memegang jawatan, kerusi atau perwakilan sekarang, jadi orang kedua tidak diperlukan: pentadbir mengeluarkan kod terus di bawah Akaun log masuk.",
+          ),
+        );
+      } else if (change.payload.purpose === "ACTIVATION" && l.account.status !== "PENDING_ACTIVATION") out.push(f("NOT_AWAITING_ACTIVATION", "An activation code is for an account that has not been activated.", "Kod pengaktifan untuk akaun yang belum diaktifkan."));
       else if (change.payload.purpose === "RESET" && l.account.status !== "ACTIVE") out.push(f("NOT_ACTIVE", "A reset code is for an active account.", "Kod tetapan semula untuk akaun aktif."));
       if (out.length > 0) return { ok: false, faults: out };
       return { ok: true, after: { codePurpose: change.payload.purpose }, changes: diffFields(null, { codePurpose: change.payload.purpose }) };
     }
   }
+}
+
+// --------------------------------------------------------------------------------------------- the life of a change
+
+export type ChangeStatus = "PROPOSED" | "APPLIED" | "DECLINED" | "WITHDRAWN" | "STALE";
+export const CHANGE_STATUSES: readonly ChangeStatus[] = ["PROPOSED", "APPLIED", "DECLINED", "WITHDRAWN", "STALE"];
+
+/**
+ * The whole life of a change, in one place (the rule of this product: a state machine is declared, never inferred from scattered `if`s). A change is proposed
+ * once and decided once: every decided state is final, and the database says the same (migration 20261007160000, trigger `ConfigurationChange_guard`).
+ *
+ * - `APPLY`: a different Person from the proposer, holding the kind's permission, who gave their password, when what the proposer saw still stands.
+ * - `DECLINE`: the same Person and permission and password, who will not have it.
+ * - `WITHDRAW`: the proposer alone, with their password: it is their own change taken back.
+ * - `STALE`: what the change was based on has moved, found by the second person's decision, which writes it and applies nothing.
+ */
+export type ChangeDecision = "APPLY" | "DECLINE" | "WITHDRAW" | "STALE";
+
+export const CHANGE_MACHINE: Readonly<Record<ChangeStatus, Partial<Record<ChangeDecision, ChangeStatus>>>> = {
+  PROPOSED: { APPLY: "APPLIED", DECLINE: "DECLINED", WITHDRAW: "WITHDRAWN", STALE: "STALE" },
+  APPLIED: {},
+  DECLINED: {},
+  WITHDRAWN: {},
+  STALE: {},
+};
+
+/// Where a decision takes a change, or null where the machine has no such transition (every decision of a change already decided).
+export const nextStatus = (from: ChangeStatus, decision: ChangeDecision): ChangeStatus | null => CHANGE_MACHINE[from][decision] ?? null;
+
+/// A decided change reads in words, never as the status.
+export const STATUS_WORDS: Record<ChangeStatus, { en: string; ms: string }> = {
+  PROPOSED: { en: "Waiting for a second person", ms: "Menunggu orang kedua" },
+  APPLIED: { en: "Applied", ms: "Dilaksanakan" },
+  DECLINED: { en: "Declined", ms: "Ditolak" },
+  WITHDRAWN: { en: "Withdrawn", ms: "Ditarik balik" },
+  STALE: { en: "Out of date, not applied", ms: "Lapuk, tidak dilaksanakan" },
+};
+
+/// Who may propose: someone holding the permission that decides this kind. A person without it could never see their own proposal decided by anyone like them.
+export function proposalFaults(kind: ChangeKind, proposer: { permissions: ReadonlySet<PermissionKey> }): Fault[] {
+  return proposer.permissions.has(KIND_PERMISSION[kind])
+    ? []
+    : [f("NOT_PERMITTED", "You do not hold the permission that proposes this kind of change.", "Anda tidak memegang kebenaran yang mencadangkan jenis perubahan ini.")];
+}
+
+/**
+ * A code for an account is never proposed or issued by the person whose account it is, and a reset is never decided by them: nobody resets their own account.
+ * Run on both people who act on an `ACCOUNT_CODE` change, compared by Person.
+ */
+export function accountCodeTargetFaults(i: { targetPersonId: string; proposerPersonId: string | null; deciderPersonId: string | null }): Fault[] {
+  const out: Fault[] = [];
+  if (i.proposerPersonId != null && i.targetPersonId === i.proposerPersonId) {
+    out.push(f("OWN_ACCOUNT", "You cannot propose a code for your own account. Ask another administrator.", "Anda tidak boleh mencadangkan kod untuk akaun anda sendiri. Minta pentadbir lain."));
+  }
+  if (i.deciderPersonId != null && i.targetPersonId === i.deciderPersonId) {
+    out.push(f("OWN_ACCOUNT", "You cannot issue a code for your own account. Ask another administrator.", "Anda tidak boleh mengeluarkan kod untuk akaun anda sendiri. Minta pentadbir lain."));
+  }
+  return out;
 }
 
 // --------------------------------------------------------------------------------------------- deciding

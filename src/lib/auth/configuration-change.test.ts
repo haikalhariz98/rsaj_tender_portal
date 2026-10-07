@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CHANGE_KINDS, decisionFaults, isStale, KIND_PERMISSION, KIND_WORDS, parseChange, planChange, secondPersonFault, snapshot, type LiveState, type ParsedChange } from "./configuration-change";
+import { accountCodeTargetFaults, CHANGE_KINDS, CHANGE_MACHINE, CHANGE_STATUSES, decisionFaults, isStale, KIND_PERMISSION, KIND_WORDS, nextStatus, parseChange, planChange, proposalFaults, secondPersonFault, snapshot, STATUS_WORDS, type ChangeDecision, type LiveState, type ParsedChange } from "./configuration-change";
 import { EMPTY_POLICY } from "./policy";
 import type { PermissionKey, SecurityPolicyValues } from "./types";
 
@@ -218,5 +218,56 @@ describe("who decides a change", () => {
     expect(secondPersonFault(["maker"], "maker")?.code).toBe("SECOND_PERSON_NEEDED");
     expect(secondPersonFault([], "maker")?.code).toBe("SECOND_PERSON_NEEDED");
     expect(secondPersonFault(["maker", "checker"], "maker")).toBeNull();
+  });
+});
+
+describe("the life of a change is one declared machine (Phase 2c)", () => {
+  const DECISIONS: ChangeDecision[] = ["APPLY", "DECLINE", "WITHDRAW", "STALE"];
+
+  it("a proposed change goes to exactly one of four places, by exactly one decision each", () => {
+    expect(CHANGE_MACHINE.PROPOSED).toEqual({ APPLY: "APPLIED", DECLINE: "DECLINED", WITHDRAW: "WITHDRAWN", STALE: "STALE" });
+    for (const d of DECISIONS) expect(nextStatus("PROPOSED", d)).not.toBeNull();
+  });
+
+  it("every decided state is final: no decision leaves it, so nothing is applied twice, declined after applying or revived", () => {
+    for (const status of CHANGE_STATUSES.filter((s) => s !== "PROPOSED")) {
+      expect(CHANGE_MACHINE[status]).toEqual({});
+      for (const d of DECISIONS) expect(nextStatus(status, d), `${status} ${d}`).toBeNull();
+    }
+  });
+
+  it("no decision goes back to PROPOSED, and every status has its words", () => {
+    for (const status of CHANGE_STATUSES) for (const to of Object.values(CHANGE_MACHINE[status])) expect(to).not.toBe("PROPOSED");
+    for (const status of CHANGE_STATUSES) expect(STATUS_WORDS[status].en.length).toBeGreaterThan(3);
+  });
+});
+
+describe("who may propose, and whose code it is", () => {
+  it("a proposer holds the permission that decides the kind: each kind its own", () => {
+    for (const kind of CHANGE_KINDS) {
+      expect(proposalFaults(kind, { permissions: new Set([KIND_PERMISSION[kind]]) })).toEqual([]);
+      expect(proposalFaults(kind, { permissions: new Set() }).map((f) => f.code)).toEqual(["NOT_PERMITTED"]);
+    }
+    expect(proposalFaults("SECURITY_POLICY", { permissions: new Set<PermissionKey>(["permissions.grant"]) }).map((f) => f.code)).toEqual(["NOT_PERMITTED"]);
+  });
+
+  it("nobody proposes, or issues, a code for their own account: compared by Person", () => {
+    expect(accountCodeTargetFaults({ targetPersonId: "t", proposerPersonId: "t", deciderPersonId: null }).map((f) => f.code)).toEqual(["OWN_ACCOUNT"]);
+    expect(accountCodeTargetFaults({ targetPersonId: "t", proposerPersonId: null, deciderPersonId: "t" }).map((f) => f.code)).toEqual(["OWN_ACCOUNT"]);
+    expect(accountCodeTargetFaults({ targetPersonId: "t", proposerPersonId: "m", deciderPersonId: "c" })).toEqual([]);
+  });
+});
+
+describe("a code for an account is a change only for an office holder, and an empty change is no change (Phase 2c)", () => {
+  const active = { isAdministrator: false, status: "ACTIVE", personActive: true } as const;
+
+  it("is refused where the person holds nothing: that code is issued directly, and says so", () => {
+    const reset = parsed("ACCOUNT_CODE", { accountId: "a1", purpose: "RESET" });
+    expect(planChange(reset, { kind: "ACCOUNT_CODE", account: active, holdsOffice: false })).toMatchObject({ ok: false, faults: [{ code: "NO_OFFICE_HELD" }] });
+    expect(planChange(reset, { kind: "ACCOUNT_CODE", account: active, holdsOffice: true })).toMatchObject({ ok: true });
+  });
+
+  it("a setting already at the value proposed is refused, so no change waits that changes nothing", () => {
+    expect(planChange(parsed("SECURITY_POLICY", { changes: { staffIdleMinutes: 30 } }), { kind: "SECURITY_POLICY", policy: policy() })).toMatchObject({ ok: false, faults: [{ code: "NO_CHANGE" }] });
   });
 });

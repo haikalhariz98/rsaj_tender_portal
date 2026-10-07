@@ -138,8 +138,9 @@ export function issueCodeFaults(i: {
 }
 
 /**
- * What to say beside an office holder's account (ADR 0034 D6: activating or resetting it is meant to need a second person, Phase 2c). Until that exists one
- * administrator issues the code, and this says so, rather than the screen implying a check that is not there. Null for a person who holds nothing.
+ * What to say beside an office holder's account (ADR 0034 D6, Phase 2c): activating or resetting the account of a person who holds an office, a committee
+ * seat or a delegation needs a second person. One administrator proposes the code and a different one issues it and is the one shown it. Null for a person who
+ * holds nothing: their code is issued directly.
  */
 export function officeHolderNotice(h: { offices: number; seats: number; delegations: number }): string | null {
   const parts = [
@@ -148,5 +149,12 @@ export function officeHolderNotice(h: { offices: number; seats: number; delegati
     h.delegations > 0 && `${h.delegations} ${h.delegations === 1 ? "delegation" : "delegations"}`,
   ].filter(Boolean);
   if (parts.length === 0) return null;
-  return `This person holds ${parts.join(", ")}. A code for their account should need a second person to issue it; that check is not built yet, so one administrator can issue it now. The audit trail records that this person holds an office.`;
+  return `This person holds ${parts.join(", ")}. A code for their account needs a second person: one administrator proposes it, and a different one issues it and is shown it.`;
 }
+
+/// Refused by `issueCode`: the code for an office holder's account is made through a two-person change, never by one administrator alone.
+export const OFFICE_HOLDER_NEEDS_SECOND_PERSON = fault(
+  "OFFICE_HOLDER_NEEDS_SECOND_PERSON",
+  "This person holds an office, a committee seat or a delegation, so a code for their account needs a second person. Propose it under Changes awaiting a second person: one administrator proposes it, and a different one issues it and is shown it.",
+  "Orang ini memegang jawatan, kerusi jawatankuasa atau perwakilan, jadi kod untuk akaunnya memerlukan orang kedua. Cadangkannya di bawah Perubahan yang menunggu orang kedua: seorang pentadbir mencadangkannya, dan pentadbir lain mengeluarkannya serta ditunjukkan kod itu.",
+);

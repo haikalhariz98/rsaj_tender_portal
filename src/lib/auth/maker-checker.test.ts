@@ -32,3 +32,21 @@ describe("who may issue a draft of the approval matrix (ADR 0034 D15)", () => {
     expect(secondPersonAvailable([], [])).toBe(false);
   });
 });
+
+describe("a second person is needed (Phase 2c)", () => {
+  it("is said, rather than an issue that must be refused, where the issuer is a maker and nobody else could issue", () => {
+    const fault = makerCheckerFault({ makerPersonIds: ["p1"], makersUnknownAtLanding: false, issuerPersonId: "p1", eligiblePersonIds: ["p1"] });
+    expect(fault?.code).toBe("SECOND_PERSON_NEEDED");
+    expect(fault?.en).toMatch(/second person is needed/);
+  });
+
+  it("is the plain refusal where someone else could issue it", () => {
+    expect(makerCheckerFault({ makerPersonIds: ["p1"], makersUnknownAtLanding: false, issuerPersonId: "p1", eligiblePersonIds: ["p1", "p2"] })?.code).toBe("ISSUER_IS_MAKER");
+  });
+
+  it("never lets the maker through, whoever else is eligible: the eligible list only changes what is said", () => {
+    for (const eligible of [[], ["p1"], ["p1", "p2"], undefined]) {
+      expect(makerCheckerFault({ makerPersonIds: ["p1"], makersUnknownAtLanding: true, issuerPersonId: "p1", eligiblePersonIds: eligible })).not.toBeNull();
+    }
+  });
+});

@@ -10,19 +10,12 @@ import { ACT_SLOTS, slotKey } from "./act-slots";
 /**
  * Every act's person slot is written through `beginAct` (ADR 0034 D12, Phase 2b, closes F1). The registry (`act-slots.ts`) says which slots there are; this
  * scan holds the code to it, as a ratchet: a slot is either wired (its key is a literal in a `beginAct(` or `writeAlso(` call, in a file that writes it inside the act's own
- * transaction with `.write(tx`), or it is owned by Phase 2c, or no act writes its column yet and it is listed with the reason. A listed column that gains a writer
+ * transaction with `.write(tx`), or no act writes its column yet and it is listed with the reason. A listed column that gains a writer
  * fails, so the act is wired the day it is built.
  */
 
 const ROOT = process.cwd();
 const SRC = path.join(ROOT, "src");
-
-/// Slots whose lifecycle is Phase 2c's (the matrix issue, the two-person configuration change): wired there, with their screens.
-const OWNED_BY_2C: Readonly<Record<string, string>> = {
-  "AuthorityMatrix.issuedByPerson": "Issuing a matrix is wired with its maker-checker step in 2c (`issue.ts`): the password, the makers and the adopt act.",
-  "ConfigurationChange.proposedBy": "The proposal of a two-person change is written when the change exists, in 2c.",
-  "ConfigurationChange.decidedBy": "The checker's decision is made when the change exists, in 2c.",
-};
 
 /// Slots whose column no act writes yet: the increment that builds the act has not been built (6.13 Part B, later runs; the split-check override; cancelling an
 /// evaluation). Each is accounted for here with the reason, and `NO_WRITER_YET` below fails when one gains a writer, so the act is wired the day it exists.
@@ -82,8 +75,8 @@ const WIRED = wiredSlots();
 const KEYS = ACT_SLOTS.map((s) => slotKey(s.entity, s.field));
 
 describe("every person slot of an act is written through beginAct, or is on the list of what is not", () => {
-  it("each slot is wired, owned by 2c, or has no act yet", () => {
-    const accounted = new Set([...WIRED.keys(), ...Object.keys(OWNED_BY_2C), ...Object.keys(NOT_BUILT)]);
+  it("each slot is wired, or has no act yet", () => {
+    const accounted = new Set([...WIRED.keys(), ...Object.keys(NOT_BUILT)]);
     expect(KEYS.filter((k) => !accounted.has(k))).toEqual([]);
   });
 
@@ -100,8 +93,7 @@ describe("every person slot of an act is written through beginAct, or is on the 
 
   it("the lists name only slots of the registry, and none twice", () => {
     const known = new Set(KEYS);
-    expect([...Object.keys(NOT_BUILT), ...Object.keys(OWNED_BY_2C)].filter((k) => !known.has(k))).toEqual([]);
-    for (const [k, why] of Object.entries(OWNED_BY_2C)) expect(why.length, k).toBeGreaterThan(30);
+    expect(Object.keys(NOT_BUILT).filter((k) => !known.has(k))).toEqual([]);
   });
 
   it("a wired slot's file writes it inside the act's own transaction, or hands the act to the writer that does", () => {
@@ -255,8 +247,8 @@ describe("a signature-class act asks the password where it is signed", () => {
   });
 
   /// The signature-class acts whose record is the document they decide (the decision is made on it: an award issued, a programme decided, a claim determined, a variation
-  /// decided, a non-completion decided), so naming it is naming the document. Every other signature creates a row that only records the signing, and names what it signs.
-  const DECIDES_ITS_OWN_RECORD = new Set(["Award", "NonCompletion", "WorkProgramme", "EotClaim", "Variation"]);
+  /// decided, a non-completion decided, an approval matrix issued, a two-person change decided: Phase 2c), so naming it is naming the document. Every other signature creates a row that only records the signing, and names what it signs.
+  const DECIDES_ITS_OWN_RECORD = new Set(["Award", "NonCompletion", "WorkProgramme", "EotClaim", "Variation", "AuthorityMatrix", "ConfigurationChange"]);
 
   it("no signature names itself as the document it signs: the document is the record that was signed, not the attribution's own row", () => {
     // `document: { entity: "DiaryEndorsement", id: row.id }` on a `DiaryEndorsement.person` act is the signature naming the signature (review of Phase 2b).

@@ -4,6 +4,8 @@ import { inForce } from "@/lib/people/delegation";
 import { uploadContext } from "@/lib/documents/read";
 import { uploadView } from "@/lib/documents/views";
 import { db } from "@/lib/db";
+import { PERMISSION_KEYS, PERMISSIONS, isGrantable } from "@/lib/auth/permissions";
+import { loadGrants as loadProductGrants } from "@/lib/auth/permission-store";
 
 import { UsersTabs } from "./panels";
 import { PageHeader } from "@/components/ui/page-header";
@@ -29,7 +31,7 @@ export default async function UsersPage({
   const actor = await requireStaff();
   const on = new Date();
   const { tab } = await searchParams;
-  const [roster, grants, delegations, upload, units] = await Promise.all([
+  const [roster, grants, delegations, upload, units, productDecisions, productPending] = await Promise.all([
     loadRoster(actor.organisationCode),
     loadGrants(actor.organisationCode),
     loadDelegations(actor.organisationCode),
@@ -39,6 +41,8 @@ export default async function UsersPage({
     db.orgUnit
       .findMany({ where: { organisation: { code: actor.organisationCode } }, orderBy: { effectiveFrom: "desc" }, distinct: ["code"], select: { code: true, nameEn: true } })
       .then((us) => us.sort((a, b) => a.nameEn.localeCompare(b.nameEn))),
+    loadProductGrants(db, actor.organisationId),
+    db.configurationChange.findMany({ where: { organisationId: actor.organisationId, kind: "PERMISSION_GRANT", status: "PROPOSED" }, select: { payload: true } }),
   ]);
 
   const holdings = holdingsOn(roster, on).map((h) => ({
@@ -76,6 +80,12 @@ export default async function UsersPage({
         delegations={delegations}
         upload={uploadView(upload ?? EMPTY_UPLOAD)}
         units={units}
+        product={{
+          keys: PERMISSION_KEYS.map((key) => ({ key, label: PERMISSIONS[key].label.en, lets: PERMISSIONS[key].lets.en, grantable: isGrantable(key) })),
+          decisions: productDecisions.flatMap((d) => (d.decision === "GRANTED" || d.decision === "WITHHELD" ? [{ permissionKey: d.permissionKey, roleCode: d.roleCode, decision: d.decision }] : [])),
+          pending: productPending.map((c) => c.payload as { permissionKey: string; roleCode: string }),
+          canPropose: actor.permissions.has("permissions.grant"),
+        }}
       />
     </>
   );

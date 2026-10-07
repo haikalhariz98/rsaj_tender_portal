@@ -9,7 +9,13 @@ import type { Fault } from "./types";
  * With only one eligible person nothing is faked: the fault says a second person is needed.
  */
 
-export function makerCheckerFault(i: { makerPersonIds: readonly string[]; makersUnknownAtLanding: boolean; issuerPersonId: string }): Fault | null {
+export function makerCheckerFault(i: {
+  makerPersonIds: readonly string[];
+  makersUnknownAtLanding: boolean;
+  issuerPersonId: string;
+  /// Everyone who could issue (`eligiblePersonIds`), where the caller knows: with the issuer a maker and nobody else able to, the fault says a second person is needed.
+  eligiblePersonIds?: readonly string[];
+}): Fault | null {
   const makers = new Set(i.makerPersonIds);
   if (makers.size === 0) {
     return i.makersUnknownAtLanding
@@ -25,6 +31,13 @@ export function makerCheckerFault(i: { makerPersonIds: readonly string[]; makers
         };
   }
   if (makers.has(i.issuerPersonId)) {
+    if (i.eligiblePersonIds && !secondPersonAvailable(i.makerPersonIds, i.eligiblePersonIds)) {
+      return {
+        code: "SECOND_PERSON_NEEDED",
+        en: "A second person is needed. You made this draft, so you cannot issue it, and nobody else holds the permission to issue. Someone who did not make it must hold that permission first.",
+        ms: "Orang kedua diperlukan. Anda membuat draf ini, jadi anda tidak boleh mengeluarkannya, dan tiada orang lain memegang kebenaran mengeluarkan. Seseorang yang tidak membuatnya mesti memegang kebenaran itu dahulu.",
+      };
+    }
     return {
       code: "ISSUER_IS_MAKER",
       en: "You made this draft, so you cannot issue it. A second person who did not make it issues it.",

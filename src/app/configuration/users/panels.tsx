@@ -36,6 +36,7 @@ import { statusOf, type Delegation } from "@/lib/people/delegation";
 import type { Assignment, Office, Person, RosterFault } from "@/lib/people/types";
 
 import { setGrant } from "./actions";
+import { ProductPermissionRow, type ProductPermissions } from "./product-permissions";
 import {
   AddAssignment,
   EditAssignment,
@@ -79,6 +80,8 @@ export interface UsersData {
   upload: UploadView;
   /// 6.7: the units a person may sit in, by name.
   units: { code: string; nameEn: string }[];
+  /// The product's own permissions and the organisation's decisions about them (Phase 2c).
+  product: ProductPermissions;
 }
 
 export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }) {
@@ -360,7 +363,7 @@ function RolesList({ offices, people, holdings, grants }: UsersData) {
 
 // ------------------------------------------------------------------- Permissions
 
-function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
+function PermissionsPanel({ offices, capabilities, grants, product }: UsersData) {
   const decided = decidedRoles(grants);
   const [pending, startTransition] = useTransition();
   const [problem, setProblem] = useState<string | null>(null);
@@ -377,6 +380,8 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
         : g.capabilities,
     }))
     .filter((g) => g.capabilities.length > 0);
+  // The product's permissions are searched by their words too, and a group with none left goes as the others do.
+  const productKeys = product.keys.filter((k) => !needle || k.label.toLowerCase().includes(needle) || k.lets.toLowerCase().includes(needle));
 
   // A column per role that a person can actually hold in the portal. Committees are
   // left out: nobody signs in as one, so a capability granted to it means nothing.
@@ -417,24 +422,15 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
     ),
   );
 
-  if (capabilities.length === 0) {
-    return (
-      <Card className="overflow-hidden">
-        <CardHeader icon={<GridIcon size={17} />} title="Permissions" />
-        <EmptyState icon={<GridIcon size={22} />} title="No capability has been set">
-          A capability is something a role may do. Until some exist there is nothing to
-          grant, and the grid has no rows.
-        </EmptyState>
-      </Card>
-    );
-  }
+  // With no capability set the grid still holds the product's own permissions, which are not the customer's to define.
+  const noCapabilities = capabilities.length === 0;
 
   return (
     <Card className="overflow-hidden">
       <CardHeader
         icon={<GridIcon size={17} />}
         title="Permissions"
-        subtitle="Tick what each role may do. Approval routing is separate and comes from the approval matrix."
+        subtitle="Tick what each role may do. Approval routing is separate and comes from the approval matrix. The product's own permissions, below, are changed by a proposal that a second person decides."
         actions={
           <div className="w-60">
             <Input
@@ -452,6 +448,11 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
       {problem && (
         <Callout tone="err" className="mx-5 mt-4 sm:mx-6">
           {problem}
+        </Callout>
+      )}
+      {noCapabilities && (
+        <Callout tone="info" title="No capability has been set" className="mx-5 mt-4 sm:mx-6">
+          A capability is something a role may do. Until some exist there is nothing to tick in the first part of the grid.
         </Callout>
       )}
       {/* The grid scrolls sideways under a pinned capability column, so a new role adds
@@ -539,6 +540,13 @@ function PermissionsPanel({ offices, capabilities, grants }: UsersData) {
                 ))}
               </GroupRows>
             ))}
+            {productKeys.length > 0 && (
+              <GroupRows label="Product permissions" span={columns.length}>
+                {productKeys.map((permission) => (
+                  <ProductPermissionRow key={permission.key} permission={permission} columns={columns} product={product} />
+                ))}
+              </GroupRows>
+            )}
           </tbody>
         </table>
       </div>

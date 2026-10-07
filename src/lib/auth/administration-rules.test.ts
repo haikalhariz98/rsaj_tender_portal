@@ -106,11 +106,13 @@ describe("issuing a code", () => {
 });
 
 describe("the notice beside an office holder's account", () => {
-  it("says nothing for a person who holds nothing, and says the second-person check is not built for one who does", () => {
+  // Phase 2c: the second-person check is built, so the notice no longer says it is not (a ruled decision of the programme: ADR 0034 D6 as amended).
+  it("says nothing for a person who holds nothing, and says a second person is needed for one who does", () => {
     expect(officeHolderNotice({ offices: 0, seats: 0, delegations: 0 })).toBeNull();
     const n = officeHolderNotice({ offices: 2, seats: 1, delegations: 0 })!;
     expect(n).toContain("2 offices, 1 committee seat");
-    expect(n).toContain("not built yet");
+    expect(n).toContain("needs a second person");
+    expect(n).not.toContain("not built");
     expect(n).not.toMatch(/\bapproved\b/);
   });
 });

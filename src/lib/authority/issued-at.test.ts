@@ -24,7 +24,8 @@ describe("an issue's issuedAt in the trail", () => {
   it("the issue refuses with no zone and writes the formatted instant (source scan)", () => {
     const src = readFileSync(join(process.cwd(), "src/app/configuration/approval-matrix/actions.ts"), "utf8");
     expect(src).toMatch(/if \(!timeZone\) return \{ ok: false, message: ISSUE_TIME_ZONE_UNSET \};/);
-    expect(src).toMatch(/\{ issuedAt: formatOrgDateTime\(now, timeZone\), effectiveFrom: day \}/);
+    // Phase 2c: the trail also says who issued it and who had made it, beside the instant, so the pattern allows those fields after the two it pins.
+    expect(src).toMatch(/\{ issuedAt: formatOrgDateTime\(now, timeZone\), effectiveFrom: day(?:, \w+: [\w.()", ]+)* \}/);
     expect(src).not.toMatch(/\{ issuedAt: now, effectiveFrom: day \}\s*,?\s*\)/);
     expect(ISSUE_TIME_ZONE_UNSET).toMatch(/time zone/);
     expect(ISSUE_TIME_ZONE_UNSET).not.toMatch(/[A-Z]{3,}_[A-Z]/);

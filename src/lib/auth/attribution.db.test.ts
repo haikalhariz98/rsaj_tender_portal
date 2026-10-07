@@ -428,6 +428,10 @@ describe("the maker records and the issuer of a matrix", () => {
   it("names an issuer only on an issued matrix", async () => {
     const d = await draft();
     expect(await refusal(db.authorityMatrix.update({ where: { id: d.id }, data: { issuedByPersonId: p1 } }))).toBe("23514");
+    // Phase 2c (migration 20261007160000, ADR 0034 D15): putting a draft into force also needs someone on record as having made it, and the issuer is not that person.
+    // This line expected the issue to pass with no maker on record at all; it now says that is refused, and that a different person issues it.
+    expect(await refusal(db.authorityMatrix.update({ where: { id: d.id }, data: { issuedAt: new Date(), issuedByPersonId: p1 } }))).toBe("PA005");
+    await db.authorityMatrixMaker.create({ data: { matrixId: d.id, personId: p2 } });
     expect(await refusal(db.authorityMatrix.update({ where: { id: d.id }, data: { issuedAt: new Date(), issuedByPersonId: p1 } }))).toBeNull();
   });
 });

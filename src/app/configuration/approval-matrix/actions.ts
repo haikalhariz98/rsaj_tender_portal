@@ -28,6 +28,11 @@ import { matrixPolicyFaults, termsBandBoundaryFault } from "@/lib/method/boundar
 import { contractTypeDomainWords, takesContractType } from "@/lib/authority/contract-type-domains";
 import { FormReader } from "@/lib/validate";
 import { staffForPermission, toAuditActor } from "@/app/_auth/actor";
+import { loadMakers, noteMaker } from "@/lib/authority/maker-store";
+import { beginAct, attributionRefusalState } from "@/app/_auth/act";
+import { makerCheckerFault } from "@/lib/auth/maker-checker";
+import { eligibleFor } from "@/lib/auth/eligibility-store";
+import { permissionHeldThrough } from "@/lib/auth/permission-store";
 import type { OrgScope } from "@/lib/org-scope";
 
 /// A recommender proposes or recommends. Approving is the approver's act, set on
@@ -282,6 +287,7 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
     if (!locked) {
       const created = await tx.authorityMatrix.create({ data: { organisationId: orgId, ...v } });
       await writeAudit(tx, { ...ctx, entityId: created.id }, "CREATE", diffFields(null, v));
+      await noteMaker(tx, { matrixId: created.id, actor });
       return { ok: true, createdId: created.id };
     }
     // The trail's "before" is the row as it stood under the lock.
@@ -296,7 +302,10 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
       },
       v,
     );
-    if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: locked.id }, "UPDATE", changes);
+    if (changes.length > 0) {
+      await writeAudit(tx, { ...ctx, entityId: locked.id }, "UPDATE", changes);
+      await noteMaker(tx, { matrixId: locked.id, actor });
+    }
     return { ok: true };
   });
   if (!outcome.ok) return outcome;
@@ -525,6 +534,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
     if (!before) {
       const created = await tx.authorityRule.create({ data: v });
       await writeAudit(tx, { ...ctx, entityId: created.id }, "CREATE", diffFields(null, v));
+      await noteMaker(tx, { matrixId: authorityMatrixId, actor });
     } else {
       await tx.authorityRule.update({ where: { id: before.id, authorityMatrix: { organisationId: actor.organisationId } }, data: v });
       const changes = diffFields(
@@ -539,7 +549,10 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
         },
         v,
       );
-      if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: before.id }, "UPDATE", changes);
+      if (changes.length > 0) {
+        await writeAudit(tx, { ...ctx, entityId: before.id }, "UPDATE", changes);
+        await noteMaker(tx, { matrixId: authorityMatrixId, actor });
+      }
     }
     return { ok: true };
   }));
@@ -604,7 +617,9 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
           const fault = issue && coreSaveFault({ approverCode: row.approverCode, proposerCode: row.proposerCode, recommenders: steps }, issue.matrix.coreRouting ?? [], issue.matrix.roles);
           if (fault) throw new Refused({ ok: false, errors: { roleCode: fault } });
         }
-        return tx.authorityRuleStep.create({ data: parsed.value });
+        const step = await tx.authorityRuleStep.create({ data: parsed.value });
+        await noteMaker(tx, { matrixId: rule.authorityMatrixId, actor });
+        return step;
       },
     );
     return { ok: true };
@@ -644,6 +659,7 @@ export async function removeRecommender(_prev: FormState, data: FormData): Promi
     await tx.authorityRuleStep.delete({ where: { id: step.id, authorityRule: { authorityMatrix: { organisationId: actor.organisationId } } } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "AuthorityRuleStep", entityId: step.id, entityLabel: `${step.authorityRule.labelEn} — ${office}`, reason }, "DELETE",
       snapshotFields({ roleCode: office, act: actWithCode(step.act), sequence: step.sequence }));
+    await noteMaker(tx, { matrixId: authorityMatrixId, actor });
     return { ok: true };
   });
   if (!result.ok) return result;
@@ -739,6 +755,7 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
       "CREATE",
       diffFields(null, { label, effectiveFrom, startedFrom: source.label, rules: rules.length, termsBands: termsBands.length, coreRouting: coreRouting.length }),
     );
+    await noteMaker(tx, { matrixId: draft.id, actor });
     return { ok: true, draftId: draft.id };
   });
   if (!result.ok || !result.draftId) return result;
@@ -766,6 +783,27 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
   const reason = r.text("reason", "Why", { required: true, max: 2000 });
   const parsed = r.finish({ from, reason });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
+  if (actor.system) return { ok: false, message: "A loader run is not a person, so it cannot issue an approval matrix: a person issues it, with their password." };
+
+  // Phase 2c (ADR 0034 D15): the one who issues is never one of the makers. Said before the password is asked, so a maker is told so and spends nothing; judged
+  // again below under the draft's lock, where the makers are what the write sees.
+  const early = await db.authorityMatrix.findFirst({ where: { id, organisationId: orgId }, select: { makersUnknownAtLanding: true } });
+  if (!early) return { ok: false, message: "That draft no longer exists." };
+  const makersNow = await loadMakers(db, id);
+  const beforePassword = makerCheckerFault({
+    makerPersonIds: makersNow.personIds,
+    makersUnknownAtLanding: early.makersUnknownAtLanding,
+    issuerPersonId: actor.personId,
+    eligiblePersonIds: await eligibleFor(db, { organisationId: orgId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
+  });
+  if (beforePassword) return { ok: false, message: beforePassword.en };
+
+  // Issuing is a signature of the configuration: the password is asked again, every time, before the transaction (a wrong one counts towards the lockout).
+  const begun = await beginAct(actor, data, "AuthorityMatrix.issuedByPerson", { personField: "personId", document: { entity: "AuthorityMatrix", id } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  // The office the signer held (NFR-SIG-001): the role they hold the permission to issue through, if any (an administrator holds it through the flag, which is no office).
+  const heldThrough = await permissionHeldThrough(db, { organisationId: orgId, personId: actor.personId, isAdministrator: actor.isAdministrator, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue");
 
   // Every check runs on the draft as it stands under its lock, in the transaction that
   // issues it (6.9 ruling C6): a rule or a core row changed a moment before is seen.
@@ -777,6 +815,15 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
     });
     if (!draft) return { ok: false, message: "That draft no longer exists." };
     if (draft.issuedAt) return { ok: false, message: "That issue has already been issued." };
+    // Maker-checker, on the makers as they stand under the lock: a draft with nobody on record is adopted first, and the issuer is not a maker.
+    const makers = await loadMakers(tx, draft.id);
+    const makerFault = makerCheckerFault({
+      makerPersonIds: makers.personIds,
+      makersUnknownAtLanding: draft.makersUnknownAtLanding,
+      issuerPersonId: actor.personId,
+      eligiblePersonIds: await eligibleFor(tx, { organisationId: orgId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
+    });
+    if (makerFault) return { ok: false, message: makerFault.en };
     // 68-C5 residual: issuedAt is written to the trail on the organisation's clock, never as its UTC day.
     const { timeZone } = await tx.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } });
     if (!timeZone) return { ok: false, message: ISSUE_TIME_ZONE_UNSET };
@@ -843,7 +890,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
     }
     await tx.authorityMatrix.update({
       where: { id: draft.id, organisationId: actor.organisationId },
-      data: { effectiveFrom: day, effectiveTo: null, issuedAt: now },
+      data: { effectiveFrom: day, effectiveTo: null, issuedAt: now, issuedByPersonId: actor.personId },
     });
     await writeAudit(
       tx,
@@ -851,13 +898,49 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
       "UPDATE",
       diffFields(
         decimals({ issuedAt: null, effectiveFrom: draft.effectiveFrom }),
-        { issuedAt: formatOrgDateTime(now, timeZone), effectiveFrom: day },
+        { issuedAt: formatOrgDateTime(now, timeZone), effectiveFrom: day, issuedBy: actor.personName, madeBy: makers.names.join(", ") },
       ),
     );
+    await act.write(tx, draft.id, { document: { entity: "AuthorityMatrix", id: draft.id }, roleCode: heldThrough });
+    return { ok: true };
+  }).catch((e: unknown) => attributionRefusalState(e) ?? Promise.reject(e));
+  if (!result.ok) return result;
+
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * Adopt a draft nobody is on record as having made (ADR 0034 D15, Phase 2c): a draft that existed when sign-in landed, or one a loader made. The signed-in person
+ * becomes its maker, so a different person issues it, and the screen has an act to point to instead of a draft nobody can issue. A draft that already has a maker
+ * needs no adopting: adopting it would only take its adopter out of those who may issue it. Not a signature, so no password; it is audited, with the reason.
+ */
+export async function adoptDraft(_prev: FormState, data: FormData): Promise<FormState> {
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
+  const orgId = await organisationId(actor);
+  if (!orgId) return NO_ORG;
+  if (actor.system) return { ok: false, message: "A loader run is not a person, so it cannot adopt a draft." };
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const reason = r.text("reason", "Why", { required: true, max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+
+  const result = await db.$transaction(async (tx): Promise<FormState> => {
+    await lockIssue(tx, id);
+    const draft = await tx.authorityMatrix.findFirst({ where: { id, organisationId: orgId }, select: { id: true, label: true, issuedAt: true } });
+    if (!draft) return { ok: false, message: "That draft no longer exists." };
+    if (draft.issuedAt) return FROZEN;
+    const makers = await loadMakers(tx, draft.id);
+    if (makers.personIds.length > 0) {
+      return { ok: false, message: `This draft already has ${makers.personIds.length === 1 ? "a maker" : "makers"} on record (${makers.names.join(", ")}), so it needs no adopting.` };
+    }
+    await noteMaker(tx, { matrixId: draft.id, actor });
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "AuthorityMatrix", entityId: draft.id, entityLabel: draft.label, reason: `Adopted: ${reason}` }, "UPDATE", [{ field: "madeBy", before: null, after: actor.personName }]);
     return { ok: true };
   });
   if (!result.ok) return result;
-
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -934,10 +1017,14 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
     if (!before) {
       const row = await tx.termsBand.create({ data: { authorityMatrixId, ...data2 } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TermsBand", entityId: row.id, entityLabel: label }, "CREATE", diffFields(null, data2));
+      await noteMaker(tx, { matrixId: authorityMatrixId, actor });
     } else {
       await tx.termsBand.update({ where: { id: before.id, authorityMatrix: { organisationId: actor.organisationId } }, data: data2 });
       const changes = diffFields(decimals({ ...before }), data2);
-      if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TermsBand", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+      if (changes.length) {
+        await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TermsBand", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+        await noteMaker(tx, { matrixId: authorityMatrixId, actor });
+      }
     }
     revalidatePath(PATH);
     return { ok: true } as FormState;
@@ -962,6 +1049,7 @@ export async function removeTermsBand(_prev: FormState, data: FormData): Promise
     const { authorityMatrix, ...row } = band;
     await tx.termsBand.delete({ where: { id, authorityMatrix: { organisationId: actor.organisationId } } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TermsBand", entityId: id, entityLabel: `${authorityMatrix.label} — ${band.labelEn}`, reason }, "DELETE", snapshotFields(decimals(row)));
+    await noteMaker(tx, { matrixId: band.authorityMatrixId, actor });
     revalidatePath(PATH);
     return { ok: true } as FormState;
   });
@@ -1068,10 +1156,14 @@ export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<F
       if (!before) {
         const row = await tx.coreRoutingLevel.create({ data: { organisationId: orgId, authorityMatrixId, ...write } });
         await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingLevel", entityId: row.id, entityLabel: label }, "CREATE", diffFields(null, shown));
+        await noteMaker(tx, { matrixId: authorityMatrixId, actor });
       } else {
         await tx.coreRoutingLevel.update({ where: { id: before.id, organisationId: actor.organisationId }, data: write });
         const changes = diffFields({ approverCode: officeIn(roles, before.approverCode), clause: before.clause, provenance: before.provenance, note: before.note }, shown);
-        if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingLevel", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+        if (changes.length) {
+          await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingLevel", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
+          await noteMaker(tx, { matrixId: authorityMatrixId, actor });
+        }
       }
       return { ok: true };
     }),
@@ -1114,6 +1206,7 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
     await tx.coreRoutingLevel.delete({ where: { id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingLevel", entityId: id, entityLabel: label, reason }, "DELETE",
       snapshotFields({ approverCode: name(level.approverCode), clause: level.clause, provenance: level.provenance, note: level.note, steps: level.steps.length }));
+    await noteMaker(tx, { matrixId: authorityMatrixId, actor });
     return { ok: true };
   }));
   if (!result.ok) return result;
@@ -1158,6 +1251,7 @@ export async function saveCoreStep(_prev: FormState, data: FormData): Promise<Fo
     const row = await tx.coreRoutingStep.create({ data: { organisationId: orgId, coreRoutingLevelId: level.id, roleCode, act, sequence, provenance, note } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingStep", entityId: row.id, entityLabel: coreRoutingEntryLabel(matrix.label, officeIn(roles, level.approverCode), officeIn(roles, roleCode)), reason: String(data.get("reason") ?? "") }, "CREATE",
       diffFields(null, { office: officeIn(roles, roleCode), act: actWithCode(act), sequence, provenance, note }));
+    await noteMaker(tx, { matrixId: authorityMatrixId, actor });
     return { ok: true };
   });
   if (!result.ok) return result;
@@ -1190,6 +1284,7 @@ export async function removeCoreStep(_prev: FormState, data: FormData): Promise<
     await tx.coreRoutingStep.delete({ where: { id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingStep", entityId: id, entityLabel: coreRoutingEntryLabel(matrix.label, officeIn(roles, step.level.approverCode), officeIn(roles, step.roleCode)), reason }, "DELETE",
       snapshotFields({ office: officeIn(roles, step.roleCode), act: actWithCode(step.act), sequence: step.sequence, provenance: step.provenance, note: step.note }));
+    await noteMaker(tx, { matrixId: authorityMatrixId, actor });
     return { ok: true };
   });
   if (!result.ok) return result;

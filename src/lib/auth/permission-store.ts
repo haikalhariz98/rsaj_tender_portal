@@ -39,6 +39,17 @@ export async function heldNow(
 }
 
 /**
+ * The office a person holds a permission through, for the record of a signature that needs it (NFR-SIG-001 asks for the role held): the first role they hold that the
+ * organisation has granted it to, or null where they hold it through the administrator flag, which is no office. Read once, in the caller's client.
+ */
+export async function permissionHeldThrough(client: Tx, input: { organisationId: string; personId: string; isAdministrator: boolean; timeZone: string | null; now: Date }, key: PermissionKey): Promise<string | null> {
+  const today = organisationDay(input.now, input.timeZone);
+  const [assignments, grants] = await Promise.all([loadAssignments(client, input.personId), loadGrants(client, input.organisationId)]);
+  const state = permissionState(key, { isAdministrator: input.isAdministrator, assignments, grants, today });
+  return state.state === "ROLE" ? (state.roleCodes[0] ?? null) : null;
+}
+
+/**
  * Why a person was refused a key, in words: read only on the refusal path. Names each role as the organisation names it, never by its code.
  */
 export async function explainRefusal(

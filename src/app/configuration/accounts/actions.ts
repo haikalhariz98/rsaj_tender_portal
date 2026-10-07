@@ -9,11 +9,11 @@ import { settingLabels } from "@/lib/auth/policy";
 import { AUTH_WORDS } from "@/lib/auth/words";
 import { formatOrgDateTime } from "@/lib/format";
 
-import { requireStaff } from "@/app/_auth/actor";
+import { staffForPermission } from "@/app/_auth/actor";
 import { currentRequestFacts, refuseForeignPost } from "@/app/_auth/cookies";
 
 /**
- * Administering sign-in accounts (Phase 1b). Each action asks who is signed in first, then passes the Origin guard, parses what was posted (unknown
+ * Administering sign-in accounts (Phase 1b; the permission is `accounts.manage` from Phase 2c). Each action asks who is signed in first, then passes the Origin guard, parses what was posted (unknown
  * fields refused), and hands it to `administration.ts`, which judges it, writes it, audits it and logs it in one transaction. Who acts is the session's, never a field.
  */
 
@@ -28,7 +28,9 @@ function stateOf(outcome: Exclude<AdminOutcome, { ok: true }>): FormState {
 }
 
 export async function createAccountAction(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("accounts.manage");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   if (await refuseForeignPost()) return { ok: false, message: AUTH_WORDS.wrongOrigin.en };
   const parsed = parseCreateAccount(data.entries());
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
@@ -39,7 +41,9 @@ export async function createAccountAction(_prev: FormState, data: FormData): Pro
 }
 
 export async function disableAccountAction(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("accounts.manage");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   if (await refuseForeignPost()) return { ok: false, message: AUTH_WORDS.wrongOrigin.en };
   const parsed = parseAccountAct(data.entries());
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
@@ -50,7 +54,9 @@ export async function disableAccountAction(_prev: FormState, data: FormData): Pr
 }
 
 export async function enableAccountAction(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("accounts.manage");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   if (await refuseForeignPost()) return { ok: false, message: AUTH_WORDS.wrongOrigin.en };
   const parsed = parseAccountAct(data.entries());
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
@@ -61,7 +67,9 @@ export async function enableAccountAction(_prev: FormState, data: FormData): Pro
 }
 
 export async function unlockAccountAction(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("accounts.manage");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   if (await refuseForeignPost()) return { ok: false, message: AUTH_WORDS.wrongOrigin.en };
   const parsed = parseAccountAct(data.entries());
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
@@ -72,10 +80,12 @@ export async function unlockAccountAction(_prev: FormState, data: FormData): Pro
 }
 
 /// What issuing a code answers: the code itself, once. It is returned to the one form that asked and kept nowhere else: not in a URL, not in the page, not in the trail.
-export type IssueCodeState = FormState & { issued?: { code: string; validUntil: string; officeHolderNotice: string | null } };
+export type IssueCodeState = FormState & { issued?: { code: string; validUntil: string } };
 
 export async function issueCodeAction(_prev: FormState, data: FormData): Promise<IssueCodeState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("accounts.manage");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   if (await refuseForeignPost()) return { ok: false, message: AUTH_WORDS.wrongOrigin.en };
   const parsed = parseIssueCode(data.entries());
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
@@ -83,5 +93,5 @@ export async function issueCodeAction(_prev: FormState, data: FormData): Promise
   if (!outcome.ok) return stateOf(outcome);
   revalidatePath(PATH);
   const { issued } = outcome;
-  return { ok: true, issued: { code: issued.code, validUntil: formatOrgDateTime(issued.expiresAt, actor.organisationTimeZone), officeHolderNotice: issued.officeHolderNotice } };
+  return { ok: true, issued: { code: issued.code, validUntil: formatOrgDateTime(issued.expiresAt, actor.organisationTimeZone) } };
 }

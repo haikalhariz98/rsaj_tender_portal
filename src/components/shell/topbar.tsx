@@ -35,6 +35,8 @@ const SEGMENT_LABEL: Record<string, string> = {
   appendix: "Appendix",
   notifications: "Notifications",
   accounts: "Sign-in accounts",
+  security: "Sign-in settings",
+  changes: "Changes awaiting a second person",
   sourcing: "Sourcing",
   projects: "Contracts",
   suppliers: "Suppliers",

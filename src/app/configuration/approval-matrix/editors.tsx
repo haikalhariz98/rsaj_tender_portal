@@ -4,8 +4,10 @@ import { contractTypeDomainWords } from "@/lib/authority/contract-type-domains";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { CHAIN_CHOICE_LABEL } from "@/lib/authority/core-routing-labels";
+import { actorField } from "@/lib/auth/actor-field";
 
 import {
+  adoptDraft,
   discardDraft,
   endRejectionDestination,
   issueDraft,
@@ -525,11 +527,14 @@ export function IssueDraft({
   label,
   meantFrom,
   replaces,
+  blocked,
 }: {
   id: string;
   label: string;
   meantFrom: Date;
   replaces: string | null;
+  /// Why it cannot be issued by whoever is looking (they made it, or nobody is on record as having), in words; null where they may.
+  blocked: string | null;
 }) {
   return (
     <RecordEditor
@@ -554,12 +559,32 @@ export function IssueDraft({
           label: "Why it is being issued",
           hint: "The resolution or decision behind it. Kept with the issue.",
         },
+        // Issuing is signed: the password is asked again, every time. The issuer is never one of the people who made the draft.
+        actorField("AuthorityMatrix.issuedByPerson", { name: "personId" }),
       ]}
       values={{ id, effectiveFrom: day(meantFrom) }}
       action={issueDraft}
       submitLabel="Issue it"
+      submitBlock={blocked}
       trigger={{ label: "Issue", className: buttonClass("primary", "sm") }}
       size="md"
+    />
+  );
+}
+
+/// Take over a draft nobody is on record as having made, so that a different person can issue it.
+export function AdoptDraft({ id, label }: { id: string; label: string }) {
+  return (
+    <RecordEditor
+      title={`Adopt ${label}`}
+      description="Nobody is on record as having made this draft. Adopting it makes you its maker, so that a different person issues it. You cannot issue a draft you adopted."
+      fields={[{ kind: "hidden", name: "id" }]}
+      values={{ id }}
+      action={adoptDraft}
+      submitLabel="Adopt draft"
+      reason={{ label: "Why are you adopting it?" }}
+      trigger={{ label: "Adopt draft", className: buttonClass("secondary", "sm") }}
+      size="sm"
     />
   );
 }
