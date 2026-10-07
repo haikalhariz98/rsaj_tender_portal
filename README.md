@@ -148,9 +148,12 @@ Sign-in (ADR 0034) assumes all of the following. None is optional.
 - **The app's own database login.** Set `APP_DB_PASSWORD`, run `npm run db:deploy` (migrations as
   the owner, then `db:roles`), point `DATABASE_URL` at `perolehan_app` and `MIGRATE_DATABASE_URL`
   at the owner, and restart. Run `db:roles` again after **every** `migrate deploy`: a table a
-  migration adds is writable by the app until it does. A production copy connected as the owner
-  or a superuser refuses every sign-in. The trail's triggers refuse changes for every login
-  regardless; the role is the second wall.
+  migration adds is writable by the app until it does. `db:deploy` does this for you, and a
+  migration job needs only the owner's login: with `APP_DB_PASSWORD` unset, `db:roles` leaves an
+  existing role's login and password alone and only brings its grants into line. A production
+  copy connected as the owner or a superuser, or as a login that can still change the trail,
+  refuses every sign-in. The trail's triggers refuse changes for every login regardless; the
+  role is the second wall.
 - **A stable `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`**, the same on every copy, or every open form
   breaks at a redeploy.
 - **`TRUSTED_PROXY_HOPS`**, set to exactly the number of reverse proxies that append to
