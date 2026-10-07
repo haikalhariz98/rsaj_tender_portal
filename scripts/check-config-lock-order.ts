@@ -17,8 +17,10 @@
  * no deadlock, and with the organisation lock as it was before (FOR UPDATE), the control, which must deadlock. Without the
  * control this check could pass whatever the code does. Last, two organisation locks still queue (the label check stays serialised).
  *
- * Runs only against TEST_DATABASE_URL, and refuses when that names the same database as DATABASE_URL: it creates and
- * deletes a temporary organisation, and it never touches the development database. Not a vitest file: `npm test` needs no database.
+ * Runs only against TEST_DATABASE_URL, and refuses when that names the same database as DATABASE_URL: it writes into one
+ * organisation of its own (code LOCK_ORDER_CHECK), and it never touches the development database. Since Phase 1d the trail is
+ * append-only and an organisation with a trail cannot be deleted, so that organisation is reused from run to run and each run's
+ * issues and route are left behind under names of their own. Not a vitest file: `npm test` needs no database.
  */
 import "dotenv/config";
 
@@ -45,11 +47,12 @@ async function main() {
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: testUrl, max: 12 }) });
   const TX = { maxWait: 30_000, timeout: 60_000 };
 
-  const org = await db.organisation.create({ data: { code: `lockcheck_${Date.now()}`, name: "Lock order check" } });
+  const run = Date.now().toString(36);
+  const org = await db.organisation.upsert({ where: { code: "LOCK_ORDER_CHECK" }, update: {}, create: { code: "LOCK_ORDER_CHECK", name: "Lock order check" } });
   try {
     const money = { boundaryValue: "1.00", quotationFloor: "1.00", tenderFloor: "1.00", requisitionBoundary: "1.00" };
     const issue = (label: string) => db.authorityMatrix.create({ data: { organisationId: org.id, label, effectiveFrom: new Date("2026-01-01T00:00:00Z"), ...money } });
-    const route = await db.fundingRoute.create({ data: { organisationId: org.id, code: "LOCKCHECK", nameEn: "Lock check route", supersedesAuthority: true } });
+    const route = await db.fundingRoute.create({ data: { organisationId: org.id, code: `LOCKCHECK_${run}`, nameEn: "Lock check route", supersedesAuthority: true } });
     const audit = (tx: Tx, entityId: string) => writeAudit(tx, { actor: { kind: "SYSTEM", label: "lock-order check" }, organisationId: org.id, entity: "AuthorityMatrix", entityId, entityLabel: "lock check" }, "UPDATE", []);
 
     /// The organisation lock the editor used before the fix: the control.
@@ -179,8 +182,7 @@ async function main() {
     if (failed > 0) throw new Error(`FAILED: ${failed} check(s) did not hold`);
     console.log("OK");
   } finally {
-    // Cascades to the temporary issues, route and audit rows.
-    await db.organisation.delete({ where: { id: org.id } }).catch((e) => console.error("cleanup failed:", e));
+    // Nothing is removed: the audit rows are permanent (ADR 0034 D11), and the organisation is reused by the next run.
     await db.$disconnect();
   }
 }
