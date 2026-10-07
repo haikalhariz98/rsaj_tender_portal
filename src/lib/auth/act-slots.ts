@@ -35,6 +35,11 @@ export interface ActSlot {
   /// Whether the act may be recorded on someone's behalf from a paper record. Signature-class acts that are, need `acts.recordOnBehalf`, a paper reference and
   /// the organisation's `paperSignatureRecording = ALLOWED`; the others need the paper or the reason.
   onBehalf: boolean;
+  /// An act that is not a signature but moves money, time or authority (a valuation, a payment, a retention release, a warning that leads to damages, an extension,
+  /// a delegation): recorded for someone else it needs `acts.recordOnBehalf` and the paper's reference, as a signature does, though not the organisation's paper
+  /// switch (which is the signature's). The conservative default of an open item for the product owner (decisions log, Phase 2b review): until it is ruled, a bare
+  /// reason does not let any officer record the S.O.'s payment for them.
+  paperGated: boolean;
   /// What kind of act an administrator account is refused at. Absent where an administrator may do the act (the checker's decision on an administrator
   /// grant, the issue of an approval matrix: both are administrator acts, ADR 0034 D8) or where it is not wired yet. Present only with `entryPoints`.
   holder?: AdministratorAct;
@@ -110,7 +115,7 @@ export const LABEL_MS: Readonly<Record<string, string>> = {
   "Assessed by": "Dinilai oleh",
 };
 
-type SlotExtra = Partial<Pick<ActSlot, "signatureClass" | "onBehalf" | "holder" | "entryPoints">>;
+type SlotExtra = Partial<Pick<ActSlot, "signatureClass" | "onBehalf" | "paperGated" | "holder" | "entryPoints">>;
 const slot = (entity: string, field: string, label: string, extra: SlotExtra = {}): ActSlot => ({
   entity,
   field,
@@ -118,6 +123,7 @@ const slot = (entity: string, field: string, label: string, extra: SlotExtra = {
   ms: LABEL_MS[label] ?? "",
   signatureClass: false,
   onBehalf: false,
+  paperGated: false,
   ...extra,
 });
 /// A signature-class act: it may also be recorded from paper.
@@ -130,12 +136,17 @@ const held = (entity: string, field: string, label: string, entryPoints: readonl
 /// a representative, judged on the capacity that person holds on the day.
 const paper = (entity: string, field: string, label: string, extra: SlotExtra = {}): ActSlot => slot(entity, field, label, { onBehalf: true, ...extra });
 
+/// A paper-capable act that moves money, time or authority: recorded for someone else it needs the permission and the paper's reference (`paperGated`).
+const gated = (entity: string, field: string, label: string, extra: SlotExtra = {}): ActSlot => paper(entity, field, label, { paperGated: true, ...extra });
+
 export const ACT_SLOTS: readonly ActSlot[] = [
   // ---- committees and approvals
   slot("CommitteeDecision", "tabledBy", "Tabled by"),
   paper("DecisionRecusal", "person", "Recusal declared by"),
   paper("Vote", "person", "Vote cast by", { holder: "HOLDER_CHECKED", entryPoints: ["src/app/api/committees/decisions/[id]/votes/route.ts#POST"] }),
   // The grantor is named in the form: the signed-in person, or another whose delegation is recorded from their letter.
+  // Not gated: the configuration editor that records it is an administrator's, and an administrator account never holds `acts.recordOnBehalf` (it is grant-only), so gating
+  // would end the editor's ordinary use. The check that matters is `faultsIn`'s: the officer keying it is never its delegate.
   paper("Delegation", "fromPerson", "Granted by"),
   paper("Requisition", "requestingPerson", "Requested by"),
   paper("RequisitionEndorsement", "person", "Endorsed by"),
@@ -188,7 +199,8 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("BidEnvelope", "receivedBy", "Received by"),
   slot("BidWithdrawal", "receivedBy", "Received by"),
   slot("BidWithdrawal", "findingBy", "Finding recorded by"),
-  slot("BoxEvent", "person", "Recorded by"),
+  // The box event the second authorisation of a main opening makes is the consequence of an act that may be recorded from paper, so it can be too; locking the box itself is the officer's own (`onBehalf: false` at `lockBox`).
+  paper("BoxEvent", "person", "Recorded by"),
   slot("ValidityExtension", "recordedBy", "Recorded by"),
   slot("Opening", "startedBy", "Started by"),
   slot("Opening", "panelOverrideBy", "Panel override recorded by"),
@@ -221,7 +233,8 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("SupplierApplication", "recordedBy", "Recorded by"),
   slot("SupplierApplication", "submittedBy", "Sent by"),
   slot("PortalApplication", "decidedBy", "Decided by"),
-  slot("ApplicationDecision", "decidedBy", "Decided by"),
+  // The last registration step's approval may be recorded from paper, and the decision it makes is its consequence; a resubmission or a rejection is the officer's own (`onBehalf: false` at `decideApplication`).
+  paper("ApplicationDecision", "decidedBy", "Decided by"),
   slot("SupplierDocument", "recordedBy", "Recorded by"),
   slot("SupplierDocument", "verifiedBy", "Verified by"),
   slot("StandingRequest", "requestedBy", "Requested by"),
@@ -244,7 +257,7 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   paper("RoutingCheck", "person", "Checked by"),
 
   // ---- 6.13: supervision, payment, time, variations
-  paper("SoDelegation", "grantorPerson", "Granted by"),
+  gated("SoDelegation", "grantorPerson", "Granted by"),
   paper("Possession", "recordedBy", "Recorded by"),
   paper("WorkProgramme", "scrutinisedBy", "Scrutinised by"),
   signed("WorkProgramme", "decidedBy", "Decided by", "HOLDER_CHECKED", ["src/app/projects/[id]/supervision-actions.ts#decideProgramme"]),
@@ -254,27 +267,27 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   paper("SiteMeeting", "chair", "Chaired by"),
   paper("ComplianceObservation", "person", "Observed by"),
   paper("ProgrammeDirection", "person", "Directed by"),
-  paper("PendingDeduction", "person", "Recorded by"),
-  paper("EarlyActionDecision", "person", "Decided by"),
+  gated("PendingDeduction", "person", "Recorded by"),
+  gated("EarlyActionDecision", "person", "Decided by"),
   paper("SiteRecordsHandover", "person", "Handed over by"),
   paper("OpeningPosition", "person", "Recorded by"),
   paper("PaymentCalendar", "person", "Recorded by"),
-  paper("InterimValuation", "person", "Valued by"),
-  paper("RetentionRelease", "person", "Released by"),
-  paper("AdvancePayment", "person", "Recorded by"),
-  paper("FinancePayment", "person", "Recorded by"),
-  paper("LadWarning", "person", "Warned by"),
+  gated("InterimValuation", "person", "Valued by"),
+  gated("RetentionRelease", "person", "Released by"),
+  gated("AdvancePayment", "person", "Recorded by"),
+  gated("FinancePayment", "person", "Recorded by"),
+  gated("LadWarning", "person", "Warned by"),
   signed("NonCompletion", "person", "Decided by", "HOLDER_CHECKED", ["src/app/projects/[id]/payment-actions.ts#recordNonCompletion"]),
   paper("ContractMatter", "person", "Recorded by"),
   paper("DelayNotice", "person", "Recorded by"),
   signed("EotClaim", "determinedBy", "Determined by", "HOLDER_CHECKED", ["src/app/projects/[id]/time-actions.ts#determineEotClaim"]),
   paper("EotClaim", "person", "Recorded by"),
-  paper("ExtensionOfTime", "person", "Granted by"),
-  paper("LossExpenseClaim", "valuedBy", "Valued by"),
+  gated("ExtensionOfTime", "person", "Granted by"),
+  gated("LossExpenseClaim", "valuedBy", "Valued by"),
   paper("LossExpenseClaim", "person", "Recorded by"),
-  paper("PeriodExtension", "person", "Recorded by"),
-  paper("PeriodAgreement", "person", "Raised by"),
-  paper("LadWaiver", "person", "Recorded by"),
+  gated("PeriodExtension", "person", "Recorded by"),
+  gated("PeriodAgreement", "person", "Raised by"),
+  gated("LadWaiver", "person", "Recorded by"),
   paper("Variation", "originator", "Originated by"),
   paper("Variation", "reviewedBy", "Reviewed by"),
   paper("Variation", "principal", "Passed on by"),
@@ -286,7 +299,7 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   paper("VariationMeasurement", "person", "Recorded by"),
   paper("DayworkRecord", "person", "Recorded by"),
   paper("VariationCertificate", "person", "Raised by"),
-  paper("SumAdjustment", "person", "Raised by"),
+  gated("SumAdjustment", "person", "Raised by"),
 
   // ---- configuration that is decided by a second person or issued (Phase 2c)
   // Issuing a matrix is signature-class (the password is asked), but it is an administrator act: `configuration.issue` is held through the administrator flag

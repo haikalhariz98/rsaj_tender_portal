@@ -244,7 +244,7 @@ export async function lockBox(_prev: FormState, data: FormData): Promise<FormSta
   const r = new FormReader(data);
   const note = r.text("note", "Note", { max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  const begun = await beginAct(actor, data, "BoxEvent.person", { personField: "personId" });
+  const begun = await beginAct(actor, data, "BoxEvent.person", { personField: "personId", onBehalf: false });
   if (!begun.ok) return begun.state;
   const act = begun.act;
   const personId = act.subjectPersonId;

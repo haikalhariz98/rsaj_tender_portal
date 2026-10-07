@@ -13,8 +13,12 @@ import { attributionLabel, latestAttribution, type AttributionRead } from "./att
  *   index.read({ entity: "ApprovalStep", id: step.id, slot: "decidedBy" }, step.decidedBy?.name)   // { state, en, ms }
  *
  * The label is one of four states: SIGNED ("Signed by X", or the slot's own words for an act that is not a signature), ON_BEHALF ("Recorded by Y on behalf of
- * X, not signed"), LEGACY ("Recorded on behalf of X, not signed (before sign-in)": an act with no attribution whose first audit row names nobody) and MISSING
- * ("Attribution missing": an act made after sign-in that the trail names an actor for, and that has no attribution).
+ * X, not signed"), LEGACY ("Recorded on behalf of X, not signed (before sign-in)": an act with no attribution on a record whose whole trail names nobody) and MISSING
+ * ("Attribution missing": an act with no attribution on a record that the trail names an actor for anywhere, which is a defect and is shown as one).
+ *
+ * The record's trail as a whole is read, not its first row (review of Phase 2b): a step or award created before sign-in and decided after it has an old first row, and
+ * the first row would have read the missing attribution of its later decision as "before sign-in". The cost of the plain rule is that an act made before sign-in on a
+ * record that was edited after it reads as missing too, which is loud and not silent; an open item for the product owner (decisions log) is a backfill of those.
  */
 
 export interface SlotQuery {
@@ -49,8 +53,9 @@ interface Row {
   backdateAuthorisedByPerson: { name: string } | null;
 }
 
-/// The index from the rows read and the entities whose first audit row is attributed, with no database: the pure half, held by tests.
-export function buildIndex(rows: readonly Row[], attributedFirst: ReadonlySet<string>): AttributionIndex {
+/// The index from the rows read and the entities whose trail has any attributed row (an actor named: a person, or the system by its label), with no database: the
+/// pure half, held by tests.
+export function buildIndex(rows: readonly Row[], attributedTrail: ReadonlySet<string>): AttributionIndex {
   const latest = new Map<string, Row>();
   const grouped = new Map<string, Row[]>();
   for (const r of rows) {
@@ -73,7 +78,7 @@ export function buildIndex(rows: readonly Row[], attributedFirst: ReadonlySet<st
           : null,
         subjectName: subjectName ?? "a person no longer on record",
         recorderName: row?.recordedByPerson?.name ?? null,
-        auditAttributed: attributedFirst.has(`${ref.entity}\u0000${ref.id}`),
+        auditAttributed: attributedTrail.has(`${ref.entity}\u0000${ref.id}`),
         slot: slot ? { label: slot.label, ms: slot.ms, signatureClass: slot.signatureClass } : undefined,
       });
     },
@@ -97,25 +102,19 @@ export async function loadAttributions(client: Pick<Tx, "actAttribution" | "audi
       backdateAuthorisedByPerson: { select: { name: true } },
     },
   })) as Row[];
-  // An act with no attribution reads as before sign-in when the first audit row of its record names nobody, and as missing when it names someone.
+  // An act with no attribution reads as before sign-in when no audit row of its record names anybody, and as missing when any does.
   const have = new Set(rows.map((r) => `${r.entity}\u0000${r.slot}\u0000${r.entityId}`));
   const lacking = wanted.map((q) => ({ entity: q.entity, ids: [...new Set(q.ids)].filter((id) => !have.has(`${q.entity}\u0000${q.slot}\u0000${id}`)) })).filter((q) => q.ids.length > 0);
-  const attributedFirst = new Set<string>();
+  const attributedTrail = new Set<string>();
   if (lacking.length > 0) {
     const trail = await client.auditEntry.findMany({
-      where: { organisationId, OR: lacking.map((q) => ({ entity: q.entity, entityId: { in: q.ids } })) },
-      orderBy: { at: "asc" },
-      select: { entity: true, entityId: true, unattributed: true },
+      where: { organisationId, unattributed: false, OR: lacking.map((q) => ({ entity: q.entity, entityId: { in: q.ids } })) },
+      distinct: ["entity", "entityId"],
+      select: { entity: true, entityId: true },
     });
-    const seen = new Set<string>();
-    for (const t of trail) {
-      const k = `${t.entity}\u0000${t.entityId}`;
-      if (seen.has(k)) continue;
-      seen.add(k);
-      if (!t.unattributed) attributedFirst.add(k);
-    }
+    for (const t of trail) attributedTrail.add(`${t.entity}\u0000${t.entityId}`);
   }
-  return buildIndex(rows, attributedFirst);
+  return buildIndex(rows, attributedTrail);
 }
 
 /// Who decided each of these approval steps, in words, for a screen that draws a route (the route card, the step lists): the one reading of `ApprovalStep.decidedBy`.

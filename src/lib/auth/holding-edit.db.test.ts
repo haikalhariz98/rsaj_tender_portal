@@ -46,11 +46,13 @@ beforeAll(async () => {
   const admin = await makeAccount(organisationId, { admin: true });
   adminPersonId = admin.person.id;
   colleagueId = (await makePerson(organisationId)).id;
+  // The editor is a third person: the officer who records a delegation from the grantor's letter is never its delegate (review of Phase 2b), so the editor cannot be the colleague it names.
+  const editorId = (await makePerson(organisationId)).id;
   who.actor = {
     kind: "STAFF",
     accountId: "",
     sessionId: "",
-    personId: colleagueId,
+    personId: editorId,
     personName: "Editor",
     jobTitle: null,
     isAdministrator: true,
@@ -106,6 +108,27 @@ describe("a delegation of an administrator's Person", () => {
     const r = await saveDelegation({ ok: false }, edit("2026-10-06"));
     expect(r).toEqual({ ok: true });
     expect((await db.delegation.findUniqueOrThrow({ where: { id: delegationId } })).effectiveTo).toEqual(day("2026-10-06"));
+  });
+});
+
+describe("a delegation recorded from another grantor's letter (review of Phase 2b)", () => {
+  const edit = () => form({ id: delegationId, fromPersonId: adminPersonId, "fromPersonId:paperReference": "Letter of the grantor", toPersonId: colleagueId, roleCode, effectiveFrom: "2026-01-01", effectiveTo: "2026-10-06", reason: "Edited by the test" });
+  const as = async <T,>(over: Partial<StaffActor>, run: () => Promise<T>): Promise<T> => {
+    const saved = who.actor;
+    who.actor = { ...saved!, ...over };
+    try {
+      return await run();
+    } finally {
+      who.actor = saved;
+    }
+  };
+
+  it("is refused to the officer it delegates to: one person would grant the authority and hold it", async () => {
+    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const before = await db.delegation.findUniqueOrThrow({ where: { id: delegationId } });
+    const r = await as({ personId: colleagueId, personName: "The delegate" }, () => saveDelegation({ ok: false }, edit()));
+    expect(r).toMatchObject({ ok: false, errors: { toPersonId: expect.stringMatching(/to yourself/) } });
+    expect(await db.delegation.findUniqueOrThrow({ where: { id: delegationId } })).toEqual(before);
   });
 });
 

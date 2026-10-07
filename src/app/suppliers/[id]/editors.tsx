@@ -194,7 +194,7 @@ export function ResubmissionDrawer({ applicationId, items, people, blocker }: { 
         ...items.map((i) => ({ kind: "textarea", name: i.name, label: i.label } as Field)),
         { kind: "date", name: "resubmitBy", label: "Resubmit by", required: true, hint: "After today. It lapses the day after: the application is then rejected when the lapse is recorded." },
         { kind: "textarea", name: "remarks", label: "General remarks" },
-        actorField("ApplicationDecision.decidedBy", { name: "personId", people }),
+        actorField("ApplicationDecision.decidedBy", { name: "personId", people, paper: false }),
       ]}
       values={{ applicationId, outcome: "RESUBMIT" }}
       action={decideApplication}
@@ -211,7 +211,7 @@ export function RejectApplicationDrawer({ applicationId, people, blocker }: { ap
     <RecordEditor
       title="Reject the application"
       description="The reasons are recorded as written, to be given to the supplier. The notice is shown on the record, not sent. A first registration rejected leaves the supplier not registered; it may apply again."
-      fields={[hidden("applicationId"), hidden("outcome"), actorField("ApplicationDecision.decidedBy", { name: "personId", people })]}
+      fields={[hidden("applicationId"), hidden("outcome"), actorField("ApplicationDecision.decidedBy", { name: "personId", people, paper: false })]}
       values={{ applicationId, outcome: "REJECT" }}
       destructive={{ reasonLabel: "The reasons, as written" }}
       action={decideApplication}

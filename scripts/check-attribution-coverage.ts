@@ -1,8 +1,8 @@
 /**
  * Read-only: for every person slot of an act (`src/lib/auth/act-slots.ts`), counts the rows that hold a person and have no attribution (ADR 0034 D12, Phase 2b).
- * A row written before sign-in has none, and reads "(before sign-in)" on a screen: its first trail entry names nobody. A row written by an act since has one,
- * always. A row with none whose first trail entry names an actor (a seed that wrote the table directly, an act no one wired) reads "Attribution missing", and
- * this finds them. It changes nothing.
+ * A row written before sign-in has none, and reads "(before sign-in)" on a screen: no entry of its record's trail names anybody. A row written by an act since has
+ * one, always. A row with none on a record whose trail names an actor anywhere (a seed that wrote the table directly, an act no one wired, a decision made after
+ * sign-in on a record made before it) reads "Attribution missing", and this finds them. It changes nothing.
  *
  *   npm run auth:attribution
  *
@@ -36,7 +36,7 @@ async function main() {
       `SELECT count(*) FILTER (WHERE t."${column}" IS NOT NULL) AS held,
               count(*) FILTER (WHERE t."${column}" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "ActAttribution" a WHERE a."entity" = $1 AND a."slot" = $2 AND a."entityId" = t."id")) AS lacking,
               count(*) FILTER (WHERE t."${column}" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "ActAttribution" a WHERE a."entity" = $1 AND a."slot" = $2 AND a."entityId" = t."id")
-                AND EXISTS (SELECT 1 FROM (SELECT DISTINCT ON ("entityId") "unattributed" FROM "AuditEntry" e WHERE e."entity" = $1 AND e."entityId" = t."id" ORDER BY "entityId", e."at" ASC) first WHERE NOT first."unattributed")) AS missing
+                AND EXISTS (SELECT 1 FROM "AuditEntry" e WHERE e."entity" = $1 AND e."entityId" = t."id" AND NOT e."unattributed")) AS missing
          FROM "${s.entity}" t`,
       s.entity,
       s.field,

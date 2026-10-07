@@ -34,6 +34,8 @@ export interface ActorFieldSpec {
   /// The act is for this person (a panel member's authorisation, one button each): signed by them where they are the one signed in, and otherwise recorded
   /// for them from paper, which is then the only way (the person is fixed, not chosen).
   forPerson?: { id: string; name: string };
+  /// The act moves money, time or authority, or is a signature: recorded from paper it needs the paper's reference (and the permission), so the field says so.
+  paperReferenceRequired?: boolean;
 }
 
 export function actorField(
@@ -61,6 +63,7 @@ export function actorField(
     label: opts.label ?? slot.label,
     ...(slot.signatureClass ? { signature: true } : {}),
     ...(slot.onBehalf && opts.people && opts.paper !== false ? { onBehalf: opts.people } : {}),
+    ...(slot.onBehalf && (slot.signatureClass || slot.paperGated) ? { paperReferenceRequired: true } : {}),
     ...(opts.forPerson ? { forPerson: opts.forPerson } : {}),
     ...(opts.named && slot.onBehalf ? { named: { options: opts.people ?? [], optional: opts.named.optional ?? false } } : {}),
     ...(opts.dated && opts.people && slot.signatureClass ? { backdate: opts.people.filter((p) => !p.disabled).map(({ value, label }) => ({ value, label })) } : {}),

@@ -59,7 +59,7 @@ export interface ActFault extends Fault {
 const f = (code: string, en: string, ms: string, field?: ActFault["field"]): ActFault => ({ code, en, ms, field });
 
 export function interpretAct(input: {
-  slot: Pick<ActSlot, "signatureClass" | "onBehalf">;
+  slot: Pick<ActSlot, "signatureClass" | "onBehalf"> & { paperGated?: boolean };
   /// The signed-in person, or null in a loader run.
   actorPersonId: string | null;
   /// The loader's label where no person is signed in.
@@ -117,7 +117,8 @@ export function interpretAct(input: {
         ),
       );
     }
-    if (form.paperReference.trim() === "" && form.reason.trim() === "") {
+    const needsPaper = slot.signatureClass || slot.paperGated;
+    if (!needsPaper && form.paperReference.trim() === "" && form.reason.trim() === "") {
       faults.push(
         f(
           "PAPER_OR_REASON_REQUIRED",
@@ -126,6 +127,10 @@ export function interpretAct(input: {
           "paperReference",
         ),
       );
+    }
+    // A signature, or an act that moves money, time or authority, is recorded from paper with the paper's reference: a bare reason is not enough.
+    if (needsPaper && form.attestedPersonId && form.paperReference.trim() === "") {
+      faults.push(f("PAPER_REFERENCE_REQUIRED", "A paper decision is recorded with the reference of the paper it came from.", "Keputusan atas kertas direkodkan dengan rujukan kertas asalnya.", "paperReference"));
     }
     if (input.dated && !claimed) {
       faults.push(f("DATE_REQUIRED", "Say the day the paper is dated.", "Nyatakan tarikh pada kertas itu.", "date"));

@@ -117,7 +117,7 @@ export function LockBoxDrawer({ exerciseId, allowed, people, noteId }: { exercis
       description="The box, its lock and its key remain the control. The portal records that it was locked, by whom, stamped now; it does not enforce it."
       fields={[
         hidden("exerciseId"),
-        actorField("BoxEvent.person", { name: "personId", people, label: "Locked by" }),
+        actorField("BoxEvent.person", { name: "personId", people, label: "Locked by", paper: false }),
         { kind: "textarea", name: "note", label: "Note" },
       ]}
       values={{ exerciseId }}

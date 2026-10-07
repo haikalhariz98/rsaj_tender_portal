@@ -136,7 +136,7 @@ export async function beginActFromWith(deps: ActDeps, actor: StaffActor, form: A
   const { entity, field, slot } = parseSlotKey(key);
   const today = todayIn(deps.now(), actor.organisationTimeZone);
   const read = interpretAct({
-    slot: { signatureClass: slot.signatureClass, onBehalf: slot.onBehalf && opts.onBehalf !== false },
+    slot: { signatureClass: slot.signatureClass, onBehalf: slot.onBehalf && opts.onBehalf !== false, paperGated: slot.paperGated },
     actorPersonId: actor.system ? null : actor.personId,
     systemLabel: actor.system?.label ?? null,
     today,
@@ -208,7 +208,16 @@ export async function beginActFromWith(deps: ActDeps, actor: StaffActor, form: A
     async writeAlso(tx, slotKey, entityId, extra) {
       const also = parseSlotKey(slotKey);
       if (also.slot.signatureClass) throw new Error(`"${slotKey}" is a signature: it asks its own password and is begun with its own beginAct.`);
-      if (intent.mode === "RECORDED_ON_BEHALF" && !also.slot.onBehalf && !actor.system) throw new Error(`"${slotKey}" cannot be recorded for someone else.`);
+      // A slot that cannot be recorded for someone else, written by an act that was: refused as the form's message, never a crash (the registry holds every such pairing: `act-wiring-scan.test.ts`).
+      if (intent.mode === "RECORDED_ON_BEHALF" && !also.slot.onBehalf && !actor.system) {
+        throw new AttributionRefused([
+          {
+            code: "CONSEQUENCE_NOT_PAPER",
+            en: `"${also.slot.label}" cannot be recorded for someone else, so this act cannot be recorded from paper: the person it is for signs it themselves.`,
+            ms: `"${also.slot.ms}" tidak boleh direkodkan bagi pihak orang lain, jadi tindakan ini tidak boleh direkodkan daripada kertas: orang yang berkenaan menandatanganinya sendiri.`,
+          },
+        ]);
+      }
       await deps.attribute(tx, {
         actor,
         entity: also.entity,

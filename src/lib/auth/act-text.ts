@@ -10,6 +10,7 @@ export const ACT_TEXT = {
   namedDefault: "You, unless you are recording it for another officer from their paper record.",
   paperDescription: "Not signed: it reads as recorded by you on their behalf.",
   paperReferenceAuthorisation: "The reference of the paper it came from. A paper approval, signature or authorisation needs one.",
+  paperReferenceGated: "The reference of the paper it came from. It is needed: this moves money, time or authority, so recording it for someone else needs the paper and the permission to record on someone's behalf.",
   paperReferenceNamed: "The reference of the paper it came from.",
   paperReferenceSignature: "The reference of the paper it came from. A paper approval or signature needs one.",
   passwordHint: "Asked each time you sign.",

@@ -88,6 +88,37 @@ describe("an act recorded on someone's behalf", () => {
     expect(codes({ ...plain, paperReference: "Form 7" })).toEqual([]);
   });
 
+  // Review of Phase 2b (an open item for the product owner): an act that moves money, time or authority needs the permission and the paper's reference when it is
+  // recorded for someone else, though not the organisation's switch for signatures. A clerk may not release retention "for the S.O." by typing "by phone".
+  describe("an act that moves money, time or authority (paperGated)", () => {
+    const money = (over: Partial<AttributionRequest> = {}): AttributionRequest => ({
+      entity: "RetentionRelease", entityId: "rr1", slot: "person",
+      subject: { kind: "PERSON", personId: "so" }, recorder: person("clerk"), mode: "RECORDED_ON_BEHALF",
+      paperReference: "S.O. memo 12/2026", recorderPermissions: new Set<PermissionKey>(["acts.recordOnBehalf"]), paperSignatureRecording: null, ...over,
+    });
+    it("is recorded for someone else with the permission and the paper's reference, whatever the signature switch says", () => {
+      expect(codes(money())).toEqual([]);
+      expect(codes(money({ paperSignatureRecording: "REFUSED" }))).toEqual([]);
+    });
+    it("is refused to an officer without the permission, and says it moves money, time or authority", () => {
+      const r = attributionFaults(money({ recorderPermissions: new Set() }));
+      expect(r.map((x) => x.code)).toEqual(["NOT_PERMITTED_TO_RECORD"]);
+      expect(r[0].en).toMatch(/moves money, time or authority/);
+    });
+    it("is refused with only a reason: a bare 'by phone' is not a paper", () => {
+      expect(codes(money({ paperReference: "", reason: "by phone" }))).toEqual(["PAPER_REFERENCE_REQUIRED"]);
+    });
+    it("is the actor's own act when signed in: no permission, no paper", () => {
+      expect(codes(money({ mode: "SIGNED", subject: { kind: "PERSON", personId: "clerk" }, recorderPermissions: undefined, paperReference: "" }))).toEqual([]);
+    });
+    it("is still allowed to the system, as the demo loader's history", () => {
+      expect(codes(money({ recorder: { kind: "SYSTEM", label: "demo loader" }, recorderPermissions: undefined, paperReference: "", reason: "history" }))).toEqual([]);
+    });
+    it("an ordinary paper act (a requisition raised for a colleague) still needs the paper or the reason only", () => {
+      expect(codes({ ...plain, reason: "On B's instruction", paperReference: "" })).toEqual([]);
+    });
+  });
+
   it("lets the system record a signature-class act for a person, with a reason, and no permission or switch of a person", () => {
     expect(codes(onBehalf({ recorder: { kind: "SYSTEM", label: "demo loader" }, recorderPermissions: undefined, paperSignatureRecording: null, paperReference: "", reason: "history made by the demo loader" }))).toEqual([]);
     expect(codes(onBehalf({ recorder: { kind: "SYSTEM", label: " " }, paperReference: "x" }))).toEqual(["SYSTEM_UNLABELLED"]);
@@ -291,7 +322,8 @@ describe("how a signed act that is not a signature reads", () => {
       auditAttributed: true,
       slot: { label: "Decided by", ms: "Diputuskan oleh", signatureClass: true },
     });
-    expect(r.en).toBe("Signed by Aminah, dated 2026-10-01 (back-dated, authorised by Zul)");
-    expect(r.ms).toContain("dibenarkan oleh Zul");
+    // Review of Phase 2b: the authoriser is only named by the person who signed, and has not confirmed it, so the words say that and not "authorised by".
+    expect(r.en).toBe("Signed by Aminah, dated 2026-10-01 (back-dated; the signer names Zul as authorising it, not confirmed)");
+    expect(r.ms).toContain("menamakan Zul sebagai pemberi kuasa, belum disahkan");
   });
 });

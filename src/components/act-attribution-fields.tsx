@@ -56,7 +56,7 @@ export function ActAttributionFields({ spec, errors, initial }: { spec: ActorFie
         </Field>
         {another && (
           <>
-            <Field label="Paper reference" htmlFor={`${id}-paper`} hint={ACT_TEXT.paperReferenceNamed} error={errors?.[n.paperReference]}>
+            <Field label="Paper reference" htmlFor={`${id}-paper`} hint={spec.paperReferenceRequired ? ACT_TEXT.paperReferenceGated : ACT_TEXT.paperReferenceNamed} error={errors?.[n.paperReference]}>
               <Input id={`${id}-paper`} name={n.paperReference} aria-invalid={errors?.[n.paperReference] ? true : undefined} />
             </Field>
             <Field label="Why it is recorded for them" htmlFor={`${id}-why`} hint={ACT_TEXT.reasonNeeded} error={errors?.[n.reason]}>

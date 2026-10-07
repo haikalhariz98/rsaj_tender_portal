@@ -98,6 +98,34 @@ describe("every Person relation is an act slot or is accounted for", () => {
   });
 });
 
+describe("the acts that move money, time or authority are recorded from paper only with the permission and the paper's reference (an open item for the product owner)", () => {
+  it("are the ones the review named, each paper-capable and none a signature", () => {
+    const gated = ACT_SLOTS.filter((s) => s.paperGated);
+    expect(gated.map((s) => slotKey(s.entity, s.field)).sort()).toEqual(
+      [
+        "AdvancePayment.person",
+        "EarlyActionDecision.person",
+        "ExtensionOfTime.person",
+        "FinancePayment.person",
+        "InterimValuation.person",
+        "LadWaiver.person",
+        "LadWarning.person",
+        "LossExpenseClaim.valuedBy",
+        "PendingDeduction.person",
+        "PeriodAgreement.person",
+        "PeriodExtension.person",
+        "RetentionRelease.person",
+        "SoDelegation.grantorPerson",
+        "SumAdjustment.person",
+      ].sort(),
+    );
+    for (const s of gated) {
+      expect(s.onBehalf, slotKey(s.entity, s.field)).toBe(true);
+      expect(s.signatureClass, slotKey(s.entity, s.field)).toBe(false);
+    }
+  });
+});
+
 describe("the signature-class acts", () => {
   it("are the approvals, signatures and unsealings the programme names", () => {
     expect(SIGNATURE_SLOTS.map((s) => slotKey(s.entity, s.field)).sort()).toEqual(

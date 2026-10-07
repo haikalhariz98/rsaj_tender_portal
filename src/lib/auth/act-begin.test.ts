@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { STAFF_FIXTURE, actModule } from "@/lib/test-support/staff";
 
 import { actFormFromJson } from "./act-begin";
+import { AttributionRefused } from "./attribution-store";
 import type { PermissionKey, StaffActor } from "./types";
 
 /**
@@ -213,6 +214,8 @@ describe("one act, two slots", () => {
     const begun = await m.beginAct(actor(), form({ personId: BOSS, "personId:onBehalf": "on", "personId:reason": "Away" }), PAPER, OPTS);
     if (!begun.ok) throw new Error(JSON.stringify(begun.state));
     await expect(begun.act.writeAlso(tx, "ApprovalInstance.submittedBy", "inst1")).rejects.toThrow(/cannot be recorded for someone else/);
+    // Refused as the form's own message, never a crash (review of Phase 2b): the action's frame turns it into a state.
+    await expect(begun.act.writeAlso(tx, "ApprovalInstance.submittedBy", "inst1")).rejects.toBeInstanceOf(AttributionRefused);
   });
 });
 
@@ -226,5 +229,37 @@ describe("a request body", () => {
     expect(forMember.ok && forMember.act.recorderId).toBe(ME);
     const noPaper = await m.beginActFrom(actor(), actFormFromJson({ onBehalfOf: BOSS }, { personKey: "onBehalfOf" }), "Vote.person", { personField: "onBehalfOf" });
     expect(noPaper.ok).toBe(false);
+  });
+});
+
+describe("a signature recorded from paper writes its consequence too (review of Phase 2b: it used to crash with a 500)", () => {
+  const paperForm = form({ personId: BOSS, "personId:onBehalf": "on", "personId:paperReference": "Minute 9" });
+  const holder = () => actor({ permissions: new Set<PermissionKey>(["acts.recordOnBehalf"]) });
+  const doc = { ...OPTS, document: { entity: "Opening", id: "op1" } };
+
+  it("the second authorisation that opens a main box, recorded from paper, writes the box event for the same person the same way", async () => {
+    const { module: m, written } = actModule({ paperSignatureRecording: "ALLOWED" });
+    const begun = await m.beginAct(holder(), paperForm, "OpeningAuthorisation.person", doc);
+    if (!begun.ok) throw new Error(JSON.stringify(begun.state));
+    await begun.act.write(tx, "auth2");
+    await begun.act.writeAlso(tx, "BoxEvent.person", "ev1");
+    expect(written.map((w) => `${w.entity}.${w.slot}:${w.mode}:${w.subjectPersonId}`)).toEqual([`OpeningAuthorisation.person:RECORDED_ON_BEHALF:${BOSS}`, `BoxEvent.person:RECORDED_ON_BEHALF:${BOSS}`]);
+  });
+
+  it("the last step of a registration route, recorded from paper, writes the application's decision the same way", async () => {
+    const { module: m, written } = actModule({ paperSignatureRecording: "ALLOWED" });
+    const begun = await m.beginAct(holder(), paperForm, SIGNATURE, { ...OPTS, document: { entity: "SupplierApplication", id: "app1" } });
+    if (!begun.ok) throw new Error(JSON.stringify(begun.state));
+    await begun.act.write(tx, "step9");
+    await begun.act.writeAlso(tx, "ApplicationDecision.decidedBy", "dec1");
+    expect(written.map((w) => `${w.entity}.${w.slot}:${w.mode}`)).toEqual(["ApprovalStep.decidedBy:RECORDED_ON_BEHALF", "ApplicationDecision.decidedBy:RECORDED_ON_BEHALF"]);
+  });
+
+  it("the officer's own acts beside them are still never recorded for someone else: the lock of the box and a resubmission request", async () => {
+    const { module: m } = actModule();
+    for (const key of ["BoxEvent.person", "ApplicationDecision.decidedBy"]) {
+      const begun = await m.beginAct(actor(), paperForm, key, { ...OPTS, onBehalf: false });
+      expect(begun.ok, key).toBe(false);
+    }
   });
 });

@@ -147,6 +147,63 @@ describe("an act that is begun is used", () => {
   });
 });
 
+describe("a slot written beside an act can be recorded the way the act is", () => {
+  /// A `writeAlso` target written in a function that is handed its act (a library writer, a helper): the main act, verified by hand, and why it is safe. The target is
+  /// either paper-capable or the main act is always the signed-in officer's own (`onBehalf: false` at its `beginAct`, which the test reads).
+  const HANDED: Readonly<Record<string, { target: string; main: string; mainFile: string; mainFn: string }[]>> = {
+    "src/lib/bids/lodgement.ts": [{ target: "BidEnvelope.receivedBy", main: "EstimateEvent.person", mainFile: "src/app/sourcing/[id]/scope/actions.ts", mainFn: "lodgeEstimate" }],
+    "src/lib/evaluation/versions.ts": [{ target: "Evaluation.startedBy", main: "EstimateEvent.person", mainFile: "src/app/sourcing/[id]/opening/actions.ts", mainFn: "finaliseOpening" }],
+  };
+  const paperCapable = (key: string) => ACT_SLOTS.find((s) => slotKey(s.entity, s.field) === key)?.onBehalf === true;
+  /// The `beginAct` calls of a source text, each with the slot it is for and whether it narrows the slot to the officer's own.
+  const mainsOf = (text: string) =>
+    callsOf(text, /\bbeginAct(?:From)?\(/g)
+      .map((call) => ({ key: [...call.matchAll(/"([A-Z]\w+\.\w+)"/g)].map((m) => m[1]).find((k) => ACT_SLOTS.some((s) => slotKey(s.entity, s.field) === k)), own: /\bonBehalf:\s*false/.test(call) }))
+      .filter((m): m is { key: string; own: boolean } => !!m.key);
+
+  it("every slot written beside an act that may be recorded from paper may be recorded from paper itself (writeAlso would refuse it, and the act with it)", () => {
+    const wrong: string[] = [];
+    let checked = 0;
+    for (const f of ACT_SOURCES.filter((x) => x.file.startsWith("src/app/") && !x.file.startsWith("src/app/_auth/"))) {
+      const fns = spans(lex(f.text));
+      for (const call of f.text.matchAll(/\bwriteAlso\(\s*[\w.]+,\s*"([A-Z]\w+\.\w+)"/g)) {
+        checked++;
+        const outer = fns.filter((sp) => sp.from <= call.index! && call.index! <= sp.to).sort((a, b) => a.from - b.from)[0];
+        const body = outer ? f.text.slice(outer.from, outer.to) : f.text;
+        // The act is the function's first (`const act = begun.act;`): a function that begins a second (a late estimate's override) writes that one's own slot with its own `write`.
+        const main = mainsOf(body)[0];
+        if (!main) {
+          wrong.push(`${f.file}: writeAlso("${call[1]}") is in a function that begins no act: name its main act in HANDED`);
+          continue;
+        }
+        if (!main.own && paperCapable(main.key) && !paperCapable(call[1])) wrong.push(`${f.file}#${outer?.name ?? "?"}: ${call[1]} is written beside ${main.key}, which may be recorded from paper, and it cannot be`);
+      }
+    }
+    expect(checked).toBeGreaterThan(8);
+    expect(wrong).toEqual([]);
+  });
+
+  it("a slot written by a library function is paper-capable, or its main act is the officer's own where the act is begun", () => {
+    const wrong: string[] = [];
+    for (const [file, list] of Object.entries(HANDED)) {
+      const text = FILES.find((f) => f.file === file)!.text;
+      for (const h of list) {
+        expect(text, `${file} writes ${h.target} beside an act`).toContain(`writeAlso(tx, "${h.target}"`);
+        if (paperCapable(h.target)) continue;
+        const mainText = FILES.find((f) => f.file === h.mainFile)!.text;
+        const fn = spans(lex(mainText)).find((sp) => sp.name === h.mainFn);
+        expect(fn, `${h.mainFile} has ${h.mainFn}`).toBeTruthy();
+        const main = mainsOf(mainText.slice(fn!.from, fn!.to)).filter((m) => m.key === h.main);
+        if (main.length === 0 || main.some((m) => !m.own)) wrong.push(`${file}: ${h.target} is not paper-capable, and ${h.main} (${h.mainFile}#${h.mainFn}) is not always the officer's own`);
+      }
+    }
+    expect(wrong).toEqual([]);
+    // Every library writer of a second slot is on the list or writes a slot that may be recorded from paper.
+    const unlisted = FILES.filter((f) => f.file.startsWith("src/lib/") && !f.file.startsWith("src/lib/auth/") && /\.writeAlso\(/.test(f.text) && !HANDED[f.file]).filter((f) => [...f.text.matchAll(/writeAlso\(\s*[\w.]+,\s*"([A-Z]\w+\.\w+)"/g)].some((m) => !paperCapable(m[1])));
+    expect(unlisted.map((f) => f.file)).toEqual([]);
+  });
+});
+
 describe("a refused attribution is a message, never a crash", () => {
   it("every action file that writes an attribution catches the refusal the writer can raise in the act's transaction", () => {
     // The writer throws `AttributionRefused` to roll the act back (a race the pre-flight could not see). The file's own frame turns it into the form's message: its own
@@ -195,6 +252,65 @@ describe("a signature-class act asks the password where it is signed", () => {
     }
     expect(checked).toBeGreaterThan(20);
     expect(without).toEqual([]);
+  });
+
+  /// The signature-class acts whose record is the document they decide (the decision is made on it: an award issued, a programme decided, a claim determined, a variation
+  /// decided, a non-completion decided), so naming it is naming the document. Every other signature creates a row that only records the signing, and names what it signs.
+  const DECIDES_ITS_OWN_RECORD = new Set(["Award", "NonCompletion", "WorkProgramme", "EotClaim", "Variation"]);
+
+  it("no signature names itself as the document it signs: the document is the record that was signed, not the attribution's own row", () => {
+    // `document: { entity: "DiaryEndorsement", id: row.id }` on a `DiaryEndorsement.person` act is the signature naming the signature (review of Phase 2b).
+    const signature = ACT_SLOTS.filter((s) => s.signatureClass);
+    const selfNamed: string[] = [];
+    for (const f of ACT_SOURCES.filter((x) => !x.file.startsWith("src/lib/auth/") && x.file !== "src/app/_auth/act.ts")) {
+      const fns = spans(lex(f.text));
+      for (const call of f.text.matchAll(/\bbeginAct(?:From)?\(/g)) {
+        const text = callsOf(f.text.slice(call.index!), /^beginAct(?:From)?\(/g)[0];
+        const key = [...text.matchAll(/"([A-Z]\w+\.\w+)"/g)].map((k) => k[1]).find((k) => signature.some((s) => slotKey(s.entity, s.field) === k));
+        if (!key) continue;
+        const entity = key.split(".")[0];
+        if (DECIDES_ITS_OWN_RECORD.has(entity)) continue;
+        const fn = fns.filter((sp) => sp.from <= call.index! && call.index! <= sp.to).sort((a, b) => b.from - a.from)[0];
+        const body = fn ? f.text.slice(fn.from, fn.to) : text;
+        if (new RegExp(String.raw`document:\s*\{\s*entity:\s*"${entity}"`).test(body)) selfNamed.push(`${f.file}#${fn?.name ?? "?"}: ${key} names a ${entity} as the document it signs`);
+      }
+    }
+    expect(selfNamed).toEqual([]);
+  });
+
+  /// The signature-class acts that do not record the office the signer held, each with the reason (NFR-SIG-001 asks for the role). An act not on this list passes `roleCode`.
+  const NO_OFFICE_RECORDED: Readonly<Record<string, string>> = {
+    "OpeningAuthorisation.person": "A panel member sits by seat (the seat label is on the panel record), not by an office code: no office is invented for them. Open for the product owner: whether the seat is recorded here.",
+    "OpeningSignature.person": "The same: a panel member signs the opening's schedule by seat, and the office code of the panel member is not known to the act.",
+    "ReconciliationAmendment.officer": "The officer signs for the employer in an office the form does not ask: open for the product owner, which office signs a reconciliation amendment.",
+  };
+
+  it("every signature-class act records the office the signer held, or is on the list of those that do not, with the reason (NFR-SIG-001)", () => {
+    const signature = new Set(ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field)));
+    const without: string[] = [];
+    const wired = new Set<string>();
+    for (const f of ACT_SOURCES.filter((x) => !x.file.startsWith("src/lib/auth/") && x.file !== "src/app/_auth/act.ts")) {
+      const fns = spans(lex(f.text));
+      for (const call of f.text.matchAll(/\bbeginAct(?:From)?\(/g)) {
+        const text = callsOf(f.text.slice(call.index!), /^beginAct(?:From)?\(/g)[0];
+        const key = [...text.matchAll(/"([A-Z]\w+\.\w+)"/g)].map((k) => k[1]).find((k) => signature.has(k));
+        if (!key) continue;
+        wired.add(key);
+        const fn = fns.filter((sp) => sp.from <= call.index! && call.index! <= sp.to).sort((a, b) => b.from - a.from)[0];
+        const body = fn ? f.text.slice(fn.from, fn.to) : text;
+        // An act handed to a library writer (it never calls `.write(` itself) is held by the writers' own check below.
+        if (!/\bact\??\.write\(/.test(body)) continue;
+        if (!/\broleCode\b/.test(body) && !NO_OFFICE_RECORDED[key]) without.push(`${f.file}#${fn?.name ?? "?"}: ${key}`);
+      }
+    }
+    expect(without).toEqual([]);
+    // The library writers that write a signature handed to them record the office too.
+    for (const file of ["src/lib/certificate/route-write.ts", "src/lib/matter/route-write.ts", "src/lib/variation/route-write.ts", "src/app/suppliers/routes.ts", "src/lib/certificate/write.ts"]) {
+      expect(FILES.find((f) => f.file === file)!.text, `${file} writes the office held`).toMatch(/\.write\([^;]*roleCode/);
+    }
+    // The list names only signatures that are wired and still need it: an act that gains its office comes off the list.
+    expect(Object.keys(NO_OFFICE_RECORDED).filter((k) => !wired.has(k))).toEqual([]);
+    for (const [k, why] of Object.entries(NO_OFFICE_RECORDED)) expect(why.length, k).toBeGreaterThan(40);
   });
 
   it("beginAct asks the password for exactly the acts that need it, before the act's transaction, and nowhere else is stepUp called", () => {

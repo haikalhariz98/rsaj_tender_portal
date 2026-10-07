@@ -162,19 +162,28 @@ export function attributionFaults(req: AttributionRequest): Fault[] {
       ),
     );
   }
-  if (signatureClass && !system) {
+  // A signature, or an act that moves money, time or authority (`paperGated`): the permission and the paper's reference. The organisation's switch is the signature's alone.
+  if ((signatureClass || registered.paperGated) && !system) {
     if (!req.recorderPermissions?.has("acts.recordOnBehalf")) {
       out.push(
-        fault(
-          "NOT_PERMITTED_TO_RECORD",
-          "Recording an approval, signature or unsealing from paper needs the permission to record on someone's behalf, which you do not hold.",
-          "Merekodkan kelulusan, tandatangan atau pembukaan meterai daripada kertas memerlukan kebenaran merekod bagi pihak seseorang, yang tidak anda pegang.",
-        ),
+        signatureClass
+          ? fault(
+              "NOT_PERMITTED_TO_RECORD",
+              "Recording an approval, signature or unsealing from paper needs the permission to record on someone's behalf, which you do not hold.",
+              "Merekodkan kelulusan, tandatangan atau pembukaan meterai daripada kertas memerlukan kebenaran merekod bagi pihak seseorang, yang tidak anda pegang.",
+            )
+          : fault(
+              "NOT_PERMITTED_TO_RECORD",
+              "Recording this from paper for someone else needs the permission to record on someone's behalf, which you do not hold. It moves money, time or authority.",
+              "Merekodkan ini daripada kertas bagi pihak orang lain memerlukan kebenaran merekod bagi pihak seseorang, yang tidak anda pegang. Ia melibatkan wang, masa atau kuasa.",
+            ),
       );
     }
     if (paper === "") {
       out.push(fault("PAPER_REFERENCE_REQUIRED", "A paper decision is recorded with the reference of the paper it came from.", "Keputusan atas kertas direkodkan dengan rujukan kertas asalnya."));
     }
+  }
+  if (signatureClass && !system) {
     if (req.paperSignatureRecording == null) {
       out.push(
         fault(
@@ -256,7 +265,8 @@ export interface AttributionFacts {
 export function attributionLabel(f: AttributionFacts): AttributionRead {
   if (f.row) {
     if (f.row.mode === "SIGNED") {
-      const back = f.row.effectiveOn ? { en: `, dated ${f.row.effectiveOn} (back-dated${f.row.backdateAuthorisedByName ? `, authorised by ${f.row.backdateAuthorisedByName}` : ""})`, ms: `, bertarikh ${f.row.effectiveOn} (bertarikh lalu${f.row.backdateAuthorisedByName ? `, dibenarkan oleh ${f.row.backdateAuthorisedByName}` : ""})` } : { en: "", ms: "" };
+      // The authoriser is named by the recorder and has not confirmed it (their own confirmation is the two-person queue of 2c): so it is read as the recorder's claim and never as fact.
+      const back = f.row.effectiveOn ? { en: `, dated ${f.row.effectiveOn} (back-dated${f.row.backdateAuthorisedByName ? `; the signer names ${f.row.backdateAuthorisedByName} as authorising it, not confirmed` : ""})`, ms: `, bertarikh ${f.row.effectiveOn} (bertarikh lalu${f.row.backdateAuthorisedByName ? `; penandatangan menamakan ${f.row.backdateAuthorisedByName} sebagai pemberi kuasa, belum disahkan` : ""})` } : { en: "", ms: "" };
       if (f.slot && !f.slot.signatureClass) return { state: "SIGNED", en: `${f.slot.label} ${f.subjectName}${back.en}`, ms: `${f.slot.ms} ${f.subjectName}${back.ms}` };
       return { state: "SIGNED", en: `Signed by ${f.subjectName}${back.en}`, ms: `Ditandatangani oleh ${f.subjectName}${back.ms}` };
     }

@@ -42,7 +42,7 @@ describe("how a screen reads who did an act", () => {
 
   it("says when a signature was back-dated, the day and who authorised it", () => {
     const read = buildIndex([row({ effectiveOn: new Date("2026-09-30"), backdateAuthorisedByPerson: { name: "Boss" } })], new Set()).read(ref, "Aini");
-    expect(read.en).toBe("Signed by Aini, dated 2026-09-30 (back-dated, authorised by Boss)");
+    expect(read.en).toBe("Signed by Aini, dated 2026-09-30 (back-dated; the signer names Boss as authorising it, not confirmed)");
   });
 
   it("reads an act with no attribution as before sign-in where nothing in the trail names who, and as missing where it does", () => {
@@ -70,5 +70,31 @@ describe("the batch read", () => {
     expect(calls).toEqual(["attributions", "trail s2"]);
     expect(index.read(ref, "Aini").state).toBe("SIGNED");
     expect(index.read({ ...ref, id: "s2" }, "Boss").state).toBe("MISSING");
+  });
+});
+
+describe("a record made before sign-in and acted on after it (review of Phase 2b)", () => {
+  // The trail of one step: created before sign-in (names nobody), decided after (names the actor), and the decision wrote no attribution.
+  const trail = [
+    { entity: "ApprovalStep", entityId: "s9", unattributed: true, at: 1 },
+    { entity: "ApprovalStep", entityId: "s9", unattributed: false, at: 2 },
+    { entity: "ApprovalStep", entityId: "old", unattributed: true, at: 1 },
+  ];
+  const client = {
+    actAttribution: { findMany: async () => [] },
+    auditEntry: {
+      findMany: async (q: { where: { unattributed?: boolean; OR: { entityId: { in: string[] } }[] }; distinct?: string[] }) => {
+        const ids = new Set(q.where.OR.flatMap((o) => o.entityId.in));
+        const rows = trail.filter((t) => ids.has(t.entityId) && (q.where.unattributed === undefined || t.unattributed === q.where.unattributed));
+        return q.distinct ? rows.filter((r, i) => rows.findIndex((x) => x.entity === r.entity && x.entityId === r.entityId) === i) : rows;
+      },
+    },
+  };
+
+  it("reads Attribution missing, not before sign-in: the first row of the record is old and the act's own is not", async () => {
+    const index = await loadAttributions(client as never, "org", [{ entity: "ApprovalStep", ids: ["s9", "old"], slot: "decidedBy" }]);
+    expect(index.read({ entity: "ApprovalStep", id: "s9", slot: "decidedBy" }, "Aini")).toMatchObject({ state: "MISSING", en: "Attribution missing" });
+    // A record whose whole trail names nobody is still before sign-in.
+    expect(index.read({ entity: "ApprovalStep", id: "old", slot: "decidedBy" }, "Aini").state).toBe("LEGACY");
   });
 });

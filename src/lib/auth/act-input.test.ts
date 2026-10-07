@@ -104,6 +104,17 @@ describe("an act recorded on someone's behalf from paper", () => {
     expect(codes(run({ slot: PAPER_ONLY, form: { onBehalf: true, attestedPersonId: "boss" } }))).toEqual(["PAPER_OR_REASON_REQUIRED"]);
   });
 
+  it("needs the paper's reference, not only a reason, for a signature or an act that moves money, time or authority (review of Phase 2b), on the paper-reference field", () => {
+    const GATED = { signatureClass: false, onBehalf: true, paperGated: true } as const;
+    const faultOf = (r: ReturnType<typeof run>) => (r.ok ? [] : r.faults.map((f) => `${f.code}@${f.field}`));
+    expect(faultOf(run({ slot: GATED, form: { onBehalf: true, attestedPersonId: "boss", reason: "by phone" } }))).toEqual(["PAPER_REFERENCE_REQUIRED@paperReference"]);
+    expect(faultOf(run({ slot: SIGNATURE, form: { onBehalf: true, attestedPersonId: "boss", reason: "by phone" } }))).toEqual(["PAPER_REFERENCE_REQUIRED@paperReference"]);
+    expect(faultOf(run({ slot: GATED, form: { onBehalf: true, attestedPersonId: "boss" } }))).toEqual(["PAPER_REFERENCE_REQUIRED@paperReference"]);
+    expect(codes(run({ slot: GATED, form: { onBehalf: true, attestedPersonId: "boss", paperReference: "Memo 4" } }))).toEqual([]);
+    // An act that is only paper-capable still takes the reason alone.
+    expect(codes(run({ slot: PAPER_ONLY, form: { onBehalf: true, attestedPersonId: "boss", reason: "by phone" } }))).toEqual([]);
+  });
+
   it("needs the day the paper is dated where the act is dated, and not a day after today", () => {
     expect(codes(run({ slot: SIGNATURE, dated: true, form: { onBehalf: true, attestedPersonId: "boss", paperReference: "p" } }))).toEqual(["DATE_REQUIRED"]);
     expect(codes(run({ slot: SIGNATURE, dated: true, form: { onBehalf: true, attestedPersonId: "boss", paperReference: "p", claimedDay: "2026-10-09" } }))).toEqual(["DATE_IN_FUTURE"]);
