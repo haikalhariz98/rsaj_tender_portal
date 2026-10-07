@@ -230,6 +230,31 @@ export function soDecisionFaults(i: { status: VariationStatus; exemption: Variat
   return out;
 }
 
+/// The hands on a variation's origination, for the S.O.'s decision (FR-VAR): who the origination is attributed to, and each officer who keyed it (the attribution of its
+/// `originator` slot, every occurrence: a variation returned and originated again was keyed by each who keyed it). `null` where the origination has no keying officer on
+/// record (a variation made before sign-in, or by the system: nobody to compare with).
+export interface OriginationHands {
+  /// The variation's originator, and whoever its origination was attributed to when it was originated before.
+  originatorPersonIds: readonly string[];
+  keyedByPersonIds: readonly (string | null)[];
+}
+
+/// The product owner's ruling (decisions log, 2026-10-07, 2b review): a Superintending Officer does not decide a variation they originated or keyed. FR-VAR places origination
+/// with the implementing department or the S.O.'s Representative, not the S.O., so the refusal costs the specified flow nothing, and a permissive gap is the opposite of
+/// "unset means refuse". Both hands on the decision are compared: the S.O. it is attributed to, and the officer entering it (the same person unless it is recorded from
+/// the S.O.'s paper). Each is refused as the originator, or as one who keyed the origination. Pure: the caller reads the hands.
+export function soOriginationFaults(i: { decidedFor: string; enteredBy: string; origination: OriginationHands }): Finding[] {
+  const out: Finding[] = [];
+  const hands: readonly { who: "so" | "officer"; id: string }[] = i.decidedFor === i.enteredBy ? [{ who: "so", id: i.decidedFor }] : [{ who: "so", id: i.decidedFor }, { who: "officer", id: i.enteredBy }];
+  for (const h of hands) {
+    // A loader names no person (its `personId` is empty): there is nobody to compare.
+    if (h.id === "") continue;
+    if (i.origination.originatorPersonIds.includes(h.id)) out.push({ code: "SO_ORIGINATED", level: "block", data: { who: h.who } });
+    else if (i.origination.keyedByPersonIds.some((k) => k != null && k === h.id)) out.push({ code: "SO_KEYED_ORIGINATION", level: "block", data: { who: h.who } });
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ sending for approval
 
 export interface SendInput {

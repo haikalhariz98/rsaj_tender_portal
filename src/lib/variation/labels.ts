@@ -194,6 +194,14 @@ export function variationFaultWords(f: Finding): Words {
       return w(`Only a draft is submitted (this variation is ${stat(d.status).en.toLowerCase()}).`, "Hanya draf dikemukakan.");
     case "NOT_WITH_SO":
       return w("The S.O. decides only an application submitted to them and not exempt.", "P.P. hanya memutuskan permohonan yang dikemukakan dan tidak dikecualikan.");
+    case "SO_ORIGINATED":
+      return d.who === "officer"
+        ? w("The officer entering this decision originated the variation, so cannot record the Superintending Officer's decision on it: someone who did not originate it records it, or the Superintending Officer signs it.", "Pegawai yang memasukkan keputusan ini ialah pemula perubahan kerja, maka tidak boleh merekodkan keputusan Pegawai Penguasa mengenainya: orang lain yang bukan pemula merekodkannya, atau Pegawai Penguasa menandatanganinya sendiri.")
+        : w("The Superintending Officer originated this variation and does not decide it: a variation is originated by the implementing department or the Superintending Officer's Representative, and decided by a Superintending Officer who did not originate it.", "Pegawai Penguasa ialah pemula perubahan kerja ini dan tidak memutuskannya: perubahan kerja dimulakan oleh jabatan pelaksana atau Wakil Pegawai Penguasa, dan diputuskan oleh Pegawai Penguasa yang bukan pemulanya.");
+    case "SO_KEYED_ORIGINATION":
+      return d.who === "officer"
+        ? w("The officer entering this decision keyed the variation's origination, so cannot record the Superintending Officer's decision on it: someone who did not key it records it, or the Superintending Officer signs it.", "Pegawai yang memasukkan keputusan ini memasukkan permulaan perubahan kerja, maka tidak boleh merekodkan keputusan Pegawai Penguasa mengenainya: orang lain yang tidak memasukkannya merekodkannya, atau Pegawai Penguasa menandatanganinya sendiri.")
+        : w("The Superintending Officer keyed this variation's origination and does not decide it: it is decided by a Superintending Officer who neither originated nor keyed it.", "Pegawai Penguasa memasukkan permulaan perubahan kerja ini dan tidak memutuskannya: ia diputuskan oleh Pegawai Penguasa yang bukan pemula dan tidak memasukkannya.");
     case "DECISION_REQUIRED":
       return w("Say whether the S.O. supports it.", "Nyatakan sama ada P.P. menyokongnya.");
     case "NOT_SUPPORTED_REASON":

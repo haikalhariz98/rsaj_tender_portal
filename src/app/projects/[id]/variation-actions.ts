@@ -33,7 +33,7 @@ import { capacityFor, capacityText, type ActNeed, type Capacity } from "@/lib/su
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 import { supervisionRefusal } from "@/lib/supervision/labels";
 import type { DelegateKind } from "@/lib/supervision/types";
-import { approvedValue, closeFaults, commenceFaults, cumulativeApproved, fieldFaults, pendingValueRoutes, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, submitFaults, type ApplicationFields, type RepCapacity } from "@/lib/variation/application";
+import { approvedValue, closeFaults, commenceFaults, cumulativeApproved, fieldFaults, pendingValueRoutes, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, soOriginationFaults, submitFaults, type ApplicationFields, type RepCapacity } from "@/lib/variation/application";
 import { dueOn, instructionFaults, oralLoopFaults, type ClockRule } from "@/lib/variation/instruction";
 import { BASE_WORDS, BASIS_WORDS, DIRECTION_WORDS, EVENT_WORDS, EXEMPTION_WORDS, lowerFirst, ORIGIN_WORDS, RATE_SOURCE_WORDS, SCHEDULE_FORM_WORDS, SO_DECISION_WORDS, TRIGGER_WORDS, variationRefusal } from "@/lib/variation/labels";
 import { adjustmentInProgress, CONSENT_DOMAIN, loadVariationPeople, consentOf, factsOf, issuedAdjustments, liveInstructionRow, liveOrderRow, loadAdjustments, loadVariations, matterFactsOf, orderNetOf, ordersAdjusted, standingMeasurements, type VariationRow } from "@/lib/variation/load";
@@ -425,7 +425,15 @@ export async function decideVariation(_prev: FormState, data: FormData): Promise
     const { v } = await lockVariation(c, variationId);
     const so = await recordedFor(c, act.subjectPersonId, { soOnly: true }, decidedOn);
     const cap = capRaw ? parseSen(capRaw) : null;
-    const fs = soDecisionFaults({ status: v.status as "SUBMITTED", exemption: v.exemption as VariationExemption | null, decision, cap, estimate: senFromDecimal(v.estimate), note, decidedOn, submittedOn: day(v.submittedOn), today: c.today });
+    // The product owner's ruling (decisions log, 2026-10-07): the S.O. does not decide a variation they originated or keyed, and neither does an officer recording it for them.
+    // The hands on the origination are read inside the act's transaction, from the attribution of its `originator` slot (every occurrence).
+    const originations = await c.tx.actAttribution.findMany({ where: { organisationId: c.l.org.id, entity: "Variation", entityId: v.id, slot: "originator" }, select: { subjectPersonId: true, recordedByPersonId: true } });
+    const conflict = soOriginationFaults({
+      decidedFor: so.person.id,
+      enteredBy: actor.personId,
+      origination: { originatorPersonIds: [v.originatorPersonId, ...originations.map((o) => o.subjectPersonId).filter((x): x is string => x != null)], keyedByPersonIds: originations.map((o) => o.recordedByPersonId) },
+    });
+    const fs = [...conflict, ...soDecisionFaults({ status: v.status as "SUBMITTED", exemption: v.exemption as VariationExemption | null, decision, cap, estimate: senFromDecimal(v.estimate), note, decidedOn, submittedOn: day(v.submittedOn), today: c.today })];
     if (fs.length) refuse("Not recorded:", fs);
     let to: "SUPPORTED" | "DRAFT" | "CLOSED" = "SUPPORTED";
     let goes: string | null = null;
