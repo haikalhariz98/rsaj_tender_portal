@@ -46,7 +46,7 @@ import { appendixFactsOf, loadClauses, loadConditions, loadConfiguredParts, load
 import { approvalDatesFault, estimateLeadWarning, frozenWindowFault, RETURN_DECIDED_BY, returnOutcome, TENDERING_DOMAIN, tenderingRejectionSnapshot, tenderingRouteForRequester } from "@/lib/tender-docs/tendering";
 import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -726,7 +726,9 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
  * returned with the reason, and the exercise goes back into preparation.
  */
 export async function recordTenderingDecision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);

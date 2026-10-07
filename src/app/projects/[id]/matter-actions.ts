@@ -25,7 +25,7 @@ import { loadRoster } from "@/lib/people/load";
 import { timeRefusal } from "@/lib/time/labels";
 import type { Finding } from "@/lib/time/types";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -133,7 +133,9 @@ export async function citeContractMatterDecision(_prev: FormState, data: FormDat
 
 /// A named Person's decision on a person step of the matter's open route.
 export async function decideContractMatterStep(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const matterId = r.text("matterId", "Matter", { required: true });

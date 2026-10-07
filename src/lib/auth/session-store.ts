@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { inForceOn } from "@/lib/effective";
 
 import { recordSignInEvent } from "./events";
+import { heldNow } from "./permission-store";
 import { loadSecurityPolicy } from "./policy-store";
 import type { RequestFacts } from "./request";
 import { absoluteEnd, sessionVerdict, touchDue } from "./session-rules";
@@ -62,7 +63,7 @@ export async function readStaffSession(token: string | undefined | null, request
     await db.staffSession.updateMany({ where: { id: session.id, revokedAt: null }, data: { lastSeenAt: now } });
   }
 
-  const offices = await officesHeld(db, account.personId, account.organisation.timeZone, now);
+  const { offices, permissions } = await heldNow(db, { organisationId: account.organisationId, personId: account.personId, isAdministrator: account.isAdministrator, timeZone: account.organisation.timeZone, now });
   const actor: StaffActor = {
     kind: "STAFF",
     accountId: account.id,
@@ -75,8 +76,8 @@ export async function readStaffSession(token: string | undefined | null, request
     organisationCode: account.organisation.code,
     organisationTimeZone: account.organisation.timeZone,
     offices,
-    // Phase 2a resolves permissions from roles and grants. Until then none is held, and a permission nobody has decided is refused.
-    permissions: new Set(),
+    // From the administrator flag and the organisation's grants to the roles held today (Phase 2a). A permission nobody has decided is refused.
+    permissions,
     stepUpAt: session.stepUpAt,
     sessionCreatedAt: session.createdAt,
     sourceAddress: request.sourceAddress,

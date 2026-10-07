@@ -18,7 +18,7 @@ import { chooseCertificateRejection, decideCertificateStep } from "@/lib/certifi
 import { recordFinancePayment } from "@/lib/payment/finance-write";
 import { submitForApproval } from "@/lib/payment/route-open";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -101,7 +101,9 @@ export async function sendCertificateToSigning(_prev: FormState, data: FormData)
 }
 
 export async function recordCertificateSignature(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("SIGNATURE");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const blockOrder = r.int("blockOrder", "Block", { min: 1, required: true });
@@ -183,7 +185,9 @@ export async function sendCertificateForApproval(_prev: FormState, data: FormDat
 
 /// A named Person's decision on a step of the certificate's open route (614-C4: decided here, under the lock order).
 export async function decideCertificateRouteStep(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const stepId = r.text("stepId", "Step", { required: true });

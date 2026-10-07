@@ -32,7 +32,7 @@ import { db } from "@/lib/db";
  */
 export async function POST(request: Request, ctx: RouteContext<"/api/committees/decisions/[id]/votes">) {
   // Who is asking, and that the request came from a page of this origin with a JSON body (a cross-site form can send text/plain, never this).
-  const guard = await staffRoute({ contentTypes: ["application/json"] });
+  const guard = await staffRoute({ contentTypes: ["application/json"], holder: "HOLDER_CHECKED" });
   if (!guard.ok) return guard.response;
   const scope = guard.actor;
   const { id } = await ctx.params;

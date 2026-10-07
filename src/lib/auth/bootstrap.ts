@@ -4,6 +4,7 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import { lockOrganisation } from "@/lib/authority/locks";
 import { db } from "@/lib/db";
 
+import { makeAdministratorConflict } from "./administration-guard";
 import { hashPassword, passwordFaults } from "./password";
 import { loadSecurityPolicy } from "./policy-store";
 import { fillUnset, policyFault, settingLabels, unsetSettings } from "./policy";
@@ -47,35 +48,6 @@ export const bootstrapLabel = (mode: BootstrapMode) => (mode === "FIRST" ? "boot
 
 /// Letters, digits and . _ - @ only, so that a sign-in name is one word that can be read out and typed.
 export const LOGIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._@-]{2,63}$/;
-
-export interface Holdings {
-  offices: number;
-  seats: number;
-  delegations: number;
-}
-
-/// Why a Person may not be made an administrator, or null. Pure. (Phase 2a's `administrationConflict` generalises this.)
-export function holdingsFault(h: Holdings): string | null {
-  const parts = [
-    h.offices > 0 && `${h.offices} ${h.offices === 1 ? "office" : "offices"}`,
-    h.seats > 0 && `${h.seats} committee ${h.seats === 1 ? "seat" : "seats"}`,
-    h.delegations > 0 && `${h.delegations} ${h.delegations === 1 ? "delegation" : "delegations"}`,
-  ].filter(Boolean);
-  if (parts.length === 0) return null;
-  return `This person holds ${parts.join(", ")}. An administrator holds no office, seat or delegation, so that administration stays apart from transactions. Give the administrator a person of their own.`;
-}
-
-/// What a person holds that has not ended. A period whose end is today or earlier has ended.
-export async function holdingsOf(tx: Tx, personId: string, now: Date): Promise<Holdings> {
-  const live = { OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] };
-  const [offices, seats, delegations] = await Promise.all([
-    tx.roleAssignment.count({ where: { personId, ...live } }),
-    tx.committeeMember.count({ where: { personId, ...live } }),
-    // AND, because both halves are an OR and one would overwrite the other as keys of one object.
-    tx.delegation.count({ where: { AND: [{ OR: [{ fromPersonId: personId }, { toPersonId: personId }] }, live] } }),
-  ]);
-  return { offices, seats, delegations };
-}
 
 function systemActor(mode: BootstrapMode): AuditActor {
   return { kind: "SYSTEM", label: bootstrapLabel(mode) };
@@ -158,8 +130,9 @@ export async function bootstrapAdministrator(input: BootstrapInput, now: Date = 
       if (!person) return fail("NO_PERSON", "There is no such person in this organisation.");
       if (!person.isActive) return fail("PERSON_INACTIVE", "That person is no longer active.");
       if (person.staffAccount) return fail("PERSON_HAS_ACCOUNT", "That person already has a sign-in account. A person has at most one, and it is never changed to another person.");
-      const holdings = holdingsFault(await holdingsOf(tx, person.id, now));
-      if (holdings) return fail("PERSON_HOLDS_OFFICE", holdings);
+      // The Person's row is locked before what they hold is counted, so an office given at the same moment is either counted here or refused there (Phase 2a).
+      const conflict = await makeAdministratorConflict(tx, person.id, now);
+      if (conflict) return fail("PERSON_HOLDS_OFFICE", conflict.en);
       personId = person.id;
       personName = person.name;
     } else {

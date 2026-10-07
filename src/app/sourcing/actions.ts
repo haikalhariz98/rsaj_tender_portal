@@ -53,7 +53,7 @@ import { gatesForRequisition } from "@/lib/requisition/repo";
 import { FormReader } from "@/lib/validate";
 import { nameListFault } from "@/lib/window/invitees";
 import { audit, CHANGED, citeNameStep, labelOf, nameLabel, nameSupports, Refusal, refuse, sendNameRejected } from "@/lib/method/name-route-write";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -584,7 +584,9 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
 /// Record a named Person's decision on a step of the name's route: recorded on their
 /// behalf, not signed. The holder, delegation, self-approval and date checks are 6.1's.
 export async function recordNameDecision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);

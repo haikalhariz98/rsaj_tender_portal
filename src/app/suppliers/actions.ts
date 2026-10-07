@@ -38,7 +38,7 @@ import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, lockOrganisation, NO_ORG, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 
 /**
  * The staff-side supplier register's acts (plan 6.15 §4.1, increment a1; ADR 0019). An officer records a
@@ -567,7 +567,9 @@ export async function submitForDecision(_prev: FormState, data: FormData): Promi
  * under frozen on its decision.
  */
 export async function decideRegistrationStep(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const stepId = r.text("stepId", "Step", { required: true });

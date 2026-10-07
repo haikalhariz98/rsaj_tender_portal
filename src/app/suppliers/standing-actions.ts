@@ -21,7 +21,7 @@ import { FormReader } from "@/lib/validate";
 
 import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -183,7 +183,9 @@ export async function requestBlacklistLift(_prev: FormState, data: FormData): Pr
 
 /// A named Person's decision on a step of a blacklisting (or lift) route. Approving the last step approves the route; the event is recorded after.
 export async function decideStandingStep(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const stepId = r.text("stepId", "Step", { required: true });

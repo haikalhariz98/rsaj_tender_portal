@@ -4,6 +4,7 @@
  * pass. Every map is exhaustive over its vocabulary (X-8), held so by `types-schema.test.ts`.
  */
 
+import { ON_BEHALF_PHRASE } from "@/lib/auth/attribution";
 import { w, type Tone, type Words } from "@/lib/contract/labels";
 
 import type { CertificateKind, CertificateStatus, DeliveryMethod, DistributionCondition, RoutingCheckKind, RoutingSubject, SignatureBlockKind, SignatureDecision, SignatureOfficeRule } from "./types";
@@ -113,4 +114,5 @@ export const CERT_WORDS = {
   officeNotSet: w("Any officer: no office is set for this check", "Mana-mana pegawai: tiada jawatan ditetapkan bagi semakan ini"),
 } as const;
 
-export const ON_BEHALF = "recorded on behalf of, not signed";
+/// The one phrase lives in `auth/attribution.ts` (Phase 2a retired this copy of it). Phase 2b replaces its readers with the attribution label.
+export const ON_BEHALF = ON_BEHALF_PHRASE;

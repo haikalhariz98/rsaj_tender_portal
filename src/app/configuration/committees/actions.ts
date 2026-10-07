@@ -15,6 +15,7 @@ import { checkPeriod, FormReader } from "@/lib/validate";
 import { checkAlternateLink } from "@/lib/committee/sitting";
 import { inProgressSittingRefusal } from "@/lib/committee/sittings";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { assertCanHold, HoldingRefused } from "@/lib/auth/administration-guard";
 import type { OrgScope } from "@/lib/org-scope";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
@@ -304,14 +305,25 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
     reason: String(data.get("reason") ?? ""),
   };
 
-  if (!id) {
-    await auditedCreate(ctx, v, (tx) => tx.committeeMember.create({ data: write }));
-  } else {
-    const before = await db.committeeMember.findUnique({ where: { id, committee: { organisationId: actor.organisationId } } });
-    if (!before) return { ok: false, message: "That seat no longer exists." };
-    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.committeeMember.update({ where: { id, committee: { organisationId: actor.organisationId } }, data: write }),
-    );
+  // Administration is kept apart from transactions (ADR 0034 D9): a seat is never given to a Person whose account is an administrator's. Checked in the
+  // write's own transaction, under the Person's lock, so it cannot be passed by an administrator made at the same moment.
+  try {
+    if (!id) {
+      await auditedCreate(ctx, v, async (tx) => {
+        if (write.personId) await assertCanHold(tx, [write.personId], "SEAT");
+        return tx.committeeMember.create({ data: write });
+      });
+    } else {
+      const before = await db.committeeMember.findUnique({ where: { id, committee: { organisationId: actor.organisationId } } });
+      if (!before) return { ok: false, message: "That seat no longer exists." };
+      await auditedUpdate({ ...ctx, entityId: id }, before, v, async (tx) => {
+        if (write.personId) await assertCanHold(tx, [write.personId], "SEAT");
+        return tx.committeeMember.update({ where: { id, committee: { organisationId: actor.organisationId } }, data: write });
+      });
+    }
+  } catch (e) {
+    if (e instanceof HoldingRefused) return { ok: false, errors: { personId: e.fault.en } };
+    throw e;
   }
 
   revalidatePath(PATH);

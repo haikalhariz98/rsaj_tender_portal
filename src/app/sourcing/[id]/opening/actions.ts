@@ -47,7 +47,7 @@ import { eligibilityAtOpening } from "@/lib/suppliers/standing-repo";
 import { findingFaults, matchFaults, openFault } from "@/lib/opening/withdrawals";
 
 import { activePerson, audit, exerciseIdOf, inWindow, label, Refusal, type LockedWindow } from "../window/shared";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -286,7 +286,9 @@ export async function startSupplementaryOpening(_prev: FormState, data: FormData
 
 /// One panel member's authorisation, stamped now. The second distinct present member's opens the box (MAIN) and the exercise is then Opening in progress.
 export async function recordAuthorisation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("UNSEAL");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = stampNow();
   const openingId = String(data.get("openingId") ?? "");
   const personId = String(data.get("personId") ?? "");
@@ -687,7 +689,9 @@ export async function correctAsRead(_prev: FormState, data: FormData): Promise<F
 
 /// FR-OPN-006: a present member's signature on the paper schedule, with the paper's day.
 export async function recordSignature(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("SIGNATURE");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const now = stampNow();
   const openingId = String(data.get("openingId") ?? "");
   const personId = String(data.get("personId") ?? "");

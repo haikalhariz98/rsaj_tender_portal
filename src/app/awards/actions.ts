@@ -62,7 +62,7 @@ import { contractCancellable } from "@/lib/contract/status";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { afterStep, audit, CHANGED, citeAppointmentStep, labelOf, mustMove, NO_ZONE, Refusal, routeLabel, sendAwardRejected } from "@/lib/award/route-write";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { OrgScope } from "@/lib/org-scope";
 
 /**
@@ -535,7 +535,9 @@ export async function chooseAwardRejection(_prev: FormState, data: FormData): Pr
  * discharged by its committee's decision.
  */
 export async function decideAppointmentStep(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);

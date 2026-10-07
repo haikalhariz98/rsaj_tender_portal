@@ -23,6 +23,7 @@ import "dotenv/config";
 import { AccountStatus, type PrismaClient } from "../src/generated/prisma/client";
 import { diffFields } from "../src/lib/audit/diff";
 import { writeAudit } from "../src/lib/audit/record";
+import { makeAdministratorConflict } from "../src/lib/auth/administration-guard";
 import { recordSignInEvent } from "../src/lib/auth/events";
 import { loginKeyOf } from "../src/lib/auth/identity";
 import { hashPassword, passwordFaults } from "../src/lib/auth/password";
@@ -111,6 +112,11 @@ async function main() {
     const passwordHash = await hashPassword(password);
     await db.$transaction(async (tx) => {
       const now = new Date();
+      // Administration is kept apart from every office (ADR 0034 D9): the demonstration's administrators hold nothing, and this refuses one that does.
+      if (isAdministrator) {
+        const conflict = await makeAdministratorConflict(tx, personId, now);
+        if (conflict) throw new Error(`${personName} cannot be a demonstration administrator. ${conflict.en}`);
+      }
       const account = await tx.staffAccount.create({
         data: { organisationId: org!.id, personId, loginName, loginKey: loginKeyOf(loginName), passwordHash, passwordChangedAt: now, isAdministrator, status: AccountStatus.ACTIVE },
         select: { id: true },

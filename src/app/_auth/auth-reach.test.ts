@@ -34,7 +34,8 @@ const FILES = walk(APP).map((f) => ({ file: rel(f), src: readFileSync(f, "utf8")
 const publicEntry = (file: string) => isPublicEntryFile(file);
 
 /// The calls that count as asking who is signed in. `staffOrSignIn` is the account page's own wrapper of `requireStaff`, which sends nobody-signed-in to sign in.
-const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute("];
+/// `staffForAct` (Phase 2a) is the wrapper an action uses for an act only an office holder may do: it calls `requireStaff` first, and hands an administrator's refusal back as the form's state.
+const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct("];
 
 interface Entry {
   file: string;
@@ -164,7 +165,8 @@ describe("every route handler asks who is signed in first, and every one that ch
     expect(writes.length).toBeGreaterThanOrEqual(4);
     const raw = (e: Entry) => FILES.find((f) => f.file === e.file)!.src;
     for (const e of writes) {
-      const types = /staffRoute\(\{ contentTypes: \[((?:"[a-z-]+\/[a-z-]+"(?:, )?)+)\] \}\)/.exec(raw(e));
+      // Phase 2a: a handler for an act only an office holder may do also names the kind of act (`, holder: "HOLDER_CHECKED"`); the content types are asked as before.
+      const types = /staffRoute\(\{ contentTypes: \[((?:"[a-z-]+\/[a-z-]+"(?:, )?)+)\](?:, holder: "[A-Z_]+")? \}\)/.exec(raw(e));
       expect(types, `${e.file}: ${e.name}`).not.toBeNull();
       expect(types![1], `${e.file}: ${e.name}`).not.toContain("text/plain");
     }

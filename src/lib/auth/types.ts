@@ -7,7 +7,7 @@
  */
 
 /// The closed list of product permissions. Product vocabulary, not policy: which role holds which is configuration
-/// (Phase 2a). Until then nobody holds any by role, and the administrator flag grants only what ADR D8 says it does.
+/// (Phase 2a, `permissions.ts`): no row is undecided, which is refused. The administrator flag grants only what ADR D8 says it does.
 export type PermissionKey =
   | "accounts.manage"
   | "security.policy"
@@ -38,7 +38,7 @@ export interface StaffActor {
   organisationTimeZone: string | null;
   /// The roles the person holds on the organisation's today. Empty where no zone is set (today is not known).
   offices: readonly Office[];
-  /// Filled by Phase 2a (`resolvePermissions`). Until then empty: a permission nobody has decided is refused.
+  /// What the person holds (`resolvePermissions`, Phase 2a): read on every request. A permission nobody has decided is refused. A loader run holds none.
   permissions: ReadonlySet<PermissionKey>;
   stepUpAt: Date | null;
   /// When this session began: the sign-in that made it, for "your previous sign-in" to be the one before.

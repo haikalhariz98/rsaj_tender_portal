@@ -27,6 +27,7 @@ import { inProgressSittingRefusal } from "@/lib/committee/sittings";
 import { splitValues } from "@/lib/ui/select-logic";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import { disableAccountOfLeaver, LeaverRefused } from "@/lib/auth/administration";
+import { assertCanHold, HoldingRefused } from "@/lib/auth/administration-guard";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -455,6 +456,15 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
         throw new DelegationRefused({ ok: false, errors });
       }
 
+      // Administration is kept apart from transactions (ADR 0034 D9): neither the grantor nor the delegate is a Person whose account is an administrator's.
+      // Taken after the delegation's own lock, the Persons' in id order.
+      try {
+        await assertCanHold(tx, [fromPersonId, toPersonId], "DELEGATION");
+      } catch (e) {
+        if (e instanceof HoldingRefused) throw new DelegationRefused({ ok: false, errors: { [e.personId === fromPersonId ? "fromPersonId" : "toPersonId"]: e.fault.en } });
+        throw e;
+      }
+
       let delegationId = id;
       if (!id) {
         const row = await tx.delegation.create({ data: { organisationId: orgId, ...v } });
@@ -641,14 +651,25 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
     reason: String(data.get("reason") ?? ""),
   };
 
-  if (!id) {
-    await auditedCreate(ctx, v, (tx) => tx.roleAssignment.create({ data: v }));
-  } else {
-    const before = await db.roleAssignment.findUnique({ where: { id, person: { organisationId: actor.organisationId } } });
-    if (!before) return { ok: false, message: "That assignment no longer exists." };
-    await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.roleAssignment.update({ where: { id, person: { organisationId: actor.organisationId } }, data: v }),
-    );
+  // Administration is kept apart from transactions (ADR 0034 D9): an office is never given to a Person whose account is an administrator's. The
+  // check is made in the write's own transaction, under the Person's lock, so it cannot be passed by an administrator made at the same moment.
+  try {
+    if (!id) {
+      await auditedCreate(ctx, v, async (tx) => {
+        await assertCanHold(tx, [personId!], "OFFICE");
+        return tx.roleAssignment.create({ data: v });
+      });
+    } else {
+      const before = await db.roleAssignment.findUnique({ where: { id, person: { organisationId: actor.organisationId } } });
+      if (!before) return { ok: false, message: "That assignment no longer exists." };
+      await auditedUpdate({ ...ctx, entityId: id }, before, v, async (tx) => {
+        await assertCanHold(tx, [personId!], "OFFICE");
+        return tx.roleAssignment.update({ where: { id, person: { organisationId: actor.organisationId } }, data: v });
+      });
+    }
+  } catch (e) {
+    if (e instanceof HoldingRefused) return { ok: false, errors: { personId: e.fault.en } };
+    throw e;
   }
 
   revalidatePath(PATH);

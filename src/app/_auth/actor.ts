@@ -2,8 +2,11 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 
 import type { FormState } from "@/components/record-editor";
+import { administrationConflict, type AdministratorAct } from "@/lib/auth/administration-conflict";
 import { auditActorOfStaff } from "@/lib/auth/audit-actor";
 import { confirmStaffPassword } from "@/lib/auth/identity";
+import { explainRefusal } from "@/lib/auth/permission-store";
+import { db } from "@/lib/db";
 import { AUTH_WORDS } from "@/lib/auth/words";
 import { readStaffSession } from "@/lib/auth/session-store";
 import type { AuditActor, PermissionKey, StaffActor } from "@/lib/auth/types";
@@ -50,16 +53,55 @@ export const currentStaffOrNull = cache(async (): Promise<StaffActor | null> => 
   return read.ok ? read.actor : null;
 });
 
-export async function requireStaff(opts: { permission?: PermissionKey; on?: "redirect" | "throw" } = {}): Promise<StaffActor> {
+/**
+ * Who is signed in, or the sign-in page. Two refusals a caller can ask for, both for who is asking and not for what was asked (Phase 2a):
+ *
+ * - `permission`: the actor must hold the product permission (ADR 0034 D8). Refused with `AuthRefusal("FORBIDDEN")` whose message says, in words, which
+ *   permission and why the person does not hold it (undecided by the organisation, withheld from their role, held only for a department). A page that wants to
+ *   show that rather than fail calls `permissionGate`; an action that answers a form catches it with `refusalState`.
+ * - `holder`: the act is one that only the holder of an office may do, a signature or an unsealing, so an administrator account is refused
+ *   (`administrationConflict`, ADR 0034 D9). An action that answers a form uses `staffForAct`, which hands the refusal back as a form state instead of throwing.
+ *
+ * `stepUp` is deliberately not refused an administrator: the checker's decision on an administrator grant is made by one.
+ */
+export async function requireStaff(opts: { permission?: PermissionKey; holder?: AdministratorAct; on?: "redirect" | "throw" } = {}): Promise<StaffActor> {
   const actor = await currentStaffOrNull();
   if (!actor) {
     if (opts.on === "throw") throw new AuthRefusal("NOT_SIGNED_IN", AUTH_WORDS.notSignedIn.en);
     redirect("/sign-in");
   }
-  if (opts.permission && !actor.permissions.has(opts.permission)) {
-    throw new AuthRefusal("FORBIDDEN", "You do not hold the permission this needs.");
+  if (opts.holder) {
+    const fault = administrationConflict({ kind: "ACT", act: opts.holder, actorIsAdministrator: actor.isAdministrator });
+    if (fault) throw new AuthRefusal("FORBIDDEN", fault.en);
+  }
+  if (opts.permission) {
+    const gate = await permissionGate(actor, opts.permission);
+    if (!gate.ok) throw new AuthRefusal("FORBIDDEN", gate.message);
   }
   return actor;
+}
+
+/// Whether the actor holds a permission, and if not why, in words. For a page: it renders the message in place of its content rather than throwing.
+export async function permissionGate(actor: StaffActor, key: PermissionKey): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (actor.permissions.has(key)) return { ok: true };
+  // A loader run is not a person and holds nothing: say so without a lookup that has no person to make.
+  if (actor.system) return { ok: false, message: "A loader run holds no product permission." };
+  const { words } = await explainRefusal(db, { organisationId: actor.organisationId, personId: actor.personId, isAdministrator: actor.isAdministrator, timeZone: actor.organisationTimeZone, now: new Date() }, key);
+  return { ok: false, message: words.en };
+}
+
+/**
+ * For a server action that answers a form and performs an act that only an office holder may (an approval, a signature, an unsealing): the signed-in
+ * actor, or the refusal as the form's own state when the account is an administrator's. Asked first, like `requireStaff`, which it calls.
+ *
+ *   const guard = await staffForAct("SIGNATURE");
+ *   if (!guard.ok) return guard.state;
+ *   const actor = guard.actor;
+ */
+export async function staffForAct(act: AdministratorAct): Promise<{ ok: true; actor: StaffActor } | { ok: false; state: FormState }> {
+  const actor = await requireStaff();
+  const fault = administrationConflict({ kind: "ACT", act, actorIsAdministrator: actor.isAdministrator });
+  return fault ? { ok: false, state: { ok: false, message: fault.en } } : { ok: true, actor };
 }
 
 /// The actor an audit row is written with.

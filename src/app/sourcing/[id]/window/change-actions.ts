@@ -38,7 +38,7 @@ import { CLOSING_CHANGE_KINDS, DELIVERY_METHODS, type ClosingChangeKind, type De
 import { FormReader } from "@/lib/validate";
 
 import { audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, type LockedWindow } from "./shared";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 
 /**
@@ -296,7 +296,9 @@ async function applyCancellation(tx: Tx, actor: AuditActor, l: LockedWindow, d: 
  * The step that completes the route applies the change here; a refusal means it is not made.
  */
 export async function recordWindowChangeDecision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);

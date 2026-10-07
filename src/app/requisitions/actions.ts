@@ -82,7 +82,7 @@ import {
 } from "@/lib/requisition/approval-write";
 import { ACT_LABEL } from "@/lib/labels";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -896,7 +896,9 @@ export async function closeWithoutSourcing(_prev: FormState, data: FormData): Pr
  * decision is dated after today. The last step done approves the requisition.
  */
 export async function recordDecision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   const id = String(data.get("id") ?? "");
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);

@@ -130,6 +130,7 @@
   - No row means `UNDECIDED`. Undecided is refused, but the grid shows it as undecided, never as withheld.
   - Permissions come from role assignments in force on the organisation's "today" (`todayIn`). Delegation does not carry product permissions in this phase; it carries approval authority only, as now.
   - The customer's existing `Capability` and `RoleCapability` vocabulary stays as it is.
+  - *As built (Phase 2a, `src/lib/auth/permissions.ts`):* a person's permissions are read on every request from the administrator flag, the offices in force on the organisation's today and the grants to their roles. An administrator holds exactly what the flag confers and never a granted-only key. A stored row for an administrator-only key or an unknown key is ignored. With no time zone set no office is claimed. Two rules the product owner has not ruled on are taken in the refusing direction and logged as open: a key GRANTED on one held role and WITHHELD on another is refused, and an office held only for a department carries no permission.
 - **Record scope:**
   - tenant (D9);
   - SULIT and restricted exercises (D14);
@@ -142,6 +143,7 @@
   - giving any of those to an administrator's Person;
   - any holder-checked act, signature or unseal by an administrator account. This is checked again inside `requireStaff`.
 - An organisation that wants an IT administrator gives them their own `Person` with no offices.
+- *As built (Phase 2a):* the pure rule is `administrationConflict` in `src/lib/auth/administration-conflict.ts` (not `administration.ts`, which is the Phase 1b account administration). Each path that gives a holding (`saveAssignment`, `saveDelegation`, the committee seat editor) and each that makes an administrator (the bootstrap command, `demo:accounts`) asks inside its own transaction under a lock on the Person's row (`administration-guard.ts`). A holder-checked act is refused to an administrator account through `staffForAct` and `staffRoute({ holder })`; `ACT_SLOTS` names the entry points wired so far.
 
 **D10. Tenant isolation: the actor's organisation scopes every query. No row-level security.**
 - `actor.organisationId` and `organisationCode` replace `ORGANISATION_CODE` in all 85 files.
@@ -211,6 +213,7 @@ ActAttribution {
   - When signed, they require a fresh step-up (D13).
   - Recording one on someone's behalf (a paper decision) needs `acts.recordOnBehalf`, a paper reference, and `SecurityPolicy.paperSignatureRecording = ALLOWED`. While that switch is unset, the act is refused and the message says the setting is not set.
 - Other acts may be recorded on someone's behalf as they are today. The recorder is now the actor.
+- *As built (Phase 2a):* `ActAttribution` is append-only (migration `20261007130200`, the Phase 1d trigger, and no UPDATE, DELETE or TRUNCATE for the app's login), the subject may also be a supplier account (`subjectSupplierAccountId`, exactly one subject), and the one writer is `attributeAct` in `attribution-store.ts`. The schema scan in `act-slots.test.ts` found 129 person slots over 100 models and 21 Person relations that are not acts; the ADR's "about 60" was an estimate.
 - The three scattered labels become one module: `ON_BEHALF` in certificate labels, `RECORDED_ON_BEHALF` in document labels, and the literal in `rejection-store.ts`.
 - **Why one central table:**
   - It covers roughly 60 person slots across roughly 50 tables, and future acts.

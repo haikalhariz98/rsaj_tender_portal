@@ -6,6 +6,7 @@
  */
 
 import type { Prisma } from "@/generated/prisma/client";
+import { NOT_SIGNED_WORDS } from "@/lib/auth/attribution";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { successorSteps, type DestinationRow, type RejectionKind, type RejectionOutcome, type RouteSnapshot } from "@/lib/authority/rejection";
@@ -60,7 +61,7 @@ export async function recordChoice(tx: Tx, actor: AuditActor, who: Who, instId: 
   });
   if (moved.count !== 1) throw new Error("The route changed while the choice was being recorded.");
   await writeAudit(tx, { actor, organisationId: who.organisationId, entity: "ApprovalInstance", entityId: instId, entityLabel: who.routeLabel, reason }, "UPDATE",
-    diffFields({ goesTo: null }, { goesTo: REJECTION_KIND_LABEL[kind], chosenBy: personName, recordedOnBehalf: "not signed", source: "officer's choice" }));
+    diffFields({ goesTo: null }, { goesTo: REJECTION_KIND_LABEL[kind], chosenBy: personName, recordedOnBehalf: NOT_SIGNED_WORDS, source: "officer's choice" }));
 }
 
 /**

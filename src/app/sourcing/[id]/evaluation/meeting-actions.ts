@@ -31,7 +31,7 @@ import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, Refusal } from "../window/shared";
 import { evLabel, GONE_BIDDER, inEvaluation, notes, refuse, stampNow } from "./shared";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 
 /**
  * Meetings and the negotiation's route (FR-EVL-015, 016; OQ-08 interim; OD-10 A). A clarification is
@@ -215,7 +215,9 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
  * the holder, delegation, self-approval and date checks are 6.1's (`deciderFaults`).
  */
 export async function recordNegotiationDecision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
+  if (!holderGuard.ok) return holderGuard.state;
+  const actor = holderGuard.actor;
   // 6.8 fix R-9: the clock is read once, at the act's entry, truncated to the second (6.6 CR-3).
   const now = stampNow();
   const r = new FormReader(data);
