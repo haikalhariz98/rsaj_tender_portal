@@ -13,13 +13,17 @@ import { lex } from "@/lib/scan/source";
  * Banned on AuditEntry, SignInEvent, SignInEventDetail, DocumentAccessEvent (and SulitAccessEvent when 3a adds it): every client verb but
  * create, createMany and the reads, and raw UPDATE, DELETE FROM or TRUNCATE naming the table. An upsert is banned too: ON CONFLICT DO
  * UPDATE needs the UPDATE privilege even when it only inserts. On DocumentVersion: delete and upsert anywhere, and update only in the
- * withdrawal action, the one change the trigger lets through. Blind spots (declared): a delegate reached through a variable not named
- * after its model, and raw SQL assembled from pieces.
+ * withdrawal action, the one change the trigger lets through. On BlobContent (the stored bytes, Phase 1d review): update and upsert
+ * anywhere, and raw UPDATE or TRUNCATE. A delete stays allowed (an orphan may be cleared), and so do INSERT ... ON CONFLICT DO NOTHING
+ * (the store's put) and createMany with skipDuplicates, which need only INSERT. Blind spots (declared): a delegate reached through a
+ * variable not named after its model, and raw SQL assembled from pieces.
  */
 
 const ROOT = path.join(__dirname, "../../..");
 const APPEND_ONLY = ["auditEntry", "signInEvent", "signInEventDetail", "documentAccessEvent", "sulitAccessEvent"];
 const TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "DocumentAccessEvent", "SulitAccessEvent", "DocumentVersion"];
+/// Changed by nobody, but an orphan may be deleted: so UPDATE and TRUNCATE only.
+const KEPT_CONTENT = ["BlobContent"];
 const ALLOWED_VERBS = "create|createMany|createManyAndReturn|findUnique|findFirst|findMany|findUniqueOrThrow|findFirstOrThrow|count|aggregate|groupBy|fields";
 /// The withdrawal (OD-9): sets withdrawnAt and withdrawnReason once, which the trigger allows.
 const VERSION_WITHDRAWAL = "src/app/documents/actions.ts";
@@ -34,6 +38,8 @@ export function trailWrites(src: string): string[] {
   }
   for (const m of text.matchAll(/\bdocumentVersion\s*\??\.\s*(delete|deleteMany|upsert|update|updateMany|updateManyAndReturn)\b/g)) found.push(`documentVersion.${m[1]}`);
   for (const m of text.matchAll(new RegExp(`\\b(UPDATE|DELETE\\s+FROM|TRUNCATE(?:\\s+TABLE)?)\\s+(?:ONLY\\s+)?"(${TABLES.join("|")})"`, "gi"))) found.push(`raw ${m[1].toUpperCase().replace(/\s+/g, " ")} "${m[2]}"`);
+  for (const m of text.matchAll(/\bblobContent\s*\??\.\s*(update|updateMany|updateManyAndReturn|upsert)\b/g)) found.push(`blobContent.${m[1]}`);
+  for (const m of text.matchAll(new RegExp(`\\b(UPDATE|TRUNCATE(?:\\s+TABLE)?)\\s+(?:ONLY\\s+)?"(${KEPT_CONTENT.join("|")})"`, "gi"))) found.push(`raw ${m[1].toUpperCase().replace(/\s+/g, " ")} "${m[2]}"`);
   return found;
 }
 
@@ -46,7 +52,7 @@ function files(dir: string): string[] {
 }
 
 describe("nothing tries to change or remove the trail (Phase 1d)", () => {
-  it("no file in src, prisma or scripts updates, deletes, upserts or truncates an append-only table, or a document version except by withdrawing it", () => {
+  it("no file in src, prisma or scripts updates, deletes, upserts or truncates an append-only table, or a document version except by withdrawing it, or rewrites stored bytes", () => {
     const offenders: string[] = [];
     for (const f of [...files("src"), ...files("prisma"), ...files("scripts")]) {
       const writes = trailWrites(readFileSync(path.join(ROOT, f), "utf8")).filter((w) => !(f === VERSION_WITHDRAWAL && w === "documentVersion.update"));
@@ -79,5 +85,37 @@ describe("nothing tries to change or remove the trail (Phase 1d)", () => {
     expect(trailWrites("await db.documentVersion.deleteMany({})")).toEqual(["documentVersion.deleteMany"]);
     expect(trailWrites("await tx.auditEntry.create({ data }); await db.auditEntry.findMany({}); await db.documentVersion.findFirst({})")).toEqual([]);
     expect(trailWrites(`// ${call("auditEntry", "deleteMany")} in a comment is not code`)).toEqual([]);
+  });
+
+  it("every read of stored bytes is checked against its fingerprint before it is used", () => {
+    // The store's get() returns the bytes as stored; each caller hashes them and refuses a mismatch, logging DIGEST_MISMATCH apart from
+    // BYTES_MISSING. That is why get() does not hash them a second time (Phase 1d review): this holds every caller to it.
+    const reads: string[] = [];
+    const unchecked: string[] = [];
+    let calls = 0;
+    for (const f of files("src")) {
+      const text = lex(readFileSync(path.join(ROOT, f), "utf8"), { only: "comments" });
+      calls += [...text.matchAll(/\bstore\.get\(/g)].length;
+      for (const m of text.matchAll(/const (\w+) = await [\w.]*store\.get\(/g)) {
+        reads.push(f);
+        const after = text.slice(m.index, m.index + 400);
+        if (!new RegExp(`sha256Hex\\(${m[1]}\\)\\s*(?:!==|===)`).test(after)) unchecked.push(`${f}: ${m[1]}`);
+      }
+    }
+    expect(reads.length).toBeGreaterThanOrEqual(3);
+    // A read in any other shape (not bound to a name first) is not judged above, so it fails here instead.
+    expect(calls).toBe(reads.length);
+    expect(unchecked).toEqual([]);
+  });
+
+  it("finds a rewrite of stored bytes, and lets the store's insert, a skip-duplicates load and an orphan delete through", () => {
+    expect(trailWrites("await tx.blobContent.update({ where, data: { bytes } })")).toEqual(["blobContent.update"]);
+    expect(trailWrites("await db.blobContent?.upsert({})")).toEqual(["blobContent.upsert"]);
+    expect(trailWrites('await tx.$executeRawUnsafe(`UPDATE "BlobContent" SET bytes = $1`, b)')).toEqual(['raw UPDATE "BlobContent"']);
+    expect(trailWrites('sql`TRUNCATE TABLE "BlobContent"`')).toEqual(['raw TRUNCATE TABLE "BlobContent"']);
+    // What the code does today, and must go on being allowed to do.
+    expect(trailWrites('await tx.$executeRawUnsafe(`INSERT INTO "BlobContent" ("sha256") VALUES ($1) ON CONFLICT ("organisationId", "sha256") DO NOTHING`, s)')).toEqual([]);
+    expect(trailWrites("await db.blobContent.createMany({ data, skipDuplicates: true })")).toEqual([]);
+    expect(trailWrites('await db.blobContent.delete({ where }); await db.$executeRaw`DELETE FROM "BlobContent" WHERE false`')).toEqual([]);
   });
 });

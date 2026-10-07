@@ -6,6 +6,7 @@ import { ensureAdministrator, facts, makeAccount, setPolicy, SETTINGS, testOrgan
 import { applyAppRole } from "../../../scripts/db-role-apply";
 import { redeemOneTimeCode } from "./account-store";
 import { authenticateStaff } from "./identity";
+import { runtimeRoleVerdict } from "./db-role";
 import { readRuntimeRole } from "./runtime-role-store";
 
 /**
@@ -92,6 +93,50 @@ describe("membership in the owner or in a superuser reads as unsafe", () => {
     } finally {
       await db.$executeRawUnsafe(`REVOKE ${SUPER} FROM ${APP}`).catch(() => undefined);
       await db.$executeRawUnsafe(`DROP ROLE IF EXISTS ${SUPER}`);
+    }
+  });
+});
+
+describe("a separate login that can still change the trail reads as unsafe (Phase 1d review)", () => {
+  const asApp = () =>
+    db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL ROLE ${APP}`);
+      return readRuntimeRole(tx);
+    });
+
+  it("UPDATE granted by hand on DocumentAccessEvent (grants are its only wall) is found, and refuses sign-in in production", async () => {
+    try {
+      const before = await asApp();
+      expect(before).toMatchObject({ isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [] });
+      expect(runtimeRoleVerdict(before, true)).toEqual({ safe: true });
+
+      await db.$executeRawUnsafe(`GRANT UPDATE ON "DocumentAccessEvent" TO ${APP}`);
+      const after = await asApp();
+      expect(after.withheldHeld).toEqual(["DocumentAccessEvent"]);
+      expect(runtimeRoleVerdict(after, true)).toMatchObject({ safe: false, reason: "TRAIL_WRITABLE", refuseSignIn: true, tables: ["DocumentAccessEvent"] });
+    } finally {
+      await db.$executeRawUnsafe(`REVOKE UPDATE ON "DocumentAccessEvent" FROM ${APP}`);
+    }
+  });
+
+  it("a right held through PUBLIC, or by a role the login is a member of, counts too; so does reading Prisma's table", async () => {
+    const HOLDER = `perolehan_holder_test_${Date.now().toString(36)}`;
+    try {
+      await db.$executeRawUnsafe(`GRANT TRUNCATE ON "AuditEntry" TO PUBLIC`);
+      expect((await asApp()).withheldHeld).toEqual(["AuditEntry"]);
+      await db.$executeRawUnsafe(`REVOKE TRUNCATE ON "AuditEntry" FROM PUBLIC`);
+
+      await db.$executeRawUnsafe(`CREATE ROLE ${HOLDER} NOLOGIN`);
+      await db.$executeRawUnsafe(`GRANT UPDATE ON "BlobContent" TO ${HOLDER}`);
+      await db.$executeRawUnsafe(`GRANT SELECT ON "_prisma_migrations" TO ${HOLDER}`);
+      expect((await asApp()).withheldHeld).toEqual([]);
+      await db.$executeRawUnsafe(`GRANT ${HOLDER} TO ${APP}`);
+      expect((await asApp()).withheldHeld).toEqual(["BlobContent", "_prisma_migrations"]);
+    } finally {
+      await db.$executeRawUnsafe(`REVOKE TRUNCATE ON "AuditEntry" FROM PUBLIC`);
+      await db.$executeRawUnsafe(`REVOKE ${HOLDER} FROM ${APP}`).catch(() => undefined);
+      await db.$executeRawUnsafe(`DROP OWNED BY ${HOLDER}`).catch(() => undefined);
+      await db.$executeRawUnsafe(`DROP ROLE IF EXISTS ${HOLDER}`);
     }
   });
 });

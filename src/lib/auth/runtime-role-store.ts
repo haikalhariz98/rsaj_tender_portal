@@ -1,11 +1,12 @@
 import { db } from "@/lib/db";
 
-import { runtimeRoleVerdict, type RuntimeRoleFacts, type RuntimeRoleVerdict } from "./db-role";
+import { RUNTIME_ROLE_WORDS, runtimeRoleVerdict, WITHHELD, type RuntimeRoleFacts, type RuntimeRoleVerdict } from "./db-role";
 
 /**
  * Who the running app is connected as (ADR 0034 D11, Phase 1d `assertRuntimeRole`). Asked once per process, at startup from
- * `src/instrumentation.ts` and again by sign-in, which refuses in production while the answer is owner or superuser. A change of
- * DATABASE_URL needs a restart anyway, so the answer is kept for the life of the process; a failed query is not kept.
+ * `src/instrumentation.ts` and again by sign-in, which refuses in production while the answer is owner, superuser, or a login that still
+ * holds a right it should not on the trail. A change of DATABASE_URL needs a restart anyway, so the answer is kept for the life of the
+ * process (a grant fixed by `db:roles` shows after a restart); a failed query is not kept.
  */
 type Client = Pick<typeof db, "$queryRaw">;
 
@@ -21,7 +22,18 @@ export async function readRuntimeRole(client: Client = db): Promise<RuntimeRoleF
       FROM pg_roles r WHERE r.rolname = current_user`;
   const row = rows[0];
   if (!row) throw new Error("The database did not report the current login.");
-  return row;
+  // The grants (Phase 1d review): on each WITHHELD table that exists, does the login, a role it is a member of (it could SET ROLE to
+  // it), or PUBLIC hold any right it should not? A table that does not exist yet reads as NULL from to_regclass and is passed over.
+  const tables = WITHHELD.map((w) => w.table);
+  const rights = WITHHELD.map((w) => w.held);
+  const [held] = await client.$queryRaw<{ tables: string[] }[]>`
+    SELECT coalesce(array_agg(w.t ORDER BY w.t), '{}')::text[] AS "tables"
+      FROM unnest(${tables}::text[], ${rights}::text[]) AS w(t, r)
+     WHERE to_regclass(format('%I.%I', current_schema(), w.t)) IS NOT NULL
+       AND EXISTS (SELECT 1 FROM pg_roles m
+                    WHERE pg_has_role(current_user, m.oid, 'MEMBER')
+                      AND has_table_privilege(m.oid, to_regclass(format('%I.%I', current_schema(), w.t)), w.r))`;
+  return { ...row, withheldHeld: held?.tables ?? [] };
 }
 
 const kept = globalThis as unknown as { perolehanRuntimeRole?: Promise<RuntimeRoleVerdict> };
@@ -42,17 +54,18 @@ export async function reportRuntimeRole(): Promise<void> {
   try {
     const verdict = await runtimeRoleCheck();
     if (verdict.safe) return;
-    const what = verdict.reason === "SUPERUSER" ? "a superuser" : "the owner of the tables";
+    const tables = verdict.reason === "TRAIL_WRITABLE" ? ` It holds rights it should not on: ${verdict.tables.join(", ")}.` : "";
     console.warn(
-      `[perolehan] The app is connected to the database as "${verdict.name}", ${what}. ` +
-        (verdict.refuseSignIn ? "Sign-in is refused until DATABASE_URL names the app role (npm run db:roles)." : "Allowed in development only. See the README, Running in production."),
+      `[perolehan] The app is connected to the database as "${verdict.name}", ${RUNTIME_ROLE_WORDS[verdict.reason]}.${tables} ` +
+        (verdict.refuseSignIn ? "Sign-in is refused until DATABASE_URL names the app role with the grants npm run db:roles gives it, and the app is restarted." : "Allowed in development only. See the README, Running in production."),
     );
   } catch (error) {
     console.warn("[perolehan] Could not ask the database which login the app runs as:", error instanceof Error ? error.message : error);
   }
 }
 
-/// For sign-in: true when this process must refuse every sign-in because it runs as the owner or a superuser in production.
+/// For sign-in: true when this process must refuse every sign-in because, in production, it runs as the owner or a superuser, or as a
+/// login that can still change the trail.
 export async function signInRefusedForRole(): Promise<boolean> {
   const verdict = await runtimeRoleCheck();
   return !verdict.safe && verdict.refuseSignIn;

@@ -17,8 +17,26 @@ export const APP_ROLE_DEFAULT = "perolehan_app";
  */
 export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "SulitAccessEvent", "DocumentAccessEvent"] as const;
 
+/**
+ * Stored document bytes (OD-9). A trigger refuses UPDATE and TRUNCATE for every login (migration `20261007120000_blob_content_kept`);
+ * the grants are the second wall. DELETE stays: an orphan the report lists (bytes no version points at) may be cleared, and a referenced
+ * blob is held by DocumentVersion's foreign key (RESTRICT).
+ */
+export const CONTENT_TABLES = ["BlobContent"] as const;
+
 /// Prisma's own bookkeeping. The app has no business reading or writing it.
 export const MIGRATIONS_TABLE = "_prisma_migrations";
+
+/**
+ * Every right the app's login must not hold, by table, in the order `grantStatements` revokes them. `revoke` is what the script takes
+ * away; `held` is what the runtime check asks the database about (any one of them held makes the login unsafe). One list, so the
+ * grants and the check cannot drift apart.
+ */
+export const WITHHELD: readonly { table: string; revoke: string; held: string }[] = [
+  { table: MIGRATIONS_TABLE, revoke: "ALL", held: "SELECT, INSERT, UPDATE, DELETE, TRUNCATE" },
+  ...APPEND_ONLY_TABLES.map((table) => ({ table, revoke: "UPDATE, DELETE, TRUNCATE", held: "UPDATE, DELETE, TRUNCATE" })),
+  ...CONTENT_TABLES.map((table) => ({ table, revoke: "UPDATE, TRUNCATE", held: "UPDATE, TRUNCATE" })),
+];
 
 const IDENTIFIER = /^[a-z_][a-z0-9_]{0,62}$/;
 
@@ -56,15 +74,14 @@ export function grantStatements(input: { role: string; owner: string; schema: st
     `ALTER DEFAULT PRIVILEGES FOR ROLE ${owner} IN SCHEMA ${schema} GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${role}`,
     `ALTER DEFAULT PRIVILEGES FOR ROLE ${owner} IN SCHEMA ${schema} GRANT USAGE, SELECT ON SEQUENCES TO ${role}`,
   ];
-  if (input.existing.has(MIGRATIONS_TABLE)) statements.push(`REVOKE ALL ON TABLE ${table(MIGRATIONS_TABLE)} FROM ${role}`);
-  for (const name of APPEND_ONLY_TABLES) {
-    if (input.existing.has(name)) statements.push(`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE ${table(name)} FROM ${role}`);
+  for (const w of WITHHELD) {
+    if (input.existing.has(w.table)) statements.push(`REVOKE ${w.revoke} ON TABLE ${table(w.table)} FROM ${role}`);
   }
   return statements;
 }
 
-/// The append-only tables this run could not revoke on because they do not exist yet, for the operator's report.
-export const notYetPresent = (existing: ReadonlySet<string>) => APPEND_ONLY_TABLES.filter((t) => !existing.has(t));
+/// The protected tables this run could not revoke on because they do not exist yet, for the operator's report.
+export const notYetPresent = (existing: ReadonlySet<string>) => [...APPEND_ONLY_TABLES, ...CONTENT_TABLES].filter((t) => !existing.has(t));
 
 // ------------------------------------------------------------------ who the running app is
 
@@ -75,19 +92,36 @@ export interface RuntimeRoleFacts {
   isSuperuser: boolean;
   /// The login owns (or is a member of the owner of) a table in the app's schema, or the schema itself. An owner can drop a trigger.
   ownsSchemaObjects: boolean;
+  /// The WITHHELD tables on which the login (or a role it is a member of, or PUBLIC) still holds a right it should not, sorted. Empty
+  /// when the grants are as `db:roles` leaves them. A role made by hand with broad grants, or a table added since `db:roles` last ran,
+  /// shows here.
+  withheldHeld: string[];
 }
+
+export type RuntimeRoleReason = "SUPERUSER" | "OWNER" | "TRAIL_WRITABLE";
 
 export type RuntimeRoleVerdict =
   | { safe: true }
-  | { safe: false; reason: "SUPERUSER" | "OWNER"; name: string; refuseSignIn: boolean };
+  | { safe: false; reason: RuntimeRoleReason; name: string; refuseSignIn: boolean; tables: string[] };
 
 /**
  * Whether the running app's login is the separate app role it should be. In production a login that is owner or superuser refuses
- * every sign-in: the trail's grants would mean nothing, and a stolen session could reach DDL. In development the app still runs (the
- * founder's copy runs as the owner until he sets the role up) and the accounts screen says so.
+ * every sign-in: the trail's grants would mean nothing, and a stolen session could reach DDL. So does a separate login that still holds
+ * UPDATE, DELETE or TRUNCATE on the trail (or a right on Prisma's table, or UPDATE on stored bytes): DocumentAccessEvent has no trigger,
+ * so its grants are its only wall. In development the app still runs (the founder's copy runs as the owner until he sets the role up)
+ * and the accounts screen says so. Precedence: superuser, then owner, then the grants.
  */
 export function runtimeRoleVerdict(facts: RuntimeRoleFacts, production: boolean): RuntimeRoleVerdict {
-  if (facts.isSuperuser) return { safe: false, reason: "SUPERUSER", name: facts.name, refuseSignIn: production };
-  if (facts.ownsSchemaObjects) return { safe: false, reason: "OWNER", name: facts.name, refuseSignIn: production };
+  const unsafe = (reason: RuntimeRoleReason) => ({ safe: false as const, reason, name: facts.name, refuseSignIn: production, tables: facts.withheldHeld });
+  if (facts.isSuperuser) return unsafe("SUPERUSER");
+  if (facts.ownsSchemaObjects) return unsafe("OWNER");
+  if (facts.withheldHeld.length > 0) return unsafe("TRAIL_WRITABLE");
   return { safe: true };
 }
+
+/// What the screen and the server log say about each reason. Words, never the code.
+export const RUNTIME_ROLE_WORDS: Record<RuntimeRoleReason, string> = {
+  SUPERUSER: "the database superuser, not the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
+  OWNER: "the owner of the tables, not the app's own database role, so nothing but the trail's triggers stops a change to the audit trail or the sign-in log",
+  TRAIL_WRITABLE: "a login that can still change or remove records the app should only add to (the audit trail, the sign-in log, document access history or stored document content), or reach the migration history",
+};

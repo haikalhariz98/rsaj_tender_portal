@@ -6,6 +6,7 @@ import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui
 import { HistoryButton } from "@/components/history-drawer";
 import { officeHolderNotice } from "@/lib/auth/administration-rules";
 import { loadAccountsView, type AccountRow } from "@/lib/auth/administration-view";
+import { RUNTIME_ROLE_WORDS } from "@/lib/auth/db-role";
 import { runtimeRoleCheck } from "@/lib/auth/runtime-role-store";
 import { settingLabels } from "@/lib/auth/policy";
 import { ACCOUNT_STATUS_WORDS } from "@/lib/auth/words";
@@ -54,8 +55,7 @@ export default async function AccountsPage() {
 
       {role && !role.safe && (
         <Callout tone="warn" title="This copy is connected to its database with too much authority" className="mb-5">
-          It runs as the {role.reason === "SUPERUSER" ? "database superuser" : "owner of the tables"}, not as the app&apos;s own database role, so nothing but the
-          trail&apos;s triggers stops a change to the audit trail or the sign-in log.{" "}
+          It runs as {RUNTIME_ROLE_WORDS[role.reason]}.{" "}
           {role.refuseSignIn
             ? "Sign-in is refused until the operator sets the app's own role up."
             : "This is allowed while developing only: a production copy refuses every sign-in like this. The operator sets the app's own role up as the README describes (Running in production)."}

@@ -101,9 +101,10 @@ describe("the app's login cannot change or remove the trail (grants)", () => {
     expect(await refusal(asApp((tx) => tx.$queryRawUnsafe(`SELECT count(*) FROM "_prisma_migrations"`)))).toBe("42501");
   });
 
-  it("is neither superuser nor owner, as the runtime check reads it", async () => {
+  it("is neither superuser nor owner, and holds no right it should not, as the runtime check reads it", async () => {
     const facts = await asApp((tx) => readRuntimeRole(tx));
-    expect(facts).toEqual({ name: TEST_ROLE, isSuperuser: false, ownsSchemaObjects: false });
+    // Phase 1d review: the check also reads the grants now (withheldHeld), and the script's grants must leave that empty.
+    expect(facts).toEqual({ name: TEST_ROLE, isSuperuser: false, ownsSchemaObjects: false, withheldHeld: [] });
     const owner = await readRuntimeRole(db);
     expect(owner.isSuperuser || owner.ownsSchemaObjects).toBe(true);
   });
@@ -200,16 +201,17 @@ describe("an organisation with a trail cannot be deleted", () => {
   });
 });
 
-describe("a stored document version (OD-9)", () => {
-  async function version() {
-    const person = await db.person.create({ data: { organisationId, name: `Recorder ${randomId()}` } });
-    const documentClass = await db.documentClass.create({ data: { organisationId, code: `TRAIL_${randomId()}`, nameEn: "Trail test class" } });
-    const document = await db.document.create({ data: { organisationId, title: "Trail test document", documentClassId: documentClass.id, retentionSnapshot: {} } });
-    const sha256 = randomBytes(32).toString("hex");
-    await db.blobContent.create({ data: { organisationId, sha256, byteSize: BigInt(4), bytes: new Uint8Array([1, 2, 3, 4]) } });
-    return db.documentVersion.create({ data: { organisationId, documentId: document.id, versionNo: 1, sha256, byteSize: BigInt(4), mediaType: "application/pdf", originalFilename: "t.pdf", recordedByPersonId: person.id } });
-  }
+/// A version over bytes of its own, for the OD-9 tests.
+async function version() {
+  const person = await db.person.create({ data: { organisationId, name: `Recorder ${randomId()}` } });
+  const documentClass = await db.documentClass.create({ data: { organisationId, code: `TRAIL_${randomId()}`, nameEn: "Trail test class" } });
+  const document = await db.document.create({ data: { organisationId, title: "Trail test document", documentClassId: documentClass.id, retentionSnapshot: {} } });
+  const sha256 = randomBytes(32).toString("hex");
+  await db.blobContent.create({ data: { organisationId, sha256, byteSize: BigInt(4), bytes: new Uint8Array([1, 2, 3, 4]) } });
+  return db.documentVersion.create({ data: { organisationId, documentId: document.id, versionNo: 1, sha256, byteSize: BigInt(4), mediaType: "application/pdf", originalFilename: "t.pdf", recordedByPersonId: person.id } });
+}
 
+describe("a stored document version (OD-9)", () => {
   it("is never deleted or truncated, by anyone", async () => {
     const v = await version();
     expect(await refusal(asOwner((tx) => tx.documentVersion.delete({ where: { id: v.id } })))).toBe("PA003");
@@ -230,5 +232,40 @@ describe("a stored document version (OD-9)", () => {
     expect(await refusal(asApp((tx) => tx.documentVersion.update({ where: { id: v.id }, data: { withdrawnAt: new Date(), withdrawnReason: "Superseded by the signed copy" } })))).toBeNull();
     expect(await refusal(asOwner((tx) => tx.documentVersion.update({ where: { id: v.id }, data: { withdrawnAt: new Date(), withdrawnReason: "again" } })))).toBe("PA003");
     expect(await refusal(asOwner((tx) => tx.documentVersion.update({ where: { id: v.id }, data: { withdrawnAt: null, withdrawnReason: "" } })))).toBe("PA003");
+  });
+});
+
+describe("stored document bytes (OD-9, Phase 1d review)", () => {
+  const blob = async () => {
+    const sha256 = randomBytes(32).toString("hex");
+    await db.blobContent.create({ data: { organisationId, sha256, byteSize: BigInt(4), bytes: new Uint8Array([5, 6, 7, 8]) } });
+    return sha256;
+  };
+  const rewrite = (sha256: string) => `UPDATE "BlobContent" SET "bytes" = decode('00', 'hex') WHERE "organisationId" = '${organisationId}' AND "sha256" = '${sha256}'`;
+
+  it("are never rewritten: the app lacks the privilege, and the trigger refuses the owner, under replica too", async () => {
+    const sha256 = await blob();
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(rewrite(sha256))))).toBe("42501");
+    expect(await refusal(asOwner((tx) => tx.$executeRawUnsafe(rewrite(sha256))))).toBe("PA004");
+    expect(await refusal(asOwner(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL session_replication_role = replica`);
+      return tx.$executeRawUnsafe(rewrite(sha256));
+    }))).toBe("PA004");
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`TRUNCATE "BlobContent" CASCADE`)))).toBe("42501");
+    const kept = await db.blobContent.findUniqueOrThrow({ where: { organisationId_sha256: { organisationId, sha256 } }, select: { bytes: true } });
+    expect([...kept.bytes]).toEqual([5, 6, 7, 8]);
+  });
+
+  it("are never truncated by the owner either (whichever trigger on the cascade answers first, nothing goes)", async () => {
+    const sha256 = await blob();
+    expect(["PA003", "PA004"]).toContain(await refusal(asOwner((tx) => tx.$executeRawUnsafe(`TRUNCATE "BlobContent" CASCADE`))));
+    expect(await db.blobContent.count({ where: { organisationId, sha256 } })).toBe(1);
+  });
+
+  it("an orphan may be deleted by the app; bytes a version points at may not (the foreign key)", async () => {
+    const orphan = await blob();
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`DELETE FROM "BlobContent" WHERE "organisationId" = $1 AND "sha256" = $2`, organisationId, orphan)))).toBeNull();
+    const held = await version();
+    expect(await refusal(asApp((tx) => tx.$executeRawUnsafe(`DELETE FROM "BlobContent" WHERE "organisationId" = $1 AND "sha256" = $2`, organisationId, held.sha256)))).toBe("23503");
   });
 });
