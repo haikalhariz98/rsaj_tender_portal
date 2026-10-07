@@ -338,36 +338,3 @@ export async function checkPaymentDemo(db: Db) {
   const route = await db.approvalInstance.findUniqueOrThrow({ where: { id: `${P}ai130` }, include: { steps: true } });
   if (route.status !== "PENDING" || route.steps.length === 0 || !route.checkedAgainstMatrix) throw new Error("demo check: interim certificate 2's route is not pending on the matrix");
 }
-
-// ------------------------------------------------------------------ wipe
-
-/// Every payment row on the given contracts (the demo's, and any made through the screens on them), children first.
-/// Before the supervision's (a party line names a party, a release a handover, a premium its valuation) and the
-/// certificates' (a valuation, an advance, a warning and a decision each name their certificate).
-export async function wipePayments(db: Db, contractIds: readonly string[]) {
-  if (!contractIds.length) return;
-  const byContract = { contractId: { in: [...contractIds] } };
-  await db.financePayment.deleteMany({ where: { certificate: byContract } });
-  await db.retentionRelease.deleteMany({ where: byContract });
-  await db.advanceRecoupmentRow.deleteMany({ where: { advance: byContract } });
-  await db.advancePayment.deleteMany({ where: byContract });
-  await db.partyLine.deleteMany({ where: { valuation: byContract } });
-  await db.materialLine.deleteMany({ where: { valuation: byContract } });
-  await db.valuationDeduction.deleteMany({ where: { valuation: byContract } });
-  await db.pendingDeduction.updateMany({ where: { ...byContract, NOT: { valuationId: null } }, data: { valuationId: null } });
-  await db.interimValuation.deleteMany({ where: byContract });
-  // A replacement points at the decision it replaced.
-  await db.nonCompletion.updateMany({ where: { ...byContract, NOT: { replacesId: null } }, data: { replacesId: null, replaceReason: "" } });
-  await db.nonCompletion.deleteMany({ where: byContract });
-  await db.ladWarning.deleteMany({ where: byContract });
-  await db.paymentCalendar.deleteMany({ where: byContract });
-  await db.openingPosition.deleteMany({ where: byContract });
-}
-
-/// The demo's payment configuration (rows by demo id), before the forms and routing sheets they name. The matrix
-/// rows go with the demo matrix; the controls' payment fields with the demo's controls row.
-export async function wipePaymentConfig(db: Db) {
-  const sub = (s: string) => ({ id: { startsWith: `${P}${s}` } });
-  await db.certificateKindSetting.deleteMany({ where: sub("qks") });
-  await db.contractClockRule.deleteMany({ where: sub("qck") });
-}

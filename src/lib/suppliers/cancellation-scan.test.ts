@@ -172,8 +172,7 @@ describe("one writer of a registration cancelled (615-C2), standing events appen
         `${ACTS} › withdrawRegistrationCancelled · standingEvent.updateMany`,
         `${path.normalize("prisma/demo-suppliers.ts")} › suspend · standingEvent.create SUSPEND`,
         `${path.normalize("prisma/demo-suppliers.ts")} › recordBlacklisting · standingEvent.create BLACKLIST`,
-        `${path.normalize("prisma/demo-suppliers.ts")} › wipeSuppliersDemo · standingEvent.updateMany`,
-        `${path.normalize("prisma/demo-suppliers.ts")} › wipeSuppliersDemo · standingEvent.deleteMany`,
+        // Phase 1d (ADR 0034 D11): wipeSuppliersDemo's updateMany and deleteMany are gone with the retired demo wipe. Tightened, not weakened.
       ].sort(),
     );
   });

@@ -101,12 +101,9 @@ describe("no exercise-route reader filters on awardId alone (source scan, ruling
   const files = [...walk(join(ROOT, "src")), ...readdirSync(join(ROOT, "prisma")).filter((f) => /\.ts$/.test(f)).map((f) => join(ROOT, "prisma", f))];
   const text = (p: string) => readFileSync(p, "utf8");
 
-  // Where `awardId: null` may stand without a domain, and why. Each is a demo-wipe
-  // safety net that must catch every non-award route whatever its domain, not a reader.
-  const ALLOWED: { file: string; line: RegExp; why: string }[] = [
-    { file: "prisma/demo.ts", line: /approvalInstances: \{ some: \{ awardId: null, steps:/, why: "wipe: any own route of an exercise relying on a screen-made act" },
-    { file: "prisma/demo.ts", line: /requisitionId: null, NOT: \{ exerciseId: demoRef \}, awardId: null,/, why: "wipe: any other route snapshotted under demo rows" },
-  ];
+  // Where `awardId: null` may stand without a domain, and why. The two that stood here were the demo wipe's safety nets
+  // (prisma/demo.ts); Phase 1d (ADR 0034 D11) retired the wipe, so the list is empty and every such filter must name a domain.
+  const ALLOWED: { file: string; line: RegExp; why: string }[] = [];
 
   // The object literal a match sits in: from its opening brace to the matching close.
   const enclosing = (src: string, at: number): string => {

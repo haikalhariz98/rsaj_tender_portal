@@ -8,8 +8,8 @@
  * fields and labels (src/app/committees/actions.ts and the votes route), dated as the
  * demo tells it. Times within a day only order the entries; they are invented.
  *
- * Every entry's id is `<sitting id>_au<n>` and every entityId is a `demo_` row, so the
- * wipe removes them with the rest (it deletes audit entries by `demo_` entityId).
+ * Every entry's id is `<sitting id>_au<n>` and every entityId is a `demo_` row. Like every
+ * audit entry they are permanent (Phase 1d): nothing removes them.
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";

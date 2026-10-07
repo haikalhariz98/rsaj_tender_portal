@@ -15,11 +15,9 @@
  *   accepted demo award; the absent holder's signed recommendation on demo_dg3; one SULIT
  *   document (listed, never served); one legal hold; one staged upload not yet filed.
  *
- * The wipe removes access events, holds, attachments, versions and documents, then only
- * the blobs no version left behind still references. What it does with each document is
- * planned by `documentWipePlan` (src/lib/documents/demo-wipe-plan.ts), after demo.ts has
- * worked out which records --remove-dependents removes with the demo, and refused —
- * before anything is removed — where something real would remain.
+ * Nothing removes them (Phase 1d): a stored version is never deleted (OD-9, now a trigger), and the
+ * demo's wipe is retired. `src/lib/documents/demo-wipe-plan.ts`, which planned that wipe, is kept
+ * with its tests as the record of how it judged a document, and has no caller.
  */
 
 import { createHash } from "node:crypto";
@@ -27,7 +25,6 @@ import { createHash } from "node:crypto";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { attached, detached, documentCreated, filed, holdPlaced, repinAudit, versionCreated, versionWithdrawn } from "../src/lib/documents/audit-view";
 import { PURPOSE_LABEL } from "../src/lib/documents/labels";
-import { documentWipePlan, type DocumentWipePlan, type PlanDocument, type PlanLine } from "../src/lib/documents/demo-wipe-plan";
 import type { AttachmentPurpose, SecurityClass } from "../src/lib/documents/types";
 import { initialsLogo } from "../src/lib/organisation/png";
 import { bqImportAudit } from "../src/lib/scope/audit-view";
@@ -42,8 +39,6 @@ const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 
 export const DEMO_POLICY_ID = `${P}docpolicy`;
 const DEMO_POLICY = { allowedMediaTypes: ["application/pdf", "image/png", "image/jpeg", "text/csv"], maxBytes: 20n * 1024n * 1024n };
-/// Every set of upload rules a demo load has written, so a wipe after an upgrade still knows its own.
-const DEMO_POLICY_HISTORY = [DEMO_POLICY, { allowedMediaTypes: ["application/pdf", "image/png", "image/jpeg"], maxBytes: 20n * 1024n * 1024n }];
 
 // ------------------------------------------------------------------ the bytes
 
@@ -276,200 +271,3 @@ async function retentionOfClass(db: Db, classId: string) {
   return { retentionMonths: c.retentionMonths, retentionTrigger: c.retentionTrigger, disposalMethod: c.disposalMethod, disposalAuthorityRoleCode: c.disposalAuthorityRoleCode, className: c.nameEn, provenance: c.provenance };
 }
 
-// ------------------------------------------------------------------ wipe
-
-const demoRef = { startsWith: P };
-
-/// The records --remove-dependents removes with the demo although they are not demo data
-/// (computed in demo.ts before anything is judged or removed).
-export interface RemovedWithDemo {
-  exerciseIds: string[];
-  awardIds: string[];
-  /// Carry D4: sittings on demo committees and delegations naming demo people, made through the screens.
-  meetingIds: string[];
-  delegationIds: string[];
-  /// 6.15: suppliers recorded through the screens on demo people or configuration, removed with --remove-dependents.
-  supplierIds?: string[];
-}
-
-/**
- * Read every document the wipe must judge — the demo's own, those naming a demo person
- * (a version recorded on one's behalf, a hold placed or released by one: what the screens
- * add in a demo environment), and any attached to a record on the demo side — and plan
- * it with `documentWipePlan` (src/lib/documents/demo-wipe-plan.ts). Reads only.
- */
-export async function planDocumentWipe(db: Db, organisationId: string, removed: RemovedWithDemo, removeDependents: boolean): Promise<DocumentWipePlan> {
-  // 6.2: a panel goes with its exercise, whatever its own id.
-  const removedPanelIds = (await db.specificationPanel.findMany({ where: { organisationId, NOT: { id: demoRef }, OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] }, select: { id: true } })).map((p) => p.id);
-  // 6.2 Q-3: a bill version goes with its exercise in the same way.
-  const removedBqVersionIds = (await db.bqVersion.findMany({ where: { organisationId, NOT: { id: demoRef }, OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] }, select: { id: true } })).map((v) => v.id);
-  // 6.4: a tender pack's parts go with their exercise in the same way.
-  const removedPackPartIds = (await db.tenderPackPart.findMany({ where: { organisationId, NOT: { id: demoRef }, pack: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] } }, select: { id: true } })).map((p) => p.id);
-  // 6.5: an addendum goes with its exercise's window in the same way.
-  const removedAddendumIds = (await db.addendum.findMany({ where: { organisationId, NOT: { id: demoRef }, window: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] } }, select: { id: true } })).map((a) => a.id);
-  // 6.6: a withdrawal or a validity extension goes with its exercise in the same way.
-  const onRemovedExercise = { organisationId, NOT: { id: demoRef }, OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] };
-  const removedBidRecordIds = [
-    ...(await db.bidWithdrawal.findMany({ where: onRemovedExercise, select: { id: true } })).map((w) => w.id),
-    ...(await db.validityExtension.findMany({ where: onRemovedExercise, select: { id: true } })).map((x) => x.id),
-    // 6.7: an opening goes with its exercise in the same way.
-    ...(await db.opening.findMany({ where: onRemovedExercise, select: { id: true } })).map((o) => o.id),
-    // 6.8: an evaluation, its meetings and its bidders go with their exercise in the same way.
-    ...(await db.evaluation.findMany({ where: onRemovedExercise, select: { id: true } })).map((e) => e.id),
-    ...(await db.evaluationMeeting.findMany({ where: { organisationId, NOT: { id: demoRef }, evaluation: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] } }, select: { id: true } })).map((m) => m.id),
-    ...(await db.evaluationBidder.findMany({ where: { organisationId, NOT: { id: demoRef }, evaluation: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: removed.exerciseIds } }] } }, select: { id: true } })).map((b) => b.id),
-  ];
-  // 6.15: a supplier's document or application made through the screens goes with its demo supplier.
-  const onDemoSupplier = { organisationId, OR: [{ NOT: { id: demoRef }, supplierId: demoRef }, { supplierId: { in: removed.supplierIds ?? [] } }] };
-  const removedSupplierRecordIds = [
-    ...(await db.supplierDocument.findMany({ where: onDemoSupplier, select: { id: true } })).map((d) => d.id),
-    ...(await db.supplierApplication.findMany({ where: onDemoSupplier, select: { id: true } })).map((a) => a.id),
-  ];
-  // 6.15 (615-C2): a standing event recorded through the screens on a demo supplier goes with it.
-  const removedStandingEventIds = (await db.standingEvent.findMany({ where: onDemoSupplier, select: { id: true } })).map((e) => e.id);
-  // 6.12: a contract goes with its award (a demo award's, or one --remove-dependents removes).
-  const removedContractIds = (await db.contract.findMany({ where: { organisationId, NOT: { id: demoRef }, OR: [{ awardId: demoRef }, { awardId: { in: removed.awardIds } }] }, select: { id: true } })).map((c) => c.id);
-  // 6.13 (FR-VAR-015): an S.O.'s Instruction made through the screens goes with its contract (a demo one, or one removed).
-  const removedInstructionIds = (await db.variationInstruction.findMany({ where: { organisationId, NOT: { id: demoRef }, variation: { OR: [{ contractId: demoRef }, { contractId: { in: removedContractIds } }] } }, select: { id: true } })).map((i) => i.id);
-  const onDemoSideOwner = {
-    OR: [
-      { contractId: demoRef }, { contractId: { in: removedContractIds } },
-      { variationInstructionId: demoRef }, { variationInstructionId: { in: removedInstructionIds } },
-      { standingEventId: demoRef }, { standingEventId: { in: removedStandingEventIds } },
-      { supplierDocumentId: demoRef }, { supplierDocumentId: { in: removedSupplierRecordIds } },
-      { supplierApplicationId: demoRef }, { supplierApplicationId: { in: removedSupplierRecordIds } },
-      { bidWithdrawalId: demoRef }, { bidWithdrawalId: { in: removedBidRecordIds } },
-      { validityExtensionId: demoRef }, { validityExtensionId: { in: removedBidRecordIds } },
-      { openingId: demoRef }, { openingId: { in: removedBidRecordIds } },
-      { evaluationId: demoRef }, { evaluationId: { in: removedBidRecordIds } },
-      { evaluationMeetingId: demoRef }, { evaluationMeetingId: { in: removedBidRecordIds } },
-      { evaluationBidderId: demoRef }, { evaluationBidderId: { in: removedBidRecordIds } },
-      { tenderPackPartId: demoRef }, { tenderPackPartId: { in: removedPackPartIds } },
-      { addendumId: demoRef }, { addendumId: { in: removedAddendumIds } },
-      { specificationPanelId: demoRef }, { specificationPanelId: { in: removedPanelIds } },
-      { bqVersionId: demoRef }, { bqVersionId: { in: removedBqVersionIds } },
-      { meetingId: demoRef }, { exerciseId: demoRef }, { awardId: demoRef }, { delegationId: demoRef },
-      { exerciseId: { in: removed.exerciseIds } }, { awardId: { in: removed.awardIds } },
-      { meetingId: { in: removed.meetingIds } }, { delegationId: { in: removed.delegationIds } },
-    ],
-  };
-  const rows = await db.document.findMany({
-    where: {
-      organisationId,
-      OR: [
-        { id: demoRef },
-        { versions: { some: { recordedByPersonId: demoRef } } },
-        { holds: { some: { OR: [{ placedByPersonId: demoRef }, { releasedByPersonId: demoRef }] } } },
-        { versions: { some: { attachments: { some: onDemoSideOwner } } } },
-      ],
-    },
-    orderBy: { id: "asc" },
-    select: {
-      id: true, title: true,
-      versions: { select: { id: true, sha256: true, recordedByPersonId: true, attachments: { select: { id: true, purpose: true, meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, bqVersionId: true, tenderPackPartId: true, addendumId: true, bidWithdrawalId: true, validityExtensionId: true, openingId: true, evaluationId: true, evaluationMeetingId: true, evaluationBidderId: true, supplierDocumentId: true, supplierApplicationId: true, contractId: true, variationInstructionId: true, standingEventId: true } } } },
-      holds: { select: { id: true, placedByPersonId: true, releasedByPersonId: true } },
-    },
-  });
-  const isDemo = (id: string | null) => id != null && id.startsWith(P);
-  const docs: PlanDocument[] = rows.map((d) => ({
-    id: d.id,
-    title: d.title,
-    namesDemoPerson: d.versions.some((v) => isDemo(v.recordedByPersonId)) || d.holds.some((h) => isDemo(h.placedByPersonId) || isDemo(h.releasedByPersonId)),
-    versions: d.versions.map((v) => ({ id: v.id, sha256: v.sha256, attachments: v.attachments.map((a) => ({ ...a, purpose: a.purpose as AttachmentPurpose })) })),
-    holds: d.holds.map((h) => ({ id: h.id })),
-  }));
-  return documentWipePlan(docs, { isDemo: (id) => id.startsWith(P), removedExerciseIds: new Set(removed.exerciseIds), removedAwardIds: new Set(removed.awardIds), removedMeetingIds: new Set(removed.meetingIds), removedDelegationIds: new Set(removed.delegationIds), removedPanelIds: new Set(removedPanelIds), removedBqVersionIds: new Set(removedBqVersionIds), removedPackPartIds: new Set(removedPackPartIds), removedAddendumIds: new Set(removedAddendumIds), removedBidRecordIds: new Set(removedBidRecordIds), removedSupplierRecordIds: new Set(removedSupplierRecordIds), removedContractIds: new Set(removedContractIds), removedInstructionIds: new Set(removedInstructionIds), removedStandingEventIds: new Set(removedStandingEventIds) }, removeDependents);
-}
-
-const LINE_TEXT = (l: PlanLine) => {
-  switch (l.kind) {
-    case "DEMO_DOCUMENT_ON_REAL_RECORD": return `  an attachment (${PURPOSE_LABEL[l.purpose]}) of the demo document “${l.title}” on a record that is not demo data`;
-    case "DEMO_PERSON_DOCUMENT_ON_REAL_RECORD": return `  the document “${l.title}”, which names a demo person and is attached to a record that is not demo data`;
-    case "DEMO_PERSON_DOCUMENT": return `  the document “${l.title}”, recorded on behalf of (or held by) a demo person`;
-    case "OTHER_DOCUMENT_ON_DEMO_RECORD": return `  the document “${l.title}”, attached to a demo record as ${PURPOSE_LABEL[l.purpose]}`;
-  }
-};
-
-/**
- * Print why the documents refuse the wipe, if they do. Always refused (listing them): a
- * demo document attached to a record the wipe keeps, and a document naming a demo person
- * attached to one. Refused unless --remove-dependents: a document added through the
- * screens that names a demo person (removed whole), and another document attached to a
- * demo-side record (taken off, kept). Records --remove-dependents removes are demo-side.
- */
-export function reportDocumentRefusal(plan: DocumentWipePlan): boolean {
-  if (!plan.refused) return false;
-  console.error(
-    [
-      "Refused: these records are not demo data, but point at demo records, so the demo cannot be removed under them:",
-      ...plan.hard.map(LINE_TEXT),
-      ...plan.soft.map(LINE_TEXT),
-      plan.hard.length
-        ? "Nothing was removed. Take those attachments off the records that are not demo data first: nothing attached to a real record is removed for the demo."
-        : "Nothing was removed. Deal with them first, or run the wipe again with --remove-dependents, which removes the documents recorded for demo people (with their versions, holds and access log) and takes the other documents off the demo records, keeping them.",
-    ].join("\n"),
-  );
-  return true;
-}
-
-/// Remove documents and everything recorded under them, then the bytes no remaining version uses.
-async function removeDocuments(db: Db, organisationId: string, docs: { id: string; versions: { id: string; sha256: string; attachments: { id: string }[] }[]; holds: { id: string }[] }[]) {
-  const docIds = docs.map((d) => d.id);
-  const versions = docs.flatMap((d) => d.versions);
-  const versionIds = versions.map((v) => v.id);
-  const entityIds = [...docIds, ...versionIds, ...versions.flatMap((v) => v.attachments.map((a) => a.id)), ...docs.flatMap((d) => d.holds.map((h) => h.id))];
-  await db.documentAccessEvent.deleteMany({ where: { versionId: { in: versionIds } } });
-  await db.legalHold.deleteMany({ where: { documentId: { in: docIds } } });
-  await db.documentAttachment.deleteMany({ where: { versionId: { in: versionIds } } });
-  await db.documentVersion.deleteMany({ where: { id: { in: versionIds } } });
-  await db.document.deleteMany({ where: { id: { in: docIds } } });
-  // Only bytes nothing else stands on: another version may share a digest.
-  const digests = [...new Set(versions.map((v) => v.sha256))];
-  const stillUsed = new Set((await db.documentVersion.findMany({ where: { organisationId, sha256: { in: digests } }, select: { sha256: true } })).map((v) => v.sha256));
-  const free = digests.filter((d) => !stillUsed.has(d));
-  if (free.length) await db.blobContent.deleteMany({ where: { organisationId, sha256: { in: free } } });
-  if (entityIds.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: entityIds } } });
-}
-
-/**
- * Carry out a plan that was not refused, in dependency order: with --remove-dependents
- * (the plan allowed it), first the documents the screens added for demo people, and the
- * attachments of other documents on demo-side records (those documents kept); then the
- * demo's own documents — access events, holds, attachments, versions, documents, then only
- * the blobs no remaining version references. Then the demo upload rules, if they still
- * hold the demo's values (a policy edited since is real, and is kept).
- *
- * Access events with no version (a refused upload: too long a name, a refused type or
- * size) record no person and no record, so the wipe cannot tell the demo's from real ones;
- * they are kept, and counted.
- */
-export async function wipeDocuments(db: Db, organisationId: string, plan: DocumentWipePlan) {
-  if (plan.refused) throw new Error("wipeDocuments called with a refused plan");
-  const { demoPersonDocuments: naming, takeOff, demoDocuments } = plan;
-  if (naming.length) {
-    await removeDocuments(db, organisationId, naming);
-    console.log(`--remove-dependents: removed ${naming.length} document(s) recorded for demo people: ${naming.map((d) => `“${d.title}”`).join(", ")}.`);
-  }
-  if (takeOff.length) {
-    await db.documentAttachment.deleteMany({ where: { id: { in: takeOff.map((a) => a.id) } } });
-    await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: takeOff.map((a) => a.id) } } });
-    console.log(`--remove-dependents: took ${takeOff.length} attachment(s) of other documents off demo records; the documents are kept.`);
-  }
-  await removeDocuments(db, organisationId, demoDocuments);
-  await db.documentAccessEvent.deleteMany({ where: { id: demoRef } });
-  const unplaced = await db.documentAccessEvent.count({ where: { organisationId, versionId: null } });
-  if (unplaced) console.log(`Kept ${unplaced} refused-upload log entr${unplaced === 1 ? "y" : "ies"} with no stored version: they name no person or record, so the demo's cannot be told from real ones.`);
-
-  const policy = await db.documentStorePolicy.findUnique({ where: { id: DEMO_POLICY_ID } });
-  if (policy) {
-    // The demo's values as loaded now, or as an earlier build loaded them (before 6.2 added CSV).
-    const unchanged = DEMO_POLICY_HISTORY.some((d) => policy.maxBytes === d.maxBytes && policy.allowedMediaTypes.join(",") === d.allowedMediaTypes.join(","));
-    if (unchanged) await db.documentStorePolicy.delete({ where: { id: DEMO_POLICY_ID } });
-    else {
-      const kept = `policy_${Date.now().toString(36)}`;
-      await db.documentStorePolicy.update({ where: { id: DEMO_POLICY_ID }, data: { id: kept } });
-      await db.auditEntry.updateMany({ where: { entity: "DocumentStorePolicy", entityId: DEMO_POLICY_ID }, data: { entityId: kept } });
-      console.log("The upload rules were changed after the demo loaded, so they were kept.");
-    }
-  }
-}

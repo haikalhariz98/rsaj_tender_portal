@@ -537,35 +537,5 @@ export async function checkBidsDemo(db: Db) {
   if (!gate) fail("sx20's late envelope reads as decided.");
 }
 
-// ------------------------------------------------------------------ wipe
-
-const onExercises = (exerciseIds: readonly string[]) => ({ OR: [{ exerciseId: demoRef }, { exerciseId: { in: [...exerciseIds] } }] });
-
-/**
- * Remove 6.6's rows on the demo's exercises and on those removed with it, whatever their ids
- * (an envelope recorded through the screens on a demo exercise goes with it), with the audit
- * entries of rows that are not demo data; then the demo's alert rule. Runs after the documents
- * (a letter or a consent pins its record) and before the windows (an envelope may name a party)
- * and the exercises. A matter's envelope link is cleared by its key (SET NULL).
- */
-export async function wipeBidsDemo(db: Db, organisationId: string, exerciseIds: readonly string[]) {
-  const where = onExercises(exerciseIds);
-  const ids = [
-    ...(await db.bidEnvelope.findMany({ where, select: { id: true } })),
-    ...(await db.bidWithdrawal.findMany({ where, select: { id: true } })),
-    ...(await db.boxEvent.findMany({ where, select: { id: true } })),
-    ...(await db.validityExtension.findMany({ where, select: { id: true } })),
-  ].map((r) => r.id);
-  await db.committeeDecision.updateMany({ where: { bidEnvelope: where }, data: { bidEnvelopeId: null } });
-  await db.bidWithdrawal.deleteMany({ where });
-  await db.validityExtension.deleteMany({ where });
-  await db.boxEvent.deleteMany({ where });
-  await db.bidEnvelope.updateMany({ where, data: { parentEnvelopeId: null } });
-  await db.bidEnvelope.deleteMany({ where });
-  const real = ids.filter((x) => !x.startsWith(P));
-  if (real.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: real } } });
-  await db.notificationRule.deleteMany({ where: { id: `${P}nr6` } });
-}
-
-/// Ids the demo writes, for the wipe's checks and the X-4 scan.
+/// Ids the demo writes, for the X-4 scan.
 export const BID_DEMO_IDS = { sitting: `${P}mt13`, matter: `${P}d42`, exercise: NEW_EXERCISE, routes: [`${P}ai72`, `${P}ai73`] } as const;

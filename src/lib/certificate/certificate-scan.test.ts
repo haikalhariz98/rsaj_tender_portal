@@ -530,7 +530,8 @@ describe("every write that can reach a certificate's rows (R-8)", () => {
 });
 
 /// The demo's certificate writers, named one by one: invented data loaded and wiped, never the product's acts.
-const CERT_DEMO_WRITERS: string[] = ["prisma/demo-certificates.ts › check", "prisma/demo-certificates.ts › loadCertificatesDemo", "prisma/demo-certificates.ts › move", "prisma/demo-certificates.ts › open", "prisma/demo-certificates.ts › sign", "prisma/demo-certificates.ts › wipeAwardRoutingSheets", "prisma/demo-certificates.ts › wipeCertificates", "prisma/demo-payment.ts › loadPaymentDemo", "prisma/demo-payment.ts › wipePayments", "prisma/demo-supervision.ts › loadSupervisionDemo"].map(P);
+/// Phase 1d (ADR 0034 D11): wipeAwardRoutingSheets, wipeCertificates and wipePayments are gone with the retired demo wipe. Tightened, not weakened.
+const CERT_DEMO_WRITERS: string[] = ["prisma/demo-certificates.ts › check", "prisma/demo-certificates.ts › loadCertificatesDemo", "prisma/demo-certificates.ts › move", "prisma/demo-certificates.ts › open", "prisma/demo-certificates.ts › sign", "prisma/demo-payment.ts › loadPaymentDemo", "prisma/demo-supervision.ts › loadSupervisionDemo"].map(P);
 
 describe("the pre-award sheet's acts keep the award's lock order (R-8)", () => {
   it("every act runs inside inAwardSheet, which is withLockedAward, and reads the clock once on entry", () => {

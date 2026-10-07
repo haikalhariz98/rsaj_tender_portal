@@ -3,7 +3,9 @@
  *
  * - The marker. Everything the demo loader makes has an id prefixed `demo_`. `demo:accounts` makes sign-in accounts only on a database that holds the demo, and
  *   only for the demo's own people, so the one password in `.env.example` never opens a real person's account.
- * - The wipe's refusal. A demo person with a sign-in account, a code they issued, or an audit entry they made on something that is not demo data cannot be
+ * - Since Phase 1d the wipe itself is retired (`DEMO_WIPE_RETIRED`), and `demoSignInDependents` / `demoSignInRefusal` below have no caller. They are
+ *   kept, with their database test, as the record of what blocked it; the trail and the sign-in log now refuse a delete on their own (triggers).
+ * - The wipe's refusal (before Phase 1d). A demo person with a sign-in account, a code they issued, or an audit entry they made on something that is not demo data cannot be
  *   removed: the sign-in log and the audit trail are permanent and no wipe deletes them, and each of those rows points at the person. The wipe refuses, whatever
  *   its flags, and says what, before it has removed anything (a partial wipe is the worse outcome).
  */
@@ -17,6 +19,23 @@ type Db = Pick<PrismaClient, "orgUnit" | "staffAccount" | "auditEntry" | "oneTim
 export async function demoIsLoaded(db: Pick<PrismaClient, "orgUnit">): Promise<boolean> {
   return (await db.orgUnit.count({ where: { id: { startsWith: DEMO_PREFIX } } })) > 0;
 }
+
+/// Whether a demo load has written anything at all, finished or not: its people come first, its organisation units soon after. A load that finds either
+/// writes nothing (Phase 1d: nothing can take a half-made demo away again, so nothing is written twice).
+export async function demoStarted(db: Pick<PrismaClient, "orgUnit" | "person">): Promise<boolean> {
+  if (await demoIsLoaded(db)) return true;
+  return (await db.person.count({ where: { id: { startsWith: DEMO_PREFIX } } })) > 0;
+}
+
+/// Why `npm run demo:wipe` no longer removes anything (ADR 0034 D11, Phase 1d).
+export const DEMO_WIPE_RETIRED = [
+  "npm run demo:wipe is retired: nothing was removed.",
+  "The audit trail and the sign-in log are permanent (ADR 0034 D11): the database refuses to change or delete them, for every login,",
+  "and a demonstration's records stand in that trail like any other. Business rows are not wiped on their own either, since that",
+  "would leave the trail describing records that are gone.",
+  "To start again, use a new database (npm run setup against an empty one, then npm run demo:load). To add the Results fixture",
+  "to a database loaded before it existed, use npm run demo:results.",
+].join("\n");
 
 /// What stands on the demo's people and so blocks removing them, as lines for the operator (empty when nothing does).
 export async function demoSignInDependents(db: Db, organisationId: string): Promise<string[]> {

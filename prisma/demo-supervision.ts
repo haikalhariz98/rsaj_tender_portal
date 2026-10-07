@@ -248,33 +248,3 @@ export async function checkSupervisionDemo(db: Db) {
   if (s.soAssignments.length !== 1 || s.soDelegations.length !== 1) throw new Error("demo check: the S.O. or the delegation is missing");
   void db;
 }
-
-/// Every supervision row on the given contracts (the demo's, and any made through the screens on them).
-export async function wipeSupervision(db: Db, contractIds: readonly string[]) {
-  const byContract = { contractId: { in: [...contractIds] } };
-  await db.soDelegationScope.deleteMany({ where: { delegation: byContract } });
-  await db.soDelegation.deleteMany({ where: byContract });
-  await db.contractSoAssignment.deleteMany({ where: byContract });
-  await db.programmePoint.deleteMany({ where: { programme: byContract } });
-  await db.workProgramme.deleteMany({ where: byContract });
-  await db.programmeDirection.deleteMany({ where: byContract });
-  await db.progressRecord.deleteMany({ where: byContract });
-  await db.diaryEndorsement.deleteMany({ where: byContract });
-  await db.siteDiaryEntry.deleteMany({ where: byContract });
-  await db.siteMeeting.deleteMany({ where: byContract });
-  await db.complianceObservation.deleteMany({ where: byContract });
-  await db.pendingDeduction.deleteMany({ where: byContract });
-  await db.earlyActionDecision.deleteMany({ where: byContract });
-  await db.contractParty.deleteMany({ where: byContract });
-  await db.siteRecordsHandover.deleteMany({ where: byContract });
-  await db.possession.deleteMany({ where: byContract });
-  await db.awardTermCorrection.deleteMany({ where: byContract });
-}
-
-/// The supervision configuration the demo created (rows by demo id; the S.O. rows go with the demo matrix).
-export async function wipeSupervisionConfig(db: Db) {
-  const sub = (s: string) => ({ id: { startsWith: `${P}${s}` } });
-  await db.postAwardPolicy.deleteMany({ where: sub("wpa") });
-  await db.formDistribution.deleteMany({ where: sub("wfd") });
-  await db.formSignatureBlock.deleteMany({ where: sub("wsb") });
-}

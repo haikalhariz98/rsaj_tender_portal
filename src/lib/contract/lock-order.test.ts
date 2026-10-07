@@ -497,11 +497,10 @@ describe("every write that can reach a contract, a baseline version or its secti
 
 /// The demo's writers, named one by one: invented data loaded and wiped, never the product's acts.
 const DEMO_WRITERS: string[] = [
+  // Phase 1d (ADR 0034 D11): wipeAwards and wipeContractFormation are gone with the retired demo wipe. Tightened, not weakened.
   "prisma/demo-award.ts › loadAwards",
-  "prisma/demo-award.ts › wipeAwards",
   "prisma/demo-contracts.ts › form",
   "prisma/demo-contracts.ts › loadContractsDemo",
-  "prisma/demo-contracts.ts › wipeContractFormation",
   "prisma/demo-contracts.ts › writeVersion",
   // 6.13 Part A step 5: demo_con13 numbered at its award's issue (its formation on is the product's own acts).
   "prisma/demo-lifecycle.ts › loadLifecycleAward",

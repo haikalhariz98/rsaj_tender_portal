@@ -16,8 +16,7 @@
  * the award names the bidder carried to evaluation whose offer it takes, Contoh Bina (demo_pty2), at
  * its price as read; the opening gate is judged as createAward judges it.
  *
- * Every act is dated on the load day, before now and after sx16's closing (X-10 a). The wipe needs
- * nothing new: `wipeAwards` removes every award on a demo exercise with its trail.
+ * Every act is dated on the load day, before now and after sx16's closing (X-10 a).
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";

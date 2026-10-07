@@ -65,7 +65,6 @@ const P = "demo_";
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 /// An instant, written "2026-09-25T14:00", in UTC as the other demo files write theirs.
 const at = (iso: string) => new Date(`${iso}:00.000Z`);
-const demoRef = { startsWith: P };
 
 // ------------------------------------------------------------------ configuration
 
@@ -650,83 +649,6 @@ export async function checkTenderDocs(db: Db) {
   const loadDay = new Date("2026-10-01T23:59:59+08:00");
   const late = await db.auditEntry.count({ where: { id: { startsWith: `${P}td` }, at: { gt: loadDay } } });
   if (late) fail(`${late} trail entries are dated after the load day (X-10 a).`);
-}
-
-// ------------------------------------------------------------------ wipe
-
-/**
- * Remove 6.4's rows on the demo's exercises and on the exercises removed with it (packs
- * made through the screens on a demo exercise belong to it), then the demo's configuration.
- * Runs after the documents (the parts' files) and before the bills and routes the packs
- * point at. A real pack that draws a demo template is refused, listing it, before anything
- * is removed: the template is configuration it stands on.
- */
-export async function tenderDocsDependents(db: Db, organisationId: string, exerciseIds: readonly string[]): Promise<string[]> {
-  const onReal = { exercise: { NOT: { id: demoRef } }, NOT: { exerciseId: { in: [...exerciseIds] } } };
-  const parts = await db.tenderPackPart.findMany({ where: { organisationId, templateId: demoRef, pack: onReal }, select: { pack: { select: { versionNo: true, exercise: { select: { reference: true } } } }, printedNumber: true } });
-  const frozen = await db.tenderPackDocument.findMany({ where: { organisationId, templateId: demoRef, pack: onReal }, select: { partCode: true, pack: { select: { versionNo: true, exercise: { select: { reference: true } } } } } });
-  // Increment 2: a real exercise requiring a demo registration body, a real template citing the demo clause.
-  const requirements = await db.exerciseRegistrationRequirement.findMany({ where: { organisationId, bodyCode: { in: BODIES.map((b) => b.code) }, exercise: { NOT: { id: demoRef } }, NOT: { exerciseId: { in: [...exerciseIds] } } }, select: { bodyLabelSnapshot: true, exercise: { select: { reference: true } } } });
-  const citing = await db.documentTemplate.findMany({ where: { organisationId, NOT: { id: demoRef }, OR: [{ bodyEn: { contains: `clause:${CLAUSE.code}` } }, { bodyMs: { contains: `clause:${CLAUSE.code}` } }] }, select: { nameEn: true } });
-  // The demo's permit list goes with the demo: an exercise that is not removed with it and names one of its types, or a policy kept (edited after the demo loaded, so the organisation's) that names the list, would be left pointing at nothing.
-  const permitCodes = PERMITS.values.map((v) => v.code);
-  const onPermits = await db.sourcingExercise.findMany({ where: { organisationId, NOT: [{ id: demoRef }, { id: { in: [...exerciseIds] } }], regulatedActivity: true, regulatorPermitCode: { in: permitCodes } }, select: { reference: true } });
-  const keptPolicy = await db.tenderDocumentPolicy.findFirst({ where: { organisationId, regulatorPermitTaxonomyCode: PERMITS.code } });
-  const policyKept = keptPolicy != null && !(keptPolicy.id === DEMO_POLICY_ID && policyHoldsDemoValues(keptPolicy));
-  return [
-    ...onPermits.map((x) => `  exercise ${x.reference}, which names a permit type from the demo permit list`),
-    ...(policyKept ? ["  the tender documents policy, which names the demo permit list (it was changed after the demo loaded, so it is the organisation's)"] : []),
-    ...parts.map((p) => `  tender documents v${p.pack.versionNo} of ${p.pack.exercise.reference}, part ${p.printedNumber}, which draws a demo template`),
-    ...frozen.map((d) => `  tender documents v${d.pack.versionNo} of ${d.pack.exercise.reference}, frozen from a demo template`),
-    ...requirements.map((r) => `  exercise ${r.exercise.reference}, which requires registration with ${r.bodyLabelSnapshot} (a demo registration body)`),
-    ...citing.map((t) => `  template ${t.nameEn}, which cites the demo clause`),
-  ];
-}
-
-/// Whether the demo's policy row still holds exactly what the demo loaded (as increment 2 loads it, or as increment 1 did): then it goes with the demo; edited through the screens, it is the organisation's.
-function policyHoldsDemoValues(pol: { ladDailyPct: { toString(): string } | null; firstCertificateFloor: { toString(): string } | null; firstCertificatePct: { toString(): string } | null; insuranceExtraMonths: number | null; insuranceExtraDays: number | null; restrictionStampTextEn: string | null; restrictionStampTextMs: string | null; restrictionLabelEn: string | null; assuranceRequired: boolean | null; regulatorPermitTaxonomyCode: string | null }): boolean {
-  return (
-    pol.ladDailyPct?.toString() === "0.05" && pol.firstCertificateFloor?.toString() === "2500" && pol.firstCertificatePct?.toString() === "5" && pol.insuranceExtraMonths === 2 && pol.insuranceExtraDays === 0 &&
-    ((pol.restrictionStampTextEn === DEMO_POLICY.restrictionStampTextEn && pol.restrictionStampTextMs === DEMO_POLICY.restrictionStampTextMs && pol.restrictionLabelEn === DEMO_POLICY.restrictionLabelEn && pol.assuranceRequired === true && pol.regulatorPermitTaxonomyCode === DEMO_POLICY.regulatorPermitTaxonomyCode) ||
-      (pol.restrictionStampTextEn == null && pol.restrictionStampTextMs == null && pol.restrictionLabelEn == null && pol.assuranceRequired == null && pol.regulatorPermitTaxonomyCode == null))
-  );
-}
-
-export async function wipeTenderDocs(db: Db, organisationId: string, exerciseIds: readonly string[]) {
-  const packs = { OR: [{ exerciseId: demoRef }, { exerciseId: { in: [...exerciseIds] } }] };
-  const ids = (await db.tenderPack.findMany({ where: packs, select: { id: true, parts: { select: { id: true } }, documents: { select: { id: true } }, appendix: { select: { id: true, variationLimits: { select: { id: true } }, sections: { select: { id: true } } } } } }));
-  const rowIds = ids.flatMap((p) => [p.id, ...p.parts.map((x) => x.id), ...p.documents.map((x) => x.id), ...(p.appendix ? [p.appendix.id, ...p.appendix.variationLimits.map((x) => x.id), ...p.appendix.sections.map((x) => x.id)] : [])]);
-  const byPack = { packId: { in: ids.map((p) => p.id) } };
-  // Increment 2: confirmations and endorsements on those packs, requirements on those exercises (audit rows of real ones with them).
-  const incTwo = [
-    ...(await db.packAssurance.findMany({ where: byPack, select: { id: true } })),
-    ...(await db.clauseOverride.findMany({ where: byPack, select: { id: true } })),
-    ...(await db.exerciseRegistrationRequirement.findMany({ where: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: [...exerciseIds] } }] }, select: { id: true } })),
-  ].map((r) => r.id);
-  await db.packAssurance.deleteMany({ where: byPack });
-  await db.clauseOverride.deleteMany({ where: byPack });
-  await db.exerciseRegistrationRequirement.deleteMany({ where: { OR: [{ exerciseId: demoRef }, { exerciseId: { in: [...exerciseIds] } }] } });
-  const realIncTwo = incTwo.filter((x) => !x.startsWith(P));
-  if (realIncTwo.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: realIncTwo } } });
-  await db.appendixVariationLimit.deleteMany({ where: { appendix: byPack } });
-  await db.appendixSection.deleteMany({ where: { appendix: byPack } });
-  await db.conditionsAppendix.deleteMany({ where: byPack });
-  await db.tenderPackDocument.deleteMany({ where: byPack });
-  await db.tenderPackPart.deleteMany({ where: byPack });
-  await db.tenderPack.updateMany({ where: { id: { in: ids.map((p) => p.id) } }, data: { copiedFromPackId: null } });
-  await db.tenderPack.deleteMany({ where: { id: { in: ids.map((p) => p.id) } } });
-  const real = rowIds.filter((x) => !x.startsWith(P));
-  if (real.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: real } } });
-  await db.tenderDocumentPart.deleteMany({ where: { id: demoRef } });
-  await db.registrationBody.deleteMany({ where: { id: demoRef } });
-  await db.clauseText.deleteMany({ where: { id: demoRef } });
-  // The policy goes only while it still holds the demo's values; edited through the screens, it is the organisation's.
-  const pol = await db.tenderDocumentPolicy.findUnique({ where: { id: DEMO_POLICY_ID } });
-  if (pol) {
-    if (policyHoldsDemoValues(pol)) await db.tenderDocumentPolicy.delete({ where: { id: DEMO_POLICY_ID } });
-    else console.log("Kept the tender documents policy: it was changed after the demo loaded.");
-  }
-  // The demo's Approval for Tendering rows go with the demo issue (authorityRule deleteMany demo).
 }
 
 /// The figures the demo states, for its own words (never a customer's).

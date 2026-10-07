@@ -7,18 +7,15 @@ import { describe, expect, it } from "vitest";
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
-describe("carry 9: the demo wipe lists what its permit list would leave pointing at nothing", () => {
-  it("an exercise naming a demo permit type and a kept policy naming the demo list are dependents", () => {
+/// Carry 9 ruled what the demo wipe had to refuse: removing the demo permit list while a real exercise or a kept policy still named it.
+/// Phase 1d (ADR 0034 D11) retired the wipe, so nothing removes the list at all and the dependents it listed can no longer be left
+/// pointing at nothing. The carry's two checks are replaced by the stronger fact (changed deliberately, decisions log 2026-10-06 Phase 1d).
+describe("carry 9: the demo permit list can no longer be removed from under what names it", () => {
+  it("there is no tender-documents wipe, and the demo's wipe refuses before it touches the database", () => {
     const src = read("prisma/demo-tender-docs.ts");
-    const deps = src.slice(src.indexOf("export async function tenderDocsDependents("), src.indexOf("export async function wipeTenderDocs") === -1 ? undefined : src.indexOf("function policyHoldsDemoValues"));
-    expect(deps).toMatch(/regulatedActivity: true, regulatorPermitCode: \{ in: permitCodes \}/);
-    expect(deps).toMatch(/regulatorPermitTaxonomyCode: PERMITS\.code/);
-    expect(deps).toMatch(/which names a permit type from the demo permit list/);
-    expect(deps).toMatch(/which names the demo permit list/);
-  });
-  it("the wipe refuses whatever the flag when any is listed", () => {
+    expect(src).not.toMatch(/function wipeTenderDocs|function tenderDocsDependents|\.deleteMany\(/);
     const demo = read("prisma/demo.ts");
-    expect(demo).toMatch(/tenderDependents\.length\) \{\s*console\.error\(\[\"Refused whatever the flag/);
+    expect(demo).toMatch(/if \(mode === "wipe"\) \{\s*console\.error\(DEMO_WIPE_RETIRED\);\s*process\.exit\(1\);/);
   });
 });
 

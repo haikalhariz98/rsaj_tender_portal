@@ -437,38 +437,3 @@ export async function checkCertificatesDemo(db: Db) {
   if (s2.target.state !== "SET" || s2.target.days !== 14) throw new Error("hct2: 20.00% does not read two weeks");
   void db;
 }
-
-/// The certificates of the contracts given, children first, and their award sheets; rows only (their trail goes with the contract's label).
-export async function wipeCertificates(db: Db, contractIds: readonly string[]) {
-  if (!contractIds.length) return;
-  const byContract = { certificate: { contractId: { in: [...contractIds] } } };
-  await db.issuedCopy.deleteMany({ where: byContract });
-  await db.certificateDocument.deleteMany({ where: byContract });
-  await db.certificateSignature.deleteMany({ where: byContract });
-  await db.certificateOverride.deleteMany({ where: byContract });
-  await db.routingCheck.deleteMany({ where: byContract });
-  // A resubmitted route points at the route it continues.
-  await db.approvalStep.updateMany({ where: { instance: byContract, NOT: { carriedFromStepId: null } }, data: { carriedFromStepId: null } });
-  await db.approvalInstance.updateMany({ where: { ...byContract, NOT: { supersedesInstanceId: null } }, data: { supersedesInstanceId: null } });
-  await db.approvalStep.deleteMany({ where: { instance: byContract } });
-  await db.approvalInstance.deleteMany({ where: byContract });
-  await db.certificate.deleteMany({ where: { contractId: { in: [...contractIds] } } });
-}
-
-/// The award's routing sheets and their checks, for the awards given.
-export async function wipeAwardRoutingSheets(db: Db, awardIds: readonly string[]) {
-  if (!awardIds.length) return;
-  await db.routingCheck.deleteMany({ where: { awardId: { in: [...awardIds] } } });
-  await db.awardRoutingSheet.deleteMany({ where: { awardId: { in: [...awardIds] } } });
-}
-
-/// The demo's certificate configuration (rows by demo id), once nothing stands on it.
-export async function wipeCertificatesConfig(db: Db) {
-  const sub = (s: string) => ({ id: { startsWith: `${P}${s}` } });
-  await db.routingTarget.deleteMany({ where: sub("htg") });
-  await db.routingCheckDef.deleteMany({ where: sub("hrc") });
-  await db.routingSheetType.deleteMany({ where: sub("hrt") });
-  await db.formDistribution.deleteMany({ where: sub("hfd") });
-  await db.formSignatureBlock.deleteMany({ where: sub("hsb") });
-  await db.auditEntry.deleteMany({ where: { id: { startsWith: `${P}hau` } } });
-}

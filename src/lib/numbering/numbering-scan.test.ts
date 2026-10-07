@@ -38,10 +38,11 @@ export function seriesWrites(src: string): string[] {
 
 /// Who may do what to a series besides the issuer and the editor, and why. A verb not listed for a file is a failure.
 const SEEDERS: Readonly<Record<string, { verbs: readonly string[]; why: string }>> = {
-  "prisma/demo.ts": { verbs: ["createMany", "deleteMany"], why: "seeds the demo's series, and removes them when the demo is wiped" },
+  // Phase 1d (ADR 0034 D11): the demo wipe is retired, so neither loader removes a series any more; deleteMany is no longer allowed.
+  "prisma/demo.ts": { verbs: ["createMany"], why: "seeds the demo's series" },
   "prisma/demo-award.ts": { verbs: ["create"], why: "seeds the demo's award series" },
   "prisma/demo-evaluation.ts": { verbs: ["create"], why: "seeds the demo's evaluation-report series" },
-  "prisma/demo-suppliers.ts": { verbs: ["create", "deleteMany"], why: "seeds the demo's supplier series, and removes them when the supplier demo is wiped" },
+  "prisma/demo-suppliers.ts": { verbs: ["create"], why: "seeds the demo's supplier series" },
   "prisma/demo-lifecycle.ts": { verbs: ["create", "update"], why: "seeds the variation series, then raises serials the demo took past what the portal would issue (never back, raiseSeries)" },
   "prisma/demo-series.ts": { verbs: ["update", "alias"], why: "raiseSeries: moves a series on to a serial a loaded part took, never back; its parameter is typed Pick<PrismaClient, \"numberingSeries\"> (the alias)" },
   "scripts/check-numbering-concurrency.ts": { verbs: ["create", "delete"], why: "makes and removes its own temporary series" },

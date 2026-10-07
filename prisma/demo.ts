@@ -6,26 +6,25 @@ import "./demo-acts";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
-import { checkAwards, loadAwards, loadAwardSetup, reportAwardRefusal, wipeAwards } from "./demo-award";
+import { loadAwards, loadAwardSetup } from "./demo-award";
 import { checkContractsDemo, configureContractsDemo, loadContractsDemo } from "./demo-contracts";
-import { checkCertificatesDemo, configureCertificatesDemo, loadCertificatesDemo, wipeCertificatesConfig } from "./demo-certificates";
-import { checkFidelityDemo, configureFidelityDemo, wipeFidelityConfig } from "./demo-fidelity";
-import { checkSupervisionDemo, configureSupervisionDemo, loadSupervisionDemo, wipeSupervisionConfig } from "./demo-supervision";
-import { checkPaymentDemo, configurePaymentDemo, loadPaymentDemo, wipePaymentConfig } from "./demo-payment";
-import { checkLifecycleDemo, configureLifecycleDemo, LIFECYCLE_PREPARED, loadLifecycleAward, loadLifecycleCon3, loadLifecycleDemo, loadLifecycleSetup, wipeLifecycleConfig, wipeVariations } from "./demo-lifecycle";
-import { loadDocuments, planDocumentWipe, reportDocumentRefusal, wipeDocuments } from "./demo-documents";
-import { checkScope, loadScope, loadScopeExercises, loadScopeSitting, SCOPE_ENTITIES, scopeWipeDependents, screenHoldingsOnDemo, wipeScope } from "./demo-scope";
+import { checkCertificatesDemo, configureCertificatesDemo, loadCertificatesDemo } from "./demo-certificates";
+import { checkFidelityDemo, configureFidelityDemo } from "./demo-fidelity";
+import { checkSupervisionDemo, configureSupervisionDemo, loadSupervisionDemo } from "./demo-supervision";
+import { checkPaymentDemo, configurePaymentDemo, loadPaymentDemo } from "./demo-payment";
+import { checkLifecycleDemo, configureLifecycleDemo, LIFECYCLE_PREPARED, loadLifecycleAward, loadLifecycleCon3, loadLifecycleDemo, loadLifecycleSetup } from "./demo-lifecycle";
+import { loadDocuments } from "./demo-documents";
+import { checkScope, loadScope, loadScopeExercises, loadScopeSitting } from "./demo-scope";
 import { loadSittingTrail } from "./demo-sitting-trail";
-import { checkTenderDocs, loadTenderDocs, tenderDocsDependents, wipeTenderDocs } from "./demo-tender-docs";
-import { checkWindowDemo, loadWindowDemo, windowDemoDependents, WINDOW_ENTITIES, wipeWindowDemo } from "./demo-window";
+import { checkTenderDocs, loadTenderDocs } from "./demo-tender-docs";
+import { checkWindowDemo, loadWindowDemo } from "./demo-window";
 import { checkAppendixAward, loadAppendixAward } from "./demo-award-appendix";
-import { checkBidsDemo, configureBidsDemo, loadBidsDemo, wipeBidsDemo } from "./demo-bids";
-import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo, wipeOpeningDemo } from "./demo-opening";
-import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo, wipeEvaluationDemo } from "./demo-evaluation";
-import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo, suppliersDemoDependents, wipeSuppliersDemo } from "./demo-suppliers";
+import { checkBidsDemo, configureBidsDemo, loadBidsDemo } from "./demo-bids";
+import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo } from "./demo-opening";
+import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo } from "./demo-evaluation";
+import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { checkResultsDemo, loadResultsDemo, resultsDemoState } from "./demo-results";
-import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
-import { DEMO_PREFIX, demoIsLoaded, demoSignInDependents, demoSignInRefusal } from "./demo-sign-in";
+import { DEMO_PREFIX, DEMO_WIPE_RETIRED, demoIsLoaded, demoStarted } from "./demo-sign-in";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
 import { DEMO_ACTOR } from "./demo-actor";
@@ -44,11 +43,16 @@ import { demoOrgId, demoScope } from "./demo-org";
  * deliberately not any customer's: if a figure from this file ever appeared on a real
  * screen it should be obviously wrong rather than plausibly wrong.
  *
- *   npm run demo:load    populate
- *   npm run demo:wipe    remove every row this created, leaving the organisation
+ *   npm run demo:load      populate, once: a database that holds any of it gets nothing more
+ *   npm run demo:results   add the Results fixture to a database loaded before it existed
+ *   npm run demo:wipe      retired (Phase 1d): refuses and explains, removes nothing
  *
- * Every row is created with an id prefixed `demo_`, which is how the wipe finds them.
- * Nothing else in the product uses that prefix.
+ * Every row is created with an id prefixed `demo_`. Nothing else in the product uses that prefix.
+ *
+ * Additive only (ADR 0034 D11, Phase 1d). The demo writes through the product's own acts, and every act leaves audit rows,
+ * which the database now refuses to change or delete. So nothing here deletes a row, and the wipe that used to is gone:
+ * a demonstration database is thrown away whole, never emptied. A load runs once. If it finds any demo row, finished or
+ * not, it writes nothing; a load that stopped part way is not finished by running it again, it is replaced by a new database.
  */
 
 const db = new PrismaClient({
@@ -57,20 +61,17 @@ const db = new PrismaClient({
 
 const ORG_CODE = process.env.ORGANISATION_CODE ?? "ORG";
 /// Invented, like everything here: the demo's sittings need a zone to start, table and
-/// vote (an unset zone blocks them). Set only where the organisation has none, and
-/// cleared by the wipe only if it is still this value.
+/// vote (an unset zone blocks them). Set only where the organisation has none.
 const DEMO_TIME_ZONE = "Asia/Kuala_Lumpur";
 const P = DEMO_PREFIX;
 
 /// The legal name is required, so the seed gives it a placeholder ("Your organisation",
 /// or ORGANISATION_NAME). The demo replaces that placeholder, and only that, with an
-/// invented name; the wipe puts the placeholder back only while the name still holds the
-/// demo's value, so a name somebody typed is never touched.
+/// invented name, so a name somebody typed is never touched.
 const SEED_LEGAL_NAME = process.env.ORGANISATION_NAME ?? "Your organisation";
 const DEMO_LEGAL_NAME = "Demo Utilities Sdn Bhd";
 
-/// Invented identity details, set only on fields the organisation has not filled in and
-/// cleared by the wipe only where they still hold these values. Details carry no provenance column, so nothing here is marked ASSUMED: every
+/// Invented identity details, set only on fields the organisation has not filled in. Details carry no provenance column, so nothing here is marked ASSUMED: every
 /// value is invented and says so (".invalid" addresses, zeros for numbers).
 const DEMO_DETAILS = {
   nameMs: "Demo Utiliti Berhad",
@@ -89,8 +90,7 @@ const DEMO_DETAILS = {
   website: "https://www.demo.invalid",
 } as const;
 const DEMO_LOGO_ID = `${P}logo`;
-/// A drawn logo: white initials on a colour. Deterministic, so the wipe can tell it from
-/// one somebody uploaded in its place.
+/// A drawn logo: white initials on a colour.
 const demoLogoBytes = () => initialsLogo("DU", [30, 64, 175]);
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
@@ -100,526 +100,14 @@ async function organisation() {
   return org;
 }
 
-/**
- * Remove everything the demo created.
- *
- * Ordered so a child never outlives its parent. Cascades would cover most of this,
- * but relying on them would also delete rows that were not part of the demo if a real
- * record had been attached to a demo parent.
- */
-/**
- * Audit entries of rows already gone (a withdrawn endorsement, a commitment that went
- * with its budget code) that belonged to these requisitions, found by the reference
- * their labels carry. Only the requisition layer's entities, and only these references.
- */
-async function removeTrailByReference(organisationId: string, references: string[]): Promise<number> {
-  if (references.length === 0) return 0;
-  const gone = await db.auditEntry.deleteMany({
-    where: {
-      organisationId,
-      OR: [
-        {
-          entity: { in: ["RequisitionEndorsement", "RequisitionLine", "RequisitionBudgetCheck", "RequisitionSplitCheck", "RequisitionGate", "ApprovalInstance", "ApprovalStep"] },
-          OR: references.map((ref) => ({ entityLabel: { startsWith: `${ref} ·` } })),
-        },
-        { entity: "BudgetMovement", OR: references.map((ref) => ({ entityLabel: { endsWith: ` for ${ref}` } })) },
-        // 6.3: what was under an exercise, labelled with its reference.
-        {
-          entity: { in: ["ExerciseScopePart", "ExerciseProposalAnswer", "ExerciseTaxonomyValue", "ExerciseParticipant", "ApprovalInstance", "ApprovalStep", ...SCOPE_ENTITIES, ...WINDOW_ENTITIES, "NameRouteInvitee"] },
-          OR: references.map((ref) => ({ entityLabel: { startsWith: `${ref} ·` } })),
-        },
-      ],
-    },
-  });
-  return gone.count;
-}
-
-/**
- * Clear the links between routes of one matter before they go: a successor route points
- * at the route it continues, and its carried steps at the steps they were taken on. The
- * links restrict deletion, so a matter re-routed through the screens could not otherwise
- * be removed.
- */
-async function unlinkRoutes(where: object) {
-  await db.approvalStep.updateMany({ where: { instance: where, NOT: { carriedFromStepId: null } }, data: { carriedFromStepId: null } });
-  await db.approvalInstance.updateMany({ where: { ...where, NOT: { supersedesInstanceId: null } }, data: { supersedesInstanceId: null } });
-}
-
-async function wipe() {
-  const org = await organisation();
-  const demo = { id: { startsWith: P } };
-
-  // Every refusal is decided before anything is removed (no partial wipe): first which
-  // records that are not demo data --remove-dependents would remove with the demo
-  // (requisitions, exercises, awards), then the documents, judged with those records on
-  // the demo's side, so a screen-made award with its scans attached is wiped, not refused.
-
-  // A requisition raised on the demo (by a demo person, against a demo budget code or
-  // down a demo rule set) cannot outlive the demo rows it points at. It is not demo
-  // data, so the wipe refuses and lists it (ruling BD-27). Only with
-  // --remove-dependents does it remove those records and their audit entries, and it
-  // says which.
-  const demoRef = { startsWith: P };
-
-  // Carry D4: a sitting scheduled through the screens on a demo committee, and a delegation
-  // entered through the screens naming a demo person, go with the demo (their committee or
-  // person goes), with --remove-dependents; without it they are listed and refused. What
-  // relied on them (a requisition or exercise whose step or gate cites a matter decided at
-  // such a sitting, a route step or award signed under such a delegation) goes with them.
-  const screenRows = await db.meeting.findMany({
-    where: { committeeId: demoRef, NOT: { id: demoRef } },
-    select: {
-      id: true, committeeId: true, reference: true, committee: { select: { nameEn: true } },
-      attendance: { select: { id: true } },
-      decisions: { select: { id: true, requisitionId: true, exerciseId: true, requisitionGate: { select: { requisitionId: true } }, votes: { select: { id: true } }, recusals: { select: { id: true } } } },
-    },
-    orderBy: { reference: "asc" },
-  });
-  const screenDelegationRows = await db.delegation.findMany({
-    where: { organisationId: org.id, NOT: { id: demoRef }, OR: [{ fromPersonId: demoRef }, { toPersonId: demoRef }] },
-    select: { id: true, fromPersonId: true, toPersonId: true, fromPerson: { select: { name: true } }, toPerson: { select: { name: true } } },
-  });
-  const screenMade = removedWithDemo({ meetings: screenRows, delegations: screenDelegationRows }, (id) => id.startsWith(P));
-  const screenSittings = screenRows.filter((m) => screenMade.meetingIds.includes(m.id));
-  const screenDelegations = screenDelegationRows.filter((d) => screenMade.delegationIds.includes(d.id));
-  const screenDecisions = screenSittings.flatMap((m) => m.decisions);
-  const screenDecisionIds = screenDecisions.map((d) => d.id);
-  const screenDelegationIds = screenMade.delegationIds;
-  const citedRequisitionIds = [...new Set(screenDecisions.flatMap((d) => [d.requisitionId, d.requisitionGate?.requisitionId ?? null]).filter((x): x is string => x != null && !x.startsWith(P)))];
-  const citedExerciseIds = [...new Set(screenDecisions.map((d) => d.exerciseId).filter((x): x is string => x != null && !x.startsWith(P)))];
-  const onScreenMade = [{ committeeDecisionId: { in: screenDecisionIds } }, { delegationId: { in: screenDelegationIds } }];
-  // 6.2: a qualification recorded through the screens for a demo person goes with the person.
-  const screenHoldings = await screenHoldingsOnDemo(db, org.id);
-
-  const hanging = await db.requisition.findMany({
-    where: {
-      organisationId: org.id,
-      NOT: { id: demoRef },
-      OR: [
-        { requestingPersonId: demoRef },
-        { returnedToPersonId: demoRef },
-        { budgetCodeId: demoRef },
-        {
-          approvalInstances: {
-            some: {
-              OR: [
-                { authorityMatrixId: demoRef },
-                { overrideMatrixId: demoRef },
-                { steps: { some: { OR: [{ decidedByPersonId: demoRef }, { delegationId: demoRef }, { committeeDecisionId: demoRef }, { declaredByPersonId: demoRef }] } } },
-                // Close-out: a route snapshotted under a demo destination, or a choice recorded for a demo person.
-                { rejectionDestinationId: demoRef },
-                { rejectionChosenByPersonId: demoRef },
-              ],
-            },
-          },
-        },
-        { endorsements: { some: { personId: demoRef } } },
-        // A gate determined under a demo gate rule.
-        { gates: { some: { gateRuleId: demoRef } } },
-        // Carry D4: a matter at a screen-made sitting on a demo committee names it, or a
-        // step cites such a matter or was taken under a screen-made delegation.
-        { id: { in: citedRequisitionIds } },
-        { approvalInstances: { some: { steps: { some: { OR: onScreenMade } } } } },
-      ],
-    },
-    select: {
-      id: true,
-      reference: true,
-      title: true,
-      commitmentMovementId: true,
-      lines: { select: { id: true } },
-      endorsements: { select: { id: true } },
-      budgetChecks: { select: { id: true } },
-      splitChecks: { select: { id: true } },
-    },
-    orderBy: { reference: "asc" },
-  });
-  const hangingIds = hanging.map((r) => r.id);
-  // 6.3: an exercise that is not demo data but hangs off demo rows — opened on a demo
-  // requisition, or naming demo people, or routed under the demo limits.
-  const hangingExercises = await db.sourcingExercise.findMany({
-    where: {
-      organisationId: org.id,
-      NOT: { id: demoRef },
-      OR: [
-        { requisitionId: { in: hangingIds } },
-        { requisitionId: demoRef },
-        { overriddenByPersonId: demoRef },
-        { proposalReviewerPersonId: demoRef },
-        { participants: { some: { personId: demoRef } } },
-        { approvalInstances: { some: { OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }, { rejectionDestinationId: demoRef }, { rejectionChosenByPersonId: demoRef }, { steps: { some: { OR: [{ decidedByPersonId: demoRef }, { delegationId: demoRef }, { declaredByPersonId: demoRef }] } } }] } } },
-        // Carry D4: named by a matter at a screen-made sitting, or its own route relied on one.
-        { id: { in: citedExerciseIds } },
-        // 6.2: a bill, panel verification or estimate recorded on it names a demo person.
-        { bqVersions: { some: { preparerPersonId: demoRef } } },
-        { specificationPanel: { verifications: { some: { personId: demoRef } } } },
-        { companyEstimates: { some: { OR: [{ preparerPersonId: demoRef }, { versions: { some: { preparerPersonId: demoRef } } }, { events: { some: { personId: demoRef } } }] } } },
-        { approvalInstances: { some: { awardId: null, steps: { some: { OR: onScreenMade } } } } },
-        // 6.5: a publication, sale or attendance on its window recorded on behalf of a demo person.
-        { window: { OR: [{ publications: { some: { recordedByPersonId: demoRef } } }, { sales: { some: { issuedByPersonId: demoRef } } }, { events: { some: { attendance: { some: { recordedByPersonId: demoRef } } } } }] } },
-        // 6.6: an envelope, withdrawal, box act or extension on it recorded on behalf of a demo person.
-        { bidEnvelopes: { some: { receivedByPersonId: demoRef } } },
-        { bidWithdrawals: { some: { receivedByPersonId: demoRef } } },
-        { boxEvents: { some: { personId: demoRef } } },
-        { validityExtensions: { some: { recordedByPersonId: demoRef } } },
-      ],
-    },
-    select: {
-      id: true, reference: true, title: true,
-      scopeParts: { select: { id: true } }, proposalAnswers: { select: { id: true } }, taxonomyValues: { select: { id: true } }, participants: { select: { id: true } },
-    },
-    orderBy: { reference: "asc" },
-  });
-  const hangingExerciseIds = hangingExercises.map((x) => x.id);
-  const hangingInstances = await db.approvalInstance.findMany({
-    where: {
-      organisationId: org.id,
-      NOT: { id: demoRef },
-      OR: [
-        { requisitionId: { in: hangingIds } },
-        { exerciseId: { in: hangingExerciseIds } },
-        // A route on no requisition under the demo limits — unless it is a name approval
-        // recorded on a demo exercise, which goes with that exercise below.
-        { requisitionId: null, NOT: { exerciseId: demoRef }, OR: [{ authorityMatrixId: demoRef }, { overrideMatrixId: demoRef }] },
-        // Close-out: any other route snapshotted under a demo rejection destination.
-        { requisitionId: null, NOT: { exerciseId: demoRef }, awardId: null, rejectionDestinationId: demoRef },
-        // Carry D4: any other route with a step on a screen-made sitting's matter or delegation.
-        { requisitionId: null, NOT: { exerciseId: demoRef }, awardId: null, steps: { some: { OR: onScreenMade } } },
-      ],
-    },
-    select: { id: true, requisitionId: true, exerciseId: true, matrixLabel: true, steps: { select: { id: true } } },
-  });
-  // Real committee matters linked to a demo requisition: the link would be cleared.
-  const linkedMatters = await db.committeeDecision.findMany({
-    // A matter at a screen-made sitting goes with its sitting (carry D4), so it is not listed here.
-    where: { NOT: [{ id: demoRef }, { id: { in: screenDecisionIds } }], OR: [{ requisitionId: demoRef }, { requisitionGate: { OR: [{ requisitionId: demoRef }, { gateRuleId: demoRef }] } }] },
-    select: { id: true, subject: true, matterRef: true },
-  });
-  const orphanRoutes = hangingInstances.filter((i) => i.requisitionId == null && (i.exerciseId == null || !hangingExerciseIds.includes(i.exerciseId)));
-
-  // 6.2 increment 2: bill lines priced from a demo schedule (refused outright) and matters naming a demo bill.
-  const scopeDependents = await scopeWipeDependents(db, hangingExerciseIds, screenDecisionIds);
-  // 6.15a: suppliers recorded through the screens on demo people or configuration, and what was added to demo suppliers.
-  const supplierDependents = await suppliersDemoDependents(db, org.id);
-  const lines = [
-    ...hanging.map((r) => `  requisition ${r.reference} · ${r.title}`),
-    ...hangingExercises.map((x) => `  sourcing exercise ${x.reference} · ${x.title}`),
-    ...orphanRoutes.map((i) => `  approval route ${i.id} under ${i.matrixLabel ?? "a demo rule set"}`),
-    ...linkedMatters.map((m) => `  committee matter ${m.matterRef ?? m.subject} (link to a demo requisition)`),
-    ...screenSittings.map((m) => `  committee sitting ${m.reference} on the demo ${m.committee.nameEn}, with its attendance, matters and votes`),
-    ...screenDelegations.map((d) => `  delegation from ${d.fromPerson.name} to ${d.toPerson.name}, which names a demo person`),
-    ...screenHoldings.map((h) => `  qualification held by ${h.person.name}, a demo person`),
-    ...scopeDependents.soft,
-    ...supplierDependents.lines,
-  ];
-
-  // 6.11: awards on demo exercises or on the exercises above, and awards that are not demo
-  // data but point at demo rows (refused, listing them, unless --remove-dependents).
-  const awardCheck = await checkAwards(db, org.id, REMOVE_DEPENDENTS, hangingExerciseIds, { decisionIds: screenDecisionIds, delegationIds: screenDelegationIds });
-  // The document store (plan §9, review must-fix 3): judged with the exercises and awards
-  // removed above on the demo's side.
-  const documentPlan = await planDocumentWipe(db, org.id, { exerciseIds: hangingExerciseIds, awardIds: awardCheck.hanging.map((a) => a.id), meetingIds: screenMade.meetingIds, delegationIds: screenDelegationIds, supplierIds: supplierDependents.supplierIds }, REMOVE_DEPENDENTS);
-
-  // Phase 1b review: a demo person with a sign-in account, a code they issued, or a change they made while signed in cannot be removed (the sign-in log and the
-  // trail are permanent and point at them). Decided here, before anything is removed, so the wipe never stops half way on the people.
-  const signInDependents = await demoSignInDependents(db, org.id);
-  if (signInDependents.length > 0) console.error(demoSignInRefusal(signInDependents));
-
-  const requisitionsRefused = lines.length > 0 && !REMOVE_DEPENDENTS;
-  if (requisitionsRefused) {
-    console.error(
-      [
-        "Refused: these records are not demo data, but point at demo records, so the demo cannot be removed under them:",
-        ...lines,
-        "Nothing was removed. Deal with them first, or run the wipe again with --remove-dependents",
-        "(npm run demo:wipe -- --remove-dependents) to remove the requisitions and routes above with their lines,",
-        "endorsements, checks, steps, commitments and audit entries, remove the sittings and delegations above with",
-        "theirs, and clear the committee matters' links.",
-      ].join("\n"),
-    );
-  }
-  // 6.4: a real pack standing on a demo template is never removed under it, whatever the flag.
-  const tenderDependents = await tenderDocsDependents(db, org.id, hangingExerciseIds);
-  if (tenderDependents.length) {
-    console.error(["Refused whatever the flag: these records are not demo data and stand on demo configuration (a template, a registration body, a clause or the permit list):", ...tenderDependents, "Nothing was removed. Choose other configuration for them first (another template for a part, another list in the policy, no permit type on an exercise)."].join("\n"));
-  }
-  // 6.5: a window not removed with the demo, published on a demo channel or frozen from a demo template, or a kept policy naming the demo's configuration.
-  const windowDependents = await windowDemoDependents(db, org.id, hangingExerciseIds);
-  if (windowDependents.length) {
-    console.error(["Refused whatever the flag: these records are not demo data and stand on the demo's invitation controls (a channel, a calendar or a template):", ...windowDependents, "Nothing was removed. Name other configuration in the policy first; a publication or a frozen letter is never rewritten by a wipe."].join("\n"));
-  }
-  if (scopeDependents.hard.length) {
-    console.error(["Refused whatever the flag: these bill lines are not demo data and were priced from a demo schedule of rates, which keeps their price's source; no wipe rewrites a bill line:", ...scopeDependents.hard, "Nothing was removed. Re-enter or re-price those lines first."].join("\n"));
-  }
-  const documentsRefused = reportDocumentRefusal(documentPlan);
-  const awardsRefused = reportAwardRefusal(awardCheck);
-  if (signInDependents.length || requisitionsRefused || documentsRefused || awardsRefused || scopeDependents.hard.length || tenderDependents.length || windowDependents.length) {
-    process.exitCode = 1;
-    return;
-  }
-  if (lines.length) console.log(["--remove-dependents: removing these records, which point at demo records, with their audit entries:", ...lines].join("\n"));
-
-  // Nothing refused: removal starts here. Attachments pin meetings, exercises, awards and
-  // delegations: the documents go before any of them (their keys refuse a delete).
-  await wipeDocuments(db, org.id, documentPlan);
-  // 6.15a: the supplier register, after its scans and before the routes' matrix, the people and 6.4's registration bodies.
-  await wipeSuppliersDemo(db, org.id, supplierDependents);
-  // 6.8: the evaluations, before the openings (a bidder names an opened bid) and the routes (a negotiation names its route).
-  await wipeEvaluationDemo(db, org.id, hangingExerciseIds);
-  // 6.7: the openings, before the register (an offer names its envelope), the windows (and its party), the committees and the people.
-  await wipeOpeningDemo(db, org.id, hangingExerciseIds);
-  // 6.6: the envelope register, before the windows (an envelope may name a party), the people and the exercises (a letter or a consent went with the documents).
-  await wipeBidsDemo(db, org.id, hangingExerciseIds);
-  // 6.5: the windows and their registers, before the routes, sittings, people and exercises they point at (an addendum's signed copy went with the documents).
-  await wipeWindowDemo(db, org.id, hangingExerciseIds);
-  // 6.4: packs before the bills, templates and routes they point at (their parts' files went with the documents).
-  // 6.13 Part A step 5: the variations on the demo's contracts before the clause texts their orders were valued under.
-  await wipeVariations(db, (await db.contract.findMany({ where: { award: { id: { startsWith: P } } }, select: { id: true } })).map((c) => c.id));
-  await wipeTenderDocs(db, org.id, hangingExerciseIds);
-  await wipeAwards(db, org.id, awardCheck);
-  // 6.2: bills, panels and estimates on the demo's exercises and those removed with it (their scans went with the documents).
-  await wipeScope(db, org.id, hangingExerciseIds);
-
-  const hangingInstanceIds = hangingInstances.map((i) => i.id);
-  const hangingMovementIds = hanging.flatMap((r) => (r.commitmentMovementId ? [r.commitmentMovementId] : []));
-  const byReq = { requisitionId: { in: hangingIds } };
-  const byEx = { exerciseId: { in: hangingExerciseIds } };
-  await unlinkRoutes({ id: { in: hangingInstanceIds } });
-  await db.approvalStep.deleteMany({ where: { instanceId: { in: hangingInstanceIds } } });
-  await db.approvalInstance.deleteMany({ where: { id: { in: hangingInstanceIds } } });
-  await db.exerciseScopePart.deleteMany({ where: byEx });
-  await db.exerciseProposalAnswer.deleteMany({ where: byEx });
-  await db.exerciseTaxonomyValue.deleteMany({ where: byEx });
-  await db.exerciseParticipant.deleteMany({ where: byEx });
-  await db.sourcingExercise.deleteMany({ where: { id: { in: hangingExerciseIds } } });
-  await db.requisitionSplitCheck.deleteMany({ where: byReq });
-  await db.requisitionBudgetCheck.deleteMany({ where: byReq });
-  await db.requisitionEndorsement.deleteMany({ where: byReq });
-  await db.requisitionLine.deleteMany({ where: byReq });
-  await db.committeeDecision.updateMany({ where: { OR: [byReq, { requisitionGate: byReq }] }, data: { requisitionId: null, requisitionGateId: null } });
-  await db.budgetMovement.deleteMany({ where: { id: { in: hangingMovementIds } } });
-  await db.requisition.deleteMany({ where: { id: { in: hangingIds } } });
-  const hangingEntities = [
-    ...hangingIds,
-    ...hanging.flatMap((r) => [...r.lines, ...r.endorsements, ...r.budgetChecks, ...r.splitChecks].map((x) => x.id)),
-    ...hangingInstanceIds,
-    ...hangingInstances.flatMap((i) => i.steps.map((x) => x.id)),
-    ...hangingMovementIds,
-    ...hangingExerciseIds,
-    ...hangingExercises.flatMap((x) => [...x.scopeParts, ...x.proposalAnswers, ...x.taxonomyValues, ...x.participants].map((y) => y.id)),
-  ];
-  if (hangingEntities.length) {
-    const gone = await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { in: hangingEntities } } });
-    gone.count += await removeTrailByReference(org.id, [...hanging.map((r) => r.reference), ...hangingExercises.map((x) => x.reference)]);
-    console.log(`Removed ${hanging.length} requisition(s), ${hangingExercises.length} exercise(s), ${orphanRoutes.length} other route(s) and ${gone.count} audit entr${gone.count === 1 ? "y" : "ies"}.`);
-  }
-  if (linkedMatters.length) {
-    await db.committeeDecision.updateMany({ where: { id: { in: linkedMatters.map((m) => m.id) } }, data: { requisitionId: null, requisitionGateId: null } });
-    console.log(`Cleared ${linkedMatters.length} committee matter link(s) to demo requisitions.`);
-  }
-
-  // Demo exercises before their requisitions. What was recorded on one through the
-  // screens (a scope line, an answer, a participant, a name-approval route) belongs to
-  // it, whatever its id: removed with it, with its audit entries (6.3).
-  const onDemoEx = { exerciseId: demoRef };
-  const recordedEx = await db.sourcingExercise.findMany({
-    where: { id: demoRef },
-    select: {
-      reference: true,
-      scopeParts: { where: { NOT: { id: demoRef } }, select: { id: true } },
-      proposalAnswers: { where: { NOT: { id: demoRef } }, select: { id: true } },
-      taxonomyValues: { where: { NOT: { id: demoRef } }, select: { id: true } },
-      participants: { where: { NOT: { id: demoRef } }, select: { id: true } },
-      approvalInstances: { select: { id: true, steps: { select: { id: true } } } },
-    },
-  });
-  const recordedExIds = recordedEx
-    .flatMap((x) => [...x.scopeParts, ...x.proposalAnswers, ...x.taxonomyValues, ...x.participants, ...x.approvalInstances, ...x.approvalInstances.flatMap((i) => i.steps)])
-    .map((x) => x.id)
-    .filter((x) => !x.startsWith(P));
-  await unlinkRoutes(onDemoEx);
-  await db.approvalStep.deleteMany({ where: { instance: onDemoEx } });
-  await db.approvalInstance.deleteMany({ where: onDemoEx });
-  await db.exerciseScopePart.deleteMany({ where: { OR: [demo, onDemoEx] } });
-  await db.exerciseProposalAnswer.deleteMany({ where: { OR: [demo, onDemoEx] } });
-  await db.exerciseTaxonomyValue.deleteMany({ where: { OR: [demo, onDemoEx] } });
-  await db.exerciseParticipant.deleteMany({ where: { OR: [demo, onDemoEx] } });
-  await db.sourcingExercise.deleteMany({ where: demo });
-  if (recordedExIds.length) await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { in: recordedExIds } } });
-  await removeTrailByReference(org.id, recordedEx.map((x) => x.reference));
-
-  // Demo requisitions next: an approval step may cite a committee decision. What was
-  // recorded on a demo requisition through the screens (an endorsement, a check, a
-  // route) belongs to it, whatever its id: removed with it, with its audit entries.
-  const onDemo = { requisitionId: demoRef };
-  const recorded = await db.requisition.findMany({
-    where: { id: demoRef },
-    select: {
-      reference: true,
-      lines: { where: { NOT: { id: demoRef } }, select: { id: true } },
-      endorsements: { where: { NOT: { id: demoRef } }, select: { id: true } },
-      budgetChecks: { where: { NOT: { id: demoRef } }, select: { id: true } },
-      splitChecks: { where: { NOT: { id: demoRef } }, select: { id: true } },
-      approvalInstances: { select: { id: true, steps: { select: { id: true } } } },
-    },
-  });
-  const recordedIds = recorded
-    .flatMap((q) => [
-      ...q.lines, ...q.endorsements, ...q.budgetChecks, ...q.splitChecks,
-      ...q.approvalInstances, ...q.approvalInstances.flatMap((i) => i.steps),
-    ])
-    .map((x) => x.id)
-    .filter((x) => !x.startsWith(P));
-  await unlinkRoutes({ OR: [demo, onDemo] });
-  await db.approvalStep.deleteMany({ where: { OR: [demo, { instance: onDemo }] } });
-  await db.approvalInstance.deleteMany({ where: { OR: [demo, onDemo] } });
-  await db.requisitionSplitCheck.deleteMany({ where: { OR: [demo, onDemo] } });
-  await db.requisitionBudgetCheck.deleteMany({ where: { OR: [demo, onDemo] } });
-  await db.requisitionEndorsement.deleteMany({ where: { OR: [demo, onDemo] } });
-  await db.requisitionLine.deleteMany({ where: { OR: [demo, onDemo] } });
-  if (recordedIds.length) await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { in: recordedIds } } });
-  // An endorsement withdrawn on a demo requisition is gone, but its trail is not: its
-  // entries are labelled with the requisition's reference.
-  await removeTrailByReference(org.id, recorded.map((q) => q.reference));
-  // A matter cited against a gate holds the gate: release it before the gate goes with its requisition.
-  await db.committeeDecision.updateMany({ where: { OR: [demo, { requisitionGate: { requisitionId: demoRef } }] }, data: { requisitionGateId: null } });
-  await db.committeeDecision.updateMany({ where: demo, data: { requisitionId: null } });
-  await db.requisition.deleteMany({ where: demo });
-  await db.requisitionPolicy.deleteMany({ where: demo });
-  // Close-out configuration, once no route or gate stands on it.
-  await db.committeeGateRule.deleteMany({ where: demo });
-  await db.rejectionDestination.deleteMany({ where: demo });
-  await db.auditExport.deleteMany({ where: demo });
-
-  // Carry D4: the screen-made sittings and delegations, after every route that cited
-  // them (hanging, demo and award routes alike) has gone.
-  if (screenSittings.length || screenDelegations.length) {
-    const sittingEntities = screenSittings.flatMap((m) => [m.id, ...m.attendance.map((a) => a.id), ...m.decisions.flatMap((d) => [d.id, ...d.votes.map((v) => v.id), ...d.recusals.map((r) => r.id)])]);
-    const bySitting = { decision: { meetingId: { in: screenMade.meetingIds } } };
-    await db.vote.deleteMany({ where: bySitting });
-    await db.decisionRecusal.deleteMany({ where: bySitting });
-    await db.committeeDecision.updateMany({ where: { dependsOnDecisionId: { in: screenDecisionIds } }, data: { dependsOnDecisionId: null } });
-    await db.committeeDecision.deleteMany({ where: { id: { in: screenDecisionIds } } });
-    await db.meetingAttendance.deleteMany({ where: { meetingId: { in: screenMade.meetingIds } } });
-    await db.meeting.deleteMany({ where: { id: { in: screenMade.meetingIds } } });
-    await db.delegation.deleteMany({ where: { id: { in: screenDelegationIds } } });
-    const gone = await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { in: [...sittingEntities, ...screenDelegationIds] } } });
-    console.log(`--remove-dependents: removed ${screenSittings.length} sitting(s) and ${screenDelegations.length} delegation(s) made on demo records, and ${gone.count} audit entr${gone.count === 1 ? "y" : "ies"}.`);
-  }
-  await db.vote.deleteMany({ where: demo });
-  await db.decisionRecusal.deleteMany({ where: demo });
-  // A matter may depend on another: clear the links before removing either.
-  await db.committeeDecision.updateMany({ where: demo, data: { dependsOnDecisionId: null } });
-  await db.committeeDecision.deleteMany({ where: demo });
-  await db.notApprovedOutcome.deleteMany({ where: demo });
-  await db.meetingAttendance.deleteMany({ where: demo });
-  await db.meeting.deleteMany({ where: demo });
-  await db.committeeMember.updateMany({ where: demo, data: { alternateForId: null } });
-  await db.committeeMember.deleteMany({ where: demo });
-  await db.committee.deleteMany({ where: demo });
-
-  await db.authorityRuleStep.deleteMany({ where: demo });
-  await db.authorityRule.deleteMany({ where: demo });
-  // Terms bands on a demo issue belong to it, whoever added them.
-  await db.termsBand.deleteMany({ where: { OR: [demo, { authorityMatrixId: demoRef }] } });
-  // So does its core routing: steps first, then the rows (FR-APR-004).
-  await db.coreRoutingStep.deleteMany({ where: { OR: [demo, { level: { authorityMatrixId: demoRef } }] } });
-  await db.coreRoutingLevel.deleteMany({ where: { OR: [demo, { authorityMatrixId: demoRef }] } });
-  await db.authorityMatrix.deleteMany({ where: demo });
-
-  await db.financeVariance.deleteMany({ where: demo });
-  await db.financeSyncRun.deleteMany({ where: demo });
-  await db.financeIntegration.deleteMany({ where: demo });
-  await db.budgetPeriod.deleteMany({ where: demo });
-  await db.budgetYear.deleteMany({ where: demo });
-  await db.budgetMovement.deleteMany({ where: demo });
-  await db.budgetCode.deleteMany({ where: demo });
-  await db.budgetSettings.deleteMany({ where: demo });
-  await db.budgetCommitment.deleteMany({ where: demo });
-  await db.budgetAllocation.deleteMany({ where: demo });
-
-  await db.notificationRule.deleteMany({ where: demo });
-  // 6.14: the routing sheet types, checks, targets, blocks and recipients, once every certificate and award sheet has gone.
-  // 6.13 Part A step 3: the payment certificates' forms and the clocks, before the forms and sheets they name.
-  await wipePaymentConfig(db);
-  // 6.13 Part A step 5: the lifecycle's kind settings, clocks and the blocks and recipients of its forms.
-  await wipeLifecycleConfig(db);
-  // 6.14 increment 2: printed fields, typing corrections and terms, before the forms they name.
-  await wipeFidelityConfig(db);
-  await wipeCertificatesConfig(db);
-  // 6.13 Part A: the delegation forms' blocks and recipients, and the post-award controls.
-  await wipeSupervisionConfig(db);
-  await db.documentTemplate.deleteMany({ where: demo });
-  // A demo class that a real document was filed under stays: documents are never removed.
-  const keptClasses = await db.documentClass.findMany({ where: { ...demo, documents: { some: {} } }, select: { nameEn: true } });
-  await db.documentClass.deleteMany({ where: { ...demo, documents: { none: {} } } });
-  if (keptClasses.length) console.log(`Kept demo document class(es) with real documents filed under them: ${keptClasses.map((c) => c.nameEn).join(", ")}.`);
-  await db.numberingSeries.deleteMany({ where: demo });
-
-  await db.fundingRoute.deleteMany({ where: demo });
-  // A demo method's proposal items, and a demo classification's values, go with them.
-  await db.methodChecklistItem.deleteMany({ where: { OR: [demo, { sourcingMethodId: demoRef }] } });
-  await db.sourcingMethod.deleteMany({ where: demo });
-  await db.contractType.deleteMany({ where: demo });
-  await db.justificationReason.deleteMany({ where: demo });
-  await db.contractBasis.deleteMany({ where: demo });
-  await db.taxonomyMapping.deleteMany({ where: demo });
-  await db.taxonomyValue.deleteMany({ where: { OR: [demo, { taxonomyId: demoRef }] } });
-  await db.classificationTaxonomy.deleteMany({ where: demo });
-  await db.classificationPolicy.deleteMany({ where: demo });
-
-  await db.codeFormat.deleteMany({ where: demo });
-  await db.site.deleteMany({ where: demo });
-  await db.accountCode.deleteMany({ where: demo });
-  await db.costCentre.deleteMany({ where: demo });
-  await db.orgUnit.deleteMany({ where: demo });
-
-  await db.delegation.deleteMany({ where: demo });
-  await db.roleCapability.deleteMany({ where: demo });
-  await db.capability.deleteMany({ where: demo });
-
-  await db.roleAssignment.deleteMany({ where: demo });
-  await db.authorityRole.deleteMany({ where: demo });
-  await db.person.deleteMany({ where: demo });
-
-  // The logo. The row is the organisation's one logo, so an upload made after the demo
-  // loaded replaced the demo's bytes in this same row. That one is real: it keeps its
-  // place under a fresh id (and its trail with it) and only a logo still drawn by the
-  // demo is removed. Nothing depends on a logo, so there is nothing to refuse over.
-  const demoLogo = await db.organisationLogo.findUnique({ where: { id: DEMO_LOGO_ID }, select: { id: true, sha256: true } });
-  if (demoLogo) {
-    const drawn = inspectLogo(demoLogoBytes());
-    if (drawn.ok && drawn.sha256 === demoLogo.sha256) {
-      await db.organisationLogo.delete({ where: { id: demoLogo.id } });
-    } else {
-      const kept = `logo_${Date.now().toString(36)}`;
-      await db.organisationLogo.update({ where: { id: demoLogo.id }, data: { id: kept } });
-      await db.auditEntry.updateMany({ where: { entity: "OrganisationLogo", entityId: demoLogo.id }, data: { entityId: kept } });
-      console.log("The logo was replaced after the demo loaded, so it was kept.");
-    }
-  }
-
-  await db.auditEntry.deleteMany({ where: { organisationId: org.id, entityId: { startsWith: P } } });
-  // Restore the details the demo filled in, where they still hold the demo's values.
-  const filled = Object.fromEntries(
-    Object.entries(DEMO_DETAILS)
-      .filter(([f, v]) => v !== null && (org as Record<string, unknown>)[f] === v)
-      .map(([f]) => [f, null]),
-  );
-  if (Object.keys(filled).length > 0) await db.organisation.update({ where: { id: org.id }, data: filled });
-  if (org.timeZone === DEMO_TIME_ZONE) await db.organisation.update({ where: { id: org.id }, data: { timeZone: null } });
-  if (org.name === DEMO_LEGAL_NAME) await db.organisation.update({ where: { id: org.id }, data: { name: SEED_LEGAL_NAME } });
-
-  console.log("Demo data removed. The organisation and any real configuration are untouched.");
-}
-
 async function load() {
   const org = await organisation();
   const organisationId = org.id;
 
-  // Refuse to stack one demo run on another.
-  if (await demoIsLoaded(db)) {
-    console.log("Demo data is already loaded. Run npm run demo:wipe first.");
+  // Refuse to stack one demo run on another, or to run over one that stopped part way: either way nothing is written (Phase 1d).
+  if (await demoStarted(db)) {
+    if (await demoIsLoaded(db)) console.log("Demo data is already loaded: nothing was written.");
+    else console.log("A demo load stopped part way on this database: nothing was written. It cannot be finished or removed (the trail is permanent); use a new database.");
     return;
   }
 
@@ -1292,7 +780,7 @@ async function load() {
   await checkResultsDemo(db);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
-  console.log("Remove it with: npm run demo:wipe");
+  console.log("It stays: the trail is permanent, so a demonstration database is replaced by a new one, never emptied.");
 }
 
 /**
@@ -1397,7 +885,6 @@ async function loadRequisitions(organisationId: string, from: Date) {
 
   // An unissued revision of the demo limits, so the rule editor has a draft to open.
   // Invented for review: not drawn from any source, and it routes nothing until issued.
-  // Its rules and steps are demo_ rows, so the wipe removes them with the demo ones.
   await db.authorityMatrix.create({
     data: {
       id: `${P}mx3`, organisationId, label: "Demo limits, draft revision (invented, for review)", effectiveFrom: day("2027-01-01"), issuedAt: null,
@@ -2563,7 +2050,7 @@ async function snapshotMinuted(ids: string[]) {
 
 /**
  * Ruling 4 (2026-10-06): the Results fixture alone, added to a database the demo is already loaded in, without a wipe.
- * Nothing where it is already issued; refused, touching nothing, where it stands part-made (only a wipe removes that).
+ * Nothing where it is already issued; refused, touching nothing, where it stands part-made (since Phase 1d nothing removes that: use a new database).
  */
 async function results() {
   const org = await organisation();
@@ -2572,7 +2059,7 @@ async function results() {
     return;
   }
   const state = await resultsDemoState(db);
-  if (state === "PARTIAL") throw new Error("The Results fixture stands part-made (its requisition or exercise exists without an issued award). Nothing was written. Only npm run demo:wipe removes it.");
+  if (state === "PARTIAL") throw new Error("The Results fixture stands part-made (its requisition or exercise exists without an issued award). Nothing was written. It cannot be finished or removed (the trail is permanent, Phase 1d); use a new database.");
   if (state === "ABSENT") {
     const made = await loadResultsDemo(db, org.id, { determine: determineExercises });
     console.log(`Results fixture added: ${made.reference}, its award issued.`);
@@ -2581,15 +2068,17 @@ async function results() {
 }
 
 const mode = process.argv[2];
-/// Opt-in: let the wipe remove non-demo records that point at demo records (BD-27).
-const REMOVE_DEPENDENTS = process.argv.slice(3).includes("--remove-dependents");
 
-if (mode !== "load" && mode !== "wipe" && mode !== "results") {
-  console.error("usage: tsx prisma/demo.ts <load|wipe|results> [--remove-dependents]");
+if (mode === "wipe") {
+  console.error(DEMO_WIPE_RETIRED);
+  process.exit(1);
+}
+if (mode !== "load" && mode !== "results") {
+  console.error("usage: tsx prisma/demo.ts <load|results>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "results" ? results() : wipe())
+(mode === "load" ? load() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);

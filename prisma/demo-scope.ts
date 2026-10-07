@@ -37,7 +37,7 @@
 
 import { raiseSeries } from "./demo-series";
 import type { PrismaClient } from "../src/generated/prisma/client";
-import { estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, bqFinalisedAudit, bqStatusAudit, itemAudit, sectionAudit, rateFromText, verificationAudit, ENTITY, RATE_ENTITY, SCOPE_ENTITIES } from "../src/lib/scope/audit-view";
+import { estimateCreatedAudit, estimateEventAudit, estimateStateAudit, estimateVersionAudit, bqFinalisedAudit, bqStatusAudit, itemAudit, sectionAudit, rateFromText, verificationAudit, ENTITY, RATE_ENTITY } from "../src/lib/scope/audit-view";
 import { diffFields } from "../src/lib/audit/diff";
 import { formatDate } from "../src/lib/format";
 import { bqTotals, itemAmount, totalsSnapshot } from "../src/lib/scope/bq";
@@ -51,9 +51,6 @@ type Db = PrismaClient;
 const P = "demo_";
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 const at = (iso: string) => new Date(`${iso}:00.000Z`);
-const demoRef = { startsWith: P };
-
-export { SCOPE_ENTITIES };
 
 /// The policy's demo values, in groups (a value with its provenance), each filled only where
 /// the organisation has left the whole group unset, and cleared by the wipe only where the
@@ -475,76 +472,6 @@ export async function checkScope() {
   }
 }
 
-// ------------------------------------------------------------------ wipe
-
-/**
- * Remove 6.2's rows on the demo's exercises and on the exercises removed with it, whatever
- * their ids (recorded through the screens on a demo exercise, they belong to it), with their
- * audit entries; then the demo's configuration, and the policy's demo values where they still
- * hold them. Runs after the documents (a panel's scan pins it) and before the exercises.
- * Holdings that name a demo person go too: their person goes (listed by the wipe first).
- */
-export async function wipeScope(db: Db, organisationId: string, exerciseIds: readonly string[]) {
-  const onEx = { OR: [{ exerciseId: demoRef }, { exerciseId: { in: [...exerciseIds] } }] };
-  const versions = await db.bqVersion.findMany({ where: onEx, select: { id: true, sections: { select: { id: true, items: { select: { id: true } } } } } });
-  const panels = await db.specificationPanel.findMany({ where: onEx, select: { id: true, verifications: { select: { id: true } } } });
-  const estimates = await db.companyEstimate.findMany({ where: onEx, select: { id: true, versions: { select: { id: true } }, events: { select: { id: true } } } });
-  const ids = [
-    ...versions.flatMap((v) => [v.id, ...v.sections.flatMap((s) => [s.id, ...s.items.map((i) => i.id)])]),
-    ...panels.flatMap((p) => [p.id, ...p.verifications.map((v) => v.id)]),
-    ...estimates.flatMap((e) => [e.id, ...e.versions.map((v) => v.id), ...e.events.map((v) => v.id)]),
-  ];
-  const estimateIds = estimates.map((e) => e.id);
-  await db.estimateEvent.deleteMany({ where: { estimateId: { in: estimateIds } } });
-  await db.companyEstimateVersion.deleteMany({ where: { estimateId: { in: estimateIds } } });
-  await db.companyEstimate.deleteMany({ where: { id: { in: estimateIds } } });
-  await db.specPanelVerification.deleteMany({ where: { panelId: { in: panels.map((p) => p.id) } } });
-  await db.specificationPanel.deleteMany({ where: { id: { in: panels.map((p) => p.id) } } });
-  const versionIds = versions.map((v) => v.id);
-  await db.bqItem.deleteMany({ where: { section: { versionId: { in: versionIds } } } });
-  await db.bqSection.deleteMany({ where: { versionId: { in: versionIds } } });
-  await db.bqVersion.deleteMany({ where: { id: { in: versionIds } } });
-  if (ids.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: ids } } });
-
-  // Increment 2: the demo's schedules of rates (lines priced from them went with their bills).
-  const rateIds = (await db.rateSchedule.findMany({ where: { organisationId, id: demoRef }, select: { id: true, items: { select: { id: true } } } })).flatMap((r) => [r.id, ...r.items.map((i) => i.id)]);
-  await db.rateScheduleItem.deleteMany({ where: { scheduleId: demoRef } });
-  await db.rateSchedule.deleteMany({ where: { id: demoRef } });
-  if (rateIds.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: rateIds } } });
-
-  // Configuration the demo created.
-  const holdings = await db.personQualification.findMany({ where: { organisationId, OR: [{ id: demoRef }, { personId: demoRef }] }, select: { id: true } });
-  await db.personQualification.deleteMany({ where: { id: { in: holdings.map((h) => h.id) } } });
-  if (holdings.length) await db.auditEntry.deleteMany({ where: { organisationId, entityId: { in: holdings.map((h) => h.id) } } });
-  await db.specPanelColumn.deleteMany({ where: { id: demoRef } });
-  await db.bqTemplateSection.deleteMany({ where: { OR: [{ id: demoRef }, { templateId: demoRef }] } });
-  await db.bqTemplate.deleteMany({ where: { id: demoRef } });
-  await db.qualification.deleteMany({ where: { id: demoRef } });
-  const policy = await db.scopePolicy.findUnique({ where: { organisationId } });
-  if (policy) {
-    const row = policy as Record<string, unknown>;
-    const demoGroups = DEMO_SCOPE_POLICY_GROUPS.filter((g) => groupIs(row, g, (have, want) => have === want));
-    const cleared = Object.fromEntries(demoGroups.flatMap((g) => Object.keys(g)).map((f) => [f, null]));
-    const left = Object.entries(row).filter(([f, v]) => !["id", "organisationId", "notes", "updatedAt"].includes(f) && !(f in cleared) && v != null);
-    if (policy.id === DEMO_POLICY_ID && left.length === 0) await db.scopePolicy.delete({ where: { id: policy.id } });
-    else {
-      if (Object.keys(cleared).length) await db.scopePolicy.update({ where: { id: policy.id }, data: cleared });
-      // A demo row someone has since given real values keeps them, under an id that is not the demo's.
-      if (policy.id === DEMO_POLICY_ID) {
-        const kept = `scope_policy_${Date.now().toString(36)}`;
-        await db.scopePolicy.update({ where: { id: policy.id }, data: { id: kept } });
-        await db.auditEntry.updateMany({ where: { entity: "ScopePolicy", entityId: policy.id }, data: { entityId: kept } });
-        console.log("The scope policy was changed after the demo loaded, so it was kept.");
-      }
-    }
-  }
-}
-
-/// Holdings recorded through the screens for demo people (not demo data): listed by the wipe, removed with --remove-dependents.
-export async function screenHoldingsOnDemo(db: Db, organisationId: string) {
-  return db.personQualification.findMany({ where: { organisationId, NOT: { id: demoRef }, personId: demoRef }, select: { id: true, person: { select: { name: true } }, qualificationCode: true } });
-}
-
 // ------------------------------------------------------------------ increment 2: the scope matter (X-4)
 
 /**
@@ -585,22 +512,6 @@ export async function loadScopeSitting(db: Db): Promise<string[]> {
     ],
   });
   return [mt];
-}
-
-/**
- * What the wipe would leave pointing at the demo's increment-2 rows, judged before anything
- * is removed. Hard: a bill line not on the demo's side priced from a demo schedule (its
- * snapshot keeps the issue by key, and no line is rewritten by a wipe). Soft: a committee
- * matter not on the demo's side that names a demo bill version (its link would be cleared).
- */
-export async function scopeWipeDependents(db: Db, exerciseIds: readonly string[], screenDecisionIds: readonly string[]) {
-  const onDemoSide = { OR: [{ exerciseId: demoRef }, { exerciseId: { in: [...exerciseIds] } }] };
-  const lines = await db.bqItem.findMany({ where: { rateScheduleId: demoRef, NOT: { section: { version: onDemoSide } } }, select: { itemRef: true, description: true, section: { select: { version: { select: { versionNo: true, exercise: { select: { reference: true } } } } } } } });
-  const matters = await db.committeeDecision.findMany({ where: { NOT: [{ id: demoRef }, { id: { in: [...screenDecisionIds] } }, { meetingId: demoRef }], bqVersion: onDemoSide }, select: { subject: true } });
-  return {
-    hard: lines.map((l) => `  bill line ${l.itemRef || l.description} of ${l.section.version.exercise.reference}, version ${l.section.version.versionNo}, priced from a demo schedule of rates`),
-    soft: matters.map((m) => `  committee matter ${m.subject} (link to a demo bill of quantities)`),
-  };
 }
 
 /// The bill sx15's version 1 was imported from (Q-3): the specialist's priced CSV, built by the

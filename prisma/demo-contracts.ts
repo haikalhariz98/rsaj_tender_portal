@@ -24,10 +24,6 @@
 import { createHash } from "node:crypto";
 
 import type { PrismaClient } from "../src/generated/prisma/client";
-import { wipeCertificates } from "./demo-certificates";
-import { wipeSupervision } from "./demo-supervision";
-import { wipePayments } from "./demo-payment";
-import { wipeVariations } from "./demo-lifecycle";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 import { DEMO_ACTOR } from "./demo-actor";
 import { demoOrgId } from "./demo-org";
@@ -421,42 +417,4 @@ export async function checkContractsDemo(db: Db) {
   const v = baselineFor(baselineRows(con3.contract).versions.map((b) => ({ ...b, recordedOn: b.recordedOn ? storedDay(b.recordedOn) : null })), "2026-10-01");
   if (v?.version !== 2 || v.reason !== "EXECUTED") throw new Error("con3: the baseline in force on 1 Oct is not the executed version");
   void db;
-}
-
-/// The formation records of the contracts given, children first, and the trail written under their labels.
-export async function wipeContractFormation(db: Db, organisationId: string, contracts: readonly { id: string; number: string }[]) {
-  if (!contracts.length) return;
-  // 6.13 Part A step 5: the contracts' variations and adjustments first (each names its certificates).
-  await wipeVariations(db, contracts.map((c) => c.id));
-  // 6.13 Part A step 3: the contracts' payments first (a party line names a party, a valuation its certificate).
-  await wipePayments(db, contracts.map((c) => c.id));
-  // 6.13 Part A: the contracts' supervision first (a delegation names its letters, possession its baseline version).
-  await wipeSupervision(db, contracts.map((c) => c.id));
-  // 6.14: the contracts' certificates first (a certificate's copy is an IssuedCopy, and it pins a baseline version).
-  await wipeCertificates(db, contracts.map((c) => c.id));
-  const byContract = { contractId: { in: contracts.map((c) => c.id) } };
-  await db.custodyMovement.deleteMany({ where: { item: byContract } });
-  await db.custodyItem.deleteMany({ where: byContract });
-  await db.issuedCopy.updateMany({ where: { ...byContract, NOT: { reissueOfId: null } }, data: { reissueOfId: null } });
-  await db.issuedCopy.deleteMany({ where: byContract });
-  await db.integrityBriefing.deleteMany({ where: byContract });
-  await db.contractSignature.deleteMany({ where: byContract });
-  await db.legalReview.deleteMany({ where: byContract });
-  await db.rateComparison.deleteMany({ where: { check: byContract } });
-  await db.arithmeticCorrection.deleteMany({ where: { check: byContract } });
-  await db.formationCheck.deleteMany({ where: byContract });
-  await db.reconciliationAmendment.deleteMany({ where: { reconciliation: byContract } });
-  await db.contractReconciliation.deleteMany({ where: byContract });
-  await db.contractAssemblyPart.deleteMany({ where: byContract });
-  await db.contractSection.deleteMany({ where: { baseline: byContract } });
-  await db.contractBaseline.deleteMany({ where: byContract });
-  await db.auditEntry.deleteMany({ where: { organisationId, OR: contracts.map((c) => ({ entityLabel: { startsWith: `Contract ${c.number} ·` } })) } });
-}
-
-/// The contract configuration the demo created (rows by demo id; the signatory rows go with the demo matrix).
-export async function wipeContractsConfig(db: Db) {
-  const demo = { id: { startsWith: P } };
-  await db.controlledCopyRecipient.deleteMany({ where: demo });
-  await db.contractDocumentPart.deleteMany({ where: demo });
-  await db.contractPolicy.deleteMany({ where: demo });
 }

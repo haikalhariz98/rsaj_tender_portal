@@ -21,8 +21,8 @@
  * value unless the organisation chooses otherwise.
  *
  * Additive: `npm run demo:results` applies it to a database the demo is already loaded in (never a wipe), and does
- * nothing where the award is already issued. `npm run demo:load` runs it last. `demo:wipe` removes it with the rest:
- * every row is on a demo exercise or carries a demo id.
+ * nothing where the award is already issued. `npm run demo:load` runs it last. Every row is on a demo exercise or
+ * carries a demo id. Since Phase 1d nothing removes it (`demo:wipe` is retired).
  */
 
 import type { PrismaClient } from "../src/generated/prisma/client";

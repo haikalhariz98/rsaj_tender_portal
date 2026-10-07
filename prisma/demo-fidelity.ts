@@ -104,12 +104,3 @@ export async function checkFidelityDemo(db: Db) {
   const correction = await db.textCorrection.findFirst({ where: { id: { startsWith: `${P}htc` } }, include: { forms: true } });
   if (!correction || correction.forms.length !== 1) fail("the demo's typing correction is missing");
 }
-
-export async function wipeFidelityConfig(db: Db) {
-  const sub = (s: string) => ({ id: { startsWith: `${P}${s}` } });
-  await db.textCorrectionForm.deleteMany({ where: sub("htf") });
-  await db.textCorrection.deleteMany({ where: sub("htc") });
-  await db.termAlias.deleteMany({ where: sub("hta") });
-  await db.term.deleteMany({ where: sub("htm") });
-  await db.formField.deleteMany({ where: sub("hff") });
-}

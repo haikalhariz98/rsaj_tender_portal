@@ -178,18 +178,6 @@ export async function configureLifecycleDemo(db: Db, organisationId: string) {
   });
 }
 
-/// The configuration above, by demo id (the matrix rows go with the demo matrix, the controls' fields with its row).
-export async function wipeLifecycleConfig(db: Db) {
-  const sub = (s: string) => ({ id: { startsWith: `${P}${s}` } });
-  await db.certificateKindSetting.deleteMany({ where: sub("vks") });
-  await db.contractClockRule.deleteMany({ where: sub("vck") });
-  await db.formDistribution.deleteMany({ where: sub("vfd") });
-  await db.formSignatureBlock.deleteMany({ where: sub("vsb") });
-  await db.routingTarget.deleteMany({ where: sub("vtg") });
-  await db.routingCheckDef.deleteMany({ where: sub("vrc") });
-  await db.routingSheetType.deleteMany({ where: sub("vrt") });
-}
-
 // ------------------------------------------------------------------ before the contract (rows, as 6.1–6.11's demos write them)
 
 /// The requisition and the exercise, before the exercises are determined (by 6.3's own functions, in demo.ts).
@@ -711,28 +699,4 @@ export async function checkLifecycleDemo(db: Db) {
   const w = await loadWorklist(await demoScope());
   const rows = JSON.stringify(w);
   if (!rows.includes("/variations/")) fail("no variation's step on the Approvals worklist");
-}
-
-/// Every row the lifecycle's acts made on the contracts given, children first (their certificates go with 6.14's wipe).
-export async function wipeVariations(db: Db, contractIds: readonly string[]) {
-  if (!contractIds.length) return;
-  const byContract = { contractId: { in: [...contractIds] } };
-  const byVariation = { variation: byContract };
-  await db.sumAdjustmentLine.deleteMany({ where: { sumAdjustment: byContract } });
-  await db.sumAdjustment.deleteMany({ where: byContract });
-  await db.variationCertificate.deleteMany({ where: byVariation });
-  await db.variationMeasurement.deleteMany({ where: byVariation });
-  await db.dayworkRecord.deleteMany({ where: byVariation });
-  await db.variationInstruction.deleteMany({ where: byVariation });
-  await db.variationApproval.deleteMany({ where: byVariation });
-  // A variation's routes, and a route continued from another.
-  await db.approvalStep.updateMany({ where: { instance: byVariation, NOT: { carriedFromStepId: null } }, data: { carriedFromStepId: null } });
-  await db.approvalInstance.updateMany({ where: { ...byVariation, NOT: { supersedesInstanceId: null } }, data: { supersedesInstanceId: null } });
-  await db.approvalStep.deleteMany({ where: { instance: byVariation } });
-  await db.approvalInstance.deleteMany({ where: byVariation });
-  // The matters tabled from them (their votes and recusals first).
-  await db.vote.deleteMany({ where: { decision: byVariation } });
-  await db.decisionRecusal.deleteMany({ where: { decision: byVariation } });
-  await db.committeeDecision.deleteMany({ where: byVariation });
-  await db.variation.deleteMany({ where: byContract });
 }
