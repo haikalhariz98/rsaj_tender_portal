@@ -56,6 +56,17 @@ export const AUTH_WORDS = {
     en: "Source addresses are not recorded: this copy has not been told how many proxies sit in front of it, so a request's address cannot be trusted. The limit on failed sign-ins from one address is therefore not applied, and only the lock on each account holds back guessing, until it is set.",
     ms: "Alamat sumber tidak direkodkan: salinan ini belum diberitahu bilangan proksi di hadapannya, jadi alamat permintaan tidak boleh dipercayai. Had log masuk gagal dari satu alamat itu tidak dikenakan, dan hanya kunci pada setiap akaun yang menyekat tekaan, sehingga ia ditetapkan.",
   },
+  // The staff sign-in page (founder's mock-up, 2026-10-07). Product wording: nothing here names an organisation.
+  welcomeTo: { en: "Welcome to", ms: "Selamat datang ke" },
+  signInSubtitle: { en: "Sign in to access your account.", ms: "Log masuk untuk mengakses akaun anda." },
+  signInButton: { en: "Sign in", ms: "Log masuk" },
+  showPassword: { en: "Show password", ms: "Tunjukkan kata laluan" },
+  hidePassword: { en: "Hide password", ms: "Sembunyikan kata laluan" },
+  orDivider: { en: "OR", ms: "ATAU" },
+  useCodeButton: { en: "Use a one-time code from an administrator", ms: "Guna kod sekali guna daripada pentadbir" },
+  forgotHint: { en: "Forgot your password? Ask an administrator for a one-time code.", ms: "Terlupa kata laluan? Minta kod sekali guna daripada pentadbir." },
+  recordedNote: { en: "Every sign-in and failed attempt is recorded.", ms: "Setiap log masuk dan percubaan yang gagal direkodkan." },
+  backToSignIn: { en: "Back to sign in", ms: "Kembali ke log masuk" },
 } as const satisfies Record<string, Words>;
 
 /// A sign-in account's standing, in words, wherever it is shown: the accounts screen, History and the audit export. A code never reaches a screen.

@@ -24,7 +24,7 @@ export interface PublicEntry {
 }
 
 export const PUBLIC_ENTRY_POINTS: readonly PublicEntry[] = [
-  { under: "sign-in", reason: "Signing in is how a person becomes signed in: the sign-in page, the one-time-code page and their actions. Each action passes the Origin guard and answers only on the staff copy." },
+  { under: "sign-in", reason: "Signing in is how a person becomes signed in: the sign-in page, the one-time-code page, the page's image (served by its own fingerprint, holding nothing but the picture) and their actions. Each action passes the Origin guard and answers only on the staff copy." },
   {
     under: "supplier",
     reason:

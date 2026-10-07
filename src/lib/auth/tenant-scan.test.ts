@@ -126,6 +126,7 @@ const DEPLOYMENT_MODULES: readonly string[] = ["src/lib/portal/deployment", "src
 const MAY_IMPORT_DEPLOYMENT: Readonly<Record<string, string>> = {
   "src/app/layout.tsx": "the frame's organisation where nobody is signed in (the sign-in screens, the public pages); a signed-in actor's own otherwise",
   "src/app/organisation/logo/[sha]/route.ts": "the logo the frame shows where nobody is signed in; a signed-in actor's own organisation otherwise",
+  "src/app/sign-in/image/[sha]/route.ts": "the sign-in page's image, drawn where nobody is signed in; a signed-in actor's own organisation otherwise (the configuration preview)",
   "src/app/_auth/loader.ts": "a loader script's acts, where nobody is signed in to name an organisation",
   "src/app/sign-in/page.tsx": "the sign-in screen names its policy before anyone has signed in",
   "src/app/sign-in/code/page.tsx": "the one-time-code screen names its policy before anyone has signed in",

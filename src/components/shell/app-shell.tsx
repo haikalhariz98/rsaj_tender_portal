@@ -45,17 +45,9 @@ export function AppShell({
 
   const hasAlerts = Object.values(counts).some((n) => n > 0);
 
-  // The sign-in screens are for someone who is not in yet: no navigation, no counts, nothing of the staff side to see.
-  if (isSignInPath(pathname)) {
-    return (
-      <div className="grid min-h-dvh place-items-center px-4 py-10">
-        <main className="w-full max-w-[460px]">
-          <div className="mb-6 text-center text-[13.5px] font-semibold text-ink-3">{organisation.name}</div>
-          {children}
-        </main>
-      </div>
-    );
-  }
+  // The sign-in screens are for someone who is not in yet: no navigation, no counts, nothing of the staff side to see. They draw their own whole
+  // page (`SignInScreen`: the organisation's picture and words beside the card), so the frame adds nothing around them.
+  if (isSignInPath(pathname)) return <>{children}</>;
 
   return (
     <div className="relative min-h-dvh">

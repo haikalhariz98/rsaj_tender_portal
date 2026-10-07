@@ -187,6 +187,8 @@ model Organisation {
   updatedAt DateTime @updatedAt
 
   logo            OrganisationLogo?
+  signInImage     OrganisationSignInImage?
+  signInPage      OrganisationSignInPage?
   roles           AuthorityRole[]
   matrices        AuthorityMatrix[]
   people          Person[]
@@ -1616,6 +1618,47 @@ model OrganisationLogo {
   uploadedAt DateTime @default(now())
 
   @@index([sha256])
+}
+
+/// The picture on the left of the staff sign-in page. Stored as the logo is, and judged as it is: PNG, JPEG or WebP by the file's own bytes,
+/// up to the same technical limit. One per organisation; none means the panel is drawn in the product's own colours.
+model OrganisationSignInImage {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  bytes     Bytes
+  /// image/png, image/jpeg or image/webp, as sniffed.
+  mediaType String
+  sizeBytes Int
+  /// Fingerprint of the bytes. A new upload is a new address, so nothing needs busting.
+  sha256    String
+  width     Int
+  height    Int
+  uploadedAt DateTime @default(now())
+
+  @@index([sha256])
+}
+
+/// The words and links on the staff sign-in page. Every column is the organisation's own choice and nullable: null means that element is
+/// not drawn (the card's title falls back to the product's neutral "Sign in"). Nothing is seeded. Links are web addresses only, checked on
+/// save and again when drawn.
+model OrganisationSignInPage {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  portalName     String?
+  headline       String?
+  supportingText String?
+  highlight1     String?
+  highlight2     String?
+  highlight3     String?
+  tagline        String?
+  privacyUrl     String?
+  termsUrl       String?
+  helpDeskUrl    String?
+  updatedAt      DateTime @updatedAt
 }
 
 /// Append-only (ADR 0034 D11): a trigger refuses every UPDATE, DELETE and TRUNCATE, for every database login including the

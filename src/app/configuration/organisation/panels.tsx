@@ -35,6 +35,8 @@ import {
   KIND_LABEL,
 } from "./editors";
 import { LogoCard, type LogoInfo } from "./logo-card";
+import { SignInPageCards, type SignInImageInfo } from "./sign-in-cards";
+import type { SignInPageSettings } from "@/lib/organisation/sign-in-page";
 
 /**
  * Organisation: the structure, and the cost centres and sites hung off it.
@@ -50,6 +52,8 @@ type Person = { id: string; name: string; isActive: boolean };
 export interface OrganisationPanelData {
   details: Details;
   logo: LogoInfo | null;
+  signInImage: SignInImageInfo | null;
+  signInPage: SignInPageSettings;
   roots: UnitNode[];
   detached: UnitNode[];
   units: OrgUnit[];
@@ -102,7 +106,7 @@ export function OrganisationScreen(data: OrganisationPanelData) {
       label="Organisation"
       initial={data.view ?? undefined}
       tabs={[
-        { id: "details", label: "Details", panel: <DetailsView details={data.details} logo={data.logo} /> },
+        { id: "details", label: "Details", panel: <DetailsView details={data.details} logo={data.logo} signInImage={data.signInImage} signInPage={data.signInPage} /> },
         { id: "structure", label: "Structure", count: data.units.length, panel: <StructureView {...data} /> },
         {
           id: "cost-centres",
@@ -121,7 +125,7 @@ export function OrganisationScreen(data: OrganisationPanelData) {
 const NOT_SET = <span className="text-ink-4">Not set</span>;
 
 /// The identity the portal, reports and letters carry. Unset reads "Not set", never blank.
-function DetailsView({ details, logo }: { details: Details; logo: LogoInfo | null }) {
+function DetailsView({ details, logo, signInImage, signInPage }: { details: Details; logo: LogoInfo | null; signInImage: SignInImageInfo | null; signInPage: SignInPageSettings }) {
   const value = (v: string | null) => v ?? NOT_SET;
   const address = [details.addressLine1, details.addressLine2, [details.postcode, details.city].filter(Boolean).join(" "), details.state, details.country].filter(Boolean);
   return (
@@ -150,6 +154,7 @@ function DetailsView({ details, logo }: { details: Details; logo: LogoInfo | nul
         </CardBody>
       </Card>
       <LogoCard logo={logo} />
+      <SignInPageCards image={signInImage} settings={signInPage} />
     </div>
   );
 }

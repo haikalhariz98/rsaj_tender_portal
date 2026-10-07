@@ -15,6 +15,7 @@ export function Input({
   mono,
   numeric,
   icon,
+  trailing,
   className,
   ...props
 }: Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & {
@@ -23,23 +24,26 @@ export function Input({
   numeric?: boolean;
   /// Drawn inside the box on the left — a search glass, say.
   icon?: ReactNode;
+  /// Something to press at the right edge, inside the box — a show/hide eye, say. It is the caller's own control, so it is not pointer-transparent.
+  trailing?: ReactNode;
 }) {
   const ctx = useFieldContext();
   const input = (
     <input
       className={inputClass(
         size,
-        cx(mono && "font-mono text-[13px]", numeric && "text-right tabular-nums", icon && "pl-9", className),
+        cx(mono && "font-mono text-[13px]", numeric && "text-right tabular-nums", icon && "pl-9", trailing && "pr-11", className),
       )}
       {...props}
       {...fieldAria(ctx, props)}
     />
   );
-  if (!icon) return input;
+  if (!icon && !trailing) return input;
   return (
     <div className="relative">
-      <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-4">{icon}</span>
+      {icon && <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-4">{icon}</span>}
       {input}
+      {trailing && <span className="absolute top-1/2 right-1.5 -translate-y-1/2">{trailing}</span>}
     </div>
   );
 }

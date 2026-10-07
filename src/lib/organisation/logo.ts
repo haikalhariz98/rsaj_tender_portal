@@ -8,9 +8,9 @@
  */
 import { createHash } from "node:crypto";
 
-import { LOGO_MAX_BYTES } from "./logo-limits";
+import { LOGO_MAX_BYTES, SIGN_IN_IMAGE_MAX_BYTES } from "./logo-limits";
 
-export { LOGO_MAX_BYTES, LOGO_SUGGESTED_HEIGHT } from "./logo-limits";
+export { LOGO_MAX_BYTES, LOGO_SUGGESTED_HEIGHT, SIGN_IN_IMAGE_MAX_BYTES, SIGN_IN_IMAGE_SUGGESTED_WIDTH } from "./logo-limits";
 
 export type LogoMediaType = "image/png" | "image/jpeg" | "image/webp";
 
@@ -20,13 +20,13 @@ export type LogoCheck =
   | { ok: true; mediaType: LogoMediaType; width: number; height: number; sizeBytes: number; sha256: string }
   | { ok: false; fault: LogoFault; sizeBytes: number };
 
-/// What the person is told. Never a code.
-export function logoFaultText(fault: LogoFault, sizeBytes: number): string {
+/// What the person is told. Never a code. `noun` is what the file is for ("logo", "image"), `maxBytes` the limit it was judged against.
+export function imageFaultText(fault: LogoFault, sizeBytes: number, noun: string, maxBytes: number): string {
   switch (fault) {
     case "EMPTY":
       return "Choose an image file.";
     case "TOO_LARGE":
-      return `The logo is ${Math.ceil(sizeBytes / 1024)} KB. The limit is ${LOGO_MAX_BYTES / 1024} KB.`;
+      return `The ${noun} is ${Math.ceil(sizeBytes / 1024)} KB. The limit is ${maxBytes / 1024} KB.`;
     case "SVG":
       return "Use a PNG, JPEG or WebP image. SVG is not accepted.";
     case "UNSUPPORTED":
@@ -35,6 +35,9 @@ export function logoFaultText(fault: LogoFault, sizeBytes: number): string {
       return "This file is not a readable image.";
   }
 }
+
+export const logoFaultText = (fault: LogoFault, sizeBytes: number) => imageFaultText(fault, sizeBytes, "logo", LOGO_MAX_BYTES);
+export const signInImageFaultText = (fault: LogoFault, sizeBytes: number) => imageFaultText(fault, sizeBytes, "image", SIGN_IN_IMAGE_MAX_BYTES);
 
 const ascii = (b: Uint8Array, from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
 const u16be = (b: Uint8Array, i: number) => (b[i] << 8) | b[i + 1];
@@ -100,12 +103,12 @@ function looksLikeSvg(b: Uint8Array): boolean {
   return head.startsWith("<svg") || (head.startsWith("<?xml") && head.includes("<svg")) || head.startsWith("<!doctype svg") || (head.startsWith("<") && head.includes("<svg"));
 }
 
-/// Check a file's bytes, and say what it is.
-export function inspectLogo(bytes: Uint8Array): LogoCheck {
+/// Check a file's bytes against a size limit, and say what it is. The logo and the sign-in image are judged the same way, by their own limits.
+export function inspectImage(bytes: Uint8Array, maxBytes: number): LogoCheck {
   const sizeBytes = bytes.length;
   const refuse = (fault: LogoFault): LogoCheck => ({ ok: false, fault, sizeBytes });
   if (sizeBytes === 0) return refuse("EMPTY");
-  if (sizeBytes > LOGO_MAX_BYTES) return refuse("TOO_LARGE");
+  if (sizeBytes > maxBytes) return refuse("TOO_LARGE");
 
   let mediaType: LogoMediaType | null = null;
   let size: Size = null;
@@ -125,3 +128,9 @@ export function inspectLogo(bytes: Uint8Array): LogoCheck {
 
   return { ok: true, mediaType, ...size, sizeBytes, sha256: createHash("sha256").update(bytes).digest("hex") };
 }
+
+/// Check a logo's bytes, and say what it is.
+export const inspectLogo = (bytes: Uint8Array): LogoCheck => inspectImage(bytes, LOGO_MAX_BYTES);
+
+/// Check a sign-in image's bytes, and say what it is.
+export const inspectSignInImage = (bytes: Uint8Array): LogoCheck => inspectImage(bytes, SIGN_IN_IMAGE_MAX_BYTES);

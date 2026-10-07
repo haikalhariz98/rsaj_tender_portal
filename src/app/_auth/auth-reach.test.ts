@@ -82,7 +82,7 @@ describe("the scan finds what it should", () => {
     // 61 server modules at the time of writing (the plan counted 54 earlier), less sign-in's.
     expect(ACTION_FILES.length).toBeGreaterThan(50);
     expect(PAGE_FILES.length).toBeGreaterThan(55);
-    expect(ROUTE_FILES.length).toBe(11);
+    expect(ROUTE_FILES.length).toBe(12);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });
@@ -146,7 +146,7 @@ describe("every route handler asks who is signed in first, and every one that ch
 
   it("finds the handlers", () => {
     expect(handlers.length).toBeGreaterThanOrEqual(8);
-    expect(ROUTE_FILES.filter((f) => publicEntry(f.file)).map((f) => f.file).sort()).toEqual(["organisation/logo/[sha]/route.ts", "supplier/register/submit/route.ts"]);
+    expect(ROUTE_FILES.filter((f) => publicEntry(f.file)).map((f) => f.file).sort()).toEqual(["organisation/logo/[sha]/route.ts", "sign-in/image/[sha]/route.ts", "supplier/register/submit/route.ts"]);
   });
 
   it("none is reachable signed out", () => {

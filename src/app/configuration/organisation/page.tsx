@@ -9,10 +9,12 @@ import { db } from "@/lib/db";
 
 import { formatOrgDay } from "@/lib/format";
 import { DETAIL_FIELDS, normaliseDetails } from "@/lib/organisation/details";
+import { normaliseSignInPage } from "@/lib/organisation/sign-in-page";
 
 import { timeZoneLabel, timeZoneOptions } from "@/lib/time-zone-label";
 import { EditTimeZone } from "./editors";
 import type { LogoInfo } from "./logo-card";
+import type { SignInImageInfo } from "./sign-in-cards";
 import { OrganisationScreen } from "./panels";
 import { requireStaff } from "@/app/_auth/actor";
 
@@ -37,7 +39,11 @@ export default async function OrganisationPage({
   // The logo's metadata only: its bytes are served from their own address.
   const org = await db.organisation.findUnique({
     where: { code: actor.organisationCode },
-    include: { logo: { select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true, uploadedAt: true } } },
+    include: {
+      logo: { select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true, uploadedAt: true } },
+      signInImage: { select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true, uploadedAt: true } },
+      signInPage: true,
+    },
   });
   const timeZone = org?.timeZone ?? null;
   const details = org ? normaliseDetails({ ...Object.fromEntries(DETAIL_FIELDS.map((f) => [f, org[f]])) }) : null;
@@ -49,6 +55,16 @@ export default async function OrganisationPage({
         width: org.logo.width,
         height: org.logo.height,
         uploadedOn: formatOrgDay(org.logo.uploadedAt, timeZone),
+      }
+    : null;
+  const signInImage: SignInImageInfo | null = org?.signInImage
+    ? {
+        sha: org.signInImage.sha256,
+        mediaType: org.signInImage.mediaType,
+        sizeKb: Math.ceil(org.signInImage.sizeBytes / 1024),
+        width: org.signInImage.width,
+        height: org.signInImage.height,
+        uploadedOn: formatOrgDay(org.signInImage.uploadedAt, timeZone),
       }
     : null;
   const { roots, detached, faults } = buildStructure(data.units, on);
@@ -110,6 +126,8 @@ export default async function OrganisationPage({
       <OrganisationScreen
         details={details ?? normaliseDetails({})}
         logo={logo}
+        signInImage={signInImage}
+        signInPage={normaliseSignInPage(org?.signInPage ?? {})}
         roots={roots}
         detached={detached}
         units={units}
