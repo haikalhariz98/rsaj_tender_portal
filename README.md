@@ -104,7 +104,12 @@ scripts/               Tooling to render a prototype and diff this app's DOM aga
 | `npm run setup` | `db:up` → `db:migrate` → `db:seed` |
 | `npm run db:up` / `db:down` | Start (wait for healthy) / stop Postgres |
 | `npm run db:reset` | **Destroys the volume**, then re-runs setup |
-| `npm run db:migrate` | Prompts for a migration name — pass `--name` in scripts |
+| `npm run db:migrate` | Prompts for a migration name — pass `--name` in scripts. Then runs `db:roles` |
+| `npm run db:deploy` | `prisma migrate deploy`, then `db:roles`: the production pair |
+| `npm run db:roles` | Makes or brings into line the app's own database login (`APP_DB_PASSWORD`); see below |
+| `npm run test:db` | The tests that need a database, against `TEST_DATABASE_URL` only |
+| `npm run demo:load` / `demo:results` | Load the invented demonstration once; add its Results fixture. Additive: nothing is ever written twice |
+| `npm run demo:wipe` | Retired: refuses and explains. The trail is permanent, so a demo database is replaced, never emptied |
 
 ## Design fidelity tooling
 
@@ -122,8 +127,8 @@ pulls that out. Porting only the `<style>` block leaves screens unstyled.
 
 ## Putting the supplier portal on a public address
 
-There is no sign-in, so every staff screen and staff action answers whoever can reach the copy. The
-supplier portal (`/supplier`) is meant for strangers, so it must be served by its own copy of the
+Staff screens ask for a staff sign-in, but a copy that strangers can reach should not serve them at
+all. The supplier portal (`/supplier`) is meant for strangers, so it must be served by its own copy of the
 product, started with `PORTAL_SURFACE=public`: that copy answers only the portal's pages and the
 one registration POST, and gives a 404 to everything else. The officers' copy is started without
 it and stays on the officers' network. Both read the same database. `src/proxy.ts` is the
@@ -134,11 +139,33 @@ online applications, the notice about personal details (English and Malay) and b
 Configuration, Supplier register. It does not defend itself against a determined flood: per-address
 limits and a challenge belong at the edge in front of the public copy.
 
+## Running in production
+
+Sign-in (ADR 0034) assumes all of the following. None is optional.
+
+- **HTTPS, end to end to the browser.** The session cookies are `__Host-`, Secure, HttpOnly and
+  SameSite=Lax; over plain HTTP a browser drops them and nobody can sign in.
+- **The app's own database login.** Set `APP_DB_PASSWORD`, run `npm run db:deploy` (migrations as
+  the owner, then `db:roles`), point `DATABASE_URL` at `perolehan_app` and `MIGRATE_DATABASE_URL`
+  at the owner, and restart. Run `db:roles` again after **every** `migrate deploy`: a table a
+  migration adds is writable by the app until it does. A production copy connected as the owner
+  or a superuser refuses every sign-in. The trail's triggers refuse changes for every login
+  regardless; the role is the second wall.
+- **A stable `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`**, the same on every copy, or every open form
+  breaks at a redeploy.
+- **`TRUSTED_PROXY_HOPS`**, set to exactly the number of reverse proxies that append to
+  `X-Forwarded-For`, and only behind them. Unset, addresses are not recorded and the address
+  throttle is off (per-account lockout still holds).
+- **`SERVER_ACTION_ALLOWED_ORIGINS`** naming the public host, when a proxy rewrites the host.
+- **Strip `x-middleware-subrequest`** from every incoming request at the reverse proxy.
+- No second sign-in factor exists (NFR-SEC-005 is not met). Going live without one needs the
+  founder's go-ahead and the customer's written acceptance.
+
 ## Notes for a second customer
 
-`organisationId` is on every configuration table, so a second organisation is a seed
-rather than a migration. There is deliberately no tenant routing or isolation
-middleware yet — that arrives with authentication.
+`organisationId` is on every configuration table, and every load and write by id names the
+signed-in person's organisation. The supported deployment is one organisation per database
+(ADR 0034 D10): a second customer is a second database, seeded.
 
 ## Renaming
 

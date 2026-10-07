@@ -1,6 +1,8 @@
 # 0020 — Identity: separate staff and vendor stores behind one façade (not built)
 
-**Status:** Proposed (written at 6.15a step 0, 2026-10-02, under `docs/notes/plans/phase3-6-rulings.md` §6.15 condition (1):
+**Superseded by ADR 0034** (`0034-sign-in-sessions-authorisation-and-tenant-isolation.md`, D1 to D3), marked 2026-10-07 in Phase 1d of the sign-in programme under ruling O-3. The text below is kept as written.
+
+**Status (as written):** Proposed (written at 6.15a step 0, 2026-10-02, under `docs/notes/plans/phase3-6-rulings.md` §6.15 condition (1):
 docs only — no `User` model, no `SupplierAccount`, no stub). Building it needs the founder to lift "Never build sign-in"
 (founder's end-of-build list, item 13). Plan: `docs/notes/plans/6.15-supplier-register.md` §0.1 option A.
 
