@@ -39,7 +39,7 @@ export function WaitingList({ rows }: { rows: QueueRow[] }) {
       emptyBody="A change that needs a second person appears here until it is applied, declined or withdrawn."
       columns={[
         { key: "change", label: "Change", width: "26%", sortable: true, mobile: "primary" },
-        { key: "what", label: "What it would do", minWidth: "260px", mobile: "meta" },
+        { key: "what", label: "What it would do", mobile: "meta" },
         { key: "proposed", label: "Proposed by", width: "190px", sortable: true, mobile: "meta" },
         { key: "waitingFor", label: "Waiting for", width: "190px", mobile: "meta" },
       ]}
@@ -70,7 +70,7 @@ export function DecidedList({ rows }: { rows: Row[] }) {
       emptyTitle="Nothing has been decided yet"
       columns={[
         { key: "change", label: "Change", width: "26%", sortable: true, mobile: "primary" },
-        { key: "what", label: "What it would have done", minWidth: "260px", mobile: "meta" },
+        { key: "what", label: "What it would have done", mobile: "meta" },
         { key: "standing", label: "Standing", width: "170px", sortable: true, mobile: "meta" },
         { key: "decided", label: "Decided by", width: "210px", sortable: true, mobile: "meta" },
       ]}
