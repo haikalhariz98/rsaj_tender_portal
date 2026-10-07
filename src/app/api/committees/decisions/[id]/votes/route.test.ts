@@ -55,11 +55,10 @@ beforeEach(() => {
 });
 
 describe("who votes", () => {
-  it("is the member signed in, and a body that names no one, or names them, votes as them", async () => {
+  it("is the member signed in, and a body that names no one votes as them", async () => {
     expect((await ask({})).status).toBe(200);
-    expect((await ask({ personId: STAFF_FIXTURE.personId })).status).toBe(200);
-    expect(h.upserts.map((u) => u.personId)).toEqual([STAFF_FIXTURE.personId, STAFF_FIXTURE.personId]);
-    expect(h.act.written).toEqual([expect.objectContaining({ entity: "Vote", slot: "person", subjectPersonId: STAFF_FIXTURE.personId, mode: "SIGNED" }), expect.objectContaining({ mode: "SIGNED" })]);
+    expect(h.upserts.map((u) => u.personId)).toEqual([STAFF_FIXTURE.personId]);
+    expect(h.act.written).toEqual([expect.objectContaining({ entity: "Vote", slot: "person", subjectPersonId: STAFF_FIXTURE.personId, mode: "SIGNED" })]);
   });
 
   it("is refused where the body names another member and the signed-in person does not hold the Secretariat office", async () => {
@@ -70,11 +69,15 @@ describe("who votes", () => {
     expect(h.act.written).toEqual([]);
   });
 
-  it("is refused where the body names another member in the old key (personId) and the signed-in person does not hold the office", async () => {
-    h.secretariat = [];
-    const r = await ask({ personId: "member", reason: "The member's signed sheet" });
-    expect(r.status).toBe(403);
+  // Product owner's ruling, decisions log 2026-10-07 (2b(b)): the legacy `personId` key is removed. A body that carries it is refused with a 400 that names
+  // `onBehalfOf`, whoever it names (another member, or the signed-in member's own id), and nothing is recorded: ignoring it could record the caller's own vote.
+  it.each([["another member", "member"], ["the signed-in member", STAFF_FIXTURE.personId]])("refuses the old key (personId) naming %s, with a 400 that names onBehalfOf, and records nothing", async (_who, personId) => {
+    h.secretariat = [{ id: STAFF_FIXTURE.personId }];
+    const r = await ask({ personId, reason: "The member's signed sheet" });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/onBehalfOf/);
     expect(h.upserts).toEqual([]);
+    expect(h.act.written).toEqual([]);
   });
 
   it("is refused where the body names another member without the sheet's reference or the reason, even for the Secretariat", async () => {

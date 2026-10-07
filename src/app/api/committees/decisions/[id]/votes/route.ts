@@ -25,7 +25,7 @@ import { db } from "@/lib/db";
  *
  *   401  nobody is signed in; 403  the request is not from a page of this origin
  *   415  the body is not JSON
- *   400  malformed input
+ *   400  malformed input, or the old `personId` key (use `onBehalfOf`)
  *   404  no such matter
  *   403  not a present voting member of the sitting, or recused on this matter
  *   409  the sitting is not in progress (scheduled, minuted or cancelled), the matter
@@ -51,6 +51,12 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
   }
 
   const { choice, comment, votedAt } = (body ?? {}) as Record<string, unknown>;
+  // The old key is removed (product owner's ruling, decisions log 2026-10-07, 2b(b)): the product's own caller sends `onBehalfOf`. Ignoring `personId` quietly could
+  // record the signed-in member's own vote where the caller meant another's, so a body that carries it is refused and told the key to use.
+  if (body != null && typeof body === "object" && "personId" in body) {
+    return Response.json({ error: "personId is no longer accepted. To record a vote for another member from their signed sheet, send onBehalfOf; a member's own vote names no one." }, { status: 400 });
+  }
+
   if (typeof choice !== "string") {
     return Response.json({ error: "choice is required" }, { status: 400 });
   }
@@ -66,11 +72,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
   if (!found) return Response.json({ error: "Decision not found" }, { status: 404 });
 
   // Who is voting: the actor, or, where the body says it is recorded for a member, that member, attributed through the wrapper. A loader names no session.
-  // An old caller names the voter as `personId`. That is read only as the member the vote is recorded for: another member's is refused here unless the
-  // actor holds the Secretariat office, and the signed-in member's own is simply theirs (F1: a body never says who the actor is).
-  const named = (body ?? {}) as Record<string, unknown>;
-  const legacy = typeof named.personId === "string" && named.personId !== "" && named.personId !== scope.personId ? named.personId : null;
-  const form = actFormFromJson(legacy && !named.onBehalfOf ? { ...named, onBehalfOf: legacy } : body, { personKey: "onBehalfOf" });
+  const form = actFormFromJson(body, { personKey: "onBehalfOf" });
   const begun = await beginActFrom(scope, form, "Vote.person", { personField: "onBehalfOf" });
   if (!begun.ok) return Response.json({ error: begun.state.message ?? Object.values(begun.state.errors ?? {}).join(" ") }, { status: 403 });
   const act = begun.act;

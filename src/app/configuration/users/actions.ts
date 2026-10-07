@@ -708,7 +708,10 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
 /// against the organisation's today (`endAssignment`). The record stays: a decision signed
 /// under it must keep resolving to the person who signed.
 export async function endAssignment(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  // Ending is gated by the key that gives (product owner, decisions log 2026-10-07): removing a holder changes who decides as much as adding one.
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 

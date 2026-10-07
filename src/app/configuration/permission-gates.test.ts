@@ -48,18 +48,22 @@ const GIVES_AUTHORITY: Record<string, [string, Key][]> = {
     ["saveAssignment", "configuration.draft"],
     ["saveDelegation", "configuration.draft"],
     ["saveOffice", "configuration.draft"],
+    // Ruled by the product owner (decisions log 2026-10-07): ending an office is gated by the key that gives one.
+    ["endAssignment", "configuration.draft"],
     ["setGrant", "configuration.draft"],
   ],
-  committees: [["saveMember", "configuration.draft"]],
+  // Ruled by the product owner (decisions log 2026-10-07): vacating a seat is gated by the key that gives one.
+  committees: [
+    ["saveMember", "configuration.draft"],
+    ["vacateSeat", "configuration.draft"],
+  ],
 };
 
 /// What is left asking only who is signed in, with the reason it is not gated yet. An open item for the product owner: which permission governs it.
 const NOT_YET: Record<string, string> = {
   "users.savePerson": "A person's own record (name, staff number): not an authority. Which permission edits a person is the product owner's to say.",
   "users.setPersonActive": "Marks a person as having left or returned: it ends accounts, which `accounts.manage` governs elsewhere. The product owner's to say.",
-  "users.endAssignment": "Ends an office: it gives no authority, and since the review of Phase 2c it no longer opens the person's account to a one-person reset (a code for anyone who has ever held an office is a two-person change, ended or not). The product owner's to say whether ending needs the permission too.",
   "committees.saveCommittee": "A committee's own terms: not who sits on it. The product owner's to say.",
-  "committees.vacateSeat": "Ends a seat: it gives no authority, and since the review of Phase 2c it no longer opens the person's account to a one-person reset (a code for anyone who has ever held a seat is a two-person change, ended or not). The product owner's to say whether ending needs the permission too.",
   "committees.saveNotApprovedOutcome": "What a committee's not-approved outcome does: it routes, and gives no authority. The product owner's to say.",
   "committees.retireNotApprovedOutcome": "As saveNotApprovedOutcome.",
   "committees.saveCommitteePanel": "A committee's panel of its sitting. The product owner's to say.",
