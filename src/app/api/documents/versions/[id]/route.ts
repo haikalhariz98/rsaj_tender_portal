@@ -1,3 +1,6 @@
+import { exerciseIsHidden, hiddenExercises } from "@/app/_auth/sulit";
+import { hiddenExerciseOfVersion } from "@/lib/documents/hidden";
+import type { Reader } from "@/lib/auth/sulit-store";
 import type { NextRequest } from "next/server";
 import { staffRoute } from "@/app/_auth/route";
 
@@ -8,7 +11,6 @@ import { downloadLimiter, RETRY_AFTER_SECONDS } from "@/lib/documents/concurrenc
 import { downloadRequestFault } from "@/lib/documents/request-guard";
 import { DOWNLOAD_POLICY } from "@/lib/security-headers";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
-import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Download one version (plan §2, §4). `downloadDecision` first: SULIT, unclassified and
@@ -36,7 +38,7 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/documents/ve
   }
 }
 
-async function download(scope: OrgScope, ctx: RouteContext<"/api/documents/versions/[id]">) {
+async function download(scope: Reader, ctx: RouteContext<"/api/documents/versions/[id]">) {
   const { id } = await ctx.params;
   const org = await documentOrg(scope.organisationId);
   if (!org) return plain(503, "No organisation is configured.");
@@ -46,6 +48,12 @@ async function download(scope: OrgScope, ctx: RouteContext<"/api/documents/versi
     select: { id: true, sha256: true, byteSize: true, mediaType: true, originalFilename: true, scanState: true, document: { select: { classificationSnapshot: true } } },
   });
   if (!version) return plain(404, "No such document version.");
+  // FR-MTD-007: a version hanging on an exercise restricted to its named people (or on anything under it) reads as one that does not exist, and the attempt is logged.
+  const under = await hiddenExerciseOfVersion(version.id, await hiddenExercises(scope));
+  if (under) {
+    await exerciseIsHidden(scope, under);
+    return plain(404, "No such document version.");
+  }
 
   const decision = downloadDecision({ classification: version.document.classificationSnapshot, scanState: version.scanState });
   if (!decision.allow) {

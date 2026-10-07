@@ -1,5 +1,8 @@
 "use server";
 
+import { exerciseIsHidden, hiddenExercises } from "@/app/_auth/sulit";
+import { exerciseOfOwner, hiddenExerciseOfDocument } from "@/lib/documents/hidden";
+import { hiddenExerciseIds, refuseHiddenExercise, type Reader } from "@/lib/auth/sulit-store";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -47,7 +50,7 @@ const GONE: FormState = { ok: false, message: "That record no longer exists." };
 const refuse = (fs: readonly Finding[]): FormState => ({ ok: false, message: fs.map(documentFaultText).join(" ") });
 const docLabel = (title: string) => `Document · ${title}`;
 
-async function inOwner(scope: OrgScope, actor: AuditActor, ref: OwnerRef, fn: (tx: Tx, o: LockedOwner) => Promise<FormState>): Promise<FormState> {
+async function inOwner(scope: Reader, actor: AuditActor, ref: OwnerRef, fn: (tx: Tx, o: LockedOwner) => Promise<FormState>): Promise<FormState> {
   let paths: string[] = [];
   let result: FormState | null;
   try {
@@ -65,7 +68,7 @@ async function inOwner(scope: OrgScope, actor: AuditActor, ref: OwnerRef, fn: (t
   return result ?? GONE;
 }
 
-async function inDocument(scope: OrgScope, documentId: string, fn: (tx: Tx, orgId: string) => Promise<FormState>): Promise<FormState> {
+async function inDocument(scope: Reader, documentId: string, fn: (tx: Tx, orgId: string) => Promise<FormState>): Promise<FormState> {
   const org = await documentOrg(scope.organisationId);
   if (!org) return refuse([{ code: "NO_ORGANISATION", level: "block" }]);
   let result: FormState;
@@ -73,6 +76,9 @@ async function inDocument(scope: OrgScope, documentId: string, fn: (tx: Tx, orgI
     result = await db.$transaction(async (tx) => {
       const found = await tx.document.findFirst({ where: { id: documentId, organisationId: org.id }, select: { id: true } });
       if (!found) return refuse([{ code: "DOCUMENT_UNKNOWN", level: "block" }]);
+      // FR-MTD-007: a document hanging on an exercise restricted to its named people reads as one that does not exist, and the attempt is logged.
+      const under = await hiddenExerciseOfDocument(documentId, await hiddenExerciseIds(tx, scope), tx);
+      if (under && (await refuseHiddenExercise(tx, scope, under))) return refuse([{ code: "DOCUMENT_UNKNOWN", level: "block" }]);
       await lockDocument(tx, documentId);
       return fn(tx, org.id);
     });
@@ -322,6 +328,12 @@ export async function loadDocumentDrawer(documentId: string): Promise<DrawerView
   const actor = await requireStaff();
   const [org, d] = await Promise.all([documentOrg(actor.organisationId), documentDrawer(actor.organisationId, String(documentId))]);
   if (!d) return null;
+  // FR-MTD-007: a document hanging on an exercise restricted to its named people reads as one that does not exist, and the attempt is logged.
+  const under = await hiddenExerciseOfDocument(d.id, await hiddenExercises(actor));
+  if (under) {
+    await exerciseIsHidden(actor, under);
+    return null;
+  }
   // Who recorded each version and placed or released each hold, signed or recorded from paper, is read from the attributions (Phase 2b).
   const acted = await loadAttributions(db, actor.organisationId, drawerAttributionQueries(d));
   return drawerView(d, org?.timeZone ?? null, acted);
@@ -331,6 +343,9 @@ export async function loadDocumentDrawer(documentId: string): Promise<DrawerView
 export async function loadOwnerPanel(ref: OwnerRef, opts: PanelOptions = {}): Promise<PanelView | null> {
   const actor = await requireStaff();
   if (!OWNER_KINDS.includes(ref.kind)) return null;
+  // FR-MTD-007: the documents of an exercise restricted to its named people (or of anything under it) read as nobody's, and the attempt is logged.
+  const owning = await exerciseOfOwner(ref.kind, ref.id);
+  if (owning && (await exerciseIsHidden(actor, owning))) return null;
   const [org, panel, upload] = await Promise.all([documentOrg(actor.organisationId), ownerPanel(actor.organisationId, ref), uploadContext(actor.organisationId)]);
   if (!panel || !upload) return null;
   const acted = await loadAttributions(db, actor.organisationId, panelAttributionQueries(panel));
@@ -342,5 +357,5 @@ export async function loadAttachTargets(kind: string) {
   const actor = await requireStaff();
   const k = OWNER_KINDS.find((x) => x === kind);
   if (!k) return null;
-  return { ...(await attachTargetsOf(actor.organisationId, k)), cap: TARGET_CAP };
+  return { ...(await attachTargetsOf(actor.organisationId, k, await hiddenExercises(actor))), cap: TARGET_CAP };
 }

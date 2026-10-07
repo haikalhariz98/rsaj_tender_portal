@@ -1,3 +1,4 @@
+import { matterIsHidden } from "@/app/_auth/sulit";
 import { actFormFromJson, attributionRefusalState, beginActFrom } from "@/app/_auth/act";
 import { staffRoute } from "@/app/_auth/route";
 import { toAuditActor } from "@/app/_auth/actor";
@@ -69,7 +70,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
 
   // The decision first: a matter that is not this organisation's answers as a matter that is not there, whatever else the body says.
   const found = await db.committeeDecision.findUnique({ where: { id, meeting: { committee: { organisationId: scope.organisationId } } }, select: { meetingId: true } });
-  if (!found) return Response.json({ error: "Decision not found" }, { status: 404 });
+  // FR-MTD-007: a matter of an exercise restricted to its named people answers as a matter that is not there, and the attempt is logged.
+  if (!found || (await matterIsHidden(scope, id))) return Response.json({ error: "Decision not found" }, { status: 404 });
 
   // Who is voting: the actor, or, where the body says it is recorded for a member, that member, attributed through the wrapper. A loader names no session.
   const form = actFormFromJson(body, { personKey: "onBehalfOf" });

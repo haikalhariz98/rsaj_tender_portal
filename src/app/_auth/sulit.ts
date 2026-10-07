@@ -1,0 +1,113 @@
+import { cache } from "react";
+
+import { hiddenDecisionIds } from "@/lib/committee/hidden";
+import { applyDecision, sulitWithheld, type Sulit, type SulitDecision } from "@/lib/auth/sulit-access";
+import {
+  decisionFor,
+  eventKey,
+  exerciseAccessFacts,
+  exerciseHiddenFrom,
+  hiddenExerciseIds,
+  organisationPermissionState,
+  writeSulitEvents,
+  type Reader,
+  type SulitEventRow,
+} from "@/lib/auth/sulit-store";
+import type { StaffActor } from "@/lib/auth/types";
+import { db } from "@/lib/db";
+import type { SulitScope } from "@/lib/sulit-fields";
+
+/**
+ * SULIT and restricted exercises, as a page or an action meets them (ADR 0034 D14, Phase 3a). The rules are `src/lib/auth/sulit-access.ts`,
+ * the reads and the log `src/lib/auth/sulit-store.ts`; this binds them to the signed-in actor and to the request.
+ *
+ * - `sulitExerciseValue(s)` gives a loader's answer, a `Sulit<T>`, for one field of exercises, and writes a `SulitAccessEvent` for it, allowed or
+ *   refused. The value is read only where it is granted, so a withheld one never leaves the loader. If the access cannot be logged the value is
+ *   withheld (NFR-AUD-004: no unlogged read).
+ * - `exerciseIsHidden` is for a restricted exercise reached by its id: it says whether the actor may not see it, and logs the refusal. The caller
+ *   answers as it answers an exercise that does not exist, in the same words.
+ * - `hiddenExercises` is the list of ids a query leaves out (`exerciseNotHidden`).
+ *
+ * Within one request an event is written once: the same record, fields, outcome and basis (React's `cache()`, one set per request).
+ */
+
+const loggedThisRequest = cache(() => new Set<string>());
+const permissionOf = cache((actor: StaffActor) => organisationPermissionState(db, actor));
+
+/// Write the events this request has not written yet. False where the log could not be written: the caller shows nothing.
+async function log(actor: Reader, rows: SulitEventRow[]): Promise<boolean> {
+  const seen = loggedThisRequest();
+  const fresh = rows.filter((r) => !seen.has(eventKey(r)));
+  if (fresh.length === 0) return true;
+  try {
+    await writeSulitEvents(db, actor, fresh);
+    for (const r of fresh) seen.add(eventKey(r));
+    return true;
+  } catch (error) {
+    console.error("The SULIT access log could not be written, so the values are withheld:", error);
+    return false;
+  }
+}
+
+export interface ExerciseRef {
+  id: string;
+  reference: string;
+}
+
+/**
+ * One field of each of these exercises, as `Sulit<T>`. The facts of who is named are read once for all of them. `value` is called only for an
+ * exercise where the field is granted. A row whose exercise is not in the actor's organisation is withheld (it is not theirs to read).
+ */
+export async function sulitExerciseValues<T>(actor: StaffActor, exercises: readonly ExerciseRef[], field: string, value: (id: string) => T, scope: SulitScope = "exercise"): Promise<Map<string, Sulit<T>>> {
+  const out = new Map<string, Sulit<T>>();
+  if (exercises.length === 0) return out;
+  const [facts, permission] = await Promise.all([exerciseAccessFacts(db, actor.organisationId, exercises.map((e) => e.id)), permissionOf(actor)]);
+  const rows: SulitEventRow[] = [];
+  const decided = new Map<string, SulitDecision>();
+  for (const e of exercises) {
+    const f = facts.get(e.id);
+    // An exercise that is not the organisation's is not read at all; a restricted one is judged as restricted.
+    const decision: SulitDecision = f ? decisionFor(actor, scope, field, { restricted: f.restricted, named: f.named }, permission).decision : { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" };
+    decided.set(e.id, decision);
+    if (f) rows.push({ scope, entity: "SourcingExercise", entityId: e.id, entityLabel: e.reference, fields: [field], decision });
+  }
+  const logged = await log(actor, rows);
+  for (const e of exercises) {
+    const decision = decided.get(e.id)!;
+    out.set(e.id, !logged ? sulitWithheld<T>("NOT_LOGGED", scope) : applyDecision(decision, scope, () => value(e.id)));
+  }
+  return out;
+}
+
+export async function sulitExerciseValue<T>(actor: StaffActor, exercise: ExerciseRef, field: string, value: T | (() => T), scope: SulitScope = "exercise"): Promise<Sulit<T>> {
+  const got = await sulitExerciseValues(actor, [exercise], field, () => (typeof value === "function" ? (value as () => T)() : value), scope);
+  return got.get(exercise.id)!;
+}
+
+/**
+ * Whether a restricted exercise reached by its id is hidden from the actor (FR-MTD-007). True: answer "no longer exists", as for an id that is
+ * not there. The refusal is logged. An exercise that does not exist, or is the organisation's and not restricted, is not hidden.
+ */
+export async function exerciseIsHidden(actor: Reader, exerciseId: string): Promise<boolean> {
+  if (!(await exerciseHiddenFrom(db, actor, exerciseId))) return false;
+  const facts = (await exerciseAccessFacts(db, actor.organisationId, [exerciseId])).get(exerciseId);
+  await log(actor, [{ scope: "exercise", entity: "SourcingExercise", entityId: exerciseId, entityLabel: facts?.reference ?? "", fields: ["record"], decision: { state: "WITHHELD", basis: actor.isAdministrator ? "ADMINISTRATOR" : "RESTRICTED_NOT_NAMED" } }]);
+  return true;
+}
+
+/// The ids of the restricted exercises the actor may not see, for a list, a count, a feed or a search to leave out.
+export const hiddenExercises = (actor: Reader): Promise<string[]> => hiddenExerciseIds(db, actor);
+
+/**
+ * Whether a tabled matter belongs to an exercise the actor may not see (the committee's votes and outcomes on it, read by its id). True: answer as for a
+ * matter that does not exist. The refusal is logged against the exercise.
+ */
+export async function matterIsHidden(actor: Reader, decisionId: string): Promise<boolean> {
+  const hidden = await hiddenExerciseIds(db, actor);
+  if (hidden.length === 0) return false;
+  if ((await hiddenDecisionIds([decisionId], hidden)).size === 0) return false;
+  const row = await db.committeeDecision.findUnique({ where: { id: decisionId, meeting: { committee: { organisationId: actor.organisationId } } }, select: { exerciseId: true, bqVersion: { select: { exerciseId: true } }, bidEnvelope: { select: { exerciseId: true } }, evaluationBidder: { select: { evaluation: { select: { exerciseId: true } } } } } });
+  const exerciseId = [row?.exerciseId, row?.bqVersion?.exerciseId, row?.bidEnvelope?.exerciseId, row?.evaluationBidder?.evaluation.exerciseId].find((id): id is string => !!id && hidden.includes(id));
+  if (exerciseId) await exerciseIsHidden(actor, exerciseId);
+  return true;
+}

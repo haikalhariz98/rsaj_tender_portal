@@ -1,4 +1,5 @@
 import { staffRoute } from "@/app/_auth/route";
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 import { attendanceRegisterCsv } from "@/lib/window/read";
 
 /**
@@ -11,7 +12,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/sourcing/[id]/brief
   if (!guard.ok) return guard.response;
   const scope = guard.actor;
   const { id, eventId } = await ctx.params;
-  const file = await attendanceRegisterCsv(scope.organisationId, id, eventId);
+  // FR-MTD-007: a restricted exercise reads as one that does not exist to anyone not named on it.
+  const file = (await exerciseIsHidden(scope, id)) ? null : await attendanceRegisterCsv(scope.organisationId, id, eventId);
   if (!file) return new Response("That event is not on this exercise.", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
   return new Response(file.csv, {
     headers: {

@@ -24,6 +24,7 @@ const plainAmount = (sen: bigint) => senToDecimalString(sen).replace(/\.00$/, ""
 
 import { ExerciseForm } from "../exercise-form";
 import { requireStaff } from "@/app/_auth/actor";
+import { hiddenExercises } from "@/app/_auth/sulit";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
   const actor = await requireStaff();
   const { requisition } = (await props.searchParams) as { requisition?: string };
   const org = await exerciseOrg(actor.organisationId);
+  const hidden = await hiddenExercises(actor);
   const header = (
     <>
     <RecordCrumb label="New exercise" />
@@ -60,7 +62,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
     const reqs = await db.requisition.findMany({
       where: { organisationId: org.id, status: { in: ["APPROVED", "SOURCING"] } },
       orderBy: { reference: "desc" },
-      include: { approvalInstances: { select: { status: true, value: true, ruleKey: true, ruleLabel: true, checkedAgainstMatrix: true } }, exercises: { select: { estimatedValue: true, status: true } } },
+      include: { approvalInstances: { select: { status: true, value: true, ruleKey: true, ruleLabel: true, checkedAgainstMatrix: true } }, exercises: { select: { id: true, estimatedValue: true, status: true } } },
     });
     // Whether an exercise can be opened on each (UX 7).
     const judged = await Promise.all(reqs.map(async (q) => {
@@ -68,7 +70,10 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       const remaining = remainingOf(approved, q.exercises.map((x, i) => ({ id: String(i), value: parseSen(x.estimatedValue.toString()), status: x.status as ExerciseStatus })));
       const gate = (await gatesForRequisition(q.id))?.finding ?? { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const };
       const fault = openFault({ status: q.status, sourcingPermitted: q.sourcingPermitted, approvedRoute: !!approved, remaining }, { today: org.today, methodsConfigured: true, gate });
-      return { q, approved, remaining, fault };
+      // What is still to source is the approved value less every exercise's: where one of them is restricted to people this reader is not among, the figure
+      // would give its value away, so it is not stated (FR-MTD-007).
+      const partHidden = q.exercises.some((x) => hidden.includes(x.id));
+      return { q, approved, remaining, fault, partHidden };
     }));
     // Founder, 2026-10-05: only the requisitions an exercise can be opened on are listed.
     const row = (x: (typeof judged)[number]): Row => ({
@@ -77,7 +82,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
       cells: {
         title: { kind: "link", text: x.q.title, href: `/sourcing/new?requisition=${x.q.id}`, sub: x.q.reference },
         approved: { kind: "text", text: x.approved ? formatMoney(x.approved.value) : "No approved route" },
-        open: { kind: "text", text: x.remaining != null ? formatMoney(x.remaining) : "—" },
+        open: { kind: "text", text: x.partHidden ? "Not shown: part is in a restricted exercise" : x.remaining != null ? formatMoney(x.remaining) : "—" },
       },
     });
     const open = judged.filter((x) => !x.fault || x.fault.code === "TIME_ZONE_UNSET");
@@ -123,6 +128,9 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
   const options = await exerciseFormOptions(org.id, on, l.req.fundingPosture);
   const approved = approvedRouteOf(l.req);
   const remaining = remainingOf(approved, l.req.exercises.map((x) => ({ id: x.id, value: parseSen(x.estimatedValue.toString()), status: x.status as ExerciseStatus })));
+  // Where part of the requisition is in an exercise this reader may not see, what is already in other exercises and what is still to source would give
+  // its value away: neither is stated or pre-filled (FR-MTD-007). The act still judges the value against every exercise.
+  const partHidden = l.req.exercises.some((x) => hidden.includes(x.id));
   const gate = (await gatesForRequisition(l.req.id))?.finding ?? { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const };
   const fault = openFault({ status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!approved, remaining }, { today: org.today, methodsConfigured: options.methods.length > 0, gate });
   return (
@@ -152,10 +160,10 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
             reference: l.req.reference,
             title: l.req.title,
             // Founder, 2026-10-05: said only where part of the requisition is already in another exercise.
-            approved: approved && remaining != null && remaining < approved.value ? `${formatMoney(approved.value - remaining)} of this requisition is already in other exercises; ${formatMoney(remaining)} is still to source.` : "",
+            approved: partHidden ? "Part of this requisition is in an exercise restricted to its named people, so what is left to source is not shown." : approved && remaining != null && remaining < approved.value ? `${formatMoney(approved.value - remaining)} of this requisition is already in other exercises; ${formatMoney(remaining)} is still to source.` : "",
           }}
           options={options}
-          initial={{ title: l.req.title, estimatedValue: remaining != null && remaining > 0n ? plainAmount(remaining) : "", contractTypeCode: "" }}
+          initial={{ title: l.req.title, estimatedValue: !partHidden && remaining != null && remaining > 0n ? plainAmount(remaining) : "", contractTypeCode: "" }}
           cancelHref={`/requisitions/${l.req.id}?tab=sourcing`}
         />
       )}

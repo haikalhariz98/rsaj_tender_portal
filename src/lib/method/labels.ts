@@ -379,6 +379,23 @@ export function findingText(f: Finding): string {
 /// Faults, as one sentence each, with the cancel reason worded for its act.
 export const findingsText = (fs: readonly Finding[]) => fs.map(findingText);
 
+/**
+ * A finding's text for a reader who may not read the exercise's estimate (Phase 3a, ADR 0034 D14). Two findings state amounts that are made of it
+ * (the combined value of a requisition's live exercises, and the value its approval covered): for that reader they say so without the figures.
+ * Every other finding is the same text. A reader who may read the estimate gets `findingText`.
+ */
+export function findingTextFor(f: Finding, amountsWithheld: boolean): string {
+  if (!amountsWithheld) return findingText(f);
+  switch (f.code) {
+    case "EXCEEDS_APPROVED_VALUE":
+      return "Together with the requisition's other live exercises this comes to more than its approval covered (the amounts are SULIT and withheld from you). Reduce this exercise's value, cancel a sibling exercise, or cancel this exercise and raise a separate requisition for the difference. The requisition itself stays as approved.";
+    case "SPLIT_ACROSS_REGIME":
+      return "This exercise's value is in a different band from the requisition's live exercises together (the amounts are SULIT and withheld from you). Check that the work is not being split below a threshold.";
+    default:
+      return findingText(f);
+  }
+}
+
 /// The exercise's evidence lines (FR-MTD-009, FR-REQ-013): what is attached, as the document store counts it.
 export function evidenceChip(count: number, what: "dossier" | "scope"): { text: string; tone: "ok" | "warn" } {
   if (count > 0) return { text: count === 1 ? "1 document attached" : `${count} documents attached`, tone: "ok" };

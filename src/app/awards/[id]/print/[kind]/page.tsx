@@ -1,3 +1,4 @@
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -25,7 +26,8 @@ export default async function PrintPage(props: PageProps<"/awards/[id]/print/[ki
   const { id, kind: slug } = await props.params;
   const kind = kindOfSlug(slug);
   const l = await loadAward(actor.organisationId, id);
-  if (!l || !kind) notFound();
+  // FR-MTD-007: an award of a restricted exercise reads as gone to anyone not named on the exercise, and the attempt is logged.
+  if (!l || !kind || (await exerciseIsHidden(actor, l.award.exerciseId))) notFound();
   const { award, org } = l;
   const frozen = award.documents.find((d) => d.kind === kind) ?? null;
   let paragraphs: string[];

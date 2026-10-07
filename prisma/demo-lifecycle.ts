@@ -696,7 +696,7 @@ export async function checkLifecycleDemo(db: Db) {
   const adj = issuedAdjustments(await loadAdjustments(CON));
   if (adj.length !== 1 || adj[0].net !== 2_028_500n) fail(`the adjustment of the contract sum reads ${adj.map((a) => a.net).join()}`);
   // demo_con3: its variation waits at the Finance Director's step on Approvals.
-  const w = await loadWorklist(await demoScope());
+  const w = await loadWorklist(await demoScope(), []);
   const rows = JSON.stringify(w);
   if (!rows.includes("/variations/")) fail("no variation's step on the Approvals worklist");
 }

@@ -8,6 +8,7 @@ import { Callout } from "@/components/ui/feedback";
 import { loadExercise } from "@/lib/method/repo";
 import { saleRegister } from "@/lib/window/read";
 import { requireStaff } from "@/app/_auth/actor";
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ export const dynamic = "force-dynamic";
 export default async function SaleLabelPage(props: PageProps<"/sourcing/[id]/label/[saleId]">) {
   const actor = await requireStaff();
   const { id, saleId } = await props.params;
+  // FR-MTD-007: an exercise restricted to its named people reads as one that does not exist to anyone else, and the attempt is logged.
+  if (await exerciseIsHidden(actor, id)) notFound();
   const [l, register] = await Promise.all([loadExercise(actor.organisationId, id), saleRegister(actor.organisationId, id)]);
   const sale = register?.rows.find((r) => r.id === saleId);
   if (!l || !sale) notFound();

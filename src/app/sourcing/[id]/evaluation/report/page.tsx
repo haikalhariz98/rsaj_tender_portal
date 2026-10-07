@@ -19,6 +19,7 @@ import type { EvaluationRoute, Side, StageKind } from "@/lib/evaluation/types";
 import { formatMoney, parseSen } from "@/lib/money";
 import { exerciseOrg } from "@/lib/method/repo";
 import { requireStaff } from "@/app/_auth/actor";
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ export const dynamic = "force-dynamic";
 export default async function EvaluationReportPrint(props: PageProps<"/sourcing/[id]/evaluation/report">) {
   const actor = await requireStaff();
   const { id } = await props.params;
+  // FR-MTD-007: an exercise restricted to its named people reads as one that does not exist to anyone else, and the attempt is logged.
+  if (await exerciseIsHidden(actor, id)) notFound();
   const wanted = Number((await props.searchParams).version) || null;
   const org = await exerciseOrg(actor.organisationId);
   if (!org) notFound();

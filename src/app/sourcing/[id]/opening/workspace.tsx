@@ -1,3 +1,4 @@
+import type { Reader } from "@/lib/auth/sulit-store";
 import type { ReactNode } from "react";
 
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
@@ -261,8 +262,8 @@ function LateCard({ d }: { d: OpeningSectionView }) {
 
 // ------------------------------------------------------------------ the Schedule section
 
-export async function loadSchedule(scope: OrgScope, exerciseId: string): Promise<OpeningTabView> {
-  const d = await scheduleSection(scope.organisationId, exerciseId);
+export async function loadSchedule(scope: Reader & { organisationTimeZone: string | null }, exerciseId: string): Promise<OpeningTabView> {
+  const d = await scheduleSection(scope, exerciseId);
   if (!d) return { panel: GONE, actions: null, notes: [] };
   return { actions: null, notes: [], panel: <SchedulePanel d={d} /> };
 }
@@ -331,7 +332,7 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
       </div>
       {o.benchmark && (
         <CardBody className="border-t border-line">
-          <KeyValues items={[{ label: o.benchmark.sealed ? "Company estimate" : o.benchmark.label, value: o.benchmark.sealed ? o.benchmark.text : <SulitValue>{o.benchmark.companyEstimate}</SulitValue> }]} />
+          <KeyValues items={[{ label: o.benchmark.sealed ? "Company estimate" : o.benchmark.label, value: o.benchmark.sealed ? o.benchmark.text : <SulitValue of={o.benchmark.companyEstimate} /> }]} />
         </CardBody>
       )}
       {o.copy && (

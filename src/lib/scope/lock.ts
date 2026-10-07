@@ -7,6 +7,7 @@
  */
 
 import type { Tx } from "@/lib/audit/record";
+import type { Reader } from "@/lib/auth/sulit-store";
 import { db } from "@/lib/db";
 import { requisitionOfExercise, withLockedRequisitionForSourcing, type ExerciseOrg, type ExerciseRow } from "@/lib/method/repo";
 
@@ -16,10 +17,10 @@ export interface LockedExercise {
 }
 
 /// Lock the exercise (requisition first) and run `fn` in the same transaction. Null when it does not exist.
-export async function withLockedExerciseScope<T>(organisationId: string, exerciseId: string, fn: (tx: Tx, l: LockedExercise) => Promise<T>): Promise<T | null> {
-  const requisitionId = await requisitionOfExercise(organisationId, exerciseId);
+export async function withLockedExerciseScope<T>(reader: Reader, exerciseId: string, fn: (tx: Tx, l: LockedExercise) => Promise<T>): Promise<T | null> {
+  const requisitionId = await requisitionOfExercise(reader.organisationId, exerciseId);
   if (!requisitionId) return null;
-  return withLockedRequisitionForSourcing(organisationId, requisitionId, exerciseId, async (tx, l) => (l.ex ? fn(tx, { org: l.org, ex: l.ex }) : null));
+  return withLockedRequisitionForSourcing(reader, requisitionId, exerciseId, async (tx, l) => (l.ex ? fn(tx, { org: l.org, ex: l.ex }) : null));
 }
 
 /// The panel's exercise, read without a lock, to know what to lock.

@@ -1,3 +1,5 @@
+import { hiddenExercises } from "@/app/_auth/sulit";
+import type { Reader } from "@/lib/auth/sulit-store";
 import type { ReactNode } from "react";
 
 import { ButtonLink } from "@/components/ui/button";
@@ -51,11 +53,11 @@ export const invitationSectionsFor = (status: string) => (invitationStage(status
  * are in preparation or awaiting approval for tendering, the window's items and the briefings are
  * shown and can be prepared (the server allows both); the sections open from approval for tendering.
  */
-export async function loadInvitation(scope: OrgScope, section: InvitationSectionId, c: WindowContext): Promise<InvitationView> {
+export async function loadInvitation(scope: Reader, section: InvitationSectionId, c: WindowContext): Promise<InvitationView> {
   const none = { actions: null, notes: [] as [string, string][], cancel: null };
   const stage = invitationStage(c.status, c.noPack);
   if (stage === "preparing") {
-    const [w, b] = await Promise.all([windowTab(scope.organisationId, c.exerciseId), briefingTab(scope.organisationId, c.exerciseId)]);
+    const [w, b] = await Promise.all([windowTab(scope.organisationId, c.exerciseId, await hiddenExercises(scope)), briefingTab(scope.organisationId, c.exerciseId)]);
     if (!w || !b) return { ...none, panel: GONE };
     return { ...none, panel: <PreparingSection w={w} b={b} c={c} /> };
   }
@@ -96,7 +98,7 @@ export async function loadInvitation(scope: OrgScope, section: InvitationSection
     if (!d) return { ...none, panel: GONE };
     return { ...(await withTabActs(scope, addendaHeader(d, c), c)), panel: <AddendaSection d={d} c={c} /> };
   }
-  const d = await windowTab(scope.organisationId, c.exerciseId);
+  const d = await windowTab(scope.organisationId, c.exerciseId, await hiddenExercises(scope));
   if (!d) return { ...none, panel: GONE };
   return { ...windowHeader(d, c), panel: <WindowSection d={d} c={c} /> };
 }

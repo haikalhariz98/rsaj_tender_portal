@@ -537,7 +537,9 @@ describe("the pre-award sheet's acts keep the award's lock order (R-8)", () => {
   it("every act runs inside inAwardSheet, which is withLockedAward, and reads the clock once on entry", () => {
     const src = read(ROUTING_ACTIONS);
     const helper = src.slice(src.indexOf("async function inAwardSheet"), src.indexOf("const idOf"));
-    expect(helper).toContain("withLockedAward(");
+    // Phase 3a (FR-MTD-007), a deliberate change: the pre-award sheet reads an award through `withLockedAwardFor`, which refuses the award of a restricted exercise
+    // to a reader not named on it and then takes the same lock (`withLockedAward`). The lock order is unchanged.
+    expect(helper).toContain("withLockedAwardFor(");
     expect(helper).not.toMatch(/new Date\(\)/);
     const acts = actions(src);
     expect(acts.size).toBe(3);

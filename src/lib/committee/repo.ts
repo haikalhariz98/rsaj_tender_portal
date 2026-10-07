@@ -11,14 +11,15 @@ const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.t
  * matter's amount must equal it), or an award's awarded value. The record must be the
  * organisation's; otherwise nothing is filled in. The figure is the stored decimal, unrounded.
  */
-export async function tablingAmount(organisationId: string, source: TablingSource): Promise<string | null> {
+/// `hidden`: the restricted exercises the reader may not see; an award of one fills in nothing (FR-MTD-007).
+export async function tablingAmount(organisationId: string, source: TablingSource, hidden: readonly string[]): Promise<string | null> {
   if (!source) return null;
   const organisation = organisationId;
   if (source.kind === "requisition") {
     const r = await db.requisition.findFirst({ where: { id: source.id, organisationId: organisation }, select: { estimatedValue: true } });
     return r ? r.estimatedValue.toString() : null;
   }
-  const a = await db.award.findFirst({ where: { id: source.id, organisationId: organisation }, select: { awardedValue: true } });
+  const a = await db.award.findFirst({ where: { id: source.id, organisationId: organisation, ...(hidden.length ? { exerciseId: { notIn: [...hidden] } } : {}) }, select: { awardedValue: true } });
   return a?.awardedValue != null ? a.awardedValue.toString() : null;
 }
 

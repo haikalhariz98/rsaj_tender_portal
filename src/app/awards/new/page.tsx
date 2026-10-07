@@ -1,3 +1,4 @@
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 import Link from "next/link";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
@@ -36,7 +37,8 @@ export const dynamic = "force-dynamic";
 export default async function NewAwardPage(props: PageProps<"/awards/new">) {
   const actor = await requireStaff();
   const { exercise } = (await props.searchParams) as { exercise?: string };
-  const l = exercise ? await loadExercise(actor.organisationId, exercise) : null;
+  // FR-MTD-007: an exercise restricted to its named people reads as one that does not exist to anyone else.
+  const l = exercise && !(await exerciseIsHidden(actor, exercise)) ? await loadExercise(actor.organisationId, exercise) : null;
   const header = (
     <>
       <RecordCrumb label="New award" />

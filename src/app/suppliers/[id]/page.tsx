@@ -1,3 +1,4 @@
+import { hiddenExercises } from "@/app/_auth/sulit";
 import { ActedBy } from "@/components/attribution";
 import Link from "next/link";
 import { historyEntityLabel, historyValueWords } from "@/lib/audit/entity-labels";
@@ -83,7 +84,7 @@ const first = (fs: readonly Finding[]) => (blocking(fs).length ? supplierFaultTe
 export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) {
   const actor = await requireStaff();
   const [{ id }, { tab, exercise, fromAward }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; exercise?: string; fromAward?: string }>]);
-  const l = await loadSupplier(actor.organisationId, id);
+  const l = await loadSupplier(actor.organisationId, id, await hiddenExercises(actor));
   if (!l) notFound();
   const { supplier: s, org } = l;
   const today = org.today;

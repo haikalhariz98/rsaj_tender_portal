@@ -7,6 +7,7 @@ import { someoneCanAct } from "@/lib/authority/absence";
 import { KIND_WORDS } from "@/lib/certificate/labels";
 import { EVENT_WORDS } from "@/lib/variation/labels";
 import { dayToDate, todayIn } from "@/lib/dates";
+import { approvalRouteNotHidden } from "@/lib/auth/sulit-store";
 import { db } from "@/lib/db";
 import { exerciseRouteMatter } from "@/lib/method/approval";
 import type { OrgScope } from "@/lib/org-scope";
@@ -19,13 +20,14 @@ import { supplierHolders } from "@/lib/suppliers/route";
 
 import { officeQueue, type QueueStep } from "./queue";
 
-export async function loadWorklist(scope: OrgScope) {
+/// `hidden`: the restricted exercises the reader may not see. A route on one (its name, its award, a special permission on it) is not in the queue (FR-MTD-007).
+export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
   const org = await db.organisation.findUnique({ where: { id: scope.organisationId }, select: { id: true, timeZone: true } });
   if (!org) return null;
   const today = todayIn(new Date(), org.timeZone);
   const [routes, units, roster, delegations] = await Promise.all([
     db.approvalInstance.findMany({
-      where: { organisationId: org.id, status: "PENDING" },
+      where: { organisationId: org.id, status: "PENDING", ...approvalRouteNotHidden(hidden) },
       orderBy: [{ openedAt: "asc" }, { createdAt: "asc" }],
       include: {
         steps: { orderBy: { sequence: "asc" } },

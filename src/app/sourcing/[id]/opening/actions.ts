@@ -1,5 +1,6 @@
 "use server";
 
+import type { Reader } from "@/lib/auth/sulit-store";
 import { Prisma } from "@/generated/prisma/client";
 import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
@@ -51,7 +52,6 @@ import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct, type PreparedAct } from "@/app/_auth/act";
 import { loadRecorders, recorderKey } from "@/lib/auth/attribution-recorders";
 import type { StaffActor } from "@/lib/auth/types";
-import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for 6.7's opening (plan §4, as ruled C-1..C-13). Each runs in one transaction that locks the
@@ -74,7 +74,7 @@ const GONE_BID: FormState = { ok: false, message: "That offer is not on this exe
 const ENVELOPE_CHANGED: FormState = { ok: false, message: "The envelope changed while this was being saved. Nothing was saved. Reload and try again." };
 
 /// Run an opening write with every lock its order asks for, and the context read under them.
-async function inOpening(scope: OrgScope, exerciseId: string, now: Date, fn: (tx: Tx, l: LockedWindow, c: OpeningContext) => Promise<FormState>, opts: { estimate?: boolean } = {}): Promise<FormState> {
+async function inOpening(scope: Reader, exerciseId: string, now: Date, fn: (tx: Tx, l: LockedWindow, c: OpeningContext) => Promise<FormState>, opts: { estimate?: boolean } = {}): Promise<FormState> {
   return inWindow(scope, exerciseId, async (tx, l) => {
     await lockOpeningRows(tx, l.ex.id);
     if (opts.estimate) await lockLiveEstimateRows(tx, l.ex.id);

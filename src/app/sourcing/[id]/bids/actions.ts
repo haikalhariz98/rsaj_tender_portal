@@ -1,5 +1,6 @@
 "use server";
 
+import type { Reader } from "@/lib/auth/sulit-store";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -33,7 +34,6 @@ import { activePerson, audit, exerciseIdOf, inWindow, label, type LockedWindow }
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import { beginAct, type PreparedAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
-import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for 6.6's envelope register (plan §4). Each runs in one transaction that locks the
@@ -80,7 +80,7 @@ function readReceipt(r: FormReader) {
  * Record a receipt, stamped now by the server. `stated` is the after-the-fact path's: the
  * officer's stated time and reason, kept beside the stamp and never judged (OD-3 amended).
  */
-async function receive(scope: OrgScope, actor: AuditActor, act: PreparedAct, exerciseId: string, v: ReturnType<typeof readReceipt>, stated: { at: Date; reason: string } | null, now: Date): Promise<FormState> {
+async function receive(scope: Reader, actor: AuditActor, act: PreparedAct, exerciseId: string, v: ReturnType<typeof readReceipt>, stated: { at: Date; reason: string } | null, now: Date): Promise<FormState> {
   return inWindow(scope, exerciseId, async (tx, l) => {
     const r = await locked(tx, l);
     const person = await nameOf(tx, l.org.id, act.subjectPersonId);

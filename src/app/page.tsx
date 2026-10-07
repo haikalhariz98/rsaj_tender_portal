@@ -1,3 +1,4 @@
+import { hiddenExercises } from "@/app/_auth/sulit";
 import { formatMoney } from "@/lib/money";
 import {
   AwardIcon,
@@ -66,7 +67,7 @@ const COMING = [
 
 export default async function Dashboard() {
   const actor = await requireStaff();
-  const [data, timeZone] = await Promise.all([loadDashboard(actor.organisationId), organisationTimeZone(actor.organisationId)]);
+  const [data, timeZone] = await Promise.all([loadDashboard(actor.organisationId, await hiddenExercises(actor)), organisationTimeZone(actor.organisationId)]);
 
   if (!data) {
     return (

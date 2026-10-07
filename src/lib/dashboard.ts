@@ -4,6 +4,7 @@ import { openStepOf, oldestWaitingDays } from "@/lib/approvals/queue";
 import { todayIn } from "@/lib/dates";
 import { EXERCISE_STATUS_ORDER } from "@/lib/method/labels";
 import type { ExerciseStatus } from "@/lib/method/types";
+import { exerciseIdNotHidden, exerciseNotHidden } from "@/lib/auth/sulit-store";
 import { db } from "@/lib/db";
 import type { FieldChange } from "@/lib/audit/diff";
 import { organisationTimeZone } from "@/lib/org-time";
@@ -53,7 +54,8 @@ export interface RequisitionWaiting {
  * modules; until then those cards say so rather than showing a zero that looks like
  * a quiet week.
  */
-export async function loadDashboard(organisationId: string, asOf: Date = new Date()) {
+/// `hidden`: the restricted exercises the reader may not see (FR-MTD-007). Their matters, their counts and their lines in the feed are left out.
+export async function loadDashboard(organisationId: string, hidden: readonly string[], asOf: Date = new Date()) {
   const org = await db.organisation.findUnique({
     where: { id: organisationId },
     select: { id: true },
@@ -61,7 +63,7 @@ export async function loadDashboard(organisationId: string, asOf: Date = new Dat
   if (!org) return null;
 
   const decisions = await db.committeeDecision.findMany({
-    where: { meeting: { committee: { organisationId: org.id } } },
+    where: { meeting: { committee: { organisationId: org.id } }, ...exerciseIdNotHidden(hidden) },
     include: {
       votes: { include: { person: true }, orderBy: { votedAt: "desc" } },
       meeting: {
@@ -96,7 +98,7 @@ export async function loadDashboard(organisationId: string, asOf: Date = new Dat
   // Summed in sen, never through a float (ruling C6).
   const committed = committedSen(decisions);
 
-  const activity = await recentActivity(org.id, await organisationTimeZone(org.id));
+  const activity = await recentActivity(org.id, await organisationTimeZone(org.id), hidden);
 
   const meetings = await db.meeting.count({
     where: { committee: { organisationId: org.id } },
@@ -138,7 +140,7 @@ export async function loadDashboard(organisationId: string, asOf: Date = new Dat
   const oldestWaiting = oldestWaitingDays([...requisitions.map((r) => r.waitingDays), ...queue.map((q) => q.waitingDays)]);
 
   const exercises = exerciseTally(
-    (await db.sourcingExercise.findMany({ where: { organisationId: org.id }, select: { status: true } })).map((e) => e.status as ExerciseStatus),
+    (await db.sourcingExercise.findMany({ where: { organisationId: org.id, ...exerciseNotHidden(hidden) }, select: { status: true } })).map((e) => e.status as ExerciseStatus),
     EXERCISE_STATUS_ORDER,
   );
 
@@ -178,18 +180,45 @@ export type Dashboard = NonNullable<Awaited<ReturnType<typeof loadDashboard>>>;
 const ACTIVITY_READ = 60;
 
 /**
+ * The feed's entries without those about a hidden exercise (FR-MTD-007): its own rows, its approval steps, its awards and the matters tabled on it.
+ * The feed is made from the audit trail, whose rows name a record by id, so each kind is traced to its exercise here and dropped. Nothing is
+ * dropped when no exercise is hidden from the reader.
+ */
+async function withoutHiddenExercises(entries: ActivityEntry[], hidden: readonly string[]): Promise<ActivityEntry[]> {
+  if (hidden.length === 0) return entries;
+  const gone = new Set(hidden);
+  const idsOf = (entity: string) => [...new Set(entries.filter((e) => e.entity === entity).map((e) => e.entityId))];
+  const [steps, awards, decisions] = await Promise.all([
+    db.approvalStep.findMany({ where: { id: { in: idsOf("ApprovalStep") } }, select: { id: true, instance: { select: { exerciseId: true, award: { select: { exerciseId: true } } } } } }),
+    db.award.findMany({ where: { id: { in: idsOf("Award") } }, select: { id: true, exerciseId: true } }),
+    db.committeeDecision.findMany({ where: { id: { in: idsOf("CommitteeDecision") } }, select: { id: true, exerciseId: true } }),
+  ]);
+  const hiddenStep = new Set(steps.filter((s) => (s.instance.exerciseId && gone.has(s.instance.exerciseId)) || (s.instance.award && gone.has(s.instance.award.exerciseId))).map((s) => s.id));
+  const hiddenAward = new Set(awards.filter((a) => gone.has(a.exerciseId)).map((a) => a.id));
+  const hiddenDecision = new Set(decisions.filter((d) => d.exerciseId && gone.has(d.exerciseId)).map((d) => d.id));
+  return entries.filter((e) => {
+    if (e.entity === "SourcingExercise") return !gone.has(e.entityId);
+    if (e.entity === "ApprovalStep") return !hiddenStep.has(e.entityId);
+    if (e.entity === "Award") return !hiddenAward.has(e.entityId);
+    if (e.entity === "CommitteeDecision") return !hiddenDecision.has(e.entityId);
+    return true;
+  });
+}
+
+/**
  * The newest acts across requisitions, approvals, exercises, sittings, tabled matters
  * and awards, from the audit trail. Votes, recusals, attendance and configuration are
  * not in the allowlist, so those rows are never read.
  */
-async function recentActivity(organisationId: string, timeZone: string | null) {
+async function recentActivity(organisationId: string, timeZone: string | null, hidden: readonly string[]) {
   const rows = await db.auditEntry.findMany({
     where: { organisationId, entity: { in: [...ACTIVITY_ENTITIES] } },
     orderBy: { at: "desc" },
     take: ACTIVITY_READ,
     select: { id: true, entity: true, entityId: true, entityLabel: true, action: true, changes: true, reason: true, at: true },
   });
-  const entries: ActivityEntry[] = rows.map((r) => ({ ...r, action: r.action as ActivityEntry["action"], changes: (r.changes ?? []) as unknown as FieldChange[] }));
+  const all: ActivityEntry[] = rows.map((r) => ({ ...r, action: r.action as ActivityEntry["action"], changes: (r.changes ?? []) as unknown as FieldChange[] }));
+  const entries = await withoutHiddenExercises(all, hidden);
 
   // One batched lookup per kind of owner: the record a step or a tabled matter belongs
   // to, and the committee of a sitting.

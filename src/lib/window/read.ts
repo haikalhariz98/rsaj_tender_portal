@@ -99,7 +99,8 @@ function ruleRows(d: WindowData) {
  * invitee list against the approved list, with the letters (invited), the closing's history and
  * the changes asked for, and every act's state. Null where the exercise does not exist.
  */
-export async function windowTab(organisationId: string, exerciseId: string) {
+/// `hidden`: the restricted exercises the reader may not see; a replaced or replacing exercise among them is not linked (FR-MTD-007).
+export async function windowTab(organisationId: string, exerciseId: string, hidden: readonly string[]) {
   const x = await load(organisationId, exerciseId);
   if (!x) return null;
   const { org, ex, d, now } = x;
@@ -119,7 +120,7 @@ export async function windowTab(organisationId: string, exerciseId: string) {
   const pending = changeRoutes.find((r) => r.status === "PENDING") ?? null;
   const cancelledOn = formatCancelledOn(w?.cancellations ?? [], tz);
   // A cancelled exercise and the one that replaces it link each other (FR-ADV-016).
-  const related = await db.sourcingExercise.findMany({ where: { OR: [...(ex.replacesExerciseId ? [{ id: ex.replacesExerciseId }] : []), { replacesExerciseId: ex.id }] }, select: { id: true, reference: true, replacesExerciseId: true }, orderBy: { reference: "asc" } });
+  const related = (await db.sourcingExercise.findMany({ where: { OR: [...(ex.replacesExerciseId ? [{ id: ex.replacesExerciseId }] : []), { replacesExerciseId: ex.id }] }, select: { id: true, reference: true, replacesExerciseId: true }, orderBy: { reference: "asc" } })).filter((r) => !hidden.includes(r.id));
   const history = closingHistory(d.approved?.approvedClosingAt ? { closingAt: d.approved.approvedClosingAt, approvedAt: d.approved.approvedAt } : null, w?.closingChanges ?? []);
   const proposed = proposedInvitees(d.parties);
   const nameRoutes = nameRoutesWithLists(ex, d.invitees);

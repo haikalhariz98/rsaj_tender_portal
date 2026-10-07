@@ -14,6 +14,7 @@ import {
   fieldIsFor,
   grantedWords,
   mapSulit,
+  namedAfterRemovingParticipant,
   namedOn,
   namedOnEvaluation,
   namedOnExercise,
@@ -87,6 +88,21 @@ describe("who is named on an exercise", () => {
   it("no facts, or no person, names nobody", () => {
     expect(namedOn("exercise", null, "a")).toEqual([]);
     expect(namedOn("exercise", f, null)).toEqual([]);
+  });
+});
+
+describe("a restricted exercise keeps someone who can see it", () => {
+  it("removing the only participant leaves nobody", () => {
+    expect(namedAfterRemovingParticipant(facts({ participantIds: ["a"] }), "a")).toEqual([]);
+  });
+  it("removing one of two leaves the other", () => {
+    expect(namedAfterRemovingParticipant(facts({ participantIds: ["a", "b"] }), "a")).toEqual(["b"]);
+  });
+  it("the person in charge, the reviewer, the team and the panel stay named when a participant is removed", () => {
+    expect(namedAfterRemovingParticipant(facts({ participantIds: ["a"], personInChargeId: "b", proposalReviewerId: "c", evaluationTeamIds: ["d"], openingPanelIds: ["e"] }), "a").sort()).toEqual(["b", "c", "d", "e"]);
+  });
+  it("a person named as a participant and another way stays named after the participant row goes", () => {
+    expect(namedAfterRemovingParticipant(facts({ participantIds: ["a"], personInChargeId: "a" }), "a")).toEqual(["a"]);
   });
 });
 
@@ -205,7 +221,7 @@ describe("the words", () => {
   });
   it("a scope with no list says nobody is named, and one with a list says you are not", () => {
     expect(refusalWords("NOT_NAMED_PERMISSION_UNDECIDED", "supplier").en).toMatch(/^No list names/);
-    expect(refusalWords("NOT_NAMED_PERMISSION_UNDECIDED", "exercise").en).toMatch(/^you are not named/);
+    expect(refusalWords("NOT_NAMED_PERMISSION_UNDECIDED", "exercise").en).toMatch(/^You are not named/);
   });
   it("every granting basis has words", () => {
     for (const b of SULIT_GRANT_BASES) expect(grantedWords(b).en.length).toBeGreaterThan(10);

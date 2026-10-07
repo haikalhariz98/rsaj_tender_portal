@@ -9,7 +9,7 @@ import {
   SearchIcon,
 } from "@/components/icons";
 import { AvatarStack, Avatar } from "@/components/ui/avatar";
-import { Badge, Chip, SulitLock } from "@/components/ui/badge";
+import { Badge, Chip, SulitLock, SulitWithheld } from "@/components/ui/badge";
 import { Button, iconButtonClass } from "@/components/ui/button";
 import { cx } from "@/components/ui/cx";
 import { EmptyState, Meter } from "@/components/ui/feedback";
@@ -54,7 +54,10 @@ export type Cell =
   /// A filled bar with the figure beside it, and a marker at the configured warning
   /// threshold. Null percent renders as not set — a code with no allocation has not
   /// used none of its budget, and a bar drawn at zero says it has.
-  | { kind: "meter"; percent: number | null; threshold: number | null };
+  | { kind: "meter"; percent: number | null; threshold: number | null }
+  /// A SULIT value the reader is not entitled to (Phase 3a, `Sulit<T>`): "SULIT · withheld", with the reason in words. It carries no value, so
+  /// there is nothing to search, sort or export. Give the row no sort key for the column, or the order would give the value away.
+  | { kind: "withheld"; words: string };
 
 export interface Column {
   key: string;
@@ -221,6 +224,8 @@ function cellText(cell: Cell | undefined): string {
       return cell.items.map((i) => (i.provenance ? `${i.text} (${provenanceLabel(i.provenance)})` : i.text)).join(" · ");
     case "meter":
       return cell.percent == null ? "" : `${cell.percent}%`;
+    case "withheld":
+      return "";
   }
 }
 
@@ -301,6 +306,8 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
       return cell.names.length === 0 ? dash : <AvatarStack names={cell.names} max={cell.max ?? 4} />;
     case "meter":
       return <Meter percent={cell.percent} threshold={cell.threshold} />;
+    case "withheld":
+      return <SulitWithheld words={cell.words} />;
     case "chips":
       return cell.items.length === 0 ? (
         dash

@@ -1,5 +1,6 @@
 "use server";
 
+import type { Reader } from "@/lib/auth/sulit-store";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -50,7 +51,6 @@ import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
-import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for 6.4 increment 1: an exercise's tender pack, its parts and its Appendix, the
@@ -90,12 +90,12 @@ const packLabel = (l: { ex: { reference: string } }, p: { versionNo: number }) =
 type LockedExercise = { org: ExerciseOrg; req: SourcingRequisition; ex: ExerciseRow };
 
 /// Lock the exercise (requisition first), then its packs, and run `fn` on the packs read under the lock.
-async function inPacks(scope: OrgScope, exerciseId: string, fn: (tx: Tx, l: LockedExercise, packs: PackRow[]) => Promise<FormState>): Promise<FormState> {
+async function inPacks(scope: Reader, exerciseId: string, fn: (tx: Tx, l: LockedExercise, packs: PackRow[]) => Promise<FormState>): Promise<FormState> {
   const requisitionId = await requisitionOfExercise(scope.organisationId, exerciseId);
   if (!requisitionId) return GONE;
   let result: FormState | null;
   try {
-    result = await withLockedRequisitionForSourcing(scope.organisationId, requisitionId, exerciseId, async (tx, l) => {
+    result = await withLockedRequisitionForSourcing(scope, requisitionId, exerciseId, async (tx, l) => {
       if (!l.ex) return GONE;
       await lockPackRows(tx, exerciseId);
       return fn(tx, { org: l.org, req: l.req, ex: l.ex }, await loadPacks(exerciseId, tx));

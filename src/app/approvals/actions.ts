@@ -1,5 +1,6 @@
 "use server";
 
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 import { actStatusFault, actStatusText, certificateAct } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import type { CertificateKind } from "@/lib/certificate/types";
@@ -65,6 +66,10 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
   });
   if (!found) return { ok: false, message: "That step no longer exists." };
   const route = found.instance;
+  // FR-MTD-007: a step on the route of a restricted exercise (its name, its award, a special permission on it) reads as gone to anyone not named on the
+  // exercise, and the attempt is logged. A route behind a contract is the contract's, which is not hidden.
+  const behind = route.exerciseId ?? (route.specialPermissionId ? ((await db.specialPermission.findFirst({ where: { id: route.specialPermissionId, exercise: { organisationId: actor.organisationId } }, select: { exerciseId: true } }))?.exerciseId ?? null) : null);
+  if (behind && (await exerciseIsHidden(actor, behind))) return { ok: false, message: "That step no longer exists." };
   // 6.13 Part A step 3 (614-C4): a certificate's route locks its chain as every certificate act does: the requisition,
   // the exercise and the award behind its contract, then the contract, then the certificate.
   const cert = route.certificate?.contractId ? { id: route.certificateId!, contractId: route.certificate.contractId, awardId: route.certificate.contract.awardId, exerciseId: route.certificate.contract.award.exerciseId } : null;

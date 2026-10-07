@@ -226,7 +226,7 @@ export async function EligibilityPanel({ l, exerciseId }: { l: LoadedSupplier; e
   const today = l.org.today;
   const linkedIds = new Set(s.parties.map((p) => p.exerciseId));
   const exercises = await db.sourcingExercise.findMany({
-    where: { organisationId: l.org.id, OR: [{ id: { in: [...linkedIds] } }, { window: { advertisementDay: { not: null } } }] },
+    where: { organisationId: l.org.id, ...(l.hidden.length ? { id: { notIn: l.hidden } } : {}), OR: [{ id: { in: [...linkedIds] } }, { window: { advertisementDay: { not: null } } }] },
     orderBy: [{ reference: "desc" }],
     take: 200,
     select: { id: true, reference: true, title: true },
@@ -298,8 +298,8 @@ export async function ParticipationPanel({ l, people }: { l: LoadedSupplier; peo
   const today = l.org.today;
   const suggestions = await suggestionsFor(l.org.code, people, today);
   const [unlinked, partyless, bodies] = await Promise.all([
-    db.exerciseParty.findMany({ where: { organisationId: l.org.id, vendorId: null }, orderBy: [{ exercise: { reference: "desc" } }, { name: "asc" }], take: 300, select: { id: true, name: true, registrationNo: true, exercise: { select: { reference: true } } } }),
-    db.award.findMany({ where: { organisationId: l.org.id, vendorId: null, awardeePartyId: null }, orderBy: { reference: "desc" }, select: { id: true, reference: true, awardeeName: true } }),
+    db.exerciseParty.findMany({ where: { organisationId: l.org.id, vendorId: null, ...(l.hidden.length ? { exerciseId: { notIn: l.hidden } } : {}) }, orderBy: [{ exercise: { reference: "desc" } }, { name: "asc" }], take: 300, select: { id: true, name: true, registrationNo: true, exercise: { select: { reference: true } } } }),
+    db.award.findMany({ where: { organisationId: l.org.id, vendorId: null, awardeePartyId: null, ...(l.hidden.length ? { exerciseId: { notIn: l.hidden } } : {}) }, orderBy: { reference: "desc" }, select: { id: true, reference: true, awardeeName: true } }),
     db.registrationBody.findMany({ where: { organisationId: l.org.id, retiredOn: null }, orderBy: { labelEn: "asc" }, select: { id: true, labelEn: true } }),
   ]);
   return (

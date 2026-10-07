@@ -8,6 +8,7 @@
  * People are recorded on their behalf, not signed. Codes go back, never figures.
  */
 
+import type { Reader } from "@/lib/auth/sulit-store";
 import type { FormState } from "@/components/record-editor";
 import type { Tx } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
@@ -18,7 +19,6 @@ import { blocking, type Finding } from "@/lib/evaluation/types";
 import { lockOpeningRows } from "@/lib/opening/lock";
 
 import { inWindow, type LockedWindow } from "../window/shared";
-import type { OrgScope } from "@/lib/org-scope";
 
 export const stampNow = () => toSecond(new Date());
 
@@ -29,7 +29,7 @@ export const NO_EVALUATION: FormState = { ok: false, message: "No evaluation is 
 export const GONE_BIDDER: FormState = { ok: false, message: "That bid is not in this evaluation." };
 
 /// Run an evaluation write with every lock its order asks for, and the context read under them.
-export async function inEvaluation(scope: OrgScope, exerciseId: string, fn: (tx: Tx, l: LockedWindow, c: EvaluationContext) => Promise<FormState>): Promise<FormState> {
+export async function inEvaluation(scope: Reader, exerciseId: string, fn: (tx: Tx, l: LockedWindow, c: EvaluationContext) => Promise<FormState>): Promise<FormState> {
   return inWindow(scope, exerciseId, async (tx, l) => {
     await lockOpeningRows(tx, l.ex.id);
     await lockEvaluationRows(tx, l.ex.id);

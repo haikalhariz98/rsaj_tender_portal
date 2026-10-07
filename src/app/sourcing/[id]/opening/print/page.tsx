@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { PrintButton } from "@/app/awards/[id]/print/[kind]/print-button";
 import { PrinterIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
-import { Chip } from "@/components/ui/badge";
+import { Chip, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -13,6 +13,7 @@ import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 import { scheduleSection } from "@/lib/opening/read";
 import { requireStaff } from "@/app/_auth/actor";
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,10 @@ const NOT_FINALISED = "Not finalised";
 export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/opening/print">) {
   const actor = await requireStaff();
   const { id } = await props.params;
+  // FR-MTD-007: an exercise restricted to its named people reads as one that does not exist to anyone else, and the attempt is logged.
+  if (await exerciseIsHidden(actor, id)) notFound();
   const wanted = (await props.searchParams).opening;
-  const d = await scheduleSection(actor.organisationId, id);
+  const d = await scheduleSection(actor, id);
   if (!d) notFound();
   const back = `/sourcing/${id}?tab=bids&section=schedule`;
   const o = d.openings.find((x) => x.id === wanted) ?? d.openings[0] ?? null;
@@ -103,7 +106,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
                 <Td label="Bil.">—</Td>
                 <Td label="Bidder">{o.benchmark.sealed ? "Company estimate" : o.benchmark.label}</Td>
                 <Td label="Class and status">—</Td>
-                <Td numeric label="Price as read">{o.benchmark.sealed ? o.benchmark.text : o.benchmark.companyEstimate}</Td>
+                <Td numeric label="Price as read">{o.benchmark.sealed ? o.benchmark.text : <SulitValue of={o.benchmark.companyEstimate} />}</Td>
                 <Td label="Completion period">—</Td>
               </Tr>
             )}

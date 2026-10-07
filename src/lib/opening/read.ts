@@ -18,6 +18,9 @@ import { formatDate } from "@/lib/format";
 import { loadExercise } from "@/lib/method/repo";
 import { formatMoney, parseSen, type Sen } from "@/lib/money";
 import { leadTime } from "@/lib/scope/estimate";
+import { loggedEstimateAccess } from "@/lib/scope/estimate-access";
+import { applyDecision } from "@/lib/auth/sulit-access";
+import type { Reader } from "@/lib/auth/sulit-store";
 
 import { lockGapFinding } from "./box";
 import { checklistFromSnapshot, openingChecklist, unansweredItems } from "./checklist";
@@ -351,9 +354,12 @@ export type OpeningView = OpeningSectionView["openings"][number];
  * before, a draft built from the record with the estimate's row sealed and no Grand Summary
  * (FR-OPN-010: after finalising only). The copy finding and its explanation, and the signed scan.
  */
-export async function scheduleSection(organisationId: string, exerciseId: string) {
-  const r = await load(organisationId, exerciseId);
+export async function scheduleSection(reader: Reader & { organisationTimeZone: string | null }, exerciseId: string) {
+  const r = await load(reader.organisationId, exerciseId);
   if (!r) return null;
+  // FR-EST-008: the disclosed company estimate's figure is read by its preparer and the offices that hold its copies and audit it, and by nobody else. Judged
+  // once for the page, and the access logged, whether it is shown or refused. Before disclosure the schedule shows the estimate sealed and nobody is asked.
+  const estimate = await loggedEstimateAccess(db, reader, exerciseId);
   const { l, c, people } = r;
   const tz = l.org.timeZone;
   const counts = invitedCounts(c);
@@ -382,6 +388,7 @@ export async function scheduleSection(organisationId: string, exerciseId: string
       }).schedule;
     }
     const s = schedule!;
+    const bm = s.benchmark;
     const scan = scheduleScanFault({ finalised: o.finalisedAt != null, liveScans: liveScans(o) });
     const copy = copyFindingFault(o.estimateCopyCheck, o.copyExplanation != null);
     // S-5: disclosed at this (main) opening with no comparison: "Paper copy not compared".
@@ -405,7 +412,7 @@ export async function scheduleSection(organisationId: string, exerciseId: string
         ...(snap.unpurchased.recordedLater ? [{ label: "A bid with no live purchase", value: unpurchasedRuleText(snap, null, tz) }] : []),
       ],
       rows: s.rows.map((row) => ({ ...row, openingPrice: formatMoney(parseSen(row.openingPrice)), period: periodText(row.period), alternative: row.isAlternative ? `Alternative${row.parentListingNo != null ? ` to No. ${row.parentListingNo}` : ""}` : null })),
-      benchmark: "notRequired" in s.benchmark ? null : s.benchmark.sealed ? { sealed: true as const, text: SEALED_UNTIL_FINALISED } : { sealed: false as const, label: s.benchmark.label ?? "Company estimate", companyEstimate: formatMoney(parseSen(s.benchmark.companyEstimate)) },
+      benchmark: "notRequired" in bm ? null : bm.sealed ? { sealed: true as const, text: SEALED_UNTIL_FINALISED } : { sealed: false as const, label: bm.label ?? "Company estimate", companyEstimate: applyDecision<string>(estimate?.decision ?? { state: "WITHHELD", basis: "SEALED" }, "estimate", () => formatMoney(parseSen(bm.companyEstimate))) },
       summary: summary ? { labels: summary.labels, rows: summary.rows.map((x) => ({ ...x, openingPrice: formatMoney(parseSen(x.openingPrice)) })) } : null,
       copy: copyView,
       explanation: o.copyExplanation ? { text: o.copyExplanation.explanation, by: o.copyExplanation.recordedBy.name, at: time(o.copyExplanation.recordedAt, tz) } : null,

@@ -12,6 +12,7 @@
 
 import type { CommitteeDecision } from "@/generated/prisma/client";
 import type { Tx } from "@/lib/audit/record";
+import { approvalRouteNotHidden } from "@/lib/auth/sulit-store";
 import { todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { senFromDecimal } from "@/lib/money";
@@ -66,7 +67,8 @@ const ROUTE_INCLUDE = {
 type Client = Tx | typeof db;
 
 /// The organisation's waiting list, longest waiting first. `client` is a transaction where an act reads it again.
-export async function loadWaiting(organisationId: string, client: Client = db): Promise<{ today: string | null; entries: WaitingEntry[] } | null> {
+/// `hidden`: the restricted exercises the reader may not see. A route on one is not waiting for them, and tabling it is refused (FR-MTD-007).
+export async function loadWaiting(organisationId: string, hidden: readonly string[], client: Client = db): Promise<{ today: string | null; entries: WaitingEntry[] } | null> {
   const org = await client.organisation.findUnique({ where: { id: organisationId }, select: { id: true, timeZone: true } });
   if (!org) return null;
   const today = todayIn(new Date(), org.timeZone);
@@ -74,6 +76,7 @@ export async function loadWaiting(organisationId: string, client: Client = db): 
     where: {
       organisationId: org.id,
       status: "PENDING",
+      ...approvalRouteNotHidden(hidden),
       steps: { some: { committeeCode: { not: null }, decision: "PENDING" } },
       OR: [
         { matterKind: "REQUISITION", requisitionId: { not: null } },

@@ -277,7 +277,8 @@ export const TARGET_CAP = 200;
  * the purposes that suit it and whether they are open (`attachTargets`). `total` is how many
  * records of the kind there are, so a list that is cut says so.
  */
-export async function attachTargetsOf(organisationId: string, kind: OwnerRef["kind"]) {
+/// `hidden`: the restricted exercises the reader may not see; they, their awards and their panels are not offered (FR-MTD-007).
+export async function attachTargetsOf(organisationId: string, kind: OwnerRef["kind"], hidden: readonly string[]) {
   const org = await documentOrg(organisationId);
   if (!org) return { records: [], total: 0 };
   const take = TARGET_CAP;
@@ -288,7 +289,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
       return { records: attachTargets(rows.map((m) => ({ id: m.id, label: m.reference, facts: meetingFacts(m) }))), total };
     }
     case "exercise": {
-      const where = { organisationId: org.id };
+      const where = { organisationId: org.id, ...(hidden.length ? { id: { notIn: [...hidden] } } : {}) };
       const [rows, total, methods] = await Promise.all([
         db.sourcingExercise.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, status: true, reference: true, title: true, sourcingMethodCode: true, classificationSnapshot: true, window: { select: { path: true } }, awards: { select: { status: true, approvalInstances: { where: { domain: "appointment", status: "PENDING" }, select: { id: true } } } } } }),
         db.sourcingExercise.count({ where }),
@@ -307,7 +308,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
       };
     }
     case "award": {
-      const where = { organisationId: org.id };
+      const where = { organisationId: org.id, ...(hidden.length ? { exerciseId: { notIn: [...hidden] } } : {}) };
       const [rows, total] = await Promise.all([db.award.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, status: true, instrumentKind: true, returnScanSnapshot: true, reference: true, awardeeName: true } }), db.award.count({ where })]);
       return { records: attachTargets(rows.map((a) => ({ id: a.id, label: `${a.reference} · ${a.awardeeName}`, facts: awardFacts(a) }))), total };
     }
@@ -318,7 +319,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
       return { records: attachTargets(rows.map((d) => ({ id: d.id, label: `${d.fromPerson.name} to ${d.toPerson.name}`, facts: delegationFacts(d, today) }))), total };
     }
     case "specificationPanel": {
-      const where = { organisationId: org.id };
+      const where = { organisationId: org.id, ...(hidden.length ? { exerciseId: { notIn: [...hidden] } } : {}) };
       const [rows, total] = await Promise.all([
         db.specificationPanel.findMany({ where, orderBy: { exercise: { createdAt: "desc" } }, take, select: { id: true, ...PANEL_FACTS_SELECT, exerciseId: true, exercise: { select: { status: true, reference: true, title: true } } } }),
         db.specificationPanel.count({ where }),

@@ -1,3 +1,4 @@
+import { hiddenExercises } from "@/app/_auth/sulit";
 import { CalendarIcon, ClockIcon } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
 import { ButtonLink } from "@/components/ui/button";
@@ -37,7 +38,7 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
     ? await db.numberingSeries.findUnique({ where: { organisationId_key: { organisationId: orgId, key: "meeting" } } })
     : null;
   const numbered = series != null && patternFaults(series).length === 0;
-  const waiting = await loadWaiting(actor.organisationId);
+  const waiting = await loadWaiting(actor.organisationId, await hiddenExercises(actor));
   // Founder, 2026-10-05: what the schedule drawer proposes for each committee. It is tabled by the signed-in holder of the Secretariat office (Phase 2b).
   const proposed: Record<string, ProposedItem[]> = {};
   for (const e of waiting?.entries ?? []) {

@@ -8,6 +8,7 @@
  * the route and the gate are judged on the rows the write changes.
  */
 
+import { refuseHiddenExercise, type Reader } from "@/lib/auth/sulit-store";
 import { bidGate } from "@/lib/bids/repo";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
 import { loadEvaluationGate } from "@/lib/evaluation/gate-read";
@@ -130,12 +131,26 @@ export async function lockAwardIn(tx: Tx, organisationId: string, awardId: strin
   return l && l.ex.id === exerciseId ? l : null;
 }
 
+/**
+ * As `withLockedAward`, for the award module's own entry points (its screens, its acts, the documents on an award): an award of a restricted exercise
+ * reads as gone to anyone not named on the exercise, and the refusal is logged (FR-MTD-007, Phase 3a). The contract module reads an award through
+ * `withLockedAward` and is not hidden by this: whether a contract formed from a restricted exercise is itself restricted is not ruled.
+ */
+export async function withLockedAwardFor<T>(reader: Reader, awardId: string, fn: (tx: Tx, l: LoadedAward) => Promise<T>): Promise<T | null> {
+  const found = await db.award.findFirst({ where: { id: awardId, organisationId: reader.organisationId }, select: { exerciseId: true } });
+  if (!found) return null;
+  if (await refuseHiddenExercise(db, reader, found.exerciseId)) return null;
+  return withLockedAward(reader.organisationId, awardId, fn);
+}
+
 /// Lock an exercise's requisition and the exercise, for opening an award on it.
-export async function withLockedExerciseForAward<T>(organisationId: string, exerciseId: string, fn: (tx: Tx, l: LoadedExercise) => Promise<T>): Promise<T | null> {
+export async function withLockedExerciseForAward<T>(reader: Reader, exerciseId: string, fn: (tx: Tx, l: LoadedExercise) => Promise<T>): Promise<T | null> {
+  const organisationId = reader.organisationId;
   const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId }, select: { requisitionId: true } });
   if (!ex) return null;
   return db.$transaction(
     async (tx) => {
+      if (await refuseHiddenExercise(tx, reader, exerciseId)) return null;
       await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${ex.requisitionId} FOR UPDATE`;
       await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${exerciseId} FOR UPDATE`;
       const l = await loadExercise(organisationId, exerciseId, tx);
@@ -452,10 +467,11 @@ export const AWARDS_PAGE = 100;
  * cover every award, not the page: awaiting approval, approved and not issued, issued
  * and awaiting their return, and indents expired before work commenced.
  */
-export async function listAwards(organisationId: string) {
+/// `hidden`: the restricted exercises the reader may not see. Their awards are left out of the rows, the count and every badge (FR-MTD-007).
+export async function listAwards(organisationId: string, hidden: readonly string[]) {
   const org = await exerciseOrg(organisationId);
   if (!org) return { org: null, rows: [], total: 0, policy: null, counts: { pending: 0, ready: 0, awaitingReturn: 0, expired: 0 } };
-  const where = { organisationId: org.id };
+  const where = { organisationId: org.id, ...(hidden.length ? { exerciseId: { notIn: [...hidden] } } : {}) };
   const policy = await loadAwardPolicy(org.id);
   const before = org.today ? expiredIfReceivedBefore(policy.indentValidityDays, org.today) : null;
   const [rows, total, pending, ready, awaitingReturn, expired] = await Promise.all([

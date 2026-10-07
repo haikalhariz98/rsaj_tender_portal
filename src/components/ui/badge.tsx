@@ -1,6 +1,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
 import { LockIcon } from "@/components/icons";
+import { grantedWords, type Sulit } from "@/lib/auth/sulit-access";
 import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 
 import { cx } from "./cx";
@@ -108,24 +109,52 @@ export function Chip({
   );
 }
 
-/// The mark for a SULIT value or column: a small lock to the eye, the whole sentence (which
-/// says it is not yet restricted) in the tooltip and to a screen reader, so the mark never
-/// implies a protection the portal does not have yet.
-export function SulitLock({ size = 13, className }: { size?: number; className?: string }) {
+/// The mark for a SULIT value or column: a small lock to the eye, the whole sentence in the tooltip and to a screen reader. By default the
+/// sentence is the one for a value nothing yet restricts (`VALUE_SULIT_LABEL`); a value a loader has judged (`Sulit<T>`, Phase 3a) says why it
+/// is shown instead, so the mark never implies a protection that is not there, nor denies one that is.
+export function SulitLock({ size = 13, className, label = VALUE_SULIT_LABEL }: { size?: number; className?: string; label?: string }) {
   return (
-    <span title={VALUE_SULIT_LABEL} className={cx("inline-flex shrink-0 items-center text-ink-3", className)}>
+    <span title={label} className={cx("inline-flex shrink-0 items-center text-ink-3", className)}>
       <LockIcon size={size} strokeWidth={2} />
-      <span className="sr-only">{VALUE_SULIT_LABEL}</span>
+      <span className="sr-only">{label}</span>
     </span>
   );
 }
 
-/// A value the organisation treats as SULIT, where nothing yet stops anyone who can reach
-/// the portal from reading it. The lock says so (tooltip, screen reader) rather than implying a restriction.
-export function SulitValue({ children }: { children: ReactNode }) {
+/// What stands where a SULIT value is withheld from the reader: the lock and "SULIT · withheld", with the reason in words as the tooltip and to a
+/// screen reader. Never the value, never a placeholder shaped like one.
+export function SulitWithheld({ words, className }: { words: string; className?: string }) {
+  return (
+    <span title={words} className={cx("inline-flex items-center gap-1.5 text-[12.5px] font-medium whitespace-nowrap text-ink-3", className)}>
+      <LockIcon size={13} strokeWidth={2} />
+      <span>SULIT · withheld</span>
+      <span className="sr-only">{words}</span>
+    </span>
+  );
+}
+
+/**
+ * A value the organisation treats as SULIT.
+ *
+ * - `of={sulit}` is a loader's answer (`Sulit<ReactNode>`, Phase 3a): the value with a lock whose tooltip says why the reader may see it, or
+ *   "SULIT · withheld" with the reason. A withheld answer carries no value, so there is nothing to leak.
+ * - `children` is the older form for a value no loader has judged yet: it says nothing yet stops anyone who can reach the portal from reading
+ *   it (3b rolls the loaders out and retires this form).
+ */
+export function SulitValue(props: { children: ReactNode; of?: undefined } | { of: Sulit<ReactNode>; children?: undefined }) {
+  if (props.of) {
+    const s = props.of;
+    if (s.state === "WITHHELD") return <SulitWithheld words={s.words.en} />;
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <span className="tabular-nums">{s.value}</span>
+        <SulitLock label={`SULIT. ${grantedWords(s.basis).en}`} />
+      </span>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="tabular-nums">{children}</span>
+      <span className="tabular-nums">{props.children}</span>
       <SulitLock />
     </span>
   );

@@ -411,8 +411,8 @@ describe("the loaders the pages read through return A's records to A and nothing
     expect(await loadAward(asB.organisationId, A.award)).toBeNull();
     expect((await loadContract(asA.organisationId, A.contract))?.contract.id).toBe(A.contract);
     expect(await loadContract(asB.organisationId, A.contract)).toBeNull();
-    expect((await loadSupplier(asA.organisationId, A.supplier))?.supplier.id).toBe(A.supplier);
-    expect(await loadSupplier(asB.organisationId, A.supplier)).toBeNull();
+    expect((await loadSupplier(asA.organisationId, A.supplier, []))?.supplier.id).toBe(A.supplier);
+    expect(await loadSupplier(asB.organisationId, A.supplier, [])).toBeNull();
     expect((await loadSitting(asA, A.meeting))?.meeting.id).toBe(A.meeting);
     expect(await loadSitting(asB, A.meeting)).toBeNull();
   });
@@ -439,8 +439,8 @@ describe("the loaders the pages read through return A's records to A and nothing
     const [{ windowColumns }, { tablingAmount }, { listRequisitions }] = await Promise.all([import("@/lib/window/read"), import("@/lib/committee/repo"), import("@/lib/requisition/repo")]);
     expect([...(await windowColumns(fx.actorA.organisationId, [A.exercise])).keys()]).toEqual([A.exercise]);
     expect([...(await windowColumns(fx.actorB.organisationId, [A.exercise])).keys()]).toEqual([]);
-    expect(await tablingAmount(fx.actorA.organisationId, { kind: "requisition", id: A.requisition })).toBe("1000");
-    expect(await tablingAmount(fx.actorB.organisationId, { kind: "requisition", id: A.requisition })).toBeNull();
+    expect(await tablingAmount(fx.actorA.organisationId, { kind: "requisition", id: A.requisition }, [])).toBe("1000");
+    expect(await tablingAmount(fx.actorB.organisationId, { kind: "requisition", id: A.requisition }, [])).toBeNull();
     expect((await listRequisitions(fx.actorB.organisationId)).rows.map((r) => r.id)).not.toContain(A.requisition);
   });
 });

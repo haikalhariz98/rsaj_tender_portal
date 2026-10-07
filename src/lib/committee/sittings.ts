@@ -1,3 +1,4 @@
+import { HIDDEN_MATTER_SUBJECT } from "./hidden";
 import type { Tx } from "@/lib/audit/record";
 import { todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -208,6 +209,27 @@ export async function loadSitting(scope: OrgScope, id: string, client: Tx = db, 
 export type LoadedSitting = NonNullable<Awaited<ReturnType<typeof loadSitting>>>;
 
 /**
+ * The sitting as a reader who may not see some of its matters is shown it (FR-MTD-007, Phase 3a): each such matter keeps its place, its sequence, its
+ * outcome and its status, so counts and quorum still add up, and loses what identifies it: its subject, its reference, its amount, who voted and
+ * who recused, what it depends on and who tabled it. The sitting itself is not hidden. Only the screen reads this; the acts read the sitting whole
+ * and refuse a hidden matter by its exercise (`meetingOf`).
+ */
+export function redactHiddenMatters(s: LoadedSitting, hiddenMatters: ReadonlySet<string>): LoadedSitting {
+  if (hiddenMatters.size === 0) return s;
+  return {
+    ...s,
+    meeting: {
+      ...s.meeting,
+      decisions: s.meeting.decisions.map((d) =>
+        hiddenMatters.has(d.id)
+          ? { ...d, subject: HIDDEN_MATTER_SUBJECT, matterRef: null, amount: null, votes: [], recusals: [], dependsOn: null, dependsOnDecisionId: null, tabledBy: null, tabledByPersonId: null, outcomeNote: "", withdrawnReason: "", notApprovedOutcomeNameEn: null }
+          : d,
+      ),
+    },
+  };
+}
+
+/**
  * Run a write against a sitting with its row locked.
  *
  * `SELECT … FOR UPDATE` on the Meeting row serialises every write to the sitting —
@@ -244,12 +266,13 @@ export const HISTORY_PAGE = 200;
 
 /// The audit trail of a sitting and everything under it, newest first, the latest
 /// HISTORY_PAGE entries with the total.
-export async function sittingHistory(s: LoadedSitting) {
+/// `hiddenMatters`: the matters of exercises the reader may not see (`hiddenDecisionIds`). Their rows are not in the trail the reader is shown (FR-MTD-007).
+export async function sittingHistory(s: LoadedSitting, hiddenMatters: ReadonlySet<string>) {
   const m = s.meeting;
   const ids = [
     m.id,
     ...m.attendance.map((a) => a.id),
-    ...m.decisions.flatMap((d) => [d.id, ...d.votes.map((v) => v.id), ...d.recusals.map((r) => r.id)]),
+    ...m.decisions.filter((d) => !hiddenMatters.has(d.id)).flatMap((d) => [d.id, ...d.votes.map((v) => v.id), ...d.recusals.map((r) => r.id)]),
     ...m.attachments.map((a) => a.id),
   ];
   const where = { organisationId: s.organisationId, entityId: { in: ids } };

@@ -14,8 +14,13 @@ import { windowColumns } from "@/lib/window/read";
 
 import { ExerciseList } from "./exercise-list";
 import { requireStaff } from "@/app/_auth/actor";
+import { hiddenExercises, sulitExerciseValues } from "@/app/_auth/sulit";
+import type { Sulit } from "@/lib/auth/sulit-access";
 
 export const dynamic = "force-dynamic";
+
+/// The value column's cell: the figure where the reader may read it, and "SULIT · withheld" with the reason where not.
+const valueCell = (v: Sulit<number> | undefined): Row["cells"][string] => (v && v.state === "GRANTED" ? { kind: "money", value: v.value } : { kind: "withheld", words: v?.state === "WITHHELD" ? v.words.en : "This value is not shown." });
 
 const TONE = { brand: "brand", info: "info", ok: "ok", neutral: undefined } as const;
 
@@ -26,7 +31,10 @@ const TONE = { brand: "brand", info: "info", ok: "ok", neutral: undefined } as c
 export default async function SourcingPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const actor = await requireStaff();
   const { view } = await searchParams;
-  const { org, rows, total } = await listExercises(actor.organisationId);
+  // FR-MTD-007: a restricted exercise the reader is not named on is not in the list, the counts or the search.
+  const { org, rows, total } = await listExercises(actor.organisationId, await hiddenExercises(actor));
+  // The department estimate is SULIT: each row's is judged for this reader and the access logged (ADR 0034 D14).
+  const values = await sulitExerciseValues(actor, rows.map((r) => ({ id: r.id, reference: r.reference })), "estimatedValue", (id) => Number(rows.find((r) => r.id === id)!.estimatedValue.toString()));
   const cfg = org ? await loadMethodConfig(org.id) : null;
   const methodName = (c: string) => cfg?.config.methods.find((m) => m.code === c)?.nameEn ?? "A method no longer configured";
   const typeName = (c: string | null) => (c ? (cfg?.config.types.find((t) => t.code === c)?.nameEn ?? "A type no longer configured") : "Not set");
@@ -53,11 +61,12 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
         ...(nameOpen ? ["name"] : []),
       ],
       search: [r.title, r.reference, r.requisition.reference, r.requisition.erpRequisitionNo, methodName(r.sourcingMethodCode), EXERCISE_STATUS_LABEL[status]].filter(Boolean).join(" "),
-      sortKeys: { value: Number(r.estimatedValue.toString()), title: r.title },
+      // A withheld value has no sort key: the order of the column would give it away.
+      sortKeys: { ...(values.get(r.id)?.state === "GRANTED" ? { value: Number(r.estimatedValue.toString()) } : {}), title: r.title },
       cells: {
         title: { kind: "link", text: r.title, href: `/sourcing/${r.id}`, sub: `${r.reference} · ${methodName(r.sourcingMethodCode)}` },
         method: { kind: "stack", title: methodName(r.sourcingMethodCode), sub: typeName(r.contractTypeCode) },
-        value: { kind: "money", value: Number(r.estimatedValue.toString()) },
+        value: valueCell(values.get(r.id)),
         window: { kind: "stack", title: r.closingAt ? w?.closing ?? "—" : status === "CANCELLED" ? "No closing" : "Not set yet", sub: r.closingAt ? w?.phase : status === "CANCELLED" ? "Cancelled before one was set" : undefined },
         status: { kind: "badge", text: EXERCISE_STATUS_LABEL[status], tone: TONE[EXERCISE_STATUS_TONE[status]] },
         checks: {
@@ -66,7 +75,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
             { text: r.regime ? REGIME_SHORT[r.regime as Regime] : "Regime not determined", tone: "brand" as const },
             ...(r.onBoundary ? [{ text: r.boundaryRuled ? "On the boundary" : "On the boundary · not ruled", tone: "warn" as const }] : []),
             ...(nameOpen ? [{ text: `${TERM.nameApproval} in progress`, tone: "brand" as const }] : nameApproved ? [{ text: `${TERM.nameApproval} given`, tone: "ok" as const }] : []),
-            ...(r.restricted ? [{ text: "Restricted · not enforced until sign-in", tone: "warn" as const }] : []),
+            ...(r.restricted ? [{ text: "Restricted to its named people", tone: "warn" as const }] : []),
           ],
         },
       },

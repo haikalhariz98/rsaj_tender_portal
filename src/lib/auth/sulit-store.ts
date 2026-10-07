@@ -6,10 +6,10 @@ import type { SulitScope } from "@/lib/sulit-fields";
 import { explainRefusal } from "./permission-store";
 import type { PermissionState } from "./permissions";
 import {
-  decide,
   exerciseVisible,
   namedOn,
   NEVER_STORED_BASES,
+  sulitAccess,
   type ExerciseNamedFacts,
   type SulitActor,
   type SulitDecision,
@@ -30,6 +30,9 @@ export interface Viewer extends OrgScope {
   readonly isAdministrator: boolean;
   readonly system?: unknown;
 }
+
+/// A reader that can also be written into the log: the viewer with its session and address. A `StaffActor` is one.
+export type Reader = Viewer & Pick<StaffActor, "sessionId" | "sourceAddress"> & { readonly system?: { label: string } };
 
 export const sulitActorOf = (v: Pick<Viewer, "personId" | "isAdministrator" | "system">): SulitActor => ({ personId: v.personId || null, isAdministrator: v.isAdministrator, system: !!v.system });
 
@@ -97,6 +100,21 @@ export const exerciseNotHidden = (hidden: readonly string[]): { id?: { notIn: st
 /// The same, for a table that points at an exercise by `exerciseId` (a nullable pointer is left alone where it is null).
 export const exerciseIdNotHidden = (hidden: readonly string[]): { OR?: [{ exerciseId: null }, { exerciseId: { notIn: string[] } }] } => (hidden.length ? { OR: [{ exerciseId: null }, { exerciseId: { notIn: [...hidden] } }] } : {});
 
+/// The `where` fragment that leaves out the approval routes of hidden exercises: a route on an exercise (a name, an award), and a special permission
+/// on one. A route behind a contract is the contract's and is not hidden here.
+/// Written as a conjunction of "has none, or is not hidden" rather than a NOT, so that a route with no exercise (a requisition's) is kept: SQL's NOT of a
+/// NULL is NULL, which would drop it.
+export const approvalRouteNotHidden = (hidden: readonly string[]): { AND?: object[] } =>
+  hidden.length
+    ? {
+        AND: [
+          { OR: [{ exerciseId: null }, { exerciseId: { notIn: [...hidden] } }] },
+          { OR: [{ award: { is: null } }, { award: { exerciseId: { notIn: [...hidden] } } }] },
+          { OR: [{ specialPermission: { is: null } }, { specialPermission: { exerciseId: { notIn: [...hidden] } } }] },
+        ],
+      }
+    : {};
+
 /// Whether this exercise exists in the organisation and the viewer may not see it. An exercise that does not exist is not "hidden": the
 /// caller's own not-found handles it, in the same words.
 export async function exerciseHiddenFrom(client: Tx, viewer: Viewer, exerciseId: string): Promise<boolean> {
@@ -105,6 +123,19 @@ export async function exerciseHiddenFrom(client: Tx, viewer: Viewer, exerciseId:
   const facts = (await exerciseAccessFacts(client, viewer.organisationId, [exerciseId])).get(exerciseId);
   if (!facts) return false;
   return !exerciseVisible(actor, facts.restricted, facts.named);
+}
+
+/**
+ * For a lock that must refuse a hidden exercise: whether the reader may not see it, and, where so, the refusal written to the log in the caller's
+ * client (a transaction that then returns "gone" commits it). The words an exercise that does not exist gets are the caller's own.
+ */
+export async function refuseHiddenExercise(client: Tx, reader: Reader, exerciseId: string): Promise<boolean> {
+  const actor = sulitActorOf(reader);
+  if (actor.system) return false;
+  const facts = (await exerciseAccessFacts(client, reader.organisationId, [exerciseId])).get(exerciseId);
+  if (!facts || exerciseVisible(actor, facts.restricted, facts.named)) return false;
+  await writeSulitEvents(client, reader, [{ scope: "exercise", entity: "SourcingExercise", entityId: exerciseId, entityLabel: facts.reference, fields: ["record"], decision: { state: "WITHHELD", basis: actor.isAdministrator ? "ADMINISTRATOR" : "RESTRICTED_NOT_NAMED" } }]);
+  return true;
 }
 
 /// The state of `sulit.read.organisation` for the actor, for the rule's last step. Held through a role: no read of the explanation is needed.
@@ -116,10 +147,10 @@ export async function organisationPermissionState(client: Tx, actor: StaffActor)
 }
 
 /// The decision for a record of one scope, from the facts read for it.
-export function decisionFor(actor: StaffActor, scope: SulitScope, record: { restricted: boolean; named: ExerciseNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
+export function decisionFor(actor: StaffActor, scope: SulitScope, field: string, record: { restricted: boolean; named: ExerciseNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
   const sulitActor = sulitActorOf(actor);
   const namedAs = namedOn(scope, record.named, sulitActor.personId);
-  return { decision: decide(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission }), namedAs };
+  return { decision: sulitAccess(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission }, field), namedAs };
 }
 
 // ------------------------------------------------------------------ the log
@@ -141,7 +172,7 @@ export const eventKey = (r: SulitEventRow): string => `${r.entity}|${r.entityId}
  * Write the events: one row each, in one statement, in the caller's client. The actor is the signed-in person with their session and address, or a
  * loader run by its label. A basis that is never stored (the write failed) is refused here rather than at the database.
  */
-export async function writeSulitEvents(client: Tx, actor: StaffActor, rows: readonly SulitEventRow[]): Promise<void> {
+export async function writeSulitEvents(client: Tx, actor: Reader, rows: readonly SulitEventRow[]): Promise<void> {
   if (rows.length === 0) return;
   for (const r of rows) {
     if (r.fields.length === 0) throw new Error("A SULIT access event names the fields it was for.");

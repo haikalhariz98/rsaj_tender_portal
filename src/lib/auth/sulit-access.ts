@@ -106,6 +106,13 @@ export function namedOnExercise(f: ExerciseNamedFacts, personId: string): NamedA
   return out;
 }
 
+/// Everyone an exercise names, by any of the ways, once `personId` is taken off its participants: the rule that a restricted exercise keeps at least one person
+/// who can see it (`removeParticipant`). The person may still be named another way (the person in charge), and then stays.
+export function namedAfterRemovingParticipant(f: ExerciseNamedFacts, personId: string): string[] {
+  const rest = f.participantIds.filter((id) => id !== personId);
+  return [...new Set([...rest, f.personInChargeId, f.proposalReviewerId, ...f.evaluationTeamIds, ...f.openingPanelIds].filter((x): x is string => !!x))];
+}
+
 /// The resolver for the `evaluation` scope: the evaluation is read by its own team, and by those who run or are named on the exercise,
 /// not by the opening panel or the proposal's reviewer, whose part ends before the scores exist.
 export function namedOnEvaluation(f: ExerciseNamedFacts, personId: string): NamedAs[] {
@@ -207,7 +214,7 @@ export function estimateFigureAccess(actor: SulitActor, fault: EstimateFigureFau
 
 // ------------------------------------------------------------------ words
 
-const NOT_NAMED_EXERCISE: Words = { en: "you are not named on this exercise", ms: "anda tidak dinamakan pada eksesais ini" };
+const NOT_NAMED_EXERCISE: Words = { en: "You are not named on this exercise", ms: "Anda tidak dinamakan pada eksesais ini" };
 
 /// What a withheld value says, in a sentence a person can act on. `scope` names the kind of record, so that "nobody is named on it" is
 /// said of the three scopes that keep no list, and "you are not named" of the others.

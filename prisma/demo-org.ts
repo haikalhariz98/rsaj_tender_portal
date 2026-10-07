@@ -21,3 +21,12 @@ export async function demoScope(): Promise<OrgScope> {
 export async function demoOrgId(): Promise<string> {
   return (await demoScope()).organisationId;
 }
+
+/// The demonstration as a reader: a loader run, which is the operator's own process and not a person (ADR 0034 D14). It is hidden from nothing and is shown no
+/// SULIT value; its reads of one, where a check makes them, are logged under its label.
+export async function demoReader() {
+  const scope = await demoScope();
+  const { deploymentOrganisation } = await import("../src/lib/portal/deployment");
+  const org = await deploymentOrganisation();
+  return { ...scope, personId: "", isAdministrator: false, system: { label: "demo loader" }, sessionId: "", sourceAddress: null, organisationTimeZone: org?.timeZone ?? null };
+}

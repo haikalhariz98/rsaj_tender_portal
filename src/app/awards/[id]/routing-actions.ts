@@ -1,9 +1,10 @@
 "use server";
 
+import type { Reader } from "@/lib/auth/sulit-store";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
-import { withLockedAward } from "@/lib/award/repo";
+import { withLockedAwardFor } from "@/lib/award/repo";
 import { toSecond } from "@/lib/bids/lateness";
 import { recordAwardCheck, recordAwardReceived, startAwardSheet } from "@/lib/certificate/award-sheet";
 import { CertificateRefusal } from "@/lib/certificate/write";
@@ -11,7 +12,6 @@ import { dayOf, storedDay } from "@/lib/dates";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
-import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * The award's pre-award routing sheet (6.14 increment 1, rulings condition; flagged against accepted 6.11).
@@ -23,10 +23,10 @@ import type { OrgScope } from "@/lib/org-scope";
 const GONE: FormState = { ok: false, message: "That award no longer exists." };
 const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zone under Configuration › Organisation first: every act here records the organisation's day, never UTC's." };
 
-async function inAwardSheet(scope: OrgScope, awardId: string, now: Date, fn: (tx: Parameters<Parameters<typeof withLockedAward>[2]>[0], l: Parameters<Parameters<typeof withLockedAward>[2]>[1], today: string) => Promise<void>): Promise<FormState> {
+async function inAwardSheet(scope: Reader, awardId: string, now: Date, fn: (tx: Parameters<Parameters<typeof withLockedAwardFor>[2]>[0], l: Parameters<Parameters<typeof withLockedAwardFor>[2]>[1], today: string) => Promise<void>): Promise<FormState> {
   let result: FormState | null;
   try {
-    result = await withLockedAward(scope.organisationId, awardId, async (tx, l) => {
+    result = await withLockedAwardFor(scope, awardId, async (tx, l) => {
       const today = dayOf(now, l.org.timeZone);
       if (!today) return NO_ZONE;
       await fn(tx, l, today);

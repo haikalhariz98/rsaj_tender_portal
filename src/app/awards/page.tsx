@@ -1,3 +1,4 @@
+import { hiddenExercises } from "@/app/_auth/sulit";
 import { DataList, type Row } from "@/components/data-list";
 import { AwardIcon } from "@/components/icons";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
@@ -25,7 +26,7 @@ const day = (d: Date | null) => (d ? storedDay(d) : null);
  */
 export default async function AwardsPage() {
   const actor = await requireStaff();
-  const { org, rows, total, policy, counts } = await listAwards(actor.organisationId);
+  const { org, rows, total, policy, counts } = await listAwards(actor.organisationId, await hiddenExercises(actor));
   const today = org?.today ?? null;
   const list: Row[] = rows.map((r) => {
     const status = r.status as AwardStatus;

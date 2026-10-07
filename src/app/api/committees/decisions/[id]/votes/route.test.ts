@@ -19,7 +19,8 @@ vi.mock("@/app/_auth/act", async () => {
   h.act = (await import("@/lib/test-support/staff")).actModule();
   return h.act.module;
 });
-vi.mock("@/lib/db", () => ({ db: { committeeDecision: { findUnique: async ({ where }: { where: { id: string } }) => (where.id === "d1" ? { meetingId: "m1" } : null) } } }));
+// Phase 3a: the route asks which restricted exercises the reader may not see (none here), so the exercise table answers an empty list.
+vi.mock("@/lib/db", () => ({ db: { committeeDecision: { findUnique: async ({ where }: { where: { id: string } }) => (where.id === "d1" ? { meetingId: "m1" } : null) }, sourcingExercise: { findMany: async () => [] } } }));
 vi.mock("@/lib/audit/record", () => ({ writeAudit: async (_tx: unknown, ctx: { entityLabel: string }) => void h.audits.push(ctx.entityLabel) }));
 vi.mock("@/lib/committee/matter", async (orig) => ({ ...(await orig<typeof import("@/lib/committee/matter")>()), canVote: () => ({ ok: true as const }) }));
 vi.mock("@/lib/committee/tabling", async (orig) => ({ ...(await orig<typeof import("@/lib/committee/tabling")>()), secretariatHoldersOn: () => h.secretariat }));

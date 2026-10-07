@@ -11,7 +11,8 @@ const { logAccess, findFirst, dispositionFilename } = vi.hoisted(() => ({
 // Phase 1b: the route asks who is signed in before anything else. These tests are about the download, so a signed-in officer stands in (the guard has its own tests, src/app/_auth/route.test.ts).
 vi.mock("@/app/_auth/route", async () => (await import("@/lib/test-support/staff")).routeModule());
 vi.mock("@/lib/documents/service", () => ({ documentOrg: async () => ({ id: "org1" }), logAccess: (e: unknown) => logAccess(e) }));
-vi.mock("@/lib/db", () => ({ db: { documentVersion: { findFirst: (a: unknown) => findFirst(a) } } }));
+// Phase 3a: the route asks which restricted exercises the reader may not see (none here), so the exercise table answers an empty list.
+vi.mock("@/lib/db", () => ({ db: { documentVersion: { findFirst: (a: unknown) => findFirst(a) }, sourcingExercise: { findMany: async () => [] } } }));
 vi.mock("@/lib/documents/access", async (orig) => {
   const actual = await orig<typeof import("@/lib/documents/access")>();
   dispositionFilename.mockImplementation(actual.dispositionFilename);

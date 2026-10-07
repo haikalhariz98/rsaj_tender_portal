@@ -70,6 +70,7 @@ describe("an exercise judged whole", () => {
       taxonomyName: (c) => `Classification ${c.length}`,
       valueName: () => "A value",
       approved: ctx().approved,
+      amountsWithheld: false,
       boundarySource: "",
     });
     expect(p.nameApproval?.steps.map((s) => s.role)).toEqual(["Head of Department", "Head of Department", "Head of Division", "Functional Director"]);

@@ -1,5 +1,6 @@
 "use server";
 
+import { refuseHiddenExercise, type Reader } from "@/lib/auth/sulit-store";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -25,7 +26,6 @@ import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { activePerson, audit, CHANGED, notes, NO_ORG, refuse, Refusal, stampNow } from "./shared";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
-import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * The register's acts that touch an exercise too (plan 6.15 §4.2, OD-9, FR-ADV-017): linking a party,
@@ -37,7 +37,7 @@ import type { OrgScope } from "@/lib/org-scope";
 
 type ExerciseLocked = { org: SupplierOrg; ex: { id: string; reference: string } };
 
-async function onExerciseSide(scope: OrgScope, exerciseId: string, lockMiddle: (tx: Tx) => Promise<void>, supplierId: string | null, fn: (tx: Tx, l: ExerciseLocked) => Promise<FormState>, paths: string[]): Promise<FormState> {
+async function onExerciseSide(scope: Reader, exerciseId: string, lockMiddle: (tx: Tx) => Promise<void>, supplierId: string | null, fn: (tx: Tx, l: ExerciseLocked) => Promise<FormState>, paths: string[]): Promise<FormState> {
   let result: FormState;
   try {
     result = await db.$transaction(
@@ -46,6 +46,8 @@ async function onExerciseSide(scope: OrgScope, exerciseId: string, lockMiddle: (
         if (!org) return NO_ORG;
         const ex0 = await tx.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { requisitionId: true } });
         if (!ex0) return { ok: false, message: "That exercise no longer exists." };
+        // FR-MTD-007: an exercise restricted to its named people reads as gone to anyone not named on it, and the attempt is logged.
+        if (await refuseHiddenExercise(tx, scope, exerciseId)) return { ok: false, message: "That exercise no longer exists." };
         if (ex0.requisitionId) await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${ex0.requisitionId} FOR UPDATE`;
         await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${exerciseId} FOR UPDATE`;
         await tx.$queryRaw`SELECT id FROM "ExerciseWindow" WHERE "exerciseId" = ${exerciseId} FOR UPDATE`;

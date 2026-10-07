@@ -13,6 +13,7 @@ import { MoreText } from "@/components/ui/more-text";
 import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import { Stepper, type StepperStep } from "@/components/ui/stepper";
+import type { Sulit } from "@/lib/auth/sulit-access";
 import { exercisePurposes } from "@/lib/documents/targets";
 import { resolutionText, supersession } from "@/lib/documents/supersession";
 import { formatDate } from "@/lib/format";
@@ -27,7 +28,7 @@ import {
   DELIVERABLE_LABEL,
   DERIVATION_TEXT,
   evidenceChip,
-  findingText,
+  findingTextFor,
   NOT_SET,
   REGIME_LABEL,
   TAXONOMY_STATE_LABEL,
@@ -111,6 +112,8 @@ function judgeFindings(p: Pick<OverviewProps, "l" | "live" | "findings" | "evide
 
 export interface OverviewProps {
   l: LoadedExercise;
+  /// The department estimate as this reader may see it: the figure, or "SULIT · withheld" with the reason (Phase 3a).
+  estimate: Sulit<string>;
   /// The process flow and, where the exercise has a route for tendering, its steps (read-only here).
   flow: StepperStep[];
   tendering: StepperStep[] | null;
@@ -216,7 +219,7 @@ function ContractCard({ p }: { p: OverviewProps }) {
           items={[
             { label: "Requisition", value: <Link href={`/requisitions/${req.id}`}>{req.reference}</Link> },
             { label: "Method", value: methodOverridden ? `${p.methodName} · overridden` : ex.proposedMethodCode ? `${p.methodName} · as proposed` : p.methodName },
-            { label: "Estimated value", value: <SulitValue>{money(ex.estimatedValue)}</SulitValue> },
+            { label: "Estimated value", value: <SulitValue of={p.estimate} /> },
             {
               label: "Contract type",
               value: (
@@ -471,7 +474,7 @@ function RulesUsed({ p }: { p: OverviewProps }) {
           <p className="text-[12.5px] text-ink-3">{blocking.length ? "What must be put right before documents go into preparation, and what is recorded with it." : "Recorded with the exercise."}</p>
           {[...blocking, ...others].map((f, i) => (
             <Callout key={i} tone={tone(f.level)}>
-              {findingText(f)}
+              {findingTextFor(f, p.estimate.state === "WITHHELD")}
             </Callout>
           ))}
           {superseded.map((r) => (

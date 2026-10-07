@@ -124,16 +124,24 @@ const supplierInclude = {
       },
     },
   },
-  awards: { orderBy: { createdAt: "asc" as const }, select: { id: true, reference: true, status: true, awardeeName: true, awardeePartyId: true, cancelConsequence: true } },
+  awards: { orderBy: { createdAt: "asc" as const }, select: { id: true, exerciseId: true, reference: true, status: true, awardeeName: true, awardeePartyId: true, cancelConsequence: true } },
 } satisfies Prisma.SupplierInclude;
 
-/// One supplier with everything its record shows. Null when it does not exist.
-export async function loadSupplier(organisationId: string, id: string, client: Tx = db) {
+/**
+ * One supplier with everything its record shows. Null when it does not exist.
+ *
+ * `hidden`: the restricted exercises the reader may not see (FR-MTD-007). A supplier's parties and awards on them are left out, so the register does not
+ * say that this supplier tendered for, or won, an exercise the reader may not know exists. `hidden` is returned too, for the panels that read exercises
+ * of their own.
+ */
+export async function loadSupplier(organisationId: string, id: string, hidden: readonly string[], client: Tx = db) {
   const org = await supplierOrg(organisationId, client);
   if (!org) return null;
-  const supplier = await client.supplier.findFirst({ where: { id, organisationId: org.id }, include: supplierInclude });
-  if (!supplier) return null;
-  return { org, supplier };
+  const found = await client.supplier.findFirst({ where: { id, organisationId: org.id }, include: supplierInclude });
+  if (!found) return null;
+  const gone = new Set(hidden);
+  const supplier = { ...found, parties: found.parties.filter((p) => !gone.has(p.exerciseId)), awards: found.awards.filter((a) => !gone.has(a.exerciseId)) };
+  return { org, supplier, hidden: [...hidden] };
 }
 export type LoadedSupplier = NonNullable<Awaited<ReturnType<typeof loadSupplier>>>;
 

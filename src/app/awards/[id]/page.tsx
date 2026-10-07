@@ -1,3 +1,4 @@
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 import { actStatusFault } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import Link from "next/link";
@@ -149,7 +150,8 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const actor = await requireStaff();
   const [{ id }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
   const l = await loadAward(actor.organisationId, id);
-  if (!l) notFound();
+  // FR-MTD-007: an award of a restricted exercise reads as gone to anyone not named on the exercise, and the attempt is logged.
+  if (!l || (await exerciseIsHidden(actor, l.award.exerciseId))) notFound();
   const { award, ex, org } = l;
   const today = org.today;
   // 6.15a fix S-3: the linked supplier's standing, derived on the organisation's day; barred warns, never refuses.

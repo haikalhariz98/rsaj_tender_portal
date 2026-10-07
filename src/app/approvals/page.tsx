@@ -1,3 +1,4 @@
+import { hiddenExercises } from "@/app/_auth/sulit";
 import { DataList, type Row } from "@/components/data-list";
 import { RouteIcon } from "@/components/icons";
 import { actLabel } from "@/components/ui/act";
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function ApprovalsPage() {
   const actor = await requireStaff();
-  const w = await loadWorklist(actor);
+  const w = await loadWorklist(actor, await hiddenExercises(actor));
   const all = w?.groups.flatMap((g) => g.items) ?? [];
   const rows: Row[] = all.map((i) => ({
     id: i.stepId,

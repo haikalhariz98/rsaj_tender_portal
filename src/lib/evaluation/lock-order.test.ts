@@ -16,6 +16,9 @@ const committee = read("src", "app", "committees", "actions.ts");
 const between = (src: string, from: string, to: string) => src.slice(src.indexOf(from), src.indexOf(to, src.indexOf(from)));
 // Phase 1c (ADR 0034 D10): every lock is now asked for the signed-in person's organisation (`scope`, or its id) as well; the calls below
 // name it where it is now an argument. The order each test asserts is unchanged, and no call was dropped from any list.
+// Phase 3a (FR-MTD-007), a deliberate change to the strings this file pins, not to any order: `withLockedRequisitionForSourcing` now takes the reader (the signed-in
+// actor) where it took the organisation's id, so a restricted exercise is refused where it is locked, and `loadWaiting` takes the exercises the reader may not see.
+// Every order asserted below is as it was.
 const inOrder = (src: string, calls: string[]) => {
   const at = calls.map((c) => src.indexOf(c));
   for (const [i, c] of calls.entries()) expect(at[i], `${c} is called`).toBeGreaterThanOrEqual(0);
@@ -25,7 +28,7 @@ const inOrder = (src: string, calls: string[]) => {
 describe("the outcome of an appointment matter locks the exercise before the sitting (M-2)", () => {
   const helper = between(committee, "async function inSittingAfterExercise(", "\n}\n");
   it("requisition → exercise (one helper) → window → openings → sitting", () => {
-    inOrder(helper, ["withLockedRequisitionForSourcing(scope.organisationId, requisitionId, exerciseId", "lockWindowRow(tx, exerciseId)", "lockOpeningRows(tx, exerciseId)", "lockSittingIn(tx, scope, meetingId, roster)", "fn(tx, s)"]);
+    inOrder(helper, ["withLockedRequisitionForSourcing(scope, requisitionId, exerciseId", "lockWindowRow(tx, exerciseId)", "lockOpeningRows(tx, exerciseId)", "lockSittingIn(tx, scope, meetingId, roster)", "fn(tx, s)"]);
   });
   it("withLockedRequisitionForSourcing locks the requisition, then the exercise", () => {
     const repo = read("src", "lib", "method", "repo.ts");
@@ -107,8 +110,8 @@ describe("the outcome locks the record before the sitting, then links (founder, 
   });
   it("a name's matter: the requisition → the exercise (one helper) → the sitting → the outcome → its citation", () => {
     const wrap = between(committee, "async function inSittingAfterRecord(", "\n}\n");
-    const name = wrap.slice(wrap.indexOf("withLockedRequisitionForSourcing(scope.organisationId, record.requisitionId, record.exerciseId"), wrap.indexOf("withLockedRequisition(scope.organisationId, record.requisitionId"));
-    inOrder(name, ["withLockedRequisitionForSourcing(scope.organisationId, record.requisitionId, record.exerciseId", "lockSittingIn(tx, scope, meetingId, roster)", "fn(tx, s)", "linkOutcome(tx,", 'citeNameStep(tx, actor, { org: l.org, ex }, stepId, decisionId, "OUTCOME")']);
+    const name = wrap.slice(wrap.indexOf("withLockedRequisitionForSourcing(scope, record.requisitionId, record.exerciseId"), wrap.indexOf("withLockedRequisition(scope.organisationId, record.requisitionId"));
+    inOrder(name, ["withLockedRequisitionForSourcing(scope, record.requisitionId, record.exerciseId", "lockSittingIn(tx, scope, meetingId, roster)", "fn(tx, s)", "linkOutcome(tx,", 'citeNameStep(tx, actor, { org: l.org, ex }, stepId, decisionId, "OUTCOME")']);
   });
   it("a contract matter's: the contract's chain → its family's row → the matter and its record → the sitting → the outcome → the matter read again → its citation", () => {
     const wrap = between(committee, "async function inContractMatterForOutcome(", "\n}\n");
@@ -129,7 +132,7 @@ describe("the outcome locks the record before the sitting, then links (founder, 
     inOrder(schedule, ["createNumberedSitting(tx,", "tableWaiting(actor, tx, toAuditActor(actor), row.id"]);
     inOrder(read("src", "lib", "committee", "sitting-number.ts"), ["issueReference(tx,", "tx.meeting.create("]);
     const table = between(committee, "async function tableWaiting(", "\n}\n");
-    inOrder(table, ["loadWaiting(scope.organisationId, tx)", "lockSittingIn(tx, scope, meetingId, roster)", 'permit(s, "TABLE")', "tableInto(tx, by, s, r,"]);
+    inOrder(table, ["loadWaiting(scope.organisationId, await hiddenExerciseIds(tx, scope), tx)", "lockSittingIn(tx, scope, meetingId, roster)", 'permit(s, "TABLE")', "tableInto(tx, by, s, r,"]);
     expect(table).not.toMatch(/withLocked|FOR UPDATE/);
   });
 });

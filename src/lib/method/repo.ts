@@ -5,6 +5,7 @@
  * own transaction, so a sibling-sum check and the write it guards see the same data.
  */
 
+import { exerciseNotHidden, refuseHiddenExercise, type Reader } from "@/lib/auth/sulit-store";
 import { routedValue } from "@/lib/approvals/routed-value";
 import { exerciseEvidence, NO_EVIDENCE } from "@/lib/documents/evidence";
 import { attachmentFacts } from "@/lib/documents/repo";
@@ -171,14 +172,22 @@ export async function loadExercise(organisationId: string, id: string, client: T
 export type LoadedExercise = NonNullable<Awaited<ReturnType<typeof loadExercise>>>;
 export type ExerciseRow = LoadedExercise["ex"];
 
-/// Lock the requisition, then (where given) the exercise, and re-read both.
-export async function withLockedRequisitionForSourcing<T>(organisationId: string, 
+/**
+ * Lock the requisition, then (where given) the exercise, and re-read both.
+ *
+ * Every write to an exercise, its window, its documents, its scope and its evaluation begins here, so this is where a restricted exercise is
+ * refused (FR-MTD-007, Phase 3a): where the reader is not named on it the answer is `null`, "no longer exists", and the refusal is written to the
+ * access log in this transaction (it commits, since nothing is thrown). The reader is the signed-in actor, never an organisation alone.
+ */
+export async function withLockedRequisitionForSourcing<T>(reader: Reader,
   requisitionId: string,
   exerciseId: string | null,
   fn: (tx: Tx, l: { org: ExerciseOrg; req: SourcingRequisition; ex: ExerciseRow | null }) => Promise<T>,
 ): Promise<T | null> {
+  const organisationId = reader.organisationId;
   return db.$transaction(
     async (tx) => {
+      if (exerciseId && (await refuseHiddenExercise(tx, reader, exerciseId))) return null;
       // Only the organisation's own rows are locked (ADR 0034 D10): another organisation's ids lock nothing and read as gone.
       await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${requisitionId} AND "organisationId" = ${organisationId} FOR UPDATE`;
       if (exerciseId) await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${exerciseId} AND "organisationId" = ${organisationId} FOR UPDATE`;
@@ -248,10 +257,12 @@ export async function evaluationContext(
 
 export const EXERCISES_PAGE = 100;
 
-export async function listExercises(organisationId: string) {
+/// `hidden`: the restricted exercises the reader may not see (`hiddenExercises`, FR-MTD-007). They are left out of the rows and of the count, so
+/// neither the list nor "Showing the latest 100 of N" gives away that one exists. A caller says so with `[]` rather than leaving it out.
+export async function listExercises(organisationId: string, hidden: readonly string[]) {
   const org = await exerciseOrg(organisationId);
   if (!org) return { org: null, rows: [], total: 0 };
-  const where = { organisationId: org.id };
+  const where = { organisationId: org.id, ...exerciseNotHidden(hidden) };
   const [rows, total] = await Promise.all([
     db.sourcingExercise.findMany({
       where,

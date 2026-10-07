@@ -43,6 +43,7 @@ import {
   EXERCISE_STATUS_LABEL,
   EXERCISE_STATUS_TONE,
   findingText,
+  findingTextFor,
   NAME_STATE_TEXT,
   NOT_SET,
   PROPOSAL_STATE_LABEL,
@@ -119,19 +120,26 @@ import { scopeSectionFacts } from "@/lib/scope/read";
 import { ALL_SCOPE_SECTIONS, scopeSectionOf, visibleScopeSections } from "@/lib/scope/sections";
 import { ScopeWorkspace } from "./scope/workspace";
 import { money, OverviewPanel, pct, tone } from "./overview";
+import type { ReactNode } from "react";
 import { requireStaff } from "@/app/_auth/actor";
+import { exerciseIsHidden, sulitExerciseValue } from "@/app/_auth/sulit";
+import type { Sulit } from "@/lib/auth/sulit-access";
 
 export const dynamic = "force-dynamic";
 
 const flagsNeedName = (code: string, methods: { code: string; requiresNameApproval: boolean }[]) => methods.find((m) => m.code === code)?.requiresNameApproval ?? false;
-const RESTRICTION_NOTE = "Restriction not enforced until sign-in";
 
 export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const actor = await requireStaff();
   const [{ id }, { tab: asked, section }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string }>]);
+  // FR-MTD-007: a restricted exercise the reader is not named on reads as one that does not exist, and the attempt is logged.
+  if (await exerciseIsHidden(actor, id)) notFound();
   const l = await loadExercise(actor.organisationId, id);
   if (!l) notFound();
   const { ex, req, org } = l;
+  // The department estimate is SULIT: judged for this reader, once, and the access logged (ADR 0034 D14). Everything on the page that shows the
+  // figure takes this, so a withheld value is never read from `ex` below.
+  const estimate = await sulitExerciseValue(actor, { id: ex.id, reference: ex.reference }, "estimatedValue", () => money(ex.estimatedValue));
   // X-9 (6.5): the award gate reads the window's phase now and any pending change.
   const windowGateNow = await readWindowGate(ex, org.timeZone);
   const today = org.today;
@@ -256,7 +264,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // its last save (review #2, BD-16): said here, before the button is pressed.
   const drift = draft && ev && issue ? determinationDrift(ex, determinationColumns(ev, issue, (c) => config.methods.find((m) => m.code === c)?.nameEn ?? "A method no longer configured", on)) : [];
   const prepList = [...(prepFaults.length ? [...prepFaults.filter((f) => f.code !== "BLOCKING_FAULTS"), ...blocking] : []), ...drift];
-  const prepBlocker = prepList.length ? prepList.map(findingText).join(" ") : null;
+  const prepBlocker = prepList.length ? prepList.map((f) => findingTextFor(f, estimate.state === "WITHHELD")).join(" ") : null;
   // Where a blocker has a place it is put right, the note links there (UX 15).
   const FIX_AT: Record<string, { href: string; label: string }> = {
     BASIS_NOT_SET: { href: `/sourcing/${ex.id}/edit`, label: "Choose a basis" },
@@ -294,7 +302,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             {label === "Move to preparation"
               ? prepList.map((f, i) => (
                   <span key={i}>
-                    {findingText(f)}
+                    {findingTextFor(f, estimate.state === "WITHHELD")}
                     {FIX_AT[f.code] && (
                       <>
                         {" "}
@@ -336,7 +344,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             notes: [
               ...(method?.requiresDossier ? ["The justification dossier is numbered now."] : []),
               ...(openName ? ["The name approval in progress stays open: it gates invitation, not preparation."] : method?.requiresNameApproval && !approvedName ? ["The name has not been sent for approval yet; it can be requested in preparation."] : []),
-              ...(ex.restricted ? [`Restricted to the named participants — ${RESTRICTION_NOTE.toLowerCase()}.`] : []),
+              ...(ex.restricted ? ["Restricted: only the people named on it can see it."] : []),
               ...(req.status === "APPROVED" ? [`This is the requisition's first exercise to move: ${req.reference} goes into sourcing.`] : []),
             ],
           }}
@@ -368,6 +376,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
         overview == null ? null : (
           <OverviewPanel
             l={l}
+            estimate={estimate}
             flow={exerciseFlow({
               status: ex.status,
               packKind: overviewPack,
@@ -570,11 +579,11 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       count: ex.participants.length,
       panel: (
         <Card className="overflow-hidden">
-          <CardHeader icon={<UsersIcon size={17} />} title="Named participants" subtitle={restricted ? `Restricted by its method. ${RESTRICTION_NOTE}.` : "Not restricted by its method."} actions={ex.status !== "CANCELLED" ? <AddParticipantDrawer id={ex.id} people={activePeople.filter((p) => !ex.participants.some((x) => x.personId === p.value))} /> : undefined} />
+          <CardHeader icon={<UsersIcon size={17} />} title="Named participants" subtitle={restricted ? "Restricted by its method: only the people named on it can see it." : "Not restricted by its method."} actions={ex.status !== "CANCELLED" ? <AddParticipantDrawer id={ex.id} people={activePeople.filter((p) => !ex.participants.some((x) => x.personId === p.value))} /> : undefined} />
           <CardBody className="flex flex-col gap-4">
             {restricted && (
-              <Callout tone="warn" title={RESTRICTION_NOTE}>
-                Information on this exercise is classified. Nobody signs in yet, so the portal cannot hide it from people outside this list, nor log who looks at it. The list is recorded so that both attach when sign-in arrives.
+              <Callout tone="warn" title="Restricted to the people named on it">
+                This exercise is hidden from everyone else: it is left out of the lists, the counts, the search and the dashboard, and opening it by its address says it does not exist. Each time someone is turned away, or reads a classified figure on it, the portal logs it. Besides the people named here, it is open to the person in charge, the proposal&apos;s reviewer and the members of its evaluation team and opening panel. Anyone who must approve a route for it or sit on its committee has to be named here too: holding the office does not open it.
               </Callout>
             )}
             {ex.participants.length === 0 ? (
@@ -605,6 +614,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       count: history.total,
       panel: (
         <HistoryPanel
+          estimate={estimate}
           entries={history.entries}
           total={history.total}
           timeZone={org.timeZone}
@@ -634,13 +644,13 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             {published && (
               <Badge tone={PHASE_TONE[windowGateNow.phase]}>{PHASE_LABEL[windowGateNow.phase]}</Badge>
             )}
-            {restricted && <Badge tone="warn">{`Restricted · ${RESTRICTION_NOTE.toLowerCase()}`}</Badge>}
+            {restricted && <Badge tone="warn">Restricted to its named people</Badge>}
           </>
         }
         meta={[
           <span key="ref" className="font-mono text-[12.5px]">{ex.reference}</span>,
           <span key="for">for <Link href={`/requisitions/${req.id}?tab=sourcing`}>{req.reference}</Link></span>,
-          <SulitValue key="v">{money(ex.estimatedValue)}</SulitValue>,
+          <SulitValue key="v" of={estimate} />,
           methodName,
           decided?.contractType.nameEn ?? typeName(ex.contractTypeCode) ?? "Contract type not set",
           ex.regime ? REGIME_SHORT[ex.regime as Regime] : "Regime not determined",
@@ -1044,6 +1054,7 @@ const FIELD_NAME: Record<string, string> = {
 const MONEY = new Set(["estimatedValue", "amount", "boundaryValue"]);
 
 function HistoryPanel({
+  estimate,
   entries,
   total,
   timeZone,
@@ -1055,6 +1066,8 @@ function HistoryPanel({
   tenderingRouteIds,
   routeDomains,
 }: {
+  /// The department estimate as this reader may see it: its changes in the trail are shown, or withheld, as the figure is (Phase 3a).
+  estimate: Sulit<string>;
   entries: Awaited<ReturnType<typeof exerciseHistory>>["entries"];
   total: number;
   timeZone: string | null;
@@ -1069,7 +1082,12 @@ function HistoryPanel({
   routeDomains: ReadonlyMap<string, string>;
 }) {
   // The department estimate (a registered SULIT field) reads with the SULIT chip in the trail too.
-  const chipped = (field: string, value: string | null, entityId: string, entity: string) => (isSulitField(field) && value ? <SulitValue>{read(field, value, entityId, entity)}</SulitValue> : read(field, value, entityId, entity));
+  // The estimate itself is judged for this reader (`estimate`); any other registered field keeps the chip until its module rolls out (3b).
+  const chipped = (field: string, value: string | null, entityId: string, entity: string) => {
+    if (!isSulitField(field) || !value) return read(field, value, entityId, entity);
+    if (field === "estimatedValue") return estimate.state === "GRANTED" ? <SulitValue of={{ ...estimate, value: read(field, value, entityId, entity) }} /> : <SulitValue of={estimate as Sulit<ReactNode>} />;
+    return <SulitValue>{read(field, value, entityId, entity)}</SulitValue>;
+  };
   const read = (field: string, value: string | null, entityId: string, entity: string): string => {
     if (value == null || value === "") return "—";
     // A window row's values are written in words already (an addendum's "Draft", a sale's "yes"): never read as a stored code.

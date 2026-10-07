@@ -14,12 +14,15 @@ import { addSen, formatMoney, parseSen, subtractSen } from "@/lib/money";
 
 import { ExerciseForm } from "../../exercise-form";
 import { requireStaff } from "@/app/_auth/actor";
+import { exerciseIsHidden, sulitExerciseValue } from "@/app/_auth/sulit";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/edit">) {
   const actor = await requireStaff();
   const { id } = await props.params;
+  // FR-MTD-007: an exercise restricted to its named people reads as one that does not exist to anyone else, and the attempt is logged.
+  if (await exerciseIsHidden(actor, id)) notFound();
   const l = await loadExercise(actor.organisationId, id);
   if (!l) notFound();
   const { ex, req, org } = l;
@@ -35,6 +38,19 @@ export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/
         {header}
         <Callout tone="info" title={`This exercise is ${EXERCISE_STATUS_LABEL[ex.status].toLowerCase()}`} action={<ButtonLink href={`/sourcing/${ex.id}`} size="sm">Back to the exercise</ButtonLink>}>
           Only a draft exercise can be edited.
+        </Callout>
+      </>
+    );
+  }
+  // The form carries the estimate, the scope's amounts and the requisition's headroom, all made of a SULIT figure: a reader who may not read the
+  // estimate (ADR 0034 D14) is told so, and no form is built for them (Phase 3a). Reading is the least a change needs.
+  const estimate = await sulitExerciseValue(actor, { id: ex.id, reference: ex.reference }, "estimatedValue", true);
+  if (estimate.state === "WITHHELD") {
+    return (
+      <>
+        {header}
+        <Callout tone="warn" title="This exercise's value is SULIT and withheld from you" action={<ButtonLink href={`/sourcing/${ex.id}`} size="sm">Back to the exercise</ButtonLink>}>
+          {estimate.words.en} The edit form shows the estimate and the amounts made from it, so it is not offered to someone who may not read them.
         </Callout>
       </>
     );

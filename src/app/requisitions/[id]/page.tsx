@@ -1,3 +1,4 @@
+import { hiddenExercises, sulitExerciseValues } from "@/app/_auth/sulit";
 import Link from "next/link";
 import { MISSING_BUDGET_CODE_TEXT, missingBudgetCode } from "@/lib/requisition/budget-code";
 import { historyEntityLabel } from "@/lib/audit/entity-labels";
@@ -146,19 +147,28 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   const today = l.org.today;
   const on = today ? dayToDate(today) : new Date();
 
-  const [policy, controls, { lookups, formats, costCentres, accountCodes, sites }, roster, delegations, history, exercises, methodCount] = await Promise.all([
+  // FR-MTD-007: an exercise restricted to its named people is not listed to anyone else.
+  const hiddenExerciseIds = await hiddenExercises(actor);
+  const [policy, controls, { lookups, formats, costCentres, accountCodes, sites }, roster, delegations, history, everyExercise, methodCount] = await Promise.all([
     loadPolicy(l.org.id),
     loadControls(l.org.id),
     loadLookups(l.org.id),
     loadRoster(actor.organisationCode),
     loadDelegations(actor.organisationCode),
     requisitionHistory(l),
-    db.sourcingExercise.findMany({ where: { requisitionId: id }, orderBy: { createdAt: "asc" }, select: { id: true, reference: true, title: true, estimatedValue: true, status: true, regime: true, sourcingMethodCode: true } }),
+    db.sourcingExercise.findMany({ where: { requisitionId: id, organisationId: actor.organisationId }, orderBy: { createdAt: "asc" }, select: { id: true, reference: true, title: true, estimatedValue: true, status: true, regime: true, sourcingMethodCode: true } }),
     db.sourcingMethod.count({ where: { organisationId: l.org.id, OR: [{ retiredOn: null }, { retiredOn: { gt: new Date() } }] } }),
   ]);
   const methodNames = new Map((await db.sourcingMethod.findMany({ where: { organisationId: l.org.id }, select: { code: true, nameEn: true } })).map((m) => [m.code, m.nameEn]));
+  // What is listed is what this reader may see; what is added up (to say whether another exercise may be opened) is every one of them.
+  const exercises = everyExercise.filter((x) => !hiddenExerciseIds.includes(x.id));
+  // Each exercise's estimate is SULIT: judged for this reader and logged (ADR 0034 D14). What is in live exercises and what is left are sums of them, so they are
+  // shown only where every live exercise is listed to this reader with its figure; otherwise the sentence says they are not shown.
+  const exerciseValues = await sulitExerciseValues(actor, exercises.map((x) => ({ id: x.id, reference: x.reference })), "estimatedValue", (xid) => formatMoney(parseSen(exercises.find((x) => x.id === xid)!.estimatedValue.toString())));
+  const liveExercises = everyExercise.filter((x) => x.status !== "CANCELLED").length;
+  const sumsShown = exercises.filter((x) => x.status !== "CANCELLED").length === liveExercises && exercises.every((x) => x.status === "CANCELLED" || exerciseValues.get(x.id)?.state === "GRANTED");
   const approvedRoute = l.req.approvalInstances.find((i) => i.status === "APPROVED") ?? null;
-  const inExercises = addSen(...exercises.filter((x) => x.status !== "CANCELLED").map((x) => parseSen(x.estimatedValue.toString())));
+  const inExercises = addSen(...everyExercise.filter((x) => x.status !== "CANCELLED").map((x) => parseSen(x.estimatedValue.toString())));
   const remaining = approvedRoute ? routedValue(approvedRoute) - inExercises : null;
   const gateView = (await gatesForRequisition(id)) ?? { gates: [], finding: { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const } };
   const exerciseFault = openFault({ status: l.req.status, sourcingPermitted: l.req.sourcingPermitted, approvedRoute: !!approvedRoute, remaining }, { today: l.org.today, methodsConfigured: methodCount > 0, gate: gateView.finding });
@@ -675,7 +685,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                 <CardHeader
                   icon={<GlobeIcon size={17} />}
                   title="Sourcing exercises"
-                  subtitle={approvedRoute && remaining != null ? `Approved for ${formatMoney(routedValue(approvedRoute))} · ${formatMoney(inExercises)} in live exercises · ${formatMoney(remaining)} left.` : "Opened once the requisition is approved."}
+                  subtitle={approvedRoute && remaining != null ? (sumsShown ? `Approved for ${formatMoney(routedValue(approvedRoute))} · ${formatMoney(inExercises)} in live exercises · ${formatMoney(remaining)} left.` : `Approved for ${formatMoney(routedValue(approvedRoute))}. What is in live exercises and what is left are made of exercise estimates you may not read, so they are not shown.`) : "Opened once the requisition is approved."}
                   actions={
                     exerciseFault ? (
                       <Blocked label="New exercise" reason={findingText(exerciseFault)} />
@@ -686,7 +696,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                     )
                   }
                 />
-                {r.status === "SOURCING" && exercises.every((x) => x.status === "CANCELLED") && (
+                {r.status === "SOURCING" && liveExercises === 0 && (
                   <div className="border-b border-line px-5 py-3 sm:px-6">
                     <Callout tone="warn" title="No live exercise">
                       Every exercise on this requisition has been cancelled. It stays in sourcing — the portal has no path back to approved, nor to abandon an approved requisition — so open a new exercise against it.
@@ -711,7 +721,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
                           </span>
                         </span>
                         <span className="flex flex-wrap items-center gap-2">
-                          <span className="text-[13.5px] tabular-nums text-ink">{formatMoney(parseSen(x.estimatedValue.toString()))}</span>
+                          <span className="text-[13.5px] text-ink">{exerciseValues.get(x.id) ? <SulitValue of={exerciseValues.get(x.id)!} /> : null}</span>
                           <Badge tone={EXERCISE_STATUS_TONE[x.status as ExerciseStatus]}>{EXERCISE_STATUS_LABEL[x.status as ExerciseStatus]}</Badge>
                         </span>
                       </li>

@@ -7,7 +7,7 @@ import { ACT_LABEL } from "@/lib/labels";
 import { formatMoney as formatSen } from "@/lib/money";
 
 import type { Evaluation } from "./evaluate";
-import { APPOINTMENT_STATE_TEXT, boundarySentence, DERIVATION_TEXT, findingText, NAME_STATE_TEXT, REGIME_LABEL, TAXONOMY_STATE_LABEL, TERMS_STATE_TEXT, TYPE_STATE_LABEL } from "./labels";
+import { APPOINTMENT_STATE_TEXT, boundarySentence, DERIVATION_TEXT, findingTextFor, NAME_STATE_TEXT, REGIME_LABEL, TAXONOMY_STATE_LABEL, TERMS_STATE_TEXT, TYPE_STATE_LABEL } from "./labels";
 import type { Provenance } from "./types";
 import type { ApprovedRoute } from "./value";
 
@@ -44,6 +44,8 @@ export function presentEvaluation(
     valueName: (taxonomy: string, code: string) => string;
     approved: ApprovedRoute | null;
     boundarySource: string;
+    /// The reader may not read every exercise estimate a finding's amounts are made of (ADR 0034 D14): those findings say so without the figures.
+    amountsWithheld: boolean;
   },
 ): Presented {
   const b = ev.bands;
@@ -99,6 +101,6 @@ export function presentEvaluation(
       status: TAXONOMY_STATE_LABEL[t.state],
       value: t.valueCode ? ctx.valueName(t.taxonomyCode, t.valueCode) : null,
     })),
-    findings: ev.findings.map((f) => ({ tone: f.level === "block" ? "err" : f.level === "warn" ? "warn" : "info", text: findingText(f) })),
+    findings: ev.findings.map((f) => ({ tone: f.level === "block" ? "err" : f.level === "warn" ? "warn" : "info", text: findingTextFor(f, ctx.amountsWithheld) })),
   };
 }

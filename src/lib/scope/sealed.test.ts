@@ -89,9 +89,30 @@ describe("one accessor reads the sealed columns", () => {
   });
 });
 
-describe("built for sign-in, not wired (OD-1)", () => {
-  it("viewFault and custodyList are imported by nothing in src/app", () => {
+// Phase 3a (FR-EST-008), a deliberate change to this group-J test. It said "built for sign-in, not wired: viewFault and custodyList are imported by nothing
+// in src/app". They are wired now, and the test says what holds instead: one module (estimate-access.ts) asks them, the screens ask that module, and
+// the module decides without ever reading a figure, so wiring custody did not open the sealed estimate (OD-1, ADR 0012: nothing is revealed before disclosure,
+// and a disclosed figure is shown to those in custody only).
+describe("custody is wired to who may read a disclosed figure (FR-EST-008), and reveals nothing before disclosure (OD-1)", () => {
+  const ACCESS = "src/lib/scope/estimate-access.ts";
+  it("custodyList and viewFault are called by estimate-access.ts, and by no screen", () => {
+    expect(matching(/\b(viewFault|custodyList)\(/, (f) => !isTest(f) && f !== "src/lib/scope/estimate.ts")).toEqual([ACCESS]);
     expect(matching(/\b(viewFault|custodyList)\b/, (f) => f.startsWith("src/app/"))).toEqual([]);
+  });
+  it("estimate-access.ts reads no figure: it imports neither the store nor the sealed columns", () => {
+    const src = source(ACCESS);
+    expect(src).not.toMatch(/estimate-store|readSealedFigures|sealFigures|omit\s*:/);
+    expect(src).not.toMatch(/\b(value|reason)\s*:\s*true\b/);
+  });
+  it("it says SEALED before it reads the policy or any holder, whoever asks", () => {
+    const src = source(ACCESS);
+    expect(src.indexOf('"SEALED"')).toBeGreaterThan(-1);
+    expect(src.indexOf('"SEALED"')).toBeLessThan(src.indexOf("loadScopePolicy("));
+    expect(src.indexOf('"SEALED"')).toBeLessThan(src.indexOf("roleAssignment.findMany"));
+  });
+  it("the screens ask for the figure through the logged access, never through the unlogged one", () => {
+    expect(matching(/\bestimateAccessFor\(/, (f) => f.startsWith("src/app/"))).toEqual([]);
+    expect(matching(/\bloggedEstimateAccess\(/, (f) => !isTest(f) && f !== ACCESS)).toEqual(["src/lib/opening/read.ts"]);
   });
 });
 

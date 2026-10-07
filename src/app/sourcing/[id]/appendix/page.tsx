@@ -14,6 +14,7 @@ import { appendixPage } from "@/lib/tender-docs/read";
 
 import { AppendixDrawer, LimitDrawer, RemoveLimitDrawer, RemoveSectionDrawer, SectionDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { exerciseIsHidden } from "@/app/_auth/sulit";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,8 @@ const val = (v: string): ReactNode => (v === NOT_SET ? <Badge tone="warn">Not se
 export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appendix">) {
   const actor = await requireStaff();
   const { id } = await props.params;
+  // FR-MTD-007: an exercise restricted to its named people reads as one that does not exist to anyone else, and the attempt is logged.
+  if (await exerciseIsHidden(actor, id)) notFound();
   const d = await appendixPage(actor.organisationId, id);
   if (!d) notFound();
   const back = `/sourcing/${id}?tab=documents`;

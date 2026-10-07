@@ -1,0 +1,199 @@
+import { beforeAll, describe, expect, it } from "vitest";
+
+import { db } from "@/lib/db";
+import { approvalRouteNotHidden, hiddenExerciseIds, refuseHiddenExercise, type Reader } from "@/lib/auth/sulit-store";
+import { hiddenDecisionIds } from "@/lib/committee/hidden";
+import { exerciseOfOwner } from "@/lib/documents/hidden";
+import { withLockedRequisitionForSourcing } from "@/lib/method/repo";
+import { estimateAccessFor, loggedEstimateAccess } from "@/lib/scope/estimate-access";
+import { loadWaiting } from "@/lib/committee/waiting-load";
+import { makePerson, randomId, testOrganisation } from "@/lib/test-db/auth-fixtures";
+
+/**
+ * The restricted exercise and the company estimate's custody, against the scratch database (FR-MTD-007, FR-EST-008; ADR 0034 D14; Phase 3a): a write
+ * is refused for someone not named on the exercise and the refusal is logged; the queues and matters of a hidden exercise are left out; the disclosed
+ * estimate is read by its preparer and the offices that hold its copies and audit it, for the unit that asked for it, and by nobody before disclosure.
+ */
+
+const day = (iso: string) => new Date(`${iso}T00:00:00Z`);
+let organisationId = "";
+let requisitionId = "";
+let exerciseId = "";
+let openExerciseId = "";
+const who = { named: "", outsider: "", admin: "", custodian: "", otherDeptHolder: "", auditor: "", preparer: "" };
+const reader = (personId: string, over: Partial<Reader & { organisationTimeZone: string | null }> = {}): Reader & { organisationTimeZone: string | null } => ({
+  organisationId,
+  organisationCode: "AUTH_TEST",
+  personId,
+  isAdministrator: false,
+  sessionId: `sess_${randomId()}`,
+  sourceAddress: "198.51.100.9",
+  organisationTimeZone: "Asia/Kuala_Lumpur",
+  ...over,
+});
+const CUSTODIAN = `ROLE_CUST_${randomId()}`;
+const AUDIT = `ROLE_AUD_${randomId()}`;
+const DEPT = `DEPT_${randomId()}`;
+const OTHER_DEPT = `DEPT_${randomId()}`;
+let estimateId = "";
+
+beforeAll(async () => {
+  organisationId = (await testOrganisation()).id;
+  for (const k of Object.keys(who) as (keyof typeof who)[]) who[k] = (await makePerson(organisationId, `Restricted ${k} ${randomId()}`)).id;
+  requisitionId = (
+    await db.requisition.create({
+      data: {
+        organisationId, reference: `RX/REQ/${randomId()}`, requestingUnitCode: DEPT, requestingPersonId: who.named, title: "Restricted test requisition", justification: "Tests.", needStatement: "None.",
+        costCentreCode: "RX_CC", accountCode: "RX_AC", placeOfDelivery: "Nowhere", dateRequired: day("2026-12-31"), estimatedValue: "1000.00", raisedOn: day("2026-10-01"),
+      },
+    })
+  ).id;
+  const make = (restricted: boolean) => db.sourcingExercise.create({ data: { organisationId, reference: `RX/EX/${randomId()}`, requisitionId, title: "Restricted test exercise", estimatedValue: "1000.00", sourcingMethodCode: "RX_METHOD", restricted } });
+  exerciseId = (await make(true)).id;
+  openExerciseId = (await make(false)).id;
+  await db.exerciseParticipant.create({ data: { exerciseId, personId: who.named } });
+  // The unit and a sibling, so that "held for a department" has somewhere to be.
+  for (const code of [DEPT, OTHER_DEPT]) await db.orgUnit.create({ data: { organisationId, code, nameEn: code, kind: "DEPARTMENT", effectiveFrom: day("2020-01-01") } });
+  await db.scopePolicy.upsert({ where: { organisationId }, create: { organisationId }, update: { estimateCustodianRoleCode: null, estimateAuditRoleCode: null } });
+  const est = await db.companyEstimate.create({ data: { organisationId, exerciseId, preparerPersonId: who.preparer, state: "LODGED", currentVersionNo: 1 } });
+  estimateId = est.id;
+});
+
+describe("a write on a restricted exercise (FR-MTD-007)", () => {
+  it("runs for a person named on it", async () => {
+    const out = await withLockedRequisitionForSourcing(reader(who.named), requisitionId, exerciseId, async (_tx, l) => l.ex?.id ?? null);
+    expect(out).toBe(exerciseId);
+  });
+  it("answers 'gone' for a person who is not named, runs nothing, and logs the refusal against the exercise", async () => {
+    let ran = false;
+    const out = await withLockedRequisitionForSourcing(reader(who.outsider), requisitionId, exerciseId, async () => {
+      ran = true;
+      return "ran";
+    });
+    expect(out).toBeNull();
+    expect(ran).toBe(false);
+    const e = await db.sulitAccessEvent.findFirstOrThrow({ where: { entityId: exerciseId, actorPersonId: who.outsider }, orderBy: { at: "desc" } });
+    expect(e).toMatchObject({ outcome: "WITHHELD", basis: "RESTRICTED_NOT_NAMED", fields: ["record"], scope: "exercise" });
+  });
+  it("answers 'gone' for an administrator account, even one named on it, and logs it as an administrator", async () => {
+    await db.exerciseParticipant.create({ data: { exerciseId, personId: who.admin } });
+    const out = await withLockedRequisitionForSourcing(reader(who.admin, { isAdministrator: true }), requisitionId, exerciseId, async () => "ran");
+    expect(out).toBeNull();
+    const e = await db.sulitAccessEvent.findFirstOrThrow({ where: { entityId: exerciseId, actorPersonId: who.admin }, orderBy: { at: "desc" } });
+    expect(e.basis).toBe("ADMINISTRATOR");
+  });
+  it("is not refused for an unrestricted exercise, whoever asks", async () => {
+    expect(await withLockedRequisitionForSourcing(reader(who.outsider), requisitionId, openExerciseId, async (_tx, l) => l.ex?.id ?? null)).toBe(openExerciseId);
+  });
+  it("is not refused for a loader run, and writes no refusal", async () => {
+    const before = await db.sulitAccessEvent.count({ where: { entityId: exerciseId } });
+    const out = await withLockedRequisitionForSourcing(reader("", { system: { label: "demo loader" } }), requisitionId, exerciseId, async (_tx, l) => l.ex?.id ?? null);
+    expect(out).toBe(exerciseId);
+    expect(await db.sulitAccessEvent.count({ where: { entityId: exerciseId } })).toBe(before);
+  });
+  it("refuseHiddenExercise says false for an exercise that does not exist, and writes nothing", async () => {
+    expect(await refuseHiddenExercise(db, reader(who.outsider), "no_such_exercise")).toBe(false);
+  });
+});
+
+describe("the queues and matters of a hidden exercise are left out", () => {
+  let routeOnHidden = "";
+  let routeOnRequisition = "";
+  let decisionOnHidden = "";
+  let decisionOnOpen = "";
+  beforeAll(async () => {
+    routeOnHidden = (await db.approvalInstance.create({ data: { organisationId, matterKind: "EXERCISE", domain: "name_approval", exerciseId, openedAt: new Date("2026-10-03T02:00:00Z") } })).id;
+    routeOnRequisition = (await db.approvalInstance.create({ data: { organisationId, matterKind: "REQUISITION", domain: "requisition", requisitionId, openedAt: new Date("2026-10-03T02:00:00Z") } })).id;
+    const committee = await db.committee.create({ data: { organisationId, code: `RX_${randomId()}`, nameEn: "Restricted test committee", mandate: "Tests.", governingSource: "None." } });
+    const meeting = await db.meeting.create({ data: { committeeId: committee.id, reference: `RX/MT/${randomId()}`, meetingDate: day("2026-10-05") } });
+    decisionOnHidden = (await db.committeeDecision.create({ data: { meetingId: meeting.id, domain: "name_approval", subject: "Restricted matter", exerciseId } })).id;
+    decisionOnOpen = (await db.committeeDecision.create({ data: { meetingId: meeting.id, domain: "name_approval", subject: "Open matter", exerciseId: openExerciseId } })).id;
+  });
+
+  it("an approval route on a hidden exercise is not in a queue that leaves it out, and one on a requisition is (a NOT of a NULL would drop it)", async () => {
+    const hidden = await hiddenExerciseIds(db, { ...reader(who.outsider) });
+    expect(hidden).toContain(exerciseId);
+    const rows = await db.approvalInstance.findMany({ where: { organisationId, id: { in: [routeOnHidden, routeOnRequisition] }, ...approvalRouteNotHidden(hidden) }, select: { id: true } });
+    expect(rows.map((r) => r.id)).toEqual([routeOnRequisition]);
+  });
+  it("with nothing hidden the queue is whole", async () => {
+    const rows = await db.approvalInstance.findMany({ where: { organisationId, id: { in: [routeOnHidden, routeOnRequisition] }, ...approvalRouteNotHidden([]) }, select: { id: true } });
+    expect(rows.map((r) => r.id).sort()).toEqual([routeOnHidden, routeOnRequisition].sort());
+  });
+  it("the waiting-to-be-tabled list leaves a hidden exercise's route out", async () => {
+    const hidden = await hiddenExerciseIds(db, reader(who.outsider));
+    const waiting = await loadWaiting(organisationId, hidden);
+    expect(waiting?.entries.every((e) => e.href !== `/sourcing/${exerciseId}`)).toBe(true);
+  });
+  it("a tabled matter is a hidden exercise's however it names it; an open exercise's is not", async () => {
+    const hidden = await hiddenExerciseIds(db, reader(who.outsider));
+    const found = await hiddenDecisionIds([decisionOnHidden, decisionOnOpen], hidden);
+    expect([...found]).toEqual([decisionOnHidden]);
+    expect((await hiddenDecisionIds([decisionOnHidden], [])).size).toBe(0);
+  });
+  it("the owner of documents maps to its exercise", async () => {
+    expect(await exerciseOfOwner("exercise", exerciseId)).toBe(exerciseId);
+    expect(await exerciseOfOwner("meeting", "anything")).toBeNull();
+    expect(await exerciseOfOwner("award", "no_such_award")).toBeNull();
+  });
+});
+
+describe("the company estimate's custody (FR-EST-008)", () => {
+  const holder = (personId: string, roleCode: string, scope: string | null) => db.roleAssignment.create({ data: { personId, roleCode, scope, effectiveFrom: day("2024-01-01") } });
+  const decisionOf = async (personId: string, over: Partial<Reader & { organisationTimeZone: string | null }> = {}) => (await estimateAccessFor(db, reader(personId, over), exerciseId))?.decision;
+
+  it("before disclosure nobody reads it: not the preparer, not an office holder, whatever is set", async () => {
+    expect(await decisionOf(who.preparer)).toEqual({ state: "WITHHELD", basis: "SEALED" });
+    expect(await decisionOf(who.named)).toEqual({ state: "WITHHELD", basis: "SEALED" });
+  });
+  it("disclosed, with the offices unset, it says so: never 'nobody', never 'everybody'", async () => {
+    await db.companyEstimate.update({ where: { id: estimateId }, data: { state: "DISCLOSED", disclosedAt: new Date() } });
+    expect(await decisionOf(who.preparer)).toEqual({ state: "WITHHELD", basis: "CUSTODY_NOT_SET" });
+  });
+  it("with one office set and not the other, it is still not set", async () => {
+    await db.scopePolicy.update({ where: { organisationId }, data: { estimateCustodianRoleCode: CUSTODIAN, estimateAuditRoleCode: null } });
+    expect(await decisionOf(who.preparer)).toEqual({ state: "WITHHELD", basis: "CUSTODY_NOT_SET" });
+  });
+  it("with both set, the preparer and the holders of either office read it, and nobody else", async () => {
+    await db.scopePolicy.update({ where: { organisationId }, data: { estimateCustodianRoleCode: CUSTODIAN, estimateAuditRoleCode: AUDIT } });
+    await holder(who.custodian, CUSTODIAN, null);
+    await holder(who.auditor, AUDIT, null);
+    expect(await decisionOf(who.preparer)).toEqual({ state: "GRANTED", basis: "IN_CUSTODY" });
+    expect(await decisionOf(who.custodian)).toEqual({ state: "GRANTED", basis: "IN_CUSTODY" });
+    expect(await decisionOf(who.auditor)).toEqual({ state: "GRANTED", basis: "IN_CUSTODY" });
+    expect(await decisionOf(who.outsider)).toEqual({ state: "WITHHELD", basis: "NOT_IN_CUSTODY" });
+  });
+  it("an office held for another department does not carry this department's estimate", async () => {
+    await holder(who.otherDeptHolder, CUSTODIAN, OTHER_DEPT);
+    expect(await decisionOf(who.otherDeptHolder)).toEqual({ state: "WITHHELD", basis: "NOT_IN_CUSTODY" });
+  });
+  it("an office held for the requesting department counts, and when it is held there it is the only holder (the nearest unit wins)", async () => {
+    const dept = await makePerson(organisationId, `Restricted dept head ${randomId()}`);
+    await holder(dept.id, CUSTODIAN, DEPT);
+    expect(await decisionOf(dept.id)).toEqual({ state: "GRANTED", basis: "IN_CUSTODY" });
+    // The organisation-wide holder no longer counts for a unit that has a holder of its own.
+    expect(await decisionOf(who.custodian)).toEqual({ state: "WITHHELD", basis: "NOT_IN_CUSTODY" });
+  });
+  it("an administrator account never reads it, whatever the custody", async () => {
+    expect(await decisionOf(who.preparer, { isAdministrator: true })).toEqual({ state: "WITHHELD", basis: "ADMINISTRATOR" });
+  });
+  it("with no time zone the organisation's day is not known, and it says so", async () => {
+    expect(await decisionOf(who.preparer, { organisationTimeZone: null })).toEqual({ state: "WITHHELD", basis: "CUSTODY_DAY_UNKNOWN" });
+  });
+  it("the logged read writes the event, shown or refused, against the estimate", async () => {
+    const granted = await loggedEstimateAccess(db, reader(who.preparer), exerciseId);
+    expect(granted?.decision.state).toBe("GRANTED");
+    const refused = await loggedEstimateAccess(db, reader(who.outsider), exerciseId);
+    expect(refused?.decision.state).toBe("WITHHELD");
+    const events = await db.sulitAccessEvent.findMany({ where: { entity: "CompanyEstimate", entityId: estimateId }, orderBy: { at: "asc" } });
+    expect(events.map((e) => e.outcome)).toEqual(expect.arrayContaining(["GRANTED", "WITHHELD"]));
+    expect(events.every((e) => e.fields.includes("companyEstimate"))).toBe(true);
+  });
+  it("an exercise with no estimate that is not void asks nobody and logs nothing", async () => {
+    expect(await loggedEstimateAccess(db, reader(who.preparer), openExerciseId)).toBeNull();
+  });
+  it("a void estimate is not the estimate", async () => {
+    await db.companyEstimate.update({ where: { id: estimateId }, data: { state: "VOID", voidedAt: new Date(), voidReason: "test" } });
+    expect(await estimateAccessFor(db, reader(who.preparer), exerciseId)).toBeNull();
+  });
+});

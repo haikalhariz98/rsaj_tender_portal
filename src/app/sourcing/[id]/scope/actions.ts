@@ -1,5 +1,6 @@
 "use server";
 
+import type { Reader } from "@/lib/auth/sulit-store";
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
@@ -43,7 +44,6 @@ import { recordEstimateLodgement } from "@/lib/bids/lodgement";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
-import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for 6.2 increment 1: the bill of quantities, the specification panel and the
@@ -80,10 +80,10 @@ async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, e
 /// Every 6.2 row is labelled with its exercise's reference, so the exercise's History finds it.
 const label = (l: LockedExercise, what: string) => `${l.ex.reference} · ${what}`;
 
-async function inExercise(scope: OrgScope, exerciseId: string, fn: (tx: Tx, l: LockedExercise) => Promise<FormState>): Promise<FormState> {
+async function inExercise(scope: Reader, exerciseId: string, fn: (tx: Tx, l: LockedExercise) => Promise<FormState>): Promise<FormState> {
   let result: FormState | null;
   try {
-    result = await withLockedExerciseScope(scope.organisationId, exerciseId, fn);
+    result = await withLockedExerciseScope(scope, exerciseId, fn);
   } catch (e) {
     if (e instanceof Refusal) return e.state;
     const attribution = attributionRefusalState(e);

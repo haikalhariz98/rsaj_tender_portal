@@ -1,5 +1,6 @@
 "use server";
 
+import type { Reader } from "@/lib/auth/sulit-store";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -32,7 +33,7 @@ import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
 import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, INSURANCE_KIND_LABEL, SECURITY_KIND_LABEL, SIGNER_FAULT_TEXT, differsRefusal, tenderTermText } from "@/lib/award/labels";
 import { policyLabel, securityLabel } from "@/lib/audit/entity-labels";
 import { renderedText } from "@/lib/award/merge";
-import { awardFacts, dossierEvidenceOf, frozenTenderOf, loadAwardConfig, withLockedAward, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
+import { awardFacts, dossierEvidenceOf, frozenTenderOf, loadAwardConfig, withLockedAwardFor, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
 import { receivedOnFault } from "@/lib/award/routing";
 import { approvedOnOf, checkSignatory } from "@/lib/award/signatory";
 import { correctionScansMissing, instrumentReturned, returnReadsComplete, type ReturnRecord } from "@/lib/award/stage-two";
@@ -65,7 +66,6 @@ import type { ContractStatus } from "@/lib/contract/types";
 import { afterStep, audit, CHANGED, citeAppointmentStep, labelOf, mustMove, NO_ZONE, Refusal, routeLabel, sendAwardRejected } from "@/lib/award/route-write";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
-import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for awards (6.11) and the registers on their contracts.
@@ -90,11 +90,11 @@ function refresh(id?: string, exerciseId?: string) {
   if (exerciseId) revalidatePath(`/sourcing/${exerciseId}`);
 }
 
-async function inAward(scope: OrgScope, id: string, fn: (tx: Tx, l: LoadedAward) => Promise<FormState>): Promise<FormState> {
+async function inAward(scope: Reader, id: string, fn: (tx: Tx, l: LoadedAward) => Promise<FormState>): Promise<FormState> {
   let result: FormState | null;
   let exerciseId: string | undefined;
   try {
-    result = await withLockedAward(scope.organisationId, id, (tx, l) => {
+    result = await withLockedAwardFor(scope, id, (tx, l) => {
       exerciseId = l.ex.id;
       return fn(tx, l);
     });
@@ -195,7 +195,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
 
   let id: string | null = null;
   try {
-    const result = await withLockedExerciseForAward(actor.organisationId, exerciseId, async (tx, l): Promise<FormState> => {
+    const result = await withLockedExerciseForAward(actor, exerciseId, async (tx, l): Promise<FormState> => {
       const { org, ex, req } = l;
       if (!org.today) return NO_ZONE;
       // X-9 (6.5): an exercise with a tender or quotation pack needs its invitation window closed, with no change pending.

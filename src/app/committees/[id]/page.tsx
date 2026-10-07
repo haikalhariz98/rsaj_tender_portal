@@ -46,7 +46,9 @@ import { isLive } from "@/lib/documents/evidence";
 import { liveOutcomes, MANDATORY_ACTS } from "@/lib/committee/matter";
 import { isFrozen, meetingTransition } from "@/lib/committee/meeting";
 import type { VotingSeat } from "@/lib/committee/sitting";
-import { loadSitting, sittingHistory, type LoadedSitting } from "@/lib/committee/sittings";
+import { loadSitting, redactHiddenMatters, sittingHistory, type LoadedSitting } from "@/lib/committee/sittings";
+import { HIDDEN_MATTER_SUBJECT, hiddenDecisionIds } from "@/lib/committee/hidden";
+import { hiddenExercises } from "@/app/_auth/sulit";
 import { tablePrefillFromQuery } from "@/lib/committee/table-prefill";
 import { tablingAmount } from "@/lib/committee/repo";
 import { notLinkedFor } from "@/lib/committee/auto-link-write";
@@ -100,16 +102,20 @@ export default async function SittingPage({
   // links here with it filled in. The link names the record; its amount is read here, on the
   // server, never carried in the URL (a requisition's is the SULIT department estimate).
   const asked = tablePrefillFromQuery(sp);
-  const askedAmount = asked ? await tablingAmount(actor.organisationId, asked.source) : null;
+  const hidden = await hiddenExercises(actor);
+  const askedAmount = asked ? await tablingAmount(actor.organisationId, asked.source, hidden) : null;
   const prefill = asked ? { ...asked.values, ...(askedAmount != null ? { amount: askedAmount } : {}) } : undefined;
-  const s = await loadSitting(actor, id);
-  if (!s) notFound();
+  const whole = await loadSitting(actor, id);
+  if (!whole) notFound();
+  // FR-MTD-007: the matters of an exercise restricted to its named people keep their place on the agenda and lose what names them; the reader is told.
+  const hiddenMatters = await hiddenDecisionIds(whole.meeting.decisions.map((d) => d.id), hidden);
+  const s = redactHiddenMatters(whole, hiddenMatters);
 
   const m = s.meeting;
   const c = m.committee;
   const a = s.assessment;
   const frozen = isFrozen(m.status);
-  const history = await sittingHistory(s);
+  const history = await sittingHistory(s, hiddenMatters);
   // Founder, 2026-10-05: why a decided matter was not linked to its record's approval, from its History.
   const notLinked = await notLinkedFor(s.organisationId, m.decisions);
   const nameOf = (pid: string) => s.names[pid] ?? "Not on record";
@@ -237,7 +243,7 @@ export default async function SittingPage({
             label: "Agenda and decisions",
             icon: <FileIcon size={15} />,
             count: m.decisions.length,
-            panel: <AgendaPanel s={s} prefill={prefill} notLinked={notLinked} />,
+            panel: <AgendaPanel s={s} prefill={prefill} notLinked={notLinked} hiddenMatters={hiddenMatters} />,
           },
           {
             id: "attendance",
@@ -295,7 +301,7 @@ function ConfigurationGaps({ s }: { s: LoadedSitting }) {
 
 // ------------------------------------------------------------------ agenda
 
-async function AgendaPanel({ s, prefill, notLinked }: { s: LoadedSitting; prefill?: Record<string, string>; notLinked: ReadonlyMap<string, string> }) {
+async function AgendaPanel({ s, prefill, notLinked, hiddenMatters }: { s: LoadedSitting; prefill?: Record<string, string>; notLinked: ReadonlyMap<string, string>; hiddenMatters: ReadonlySet<string> }) {
   const m = s.meeting;
   // Who tabled each matter and who cast each vote, signed or recorded from paper, is read from the attributions (Phase 2b): the screen never says it by itself.
   const attributed = await loadAttributions(db, s.organisationId, [
@@ -307,6 +313,20 @@ async function AgendaPanel({ s, prefill, notLinked }: { s: LoadedSitting; prefil
   const voting = new Map(a.voting.map((v) => [v.seatId, v]));
 
   const matters = m.decisions.map((d) => {
+    // FR-MTD-007: a matter of an exercise restricted to its named people keeps its place and says only that. Nothing that names it, and no act on it.
+    if (hiddenMatters.has(d.id)) {
+      return (
+        <Card key={d.id} className="overflow-hidden">
+          <CardBody className="flex flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="warn">Restricted</Badge>
+              <span className="min-w-0 font-semibold break-words text-ink">{HIDDEN_MATTER_SUBJECT}</span>
+            </div>
+            <p className="text-[12.5px] text-ink-2">This matter concerns an exercise restricted to the people named on it, and you are not one of them. Name the committee&apos;s members on the exercise for them to see it.</p>
+          </CardBody>
+        </Card>
+      );
+    }
     // Withdrawn before the sitting opened (6.10 follow-up): on record, off the agenda.
     if (d.withdrawnAt) {
       return (

@@ -1,3 +1,4 @@
+import { exerciseIsHidden, hiddenExercises, sulitExerciseValues } from "@/app/_auth/sulit";
 import { staffRoute } from "@/app/_auth/route";
 import { evaluateExercise, type ExerciseDraft } from "@/lib/method/evaluate";
 import { presentEvaluation } from "@/lib/method/present";
@@ -48,7 +49,8 @@ export async function POST(request: Request) {
 
   const loaded = await loadRequisitionForSourcing(actor.organisationId, requisitionId);
   if (!loaded) return Response.json({ error: "No such requisition." }, { status: 404 });
-  const ex = exerciseId ? await loadExercise(actor.organisationId, exerciseId) : null;
+  // FR-MTD-007: an exercise restricted to its named people reads as one that does not exist to anyone else, and the attempt is logged.
+  const ex = exerciseId && !(await exerciseIsHidden(actor, exerciseId)) ? await loadExercise(actor.organisationId, exerciseId) : null;
   if (exerciseId && (!ex || ex.ex.requisitionId !== requisitionId)) return Response.json({ error: "No such exercise on this requisition." }, { status: 404 });
 
   const { issue, cfg, ctx } = await evaluationContext(loaded.org, loaded.req, ex?.ex ?? null);
@@ -76,6 +78,12 @@ export async function POST(request: Request) {
   };
   const ev = evaluateExercise(draft, ctx);
   const c = cfg.config;
+  // The findings add up the requisition's exercises. Where one is restricted to people this officer is not among, or its estimate is one they may not read
+  // (ADR 0034 D14), the sums are not stated; where they are all readable the reading is logged, since the officer is shown them.
+  const others = loaded.req.exercises.filter((x) => x.id !== exerciseId);
+  const hidden = await hiddenExercises(actor);
+  const readable = await sulitExerciseValues(actor, others.filter((x) => !hidden.includes(x.id)).map((x) => ({ id: x.id, reference: x.reference })), "estimatedValue", () => true);
+  const amountsWithheld = others.some((x) => hidden.includes(x.id)) || [...readable.values()].some((v) => v.state === "WITHHELD");
   return Response.json({
     ok: true,
     matrixLabel: issue.label,
@@ -88,6 +96,7 @@ export async function POST(request: Request) {
       valueName: (t, v) => c.taxonomies.find((x) => x.code === t)?.values.find((x) => x.code === v)?.nameEn ?? "A value no longer configured",
       approved: ctx.approved,
       boundarySource: issue.boundarySource,
+      amountsWithheld,
     }),
   });
 }

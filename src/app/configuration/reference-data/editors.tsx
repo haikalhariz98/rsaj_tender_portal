@@ -183,7 +183,7 @@ function methodFields(editing: boolean): Field[] {
     { kind: "text", name: "justificationPrompt", label: "What the justification must show" },
     { kind: "switch", name: "requiresProposal", label: "Needs a proposal reviewed by Contract & Procurement" },
     { kind: "switch", name: "requiresNameApproval", label: "Needs the name approved" },
-    { kind: "switch", name: "restrictedAccess", label: "Restricted to named participants", hint: "Recorded; not enforced until sign-in." },
+    { kind: "switch", name: "restrictedAccess", label: "Restricted to named participants", hint: "An exercise of this method is hidden from everyone but the people named on it. It takes the method's restriction each time it is saved as a draft, and keeps it once its documents go into preparation." },
     { kind: "switch", name: "requiresDossier", label: "Keeps a justification dossier with a reason code" },
     { kind: "text", name: "dossierSeriesKey", label: "Dossier numbering series key", mono: true, hint: "The numbering series its dossier references are issued from." },
     { kind: "switch", name: "requiresCoordinationRecord", label: "Needs an emergency coordination record" },

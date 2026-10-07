@@ -37,7 +37,7 @@ import { parseSen, senToDecimalString, type Sen } from "../src/lib/money";
 import { calendarOf, FIRMS } from "./demo-window";
 import { demoPdf, writeDemoDocs } from "./demo-documents";
 import { DEMO_ACTOR } from "./demo-actor";
-import { demoOrgId } from "./demo-org";
+import { demoOrgId, demoReader } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -620,7 +620,7 @@ export async function checkOpeningDemo(db: Db) {
   const faults16 = openingGateFaults(g16, `${P}pty2`).filter((f) => f.level === "block");
   if (faults16.length) fail(`sx16's openings hold its award back (${faults16.map((f) => f.code).join(", ")}).`);
   if (!openingGateFaults(g16, `${P}pty10`).some((f) => f.code === "AWARDEE_NOT_CARRIED")) fail("a party not carried at sx16's opening could be awarded on it.");
-  const s16 = (await scheduleSection(await demoOrgId(), `${P}sx16`)) ?? fail("sx16's schedule did not load.");
+  const s16 = (await scheduleSection(await demoReader(), `${P}sx16`)) ?? fail("sx16's schedule did not load.");
   const main = s16.openings.find((o) => o.title === "Opening") ?? fail("sx16 has no main opening.");
   if (!main.finalised || main.rows.length !== 4 || !main.summary || !main.benchmark || main.benchmark.sealed) fail("sx16's main schedule is not frozen with four offers, its Grand Summary and the disclosed estimate.");
   if (main.copy?.check !== "NOT_IN_BOX" || !main.explanation) fail("sx16's copy finding is not recorded and explained.");

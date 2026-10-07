@@ -1,5 +1,10 @@
 "use server";
 
+import { namedAfterRemovingParticipant } from "@/lib/auth/sulit-access";
+import { exerciseAccessFacts } from "@/lib/auth/sulit-store";
+import type { StaffActor } from "@/lib/auth/types";
+import { sulitExerciseValue } from "@/app/_auth/sulit";
+import type { Reader } from "@/lib/auth/sulit-store";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -57,7 +62,6 @@ import { audit, CHANGED, citeNameStep, labelOf, nameLabel, nameSupports, Refusal
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
-import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for sourcing exercises (6.3).
@@ -81,13 +85,27 @@ function refresh(id?: string, requisitionId?: string) {
 
 
 
+/**
+ * A restricted exercise is never left with nobody who can see it (FR-MTD-007, Phase 3a): when an exercise is made, or edited, so that its method restricts
+ * it, the officer doing it is named on it unless they already are. Nothing else names them, and an exercise nobody can see could be neither opened nor
+ * corrected from the portal. It is a participant row like any other, audited, and can be removed (`removeParticipant` keeps at least one person named).
+ */
+async function nameActorOnRestricted(tx: Tx, actor: StaffActor, organisationId: string, ex: { id: string; reference: string; restricted: boolean }): Promise<void> {
+  if (!ex.restricted || actor.system || !actor.personId) return;
+  const already = await tx.exerciseParticipant.findFirst({ where: { exerciseId: ex.id, personId: actor.personId }, select: { id: true } });
+  if (already) return;
+  const capacity = "Named when the exercise was restricted, so that someone can always see it";
+  const row = await tx.exerciseParticipant.create({ data: { exerciseId: ex.id, personId: actor.personId, capacity } });
+  await audit(tx, toAuditActor(actor), organisationId, "ExerciseParticipant", row.id, `${ex.reference} · ${actor.personName}`, "CREATE", diffFields(null, { person: actor.personName, capacity }));
+}
+
 /// Run a write on an exercise under its requisition's lock and its own.
-async function inExercise(scope: OrgScope, id: string, fn: (tx: Tx, l: { org: ExerciseOrg; req: SourcingRequisition; ex: ExerciseRow }) => Promise<FormState>): Promise<FormState> {
+async function inExercise(scope: Reader, id: string, fn: (tx: Tx, l: { org: ExerciseOrg; req: SourcingRequisition; ex: ExerciseRow }) => Promise<FormState>): Promise<FormState> {
   const reqId = await requisitionOfExercise(scope.organisationId, id);
   if (!reqId) return GONE;
   let result: FormState | null;
   try {
-    result = await withLockedRequisitionForSourcing(scope.organisationId, reqId, id, (tx, l) => (l.ex ? fn(tx, { ...l, ex: l.ex }) : Promise.resolve(GONE)));
+    result = await withLockedRequisitionForSourcing(scope, reqId, id, (tx, l) => (l.ex ? fn(tx, { ...l, ex: l.ex }) : Promise.resolve(GONE)));
   } catch (e) {
     if (e instanceof Refusal) return e.state;
     const attribution = attributionRefusalState(e);
@@ -277,7 +295,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
 
   let id: string | null = null;
   try {
-    const result = await withLockedRequisitionForSourcing(actor.organisationId, requisitionId, null, async (tx, l): Promise<FormState> => {
+    const result = await withLockedRequisitionForSourcing(actor, requisitionId, null, async (tx, l): Promise<FormState> => {
       const { issue, cfg, ctx } = await evaluationContext(l.org, l.req, null, tx);
       // The committee gate (FR-REQ-012), read under the requisition's lock: never a pass by default (C2).
       const gate = (await gatesForRequisition(l.req.id, tx))?.finding ?? { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const };
@@ -309,6 +327,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
         },
       });
       await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", auditCreate(row, { requisition: l.req.reference }));
+      await nameActorOnRestricted(tx, actor, l.org.id, { id: row.id, reference: row.reference, restricted: row.restricted });
       // A contract type chosen other than the derived one is an override, and is attributed to the officer who made it.
       if (ev.type.state !== "DERIVED") await act.write(tx, row.id);
       await writeChildren(tx, toAuditActor(actor), l.org.id, row, null, v.draft.scope, ev, cfg.config);
@@ -354,6 +373,9 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     const ex = l.ex;
     if (ex.status !== "DRAFT") return { ok: false, message: `Only a draft exercise can be edited. This one is ${EXERCISE_STATUS_LABEL[ex.status].toLowerCase()}.` };
     if (!l.org.today) return { ok: false, message: findingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
+    // Changing an exercise changes the estimate and the amounts made from it: whoever may not read the estimate (ADR 0034 D14) may not change it, and the refusal is logged.
+    const readable = await sulitExerciseValue(actor, { id: ex.id, reference: ex.reference }, "estimatedValue", true);
+    if (readable.state === "WITHHELD") return { ok: false, message: `The estimated value is SULIT and withheld from you, so this exercise cannot be changed by you. ${readable.words.en}` };
     // The override is whoever made it: the officer saving it now where it is new or changed, and otherwise whoever made it before, not whoever edits the draft next.
     const overrideChanged = ex.contractTypeCode !== v.draft.contractTypeCode || ex.contractTypeOverrideReason !== v.draft.typeReason || !ex.overriddenByPersonId;
     v.draft.typePersonId = overrideChanged ? act.subjectPersonId : ex.overriddenByPersonId;
@@ -381,6 +403,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", auditPair(ex, { ...ex, ...after }), String(data.get("reason") ?? ""));
     if (ev.type.state !== "DERIVED" && overrideChanged) await act.write(tx, id);
+    await nameActorOnRestricted(tx, actor, l.org.id, { id, reference: ex.reference, restricted: ev.method?.restrictedAccess ?? false });
     await writeChildren(tx, toAuditActor(actor), l.org.id, ex, ex, v.draft.scope, ev, cfg.config);
     const withdraw = nameRoutesToWithdraw(nameRoutesOf(ex.approvalInstances), { methodChanged, valueChanged });
     for (const inst of withdraw.routes) {
@@ -891,7 +914,7 @@ export async function saveExerciseDetails(_prev: FormState, data: FormData): Pro
 
 // --------------------------------------------------------------- participants
 
-/// A named participant of a restricted exercise (FR-MTD-007). Not enforced until sign-in.
+/// A named participant of a restricted exercise (FR-MTD-007): the people who may see it. Enforced since Phase 3a.
 export async function addParticipant(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
@@ -922,6 +945,12 @@ export async function removeParticipant(_prev: FormState, data: FormData): Promi
     if (ex.status === "CANCELLED") return { ok: false, message: "A cancelled exercise's participants are kept as they were." };
     const p = ex.participants.find((x) => x.id === participantId);
     if (!p) return { ok: false, message: "That participant is no longer named." };
+    // FR-MTD-007: a restricted exercise keeps someone who can see it. Counted as the rule counts them: the other participants, the person in charge, the proposal's reviewer and the members of its evaluation team and opening panel.
+    if (ex.restricted) {
+      const facts = (await exerciseAccessFacts(tx, l.org.id, [ex.id])).get(ex.id);
+      const stillNamed = facts ? namedAfterRemovingParticipant(facts.named, p.personId) : [];
+      if (stillNamed.length === 0) return { ok: false, message: "This exercise is restricted to the people named on it, and this is the last of them. Name someone else first: an exercise nobody can see could not be opened or corrected." };
+    }
     await tx.exerciseParticipant.delete({ where: { id: p.id, exercise: { organisationId: actor.organisationId } } });
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseParticipant", p.id, `${ex.reference} · ${p.person.name}`, "DELETE", snapshotFields({ person: p.person.name, capacity: p.capacity }), reason);
     return { ok: true };
