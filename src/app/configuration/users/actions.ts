@@ -20,7 +20,6 @@ import { END_DAY_LABEL } from "@/lib/effective-text";
 import { faultsIn, type Delegation, type DelegationFault } from "@/lib/people/delegation";
 import { lockDelegation } from "@/lib/people/lock";
 import { standsOnTextBeforeAttachments } from "@/lib/people/recommendation";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { OPENING_CONFIG_FAULT_TEXT, personUnitFault } from "@/lib/opening/config";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { issuedInForce } from "@/lib/authority/issue";
@@ -29,12 +28,13 @@ import { splitValues } from "@/lib/ui/select-logic";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import { disableAccountOfLeaver, LeaverRefused } from "@/lib/auth/administration";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 const PATH = "/configuration/users";
 
-async function organisationId(): Promise<string | null> {
+async function organisationId(scope: OrgScope): Promise<string | null> {
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: scope.organisationId },
     select: { id: true },
   });
   return org?.id ?? null;
@@ -56,7 +56,7 @@ const NO_ORG: FormState = {
  */
 export async function savePerson(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -140,7 +140,7 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
  */
 export async function setPersonActive(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -159,7 +159,7 @@ export async function setPersonActive(_prev: FormState, data: FormData): Promise
   }
   // A leaver stops holding the offices they hold, which can change who sits at a
   // committee sitting in progress.
-  const sitting = await inProgressSittingRefusal({
+  const sitting = await inProgressSittingRefusal(actor, {
     roster: (r) => ({ ...r, people: r.people.map((p) => (p.id === id ? { ...p, isActive } : p)) }),
   });
   if (sitting) return { ok: false, message: sitting };
@@ -203,7 +203,7 @@ export async function setGrant(
   granted: boolean,
 ): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const capability = await db.capability.findFirst({
@@ -345,7 +345,7 @@ class DelegationRefused extends Error {
  */
 export async function saveDelegation(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -482,7 +482,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
 
 export async function saveOffice(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -561,7 +561,7 @@ export async function saveOffice(_prev: FormState, data: FormData): Promise<Form
 
 export async function saveAssignment(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -619,7 +619,7 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
   // change may not move who sits at a sitting in progress (send-back 9.4).
   const previous = id ? await db.roleAssignment.findUnique({ where: { id }, select: { roleCode: true } }) : null;
   for (const code of new Set([roleCode, previous?.roleCode].filter((c): c is string => !!c))) {
-    const sitting = await inProgressSittingRefusal({
+    const sitting = await inProgressSittingRefusal(actor, {
       roleCode: code,
       roster: (r) => {
         const next = { id: id || "proposed-assignment", ...v };
@@ -661,7 +661,7 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
 /// under it must keep resolving to the person who signed.
 export async function endAssignment(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -683,7 +683,7 @@ export async function endAssignment(_prev: FormState, data: FormData): Promise<F
   if (!first.result.ok) return refusal(first.result);
 
   const effectiveTo = first.result.effectiveTo;
-  const sitting = await inProgressSittingRefusal({
+  const sitting = await inProgressSittingRefusal(actor, {
     roleCode: first.row.roleCode,
     roster: (r) => ({ ...r, assignments: r.assignments.map((a) => (a.id === id ? { ...a, effectiveTo } : a)) }),
   });

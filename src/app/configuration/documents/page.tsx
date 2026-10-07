@@ -22,7 +22,6 @@ import { stagedDocuments, standingHolds, uploadContext } from "@/lib/documents/r
 import { documentOrg, loadStorePolicy } from "@/lib/documents/service";
 import { classificationTone } from "@/lib/documents/views";
 import { formatOrgDay } from "@/lib/format";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadDocumentClasses } from "@/lib/records/load";
 
 import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
@@ -34,13 +33,13 @@ export const dynamic = "force-dynamic";
 const NOT_SET = <span className="text-ink-4">Not set</span>;
 
 export default async function DocumentsConfigPage() {
-  await requireStaff();
-  const org = await documentOrg();
+  const actor = await requireStaff();
+  const org = await documentOrg(actor.organisationId);
   const [classes, upload, staged, holds, policy, officeRows] = await Promise.all([
-    loadDocumentClasses(ORGANISATION_CODE),
-    uploadContext(),
-    stagedDocuments(),
-    standingHolds(),
+    loadDocumentClasses(actor.organisationCode),
+    uploadContext(actor.organisationId),
+    stagedDocuments(actor.organisationId),
+    standingHolds(actor.organisationId),
     org ? loadStorePolicy(org.id) : null,
     org ? db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true } }) : [],
   ]);

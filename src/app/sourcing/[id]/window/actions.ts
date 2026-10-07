@@ -61,7 +61,7 @@ export async function saveWindow(_prev: FormState, data: FormData): Promise<Form
   const specialPermissionOffered = offer === "yes" ? true : offer === "no" ? false : null;
   if (purchaseFrom && purchaseClose && purchaseFrom > purchaseClose) r.reject("purchaseCloseDay", windowFindingText({ code: "PURCHASE_DAYS_OUT_OF_ORDER", level: "block" }));
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const ef = windowEditFault(l.ex.status, l.ex.packKindSnapshot);
     if (ef) return refuse([ef]);
     const after = { inspectionPlace, purchasePlace, inspectionHours, purchaseFromDay: purchaseFrom, purchaseCloseDay: purchaseClose, feeAmount: fee, feePaymentMethods, submissionPlace, closingTimeReason, specialPermissionOffered };
@@ -93,7 +93,7 @@ export async function saveFeeLine(_prev: FormState, data: FormData): Promise<For
   if (r.failed || !kind) return { ok: false, errors: r.errors };
   const computed = lineAmount({ quantity, unitCost: unitCost ? parseSen(unitCost) : null, lump: lump ? parseSen(lump) : null });
   if ("fault" in computed) return { ok: false, errors: { [computed.fault === "QUANTITY_NOT_VALID" ? "quantity" : "amount"]: windowFindingText({ code: computed.fault, level: "block" }) } };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const ef = windowEditFault(l.ex.status, l.ex.packKindSnapshot);
     if (ef) return refuse([ef]);
     if (!d.window) return NO_WINDOW;
@@ -115,7 +115,7 @@ export async function removeFeeLine(_prev: FormState, data: FormData): Promise<F
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const lineId = String(data.get("lineId") ?? "");
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const ef = windowEditFault(l.ex.status, l.ex.packKindSnapshot);
     if (ef) return refuse([ef]);
     const line = d.window?.feeLines.find((x) => x.id === lineId);
@@ -129,7 +129,7 @@ export async function removeFeeLine(_prev: FormState, data: FormData): Promise<F
 // ------------------------------------------------------------------ the invitee list (ADR 0015)
 
 /// Withdraw every name route pending or approved: it no longer describes the list (BD-19's label).
-async function withdrawNameRoutes(tx: Parameters<Parameters<typeof inWindow>[1]>[0], actor: AuditActor, l: Parameters<Parameters<typeof inWindow>[1]>[1], why: string) {
+async function withdrawNameRoutes(tx: Parameters<Parameters<typeof inWindow>[2]>[0], actor: AuditActor, l: Parameters<Parameters<typeof inWindow>[2]>[1], why: string) {
   const routes = nameRoutesOf(l.ex.approvalInstances);
   for (const inst of routesWithdrawnByListChange(routes)) {
     const warning = { code: WITHDRAWN_ON_CHANGE, level: "warn", messageEn: `${why} The route no longer describes the invitee list, so it was withdrawn.` };
@@ -151,7 +151,7 @@ export async function proposeInvitee(_prev: FormState, data: FormData): Promise<
   const fax = r.text("fax", "Fax", { max: 60 });
   const email = r.text("email", "Email", { max: 200 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const f = inviteeEditFault(l.ex.status);
     if (f) return refuse([f]);
     if (pathOf(d).method === "ADVERTISED") return refuse([{ code: "NOT_INVITED_PATH", level: "block" }]);
@@ -171,7 +171,7 @@ export async function removeInvitee(_prev: FormState, data: FormData): Promise<F
   const partyId = String(data.get("partyId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: windowFindingText({ code: "REASON_REQUIRED", level: "block" }) } };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const f = inviteeEditFault(l.ex.status);
     if (f) return refuse([f]);
     const p = d.parties.find((x) => x.id === partyId);
@@ -199,7 +199,7 @@ export async function recordPublication(_prev: FormState, data: FormData): Promi
   const reference = r.text("reference", "Title and edition, board or address", { max: 400 });
   const personId = r.optionalText("recordedByPersonId");
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
     if (!d.window) return NO_WINDOW;
     const person = await activePerson(tx, l.org.id, personId);
@@ -228,7 +228,7 @@ export async function removePublication(_prev: FormState, data: FormData): Promi
   const publicationId = String(data.get("publicationId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: windowFindingText({ code: "REASON_REQUIRED", level: "block" }) } };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     if (isPublished(l.ex.status)) return refuse([{ code: "WINDOW_PUBLISHED", level: "block" }]);
     const p = d.window?.publications.find((x) => x.id === publicationId);
     if (!p) return { ok: false, message: "That publication is no longer recorded." };
@@ -250,7 +250,7 @@ export async function removePublication(_prev: FormState, data: FormData): Promi
 export async function publishWindow(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
     if (!d.window) return NO_WINDOW;
     const j = judgePublish(d, l.ex, l.org);
@@ -323,7 +323,7 @@ export async function chooseEvaluationModel(_prev: FormState, data: FormData): P
   const r = new FormReader(data);
   const modelId = r.text("evaluationModelId", "Evaluation model", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const row = await tx.evaluationModel.findFirst({ where: { id: modelId, organisationId: l.org.id }, select: { id: true, nameEn: true, version: true, status: true } });
     const fs = chooseFaults({ published: isPublished(l.ex.status) || l.ex.evaluationModelPinnedAt != null, cancelled: l.ex.status === "CANCELLED", model: row ? { status: row.status, name: `${row.nameEn}, version ${row.version}` } : null });
     if (fs.length) return fs[0].code === "EVALUATION_MODEL_NOT_SET" ? { ok: false, errors: { evaluationModelId: windowFindingText(fs[0]) } } : refuse(fs);
@@ -346,7 +346,7 @@ export async function recordLetterDelivery(_prev: FormState, data: FormData): Pr
   const sent = r.date("despatchedOn", "Sent on");
   const ack = r.date("acknowledgedOn", "Acknowledged on");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const letter = d.window?.letters.find((x) => x.id === letterId);
     if (!letter) return { ok: false, message: "That letter is not on this exercise." };
     if (l.ex.status === "CANCELLED") return refuse([{ code: "EXERCISE_CANCELLED", level: "block" }]);

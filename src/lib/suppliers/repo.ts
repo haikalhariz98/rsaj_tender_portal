@@ -128,8 +128,8 @@ const supplierInclude = {
 } satisfies Prisma.SupplierInclude;
 
 /// One supplier with everything its record shows. Null when it does not exist.
-export async function loadSupplier(id: string, client: Tx = db) {
-  const org = await supplierOrg(client);
+export async function loadSupplier(organisationId: string, id: string, client: Tx = db) {
+  const org = await supplierOrg(organisationId, client);
   if (!org) return null;
   const supplier = await client.supplier.findFirst({ where: { id, organisationId: org.id }, include: supplierInclude });
   if (!supplier) return null;
@@ -222,8 +222,8 @@ export const lapsedMandatoryWhere = (today: string): Prisma.SupplierDocumentWher
  * count is null. Counts that are columns are counted in the database; what is derived (standing, document
  * states, bands) is derived from the rows read, never stored.
  */
-export async function listSuppliers(page = 0, today: string | null = null, horizon: string | null = null, autoSuspendOnLapse: boolean | null = null, client: Tx = db) {
-  const org = await supplierOrg(client);
+export async function listSuppliers(organisationId: string, page = 0, today: string | null = null, horizon: string | null = null, autoSuspendOnLapse: boolean | null = null, client: Tx = db) {
+  const org = await supplierOrg(organisationId, client);
   if (!org) return null;
   const where = { organisationId: org.id };
   const watchedSelect = { ...listedSupplier, standingRequests: { select: { id: true, kind: true, withdrawnAt: true, event: { select: { id: true } }, routes: { select: { status: true, createdAt: true } } } } } satisfies Prisma.SupplierSelect;

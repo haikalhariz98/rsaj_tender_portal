@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { displayName } from "@/lib/organisation/details";
-import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
+import { ORGANISATION_NAME } from "@/lib/org";
 
 export interface ShellUser {
   name: string;
@@ -27,7 +27,8 @@ export interface ShellOrganisation {
 }
 
 /// `counts: false` is for whoever is not signed in: the frame still names the organisation, but how much work is outstanding is the staff's to see (Phase 1b: the layout is a loader too).
-export async function loadShell(opts: { counts: boolean }): Promise<{
+/// `organisationId` is the signed-in actor's, or the deployment's one organisation before sign-in and on the public pages (ADR 0034 D10); null where there is none yet.
+export async function loadShell(opts: { organisationId: string | null; counts: boolean }): Promise<{
   counts: Record<string, number>;
   organisation: ShellOrganisation;
 }> {
@@ -38,8 +39,9 @@ export async function loadShell(opts: { counts: boolean }): Promise<{
   };
 
   try {
+    if (!opts.organisationId) return fallback;
     const org = await db.organisation.findUnique({
-      where: { code: ORGANISATION_CODE },
+      where: { id: opts.organisationId },
       select: { id: true, name: true, shortName: true, logo: { select: { sha256: true, width: true, height: true } } },
     });
     if (!org) return fallback;

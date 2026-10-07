@@ -41,8 +41,8 @@ function Setting({ value, unset, action }: { value: React.ReactNode | null; unse
  * stops or what the portal does instead.
  */
 export default async function RequisitionControlsPage() {
-  await requireStaff();
-  const org = await requisitionOrg();
+  const actor = await requireStaff();
+  const org = await requisitionOrg(actor.organisationId);
   if (!org) {
     return (
       <>

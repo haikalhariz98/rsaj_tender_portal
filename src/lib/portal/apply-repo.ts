@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { patternFaults, type NumberingReset } from "@/lib/numbering/series";
 import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
 
+import { deploymentOrganisation } from "./deployment";
 import { PORTAL_APPLICATION_SERIES_KEY, whatIsMissing } from "./apply";
 import type { Words } from "./labels";
 
@@ -29,7 +30,9 @@ export interface RegistrationForm {
 }
 
 export async function loadRegistrationForm(): Promise<RegistrationForm> {
-  const org = await supplierOrg();
+  // The public registration form serves the deployment's one organisation (ADR 0034 D10): nobody is signed in to name one.
+  const deployment = await deploymentOrganisation();
+  const org = deployment ? await supplierOrg(deployment.id) : null;
   if (!org) return { ready: false, missing: [], entityTypes: [], countries: [], formatExample: null, notice: null, personalDataNotice: null };
   const [cfg, series] = await Promise.all([loadSupplierConfig(org.id), db.numberingSeries.findUnique({ where: { organisationId_key: { organisationId: org.id, key: PORTAL_APPLICATION_SERIES_KEY } }, select: { pattern: true, resetOn: true } })]);
   const list = (kind: "ENTITY_TYPE" | "COUNTRY") => cfg.lists.filter((l) => l.list === kind && cfg.live(l, org.today)).map((l) => ({ value: l.code, label: l.nameEn }));

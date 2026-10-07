@@ -34,6 +34,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
   // Who is asking, and that the request came from a page of this origin with a JSON body (a cross-site form can send text/plain, never this).
   const guard = await staffRoute({ contentTypes: ["application/json"] });
   if (!guard.ok) return guard.response;
+  const scope = guard.actor;
   const { id } = await ctx.params;
 
   let body: unknown;
@@ -63,7 +64,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
   // Checked and written under the sitting's row lock, on data read inside the same
   // transaction: an outcome recorded at the same moment either sees this vote or
   // this vote sees the matter decided — never both missing each other.
-  const result = await withLockedSitting(found.meetingId, async (tx, sitting) => {
+  const result = await withLockedSitting(scope, found.meetingId, async (tx, sitting) => {
     const decision = sitting.meeting.decisions.find((d) => d.id === id);
     if (!decision) return Response.json({ error: "Decision not found" }, { status: 404 });
 

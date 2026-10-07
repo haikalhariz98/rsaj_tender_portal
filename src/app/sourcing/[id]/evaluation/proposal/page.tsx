@@ -23,9 +23,9 @@ export const dynamic = "force-dynamic";
  * with its checking and recommending officers as recorded (on their behalf, not signed).
  */
 export default async function ProposalPrint(props: PageProps<"/sourcing/[id]/evaluation/proposal">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id } = await props.params;
-  const org = await exerciseOrg();
+  const org = await exerciseOrg(actor.organisationId);
   if (!org) notFound();
   const ex = await db.sourcingExercise.findFirst({ where: { id, organisationId: org.id }, select: { id: true, reference: true } });
   if (!ex) notFound();

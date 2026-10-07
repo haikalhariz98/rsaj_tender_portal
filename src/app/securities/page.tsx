@@ -25,11 +25,11 @@ const VIEWS: { id: RegisterView; label: string }[] = [
 ];
 
 export default async function SecuritiesPage({ searchParams }: { searchParams: Promise<{ page?: string; view?: string }> }) {
-  await requireStaff();
+  const actor = await requireStaff();
   const sp = await searchParams;
   const view = (VIEWS.find((v) => v.id === sp.view)?.id ?? "all") as RegisterView;
   const requested = Math.max(0, Number.parseInt(sp.page ?? "0", 10) || 0);
-  const { org, securities, policies, order, config, total, page, counts } = await listRegister(requested, view);
+  const { org, securities, policies, order, config, total, page, counts } = await listRegister(actor.organisationId, requested, view);
   const pages = Math.max(1, Math.ceil(total / REGISTER_PAGE));
   const href = (v: RegisterView, p = 0) => `/securities?${new URLSearchParams({ ...(v !== "all" ? { view: v } : {}), ...(p ? { page: String(p) } : {}) }).toString()}`.replace(/\?$/, "");
   const today = org?.today ?? null;

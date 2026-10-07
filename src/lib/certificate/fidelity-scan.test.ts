@@ -109,8 +109,9 @@ describe("increment 2's lock order", () => {
     return m.slice(open, closing(m, open));
   };
   it("the glossary's every act runs inside inGlossary, which takes the organisation's row FOR UPDATE first", () => {
+    // Phase 1c (ADR 0034 D10): the glossary's organisation is the signed-in person's (`inGlossary(scope, fn)`); the lock is as pinned.
     expect(body(g, "inGlossary")).toMatch(/^\{[^]*?db\.\$transaction\(async \(tx\) => \{\s*await tx\.\$queryRaw`SELECT id FROM "Organisation" WHERE id = \$\{o\.id\} FOR UPDATE`;\s*return fn\(tx, o\.id\);/);
-    for (const name of ["saveCorrection", "removeCorrection", "saveTerm", "removeTerm"]) expect(body(g, name), name).toMatch(/return inGlossary\(async \(tx, orgId\) => \{/);
+    for (const name of ["saveCorrection", "removeCorrection", "saveTerm", "removeTerm"]) expect(body(g, name), name).toMatch(/return inGlossary\(actor, async \(tx, orgId\) => \{/);
   });
   it("a correction locks every form it names or named, in id order, before it reads one", () => {
     const save = body(g, "saveCorrection");
@@ -122,7 +123,8 @@ describe("increment 2's lock order", () => {
   });
   it("a form's printed fields and pages are written inside onTemplate, which locks the form FOR UPDATE first", () => {
     expect(body(fa, "onTemplate")).toMatch(/db\.\$transaction\(async \(tx\) => \{\s*await tx\.\$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = \$\{templateId\} FOR UPDATE`;/);
-    for (const name of ["savePageCount", "savePrintedField", "removePrintedField"]) expect(body(fa, name), name).toMatch(/return onTemplate\(templateId, async \(tx, t\) => \{/);
+    // Phase 1c (ADR 0034 D10): the lock is now asked for the signed-in person's organisation first; the call is otherwise as pinned.
+    for (const name of ["savePageCount", "savePrintedField", "removePrintedField"]) expect(body(fa, name), name).toMatch(/return onTemplate\(actor, templateId, async \(tx, t\) => \{/);
   });
   it("the pin reads the form FOR SHARE after the certificate's lock: the one order with the configuration's FOR UPDATE", () => {
     expect(body(read("src/lib/certificate/write.ts"), "recordSignature")).toMatch(/if \(cert\.templateId\) await c\.tx\.\$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = \$\{cert\.templateId\} FOR SHARE`;\s*const t = await templateNow\(cert\.templateId, c\.tx\);/);

@@ -47,6 +47,7 @@ import { BIG, calendarOf, CHANNELS, COMPLETE_APPENDIX, FIRMS, scopeReady, TENDER
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 import { answer, conditionsFor, confirm, decide, enterAppendix, markAllReady, moveIntoPreparation, startPack, submit, type Add } from "./demo-tender-docs";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -487,7 +488,7 @@ export async function checkBidsDemo(db: Db) {
   const now = new Date();
   const want: Record<string, string> = { [`${P}sx16`]: "CLOSED", [`${P}sx18`]: "OPEN_FOR_PURCHASE", [NEW_EXERCISE]: "CLOSED" };
   for (const [id, phase] of Object.entries(want)) {
-    const l = (await repo.loadExercise(id)) ?? fail(`${id} did not load.`);
+    const l = (await repo.loadExercise(await demoOrgId(), id)) ?? fail(`${id} did not load.`);
     const d = await windowData(l.org.id, l.ex);
     const got = phaseOf(l.ex, d.window, now, l.org.timeZone).phase;
     if (got !== phase) fail(`${l.ex.reference} reads ${got}, not ${phase}.`);
@@ -495,7 +496,7 @@ export async function checkBidsDemo(db: Db) {
   // CR-2: both registers are judged by the rules frozen at publication, recorded and set.
   const { loadBidRule, loadBidWindow } = await import("../src/lib/bids/repo");
   for (const id of [`${P}sx16`, NEW_EXERCISE]) {
-    const l = (await repo.loadExercise(id)) ?? fail(`${id} did not load.`);
+    const l = (await repo.loadExercise(await demoOrgId(), id)) ?? fail(`${id} did not load.`);
     const r = await loadBidRule(await loadBidWindow(id), l.org.id, l.ex.sourcingMethodCode);
     if (!r.frozen || r.committee !== "AS_PUBLISHED" || r.completeness !== "AS_PUBLISHED" || !r.rule?.lateAdmissionCommitteeCode || r.rule.completenessEliminates == null) fail(`${l.ex.reference} was not published with the method's bid-receipt rules recorded.`);
   }
@@ -526,7 +527,7 @@ export async function checkBidsDemo(db: Db) {
   // 64-C4-d: demo_aw7 on sx16 still reads as it did, with nothing new held against it.
   const { evaluateAward } = await import("../src/lib/award/evaluate");
   const { awardFacts, loadAward } = await import("../src/lib/award/repo");
-  const aw = (await loadAward(`${P}aw7`)) ?? fail("demo_aw7 did not load.");
+  const aw = (await loadAward(await demoOrgId(), `${P}aw7`)) ?? fail("demo_aw7 did not load.");
   const ev = evaluateAward((await awardFacts(aw)).facts);
   const held = [...ev.submitFaults, ...ev.issueFaults].filter((f) => ["LATE_UNDECIDED", "VALIDITY_NOT_SET", "BID_VALIDITY_EXPIRED", "VALIDITY_NOT_JUDGED"].includes(f.code));
   if (held.length) fail(`demo_aw7 is held back by the register (${held.map((f) => f.code).join(", ")}).`);

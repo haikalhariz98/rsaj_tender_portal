@@ -10,6 +10,7 @@ import { CertificateRefusal } from "@/lib/certificate/write";
 import { dayOf, storedDay } from "@/lib/dates";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * The award's pre-award routing sheet (6.14 increment 1, rulings condition; flagged against accepted 6.11).
@@ -21,10 +22,10 @@ import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 const GONE: FormState = { ok: false, message: "That award no longer exists." };
 const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zone under Configuration › Organisation first: every act here records the organisation's day, never UTC's." };
 
-async function inAwardSheet(awardId: string, now: Date, fn: (tx: Parameters<Parameters<typeof withLockedAward>[1]>[0], l: Parameters<Parameters<typeof withLockedAward>[1]>[1], today: string) => Promise<void>): Promise<FormState> {
+async function inAwardSheet(scope: OrgScope, awardId: string, now: Date, fn: (tx: Parameters<Parameters<typeof withLockedAward>[2]>[0], l: Parameters<Parameters<typeof withLockedAward>[2]>[1], today: string) => Promise<void>): Promise<FormState> {
   let result: FormState | null;
   try {
-    result = await withLockedAward(awardId, async (tx, l) => {
+    result = await withLockedAward(scope.organisationId, awardId, async (tx, l) => {
       const today = dayOf(now, l.org.timeZone);
       if (!today) return NO_ZONE;
       await fn(tx, l, today);
@@ -46,7 +47,7 @@ export async function startAwardRoutingSheet(_prev: FormState, data: FormData): 
   const r = new FormReader(data);
   const typeId = r.text("typeId", "Routing sheet", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inAwardSheet(idOf(data), now, (tx, l, today) => startAwardSheet(tx, toAuditActor(actor), l, typeId, now, today));
+  return inAwardSheet(actor, idOf(data), now, (tx, l, today) => startAwardSheet(tx, toAuditActor(actor), l, typeId, now, today));
 }
 
 export async function recordAwardRoutingReceived(_prev: FormState, data: FormData): Promise<FormState> {
@@ -55,7 +56,7 @@ export async function recordAwardRoutingReceived(_prev: FormState, data: FormDat
   const r = new FormReader(data);
   const received = r.date("receivedOn", "Received on", { required: true });
   if (r.failed || !received) return { ok: false, errors: r.errors };
-  return inAwardSheet(idOf(data), now, (tx, l, today) => recordAwardReceived(tx, toAuditActor(actor), l, storedDay(received), now, today));
+  return inAwardSheet(actor, idOf(data), now, (tx, l, today) => recordAwardReceived(tx, toAuditActor(actor), l, storedDay(received), now, today));
 }
 
 export async function recordAwardRoutingCheck(_prev: FormState, data: FormData): Promise<FormState> {
@@ -67,5 +68,5 @@ export async function recordAwardRoutingCheck(_prev: FormState, data: FormData):
   const on = r.date("on", "On", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || defOrder == null || !on) return { ok: false, errors: r.errors };
-  return inAwardSheet(idOf(data), now, (tx, l, today) => recordAwardCheck(tx, toAuditActor(actor), l, defOrder, personId, storedDay(on), note, now, today));
+  return inAwardSheet(actor, idOf(data), now, (tx, l, today) => recordAwardCheck(tx, toAuditActor(actor), l, defOrder, personId, storedDay(on), note, now, today));
 }

@@ -1,7 +1,8 @@
 import type { NextRequest } from "next/server";
 
+import { currentStaffOrNull } from "@/app/_auth/actor";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
+import { deploymentOrganisation } from "@/lib/portal/deployment";
 
 /**
  * The organisation's logo, by its fingerprint.
@@ -15,8 +16,11 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/organisation/lo
   const { sha } = await ctx.params;
   if (!/^[0-9a-f]{64}$/.test(sha)) return missing();
 
+  // Whose logo: the signed-in person's organisation, else (the sign-in page, the public portal) the deployment's one (ADR 0034 D10).
+  const organisationId = (await currentStaffOrNull())?.organisationId ?? (await deploymentOrganisation())?.id;
+  if (!organisationId) return missing();
   const logo = await db.organisationLogo.findFirst({
-    where: { sha256: sha, organisation: { code: ORGANISATION_CODE } },
+    where: { sha256: sha, organisationId },
     select: { bytes: true, mediaType: true },
   });
   if (!logo) return missing();

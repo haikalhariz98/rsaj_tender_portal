@@ -11,7 +11,6 @@ import { allocationFor } from "@/lib/budget/availability";
 import { loadBudget } from "@/lib/budget/load";
 import { organisationDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { postingRefusal, refusalToClose, refusalToReopen, type Period } from "@/lib/budget/periods";
 import { figuresFor, transferFaults, type Movement } from "@/lib/budget/codes";
@@ -20,13 +19,14 @@ import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { splitValues } from "@/lib/ui/select-logic";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/budget";
 
-async function organisationId(): Promise<string | null> {
+async function organisationId(scope: OrgScope): Promise<string | null> {
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: scope.organisationId },
     select: { id: true },
   });
   return org?.id ?? null;
@@ -39,7 +39,7 @@ const NO_ORG: FormState = {
 
 export async function saveAllocation(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -55,7 +55,7 @@ export async function saveAllocation(_prev: FormState, data: FormData): Promise<
   // Two allocations in force for one pair make the balance unanswerable, so the
   // second is refused rather than saved and flagged.
   if (costCentreCode && accountCodeCode && effectiveFrom && !r.failed) {
-    const { allocations } = await loadBudget(ORGANISATION_CODE);
+    const { allocations } = await loadBudget(actor.organisationCode);
     const others = allocations.filter((a) => a.id !== id);
     const clash = allocationFor(others, costCentreCode, accountCodeCode, effectiveFrom);
     if (clash.allocation || clash.ambiguous) {
@@ -108,7 +108,7 @@ export async function saveAllocation(_prev: FormState, data: FormData): Promise<
 
 export async function saveCommitment(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const r = new FormReader(data);
@@ -156,7 +156,7 @@ export async function saveCommitment(_prev: FormState, data: FormData): Promise<
  */
 export async function releaseCommitment(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -192,7 +192,7 @@ export async function releaseCommitment(_prev: FormState, data: FormData): Promi
 /// that writes it: an end recorded while this act waited is seen there.
 export async function endAllocation(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -250,7 +250,7 @@ export async function endAllocation(_prev: FormState, data: FormData): Promise<F
  */
 export async function saveBudgetCode(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -330,11 +330,11 @@ export async function changePeriod(_prev: FormState, data: FormData): Promise<Fo
   const actor = await requireStaff();
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
-  return setPeriodOpen(toAuditActor(actor), String(data.get("id") ?? ""), data.get("open") === "yes", reason);
+  return setPeriodOpen(actor, toAuditActor(actor), String(data.get("id") ?? ""), data.get("open") === "yes", reason);
 }
 
-async function setPeriodOpen(by: AuditActor, periodId: string, open: boolean, reason: string): Promise<FormState> {
-  const orgId = await organisationId();
+async function setPeriodOpen(scope: OrgScope, by: AuditActor, periodId: string, open: boolean, reason: string): Promise<FormState> {
+  const orgId = await organisationId(scope);
   if (!orgId) return NO_ORG;
 
   const before = await db.budgetPeriod.findFirst({
@@ -375,7 +375,7 @@ async function setPeriodOpen(by: AuditActor, periodId: string, open: boolean, re
 /// Whether unspent allocation carries into the next year, for one year.
 export async function setRollForward(year: number, on: boolean): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const before = await db.budgetYear.findUnique({
@@ -438,7 +438,7 @@ function toPeriod(row: {
 /// Revise an allocation up or down. A movement on the ledger, never an edit to a total.
 export async function addRevision(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const r = new FormReader(data);
@@ -506,7 +506,7 @@ export async function addRevision(_prev: FormState, data: FormData): Promise<For
  */
 export async function transferBetweenCodes(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const r = new FormReader(data);
@@ -617,7 +617,7 @@ export async function transferBetweenCodes(_prev: FormState, data: FormData): Pr
  */
 export async function saveBudgetControls(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const r = new FormReader(data);
@@ -685,7 +685,7 @@ export async function saveBudgetControls(_prev: FormState, data: FormData): Prom
  */
 export async function clearBudgetControls(): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const before = await db.budgetSettings.findUnique({ where: { organisationId: orgId } });
@@ -725,7 +725,7 @@ export async function clearBudgetControls(): Promise<FormState> {
 /// How and how often the portal reconciles with the customer's finance system.
 export async function saveFinanceSettings(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const r = new FormReader(data);
@@ -771,7 +771,7 @@ export async function saveFinanceSettings(_prev: FormState, data: FormData): Pro
  */
 export async function synchroniseNow(): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const settings = await db.financeIntegration.findUnique({ where: { organisationId: orgId } });
@@ -817,7 +817,7 @@ export async function synchroniseNow(): Promise<FormState> {
  */
 export async function acceptPortalFigure(varianceId: string): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const before = await db.financeVariance.findFirst({

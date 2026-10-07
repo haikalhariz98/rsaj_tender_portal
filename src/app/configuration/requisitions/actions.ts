@@ -31,7 +31,7 @@ const list = (data: FormData, name: string) => splitValues(data.get(name));
 
 export async function savePolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await requisitionOrg();
+  const org = await requisitionOrg(actor.organisationId);
   if (!org) return NO_ORG;
   const r = new FormReader(data);
   const tiers = list(data, "endorsementTiers");
@@ -63,7 +63,7 @@ export async function savePolicy(_prev: FormState, data: FormData): Promise<Form
 /// Where the budget check comes from (FinanceIntegration.budgetCheckSource). Unset runs none.
 export async function saveBudgetCheckSource(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await requisitionOrg();
+  const org = await requisitionOrg(actor.organisationId);
   if (!org) return NO_ORG;
   const r = new FormReader(data);
   const source = r.choice("budgetCheckSource", "Budget check source", ["PORTAL_LEDGER", "MANUAL_ERP_ENTRY"] as const);
@@ -95,7 +95,7 @@ const FORMAT_KEYS = ["erp_requisition_no", "erp_note_no", "erp_indent_no"] as co
  */
 export async function saveErpFormat(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await requisitionOrg();
+  const org = await requisitionOrg(actor.organisationId);
   if (!org) return NO_ORG;
   const r = new FormReader(data);
   const key = r.choice("key", "Number", FORMAT_KEYS, { required: true });
@@ -160,7 +160,7 @@ const GATE_RULE_TEXT: Record<GateRuleFault, { field: string; message: string }> 
  */
 export async function saveGateRule(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await requisitionOrg();
+  const org = await requisitionOrg(actor.organisationId);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);

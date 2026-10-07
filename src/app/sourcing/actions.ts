@@ -41,7 +41,6 @@ import {
 import { DELIVERABLE_KINDS, NAME_APPROVAL_DOMAIN, type DeliverableKind, type Finding } from "@/lib/method/types";
 import { parseSen, senToDecimalString } from "@/lib/money";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -56,6 +55,7 @@ import { nameListFault } from "@/lib/window/invitees";
 import { audit, CHANGED, citeNameStep, labelOf, nameLabel, nameSupports, Refusal, refuse, sendNameRejected } from "@/lib/method/name-route-write";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for sourcing exercises (6.3).
@@ -80,12 +80,12 @@ function refresh(id?: string, requisitionId?: string) {
 
 
 /// Run a write on an exercise under its requisition's lock and its own.
-async function inExercise(id: string, fn: (tx: Tx, l: { org: ExerciseOrg; req: SourcingRequisition; ex: ExerciseRow }) => Promise<FormState>): Promise<FormState> {
-  const reqId = await requisitionOfExercise(id);
+async function inExercise(scope: OrgScope, id: string, fn: (tx: Tx, l: { org: ExerciseOrg; req: SourcingRequisition; ex: ExerciseRow }) => Promise<FormState>): Promise<FormState> {
+  const reqId = await requisitionOfExercise(scope.organisationId, id);
   if (!reqId) return GONE;
   let result: FormState | null;
   try {
-    result = await withLockedRequisitionForSourcing(reqId, id, (tx, l) => (l.ex ? fn(tx, { ...l, ex: l.ex }) : Promise.resolve(GONE)));
+    result = await withLockedRequisitionForSourcing(scope.organisationId, reqId, id, (tx, l) => (l.ex ? fn(tx, { ...l, ex: l.ex }) : Promise.resolve(GONE)));
   } catch (e) {
     if (e instanceof Refusal) return e.state;
     if (e instanceof MoveRefused) return e.fault.code === "CHANGED" ? CHANGED : { ok: false, message: `The requisition cannot move: ${transitionFaultText(e.fault)}` };
@@ -268,7 +268,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
 
   let id: string | null = null;
   try {
-    const result = await withLockedRequisitionForSourcing(requisitionId, null, async (tx, l): Promise<FormState> => {
+    const result = await withLockedRequisitionForSourcing(actor.organisationId, requisitionId, null, async (tx, l): Promise<FormState> => {
       const { issue, cfg, ctx } = await evaluationContext(l.org, l.req, null, tx);
       // The committee gate (FR-REQ-012), read under the requisition's lock: never a pass by default (C2).
       const gate = (await gatesForRequisition(l.req.id, tx))?.finding ?? { code: "GATES_NOT_DETERMINED" as const, why: "NOT_CHECKED" as const };
@@ -334,7 +334,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
   const v = readForm(r, data, id);
   if (!v || r.failed) return { ok: false, errors: r.errors, message: "Nothing was saved. Correct the fields marked below." };
 
-  const result = await inExercise(id, async (tx, l): Promise<FormState> => {
+  const result = await inExercise(actor, id, async (tx, l): Promise<FormState> => {
     const ex = l.ex;
     if (ex.status !== "DRAFT") return { ok: false, message: `Only a draft exercise can be edited. This one is ${EXERCISE_STATUS_LABEL[ex.status].toLowerCase()}.` };
     if (!l.org.today) return { ok: false, message: findingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
@@ -385,7 +385,7 @@ export async function chooseTaxonomyValue(_prev: FormState, data: FormData): Pro
   const taxonomyCode = r.text("taxonomyCode", "Classification", { required: true });
   const valueCode = r.text("valueCode", "Value", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inExercise(id, async (tx, l) => {
+  return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     if (ex.status !== "DRAFT") return { ok: false, message: "Only a draft exercise's classification can be changed." };
     const { ctx } = await evaluationContext(l.org, l.req, ex, tx);
@@ -412,7 +412,7 @@ export async function chooseTaxonomyValue(_prev: FormState, data: FormData): Pro
 export async function saveProposalAnswers(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
-  return inExercise(id, async (tx, l) => {
+  return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     if (ex.status !== "DRAFT" || ex.proposalState !== "DRAFT") return { ok: false, message: "The proposal can be changed only while it is being prepared." };
     const cfg = await loadMethodConfig(l.org.id, tx);
@@ -437,7 +437,7 @@ export async function saveProposalAnswers(_prev: FormState, data: FormData): Pro
 export async function submitProposal(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
-  return inExercise(id, async (tx, l) => {
+  return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     if (ex.status !== "DRAFT") return { ok: false, message: "Only a draft exercise's proposal can be submitted." };
     const cfg = await loadMethodConfig(l.org.id, tx);
@@ -465,7 +465,7 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
   const comment = r.text("comment", "Comment", { max: 4000 });
   if (outcome === "DRAFT" && !comment) r.reject("comment", "Say what needs amending.");
   if (r.failed || !outcome || !on) return { ok: false, errors: r.errors };
-  return inExercise(id, async (tx, l) => {
+  return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     if (ex.status !== "DRAFT") return { ok: false, message: "Only a draft exercise's proposal can be reviewed." };
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
@@ -493,7 +493,7 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
 export async function requestNameApproval(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
-  return inExercise(id, async (tx, l) => {
+  return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     const { issue, ctx, cfg } = await evaluationContext(l.org, l.req, ex, tx);
     if (!issue || !ctx) return NO_ISSUE;
@@ -510,7 +510,7 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
     const value = parseSen(ex.estimatedValue.toString());
     // The requester is barred from deciding: where they hold a step's office, the
     // approval escalates; where they alone could act for a step, it is refused (R1).
-    const [roster, delegations] = [await loadRoster(ORGANISATION_CODE, tx), await loadDelegations(ORGANISATION_CODE, tx)];
+    const [roster, delegations] = [await loadRoster(actor.organisationCode, tx), await loadDelegations(actor.organisationCode, tx)];
     const units = (await tx.orgUnit.findMany({ where: { organisationId: l.org.id } })) as unknown as OrgUnit[];
     const unitPath = pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(l.org.today!)).reverse().map((u) => u.code);
     const holders = (code: string) => holdersFor(code, unitPath, roster, delegations, l.org.today!);
@@ -595,13 +595,13 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is refused.");
   if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
 
-  return inExercise(id, async (tx, l) => {
+  return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     const inst = nameRoutesOf(ex.approvalInstances).find((i) => i.status === "PENDING");
     if (!inst || ex.status === "CANCELLED") return { ok: false, message: "No name approval is open on this exercise." };
     const step = inst.steps.find((s) => s.id === stepId);
     if (!step) return { ok: false, message: "That step is not on the open route." };
-    const [roster, delegations] = [await loadRoster(ORGANISATION_CODE, tx), await loadDelegations(ORGANISATION_CODE, tx)];
+    const [roster, delegations] = [await loadRoster(actor.organisationCode, tx), await loadDelegations(actor.organisationCode, tx)];
     const units = (await tx.orgUnit.findMany({ where: { organisationId: l.org.id } })) as unknown as OrgUnit[];
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
     const unitPath = pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, on).reverse().map((u) => u.code);
@@ -662,7 +662,7 @@ export async function chooseNameRejection(_prev: FormState, data: FormData): Pro
   const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inExercise(id, async (tx, l) => {
+  return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     if (!l.org.today) return { ok: false, message: findingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
     const inst = latestFirst(nameRoutesOf(ex.approvalInstances))[0];
@@ -700,7 +700,7 @@ export async function citeNameDecision(_prev: FormState, data: FormData): Promis
   const decisionId = String(data.get("committeeDecisionId") ?? "");
   if (!decisionId) return { ok: false, errors: { committeeDecisionId: "Choose the committee's decision." } };
   // The citation is citeNameStep (method/name-route-write.ts), the one a sitting's outcome also runs (founder, 2026-10-05).
-  return inExercise(id, (tx, l) => citeNameStep(tx, toAuditActor(actor), l, stepId, decisionId));
+  return inExercise(actor, id, (tx, l) => citeNameStep(tx, toAuditActor(actor), l, stepId, decisionId));
 }
 
 // ------------------------------------------------------------------ the states
@@ -715,7 +715,7 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   try {
-    return await inExercise(id, async (tx, l) => {
+    return await inExercise(actor, id, async (tx, l) => {
       const ex = l.ex;
       const { issue, ctx, cfg } = await evaluationContext(l.org, l.req, ex, tx);
       if (!issue || !ctx) return NO_ISSUE;
@@ -794,7 +794,7 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
-  return inExercise(id, async (tx, l) => {
+  return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     const t = transitionFault(ex.status, "CANCELLED", { today: l.org.today, reason });
     if (t.length > 0) return t[0].code === "CANCEL_REASON_REQUIRED" ? { ok: false, errors: { reason: findingText(t[0]) } } : refuse(t, "Not cancelled:");
@@ -828,7 +828,7 @@ export async function saveExerciseDetails(_prev: FormState, data: FormData): Pro
   const personId = r.optionalText("personInChargeId");
   const workCode = workCodeOf(r.text("workCode", "Work code", { max: WORK_CODE_MAX }));
   if (r.failed) return { ok: false, errors: r.errors };
-  return inExercise(id, async (tx, l) => {
+  return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     const awards = await tx.award.findMany({ where: { exerciseId: ex.id }, select: { status: true } });
     const stop = detailsFault({ status: ex.status, awards });
@@ -860,7 +860,7 @@ export async function addParticipant(_prev: FormState, data: FormData): Promise<
   const personId = r.text("personId", "Person", { required: true });
   const capacity = r.text("capacity", "Capacity", { max: 200 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inExercise(id, async (tx, l) => {
+  return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     if (ex.status === "CANCELLED") return { ok: false, message: "A cancelled exercise's participants are kept as they were." };
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
@@ -878,7 +878,7 @@ export async function removeParticipant(_prev: FormState, data: FormData): Promi
   const participantId = String(data.get("participantId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
-  return inExercise(id, async (tx, l) => {
+  return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     if (ex.status === "CANCELLED") return { ok: false, message: "A cancelled exercise's participants are kept as they were." };
     const p = ex.participants.find((x) => x.id === participantId);

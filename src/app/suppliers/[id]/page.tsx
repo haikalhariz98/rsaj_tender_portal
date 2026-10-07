@@ -26,7 +26,6 @@ import { isLive } from "@/lib/documents/evidence";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { matchesFormat } from "@/lib/integration/award-commitment";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
 import { isSulitField } from "@/lib/sulit-fields";
@@ -80,9 +79,9 @@ const first = (fs: readonly Finding[]) => (blocking(fs).length ? supplierFaultTe
  * would refuse is said beside the act's button, from the same rule the act runs.
  */
 export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const [{ id }, { tab, exercise, fromAward }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; exercise?: string; fromAward?: string }>]);
-  const l = await loadSupplier(id);
+  const l = await loadSupplier(actor.organisationId, id);
   if (!l) notFound();
   const { supplier: s, org } = l;
   const today = org.today;
@@ -345,8 +344,8 @@ async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { 
   // FR-TRM-017 (fix S-2): a blacklisting in effect stops a renewal or upgrade, and its approval.
   const openBlocker = first([...openApplicationFaults(kinds[0]?.value ?? (s.status === "REGISTERED" ? "RENEWAL" : "NEW"), s.status as SupplierStatus, anyOpen, blacklist, cancellation)]);
   // The route each open file would take, previewed now (the act resolves it again, with the sender in mind).
-  const issue = today ? await loadIssue(ORGANISATION_CODE, dayToDate(today), undefined, null) : null;
-  const [roster, delegations] = issue ? await Promise.all([loadRoster(ORGANISATION_CODE), loadDelegations(ORGANISATION_CODE)]) : [null, null];
+  const issue = today ? await loadIssue(l.org.code, dayToDate(today), undefined, null) : null;
+  const [roster, delegations] = issue ? await Promise.all([loadRoster(l.org.code), loadDelegations(l.org.code)]) : [null, null];
   const suggestions = (code: string | null) => {
     if (!code || !roster || !delegations || !today) return people;
     const h = supplierHolders(code, roster, delegations, today);

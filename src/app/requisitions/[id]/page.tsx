@@ -34,7 +34,6 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { formatOrgDay, formatDate, formatRM, formatRouteBand } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL, condLabel, routedOnLabel } from "@/lib/labels";
 import { parseSen } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ageDay, approvalCommitment, identityHolds, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
@@ -138,9 +137,9 @@ const sen = (v: { toString(): string } | null) => (v == null ? null : parseSen(v
 const money = (v: { toString(): string } | null) => (v == null ? "Not recorded" : formatRM(num(v)));
 
 export default async function RequisitionPage(props: PageProps<"/requisitions/[id]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const [{ id }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
-  const l = await loadRequisition(id);
+  const l = await loadRequisition(actor.organisationId, id);
   if (!l) notFound();
   const r = l.req;
   const today = l.org.today;
@@ -150,8 +149,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     loadPolicy(l.org.id),
     loadControls(l.org.id),
     loadLookups(l.org.id),
-    loadRoster(ORGANISATION_CODE),
-    loadDelegations(ORGANISATION_CODE),
+    loadRoster(actor.organisationCode),
+    loadDelegations(actor.organisationCode),
     requisitionHistory(l),
     db.sourcingExercise.findMany({ where: { requisitionId: id }, orderBy: { createdAt: "asc" }, select: { id: true, reference: true, title: true, estimatedValue: true, status: true, regime: true, sourcingMethodCode: true } }),
     db.sourcingMethod.count({ where: { organisationId: l.org.id, OR: [{ retiredOn: null }, { retiredOn: { gt: new Date() } }] } }),
@@ -246,15 +245,15 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
     // Routed under the issue in force on the day it was raised (FR-APR-020, ruling R2),
     // as submission will route it; who can act is read on today.
     const issueDay = issueDayFor("REQUISITION", { raisedOn: r.raisedOn, submittedOn: on });
-    const dal = await loadIssue(ORGANISATION_CODE, issueDay, undefined, null);
+    const dal = await loadIssue(actor.organisationCode, issueDay, undefined, null);
     if (!dal) submitBlocker ??= noIssueOnRaisedText(formatDate(issueDay));
     else {
       previewRoles = dal.matrix.roles;
-      const override = gate.supersedesAuthority && r.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, r.fundingRouteCode, issueDay) : null;
+      const override = gate.supersedesAuthority && r.fundingRouteCode ? await loadOverrideMatrix(actor.organisationCode, r.fundingRouteCode, issueDay) : null;
       previewNote =
         [
-          newerIssueNote(dal, await loadMatrixVersion(ORGANISATION_CODE, on), formatDate(issueDay)),
-          override && r.fundingRouteCode ? newerIssueNote(override, await loadMatrixVersion(ORGANISATION_CODE, on, r.fundingRouteCode), formatDate(issueDay)) : null,
+          newerIssueNote(dal, await loadMatrixVersion(actor.organisationCode, on), formatDate(issueDay)),
+          override && r.fundingRouteCode ? newerIssueNote(override, await loadMatrixVersion(actor.organisationCode, on, r.fundingRouteCode), formatDate(issueDay)) : null,
         ]
           .filter((n) => n != null)
           .map((n) => n.messageEn)

@@ -21,10 +21,10 @@ export const dynamic = "force-dynamic";
  * the text is rendered live and marked as a draft on every page.
  */
 export default async function PrintPage(props: PageProps<"/awards/[id]/print/[kind]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id, kind: slug } = await props.params;
   const kind = kindOfSlug(slug);
-  const l = await loadAward(id);
+  const l = await loadAward(actor.organisationId, id);
   if (!l || !kind) notFound();
   const { award, org } = l;
   const frozen = award.documents.find((d) => d.kind === kind) ?? null;

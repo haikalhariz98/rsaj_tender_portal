@@ -13,7 +13,6 @@ import { loadIssue, loadOverrideMatrix } from "@/lib/authority/load";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { parseSen } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import type { Provenance } from "@/lib/reference/types";
 import { fundingPosture } from "@/lib/reference/vocabulary";
 
@@ -28,10 +27,11 @@ import type { ApprovedRoute } from "./value";
 
 const num = (v: { toString(): string } | null): number | null => (v == null ? null : Number(v.toString()));
 
-export async function exerciseOrg(client: Tx = db) {
-  const org = await client.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
+/// The signed-in actor's organisation (ADR 0034 D10): its id, code, zone and today. Null when it no longer exists.
+export async function exerciseOrg(organisationId: string, client: Tx = db) {
+  const org = await client.organisation.findUnique({ where: { id: organisationId }, select: { id: true, code: true, timeZone: true } });
   if (!org) return null;
-  return { id: org.id, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) };
+  return { id: org.id, code: org.code, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) };
 }
 
 export type ExerciseOrg = NonNullable<Awaited<ReturnType<typeof exerciseOrg>>>;
@@ -99,8 +99,8 @@ export async function loadTermsBands(authorityMatrixId: string, client: Tx = db)
  * The issue in force on a day with everything the bands read from it: the pure matrix,
  * its terms bands and its boundary ruling. Null where no issue is in force.
  */
-export async function loadBandIssue(on: Date, client: Tx = db) {
-  const issue = await loadIssue(ORGANISATION_CODE, on, undefined, null, client);
+export async function loadBandIssue(organisationCode: string, on: Date, client: Tx = db) {
+  const issue = await loadIssue(organisationCode, on, undefined, null, client);
   if (!issue) return null;
   const [terms, meta] = await Promise.all([
     loadTermsBands(issue.id, client),
@@ -148,8 +148,8 @@ export function approvedRouteOf(req: { approvalInstances: { status: string; valu
   return { value: routedValue(i), ruleKey: i.ruleKey, ruleLabel: i.ruleLabel, checkedAgainstMatrix: i.checkedAgainstMatrix };
 }
 
-export async function loadRequisitionForSourcing(id: string, client: Tx = db) {
-  const org = await exerciseOrg(client);
+export async function loadRequisitionForSourcing(organisationId: string, id: string, client: Tx = db) {
+  const org = await exerciseOrg(organisationId, client);
   if (!org) return null;
   const req = await client.requisition.findFirst({ where: { id, organisationId: org.id }, include: requisitionInclude });
   if (!req) return null;
@@ -158,8 +158,8 @@ export async function loadRequisitionForSourcing(id: string, client: Tx = db) {
 
 export type SourcingRequisition = NonNullable<Awaited<ReturnType<typeof loadRequisitionForSourcing>>>["req"];
 
-export async function loadExercise(id: string, client: Tx = db) {
-  const org = await exerciseOrg(client);
+export async function loadExercise(organisationId: string, id: string, client: Tx = db) {
+  const org = await exerciseOrg(organisationId, client);
   if (!org) return null;
   const ex = await client.sourcingExercise.findFirst({ where: { id, organisationId: org.id }, include: exerciseInclude });
   if (!ex) return null;
@@ -171,7 +171,7 @@ export type LoadedExercise = NonNullable<Awaited<ReturnType<typeof loadExercise>
 export type ExerciseRow = LoadedExercise["ex"];
 
 /// Lock the requisition, then (where given) the exercise, and re-read both.
-export async function withLockedRequisitionForSourcing<T>(
+export async function withLockedRequisitionForSourcing<T>(organisationId: string, 
   requisitionId: string,
   exerciseId: string | null,
   fn: (tx: Tx, l: { org: ExerciseOrg; req: SourcingRequisition; ex: ExerciseRow | null }) => Promise<T>,
@@ -180,11 +180,11 @@ export async function withLockedRequisitionForSourcing<T>(
     async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${requisitionId} FOR UPDATE`;
       if (exerciseId) await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${exerciseId} FOR UPDATE`;
-      const r = await loadRequisitionForSourcing(requisitionId, tx);
+      const r = await loadRequisitionForSourcing(organisationId, requisitionId, tx);
       if (!r) return null;
       let ex: ExerciseRow | null = null;
       if (exerciseId) {
-        const l = await loadExercise(exerciseId, tx);
+        const l = await loadExercise(organisationId, exerciseId, tx);
         if (!l || l.ex.requisitionId !== requisitionId) return null;
         ex = l.ex;
       }
@@ -195,8 +195,8 @@ export async function withLockedRequisitionForSourcing<T>(
 }
 
 /// The exercise's requisition id, read without a lock, to know what to lock.
-export async function requisitionOfExercise(exerciseId: string): Promise<string | null> {
-  const ex = await db.sourcingExercise.findUnique({ where: { id: exerciseId }, select: { requisitionId: true } });
+export async function requisitionOfExercise(organisationId: string, exerciseId: string): Promise<string | null> {
+  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId }, select: { requisitionId: true } });
   return ex?.requisitionId ?? null;
 }
 
@@ -214,13 +214,13 @@ export async function evaluationContext(
 ) {
   const on = org.today ? dayToDate(org.today) : new Date();
   const [issue, cfg, route] = await Promise.all([
-    loadBandIssue(on, client),
+    loadBandIssue(org.code, on, client),
     loadMethodConfig(org.id, client),
     req.fundingRouteCode ? client.fundingRoute.findFirst({ where: { organisationId: org.id, code: req.fundingRouteCode } }) : Promise.resolve(null),
   ]);
   if (!issue) return { issue: null, cfg, ctx: null, on };
   const supersedes = req.fundingSupersedesAuthority === true;
-  const override = supersedes && req.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, req.fundingRouteCode, on, client) : null;
+  const override = supersedes && req.fundingRouteCode ? await loadOverrideMatrix(org.code, req.fundingRouteCode, on, client) : null;
   const funder: FunderContext = { dal: issue.matrix, override, supersedes };
   // The posture as snapshotted on the requisition at submission, else the route's now.
   const posture = (req.fundingPosture as EvaluationContext["posture"]) ?? (route ? fundingPosture({ ...route, provenance: route.provenance as Provenance }) : null);
@@ -246,8 +246,8 @@ export async function evaluationContext(
 
 export const EXERCISES_PAGE = 100;
 
-export async function listExercises() {
-  const org = await exerciseOrg();
+export async function listExercises(organisationId: string) {
+  const org = await exerciseOrg(organisationId);
   if (!org) return { org: null, rows: [], total: 0 };
   const where = { organisationId: org.id };
   const [rows, total] = await Promise.all([

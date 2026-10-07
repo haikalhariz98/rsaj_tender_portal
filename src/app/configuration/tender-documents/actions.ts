@@ -8,7 +8,6 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { storedDay, todayIn } from "@/lib/dates";
 import { formatSen, parseSen } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { ENTITY } from "@/lib/tender-docs/audit-view";
 import { conditionsPolicyFaults, conditionsPolicyFaultText } from "@/lib/tender-docs/config-conditions";
 import { loadTaxonomyUses } from "@/lib/tender-docs/repo";
@@ -18,6 +17,7 @@ import { formatPct } from "@/lib/tender-docs/percent";
 import { PACK_KINDS, PART_CONTENTS, PART_ROLES, PART_SOURCES, type ConfiguredPart, type Provenance } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Configuration › Tender documents (6.4 plan §5): the parts each pack kind assembles on each
@@ -38,8 +38,8 @@ const TRI = ["yes", "no", "unset"] as const;
 const tri = (v: string | null): boolean | null => (v === "yes" ? true : v === "no" ? false : null);
 const prov = (p: string | null | undefined) => (p ? (PROVENANCE_WORDS[p as (typeof PROVENANCE)[number]] ?? NOT_SET) : NOT_SET);
 
-async function organisation(): Promise<{ id: string; timeZone: string | null } | null> {
-  return db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
+async function organisation(scope: OrgScope): Promise<{ id: string; timeZone: string | null } | null> {
+  return db.organisation.findUnique({ where: { id: scope.organisationId }, select: { id: true, timeZone: true } });
 }
 
 async function lockOrganisation(tx: Tx, organisationId: string) {
@@ -86,7 +86,7 @@ async function partWords(tx: Tx, organisationId: string, p: Omit<ConfiguredPart,
 /// Add or change a configured part (FR-DOC-001, 002, 013).
 export async function saveTenderPart(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const today = todayIn(new Date(), org.timeZone);
   if (!today) return { ok: false, message: "The organisation's time zone is not set, so a part's dates cannot be judged. Set it under Configuration, Organisation." };
@@ -143,7 +143,7 @@ export async function saveTenderPart(_prev: FormState, data: FormData): Promise<
 /// Retire a part from a day (a pack started after it does not take it), with the reason; or restore it.
 export async function retireTenderPart(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -162,7 +162,7 @@ export async function retireTenderPart(_prev: FormState, data: FormData): Promis
 
 export async function restoreTenderPart(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -215,7 +215,7 @@ const policyWords = (p: Record<string, unknown>) => ({
 /// Save the tender documents' policy. Every value nullable: unset reads "Not set" where used, never a default.
 export async function saveTenderPolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const r = new FormReader(data);
   const v = {
@@ -274,7 +274,7 @@ export async function saveTenderPolicy(_prev: FormState, data: FormData): Promis
 /// Which pack a sourcing method assembles (TENDER, QUOTATION, none), or not set; with its provenance.
 export async function saveMethodDocumentPack(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);

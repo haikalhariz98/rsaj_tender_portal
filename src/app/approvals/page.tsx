@@ -21,8 +21,8 @@ export const dynamic = "force-dynamic";
  * to everyone, and nobody is notified.
  */
 export default async function ApprovalsPage() {
-  await requireStaff();
-  const w = await loadWorklist();
+  const actor = await requireStaff();
+  const w = await loadWorklist(actor);
   const all = w?.groups.flatMap((g) => g.items) ?? [];
   const rows: Row[] = all.map((i) => ({
     id: i.stepId,

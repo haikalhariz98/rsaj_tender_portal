@@ -23,6 +23,7 @@ import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * A supplier's standing (FR-VND-010, FR-TRM-017, plan 6.15 §4.2, increment a2; FR-ADV-010 and 615-C2): suspended by an officer
@@ -71,7 +72,7 @@ export async function suspendSupplier(_prev: FormState, data: FormData): Promise
   const note = r.text("note", "Note", { max: 2000 });
   const flagged = splitValues(data.get("flaggedDocumentIds"));
   if (r.failed) return { ok: false, errors: r.errors };
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     const { reading, status, s } = await lockedStanding(tx, l);
     const reason = reasonId ? await tx.standingReason.findFirst({ where: { id: reasonId, organisationId: l.org.id } }) : null;
@@ -98,7 +99,7 @@ export async function reinstateSupplier(_prev: FormState, data: FormData): Promi
   const note = r.text("note", "Note", { max: 2000 });
   const checked = splitValues(data.get("checkedDocumentIds"));
   if (r.failed) return { ok: false, errors: r.errors };
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     const { reading, s } = await lockedStanding(tx, l);
     const types = await tx.supplierDocumentType.findMany({ where: { organisationId: l.org.id } });
@@ -135,7 +136,7 @@ export async function requestBlacklisting(_prev: FormState, data: FormData): Pro
   const note = r.text("note", "Note", { max: 2000 });
   const sourceAwardId = r.optionalText("sourceAwardId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     const { reading, status, requests, requestFacts } = await lockedStanding(tx, l);
     const reason = reasonId ? await tx.standingReason.findFirst({ where: { id: reasonId, organisationId: l.org.id } }) : null;
@@ -164,7 +165,7 @@ export async function requestBlacklistLift(_prev: FormState, data: FormData): Pr
   const personId = r.text("personId", "Asked by", { required: true });
   const note = r.text("note", "Why", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     const { reading, requests, requestFacts } = await lockedStanding(tx, l);
     const person = await activePerson(tx, l.org.id, personId);
@@ -196,7 +197,7 @@ export async function decideStandingStep(_prev: FormState, data: FormData): Prom
   const requestId = found?.instance.standingRequestId ?? null;
   const supplierId = found?.instance.standingRequest?.supplierId ?? null;
   if (!requestId || !supplierId) return { ok: false, message: "That step is not on a supplier's blacklisting route." };
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     await tx.$queryRaw`SELECT id FROM "StandingRequest" WHERE id = ${requestId} FOR UPDATE`;
     const req = await tx.standingRequest.findUniqueOrThrow({ where: { id: requestId }, include: { routes: { where: { status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } } } });
     const full = req.routes.find((x) => x.steps.some((s) => s.id === stepId));
@@ -209,7 +210,7 @@ export async function decideStandingStep(_prev: FormState, data: FormData): Prom
   });
 }
 
-async function recordFromRequest(actor: AuditActor, data: FormData, kind: "BLACKLIST" | "BLACKLIST_LIFT"): Promise<FormState> {
+async function recordFromRequest(scope: OrgScope, actor: AuditActor, data: FormData, kind: "BLACKLIST" | "BLACKLIST_LIFT"): Promise<FormState> {
   const now = stampNow();
   const r = new FormReader(data);
   const requestId = r.text("requestId", "Request", { required: true });
@@ -218,7 +219,7 @@ async function recordFromRequest(actor: AuditActor, data: FormData, kind: "BLACK
   if (r.failed) return { ok: false, errors: r.errors };
   const found = await db.standingRequest.findUnique({ where: { id: requestId }, select: { supplierId: true } });
   if (!found) return GONE;
-  return inSupplier(found.supplierId, async (tx, l) => {
+  return inSupplier(scope, found.supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     await tx.$queryRaw`SELECT id FROM "StandingRequest" WHERE id = ${requestId} FOR UPDATE`;
     const { policy, reading, s, requests, requestFacts } = await lockedStanding(tx, l);
@@ -248,13 +249,13 @@ async function recordFromRequest(actor: AuditActor, data: FormData, kind: "BLACK
 /// Record a blacklisting its route approved (FR-TRM-017): the period from the policy now, frozen on the event.
 export async function recordBlacklisting(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return recordFromRequest(toAuditActor(actor), data, "BLACKLIST");
+  return recordFromRequest(actor, toAuditActor(actor), data, "BLACKLIST");
 }
 
 /// Record the lifting of a blacklisting its route approved.
 export async function liftBlacklisting(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return recordFromRequest(toAuditActor(actor), data, "BLACKLIST_LIFT");
+  return recordFromRequest(actor, toAuditActor(actor), data, "BLACKLIST_LIFT");
 }
 
 /**
@@ -272,7 +273,7 @@ export async function withdrawStandingRequest(_prev: FormState, data: FormData):
   if (r.failed) return { ok: false, errors: r.errors };
   const found = await db.standingRequest.findUnique({ where: { id: requestId }, select: { supplierId: true } });
   if (!found) return GONE;
-  return inSupplier(found.supplierId, async (tx, l) => {
+  return inSupplier(actor, found.supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     await tx.$queryRaw`SELECT id FROM "StandingRequest" WHERE id = ${requestId} FOR UPDATE`;
     const { requests, requestFacts } = await lockedStanding(tx, l);
@@ -311,7 +312,7 @@ export async function recordRegistrationCancelled(_prev: FormState, data: FormDa
   const personId = r.text("personId", "Recorded by", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     const { reading, status, s } = await lockedStanding(tx, l);
     const body = bodyId ? await tx.registrationBody.findFirst({ where: { id: bodyId, organisationId: l.org.id }, select: { id: true, labelEn: true } }) : null;
@@ -348,7 +349,7 @@ export async function withdrawRegistrationCancelled(_prev: FormState, data: Form
   if (r.failed) return { ok: false, errors: r.errors };
   const found = await db.standingEvent.findUnique({ where: { id: eventId }, select: { supplierId: true } });
   if (!found) return GONE;
-  return inSupplier(found.supplierId, async (tx, l) => {
+  return inSupplier(actor, found.supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     await tx.$queryRaw`SELECT id FROM "StandingEvent" WHERE id = ${eventId} FOR UPDATE`;
     const ev = await tx.standingEvent.findFirst({ where: { id: eventId, supplierId: l.supplier.id }, select: { id: true, kind: true, withdrawnAt: true, effectiveOn: true, bodyLabelSnapshot: true, externalReference: true } });

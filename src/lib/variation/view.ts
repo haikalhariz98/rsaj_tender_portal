@@ -8,7 +8,6 @@ import { loadIssue } from "@/lib/authority/load";
 import type { LoadedContract } from "@/lib/contract/repo";
 import { dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { baselineOn } from "@/lib/payment/load";
 import { loadPostAwardPolicy } from "@/lib/supervision/load";
 
@@ -24,7 +23,7 @@ export async function variationView(l: LoadedContract, today: string | null) {
     loadAdjustments(l.contract.id),
     loadPostAwardPolicy(l.org.id),
     db.certificateKindSetting.findMany({ where: { organisationId: l.org.id, kind: { in: ["VARIATION_APPLICATION", "SO_INSTRUCTION", "VARIATION", "SUM_ADJUSTMENT"] } }, select: { kind: true, templateId: true } }),
-    today ? loadIssue(ORGANISATION_CODE, dayToDate(today), undefined, null) : Promise.resolve(null),
+    today ? loadIssue(l.org.code, dayToDate(today), undefined, null) : Promise.resolve(null),
   ]);
   const facts = all.map(factsOf);
   const baseline = today ? baselineOn(l, today) : null;

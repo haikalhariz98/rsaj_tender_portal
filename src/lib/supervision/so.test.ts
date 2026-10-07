@@ -185,7 +185,8 @@ describe("residual: the S.O. moved with a corrected Contract Date is resolved ag
     const refusal = body.indexOf('if (!judged.ok) return refuse("Not corrected:", judged.faults);');
     expect(refusal).toBeGreaterThan(-1);
     expect(refusal).toBeLessThan(body.indexOf("c.tx.contract.update"));
-    expect(body).toMatch(/loadIssue\(ORGANISATION_CODE, dayToDate\(newDay\)/);
+    // Phase 1c (ADR 0034 D10): the matrix is the signed-in person's organisation's, never the deployment's ORGANISATION_CODE; the day is as pinned.
+    expect(body).toMatch(/loadIssue\(actor\.organisationCode, dayToDate\(newDay\)/);
     expect(body).toMatch(/contractValue: amountOf\(moving\.contractValue\)/);
     expect(body).toMatch(/resolvedAgainOn: /);
   });

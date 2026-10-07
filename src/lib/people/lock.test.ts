@@ -111,7 +111,8 @@ describe("both delegation attach paths judge on what lockDelegation read (source
     expect(delegationCase).not.toMatch(/tx\.delegation\.|db\.delegation\.|FOR UPDATE/);
     // And attachDocument judges attachFault on those facts, inside the owner's lock.
     const attach = body(src("src/app/documents/actions.ts"), "export async function attachDocument(");
-    expect(attach).toMatch(/return inOwner\(toAuditActor\(actor\), ref, async \(tx, o\) => \{/); // Phase 1b: who acted is the first argument
+    // Phase 1c (ADR 0034 D10): the lock is now asked for the signed-in person's organisation first; the call is otherwise as pinned.
+    expect(attach).toMatch(/return inOwner\(actor, toAuditActor\(actor\), ref, async \(tx, o\) => \{/); // Phase 1b: who acted is an argument
     expect(attach).toMatch(/attachFault\(\{ purpose, owner: o\.facts,/);
   });
 

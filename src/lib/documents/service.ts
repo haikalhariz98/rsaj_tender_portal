@@ -8,7 +8,6 @@ import type { Prisma } from "@/generated/prisma/client";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 
 import { filenameFault } from "./access";
 import { lockDocument, shareDocumentClass } from "./lock";
@@ -22,14 +21,16 @@ import type { AuditActor } from "@/lib/auth/types";
 
 export interface DocumentOrg {
   id: string;
+  code: string;
   timeZone: string | null;
   /// Null while the organisation has no time zone.
   today: string | null;
 }
 
-export async function documentOrg(client: Tx = db): Promise<DocumentOrg | null> {
-  const org = await client.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
-  return org ? { id: org.id, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) } : null;
+/// The signed-in actor's organisation (ADR 0034 D10). Null when it no longer exists.
+export async function documentOrg(organisationId: string, client: Tx = db): Promise<DocumentOrg | null> {
+  const org = await client.organisation.findUnique({ where: { id: organisationId }, select: { id: true, code: true, timeZone: true } });
+  return org ? { id: org.id, code: org.code, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) } : null;
 }
 
 export async function loadStorePolicy(organisationId: string, client: Tx = db): Promise<StorePolicy & { provenance: string | null; notes: string; id: string | null }> {

@@ -9,7 +9,6 @@ import { db } from "@/lib/db";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { REGIME_LABEL } from "@/lib/method/labels";
 import type { Regime } from "@/lib/method/types";
 import { configFaultText, floorFaults, parseHolidayCsv, policyFaults, weekendFaults, yearFault } from "@/lib/window/config";
@@ -20,6 +19,7 @@ import { BID_RULE_FAULT_TEXT, bidRuleFaults, bidRuleToSave } from "@/lib/bids/co
 import { methodOpeningFaults, methodOpeningToSave, OPENING_CONFIG_FAULT_TEXT, openingPolicyFaults, openingPolicyToSave, type OpeningConfigFault } from "@/lib/opening/config";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Configuration › Invitation controls (6.5): the window policy, publication channels, document fee
@@ -41,8 +41,8 @@ const tri = (v: string | null): boolean | null => (v === "yes" ? true : v === "n
 const NOT_SET = "Not set";
 const WEEKDAY = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-async function organisation() {
-  return db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
+async function organisation(scope: OrgScope) {
+  return db.organisation.findUnique({ where: { id: scope.organisationId }, select: { id: true, timeZone: true } });
 }
 const lockOrganisation = (tx: Tx, id: string) => tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${id} FOR UPDATE`;
 function done(): FormState {
@@ -62,7 +62,7 @@ const refusal = (fs: readonly { code: string; level: "block" | "warn" | "info"; 
  */
 export async function saveWindowPolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const r = new FormReader(data);
   const v = {
@@ -148,7 +148,7 @@ const channelWords = (c: { nameEn: string; nameMs: string | null; requiredWhenAd
 /// Add or change a publication channel (FR-ADV-001). Whether it is required may be left not set: it then blocks publication, naming it.
 export async function saveChannel(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
   const r = new FormReader(data);
@@ -185,7 +185,7 @@ export async function saveChannel(_prev: FormState, data: FormData): Promise<For
 /// Retire a channel (it stays on the publications recorded through it), or bring it back.
 export async function setChannelRetired(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const retire = String(data.get("retire") ?? "") === "yes";
@@ -214,7 +214,7 @@ const floorWords = (f: { regime: string; minimum: { toString(): string }; govern
 
 export async function saveFeeFloor(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
   const r = new FormReader(data);
@@ -249,7 +249,7 @@ export async function saveFeeFloor(_prev: FormState, data: FormData): Promise<Fo
 /// Remove a floor, with a reason: the band then has none, and its exercises' publication blocks naming it.
 export async function removeFeeFloor(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -277,7 +277,7 @@ const calendarWords = (c: { name: string; weekendDays: number[]; weekendProvenan
 
 export async function saveCalendar(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
   const r = new FormReader(data);
@@ -317,7 +317,7 @@ export async function saveCalendar(_prev: FormState, data: FormData): Promise<Fo
 /// Retire a calendar (a policy naming it then refuses to save until it names another), or bring it back.
 export async function setCalendarRetired(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const retire = String(data.get("retire") ?? "") === "yes";
@@ -341,7 +341,7 @@ export async function setCalendarRetired(_prev: FormState, data: FormData): Prom
  */
 export async function saveCalendarYear(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const calendarId = String(data.get("calendarId") ?? "");
   const r = new FormReader(data);
@@ -376,7 +376,7 @@ const holidayWords = (h: { day: Date; nameEn: string; nameMs: string | null; gaz
 /// Add a public holiday to a calendar.
 export async function saveHoliday(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const calendarId = String(data.get("calendarId") ?? "");
   const r = new FormReader(data);
@@ -402,7 +402,7 @@ export async function saveHoliday(_prev: FormState, data: FormData): Promise<For
 /// Remove a public holiday added in error, with a reason.
 export async function removeHoliday(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -424,7 +424,7 @@ export async function removeHoliday(_prev: FormState, data: FormData): Promise<F
  */
 export async function importHolidayYear(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const calendarId = String(data.get("calendarId") ?? "");
   const r = new FormReader(data);
@@ -460,7 +460,7 @@ export async function importHolidayYear(_prev: FormState, data: FormData): Promi
  */
 export async function saveMethodBidRule(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -504,7 +504,7 @@ const fieldRefusal = (fs: readonly { code: OpeningConfigFault; field: string }[]
  */
 export async function saveMethodOpeningRule(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -543,7 +543,7 @@ export async function saveMethodOpeningRule(_prev: FormState, data: FormData): P
  */
 export async function saveOpeningPolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const r = new FormReader(data);
   const draft = {

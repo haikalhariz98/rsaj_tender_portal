@@ -46,7 +46,6 @@ import { contractLabel, type LoadedContract } from "@/lib/contract/repo";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
 import { compareAmounts, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -95,16 +94,16 @@ const routeLabel = (c: VariationCtx, v: VariationRow) => `${variationLabel(c.l, 
 /// The matrix in force today and the funder's context, as every route of the contract reads them.
 export async function matrixToday(c: VariationCtx) {
   const on = dayToDate(c.today);
-  const issue = await loadIssue(ORGANISATION_CODE, on, undefined, null, c.tx);
+  const issue = await loadIssue(c.l.org.code, on, undefined, null, c.tx);
   if (!issue) return null;
   const supersedes = c.l.req.fundingSupersedesAuthority === true;
-  const override = supersedes && c.l.req.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, c.l.req.fundingRouteCode, on, c.tx) : null;
+  const override = supersedes && c.l.req.fundingRouteCode ? await loadOverrideMatrix(c.l.org.code, c.l.req.fundingRouteCode, on, c.tx) : null;
   return { issue, ctx: { dal: issue.matrix, override, supersedes } };
 }
 
 /// The office's holders for the contract (its requisition's unit) on a day, as the engine reads them.
 async function holdersOn(c: VariationCtx, roleCode: string, day: string) {
-  const [roster, delegations, units] = await Promise.all([loadRoster(ORGANISATION_CODE, c.tx), loadDelegations(ORGANISATION_CODE, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
+  const [roster, delegations, units] = await Promise.all([loadRoster(c.l.org.code, c.tx), loadDelegations(c.l.org.code, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
   const unitPath = pathTo(units as unknown as OrgUnit[], c.l.req.sectionUnitCode || c.l.req.requestingUnitCode, dayToDate(day)).reverse().map((u) => u.code);
   return { holders: holdersFor(roleCode, unitPath, roster, delegations, day), roster, delegations, unitPath };
 }
@@ -124,7 +123,7 @@ export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: Se
   if (!m) return refuse("Not sent for approval:", [{ code: "NO_MATRIX", level: "block", data: { day: c.today } }]);
   const contractValue = BigInt(i.reading.den);
   const domain = routeDomainOf(i.event, regimeOf(m.issue.matrix, contractValue));
-  const [roster, delegations, units] = await Promise.all([loadRoster(ORGANISATION_CODE, c.tx), loadDelegations(ORGANISATION_CODE, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
+  const [roster, delegations, units] = await Promise.all([loadRoster(c.l.org.code, c.tx), loadDelegations(c.l.org.code, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
   const unitPath = pathTo(units as unknown as OrgUnit[], c.l.req.sectionUnitCode || c.l.req.requestingUnitCode, dayToDate(c.today)).reverse().map((u) => u.code);
   const holdersOf = (code: string) => holdersFor(code, unitPath, roster, delegations, c.today);
   const people = new Map(roster.people.map((p) => [p.id, p]));

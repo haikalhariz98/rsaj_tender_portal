@@ -57,8 +57,8 @@ function Section({ title, subtitle, icon, count, action, empty, children }: { ti
  * insurance requirements, liability bands and approved issuers. Everything ships unset.
  */
 export default async function AwardControlsPage() {
-  await requireStaff();
-  const org = await exerciseOrg();
+  const actor = await requireStaff();
+  const org = await exerciseOrg(actor.organisationId);
   if (!org) {
     return (
       <>

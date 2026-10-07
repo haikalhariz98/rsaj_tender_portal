@@ -12,7 +12,6 @@ import type { Tx } from "@/lib/audit/record";
 import { contractLabel, loadContract, withLockedContract, type LoadedContract } from "@/lib/contract/repo";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -47,10 +46,10 @@ export type CertificateRow = NonNullable<Awaited<ReturnType<typeof readCertifica
 export type LoadedCertificate = LoadedContract & { cert: CertificateRow };
 
 /// A certificate with its contract (6.12's loader), read on one client.
-export async function loadCertificate(id: string, client: Tx = db): Promise<LoadedCertificate | null> {
-  const c = await client.certificate.findUnique({ where: { id }, select: { contractId: true } });
+export async function loadCertificate(organisationId: string, id: string, client: Tx = db): Promise<LoadedCertificate | null> {
+  const c = await client.certificate.findFirst({ where: { id, organisationId }, select: { contractId: true } });
   if (!c) return null;
-  const l = await loadContract(c.contractId, client);
+  const l = await loadContract(organisationId, c.contractId, client);
   if (!l) return null;
   const cert = await readCertificate(id, l.contract.id, client);
   if (!cert || cert.organisationId !== l.org.id) return null;
@@ -61,10 +60,10 @@ export async function loadCertificate(id: string, client: Tx = db): Promise<Load
  * Lock the contract's chain (6.12's helper), then the certificate, and re-read it. Null: the certificate or its
  * contract is gone, or it is not this contract's.
  */
-export async function withLockedCertificate<T>(certificateId: string, fn: (tx: Tx, l: LoadedCertificate) => Promise<T>): Promise<T | null> {
-  const found = await db.certificate.findUnique({ where: { id: certificateId }, select: { contractId: true } });
+export async function withLockedCertificate<T>(organisationId: string, certificateId: string, fn: (tx: Tx, l: LoadedCertificate) => Promise<T>): Promise<T | null> {
+  const found = await db.certificate.findFirst({ where: { id: certificateId, organisationId }, select: { contractId: true } });
   if (!found) return null;
-  return withLockedContract(found.contractId, async (tx, l) => {
+  return withLockedContract(organisationId, found.contractId, async (tx, l) => {
     await tx.$queryRaw`SELECT id FROM "Certificate" WHERE id = ${certificateId} FOR UPDATE`;
     const cert = await readCertificate(certificateId, l.contract.id, tx);
     if (!cert || cert.organisationId !== l.org.id) return null;
@@ -179,7 +178,7 @@ export { checksOf, routesOf } from "./sheet-rows";
  * `instructionOnly` is false: increment 1 has no delegation scope (6.13 adds it).
  */
 export async function officeHolders(l: LoadedContract, roleCode: string, day: string, client: Tx = db): Promise<OfficeHolders> {
-  const [roster, delegations, units] = await Promise.all([loadRoster(ORGANISATION_CODE, client), loadDelegations(ORGANISATION_CODE, client), client.orgUnit.findMany({ where: { organisationId: l.org.id } })]);
+  const [roster, delegations, units] = await Promise.all([loadRoster(l.org.code, client), loadDelegations(l.org.code, client), client.orgUnit.findMany({ where: { organisationId: l.org.id } })]);
   const unitPath = pathTo(units as unknown as OrgUnit[], l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(day)).reverse().map((u) => u.code);
   const h = holdersFor(roleCode, unitPath, roster, delegations, day);
   return { holderIds: h.holderIds, delegates: h.delegates.map((d) => ({ personId: d.personId, delegationId: d.delegation.id, instructionOnly: false })) };

@@ -9,7 +9,7 @@ import { EVENT_WORDS } from "@/lib/variation/labels";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { exerciseRouteMatter } from "@/lib/method/approval";
-import { ORGANISATION_CODE } from "@/lib/org";
+import type { OrgScope } from "@/lib/org-scope";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -19,8 +19,8 @@ import { supplierHolders } from "@/lib/suppliers/route";
 
 import { officeQueue, type QueueStep } from "./queue";
 
-export async function loadWorklist() {
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
+export async function loadWorklist(scope: OrgScope) {
+  const org = await db.organisation.findUnique({ where: { id: scope.organisationId }, select: { id: true, timeZone: true } });
   if (!org) return null;
   const today = todayIn(new Date(), org.timeZone);
   const [routes, units, roster, delegations] = await Promise.all([
@@ -45,8 +45,8 @@ export async function loadWorklist() {
       },
     }),
     db.orgUnit.findMany({ where: { organisationId: org.id } }),
-    loadRoster(ORGANISATION_CODE),
-    loadDelegations(ORGANISATION_CODE),
+    loadRoster(scope.organisationCode),
+    loadDelegations(scope.organisationCode),
   ]);
   const on = today ? dayToDate(today) : new Date();
   const people = new Map(roster.people.map((p) => [p.id, p]));

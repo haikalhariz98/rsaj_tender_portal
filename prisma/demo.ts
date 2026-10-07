@@ -29,6 +29,7 @@ import { DEMO_PREFIX, demoIsLoaded, demoSignInDependents, demoSignInRefusal } fr
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId, demoScope } from "./demo-org";
 
 /**
  * A demonstration dataset, loaded deliberately and never by default.
@@ -2453,7 +2454,7 @@ async function determineExercises(ids: string[], preparedDates: Readonly<Record<
   // The minuted sittings are snapshotted next, on the same lib client, which they close.
   {
     for (const id of ids) {
-      const l = await repo.loadExercise(id);
+      const l = await repo.loadExercise(await demoOrgId(), id);
       if (!l) throw new Error(`Demo exercise ${id} did not load.`);
       const { issue, cfg, ctx } = await repo.evaluationContext(l.org, l.req, l.ex);
       if (!issue || !ctx) throw new Error("No issue in force for the demo exercises.");
@@ -2544,7 +2545,7 @@ async function snapshotMinuted(ids: string[]) {
   const lib = await import("../src/lib/db");
   try {
     for (const id of ids) {
-      const s = await loadSitting(id);
+      const s = await loadSitting(await demoScope(), id);
       if (!s) throw new Error(`Demo sitting ${id} did not load.`);
       const people = [
         ...s.register.voting.map((v) => v.personId),

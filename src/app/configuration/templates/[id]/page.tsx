@@ -32,9 +32,9 @@ const USE_COUNTS = Object.fromEntries(Object.keys(TEMPLATE_OTHER_USES).map((k) =
  * it. Everything ships empty. A certificate pins the form (text, blocks and list) at its first signature.
  */
 export default async function TemplateFormPage(props: PageProps<"/configuration/templates/[id]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id } = await props.params;
-  const org = await exerciseOrg();
+  const org = await exerciseOrg(actor.organisationId);
   if (!org) notFound();
   const t = await db.documentTemplate.findFirst({
     where: { id, organisationId: org.id },

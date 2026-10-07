@@ -49,6 +49,7 @@ import { findingFaults, matchFaults, openFault } from "@/lib/opening/withdrawals
 import { activePerson, audit, exerciseIdOf, inWindow, label, Refusal, type LockedWindow } from "../window/shared";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for 6.7's opening (plan §4, as ruled C-1..C-13). Each runs in one transaction that locks the
@@ -70,8 +71,8 @@ const GONE_BID: FormState = { ok: false, message: "That offer is not on this exe
 const ENVELOPE_CHANGED: FormState = { ok: false, message: "The envelope changed while this was being saved. Nothing was saved. Reload and try again." };
 
 /// Run an opening write with every lock its order asks for, and the context read under them.
-async function inOpening(exerciseId: string, now: Date, fn: (tx: Tx, l: LockedWindow, c: OpeningContext) => Promise<FormState>, opts: { estimate?: boolean } = {}): Promise<FormState> {
-  return inWindow(exerciseId, async (tx, l) => {
+async function inOpening(scope: OrgScope, exerciseId: string, now: Date, fn: (tx: Tx, l: LockedWindow, c: OpeningContext) => Promise<FormState>, opts: { estimate?: boolean } = {}): Promise<FormState> {
+  return inWindow(scope, exerciseId, async (tx, l) => {
     await lockOpeningRows(tx, l.ex.id);
     if (opts.estimate) await lockLiveEstimateRows(tx, l.ex.id);
     await lockEnvelopeRows(tx, l.ex.id);
@@ -127,7 +128,7 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
   const lateOverrideReason = r.text("lateOverrideReason", "Why the late estimate is accepted", { max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
   const picks = readPanel(data);
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const person = await nameOf(tx, l.org.id, startedByPersonId);
     const sf = startFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, publishedThroughWindow: c.window?.publishedAt != null, timeZone: l.org.timeZone, phase: c.gate.phase, boxLocked: c.boxLocked, changePending: c.gate.changePending, mainExists: c.main != null, personActive: !!person });
     if (blocking(sf).length) return refuse(sf);
@@ -230,7 +231,7 @@ export async function startSupplementaryOpening(_prev: FormState, data: FormData
   const overridePersonId = r.optionalText("panelOverrideByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
   const picks = readPanel(data);
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const person = await nameOf(tx, l.org.id, startedByPersonId);
     const decision = await tx.committeeDecision.findFirst({ where: { id: decisionId, bidEnvelope: { exerciseId: l.ex.id } }, select: { id: true, matterKind: true, outcome: true, bidEnvelopeId: true, withdrawnAt: true, meeting: { select: { reference: true } } } });
     const envelope = decision?.bidEnvelopeId ? (c.envelopes.find((e) => e.id === decision.bidEnvelopeId) ?? null) : null;
@@ -289,7 +290,7 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
   const now = stampNow();
   const openingId = String(data.get("openingId") ?? "");
   const personId = String(data.get("personId") ?? "");
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const state = stateOf(o, l.ex.status);
@@ -317,21 +318,21 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
 /// FR-OPN-011, C-2: adjourn, with the reason; an unpaired authorisation of the sitting lapses (kept).
 export async function adjournOpening(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return sittingAct(toAuditActor(actor), data, false);
+  return sittingAct(actor, toAuditActor(actor), data, false);
 }
 
 /// Resume an adjourned opening: a new sitting, which needs two fresh authorisations.
 export async function resumeOpening(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return sittingAct(toAuditActor(actor), data, true);
+  return sittingAct(actor, toAuditActor(actor), data, true);
 }
 
-async function sittingAct(actor: AuditActor, data: FormData, resume: boolean): Promise<FormState> {
+async function sittingAct(scope: OrgScope, actor: AuditActor, data: FormData, resume: boolean): Promise<FormState> {
   const now = stampNow();
   const openingId = String(data.get("openingId") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 1000);
   const personId = String(data.get("personId") ?? "") || null;
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(scope, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const state = stateOf(o, l.ex.status);
@@ -366,7 +367,7 @@ export async function registerBoxEnvelope(_prev: FormState, data: FormData): Pro
   const markings = r.text("markings", "Markings", { required: true, max: 1000 });
   const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const person = await nameOf(tx, l.org.id, personId);
@@ -389,7 +390,7 @@ export async function matchWithdrawal(_prev: FormState, data: FormData): Promise
   const openingId = String(data.get("openingId") ?? "");
   const withdrawalId = String(data.get("withdrawalId") ?? "");
   const envelopeId = String(data.get("envelopeId") ?? "");
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const w = c.withdrawals.find((x) => x.id === withdrawalId);
@@ -418,7 +419,7 @@ export async function recordWithdrawalFinding(_prev: FormState, data: FormData):
   const finding = r.text("finding", "What the panel found", { required: true, max: 2000 });
   const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const w = c.withdrawals.find((x) => x.id === withdrawalId);
@@ -462,7 +463,7 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
   const parentOpenedBidId = r.optionalText("parentOpenedBidId");
   const offer = readOffer(r);
   if (r.failed) return { ok: false, errors: r.errors };
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const state = stateOf(o, l.ex.status);
@@ -525,7 +526,7 @@ export async function recordAlternative(_prev: FormState, data: FormData): Promi
   const mainBidId = r.text("openedBidId", "Offer", { required: true });
   const offer = readOffer(r);
   if (r.failed) return { ok: false, errors: r.errors };
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const found = bidOf(c, mainBidId);
     if (!found) return GONE_BID;
     const { opening: o, bid: main } = found;
@@ -560,7 +561,7 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
   const now = stampNow();
   const bidId = String(data.get("openedBidId") ?? "");
   const personId = String(data.get("personId") ?? "");
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
@@ -589,7 +590,7 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
   const itemKey = r.text("itemKey", "Item", { required: true });
   const answer = r.choice("answer", "Answer", CHECKLIST_ANSWERS, { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
@@ -624,7 +625,7 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
   const reason = r.text("verdictReason", "Reason", { max: 2000 });
   const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
@@ -666,7 +667,7 @@ export async function correctAsRead(_prev: FormState, data: FormData): Promise<F
   const reason = r.text("reason", "Reason", { required: true, max: 1000 });
   const offer = readOffer(r);
   if (r.failed) return { ok: false, errors: r.errors };
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
@@ -691,7 +692,7 @@ export async function recordSignature(_prev: FormState, data: FormData): Promise
   const openingId = String(data.get("openingId") ?? "");
   const personId = String(data.get("personId") ?? "");
   const signedOn = String(data.get("signedOn") ?? "");
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const startDay = l.org.timeZone ? dayIn(o.startedAt, l.org.timeZone) : null;
@@ -713,7 +714,7 @@ export async function recordScheduleDetails(_prev: FormState, data: FormData): P
   const pages = r.int("schedulePages", "Pages of the signed schedule", { required: true, min: 1 });
   const minutes = r.text("minutes", "Minutes", { max: 20000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const fs = recordFaults({ state: stateOf(o, l.ex.status), pages });
@@ -740,7 +741,7 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
   const paperChoice = String(data.get("paperCopy") ?? "");
   const paperRaw = String(data.get("paperFigure") ?? "");
   const paperAnswered = paperChoice === "notInBox" || (paperChoice === "figure" && paperRaw.trim() !== "");
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const person = await nameOf(tx, l.org.id, personId);
@@ -861,7 +862,7 @@ export async function recordCopyExplanation(_prev: FormState, data: FormData): P
   const explanation = r.text("explanation", "Explanation", { required: true, max: 4000 });
   const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inOpening(exerciseIdOf(data), now, async (tx, l, c) => {
+  return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
     const person = await nameOf(tx, l.org.id, personId);

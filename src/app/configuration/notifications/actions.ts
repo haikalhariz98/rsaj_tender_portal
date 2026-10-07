@@ -5,16 +5,16 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/notifications";
 
-async function organisationId(): Promise<string | null> {
+async function organisationId(scope: OrgScope): Promise<string | null> {
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: scope.organisationId },
     select: { id: true },
   });
   return org?.id ?? null;
@@ -52,7 +52,7 @@ function readOffsets(r: FormReader, raw: string | null): number[] {
 
 export async function saveNotificationRule(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");

@@ -12,15 +12,15 @@ import { inForceOn } from "@/lib/effective";
 import { DETAIL_FIELDS, detailsFaults, normaliseDetails, type DetailField } from "@/lib/organisation/details";
 import { inspectLogo, LOGO_MAX_BYTES, logoFaultText } from "@/lib/organisation/logo";
 import { placementFault } from "@/lib/organisation/structure";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 const PATH = "/configuration/organisation";
 
-async function organisationId(): Promise<string | null> {
+async function organisationId(scope: OrgScope): Promise<string | null> {
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: scope.organisationId },
     select: { id: true },
   });
   return org?.id ?? null;
@@ -47,7 +47,7 @@ type Kind = (typeof KINDS)[number];
  */
 export async function saveOrgUnit(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const editingCode = String(data.get("id") ?? "");
@@ -158,7 +158,7 @@ export async function saveOrgUnit(_prev: FormState, data: FormData): Promise<For
 
 export async function saveCostCentre(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const editingCode = String(data.get("id") ?? "");
@@ -219,7 +219,7 @@ export async function saveCostCentre(_prev: FormState, data: FormData): Promise<
 
 export async function saveSite(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const editingCode = String(data.get("id") ?? "");
@@ -287,7 +287,7 @@ export async function saveSite(_prev: FormState, data: FormData): Promise<FormSt
  */
 export async function saveTimeZone(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE } });
+  const org = await db.organisation.findUnique({ where: { code: actor.organisationCode } });
   if (!org) return NO_ORG;
   const r = new FormReader(data);
   const timeZone = r.optionalText("timeZone");
@@ -335,7 +335,7 @@ async function lockOrganisation(tx: Tx, id: string) {
  */
 export async function saveDetails(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE } });
+  const org = await db.organisation.findUnique({ where: { code: actor.organisationCode } });
   if (!org) return NO_ORG;
 
   const input = Object.fromEntries(DETAIL_FIELDS.map((f) => [f, String(data.get(f) ?? "")])) as Record<DetailField, string>;
@@ -375,7 +375,7 @@ function logoFacts(l: { sha256: string; mediaType: string; sizeBytes: number; wi
 /// Replace the logo. Only PNG, JPEG or WebP, judged by the file's bytes, up to 512 KB.
 export async function uploadLogo(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, name: true } });
+  const org = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true, name: true } });
   if (!org) return NO_ORG;
 
   const file = data.get("logo");
@@ -427,7 +427,7 @@ export async function uploadLogo(_prev: FormState, data: FormData): Promise<Form
 /// Remove the logo; the product mark is shown again. A reason is required.
 export async function removeLogo(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, name: true } });
+  const org = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true, name: true } });
   if (!org) return NO_ORG;
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "Say why the logo is being removed." } };

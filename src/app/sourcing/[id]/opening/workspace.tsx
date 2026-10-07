@@ -14,6 +14,7 @@ import { openingSection, scheduleSection, type OpeningSectionView, type OpeningV
 import { EXERCISE_NOTE_ID } from "../../editors";
 import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, MatchWithdrawalDrawer, RegisterBoxDrawer, ScheduleDetailsDrawer, SignatureDrawer, StartOpeningDrawer, StartSupplementaryDrawer, WithdrawalFindingDrawer } from "./editors";
 import { EnvelopesToOpen, OffersRead } from "./lists";
+import type { OrgScope } from "@/lib/org-scope";
 
 /// The sections of the exercise's "Bids and opening" tab, in order. The strip is the shared Tabs' second level.
 export const BIDS_SECTIONS = [
@@ -55,8 +56,8 @@ const NOT_HERE = (exerciseId: string, what: string) => (
 
 // ------------------------------------------------------------------ the Opening section
 
-export async function loadOpening(exerciseId: string): Promise<OpeningTabView> {
-  const d = await openingSection(exerciseId);
+export async function loadOpening(scope: OrgScope, exerciseId: string): Promise<OpeningTabView> {
+  const d = await openingSection(scope.organisationId, exerciseId);
   if (!d) return { panel: GONE, actions: null, notes: [] };
   if (!d.applies) {
     return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement />{NOT_HERE(exerciseId, "Bids are opened here for an exercise published through its invitation window with tender or quotation documents. This one was not, so its opening is recorded outside the portal.")}</div> };
@@ -260,8 +261,8 @@ function LateCard({ d }: { d: OpeningSectionView }) {
 
 // ------------------------------------------------------------------ the Schedule section
 
-export async function loadSchedule(exerciseId: string): Promise<OpeningTabView> {
-  const d = await scheduleSection(exerciseId);
+export async function loadSchedule(scope: OrgScope, exerciseId: string): Promise<OpeningTabView> {
+  const d = await scheduleSection(scope.organisationId, exerciseId);
   if (!d) return { panel: GONE, actions: null, notes: [] };
   return { actions: null, notes: [], panel: <SchedulePanel d={d} /> };
 }

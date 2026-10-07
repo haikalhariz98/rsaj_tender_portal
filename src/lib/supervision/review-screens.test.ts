@@ -22,7 +22,8 @@ describe("review 14: the In Delay view is judged over the whole set, then paged"
   it("the page reads every possessed contract, then lists within those ids (never filters one page)", () => {
     const p = read("src/app/projects/page.tsx");
     expect(p).toMatch(/await inDelayContractIds\(org0\.id, today\)/);
-    expect(p).toMatch(/listContracts\(page, delayView \? delayIds : null\)/);
+    // Phase 1c (ADR 0034 D10): the list is the signed-in person's organisation's; paging and the view are as pinned.
+    expect(p).toMatch(/listContracts\(actor\.organisationId, page, delayView \? delayIds : null\)/);
     expect(p).not.toMatch(/\{ id: "delay", label: "In Delay" \}/);
     const l = read("src/lib/contract/load.ts");
     expect(l).toMatch(/const listed = only \? \{ \.\.\.where, id: \{ in: \[\.\.\.only\] \} \} : where;/);

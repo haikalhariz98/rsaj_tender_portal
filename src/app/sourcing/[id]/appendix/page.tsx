@@ -27,9 +27,9 @@ const val = (v: string): ReactNode => (v === NOT_SET ? <Badge tone="warn">Not se
  * department's estimate or bill (SULIT): a percentage is fixed at award, on the awarded sum.
  */
 export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appendix">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id } = await props.params;
-  const d = await appendixPage(id);
+  const d = await appendixPage(actor.organisationId, id);
   if (!d) notFound();
   const back = `/sourcing/${id}?tab=documents`;
   const header = (extra?: { badge?: ReactNode; actions?: ReactNode; note?: ReactNode; subtitle?: string }) => (

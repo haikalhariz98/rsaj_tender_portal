@@ -32,9 +32,9 @@ const dash = <span className="text-ink-3">—</span>;
  * issued or retired version is shown as it was frozen, with a new version as the way to change it.
  */
 export default async function EvaluationModelPage(props: PageProps<"/configuration/evaluation/[modelId]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { modelId } = await props.params;
-  const org = await exerciseOrg();
+  const org = await exerciseOrg(actor.organisationId);
   if (!org) notFound();
   const m = await loadModel(org.id, modelId);
   if (!m) notFound();

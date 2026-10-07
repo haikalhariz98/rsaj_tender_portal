@@ -12,7 +12,6 @@ import { dayPlus, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { isLive } from "@/lib/documents/evidence";
 
@@ -39,8 +38,8 @@ type Allowed = { allowed: true } | { allowed: false; reason: string };
 const allowed = (fs: readonly Finding[]): Allowed => (blocking(fs).length ? { allowed: false, reason: blocking(fs).map(bidFindingText).join(" ") } : { allowed: true });
 const PROVENANCE_WORD = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" } as const;
 
-export async function bidsTab(exerciseId: string) {
-  const org = await exerciseOrg();
+export async function bidsTab(organisationId: string, exerciseId: string) {
+  const org = await exerciseOrg(organisationId);
   if (!org) return null;
   const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, organisationId: true, reference: true, title: true, status: true, closingAt: true, sourcingMethodCode: true, packKindSnapshot: true } });
   if (!ex) return null;
@@ -76,7 +75,7 @@ export async function bidsTab(exerciseId: string) {
   const code = rule?.lateAdmissionCommitteeCode ?? null;
   const committee = code ? await db.committee.findFirst({ where: { organisationId: orgId, code }, select: { id: true, code: true, nameEn: true, secretariatRoleCode: true } }) : null;
   const sittings = committee ? await db.meeting.findMany({ where: { committeeId: committee.id, status: { in: ["SCHEDULED", "IN_PROGRESS"] } }, orderBy: [{ meetingDate: "asc" }, { reference: "asc" }], select: { id: true, reference: true, meetingDate: true } }) : [];
-  const roster = committee ? await loadRoster(ORGANISATION_CODE) : null;
+  const roster = committee ? await loadRoster(org.code) : null;
   const holders = committee && roster ? secretariatHoldersOn(roster, committee.secretariatRoleCode, today) : [];
   const tablingReason = (() => {
     if (!committee) return null;

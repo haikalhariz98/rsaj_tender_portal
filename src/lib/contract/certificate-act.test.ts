@@ -107,8 +107,8 @@ describe("voiding an issued certificate whose issue wrote the contract's status 
     const acts = readFileSync("src/app/projects/[id]/certificates/[certId]/actions.ts", "utf8");
     // Residual round (faithful): the void's family is certificateVoidAct's, the one function the page asks too.
     expect(acts).toMatch(/actStatusFault\(phase === "VOID" \? certificateVoidAct\(kind, l\.cert\.status as CertificateStatus\) : certificateAct\(kind, phase\), l\.contract\.status as ContractStatus\)/);
-    for (const a of ["despatchCertificateCopy", "acknowledgeCertificateCopy", "recordCertificatePayment"]) expect(acts.slice(acts.indexOf(`export async function ${a}(`)).split("\nexport ")[0], a).toMatch(/inCertificate\(toAuditActor\(actor\), certOf\(data\), now, "POST_ISSUE",/); // Phase 1b: who acted is the first argument
-    expect(acts.slice(acts.indexOf("export async function voidCertificateAct(")).split("\nexport ")[0]).toMatch(/inCertificate\(toAuditActor\(actor\), certOf\(data\), now, "VOID",/);
+    for (const a of ["despatchCertificateCopy", "acknowledgeCertificateCopy", "recordCertificatePayment"]) expect(acts.slice(acts.indexOf(`export async function ${a}(`)).split("\nexport ")[0], a).toMatch(/inCertificate\(actor, toAuditActor\(actor\), certOf\(data\), now, "POST_ISSUE",/); // Phase 1b: who acted is an argument; Phase 1c (ADR 0034 D10): the signed-in person's organisation comes first
+    expect(acts.slice(acts.indexOf("export async function voidCertificateAct(")).split("\nexport ")[0]).toMatch(/inCertificate\(actor, toAuditActor\(actor\), certOf\(data\), now, "VOID",/); // Phase 1c: the organisation first, as above
     const page = readFileSync("src/app/projects/[id]/certificates/[certId]/page.tsx", "utf8");
     expect(page).toMatch(/certificateAct\(cert\.kind as CertificateKind, certificatePhase\(cert\.status as CertificateStatus\)\)/);
   });

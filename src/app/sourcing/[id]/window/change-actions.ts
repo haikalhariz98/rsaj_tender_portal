@@ -18,7 +18,6 @@ import { moveExercise } from "@/lib/method/move";
 import { evaluationContext } from "@/lib/method/repo";
 import { WINDOW_CHANGE_DOMAIN } from "@/lib/method/types";
 import { parseSen, senToDecimalString } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -63,7 +62,7 @@ async function openChangeRoute(tx: Tx, actor: AuditActor, l: LockedWindow, cond:
   const method = cfg.config.methods.find((m) => m.code === l.ex.sourcingMethodCode) ?? null;
   if (!method) return { ok: false, message: "The exercise's method is no longer configured, so nobody can be shown as approving a change." };
   const value = parseSen(l.ex.estimatedValue.toString());
-  const [roster, delegations] = [await loadRoster(ORGANISATION_CODE, tx), await loadDelegations(ORGANISATION_CODE, tx)];
+  const [roster, delegations] = [await loadRoster(l.org.code, tx), await loadDelegations(l.org.code, tx)];
   const units = (await tx.orgUnit.findMany({ where: { organisationId: l.org.id } })) as unknown as OrgUnit[];
   const unitPath = pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(l.org.today!)).reverse().map((u) => u.code);
   const holders = (code: string) => holdersFor(code, unitPath, roster, delegations, l.org.today!);
@@ -137,7 +136,7 @@ export async function requestClosingChange(_prev: FormState, data: FormData): Pr
   const purchaseClose = r.date("purchaseCloseDay", "New last day of sale");
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed || !kind || !day) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
     const w = d.window;
     if (!w) return NO_WINDOW;
@@ -187,7 +186,7 @@ export async function requestCancellation(_prev: FormState, data: FormData): Pro
   const reason = r.text("reason", "Reason", { max: 2000 });
   const refund = r.choice("feeRefund", "Fees refunded", ["yes", "no"] as const);
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const w = d.window;
     if (!w) return NO_WINDOW;
     const live = exerciseCancelBlockedBy(await tx.award.findMany({ where: { exerciseId }, select: { reference: true, status: true } }));
@@ -307,7 +306,7 @@ export async function recordWindowChangeDecision(_prev: FormState, data: FormDat
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is refused.");
   if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const w = d.window;
     const full = windowChangeRoutesOf(l.ex.approvalInstances).find((i) => i.status === "PENDING") ?? null;
     if (!w || !full) return { ok: false, message: "No change to the window is with approval on this exercise." };
@@ -316,8 +315,8 @@ export async function recordWindowChangeDecision(_prev: FormState, data: FormDat
     if (!change && !cancellation) return { ok: false, message: "That route decides nothing on this window." };
     const step = full.steps.find((s) => s.id === stepId);
     if (!step) return { ok: false, message: "That step is not on the open route." };
-    const roster = await loadRoster(ORGANISATION_CODE, tx);
-    const delegations = await loadDelegations(ORGANISATION_CODE, tx);
+    const roster = await loadRoster(actor.organisationCode, tx);
+    const delegations = await loadDelegations(actor.organisationCode, tx);
     const units = (await tx.orgUnit.findMany({ where: { organisationId: l.org.id } })) as unknown as OrgUnit[];
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
     const unitPath = pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, on).reverse().map((u) => u.code);
@@ -377,7 +376,7 @@ export async function recordNoticeDelivery(_prev: FormState, data: FormData): Pr
   const sent = r.date("despatchedOn", "Sent on");
   const ack = r.date("acknowledgedOn", "Acknowledged on");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const w = d.window;
     const n = [...(w?.closingChanges ?? []).flatMap((c) => c.notices), ...(w?.cancellations ?? []).flatMap((c) => c.notices)].find((x) => x.id === noticeId);
     if (!n) return { ok: false, message: "That notice is not on this exercise." };

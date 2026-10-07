@@ -14,7 +14,6 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import type { LoadedAward } from "@/lib/award/repo";
 import { dayToDate, storedDay } from "@/lib/dates";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -103,7 +102,7 @@ export async function recordAwardCheck(tx: Tx, actor: AuditActor, l: LoadedAward
   const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
   let holders: { holderIds: string[]; delegateIds: string[] } | null = null;
   if (slot?.def.officeCode) {
-    const [roster, delegations, units] = await Promise.all([loadRoster(ORGANISATION_CODE, tx), loadDelegations(ORGANISATION_CODE, tx), tx.orgUnit.findMany({ where: { organisationId: l.org.id } })]);
+    const [roster, delegations, units] = await Promise.all([loadRoster(l.org.code, tx), loadDelegations(l.org.code, tx), tx.orgUnit.findMany({ where: { organisationId: l.org.id } })]);
     const asOf = on <= today ? on : today;
     const path = pathTo(units as unknown as OrgUnit[], l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(asOf)).reverse().map((u) => u.code);
     const h = holdersFor(slot.def.officeCode, path, roster, delegations, asOf);

@@ -35,6 +35,7 @@ import { parseSen, senToDecimalString } from "../src/lib/money";
 import { act, actRoute, at as onDay, seedActIds } from "./demo-acts";
 import type { Add } from "./demo-tender-docs";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -231,7 +232,7 @@ export async function loadResultsDemo(db: Db, organisationId: string, hooks: Res
 
   // ---- 6.6: three envelopes in time, the box locked at the closing
   const { loadExercise } = await import("../src/lib/method/repo");
-  const close = (await loadExercise(sx))?.ex.closingAt ?? fail(`${ref} has no closing`);
+  const close = (await loadExercise(await demoOrgId(), sx))?.ex.closingAt ?? fail(`${ref} has no closing`);
   if (dayIn(close, tz) !== closingDay) fail(`${ref} does not close on its closing day`);
   const marks = `Quotation ${ref}, booster pump house roof, closing ${formatDate(closingDay)} 3.00 pm`;
   const r = new Receipts(db, organisationId, tz, entry, sx, ref);
@@ -336,7 +337,7 @@ export async function loadResultsDemo(db: Db, organisationId: string, hooks: Res
   const { evaluateAward } = await import("../src/lib/award/evaluate");
   const { holdersFor } = await import("../src/lib/requisition/holders");
   const signer = await onDay(`${d}T16:50`, async () => {
-    const f = await awardFacts((await loadAward(award.id)) ?? fail("the award did not load"));
+    const f = await awardFacts((await loadAward(await demoOrgId(), award.id)) ?? fail("the award did not load"));
     const pre = evaluateAward(f.facts);
     if (pre.issueFaults.length) fail(`the award would not issue (${pre.issueFaults.map((x) => x.code).join(", ")})`);
     const sig = pre.signatory;

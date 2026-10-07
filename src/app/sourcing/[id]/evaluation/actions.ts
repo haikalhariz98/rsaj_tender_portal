@@ -54,7 +54,7 @@ export async function startEvaluation(_prev: FormState, data: FormData): Promise
   if (r.failed || !appointed) return { ok: false, errors: r.errors };
   const sides: Record<string, Side> = { implementing: "IMPLEMENTING_DEPARTMENT", procurement: "CONTRACT_PROCUREMENT" };
   const picked = Object.entries(sides).flatMap(([field, side]) => picks(data, field).map((personId) => ({ personId, side })));
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const person = await activePerson(tx, l.org.id, personId);
     const ceiling = ceilingOf(l.ex);
     const boundaryMissing = ceiling.regime === "quotation" && (ceiling.boundary == null || ceiling.operator == null);
@@ -112,7 +112,7 @@ export async function appointTeamMember(_prev: FormState, data: FormData): Promi
   const side = r.choice("side", "Side", TEAM_SIDES, { required: true });
   const appointed = r.date("appointedOn", "Appointed on", { required: true });
   if (r.failed || !side || !appointed) return { ok: false, errors: r.errors };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -151,7 +151,7 @@ export async function recordScore(_prev: FormState, data: FormData): Promise<For
   if (marksRaw == null && passedRaw == null) r.reject(String(data.get("scale") ?? "") === "PASS_FAIL" ? "passed" : "marks", "Enter the score.");
   if (r.failed) return { ok: false, errors: r.errors };
   const value: { marks: bigint } | { passed: boolean } = marksRaw != null ? { marks: parseFixed(marksRaw) } : { passed: passedRaw === "yes" };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -193,7 +193,7 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
   const cprRaw = r.optionalText("cprPercent")?.replace(/%$/, "").trim() ?? null;
   if (cprRaw != null && !isFixed(cprRaw)) r.reject("cprPercent", "A percentage, to at most four decimal places.");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -238,7 +238,7 @@ export async function correctPrice(_prev: FormState, data: FormData): Promise<Fo
   const reason = r.text("correctionReason", "Why it is corrected", { required: true, max: 2000 });
   const personId = r.optionalText("personId");
   if (r.failed || !price) return { ok: false, errors: r.errors };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -272,7 +272,7 @@ export async function submitStage(_prev: FormState, data: FormData): Promise<For
   const personId = String(data.get("personId") ?? "") || null;
   const notesMap = new Map<string, string>();
   for (const [k, v] of data.entries()) if (k.startsWith("note:") && typeof v === "string") notesMap.set(k.slice(5), v.trim());
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -302,7 +302,7 @@ export async function recordShortlist(_prev: FormState, data: FormData): Promise
   const stageCode = String(data.get("stageCode") ?? "");
   const personId = String(data.get("personId") ?? "") || null;
   const chosen = picks(data, "chosen");
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -343,7 +343,7 @@ export async function assessAspect(_prev: FormState, data: FormData): Promise<Fo
   const narrative = r.text("narrative", "Narrative", { max: 4000 });
   const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -383,7 +383,7 @@ export async function logCommunication(_prev: FormState, data: FormData): Promis
   const content = r.text("content", "What it says", { required: true, max: 8000 });
   const personId = r.optionalText("personId");
   if (r.failed || !direction || !channel || !on) return { ok: false, errors: r.errors };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);

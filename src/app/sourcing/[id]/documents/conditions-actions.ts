@@ -20,6 +20,7 @@ import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for 6.4 increment 2 on the exercise's Tender documents tab: the registrations a
@@ -50,12 +51,12 @@ async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, e
 const label = (l: { ex: { reference: string } }, what: string) => `${l.ex.reference} · ${what}`;
 
 /// Lock the requisition, the exercise and its packs; run `fn` on what was read under the lock.
-async function locked(exerciseId: string, fn: (tx: Tx, l: Locked) => Promise<FormState>): Promise<FormState> {
-  const requisitionId = await requisitionOfExercise(exerciseId);
+async function locked(scope: OrgScope, exerciseId: string, fn: (tx: Tx, l: Locked) => Promise<FormState>): Promise<FormState> {
+  const requisitionId = await requisitionOfExercise(scope.organisationId, exerciseId);
   if (!requisitionId) return GONE;
   let result: FormState | null;
   try {
-    result = await withLockedRequisitionForSourcing(requisitionId, exerciseId, async (tx, l) => {
+    result = await withLockedRequisitionForSourcing(scope.organisationId, requisitionId, exerciseId, async (tx, l) => {
       if (!l.ex) return GONE;
       await lockPackRows(tx, exerciseId);
       return fn(tx, { org: l.org, ex: l.ex, packs: await loadPacks(exerciseId, tx) });
@@ -83,7 +84,7 @@ export async function addRequirement(_prev: FormState, data: FormData): Promise<
   const qualifiers = r.text("qualifiers", "What is required with it", { max: 500 });
   const alternativeGroup = r.int("alternativeGroup", "Group", { required: true, min: 1 });
   if (r.failed || alternativeGroup == null) return { ok: false, errors: r.errors };
-  return locked(exerciseId, async (tx, l) => {
+  return locked(actor, exerciseId, async (tx, l) => {
     if (!l.org.today) return NO_ZONE;
     const stop = frozen(l);
     if (stop) return stop;
@@ -112,7 +113,7 @@ export async function removeRequirement(_prev: FormState, data: FormData): Promi
   const r = new FormReader(data);
   const reason = r.text("reason", "Why it is removed", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return locked(exerciseId, async (tx, l) => {
+  return locked(actor, exerciseId, async (tx, l) => {
     const stop = frozen(l);
     if (stop) return stop;
     const row = await tx.exerciseRegistrationRequirement.findFirst({ where: { id, exerciseId } });
@@ -135,7 +136,7 @@ export async function saveRestriction(_prev: FormState, data: FormData): Promise
   const r = new FormReader(data);
   const answer = r.choice("restrictedTender", "Restricted", TRI, { required: true });
   if (r.failed || !answer) return { ok: false, errors: r.errors };
-  return locked(exerciseId, async (tx, l) => {
+  return locked(actor, exerciseId, async (tx, l) => {
     const stop = frozen(l);
     if (stop) return stop;
     const value = tri(answer);
@@ -155,7 +156,7 @@ export async function savePermit(_prev: FormState, data: FormData): Promise<Form
   const answer = r.choice("regulatedActivity", "Needs the regulator's permit", TRI, { required: true });
   const code = r.optionalText("regulatorPermitCode");
   if (r.failed || !answer) return { ok: false, errors: r.errors };
-  return locked(exerciseId, async (tx, l) => {
+  return locked(actor, exerciseId, async (tx, l) => {
     if (!l.org.today) return NO_ZONE;
     const stop = frozen(l);
     if (stop) return stop;
@@ -186,7 +187,7 @@ export async function recordAssurance(_prev: FormState, data: FormData): Promise
   const on = r.date("confirmedOn", "Confirmed on", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !kind || !on) return { ok: false, errors: r.errors };
-  return locked(exerciseId, async (tx, l) => {
+  return locked(actor, exerciseId, async (tx, l) => {
     const pack = draftOf(l.packs);
     if (!pack) return NO_DRAFT;
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
@@ -211,7 +212,7 @@ export async function removeAssurance(_prev: FormState, data: FormData): Promise
   const r = new FormReader(data);
   const reason = r.text("reason", "Why it is removed", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return locked(exerciseId, async (tx, l) => {
+  return locked(actor, exerciseId, async (tx, l) => {
     const pack = draftOf(l.packs);
     if (!pack || l.ex.status !== "DOCUMENTS_IN_PREPARATION") return { ok: false, message: confirmFaultText({ code: "PACK_NOT_EDITABLE", level: "block" }) };
     const row = await tx.packAssurance.findFirst({ where: { id, packId: pack.id }, include: { person: { select: { name: true } } } });
@@ -233,7 +234,7 @@ export async function recordClauseOverride(_prev: FormState, data: FormData): Pr
   const personId = r.text("personId", "Endorsed by", { required: true });
   const reason = r.text("reason", "Why", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return locked(exerciseId, async (tx, l) => {
+  return locked(actor, exerciseId, async (tx, l) => {
     if (!l.org.today) return NO_ZONE;
     const pack = draftOf(l.packs);
     if (!pack) return NO_DRAFT;
@@ -260,7 +261,7 @@ export async function removeClauseOverride(_prev: FormState, data: FormData): Pr
   const r = new FormReader(data);
   const reason = r.text("reason", "Why it is withdrawn", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return locked(exerciseId, async (tx, l) => {
+  return locked(actor, exerciseId, async (tx, l) => {
     const pack = draftOf(l.packs);
     if (!pack || l.ex.status !== "DOCUMENTS_IN_PREPARATION") return { ok: false, message: overrideFaultText({ code: "PACK_NOT_EDITABLE", level: "block" }) };
     const row = await tx.clauseOverride.findFirst({ where: { id, packId: pack.id }, include: { person: { select: { name: true } } } });

@@ -21,13 +21,13 @@ import { MATTER_FAMILY, type ContractMatterKind } from "@/lib/matter/matter";
 import { chooseMatterRejection, citeMatterDecision, decideMatterStep } from "@/lib/matter/route-write";
 import { tablingOf } from "@/lib/matter/tabling";
 import { matterLabel, MATTER_KIND_WORDS } from "@/lib/matter/write";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { timeRefusal } from "@/lib/time/labels";
 import type { Finding } from "@/lib/time/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * A contract matter's route (6.13 Part B run 1b; ADR 0029; design note §6.5): table its committee step from the matter,
@@ -39,10 +39,10 @@ import type { AuditActor } from "@/lib/auth/types";
 
 /// The contract's lock, the act × status table's row for the act's family (CANCELLED first), the organisation's day, then
 /// the act (BD-613-130: the gate is asked here, in this file, as in every contract action file).
-async function inContract(actor: AuditActor, id: string, now: Date, family: ContractAct, fn: (c: ActCtx) => Promise<FormState>, alsoRevalidate: readonly string[] = []): Promise<FormState> {
+async function inContract(scope: OrgScope, actor: AuditActor, id: string, now: Date, family: ContractAct, fn: (c: ActCtx) => Promise<FormState>, alsoRevalidate: readonly string[] = []): Promise<FormState> {
   let result: FormState | null;
   try {
-    result = await withLockedContract(id, async (tx, l) => {
+    result = await withLockedContract(scope.organisationId, id, async (tx, l) => {
       const refused = actStatusFault(family, l.contract.status as ContractStatus);
       if (refused) return tableRefusal(refused);
       const c = actCtx(tx, l, now, actor);
@@ -70,10 +70,10 @@ async function familyOf(matterId: string) {
 }
 
 /// The act on a matter: its family read before the lock (only to choose the row), then inContract.
-async function run(by: AuditActor, data: FormData, matterId: string, now: Date, fn: (c: ActCtx) => Promise<FormState>, paths: readonly string[] = []): Promise<FormState> {
+async function run(scope: OrgScope, by: AuditActor, data: FormData, matterId: string, now: Date, fn: (c: ActCtx) => Promise<FormState>, paths: readonly string[] = []): Promise<FormState> {
   const family = await familyOf(matterId);
   if (!family) return { ok: false, message: "That matter no longer exists." };
-  return inContract(by, idOf(data), now, family, async (c) => {
+  return inContract(scope, by, idOf(data), now, family, async (c) => {
     // The row asked was chosen from the kind read before the lock: read it again under the lock (a matter's kind never
     // changes, so this refuses only a matter that vanished or a forged id).
     const again = await c.tx.contractMatter.findFirst({ where: { id: matterId, contractId: c.l.contract.id }, select: { kind: true } });
@@ -91,10 +91,10 @@ export async function tableContractMatter(_prev: FormState, data: FormData): Pro
   const meetingId = r.text("meetingId", "Sitting", { required: true });
   const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return run(toAuditActor(actor), data, matterId, now, async (c) => {
+  return run(actor, toAuditActor(actor), data, matterId, now, async (c) => {
     const { m } = await lockMatter(c, matterId);
-    const roster = await loadRoster(ORGANISATION_CODE, c.tx);
-    const s = await lockSittingIn(c.tx, meetingId, roster);
+    const roster = await loadRoster(actor.organisationCode, c.tx);
+    const s = await lockSittingIn(c.tx, actor, meetingId, roster);
     if (!s) fieldError("meetingId", "That sitting no longer exists.");
     if (m.closedAt) refuse("Not tabled:", [{ code: "MATTER_CLOSED", level: "block", data: { reason: m.closeReason } }]);
     if (!sittingPermits(s!.meeting.status, "TABLE")) refuse("Not tabled:", [{ code: "SITTING_FROZEN", level: "block" }]);
@@ -124,7 +124,7 @@ export async function citeContractMatterDecision(_prev: FormState, data: FormDat
   const stepId = r.text("stepId", "Step", { required: true });
   const decisionId = r.text("committeeDecisionId", "The committee's decision", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return run(toAuditActor(actor), data, matterId, now, async (c) => {
+  return run(actor, toAuditActor(actor), data, matterId, now, async (c) => {
     const { m } = await lockMatter(c, matterId);
     await citeMatterDecision(c, m, stepId, decisionId);
     return { ok: true };
@@ -144,7 +144,7 @@ export async function decideContractMatterStep(_prev: FormState, data: FormData)
   const receivedOn = dayField(r, "receivedOn", "Received on");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed || !decision || !decidedOn) return { ok: false, errors: r.errors };
-  return run(toAuditActor(actor), data, matterId, now, async (c) => {
+  return run(actor, toAuditActor(actor), data, matterId, now, async (c) => {
     const { m } = await lockMatter(c, matterId);
     await decideMatterStep(c, m, { stepId, decision, personId, decidedOn, receivedOn, reason });
     return { ok: true };
@@ -162,7 +162,7 @@ export async function chooseContractMatterRejection(_prev: FormState, data: Form
   const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return run(toAuditActor(actor), data, matterId, now, async (c) => {
+  return run(actor, toAuditActor(actor), data, matterId, now, async (c) => {
     const { m } = await lockMatter(c, matterId);
     await chooseMatterRejection(c, m, { kind: kind ?? null, returnToSeq: seq, personId, reason });
     return { ok: true };

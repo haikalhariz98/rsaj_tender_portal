@@ -14,6 +14,7 @@ import { FormReader } from "@/lib/validate";
 import { splitValues } from "@/lib/ui/select-logic";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Award controls: the customer's policy for awards and the lists the award reads. Every
@@ -27,8 +28,8 @@ const NO_ORG: FormState = { ok: false, message: "No organisation is configured. 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const INSTRUMENTS = ["LETTER_OF_ACCEPTANCE", "WORK_INDENT"] as const;
 
-async function org() {
-  const o = await exerciseOrg();
+async function org(scope: OrgScope) {
+  const o = await exerciseOrg(scope.organisationId);
   return o;
 }
 
@@ -51,7 +52,7 @@ async function templateOk(tx: Tx, orgId: string, id: string | null) {
 
 export async function saveAwardPolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await org();
+  const o = await org(actor);
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const v = {
@@ -90,7 +91,7 @@ export async function saveAwardPolicy(_prev: FormState, data: FormData): Promise
 /// A recipient of an instrument's copies (FR-AWD-004).
 export async function saveRecipient(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await org();
+  const o = await org(actor);
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -122,7 +123,7 @@ export async function saveRecipient(_prev: FormState, data: FormData): Promise<F
 /// An appointment-letter variant (FR-AWD-007): contract types plus a terms band.
 export async function saveVariant(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await org();
+  const o = await org(actor);
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -158,7 +159,7 @@ export async function saveVariant(_prev: FormState, data: FormData): Promise<For
 /// A kind of condition precedent (FR-AWD-014).
 export async function saveConditionKind(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await org();
+  const o = await org(actor);
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -187,7 +188,7 @@ export async function saveConditionKind(_prev: FormState, data: FormData): Promi
 /// A policy a contract must carry (FR-AWD-013).
 export async function saveRequirement(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await org();
+  const o = await org(actor);
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -228,7 +229,7 @@ export async function saveRequirement(_prev: FormState, data: FormData): Promise
  */
 export async function saveBand(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await org();
+  const o = await org(actor);
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -268,7 +269,7 @@ export async function saveBand(_prev: FormState, data: FormData): Promise<FormSt
 /// An issuer on the regulator's approved list (FR-AWD-012).
 export async function saveIssuer(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await org();
+  const o = await org(actor);
   if (!o) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -308,7 +309,7 @@ const RETIRABLE = {
 /// Retire a row from one of the lists: kept, and no longer offered. A reason is required.
 export async function retireRow(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await org();
+  const o = await org(actor);
   if (!o) return NO_ORG;
   const entity = String(data.get("entity") ?? "") as keyof typeof RETIRABLE;
   const id = String(data.get("id") ?? "");

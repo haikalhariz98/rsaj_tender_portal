@@ -1,16 +1,15 @@
 import { todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 
 /// The organisation's IANA time zone. Null: nobody has set one — not UTC, and never
-/// an assumed zone.
-export async function organisationTimeZone(): Promise<string | null> {
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { timeZone: true } });
+/// an assumed zone. The organisation is the signed-in actor's (ADR 0034 D10), never the deployment's.
+export async function organisationTimeZone(organisationId: string): Promise<string | null> {
+  const org = await db.organisation.findUnique({ where: { id: organisationId }, select: { timeZone: true } });
   return org?.timeZone ?? null;
 }
 
 /// The zone and today in it; today is null while no zone is set.
-export async function organisationToday(now = new Date()) {
-  const timeZone = await organisationTimeZone();
+export async function organisationToday(organisationId: string, now = new Date()) {
+  const timeZone = await organisationTimeZone(organisationId);
   return { timeZone, today: todayIn(now, timeZone) };
 }

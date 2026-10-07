@@ -48,8 +48,8 @@ const PROVENANCE_WORD: Record<string, string> = { STATED: "Stated", OBSERVED: "O
 const titleOf = (o: Pick<OpeningRow, "kind" | "sequenceNo">) => (o.kind === "MAIN" ? OPENING_KIND_LABEL.MAIN : `${OPENING_KIND_LABEL.SUPPLEMENTARY} ${o.sequenceNo - 1}`);
 const money = (v: { toString(): string }) => formatMoney(parseSen(v.toString()));
 
-async function load(exerciseId: string) {
-  const l = await loadExercise(exerciseId);
+async function load(organisationId: string, exerciseId: string) {
+  const l = await loadExercise(organisationId, exerciseId);
   if (!l) return null;
   // The same clock the acts read: to the second (6.6 CR-3).
   const now = toSecond(new Date());
@@ -66,8 +66,8 @@ function admissionOf(c: OpeningContext, envelopeId: string) {
 
 // ------------------------------------------------------------------ the Opening section
 
-export async function openingSection(exerciseId: string) {
-  const r = await load(exerciseId);
+export async function openingSection(organisationId: string, exerciseId: string) {
+  const r = await load(organisationId, exerciseId);
   if (!r) return null;
   const { l, c, now, people } = r;
   const tz = l.org.timeZone;
@@ -347,8 +347,8 @@ export type OpeningView = OpeningSectionView["openings"][number];
  * before, a draft built from the record with the estimate's row sealed and no Grand Summary
  * (FR-OPN-010: after finalising only). The copy finding and its explanation, and the signed scan.
  */
-export async function scheduleSection(exerciseId: string) {
-  const r = await load(exerciseId);
+export async function scheduleSection(organisationId: string, exerciseId: string) {
+  const r = await load(organisationId, exerciseId);
   if (!r) return null;
   const { l, c, people } = r;
   const tz = l.org.timeZone;

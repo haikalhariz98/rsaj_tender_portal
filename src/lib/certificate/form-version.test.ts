@@ -25,7 +25,8 @@ describe("a form's version moves with its blocks and its list", () => {
       const at = src.indexOf(`export async function ${name}(`);
       const body = src.slice(at, src.indexOf("\nexport async function ", at + 10) === -1 ? undefined : src.indexOf("\nexport async function ", at + 10));
       expect(body, name).toMatch(/await bumpFormVersion\(tx, toAuditActor\(actor\), t, /); // Phase 1b: who acted is the argument after the transaction
-      expect(body, name).toMatch(/return onTemplate\(templateId/);
+      // Phase 1c (ADR 0034 D10): the lock is now asked for the signed-in person's organisation first; the call is otherwise as pinned.
+      expect(body, name).toMatch(/return onTemplate\(actor, templateId/);
     }
     expect(src).toMatch(/FOR UPDATE/);
     expect(src).toMatch(/diffFields\(\{ formVersion: cur\.bodyVersion \}, \{ formVersion: next \}\)/);

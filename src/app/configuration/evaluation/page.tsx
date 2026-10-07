@@ -37,8 +37,8 @@ function Setting({ value, unset }: { value: ReactNode | null; unset: string }) {
  * basis's route; and each method's usual model. None ships: every number is the customer's.
  */
 export default async function EvaluationConfigurationPage() {
-  await requireStaff();
-  const org = await exerciseOrg();
+  const actor = await requireStaff();
+  const org = await exerciseOrg(actor.organisationId);
   if (!org) {
     return (
       <>

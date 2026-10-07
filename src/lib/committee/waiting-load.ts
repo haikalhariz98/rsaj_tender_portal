@@ -18,7 +18,6 @@ import { senFromDecimal } from "@/lib/money";
 import { APPOINTMENT_DOMAIN, NAME_APPROVAL_DOMAIN } from "@/lib/method/types";
 import { MATTER_KIND_WORDS } from "@/lib/matter/write";
 import type { ContractMatterKind } from "@/lib/matter/matter";
-import { ORGANISATION_CODE } from "@/lib/org";
 
 import { WAITING_KIND_WORDS, type WaitingKind } from "./labels";
 import { waitingToBeTabled, type WaitingMatter, type WaitingRoute } from "./waiting";
@@ -67,8 +66,8 @@ const ROUTE_INCLUDE = {
 type Client = Tx | typeof db;
 
 /// The organisation's waiting list, longest waiting first. `client` is a transaction where an act reads it again.
-export async function loadWaiting(client: Client = db): Promise<{ today: string | null; entries: WaitingEntry[] } | null> {
-  const org = await client.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
+export async function loadWaiting(organisationId: string, client: Client = db): Promise<{ today: string | null; entries: WaitingEntry[] } | null> {
+  const org = await client.organisation.findUnique({ where: { id: organisationId }, select: { id: true, timeZone: true } });
   if (!org) return null;
   const today = todayIn(new Date(), org.timeZone);
   const routes = await client.approvalInstance.findMany({

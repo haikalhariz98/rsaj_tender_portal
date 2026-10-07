@@ -9,8 +9,9 @@ import { attendanceRegisterCsv } from "@/lib/window/read";
 export async function GET(_req: Request, ctx: RouteContext<"/sourcing/[id]/briefing/[eventId]/attendance">) {
   const guard = await staffRoute();
   if (!guard.ok) return guard.response;
+  const scope = guard.actor;
   const { id, eventId } = await ctx.params;
-  const file = await attendanceRegisterCsv(id, eventId);
+  const file = await attendanceRegisterCsv(scope.organisationId, id, eventId);
   if (!file) return new Response("That event is not on this exercise.", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
   return new Response(file.csv, {
     headers: {

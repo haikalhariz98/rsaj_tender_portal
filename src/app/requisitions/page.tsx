@@ -22,8 +22,8 @@ const TONE = { neutral: undefined, brand: "brand", ok: "ok", warn: "warn", err: 
  * Work rather than Sourcing: a supervision-only requisition never becomes sourcing.
  */
 export default async function RequisitionsPage() {
-  await requireStaff();
-  const { org, rows, total, counts } = await listRequisitions();
+  const actor = await requireStaff();
+  const { org, rows, total, counts } = await listRequisitions(actor.organisationId);
 
   const list: Row[] = rows.map((r) => {
     const erp = r.erpRequisitionNo ?? null;

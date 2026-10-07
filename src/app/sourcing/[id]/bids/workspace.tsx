@@ -15,6 +15,7 @@ import { FromBadge, GONE, SETTINGS_HREF } from "../window/common";
 
 import { ApplyExtensionDrawer, BidAnswersDrawer, ExtensionDrawer, LockBoxDrawer, ReceiveLaterDrawer, ReceiveNowDrawer, TableLateDrawer, WithdrawalDrawer } from "./editors";
 import { EnvelopeList } from "./envelope-list";
+import type { OrgScope } from "@/lib/org-scope";
 
 /// What the page puts in its header for the tab (the acts it asks for, the reasons others are disabled) and the panel.
 export interface BidsView {
@@ -30,8 +31,8 @@ const EARLY = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDER
  * is the tab being looked at. Every act is judged by the rule its action runs; a disabled one says
  * why in the header's note. There is no Delete and no Reject anywhere.
  */
-export async function loadBids(exerciseId: string, status: string): Promise<BidsView> {
-  const d = await bidsTab(exerciseId);
+export async function loadBids(scope: OrgScope, exerciseId: string, status: string): Promise<BidsView> {
+  const d = await bidsTab(scope.organisationId, exerciseId);
   if (!d) return { panel: GONE, actions: null, notes: [] };
   if (EARLY.includes(status) && d.rows.length === 0) {
     return {

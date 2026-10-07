@@ -36,10 +36,10 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * if it were here (condition 3).
  */
 export default async function SuppliersPage(props: { searchParams: Promise<{ tab?: string; page?: string }> }) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { tab, page: raw } = await props.searchParams;
   const requested = Math.max(0, Number.parseInt(raw ?? "0", 10) || 0);
-  const org0 = await supplierOrg();
+  const org0 = await supplierOrg(actor.organisationId);
   if (!org0) {
     return <PageHeader title="Suppliers" subtitle="The supplier register." />;
   }
@@ -49,7 +49,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   const bands = { criticalDays: p?.criticalDays ?? null, warningDays: p?.warningDays ?? null, upcomingDays: p?.upcomingDays ?? null };
   const bandsSet = bands.criticalDays != null && bands.warningDays != null && bands.upcomingDays != null;
   // fix R-10: each list loads only what it shows; the Expiring list reaches no further than the furthest band.
-  const data = await listSuppliers(requested, today, today && bandsSet ? addDays(today, bands.upcomingDays!) : null, p?.autoSuspendOnLapse ?? null);
+  const data = await listSuppliers(actor.organisationId, requested, today, today && bandsSet ? addDays(today, bands.upcomingDays!) : null, p?.autoSuspendOnLapse ?? null);
   if (!data) {
     return <PageHeader title="Suppliers" subtitle="The supplier register." />;
   }

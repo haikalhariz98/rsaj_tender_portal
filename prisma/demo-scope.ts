@@ -45,6 +45,7 @@ import { formatSen, parseSen, senToDecimalString } from "../src/lib/money";
 import type { BqItemKind, BqLine } from "../src/lib/scope/types";
 import { scopeMatterSubject } from "../src/lib/scope/scope-matter";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -394,7 +395,7 @@ export async function checkScope() {
   const { lodgementBehind } = await import("../src/lib/scope/estimate");
   const { blocking } = await import("../src/lib/scope/types");
   const { db: lib } = await import("../src/lib/db");
-  const org = (await exerciseOrg())!;
+  const org = (await exerciseOrg(await demoOrgId()))!;
   const policy = await repo.loadScopePolicy(org.id);
   const qualifications = await repo.loadQualifications(org.id);
   const holdings = await repo.loadHoldings(org.id);

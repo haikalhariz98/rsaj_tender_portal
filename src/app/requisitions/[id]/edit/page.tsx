@@ -32,9 +32,9 @@ function backToDraft(status: string): string {
 }
 
 export default async function EditRequisitionPage(props: PageProps<"/requisitions/[id]/edit">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id } = await props.params;
-  const l = await loadRequisition(id);
+  const l = await loadRequisition(actor.organisationId, id);
   if (!l) notFound();
   const r = l.req;
   const options = await formOptions(l.org.id, l.org.today ? dayToDate(l.org.today) : new Date());

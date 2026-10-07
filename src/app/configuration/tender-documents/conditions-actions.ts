@@ -7,7 +7,6 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { storedDay } from "@/lib/dates";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { clauseConfigFaults, nextBodyVersion } from "@/lib/tender-docs/clauses";
 import { clauseConfigFaultText } from "@/lib/tender-docs/conditions-labels";
 import { BODY_CONFIG_FAULT_TEXT, bodyConfigFaults } from "@/lib/tender-docs/config-conditions";
@@ -15,6 +14,7 @@ import { NOT_SET, yesNoNotSet } from "@/lib/tender-docs/labels";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Configuration › Tender documents, increment 2: the registration bodies an exercise's
@@ -33,8 +33,8 @@ const GONE: FormState = { ok: false, message: "That record no longer exists. Rel
 const TRI = ["yes", "no", "unset"] as const;
 const tri = (v: string | null): boolean | null => (v === "yes" ? true : v === "no" ? false : null);
 
-async function organisation() {
-  return db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
+async function organisation(scope: OrgScope) {
+  return db.organisation.findUnique({ where: { id: scope.organisationId }, select: { id: true } });
 }
 const lockOrganisation = (tx: Tx, id: string) => tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${id} FOR UPDATE`;
 function done(): FormState {
@@ -58,7 +58,7 @@ const bodyWords = (b: { code: string; labelEn: string; labelMs: string | null; q
 /// Add or change a registration body.
 export async function saveRegistrationBody(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || undefined;
   const r = new FormReader(data);
@@ -98,11 +98,11 @@ export async function saveRegistrationBody(_prev: FormState, data: FormData): Pr
 /// Retire a body from a day (an exercise cannot add it from then; one that requires it is told at submission), with the reason.
 export async function retireRegistrationBody(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return setRetired(toAuditActor(actor), "registrationBody", data);
+  return setRetired(actor, toAuditActor(actor), "registrationBody", data);
 }
 export async function restoreRegistrationBody(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return setRetired(toAuditActor(actor), "registrationBody", data, true);
+  return setRetired(actor, toAuditActor(actor), "registrationBody", data, true);
 }
 
 // ------------------------------------------------------------------ clauses
@@ -121,7 +121,7 @@ const clauseWords = (c: { code: string; titleEn: string; titleMs: string | null;
 /// Add or change a clause. Its words are literal (no merge field); a change to them raises its text version.
 export async function saveClause(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || undefined;
   const r = new FormReader(data);
@@ -162,17 +162,17 @@ export async function saveClause(_prev: FormState, data: FormData): Promise<Form
 
 export async function retireClause(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return setRetired(toAuditActor(actor), "clauseText", data);
+  return setRetired(actor, toAuditActor(actor), "clauseText", data);
 }
 export async function restoreClause(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return setRetired(toAuditActor(actor), "clauseText", data, true);
+  return setRetired(actor, toAuditActor(actor), "clauseText", data, true);
 }
 
 // ------------------------------------------------------------------ retiring
 
-async function setRetired(by: AuditActor, model: "registrationBody" | "clauseText", data: FormData, restore = false): Promise<FormState> {
-  const org = await organisation();
+async function setRetired(scope: OrgScope, by: AuditActor, model: "registrationBody" | "clauseText", data: FormData, restore = false): Promise<FormState> {
+  const org = await organisation(scope);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);

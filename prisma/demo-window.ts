@@ -79,6 +79,7 @@ import type { CertSighted, DeliveryMethod, FeeCostKind, Finding, PartySource, Si
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 import { answer, conditionsFor, confirm, decide, enterAppendix, markAllReady, moveIntoPreparation, startPack, submit, type Add } from "./demo-tender-docs";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -722,7 +723,7 @@ export class Acts {
   private async state(exerciseId: string) {
     const repo = await import("../src/lib/method/repo");
     const { windowData } = await import("../src/lib/window/repo");
-    const l = (await repo.loadExercise(exerciseId))!;
+    const l = (await repo.loadExercise(await demoOrgId(), exerciseId))!;
     const d = await windowData(this.org, l.ex);
     return { l, d, label: (what: string) => `${l.ex.reference} · ${what}` };
   }
@@ -1232,7 +1233,7 @@ export async function checkWindowDemo(db: Db) {
   const now = new Date();
   const want: Record<string, string> = { [`${P}sx16`]: "CLOSED", [`${P}sx17`]: "OPEN_FOR_PURCHASE", [`${P}sx18`]: "OPEN_FOR_PURCHASE", [`${P}sx19`]: "CANCELLED" };
   for (const id of WINDOW_EXERCISES) {
-    const l = (await repo.loadExercise(id))!;
+    const l = (await repo.loadExercise(await demoOrgId(), id))!;
     const d = await windowData(l.org.id, l.ex);
     const phase = phaseOf(l.ex, d.window, now, l.org.timeZone).phase;
     if (phase !== want[id]) fail(`${l.ex.reference} reads ${phase}, not ${want[id]}.`);

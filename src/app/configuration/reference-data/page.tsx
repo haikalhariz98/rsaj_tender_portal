@@ -31,7 +31,6 @@ import type { DeliverableKind } from "@/lib/method/types";
 import { KeyValues } from "@/components/ui/stat";
 import { CardBody } from "@/components/ui/card";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadReferenceData } from "@/lib/reference/load";
 import type { ListReadiness, Provenance, SourcingMethod } from "@/lib/reference/types";
 import {
@@ -70,9 +69,9 @@ const POSTURE_TONE: Record<keyof typeof POSTURE_LABEL, Tone> = {
 const TABLE_MIN = 880;
 
 export default async function ReferenceDataPage() {
-  await requireStaff();
+  const actor = await requireStaff();
   const on = new Date();
-  const data = await loadReferenceData(ORGANISATION_CODE);
+  const data = await loadReferenceData(actor.organisationCode);
   const readiness = assessReferenceData(data, on);
 
   const routes = activeOn(data.fundingRoutes, on);
@@ -83,7 +82,7 @@ export default async function ReferenceDataPage() {
 
   // Classification (6.3): method behaviours, proposal items, reasons, contract-type
   // behaviours, bases, taxonomies, mappings and the mixed-scope policy.
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
+  const org = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true } });
   const cls = org ? await loadMethodConfig(org.id) : null;
   const rows = cls?.rows;
   const live = <T extends { retiredOn: Date | null }>(xs: T[]) => xs.filter((x) => x.retiredOn == null || x.retiredOn > on);

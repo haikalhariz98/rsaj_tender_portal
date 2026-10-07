@@ -42,8 +42,8 @@ const INSTRUMENTS = ["LETTER_OF_ACCEPTANCE", "WORK_INDENT"];
  * unset, and names it.
  */
 export default async function ContractControlsPage() {
-  await requireStaff();
-  const org = await exerciseOrg();
+  const actor = await requireStaff();
+  const org = await exerciseOrg(actor.organisationId);
   if (!org) {
     return (
       <>

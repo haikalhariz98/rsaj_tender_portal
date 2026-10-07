@@ -26,7 +26,8 @@ describe("the late-admission gate is asked where an appointment is tabled or cit
   });
   it("6.11 citeAppointmentDecision", () => {
     // Founder, 2026-10-05: the citation moved, unchanged, to the module's route writer, the one function its act and a sitting's outcome both run.
-    expect(body(read("src/app/awards/actions.ts"), "citeAppointmentDecision")).toMatch(/return inAward\(id, \(tx, l\) => citeAppointmentStep\(tx, toAuditActor\(actor\), l, stepId, decisionId\)\);/); // Phase 1b: who acted is the argument after the transaction
+    // Phase 1c (ADR 0034 D10): the lock is now asked for the signed-in person's organisation first; the call is otherwise as pinned.
+    expect(body(read("src/app/awards/actions.ts"), "citeAppointmentDecision")).toMatch(/return inAward\(actor, id, \(tx, l\) => citeAppointmentStep\(tx, toAuditActor\(actor\), l, stepId, decisionId\)\);/); // Phase 1b: who acted is the argument after the transaction
     const b = body(read("src/lib/award/route-write.ts"), "citeAppointmentStep");
     expect(b).toMatch(/bidGate\(/);
     expect(b).toMatch(/bids\.lateFault/);

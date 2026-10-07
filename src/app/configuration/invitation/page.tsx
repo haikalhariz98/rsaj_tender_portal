@@ -14,7 +14,6 @@ import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { db } from "@/lib/db";
 import { REGIME_LABEL } from "@/lib/method/labels";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { senToDecimalString, parseSen } from "@/lib/money";
 import { invitationConfig } from "@/lib/window/read";
 import { BID_RULE_UNSET, BID_RULES_APPLY_TEXT, bidRulesNotSet, invitationBadge } from "@/lib/bids/config";
@@ -61,8 +60,8 @@ const tri = (v: boolean | null | undefined) => (v === true ? "yes" : v === false
 const days = (n: number | null | undefined) => (n == null ? "Not set" : `${n} day${n === 1 ? "" : "s"}`);
 
 export default async function InvitationControlsPage() {
-  await requireStaff();
-  const c = await invitationConfig();
+  const actor = await requireStaff();
+  const c = await invitationConfig(actor.organisationId);
   if (!c) {
     return (
       <>
@@ -73,7 +72,7 @@ export default async function InvitationControlsPage() {
       </>
     );
   }
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
+  const org = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true } });
   const [row, rawChannels, rawFloors, rawCalendars, bidMethods, committees, openingPolicy] = org
     ? await Promise.all([
         db.windowPolicy.findUnique({ where: { organisationId: org.id } }),

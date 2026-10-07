@@ -1,7 +1,6 @@
 import { AlertTriangle } from "@/components/icons";
 import { loadSeries } from "@/lib/numbering/load";
 import { patternFaults, periodFor, previewNext, serialFor } from "@/lib/numbering/series";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { organisationDay } from "@/lib/dates";
 import { organisationTimeZone } from "@/lib/org-time";
 
@@ -23,13 +22,13 @@ const RESET_LABEL: Record<string, string> = {
 };
 
 export default async function NumberingPage() {
-  await requireStaff();
+  const actor = await requireStaff();
   // Previews are drawn on the organisation's day, never the UTC one; with no zone set
   // the period a serial belongs to is not known, so none is shown (6.10 §9.5 follow-up).
-  const zone = await organisationTimeZone();
+  const zone = await organisationTimeZone(actor.organisationId);
   const day = organisationDay(new Date(), zone);
   const on = day ?? new Date();
-  const series = await loadSeries(ORGANISATION_CODE);
+  const series = await loadSeries(actor.organisationCode);
   const faulty = series.filter((s) => patternFaults(s).length > 0);
 
   return (

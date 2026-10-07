@@ -13,8 +13,8 @@ import { requireStaff } from "@/app/_auth/actor";
 export const dynamic = "force-dynamic";
 
 export default async function NewRequisitionPage() {
-  await requireStaff();
-  const org = await requisitionOrg();
+  const actor = await requireStaff();
+  const org = await requisitionOrg(actor.organisationId);
   const options = org ? await formOptions(org.id, org.today ? dayToDate(org.today) : new Date()) : null;
   return (
     <>

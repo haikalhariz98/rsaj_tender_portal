@@ -185,17 +185,19 @@ describe("ContractMatter's place (BD-613-117): /approvals' escalation and a sitt
     const committee = read("src/app/committees/actions.ts");
     const rec = committee.slice(committee.indexOf("export async function recordOutcome("), committee.indexOf("\n}\n", committee.indexOf("export async function recordOutcome(")));
     expect(rec).toMatch(/const record = exerciseId \|\| variation \? null : await outcomeRecordOf\(decisionId\);/);
-    expect(rec).toMatch(/: record\s+\? inSittingAfterRecord\(toAuditActor\(actor\), meetingId, record, decisionId, now, run\)/);
+    // Phase 1c (ADR 0034 D10): the path is now asked for the signed-in person's organisation first (`actor`); otherwise as pinned.
+    expect(rec).toMatch(/: record\s+\? inSittingAfterRecord\(actor, toAuditActor\(actor\), meetingId, record, decisionId, now, run\)/);
     // The matter locked before the sitting is still the decision's, checked before any write.
     const key = rec.indexOf("matterKey(decision) !== outcomeRecordKey(record)");
     expect(key).toBeGreaterThan(-1);
     expect(key).toBeLessThan(rec.indexOf("tx.committeeDecision.updateMany("));
     // The contract matter's record is dispatched to its own function, which takes the locks in order.
-    expect(committee).toMatch(/if \(record\.kind === "CONTRACT"\) \{\s+result = await inContractMatterForOutcome\(actor, record, now, meetingId, roster, decisionId, fn\);/);
+    // Phase 1c (ADR 0034 D10): the scope (the signed-in person's organisation) is passed first, and the locks below name it; the order is as pinned.
+    expect(committee).toMatch(/if \(record\.kind === "CONTRACT"\) \{\s+result = await inContractMatterForOutcome\(scope, actor, record, now, meetingId, roster, decisionId, fn\);/);
     const w0 = committee.indexOf("async function inContractMatterForOutcome(");
     expect(w0).toBeGreaterThan(-1);
     const wrap = committee.slice(w0, committee.indexOf("\n}\n", w0));
-    const order = ["withLockedContract(record.contractId", "actStatusFault(family, l.contract.status as ContractStatus)", "lockMatter(c, record.id)", "lockSittingIn(tx, meetingId, roster)", "fn(tx, s)"].map((x) => wrap.indexOf(x));
+    const order = ["withLockedContract(scope.organisationId, record.contractId", "actStatusFault(family, l.contract.status as ContractStatus)", "lockMatter(c, record.id)", "lockSittingIn(tx, scope, meetingId, roster)", "fn(tx, s)"].map((x) => wrap.indexOf(x));
     expect(order.every((x) => x > -1), String(order)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
     expect(wrap).toContain("MATTER_FAMILY[record.matterKind as ContractMatterKind]");
@@ -609,7 +611,8 @@ describe("configuration saves read under their lock (Phase 0, group E)", () => {
 
   it("saveRule: the issue is locked first, then the rule, the key clash, the siblings and the offices are read under it", () => {
     const b = body(MATRIX, "saveRule");
-    inOrder(b, ["db.$transaction(", "lockIssue(tx, authorityMatrixId)", "tx.authorityMatrix.findFirst(", "tx.authorityRule.findFirst({ where: { id, authorityMatrixId } })", "tx.authorityRule.findFirst({\n      where: { authorityMatrixId, ruleKey", "tx.authorityRole.findMany(", "tx.authorityRule.findMany(", "issueIn(tx, authorityMatrixId)", "tx.authorityRule.create(", "tx.authorityRule.update("]);
+    // Phase 1c (ADR 0034 D10): the issue is read for the signed-in person's organisation (`issueIn(actor, tx, …)`); the order is as pinned.
+    inOrder(b, ["db.$transaction(", "lockIssue(tx, authorityMatrixId)", "tx.authorityMatrix.findFirst(", "tx.authorityRule.findFirst({ where: { id, authorityMatrixId } })", "tx.authorityRule.findFirst({\n      where: { authorityMatrixId, ruleKey", "tx.authorityRole.findMany(", "tx.authorityRule.findMany(", "issueIn(actor, tx, authorityMatrixId)", "tx.authorityRule.create(", "tx.authorityRule.update("]);
     expect([...b.matchAll(/\bdb\./g)].length).toBe(1);
     expect(b).not.toMatch(/auditedCreate|auditedUpdate/);
     // A rule is found within the issue that was locked, so another issue's rule is never edited through this one.
@@ -652,7 +655,8 @@ describe("configuration saves read under their lock (Phase 0, group E)", () => {
 
   it("the sitting's reference is issued under the series lock: scheduleSitting numbers through issueReference, never a read of the series", () => {
     const b = body("src/app/committees/actions.ts", "scheduleSitting");
-    inOrder(b, ["db.$transaction(", "createNumberedSitting(tx,", "writeAudit(tx,", "tableWaiting(tx,"]);
+    // Phase 1c (ADR 0034 D10): the waiting items are tabled for the signed-in person's organisation (`tableWaiting(actor, tx, …)`); the order is as pinned.
+    inOrder(b, ["db.$transaction(", "createNumberedSitting(tx,", "writeAudit(tx,", "tableWaiting(actor, tx,"]);
     expect(b).not.toMatch(/numberingSeries\.update|nextSerial|formatReference/);
   });
 });

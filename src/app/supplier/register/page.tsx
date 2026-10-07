@@ -4,7 +4,7 @@ import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { loadRegistrationForm } from "@/lib/portal/apply-repo";
 import { APPLY } from "@/lib/portal/labels";
-import { loadShell } from "@/lib/shell";
+import { loadPublicShell } from "@/lib/portal/deployment";
 
 import { ApplicationForm } from "./application-form";
 
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * no status page. No bank details are asked and nothing is uploaded.
  */
 export default async function SupplierRegisterPage() {
-  const [{ organisation }, form] = await Promise.all([loadShell({ counts: false }), loadRegistrationForm()]);
+  const [{ organisation }, form] = await Promise.all([loadPublicShell(), loadRegistrationForm()]);
   const open = form.ready && form.missing.length === 0;
 
   return (

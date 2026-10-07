@@ -63,6 +63,7 @@ import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { afterStep, audit, CHANGED, citeAppointmentStep, labelOf, mustMove, NO_ZONE, Refusal, routeLabel, sendAwardRejected } from "@/lib/award/route-write";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for awards (6.11) and the registers on their contracts.
@@ -87,11 +88,11 @@ function refresh(id?: string, exerciseId?: string) {
   if (exerciseId) revalidatePath(`/sourcing/${exerciseId}`);
 }
 
-async function inAward(id: string, fn: (tx: Tx, l: LoadedAward) => Promise<FormState>): Promise<FormState> {
+async function inAward(scope: OrgScope, id: string, fn: (tx: Tx, l: LoadedAward) => Promise<FormState>): Promise<FormState> {
   let result: FormState | null;
   let exerciseId: string | undefined;
   try {
-    result = await withLockedAward(id, (tx, l) => {
+    result = await withLockedAward(scope.organisationId, id, (tx, l) => {
       exerciseId = l.ex.id;
       return fn(tx, l);
     });
@@ -190,7 +191,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
 
   let id: string | null = null;
   try {
-    const result = await withLockedExerciseForAward(exerciseId, async (tx, l): Promise<FormState> => {
+    const result = await withLockedExerciseForAward(actor.organisationId, exerciseId, async (tx, l): Promise<FormState> => {
       const { org, ex, req } = l;
       if (!org.today) return NO_ZONE;
       // X-9 (6.5): an exercise with a tender or quotation pack needs its invitation window closed, with no change pending.
@@ -299,7 +300,7 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
   const awardeePartyId = r.optionalText("awardeePartyId");
   const reasons = { value: r.optionalText("recValueDiffersReason"), period: r.optionalText("recPeriodDiffersReason") };
   if (r.failed) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     // 6.7 (C-7): on an exercise whose openings apply, the awardee is a party carried to evaluation.
     // R-2: the party is written only then; where the openings do not apply, a posted id is ignored.
     const opening = partyPosted ? await loadOpeningGate(l.ex.id, tx) : null;
@@ -373,7 +374,7 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
   if (bondRequired === false && !v.bondBasisProvenance) r.reject("bondBasisProvenance", "Say where the decision that no bond is required came from.");
   if (bondRequired && v.bondBasis === "ANNUAL_VALUE" && v.bondBasisAmount && !v.bondBasisProvenance) r.reject("bondBasisProvenance", "An entered one-year value needs its provenance.");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     if (!editable(l.award.status as AwardStatus).terms) return { ok: false, message: "The terms are fixed once the instrument is issued: they are in its text." };
     // Only what the form carried is written: a field it did not show keeps its stored value.
     const present = new Set([...data.keys()]);
@@ -416,7 +417,7 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
 export async function submitAward(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     const t = awardTransition(l.award.status as AwardStatus, "PENDING_APPROVAL", { today: l.org.today });
     if (t === "TIME_ZONE_UNSET") return NO_ZONE;
     if (t) return { ok: false, message: "Only a draft award is sent for approval." };
@@ -506,7 +507,7 @@ export async function chooseAwardRejection(_prev: FormState, data: FormData): Pr
   const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     if (!l.org.today) return NO_ZONE;
     const inst = latestRoute(l.award);
     if (l.award.status !== "PENDING_APPROVAL") return { ok: false, message: "This award is not waiting for where a refusal sends it." };
@@ -545,7 +546,7 @@ export async function decideAppointmentStep(_prev: FormState, data: FormData): P
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is refused.");
   if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l): Promise<FormState> => {
+  return inAward(actor, id, async (tx, l): Promise<FormState> => {
     const inst = latestRoute(l.award);
     if (l.award.status !== "PENDING_APPROVAL" || !inst || inst.status !== "PENDING") return { ok: false, message: "No approval is open on this award." };
     const step = inst.steps.find((s) => s.id === stepId);
@@ -597,7 +598,7 @@ export async function citeAppointmentDecision(_prev: FormState, data: FormData):
   const decisionId = String(data.get("committeeDecisionId") ?? "");
   if (!decisionId) return { ok: false, errors: { committeeDecisionId: "Choose the committee's decision." } };
   // The citation is citeAppointmentStep (award/route-write.ts), the one a sitting's outcome also runs (founder, 2026-10-05).
-  return inAward(id, (tx, l) => citeAppointmentStep(tx, toAuditActor(actor), l, stepId, decisionId));
+  return inAward(actor, id, (tx, l) => citeAppointmentStep(tx, toAuditActor(actor), l, stepId, decisionId));
 }
 
 // ------------------------------------------------------------- the commitment
@@ -614,7 +615,7 @@ export async function recordCommitment(_prev: FormState, data: FormData): Promis
   const kind = r.choice("erpCommitmentKind", "Kind", ["INDENT", "PURCHASE_ORDER"] as const, { required: true });
   const received = r.date("receivedOn", "Received on", { required: true });
   if (r.failed || !kind || !received) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     const a = l.award;
     if (!l.org.today) return NO_ZONE;
     if (!["APPROVED", "ISSUED", "ACCEPTED"].includes(a.status)) return { ok: false, message: "The commitment number is recorded once the appointment is approved." };
@@ -653,7 +654,7 @@ export async function issueAward(_prev: FormState, data: FormData): Promise<Form
   try {
     // The issue act's own instant: its organisation's day is the issue day the contract number is dated by (issueDayOf).
     const issueActAt = new Date();
-    return await inAward(id, async (tx, l) => {
+    return await inAward(actor, id, async (tx, l) => {
       const a = l.award;
       if (!l.org.today) return NO_ZONE;
       const f = await awardFacts(l, tx);
@@ -755,7 +756,7 @@ export async function recordDespatch(_prev: FormState, data: FormData): Promise<
   const acknowledgedOn = r.date("acknowledgedOn", "Acknowledged on");
   const note = r.text("note", "Note", { max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     const a = l.award;
     if (!l.org.today) return NO_ZONE;
     if (!["ISSUED", "ACCEPTED"].includes(a.status) || !a.issuedAt) return { ok: false, message: "Copies are sent once the instrument is issued." };
@@ -805,7 +806,7 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
   if (icNumberFault(v.icNumber)) r.reject("icNumber", "An identity card number is twelve digits, with or without the hyphens: 900101-14-5678.");
   const correction = String(data.get("reason") ?? "").trim();
   if (r.failed) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     const a = l.award;
     if (!l.org.today) return NO_ZONE;
     // An accepted award's return may be corrected, with a reason, but never left incomplete.
@@ -860,7 +861,7 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
   const r = new FormReader(data);
   const on = r.date("commencedOn", "Commenced on", { required: true });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     const a = l.award;
     if (!l.org.today) return NO_ZONE;
     if (!["ISSUED", "ACCEPTED"].includes(a.status)) return { ok: false, message: "Commencement is recorded once the instrument is issued." };
@@ -883,7 +884,7 @@ export async function cancelAward(_prev: FormState, data: FormData): Promise<For
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     const a = l.award;
     const f = await awardFacts(l, tx);
     const ev = evaluateAward(f.facts);
@@ -923,7 +924,7 @@ export async function addCondition(_prev: FormState, data: FormData): Promise<Fo
   const requiredBy = r.date("requiredBy", "Required by");
   const note = r.text("note", "Note", { max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     if (l.award.status === "CANCELLED") return { ok: false, message: "A cancelled award is kept as it was." };
     const kind = await tx.conditionPrecedentKind.findFirst({ where: { id: kindId, organisationId: l.org.id, retiredOn: null } });
     if (!kind) return { ok: false, errors: { kindId: "Choose a condition on the list." } };
@@ -940,7 +941,7 @@ export async function satisfyCondition(_prev: FormState, data: FormData): Promis
   const r = new FormReader(data);
   const on = r.date("satisfiedOn", "Met on", { required: true });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     if (!l.org.today) return NO_ZONE;
     const c = l.award.conditions.find((x) => x.id === conditionId);
     if (!c) return { ok: false, message: "That condition is not on this award." };
@@ -984,7 +985,7 @@ export async function lodgeSecurity(_prev: FormState, data: FormData): Promise<F
     lodgedOn: r.date("lodgedOn", "Lodged on", { required: true }),
   };
   if (r.failed || !v.kind || !v.form || !v.value || !v.effectiveFrom || !v.lodgedOn) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     const refused = registerRefusal(l);
     if (refused) return { ok: false, message: refused };
     const c = registerOpen(l);
@@ -1011,7 +1012,7 @@ export async function reviewSecurity(_prev: FormState, data: FormData): Promise<
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (outcome === "REJECTED" && !reason) r.reject("reason", "Say why it is rejected.");
   if (r.failed || !outcome || !on) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     const refused = registerRefusal(l);
     if (refused) return { ok: false, message: refused };
     const c = registerOpen(l);
@@ -1065,7 +1066,7 @@ export async function lodgePolicy(_prev: FormState, data: FormData): Promise<For
     lodgedOn: r.date("lodgedOn", "Lodged on", { required: true }),
   };
   if (r.failed || !v.kind || !v.sumInsured || !v.periodStart || !v.periodEnd || !v.lodgedOn) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     const refused = registerRefusal(l);
     if (refused) return { ok: false, message: refused };
     const c = registerOpen(l);
@@ -1097,7 +1098,7 @@ export async function reviewPolicy(_prev: FormState, data: FormData): Promise<Fo
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (outcome === "REJECTED" && !reason) r.reject("reason", "Say why it is rejected.");
   if (r.failed || !outcome || !on) return { ok: false, errors: r.errors };
-  return inAward(id, async (tx, l) => {
+  return inAward(actor, id, async (tx, l) => {
     const refused = registerRefusal(l);
     if (refused) return { ok: false, message: refused };
     const c = registerOpen(l);

@@ -1,6 +1,5 @@
 import { loadRoster } from "@/lib/people/load";
 import { loadNotificationRules } from "@/lib/records/load";
-import { ORGANISATION_CODE } from "@/lib/org";
 
 import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -13,10 +12,10 @@ import { requireStaff } from "@/app/_auth/actor";
 export const dynamic = "force-dynamic";
 
 export default async function NotificationsPage() {
-  await requireStaff();
+  const actor = await requireStaff();
   const [rules, roster] = await Promise.all([
-    loadNotificationRules(ORGANISATION_CODE),
-    loadRoster(ORGANISATION_CODE),
+    loadNotificationRules(actor.organisationCode),
+    loadRoster(actor.organisationCode),
   ]);
 
   const officeCodes = roster.offices.map((o) => o.code);

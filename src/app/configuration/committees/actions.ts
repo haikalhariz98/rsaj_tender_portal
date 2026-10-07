@@ -10,12 +10,12 @@ import { committeePanelFaults, committeePanelToSave, OPENING_CONFIG_FAULT_TEXT, 
 import { db } from "@/lib/db";
 import { isLoopKey } from "@/lib/evaluation/loop";
 import { periodsOverlap } from "@/lib/effective";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { compareAmounts } from "@/lib/money";
 import { checkPeriod, FormReader } from "@/lib/validate";
 import { checkAlternateLink } from "@/lib/committee/sitting";
 import { inProgressSittingRefusal } from "@/lib/committee/sittings";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const ACTIONS = ["APPROVES", "RECOMMENDS", "CONSENTS", "DECIDES"] as const;
@@ -24,9 +24,9 @@ const VOTING_RULES = ["SIMPLE_MAJORITY", "UNANIMOUS"] as const;
 const KINDS = ["LOOP", "TERMINAL"] as const;
 const PATH = "/configuration/committees";
 
-async function organisationId(): Promise<string | null> {
+async function organisationId(scope: OrgScope): Promise<string | null> {
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: scope.organisationId },
     select: { id: true },
   });
   return org?.id ?? null;
@@ -39,7 +39,7 @@ const NO_ORG: FormState = {
 
 export async function saveCommittee(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -197,7 +197,7 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
  */
 export async function saveMember(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -287,7 +287,7 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
 
   // A seat whose period covers a sitting in progress may not move who sits there in a
   // way that voids a recorded vote or a decided matter (send-back 9.4).
-  const sitting = await inProgressSittingRefusal({
+  const sitting = await inProgressSittingRefusal(actor, {
     committeeIds: [committeeId],
     seats: (_c, seats) => {
       const next = { ...write, id: id || "proposed-seat" };
@@ -322,7 +322,7 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
 /// Vacating a seat ends its period. Votes already cast from it must keep resolving.
 export async function vacateSeat(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -337,7 +337,7 @@ export async function vacateSeat(_prev: FormState, data: FormData): Promise<Form
   if (before.effectiveTo) return { ok: false, message: "That seat is already vacated." };
 
   const effectiveTo = new Date();
-  const sitting = await inProgressSittingRefusal({
+  const sitting = await inProgressSittingRefusal(actor, {
     committeeIds: [before.committeeId],
     seats: (_c, seats) => seats.map((x) => (x.id === id ? { ...x, effectiveTo } : x)),
   });
@@ -371,7 +371,7 @@ export async function vacateSeat(_prev: FormState, data: FormData): Promise<Form
  */
 export async function saveNotApprovedOutcome(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -447,7 +447,7 @@ export async function saveNotApprovedOutcome(_prev: FormState, data: FormData): 
 /// Retire an outcome. Decisions already recorded against it keep citing it.
 export async function retireNotApprovedOutcome(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -480,7 +480,7 @@ const provWords = (p: string | null) => (p === "STATED" ? "Stated" : p === "OBSE
  */
 export async function saveCommitteePanel(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);

@@ -50,12 +50,12 @@ export type ContractRow = NonNullable<Awaited<ReturnType<typeof readContract>>>;
 export type LoadedContract = LoadedAward & { contract: ContractRow };
 
 /// A contract with its award, exercise and requisition (6.11's loader), read on one client.
-export async function loadContract(id: string, client: Tx = db): Promise<LoadedContract | null> {
-  const org = await exerciseOrg(client);
+export async function loadContract(organisationId: string, id: string, client: Tx = db): Promise<LoadedContract | null> {
+  const org = await exerciseOrg(organisationId, client);
   if (!org) return null;
   const c = await client.contract.findFirst({ where: { id, organisationId: org.id }, select: { awardId: true } });
   if (!c) return null;
-  const l = await loadAward(c.awardId, client);
+  const l = await loadAward(organisationId, c.awardId, client);
   if (!l) return null;
   const contract = await readContract(id, l.org.id, client);
   if (!contract) return null;
@@ -63,18 +63,18 @@ export async function loadContract(id: string, client: Tx = db): Promise<LoadedC
 }
 
 /// The contract's award, read without a lock, to know what to lock.
-export async function awardOfContract(contractId: string): Promise<string | null> {
-  return (await db.contract.findUnique({ where: { id: contractId }, select: { awardId: true } }))?.awardId ?? null;
+export async function awardOfContract(organisationId: string, contractId: string): Promise<string | null> {
+  return (await db.contract.findFirst({ where: { id: contractId, organisationId }, select: { awardId: true } }))?.awardId ?? null;
 }
 
 /**
  * Lock the requisition, the exercise, the award (6.11's helper, in that order), then the contract, and
  * re-read all of them. Null: the contract or its award is gone, or the award no longer names it.
  */
-export async function withLockedContract<T>(contractId: string, fn: (tx: Tx, l: LoadedContract) => Promise<T>): Promise<T | null> {
-  const awardId = await awardOfContract(contractId);
+export async function withLockedContract<T>(organisationId: string, contractId: string, fn: (tx: Tx, l: LoadedContract) => Promise<T>): Promise<T | null> {
+  const awardId = await awardOfContract(organisationId, contractId);
   if (!awardId) return null;
-  return withLockedAward(awardId, async (tx, l) => {
+  return withLockedAward(organisationId, awardId, async (tx, l) => {
     await tx.$queryRaw`SELECT id FROM "Contract" WHERE id = ${contractId} FOR UPDATE`;
     const contract = await readContract(contractId, l.org.id, tx);
     if (!contract || contract.awardId !== l.award.id) return null;

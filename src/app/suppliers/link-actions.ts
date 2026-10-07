@@ -24,6 +24,7 @@ import { FormReader } from "@/lib/validate";
 import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
 import { activePerson, audit, CHANGED, notes, NO_ORG, refuse, Refusal, stampNow } from "./shared";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * The register's acts that touch an exercise too (plan 6.15 §4.2, OD-9, FR-ADV-017): linking a party,
@@ -35,12 +36,12 @@ import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 type ExerciseLocked = { org: SupplierOrg; ex: { id: string; reference: string } };
 
-async function onExerciseSide(exerciseId: string, lockMiddle: (tx: Tx) => Promise<void>, supplierId: string | null, fn: (tx: Tx, l: ExerciseLocked) => Promise<FormState>, paths: string[]): Promise<FormState> {
+async function onExerciseSide(scope: OrgScope, exerciseId: string, lockMiddle: (tx: Tx) => Promise<void>, supplierId: string | null, fn: (tx: Tx, l: ExerciseLocked) => Promise<FormState>, paths: string[]): Promise<FormState> {
   let result: FormState;
   try {
     result = await db.$transaction(
       async (tx) => {
-        const org = await exerciseOrg(tx);
+        const org = await exerciseOrg(scope.organisationId, tx);
         if (!org) return NO_ORG;
         const ex0 = await tx.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { requisitionId: true } });
         if (!ex0) return { ok: false, message: "That exercise no longer exists." };
@@ -78,7 +79,7 @@ export async function linkPartyToSupplier(_prev: FormState, data: FormData): Pro
   if (r.failed) return { ok: false, errors: r.errors };
   const p0 = await db.exerciseParty.findUnique({ where: { id: partyId }, select: { exerciseId: true } });
   if (!p0) return { ok: false, message: "That party no longer exists." };
-  return onExerciseSide(p0.exerciseId, async (tx) => {
+  return onExerciseSide(actor, p0.exerciseId, async (tx) => {
     await tx.$queryRaw`SELECT id FROM "ExerciseParty" WHERE id = ${partyId} FOR UPDATE`;
     await tx.$queryRaw`SELECT id FROM "Award" WHERE "awardeePartyId" = ${partyId} FOR UPDATE`;
   }, supplierId, async (tx, l) => {
@@ -117,7 +118,7 @@ export async function linkAwardToSupplier(_prev: FormState, data: FormData): Pro
   if (r.failed) return { ok: false, errors: r.errors };
   const a0 = await db.award.findUnique({ where: { id: awardId }, select: { exerciseId: true } });
   if (!a0) return { ok: false, message: "That award no longer exists." };
-  return onExerciseSide(a0.exerciseId, async (tx) => {
+  return onExerciseSide(actor, a0.exerciseId, async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Award" WHERE id = ${awardId} FOR UPDATE`;
   }, supplierId, async (tx, l) => {
     const award = await tx.award.findUniqueOrThrow({ where: { id: awardId }, select: { id: true, reference: true, awardeePartyId: true, awardeeRegistrationNo: true, vendorId: true } });
@@ -167,7 +168,7 @@ export async function recordSpecialPermission(_prev: FormState, data: FormData):
   const internalApproval = internal === "yes";
   const p0 = await db.exerciseParty.findUnique({ where: { id: partyId }, select: { exerciseId: true, vendorId: true } });
   if (!p0) return { ok: false, message: "That party no longer exists." };
-  return onExerciseSide(p0.exerciseId, async (tx) => {
+  return onExerciseSide(actor, p0.exerciseId, async (tx) => {
     await tx.$queryRaw`SELECT id FROM "ExerciseParty" WHERE id = ${partyId} FOR UPDATE`;
   }, p0.vendorId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
@@ -217,7 +218,7 @@ export async function decidePermissionStep(_prev: FormState, data: FormData): Pr
   const found = await db.approvalStep.findUnique({ where: { id: stepId }, select: { instance: { select: { specialPermission: { select: { id: true, exerciseId: true, party: { select: { vendorId: true } } } } } } } });
   const perm0 = found?.instance.specialPermission;
   if (!perm0) return { ok: false, message: "That step is not on a special permission's route." };
-  return onExerciseSide(perm0.exerciseId, async (tx) => {
+  return onExerciseSide(actor, perm0.exerciseId, async (tx) => {
     await tx.$queryRaw`SELECT id FROM "SpecialPermission" WHERE id = ${perm0.id} FOR UPDATE`;
   }, null, async (tx, l) => {
     const perm = await tx.specialPermission.findUniqueOrThrow({ where: { id: perm0.id }, include: { party: { select: { name: true } }, routes: { where: { status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } } } });
@@ -242,7 +243,7 @@ export async function grantSpecialPermission(_prev: FormState, data: FormData): 
   if (r.failed) return { ok: false, errors: r.errors };
   const p0 = await db.specialPermission.findUnique({ where: { id: permissionId }, select: { exerciseId: true, partyId: true, party: { select: { vendorId: true } } } });
   if (!p0) return { ok: false, message: "That permission no longer exists." };
-  return onExerciseSide(p0.exerciseId, async (tx) => {
+  return onExerciseSide(actor, p0.exerciseId, async (tx) => {
     await tx.$queryRaw`SELECT id FROM "ExerciseParty" WHERE id = ${p0.partyId} FOR UPDATE`;
     await tx.$queryRaw`SELECT id FROM "SpecialPermission" WHERE id = ${permissionId} FOR UPDATE`;
   }, p0.party.vendorId, async (tx, l) => {

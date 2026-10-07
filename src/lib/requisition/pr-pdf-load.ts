@@ -11,8 +11,8 @@ export type PrDownload = { ok: true; reference: string; bytes: Uint8Array } | { 
  * latest budget check and approval route, the organisation's name, logo and time zone, and the
  * names of its cost centre, account code and contract type.
  */
-export async function loadPrPdf(id: string): Promise<PrDownload> {
-  const l = await loadRequisition(id);
+export async function loadPrPdf(organisationId: string, id: string): Promise<PrDownload> {
+  const l = await loadRequisition(organisationId, id);
   if (!l) return { ok: false, status: 404, message: "There is no such requisition." };
   const r = l.req;
   const refusal = prRefusal(r.status as RequisitionStatus, r.approvalInstances.some((i) => i.status === "APPROVED"));

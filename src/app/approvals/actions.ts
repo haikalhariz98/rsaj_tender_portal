@@ -16,7 +16,6 @@ import { db } from "@/lib/db";
 import { KIND_WORDS } from "@/lib/certificate/labels";
 import { contractLabel } from "@/lib/contract/repo";
 import { exerciseRouteMatter } from "@/lib/method/approval";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -139,8 +138,8 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
       const [roles, units, roster, delegations] = await Promise.all([
         tx.authorityRole.findMany({ where: { organisationId: req.organisationId }, select: { code: true, nameEn: true, escalatesToCode: true } }),
         tx.orgUnit.findMany({ where: { organisationId: req.organisationId } }),
-        loadRoster(ORGANISATION_CODE, tx),
-        loadDelegations(ORGANISATION_CODE, tx),
+        loadRoster(actor.organisationCode, tx),
+        loadDelegations(actor.organisationCode, tx),
       ]);
       const office = actingOffice(step);
       const on = today ? dayToDate(today) : new Date();

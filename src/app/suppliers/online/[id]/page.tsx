@@ -27,9 +27,9 @@ const STATUS = { RECEIVED: { text: "Waiting for an officer", tone: "info" }, REC
  * it aside). Once decided, the applicant's words are erased and only the outcome stays.
  */
 export default async function OnlineApplicationPage(props: PageProps<"/suppliers/online/[id]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id } = await props.params;
-  const org = await supplierOrg();
+  const org = await supplierOrg(actor.organisationId);
   const back = <Link href="/suppliers?tab=portal">Suppliers</Link>;
   const loaded = org ? await loadPortalApplication(org.id, id) : null;
   if (!org || !loaded) {

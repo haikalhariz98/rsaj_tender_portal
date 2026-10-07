@@ -61,7 +61,6 @@ import { scopeCitationFault } from "./scope-matter";
 import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
 import { ACT_LABEL } from "@/lib/labels";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { scopeApproval } from "./scope-matter";
 import { columnsInForce, panelFaults, panelState, standingVerifications, verifyPanelFault } from "./panel";
@@ -76,8 +75,8 @@ const money = (s: bigint) => formatSen(s);
 const provenanceText = (p: string | null | undefined) => (p ? (PROVENANCE_LABEL as Record<string, string>)[p] ?? NOT_SET : NOT_SET);
 const yesNo = (b: boolean | null) => (b == null ? NOT_SET : b ? "Yes" : "No");
 
-async function loadAll(exerciseId: string) {
-  const org = await exerciseOrg();
+async function loadAll(organisationId: string, exerciseId: string) {
+  const org = await exerciseOrg(organisationId);
   if (!org) return null;
   const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, reference: true, title: true, status: true, sourcingMethodCode: true, contractBasisCode: true, closingAt: true } });
   if (!ex) return null;
@@ -100,8 +99,8 @@ async function loadAll(exerciseId: string) {
  * configured flags, and whether a bill or an estimate already exists. A count only, not a
  * sibling section's data. Null when the exercise or its organisation cannot be found.
  */
-export async function scopeSectionFacts(exerciseId: string): Promise<ScopeSectionFacts | null> {
-  const org = await exerciseOrg();
+export async function scopeSectionFacts(organisationId: string, exerciseId: string): Promise<ScopeSectionFacts | null> {
+  const org = await exerciseOrg(organisationId);
   if (!org) return null;
   const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, sourcingMethodCode: true, contractBasisCode: true } });
   if (!ex) return null;
@@ -112,8 +111,8 @@ export async function scopeSectionFacts(exerciseId: string): Promise<ScopeSectio
 
 // ------------------------------------------------------------------ Scope tab
 
-export async function scopeTab(exerciseId: string) {
-  const a = await loadAll(exerciseId);
+export async function scopeTab(organisationId: string, exerciseId: string) {
+  const a = await loadAll(organisationId, exerciseId);
   if (!a) return null;
   const { org, ex, policy, versions, panel, rules } = a;
   const [columns, people, lists] = await Promise.all([
@@ -190,7 +189,7 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
   const committee = code ? await db.committee.findFirst({ where: { organisationId: org.id, code }, select: { id: true, nameEn: true, secretariatRoleCode: true } }) : null;
   const [sittings, roster, rows] = await Promise.all([
     committee ? db.meeting.findMany({ where: { committeeId: committee.id, status: { in: ["SCHEDULED", "IN_PROGRESS"] } }, orderBy: [{ meetingDate: "asc" }, { reference: "asc" }], select: { id: true, reference: true, meetingDate: true } }) : Promise.resolve([]),
-    loadRoster(ORGANISATION_CODE),
+    loadRoster(org.code),
     db.committeeDecision.findMany({
       where: { matterKind: "SCOPE", bqVersion: { exerciseId: ex.id } },
       orderBy: [{ tabledAt: "desc" }, { id: "desc" }],
@@ -270,8 +269,8 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
 
 // ------------------------------------------------------------------ Bill of quantities tab
 
-export async function bqTab(exerciseId: string) {
-  const a = await loadAll(exerciseId);
+export async function bqTab(organisationId: string, exerciseId: string) {
+  const a = await loadAll(organisationId, exerciseId);
   if (!a) return null;
   const { org, ex, policy, versions } = a;
   const [qualifications, templates, people, rateIssues, upload] = await Promise.all([
@@ -279,7 +278,7 @@ export async function bqTab(exerciseId: string) {
     db.bqTemplate.findMany({ where: { organisationId: org.id, retiredOn: null }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true } }),
     db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     loadRateIssues(org.id),
-    uploadContext(),
+    uploadContext(organisationId),
   ]);
   // FR-EST-004: the items of every schedule's issue in force today, for pricing a line.
   const inForce = org.today ? schedulesInForce(rateIssues, org.today) : [];
@@ -389,8 +388,8 @@ export async function bqTab(exerciseId: string) {
 
 // ------------------------------------------------------------------ Company estimate tab (sealed)
 
-export async function estimateTab(exerciseId: string) {
-  const a = await loadAll(exerciseId);
+export async function estimateTab(organisationId: string, exerciseId: string) {
+  const a = await loadAll(organisationId, exerciseId);
   if (!a) return null;
   const { org, ex, policy, estimates } = a;
   const people = await db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
@@ -447,8 +446,8 @@ export async function estimateTab(exerciseId: string) {
 
 // ------------------------------------------------------------------ Configuration › Scope and estimate
 
-export async function scopeConfiguration() {
-  const org = await exerciseOrg();
+export async function scopeConfiguration(organisationId: string) {
+  const org = await exerciseOrg(organisationId);
   if (!org) return null;
   const [policy, qualifications, holdings, templates, columns, methods, bases, offices, lists, people, units] = await Promise.all([
     loadScopePolicy(org.id),

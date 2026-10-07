@@ -8,7 +8,6 @@ import { auditCsv, entriesOnDays, EXPORT_FAULT_TEXT, EXPORT_NOT_ADMINISTRATOR_TE
 import { writeAudit } from "@/lib/audit/record";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 
 export interface ExportResult {
@@ -35,7 +34,7 @@ export async function exportAuditTrail(_prev: ExportResult, data: FormData): Pro
   if (!exportMayBeMadeBy(actor.isAdministrator)) return { ok: false, message: EXPORT_NOT_ADMINISTRATOR_TEXT };
   const fromDay = String(data.get("fromDay") ?? "").trim() || null;
   const toDay = String(data.get("toDay") ?? "").trim() || null;
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
+  const org = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true, timeZone: true } });
   if (!org) return { ok: false, message: "No organisation is configured. Run npm run setup first." };
   const today = todayIn(new Date(), org.timeZone);
   const fault = exportFault(fromDay, toDay, today);

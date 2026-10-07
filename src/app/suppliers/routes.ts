@@ -19,7 +19,6 @@ import { loadIssue } from "@/lib/authority/load";
 import { boundaryOperatorFor } from "@/lib/authority/resolve";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ableToAct, deciderFaults } from "@/lib/requisition/holders";
 import { SUPPLIER_DECIDER_TEXT } from "@/lib/suppliers/labels";
@@ -44,10 +43,10 @@ export async function openSupplierRoute(
   o: { domain: string; cond: string | null; owner: Owner; requester: { id: string; name: string }; what: { en: string; ms: string }; routeLabel: string; matter: string; ifRefused: string; now: Date },
 ): Promise<{ ok: true; id: string } | { ok: false; state: FormState }> {
   const today = org.today!;
-  const issue = await loadIssue(ORGANISATION_CODE, dayToDate(today), undefined, null, tx);
+  const issue = await loadIssue(org.code, dayToDate(today), undefined, null, tx);
   if (!issue) return { ok: false, state: { ok: false, message: NO_MATRIX } };
-  const roster = await loadRoster(ORGANISATION_CODE, tx);
-  const delegations = await loadDelegations(ORGANISATION_CODE, tx);
+  const roster = await loadRoster(org.code, tx);
+  const delegations = await loadDelegations(org.code, tx);
   const people = new Map(roster.people.map((p) => [p.id, p]));
   const available = (pid: string) => !!people.get(pid)?.isActive && !!people.get(pid)?.isAvailable;
   const res = supplierRoute(issue.matrix, o.domain, o.cond, {
@@ -112,8 +111,8 @@ export async function decideSupplierStep(
 ): Promise<{ outcome: "APPROVED" | "REJECTED" | "PENDING"; person: { id: string; name: string } } | { refused: FormState }> {
   const step = full.steps.find((s) => s.id === stepId);
   if (!step || full.status !== "PENDING") return { refused: { ok: false, message: "That step is not on a route awaiting a decision." } };
-  const roster = await loadRoster(ORGANISATION_CODE, tx);
-  const delegations = await loadDelegations(ORGANISATION_CODE, tx);
+  const roster = await loadRoster(org.code, tx);
+  const delegations = await loadDelegations(org.code, tx);
   const person = await tx.person.findFirst({ where: { id: d.personId, organisationId: org.id }, select: { id: true, name: true, isActive: true } });
   const decidedOn = storedDay(d.decidedOn);
   const office = actingOffice(step);

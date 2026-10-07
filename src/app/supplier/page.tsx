@@ -20,13 +20,13 @@ import {
   TAKE_PART_TITLE,
   homeSubtitle,
 } from "@/lib/portal/labels";
-import { loadShell } from "@/lib/shell";
+import { loadPublicShell } from "@/lib/portal/deployment";
 
 const LINK_ICON = { opportunities: GlobeIcon, results: AwardIcon, register: BuildingIcon } as const;
 const SIGN_IN_ICON = [InboxIcon, ToolsIcon, UserIcon] as const;
 
 export default async function SupplierHomePage() {
-  const { organisation } = await loadShell({ counts: false });
+  const { organisation } = await loadPublicShell();
 
   return (
     <>

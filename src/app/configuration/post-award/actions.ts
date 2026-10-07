@@ -35,7 +35,7 @@ const FORM_FIELDS = ["delegationLetterConventionalId", "delegationNoticeConventi
 
 export async function savePostAwardPolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await exerciseOrg();
+  const o = await exerciseOrg(actor.organisationId);
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const pct = r.optionalText("inDelayProgressPct")?.trim().replace(/%$/, "") ?? null;
@@ -101,7 +101,7 @@ const pctOf = (r: FormReader, name: string, label: string) => {
  */
 export async function savePaymentPolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await exerciseOrg();
+  const o = await exerciseOrg(actor.organisationId);
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const limitRaw = r.optionalText("preExecutionInterimLimit")?.trim() ?? null;
@@ -147,7 +147,7 @@ export async function savePaymentPolicy(_prev: FormState, data: FormData): Promi
 /// The form a certificate kind prints on and the routing sheet it goes on (CertificateKindSetting). Empty: unset.
 export async function saveKindSetting(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await exerciseOrg();
+  const o = await exerciseOrg(actor.organisationId);
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const kind = r.choice("certificateKind", "Certificate", PAYMENT_KINDS, { required: true });
@@ -180,7 +180,7 @@ export async function saveKindSetting(_prev: FormState, data: FormData): Promise
 /// A contract clock (ContractClockRule): its length and unit with where it came from; saving it empty removes it, with the reason.
 export async function saveClockRule(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await exerciseOrg();
+  const o = await exerciseOrg(actor.organisationId);
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const clock = r.choice("clock", "Clock", CONTRACT_CLOCKS, { required: true });
@@ -224,7 +224,7 @@ export async function saveClockRule(_prev: FormState, data: FormData): Promise<F
  */
 export async function saveVariationPolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await exerciseOrg();
+  const o = await exerciseOrg(actor.organisationId);
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const v = {

@@ -42,7 +42,8 @@ describe("the supplier lists load a page, and only what they show (fix R-10)", (
   });
 
   it("the page reads the page number, shows where it is, and links the pages", () => {
-    expect(page).toMatch(/listSuppliers\(requested, today, /);
+    // Phase 1c (ADR 0034 D10): the list is the signed-in person's organisation's; the page and the day are as pinned.
+    expect(page).toMatch(/listSuppliers\(actor\.organisationId, requested, today, /);
     expect(page).toMatch(/Suppliers \{data\.page \* SUPPLIERS_PAGE \+ 1\}–/);
     expect(page).toMatch(/\/suppliers\?tab=register&page=\$\{data\.page \+ 1\}/);
   });

@@ -87,9 +87,9 @@ const NOTE_ID = "certificate-action-note";
  * issue; the frozen text and its form after) and History. Every refusal shown is the act's own rule.
  */
 export default async function CertificatePage(props: PageProps<"/projects/[id]/certificates/[certId]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const [{ id, certId }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
-  const l = await loadCertificate(certId);
+  const l = await loadCertificate(actor.organisationId, certId);
   if (!l || l.contract.id !== id) notFound();
   const cert = l.cert;
   const certStatusRefused = actStatusFault(certificateAct(cert.kind as CertificateKind, certificatePhase(cert.status as CertificateStatus)), l.contract.status as ContractStatus);

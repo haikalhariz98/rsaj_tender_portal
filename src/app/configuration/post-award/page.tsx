@@ -60,8 +60,8 @@ function Setting({ value, unset, provenance }: { value: ReactNode | null; unset:
  * a band (OD-A7), and the forms the delegation letters print on. Everything ships unset; nothing is assumed.
  */
 export default async function PostAwardControlsPage() {
-  await requireStaff();
-  const org = await exerciseOrg();
+  const actor = await requireStaff();
+  const org = await exerciseOrg(actor.organisationId);
   if (!org) {
     return (
       <>

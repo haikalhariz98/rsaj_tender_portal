@@ -33,11 +33,11 @@ const DERIVE_CAP = 200;
  * configuration read once and the endorsed contracts' gate rows in one query (6.12 review).
  */
 export default async function ProjectsPage(props: PageProps<"/projects">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { page: p, view } = (await props.searchParams) as { page?: string; view?: string };
   const page = Math.max(0, Number.parseInt(p ?? "0", 10) || 0);
   // 6.13 Part A review 14: In Delay is a view over the whole set, judged across every possessed contract, then paged.
-  const org0 = await exerciseOrg();
+  const org0 = await exerciseOrg(actor.organisationId);
   const today = org0?.timeZone ? dayOf(new Date(), org0.timeZone) : null;
   const delay = org0 && today ? await inDelayContractIds(org0.id, today) : { ids: [], assumed: new Set<string>() };
   const delayIds = delay.ids;
@@ -47,7 +47,7 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
   const commencedView = view === "commenced";
   const commenced = org0 ? await commencedPendingAll(org0.id) : [];
   const exposure = commenced.reduce((a, v) => a + senFromDecimal(v.estimate), 0n);
-  const data = await listContracts(page, delayView ? delayIds : null);
+  const data = await listContracts(actor.organisationId, page, delayView ? delayIds : null);
   const derived: Map<string, ContractPhase> = data.org ? await endorsedPhases(data.org.id, DERIVE_CAP) : new Map();
   const ready = [...derived.values()].filter((x) => x === "READY_TO_SIGN").length;
   const awaiting = [...derived.values()].filter((x) => x === "AWAITING_CONDITIONS").length;

@@ -12,7 +12,7 @@ import { coreChainFaultsAcross, coreLevelFaults } from "@/lib/authority/core-rou
 import { actLabel } from "@/components/ui/act";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
 import { actWithCode, condLabel, matterLabel, methodLabel } from "@/lib/labels";
-import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
+import { ORGANISATION_NAME } from "@/lib/org";
 import { formatDate } from "@/lib/format";
 import { loadReferenceData } from "@/lib/reference/load";
 import { activeOn } from "@/lib/reference/vocabulary";
@@ -77,12 +77,12 @@ export default async function ApprovalMatrixPage({
 }: {
   searchParams: Promise<{ issue?: string }>;
 }) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { issue: requested } = await searchParams;
   // The vocabulary this customer has configured. Which funding routes override the
   // matrix is a property of the route, not of its name.
   const on = new Date();
-  const reference = await loadReferenceData(ORGANISATION_CODE);
+  const reference = await loadReferenceData(actor.organisationCode);
   const fundingRoutes = activeOn(reference.fundingRoutes, on);
   const sourcingMethods = activeOn(reference.sourcingMethods, on);
   // FR-APR-002: the contract types a rule may be confined to, by their names.
@@ -96,8 +96,8 @@ export default async function ApprovalMatrixPage({
   const methodName = (code: string) =>
     sourcingMethods.find((m) => m.authorityMethodKey === code)?.nameEn ?? methodLabel(code);
 
-  const roster = await loadRoster(ORGANISATION_CODE);
-  const orgRow = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
+  const roster = await loadRoster(actor.organisationCode);
+  const orgRow = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true } });
   const destinations: DestinationRow[] = orgRow
     ? (await db.rejectionDestination.findMany({ where: { organisationId: orgRow.id } })).map((d) => ({ ...d, kind: d.kind as RejectionKind, provenance: d.provenance as DestinationRow["provenance"] }))
     : [];
@@ -106,7 +106,7 @@ export default async function ApprovalMatrixPage({
   // Which issue to show: the one asked for, else the one in force, else a draft. A
   // funder's rule set is shown only when asked for: the defaults, "in force" and the
   // draft to open all mean the organisation's own limits, as routing does.
-  const issues = await listIssues(ORGANISATION_CODE);
+  const issues = await listIssues(actor.organisationCode);
   const own = issues.filter((i) => i.fundingRouteCode == null);
   const inForceOf = (list: IssueSummary[]) =>
     list.find((i) => i.issuedAt && i.effectiveFrom <= on && (i.effectiveTo == null || i.effectiveTo > on)) ?? null;
@@ -140,7 +140,7 @@ export default async function ApprovalMatrixPage({
     );
   }
 
-  const matrix = await loadMatrix(ORGANISATION_CODE, on, selected.id);
+  const matrix = await loadMatrix(actor.organisationCode, on, selected.id);
   const matrixId = selected.id;
   const editable = !selected.issuedAt;
   const noRules = matrix.rules.length === 0;
@@ -182,7 +182,7 @@ export default async function ApprovalMatrixPage({
 
   // A rule may route to an office or to a committee; the two are kept apart, so look
   // in both before admitting the code is unknown.
-  const committeeNames = new Map((await listCommittees()).map((c) => [c.code, c.nameEn]));
+  const committeeNames = new Map((await listCommittees(actor.organisationId)).map((c) => [c.code, c.nameEn]));
   const roleName = (code: string | null) =>
     code == null
       ? null

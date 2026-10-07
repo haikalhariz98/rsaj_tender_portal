@@ -49,10 +49,10 @@ const UNSET: Record<string, string> = {
 const day = (d: string | null) => (d ? formatDate(d) : "");
 
 export default async function ScopeConfigurationPage({ searchParams }: { searchParams: Promise<{ retired?: string }> }) {
-  await requireStaff();
+  const actor = await requireStaff();
   const showRetired = (await searchParams).retired === "1";
-  const org = await exerciseOrg();
-  const c = org ? await scopeConfiguration() : null;
+  const org = await exerciseOrg(actor.organisationId);
+  const c = org ? await scopeConfiguration(actor.organisationId) : null;
   if (!org || !c) {
     return (
       <>

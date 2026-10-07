@@ -34,9 +34,9 @@ export const dynamic = "force-dynamic";
 
 /// Open an award on an exercise in preparation (6.11), from the exercise's Award tab.
 export default async function NewAwardPage(props: PageProps<"/awards/new">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { exercise } = (await props.searchParams) as { exercise?: string };
-  const l = exercise ? await loadExercise(exercise) : null;
+  const l = exercise ? await loadExercise(actor.organisationId, exercise) : null;
   const header = (
     <>
       <RecordCrumb label="New award" />

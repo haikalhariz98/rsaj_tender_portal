@@ -39,7 +39,7 @@ async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, e
 
 export async function saveContractPolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await exerciseOrg();
+  const o = await exerciseOrg(actor.organisationId);
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const ratio = r.optionalText("frontLoadingRatio")?.trim() ?? null;
@@ -68,7 +68,7 @@ export async function saveContractPolicy(_prev: FormState, data: FormData): Prom
 
 export async function saveDocumentPart(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await exerciseOrg();
+  const o = await exerciseOrg(actor.organisationId);
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const id = r.optionalText("id");
@@ -101,7 +101,7 @@ export async function saveDocumentPart(_prev: FormState, data: FormData): Promis
 
 export async function saveCopyRecipient(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await exerciseOrg();
+  const o = await exerciseOrg(actor.organisationId);
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const id = r.optionalText("id");
@@ -136,7 +136,7 @@ const RETIRABLE = { ContractDocumentPart: "contractDocumentPart", ControlledCopy
 
 export async function retireContractRow(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await exerciseOrg();
+  const o = await exerciseOrg(actor.organisationId);
   if (!o) return NO_ORG;
   const entity = String(data.get("entity") ?? "") as keyof typeof RETIRABLE;
   const id = String(data.get("id") ?? "");

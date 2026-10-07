@@ -10,7 +10,6 @@ import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
 import { validLimit } from "@/lib/portal/apply";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { documentTypeFaults, listValueFaults, valueFaults } from "@/lib/suppliers/config";
 import { bandPolicyFaults } from "@/lib/suppliers/expiry";
 import { asHeading, LIST_KIND_SINGULAR, supplierFaultText, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
@@ -19,6 +18,7 @@ import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Configuration › Supplier register (6.15 §5): the registration bodies' values (FR-VND-003), the document
@@ -40,8 +40,8 @@ const TRI = ["yes", "no", "unset"] as const;
 const tri = (v: string | null): boolean | null => (v === "yes" ? true : v === "no" ? false : null);
 const triWords = (v: boolean | null, yes: string, no: string) => (v == null ? "Not set" : v ? yes : no);
 
-async function organisation() {
-  return db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
+async function organisation(scope: OrgScope) {
+  return db.organisation.findUnique({ where: { id: scope.organisationId }, select: { id: true, timeZone: true } });
 }
 const lockOrganisation = (tx: Tx, id: string) => tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${id} FOR UPDATE`;
 function done(): FormState {
@@ -72,7 +72,7 @@ const valueWords = (v: { kind: string; nameEn: string; nameMs: string | null; pa
 /// Add or change a value under a registration body (a grade with its rank and ceiling; a specialisation under a category).
 export async function saveRegistrationValue(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
   const r = new FormReader(data);
@@ -121,7 +121,7 @@ export async function saveRegistrationValue(_prev: FormState, data: FormData): P
 /// Retire a value (it stays on the documents that record it), or bring it back. Retiring asks the reason.
 export async function setRegistrationValueRetired(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return setRetired(toAuditActor(actor), data, "RegistrationValue", async (tx, id, orgId) => {
+  return setRetired(actor, toAuditActor(actor), data, "RegistrationValue", async (tx, id, orgId) => {
     const v = await tx.registrationValue.findFirst({ where: { id, organisationId: orgId }, include: { body: { select: { labelEn: true } } } });
     return v ? { label: `Registration value · ${asHeading(v.body.labelEn)} · ${v.nameEn}`, retiredOn: v.retiredOn, apply: (d: Date | null) => tx.registrationValue.update({ where: { id }, data: { retiredOn: d } }) } : null;
   });
@@ -145,7 +145,7 @@ const typeWords = (t: { nameEn: string; nameMs: string | null; valueKinds: strin
 /// Add or change a document type. Its three switches may be left not set: each then blocks the act it governs, naming itself.
 export async function saveDocumentType(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
   const r = new FormReader(data);
@@ -195,7 +195,7 @@ export async function saveDocumentType(_prev: FormState, data: FormData): Promis
 /// Retire a document type (documents of it stay on file and keep their state), or bring it back.
 export async function setDocumentTypeRetired(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return setRetired(toAuditActor(actor), data, "SupplierDocumentType", async (tx, id, orgId) => {
+  return setRetired(actor, toAuditActor(actor), data, "SupplierDocumentType", async (tx, id, orgId) => {
     const t = await tx.supplierDocumentType.findFirst({ where: { id, organisationId: orgId } });
     return t ? { label: `Supplier document type · ${t.nameEn}`, retiredOn: t.retiredOn, apply: (d: Date | null) => tx.supplierDocumentType.update({ where: { id }, data: { retiredOn: d } }) } : null;
   });
@@ -206,7 +206,7 @@ export async function setDocumentTypeRetired(_prev: FormState, data: FormData): 
 /// Add or change an entity type or a country.
 export async function saveListValue(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
   const r = new FormReader(data);
@@ -242,7 +242,7 @@ export async function saveListValue(_prev: FormState, data: FormData): Promise<F
 
 export async function setListValueRetired(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return setRetired(toAuditActor(actor), data, "SupplierListValue", async (tx, id, orgId) => {
+  return setRetired(actor, toAuditActor(actor), data, "SupplierListValue", async (tx, id, orgId) => {
     const v = await tx.supplierListValue.findFirst({ where: { id, organisationId: orgId } });
     return v ? { label: `${LIST_KIND_SINGULAR[v.list as SupplierListKind].en} · ${v.nameEn}`, retiredOn: v.retiredOn, apply: (d: Date | null) => tx.supplierListValue.update({ where: { id }, data: { retiredOn: d } }) } : null;
   });
@@ -253,7 +253,7 @@ export async function setListValueRetired(_prev: FormState, data: FormData): Pro
 /// The register's policy (6.15 §2). Every field may be left not set; nothing is defaulted.
 export async function saveSupplierPolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const r = new FormReader(data);
   const v = {
@@ -286,7 +286,7 @@ export async function saveSupplierPolicy(_prev: FormState, data: FormData): Prom
  */
 export async function savePortalIntake(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const r = new FormReader(data);
   const v = {
@@ -330,8 +330,8 @@ export async function savePortalIntake(_prev: FormState, data: FormData): Promis
 
 // ------------------------------------------------------------------ retiring
 
-async function setRetired(by: AuditActor, data: FormData, entity: string, find: (tx: Tx, id: string, orgId: string) => Promise<{ label: string; retiredOn: Date | null; apply: (d: Date | null) => Promise<unknown> } | null>): Promise<FormState> {
-  const org = await organisation();
+async function setRetired(scope: OrgScope, by: AuditActor, data: FormData, entity: string, find: (tx: Tx, id: string, orgId: string) => Promise<{ label: string; retiredOn: Date | null; apply: (d: Date | null) => Promise<unknown> } | null>): Promise<FormState> {
+  const org = await organisation(scope);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const retire = String(data.get("retire") ?? "") === "yes";
@@ -355,7 +355,7 @@ async function setRetired(by: AuditActor, data: FormData, entity: string, find: 
 /// Add or change a reason on the maintained list (FR-VND-010): for a suspension or for a blacklisting.
 export async function saveStandingReason(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const id = String(data.get("id") ?? "").trim() || null;
   const r = new FormReader(data);
@@ -391,7 +391,7 @@ export async function saveStandingReason(_prev: FormState, data: FormData): Prom
 
 export async function setStandingReasonRetired(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return setRetired(toAuditActor(actor), data, "StandingReason", async (tx, id, orgId) => {
+  return setRetired(actor, toAuditActor(actor), data, "StandingReason", async (tx, id, orgId) => {
     const v = await tx.standingReason.findFirst({ where: { id, organisationId: orgId } });
     return v ? { label: `Standing reason · ${v.nameEn}`, retiredOn: v.retiredOn, apply: (d: Date | null) => tx.standingReason.update({ where: { id }, data: { retiredOn: d } }) } : null;
   });
@@ -405,7 +405,7 @@ export async function setStandingReasonRetired(_prev: FormState, data: FormData)
  */
 export async function saveStandingRules(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await organisation();
+  const org = await organisation(actor);
   if (!org) return NO_ORG;
   const r = new FormReader(data);
   const v = {

@@ -24,8 +24,8 @@ const day = (d: Date | null) => (d ? storedDay(d) : null);
  * tab of its exercise; this is the work list beside it.
  */
 export default async function AwardsPage() {
-  await requireStaff();
-  const { org, rows, total, policy, counts } = await listAwards();
+  const actor = await requireStaff();
+  const { org, rows, total, policy, counts } = await listAwards(actor.organisationId);
   const today = org?.today ?? null;
   const list: Row[] = rows.map((r) => {
     const status = r.status as AwardStatus;

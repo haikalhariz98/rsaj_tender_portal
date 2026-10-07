@@ -66,7 +66,7 @@ const COMING = [
 
 export default async function Dashboard() {
   const actor = await requireStaff();
-  const [data, timeZone] = await Promise.all([loadDashboard(), organisationTimeZone()]);
+  const [data, timeZone] = await Promise.all([loadDashboard(actor.organisationId), organisationTimeZone(actor.organisationId)]);
 
   if (!data) {
     return (

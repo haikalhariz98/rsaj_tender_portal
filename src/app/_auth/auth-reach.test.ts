@@ -128,7 +128,8 @@ describe("every page asks who is signed in first", () => {
     const loaders = LAYOUT_FILES.filter((f) => /from "@\/lib\//.test(f.src));
     expect(loaders.map((f) => f.file)).toEqual(["layout.tsx"]);
     expect(loaders[0].src).toMatch(/const actor = await currentStaffOrNull\(\);/);
-    expect(loaders[0].src).toMatch(/loadShell\(\{ counts: actor != null && !portalOnly \}\)/);
+    // Phase 1c (ADR 0034 D10): the shell is now told whose organisation to name; the counts are still loaded only for someone signed in.
+    expect(loaders[0].src).toMatch(/loadShell\(\{ organisationId, counts: actor != null && !portalOnly \}\)/);
   });
 });
 

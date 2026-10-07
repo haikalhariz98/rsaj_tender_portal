@@ -49,6 +49,9 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
+// Phase 1c (ADR 0034 D10): the public form names its organisation through the deployment's one (`src/lib/portal/deployment.ts`), no longer
+// through `supplierOrg()` reading ORGANISATION_CODE itself. The stand-in answers it as the stand-in organisation; nothing else here changes.
+vi.mock("@/lib/portal/deployment", () => ({ deploymentOrganisation: async () => ({ id: "o1", code: "ORG", timeZone: "Asia/Kuala_Lumpur" }) }));
 vi.mock("@/lib/suppliers/repo", () => ({
   supplierOrg: async () => ({ id: "o1", timeZone: "Asia/Kuala_Lumpur", today: h.today }),
   loadSupplierConfig: async () => ({ policy: h.policy, format: null, liveCodes: (kind: string) => h.lists[kind] ?? [] }),

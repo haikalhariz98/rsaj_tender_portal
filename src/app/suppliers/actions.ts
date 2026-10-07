@@ -20,7 +20,6 @@ import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { manualVendorMaster, normaliseVendorCode, VENDOR_CODE_FORMAT_KEY } from "@/lib/integration/vendor-master";
 import { ACT_LABEL } from "@/lib/labels";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ableToAct, deciderFaults } from "@/lib/requisition/holders";
 import { appInclude, ERASED, recordOutcome, rejectApplicant, setAsideOnlineApplication } from "@/lib/suppliers/application-acts";
@@ -137,7 +136,7 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
   let created: string | null = null;
   const result = await db.$transaction(
     async (tx): Promise<FormState> => {
-      const org = await supplierOrg(tx);
+      const org = await supplierOrg(actor.organisationId, tx);
       if (!org) return NO_ORG;
       await lockOrganisation(tx, org.id);
       let portal: Awaited<ReturnType<typeof tx.portalApplication.findFirst>> = null;
@@ -226,7 +225,7 @@ export async function discardPortalApplication(_prev: FormState, data: FormData)
   if (r.failed) return { ok: false, errors: r.errors };
   const result = await db.$transaction(
     async (tx): Promise<FormState> => {
-      const org = await supplierOrg(tx);
+      const org = await supplierOrg(actor.organisationId, tx);
       if (!org) return NO_ORG;
       return setAsideOnlineApplication(tx, toAuditActor(actor), org.id, { id, reason, personId, now });
     },
@@ -251,7 +250,7 @@ export async function openApplication(_prev: FormState, data: FormData): Promise
   const epaymentFormReceivedOn = r.optionalText("epaymentFormReceivedOn");
   const personId = r.optionalText("recordedByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     const open = await tx.supplierApplication.findFirst({ where: { supplierId, status: { in: ["RECEIVED", "RESUBMISSION_REQUESTED"] }, lapsedRecordedAt: null }, select: { id: true } });
     const person = await activePerson(tx, l.org.id, personId);
     // FR-TRM-017 (fix S-2): the blacklisting in effect, read on the locked supplier row. M-1: and the cancellation in
@@ -287,7 +286,7 @@ export async function recordApplicationPaper(_prev: FormState, data: FormData): 
   if (r.failed) return { ok: false, errors: r.errors };
   const supplierId = await supplierOfApplication(applicationId);
   if (!supplierId) return GONE;
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     await tx.$queryRaw`SELECT id FROM "SupplierApplication" WHERE id = ${applicationId} FOR UPDATE`;
     const a = await tx.supplierApplication.findFirst({ where: { id: applicationId, supplierId }, include: { supplier: { select: { reference: true } }, routes: { select: { status: true } } } });
     if (!a) return GONE;
@@ -312,7 +311,7 @@ export async function saveContact(_prev: FormState, data: FormData): Promise<For
   const c = readContact(r);
   const primary = r.bool("primary");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     const fs = contactFaults(c);
     if (blocking(fs).length) return refusal(fs);
     const before = contactId ? await tx.supplierContact.findFirst({ where: { id: contactId, supplierId, retiredOn: null } }) : null;
@@ -364,7 +363,7 @@ export async function lodgeDocument(_prev: FormState, data: FormData): Promise<F
   // The shared multi-select posts its choices as one newline-joined field (splitValues).
   const valueIds = splitValues(data.get("valueIds"));
   if (r.failed) return { ok: false, errors: r.errors };
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     if (renewsId) await tx.$queryRaw`SELECT id FROM "SupplierDocument" WHERE id = ${renewsId} AND "supplierId" = ${supplierId} FOR UPDATE`;
     const typeRow = await tx.supplierDocumentType.findFirst({ where: { id: v.typeId, organisationId: l.org.id } });
     const chainRows = await tx.supplierDocument.findMany({ where: { supplierId, typeId: v.typeId } });
@@ -435,7 +434,7 @@ export async function verifyDocument(_prev: FormState, data: FormData): Promise<
   if (r.failed) return { ok: false, errors: r.errors };
   const supplierId = await supplierOfDocument(documentId);
   if (!supplierId) return GONE;
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     await tx.$queryRaw`SELECT id FROM "SupplierDocument" WHERE id = ${documentId} FOR UPDATE`;
     const d = await tx.supplierDocument.findFirst({ where: { id: documentId, supplierId }, include: { supplier: { select: { reference: true } }, attachments: { where: { purpose: "SUPPLIER_DOCUMENT" }, select: { detachedAt: true, version: { select: { withdrawnAt: true } } } } } });
     if (!d) return GONE;
@@ -495,7 +494,7 @@ export async function submitForDecision(_prev: FormState, data: FormData): Promi
   if (r.failed) return { ok: false, errors: r.errors };
   const supplierId = await supplierOfApplication(applicationId);
   if (!supplierId) return GONE;
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     await tx.$queryRaw`SELECT id FROM "SupplierApplication" WHERE id = ${applicationId} FOR UPDATE`;
     const a = await tx.supplierApplication.findFirst({ where: { id: applicationId, supplierId }, include: appInclude });
     if (!a) return GONE;
@@ -505,10 +504,10 @@ export async function submitForDecision(_prev: FormState, data: FormData): Promi
     const fs = submitFaults(f, l.org.today);
     if (blocking(fs).length) return refuse(fs, "Not sent:");
     const today = l.org.today!;
-    const issue = await loadIssue(ORGANISATION_CODE, dayToDate(today), undefined, null, tx);
+    const issue = await loadIssue(actor.organisationCode, dayToDate(today), undefined, null, tx);
     if (!issue) return NO_ISSUE;
-    const roster = await loadRoster(ORGANISATION_CODE, tx);
-    const delegations = await loadDelegations(ORGANISATION_CODE, tx);
+    const roster = await loadRoster(actor.organisationCode, tx);
+    const delegations = await loadDelegations(actor.organisationCode, tx);
     const people = new Map(roster.people.map((p) => [p.id, p]));
     const available = (pid: string) => !!people.get(pid)?.isActive && !!people.get(pid)?.isAvailable;
     const res = supplierRoute(issue.matrix, SUPPLIER_REGISTRATION_DOMAIN, a.kind, {
@@ -583,15 +582,15 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
   if (!applicationId) return { ok: false, message: "That step is not on a supplier's registration route." };
   const supplierId = await supplierOfApplication(applicationId);
   if (!supplierId) return GONE;
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     await tx.$queryRaw`SELECT id FROM "SupplierApplication" WHERE id = ${applicationId} FOR UPDATE`;
     const a = await tx.supplierApplication.findFirst({ where: { id: applicationId, supplierId }, include: appInclude });
     if (!a) return GONE;
     const full = a.routes.find((x) => x.status === "PENDING" && x.steps.some((s) => s.id === stepId));
     if (!full) return { ok: false, message: "That step is not on a registration route awaiting a decision." };
     const step = full.steps.find((s) => s.id === stepId)!;
-    const roster = await loadRoster(ORGANISATION_CODE, tx);
-    const delegations = await loadDelegations(ORGANISATION_CODE, tx);
+    const roster = await loadRoster(actor.organisationCode, tx);
+    const delegations = await loadDelegations(actor.organisationCode, tx);
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
     const decidedOn = storedDay(on);
     const office = actingOffice(step);
@@ -675,7 +674,7 @@ export async function decideApplication(_prev: FormState, data: FormData): Promi
   }
   const supplierId = await supplierOfApplication(applicationId);
   if (!supplierId) return GONE;
-  return inSupplier(supplierId, (tx, l) => recordOutcome(tx, toAuditActor(actor), l, { applicationId, outcome, remarks, resubmitBy, personId, items, now }));
+  return inSupplier(actor, supplierId, (tx, l) => recordOutcome(tx, toAuditActor(actor), l, { applicationId, outcome, remarks, resubmitBy, personId, items, now }));
 }
 
 /**
@@ -689,7 +688,7 @@ export async function recordLapse(_prev: FormState, data: FormData): Promise<For
   const applicationId = String(data.get("applicationId") ?? "");
   const supplierId = await supplierOfApplication(applicationId);
   if (!supplierId) return GONE;
-  return inSupplier(supplierId, async (tx, l) => {
+  return inSupplier(actor, supplierId, async (tx, l) => {
     await tx.$queryRaw`SELECT id FROM "SupplierApplication" WHERE id = ${applicationId} FOR UPDATE`;
     const a = await tx.supplierApplication.findFirst({ where: { id: applicationId, supplierId }, include: appInclude });
     if (!a) return GONE;
@@ -719,7 +718,7 @@ export async function setErpVendorCode(_prev: FormState, data: FormData): Promis
   const code = normaliseVendorCode(r.text("erpVendorCode", "Vendor code", { max: 60 }));
   const reason = String(data.get("reason") ?? "").trim();
   if (r.failed) return { ok: false, errors: r.errors };
-  return inSupplier(supplierId, async (tx, l): Promise<FormState> => {
+  return inSupplier(actor, supplierId, async (tx, l): Promise<FormState> => {
     const before = await tx.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { erpVendorCode: true } });
     if (before.erpVendorCode && !reason) return { ok: false, errors: { reason: "Say why the vendor code changes." } };
     const format = await tx.codeFormat.findFirst({ where: { organisationId: l.org.id, key: VENDOR_CODE_FORMAT_KEY }, select: { pattern: true } });

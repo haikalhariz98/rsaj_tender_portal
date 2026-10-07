@@ -21,6 +21,7 @@ import { windowFindingText } from "@/lib/window/labels";
 import { lockWindowRow } from "@/lib/window/lock";
 import { windowData, type WindowData } from "@/lib/window/repo";
 import type { Finding } from "@/lib/window/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 export const GONE: FormState = { ok: false, message: "That exercise no longer exists." };
 export const CHANGED: FormState = { ok: false, message: "The exercise changed while this was being saved. Reload and try again." };
@@ -53,12 +54,12 @@ export const label = (l: { ex: { reference: string } }, what: string) => `${l.ex
  * Run a window write: requisition, exercise and window locked, the window's data read under the
  * locks, and `fn` given both. A refusal thrown deep inside rolls everything back.
  */
-export async function inWindow(exerciseId: string, fn: (tx: Tx, l: LockedWindow, d: WindowData) => Promise<FormState>): Promise<FormState> {
-  const requisitionId = await requisitionOfExercise(exerciseId);
+export async function inWindow(scope: OrgScope, exerciseId: string, fn: (tx: Tx, l: LockedWindow, d: WindowData) => Promise<FormState>): Promise<FormState> {
+  const requisitionId = await requisitionOfExercise(scope.organisationId, exerciseId);
   if (!requisitionId) return GONE;
   let result: FormState | null;
   try {
-    result = await withLockedRequisitionForSourcing(requisitionId, exerciseId, async (tx, l) => {
+    result = await withLockedRequisitionForSourcing(scope.organisationId, requisitionId, exerciseId, async (tx, l) => {
       if (!l.ex) return GONE;
       await lockWindowRow(tx, exerciseId);
       return fn(tx, { org: l.org, req: l.req, ex: l.ex }, await windowData(l.org.id, l.ex, tx));

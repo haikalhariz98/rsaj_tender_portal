@@ -15,7 +15,6 @@ import { ceilingOf } from "@/lib/evaluation/repo";
 import { openNewVersion } from "@/lib/evaluation/versions";
 import { requisitionOfExercise, withLockedRequisitionForSourcing } from "@/lib/method/repo";
 import { lockOpeningRows } from "@/lib/opening/lock";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { lockWindowRow } from "@/lib/window/lock";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
@@ -49,7 +48,7 @@ import {
 import { checkOutcome, checkRecusal, liveOutcomes, withdrawFault, type MeetingStatus } from "@/lib/committee/matter";
 import { meetingTransition, sittingPermits, type SittingAct } from "@/lib/committee/meeting";
 import { registerRole } from "@/lib/committee/sitting";
-import { lockSittingIn, organisationId, withLockedSitting, type LoadedSitting } from "@/lib/committee/sittings";
+import { lockSittingIn, withLockedSitting, type LoadedSitting } from "@/lib/committee/sittings";
 import type { LinkRoute } from "@/lib/committee/auto-link";
 import { linkOutcome } from "@/lib/committee/auto-link-write";
 import { matterKey } from "@/lib/committee/waiting-load";
@@ -81,6 +80,7 @@ import { MATTER_REF_TEXT, resolveMatterRef } from "@/lib/requisition/matter-link
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for committee sittings.
@@ -93,10 +93,6 @@ import type { AuditActor } from "@/lib/auth/types";
  * nothing. Nobody is signed in, so whoever records a tabling or a vote attests it.
  */
 
-const NO_ORG: FormState = {
-  ok: false,
-  message: "No organisation is configured. Run npm run setup before recording sittings.",
-};
 const GONE: FormState = { ok: false, message: "That sitting no longer exists." };
 const CLOSED: FormState = {
   ok: false,
@@ -139,8 +135,8 @@ async function audit(
 }
 
 /// Run a sitting write under the lock; a missing sitting reads as gone.
-async function inSitting(meetingId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState> {
-  const result = await withLockedSitting(meetingId, fn);
+async function inSitting(scope: OrgScope, meetingId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState> {
+  const result = await withLockedSitting(scope, meetingId, fn);
   if (result?.ok) refresh(meetingId);
   return result ?? GONE;
 }
@@ -168,18 +164,18 @@ async function appointmentExerciseOf(decisionId: string): Promise<string | null>
  * before the sitting; once the outcome is written, it is offered to the route's committee step by the
  * award's own citation (`citeAppointmentStep`), after the loop-back, as a citation by hand would follow it.
  */
-async function inSittingAfterExercise(actor: AuditActor, meetingId: string, exerciseId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>, appointment: { awardId: string; decisionId: string } | null = null): Promise<FormState> {
-  const requisitionId = await requisitionOfExercise(exerciseId);
-  if (!requisitionId) return inSitting(meetingId, fn);
-  const roster = await loadRoster(ORGANISATION_CODE);
+async function inSittingAfterExercise(scope: OrgScope, actor: AuditActor, meetingId: string, exerciseId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>, appointment: { awardId: string; decisionId: string } | null = null): Promise<FormState> {
+  const requisitionId = await requisitionOfExercise(scope.organisationId, exerciseId);
+  if (!requisitionId) return inSitting(scope, meetingId, fn);
+  const roster = await loadRoster(scope.organisationCode);
   let result: FormState | null;
   try {
-    result = await withLockedRequisitionForSourcing(requisitionId, exerciseId, async (tx, l) => {
+    result = await withLockedRequisitionForSourcing(scope.organisationId, requisitionId, exerciseId, async (tx, l) => {
       if (!l.ex) return null;
       await lockWindowRow(tx, exerciseId);
       await lockOpeningRows(tx, exerciseId);
-      const award = appointment ? await lockAwardIn(tx, appointment.awardId, exerciseId) : null;
-      const s = await lockSittingIn(tx, meetingId, roster);
+      const award = appointment ? await lockAwardIn(tx, scope.organisationId, appointment.awardId, exerciseId) : null;
+      const s = await lockSittingIn(tx, scope, meetingId, roster);
       if (!s) return null;
       const done = await fn(tx, s);
       if (!done.ok || !award || !appointment) return done;
@@ -223,13 +219,13 @@ async function variationMatterOf(decisionId: string): Promise<{ id: string; cont
  * Founder, 2026-10-05: once the outcome is written, it is offered to the variation's open route's committee step by
  * the variation's own citation (`citeVariationDecision`), under the same locks and the same row of the table.
  */
-async function inSittingAfterContract(actor: AuditActor, meetingId: string, variation: { id: string; contractId: string }, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>, link: { decisionId: string; now: Date } | null = null): Promise<FormState> {
-  const roster = await loadRoster(ORGANISATION_CODE);
-  const result = await withLockedContract(variation.contractId, async (tx, l): Promise<FormState | null> => {
+async function inSittingAfterContract(scope: OrgScope, actor: AuditActor, meetingId: string, variation: { id: string; contractId: string }, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>, link: { decisionId: string; now: Date } | null = null): Promise<FormState> {
+  const roster = await loadRoster(scope.organisationCode);
+  const result = await withLockedContract(scope.organisationId, variation.contractId, async (tx, l): Promise<FormState | null> => {
     const refused = actStatusFault("VARIATION", l.contract.status as ContractStatus);
     if (refused) return { ok: false, message: refused.code === "CONTRACT_CANCELLED" ? "The contract is cancelled: its variations are kept as they were, and their matters are not decided." : actStatusText(refused) };
     await tx.$queryRaw`SELECT id FROM "Variation" WHERE id = ${variation.id} FOR UPDATE`;
-    const s = await lockSittingIn(tx, meetingId, roster);
+    const s = await lockSittingIn(tx, scope, meetingId, roster);
     if (!s) return null;
     const done = await fn(tx, s);
     if (!done.ok || !link || !s.today) return done;
@@ -289,19 +285,19 @@ const outcomeRecordKey = (r: OutcomeRecord) => (r.kind === "CONTRACT" ? `CONTRAC
  *   asked (ADR 0031; CANCELLED refuses in its words), the matter and its record (`lockMatter`), then the sitting;
  *   `citeMatterDecision`. The order the run 1b design gives the outcome on a contract matter.
  */
-async function inSittingAfterRecord(actor: AuditActor, meetingId: string, record: OutcomeRecord, decisionId: string, now: Date, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState> {
-  const roster = await loadRoster(ORGANISATION_CODE);
+async function inSittingAfterRecord(scope: OrgScope, actor: AuditActor, meetingId: string, record: OutcomeRecord, decisionId: string, now: Date, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState> {
+  const roster = await loadRoster(scope.organisationCode);
   let result: FormState | null;
   let paths: string[] = [];
   try {
     if (record.kind === "CONTRACT") {
-      result = await inContractMatterForOutcome(actor, record, now, meetingId, roster, decisionId, fn);
+      result = await inContractMatterForOutcome(scope, actor, record, now, meetingId, roster, decisionId, fn);
       paths = [`/projects/${record.contractId}`];
     } else if (record.kind === "NAME") {
-      result = await withLockedRequisitionForSourcing(record.requisitionId, record.exerciseId, async (tx, l) => {
+      result = await withLockedRequisitionForSourcing(scope.organisationId, record.requisitionId, record.exerciseId, async (tx, l) => {
         if (!l.ex) return null;
         const ex = l.ex;
-        const s = await lockSittingIn(tx, meetingId, roster);
+        const s = await lockSittingIn(tx, scope, meetingId, roster);
         if (!s) return null;
         const done = await fn(tx, s);
         if (!done.ok) return done;
@@ -317,13 +313,13 @@ async function inSittingAfterRecord(actor: AuditActor, meetingId: string, record
       });
       paths = [`/sourcing/${record.exerciseId}`, `/requisitions/${record.requisitionId}`];
     } else {
-      result = await withLockedRequisition(record.requisitionId, async (tx, l) => {
-        const s = await lockSittingIn(tx, meetingId, roster);
+      result = await withLockedRequisition(scope.organisationId, record.requisitionId, async (tx, l) => {
+        const s = await lockSittingIn(tx, scope, meetingId, roster);
         if (!s) return null;
         const done = await fn(tx, s);
         if (!done.ok) return done;
         // Read again: the matter's outcome was written after the requisition was read.
-        const fresh = (await loadRequisition(l.req.id, tx)) ?? l;
+        const fresh = (await loadRequisition(scope.organisationId, l.req.id, tx)) ?? l;
         await linkOutcome(tx, actor, {
           organisationId: s.organisationId,
           decisionId,
@@ -348,16 +344,16 @@ async function inSittingAfterRecord(actor: AuditActor, meetingId: string, record
 }
 
 /// The contract matter's path for an outcome (see inSittingAfterRecord): its own function, so the scan reads the table asked.
-async function inContractMatterForOutcome(actor: AuditActor, record: Extract<OutcomeRecord, { kind: "CONTRACT" }>, now: Date, meetingId: string, roster: Awaited<ReturnType<typeof loadRoster>>, decisionId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState | null> {
+async function inContractMatterForOutcome(scope: OrgScope, actor: AuditActor, record: Extract<OutcomeRecord, { kind: "CONTRACT" }>, now: Date, meetingId: string, roster: Awaited<ReturnType<typeof loadRoster>>, decisionId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState | null> {
   const family = MATTER_FAMILY[record.matterKind as ContractMatterKind];
   try {
-    return await withLockedContract(record.contractId, async (tx, l): Promise<FormState | null> => {
+    return await withLockedContract(scope.organisationId, record.contractId, async (tx, l): Promise<FormState | null> => {
       const refused = actStatusFault(family, l.contract.status as ContractStatus);
       if (refused) return tableRefusal(refused);
       const c = actCtx(tx, l, now, actor);
       if (!c) return NO_ZONE_STATE;
       await lockMatter(c, record.id);
-      const s = await lockSittingIn(tx, meetingId, roster);
+      const s = await lockSittingIn(tx, scope, meetingId, roster);
       if (!s) return null;
       const done = await fn(tx, s);
       if (!done.ok) return done;
@@ -396,8 +392,7 @@ async function inContractMatterForOutcome(actor: AuditActor, record: Extract<Out
  */
 export async function scheduleSitting(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
-  if (!orgId) return NO_ORG;
+  const orgId = actor.organisationId;
 
   const W = SCHEDULE_WORDS;
   const r = new FormReader(data);
@@ -438,7 +433,7 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
   const parsed = r.finish({ committeeId, meetingDate, agenda });
   if (!parsed.ok || !committee || !meetingDate) return { ok: false, errors: r.errors };
 
-  const roster = chosen.length ? await loadRoster(ORGANISATION_CODE) : null;
+  const roster = chosen.length ? await loadRoster(actor.organisationCode) : null;
   let created: { id: string };
   try {
     created = await db.$transaction(
@@ -448,7 +443,7 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
         const { row } = await createNumberedSitting(tx, { organisationId: orgId, committeeId: committee.id, meetingDate, agenda, typedReference: typed, day });
         await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "Meeting", entityId: row.id, entityLabel: `${committee.nameEn} sitting`, reason: "" }, "CREATE",
           diffFields(null, { committee: committee.nameEn, meetingDate, agenda, reference: typed ?? "(from numbering)" }));
-        if (chosen.length) await tableWaiting(tx, toAuditActor(actor), row.id, committee.code, chosen, tabledByPersonId, roster!);
+        if (chosen.length) await tableWaiting(actor, tx, toAuditActor(actor), row.id, committee.code, chosen, tabledByPersonId, roster!);
         return row;
       },
       // An appointment's tabling reads the bids' and the evaluation's gates.
@@ -481,15 +476,15 @@ class Refusal extends Error {
  * locked and re-read before each, so each takes the next agenda place; each item is read again from its route
  * (`loadWaiting` on this transaction) and must still be waiting for this committee and tabled at a sitting.
  */
-async function tableWaiting(tx: Tx, by: AuditActor, meetingId: string, committeeCode: string, chosen: readonly string[], tabledByPersonId: string | null, roster: Awaited<ReturnType<typeof loadRoster>>) {
+async function tableWaiting(scope: OrgScope, tx: Tx, by: AuditActor, meetingId: string, committeeCode: string, chosen: readonly string[], tabledByPersonId: string | null, roster: Awaited<ReturnType<typeof loadRoster>>) {
   const W = SCHEDULE_WORDS;
-  const entries = (await loadWaiting(tx))?.entries ?? [];
+  const entries = (await loadWaiting(scope.organisationId, tx))?.entries ?? [];
   for (const stepId of chosen) {
     const e = entries.find((x) => x.stepId === stepId && x.committeeCode === committeeCode);
     const t = e?.tabling ?? null;
     const act = ACTS.find((a) => a === t?.act) ?? null;
     if (!e || !t || !act) throw new Refusal({ ok: false, message: W.noLongerWaiting.en });
-    const s = await lockSittingIn(tx, meetingId, roster);
+    const s = await lockSittingIn(tx, scope, meetingId, roster);
     if (!s) throw new Refusal(GONE);
     const refusal = permit(s, "TABLE");
     if (refusal) throw new Refusal(refusal);
@@ -512,7 +507,7 @@ export async function editSitting(_prev: FormState, data: FormData): Promise<For
   const meetingDate = r.date("meetingDate", "Date", { required: true });
   const agenda = r.text("agenda", "Agenda", { max: 4000 });
 
-  return inSitting(meetingId, async (tx, s) => {
+  return inSitting(actor, meetingId, async (tx, s) => {
     const refusal = permit(s, "EDIT");
     if (refusal) return refusal;
     const m = s.meeting;
@@ -544,7 +539,7 @@ export async function changeStatus(_prev: FormState, data: FormData): Promise<Fo
   const to = String(data.get("to") ?? "") as MeetingStatus;
   const reason = String(data.get("reason") ?? "").trim();
 
-  return inSitting(meetingId, async (tx, s) => {
+  return inSitting(actor, meetingId, async (tx, s) => {
     const m = s.meeting;
     const checks = minutingChecks(s.assessment, s.matters);
     const check = meetingTransition(m.status, to, {
@@ -609,7 +604,7 @@ export async function saveMinutes(_prev: FormState, data: FormData): Promise<For
   const parsed = r.finish({ minutes });
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-  return inSitting(meetingId, async (tx, s) => {
+  return inSitting(actor, meetingId, async (tx, s) => {
     const refusal = permit(s, "MINUTES");
     if (refusal) return refusal;
     const m = s.meeting;
@@ -638,7 +633,7 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
   const standingInForSeatId = attended ? r.optionalText("standingInForSeatId") : null;
   if (r.failed) return { ok: false, errors: r.errors };
 
-  return inSitting(meetingId, async (tx, s) => {
+  return inSitting(actor, meetingId, async (tx, s) => {
     const refusal = permit(s, "ATTENDANCE");
     if (refusal) return refusal;
 
@@ -722,7 +717,7 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
   const tabledByPersonId = r.optionalText("tabledByPersonId");
   const dependsOnDecisionId = r.optionalText("dependsOnDecisionId");
 
-  return inSitting(meetingId, async (tx, s) => {
+  return inSitting(actor, meetingId, async (tx, s) => {
     const refusal = permit(s, "TABLE");
     if (refusal) return refusal;
     return tableInto(tx, toAuditActor(actor), s, r, { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, dependsOnDecisionId });
@@ -837,7 +832,7 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
   const reason = r.text("reason", "Reason", { required: true, max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
 
-  return inSitting(meetingId, async (tx, s) => {
+  return inSitting(actor, meetingId, async (tx, s) => {
     const decision = s.meeting.decisions.find((d) => d.id === decisionId);
     if (!decision) return { ok: false, message: "That matter no longer exists." };
     const check = checkRecusal({
@@ -974,12 +969,12 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
     return said ? { ok: true, message: said } : { ok: true };
   };
   return exerciseId
-    ? inSittingAfterExercise(toAuditActor(actor), meetingId, exerciseId, run, awardId ? { awardId, decisionId } : null)
+    ? inSittingAfterExercise(actor, toAuditActor(actor), meetingId, exerciseId, run, awardId ? { awardId, decisionId } : null)
     : variation
-      ? inSittingAfterContract(toAuditActor(actor), meetingId, variation, run, { decisionId, now })
+      ? inSittingAfterContract(actor, toAuditActor(actor), meetingId, variation, run, { decisionId, now })
       : record
-        ? inSittingAfterRecord(toAuditActor(actor), meetingId, record, decisionId, now, run)
-        : inSitting(meetingId, run);
+        ? inSittingAfterRecord(actor, toAuditActor(actor), meetingId, record, decisionId, now, run)
+        : inSitting(actor, meetingId, run);
 }
 
 /**
@@ -1015,7 +1010,7 @@ export async function withdrawMatter(_prev: FormState, data: FormData): Promise<
   const reason = String(data.get("reason") ?? "").trim();
   const meetingId = await meetingOf(decisionId);
   if (!meetingId) return { ok: false, message: "That matter no longer exists." };
-  return inSitting(meetingId, async (tx, s) => {
+  return inSitting(actor, meetingId, async (tx, s) => {
     const decision = s.meeting.decisions.find((d) => d.id === decisionId);
     if (!decision) return { ok: false, message: "That matter no longer exists." };
     const cited = (await tx.approvalStep.count({ where: { committeeDecisionId: decision.id } })) > 0 || decision.requisitionGateId != null;

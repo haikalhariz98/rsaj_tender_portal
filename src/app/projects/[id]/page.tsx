@@ -58,9 +58,9 @@ const TONE = { brand: "brand", info: "info", ok: "ok", warn: "warn", err: "err",
  * would refuse is said beside the act's button, from the same rule the act runs.
  */
 export default async function ContractPage(props: PageProps<"/projects/[id]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const [{ id }, { tab, section, page }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string; page?: string }>]);
-  const l = await loadContract(id);
+  const l = await loadContract(actor.organisationId, id);
   if (!l) notFound();
   const c = l.contract;
   const status = c.status as ContractStatus;

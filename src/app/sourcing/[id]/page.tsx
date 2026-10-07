@@ -55,7 +55,6 @@ import { draftOf, evaluationContext, exerciseHistory, loadExercise, type LoadedE
 import { determinationColumns, isBandSnapshot, isClassificationSnapshot } from "@/lib/method/snapshot";
 import type { DeliverableKind, Finding, Regime } from "@/lib/method/types";
 import { formatMoney, parseSen } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { db } from "@/lib/db";
@@ -126,9 +125,9 @@ const flagsNeedName = (code: string, methods: { code: string; requiresNameApprov
 const RESTRICTION_NOTE = "Restriction not enforced until sign-in";
 
 export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const [{ id }, { tab: asked, section }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; section?: string }>]);
-  const l = await loadExercise(id);
+  const l = await loadExercise(actor.organisationId, id);
   if (!l) notFound();
   const { ex, req, org } = l;
   // X-9 (6.5): the award gate reads the window's phase now and any pending change.
@@ -141,8 +140,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     evaluationContext(org, req, ex),
     exerciseHistory(l),
     db.person.findMany({ where: { organisationId: org.id }, orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true } }),
-    loadRoster(ORGANISATION_CODE),
-    loadDelegations(ORGANISATION_CODE),
+    loadRoster(actor.organisationCode),
+    loadDelegations(actor.organisationCode),
     db.orgUnit.findMany({ where: { organisationId: org.id } }),
     db.award.findMany({ where: { exerciseId: ex.id }, orderBy: { createdAt: "desc" }, select: { id: true, reference: true, awardeeName: true, awardedValue: true, status: true, instrumentKind: true, cancelReason: true, contract: { select: { number: true } } } }),
     loadAwardPolicy(org.id),
@@ -212,13 +211,13 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // Its header acts (publish, extend, record a sale...) come with it, so they are never judged for another tab.
   const published = isPublished(ex.status);
   // The name tab's own reads (the invitee list beside the approved one, the committee's matters to cite), only for that tab.
-  const [nameList, nameMatters] = tab === "name" && flagsNeedName(ex.sourcingMethodCode, cfg.config.methods) ? await Promise.all([nameListTab(ex.id), exerciseMatters(ex.id)]) : [null, []];
+  const [nameList, nameMatters] = tab === "name" && flagsNeedName(ex.sourcingMethodCode, cfg.config.methods) ? await Promise.all([nameListTab(actor.organisationId, ex.id), exerciseMatters(ex.id)]) : [null, []];
   // 6.6, 6.7: the Bids and opening tab, read one section at a time and only while it is the tab being looked at; its header acts come with it.
   const bidsSection = bidsSectionOf(section);
-  const bids = tab !== "bids" ? null : bidsSection === "opening" ? await loadOpening(ex.id) : bidsSection === "schedule" ? await loadSchedule(ex.id) : await loadBids(ex.id, ex.status);
+  const bids = tab !== "bids" ? null : bidsSection === "opening" ? await loadOpening(actor, ex.id) : bidsSection === "schedule" ? await loadSchedule(actor, ex.id) : await loadBids(actor, ex.id, ex.status);
   // 6.8: the Evaluation tab, read one section at a time and only while it is the tab being looked at; its header acts come with it.
   const evaluationSection = evaluationSectionOf(section);
-  const evaluation = tab === "evaluation" ? await loadEvaluationTab(ex.id, evaluationSection) : null;
+  const evaluation = tab === "evaluation" ? await loadEvaluationTab(actor, ex.id, evaluationSection) : null;
   // 6.6 (X-9): what the register asks of an award, for the Award tab (only on an exercise published through 6.5).
   const bidAward = tab === "award" ? await bidGate(ex.id) : null;
   // 6.7 (C-8): what the openings ask of an award, for the Award tab (only on an exercise published through 6.5).
@@ -234,7 +233,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const noPack = flowShape(ex.status, overviewPack, !!ex.preparedAt) === "NO_PACK";
   const inv =
     tab === "invitation"
-      ? await loadInvitation(invitationSectionOf(section), { exerciseId: ex.id, reference: ex.reference, status: ex.status, noPack, today, timeZone: org.timeZone, routes: latestFirst(windowChangeRoutesOf(ex.approvalInstances)), people: activePeople, suggestions })
+      ? await loadInvitation(actor, invitationSectionOf(section), { exerciseId: ex.id, reference: ex.reference, status: ex.status, noPack, today, timeZone: org.timeZone, routes: latestFirst(windowChangeRoutesOf(ex.approvalInstances)), people: activePeople, suggestions })
       : null;
 
   // Asked in draft or in preparation, and again after a refusal or withdrawal (ruling on BD-4).
@@ -350,7 +349,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
   const restricted = ex.restricted;
   // Only the scope tab's own strip is drawn from this, so it is read only while that tab is the one looked at.
-  const scopeSections = tab === "scope" ? visibleScopeSections(await scopeSectionFacts(ex.id)) : ALL_SCOPE_SECTIONS;
+  const scopeSections = tab === "scope" ? visibleScopeSections(await scopeSectionFacts(actor.organisationId, ex.id)) : ALL_SCOPE_SECTIONS;
   const scopeSection = scopeSectionOf(section, scopeSections);
   const overview = tab === "overview" ? await loadOverviewReads(ex, ex.closingAt, org, { kind: overviewPack, noPack }) : null;
   const detailsRefused = detailsFault({ status: ex.status, awards });

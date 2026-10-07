@@ -22,8 +22,8 @@ export const dynamic = "force-dynamic";
  * A tenth sheet is a row here. Ships empty: the spec's ICC targets are the customer's seed.
  */
 export default async function RoutingSheetsPage() {
-  await requireStaff();
-  const org = await exerciseOrg();
+  const actor = await requireStaff();
+  const org = await exerciseOrg(actor.organisationId);
   const [types, templates] = org
     ? await Promise.all([
         db.routingSheetType.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], include: { _count: { select: { checks: true, targets: true, certificates: true, awardSheets: true } }, template: { select: { nameEn: true } } } }),

@@ -17,9 +17,9 @@ export const dynamic = "force-dynamic";
  * reads "recorded on behalf of the officer, not signed": nobody is signed in.
  */
 export default async function SaleLabelPage(props: PageProps<"/sourcing/[id]/label/[saleId]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id, saleId } = await props.params;
-  const [l, register] = await Promise.all([loadExercise(id), saleRegister(id)]);
+  const [l, register] = await Promise.all([loadExercise(actor.organisationId, id), saleRegister(actor.organisationId, id)]);
   const sale = register?.rows.find((r) => r.id === saleId);
   if (!l || !sale) notFound();
   const back = `/sourcing/${id}?tab=invitation&section=sales`;

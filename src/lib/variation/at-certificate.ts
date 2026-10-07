@@ -23,7 +23,6 @@ import type { LoadedContract } from "@/lib/contract/repo";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { baselineOn } from "@/lib/payment/load";
 import { amountOf, senToDecimalString } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { supervisionRefusal } from "@/lib/supervision/labels";
 import { loadSupervision, methodKeyOf } from "@/lib/supervision/load";
 import { resolveSo, soOn } from "@/lib/supervision/so";
@@ -119,7 +118,7 @@ export async function afterCertificateIssue(tx: Tx, actor: AuditActor, l: Loaded
   const revised = issuedAdjustments(rows).reduce((a, x) => a + x.net, baseline.values.contractSum);
   const s = await loadSupervision(l.contract.id, tx);
   const current = soOn(s.soAssignments.map((x) => ({ ...x, effectiveOn: storedDay(x.effectiveOn) })), today);
-  const issue = await loadIssue(ORGANISATION_CODE, dayToDate(today), undefined, null, tx);
+  const issue = await loadIssue(l.org.code, dayToDate(today), undefined, null, tx);
   const res = issue ? resolveSo(issue.matrix, { contractValue: amountOf(senToDecimalString(revised)), method: await methodKeyOf(l, tx), contractTypeCode: l.ex.contractTypeCode }) : null;
   const after = soAfterAdjustment(true, current, res, issue?.label ?? null);
   if (after.state === "REFUSE") return supervisionRefusal("Not issued:", after.faults);

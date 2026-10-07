@@ -30,6 +30,7 @@ import type { PrismaClient } from "../src/generated/prisma/client";
 
 import { linkFirstInterimDemo, raiseFirstInterimDemo } from "./demo-payment";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -158,7 +159,7 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
   const ON_BEHALF = "recorded on behalf of, not signed";
   const people = { aisyah: { id: `${P}p1`, name: "Aisyah Rahman", isActive: true }, bala: { id: `${P}p2`, name: "Bala Krishnan", isActive: true }, chen: { id: `${P}p3`, name: "Chen Wei Ling", isActive: true }, eng: { id: `${P}p5`, name: "Eng Siew Mei", isActive: true } };
 
-  const l = (await loadContract(`${P}con3`))!;
+  const l = (await loadContract(await demoOrgId(), `${P}con3`))!;
   const contract = contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } });
   const versions = l.contract.baselines.filter((b) => b.version != null).map((b) => ({ ...b, recordedOn: b.recordedOn ? storedDay(b.recordedOn) : null }));
   const label = (kind: keyof typeof KIND_WORDS, number: string | null = null) => `${contract} · ${KIND_WORDS[kind].en}${number ? ` ${number}` : ""}`;
@@ -390,7 +391,7 @@ export async function loadCertificatesDemo(db: Db, organisationId: string) {
 
   // ------------------------------------------------ demo_aw5's pre-award routing sheet
   {
-    const aw = (await loadAward(`${P}aw5`))!;
+    const aw = (await loadAward(await demoOrgId(), `${P}aw5`))!;
     const type = freezeRoutingType((await routingTypeNow(`${P}hrt3`))!, "2026-08-24");
     fail("aw5 sheet type", typeFaults(await routingTypeNow(`${P}hrt3`), "AWARD", null, "2026-08-24"));
     {
@@ -423,15 +424,15 @@ export async function checkCertificatesDemo(db: Db) {
   const { distributionState } = await import("../src/lib/certificate/distribution");
   const expected: Record<string, string> = { [`${P}hct1`]: "ISSUED", [`${P}hct2`]: "IN_ROUTING", [`${P}hct3`]: "DRAFT", [`${P}hct4`]: "SIGNING", [`${P}hct5`]: "VOID" };
   for (const [id, status] of Object.entries(expected)) {
-    const l = await loadCertificate(id);
+    const l = await loadCertificate(await demoOrgId(), id);
     if (!l || l.cert.status !== status) throw new Error(`${id}: expected ${status}, read ${l?.cert.status}`);
   }
-  const c1 = (await loadCertificate(`${P}hct1`))!;
+  const c1 = (await loadCertificate(await demoOrgId(), `${P}hct1`))!;
   const s = sheetOf(c1.cert, "2026-10-02")!;
   if (s.iterations.length !== 2 || s.verdict.state !== "MET") throw new Error("hct1: the resubmitted sheet does not read two rounds, met");
   const d = distributionState(c1.cert.copies.map((c) => ({ mandatory: !!c.mandatory, ackRequired: !!c.ackRequired, despatchedOn: c.despatchedOn ? "x" : null, acknowledgedOn: c.acknowledgedOn ? "x" : null })));
   if (!d.distributed || d.awaitingAck !== 1) throw new Error("hct1: expected distributed with one acknowledgement outstanding");
-  const c2 = (await loadCertificate(`${P}hct2`))!;
+  const c2 = (await loadCertificate(await demoOrgId(), `${P}hct2`))!;
   const s2 = sheetOf(c2.cert, "2026-10-02")!;
   if (s2.target.state !== "SET" || s2.target.days !== 14) throw new Error("hct2: 20.00% does not read two weeks");
   void db;

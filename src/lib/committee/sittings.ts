@@ -1,7 +1,7 @@
 import type { Tx } from "@/lib/audit/record";
 import { todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
+import type { OrgScope } from "@/lib/org-scope";
 import { loadRoster } from "@/lib/people/load";
 
 import {
@@ -26,16 +26,11 @@ import { secretariatHoldersOn } from "./tabling";
 
 const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
 
-export async function organisationId(code = ORGANISATION_CODE): Promise<string | null> {
-  const org = await db.organisation.findUnique({ where: { code }, select: { id: true } });
-  return org?.id ?? null;
-}
-
 export const SITTINGS_PAGE = 50;
 
 /// One page of the organisation's sittings, newest first, with what the list shows.
-export async function listSittings(page = 0) {
-  const orgId = await organisationId();
+export async function listSittings(scope: OrgScope, page = 0) {
+  const orgId = scope.organisationId;
   if (!orgId) return { sittings: [], committees: [], total: 0, page: 0, counts: { upcoming: 0, awaiting: 0, pending: 0 } };
 
   const where = { committee: { organisationId: orgId } };
@@ -57,7 +52,7 @@ export async function listSittings(page = 0) {
       orderBy: [{ isExternal: "asc" }, { nameEn: "asc" }],
       select: { id: true, nameEn: true, retiredOn: true },
     }),
-    loadRoster(ORGANISATION_CODE),
+    loadRoster(scope.organisationCode),
     db.meeting.groupBy({ by: ["status"], where, _count: true }),
     db.committeeDecision.count({
       where: { outcome: "PENDING", withdrawnAt: null, meeting: { ...where, status: { in: ["SCHEDULED", "IN_PROGRESS"] } } },
@@ -106,9 +101,9 @@ type RosterData = Awaited<ReturnType<typeof loadRoster>>;
  * holders, names, quorum and rule as they stood on the day. Decided matters are
  * judged on the quorum and rule recorded on them.
  */
-export async function loadSitting(id: string, client: Tx = db, preloaded?: RosterData) {
+export async function loadSitting(scope: OrgScope, id: string, client: Tx = db, preloaded?: RosterData) {
   const org = await client.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: scope.organisationId },
     select: { id: true, timeZone: true },
   });
   if (!org) return null;
@@ -137,7 +132,7 @@ export async function loadSitting(id: string, client: Tx = db, preloaded?: Roste
   if (!meeting) return null;
 
   const [roster, outcomes] = await Promise.all([
-    preloaded ?? loadRoster(ORGANISATION_CODE),
+    preloaded ?? loadRoster(scope.organisationCode),
     client.notApprovedOutcome.findMany({
       where: { organisationId: orgId },
       orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
@@ -222,12 +217,13 @@ export type LoadedSitting = NonNullable<Awaited<ReturnType<typeof loadSitting>>>
  * the lock: it is configuration, not part of the sitting.
  */
 export async function withLockedSitting<T>(
+  scope: OrgScope,
   meetingId: string,
   fn: (tx: Tx, s: LoadedSitting) => Promise<T>,
 ): Promise<T | null> {
-  const roster = await loadRoster(ORGANISATION_CODE);
+  const roster = await loadRoster(scope.organisationCode);
   return db.$transaction(async (tx) => {
-    const s = await lockSittingIn(tx, meetingId, roster);
+    const s = await lockSittingIn(tx, scope, meetingId, roster);
     if (!s) return null;
     return fn(tx, s);
   });
@@ -239,9 +235,9 @@ export async function withLockedSitting<T>(
  * first and the sitting last; no act takes them the other way round (a sitting's own acts
  * never lock an exercise), so the two orders never meet.
  */
-export async function lockSittingIn(tx: Tx, meetingId: string, roster: Awaited<ReturnType<typeof loadRoster>>): Promise<LoadedSitting | null> {
+export async function lockSittingIn(tx: Tx, scope: OrgScope, meetingId: string, roster: Awaited<ReturnType<typeof loadRoster>>): Promise<LoadedSitting | null> {
   await tx.$queryRaw`SELECT id FROM "Meeting" WHERE id = ${meetingId} FOR UPDATE`;
-  return loadSitting(meetingId, tx, roster);
+  return loadSitting(scope, meetingId, tx, roster);
 }
 
 export const HISTORY_PAGE = 200;
@@ -284,7 +280,7 @@ export async function sittingHistory(s: LoadedSitting) {
  * applied and compared (`checkRegisterChange`). Returns a refusal naming the sitting,
  * or null. Minuted sittings are unaffected: they read their snapshot.
  */
-export async function inProgressSittingRefusal(change: {
+export async function inProgressSittingRefusal(scope: OrgScope, change: {
   /// Committees whose seats change.
   committeeIds?: string[];
   /// Or: an office whose holders change; every committee with a seat for it.
@@ -292,8 +288,7 @@ export async function inProgressSittingRefusal(change: {
   seats?: (committeeId: string, seats: Seat[]) => Seat[];
   roster?: (roster: RosterData) => RosterData;
 }): Promise<string | null> {
-  const orgId = await organisationId();
-  if (!orgId) return null;
+  const orgId = scope.organisationId;
   const meetings = await db.meeting.findMany({
     where: {
       status: "IN_PROGRESS",
@@ -307,10 +302,10 @@ export async function inProgressSittingRefusal(change: {
   });
   if (meetings.length === 0) return null;
 
-  const roster = await loadRoster(ORGANISATION_CODE);
+  const roster = await loadRoster(scope.organisationCode);
   const problems: string[] = [];
   for (const { id } of meetings) {
-    const s = await loadSitting(id, db, roster);
+    const s = await loadSitting(scope, id, db, roster);
     if (!s) continue;
     const c = s.meeting.committee;
     const seats = change.seats ? change.seats(c.id, c.members) : c.members;

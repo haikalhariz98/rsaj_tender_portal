@@ -38,7 +38,6 @@ import { ACT_LABEL } from "@/lib/labels";
 import type { Finding } from "@/lib/method/types";
 import { compareAmounts, senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
 import { issueReference, NumberingError } from "@/lib/numbering/issue";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import type { ExactRatio } from "@/lib/percent-band";
@@ -87,7 +86,7 @@ export async function matterSeriesSet(tx: Tx, organisationId: string): Promise<b
 }
 
 async function unitPathOf(c: MatterCtx, day: string) {
-  const [roster, delegations, units] = await Promise.all([loadRoster(ORGANISATION_CODE, c.tx), loadDelegations(ORGANISATION_CODE, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
+  const [roster, delegations, units] = await Promise.all([loadRoster(c.l.org.code, c.tx), loadDelegations(c.l.org.code, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
   const unitPath = pathTo(units as unknown as OrgUnit[], c.l.req.sectionUnitCode || c.l.req.requestingUnitCode, dayToDate(day)).reverse().map((u) => u.code);
   return { roster, delegations, unitPath };
 }

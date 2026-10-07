@@ -12,6 +12,7 @@ import { evaluationTabView, type EvaluationCurrent, type EvaluationTabView } fro
 
 import { AppointMemberDrawer, IssueReportDrawer, LogCommunicationDrawer, OpenMeetingDrawer, ProposalSignerDrawer, RecommendDrawer, RenderProposalDrawer, RequestNegotiationDrawer, ShortlistDrawer, StartEvaluationDrawer, SubmitStageDrawer } from "./editors";
 import { AspectsList, BiddersList, CommunicationsList, MeetingsList, NegotiationsList, RankingList, StageList } from "./lists";
+import type { OrgScope } from "@/lib/org-scope";
 
 /// The sections of the exercise's Evaluation tab, in order (plan §5). The strip is the shared Tabs' second level.
 export const EVALUATION_SECTIONS = [
@@ -46,8 +47,8 @@ function Statement() {
  * Before the opening is finalised it says where the evaluation opens; an exercise published before
  * models existed says it is never evaluated here and names the exit.
  */
-export async function loadEvaluationTab(exerciseId: string, section: EvaluationSectionId): Promise<EvaluationTabPanel> {
-  const v = await evaluationTabView(exerciseId);
+export async function loadEvaluationTab(scope: OrgScope, exerciseId: string, section: EvaluationSectionId): Promise<EvaluationTabPanel> {
+  const v = await evaluationTabView(scope.organisationId, exerciseId);
   if (!v) return { panel: <Card><EmptyState title="This exercise could not be found">Its organisation may no longer be configured.</EmptyState></Card>, actions: null, notes: [] };
   const h = v.header;
   if (!h.applies) {

@@ -20,7 +20,6 @@ import { readComputedSnapshot } from "@/lib/certificate/snapshot";
 import { CertificateRefusal, sendForRouting, type CertCtx } from "@/lib/certificate/write";
 import { dayToDate } from "@/lib/dates";
 import { senFromDecimal } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -54,13 +53,13 @@ export async function submitForApproval(c: CertCtx, personId: string) {
   if (Array.isArray(v)) return refuse(v);
 
   const on = dayToDate(c.today);
-  const issue = await loadIssue(ORGANISATION_CODE, on, undefined, null, c.tx);
+  const issue = await loadIssue(c.l.org.code, on, undefined, null, c.tx);
   if (!issue) return refuse(one("NO_MATRIX", { day: c.today }));
   const supersedes = c.l.req.fundingSupersedesAuthority === true;
-  const override = supersedes && c.l.req.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, c.l.req.fundingRouteCode, on, c.tx) : null;
+  const override = supersedes && c.l.req.fundingRouteCode ? await loadOverrideMatrix(c.l.org.code, c.l.req.fundingRouteCode, on, c.tx) : null;
   const ctx = { dal: issue.matrix, override, supersedes };
   // The absence rule and the sender's own office, on the requisition's unit, today (as the appointment's route reads them).
-  const [roster, delegations, units] = await Promise.all([loadRoster(ORGANISATION_CODE, c.tx), loadDelegations(ORGANISATION_CODE, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
+  const [roster, delegations, units] = await Promise.all([loadRoster(c.l.org.code, c.tx), loadDelegations(c.l.org.code, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
   const unitPath = pathTo(units as unknown as OrgUnit[], c.l.req.sectionUnitCode || c.l.req.requestingUnitCode, on).reverse().map((u) => u.code);
   const holdersOf = (code: string) => holdersFor(code, unitPath, roster, delegations, c.today);
   const people = new Map(roster.people.map((p) => [p.id, p]));

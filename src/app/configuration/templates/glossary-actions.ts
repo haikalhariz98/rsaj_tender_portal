@@ -17,6 +17,7 @@ import { fieldsNamed } from "@/lib/templates/merge";
 import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Typing corrections (FR-CRT-010) and terms with their aliases (FR-CRT-011), 6.14 increment 2. Both ship empty:
@@ -37,8 +38,8 @@ const PATH = "/configuration/templates";
 const USE_COUNTS = Object.fromEntries(Object.keys(TEMPLATE_OTHER_USES).map((k) => [k, true])) as Record<keyof typeof TEMPLATE_OTHER_USES, true>;
 const words = (fs: readonly Finding[]) => fs.map((f) => certificateFaultWords(f).en).join(" ");
 
-async function inGlossary(fn: (tx: Tx, orgId: string) => Promise<FormState>): Promise<FormState> {
-  const o = await exerciseOrg();
+async function inGlossary(scope: OrgScope, fn: (tx: Tx, orgId: string) => Promise<FormState>): Promise<FormState> {
+  const o = await exerciseOrg(scope.organisationId);
   if (!o) return NO_ORG;
   const res = await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
@@ -60,7 +61,7 @@ export async function saveCorrection(_prev: FormState, data: FormData): Promise<
   const provenance = r.choice("provenance", "Where it came from", PROVENANCE, { required: true });
   const notes = r.text("notes", "Notes", { max: 2000 });
   if (r.failed || !provenance) return { ok: false, errors: r.errors };
-  return inGlossary(async (tx, orgId) => {
+  return inGlossary(actor, async (tx, orgId) => {
     const all = await tx.textCorrection.findMany({ where: { organisationId: orgId }, include: { forms: { select: { templateId: true } } } });
     const before = id ? all.find((c) => c.id === id) : null;
     if (id && !before) return { ok: false, message: "That correction no longer exists." };
@@ -93,7 +94,7 @@ export async function removeCorrection(_prev: FormState, data: FormData): Promis
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the correction is withdrawn." } };
-  return inGlossary(async (tx, orgId) => {
+  return inGlossary(actor, async (tx, orgId) => {
     const row = await tx.textCorrection.findFirst({ where: { id, organisationId: orgId }, include: { forms: { include: { template: { select: { nameEn: true } } } } } });
     if (!row) return { ok: false, message: "That correction no longer exists." };
     for (const t of row.forms.map((f) => f.templateId).sort()) await tx.$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${t} FOR UPDATE`;
@@ -122,7 +123,7 @@ export async function saveTerm(_prev: FormState, data: FormData): Promise<FormSt
   const provenance = r.choice("provenance", "Where it came from", PROVENANCE, { required: true });
   const notes = r.text("notes", "Notes", { max: 2000 });
   if (r.failed || !provenance) return { ok: false, errors: r.errors };
-  return inGlossary(async (tx, orgId) => {
+  return inGlossary(actor, async (tx, orgId) => {
     const all = await tx.term.findMany({ where: { organisationId: orgId }, include: { aliases: { orderBy: { alias: "asc" } } } });
     const before = id ? all.find((t) => t.id === id) : null;
     if (id && !before) return { ok: false, message: "That term no longer exists." };
@@ -165,7 +166,7 @@ export async function removeTerm(_prev: FormState, data: FormData): Promise<Form
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the term comes out of the glossary." } };
-  return inGlossary(async (tx, orgId) => {
+  return inGlossary(actor, async (tx, orgId) => {
     const row = await tx.term.findFirst({ where: { id, organisationId: orgId }, include: { aliases: { orderBy: { alias: "asc" } } } });
     if (!row) return { ok: false, message: "That term no longer exists." };
     // A form whose text cites it would print nothing there: refused while one does, naming them (as a template's save

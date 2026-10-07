@@ -41,8 +41,8 @@ export async function activePerson(tx: Tx, organisationId: string, personId: str
 }
 
 /// Inside a transaction: the organisation, the supplier row locked, the supplier read under the lock, then `fn`.
-export async function withLockedSupplier(tx: Tx, supplierId: string, fn: (tx: Tx, l: LockedSupplier) => Promise<FormState>): Promise<FormState> {
-  const org = await supplierOrg(tx);
+export async function withLockedSupplier(tx: Tx, organisationId: string, supplierId: string, fn: (tx: Tx, l: LockedSupplier) => Promise<FormState>): Promise<FormState> {
+  const org = await supplierOrg(organisationId, tx);
   if (!org) return NO_ORG;
   if (!(await lockSupplierRow(tx, supplierId))) return GONE;
   const supplier = await tx.supplier.findFirst({ where: { id: supplierId, organisationId: org.id }, select: { id: true, reference: true, registeredName: true, status: true, organisationId: true } });

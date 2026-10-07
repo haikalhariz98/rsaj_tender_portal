@@ -18,7 +18,6 @@ import { db } from "@/lib/db";
 import { manualEntry, portalLedger, type BudgetCheckProvider } from "@/lib/integration/budget-check";
 import { parseSen, senToDecimalString } from "@/lib/money";
 import { NumberingError, issueReference } from "@/lib/numbering/issue";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ageDay, isStale, overBudgetDisposition, type BudgetSnapshot } from "@/lib/requisition/budget";
@@ -85,6 +84,7 @@ import { ACT_LABEL } from "@/lib/labels";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for requisitions.
@@ -110,10 +110,10 @@ function refresh(id?: string) {
 
 /// Run a write under the requisition's lock; a missing one reads as gone. A refusal
 /// thrown after a write rolls the whole transaction back and is returned as the result.
-async function inRequisition(id: string, fn: (tx: Tx, l: LoadedRequisition) => Promise<FormState>): Promise<FormState> {
+async function inRequisition(scope: OrgScope, id: string, fn: (tx: Tx, l: LoadedRequisition) => Promise<FormState>): Promise<FormState> {
   let result: FormState | null;
   try {
-    result = await withLockedRequisition(id, fn);
+    result = await withLockedRequisition(scope.organisationId, id, fn);
   } catch (e) {
     return caught(e);
   }
@@ -241,7 +241,7 @@ const safeLines = (lines: DraftLine[]) =>
  */
 export async function createRequisition(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const org = await requisitionOrg();
+  const org = await requisitionOrg(actor.organisationId);
   if (!org) return NO_ORG;
   if (!org.today) return NO_ZONE;
   const today = org.today;
@@ -299,7 +299,7 @@ export async function editDraft(_prev: FormState, data: FormData): Promise<FormS
   if (!draft.requestingPersonId) r.reject("requestingPersonId", "Requesting officer is required.");
   if (!safeLines(draft.lines)) r.reject("lines", "Every line needs an amount, and quantities must be numbers.");
 
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (l.req.status !== "DRAFT") return { ok: false, message: `Only a draft can be edited. This one is ${STATUS_LABEL[l.req.status].toLowerCase()}.` };
     if (!l.org.today) return NO_ZONE;
     const { lookups, formats } = await loadLookups(l.org.id, tx);
@@ -345,7 +345,7 @@ export async function recordEndorsement(_prev: FormState, data: FormData): Promi
   const note = r.text("note", "Note", { max: 1000 });
   if (r.failed || !tier || !on) return { ok: false, errors: r.errors };
 
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (l.req.status !== "DRAFT") return { ok: false, message: "Endorsements are recorded while the requisition is a draft." };
     const policy = await loadPolicy(l.org.id, tx);
     if (!policy.endorsementTiers.includes(tier)) {
@@ -408,7 +408,7 @@ async function checkAutomatically(tx: Tx, actor: AuditActor, l: LoadedRequisitio
 export async function markEndorsed(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const ctx = await leaveDraftContext(tx, l);
     const fault = transitionFault(l.req.status, "ENDORSED", ctx);
     if (fault) return { ok: false, message: transitionFaultText(fault) };
@@ -433,7 +433,7 @@ export async function returnRequisition(_prev: FormState, data: FormData): Promi
   const reason = r.text("reason", "Reason", { max: 2000 });
   const to = r.optionalText("returnedToPersonId");
   const on = r.date("returnedOn", "Returned on");
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const returnedOn = on ? storedDay(on) : null;
     const ctx = { today: l.org.today, reason, returnedToPersonId: to, returnedOn };
     const fault = transitionFault(l.req.status, "RETURNED", ctx);
@@ -464,7 +464,7 @@ export async function reopenDraft(_prev: FormState, data: FormData): Promise<For
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (l.req.status === "REJECTED") return { ok: false, message: "A rejected requisition goes where its rejection says. Choose where it goes next on its Approval tab, which records the choice and who made it." };
     const fault = transitionFault(l.req.status, "DRAFT", { today: l.org.today });
     if (fault) return { ok: false, message: transitionFaultText(fault) };
@@ -480,7 +480,7 @@ export async function cancelRequisition(_prev: FormState, data: FormData): Promi
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const fault = transitionFault(l.req.status, "CANCELLED", { today: l.org.today, reason });
     if (fault) return fault.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: transitionFaultText(fault) } } : { ok: false, message: transitionFaultText(fault) };
     const before = { status: l.req.status, cancelReason: l.req.cancelReason };
@@ -504,7 +504,7 @@ export async function changeFunding(_prev: FormState, data: FormData): Promise<F
   const code = r.text("fundingRouteCode", "Funding route", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (["CANCELLED", "CLOSED", "FULFILLED"].includes(l.req.status)) return { ok: false, message: "This requisition can no longer change." };
     if (l.req.status === "PENDING_APPROVAL") return { ok: false, message: "An approval is open on the current route. Recall it first, then change the funding route." };
     if (code === l.req.fundingRouteCode) return { ok: false, errors: { fundingRouteCode: "That is already the funding route." } };
@@ -537,7 +537,7 @@ export async function recordExternalAuthority(_prev: FormState, data: FormData):
   const ref = r.text("externalAuthorityRef", "Reference", { required: true, max: 200 });
   const reason = String(data.get("reason") ?? "").trim();
   if (r.failed) return { ok: false, errors: r.errors };
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (["CANCELLED", "CLOSED"].includes(l.req.status)) return { ok: false, message: "A cancelled or closed requisition cannot change." };
     if (successorOpenFault(l.req.approvalInstances)) return { ok: false, message: SUCCESSOR_OPEN_TEXT };
     if (l.req.externalAuthorityRef && !reason) return { ok: false, errors: { reason: "Say why the recorded reference is being changed." } };
@@ -571,7 +571,7 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
   };
   if (r.failed) return { ok: false, errors: r.errors };
 
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const refusal = budgetCheckRefusal(l.req.status, l.req.budgetCodeId, l.org.today);
     if (refusal?.code === "NOT_CHECKABLE") return { ok: false, message: "A budget check runs once the requisition is endorsed, and before it is submitted." };
     // Checking one with no budget code would move it past where it can still be returned to add one.
@@ -616,7 +616,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
   const id = String(data.get("id") ?? "");
   const invoked = data.get("invokeOverBudget") != null;
 
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const req = l.req;
     const fault = transitionFault(req.status, "PENDING_APPROVAL", { today: l.org.today });
     if (fault) return { ok: false, message: transitionFaultText(fault) };
@@ -624,7 +624,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
     const today = dayToDate(todayStr);
     const [policy, controls, { lookups, formats }] = await Promise.all([loadPolicy(l.org.id, tx), loadControls(l.org.id, tx), loadLookups(l.org.id, tx)]);
     // Configuration read inside the same locked transaction as the write (code review, item 8).
-    const [roster, delegations] = [await loadRoster(ORGANISATION_CODE, tx), await loadDelegations(ORGANISATION_CODE, tx)];
+    const [roster, delegations] = [await loadRoster(actor.organisationCode, tx), await loadDelegations(actor.organisationCode, tx)];
 
     const noCode = missingBudgetCode(req.status, req.budgetCodeId);
     if (noCode) return { ok: false, message: `This requisition cannot be submitted. ${MISSING_BUDGET_CODE_TEXT[noCode]}` };
@@ -673,13 +673,13 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
     // The route (FR-REQ-006/008/009), under the issue and funder's rule set in force on
     // the day the requisition was raised (FR-APR-020, ruling R2); who can act, today.
     const issueDay = issueDayFor("REQUISITION", { raisedOn: req.raisedOn, submittedOn: today });
-    const dal = await loadIssue(ORGANISATION_CODE, issueDay, undefined, null, tx);
+    const dal = await loadIssue(actor.organisationCode, issueDay, undefined, null, tx);
     if (!dal) return { ok: false, message: noIssueOnRaisedText(formatDate(issueDay)) };
-    const override = gate.supersedesAuthority && req.fundingRouteCode ? await loadOverrideMatrix(ORGANISATION_CODE, req.fundingRouteCode, issueDay, tx) : null;
+    const override = gate.supersedesAuthority && req.fundingRouteCode ? await loadOverrideMatrix(actor.organisationCode, req.fundingRouteCode, issueDay, tx) : null;
     // Where a newer issue is in force on the submission day, the route says so.
     const newer = [
-      newerIssueNote(dal, await loadMatrixVersion(ORGANISATION_CODE, today, null, tx), formatDate(issueDay)),
-      override && req.fundingRouteCode ? newerIssueNote(override, await loadMatrixVersion(ORGANISATION_CODE, today, req.fundingRouteCode, tx), formatDate(issueDay)) : null,
+      newerIssueNote(dal, await loadMatrixVersion(actor.organisationCode, today, null, tx), formatDate(issueDay)),
+      override && req.fundingRouteCode ? newerIssueNote(override, await loadMatrixVersion(actor.organisationCode, today, req.fundingRouteCode, tx), formatDate(issueDay)) : null,
     ].filter((n) => n != null);
     const value = num(req.estimatedValue)!;
     const unitPath = pathTo(lookups.units, unitOf(req), today).reverse().map((u) => u.code);
@@ -807,7 +807,7 @@ const GATE_RULE_MISSING =
 export async function checkCommitteeGates(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (!["APPROVED", "SOURCING"].includes(l.req.status)) return { ok: false, message: "Committee gates are checked once the requisition is approved." };
     if (l.req.gatesDeterminedOn) return { ok: false, message: "This requisition's committee gates are already determined." };
     if (!l.org.today) return NO_ZONE;
@@ -827,7 +827,7 @@ export async function citeGateDecision(_prev: FormState, data: FormData): Promis
   const gateId = String(data.get("gateId") ?? "");
   const decisionId = String(data.get("committeeDecisionId") ?? "");
   if (!decisionId) return { ok: false, errors: { committeeDecisionId: "Choose the committee's matter." } };
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const gate = l.req.gates.find((g) => g.id === gateId);
     if (!gate) return { ok: false, message: "That gate is not on this requisition." };
     const matter = l.req.committeeDecisions.find((d) => d.id === decisionId);
@@ -869,7 +869,7 @@ export async function closeWithoutSourcing(_prev: FormState, data: FormData): Pr
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const gates = l.req.gates.map((g) => ({ committeeLabel: g.committeeLabel, state: gateState(gateMattersOf(g)).state }));
     const ctx = { today: l.org.today, reason, gateEnded: anyGateEnded(gates) };
     const fault = transitionFault(l.req.status, "CLOSED", ctx);
@@ -907,13 +907,13 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is rejected.");
   if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
 
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const inst = openInstance(l);
     if (l.req.status !== "PENDING_APPROVAL" || !inst) return { ok: false, message: "No approval is open on this requisition." };
     const step = inst.steps.find((s) => s.id === stepId);
     if (!step) return { ok: false, message: "That step is not on the open route." };
     // Read inside the locked transaction (code review, item 8).
-    const [roster, delegations] = [await loadRoster(ORGANISATION_CODE, tx), await loadDelegations(ORGANISATION_CODE, tx)];
+    const [roster, delegations] = [await loadRoster(actor.organisationCode, tx), await loadDelegations(actor.organisationCode, tx)];
     const decidedOn = storedDay(on);
     const { lookups } = await loadLookups(l.org.id, tx);
     const person = lookups.people.find((p) => p.id === personId) ?? null;
@@ -979,7 +979,7 @@ export async function citeCommitteeDecision(_prev: FormState, data: FormData): P
   const decisionId = String(data.get("committeeDecisionId") ?? "");
   if (!decisionId) return { ok: false, errors: { committeeDecisionId: "Choose the committee's decision." } };
 
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const { returned, ...state } = await citeCommitteeStep(tx, toAuditActor(actor), l, stepId, decisionId);
     if (returned) refresh(id);
     return state;
@@ -1004,7 +1004,7 @@ export async function chooseWhereItGoes(_prev: FormState, data: FormData): Promi
   const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (l.req.status !== "REJECTED") return { ok: false, message: "Only a rejected requisition waits for where it goes next." };
     if (!l.org.today) return NO_ZONE;
     const inst = l.req.approvalInstances[0];
@@ -1032,7 +1032,7 @@ export async function recallRequisition(_prev: FormState, data: FormData): Promi
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
-  return inRequisition(id, async (tx, l): Promise<FormState> => {
+  return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const inst = openInstance(l);
     const fault = transitionFault(l.req.status, "RECALLED", { today: l.org.today, anyStepDone: inst?.steps.some((s) => s.decision !== "PENDING") ?? false });
     if (fault) return { ok: false, message: transitionFaultText(fault) };

@@ -28,9 +28,9 @@ export const dynamic = "force-dynamic";
  * its targets, banded by an exact percentage where the sheet bands them (ADR 0024).
  */
 export default async function RoutingTypePage(props: PageProps<"/configuration/routing-sheets/[id]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id } = await props.params;
-  const org = await exerciseOrg();
+  const org = await exerciseOrg(actor.organisationId);
   if (!org) notFound();
   const t = await db.routingSheetType.findFirst({ where: { id, organisationId: org.id }, include: { checks: { orderBy: { order: "asc" } }, targets: true, template: { select: { nameEn: true } } } });
   if (!t) notFound();

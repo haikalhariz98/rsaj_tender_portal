@@ -30,6 +30,7 @@ import { wipePayments } from "./demo-payment";
 import { wipeVariations } from "./demo-lifecycle";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -145,7 +146,7 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
     confirmAt?: string;
     legal: { sentAt: string; decisions: { decision: "ENDORSED" | "RETURNED"; on: string; comments: string; commentsDoc?: boolean; resendAt?: string }[] };
   }) {
-    const l0 = (await loadContract(id))!;
+    const l0 = (await loadContract(await demoOrgId(), id))!;
     const label = contractLabel({ number: l0.contract.number, award: { awardeeName: l0.award.awardeeName } });
     const basis = bases.find((b) => b.code === l0.ex.contractBasisCode)!;
     const parts = await db.contractDocumentPart.findMany({ where: { organisationId, contractBasisCode: basis.code, retiredOn: null }, orderBy: [{ sortOrder: "asc" }] });
@@ -292,7 +293,7 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
     const label = con3.label;
     // The company resolution, then the contractor's signature with its witness.
     await doc(id, label, `Company resolution, Contoh Supplies Enterprise`, "COMPANY_RESOLUTION", "2026-09-29T03:00", ["Proof of signing authority (demo)", "Contoh Supplies Enterprise", "The proprietor signs for the firm."]);
-    const l = (await loadContract(id))!;
+    const l = (await loadContract(await demoOrgId(), id))!;
     const gate = await contractGate(l);
     const signatory = { name: "Lim Ah Seng", icNumber: "750101-01-1234" };
     const witness = { name: "Nur Aina binti Hassan", icNumber: "880202-02-2345" };
@@ -309,7 +310,7 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
     // The RSAJ signature, judged by the act's own reading on 30 Sep: the Contract Date is that day.
     const contractDate = "2026-09-30";
     const signedAt = "2026-09-30T02:00";
-    const s = await signingFacts((await loadContract(id))!, people.imran.id, contractDate);
+    const s = await signingFacts((await loadContract(await demoOrgId(), id))!, people.imran.id, contractDate);
     fail("con3 RSAJ signature", s.faults);
     if (!s.signatory?.ok || !s.person) throw new Error("con3: the signatory did not resolve");
     await db.contractSignature.create({ data: { id: `${P}ksg_con3_r`, organisationId, contractId: id, party: "RSAJ", personId: s.person.id, name: s.person.name, signedOn: day(contractDate), recordedAt: at(signedAt), roleCode: s.signatory.roleCode, roleLabel: s.signatory.roleLabel, ruleKey: s.signatory.ruleKey, ruleLabel: s.signatory.ruleLabel, delegationId: s.delegationId } });
@@ -320,7 +321,7 @@ export async function loadContractsDemo(db: Db, organisationId: string) {
     audit("Contract", id, label, "UPDATE", signedAt, diffFields({ status: "LEGALLY_ENDORSED", contractDate: null }, { status: "EXECUTED", contractDate, contractDateSource: "the day of the recorded signature act" }));
     // 6.13 Part A: the signature resolves the Superintending Officer, as the act does (demo_wso_con3).
     if (s.so?.state !== "RESOLVED" || !s.soMatrix) throw new Error("con3: the Superintending Officer did not resolve");
-    await db.contractSoAssignment.create({ data: { id: `${P}wso_con3`, organisationId, contractId: id, roleCode: s.so.roleCode, roleLabel: s.so.roleLabel, reason: "EXECUTION", matrixLabel: s.soMatrix.label, ruleKey: s.so.ruleKey, ruleLabel: s.so.ruleLabel, clause: s.so.clause, contractValue: (await db.contract.findUniqueOrThrow({ where: { id }, select: { contractSum: true } })).contractSum, regime: (await loadContract(id))!.ex.regime, warnings: s.so.notes.map((n) => n.messageEn), effectiveOn: day(contractDate), recordedAt: at(signedAt) } });
+    await db.contractSoAssignment.create({ data: { id: `${P}wso_con3`, organisationId, contractId: id, roleCode: s.so.roleCode, roleLabel: s.so.roleLabel, reason: "EXECUTION", matrixLabel: s.soMatrix.label, ruleKey: s.so.ruleKey, ruleLabel: s.so.ruleLabel, clause: s.so.clause, contractValue: (await db.contract.findUniqueOrThrow({ where: { id }, select: { contractSum: true } })).contractSum, regime: (await loadContract(await demoOrgId(), id))!.ex.regime, warnings: s.so.notes.map((n) => n.messageEn), effectiveOn: day(contractDate), recordedAt: at(signedAt) } });
     audit("ContractSoAssignment", `${P}wso_con3`, `${label} · Superintending Officer resolved`, "CREATE", signedAt, diffFields(null, { office: s.so.roleLabel, resolvedFrom: `${s.soMatrix.label}: ${s.so.ruleLabel} (${s.so.clause})`, resolvedBy: "the employer's signature", effectiveOn: contractDate, assumption: s.so.notes.map((n) => n.messageEn).join(" ") || null }));
 
     // The Integrity Pact briefing at signing.
@@ -411,12 +412,12 @@ export async function checkContractsDemo(db: Db) {
   const { storedDay } = await import("../src/lib/dates");
   const expected: Record<string, string> = { [`${P}con1`]: "RETURNED_FOR_AMENDMENT", [`${P}con2`]: "AWAITING_CONDITIONS", [`${P}con3`]: "STAMPED" };
   for (const [id, phase] of Object.entries(expected)) {
-    const l = await loadContract(id);
+    const l = await loadContract(await demoOrgId(), id);
     if (!l) throw new Error(`${id} not found`);
     const got = phaseOf(l.contract.status as never, await contractGate(l), liveOf(l.contract, "COMPANY_RESOLUTION").length > 0);
     if (got !== phase) throw new Error(`${id}: expected ${phase}, read ${got}`);
   }
-  const con3 = (await loadContract(`${P}con3`))!;
+  const con3 = (await loadContract(await demoOrgId(), `${P}con3`))!;
   const v = baselineFor(baselineRows(con3.contract).versions.map((b) => ({ ...b, recordedOn: b.recordedOn ? storedDay(b.recordedOn) : null })), "2026-10-01");
   if (v?.version !== 2 || v.reason !== "EXECUTED") throw new Error("con3: the baseline in force on 1 Oct is not the executed version");
   void db;

@@ -6,7 +6,6 @@ import { ratioOfPercent, type ExactRatio } from "@/lib/percent-band";
 import { loadReferenceData } from "@/lib/reference/load";
 import { findFundingRoute, fundingPosture, overridesAuthority } from "@/lib/reference/vocabulary";
 
-import { ORGANISATION_CODE } from "@/lib/org";
 
 /// An amount: non-negative, at most two decimal places, no exponents. "1e6" or
 /// "10.005" is refused rather than read as a float and rounded into a band.
@@ -29,6 +28,8 @@ function percentOrNull(raw: string | null): ExactRatio | null | "bad" {
  * Resolve the approval chain for a matter.
  *
  * GET /api/authority/resolve?domain=payment&method=tender&value=620000
+ *
+ * Against the signed-in person's organisation's matrix only.
  *
  * The response always carries the rule key and its clause, so a caller can trace any
  * routing decision back to the printed manual.
@@ -56,7 +57,11 @@ export async function GET(request: Request) {
     return Response.json({ error: "pct must be a non-negative percentage, to at most four decimal places" }, { status: 400 });
   }
 
-  const organisationCode = params.get("org") ?? ORGANISATION_CODE;
+  // The matrix is the signed-in person's organisation's (ADR 0034 D10). The query once named any organisation by its code; one that names
+  // another is answered as if it did not exist, never with that organisation's matrix.
+  const organisationCode = guard.actor.organisationCode;
+  const named = params.get("org");
+  if (named != null && named !== organisationCode) return Response.json({ error: "Not found" }, { status: 404 });
   const fundingCode = params.get("funding");
 
   try {

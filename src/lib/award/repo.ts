@@ -22,7 +22,7 @@ import { nameRoutesOf } from "@/lib/method/approval";
 import { approvedRouteOf, evaluationContext, exerciseOrg, loadExercise, type ExerciseOrg, type LoadedExercise } from "@/lib/method/repo";
 import { isBandSnapshot } from "@/lib/method/snapshot";
 import { parseSen, senFromDecimal } from "@/lib/money";
-import { ORGANISATION_CODE, ORGANISATION_NAME } from "@/lib/org";
+import { ORGANISATION_NAME } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -89,12 +89,12 @@ export function matterRecord(d: DecisionRow): { record: DecisionRecord | null; m
   return { minuted: d.meeting.status === "MINUTED", record: recordOf(d) };
 }
 
-export async function loadAward(id: string, client: Tx = db) {
-  const org = await exerciseOrg(client);
+export async function loadAward(organisationId: string, id: string, client: Tx = db) {
+  const org = await exerciseOrg(organisationId, client);
   if (!org) return null;
   const award = await client.award.findFirst({ where: { id, organisationId: org.id }, include: awardInclude });
   if (!award) return null;
-  const l = await loadExercise(award.exerciseId, client);
+  const l = await loadExercise(organisationId, award.exerciseId, client);
   if (!l) return null;
   return { org, award, ex: l.ex, req: l.req, l };
 }
@@ -103,15 +103,15 @@ export type LoadedAward = NonNullable<Awaited<ReturnType<typeof loadAward>>>;
 export type AwardRow = LoadedAward["award"];
 
 /// Lock the requisition, the exercise and the award, in that order, and re-read them.
-export async function withLockedAward<T>(awardId: string, fn: (tx: Tx, l: LoadedAward) => Promise<T>): Promise<T | null> {
-  const found = await db.award.findUnique({ where: { id: awardId }, select: { exerciseId: true, exercise: { select: { requisitionId: true } } } });
+export async function withLockedAward<T>(organisationId: string, awardId: string, fn: (tx: Tx, l: LoadedAward) => Promise<T>): Promise<T | null> {
+  const found = await db.award.findFirst({ where: { id: awardId, organisationId }, select: { exerciseId: true, exercise: { select: { requisitionId: true } } } });
   if (!found) return null;
   return db.$transaction(
     async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${found.exercise.requisitionId} FOR UPDATE`;
       await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${found.exerciseId} FOR UPDATE`;
       await tx.$queryRaw`SELECT id FROM "Award" WHERE id = ${awardId} FOR UPDATE`;
-      const l = await loadAward(awardId, tx);
+      const l = await loadAward(organisationId, awardId, tx);
       if (!l || l.ex.id !== found.exerciseId) return null;
       return fn(tx, l);
     },
@@ -125,21 +125,21 @@ export async function withLockedAward<T>(awardId: string, fn: (tx: Tx, l: Loaded
  * the sitting after it: requisition → exercise → window → openings → award → sitting). Null where the award is gone or
  * is not that exercise's.
  */
-export async function lockAwardIn(tx: Tx, awardId: string, exerciseId: string): Promise<LoadedAward | null> {
+export async function lockAwardIn(tx: Tx, organisationId: string, awardId: string, exerciseId: string): Promise<LoadedAward | null> {
   await tx.$queryRaw`SELECT id FROM "Award" WHERE id = ${awardId} FOR UPDATE`;
-  const l = await loadAward(awardId, tx);
+  const l = await loadAward(organisationId, awardId, tx);
   return l && l.ex.id === exerciseId ? l : null;
 }
 
 /// Lock an exercise's requisition and the exercise, for opening an award on it.
-export async function withLockedExerciseForAward<T>(exerciseId: string, fn: (tx: Tx, l: LoadedExercise) => Promise<T>): Promise<T | null> {
-  const ex = await db.sourcingExercise.findUnique({ where: { id: exerciseId }, select: { requisitionId: true } });
+export async function withLockedExerciseForAward<T>(organisationId: string, exerciseId: string, fn: (tx: Tx, l: LoadedExercise) => Promise<T>): Promise<T | null> {
+  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId }, select: { requisitionId: true } });
   if (!ex) return null;
   return db.$transaction(
     async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${ex.requisitionId} FOR UPDATE`;
       await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${exerciseId} FOR UPDATE`;
-      const l = await loadExercise(exerciseId, tx);
+      const l = await loadExercise(organisationId, exerciseId, tx);
       if (!l) return null;
       return fn(tx, l);
     },
@@ -309,8 +309,8 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
     evaluationContext(org, req, ex, client),
     loadAwardConfig(org.id, client),
     client.award.findMany({ where: { exercise: { requisitionId: req.id }, status: { in: [...LIVE_STATUSES] }, NOT: { id: award.id } }, select: { awardedValue: true } }),
-    loadRoster(ORGANISATION_CODE, client),
-    loadDelegations(ORGANISATION_CODE, client),
+    loadRoster(org.code, client),
+    loadDelegations(org.code, client),
     client.orgUnit.findMany({ where: { organisationId: org.id } }),
     ex.contractTypeCode ? client.contractType.findFirst({ where: { organisationId: org.id, code: ex.contractTypeCode } }) : Promise.resolve(null),
   ]);
@@ -452,8 +452,8 @@ export const AWARDS_PAGE = 100;
  * cover every award, not the page: awaiting approval, approved and not issued, issued
  * and awaiting their return, and indents expired before work commenced.
  */
-export async function listAwards() {
-  const org = await exerciseOrg();
+export async function listAwards(organisationId: string) {
+  const org = await exerciseOrg(organisationId);
   if (!org) return { org: null, rows: [], total: 0, policy: null, counts: { pending: 0, ready: 0, awaitingReturn: 0, expired: 0 } };
   const where = { organisationId: org.id };
   const policy = await loadAwardPolicy(org.id);
@@ -516,8 +516,8 @@ export type RegisterView = "all" | "expiring" | "unverified";
  * first within each (`registerRank`). The views and the header's counts are the same
  * database conditions, so a view always holds what its count says.
  */
-export async function listRegister(page = 0, view: RegisterView = "all") {
-  const org = await exerciseOrg();
+export async function listRegister(organisationId: string, page = 0, view: RegisterView = "all") {
+  const org = await exerciseOrg(organisationId);
   const empty = { org: null, securities: [], policies: [], order: [] as { kind: "S" | "P"; id: string }[], config: null, total: 0, page: 0, counts: { all: 0, unverified: 0, expiring: 0 } };
   if (!org) return empty;
   const config = await loadAwardConfig(org.id);

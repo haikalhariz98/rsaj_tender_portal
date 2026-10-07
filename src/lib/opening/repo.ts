@@ -21,7 +21,6 @@ import { isLive } from "@/lib/documents/evidence";
 import type { ExerciseRow } from "@/lib/method/repo";
 import { wholePathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster, type RosterData } from "@/lib/people/load";
 import { holdersOf } from "@/lib/people/roster";
 import type { Provenance } from "@/lib/reference/types";
@@ -98,7 +97,7 @@ export function seatHolders(members: readonly (Seat & { seatLabel: string | null
  * Everything an opening act or the Opening and Schedule sections read, for one exercise. `client`
  * is the transaction holding the locks, or the plain client for a screen.
  */
-export async function openingContext(l: { org: { id: string; timeZone: string | null; today: string | null }; ex: ExerciseRow }, client: Tx = db, now = new Date()) {
+export async function openingContext(l: { org: { id: string; code: string; timeZone: string | null; today: string | null }; ex: ExerciseRow }, client: Tx = db, now = new Date()) {
   const { org, ex } = l;
   // One after the other: inside a transaction the client is one connection.
   const window = await client.exerciseWindow.findUnique({
@@ -126,7 +125,7 @@ export async function openingContext(l: { org: { id: string; timeZone: string | 
   const mainRow = openings.find((o) => o.kind === "MAIN") ?? null;
   const mainCommittee = mainRow ? await client.committee.findFirst({ where: { organisationId: org.id, id: mainRow.committeeId }, include: { members: true } }) : null;
   const units = (await client.orgUnit.findMany({ where: { organisationId: org.id } })) as unknown as OrgUnit[];
-  const roster = await loadRoster(ORGANISATION_CODE, client);
+  const roster = await loadRoster(org.code, client);
 
   // R-5: no time zone, no day: nothing is read "on" a UTC instant instead (no seats, no unit path, no office held).
   const on = org.today ? dayToDate(org.today) : null;

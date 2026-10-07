@@ -24,6 +24,7 @@ import { RouteSteps } from "../route-steps";
 import { ConditionsCards } from "./conditions";
 import { DecideDrawer, type FixedWindow, RefreshFlagsDrawer, StartPackDrawer, SubmitPackDrawer } from "./editors";
 import { PartsList, type PartRow } from "./parts-list";
+import { requireStaff } from "@/app/_auth/actor";
 
 type Data = NonNullable<Awaited<ReturnType<typeof documentsTab>>>;
 type Route = LoadedExercise["ex"]["approvalInstances"][number];
@@ -52,7 +53,9 @@ const PACK_TONE: Record<string, "neutral" | "brand" | "ok" | "warn" | "err"> = {
  * which already holds them.
  */
 export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerciseId: string; today: string | null; routes: Route[] }) {
-  const [d, conditions, tableNote] = await Promise.all([documentsTab(exerciseId), conditionsTab(exerciseId), tableDocumentNote(exerciseId)]);
+  // Whose records: the signed-in person's organisation (ADR 0034 D10). The page has already asked; the read is cached per request.
+  const scope = await requireStaff();
+  const [d, conditions, tableNote] = await Promise.all([documentsTab(scope.organisationId, exerciseId), conditionsTab(scope.organisationId, exerciseId), tableDocumentNote(scope.organisationId, exerciseId)]);
   if (!d) return GONE;
   const draft = d.pack?.status === "Draft";
   const returned = d.pack?.status === TENDERING_STATE_LABEL.RETURNED ? d.pack : null;

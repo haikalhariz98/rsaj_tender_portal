@@ -23,7 +23,6 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { amountOf, formatMoney, senFromDecimal, senToDecimalString } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { delegationFaults, delegationState } from "@/lib/supervision/delegation";
 import { entryState, missingDays } from "@/lib/supervision/diary";
 import { delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, methodKeyOf, revisionsOf, soOfficeOn } from "@/lib/supervision/load";
@@ -186,7 +185,7 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
   if (executed && v.s.soAssignments.length === 0 && today) {
     // From the Contract Date, on the matrix in force that day (review 1), the same reading the act makes.
     const from = day(c.contractDate)!;
-    const issue = await loadIssue(ORGANISATION_CODE, dayToDate(from), undefined, null);
+    const issue = await loadIssue(l.org.code, dayToDate(from), undefined, null);
     const value = amountOf(v.values ? senToDecimalString(v.values.contractSum) : c.contractSum.toString());
     const r = issue ? resolveSo(issue.matrix, { contractValue: value, method: await methodKeyOf(l), contractTypeCode: l.ex.contractTypeCode }) : null;
     resolve = !issue ? { office: null, blocker: `No approval matrix was in force on the Contract Date (${formatDate(from)}): the S.O. is resolved from it. Issue one under Configuration › Approval matrix.`, from } : r!.state === "RESOLVED" ? { office: r!.roleLabel, blocker: null, from } : { office: null, blocker: say(soFaults(r!, issue.label)), from };

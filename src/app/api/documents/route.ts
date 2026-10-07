@@ -12,6 +12,7 @@ import { mediaFault, sniffMediaType, SNIFF_BYTES } from "@/lib/documents/media";
 import { documentOrg, loadStorePolicy, logAccess, storeUpload, UploadRefusal } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling, sha256Hex } from "@/lib/documents/store";
 import type { Finding } from "@/lib/documents/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Upload a file (plan §2, step 5): stored as a STAGED document's first version, or as
@@ -34,20 +35,21 @@ export async function POST(req: NextRequest) {
   // multipart body (the shared guard of every route handler: a cross-site form is refused here, and writes nothing; audit M-3, F9).
   const guard = await staffRoute({ contentTypes: ["multipart/form-data"] });
   if (!guard.ok) return guard.response;
+  const scope = guard.actor;
 
   // Then the cap on uploads in flight (audit C-1): a request over it is told to retry,
   // and is not an access event, since nothing was asked of the store.
   const slot = uploadLimiter().tryAcquire();
   if (!slot) return refusal(503, { code: "BUSY", level: "block" }, { "Retry-After": String(RETRY_AFTER_SECONDS) });
   try {
-    return await upload(req, toAuditActor(guard.actor));
+    return await upload(scope, req, toAuditActor(guard.actor));
   } finally {
     slot();
   }
 }
 
-async function upload(req: NextRequest, actor: AuditActor) {
-  const org = await documentOrg();
+async function upload(scope: OrgScope, req: NextRequest, actor: AuditActor) {
+  const org = await documentOrg(scope.organisationId);
   if (!org) return refusal(503, { code: "NO_ORGANISATION", level: "block" });
   const declaredLength = req.headers.get("content-length");
   const offered = declaredLength && /^\d{1,20}$/.test(declaredLength.trim()) ? BigInt(declaredLength.trim()) : null;

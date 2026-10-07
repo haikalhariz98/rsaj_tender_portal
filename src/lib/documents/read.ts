@@ -33,8 +33,8 @@ const versionSelect = {
 } as const;
 
 /// An owner's facts, read for display (no lock). Null when the owner does not exist.
-export async function readOwner(ref: OwnerRef): Promise<{ facts: OwnerFacts; label: string } | null> {
-  const org = await documentOrg();
+export async function readOwner(organisationId: string, ref: OwnerRef): Promise<{ facts: OwnerFacts; label: string } | null> {
+  const org = await documentOrg(organisationId);
   if (!org) return null;
   switch (ref.kind) {
     case "meeting": {
@@ -132,8 +132,8 @@ export async function readOwner(ref: OwnerRef): Promise<{ facts: OwnerFacts; lab
  * attachment, live and past, with its document, pinned version, the document's latest
  * version and whether the pinned one may be downloaded (and if not, why).
  */
-export async function ownerPanel(ref: OwnerRef) {
-  const owner = await readOwner(ref);
+export async function ownerPanel(organisationId: string, ref: OwnerRef) {
+  const owner = await readOwner(organisationId, ref);
   if (!owner) return null;
   const rows = await db.documentAttachment.findMany({
     where: { [OWNER_COLUMN[ref.kind]]: ref.id },
@@ -190,8 +190,8 @@ export async function ownerPanel(ref: OwnerRef) {
 }
 
 /// The document drawer: versions, where it is attached, holds, access events and its trail.
-export async function documentDrawer(documentId: string) {
-  const org = await documentOrg();
+export async function documentDrawer(organisationId: string, documentId: string) {
+  const org = await documentOrg(organisationId);
   if (!org) return null;
   const d = await db.document.findFirst({
     where: { id: documentId, organisationId: org.id },
@@ -277,8 +277,8 @@ export const TARGET_CAP = 200;
  * the purposes that suit it and whether they are open (`attachTargets`). `total` is how many
  * records of the kind there are, so a list that is cut says so.
  */
-export async function attachTargetsOf(kind: OwnerRef["kind"]) {
-  const org = await documentOrg();
+export async function attachTargetsOf(organisationId: string, kind: OwnerRef["kind"]) {
+  const org = await documentOrg(organisationId);
   if (!org) return { records: [], total: 0 };
   const take = TARGET_CAP;
   switch (kind) {
@@ -468,8 +468,8 @@ export async function attachTargetsOf(kind: OwnerRef["kind"]) {
 }
 
 /// "Received, not filed": staged documents, oldest first. Never deleted automatically.
-export async function stagedDocuments() {
-  const org = await documentOrg();
+export async function stagedDocuments(organisationId: string) {
+  const org = await documentOrg(organisationId);
   if (!org) return [];
   return db.document.findMany({
     where: { organisationId: org.id, status: "STAGED" },
@@ -479,8 +479,8 @@ export async function stagedDocuments() {
 }
 
 /// The legal holds standing, newest first.
-export async function standingHolds() {
-  const org = await documentOrg();
+export async function standingHolds(organisationId: string) {
+  const org = await documentOrg(organisationId);
   if (!org) return [];
   return db.legalHold.findMany({ where: { organisationId: org.id, releasedAt: null }, orderBy: { placedAt: "desc" }, include: { document: { select: { id: true, title: true } }, placedBy: { select: { name: true } } } });
 }
@@ -490,8 +490,8 @@ export async function standingHolds() {
  * and the cap in force, the deployment ceiling shown as a technical limit — or the
  * words that say uploads are refused and where to set what is missing.
  */
-export async function uploadContext() {
-  const org = await documentOrg();
+export async function uploadContext(organisationId: string) {
+  const org = await documentOrg(organisationId);
   if (!org) return null;
   const [classes, policy, people] = await Promise.all([
     db.documentClass.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, classification: true } }),

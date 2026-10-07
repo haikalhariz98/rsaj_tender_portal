@@ -31,6 +31,7 @@ import { formatDate } from "../src/lib/format";
 import { parseSen, senFromDecimal, senToDecimalString } from "../src/lib/money";
 import { calendarOf } from "./demo-window";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -282,7 +283,7 @@ export class EvaluationActs {
   async ctx(exerciseId: string) {
     const { loadExercise } = await import("../src/lib/method/repo");
     const { loadEvaluationContext } = await import("../src/lib/evaluation/repo");
-    const l = (await loadExercise(exerciseId)) ?? fail(`${exerciseId} is not loaded`);
+    const l = (await loadExercise(await demoOrgId(), exerciseId)) ?? fail(`${exerciseId} is not loaded`);
     const c = await loadEvaluationContext(l, this.db as never);
     return { l, c, label: (version: number, what?: string) => `${l.ex.reference} · Evaluation, version ${version}${what ? ` · ${what}` : ""}` };
   }
@@ -901,7 +902,7 @@ async function loadQuotation(db: Db, organisationId: string, tz: string, W: (k: 
 
   // ---- 6.6: three envelopes in time, the box locked at the closing
   const { loadExercise } = await import("../src/lib/method/repo");
-  const close = (await loadExercise(sx))?.ex.closingAt ?? fail("sx21 has no closing");
+  const close = (await loadExercise(await demoOrgId(), sx))?.ex.closingAt ?? fail("sx21 has no closing");
   if (dayIn(close, tz) !== W(5)) fail("sx21 does not close on its closing day");
   const marks = `Quotation ${ref}, Service reservoir roof repairs, closing ${formatDate(W(5))} 3.00 pm`;
   const r = new Receipts(db, organisationId, tz, entry, sx, ref);
@@ -973,7 +974,7 @@ export async function checkEvaluationDemo(db: Db) {
   const { evaluationTabView } = await import("../src/lib/evaluation/read");
   const { loadEvaluationGate } = await import("../src/lib/evaluation/gate-read");
   const { evaluationGateFaults } = await import("../src/lib/evaluation/award-gate");
-  const v = (await evaluationTabView(`${P}sx16`)) ?? fail("sx16 did not load");
+  const v = (await evaluationTabView(await demoOrgId(), `${P}sx16`)) ?? fail("sx16 did not load");
   const cur = v.current ?? fail("sx16 has no evaluation");
   if (cur.state !== "Report issued") fail("sx16's report is not issued");
   if (cur.recommendation.ranked[0]?.listingNo !== 1) fail("sx16's top-ranked bid is not No. 1");
@@ -988,7 +989,7 @@ export async function checkEvaluationDemo(db: Db) {
   const published = await db.exerciseWindow.count({ where: { exerciseId: demoRef, publishedAt: { not: null } } });
   if (pinned !== published) fail(`${published} demo exercises are published but ${pinned} pinned a model`);
   // sx21: the quotation (67-C3) mid-evaluation: open, two shortlisted, a clarification closed, a negotiation refused.
-  const q = (await evaluationTabView(QUOTATION)) ?? fail("sx21 did not load");
+  const q = (await evaluationTabView(await demoOrgId(), QUOTATION)) ?? fail("sx21 did not load");
   const qc = q.current ?? fail("sx21 has no evaluation");
   if (qc.state === "Report issued") fail("sx21's report should not be issued");
   if (qc.meetings.length !== 1 || !qc.meetings[0].closed || qc.meetings[0].confirmations !== 1) fail("sx21's clarification is not closed with its confirmation");

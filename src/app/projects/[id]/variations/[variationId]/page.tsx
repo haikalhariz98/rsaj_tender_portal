@@ -34,7 +34,6 @@ import { db } from "@/lib/db";
 import { decimalText, formatDate, formatOrgDateTime } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 import { loadRoster } from "@/lib/people/load";
 import { capacityFor } from "@/lib/supervision/authority";
@@ -89,9 +88,9 @@ const yes = (v: boolean | null) => (v == null ? dim("Not answered") : v ? "Yes" 
  * Every refusal shown beside a button is the act's own rule on the same inputs.
  */
 export default async function VariationPage(props: PageProps<"/projects/[id]/variations/[variationId]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const [{ id, variationId }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
-  const l = await loadContract(id);
+  const l = await loadContract(actor.organisationId, id);
   if (!l) notFound();
   const today = l.org.timeZone ? dayOf(new Date(), l.org.timeZone) : null;
   const vv = await variationView(l, today);
@@ -317,7 +316,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
   const pend = pendingRoute(f);
   const choice = awaitingChoice(f);
   const consent = consentOf(v);
-  const roster = today ? await loadRoster(ORGANISATION_CODE) : null;
+  const roster = today ? await loadRoster(l.org.code) : null;
   const sittingsFor = async (committeeId: string | null, code: string | null) => {
     if (!committeeId && !code) return { sittings: [] as Option[], tablers: [] as Option[] };
     const c = await db.committee.findFirst({ where: { organisationId: l.org.id, ...(committeeId ? { id: committeeId } : { code: code! }) }, select: { id: true, secretariatRoleCode: true, nameEn: true } });

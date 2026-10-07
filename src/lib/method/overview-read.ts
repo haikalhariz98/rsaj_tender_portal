@@ -37,7 +37,7 @@ export async function loadOverviewReads(
 ): Promise<OverviewReads> {
   const cancelled = ex.status === "CANCELLED";
   const [conditions, packs, policy, window, opening, report] = await Promise.all([
-    pack.noPack ? Promise.resolve(null) : conditionsTab(ex.id),
+    pack.noPack ? Promise.resolve(null) : conditionsTab(org.id, ex.id),
     db.tenderPack.findMany({ where: { exerciseId: ex.id, status: { not: "VOID" } }, orderBy: { versionNo: "desc" }, select: { versionNo: true, status: true, proposedStartOn: true, proposedClosingAt: true } }),
     loadWindowPolicy(org.id),
     db.exerciseWindow.findUnique({ where: { exerciseId: ex.id }, select: { path: true, publishedAt: true, events: { orderBy: { startsAt: "asc" }, select: { id: true, kind: true, startsAt: true, place: true, mandatory: true, cancelledAt: true } } } }),

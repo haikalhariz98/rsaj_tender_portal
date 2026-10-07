@@ -18,9 +18,9 @@ import { requireStaff } from "@/app/_auth/actor";
 export const dynamic = "force-dynamic";
 
 export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/edit">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id } = await props.params;
-  const l = await loadExercise(id);
+  const l = await loadExercise(actor.organisationId, id);
   if (!l) notFound();
   const { ex, req, org } = l;
   const header = (

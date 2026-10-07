@@ -14,6 +14,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Routing sheet configuration (6.14 increment 1, FR-CRT-007, 008; ADR 0023, 0024): the types, each with its
@@ -53,7 +54,7 @@ const typeWords = (t: { labelEn: string; labelMs: string | null; subject: (typeo
 
 export async function saveRoutingType(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await exerciseOrg();
+  const o = await exerciseOrg(actor.organisationId);
   if (!o) return NO_ORG;
   const r = new FormReader(data);
   const id = r.optionalText("id");
@@ -93,7 +94,7 @@ export async function saveRoutingType(_prev: FormState, data: FormData): Promise
 
 export async function retireRoutingType(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const o = await exerciseOrg();
+  const o = await exerciseOrg(actor.organisationId);
   if (!o?.today) return { ok: false, message: "Set the organisation's time zone first: a type retires from the organisation's day." };
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
@@ -109,8 +110,8 @@ export async function retireRoutingType(_prev: FormState, data: FormData): Promi
   });
 }
 
-async function onType(typeId: string, fn: (tx: Tx, t: { id: string; organisationId: string; labelEn: string }) => Promise<FormState>): Promise<FormState> {
-  const o = await exerciseOrg();
+async function onType(scope: OrgScope, typeId: string, fn: (tx: Tx, t: { id: string; organisationId: string; labelEn: string }) => Promise<FormState>): Promise<FormState> {
+  const o = await exerciseOrg(scope.organisationId);
   if (!o) return NO_ORG;
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "RoutingSheetType" WHERE id = ${typeId} FOR UPDATE`;
@@ -136,7 +137,7 @@ export async function saveCheckDef(_prev: FormState, data: FormData): Promise<Fo
     targetDays: r.int("targetDays", "Printed days", { min: 1 }),
   };
   if (r.failed) return { ok: false, errors: r.errors };
-  const res = await onType(typeId, async (tx, t) => {
+  const res = await onType(actor, typeId, async (tx, t) => {
     const rows = await tx.routingCheckDef.findMany({ where: { typeId: t.id } });
     const before = id ? rows.find((x) => x.id === id) : null;
     if (id && !before) return { ok: false, message: "That check is no longer on this type." };
@@ -157,7 +158,7 @@ export async function removeCheckDef(_prev: FormState, data: FormData): Promise<
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the check comes off the sheet." } };
-  const res = await onType(typeId, async (tx, t) => {
+  const res = await onType(actor, typeId, async (tx, t) => {
     const row = await tx.routingCheckDef.findFirst({ where: { id, typeId: t.id } });
     if (!row) return { ok: false, message: "That check is no longer on this type." };
     await tx.routingCheckDef.delete({ where: { id } });
@@ -183,7 +184,7 @@ export async function saveTarget(_prev: FormState, data: FormData): Promise<Form
   const notes = r.text("notes", "Notes", { max: 2000 });
   if (r.failed || targetDays == null || !provenance) return { ok: false, errors: r.errors };
   const v = { pctMin, pctMax, targetDays };
-  const res = await onType(typeId, async (tx, t) => {
+  const res = await onType(actor, typeId, async (tx, t) => {
     const rows = await tx.routingTarget.findMany({ where: { typeId: t.id } });
     const before = id ? rows.find((x) => x.id === id) : null;
     if (id && !before) return { ok: false, message: "That target is no longer on this type." };
@@ -203,7 +204,7 @@ export async function removeTarget(_prev: FormState, data: FormData): Promise<Fo
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the target comes off." } };
-  const res = await onType(typeId, async (tx, t) => {
+  const res = await onType(actor, typeId, async (tx, t) => {
     const row = await tx.routingTarget.findFirst({ where: { id, typeId: t.id } });
     if (!row) return { ok: false, message: "That target is no longer on this type." };
     await tx.routingTarget.delete({ where: { id } });

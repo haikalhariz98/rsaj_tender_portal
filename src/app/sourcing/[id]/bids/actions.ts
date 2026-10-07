@@ -25,7 +25,6 @@ import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { dayToDate, instantAt, isDay, storedDay } from "@/lib/dates";
 import { recommendedPartyInForce } from "@/lib/evaluation/gate-read";
 import { formatDate } from "@/lib/format";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { organisationTimeZone } from "@/lib/org-time";
 import { loadRoster } from "@/lib/people/load";
 import { FormReader } from "@/lib/validate";
@@ -33,6 +32,7 @@ import { FormReader } from "@/lib/validate";
 import { activePerson, audit, exerciseIdOf, inWindow, label, type LockedWindow } from "../window/shared";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for 6.6's envelope register (plan §4). Each runs in one transaction that locks the
@@ -80,8 +80,8 @@ function readReceipt(r: FormReader) {
  * Record a receipt, stamped now by the server. `stated` is the after-the-fact path's: the
  * officer's stated time and reason, kept beside the stamp and never judged (OD-3 amended).
  */
-async function receive(actor: AuditActor, exerciseId: string, v: ReturnType<typeof readReceipt>, stated: { at: Date; reason: string } | null, now: Date): Promise<FormState> {
-  return inWindow(exerciseId, async (tx, l) => {
+async function receive(scope: OrgScope, actor: AuditActor, exerciseId: string, v: ReturnType<typeof readReceipt>, stated: { at: Date; reason: string } | null, now: Date): Promise<FormState> {
+  return inWindow(scope, exerciseId, async (tx, l) => {
     const r = await locked(tx, l);
     const person = await nameOf(tx, l.org.id, v.receivedByPersonId);
     const parent = v.parentEnvelopeId ? (r.envelopes.find((e) => e.id === v.parentEnvelopeId) ?? null) : undefined;
@@ -122,7 +122,7 @@ export async function recordReceiptNow(_prev: FormState, data: FormData): Promis
   const r = new FormReader(data);
   const v = readReceipt(r);
   if (r.failed) return { ok: false, errors: r.errors };
-  return receive(toAuditActor(actor), exerciseIdOf(data), v, null, now);
+  return receive(actor, toAuditActor(actor), exerciseIdOf(data), v, null, now);
 }
 
 /// OD-3 amended: a receipt recorded after the event. The server still stamps it and the stamp decides; the officer's stated time and reason are kept beside it, shown.
@@ -137,10 +137,10 @@ export async function recordReceiptAfterTheFact(_prev: FormState, data: FormData
   if (statedDay && !isDay(statedDay)) r.reject("statedDay", "Give a day.");
   if (r.failed) return { ok: false, errors: r.errors };
   const exerciseId = exerciseIdOf(data);
-  const tz = await organisationTimeZone();
+  const tz = await organisationTimeZone(actor.organisationId);
   const at = instantAt(statedDay, statedTime, tz);
   if (!at) return { ok: false, errors: tz ? { statedTime: "Give a time of day, as HH:MM." } : {}, message: tz ? undefined : bidFindingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
-  return receive(toAuditActor(actor), exerciseId, v, { at, reason }, now);
+  return receive(actor, toAuditActor(actor), exerciseId, v, { at, reason }, now);
 }
 
 /**
@@ -156,7 +156,7 @@ export async function recordWithdrawal(_prev: FormState, data: FormData): Promis
   const markings = r.text("markings", "How the letter identifies the envelope", { required: true, max: 1000 });
   const personId = r.optionalText("receivedByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseIdOf(data), async (tx, l) => {
+  return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
     await lockWithdrawalRows(tx, l.ex.id);
     const person = await nameOf(tx, l.org.id, personId);
@@ -184,7 +184,7 @@ export async function recordReturnedUnopened(_prev: FormState, data: FormData): 
   const note = r.text("returnNote", "To whom, and how", { max: 1000 });
   if (day && !isDay(day)) r.reject("returnedOn", "Give a day.");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseIdOf(data), async (tx, l) => {
+  return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
     const env = reg.envelopes.find((e) => e.id === envelopeId);
     if (!env) return { ok: false, message: "That envelope is not on this exercise." };
@@ -211,7 +211,7 @@ export async function correctEnvelope(_prev: FormState, data: FormData): Promise
     change[k] = typeof v === "string" ? v.trim() : v;
   }
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseIdOf(data), async (tx, l) => {
+  return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
     const env = reg.envelopes.find((e) => e.id === envelopeId);
     if (!env) return { ok: false, message: "That envelope is not on this exercise." };
@@ -234,7 +234,7 @@ export async function lockBox(_prev: FormState, data: FormData): Promise<FormSta
   const personId = r.optionalText("personId");
   const note = r.text("note", "Note", { max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseIdOf(data), async (tx, l) => {
+  return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
     await lockBoxRows(tx, l.ex.id);
     const person = await nameOf(tx, l.org.id, personId);
@@ -261,12 +261,12 @@ export async function tableLateMatter(_prev: FormState, data: FormData): Promise
   const meetingId = r.text("meetingId", "Sitting", { required: true });
   const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
-  const roster = await loadRoster(ORGANISATION_CODE);
-  const result = await inWindow(exerciseIdOf(data), async (tx, l) => {
+  const roster = await loadRoster(actor.organisationCode);
+  const result = await inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
     const env = reg.envelopes.find((e) => e.id === envelopeId);
     if (!env) return { ok: false, message: "That envelope is not on this exercise." };
-    const s = await lockSittingIn(tx, meetingId, roster);
+    const s = await lockSittingIn(tx, actor, meetingId, roster);
     if (!s) return { ok: false, errors: { meetingId: "That sitting no longer exists." } };
     // CR-2: the committee frozen with the window at publication, never today's method.
     const { rule, committee } = await loadBidRule(reg.window, l.org.id, l.ex.sourcingMethodCode, tx);
@@ -311,7 +311,7 @@ export async function recordValidityExtension(_prev: FormState, data: FormData):
   if (toExpiry && !isDay(toExpiry)) r.reject("toExpiry", "Give a day.");
   if (consentOn && !isDay(consentOn)) r.reject("consentReceivedOn", "Give a day.");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseIdOf(data), async (tx, l) => {
+  return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
     await lockExtensionRows(tx, l.ex.id);
     const extensions = await loadExtensions(l.ex.id, tx);
@@ -347,7 +347,7 @@ export async function recordValidityExtension(_prev: FormState, data: FormData):
 export async function applyValidityExtension(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const extensionId = String(data.get("extensionId") ?? "");
-  return inWindow(exerciseIdOf(data), async (tx, l) => {
+  return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
     await lockExtensionRows(tx, l.ex.id);
     const extensions = await loadExtensions(l.ex.id, tx);
@@ -381,7 +381,7 @@ export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<
   const recordedByPersonId = r.optionalText("recordedByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
   const alternativesPermitted = alt === "yes" ? true : alt === "no" ? false : null;
-  return inWindow(exerciseIdOf(data), async (tx, l) => {
+  return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const w = await loadBidWindow(l.ex.id, tx);
     if (!w) return { ok: false, message: "The window is not prepared yet. Save its notice items on the Invitation tab first." };
     const fs = bidFieldsFaults({ status: l.ex.status, packKind: l.ex.packKindSnapshot, current: { days: w.bidValidityDays, alternativesPermitted: w.alternativesPermitted }, next: { days, provenance, alternativesPermitted }, reason });

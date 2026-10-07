@@ -34,6 +34,7 @@ import type { PrismaClient } from "../src/generated/prisma/client";
 import { act, actRoute, claimNumbered } from "./demo-acts";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId, demoScope } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -308,7 +309,7 @@ export async function loadLifecycleAward(db: Db, organisationId: string): Promis
 
   // Who signs, as the issue resolves it (the award's own evaluation), then issued on 18 May.
   const issuedOn = "2026-05-18";
-  const pre = await evaluateAward((await awardFacts((await loadAward(AW))!)).facts, { contractNumber: CON_NO, issueDate: issuedOn, signatoryName: people.gopal.name });
+  const pre = await evaluateAward((await awardFacts((await loadAward(await demoOrgId(), AW))!)).facts, { contractNumber: CON_NO, issueDate: issuedOn, signatoryName: people.gopal.name });
   const sig = pre.signatory;
   if (!sig?.ok || sig.roleCode !== "DIV_HEAD") throw new Error(`demo aw13: the Letter of Acceptance's signatory did not resolve to the Head of Division (${JSON.stringify(sig)})`);
   await db.award.update({ where: { id: AW }, data: { status: "ISSUED", signatoryRoleCode: sig.roleCode, signatoryRoleLabel: sig.roleLabel, signatoryRuleKey: sig.ruleKey, signatoryRuleLabel: sig.ruleLabel, signatoryPersonId: people.gopal.id, signatoryName: people.gopal.name, signedOn: day(issuedOn), issuedAt: day(issuedOn) } });
@@ -348,7 +349,7 @@ export async function loadLifecycleAward(db: Db, organisationId: string): Promis
   });
 
   // The issued documents, frozen by the function the issue uses.
-  const l = (await loadAward(AW))!;
+  const l = (await loadAward(await demoOrgId(), AW))!;
   const f = await awardFacts(l);
   const ev = evaluateAward(f.facts, { contractNumber: CON_NO, issueDate: issuedOn, signatoryName: people.gopal.name });
   let k = 0;
@@ -676,7 +677,7 @@ export async function checkLifecycleDemo(db: Db) {
   const fail = (what: string) => {
     throw new Error(`demo check (demo_con13): ${what}`);
   };
-  const l = (await loadContract(CON))!;
+  const l = (await loadContract(await demoOrgId(), CON))!;
   if (l.contract.status !== "ACTIVE") fail(`expected ACTIVE, read ${l.contract.status}`);
   const s = await loadSupervision(CON);
   if (s.soAssignments.length !== 1 || s.soAssignments[0].roleCode !== "FD") fail("the S.O. is not the Finance Director's office, resolved once");
@@ -707,7 +708,7 @@ export async function checkLifecycleDemo(db: Db) {
   const adj = issuedAdjustments(await loadAdjustments(CON));
   if (adj.length !== 1 || adj[0].net !== 2_028_500n) fail(`the adjustment of the contract sum reads ${adj.map((a) => a.net).join()}`);
   // demo_con3: its variation waits at the Finance Director's step on Approvals.
-  const w = await loadWorklist();
+  const w = await loadWorklist(await demoScope());
   const rows = JSON.stringify(w);
   if (!rows.includes("/variations/")) fail("no variation's step on the Approvals worklist");
 }

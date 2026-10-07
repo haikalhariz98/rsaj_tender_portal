@@ -4,7 +4,6 @@ import { inForce } from "@/lib/people/delegation";
 import { uploadContext } from "@/lib/documents/read";
 import { uploadView } from "@/lib/documents/views";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 
 import { UsersTabs } from "./panels";
 import { PageHeader } from "@/components/ui/page-header";
@@ -27,18 +26,18 @@ export default async function UsersPage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
-  await requireStaff();
+  const actor = await requireStaff();
   const on = new Date();
   const { tab } = await searchParams;
   const [roster, grants, delegations, upload, units] = await Promise.all([
-    loadRoster(ORGANISATION_CODE),
-    loadGrants(ORGANISATION_CODE),
-    loadDelegations(ORGANISATION_CODE),
-    uploadContext(),
+    loadRoster(actor.organisationCode),
+    loadGrants(actor.organisationCode),
+    loadDelegations(actor.organisationCode),
+    uploadContext(actor.organisationId),
     // 6.7 (C-6): the units a person may sit in, for an opening panel's independence rule.
     // A unit with several dated versions appears once, under its latest name.
     db.orgUnit
-      .findMany({ where: { organisation: { code: ORGANISATION_CODE } }, orderBy: { effectiveFrom: "desc" }, distinct: ["code"], select: { code: true, nameEn: true } })
+      .findMany({ where: { organisation: { code: actor.organisationCode } }, orderBy: { effectiveFrom: "desc" }, distinct: ["code"], select: { code: true, nameEn: true } })
       .then((us) => us.sort((a, b) => a.nameEn.localeCompare(b.nameEn))),
   ]);
 

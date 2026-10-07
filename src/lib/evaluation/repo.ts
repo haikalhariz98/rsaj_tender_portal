@@ -22,7 +22,6 @@ import { evaluationSet } from "@/lib/opening/carry";
 import type { OpeningForGate } from "@/lib/opening/award-gate";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { holdersOf } from "@/lib/people/roster";
 
@@ -177,7 +176,7 @@ export function factsOf(e: EvaluationRow, ex: { status: string }, model: ModelSn
  * Everything an evaluation act or the Evaluation tab reads, for one exercise. `client` is the
  * transaction holding the locks, or the plain client for a screen.
  */
-export async function loadEvaluationContext(l: { org: { id: string; timeZone: string | null; today: string | null }; ex: ExerciseRow }, client: Tx = db) {
+export async function loadEvaluationContext(l: { org: { id: string; code: string; timeZone: string | null; today: string | null }; ex: ExerciseRow }, client: Tx = db) {
   const { org, ex } = l;
   // One after the other: inside a transaction the client is one connection.
   const window = await client.exerciseWindow.findUnique({ where: { exerciseId: ex.id }, select: { id: true, publishedAt: true, path: true, events: { where: { kind: "SITE_VISIT" }, orderBy: { startsAt: "asc" }, select: { id: true, startsAt: true, place: true, heldOn: true, cancelledAt: true, attendance: { orderBy: { recordedAt: "asc" }, select: { representative: true, party: { select: { name: true } } } } } } } });
@@ -204,7 +203,7 @@ export async function loadEvaluationContext(l: { org: { id: string; timeZone: st
   const extensions = await client.validityExtension.findMany({ where: { exerciseId: ex.id }, orderBy: { recordedAt: "asc" }, select: { id: true, consentPartyId: true, appliedAt: true, toExpiry: true, consentParty: { select: { name: true } } } });
   const appointmentMatters = await client.committeeDecision.findMany({ where: { exerciseId: ex.id, domain: "appointment", withdrawnAt: null }, orderBy: [{ tabledAt: "asc" }, { id: "asc" }], select: { id: true, outcome: true, evaluationVersion: true, notApprovedOutcomeKind: true, notApprovedOutcome: { select: { returnsToStage: true } }, meeting: { select: { reference: true, committee: { select: { nameEn: true } } } } } });
   const units = (await client.orgUnit.findMany({ where: { organisationId: org.id } })) as unknown as OrgUnit[];
-  const roster = await loadRoster(ORGANISATION_CODE, client);
+  const roster = await loadRoster(org.code, client);
 
   const model = modelFromSnapshot(ex.evaluationModelSnapshot);
   const finalised = openings.filter((o) => o.finalisedAt);

@@ -4,7 +4,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { activeOn } from "@/lib/effective";
 import { loadOrganisationData } from "@/lib/organisation/load";
 import { buildStructure } from "@/lib/organisation/structure";
-import { ORGANISATION_CODE } from "@/lib/org";
 
 import { db } from "@/lib/db";
 
@@ -28,16 +27,16 @@ export default async function OrganisationPage({
 }: {
   searchParams: Promise<{ unit?: string; tab?: string }>;
 }) {
-  await requireStaff();
+  const actor = await requireStaff();
   const on = new Date();
   const [{ unit, tab }, data] = await Promise.all([
     searchParams,
-    loadOrganisationData(ORGANISATION_CODE),
+    loadOrganisationData(actor.organisationCode),
   ]);
 
   // The logo's metadata only: its bytes are served from their own address.
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { code: actor.organisationCode },
     include: { logo: { select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true, uploadedAt: true } } },
   });
   const timeZone = org?.timeZone ?? null;

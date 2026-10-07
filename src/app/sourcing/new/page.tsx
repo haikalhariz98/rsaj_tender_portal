@@ -32,9 +32,9 @@ export const dynamic = "force-dynamic";
  * requisition chosen, the approved ones that can take an exercise are listed.
  */
 export default async function NewExercisePage(props: PageProps<"/sourcing/new">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { requisition } = (await props.searchParams) as { requisition?: string };
-  const org = await exerciseOrg();
+  const org = await exerciseOrg(actor.organisationId);
   const header = (
     <>
     <RecordCrumb label="New exercise" />
@@ -108,7 +108,7 @@ export default async function NewExercisePage(props: PageProps<"/sourcing/new">)
     );
   }
 
-  const l = await loadRequisitionForSourcing(requisition);
+  const l = await loadRequisitionForSourcing(actor.organisationId, requisition);
   if (!l) {
     return (
       <>

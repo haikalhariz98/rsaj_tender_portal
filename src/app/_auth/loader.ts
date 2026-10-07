@@ -28,9 +28,10 @@ let cached: { label: string; actor: StaffActor } | null = null;
 export async function loaderActor(label: string): Promise<StaffActor> {
   if (cached?.label === label) return cached.actor;
   // Imported here, not above: a loader installs its own database client before the product's is first read (prisma/demo-acts.ts).
-  const [{ db }, { ORGANISATION_CODE }] = await Promise.all([import("@/lib/db"), import("@/lib/org")]);
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, code: true, timeZone: true } });
-  if (!org) throw new Error(`The loader "${label}" found no organisation with the code ${ORGANISATION_CODE}.`);
+  // A loader acts for the deployment's one organisation (ADR 0034 D10), as the public pages do: nobody is signed in to name one.
+  const { deploymentOrganisation } = await import("@/lib/portal/deployment");
+  const org = await deploymentOrganisation();
+  if (!org) throw new Error(`The loader "${label}" found no organisation with the code set by ORGANISATION_CODE.`);
   const actor: StaffActor = {
     kind: "STAFF",
     accountId: "",

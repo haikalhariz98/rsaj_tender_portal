@@ -16,6 +16,7 @@ import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { supplierFaultText } from "@/lib/suppliers/labels";
 import { blocking, type Finding } from "@/lib/suppliers/types";
 import { Refusal, withLockedSupplier, type LockedSupplier } from "@/lib/suppliers/write";
+import type { OrgScope } from "@/lib/org-scope";
 
 // The Next-free part lives in the lib, so a write's core can run outside a request; the acts keep importing it from here.
 export { activePerson, audit, CHANGED, GONE, label, NO_ORG, Refusal, type LockedSupplier } from "@/lib/suppliers/write";
@@ -36,11 +37,11 @@ export const notes = (fs: readonly Finding[]) => [...new Set(fs.filter((f) => f.
  * Run a supplier write: the supplier row locked, then `fn`. A Refusal thrown deep inside rolls
  * everything back and returns its words.
  */
-export async function inSupplier(supplierId: string, fn: (tx: Tx, l: LockedSupplier) => Promise<FormState>): Promise<FormState> {
+export async function inSupplier(scope: OrgScope, supplierId: string, fn: (tx: Tx, l: LockedSupplier) => Promise<FormState>): Promise<FormState> {
   let result: FormState;
   try {
     result = await db.$transaction(
-      (tx) => withLockedSupplier(tx, supplierId, fn),
+      (tx) => withLockedSupplier(tx, scope.organisationId, supplierId, fn),
       { timeout: 20_000, maxWait: 10_000 },
     );
   } catch (e) {

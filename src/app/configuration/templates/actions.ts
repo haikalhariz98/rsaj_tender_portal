@@ -6,7 +6,6 @@ import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { renderTemplate } from "@/lib/award/merge";
 import { fieldsNamed } from "@/lib/templates/merge";
 import { templateFieldRefusals } from "@/lib/tender-docs/fields";
@@ -16,13 +15,14 @@ import { ANY_CERTIFICATE_FIELD } from "@/lib/certificate/fields";
 import { isTermField, termCodeOf } from "@/lib/certificate/terms";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/templates";
 
-async function organisationId(): Promise<string | null> {
+async function organisationId(scope: OrgScope): Promise<string | null> {
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: scope.organisationId },
     select: { id: true },
   });
   return org?.id ?? null;
@@ -35,7 +35,7 @@ const NO_ORG: FormState = {
 
 export async function saveTemplate(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");

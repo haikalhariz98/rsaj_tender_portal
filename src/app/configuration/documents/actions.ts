@@ -11,17 +11,17 @@ import { documentFaultText } from "@/lib/documents/labels";
 import { megabytesToBytes, policyFaults } from "@/lib/documents/policy";
 import { DISPOSAL_METHODS, RETENTION_TRIGGERS, SECURITY_CLASSES } from "@/lib/documents/types";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
 import { splitValues } from "@/lib/ui/select-logic";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/documents";
 
-async function organisationId(): Promise<string | null> {
+async function organisationId(scope: OrgScope): Promise<string | null> {
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: scope.organisationId },
     select: { id: true },
   });
   return org?.id ?? null;
@@ -34,7 +34,7 @@ const NO_ORG: FormState = {
 
 export async function saveDocumentClass(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -136,7 +136,7 @@ export async function saveDocumentClass(_prev: FormState, data: FormData): Promi
  */
 export async function saveStorePolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
   // The form posts the chosen types as one newline-joined value (see RecordEditor "tokens"); a direct post may repeat the field.

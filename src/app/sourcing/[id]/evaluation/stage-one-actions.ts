@@ -16,7 +16,6 @@ import { stageOneSubject, stageOneTablingFaults } from "@/lib/evaluation/stage-o
 import { openActFaults } from "@/lib/evaluation/state";
 import { EVALUATION_STAGE_DOMAIN } from "@/lib/evaluation/types";
 import { lockOpeningRows } from "@/lib/opening/lock";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { FormReader } from "@/lib/validate";
 
@@ -38,10 +37,10 @@ export async function tableStageOneMatter(_prev: FormState, data: FormData): Pro
   const meetingId = r.text("meetingId", "Sitting", { required: true });
   const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
-  const roster = await loadRoster(ORGANISATION_CODE);
-  const result = await inWindow(exerciseIdOf(data), async (tx, l) => {
+  const roster = await loadRoster(actor.organisationCode);
+  const result = await inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     await lockOpeningRows(tx, l.ex.id);
-    const s = await lockSittingIn(tx, meetingId, roster);
+    const s = await lockSittingIn(tx, actor, meetingId, roster);
     if (!s) return { ok: false, errors: { meetingId: "That sitting no longer exists." } };
     await lockEvaluationRows(tx, l.ex.id);
     const c = await loadEvaluationContext(l, tx);

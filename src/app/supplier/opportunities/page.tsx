@@ -23,7 +23,7 @@ import {
 } from "@/lib/portal/labels";
 import type { OpportunityState } from "@/lib/portal/public";
 import { loadOpportunities } from "@/lib/portal/repo";
-import { loadShell } from "@/lib/shell";
+import { loadPublicShell } from "@/lib/portal/deployment";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +36,7 @@ const GROUP: Record<OpportunityState, number> = { OPEN: 0, CLOSED: 1, CANCELLED:
  * An awarded exercise is not listed: it moves to Results.
  */
 export default async function SupplierOpportunitiesPage() {
-  const [{ organisation }, { ready, opportunities }] = await Promise.all([loadShell({ counts: false }), loadOpportunities()]);
+  const [{ organisation }, { ready, opportunities }] = await Promise.all([loadPublicShell(), loadOpportunities()]);
   const listed = opportunities
     .filter((o) => o.state !== "AWARDED")
     .sort((a, b) => GROUP[a.state] - GROUP[b.state] || (a.state === "OPEN" ? 1 : -1) * (a.closingDay ?? "").localeCompare(b.closingDay ?? ""));

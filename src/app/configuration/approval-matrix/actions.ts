@@ -25,10 +25,10 @@ import { compareAmounts } from "@/lib/money";
 import { findingText } from "@/lib/method/labels";
 import { overlappingBands } from "@/lib/method/bands";
 import { matrixPolicyFaults, termsBandBoundaryFault } from "@/lib/method/boundary";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { contractTypeDomainWords, takesContractType } from "@/lib/authority/contract-type-domains";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 /// A recommender proposes or recommends. Approving is the approver's act, set on
 /// the rule itself; a recommender step saying "approve" would put two approvers in
@@ -37,9 +37,9 @@ const RECOMMENDER_ACTS = ["P", "JP", "R", "JR", "MR", "MJR"] as const;
 const COMMITTEE_ACTS = ["R", "JR", "MR", "MJR", "A", "MA"] as const;
 const PATH = "/configuration/approval-matrix";
 
-async function organisationId(): Promise<string | null> {
+async function organisationId(scope: OrgScope): Promise<string | null> {
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: scope.organisationId },
     select: { id: true },
   });
   return org?.id ?? null;
@@ -128,8 +128,8 @@ async function lockIssueOfCoreLevel(tx: Tx, levelId: string, organisationId: str
 }
 
 /// An issue as the resolver reads it, inside the caller's transaction.
-async function issueIn(tx: Tx, authorityMatrixId: string) {
-  return loadIssue(ORGANISATION_CODE, new Date(), authorityMatrixId, null, tx);
+async function issueIn(scope: OrgScope, tx: Tx, authorityMatrixId: string) {
+  return loadIssue(scope.organisationCode, new Date(), authorityMatrixId, null, tx);
 }
 
 /// An office's name for a message, never its code.
@@ -159,7 +159,7 @@ function coreSaveFault(rule: Pick<Rule, "approverCode" | "proposerCode" | "recom
  */
 export async function saveMatrix(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -333,7 +333,7 @@ async function fundingRouteFault(tx: Tx, orgId: string, code: string): Promise<s
  */
 export async function saveRule(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -512,7 +512,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
 
     // The core chain is re-checked on the core routing as it stands in this transaction.
     if (v.generateCoreChain === true) {
-      const issue = await issueIn(tx, authorityMatrixId);
+      const issue = await issueIn(actor, tx, authorityMatrixId);
       const steps = issue?.matrix.rules.find((x) => x.ruleKey === before?.ruleKey)?.recommenders ?? [];
       const fault = issue && coreSaveFault({ approverCode: v.approverCode, proposerCode: v.proposerCode, recommenders: steps }, issue.matrix.coreRouting ?? [], issue.matrix.roles);
       if (fault) return { ok: false, errors: { generateCoreChain: fault } };
@@ -548,7 +548,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
 /// A recommender on a rule, in sequence. Mandatory acts cannot be skipped later.
 export async function saveRecommender(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const authorityRuleId = String(data.get("authorityRuleId") ?? "");
@@ -592,7 +592,7 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
         if (locked.issuedAt) throw new Refused(FROZEN);
         const row = await tx.authorityRule.findUniqueOrThrow({ where: { id: rule.id }, include: { recommenders: { orderBy: { sequence: "asc" } } } });
         if (row.generateCoreChain === true) {
-          const issue = await issueIn(tx, rule.authorityMatrixId);
+          const issue = await issueIn(actor, tx, rule.authorityMatrixId);
           const steps = [...row.recommenders.map((x) => ({ roleCode: x.roleCode, act: x.act as AuthorityAct, sequence: x.sequence })), { roleCode, act: (act ?? "R") as AuthorityAct, sequence }]
             .sort((a, b) => a.sequence - b.sequence);
           const fault = issue && coreSaveFault({ approverCode: row.approverCode, proposerCode: row.proposerCode, recommenders: steps }, issue.matrix.coreRouting ?? [], issue.matrix.roles);
@@ -612,7 +612,7 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
 /// Take a recommender off a draft's rule.
 export async function removeRecommender(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -650,7 +650,7 @@ export async function removeRecommender(_prev: FormState, data: FormData): Promi
  */
 export async function startRevision(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const fromId = String(data.get("fromId") ?? "");
@@ -745,7 +745,7 @@ export async function startRevision(_prev: FormState, data: FormData): Promise<F
  */
 export async function issueDraft(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -790,7 +790,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
     }
     // Core routing (FR-APR-004): every core row sound, and every rule taking its chain
     // from the core routing able to — none shortened, weakened or out of order.
-    const issue = await issueIn(tx, draft.id);
+    const issue = await issueIn(actor, tx, draft.id);
     if (issue) {
       const core = issue.matrix.coreRouting ?? [];
       for (const level of core) {
@@ -859,7 +859,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
  */
 export async function saveTermsBand(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const authorityMatrixId = String(data.get("authorityMatrixId") ?? "");
@@ -932,7 +932,7 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
 
 export async function removeTermsBand(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -957,7 +957,7 @@ export async function removeTermsBand(_prev: FormState, data: FormData): Promise
  */
 export async function discardDraft(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -1013,7 +1013,7 @@ const PROVENANCES = ["STATED", "OBSERVED", "ASSUMED"] as const;
  */
 export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const authorityMatrixId = String(data.get("authorityMatrixId") ?? "");
@@ -1035,7 +1035,7 @@ export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<F
       if (matrix.issuedAt) return FROZEN;
       const before = id ? await tx.coreRoutingLevel.findFirst({ where: { id, authorityMatrixId }, include: { steps: { orderBy: { sequence: "asc" } } } }) : null;
       if (id && !before) return { ok: false, message: "That core routing row no longer exists." };
-      const roles = (await issueIn(tx, authorityMatrixId))?.matrix.roles ?? {};
+      const roles = (await issueIn(actor, tx, authorityMatrixId))?.matrix.roles ?? {};
       if (!roles[write.approverCode]) return { ok: false, errors: { approverCode: coreLevelFaultText("UNKNOWN_OFFICE", "") } };
       const clash = await tx.coreRoutingLevel.findFirst({ where: { authorityMatrixId, approverCode: write.approverCode, ...(before ? { NOT: { id: before.id } } : {}) }, select: { id: true } });
       if (clash) return { ok: false, errors: { approverCode: `${officeIn(roles, write.approverCode)} already has a row in this issue's core routing. Change that row instead.` } };
@@ -1064,7 +1064,7 @@ export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<F
 /// Take an approving office's row out of a draft's core routing, with its steps. Asks why.
 export async function removeCoreLevel(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -1078,7 +1078,7 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
     if (!level) return gone;
     const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { label: true, issuedAt: true } });
     if (matrix.issuedAt) return FROZEN;
-    const roles = (await issueIn(tx, authorityMatrixId))?.matrix.roles ?? {};
+    const roles = (await issueIn(actor, tx, authorityMatrixId))?.matrix.roles ?? {};
     const name = (code: string) => officeIn(roles, code);
     const label = coreRoutingEntryLabel(matrix.label, name(level.approverCode));
     for (const step of level.steps) {
@@ -1103,7 +1103,7 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
 /// the four the core routing holds (6.9 note D-4).
 export async function saveCoreStep(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const levelId = String(data.get("coreRoutingLevelId") ?? "");
   const r = new FormReader(data);
@@ -1123,7 +1123,7 @@ export async function saveCoreStep(_prev: FormState, data: FormData): Promise<Fo
     if (!level) return gone;
     const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { label: true, issuedAt: true } });
     if (matrix.issuedAt) return FROZEN;
-    const roles = (await issueIn(tx, authorityMatrixId))?.matrix.roles ?? {};
+    const roles = (await issueIn(actor, tx, authorityMatrixId))?.matrix.roles ?? {};
     const sequence = asked ?? (level.steps.at(-1)?.sequence ?? 0) + 1;
     if (level.steps.some((st) => st.sequence === sequence)) {
       return { ok: false, errors: { sequence: `Place ${sequence} is taken by ${officeIn(roles, level.steps.find((st) => st.sequence === sequence)!.roleCode)}. Choose another place, or leave it empty to add at the end.` } };
@@ -1144,7 +1144,7 @@ export async function saveCoreStep(_prev: FormState, data: FormData): Promise<Fo
 /// Take a step out of a draft's core row. Asks why.
 export async function removeCoreStep(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -1160,7 +1160,7 @@ export async function removeCoreStep(_prev: FormState, data: FormData): Promise<
     if (!step) return gone;
     const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { label: true, issuedAt: true } });
     if (matrix.issuedAt) return FROZEN;
-    const roles = (await issueIn(tx, authorityMatrixId))?.matrix.roles ?? {};
+    const roles = (await issueIn(actor, tx, authorityMatrixId))?.matrix.roles ?? {};
     await tx.coreRoutingStep.delete({ where: { id } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingStep", entityId: id, entityLabel: coreRoutingEntryLabel(matrix.label, officeIn(roles, step.level.approverCode), officeIn(roles, step.roleCode)), reason }, "DELETE",
       snapshotFields({ office: officeIn(roles, step.roleCode), act: actWithCode(step.act), sequence: step.sequence, provenance: step.provenance, note: step.note }));
@@ -1183,7 +1183,7 @@ const DESTINATION_KINDS = ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"
  */
 export async function saveRejectionDestination(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return { ok: false, message: "No organisation is configured. Run npm run setup first." };
   const r = new FormReader(data);
   const v = {
@@ -1225,7 +1225,7 @@ export async function saveRejectionDestination(_prev: FormState, data: FormData)
 /// Back to not set from a day: the officer chooses again from then (ruling CO-5).
 export async function endRejectionDestination(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return { ok: false, message: "No organisation is configured. Run npm run setup first." };
   const r = new FormReader(data);
   const id = r.text("id", "Destination", { required: true });

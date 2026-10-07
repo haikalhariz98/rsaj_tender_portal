@@ -8,7 +8,6 @@ import { EXPORT_NOT_ADMINISTRATOR_TEXT } from "@/lib/audit/export";
 import { todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
-import { ORGANISATION_CODE } from "@/lib/org";
 
 import { AuditExportForm } from "./export-form";
 import { requireStaff } from "@/app/_auth/actor";
@@ -22,7 +21,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function AuditTrailPage() {
   const actor = await requireStaff();
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
+  const org = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true, timeZone: true } });
   if (!org) {
     return (
       <>

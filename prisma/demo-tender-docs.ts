@@ -58,6 +58,7 @@ import { blockingOf, submitFaults } from "../src/lib/tender-docs/pack";
 import { approvalDatesFault, estimateLeadWarning, RETURN_DECIDED_BY, TENDERING_DOMAIN, tenderingRejectionSnapshot, tenderingRouteForRequester } from "../src/lib/tender-docs/tendering";
 import { demoPdf, writeDemoDocs, type DemoDoc } from "./demo-documents";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -280,7 +281,7 @@ export async function moveIntoPreparation(db: Db, organisationId: string, id: st
   const { behaviourProfile } = await import("../src/lib/method/profile");
   const { auditPair } = await import("../src/lib/method/audit-view");
   // An ambiguous classification is chosen first, as the Contract type tab records it.
-  const first = await repo.loadExercise(id);
+  const first = await repo.loadExercise(await demoOrgId(), id);
   if (!first) throw new Error(`Demo exercise ${id} did not load.`);
   const firstCtx = await repo.evaluationContext(first.org, first.req, first.ex);
   for (const t of evaluateExercise(repo.draftOf(first.ex), firstCtx.ctx!).taxonomies.filter((x) => x.state === "AMBIGUOUS")) {
@@ -291,7 +292,7 @@ export async function moveIntoPreparation(db: Db, organisationId: string, id: st
     await db.exerciseTaxonomyValue.create({ data: { id: tvId, exerciseId: id, taxonomyCode: t.taxonomyCode, valueCode: value, pick: "CHOSEN" } });
     entry("ExerciseTaxonomyValue", tvId, `${first.ex.reference} · ${tax.nameEn}`, "CREATE", at(`${on}T08:30`), diffFields(null, { taxonomy: tax.nameEn, value: tax.values.find((v) => v.code === value)?.nameEn ?? value, pick: "CHOSEN" }));
   }
-  const l = (await repo.loadExercise(id))!;
+  const l = (await repo.loadExercise(await demoOrgId(), id))!;
   const { issue, cfg, ctx } = await repo.evaluationContext(l.org, l.req, l.ex);
   if (!issue || !ctx) throw new Error("No issue in force for the demo exercises.");
   const ev = evaluateExercise(repo.draftOf(l.ex), ctx);
@@ -420,7 +421,7 @@ export async function submit(db: Db, organisationId: string, s: { packId: string
   const { ORGANISATION_CODE } = await import("../src/lib/org");
   const td = await import("../src/lib/tender-docs/repo");
   const pack0 = await db.tenderPack.findUniqueOrThrow({ where: { id: s.packId }, select: { exerciseId: true } });
-  const l = (await repo.loadExercise(pack0.exerciseId))!;
+  const l = (await repo.loadExercise(await demoOrgId(), pack0.exerciseId))!;
   const pack = (await td.loadPacks(l.ex.id)).find((x) => x.id === s.packId)!;
   const subDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(s.at);
   const scope = await td.scopeReadiness(organisationId, l.ex);
@@ -494,7 +495,7 @@ export async function decide(db: Db, organisationId: string, d: { packId: string
   const { ORGANISATION_CODE } = await import("../src/lib/org");
   const { REJECTION_KIND_LABEL } = await import("../src/lib/authority/rejection-labels");
   const pack = await db.tenderPack.findUniqueOrThrow({ where: { id: d.packId }, include: { approvalInstance: { include: { steps: { orderBy: { sequence: "asc" } } } } } });
-  const l = (await repo.loadExercise(pack.exerciseId))!;
+  const l = (await repo.loadExercise(await demoOrgId(), pack.exerciseId))!;
   const inst = pack.approvalInstance!;
   const step = inst.steps.find((s) => s.decision === "PENDING")!;
   const [roster, delegations, units] = [await loadRoster(ORGANISATION_CODE), await loadDelegations(ORGANISATION_CODE), await db.orgUnit.findMany({ where: { organisationId } })];

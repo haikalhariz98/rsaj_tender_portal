@@ -8,6 +8,7 @@ import { downloadLimiter, RETRY_AFTER_SECONDS } from "@/lib/documents/concurrenc
 import { downloadRequestFault } from "@/lib/documents/request-guard";
 import { DOWNLOAD_POLICY } from "@/lib/security-headers";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Download one version (plan §2, §4). `downloadDecision` first: SULIT, unclassified and
@@ -21,6 +22,7 @@ import { blobStore, sha256Hex } from "@/lib/documents/store";
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/documents/versions/[id]">) {
   const guard = await staffRoute();
   if (!guard.ok) return guard.response;
+  const scope = guard.actor;
   // Before anything is read or logged: a download another site started writes nothing (audit C-2).
   if (downloadRequestFault(req.headers.get("sec-fetch-site"))) return plain(403, "This file is opened from the portal's own pages. Open the portal and download it from there.");
   // The cap on downloads in flight (audit C-1): each holds a whole file in memory. Over it,
@@ -28,15 +30,15 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/documents/ve
   const slot = downloadLimiter().tryAcquire();
   if (!slot) return busy();
   try {
-    return await download(ctx);
+    return await download(scope, ctx);
   } finally {
     slot();
   }
 }
 
-async function download(ctx: RouteContext<"/api/documents/versions/[id]">) {
+async function download(scope: OrgScope, ctx: RouteContext<"/api/documents/versions/[id]">) {
   const { id } = await ctx.params;
-  const org = await documentOrg();
+  const org = await documentOrg(scope.organisationId);
   if (!org) return plain(503, "No organisation is configured.");
   const { db } = await import("@/lib/db");
   const version = await db.documentVersion.findFirst({

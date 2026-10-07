@@ -10,8 +10,9 @@ import { loadPrPdf } from "@/lib/requisition/pr-pdf-load";
 export async function GET(_req: Request, ctx: RouteContext<"/requisitions/[id]/pr.pdf">) {
   const guard = await staffRoute();
   if (!guard.ok) return guard.response;
+  const scope = guard.actor;
   const { id } = await ctx.params;
-  const out = await loadPrPdf(id);
+  const out = await loadPrPdf(scope.organisationId, id);
   if (!out.ok) {
     return new Response(out.message, { status: out.status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
   }

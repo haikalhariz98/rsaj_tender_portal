@@ -20,11 +20,11 @@ export const dynamic = "force-dynamic";
  * live and is marked on every page. The bill of quantities is issued unpriced.
  */
 export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/documents/print">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id } = await props.params;
   // FR-DOC-010 (the part built here): the same pack, only the parts in the Tender Table Document.
   const table = (await props.searchParams).set === "table";
-  const [v, tableNote] = await Promise.all([printView(id, table ? "table" : "pack"), table ? tableDocumentNote(id) : null]);
+  const [v, tableNote] = await Promise.all([printView(actor.organisationId, id, table ? "table" : "pack"), table ? tableDocumentNote(actor.organisationId, id) : null]);
   if (!v) notFound();
   // FR-DOC-010: the Tender Table Document is printed only while it is available for inspection.
   if (table && tableNote?.refusal) {

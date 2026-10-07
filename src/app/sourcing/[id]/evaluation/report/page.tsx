@@ -27,10 +27,10 @@ export const dynamic = "force-dynamic";
  * is the paper route while an uploaded SULIT scan cannot be downloaded (E-3, E-11).
  */
 export default async function EvaluationReportPrint(props: PageProps<"/sourcing/[id]/evaluation/report">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id } = await props.params;
   const wanted = Number((await props.searchParams).version) || null;
-  const org = await exerciseOrg();
+  const org = await exerciseOrg(actor.organisationId);
   if (!org) notFound();
   const ex = await db.sourcingExercise.findFirst({ where: { id, organisationId: org.id }, select: { id: true, reference: true } });
   if (!ex) notFound();

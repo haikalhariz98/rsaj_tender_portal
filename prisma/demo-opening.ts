@@ -37,6 +37,7 @@ import { parseSen, senToDecimalString, type Sen } from "../src/lib/money";
 import { calendarOf, FIRMS } from "./demo-window";
 import { demoPdf, writeDemoDocs } from "./demo-documents";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -219,8 +220,8 @@ export class OpeningActs {
   private async ctx(exerciseId: string, at: Date) {
     const { loadExercise } = await import("../src/lib/method/repo");
     const { openingContext } = await import("../src/lib/opening/repo");
-    const l = (await loadExercise(exerciseId)) ?? (() => { throw new Error(`Demo 6.7: ${exerciseId} did not load.`); })();
-    const org = { id: l.org.id, timeZone: this.tz, today: dayIn(at, this.tz) };
+    const l = (await loadExercise(await demoOrgId(), exerciseId)) ?? (() => { throw new Error(`Demo 6.7: ${exerciseId} did not load.`); })();
+    const org = { id: l.org.id, code: l.org.code, timeZone: this.tz, today: dayIn(at, this.tz) };
     return { l: { ...l, org }, c: await openingContext({ org, ex: l.ex }, this.db as never, at) };
   }
   private label(ref: string, what: string) {
@@ -619,20 +620,20 @@ export async function checkOpeningDemo(db: Db) {
   const faults16 = openingGateFaults(g16, `${P}pty2`).filter((f) => f.level === "block");
   if (faults16.length) fail(`sx16's openings hold its award back (${faults16.map((f) => f.code).join(", ")}).`);
   if (!openingGateFaults(g16, `${P}pty10`).some((f) => f.code === "AWARDEE_NOT_CARRIED")) fail("a party not carried at sx16's opening could be awarded on it.");
-  const s16 = (await scheduleSection(`${P}sx16`)) ?? fail("sx16's schedule did not load.");
+  const s16 = (await scheduleSection(await demoOrgId(), `${P}sx16`)) ?? fail("sx16's schedule did not load.");
   const main = s16.openings.find((o) => o.title === "Opening") ?? fail("sx16 has no main opening.");
   if (!main.finalised || main.rows.length !== 4 || !main.summary || !main.benchmark || main.benchmark.sealed) fail("sx16's main schedule is not frozen with four offers, its Grand Summary and the disclosed estimate.");
   if (main.copy?.check !== "NOT_IN_BOX" || !main.explanation) fail("sx16's copy finding is not recorded and explained.");
   const lowest = main.summary!.rows.filter((r) => r.lowest);
   if (lowest.length !== 1 || lowest[0].listingNo !== 1) fail("sx16's lowest qualified offer is not No. 1.");
   // OD-4 (REPORT): the offers with no live purchase are carried, and reported.
-  const o16 = (await openingSection(`${P}sx16`)) ?? fail("sx16's opening did not load.");
+  const o16 = (await openingSection(await demoOrgId(), `${P}sx16`)) ?? fail("sx16's opening did not load.");
   const reported = o16.openings[0].offers.filter((b) => b.reported.length > 0).map((b) => b.listingNo);
   if (reported.join() !== "2,3,4") fail(`sx16's reported offers are ${reported.join()}, not 2, 3 and 4.`);
   const supp = s16.openings.find((o) => o.title !== "Opening") ?? fail("sx16 has no supplementary opening.");
   if (!supp.finalised || supp.rows.length !== 5) fail("sx16's supplementary schedule is not version 2 with five offers.");
   // sx20: adjourned, with a lapsed authorisation and the box's envelope registered by the lock.
-  const o20 = (await openingSection(`${P}sx20`)) ?? fail("sx20's opening did not load.");
+  const o20 = (await openingSection(await demoOrgId(), `${P}sx20`)) ?? fail("sx20's opening did not load.");
   const op3 = o20.openings[0] ?? fail("sx20 has no opening.");
   if (op3.phase !== "Adjourned" || !op3.resume?.allowed) fail("sx20's opening is not adjourned, ready to resume.");
   if (!op3.authorisations.some((a) => a.includes("lapsed"))) fail("sx20's unpaired authorisation did not lapse.");

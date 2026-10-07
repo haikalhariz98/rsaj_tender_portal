@@ -7,7 +7,6 @@ import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { storedDay } from "@/lib/dates";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { CONFIG_FAULT_TEXT, holdingFault, qualificationName, scopePolicyFaults, scopePolicyToSave, scopeRuleFaults, scopeRuleToSave, SCOPE_RULE_FAULT_TEXT } from "@/lib/scope/config";
 import { AUTHORITY_ACTS, type AuthorityAct } from "@/lib/authority/types";
 import { RATE_ENTITY } from "@/lib/scope/audit-view";
@@ -19,6 +18,7 @@ import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Configuration › Scope and estimate (6.2 plan §4, increment 1): the scope policy, the
@@ -34,8 +34,8 @@ const PATH = "/configuration/scope";
 const NO_ORG: FormState = { ok: false, message: "No organisation is configured. Run npm run setup before adding records." };
 const GONE: FormState = { ok: false, message: "That record no longer exists. Reload the page." };
 
-async function organisationId(): Promise<string | null> {
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
+async function organisationId(scope: OrgScope): Promise<string | null> {
+  const org = await db.organisation.findUnique({ where: { id: scope.organisationId }, select: { id: true } });
   return org?.id ?? null;
 }
 
@@ -63,7 +63,7 @@ async function lockOrganisation(tx: Tx, organisationId: string) {
 
 export async function saveScopePolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
   const typed = {
@@ -121,7 +121,7 @@ export async function saveScopePolicy(_prev: FormState, data: FormData): Promise
 
 export async function saveQualification(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -156,7 +156,7 @@ export async function saveQualification(_prev: FormState, data: FormData): Promi
 /// A person's holding of a qualification over days (FR-EST-003), with its evidence.
 export async function savePersonQualification(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -195,7 +195,7 @@ export async function savePersonQualification(_prev: FormState, data: FormData):
 
 export async function saveBqTemplate(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -227,7 +227,7 @@ export async function saveBqTemplate(_prev: FormState, data: FormData): Promise<
 
 export async function saveBqTemplateSection(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -253,7 +253,7 @@ export async function saveBqTemplateSection(_prev: FormState, data: FormData): P
 
 export async function saveSpecPanelColumn(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -290,7 +290,7 @@ export async function saveSpecPanelColumn(_prev: FormState, data: FormData): Pro
 /// Whether a sourcing method needs a lodged company estimate: yes, no or not set, with its provenance.
 export async function saveMethodEstimateRule(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -313,7 +313,7 @@ export async function saveMethodEstimateRule(_prev: FormState, data: FormData): 
 /// Whether a contract basis is let on a bill of quantities: yes, no or not set, with its provenance.
 export async function saveBasisBqRule(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -338,7 +338,7 @@ export async function saveBasisBqRule(_prev: FormState, data: FormData): Promise
 /// Whether a method needs its scope approved by a committee: yes (naming the committee), no, or not set; with its provenance.
 export async function saveMethodScopeRule(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -384,7 +384,7 @@ async function lockSchedule(tx: Tx, organisationId: string, label: string) {
  */
 export async function startRateIssue(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
   const label = r.text("label", "Schedule", { required: true, max: 200 });
@@ -425,7 +425,7 @@ async function lockedIssue(tx: Tx, orgId: string, scheduleId: string) {
 /// Add or edit an item of a draft issue. An issued issue is never changed.
 export async function saveRateItem(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const scheduleId = String(data.get("scheduleId") ?? "");
   const itemId = String(data.get("itemId") ?? "") || undefined;
@@ -458,7 +458,7 @@ export async function saveRateItem(_prev: FormState, data: FormData): Promise<Fo
 /// Remove an item of a draft issue, its whole row kept in the trail.
 export async function removeRateItem(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const scheduleId = String(data.get("scheduleId") ?? "");
   const itemId = String(data.get("itemId") ?? "");
@@ -483,7 +483,7 @@ export async function removeRateItem(_prev: FormState, data: FormData): Promise<
  */
 export async function issueRateSchedule(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const scheduleId = String(data.get("scheduleId") ?? "");
   const r = new FormReader(data);
@@ -518,7 +518,7 @@ export async function issueRateSchedule(_prev: FormState, data: FormData): Promi
 /// Discard a draft issue (never an issued one), with its items; the trail keeps every row.
 export async function discardRateIssue(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const scheduleId = String(data.get("scheduleId") ?? "");
   return db.$transaction(async (tx) => {

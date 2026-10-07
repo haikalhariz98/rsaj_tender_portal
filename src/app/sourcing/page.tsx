@@ -24,15 +24,15 @@ const TONE = { brand: "brand", info: "info", ok: "ok", neutral: undefined } as c
  * and basis — while the sourcing itself still runs outside the portal (§13.3).
  */
 export default async function SourcingPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { view } = await searchParams;
-  const { org, rows, total } = await listExercises();
+  const { org, rows, total } = await listExercises(actor.organisationId);
   const cfg = org ? await loadMethodConfig(org.id) : null;
   const methodName = (c: string) => cfg?.config.methods.find((m) => m.code === c)?.nameEn ?? "A method no longer configured";
   const typeName = (c: string | null) => (c ? (cfg?.config.types.find((t) => t.code === c)?.nameEn ?? "A type no longer configured") : "Not set");
 
   // 6.5: each exercise's closing and phase, derived now from the stored instants (ADR 0014).
-  const win = await windowColumns(rows.map((r) => r.id));
+  const win = await windowColumns(actor.organisationId, rows.map((r) => r.id));
   const today = org?.today ?? null;
   const awaitingName = rows.filter((r) => r.status !== "CANCELLED" && nameRoutesOf(r.approvalInstances).some((i) => i.status === "PENDING")).length;
   const list: Row[] = rows.map((r) => {

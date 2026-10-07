@@ -310,8 +310,8 @@ export { PER_DAY };
 export const CONTRACT_PAGE = 50;
 
 /// Contracts after award, newest number first, paged in the database.
-export async function listContracts(page = 0, only: readonly string[] | null = null) {
-  const org = await exerciseOrg();
+export async function listContracts(organisationId: string, page = 0, only: readonly string[] | null = null) {
+  const org = await exerciseOrg(organisationId);
   if (!org) return { org: null, rows: [], total: 0, page: 0, counts: { preparing: 0, returned: 0, legal: 0, endorsed: 0, executed: 0 } };
   const where = { organisationId: org.id };
   // 6.13 Part A review 14: a view over the whole set (the In Delay contracts, say) pages within it, never within a page.

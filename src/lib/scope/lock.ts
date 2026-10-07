@@ -16,21 +16,21 @@ export interface LockedExercise {
 }
 
 /// Lock the exercise (requisition first) and run `fn` in the same transaction. Null when it does not exist.
-export async function withLockedExerciseScope<T>(exerciseId: string, fn: (tx: Tx, l: LockedExercise) => Promise<T>): Promise<T | null> {
-  const requisitionId = await requisitionOfExercise(exerciseId);
+export async function withLockedExerciseScope<T>(organisationId: string, exerciseId: string, fn: (tx: Tx, l: LockedExercise) => Promise<T>): Promise<T | null> {
+  const requisitionId = await requisitionOfExercise(organisationId, exerciseId);
   if (!requisitionId) return null;
-  return withLockedRequisitionForSourcing(requisitionId, exerciseId, async (tx, l) => (l.ex ? fn(tx, { org: l.org, ex: l.ex }) : null));
+  return withLockedRequisitionForSourcing(organisationId, requisitionId, exerciseId, async (tx, l) => (l.ex ? fn(tx, { org: l.org, ex: l.ex }) : null));
 }
 
 /// The panel's exercise, read without a lock, to know what to lock.
-export async function exerciseOfPanel(panelId: string): Promise<string | null> {
-  const p = await db.specificationPanel.findUnique({ where: { id: panelId }, select: { exerciseId: true } });
+export async function exerciseOfPanel(organisationId: string, panelId: string): Promise<string | null> {
+  const p = await db.specificationPanel.findFirst({ where: { id: panelId, organisationId }, select: { exerciseId: true } });
   return p?.exerciseId ?? null;
 }
 
 /// The bill version's exercise, read without a lock, to know what to lock.
-export async function exerciseOfBqVersion(versionId: string): Promise<string | null> {
-  const v = await db.bqVersion.findUnique({ where: { id: versionId }, select: { exerciseId: true } });
+export async function exerciseOfBqVersion(organisationId: string, versionId: string): Promise<string | null> {
+  const v = await db.bqVersion.findFirst({ where: { id: versionId, organisationId }, select: { exerciseId: true } });
   return v?.exerciseId ?? null;
 }
 

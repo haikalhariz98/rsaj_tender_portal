@@ -24,6 +24,7 @@
 
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -97,7 +98,7 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
   let n = 0;
   const people = { aisyah: { id: `${P}p1`, name: "Aisyah Rahman", isActive: true }, chen: { id: `${P}p3`, name: "Chen Wei Ling", isActive: true }, daniel: { id: `${P}p4`, name: "Daniel Anak Jelani", isActive: true } };
 
-  const l0 = (await loadContract(CON))!;
+  const l0 = (await loadContract(await demoOrgId(), CON))!;
   if (l0.contract.status !== "STAMPED") throw new Error(`demo supervision: ${CON} is ${l0.contract.status}, not stamped`);
   const contract = contractLabel({ number: l0.contract.number, award: { awardeeName: l0.award.awardeeName } });
   const audit = (entity: string, entityId: string, suffix: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") => audits.push({ id: `${P}wtr${++n}`, organisationId, entity, entityId, entityLabel: `${contract} · ${suffix}`, action, at: at(when), changes, reason, ...DEMO_ACTOR });
@@ -137,7 +138,7 @@ export async function loadSupervisionDemo(db: Db, organisationId: string) {
   const possessionOn = "2026-10-02";
   let completion: string | null = null;
   {
-    const l = (await loadContract(CON))!;
+    const l = (await loadContract(await demoOrgId(), CON))!;
     await recordedFor(people.chen.id, { principalOrSo: true }, possessionOn);
     const gate = await contractGate(l);
     const { versions, draft } = baselineRows(l.contract);
@@ -237,7 +238,7 @@ export async function checkSupervisionDemo(db: Db) {
   const { loadSupervision, delayOn } = await import("../src/lib/supervision/load");
   const { latestVersion } = await import("../src/lib/contract/baseline");
   const { baselineRows, valuesOf } = await import("../src/lib/contract/load");
-  const l = (await loadContract(CON))!;
+  const l = (await loadContract(await demoOrgId(), CON))!;
   if (l.contract.status !== "ACTIVE") throw new Error(`demo check: ${CON} is ${l.contract.status}, not active`);
   const s = await loadSupervision(CON);
   const latest = latestVersion(baselineRows(l.contract).versions)!;

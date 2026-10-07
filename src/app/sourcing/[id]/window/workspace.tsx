@@ -13,6 +13,7 @@ import { PreparingSection } from "./preparing-section";
 import { SaleSection, saleHeader } from "./sale-section";
 import { tabActs } from "./tab-acts";
 import { WindowSection, windowHeader, type WindowContext } from "./window-section";
+import type { OrgScope } from "@/lib/org-scope";
 
 /// The sections of the exercise's Invitation tab, in order. The strip is the shared Tabs' second level.
 export const INVITATION_SECTIONS = [
@@ -35,8 +36,8 @@ export interface InvitationView {
 }
 
 /// A section's own header acts with the tab's (extend, cancel), so every section's header is alike.
-async function withTabActs(own: { actions: ReactNode; notes: [string, string][] }, c: WindowContext) {
-  const a = await invitationActs(c.exerciseId);
+async function withTabActs(scope: OrgScope, own: { actions: ReactNode; notes: [string, string][] }, c: WindowContext) {
+  const a = await invitationActs(scope.organisationId, c.exerciseId);
   const tab = a ? tabActs(a, c) : { actions: null, notes: [] as [string, string][], cancel: null };
   return { actions: <>{own.actions}{tab.actions}</>, notes: [...own.notes, ...tab.notes], cancel: tab.cancel };
 }
@@ -50,11 +51,11 @@ export const invitationSectionsFor = (status: string) => (invitationStage(status
  * are in preparation or awaiting approval for tendering, the window's items and the briefings are
  * shown and can be prepared (the server allows both); the sections open from approval for tendering.
  */
-export async function loadInvitation(section: InvitationSectionId, c: WindowContext): Promise<InvitationView> {
+export async function loadInvitation(scope: OrgScope, section: InvitationSectionId, c: WindowContext): Promise<InvitationView> {
   const none = { actions: null, notes: [] as [string, string][], cancel: null };
   const stage = invitationStage(c.status, c.noPack);
   if (stage === "preparing") {
-    const [w, b] = await Promise.all([windowTab(c.exerciseId), briefingTab(c.exerciseId)]);
+    const [w, b] = await Promise.all([windowTab(scope.organisationId, c.exerciseId), briefingTab(scope.organisationId, c.exerciseId)]);
     if (!w || !b) return { ...none, panel: GONE };
     return { ...none, panel: <PreparingSection w={w} b={b} c={c} /> };
   }
@@ -81,21 +82,21 @@ export async function loadInvitation(section: InvitationSectionId, c: WindowCont
     };
   }
   if (section === "sales") {
-    const d = await saleRegister(c.exerciseId);
+    const d = await saleRegister(scope.organisationId, c.exerciseId);
     if (!d) return { ...none, panel: GONE };
-    return { ...(await withTabActs(saleHeader(d, c), c)), panel: <SaleSection d={d} c={c} /> };
+    return { ...(await withTabActs(scope, saleHeader(d, c), c)), panel: <SaleSection d={d} c={c} /> };
   }
   if (section === "briefing") {
-    const d = await briefingTab(c.exerciseId);
+    const d = await briefingTab(scope.organisationId, c.exerciseId);
     if (!d) return { ...none, panel: GONE };
-    return { ...(await withTabActs(briefingHeader(d, c), c)), panel: <BriefingSection d={d} c={c} /> };
+    return { ...(await withTabActs(scope, briefingHeader(d, c), c)), panel: <BriefingSection d={d} c={c} /> };
   }
   if (section === "addenda") {
-    const d = await addendaTab(c.exerciseId);
+    const d = await addendaTab(scope.organisationId, c.exerciseId);
     if (!d) return { ...none, panel: GONE };
-    return { ...(await withTabActs(addendaHeader(d, c), c)), panel: <AddendaSection d={d} c={c} /> };
+    return { ...(await withTabActs(scope, addendaHeader(d, c), c)), panel: <AddendaSection d={d} c={c} /> };
   }
-  const d = await windowTab(c.exerciseId);
+  const d = await windowTab(scope.organisationId, c.exerciseId);
   if (!d) return { ...none, panel: GONE };
   return { ...windowHeader(d, c), panel: <WindowSection d={d} c={c} /> };
 }

@@ -21,7 +21,6 @@ import { ACT_LABEL } from "@/lib/labels";
 import { exerciseRouteMatter, requesterHolding } from "@/lib/method/approval";
 import { evaluationContext } from "@/lib/method/repo";
 import { parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -56,7 +55,7 @@ export async function openMeeting(_prev: FormState, data: FormData): Promise<For
   const place = r.text("place", "Where", { max: 300 });
   const personId = r.optionalText("personId");
   if (r.failed || !kind || !heldOn) return { ok: false, errors: r.errors };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -101,7 +100,7 @@ export async function closeMeeting(_prev: FormState, data: FormData): Promise<Fo
   const after = r.money("priceAfter", "Price after the round");
   const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -137,7 +136,7 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
   const reason = r.text("reason", "Why a negotiation is needed", { max: 4000 });
   const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -150,8 +149,8 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
     const method = cfg.config.methods.find((m) => m.code === l.ex.sourcingMethodCode) ?? null;
     if (!method) return { ok: false, message: "The exercise's method is no longer configured, so nobody can be shown as approving a negotiation." };
     const value = parseSen(l.ex.estimatedValue.toString());
-    const roster = await loadRoster(ORGANISATION_CODE, tx);
-    const delegations = await loadDelegations(ORGANISATION_CODE, tx);
+    const roster = await loadRoster(actor.organisationCode, tx);
+    const delegations = await loadDelegations(actor.organisationCode, tx);
     const units = (await tx.orgUnit.findMany({ where: { organisationId: l.org.id } })) as unknown as OrgUnit[];
     const unitPath = l.org.today ? pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(l.org.today)).reverse().map((u) => u.code) : [];
     const holders = (code: string) => holdersFor(code, unitPath, roster, delegations, l.org.today!);
@@ -227,7 +226,7 @@ export async function recordNegotiationDecision(_prev: FormState, data: FormData
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is refused.");
   if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -235,8 +234,8 @@ export async function recordNegotiationDecision(_prev: FormState, data: FormData
     if (!n) return { ok: false, message: "That step is not on a negotiation with approval in this evaluation." };
     const full = n.approvalInstance;
     const step = full.steps.find((s) => s.id === stepId)!;
-    const roster = await loadRoster(ORGANISATION_CODE, tx);
-    const delegations = await loadDelegations(ORGANISATION_CODE, tx);
+    const roster = await loadRoster(actor.organisationCode, tx);
+    const delegations = await loadDelegations(actor.organisationCode, tx);
     const units = (await tx.orgUnit.findMany({ where: { organisationId: l.org.id } })) as unknown as OrgUnit[];
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
     const unitPath = pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, on).reverse().map((u) => u.code);

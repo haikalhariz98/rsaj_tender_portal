@@ -6,7 +6,6 @@
 
 import { todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { PROVENANCE_LABEL } from "@/lib/scope/labels";
 
 import { partRetiredOn } from "./config";
@@ -17,8 +16,8 @@ import { loadClauses, loadRegistrationBodies, loadTaxonomyUses, loadTenderPolicy
 
 const provenance = (p: string | null | undefined) => (p ? ((PROVENANCE_LABEL as Record<string, string>)[p] ?? NOT_SET) : NOT_SET);
 
-export async function conditionsConfig(showRetired = false) {
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
+export async function conditionsConfig(organisationId: string, showRetired = false) {
+  const org = await db.organisation.findUnique({ where: { id: organisationId }, select: { id: true, timeZone: true } });
   if (!org) return null;
   const [bodies, clauses, policy, taxonomies, uses, templates] = await Promise.all([
     loadRegistrationBodies(org.id),

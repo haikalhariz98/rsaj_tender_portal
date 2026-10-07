@@ -32,7 +32,6 @@ import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
 import { sittingPermits } from "@/lib/committee/meeting";
 import { lockSittingIn } from "@/lib/committee/sittings";
 import { ACT_LABEL } from "@/lib/labels";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { bqCsvFilename, bqToCsv, decodeCsv, parseBqCsv } from "@/lib/scope/csv";
 import { scopeCitationFault, scopeMatterSubject, SCOPE_DOMAIN } from "@/lib/scope/scope-matter";
@@ -43,6 +42,7 @@ import { bidFindingText } from "@/lib/bids/labels";
 import { recordEstimateLodgement } from "@/lib/bids/lodgement";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for 6.2 increment 1: the bill of quantities, the specification panel and the
@@ -79,10 +79,10 @@ async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, e
 /// Every 6.2 row is labelled with its exercise's reference, so the exercise's History finds it.
 const label = (l: LockedExercise, what: string) => `${l.ex.reference} · ${what}`;
 
-async function inExercise(exerciseId: string, fn: (tx: Tx, l: LockedExercise) => Promise<FormState>): Promise<FormState> {
+async function inExercise(scope: OrgScope, exerciseId: string, fn: (tx: Tx, l: LockedExercise) => Promise<FormState>): Promise<FormState> {
   let result: FormState | null;
   try {
-    result = await withLockedExerciseScope(exerciseId, fn);
+    result = await withLockedExerciseScope(scope.organisationId, exerciseId, fn);
   } catch (e) {
     if (e instanceof Refusal) return e.state;
     // A backstop index refused what another act got in first (OD-2's one live estimate,
@@ -110,7 +110,7 @@ export async function startBq(_prev: FormState, data: FormData): Promise<FormSta
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const templateCode = String(data.get("templateCode") ?? "").trim() || null;
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     await lockBqRows(tx, exerciseId);
     const versions = await tx.bqVersion.findMany({ where: { exerciseId }, select: { status: true } });
     const faults = startBqFaults(versions, l.ex.status);
@@ -152,7 +152,7 @@ export async function saveBqHeader(_prev: FormState, data: FormData): Promise<Fo
   const preparerPersonId = r.optionalText("preparerPersonId");
   const provisionalExcludedFromFirm = triState(r.choice("provisionalExcludedFromFirm", "Provisional quantities in the firm value", ["yes", "no", "unstated"] as const));
   if (r.failed) return { ok: false, errors: r.errors };
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const v = await lockedDraft(tx, l, versionId);
     const preparer = preparerPersonId ? await activePerson(l.org.id, preparerPersonId, tx) : null;
     if (preparerPersonId && !preparer) return { ok: false, errors: { preparerPersonId: scopeFaultText("PERSON_UNKNOWN") } };
@@ -175,7 +175,7 @@ export async function saveBqSection(_prev: FormState, data: FormData): Promise<F
   const title = r.text("title", "Section title", { required: true, max: 300 });
   const sortOrder = r.int("sortOrder", "Order") ?? 0;
   if (r.failed) return { ok: false, errors: r.errors };
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const v = await lockedDraft(tx, l, versionId);
     const before = sectionId ? await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id } }) : null;
     if (sectionId && !before) return RECORD_GONE;
@@ -200,7 +200,7 @@ export async function removeBqSection(_prev: FormState, data: FormData): Promise
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
   const sectionId = String(data.get("sectionId") ?? "");
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const v = await lockedDraft(tx, l, versionId);
     const s = await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id }, include: { items: true } });
     if (!s) return RECORD_GONE;
@@ -235,7 +235,7 @@ export async function saveBqItem(_prev: FormState, data: FormData): Promise<Form
   const sortOrder = r.int("sortOrder", "Order") ?? 0;
   if (r.failed || !kind) return { ok: false, errors: r.errors };
   const quantity = quantityRaw ? quantityRaw.replace(/,/g, "") : null;
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const v = await lockedDraft(tx, l, versionId);
     const section = await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id } });
     if (!section) return { ok: false, errors: { sectionId: scopeFaultText("SECTION_REQUIRED") } };
@@ -283,7 +283,7 @@ export async function removeBqItem(_prev: FormState, data: FormData): Promise<Fo
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
   const itemId = String(data.get("itemId") ?? "");
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const v = await lockedDraft(tx, l, versionId);
     const i = await tx.bqItem.findFirst({ where: { id: itemId, section: { versionId: v.id } } });
     if (!i) return RECORD_GONE;
@@ -303,7 +303,7 @@ export async function finaliseBq(_prev: FormState, data: FormData): Promise<Form
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     await lockBqRows(tx, exerciseId);
     const versions = await loadBqVersions(exerciseId, tx);
     const v = versions.find((x) => x.id === versionId);
@@ -339,7 +339,7 @@ export async function startBqRevision(_prev: FormState, data: FormData): Promise
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const reason = String(data.get("reason") ?? "").trim();
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     await lockBqRows(tx, exerciseId);
     const versions = await loadBqVersions(exerciseId, tx);
     const faults = reviseFaults(versions, l.ex.status, reason);
@@ -394,7 +394,7 @@ export async function savePanel(_prev: FormState, data: FormData): Promise<FormS
   const completionPeriodText = r.text("completionPeriodText", "Completion period", { max: 300 });
   const bqVersionId = r.optionalText("bqVersionId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const fault = panelEditFault(l.ex.status);
     if (fault.length) return refuse(fault);
     const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
@@ -456,7 +456,7 @@ export async function recordPanelVerification(_prev: FormState, data: FormData):
   const verifiedOn = r.date("verifiedOn", "Verified on");
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
     if (!existing) return { ok: false, message: "Save the panel's details first." };
     await lockPanelRow(tx, existing.id);
@@ -481,7 +481,7 @@ export async function recordPanelVerification(_prev: FormState, data: FormData):
 export async function markPanelVerified(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
     if (!existing) return { ok: false, message: "Save the panel's details first." };
     await lockPanelRow(tx, existing.id);
@@ -548,7 +548,7 @@ export async function prepareEstimate(_prev: FormState, data: FormData): Promise
   const exerciseId = exerciseIdOf(data);
   const personId = String(data.get("personId") ?? "").trim() || null;
   const value = readValue(data);
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     await lockLiveEstimateRows(tx, exerciseId);
     const estimates = await tx.companyEstimate.findMany({ where: { exerciseId }, select: { state: true } });
     const live = startFault(estimates);
@@ -589,7 +589,7 @@ export async function amendEstimate(_prev: FormState, data: FormData): Promise<F
   const personId = String(data.get("personId") ?? "").trim() || null;
   const reason = String(data.get("reason") ?? "");
   const value = readValue(data);
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const { row, facts } = await lockedEstimate(tx, l, estimateId);
     const person = await activePerson(l.org.id, personId, tx);
     if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
@@ -615,7 +615,7 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
   const estimateId = String(data.get("estimateId") ?? "");
   const personId = String(data.get("personId") ?? "").trim() || null;
   const capacity = String(data.get("capacity") ?? "").trim().slice(0, 200);
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const { row, facts } = await lockedEstimate(tx, l, estimateId);
     const person = await activePerson(l.org.id, personId, tx);
     if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
@@ -640,7 +640,7 @@ export async function recordRetainedCopy(_prev: FormState, data: FormData): Prom
   const personId = String(data.get("personId") ?? "").trim() || null;
   const capacity = String(data.get("capacity") ?? "").trim().slice(0, 200);
   const place = String(data.get("place") ?? "").trim().slice(0, 300);
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const { row, facts } = await lockedEstimate(tx, l, estimateId);
     const person = await activePerson(l.org.id, personId, tx);
     if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
@@ -663,7 +663,7 @@ export async function voidEstimate(_prev: FormState, data: FormData): Promise<Fo
   const estimateId = String(data.get("estimateId") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   const personId = String(data.get("personId") ?? "").trim() || null;
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const { row, facts } = await lockedEstimate(tx, l, estimateId);
     const person = await activePerson(l.org.id, personId, tx);
     if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
@@ -699,12 +699,12 @@ export async function tableScope(_prev: FormState, data: FormData): Promise<Form
   const meetingId = r.text("meetingId", "Sitting", { required: true });
   const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
-  const roster = await loadRoster(ORGANISATION_CODE);
-  const result = await inExercise(exerciseId, async (tx, l) => {
+  const roster = await loadRoster(actor.organisationCode);
+  const result = await inExercise(actor, exerciseId, async (tx, l) => {
     await lockBqRows(tx, exerciseId);
     const version = await tx.bqVersion.findFirst({ where: { id: versionId, organisationId: l.org.id }, select: { id: true, exerciseId: true, status: true, versionNo: true } });
     if (!version) return RECORD_GONE;
-    const s = await lockSittingIn(tx, meetingId, roster);
+    const s = await lockSittingIn(tx, actor, meetingId, roster);
     if (!s) return { ok: false, errors: { meetingId: scopeFaultText("SITTING_GONE") } };
     const rules = await loadScopeRules(l.org.id, l.ex, tx);
     const matters = (await loadScopeMatters(exerciseId, tx)).filter((m) => m.bqVersionId === version.id);
@@ -765,7 +765,7 @@ export async function importBqCsv(_prev: FormState, data: FormData): Promise<For
   const replace = data.get("replace") === "on" || data.get("replace") === "true";
   const s = blobStore();
   if ("fault" in s) return { ok: false, message: `Nothing was saved: ${documentFaultText({ code: s.fault, level: "block" })}` };
-  return inExercise(exerciseId, async (tx, l) => {
+  return inExercise(actor, exerciseId, async (tx, l) => {
     const v = await lockedDraft(tx, l, bqVersionId).catch((e) => {
       if (e instanceof Refusal && e.state === RECORD_GONE) throw new Refusal({ ok: false, message: scopeFaultText("NO_DRAFT") });
       throw e;
@@ -870,7 +870,7 @@ export async function exportBqCsv(_prev: BqExportResult, data: FormData): Promis
   const bqVersionId = String(data.get("bqVersionId") ?? "");
   const priced = data.get("priced") === "yes";
   let out: BqExportResult = { ok: false };
-  const result = await inExercise(exerciseId, async (tx, l) => {
+  const result = await inExercise(actor, exerciseId, async (tx, l) => {
     const v = await tx.bqVersion.findFirst({
       where: { id: bqVersionId, exerciseId },
       select: {

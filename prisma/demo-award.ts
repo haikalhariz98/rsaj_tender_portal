@@ -15,6 +15,7 @@ import { wipeContractFormation, wipeContractsConfig } from "./demo-contracts";
 import { wipeAwardRoutingSheets } from "./demo-certificates";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 const P = "demo_";
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
@@ -531,7 +532,7 @@ export async function loadAwards(db: Db, organisationId: string) {
     { n: 5, number: "XI202600799", on: "2026-09-16", signer: "Imran Hakim" },
   ];
   for (const i of issued) {
-    const l = await loadAward(`${P}aw${i.n}`);
+    const l = await loadAward(await demoOrgId(), `${P}aw${i.n}`);
     if (!l) throw new Error(`Demo award ${i.n} did not load.`);
     const f = await awardFacts(l);
     const ev = evaluateAward(f.facts, { contractNumber: i.number, issueDate: i.on, signatoryName: i.signer });

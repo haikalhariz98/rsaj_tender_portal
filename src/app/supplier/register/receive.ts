@@ -17,6 +17,7 @@ import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
 import { FormReader } from "@/lib/validate";
 
 import { stampNow } from "../../suppliers/shared";
+import { deploymentOrganisation } from "@/lib/portal/deployment";
 
 const closed = (): ApplyState => ({ ok: false, message: APPLY.notOpenOnSubmit.en });
 
@@ -71,7 +72,9 @@ export async function receiveApplication(data: FormData): Promise<ApplyState> {
   if (r.failed) return { ok: false, errors: r.errors, message: APPLY.nothingSent.en };
 
   try {
-    const org = await supplierOrg();
+    // A public application is to the deployment's one organisation (ADR 0034 D10): nobody is signed in to name one.
+    const deployment = await deploymentOrganisation();
+    const org = deployment ? await supplierOrg(deployment.id) : null;
     if (!org) return closed();
     const cfg = await loadSupplierConfig(org.id);
     const policy = cfg.policy;

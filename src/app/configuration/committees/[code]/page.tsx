@@ -23,7 +23,6 @@ import { KeyValues } from "@/components/ui/stat";
 import { committeeActOn } from "@/lib/authority/resolve";
 import { matterLabel } from "@/lib/labels";
 import { ActWithLabel } from "@/components/ui/act";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
 import { formatBand, formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
@@ -46,15 +45,15 @@ const ACTION_LABEL = COMMITTEE_ACTION_LABEL;
 export default async function CommitteePage({
   params,
 }: PageProps<"/configuration/committees/[code]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { code } = await params;
-  const committee = await getCommittee(code);
+  const committee = await getCommittee(actor.organisationId, code);
   if (!committee) notFound();
 
-  const rules = await rulesRoutingTo(committee.code);
+  const rules = await rulesRoutingTo(actor.organisationId, committee.code);
   const today = new Date();
   const seats = seatsInForce(committee.members, today);
-  const roster = await loadRoster(ORGANISATION_CODE);
+  const roster = await loadRoster(actor.organisationCode);
   // 6.7: the units an opening panel may exclude, by name (codes never reach the screen).
   const units = await db.orgUnit.findMany({ where: { organisationId: committee.organisationId }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true } });
   const excludedUnit = committee.panelExcludesUnitCode ? (units.find((u) => u.code === committee.panelExcludesUnitCode)?.nameEn ?? "A unit no longer in the structure") : null;

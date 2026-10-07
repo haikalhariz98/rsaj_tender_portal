@@ -21,7 +21,6 @@ import { findingText } from "@/lib/method/labels";
 import { ExerciseMoveRefused, moveExercise } from "@/lib/method/move";
 import { evaluationContext, requisitionOfExercise, withLockedRequisitionForSourcing, type ExerciseOrg, type ExerciseRow, type SourcingRequisition } from "@/lib/method/repo";
 import { senToDecimalString, parseSen } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -49,6 +48,7 @@ import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Writes for 6.4 increment 1: an exercise's tender pack, its parts and its Appendix, the
@@ -88,12 +88,12 @@ const packLabel = (l: { ex: { reference: string } }, p: { versionNo: number }) =
 type LockedExercise = { org: ExerciseOrg; req: SourcingRequisition; ex: ExerciseRow };
 
 /// Lock the exercise (requisition first), then its packs, and run `fn` on the packs read under the lock.
-async function inPacks(exerciseId: string, fn: (tx: Tx, l: LockedExercise, packs: PackRow[]) => Promise<FormState>): Promise<FormState> {
-  const requisitionId = await requisitionOfExercise(exerciseId);
+async function inPacks(scope: OrgScope, exerciseId: string, fn: (tx: Tx, l: LockedExercise, packs: PackRow[]) => Promise<FormState>): Promise<FormState> {
+  const requisitionId = await requisitionOfExercise(scope.organisationId, exerciseId);
   if (!requisitionId) return GONE;
   let result: FormState | null;
   try {
-    result = await withLockedRequisitionForSourcing(requisitionId, exerciseId, async (tx, l) => {
+    result = await withLockedRequisitionForSourcing(scope.organisationId, requisitionId, exerciseId, async (tx, l) => {
       if (!l.ex) return GONE;
       await lockPackRows(tx, exerciseId);
       return fn(tx, { org: l.org, req: l.req, ex: l.ex }, await loadPacks(exerciseId, tx));
@@ -153,7 +153,7 @@ const partAuditFacts = (p: { printedNumber: string; labelSnapshot: string; role:
 export async function startPack(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     if (!l.org.today) return NO_ZONE;
     const configured = await loadConfiguredParts(l.org.id, tx);
     const kind = l.ex.packKindSnapshot ?? "NONE";
@@ -261,7 +261,7 @@ export async function markPartReady(_prev: FormState, data: FormData): Promise<F
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const { pack, part } = lockedPart(l, packs, partId);
     await lockBqRows(tx, exerciseId);
     const bqFinalised = (await tx.bqVersion.count({ where: { exerciseId, status: "FINALISED" } })) > 0;
@@ -285,7 +285,7 @@ export async function refreshPartFlags(_prev: FormState, data: FormData): Promis
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const confirmed = data.get("confirmedChanges");
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const pack = draftOf(packs);
     if (!pack) return NO_PACK;
     const edit = packEditFault(pack.status, l.ex.status);
@@ -317,7 +317,7 @@ export async function omitPart(_prev: FormState, data: FormData): Promise<FormSt
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const { pack, part } = lockedPart(l, packs, partId);
     const faults = omitFaults(partFactsOf(part), pack.status, l.ex.status, reason);
     if (faults.length) return faults.some((f) => f.code === "OMIT_REASON_REQUIRED") && faults.length === 1 ? { ok: false, errors: { reason: partFaultText(faults[0]) } } : refuse(faults);
@@ -332,7 +332,7 @@ export async function reopenPart(_prev: FormState, data: FormData): Promise<Form
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const { pack, part } = lockedPart(l, packs, partId);
     if (part.state === "NOT_STARTED") return { ok: false, message: "This part is already not ready." };
     await tx.tenderPackPart.update({ where: { id: part.id }, data: { state: "NOT_STARTED", omittedReason: "" } });
@@ -347,7 +347,7 @@ export async function pickPartTemplate(_prev: FormState, data: FormData): Promis
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
   const templateId = String(data.get("templateId") ?? "");
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const { pack, part } = lockedPart(l, packs, partId);
     const t = await tx.documentTemplate.findFirst({ where: { id: templateId, organisationId: l.org.id } });
     if (!t) return { ok: false, errors: { templateId: "That template is not configured. Choose one from the list." } };
@@ -428,7 +428,7 @@ export async function saveAppendix(_prev: FormState, data: FormData): Promise<Fo
     honourCertificateDays: r.int("honourCertificateDays", "Days to honour a certificate", { min: 1 }),
   };
   if (r.failed) return { ok: false, errors: r.errors };
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const { pack, appendix } = lockedAppendix(l, packs);
     const names = await officeNames(tx, l.org.id);
     for (const k of ["ladOfficerRoleCode", "eotOfficerRoleCode", "terminationOfficerRoleCode", "warRiskOfficerRoleCode", "arbitrationOfficerRoleCode"] as const) {
@@ -467,7 +467,7 @@ export async function saveVariationLimit(_prev: FormState, data: FormData): Prom
   const limit = r.money("limit", "Limit");
   const sortOrder = r.int("sortOrder", "Order", { min: 0 }) ?? 0;
   if (r.failed) return { ok: false, errors: r.errors };
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const { pack, appendix } = lockedAppendix(l, packs);
     const role = await tx.authorityRole.findFirst({ where: { organisationId: l.org.id, code: holder }, select: { code: true, nameEn: true, isCommittee: true } });
     if (!role) return { ok: false, errors: { holderCode: "That office or committee is not configured. Choose one from the list." } };
@@ -486,7 +486,7 @@ export async function removeVariationLimit(_prev: FormState, data: FormData): Pr
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const { pack, appendix } = lockedAppendix(l, packs);
     if (!appendix.variationLimits.some((x) => x.id === id)) return { ok: false, message: "That limit is no longer on the Appendix." };
     const before = appendixFactsOf(appendix);
@@ -508,7 +508,7 @@ export async function saveAppendixSection(_prev: FormState, data: FormData): Pro
   if (ladPct != null && !isPct(ladPct, PCT_COLUMN.sectionLadPct)) r.reject("ladPct", pctRefusal("Liquidated damages", PCT_COLUMN.sectionLadPct));
   const sortOrder = r.int("sortOrder", "Order", { min: 0 }) ?? 0;
   if (r.failed) return { ok: false, errors: r.errors };
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const { pack, appendix } = lockedAppendix(l, packs);
     const before = appendixFactsOf(appendix);
     const row = { description, ladKind, ladAmount: ladKind === "AMOUNT_PER_DAY" ? ladAmount : null, ladPct: ladKind === "PERCENT_OF_SUM_PER_DAY" ? ladPct : null, sortOrder };
@@ -524,7 +524,7 @@ export async function removeAppendixSection(_prev: FormState, data: FormData): P
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const { pack, appendix } = lockedAppendix(l, packs);
     if (!appendix.sections.some((x) => x.id === id)) return { ok: false, message: "That section is no longer on the Appendix." };
     const before = appendixFactsOf(appendix);
@@ -550,7 +550,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
   const startOn = String(data.get("startOn") ?? "").trim() || null;
   const closingDay = String(data.get("closingDay") ?? "").trim() || null;
   const closingTime = String(data.get("closingTime") ?? "").trim() || null;
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     if (!l.org.today) return NO_ZONE;
     const pack = draftOf(packs);
     if (!pack) return NO_PACK;
@@ -563,8 +563,8 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
     const { issue, ctx, cfg } = await evaluationContext(l.org, l.req, l.ex, tx);
     const method = cfg.config.methods.find((m) => m.code === l.ex.sourcingMethodCode) ?? null;
     const value = parseSen(l.ex.estimatedValue.toString());
-    const roster = await loadRoster(ORGANISATION_CODE, tx);
-    const delegations = await loadDelegations(ORGANISATION_CODE, tx);
+    const roster = await loadRoster(actor.organisationCode, tx);
+    const delegations = await loadDelegations(actor.organisationCode, tx);
     const units = (await tx.orgUnit.findMany({ where: { organisationId: l.org.id } })) as unknown as OrgUnit[];
     const unitPath = pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, dayToDate(l.org.today)).reverse().map((u) => u.code);
     const holders = (code: string) => holdersFor(code, unitPath, roster, delegations, l.org.today!);
@@ -743,15 +743,15 @@ export async function recordTenderingDecision(_prev: FormState, data: FormData):
   const closingTime = r.optionalText("closingTime");
   if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
 
-  return inPacks(exerciseId, async (tx, l, packs) => {
+  return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const ex = l.ex;
     const inst = tenderingRoutesOf(ex.approvalInstances).find((i) => i.status === "PENDING");
     const pack = packs.find((p) => p.status === "SUBMITTED") ?? null;
     if (!inst || !pack || pack.approvalInstanceId !== inst.id || ex.status !== "PENDING_APPROVAL_FOR_TENDERING") return { ok: false, message: "No approval for tendering is open on this exercise." };
     const step = inst.steps.find((s) => s.id === stepId);
     if (!step) return { ok: false, message: "That step is not on the open route." };
-    const roster = await loadRoster(ORGANISATION_CODE, tx);
-    const delegations = await loadDelegations(ORGANISATION_CODE, tx);
+    const roster = await loadRoster(actor.organisationCode, tx);
+    const delegations = await loadDelegations(actor.organisationCode, tx);
     const units = (await tx.orgUnit.findMany({ where: { organisationId: l.org.id } })) as unknown as OrgUnit[];
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
     const unitPath = pathTo(units, l.req.sectionUnitCode || l.req.requestingUnitCode, on).reverse().map((u) => u.code);

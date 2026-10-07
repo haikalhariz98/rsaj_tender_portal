@@ -107,7 +107,7 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
   const supplierReference = r.optionalText("supplierReference");
   const linkReason = r.text("linkReason", "Why they are the same company", { max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return receiptGuarded(() => inWindow(exerciseId, async (tx, l, d) => {
+  return receiptGuarded(() => inWindow(actor, exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
     const w = d.window;
     if (!w) return NO_WINDOW;
@@ -217,7 +217,7 @@ export async function voidSale(_prev: FormState, data: FormData): Promise<FormSt
   const exerciseId = exerciseIdOf(data);
   const saleId = String(data.get("saleId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const w = d.window;
     const s = w?.sales.find((x) => x.id === saleId);
     if (!w || !s) return { ok: false, message: "That sale is not on this exercise." };
@@ -242,7 +242,7 @@ export async function recordReceipt(_prev: FormState, data: FormData): Promise<F
   const r = new FormReader(data);
   const number = r.text("financeReceiptNo", "Receipt number", { required: true, max: 80 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return receiptGuarded(() => inWindow(exerciseId, async (tx, l, d) => {
+  return receiptGuarded(() => inWindow(actor, exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
     const s = d.window?.sales.find((x) => x.id === saleId);
     if (!s || s.voidedAt) return { ok: false, message: "That sale is not live on this exercise." };
@@ -274,7 +274,7 @@ export async function scheduleEvent(_prev: FormState, data: FormData): Promise<F
   const mandatory = r.choice("mandatory", "Attendance mandatory", TRI);
   const notesText = r.text("notes", "Notes", { max: 2000 });
   if (r.failed || !kind || !on) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const ef = windowEditFault(l.ex.status, l.ex.packKindSnapshot);
     if (ef) return refuse([ef]);
     if (!d.window) return NO_WINDOW;
@@ -298,7 +298,7 @@ export async function setEventMandatory(_prev: FormState, data: FormData): Promi
   const r = new FormReader(data);
   const mandatory = r.choice("mandatory", "Attendance mandatory", TRI, { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const ef = windowEditFault(l.ex.status, l.ex.packKindSnapshot);
     if (ef) return refuse([ef]);
     const e = d.window?.events.find((x) => x.id === eventId);
@@ -321,7 +321,7 @@ export async function cancelEvent(_prev: FormState, data: FormData): Promise<For
   const eventId = String(data.get("eventId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: windowFindingText({ code: "REASON_REQUIRED", level: "block" }) } };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     if (l.ex.status === "CANCELLED") return refuse([{ code: "EXERCISE_CANCELLED", level: "block" }]);
     const e = d.window?.events.find((x) => x.id === eventId);
     if (!e || e.cancelledAt) return { ok: false, message: "That event is not scheduled on this exercise." };
@@ -341,7 +341,7 @@ export async function markEventHeld(_prev: FormState, data: FormData): Promise<F
   const r = new FormReader(data);
   const on = r.date("heldOn", "Held on", { required: true });
   if (r.failed || !on) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     if (!isPublished(l.ex.status)) return refuse([{ code: "NOT_PUBLISHED", level: "block" }]);
     const e = d.window?.events.find((x) => x.id === eventId);
     if (!e) return { ok: false, message: "That event is not scheduled on this exercise." };
@@ -363,7 +363,7 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
   const representative = r.text("representative", "Representative", { required: true, max: 240 });
   const personId = r.optionalText("recordedByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const w = d.window;
     const e = w?.events.find((x) => x.id === eventId);
     if (!w || !e) return { ok: false, message: "That event is not scheduled on this exercise." };
@@ -398,7 +398,7 @@ export async function saveAddendum(_prev: FormState, data: FormData): Promise<Fo
   const whatChanged = r.text("whatChanged", "What it changes", { required: true, max: 8000 });
   const closingChangeId = r.optionalText("closingChangeId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const w = d.window;
     if (!w) return NO_WINDOW;
     const wf = addendumWindowFault(phaseOf(l.ex, w, new Date(), l.org.timeZone).phase);
@@ -425,7 +425,7 @@ export async function voidAddendum(_prev: FormState, data: FormData): Promise<Fo
   const addendumId = String(data.get("addendumId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: windowFindingText({ code: "REASON_REQUIRED", level: "block" }) } };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const w = d.window;
     if (!w) return NO_WINDOW;
     await lockAddendumRows(tx, w.id);
@@ -447,7 +447,7 @@ export async function issueAddendum(_prev: FormState, data: FormData): Promise<F
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const addendumId = String(data.get("addendumId") ?? "");
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
     const w = d.window;
     if (!w) return NO_WINDOW;
@@ -485,7 +485,7 @@ export async function recordAddendumDelivery(_prev: FormState, data: FormData): 
   const sent = r.date("despatchedOn", "Sent on");
   const ack = r.date("acknowledgedOn", "Acknowledged on");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inWindow(exerciseId, async (tx, l, d) => {
+  return inWindow(actor, exerciseId, async (tx, l, d) => {
     const a = d.window?.addenda.find((x) => x.recipients.some((c) => c.id === recipientId));
     const copy = a?.recipients.find((c) => c.id === recipientId);
     if (!a || !copy) return { ok: false, message: "That copy is not on this exercise." };

@@ -22,6 +22,7 @@
 
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 const P = "demo_";
 export const APPENDIX_AWARD = `${P}aw7`;
@@ -53,7 +54,7 @@ export async function loadAppendixAward(db: Db) {
     throw new Error(`Demo 64-C4: ${what}`);
   };
 
-  const l = (await loadExercise(EXERCISE)) ?? fail("sx16 is not loaded.");
+  const l = (await loadExercise(await demoOrgId(), EXERCISE)) ?? fail("sx16 is not loaded.");
   const { org, ex, req } = l;
   if (!org.today) fail("the organisation's time zone is not set.");
   const now = new Date();
@@ -144,7 +145,7 @@ export async function checkAppendixAward() {
   const fail = (what: string): never => {
     throw new Error(`Demo 64-C4: ${what}`);
   };
-  const l = (await loadAward(APPENDIX_AWARD)) ?? fail("demo_aw7 did not load.");
+  const l = (await loadAward(await demoOrgId(), APPENDIX_AWARD)) ?? fail("demo_aw7 did not load.");
   const ev = evaluateAward((await awardFacts(l)).facts);
   if (!ev.appendix) fail("demo_aw7 reads no frozen Appendix.");
   if (ev.appendix!.baseline.lad?.sen !== parseSen("306.23")) fail("demo_aw7's damages are not 0.05% of the awarded sum (RM306.23).");

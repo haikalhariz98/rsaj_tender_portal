@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { METHOD_NOT_STATED, OPEN_ROW_ACTION, PORTAL_PATH, RESULTS } from "@/lib/portal/labels";
 import { loadResults } from "@/lib/portal/repo";
-import { loadShell } from "@/lib/shell";
+import { loadPublicShell } from "@/lib/portal/deployment";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * figure is never read from the database.
  */
 export default async function SupplierResultsPage() {
-  const [{ organisation }, { ready, showsValue, results }] = await Promise.all([loadShell({ counts: false }), loadResults()]);
+  const [{ organisation }, { ready, showsValue, results }] = await Promise.all([loadPublicShell(), loadResults()]);
 
   const rows: Row[] = results.map((r) => ({
     id: r.id,

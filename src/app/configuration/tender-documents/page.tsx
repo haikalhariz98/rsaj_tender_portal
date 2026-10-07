@@ -12,7 +12,6 @@ import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { senToDecimalString, parseSen } from "@/lib/money";
 import { NOT_SET } from "@/lib/tender-docs/labels";
 import { tenderDocsConfig } from "@/lib/tender-docs/read";
@@ -56,9 +55,9 @@ function Setting({ value, unset, source }: { value: string; unset: string; sourc
 const tri = (v: boolean | null) => (v === true ? "yes" : v === false ? "no" : "unset");
 
 export default async function TenderDocumentsConfigurationPage({ searchParams }: { searchParams: Promise<{ retired?: string }> }) {
-  await requireStaff();
+  const actor = await requireStaff();
   const showRetired = (await searchParams).retired === "1";
-  const [c, k] = await Promise.all([tenderDocsConfig(showRetired), conditionsConfig(showRetired)]);
+  const [c, k] = await Promise.all([tenderDocsConfig(actor.organisationId, showRetired), conditionsConfig(actor.organisationId, showRetired)]);
   if (!c) {
     return (
       <>
@@ -69,7 +68,7 @@ export default async function TenderDocumentsConfigurationPage({ searchParams }:
       </>
     );
   }
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
+  const org = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true } });
   const policyRow = org ? await db.tenderDocumentPolicy.findUnique({ where: { organisationId: org.id } }) : null;
   const p = c.policy;
 

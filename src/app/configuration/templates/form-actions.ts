@@ -16,6 +16,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * A form's signature blocks and distribution list (6.14 increment 1, FR-CRT-001, 004, 006). Ships empty
@@ -39,8 +40,8 @@ const yes = (b: boolean | null) => (b == null ? "not decided" : b ? "yes" : "no"
 type LockedTemplate = { id: string; organisationId: string; nameEn: string; uses: string[] };
 const USE_COUNTS = Object.fromEntries(Object.keys(TEMPLATE_OTHER_USES).map((k) => [k, true])) as Record<keyof typeof TEMPLATE_OTHER_USES, true>;
 
-async function onTemplate(templateId: string, fn: (tx: Tx, t: LockedTemplate) => Promise<FormState>): Promise<FormState> {
-  const o = await exerciseOrg();
+async function onTemplate(scope: OrgScope, templateId: string, fn: (tx: Tx, t: LockedTemplate) => Promise<FormState>): Promise<FormState> {
+  const o = await exerciseOrg(scope.organisationId);
   if (!o) return NO_ORG;
   const res = await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${templateId} FOR UPDATE`;
@@ -91,7 +92,7 @@ export async function saveSignatureBlock(_prev: FormState, data: FormData): Prom
   const notes = r.text("notes", "Notes", { max: 2000 });
   if (v.officeRule !== "NAMED_OFFICE") v.officeCode = null;
   if (r.failed || !provenance) return { ok: false, errors: r.errors };
-  return onTemplate(templateId, async (tx, t) => {
+  return onTemplate(actor, templateId, async (tx, t) => {
     if (t.uses.length) return { ok: false, message: notACertificateFormText(t.uses).en };
     const rows = await tx.formSignatureBlock.findMany({ where: { templateId: t.id } });
     const before = id ? rows.find((x) => x.id === id) : null;
@@ -117,7 +118,7 @@ export async function removeSignatureBlock(_prev: FormState, data: FormData): Pr
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the block comes off the form." } };
-  return onTemplate(templateId, async (tx, t) => {
+  return onTemplate(actor, templateId, async (tx, t) => {
     const row = await tx.formSignatureBlock.findFirst({ where: { id, templateId: t.id } });
     if (!row) return { ok: false, message: "That block is no longer on this form." };
     await tx.formSignatureBlock.delete({ where: { id: row.id } });
@@ -151,7 +152,7 @@ export async function saveDistributionRow(_prev: FormState, data: FormData): Pro
   const notes = r.text("notes", "Notes", { max: 2000 });
   if (r.failed || !provenance) return { ok: false, errors: r.errors };
   const row: DistributionRow = { ...v, mandatory: mandatory!, ackRequired: ack!, isOriginal: original! };
-  return onTemplate(templateId, async (tx, t) => {
+  return onTemplate(actor, templateId, async (tx, t) => {
     if (t.uses.length) return { ok: false, message: notACertificateFormText(t.uses).en };
     const rows = await tx.formDistribution.findMany({ where: { templateId: t.id } });
     const before = id ? rows.find((x) => x.id === id) : null;
@@ -175,7 +176,7 @@ export async function removeDistributionRow(_prev: FormState, data: FormData): P
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the recipient comes off the list." } };
-  return onTemplate(templateId, async (tx, t) => {
+  return onTemplate(actor, templateId, async (tx, t) => {
     const row = await tx.formDistribution.findFirst({ where: { id, templateId: t.id } });
     if (!row) return { ok: false, message: "That recipient is no longer on this form." };
     await tx.formDistribution.delete({ where: { id: row.id } });
@@ -201,7 +202,7 @@ export async function savePageCount(_prev: FormState, data: FormData): Promise<F
   if (r.failed) return { ok: false, errors: r.errors };
   const fs = pageCountFaults(pageCount);
   if (fs.length) return { ok: false, errors: { pageCount: certificateFaultWords(fs[0]).en } };
-  return onTemplate(templateId, async (tx, t) => {
+  return onTemplate(actor, templateId, async (tx, t) => {
     const before = await tx.documentTemplate.findUnique({ where: { id: t.id }, select: { pageCount: true } });
     if ((before?.pageCount ?? null) === pageCount) return { ok: true };
     await tx.documentTemplate.update({ where: { id: t.id }, data: { pageCount } });
@@ -229,7 +230,7 @@ export async function savePrintedField(_prev: FormState, data: FormData): Promis
   const provenance = r.choice("provenance", "Where it came from", PROVENANCE, { required: true });
   const notes = r.text("notes", "Notes", { max: 2000 });
   if (r.failed || !provenance || !filled) return { ok: false, errors: r.errors };
-  return onTemplate(templateId, async (tx, t) => {
+  return onTemplate(actor, templateId, async (tx, t) => {
     if (t.uses.length) return { ok: false, message: notAPrintedFormText(t.uses).en };
     const rows = await tx.formField.findMany({ where: { templateId: t.id } });
     const before = id ? rows.find((x) => x.id === id) : null;
@@ -253,7 +254,7 @@ export async function removePrintedField(_prev: FormState, data: FormData): Prom
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the field comes off the form." } };
-  return onTemplate(templateId, async (tx, t) => {
+  return onTemplate(actor, templateId, async (tx, t) => {
     const row = await tx.formField.findFirst({ where: { id, templateId: t.id } });
     if (!row) return { ok: false, message: "That field is no longer on this form." };
     await tx.formField.delete({ where: { id: row.id } });

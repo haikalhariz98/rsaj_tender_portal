@@ -21,6 +21,7 @@ import { db } from "@/lib/db";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * The document store's acts (plan §2, §3, step 5). Each is reachable by a direct POST,
@@ -43,11 +44,11 @@ const GONE: FormState = { ok: false, message: "That record no longer exists." };
 const refuse = (fs: readonly Finding[]): FormState => ({ ok: false, message: fs.map(documentFaultText).join(" ") });
 const docLabel = (title: string) => `Document · ${title}`;
 
-async function inOwner(actor: AuditActor, ref: OwnerRef, fn: (tx: Tx, o: LockedOwner) => Promise<FormState>): Promise<FormState> {
+async function inOwner(scope: OrgScope, actor: AuditActor, ref: OwnerRef, fn: (tx: Tx, o: LockedOwner) => Promise<FormState>): Promise<FormState> {
   let paths: string[] = [];
   let result: FormState | null;
   try {
-    result = await withLockedOwner(actor, ref, async (tx, o) => {
+    result = await withLockedOwner(scope, actor, ref, async (tx, o) => {
       paths = o.paths;
       return fn(tx, o);
     });
@@ -59,8 +60,8 @@ async function inOwner(actor: AuditActor, ref: OwnerRef, fn: (tx: Tx, o: LockedO
   return result ?? GONE;
 }
 
-async function inDocument(documentId: string, fn: (tx: Tx, orgId: string) => Promise<FormState>): Promise<FormState> {
-  const org = await documentOrg();
+async function inDocument(scope: OrgScope, documentId: string, fn: (tx: Tx, orgId: string) => Promise<FormState>): Promise<FormState> {
+  const org = await documentOrg(scope.organisationId);
   if (!org) return refuse([{ code: "NO_ORGANISATION", level: "block" }]);
   let result: FormState;
   try {
@@ -80,8 +81,8 @@ async function inDocument(documentId: string, fn: (tx: Tx, orgId: string) => Pro
 }
 
 /// Where an attachment is, read without a lock, to know which owner to lock.
-async function attachmentOwner(attachmentId: string): Promise<OwnerRef | null> {
-  const org = await documentOrg();
+async function attachmentOwner(scope: OrgScope, attachmentId: string): Promise<OwnerRef | null> {
+  const org = await documentOrg(scope.organisationId);
   if (!org) return null;
   const a = await db.documentAttachment.findFirst({ where: { id: attachmentId, organisationId: org.id }, select: { meetingId: true, exerciseId: true, awardId: true, delegationId: true, specificationPanelId: true, bqVersionId: true, tenderPackPartId: true, addendumId: true, bidWithdrawalId: true, validityExtensionId: true, openingId: true, evaluationId: true, evaluationMeetingId: true, evaluationBidderId: true, supplierDocumentId: true, supplierApplicationId: true, contractId: true, variationInstructionId: true, standingEventId: true, delayNoticeId: true, eotClaimId: true } });
   return a ? ownerOf(a) : null;
@@ -104,7 +105,7 @@ export async function attachDocument(_prev: FormState, data: FormData): Promise<
   const versionId = r.text("versionId", "Document", { required: true });
   if (r.failed || !kind || !purpose) return { ok: false, errors: r.errors };
   const ref: OwnerRef = { kind, id: ownerId };
-  return inOwner(toAuditActor(actor), ref, async (tx, o) => {
+  return inOwner(actor, toAuditActor(actor), ref, async (tx, o) => {
     // The document is locked before the version is judged (`lockVersion`): a withdrawal
     // committed while this act waited is seen here, never pinned.
     const v = await lockVersion(tx, versionId, o.organisationId);
@@ -134,9 +135,9 @@ export async function detachDocument(_prev: FormState, data: FormData): Promise<
   const attachmentId = String(data.get("attachmentId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "Give the reason it is taken off." } };
-  const ref = await attachmentOwner(attachmentId);
+  const ref = await attachmentOwner(actor, attachmentId);
   if (!ref) return GONE;
-  return inOwner(toAuditActor(actor), ref, async (tx, o) => {
+  return inOwner(actor, toAuditActor(actor), ref, async (tx, o) => {
     const a = await tx.documentAttachment.findFirst({ where: { id: attachmentId, organisationId: o.organisationId, [OWNER_COLUMN[ref.kind]]: ref.id }, include: { version: { select: { versionNo: true, withdrawnAt: true, document: { select: { title: true } } } } } });
     if (!a) return GONE;
     const live = await tx.documentAttachment.count({ where: { [OWNER_COLUMN[ref.kind]]: ref.id, purpose: a.purpose, detachedAt: null, version: { withdrawnAt: null } } });
@@ -162,9 +163,9 @@ export async function attachNewVersion(_prev: FormState, data: FormData): Promis
   const attachmentId = String(data.get("attachmentId") ?? "");
   const versionId = String(data.get("versionId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
-  const ref = await attachmentOwner(attachmentId);
+  const ref = await attachmentOwner(actor, attachmentId);
   if (!ref) return GONE;
-  return inOwner(toAuditActor(actor), ref, async (tx, o) => {
+  return inOwner(actor, toAuditActor(actor), ref, async (tx, o) => {
     const col = OWNER_COLUMN[ref.kind];
     const a = await tx.documentAttachment.findFirst({ where: { id: attachmentId, organisationId: o.organisationId, [col]: ref.id }, include: { version: { select: { id: true, documentId: true, versionNo: true } } } });
     if (!a) return GONE;
@@ -196,13 +197,13 @@ export async function withdrawVersion(_prev: FormState, data: FormData): Promise
   const actor = await requireStaff();
   const versionId = String(data.get("versionId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
-  const org = await documentOrg();
+  const org = await documentOrg(actor.organisationId);
   if (!org) return refuse([{ code: "NO_ORGANISATION", level: "block" }]);
   // Looked up within the organisation: another organisation's id reads as unknown, in the
   // same words as a missing one (audit C-5).
   const v0 = await db.documentVersion.findFirst({ where: { id: versionId, organisationId: org.id }, select: { documentId: true } });
   if (!v0) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
-  return inDocument(v0.documentId, async (tx, orgId) => {
+  return inDocument(actor, v0.documentId, async (tx, orgId) => {
     const v = await tx.documentVersion.findFirstOrThrow({ where: { id: versionId, organisationId: orgId }, include: { document: { select: { title: true } } } });
     const f = withdrawFault(v, reason);
     if (f) return f.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: documentFaultText(f) } } : refuse([f]);
@@ -222,7 +223,7 @@ export async function reclassifyDocument(_prev: FormState, data: FormData): Prom
   const next = r.choice("classification", "Classification", SECURITY_CLASSES, { required: true });
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inDocument(documentId, async (tx, orgId) => {
+  return inDocument(actor, documentId, async (tx, orgId) => {
     // The class's classification as it stands now: the class row is held (FOR SHARE) so a
     // concurrent edit of the class waits for this act, then read under the document's lock.
     const { documentClassId } = await tx.document.findUniqueOrThrow({ where: { id: documentId }, select: { documentClassId: true } });
@@ -243,7 +244,7 @@ export async function placeLegalHold(_prev: FormState, data: FormData): Promise<
   const documentId = String(data.get("documentId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   const personId = String(data.get("personId") ?? "").trim() || null;
-  return inDocument(documentId, async (tx, orgId) => {
+  return inDocument(actor, documentId, async (tx, orgId) => {
     const doc = await tx.document.findUniqueOrThrow({ where: { id: documentId }, include: { holds: { select: { releasedAt: true } } } });
     const person = personId ? await tx.person.findFirst({ where: { id: personId, organisationId: orgId, isActive: true }, select: { id: true, name: true } }) : null;
     if (personId && !person) return { ok: false, errors: { personId: documentFaultText({ code: "PERSON_UNKNOWN", level: "block" }) } };
@@ -261,12 +262,12 @@ export async function releaseLegalHold(_prev: FormState, data: FormData): Promis
   const holdId = String(data.get("holdId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   const personId = String(data.get("personId") ?? "").trim() || null;
-  const org = await documentOrg();
+  const org = await documentOrg(actor.organisationId);
   if (!org) return refuse([{ code: "NO_ORGANISATION", level: "block" }]);
   // Within the organisation, so another's hold id reads as missing does (audit C-5).
   const h0 = await db.legalHold.findFirst({ where: { id: holdId, organisationId: org.id }, select: { documentId: true } });
   if (!h0) return GONE;
-  return inDocument(h0.documentId, async (tx, orgId) => {
+  return inDocument(actor, h0.documentId, async (tx, orgId) => {
     const hold = await tx.legalHold.findFirstOrThrow({ where: { id: holdId, organisationId: orgId }, include: { document: { select: { title: true } } } });
     const person = personId ? await tx.person.findFirst({ where: { id: personId, organisationId: orgId, isActive: true }, select: { id: true, name: true } }) : null;
     if (personId && !person) return { ok: false, errors: { personId: documentFaultText({ code: "PERSON_UNKNOWN", level: "block" }) } };
@@ -284,9 +285,9 @@ export async function releaseLegalHold(_prev: FormState, data: FormData): Promis
  * VERIFIED or INTEGRITY_FAILED.
  */
 export async function verifyVersion(_prev: FormState, data: FormData): Promise<FormState> {
-  await requireStaff();
+  const actor = await requireStaff();
   const versionId = String(data.get("versionId") ?? "");
-  const org = await documentOrg();
+  const org = await documentOrg(actor.organisationId);
   if (!org) return refuse([{ code: "NO_ORGANISATION", level: "block" }]);
   const v = await db.documentVersion.findFirst({ where: { id: versionId, organisationId: org.id }, select: { id: true, sha256: true } });
   if (!v) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
@@ -305,23 +306,23 @@ export async function verifyVersion(_prev: FormState, data: FormData): Promise<F
 
 /// One document for the drawer, as words and dates. Null when it does not exist.
 export async function loadDocumentDrawer(documentId: string): Promise<DrawerView | null> {
-  await requireStaff();
-  const [org, d] = await Promise.all([documentOrg(), documentDrawer(String(documentId))]);
+  const actor = await requireStaff();
+  const [org, d] = await Promise.all([documentOrg(actor.organisationId), documentDrawer(actor.organisationId, String(documentId))]);
   return d ? drawerView(d, org?.timeZone ?? null) : null;
 }
 
 /// An owner's panel, for a drawer that opens it on request (a delegation's documents).
 export async function loadOwnerPanel(ref: OwnerRef, opts: PanelOptions = {}): Promise<PanelView | null> {
-  await requireStaff();
+  const actor = await requireStaff();
   if (!OWNER_KINDS.includes(ref.kind)) return null;
-  const [org, panel, upload] = await Promise.all([documentOrg(), ownerPanel(ref), uploadContext()]);
+  const [org, panel, upload] = await Promise.all([documentOrg(actor.organisationId), ownerPanel(actor.organisationId, ref), uploadContext(actor.organisationId)]);
   return panel && upload ? panelView(panel, upload, org?.timeZone ?? null, opts) : null;
 }
 
 /// The records of one kind a received document can be attached to, with what each keeps and whether it is open. `cap` says how many are listed at most.
 export async function loadAttachTargets(kind: string) {
-  await requireStaff();
+  const actor = await requireStaff();
   const k = OWNER_KINDS.find((x) => x === kind);
   if (!k) return null;
-  return { ...(await attachTargetsOf(k)), cap: TARGET_CAP };
+  return { ...(await attachTargetsOf(actor.organisationId, k)), cap: TARGET_CAP };
 }

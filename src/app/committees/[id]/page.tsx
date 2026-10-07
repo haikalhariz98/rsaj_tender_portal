@@ -91,16 +91,16 @@ export default async function SittingPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  await requireStaff();
+  const actor = await requireStaff();
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const tab = sp.tab;
   // A record asking for a matter to be tabled (a requisition's gate, an award's committee step)
   // links here with it filled in. The link names the record; its amount is read here, on the
   // server, never carried in the URL (a requisition's is the SULIT department estimate).
   const asked = tablePrefillFromQuery(sp);
-  const askedAmount = asked ? await tablingAmount(asked.source) : null;
+  const askedAmount = asked ? await tablingAmount(actor.organisationId, asked.source) : null;
   const prefill = asked ? { ...asked.values, ...(askedAmount != null ? { amount: askedAmount } : {}) } : undefined;
-  const s = await loadSitting(id);
+  const s = await loadSitting(actor, id);
   if (!s) notFound();
 
   const m = s.meeting;

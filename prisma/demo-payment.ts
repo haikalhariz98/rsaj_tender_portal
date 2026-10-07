@@ -27,6 +27,7 @@
 
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -96,7 +97,7 @@ async function readings() {
   const pay = await import("../src/lib/payment/load");
   const { assembleInterim } = await import("../src/lib/payment/assemble");
   const { diffFields } = await import("../src/lib/audit/diff");
-  const l = (await loadContract(CON))!;
+  const l = (await loadContract(await demoOrgId(), CON))!;
   const contract = contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } });
   /// The officer the act is recorded for, in the capacity the act needs on the day (as the payment acts judge it).
   const recordedFor = async (personId: string, need: Parameters<typeof capacityFor>[1], on: string) => {
@@ -110,7 +111,7 @@ async function readings() {
   const assemble = async (valuationId: string, on: string) => {
     const [p, cfg] = await Promise.all([pay.loadPayment(CON), pay.loadPaymentConfig(l.org.id)]);
     const v = p.interimValuations.find((x) => x.id === valuationId)!;
-    const lNow = (await loadContract(CON))!;
+    const lNow = (await loadContract(await demoOrgId(), CON))!;
     const input = pay.assembleInputOf(lNow, p, cfg, v, on, await pay.preExecutionFacts(lNow));
     if (!input) throw new Error(`demo ${valuationId}: no baseline in force on ${on}`);
     const a = assembleInterim(input);
@@ -236,7 +237,7 @@ export async function loadPaymentDemo(db: Db, organisationId: string) {
   const snap = a.result.snapshot!;
   fail("qct1 figures", snapshotFaults(snap));
   fail("qct1 routing type", typeFaults(await routingTypeNow(`${P}hrt1`), "CERTIFICATE", "INTERIM_PAYMENT", on));
-  const lNow = (await (await import("../src/lib/contract/repo")).loadContract(CON))!;
+  const lNow = (await (await import("../src/lib/contract/repo")).loadContract(await demoOrgId(), CON))!;
   const b = baselineFor(lNow.contract.baselines.filter((x) => x.version != null).map((x) => ({ ...x, recordedOn: x.recordedOn ? storedDay(x.recordedOn) : null })), on)!;
   const c1 = `${P}qct1`;
   const certLabel = KIND_WORDS.INTERIM_PAYMENT.en;
@@ -282,7 +283,7 @@ async function sendDemoRoute(db: Db, organisationId: string, certId: string, on:
   const { diffFields } = await import("../src/lib/audit/diff");
   const { KIND_WORDS } = await import("../src/lib/certificate/labels");
 
-  const l = (await loadContract(CON))!;
+  const l = (await loadContract(await demoOrgId(), CON))!;
   const cert = await db.certificate.findUniqueOrThrow({ where: { id: certId }, include: { overrides: true, baseline: true, approvalInstances: true } });
   const domain = KIND_ROUTE_DOMAIN[cert.kind];
   fail("send state", submitStateFaults({ domain, status: cert.status, latest: null }));

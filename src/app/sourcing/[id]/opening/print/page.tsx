@@ -25,10 +25,10 @@ const NOT_FINALISED = "Not finalised";
  * and say so; this is the only paper route while a SULIT scan cannot be downloaded.
  */
 export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/opening/print">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { id } = await props.params;
   const wanted = (await props.searchParams).opening;
-  const d = await scheduleSection(id);
+  const d = await scheduleSection(actor.organisationId, id);
   if (!d) notFound();
   const back = `/sourcing/${id}?tab=bids&section=schedule`;
   const o = d.openings.find((x) => x.id === wanted) ?? d.openings[0] ?? null;

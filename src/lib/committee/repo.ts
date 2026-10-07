@@ -1,15 +1,9 @@
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { seatsInForce } from "./seats";
 import { issuedInForce } from "@/lib/authority/issue";
 import type { TablingSource } from "./table-prefill";
 
 const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
-
-async function organisationId(code = ORGANISATION_CODE) {
-  const org = await db.organisation.findUnique({ where: { code }, select: { id: true } });
-  return org?.id ?? null;
-}
 
 /**
  * The amount a record's tabling link asks the drawer to start from, read here on the server
@@ -17,10 +11,9 @@ async function organisationId(code = ORGANISATION_CODE) {
  * matter's amount must equal it), or an award's awarded value. The record must be the
  * organisation's; otherwise nothing is filled in. The figure is the stored decimal, unrounded.
  */
-export async function tablingAmount(source: TablingSource): Promise<string | null> {
+export async function tablingAmount(organisationId: string, source: TablingSource): Promise<string | null> {
   if (!source) return null;
-  const organisation = await organisationId();
-  if (!organisation) return null;
+  const organisation = organisationId;
   if (source.kind === "requisition") {
     const r = await db.requisition.findFirst({ where: { id: source.id, organisationId: organisation }, select: { estimatedValue: true } });
     return r ? r.estimatedValue.toString() : null;
@@ -29,9 +22,8 @@ export async function tablingAmount(source: TablingSource): Promise<string | nul
   return a?.awardedValue != null ? a.awardedValue.toString() : null;
 }
 
-export async function listCommittees() {
-  const id = await organisationId();
-  if (!id) return [];
+export async function listCommittees(organisationId: string) {
+  const id = organisationId;
 
   const committees = await db.committee.findMany({
     where: { organisationId: id },
@@ -75,9 +67,8 @@ export async function listCommittees() {
 
 export type CommitteeSummary = Awaited<ReturnType<typeof listCommittees>>[number];
 
-export async function getCommittee(code: string) {
-  const id = await organisationId();
-  if (!id) return null;
+export async function getCommittee(organisationId: string, code: string) {
+  const id = organisationId;
 
   const committee = await db.committee.findUnique({
     where: { organisationId_code: { organisationId: id, code } },
@@ -109,9 +100,8 @@ export type CommitteeDetail = NonNullable<Awaited<ReturnType<typeof getCommittee
 
 /// Which DAL rows route to this body — the reason it exists, drawn from the matrix
 /// rather than restated by hand.
-export async function rulesRoutingTo(committeeCode: string) {
-  const id = await organisationId();
-  if (!id) return [];
+export async function rulesRoutingTo(organisationId: string, committeeCode: string) {
+  const id = organisationId;
 
   const version = await db.authorityMatrix.findFirst({
     where: { organisationId: id, ...issuedInForce(new Date()) },
@@ -141,9 +131,8 @@ export async function rulesRoutingTo(committeeCode: string) {
 }
 
 /// Not-approved outcomes of the organisation, retired ones included, for the list.
-export async function listNotApprovedOutcomes() {
-  const id = await organisationId();
-  if (!id) return [];
+export async function listNotApprovedOutcomes(organisationId: string) {
+  const id = organisationId;
   return db.notApprovedOutcome.findMany({
     where: { organisationId: id },
     orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],

@@ -30,7 +30,6 @@ import { receivedOnFault } from "@/lib/award/routing";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { ACT_LABEL } from "@/lib/labels";
 import { senFromDecimal, senToDecimalString, type Sen } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -117,7 +116,7 @@ export async function openCertificateRoute(c: CertCtx, o: OpenRouteInput): Promi
 
 /// The office's holders for the certificate's contract (its requisition's unit) on a day, as the engine reads them.
 async function holdersOn(c: CertCtx, roleCode: string, day: string) {
-  const [roster, delegations, units] = await Promise.all([loadRoster(ORGANISATION_CODE, c.tx), loadDelegations(ORGANISATION_CODE, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
+  const [roster, delegations, units] = await Promise.all([loadRoster(c.l.org.code, c.tx), loadDelegations(c.l.org.code, c.tx), c.tx.orgUnit.findMany({ where: { organisationId: c.l.org.id } })]);
   const unitPath = pathTo(units as unknown as OrgUnit[], c.l.req.sectionUnitCode || c.l.req.requestingUnitCode, dayToDate(day)).reverse().map((u) => u.code);
   return { holders: holdersFor(roleCode, unitPath, roster, delegations, day), roster };
 }
@@ -195,7 +194,7 @@ async function sendRefused(c: CertCtx, instId: string, kind: RejectionKind, retu
   }
   if (kind === "TERMINATE") {
     // Re-read under the same locks: the route just closed, so nothing waits on it.
-    const l = await loadCertificate(c.l.cert.id, c.tx);
+    const l = await loadCertificate(c.l.org.id, c.l.cert.id, c.tx);
     if (!l) throw new CertificateRefusal("The certificate changed while this was being saved. Reload and try again.");
     await voidCertificate({ ...c, l }, `Its approval route was refused and the certificate ends: ${reason}`);
   }

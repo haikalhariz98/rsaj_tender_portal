@@ -35,7 +35,8 @@ describe("citing a committee's decision on the name's route", () => {
   const writer = readFileSync(join(process.cwd(), "src/lib/method/name-route-write.ts"), "utf8");
   const body = writer.slice(writer.indexOf("export async function citeNameStep("));
   it("the act runs the route writer's citation", () => {
-    expect(fn("citeNameDecision")).toMatch(/return inExercise\(id, \(tx, l\) => citeNameStep\(tx, toAuditActor\(actor\), l, stepId, decisionId\)\);/); // Phase 1b: who acted is the argument after the transaction
+    // Phase 1c (ADR 0034 D10): the lock is now asked for the signed-in person's organisation first; the call is otherwise as pinned.
+    expect(fn("citeNameDecision")).toMatch(/return inExercise\(actor, id, \(tx, l\) => citeNameStep\(tx, toAuditActor\(actor\), l, stepId, decisionId\)\);/); // Phase 1b: who acted is the argument after the transaction
     expect(body.length).toBeGreaterThan(0);
   });
   it("judges the matter with nameCitationFault, not the award's exerciseCitationFault", () => {

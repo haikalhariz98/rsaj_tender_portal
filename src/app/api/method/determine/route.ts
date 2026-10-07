@@ -23,6 +23,7 @@ const opt = (v: unknown): string | null => str(v, 200) || null;
 export async function POST(request: Request) {
   const guard = await staffRoute({ contentTypes: ["application/json"] });
   if (!guard.ok) return guard.response;
+  const actor = guard.actor;
   let body: Record<string, unknown>;
   try {
     const parsed = await request.json();
@@ -45,9 +46,9 @@ export async function POST(request: Request) {
     scope.push({ kind: kind as DeliverableKind, amount: parseSen(amount), description: "" });
   }
 
-  const loaded = await loadRequisitionForSourcing(requisitionId);
+  const loaded = await loadRequisitionForSourcing(actor.organisationId, requisitionId);
   if (!loaded) return Response.json({ error: "No such requisition." }, { status: 404 });
-  const ex = exerciseId ? await loadExercise(exerciseId) : null;
+  const ex = exerciseId ? await loadExercise(actor.organisationId, exerciseId) : null;
   if (exerciseId && (!ex || ex.ex.requisitionId !== requisitionId)) return Response.json({ error: "No such exercise on this requisition." }, { status: 404 });
 
   const { issue, cfg, ctx } = await evaluationContext(loaded.org, loaded.req, ex?.ex ?? null);

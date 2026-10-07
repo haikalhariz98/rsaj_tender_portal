@@ -13,7 +13,6 @@ import { isRegisterSnapshot } from "@/lib/committee/assess-sitting";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { amountOf, senFromDecimal } from "@/lib/money";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import type { CodeFormat, OrgUnit, OrgUnitKind } from "@/lib/organisation/types";
 import type { FundingRouteRow } from "@/lib/requisition/funding";
 import type { Lookups, RequisitionDraft } from "@/lib/requisition/fields";
@@ -24,11 +23,11 @@ import type { AuditActor } from "@/lib/auth/types";
 
 export const num = (v: { toString(): string } | null | undefined): number | null => (v == null ? null : amountOf(v));
 
-/// The organisation's id, zone and today (null while no zone is set).
-export async function requisitionOrg(client: Tx = db) {
-  const org = await client.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
+/// The signed-in actor's organisation (ADR 0034 D10): its id, code, zone and today (null while no zone is set).
+export async function requisitionOrg(organisationId: string, client: Tx = db) {
+  const org = await client.organisation.findUnique({ where: { id: organisationId }, select: { id: true, code: true, timeZone: true } });
   if (!org) return null;
-  return { id: org.id, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) };
+  return { id: org.id, code: org.code, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) };
 }
 
 export async function loadPolicy(organisationId: string, client: Tx = db): Promise<RequisitionPolicy & { id: string | null; notes: string }> {
@@ -148,8 +147,8 @@ const include = {
   },
 };
 
-export async function loadRequisition(id: string, client: Tx = db) {
-  const org = await requisitionOrg(client);
+export async function loadRequisition(organisationId: string, id: string, client: Tx = db) {
+  const org = await requisitionOrg(organisationId, client);
   if (!org) return null;
   const req = await client.requisition.findFirst({ where: { id, organisationId: org.id }, include });
   if (!req) return null;
@@ -207,11 +206,11 @@ export function recordOf(d: DecisionRow): DecisionRecord | null {
  * Run a write against a requisition with its row locked. Returns null when it does
  * not exist. Configuration read inside is read in the same transaction.
  */
-export async function withLockedRequisition<T>(id: string, fn: (tx: Tx, l: LoadedRequisition) => Promise<T>): Promise<T | null> {
+export async function withLockedRequisition<T>(organisationId: string, id: string, fn: (tx: Tx, l: LoadedRequisition) => Promise<T>): Promise<T | null> {
   return db.$transaction(
     async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${id} FOR UPDATE`;
-      const l = await loadRequisition(id, tx);
+      const l = await loadRequisition(organisationId, id, tx);
       if (!l) return null;
       return fn(tx, l);
     },
@@ -222,8 +221,8 @@ export async function withLockedRequisition<T>(id: string, fn: (tx: Tx, l: Loade
 export const REQUISITIONS_PAGE = 100;
 
 /// The organisation's requisitions for the list, newest first, with what the list shows.
-export async function listRequisitions() {
-  const org = await requisitionOrg();
+export async function listRequisitions(organisationId: string) {
+  const org = await requisitionOrg(organisationId);
   if (!org) return { org: null, rows: [], total: 0, counts: { open: 0, pending: 0, overBudget: 0, flagged: 0 } };
   const where = { organisationId: org.id };
   const [rows, total, routes, units] = await Promise.all([

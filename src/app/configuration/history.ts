@@ -16,11 +16,11 @@ import {
 import { db } from "@/lib/db";
 import { CLASSIFICATION_LABEL, DISPOSAL_METHOD_LABEL, RETENTION_TRIGGER_LABEL } from "@/lib/documents/labels";
 import { SOURCE_LABEL, SPLIT_KEY_LABEL, STATUS_LABEL, TIER_LABEL } from "@/lib/requisition/labels";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { ACT_LABEL } from "@/lib/labels";
 import { formatOrgDateTime } from "@/lib/format";
 import { requireStaff } from "@/app/_auth/actor";
 import { ACCOUNT_STATUS_WORDS } from "@/lib/auth/words";
+import type { OrgScope } from "@/lib/org-scope";
 
 /// The entities whose history a screen may ask for. Anything else is refused rather
 /// than read, so the action cannot be used to page through the whole trail.
@@ -150,8 +150,8 @@ const DELIVERABLE_VALUE: Record<string, string> = { GOODS_DELIVERED: "Goods deli
 const OFFICE_FIELDS = new Set(["secretariatRoleCode", "seatRoleCode", "disposalAuthorityRoleCode"]);
 
 /// A reader that turns stored codes and ids into what they stand for.
-async function valueReader(entity = ""): Promise<(field: string, value: string | null) => string | null> {
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
+async function valueReader(scope: OrgScope, entity = ""): Promise<(field: string, value: string | null) => string | null> {
+  const org = await db.organisation.findUnique({ where: { id: scope.organisationId }, select: { id: true } });
   if (!org) return (_f, v) => v;
   const [offices, people, committees, outcomes, orgUnits] = await Promise.all([
     db.authorityRole.findMany({ where: { organisationId: org.id }, select: { code: true, nameEn: true } }),
@@ -204,12 +204,12 @@ export async function historyOf(entity: string, entityId: string): Promise<Histo
   if (entity === "StaffAccount" && !actor.isAdministrator) return [];
   const issue = entity === "AuthorityMatrix" ? await db.authorityMatrix.findUnique({ where: { id: entityId }, select: { label: true } }) : null;
   const [own, core, read, org] = await Promise.all([
-    loadAudit(ORGANISATION_CODE, { entity, entityId, take: 100 }),
+    loadAudit(actor.organisationCode, { entity, entityId, take: 100 }),
     issue
-      ? loadAudit(ORGANISATION_CODE, { entities: CORE_ROUTING_ENTITIES, labelPrefix: coreRoutingTrailPrefix(issue.label), take: 100 })
+      ? loadAudit(actor.organisationCode, { entities: CORE_ROUTING_ENTITIES, labelPrefix: coreRoutingTrailPrefix(issue.label), take: 100 })
       : Promise.resolve([]),
-    valueReader(entity),
-    db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { timeZone: true } }),
+    valueReader(actor, entity),
+    db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { timeZone: true } }),
   ]);
   const rows = [...own, ...core].sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 100);
   return rows.map((r) => ({

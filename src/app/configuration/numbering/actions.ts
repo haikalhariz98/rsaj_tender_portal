@@ -8,17 +8,17 @@ import { writeAudit } from "@/lib/audit/record";
 import { organisationDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { afterConfiguring, patternFaults, serialFor, type Series } from "@/lib/numbering/series";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import type { OrgScope } from "@/lib/org-scope";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const RESETS = ["NEVER", "CALENDAR_YEAR", "FINANCIAL_YEAR"] as const;
 const PATH = "/configuration/numbering";
 
-async function organisationId(): Promise<string | null> {
+async function organisationId(scope: OrgScope): Promise<string | null> {
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: scope.organisationId },
     select: { id: true },
   });
   return org?.id ?? null;
@@ -31,7 +31,7 @@ const NO_ORG: FormState = {
 
 export async function saveSeries(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");

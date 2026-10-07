@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 
 import { auditedCreate, auditedUpdate } from "@/lib/audit/record";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import type { FormState } from "@/components/record-editor";
 import { DELEGATION_VARIANTS } from "@/lib/supervision/types";
 import { FormReader } from "@/lib/validate";
@@ -16,13 +15,14 @@ import { contractTypeConfigFaults, dominanceShareFault, methodConfigFaults } fro
 import { PERMIT_LIST_MAPPING_FAULT_TEXT, permitListMappingFaults } from "@/lib/method/taxonomy";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
 const PATH = "/configuration/reference-data";
 
-async function organisationId(): Promise<string | null> {
+async function organisationId(scope: OrgScope): Promise<string | null> {
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: scope.organisationId },
     select: { id: true },
   });
   return org?.id ?? null;
@@ -97,7 +97,7 @@ function readFundingRoute(data: FormData, taken: string[], storedCode: string | 
 
 export async function saveFundingRoute(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -178,7 +178,7 @@ function readSourcingMethod(data: FormData, taken: string[], storedCode: string 
 
 export async function saveSourcingMethod(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -224,7 +224,7 @@ export async function saveSourcingMethod(_prev: FormState, data: FormData): Prom
 
 export async function saveContractType(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
 
   const id = String(data.get("id") ?? "");
@@ -297,8 +297,8 @@ const TABLES = {
 } as const;
 
 /// Retire or restore. The same three lists, the same shape, the opposite act.
-async function setRetired(by: AuditActor, data: FormData, retire: boolean): Promise<FormState> {
-  const orgId = await organisationId();
+async function setRetired(scope: OrgScope, by: AuditActor, data: FormData, retire: boolean): Promise<FormState> {
+  const orgId = await organisationId(scope);
   if (!orgId) return NO_ORG;
 
   const entity = String(data.get("entity") ?? "");
@@ -330,13 +330,13 @@ async function setRetired(by: AuditActor, data: FormData, retire: boolean): Prom
 
 export async function retireEntry(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return setRetired(toAuditActor(actor), data, true);
+  return setRetired(actor, toAuditActor(actor), data, true);
 }
 
 /// Put a retired entry back on offer. It keeps its code, which is still its own.
 export async function restoreEntry(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return setRetired(toAuditActor(actor), data, false);
+  return setRetired(actor, toAuditActor(actor), data, false);
 }
 
 // ---------------------------------------------------------- 6.3 classification
@@ -353,7 +353,7 @@ const list = (raw: string) => raw.split(/[\n,]/).map((x) => x.trim()).filter(Boo
  */
 export async function saveContractBehaviours(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const before = await db.contractType.findFirst({ where: { id, organisationId: orgId } });
@@ -392,7 +392,7 @@ export async function saveContractBehaviours(_prev: FormState, data: FormData): 
 /// A method's proposal item (FR-MTD-006), in the customer's words.
 export async function saveChecklistItem(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const methodId = String(data.get("sourcingMethodId") ?? "");
@@ -430,7 +430,7 @@ export async function saveChecklistItem(_prev: FormState, data: FormData): Promi
 
 export async function retireChecklistItem(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -449,7 +449,7 @@ export async function retireChecklistItem(_prev: FormState, data: FormData): Pro
 /// A reason a direct appointment may be justified by (FR-MTD-009).
 export async function saveJustificationReason(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const existing = await db.justificationReason.findMany({ where: { organisationId: orgId } });
@@ -478,7 +478,7 @@ export async function saveJustificationReason(_prev: FormState, data: FormData):
 /// A contract basis (FR-MTD-013). Always chosen by the officer (6.3 ruling R-9).
 export async function saveContractBasis(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const existing = await db.contractBasis.findMany({ where: { organisationId: orgId } });
@@ -507,7 +507,7 @@ export async function saveContractBasis(_prev: FormState, data: FormData): Promi
 /// Another classification a contract carries (FR-MTD-014), with its values.
 export async function saveTaxonomy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const existing = await db.classificationTaxonomy.findMany({ where: { organisationId: orgId } });
@@ -533,7 +533,7 @@ export async function saveTaxonomy(_prev: FormState, data: FormData): Promise<Fo
 
 export async function saveTaxonomyValue(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const taxonomyId = String(data.get("taxonomyId") ?? "");
   const id = String(data.get("id") ?? "");
@@ -561,7 +561,7 @@ export async function saveTaxonomyValue(_prev: FormState, data: FormData): Promi
 /// another classification's value says so (FR-MTD-014).
 export async function saveTaxonomyMapping(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
   const v = {
@@ -608,7 +608,7 @@ export async function saveTaxonomyMapping(_prev: FormState, data: FormData): Pro
 
 export async function removeTaxonomyMapping(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -633,7 +633,7 @@ export async function removeTaxonomyMapping(_prev: FormState, data: FormData): P
  */
 export async function saveClassificationPolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
   const share = dominanceShareFault(String(data.get("dominanceSharePct") ?? ""));

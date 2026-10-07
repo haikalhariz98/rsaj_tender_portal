@@ -11,7 +11,6 @@ import { activeOn } from "@/lib/effective";
 import { formatCompactRM } from "@/lib/format";
 import { loadOrganisationData } from "@/lib/organisation/load";
 import { loadRoster } from "@/lib/people/load";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { organisationDay } from "@/lib/dates";
 import { organisationTimeZone } from "@/lib/org-time";
 
@@ -32,29 +31,29 @@ export default async function BudgetPage({
 }: {
   searchParams: Promise<{ tab?: string; year?: string }>;
 }) {
-  await requireStaff();
+  const actor = await requireStaff();
   // Balances and the year are as at the organisation's day, not the UTC one (6.10 §9.5
   // follow-up). With no zone set the UTC day is used, and the header says so.
-  const zone = await organisationTimeZone();
+  const zone = await organisationTimeZone(actor.organisationId);
   const orgDay = organisationDay(new Date(), zone);
   const on = orgDay ?? new Date();
   const [{ tab, year: yearParam }, budget, periods, org, roster, finance] = await Promise.all([
     searchParams,
-    loadBudgetCodes(ORGANISATION_CODE),
-    loadBudgetPeriods(ORGANISATION_CODE),
-    loadOrganisationData(ORGANISATION_CODE),
-    loadRoster(ORGANISATION_CODE),
-    loadFinance(ORGANISATION_CODE),
+    loadBudgetCodes(actor.organisationCode),
+    loadBudgetPeriods(actor.organisationCode),
+    loadOrganisationData(actor.organisationCode),
+    loadRoster(actor.organisationCode),
+    loadFinance(actor.organisationCode),
   ]);
 
   // Ruling BD-10: received requisitions with no commitment in the portal ledger, grouped
   // by why — held in the finance system only where that is the source (round 3, h).
   const unpostedRows = await db.requisition.findMany({
-    where: { organisation: { code: ORGANISATION_CODE }, origin: "EXTERNAL", commitmentMovementId: null, status: { notIn: ["CANCELLED", "CLOSED"] } },
+    where: { organisation: { code: actor.organisationCode }, origin: "EXTERNAL", commitmentMovementId: null, status: { notIn: ["CANCELLED", "CLOSED"] } },
     select: { reference: true, title: true, fundingRouteCode: true, organisationId: true, budgetCode: { select: { code: true } } },
     orderBy: { reference: "asc" },
   });
-  const orgRow = unpostedRows.length ? await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } }) : null;
+  const orgRow = unpostedRows.length ? await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true } }) : null;
   const [controls, routes] = orgRow
     ? await Promise.all([loadControls(orgRow.id), db.fundingRoute.findMany({ where: { organisationId: orgRow.id }, select: { code: true, approvalCommitsBudget: true } })])
     : [null, []];

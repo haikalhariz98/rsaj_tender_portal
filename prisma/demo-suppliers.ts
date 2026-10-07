@@ -29,6 +29,7 @@ import { formatDate } from "../src/lib/format";
 import { ORGANISATION_CODE } from "../src/lib/org";
 import { calendarOf } from "./demo-window";
 import { DEMO_ACTOR } from "./demo-actor";
+import { demoOrgId } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -689,11 +690,11 @@ export async function checkSuppliersDemo(db: Db) {
   const { queueState } = await import("../src/lib/suppliers/review");
   const registered = await db.supplier.count({ where: { id: demoRef, status: "REGISTERED" } });
   if (registered !== 6) fail(`${registered} demo suppliers are registered, not 6`);
-  const v3 = (await loadSupplier(`${P}vnd3`)) ?? fail("vnd3 did not load");
+  const v3 = (await loadSupplier(await demoOrgId(), `${P}vnd3`)) ?? fail("vnd3 did not load");
   const cfg = await loadSupplierConfig(v3.org.id);
   const s3 = documentStates(cfg.typeFacts, v3.supplier.documents.map(documentFacts), v3.org.today!).find((x) => x.type.id === `${P}sdt2`);
   if (s3?.state !== "EXPIRED" || !s3.pending) fail("vnd3's contractor certificate does not read expired under its unverified renewal");
-  const v6 = (await loadSupplier(`${P}vnd6`)) ?? fail("vnd6 did not load");
+  const v6 = (await loadSupplier(await demoOrgId(), `${P}vnd6`)) ?? fail("vnd6 did not load");
   const a6 = v6.supplier.applications[0];
   if (queueState({ ...a6, resubmitBy: a6.resubmitBy?.toISOString().slice(0, 10) ?? null }, v6.org.today) !== "LAPSED") fail("vnd6's application does not read lapsed");
   const pending = await db.approvalInstance.count({ where: { id: `${P}ai128`, status: "PENDING" } });

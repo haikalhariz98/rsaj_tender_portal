@@ -18,7 +18,6 @@ import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL } from "@/lib/labels";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { DECISION_LABEL } from "@/lib/requisition/labels";
 import { cancellationsOnFile, cancellationStoodUntil, judgedWhileCancelled, notRevisitedWords, openingJudgedOf, recordCancellationFaults } from "@/lib/suppliers/cancellation";
@@ -44,9 +43,9 @@ const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const first = (fs: readonly Finding[]) => (blocking(fs).length ? supplierFaultText(blocking(fs)[0]) : null);
 
 /// Who may decide a supplier route's step today, those holding the office first.
-async function suggestionsFor(people: Option[], today: string | null) {
+async function suggestionsFor(organisationCode: string, people: Option[], today: string | null) {
   if (!today) return () => people;
-  const [roster, delegations] = await Promise.all([loadRoster(ORGANISATION_CODE), loadDelegations(ORGANISATION_CODE)]);
+  const [roster, delegations] = await Promise.all([loadRoster(organisationCode), loadDelegations(organisationCode)]);
   return (code: string | null) => {
     if (!code) return people;
     const h = supplierHolders(code, roster, delegations, today);
@@ -88,7 +87,7 @@ const approvedOn = (r: { status: string; steps: { decidedOn: Date | null }[] } |
 export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l: LoadedSupplier; cfg: SupplierConfig; reading: StandingReading | null; people: Option[]; fromAward: string | null }) {
   const s = l.supplier;
   const today = l.org.today;
-  const suggestions = await suggestionsFor(people, today);
+  const suggestions = await suggestionsFor(l.org.code, people, today);
   const reasonsFor = (use: "SUSPEND" | "BLACKLIST") => cfg.reasons.filter((x) => x.appliesTo === use && cfg.live(x, today)).map((x) => ({ value: x.id, label: x.nameEn }));
   const requestFacts = (r: (typeof s.standingRequests)[number]): RequestFacts => ({ kind: r.kind, route: routeState(r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }))), approvedOn: approvedOn(r.routes[0]), recorded: !!r.event, withdrawn: r.withdrawnAt != null });
   const requests = s.standingRequests.map(requestFacts);
@@ -293,7 +292,7 @@ export async function EligibilityPanel({ l, exerciseId }: { l: LoadedSupplier; e
 export async function ParticipationPanel({ l, people }: { l: LoadedSupplier; people: Option[] }) {
   const s = l.supplier;
   const today = l.org.today;
-  const suggestions = await suggestionsFor(people, today);
+  const suggestions = await suggestionsFor(l.org.code, people, today);
   const [unlinked, partyless, bodies] = await Promise.all([
     db.exerciseParty.findMany({ where: { organisationId: l.org.id, vendorId: null }, orderBy: [{ exercise: { reference: "desc" } }, { name: "asc" }], take: 300, select: { id: true, name: true, registrationNo: true, exercise: { select: { reference: true } } } }),
     db.award.findMany({ where: { organisationId: l.org.id, vendorId: null, awardeePartyId: null }, orderBy: { reference: "desc" }, select: { id: true, reference: true, awardeeName: true } }),

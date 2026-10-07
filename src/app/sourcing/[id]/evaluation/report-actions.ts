@@ -50,7 +50,7 @@ export async function formRecommendation(_prev: FormState, data: FormData): Prom
   const justification = r.text("justification", "Why this one", { max: 4000 });
   const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -77,7 +77,7 @@ export async function issueReport(_prev: FormState, data: FormData): Promise<For
   const actor = await requireStaff();
   const now = stampNow();
   const personId = String(data.get("personId") ?? "") || null;
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -146,7 +146,7 @@ export async function renderProposalPaper(_prev: FormState, data: FormData): Pro
   const actor = await requireStaff();
   const now = stampNow();
   const personId = String(data.get("personId") ?? "") || null;
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = issuedActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
@@ -179,7 +179,7 @@ export async function recordProposalSigner(_prev: FormState, data: FormData): Pr
   const personId = r.optionalText("personId");
   const day = r.date("signedOn", "Signed on", { required: true });
   if (r.failed || !role || !day) return { ok: false, errors: r.errors };
-  return inEvaluation(exerciseIdOf(data), async (tx, l, c) => {
+  return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = issuedActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);

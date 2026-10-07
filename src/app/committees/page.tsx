@@ -6,9 +6,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { matterCount, MEETING_STATUS_LABEL, MEETING_STATUS_TONE, SCHEDULE_WORDS, WAITING_KIND_WORDS, WAITING_WORDS } from "@/lib/committee/labels";
 import { secretariatHoldersOn } from "@/lib/committee/tabling";
 import { loadWaiting } from "@/lib/committee/waiting-load";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { loadRoster } from "@/lib/people/load";
-import { listSittings, organisationId, SITTINGS_PAGE } from "@/lib/committee/sittings";
+import { listSittings, SITTINGS_PAGE } from "@/lib/committee/sittings";
 import { db } from "@/lib/db";
 import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
@@ -30,19 +29,19 @@ const TONE = { info: "info", brand: "brand", ok: "ok", neutral: undefined } as c
  * before them (ruling 5.1).
  */
 export default async function SittingsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { page: raw } = await searchParams;
   const requested = Math.max(0, Number.parseInt(raw ?? "0", 10) || 0);
-  const { sittings, committees, total, page, counts } = await listSittings(requested);
+  const { sittings, committees, total, page, counts } = await listSittings(actor, requested);
   const pages = Math.max(1, Math.ceil(total / SITTINGS_PAGE));
-  const orgId = await organisationId();
+  const orgId = actor.organisationId;
   const series = orgId
     ? await db.numberingSeries.findUnique({ where: { organisationId_key: { organisationId: orgId, key: "meeting" } } })
     : null;
   const numbered = series != null && patternFaults(series).length === 0;
-  const waiting = await loadWaiting();
+  const waiting = await loadWaiting(actor.organisationId);
   // Founder, 2026-10-05: what the schedule drawer proposes for each committee, and who may table it today.
-  const roster = waiting?.today ? await loadRoster(ORGANISATION_CODE) : null;
+  const roster = waiting?.today ? await loadRoster(actor.organisationCode) : null;
   const secretariats = orgId ? await db.committee.findMany({ where: { organisationId: orgId }, select: { id: true, secretariatRoleCode: true } }) : [];
   const proposed: Record<string, ProposedItem[]> = {};
   for (const e of waiting?.entries ?? []) {

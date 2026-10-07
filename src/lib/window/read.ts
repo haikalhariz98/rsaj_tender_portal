@@ -57,8 +57,8 @@ const delivery = (d: { method: keyof typeof DELIVERY_METHOD_LABEL | null; consig
 });
 
 /// The exercise, its organisation and the window's data, read for display (no lock).
-async function load(exerciseId: string) {
-  const l = await loadExercise(exerciseId);
+async function load(organisationId: string, exerciseId: string) {
+  const l = await loadExercise(organisationId, exerciseId);
   if (!l) return null;
   const d = await windowData(l.org.id, l.ex);
   return { ...l, d, now: new Date() };
@@ -98,8 +98,8 @@ function ruleRows(d: WindowData) {
  * invitee list against the approved list, with the letters (invited), the closing's history and
  * the changes asked for, and every act's state. Null where the exercise does not exist.
  */
-export async function windowTab(exerciseId: string) {
-  const x = await load(exerciseId);
+export async function windowTab(organisationId: string, exerciseId: string) {
+  const x = await load(organisationId, exerciseId);
   if (!x) return null;
   const { org, ex, d, now } = x;
   const tz = org.timeZone;
@@ -260,8 +260,8 @@ async function closingActions(x: Loaded) {
 }
 
 /// The tab's acts alone, for the sections that do not otherwise read the window (the sale register, briefing, addenda).
-export async function invitationActs(exerciseId: string) {
-  const x = await load(exerciseId);
+export async function invitationActs(organisationId: string, exerciseId: string) {
+  const x = await load(organisationId, exerciseId);
   return x ? closingActions(x) : null;
 }
 
@@ -275,8 +275,8 @@ export type WindowTab = NonNullable<Awaited<ReturnType<typeof windowTab>>>;
 /// Residual 6: how many registered suppliers the sale form lists for choosing (searched in the list); any other is named by reference.
 export const SALE_SUPPLIER_CHOICES = 200;
 
-export async function saleRegister(exerciseId: string) {
-  const x = await load(exerciseId);
+export async function saleRegister(organisationId: string, exerciseId: string) {
+  const x = await load(organisationId, exerciseId);
   if (!x) return null;
   const { org, ex, d, now } = x;
   const w = d.window;
@@ -333,8 +333,8 @@ export async function saleRegister(exerciseId: string) {
  * mandatory in words (OD-8: "Not mandatory: mandatory attendance not set" where the policy is not
  * set), whether it was held, and its attendance register.
  */
-export async function briefingTab(exerciseId: string) {
-  const x = await load(exerciseId);
+export async function briefingTab(organisationId: string, exerciseId: string) {
+  const x = await load(organisationId, exerciseId);
   if (!x) return null;
   const { org, ex, d } = x;
   const attendance = mandatoryPermittedFor(d.window, d.policy.mandatoryAttendancePermitted);
@@ -361,8 +361,8 @@ export async function briefingTab(exerciseId: string) {
 }
 
 /// The attendance register of one event as CSV (Lampiran E). Null where the event is not this exercise's.
-export async function attendanceRegisterCsv(exerciseId: string, eventId: string): Promise<{ filename: string; csv: string } | null> {
-  const x = await load(exerciseId);
+export async function attendanceRegisterCsv(organisationId: string, exerciseId: string, eventId: string): Promise<{ filename: string; csv: string } | null> {
+  const x = await load(organisationId, exerciseId);
   if (!x) return null;
   const { org, ex, d } = x;
   const e = d.window?.events.find((v) => v.id === eventId);
@@ -380,8 +380,8 @@ export async function attendanceRegisterCsv(exerciseId: string, eventId: string)
  * its recipients with delivery and acknowledgement, "n of m notified", and whether a draft may
  * issue now (and if not, why).
  */
-export async function addendaTab(exerciseId: string) {
-  const x = await load(exerciseId);
+export async function addendaTab(organisationId: string, exerciseId: string) {
+  const x = await load(organisationId, exerciseId);
   if (!x) return null;
   const { org, ex, d, now } = x;
   const w = d.window;
@@ -426,8 +426,8 @@ export async function addendaTab(exerciseId: string) {
  * templates that may be chosen. A header count of what is not set (settings whose absence holds
  * a publication back).
  */
-export async function invitationConfig() {
-  const org = await db.organisation.findFirst({ select: { id: true, timeZone: true } });
+export async function invitationConfig(organisationId: string) {
+  const org = await db.organisation.findUnique({ where: { id: organisationId }, select: { id: true, timeZone: true } });
   if (!org) return null;
   const policy = await loadWindowPolicy(org.id);
   const channels = await loadChannels(org.id);
@@ -474,8 +474,8 @@ export async function invitationConfig() {
 }
 
 /// The organisation's reconciliation exceptions (FR-ADV-009 partial): live sales with no finance receipt, oldest first.
-export async function receiptExceptions() {
-  const org = await db.organisation.findFirst({ select: { id: true } });
+export async function receiptExceptions(organisationId: string) {
+  const org = await db.organisation.findUnique({ where: { id: organisationId }, select: { id: true } });
   if (!org) return [];
   const sales = await db.documentSale.findMany({ where: { organisationId: org.id, voidedAt: null, financeReceiptNo: null }, include: { party: { select: { name: true } }, window: { select: { exercise: { select: { id: true, reference: true } } } } }, orderBy: { soldOn: "asc" } });
   return sales.map((s) => ({ id: s.id, exerciseId: s.window.exercise.id, exercise: s.window.exercise.reference, purchaser: s.party.name, soldOn: day(s.soldOn), amount: money(s.amount) }));
@@ -485,11 +485,11 @@ export async function receiptExceptions() {
  * The sourcing list's closing and phase columns (plan §5), for the exercises shown: the closing
  * in the organisation's zone and the phase in words, derived now (ADR 0014).
  */
-export async function windowColumns(exerciseIds: readonly string[]) {
+export async function windowColumns(organisationId: string, exerciseIds: readonly string[]) {
   if (exerciseIds.length === 0) return new Map<string, { closing: string; phase: string; phaseCode: WindowPhase; closingDay: string | null }>();
-  const org = await db.organisation.findFirst({ select: { timeZone: true } });
+  const org = await db.organisation.findUnique({ where: { id: organisationId }, select: { timeZone: true } });
   const tz = org?.timeZone ?? null;
-  const rows = await db.sourcingExercise.findMany({ where: { id: { in: [...exerciseIds] } }, select: { id: true, status: true, closingAt: true, window: { select: { purchaseFromDay: true, purchaseCloseDay: true } } } });
+  const rows = await db.sourcingExercise.findMany({ where: { id: { in: [...exerciseIds] }, organisationId }, select: { id: true, status: true, closingAt: true, window: { select: { purchaseFromDay: true, purchaseCloseDay: true } } } });
   const now = new Date();
   return new Map(
     rows.map((r) => {
@@ -502,8 +502,8 @@ export async function windowColumns(exerciseIds: readonly string[]) {
 export type { Loaded };
 
 /// FR-DOC-010: whether the Tender Table Document is available now, in words, from the window's phase (ADR 0014).
-export async function tableDocumentNote(exerciseId: string): Promise<{ availability: TableAvailability; text: string; refusal: string | null; sinceApproved: string[] } | null> {
-  const l = await loadExercise(exerciseId);
+export async function tableDocumentNote(organisationId: string, exerciseId: string): Promise<{ availability: TableAvailability; text: string; refusal: string | null; sinceApproved: string[] } | null> {
+  const l = await loadExercise(organisationId, exerciseId);
   if (!l) return null;
   const tz = l.org.timeZone;
   const w = await db.exerciseWindow.findUnique({
@@ -538,8 +538,8 @@ const formatCancelledOn = (cancellations: readonly { appliedAt: Date | null }[],
  * name route was asked and approved for, whether they agree, and whether the list is frozen (the
  * exercise is invited). Null where the exercise does not exist.
  */
-export async function nameListTab(exerciseId: string) {
-  const x = await load(exerciseId);
+export async function nameListTab(organisationId: string, exerciseId: string) {
+  const x = await load(organisationId, exerciseId);
   if (!x) return null;
   const { ex, d } = x;
   const proposed = proposedInvitees(d.parties);

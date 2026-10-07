@@ -1,3 +1,4 @@
+import { requireStaff } from "@/app/_auth/actor";
 import { FileIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -30,7 +31,9 @@ export async function OwnerAttachments({ owner, title, subtitle, collapseWhenEmp
   /// Only the slots, each with its upload and download (AttachmentPanel).
   compact?: boolean;
 } & PanelOptions) {
-  const [org, panel, upload] = await Promise.all([documentOrg(), ownerPanel(owner), uploadContext()]);
+  // Whose documents: the signed-in person's organisation (ADR 0034 D10). Every page that draws this has already asked who is signed in; the read is cached per request.
+  const { organisationId } = await requireStaff();
+  const [org, panel, upload] = await Promise.all([documentOrg(organisationId), ownerPanel(organisationId, owner), uploadContext(organisationId)]);
   if (!panel || !upload) {
     return (
       <EmptyState size="sm" title="Its documents cannot be shown">

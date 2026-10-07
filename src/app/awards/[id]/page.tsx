@@ -145,9 +145,9 @@ function FaultList({ faults }: { faults: readonly Finding[] }) {
 }
 
 export default async function AwardPage(props: PageProps<"/awards/[id]">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const [{ id }, { tab }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string }>]);
-  const l = await loadAward(id);
+  const l = await loadAward(actor.organisationId, id);
   if (!l) notFound();
   const { award, ex, org } = l;
   const today = org.today;

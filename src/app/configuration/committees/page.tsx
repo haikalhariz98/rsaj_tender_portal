@@ -2,7 +2,6 @@ import { ChevronRight } from "@/components/icons";
 import { listCommittees, listNotApprovedOutcomes } from "@/lib/committee/repo";
 import { COMMITTEE_ACTION_LABEL, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
 import { loadRoster } from "@/lib/people/load";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { formatBand } from "@/lib/format";
 import { LOOP_KEY_LABEL, loopKeyState, type LoopStageKey } from "@/lib/evaluation/loop";
 import { PageHeader } from "@/components/ui/page-header";
@@ -35,11 +34,11 @@ const ACTION_TONE: Record<string, Tone> = {
 };
 
 export default async function CommitteesPage() {
-  await requireStaff();
+  const actor = await requireStaff();
   const [committees, outcomes, roster] = await Promise.all([
-    listCommittees(),
-    listNotApprovedOutcomes(),
-    loadRoster(ORGANISATION_CODE),
+    listCommittees(actor.organisationId),
+    listNotApprovedOutcomes(actor.organisationId),
+    loadRoster(actor.organisationCode),
   ]);
   const offices = roster.offices.filter((o) => !o.isCommittee).map((o) => ({ code: o.code, nameEn: o.nameEn }));
   const now = new Date();

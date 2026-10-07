@@ -1,6 +1,5 @@
 import { loadDocumentClasses, loadTemplates } from "@/lib/records/load";
 import { db } from "@/lib/db";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { liveClauses } from "@/lib/tender-docs/clauses";
 import { loadClauses } from "@/lib/tender-docs/repo";
@@ -46,12 +45,12 @@ const FORM_OF = { select: { id: true, nameEn: true, bodyEn: true, bodyMs: true }
 const TAB_IDS = ["templates", "corrections", "terms"] as const;
 
 export default async function TemplatesPage(props: PageProps<"/configuration/templates">) {
-  await requireStaff();
+  const actor = await requireStaff();
   const { tab } = (await props.searchParams) as { tab?: string };
   const [templates, classes, org, blocks, rows, fields] = await Promise.all([
-    loadTemplates(ORGANISATION_CODE),
-    loadDocumentClasses(ORGANISATION_CODE),
-    db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } }),
+    loadTemplates(actor.organisationCode),
+    loadDocumentClasses(actor.organisationCode),
+    db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true, timeZone: true } }),
     // 6.14 increment 1: each form's signature blocks and distribution list, counted for its row.
     db.formSignatureBlock.groupBy({ by: ["templateId"], _count: { _all: true } }),
     db.formDistribution.groupBy({ by: ["templateId"], _count: { _all: true } }),

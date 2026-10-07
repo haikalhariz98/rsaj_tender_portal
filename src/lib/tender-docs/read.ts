@@ -14,7 +14,6 @@ import { tenderingRoutesOf, latestFirst, requesterHolding } from "@/lib/method/a
 import { BEHAVIOUR_LABEL, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { evaluationContext, loadExercise } from "@/lib/method/repo";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -85,8 +84,8 @@ export function packKindText(kind: PackKind | null): string {
   return kind == null ? "Prepared before document assembly" : PACK_KIND_LABEL[kind];
 }
 
-async function context(exerciseId: string) {
-  const l = await loadExercise(exerciseId);
+async function context(organisationId: string, exerciseId: string) {
+  const l = await loadExercise(organisationId, exerciseId);
   if (!l) return null;
   const [packs, configured, templates, policy, roles, units] = await Promise.all([
     loadPacks(exerciseId),
@@ -103,8 +102,8 @@ async function context(exerciseId: string) {
 
 // ------------------------------------------------------------------ Tender documents tab
 
-export async function documentsTab(exerciseId: string) {
-  const c = await context(exerciseId);
+export async function documentsTab(organisationId: string, exerciseId: string) {
+  const c = await context(organisationId, exerciseId);
   if (!c) return null;
   const { ex, org, req, packs } = c;
   const kind = ex.packKindSnapshot;
@@ -134,7 +133,7 @@ export async function documentsTab(exerciseId: string) {
     issueInForce = !!issue && !!ctx;
     const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
     if (issue && ctx && method) {
-      const [roster, delegations, units] = await Promise.all([loadRoster(ORGANISATION_CODE), loadDelegations(ORGANISATION_CODE), db.orgUnit.findMany({ where: { organisationId: org.id } })]);
+      const [roster, delegations, units] = await Promise.all([loadRoster(org.code), loadDelegations(org.code), db.orgUnit.findMany({ where: { organisationId: org.id } })]);
       const unitPath = pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, dayToDate(on)).reverse().map((u) => u.code);
       const value = parseSen(ex.estimatedValue.toString());
       route = tenderingRouteForRequester(ctx.funder, method, Number(senToDecimalString(value)), requesterHolding((code) => holdersFor(code, unitPath, roster, delegations, on), req.requestingPersonId, value, (pid) => roster.people.some((p) => p.id === pid && p.isActive && p.isAvailable)));
@@ -292,14 +291,14 @@ function suitedTemplateCodes(configured: readonly { role: string; templateCode: 
   return codes.size > 0 ? codes : null;
 }
 
-async function routeView(ex: NonNullable<Awaited<ReturnType<typeof loadExercise>>>["ex"], org: { id: string; today: string | null }, req: { sectionUnitCode: string | null; requestingUnitCode: string; requestingPersonId: string }) {
+async function routeView(ex: NonNullable<Awaited<ReturnType<typeof loadExercise>>>["ex"], org: { id: string; code: string; today: string | null }, req: { sectionUnitCode: string | null; requestingUnitCode: string; requestingPersonId: string }) {
   const routes = latestFirst(tenderingRoutesOf(ex.approvalInstances));
   const current = routes[0] ?? null;
   if (!current) return null;
   const pending = current.steps.find((s) => s.decision === "PENDING") ?? null;
   let people: { value: string; label: string }[] = [];
   if (pending && org.today && !pending.committeeCode) {
-    const [roster, delegations, units] = await Promise.all([loadRoster(ORGANISATION_CODE), loadDelegations(ORGANISATION_CODE), db.orgUnit.findMany({ where: { organisationId: org.id } })]);
+    const [roster, delegations, units] = await Promise.all([loadRoster(org.code), loadDelegations(org.code), db.orgUnit.findMany({ where: { organisationId: org.id } })]);
     const unitPath = pathTo(units as unknown as OrgUnit[], req.sectionUnitCode || req.requestingUnitCode, dayToDate(org.today)).reverse().map((u) => u.code);
     const office = pending.actingRoleCode ?? pending.roleCode;
     const h = office ? holdersFor(office, unitPath, roster, delegations, org.today) : null;
@@ -328,8 +327,8 @@ async function routeView(ex: NonNullable<Awaited<ReturnType<typeof loadExercise>
 
 // ------------------------------------------------------------------ the Appendix page
 
-export async function appendixPage(exerciseId: string) {
-  const c = await context(exerciseId);
+export async function appendixPage(organisationId: string, exerciseId: string) {
+  const c = await context(organisationId, exerciseId);
   if (!c) return null;
   const pack = c.packs.find((p) => isLivePack(p.status)) ?? c.packs.find((p) => p.status === "APPROVED") ?? c.packs[0] ?? null;
   if (!pack?.appendix) return { exercise: { id: c.ex.id, reference: c.ex.reference, title: c.ex.title }, appendix: null, why: pack ? "This pack's parts have no Appendix to the Conditions of Contract." : c.ex.status === "DRAFT" ? "Move the exercise into preparation first, then start the tender documents." : "Start the tender documents first." };
@@ -409,8 +408,8 @@ export async function appendixPage(exerciseId: string) {
  * (ADR 0008). With approval: frozen, marked not issued. A draft: rendered live from the
  * current templates, bill and Appendix, marked "Draft, not issued".
  */
-export async function printView(exerciseId: string, set: "pack" | "table" = "pack") {
-  const c = await context(exerciseId);
+export async function printView(organisationId: string, exerciseId: string, set: "pack" | "table" = "pack") {
+  const c = await context(organisationId, exerciseId);
   if (!c) return null;
   const pack = c.packs.find((p) => p.status === "APPROVED") ?? c.packs.find((p) => isLivePack(p.status)) ?? null;
   // No pack to print: the page says so and links back, rather than reading as a missing page.
@@ -493,8 +492,8 @@ export const frozenText = (paragraphs: readonly string[]) => renderedText({ para
 
 // ------------------------------------------------------------------ Configuration › Tender documents
 
-export async function tenderDocsConfig(showRetired = false) {
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, timeZone: true } });
+export async function tenderDocsConfig(organisationId: string, showRetired = false) {
+  const org = await db.organisation.findUnique({ where: { id: organisationId }, select: { id: true, timeZone: true } });
   if (!org) return null;
   const [parts, policy, methods, bases, templates, units] = await Promise.all([
     loadConfiguredParts(org.id),

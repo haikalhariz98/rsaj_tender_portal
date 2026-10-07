@@ -6,7 +6,6 @@ import { EXERCISE_STATUS_ORDER } from "@/lib/method/labels";
 import type { ExerciseStatus } from "@/lib/method/types";
 import { db } from "@/lib/db";
 import type { FieldChange } from "@/lib/audit/diff";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { organisationTimeZone } from "@/lib/org-time";
 
 const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
@@ -54,9 +53,9 @@ export interface RequisitionWaiting {
  * modules; until then those cards say so rather than showing a zero that looks like
  * a quiet week.
  */
-export async function loadDashboard(asOf: Date = new Date()) {
+export async function loadDashboard(organisationId: string, asOf: Date = new Date()) {
   const org = await db.organisation.findUnique({
-    where: { code: ORGANISATION_CODE },
+    where: { id: organisationId },
     select: { id: true },
   });
   if (!org) return null;
@@ -97,7 +96,7 @@ export async function loadDashboard(asOf: Date = new Date()) {
   // Summed in sen, never through a float (ruling C6).
   const committed = committedSen(decisions);
 
-  const activity = await recentActivity(org.id, await organisationTimeZone());
+  const activity = await recentActivity(org.id, await organisationTimeZone(org.id));
 
   const meetings = await db.meeting.count({
     where: { committee: { organisationId: org.id } },
@@ -109,7 +108,7 @@ export async function loadDashboard(asOf: Date = new Date()) {
     take: 5,
   });
 
-  const timeZone = await organisationTimeZone();
+  const timeZone = await organisationTimeZone(org.id);
   const today = todayIn(asOf, timeZone);
   const pendingRequisitions = await db.approvalInstance.findMany({
     where: { organisationId: org.id, status: "PENDING", requisition: { status: "PENDING_APPROVAL" } },

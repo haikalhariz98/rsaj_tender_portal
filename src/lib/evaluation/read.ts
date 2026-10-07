@@ -40,8 +40,8 @@ const allowedOf = (fs: readonly Finding[]): Allowed => {
 const money = (s: bigint | null | undefined) => (s == null ? null : formatMoney(s));
 const fig = (v: bigint | null | undefined, dp: number | null) => (v == null ? null : formatFixed(v, dp ?? 4));
 
-export async function evaluationTabView(exerciseId: string) {
-  const x = await loadExercise(exerciseId);
+export async function evaluationTabView(organisationId: string, exerciseId: string) {
+  const x = await loadExercise(organisationId, exerciseId);
   if (!x) return null;
   const { org, ex } = x;
   const tz = org.timeZone;

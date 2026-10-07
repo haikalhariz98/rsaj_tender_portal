@@ -33,8 +33,8 @@ const no = (reason: string): Allowed => ({ allowed: false, reason });
 const provenance = (p: string | null | undefined) => (p ? ((PROVENANCE_LABEL as Record<string, string>)[p] ?? NOT_SET) : null);
 const words = (fs: readonly Finding[]) => fs.map((f) => ({ level: f.level, text: conditionsFaultText(f) }));
 
-export async function conditionsTab(exerciseId: string) {
-  const l = await loadExercise(exerciseId);
+export async function conditionsTab(organisationId: string, exerciseId: string) {
+  const l = await loadExercise(organisationId, exerciseId);
   if (!l) return null;
   const { ex, org } = l;
   const today = org.today;

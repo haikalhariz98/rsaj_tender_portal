@@ -12,11 +12,11 @@ import { draftFindings, loadModel, type ModelRow } from "@/lib/evaluation/config
 import { ASPECT_KIND_LABEL, CAPITAL_BASE_LABEL, modelFindingText, INPUT_LABEL, OUTCOME_LABEL, ROUTE_LABEL, SCALE_LABEL, SHORTLIST_RULE_LABEL, SIDE_LABEL, STAGE_KIND_LABEL } from "@/lib/evaluation/labels";
 import { modelSnapshot } from "@/lib/evaluation/model";
 import { ASPECT_KINDS, BAND_OUTCOMES, CAPITAL_BASES, COMPUTED_INPUTS, CRITERION_SCALES, EVALUATION_ROUTES, SHORTLIST_RULES, SIDES, STAGE_KINDS, type Finding } from "@/lib/evaluation/types";
-import { ORGANISATION_CODE } from "@/lib/org";
 import { FormReader } from "@/lib/validate";
 import { Prisma } from "@/generated/prisma/client";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Configuration › Evaluation models (6.8 plan §4 item 10; FR-EVL-006, 008, 009; ADR 0018). A model is
@@ -34,8 +34,8 @@ const NO_ORG: FormState = { ok: false, message: "No organisation is configured. 
 const GONE: FormState = { ok: false, message: "That record no longer exists. Reload the page." };
 const MODEL_ENTITY = "EvaluationModel";
 
-async function organisationId(): Promise<string | null> {
-  const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true } });
+async function organisationId(scope: OrgScope): Promise<string | null> {
+  const org = await db.organisation.findUnique({ where: { id: scope.organisationId }, select: { id: true } });
   return org?.id ?? null;
 }
 
@@ -74,8 +74,8 @@ const reject = (field: string, fault: ConfigFault): FormState => ({ ok: false, e
  * Run a draft edit: the organisation, then the model's row locked and re-read; refused unless a draft.
  * The audit rows of every part of a model are written against the model, so its History holds them all.
  */
-async function inDraft(modelId: string, fn: (tx: Tx, orgId: string, m: ModelRow) => Promise<FormState>): Promise<FormState> {
-  const orgId = await organisationId();
+async function inDraft(scope: OrgScope, modelId: string, fn: (tx: Tx, orgId: string, m: ModelRow) => Promise<FormState>): Promise<FormState> {
+  const orgId = await organisationId(scope);
   if (!orgId) return NO_ORG;
   const result = await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "EvaluationModel" WHERE id = ${modelId} AND "organisationId" = ${orgId} FOR UPDATE`;
@@ -94,7 +94,7 @@ async function inDraft(modelId: string, fn: (tx: Tx, orgId: string, m: ModelRow)
 /// Start a model (version 1, a draft), or change a draft's name, route and source.
 export async function saveModel(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -109,7 +109,7 @@ export async function saveModel(_prev: FormState, data: FormData): Promise<FormS
   const fields = (x: typeof v) => ({ name: x.nameEn, nameMs: x.nameMs, route: x.route ? ROUTE_LABEL[x.route] : null, provenance: x.provenance, source: x.governingSource || null, notes: x.notes || null });
   if (id) {
     if (r.failed) return { ok: false, errors: r.errors };
-    return inDraft(id, async (tx, org, m) => {
+    return inDraft(actor, id, async (tx, org, m) => {
       await tx.evaluationModel.update({ where: { id }, data: { ...v, route: v.route!, provenance: v.provenance! } });
       await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, id, modelLabel(m), "UPDATE", diffFields(fields({ nameEn: m.nameEn, nameMs: m.nameMs, route: m.route, provenance: m.provenance, governingSource: m.governingSource, notes: m.notes }), fields(v)));
       return { ok: true };
@@ -132,7 +132,7 @@ export async function issueModel(_prev: FormState, data: FormData): Promise<Form
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const now = toSecond(new Date());
-  return inDraft(id, async (tx, org, m) => {
+  return inDraft(actor, id, async (tx, org, m) => {
     const { content, aspects, findings } = await draftFindings(org, m, now, tx);
     const blocks = findings.filter((f) => f.level === "block");
     if (blocks.length) return { ok: false, message: `Not issued: ${said(blocks)}` };
@@ -148,7 +148,7 @@ export async function issueModel(_prev: FormState, data: FormData): Promise<Form
 /// Retire an issued version: no longer offered; exercises that pinned it keep their snapshot.
 export async function retireModel(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -169,7 +169,7 @@ export async function retireModel(_prev: FormState, data: FormData): Promise<For
 /// Throw away a draft never issued (nothing can have pinned it), with a reason.
 export async function discardDraft(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -191,7 +191,7 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
 /// Start the next version of a model as a draft, copied row by row from the version given.
 export async function newModelVersion(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const fromId = String(data.get("id") ?? "");
   let createdId: string | null = null;
@@ -261,7 +261,7 @@ export async function saveStage(_prev: FormState, data: FormData): Promise<FormS
   };
   if (v.shortlistMin != null && v.shortlistMax != null && v.shortlistMin > v.shortlistMax) r.reject("shortlistMax", "The most shortlisted cannot be fewer than the fewest.");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inDraft(modelId, async (tx, org, m) => {
+  return inDraft(actor, modelId, async (tx, org, m) => {
     const self = stageId ? m.stages.find((s) => s.id === stageId) : null;
     if (stageId && !self) return GONE;
     const code = self ? self.code : r.code("code", "Code", { taken: m.stages.map((s) => s.code) });
@@ -305,7 +305,7 @@ export async function removeStage(_prev: FormState, data: FormData): Promise<For
   const actor = await requireStaff();
   const modelId = String(data.get("modelId") ?? "");
   const stageId = String(data.get("stageId") ?? "");
-  return inDraft(modelId, async (tx, org, m) => {
+  return inDraft(actor, modelId, async (tx, org, m) => {
     const s = m.stages.find((x) => x.id === stageId);
     if (!s) return GONE;
     await tx.evaluationStage.delete({ where: { id: s.id } });
@@ -336,7 +336,7 @@ export async function saveCriterion(_prev: FormState, data: FormData): Promise<F
     governingSource: r.text("governingSource", "Source", { max: 400 }),
   };
   if (r.failed) return { ok: false, errors: r.errors };
-  return inDraft(modelId, async (tx, org, m) => {
+  return inDraft(actor, modelId, async (tx, org, m) => {
     const stage = m.stages.find((s) => s.id === stageId);
     if (!stage) return GONE;
     const self = criterionId ? stage.criteria.find((c) => c.id === criterionId) : null;
@@ -379,7 +379,7 @@ export async function removeCriterion(_prev: FormState, data: FormData): Promise
   const actor = await requireStaff();
   const modelId = String(data.get("modelId") ?? "");
   const criterionId = String(data.get("criterionId") ?? "");
-  return inDraft(modelId, async (tx, org, m) => {
+  return inDraft(actor, modelId, async (tx, org, m) => {
     const stage = m.stages.find((s) => s.criteria.some((c) => c.id === criterionId));
     const c = stage?.criteria.find((x) => x.id === criterionId);
     if (!stage || !c) return GONE;
@@ -407,7 +407,7 @@ export async function saveFactor(_prev: FormState, data: FormData): Promise<Form
   };
   if (!v.factorPct && !r.errors.factorPct) r.reject("factorPct", "Percentage is required.");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inDraft(modelId, async (tx, org, m) => {
+  return inDraft(actor, modelId, async (tx, org, m) => {
     const stage = m.stages.find((s) => s.id === stageId);
     if (!stage) return GONE;
     const self = factorId ? stage.factorOptions.find((x) => x.id === factorId) : null;
@@ -432,7 +432,7 @@ export async function removeFactor(_prev: FormState, data: FormData): Promise<Fo
   const actor = await requireStaff();
   const modelId = String(data.get("modelId") ?? "");
   const factorId = String(data.get("factorId") ?? "");
-  return inDraft(modelId, async (tx, org, m) => {
+  return inDraft(actor, modelId, async (tx, org, m) => {
     const stage = m.stages.find((s) => s.factorOptions.some((x) => x.id === factorId));
     const x = stage?.factorOptions.find((y) => y.id === factorId);
     if (!stage || !x) return GONE;
@@ -455,7 +455,7 @@ export async function saveBandSet(_prev: FormState, data: FormData): Promise<For
     governingSource: r.text("governingSource", "Source", { max: 400 }),
   };
   if (r.failed) return { ok: false, errors: r.errors };
-  return inDraft(modelId, async (tx, org, m) => {
+  return inDraft(actor, modelId, async (tx, org, m) => {
     const self = setId ? m.bandSets.find((b) => b.id === setId) : null;
     if (setId && !self) return GONE;
     const code = self ? self.code : r.code("code", "Code", { taken: m.bandSets.map((b) => b.code) });
@@ -477,7 +477,7 @@ export async function removeBandSet(_prev: FormState, data: FormData): Promise<F
   const actor = await requireStaff();
   const modelId = String(data.get("modelId") ?? "");
   const setId = String(data.get("setId") ?? "");
-  return inDraft(modelId, async (tx, org, m) => {
+  return inDraft(actor, modelId, async (tx, org, m) => {
     const set = m.bandSets.find((b) => b.id === setId);
     if (!set) return GONE;
     if (m.stages.some((s) => s.criteria.some((c) => c.bandSetCode === set.code))) return { ok: false, message: CONFIG_TEXT.BAND_SET_IN_USE };
@@ -509,7 +509,7 @@ export async function saveBand(_prev: FormState, data: FormData): Promise<FormSt
   if (v.lower != null && lowerInclusive == null) r.reject("lowerInclusive", "Say whether a value exactly on the lower edge is in this band.");
   if (v.upper != null && upperInclusive == null) r.reject("upperInclusive", "Say whether a value exactly on the upper edge is in this band.");
   if (r.failed) return { ok: false, errors: r.errors };
-  return inDraft(modelId, async (tx, org, m) => {
+  return inDraft(actor, modelId, async (tx, org, m) => {
     const set = m.bandSets.find((b) => b.id === setId);
     if (!set) return GONE;
     const self = bandId ? set.bands.find((b) => b.id === bandId) : null;
@@ -533,7 +533,7 @@ export async function removeBand(_prev: FormState, data: FormData): Promise<Form
   const actor = await requireStaff();
   const modelId = String(data.get("modelId") ?? "");
   const bandId = String(data.get("bandId") ?? "");
-  return inDraft(modelId, async (tx, org, m) => {
+  return inDraft(actor, modelId, async (tx, org, m) => {
     const set = m.bandSets.find((s) => s.bands.some((b) => b.id === bandId));
     const b = set?.bands.find((x) => x.id === bandId);
     if (!set || !b) return GONE;
@@ -547,7 +547,7 @@ export async function removeBand(_prev: FormState, data: FormData): Promise<Form
 
 export async function saveAspect(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -584,7 +584,7 @@ export async function saveAspect(_prev: FormState, data: FormData): Promise<Form
 
 export async function retireAspect(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -604,7 +604,7 @@ export async function retireAspect(_prev: FormState, data: FormData): Promise<Fo
 
 export async function saveEvaluationPolicy(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const r = new FormReader(data);
   const v = {
@@ -654,7 +654,7 @@ export async function saveEvaluationPolicy(_prev: FormState, data: FormData): Pr
 
 export async function saveBasisRoute(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -677,7 +677,7 @@ export async function saveBasisRoute(_prev: FormState, data: FormData): Promise<
 
 export async function saveMethodModel(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  const orgId = await organisationId();
+  const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
   const id = String(data.get("id") ?? "");
   const code = String(data.get("defaultEvaluationModelCode") ?? "").trim() || null;

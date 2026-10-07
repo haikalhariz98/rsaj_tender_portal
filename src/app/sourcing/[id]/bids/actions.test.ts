@@ -55,7 +55,8 @@ vi.mock("../window/shared", () => ({
   },
   activePerson: async (_tx: unknown, _org: string, id: string | null) => (id ? { id, name: "Clerk" } : null),
   // The exercise lock: waiting for it moves the clock on, and the closing is read under it.
-  inWindow: async (_id: string, fn: (tx: unknown, l: unknown) => Promise<unknown>) => {
+  // Phase 1c (ADR 0034 D10): the lock is now asked for the signed-in person's organisation first (`inWindow(scope, id, fn)`); the stand-in takes it and ignores it.
+  inWindow: async (_scope: unknown, _id: string, fn: (tx: unknown, l: unknown) => Promise<unknown>) => {
     advance(h.waitExercise);
     const model = (name: string) => ({
       create: async ({ data }: { data: Record<string, unknown> }) => {

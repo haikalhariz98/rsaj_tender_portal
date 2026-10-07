@@ -34,6 +34,7 @@ import type { OwnerRef } from "./repo";
 import { documentOrg } from "./service";
 import type { AttachmentPurpose } from "./types";
 import type { AuditActor } from "@/lib/auth/types";
+import type { OrgScope } from "@/lib/org-scope";
 
 export interface LockedOwner {
   ref: OwnerRef;
@@ -54,10 +55,10 @@ export interface LockedOwner {
 }
 
 /// Run `fn` with the owner locked, inside one transaction. Null when the owner does not exist.
-export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (tx: Tx, o: LockedOwner) => Promise<T>): Promise<T | null> {
+export async function withLockedOwner<T>(scope: OrgScope, actor: AuditActor, ref: OwnerRef, fn: (tx: Tx, o: LockedOwner) => Promise<T>): Promise<T | null> {
   switch (ref.kind) {
     case "meeting":
-      return withLockedSitting(ref.id, (tx, s) =>
+      return withLockedSitting(scope, ref.id, (tx, s) =>
         fn(tx, {
           ref,
           organisationId: s.organisationId,
@@ -69,9 +70,9 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
         }),
       );
     case "exercise": {
-      const requisitionId = await requisitionOfExercise(ref.id);
+      const requisitionId = await requisitionOfExercise(scope.organisationId, ref.id);
       if (!requisitionId) return null;
-      return withLockedRequisitionForSourcing(requisitionId, ref.id, async (tx, l) => {
+      return withLockedRequisitionForSourcing(scope.organisationId, requisitionId, ref.id, async (tx, l) => {
         if (!l.ex) return null;
         const awards = await tx.award.findMany({
           where: { exerciseId: l.ex.id },
@@ -96,7 +97,7 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
       });
     }
     case "award":
-      return withLockedAward(ref.id, (tx, l) => {
+      return withLockedAward(scope.organisationId, ref.id, (tx, l) => {
         const a = l.award;
         // OD-5: an award accepted before scans were required has no scan snapshot.
         const facts: OwnerFacts = awardFacts(a);
@@ -114,9 +115,9 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
       });
     case "specificationPanel": {
       // 6.2: requisition, exercise, then the panel, as the scope actions lock it.
-      const exerciseId = await exerciseOfPanel(ref.id);
+      const exerciseId = await exerciseOfPanel(scope.organisationId, ref.id);
       if (!exerciseId) return null;
-      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+      return withLockedExerciseScope(scope.organisationId, exerciseId, async (tx, l) => {
         await lockPanelRow(tx, ref.id);
         // BD-62-26: the snapshot and the live scans, read under the panel's lock.
         const p = await tx.specificationPanel.findFirst({ where: { id: ref.id, exerciseId, organisationId: l.org.id }, select: PANEL_FACTS_SELECT });
@@ -135,9 +136,9 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
     }
     case "bqVersion": {
       // 6.2 Q-3: requisition, exercise, then the bill's versions, as the scope actions lock them.
-      const exerciseId = await exerciseOfBqVersion(ref.id);
+      const exerciseId = await exerciseOfBqVersion(scope.organisationId, ref.id);
       if (!exerciseId) return null;
-      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+      return withLockedExerciseScope(scope.organisationId, exerciseId, async (tx, l) => {
         await lockBqRows(tx, exerciseId);
         const v = await tx.bqVersion.findFirst({ where: { id: ref.id, exerciseId, organisationId: l.org.id }, select: { status: true, versionNo: true } });
         if (!v) return null;
@@ -157,7 +158,7 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
       // 6.4: requisition, exercise, then the exercise's packs, as the pack actions lock them.
       const exerciseId = await exerciseOfPackPart(ref.id);
       if (!exerciseId) return null;
-      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+      return withLockedExerciseScope(scope.organisationId, exerciseId, async (tx, l) => {
         await lockPackRows(tx, exerciseId);
         const p = await tx.tenderPackPart.findFirst({ where: { id: ref.id, organisationId: l.org.id, pack: { exerciseId } }, select: PACK_PART_FACTS_SELECT });
         if (!p) return null;
@@ -177,7 +178,7 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
       // 6.5: requisition, exercise, the window, then its addenda, as the window actions lock them.
       const exerciseId = await exerciseOfAddendum(ref.id);
       if (!exerciseId) return null;
-      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+      return withLockedExerciseScope(scope.organisationId, exerciseId, async (tx, l) => {
         await lockWindowRow(tx, exerciseId);
         const w = await tx.exerciseWindow.findUnique({ where: { exerciseId }, select: { id: true } });
         if (!w) return null;
@@ -200,7 +201,7 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
       // 6.6: requisition, exercise, the window, the envelopes, then the withdrawals, as the bid actions lock them.
       const exerciseId = await exerciseOfWithdrawal(ref.id);
       if (!exerciseId) return null;
-      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+      return withLockedExerciseScope(scope.organisationId, exerciseId, async (tx, l) => {
         await lockWindowRow(tx, exerciseId);
         await lockEnvelopeRows(tx, exerciseId);
         await lockWithdrawalRows(tx, exerciseId);
@@ -222,7 +223,7 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
       // 6.6: requisition, exercise, the window, the envelopes, then the extensions, as the bid actions lock them.
       const exerciseId = await exerciseOfExtension(ref.id);
       if (!exerciseId) return null;
-      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+      return withLockedExerciseScope(scope.organisationId, exerciseId, async (tx, l) => {
         await lockWindowRow(tx, exerciseId);
         await lockEnvelopeRows(tx, exerciseId);
         await lockExtensionRows(tx, exerciseId);
@@ -244,7 +245,7 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
       // 6.7: requisition, exercise, the window, then the openings, as the opening actions lock them.
       const exerciseId = await exerciseOfOpening(ref.id);
       if (!exerciseId) return null;
-      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+      return withLockedExerciseScope(scope.organisationId, exerciseId, async (tx, l) => {
         await lockWindowRow(tx, exerciseId);
         await lockOpeningRows(tx, exerciseId);
         const o = await tx.opening.findFirst({ where: { id: ref.id, organisationId: l.org.id, exerciseId }, select: OPENING_FACTS_SELECT });
@@ -267,7 +268,7 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
       // 6.8: requisition, exercise, the window, the openings, then the evaluations, as the evaluation actions lock them.
       const exerciseId = ref.kind === "evaluation" ? await exerciseOfEvaluation(ref.id) : ref.kind === "evaluationMeeting" ? await exerciseOfEvaluationMeeting(ref.id) : await exerciseOfEvaluationBidder(ref.id);
       if (!exerciseId) return null;
-      return withLockedExerciseScope(exerciseId, async (tx, l) => {
+      return withLockedExerciseScope(scope.organisationId, exerciseId, async (tx, l) => {
         await lockWindowRow(tx, exerciseId);
         await lockOpeningRows(tx, exerciseId);
         await lockEvaluationRows(tx, exerciseId);
@@ -299,7 +300,7 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
     }
     case "contract":
       // 6.12: requisition → exercise → award → contract (`withLockedContract`, the canonical order).
-      return withLockedContract(ref.id, (tx, l) => {
+      return withLockedContract(scope.organisationId, ref.id, (tx, l) => {
         const c = l.contract;
         const facts = contractFacts({ status: c.status, signatures: c.signatures, legalReviews: c.legalReviews, attachments: c.attachments });
         return fn(tx, {
@@ -315,9 +316,9 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
     case "variationInstruction": {
       // 6.13 (FR-VAR-015): the contract first (`withLockedContract`, the canonical order), then its variation, as the
       // variation's own acts lock them, then the instruction read under them.
-      const pre = await db.variationInstruction.findUnique({ where: { id: ref.id }, select: { variation: { select: { id: true, contractId: true } } } });
+      const pre = await db.variationInstruction.findFirst({ where: { id: ref.id, organisationId: scope.organisationId }, select: { variation: { select: { id: true, contractId: true } } } });
       if (!pre) return null;
-      return withLockedContract(pre.variation.contractId, async (tx, l) => {
+      return withLockedContract(scope.organisationId, pre.variation.contractId, async (tx, l) => {
         await tx.$queryRaw`SELECT id FROM "Variation" WHERE id = ${pre.variation.id} FOR UPDATE`;
         const i = await tx.variationInstruction.findFirst({ where: { id: ref.id, organisationId: l.org.id }, select: VARIATION_INSTRUCTION_FACTS_SELECT });
         if (!i) return null;
@@ -336,9 +337,9 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
     }
     case "delayNotice": {
       // 6.13 Part B run 1b: the contract first (`withLockedContract`, the canonical order), then the notice.
-      const pre = await db.delayNotice.findUnique({ where: { id: ref.id }, select: { contractId: true } });
+      const pre = await db.delayNotice.findFirst({ where: { id: ref.id, organisationId: scope.organisationId }, select: { contractId: true } });
       if (!pre) return null;
-      return withLockedContract(pre.contractId, async (tx, l) => {
+      return withLockedContract(scope.organisationId, pre.contractId, async (tx, l) => {
         await tx.$queryRaw`SELECT id FROM "DelayNotice" WHERE id = ${ref.id} FOR UPDATE`;
         const n = await tx.delayNotice.findFirst({ where: { id: ref.id, organisationId: l.org.id, contractId: pre.contractId }, select: DELAY_NOTICE_FACTS_SELECT });
         if (!n) return null;
@@ -356,9 +357,9 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
     }
     case "eotClaim": {
       // 6.13 Part B run 1b: the contract first, then the claim's matter (the first domain row), then the claim.
-      const pre = await db.eotClaim.findUnique({ where: { id: ref.id }, select: { contractId: true, matterId: true } });
+      const pre = await db.eotClaim.findFirst({ where: { id: ref.id, organisationId: scope.organisationId }, select: { contractId: true, matterId: true } });
       if (!pre) return null;
-      return withLockedContract(pre.contractId, async (tx, l) => {
+      return withLockedContract(scope.organisationId, pre.contractId, async (tx, l) => {
         await tx.$queryRaw`SELECT id FROM "ContractMatter" WHERE id = ${pre.matterId} FOR UPDATE`;
         await tx.$queryRaw`SELECT id FROM "EotClaim" WHERE id = ${ref.id} FOR UPDATE`;
         const c = await tx.eotClaim.findFirst({ where: { id: ref.id, organisationId: l.org.id, contractId: pre.contractId }, select: EOT_CLAIM_FACTS_SELECT });
@@ -382,7 +383,7 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
       const supplierId = ref.kind === "supplierDocument" ? await supplierOfDocument(ref.id) : await supplierOfApplication(ref.id);
       if (!supplierId) return null;
       return db.$transaction(async (tx) => {
-        const org = await documentOrg(tx);
+        const org = await documentOrg(scope.organisationId, tx);
         if (!org || !(await lockSupplierRow(tx, supplierId))) return null;
         const read = async (): Promise<{ facts: OwnerFacts; label: string } | null> => {
           if (ref.kind === "supplierDocument") {
@@ -410,10 +411,10 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
     }
     case "standingEvent": {
       // 6.15 (615-C2): the supplier row first (the supplier-only path, src/lib/suppliers/lock.ts), then the event.
-      const supplierId = (await db.standingEvent.findUnique({ where: { id: ref.id }, select: { supplierId: true } }))?.supplierId ?? null;
+      const supplierId = (await db.standingEvent.findFirst({ where: { id: ref.id, organisationId: scope.organisationId }, select: { supplierId: true } }))?.supplierId ?? null;
       if (!supplierId) return null;
       return db.$transaction(async (tx) => {
-        const org = await documentOrg(tx);
+        const org = await documentOrg(scope.organisationId, tx);
         if (!org || !(await lockSupplierRow(tx, supplierId))) return null;
         await tx.$queryRaw`SELECT id FROM "StandingEvent" WHERE id = ${ref.id} FOR UPDATE`;
         const e = await tx.standingEvent.findFirst({ where: { id: ref.id, organisationId: org.id, supplierId }, select: CANCELLATION_OWNER_SELECT });
@@ -433,7 +434,7 @@ export async function withLockedOwner<T>(actor: AuditActor, ref: OwnerRef, fn: (
     }
     case "delegation":
       return db.$transaction(async (tx) => {
-        const org = await documentOrg(tx);
+        const org = await documentOrg(scope.organisationId, tx);
         if (!org) return null;
         // The Delegation row lock and the read under it, shared with saveDelegation.
         const d = await lockDelegation(tx, ref.id, org.id);

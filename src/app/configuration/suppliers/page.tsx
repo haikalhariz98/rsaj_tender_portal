@@ -48,8 +48,8 @@ const tri = (v: boolean | null) => (v === true ? "yes" : v === false ? "no" : "u
  * customer's seed. Each value says where it comes from; each unset switch says what it holds back.
  */
 export default async function SupplierRegisterConfigPage() {
-  await requireStaff();
-  const org = await supplierOrg();
+  const actor = await requireStaff();
+  const org = await supplierOrg(actor.organisationId);
   if (!org) {
     return (
       <>
