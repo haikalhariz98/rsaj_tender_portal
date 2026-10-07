@@ -1,6 +1,7 @@
 /**
  * Sign-in accounts for the demonstration (Phase 1b): so that someone who has loaded the demo can sign in as an administrator, and as each of the people the demo
- * is about, to see the screens as they would. For a development or demonstration database only.
+ * is about, to see the screens as they would. For a development or demonstration database only: it refuses unless the demonstration is loaded (`npm run demo:load`),
+ * because everything it makes opens with one published password. A database that holds real people and no demonstration is never given accounts by it.
  *
  *   DEMO_ACCOUNT_PASSWORD=... npm run demo:accounts
  *
@@ -10,7 +11,8 @@
  *   chooses its own (the bootstrap command asks for each; Configuration is where they are kept). A setting already set is never changed.
  * - Two administrators, each a person of their own who holds no office (administration stays apart from transactions): `demo.admin1` and `demo.admin2`.
  *   Two, because the checks that need a second person cannot be shown with one.
- * - An ordinary account for every active person on record who has none, signing in as `demo.<their name>`.
+ * - An ordinary account for every active person of the demonstration (ids prefixed `demo_`) who has none, signing in as `demo.<their name>`. A person who is
+ *   not the demonstration's, whoever made them, is never given one: accounts for real people are made on Sign-in accounts, with a code, by an administrator.
  *
  * Every account has the one password in `DEMO_ACCOUNT_PASSWORD`, which this reads from the environment and never prints, stores in a file or puts in the
  * trail (only its hash is stored). Set it in your own `.env` (see `.env.example`). It must satisfy the organisation's shortest-password setting.
@@ -18,7 +20,7 @@
  */
 import "dotenv/config";
 
-import { AccountStatus } from "../src/generated/prisma/client";
+import { AccountStatus, type PrismaClient } from "../src/generated/prisma/client";
 import { diffFields } from "../src/lib/audit/diff";
 import { writeAudit } from "../src/lib/audit/record";
 import { recordSignInEvent } from "../src/lib/auth/events";
@@ -29,6 +31,7 @@ import { loadSecurityPolicy } from "../src/lib/auth/policy-store";
 import type { AuditActor, SecurityPolicyValues } from "../src/lib/auth/types";
 import { db } from "../src/lib/db";
 import { ORGANISATION_CODE } from "../src/lib/org";
+import { DEMO_PREFIX, demoIsLoaded } from "../prisma/demo-sign-in";
 
 /// SAMPLE values for a demonstration. Nothing in the product defaults to them: a customer's own are chosen, never inherited from here.
 const DEMO_POLICY: Partial<SecurityPolicyValues> = {
@@ -63,7 +66,7 @@ function slug(name: string): string {
 async function main() {
   if (process.env.NODE_ENV === "production") throw new Error("Demonstration accounts are for a development or demonstration database, never a production one.");
   if (process.argv.slice(2).some((a) => a === "--help" || a === "-h")) {
-    console.log("DEMO_ACCOUNT_PASSWORD=... npm run demo:accounts\n\nMakes sign-in accounts for the demonstration: two administrators and one for each person on record. See the head of scripts/demo-accounts.ts.");
+    console.log("DEMO_ACCOUNT_PASSWORD=... npm run demo:accounts\n\nMakes sign-in accounts for the demonstration: two administrators and one for each person of the demonstration (it must be loaded first). See the head of scripts/demo-accounts.ts.");
     return;
   }
   const password = process.env.DEMO_ACCOUNT_PASSWORD ?? "";
@@ -71,6 +74,10 @@ async function main() {
 
   const org = await db.organisation.findUnique({ where: { code: ORGANISATION_CODE }, select: { id: true, name: true } });
   if (!org) throw new Error(`There is no organisation with the code ${ORGANISATION_CODE}. Run npm run setup and npm run demo:load first.`);
+
+  // The marker (the product's client omits some columns from its types, as the loader's plain one does not; it is the same connection): a database that holds the demonstration. Nothing below is done to one that does not (the sample settings, the administrators and the accounts all
+  // open with the one published password).
+  if (!(await demoIsLoaded(db as unknown as PrismaClient))) throw new Error("The demonstration is not loaded in this database, so no demonstration accounts are made: they all sign in with one published password. Run npm run demo:load first. For a real person, an administrator makes the account on Sign-in accounts.");
 
   // The settings: fill what is unset with the sample values, and say so in the trail.
   const existing = await loadSecurityPolicy(db, org.id);
@@ -132,7 +139,7 @@ async function main() {
     await makeAccount(person.id, a.name, a.loginName, true);
   }
 
-  const people = await db.person.findMany({ where: { organisationId: org.id, isActive: true, staffAccount: null }, orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const people = await db.person.findMany({ where: { organisationId: org.id, id: { startsWith: DEMO_PREFIX }, isActive: true, staffAccount: null }, orderBy: { name: "asc" }, select: { id: true, name: true } });
   for (const p of people) {
     let loginName = slug(p.name);
     for (let n = 2; taken.has(loginKeyOf(loginName)); n++) loginName = `${slug(p.name).slice(0, 60)}.${n}`;
