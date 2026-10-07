@@ -137,6 +137,33 @@ describe("the CHECKs of ActAttribution", () => {
   });
 });
 
+describe("the CHECKs of the document, the role and the back-dating (Phase 2b)", () => {
+  it("holds the document to its model and its id together, neither blank", async () => {
+    expect(await refusal(make(signedRow({ documentEntity: "Requisition", documentId: "rq_1" })))).toBeNull();
+    expect(await refusal(make(signedRow({ documentEntity: "Requisition" })))).toBe("23514");
+    expect(await refusal(make(signedRow({ documentId: "rq_1" })))).toBe("23514");
+    expect(await refusal(make(signedRow({ documentEntity: " ", documentId: "rq_1" })))).toBe("23514");
+    expect(await refusal(make(signedRow({ documentEntity: "Requisition", documentId: "" })))).toBe("23514");
+  });
+
+  it("holds a role to a code, never blank", async () => {
+    expect(await refusal(make(signedRow({ roleCode: "KETUA_JABATAN" })))).toBeNull();
+    expect(await refusal(make(signedRow({ roleCode: "  " })))).toBe("23514");
+  });
+
+  it("holds a back-dated act to a reason, an authoriser and a day together, on a signed act, the authoriser not the recorder", async () => {
+    const dated = { effectiveOn: new Date("2026-09-30"), backdateReason: "Paper found again", backdateAuthorisedByPersonId: p2 };
+    expect(await refusal(make(signedRow(dated)))).toBeNull();
+    expect(await refusal(make(signedRow({ ...dated, backdateAuthorisedByPersonId: p1 })))).toBe("23514");
+    expect(await refusal(make(signedRow({ ...dated, backdateReason: " " })))).toBe("23514");
+    expect(await refusal(make(signedRow({ ...dated, backdateAuthorisedByPersonId: null })))).toBe("23514");
+    expect(await refusal(make(signedRow({ ...dated, effectiveOn: null })))).toBe("23514");
+    expect(await refusal(make({ ...fresh(), subjectPersonId: p1, recordedByPersonId: p2, mode: "RECORDED_ON_BEHALF", paperReference: "Minute 4", ...dated, backdateAuthorisedByPersonId: p1 }))).toBe("23514");
+    // A reason with no authoriser is the same hole from the other side.
+    expect(await refusal(make(signedRow({ backdateAuthorisedByPersonId: p2 })))).toBe("23514");
+  });
+});
+
 describe("an attribution is evidence", () => {
   let id = "";
   beforeAll(async () => {
@@ -189,7 +216,9 @@ describe("the one writer", () => {
     mustChangePassword: false,
     ...over,
   });
-  const base = () => ({ entity: "ApprovalStep", entityId: `step_${randomId()}`, slot: "decidedBy" });
+  // Changed in Phase 2b, to match the ruled decision, not weakened: a signature-class act names the exact document or record it signs (NFR-SIG-001), so the writer
+  // tests that sign give it one. What the writer refuses without it is held by "refuses a signature that names no document" below.
+  const base = () => ({ entity: "ApprovalStep", entityId: `step_${randomId()}`, slot: "decidedBy", document: { entity: "Requisition", id: `rq_${randomId()}` } });
 
   // Changed with the review of Phase 2a, to match the fix, not weakened: these tests handed the writer `new Date()` as the password stamp with no
   // `stepUp` ever asked. The writer now takes the stamp only from the session, so each signs in a session that was asked the password at that time.
@@ -274,6 +303,41 @@ describe("the one writer", () => {
     const input = { ...base(), actor: actor({ permissions: new Set<PermissionKey>(["acts.recordOnBehalf"]) }), subject: { kind: "PERSON" as const, personId: p1 }, mode: "RECORDED_ON_BEHALF" as const, paperReference: "Minute 9/2026" };
     await expect(db.$transaction((tx) => attributeAct(tx, input))).rejects.toMatchObject({ faults: [{ code: "ON_BEHALF_OF_SELF" }] });
     expect(await db.actAttribution.count({ where: { entityId: input.entityId } })).toBe(0);
+  });
+
+  it("refuses a signature that names no document, and one that names it blank, and writes nothing", async () => {
+    const at = new Date();
+    const sessionId = await sessionAskedAt(at);
+    const input = { ...base(), actor: actor({ sessionId }), subject: { kind: "PERSON" as const, personId: p1 }, mode: "SIGNED" as const, stepUpAt: at };
+    for (const document of [null, undefined, { entity: " ", id: "x" }, { entity: "Requisition", id: "" }]) {
+      await expect(db.$transaction((tx) => attributeAct(tx, { ...input, document }))).rejects.toMatchObject({ faults: [{ code: "DOCUMENT_REQUIRED" }] });
+    }
+    expect(await db.actAttribution.count({ where: { entityId: input.entityId } })).toBe(0);
+  });
+
+  it("records the exact document a signature signed and the office the signer held", async () => {
+    const at = new Date();
+    const input = { ...(await signedWith(at)), roleCode: "KETUA_JABATAN" };
+    const row = await db.$transaction((tx) => attributeAct(tx, input));
+    expect(row).toMatchObject({ documentEntity: input.document.entity, documentId: input.document.id, roleCode: "KETUA_JABATAN", effectiveOn: null, backdateReason: "", backdateAuthorisedByPersonId: null });
+  });
+
+  it("records a back-dated signature as an exception: the day it is dated, why, and an authoriser who is not the recorder", async () => {
+    const input = { ...(await signedWith(new Date())), effectiveOn: "2026-09-30", backdate: { reason: "The paper was lost and found again", authorisedByPersonId: p2 } };
+    const row = await db.$transaction((tx) => attributeAct(tx, input));
+    expect(row).toMatchObject({ mode: "SIGNED", backdateReason: "The paper was lost and found again", backdateAuthorisedByPersonId: p2 });
+    expect(row.effectiveOn?.toISOString().slice(0, 10)).toBe("2026-09-30");
+  });
+
+  it("refuses back-dating that names the recorder as its authoriser, that has no reason, or that names no day, and writes nothing", async () => {
+    const mk = async () => ({ ...(await signedWith(new Date())), effectiveOn: "2026-09-30" as string | null });
+    const self = { ...(await mk()), backdate: { reason: "Late", authorisedByPersonId: p1 } };
+    await expect(db.$transaction((tx) => attributeAct(tx, self))).rejects.toMatchObject({ faults: [{ code: "BACKDATE_SELF_AUTHORISED" }] });
+    const noReason = { ...(await mk()), backdate: { reason: "  ", authorisedByPersonId: p2 } };
+    await expect(db.$transaction((tx) => attributeAct(tx, noReason))).rejects.toMatchObject({ faults: [{ code: "BACKDATE_REASON_REQUIRED" }] });
+    const noDay = { ...(await mk()), effectiveOn: null, backdate: { reason: "Late", authorisedByPersonId: p2 } };
+    await expect(db.$transaction((tx) => attributeAct(tx, noDay))).rejects.toMatchObject({ faults: [{ code: "BACKDATE_NOT_SIGNED" }] });
+    for (const i of [self, noReason, noDay]) expect(await db.actAttribution.count({ where: { entityId: i.entityId } })).toBe(0);
   });
 
   it("refuses a signature-class act signed without the password again, and writes nothing", async () => {

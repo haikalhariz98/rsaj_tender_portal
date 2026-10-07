@@ -135,7 +135,8 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("CommitteeDecision", "tabledBy", "Tabled by"),
   paper("DecisionRecusal", "person", "Recusal declared by"),
   paper("Vote", "person", "Vote cast by", { holder: "HOLDER_CHECKED", entryPoints: ["src/app/api/committees/decisions/[id]/votes/route.ts#POST"] }),
-  slot("Delegation", "fromPerson", "Granted by"),
+  // The grantor is named in the form: the signed-in person, or another whose delegation is recorded from their letter.
+  paper("Delegation", "fromPerson", "Granted by"),
   paper("Requisition", "requestingPerson", "Requested by"),
   paper("RequisitionEndorsement", "person", "Endorsed by"),
   slot("RequisitionSplitCheck", "overriddenBy", "Split check overridden by"),

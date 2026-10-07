@@ -472,7 +472,7 @@ export async function loadLifecycleDemo(db: Db, organisationId: string) {
   /// To signing, then each block in order; the last issues it. Copies despatched and the original acknowledged.
   const sign = async (certId: string, toSigningOn: string, blocks: Sign[], despatch?: string) => {
     await act(`${toSigningOn}T17:00`, `${certId} to signing`, A.certificate.sendCertificateToSigning, { certId });
-    for (const [i, b] of blocks.entries()) await act(`${b.on}T17:${String(10 + i * 5)}`, `${certId} block ${b.order}`, A.certificate.recordCertificateSignature, { certId, blockOrder: String(b.order), personId: b.person?.id, name: b.name, icNumber: b.ic, signedOn: b.person ? undefined : b.on, decision: b.decision });
+    for (const [i, b] of blocks.entries()) await act(`${b.on}T17:${String(10 + i * 5)}`, `${certId} block ${b.order}`, A.certificate.recordCertificateSignature, { certId, blockOrder: String(b.order), personBlock: b.person ? "yes" : "no", personId: b.person?.id, name: b.name, icNumber: b.ic, signedOn: b.person ? undefined : b.on, decision: b.decision });
     if (!despatch) return;
     const c = await certificate(certId);
     if (c.status !== "ISSUED") throw new Error(`demo ${certId}: not issued after its last block (${c.status})`);

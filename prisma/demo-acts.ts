@@ -67,6 +67,8 @@ const P = "demo_";
 /// Each model an act may create, and its sub-prefix (grepped free; the wipe matches each exactly).
 export const ACT_PREFIX: Readonly<Record<string, string>> = {
   AuditEntry: "lau",
+  // An act's attribution (Phase 2b): every act a loader runs writes one for each person slot it fills. Append-only, so the demo never wipes it.
+  ActAttribution: "laa",
   // The contract's formation.
   ContractAssemblyPart: "lap",
   FormationCheck: "lfc",

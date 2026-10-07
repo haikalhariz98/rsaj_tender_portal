@@ -61,6 +61,10 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
     return Response.json({ error: "comment must be text of 1000 characters or fewer" }, { status: 400 });
   }
 
+  // The decision first: a matter that is not this organisation's answers as a matter that is not there, whatever else the body says.
+  const found = await db.committeeDecision.findUnique({ where: { id, meeting: { committee: { organisationId: scope.organisationId } } }, select: { meetingId: true } });
+  if (!found) return Response.json({ error: "Decision not found" }, { status: 404 });
+
   // Who is voting: the actor, or, where the body says it is recorded for a member, that member, attributed through the wrapper. A loader names no session.
   // An old caller names the voter as `personId`. That is read only as the member the vote is recorded for: another member's is refused here unless the
   // actor holds the Secretariat office, and the signed-in member's own is simply theirs (F1: a body never says who the actor is).
@@ -71,9 +75,6 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
   if (!begun.ok) return Response.json({ error: begun.state.message ?? Object.values(begun.state.errors ?? {}).join(" ") }, { status: 403 });
   const act = begun.act;
   const personId = act.subjectPersonId;
-
-  const found = await db.committeeDecision.findUnique({ where: { id, meeting: { committee: { organisationId: scope.organisationId } } }, select: { meetingId: true } });
-  if (!found) return Response.json({ error: "Decision not found" }, { status: 404 });
 
   // Checked and written under the sitting's row lock, on data read inside the same
   // transaction: an outcome recorded at the same moment either sees this vote or

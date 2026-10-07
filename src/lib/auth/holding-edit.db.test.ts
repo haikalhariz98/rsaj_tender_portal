@@ -90,7 +90,8 @@ describe("the read-only check for a database from before the rule", () => {
 
 describe("a delegation of an administrator's Person", () => {
   const edit = (effectiveTo: string, over: Record<string, string> = {}) =>
-    form({ id: delegationId, fromPersonId: adminPersonId, toPersonId: colleagueId, roleCode, effectiveFrom: "2026-01-01", effectiveTo, reason: "Edited by the test", ...over });
+    // Phase 2b: the grantor is the signed-in person, or another whose delegation is recorded from their letter, with its reference: the test is not signed in as the administrator.
+    form({ id: delegationId, fromPersonId: adminPersonId, "fromPersonId:paperReference": "Letter of the grantor", toPersonId: colleagueId, roleCode, effectiveFrom: "2026-01-01", effectiveTo, reason: "Edited by the test", ...over });
 
   it("is refused an edit that extends it, with the words that say why", async () => {
     const { saveDelegation } = await import("@/app/configuration/users/actions");

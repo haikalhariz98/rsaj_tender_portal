@@ -22,6 +22,7 @@ import { buttonClass, iconButtonClass } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { Switch } from "@/components/ui/field";
 import { RecordEditor, type Field, type SaveAction } from "@/components/record-editor";
+import { actorField } from "@/lib/auth/actor-field";
 import type { Capability } from "@/lib/people/capabilities";
 import { statusOf, type Delegation } from "@/lib/people/delegation";
 import type { Assignment, Office, Person } from "@/lib/people/types";
@@ -506,14 +507,8 @@ function delegationFields(
     .map((p) => ({ value: p.id, label: p.name }));
 
   return [
-    {
-      kind: "select",
-      name: "fromPersonId",
-      label: "From",
-      required: true,
-      placeholder: "Choose",
-      options: persons,
-    },
+    // The grantor is the signed-in person, or another whose delegation is recorded from their letter (the paper's reference or the reason is then asked).
+    actorField("Delegation.fromPerson", { name: "fromPersonId", people: persons, named: {} }),
     {
       kind: "select",
       name: "toPersonId",
