@@ -57,17 +57,25 @@ export function settingLabels(keys: readonly SecurityPolicyKey[], language: "en"
   return keys.map((key) => SETTING_LABELS[key][language]);
 }
 
-/// A fault in a set of values, or null. The database CHECKs hold the same rules; this says them in words before the write.
-export function policyFault(p: Pick<SecurityPolicyValues, "signInDetailRetentionDays" | "addressThrottleMinutes" | "passwordMinLength" | "staffIdleMinutes" | "staffAbsoluteMinutes">): string | null {
+/// A fault in a set of values, in both languages, or null. The database CHECKs hold the same rules; this says them in words before the write.
+export function policyFaultWords(p: Pick<SecurityPolicyValues, "signInDetailRetentionDays" | "addressThrottleMinutes" | "passwordMinLength" | "staffIdleMinutes" | "staffAbsoluteMinutes">): SettingLabel | null {
   if (p.signInDetailRetentionDays != null && p.addressThrottleMinutes != null && p.signInDetailRetentionDays * 1440 < p.addressThrottleMinutes) {
-    return "Sign-in addresses must be kept at least as long as failed sign-ins from one address are counted, or the count would lose its own evidence.";
+    return {
+      en: "Sign-in addresses must be kept at least as long as failed sign-ins from one address are counted, or the count would lose its own evidence.",
+      ms: "Alamat log masuk mesti disimpan sekurang-kurangnya selama log masuk gagal daripada satu alamat dikira, atau pengiraan itu akan kehilangan buktinya sendiri.",
+    };
   }
-  if (p.passwordMinLength != null && (p.passwordMinLength < 8 || p.passwordMinLength > 256)) return "The shortest password is between 8 and 256 characters.";
+  if (p.passwordMinLength != null && (p.passwordMinLength < 8 || p.passwordMinLength > 256)) {
+    return { en: "The shortest password is between 8 and 256 characters.", ms: "Kata laluan paling pendek ialah antara 8 dengan 256 aksara." };
+  }
   if (p.staffIdleMinutes != null && p.staffAbsoluteMinutes != null && p.staffIdleMinutes > p.staffAbsoluteMinutes) {
-    return "A session cannot be allowed to idle for longer than it may last.";
+    return { en: "A session cannot be allowed to idle for longer than it may last.", ms: "Sesi tidak boleh dibenarkan melahu lebih lama daripada tempoh sesi itu dibenarkan." };
   }
   return null;
 }
+
+/// The same, in English only, for the commands that print one language.
+export const policyFault = (p: Parameters<typeof policyFaultWords>[0]): string | null => policyFaultWords(p)?.en ?? null;
 
 /// What the sign-in screen says about the retention of sign-in addresses (O-1): in words, and never as a number nobody chose.
 export function retentionStatement(days: number | null): string {
@@ -155,9 +163,19 @@ export const SETTING_RANGES: Partial<Record<SecurityPolicyKey, { min: number; ma
   signInDetailRetentionDays: { min: 1, max: 3650, unit: "days" },
 };
 
-export function rangeFault(key: SecurityPolicyKey, value: number): string | null {
+const UNIT_WORDS: Record<string, string> = { minutes: "minit", sessions: "sesi", attempts: "percubaan", characters: "aksara", days: "hari" };
+
+/// A value outside its setting's range, in both languages, or null.
+export function rangeFaultWords(key: SecurityPolicyKey, value: number): SettingLabel | null {
   const range = SETTING_RANGES[key];
   if (!range) return null;
-  if (!Number.isInteger(value) || value < range.min || value > range.max) return `Enter a whole number from ${range.min} to ${range.max} ${range.unit}.`;
+  if (!Number.isInteger(value) || value < range.min || value > range.max) {
+    return {
+      en: `Enter a whole number from ${range.min} to ${range.max} ${range.unit}.`,
+      ms: `Masukkan nombor bulat dari ${range.min} hingga ${range.max} ${UNIT_WORDS[range.unit] ?? range.unit}.`,
+    };
+  }
   return null;
 }
+
+export const rangeFault = (key: SecurityPolicyKey, value: number): string | null => rangeFaultWords(key, value)?.en ?? null;

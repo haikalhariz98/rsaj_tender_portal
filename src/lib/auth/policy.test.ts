@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fillUnset, policyFault, rangeFault, retentionStatement, SETTING_LABELS, settingLabels, signInSettings, unsetSettings } from "./policy";
+import { fillUnset, policyFault, policyFaultWords, rangeFault, rangeFaultWords, SETTING_RANGES, retentionStatement, SETTING_LABELS, settingLabels, signInSettings, unsetSettings } from "./policy";
 import type { SecurityPolicyValues } from "./types";
 
 const unset: SecurityPolicyValues = {
@@ -85,6 +85,33 @@ describe("policyFault", () => {
     expect(policyFault({ ...signInSet, passwordMinLength: 7 })).toMatch(/8 and 256/);
     expect(policyFault({ ...signInSet, passwordMinLength: 8 })).toBeNull();
     expect(policyFault({ ...signInSet, staffIdleMinutes: 500 })).toMatch(/idle/);
+  });
+});
+
+describe("the faults in both languages", () => {
+  it("say each combination in Malay, and the Malay is not the English", () => {
+    const faults = [
+      policyFaultWords({ ...signInSet, addressThrottleMinutes: 1441, signInDetailRetentionDays: 1 }),
+      policyFaultWords({ ...signInSet, passwordMinLength: 7 }),
+      policyFaultWords({ ...signInSet, staffIdleMinutes: 500 }),
+    ];
+    for (const f of faults) {
+      expect(f).not.toBeNull();
+      expect(f!.ms).not.toBe(f!.en);
+      expect(f!.ms).not.toMatch(/(the|must|cannot|longer)/);
+    }
+    expect(policyFault({ ...signInSet, staffIdleMinutes: 500 })).toBe(policyFaultWords({ ...signInSet, staffIdleMinutes: 500 })!.en);
+  });
+
+  it("say a value out of range in Malay for every unit a setting is counted in", () => {
+    for (const [key, range] of Object.entries(SETTING_RANGES)) {
+      const f = rangeFaultWords(key as Parameters<typeof rangeFaultWords>[0], range.min - 1);
+      expect(f, key).not.toBeNull();
+      expect(f!.ms, key).not.toBe(f!.en);
+      expect(f!.ms, key).not.toMatch(/(minutes|sessions|attempts|characters|days|Enter)/);
+      expect(rangeFault(key as Parameters<typeof rangeFault>[0], range.min - 1), key).toBe(f!.en);
+      expect(rangeFaultWords(key as Parameters<typeof rangeFaultWords>[0], range.min), key).toBeNull();
+    }
   });
 });
 

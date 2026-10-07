@@ -38,6 +38,9 @@ describe("parsing a change narrows it and refuses what it does not know", () => 
       expect(fields("SECURITY_POLICY", { changes: { colour: 1 } })).toEqual(["colour:UNKNOWN_SETTING"]);
       expect(fields("SECURITY_POLICY", { changes: { passwordMinLength: 7 } })).toEqual(["passwordMinLength:OUT_OF_RANGE"]);
       expect(fields("SECURITY_POLICY", { changes: { staffIdleMinutes: 1.5 } })).toEqual(["staffIdleMinutes:OUT_OF_RANGE"]);
+      const range = parseChange("SECURITY_POLICY", { changes: { passwordMinLength: 7 } });
+      const f = (range as { faults: { en: string; ms: string }[] }).faults[0];
+      expect(f.ms).not.toBe(f.en);
       expect(fields("SECURITY_POLICY", { changes: { staffIdleMinutes: "30" } })).toEqual(["staffIdleMinutes:NOT_A_NUMBER"]);
       expect(fields("SECURITY_POLICY", { changes: { staffIdleMinutes: null } })).toEqual(["staffIdleMinutes:NOT_A_NUMBER"]);
       expect(fields("SECURITY_POLICY", { changes: { paperSignatureRecording: "MAYBE" } })).toEqual(["paperSignatureRecording:BAD_CHOICE"]);
@@ -129,6 +132,9 @@ describe("applying runs the rules of the kind on the live state", () => {
     expect(ok).toMatchObject({ ok: true, after: { staffIdleMinutes: 20 }, changes: [{ field: "staffIdleMinutes", before: "30", after: "20" }] });
     const tooLong = planChange(parsed("SECURITY_POLICY", { changes: { staffIdleMinutes: 600 } }), { kind: "SECURITY_POLICY", policy: policy() });
     expect(tooLong).toMatchObject({ ok: false, faults: [{ code: "POLICY_FAULT" }] });
+    // The Malay is the Malay: a reader of the changes queue is not shown English where the field says it is Malay.
+    const fault = (tooLong as { faults: { en: string; ms: string }[] }).faults[0];
+    expect(fault.ms).not.toBe(fault.en);
   });
 
   it("a settings change with no policy to change is refused: the first are set by the bootstrap command", () => {

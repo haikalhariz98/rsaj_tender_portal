@@ -4,7 +4,7 @@ import { diffFields, type FieldChange } from "@/lib/audit/diff";
 import { lastAdministrator } from "./administration-rules";
 import { administrationConflict, type Holdings } from "./administration-conflict";
 import { isGrantable, isPermissionKey } from "./permissions";
-import { rangeFault, SETTING_LABELS, policyFault } from "./policy";
+import { rangeFaultWords, SETTING_LABELS, policyFaultWords } from "./policy";
 import type { Fault, PermissionKey, SecurityPolicyKey, SecurityPolicyValues } from "./types";
 
 /**
@@ -123,8 +123,8 @@ export function parseChange(kind: ChangeKind, raw: unknown): { ok: true; change:
         } else if (typeof value !== "number") {
           faults.push(bad(key, "NOT_A_NUMBER", "Enter a whole number. A setting is changed to a value, never cleared.", "Masukkan nombor bulat. Tetapan diubah kepada nilai, tidak pernah dikosongkan."));
         } else {
-          const why = rangeFault(k, value);
-          if (why) faults.push(bad(key, "OUT_OF_RANGE", why, why));
+          const why = rangeFaultWords(k, value);
+          if (why) faults.push(bad(key, "OUT_OF_RANGE", why.en, why.ms));
           else out[k] = value;
         }
       }
@@ -231,8 +231,8 @@ export function planChange(change: ParsedChange, live: LiveState): Plan {
       const current = (live as Extract<LiveState, { kind: "SECURITY_POLICY" }>).policy;
       if (!current) return { ok: false, faults: [f("NO_POLICY", "The organisation has no sign-in settings yet. The first are set by the bootstrap command.", "Organisasi belum mempunyai tetapan log masuk. Yang pertama ditetapkan oleh arahan bootstrap.")] };
       const merged = { ...current, ...change.payload.changes };
-      const why = policyFault(merged);
-      if (why) return { ok: false, faults: [f("POLICY_FAULT", why, why)] };
+      const why = policyFaultWords(merged);
+      if (why) return { ok: false, faults: [f("POLICY_FAULT", why.en, why.ms)] };
       const before = Object.fromEntries(Object.keys(change.payload.changes).map((k) => [k, current[k as SecurityPolicyKey]]));
       return { ok: true, after: { ...change.payload.changes }, changes: diffFields(before, change.payload.changes) };
     }

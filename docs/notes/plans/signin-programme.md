@@ -353,7 +353,7 @@ Existing screens stay unguarded in 1a.
   - CHECK: exactly one of `recordedByPersonId`, `recordedBySupplierAccountId` and `recordedBySystemLabel` is set.
   - CHECK: `SIGNED` requires that the recorder is the subject.
   - CHECK: `RECORDED_ON_BEHALF` requires `paperReference` or `reason`.
-  - `@@unique([entity, entityId, slot])`.
+  - `@@unique([entity, entityId, slot, occurrence])`. Amended in the Phase 2a review: a slot an act writes again is a new occurrence, and the highest is in force (see the decisions log).
 - **`AuthorityMatrixMaker`**: `matrixId`, `personId`, `firstAt`, unique on the pair.
 - **`AuthorityMatrix`**: adds `issuedByPersonId?` and `makersUnknownAtLanding` (backfilled to true once for existing drafts).
 - **`ConfigurationChange`**: `kind`, `payload`, a `before` snapshot, `proposedByPersonId`, `decidedByPersonId?`, `status`, `reason`.
