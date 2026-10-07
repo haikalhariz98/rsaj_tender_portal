@@ -7,7 +7,7 @@
 
 import { diffFields, type FieldChange } from "@/lib/audit/diff";
 
-import { CLASSIFICATION_LABEL, classificationLabel, formatBytes, mediaLabel, PURPOSE_LABEL, RECORDED_ON_BEHALF, STATUS_LABEL } from "./labels";
+import { CLASSIFICATION_LABEL, classificationLabel, formatBytes, mediaLabel, PURPOSE_LABEL, STATUS_LABEL } from "./labels";
 import type { AttachmentPurpose, DocumentStatus, SecurityClass } from "./types";
 
 /// How the trail names each entity this module writes.
@@ -31,7 +31,7 @@ export function versionCreated(i: { versionNo: number; sha256: string; byteSize:
     type: mediaLabel(i.mediaType),
     fileName: i.originalFilename,
     receivedOn: i.receivedOn,
-    recordedBy: `${i.recordedBy} (${RECORDED_ON_BEHALF})`,
+    recordedBy: `${i.recordedBy}`,
     note: i.note || null,
     malwareScan: "not scanned",
   });
@@ -87,11 +87,11 @@ export function filed(): FieldChange[] {
 }
 
 export function holdPlaced(i: { reason: string; placedBy: string }): FieldChange[] {
-  return diffFields(null, { legalHold: "placed", reason: i.reason, placedBy: `${i.placedBy} (${RECORDED_ON_BEHALF})` });
+  return diffFields(null, { legalHold: "placed", reason: i.reason, placedBy: `${i.placedBy}` });
 }
 
 export function holdReleased(i: { reason: string; releasedBy: string }): FieldChange[] {
-  return diffFields({ legalHold: "standing" }, { legalHold: "released", releasedBecause: i.reason, releasedBy: `${i.releasedBy} (${RECORDED_ON_BEHALF})` });
+  return diffFields({ legalHold: "standing" }, { legalHold: "released", releasedBecause: i.reason, releasedBy: `${i.releasedBy}` });
 }
 
 export function policyView(p: { allowedMediaTypes: readonly string[]; maxBytes: bigint | null; provenance: string; notes: string } | null): Record<string, unknown> {

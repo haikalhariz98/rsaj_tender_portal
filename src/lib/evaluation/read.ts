@@ -6,6 +6,7 @@
  * surface: every figure is SULIT and the screens chip it (E-3).
  */
 
+import { loadAttributions } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
 import { storedDay } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
@@ -49,6 +50,11 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   const people = (await db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })).map((p) => ({ value: p.id, label: p.name }));
   const e = c.current;
   const f = c.facts;
+  // Who recorded each communication and who formed the recommendation, signed or recorded from paper, is read from the attributions (Phase 2b).
+  const attributed = await loadAttributions(db, org.id, [
+    { entity: "TendererCommunication", slot: "recordedBy", ids: (e?.communications ?? []).map((m) => m.id) },
+    { entity: "Recommendation", slot: "formedBy", ids: e?.recommendation ? [e.recommendation.id] : [] },
+  ]);
   const ceiling = ceilingOf(ex);
   const boundaryMissing = ceiling.regime === "quotation" && (ceiling.boundary == null || ceiling.operator == null);
   const start = startFaults({ status: ex.status, throughWindow: c.throughWindow, pinned: c.model != null, openings: c.openingGate, decimals: c.policy?.scoreDecimals ?? null, boundaryMissing, carried: c.carried.length, started: c.evaluations.length > 0, timeZone: tz, personActive: true });
@@ -176,6 +182,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
     subject: m.subject,
     communicationContent: m.content,
     recordedBy: m.recordedBy.name,
+    acted: attributed.read({ entity: "TendererCommunication", id: m.id, slot: "recordedBy" }, m.recordedBy.name).en,
   }));
   const running = f.model.stages.find((s) => s.kind === "RECOMMENDATION");
   const runningBidders = (running ? inRunningAt(f, running) : f.bidders.filter((b) => !b.excludedReason)).map((b) => ({ value: b.id, label: `No. ${b.listingNo}, ${b.bidderName}` }));
@@ -191,7 +198,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
     composite: comp ? comp.labelEn : null,
     ranked: ranked.map((r) => ({ id: r.bidder.id, rank: r.rank, listingNo: r.bidder.listingNo, bidder: r.bidder.bidderName, compositeScore: r.composite != null ? fig(r.composite, dp) : null, evaluatedPrice: formatMoney(r.price), recommendedPrice: formatMoney(recommendedPriceOf(r.bidder)), negotiated: r.bidder.negotiatedPrice != null, period: periodWords(r.bidder.period), ceiling: ((x) => (x ? evaluationFindingText(x) : null))(recommendedCeilingFault(recommendedPriceOf(r.bidder), ceiling)) })),
     incomplete,
-    formed: rec && rb ? { listingNo: rb.listingNo, bidder: rb.bidderName, recommendedPrice: formatMoney(senFromDecimal(rec.price)), period: rec.completionPeriod != null && rec.completionUnit ? periodWords({ value: rec.completionPeriod, unit: rec.completionUnit }) : "Not stated", topRanked: rec.topRanked, justification: rec.justification || null, formedBy: rec.formedBy.name, formedAt: formatOrgDateTime(rec.formedAt, tz) } : null,
+    formed: rec && rb ? { listingNo: rb.listingNo, bidder: rb.bidderName, recommendedPrice: formatMoney(senFromDecimal(rec.price)), period: rec.completionPeriod != null && rec.completionUnit ? periodWords({ value: rec.completionPeriod, unit: rec.completionUnit }) : "Not stated", topRanked: rec.topRanked, justification: rec.justification || null, formedBy: rec.formedBy.name, formedActed: attributed.read({ entity: "Recommendation", id: rec.id, slot: "formedBy" }, rec.formedBy.name).en, formedAt: formatOrgDateTime(rec.formedAt, tz) } : null,
     savingAmount: sv == null ? null : "sealed" in sv ? "The company estimate is still sealed" : "noEstimate" in sv ? "No company estimate" : `${formatMoney(sv.amount)}${sv.pct != null ? ` (${pctText(sv.pct, 2)})` : ""}`,
     estimate: "value" in f.estimate ? { label: f.estimate.label ?? "Company estimate", value: formatMoney(f.estimate.value) } : null,
     form: rec ? { allowed: false as const, reason: "The recommendation is formed." } : allowedOf([...openActFaults({ exerciseStatus: ex.status, state: e.state }), ...incomplete.map((stage): Finding => ({ code: "STAGES_NOT_COMPLETE", level: "block", data: { stage } })), ...(e.meetings.some((m) => !m.closedAt) ? [{ code: "NEGOTIATION_OPEN", level: "block", data: { count: e.meetings.filter((m) => !m.closedAt).length } } as Finding] : []), ...(e.negotiations.some((n) => n.approvalInstance.status === "PENDING") ? [{ code: "NEGOTIATION_PENDING", level: "block" } as Finding] : [])]),

@@ -53,7 +53,7 @@ export function SaleSection({ d, c }: { d: Sales; c: WindowContext }) {
           </Callout>
           {d.restricted && (
             <Callout tone="info" title={`${d.restricted.label}`}>
-              {d.restricted.asks} A sale is refused if the certificate is not shown or has expired. Sales are recorded on behalf of the officer, not signed.
+              {d.restricted.asks} A sale is refused if the certificate is not shown or has expired.
             </Callout>
           )}
         </CardBody>

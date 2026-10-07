@@ -76,7 +76,8 @@ describe("the unpurchased rule set since the start (S-3, OD-4)", () => {
   it("its audit says when and by whom", () => {
     const a = unpurchasedRecordAudit("REPORT", at, "Aminah", TZ);
     expect(a.before).toEqual({ unpurchasedBidRule: "Not set when the opening started" });
-    expect(a.after.unpurchasedBidRule).toMatch(/recorded on this opening 17 Nov 2026 · 15:20:00 by Aminah, on their behalf, not signed/);
+    // Phase 2b (decisions log, 2026-10-07): the trail names the officer and nothing about how the act was recorded; that is its attribution.
+    expect(a.after.unpurchasedBidRule).toMatch(/recorded on this opening 17 Nov 2026 · 15:20:00 by Aminah\)/);
   });
   it("the Opening section, the Schedule (and so its print) read it from recordedLater", () => {
     const read = readFileSync("src/lib/opening/read.ts", "utf8");

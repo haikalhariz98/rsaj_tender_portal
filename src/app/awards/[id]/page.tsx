@@ -115,6 +115,7 @@ import {
   SubmitAwardDrawer,
 } from "../editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { loadAttributions, routeActed } from "@/lib/auth/attribution-read";
 
 export const dynamic = "force-dynamic";
 
@@ -627,7 +628,7 @@ function OverviewPanel({ l, ev, awardee, recommendation, methodName, typeName, p
 
 // ------------------------------------------------------------------ approval
 
-function ApprovalPanel({
+async function ApprovalPanel({
   l,
   ev,
   awardee,
@@ -649,6 +650,11 @@ function ApprovalPanel({
   const { award, ex } = l;
   const status = award.status as AwardStatus;
   const inst = latestRoute(award);
+  // Who decided each step and who signed the instrument, signed or recorded from paper, read from the attributions (Phase 2b): the screen never says it by itself.
+  const index = await loadAttributions(db, l.org.id, [{ entity: "Award", slot: "signatoryPerson", ids: [award.id] }]);
+  const route = await routeActed(db, l.org.id, award.approvalInstances);
+  const acted = route.decided;
+  const approverStep = inst ? [...inst.steps].reverse().find((x) => (x.act === "A" || x.act === "MA") && !x.committeeCode) : undefined;
   const earlier = award.approvalInstances.filter((i) => i.id !== inst?.id);
   const cited = new Set(award.approvalInstances.flatMap((i) => i.steps.map((s) => s.committeeDecisionId)).filter(Boolean));
   const sig = ev.signatory;
@@ -731,7 +737,7 @@ function ApprovalPanel({
               return (
                 <div className="border-t border-line px-5 py-3 sm:px-6">
                   <Callout tone="warn" title="Where the refusal sent it">
-                    {appliedText(inst.rejectionApplied as RejectionKind, inst.rejectionSource, inst.rejectionReturnToRoleCode ? roleName(inst.rejectionReturnToRoleCode) : null, inst.rejectionChosenBy?.name ?? null)}
+                    {appliedText(inst.rejectionApplied as RejectionKind, inst.rejectionSource, inst.rejectionReturnToRoleCode ? roleName(inst.rejectionReturnToRoleCode) : null, inst.rejectionChosenBy?.name ?? null, inst.rejectionChosenBy ? route.chosen(inst.id, inst.rejectionChosenBy.name) : null)}
                   </Callout>
                 </div>
               );
@@ -791,7 +797,7 @@ function ApprovalPanel({
                       {stepOriginText(inst, s) && <div className="text-[12.5px] text-ink-3">{stepOriginText(inst, s)}</div>}
                       {s.escalation && (
                         <div className="text-[12.5px] break-words text-amber-800">
-                          {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null })}
+                          {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null }, s.declaredBy ? route.declared(s.id, s.declaredBy.name) : null)}
                         </div>
                       )}
                       <div className="text-[12.5px] break-words text-ink-2">
@@ -803,7 +809,7 @@ function ApprovalPanel({
                             ? `${DECISION_LABEL[s.decision]} · ${s.decidedByName ?? "Not recorded"} · ${formatDate(s.decidedOn)} · decided on the earlier route and carried onto this one`
                             : s.committeeCode && citedRecord?.record
                             ? `${DECISION_LABEL[s.decision]} · ${citedRecord.record.committee} at ${citedRecord.record.meetingReference}, ${formatDate(citedRecord.record.decisionDate ?? citedRecord.record.meetingDate)} · ${amountText(s.committeeDecision?.amount ?? null)} · ${citedRecord.minuted ? "minuted" : "not yet minuted"}`
-                            : `${DECISION_LABEL[s.decision]} · ${s.decidedByName ?? "Not recorded"} · recorded on behalf of, not signed · ${formatDate(s.decidedOn)} · received ${s.receivedOn ? formatDate(s.receivedOn) : "not recorded"}${s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}${s.reason ? ` · “${s.reason}”` : ""}`}
+                            : `${DECISION_LABEL[s.decision]} · ${acted(s.id, s.decidedByName)} · ${formatDate(s.decidedOn)} · received ${s.receivedOn ? formatDate(s.receivedOn) : "not recorded"}${s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}${s.reason ? ` · “${s.reason}”` : ""}`}
                       </div>
                       {open && s.committeeCode && needsTabling && (
                         <div className="mt-1 text-[12.5px] break-words text-ink-3">
@@ -858,7 +864,7 @@ function ApprovalPanel({
                 items={[
                   { label: "Office", value: ab.roleLabel },
                   { label: "Received on", value: ab.receivedOn ? formatDate(ab.receivedOn) : notSet("Not recorded") },
-                  { label: "Approved by", value: ab.approverName ? `${ab.approverName} · recorded on behalf of, not signed` : notSet("Not decided yet") },
+                  { label: "Approved by", value: ab.approverName && approverStep ? acted(approverStep.id, ab.approverName) : notSet("Not decided yet") },
                   { label: "Approved on", value: ab.decidedOn ? formatDate(ab.decidedOn) : notSet("Not decided yet") },
                 ]}
               />
@@ -877,7 +883,7 @@ function ApprovalPanel({
               <KeyValues
                 columns={2}
                 items={[
-                  { label: "Signed by", value: `${award.signatoryName} · recorded on behalf of, not signed` },
+                  { label: "Signed by", value: index.read({ entity: "Award", id: award.id, slot: "signatoryPerson" }, award.signatoryName).en },
                   { label: "Office", value: award.signatoryRoleLabel ?? "Not recorded" },
                   { label: "Signed on", value: formatDate(award.signedOn) },
                   { label: "Rule", value: award.signatoryRuleLabel ?? "Not recorded" },
@@ -1047,8 +1053,9 @@ function ReturnPanel({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | n
   );
 }
 
-function ReturnRecordCard({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
+async function ReturnRecordCard({ l, ret, people }: { l: LoadedAward; ret: ReturnRecord | null; people: { value: string; label: string }[] }) {
   const { award } = l;
+  const returnIndex = await loadAttributions(db, l.org.id, [{ entity: "AwardReturn", slot: "receivedBy", ids: award.awardReturn ? [award.awardReturn.id] : [] }]);
   const loa = award.instrumentKind === "LETTER_OF_ACCEPTANCE";
   if (!ret || !award.awardReturn) {
     return (
@@ -1108,7 +1115,7 @@ function ReturnRecordCard({ l, ret, people }: { l: LoadedAward; ret: ReturnRecor
           columns={2}
           className="border-t border-line pt-5"
           items={[
-            { label: "Received by", value: r.receivedBy ? `${r.receivedBy.name} · recorded on behalf of, not signed` : notSet("Not recorded") },
+            { label: "Received by", value: r.receivedBy && award.awardReturn ? returnIndex.read({ entity: "AwardReturn", id: award.awardReturn.id, slot: "receivedBy" }, r.receivedBy.name).en : notSet("Not recorded") },
             { label: "Originals held at", value: r.whereHeld || notSet("Not recorded") },
           ]}
         />

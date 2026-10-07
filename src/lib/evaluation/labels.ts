@@ -127,7 +127,7 @@ const TEXT: Record<string, (f: Finding) => string> = {
   BOUNDARY_NOT_RECORDED: () => `The exercise's quotation ceiling was never recorded when it was classified, so a bid above it cannot be told apart; ${CANCEL_EXIT}.`,
   NOTHING_CARRIED: () => "No bid was carried to evaluation at the opening, so there is nothing to evaluate. The exercise's exit is to cancel it, from its Invitation tab.",
   TIME_ZONE_NOT_SET: () => `The organisation's time zone is not set, so nothing can be dated. Set it under ${SETTING_AT.organisation}.`,
-  PERSON_REQUIRED: () => "Choose who records it: an active person on record. Recorded on their behalf, not signed.",
+  PERSON_REQUIRED: () => "Choose who records it: an active person on record.",
   // ---- the team (team.ts)
   SIDE_NOT_STAFFED: (f) => `Nobody is appointed for ${side(f.data)}. Appoint a team member to that side on the Overview.`,
   PERSON_ON_BOTH_SIDES: (f) => `${f.data?.person ?? "A person"} is picked for both sides. Each side is a different person (a joint evaluation).`,

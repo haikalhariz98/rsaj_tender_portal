@@ -7,7 +7,6 @@
  * the exercise itself recorded, with no finding about it. Pure; words only.
  */
 
-import { RECORDED_ON_BEHALF } from "@/lib/documents/labels";
 import { formatDate } from "@/lib/format";
 
 import { ASSURANCE_KIND_LABEL, restrictionQuestion } from "./conditions-labels";
@@ -61,10 +60,10 @@ export function frozenConditionsView(s: ConditionsSnapshot, versionNo: number) {
       policy: triOf(s.assurance.required),
       rows: (s.assurance.required ? s.assurance.needed : []).map((kind) => {
         const c = s.assurance.confirmations.find((x) => x.kind === kind) ?? null;
-        return { label: ASSURANCE_KIND_LABEL[kind as AssuranceKind] ?? "A confirmation", by: c ? `${c.person} · ${RECORDED_ON_BEHALF}` : null, on: c ? formatDate(c.on) : null };
+        return { label: ASSURANCE_KIND_LABEL[kind as AssuranceKind] ?? "A confirmation", by: c ? c.person : null, on: c ? formatDate(c.on) : null };
       }),
     },
-    clauses: s.clauses.map((c) => ({ title: c.title, version: `Text version ${c.bodyVersion}`, status: c.overriddenBy ? CLAUSE_STATUS.endorsed : CLAUSE_STATUS.carried, override: c.overriddenBy ? `Endorsed by ${c.overriddenBy} · ${RECORDED_ON_BEHALF}: “${c.overrideReason ?? ""}”` : null })),
+    clauses: s.clauses.map((c) => ({ title: c.title, version: `Text version ${c.bodyVersion}`, status: c.overriddenBy ? CLAUSE_STATUS.endorsed : CLAUSE_STATUS.carried, override: c.overriddenBy ? `Endorsed by ${c.overriddenBy}: “${c.overrideReason ?? ""}”` : null })),
   };
 }
 

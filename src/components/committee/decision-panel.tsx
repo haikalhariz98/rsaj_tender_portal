@@ -1,6 +1,5 @@
 "use client";
 
-import { RECORDED_ON_BEHALF } from "@/lib/documents/labels";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type ReactNode } from "react";
@@ -40,6 +39,8 @@ export interface PanelVoter {
 
 export interface PanelVote {
   personId: string;
+  /// How the vote was recorded, in words, read from its attribution: the member's own, or recorded for them from their signed sheet.
+  acted: string;
   choice: "SETUJU" | "TIDAK_SETUJU" | "ABSTAIN";
   comment: string;
   votedAt: string;
@@ -62,6 +63,7 @@ export interface PanelMatter {
   mandatory: boolean;
   outcome: "PENDING" | "CARRIED" | "NOT_CARRIED" | "DEFERRED";
   outcomeLabel: string;
+  /// Who tabled it, in words, read from its attribution ("Tabled by A"), or null where it is not tabled.
   tabledBy: string | null;
   tabledAt: Date | null;
   dependsOn: { subject: string; outcomeLabel: string } | null;
@@ -169,8 +171,8 @@ export function DecisionPanel({
       <div className="text-[12.5px] text-ink-3">
         {matter.tabledBy ? (
           <>
-            Tabled by <span className="font-semibold text-ink-2">{matter.tabledBy}</span>
-            {matter.tabledAt && <> on {formatDate(matter.tabledAt)}</>} · {RECORDED_ON_BEHALF}
+            <span className="font-semibold text-ink-2">{matter.tabledBy}</span>
+            {matter.tabledAt && <> on {formatDate(matter.tabledAt)}</>}
           </>
         ) : (
           "Not tabled"
@@ -343,7 +345,7 @@ function VoterRow({
           <>
             {vote && (
               <span className="min-w-0 text-[12px] break-words text-ink-3">
-                Sheet dated {formatDate(vote.votedAt)}
+                {vote.acted} · sheet dated {formatDate(vote.votedAt)}
                 {vote.comment && <> · “{vote.comment}”</>}
               </span>
             )}

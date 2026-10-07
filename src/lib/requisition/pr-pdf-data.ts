@@ -7,7 +7,6 @@
  */
 
 import { OUTCOME_LABEL } from "@/lib/committee/labels";
-import { RECORDED_ON_BEHALF_SENTENCE } from "@/lib/documents/labels";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { addSen, formatSen, parseSen } from "@/lib/money";
@@ -51,7 +50,7 @@ export interface PrSource {
   erpNoteNo: string | null;
   requestingPerson: { name: string };
   lines: { lineNo: number; description: string; quantity: Dec | null; unit: string | null; estimatedUnitPrice: Dec | null; estimatedAmount: Dec }[];
-  endorsements: { tier: string; person: { name: string }; endorsedOn: Date; note: string }[];
+  endorsements: { id: string; tier: string; person: { name: string }; endorsedOn: Date; note: string }[];
   /// Latest first.
   budgetChecks: { asAt: Date; actualBudget: Dec | null; balanceAsAt: Dec | null; approvedAccount: Dec | null; projectedBalance: Dec | null }[];
   /// Latest first.
@@ -84,6 +83,8 @@ export interface PrContext {
   costCentre: { code: string; label: string } | null;
   account: { code: string; label: string } | null;
   generatedAt: Date;
+  /// How each endorsement was recorded, in words, read from its attribution (Phase 2b): the form never says it by itself.
+  endorsedActed: (endorsementId: string, name: string) => string;
 }
 
 const money = (v: Dec | null) => (v == null ? NOT_RECORDED : formatSen(parseSen(v.toString()), ""));
@@ -106,7 +107,7 @@ export function prDataOf(r: PrSource, c: PrContext): PrPdfData {
 
   add("Registration", "Raised", formatDate(r.raisedOn), r.requestingPerson.name, "");
   for (const e of r.endorsements) {
-    add(`${TIER_LABEL[e.tier as OrgUnitKind] ?? "Endorsement"} endorsement`, "Endorsed", formatDate(e.endorsedOn), e.person.name, e.note || RECORDED_ON_BEHALF_SENTENCE);
+    add(`${TIER_LABEL[e.tier as OrgUnitKind] ?? "Endorsement"} endorsement`, "Endorsed", formatDate(e.endorsedOn), e.person.name, e.note || c.endorsedActed(e.id, e.person.name));
   }
   for (const s of route?.steps ?? []) {
     const process = `${s.roleLabel} · ${ACT_LABEL[s.act] ?? "Decision"}`;

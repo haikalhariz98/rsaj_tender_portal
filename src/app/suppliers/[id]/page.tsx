@@ -1,3 +1,4 @@
+import { ActedBy } from "@/components/attribution";
 import Link from "next/link";
 import { historyEntityLabel, historyValueWords } from "@/lib/audit/entity-labels";
 import { notFound } from "next/navigation";
@@ -65,6 +66,7 @@ import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 import { EligibilityPanel, ParticipationPanel, StandingPanel } from "./standing-panels";
 import { ContactDrawer, DecideStepDrawer, LodgeDocumentDrawer, OpenApplicationDrawer, PaperDaysDrawer, RecordLapseDrawer, RejectApplicationDrawer, ResubmissionDrawer, SubmitApplicationDrawer, VendorCodeDrawer, VerifyDocumentDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { loadAttributions } from "@/lib/auth/attribution-read";
 
 export const dynamic = "force-dynamic";
 
@@ -309,8 +311,8 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
                                 { label: "Issued on", value: d.issuedOn ? formatDate(d.issuedOn) : "—" },
                                 { label: "Valid", value: d.notApplicable ? "—" : `${d.validFrom ? `from ${formatDate(d.validFrom)}` : "from issue"}${d.expiresOn ? ` to ${formatDate(d.expiresOn)}` : typeRow.expires === false ? ", no expiry" : ""}` },
                                 { label: "Values", value: row.values.length ? row.values.map((v) => v.labelSnapshot).join(", ") : "—" },
-                                { label: "Lodged", value: `${formatDate(d.lodgedOn)} · ${row.recordedBy.name}, on their behalf` },
-                                { label: "Checked", value: d.verification === "NOT_CHECKED" ? "Not yet" : `${formatDate(d.verifiedOn)} · ${row.verifiedBy?.name ?? "Not recorded"}, on their behalf${row.verificationNote ? ` · “${row.verificationNote}”` : ""}` },
+                                { label: "Lodged", value: <>{formatDate(d.lodgedOn)} · <ActedBy entity="SupplierDocument" id={row.id} slot="recordedBy" name={row.recordedBy.name} /></> },
+                                { label: "Checked", value: d.verification === "NOT_CHECKED" ? "Not yet" : <>{formatDate(d.verifiedOn)} · {row.verifiedBy ? <ActedBy entity="SupplierDocument" id={row.id} slot="verifiedBy" name={row.verifiedBy.name} /> : "Not recorded"}{row.verificationNote ? ` · “${row.verificationNote}”` : ""}</> },
                               ]}
                             />
                             {!d.notApplicable && (
@@ -338,6 +340,8 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
 async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { l: LoadedSupplier; cfg: SupplierConfig; people: Option[]; blacklist: BlacklistInEffect | null; cancellation: CancellationInEffect | null }) {
   const s = l.supplier;
   const today = l.org.today;
+  // Who decided each outcome, signed or recorded from paper, is read from its attribution (Phase 2b).
+  const decided = await loadAttributions(db, l.org.id, [{ entity: "ApplicationDecision", slot: "decidedBy", ids: s.applications.flatMap((a) => a.decisions.map((d) => d.id)) }]);
   const anyOpen = s.applications.some(isOpen);
   // M-1: the kinds this supplier may open, by the act's own rule: a cancelled registration opens only a new one (the way back).
   const kinds = APPLICATION_KINDS.filter((k) => applicationKindFaults(k, s.status as SupplierStatus, cancellation).length === 0).map((k) => ({ value: k, label: APPLICATION_KIND_LABEL[k].en }));
@@ -380,7 +384,7 @@ async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { 
             <CardHeader
               icon={<ClipboardIcon size={17} />}
               title={`${APPLICATION_KIND_LABEL[a.kind as ApplicationKind].en}, received ${formatDate(day(a.receivedOn))}`}
-              subtitle={a.recordedBy ? `${CHANNEL_LABEL[a.channel].en} · recorded by ${a.recordedBy.name}, on their behalf, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}` : `${CHANNEL_LABEL[a.channel].en} · came in through an earlier online form, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}. No officer is on file as having recorded it.${a.declarationSignedOn ? "" : " The signed declaration is still to come on paper."}`}
+              subtitle={a.recordedBy ? <>{CHANNEL_LABEL[a.channel].en} · <ActedBy entity="SupplierApplication" id={a.id} slot="recordedBy" name={a.recordedBy.name} />, {formatOrgDateTime(a.recordedAt, l.org.timeZone)}</> : `${CHANNEL_LABEL[a.channel].en} · came in through an earlier online form, ${formatOrgDateTime(a.recordedAt, l.org.timeZone)}. No officer is on file as having recorded it.${a.declarationSignedOn ? "" : " The signed declaration is still to come on paper."}`}
               actions={<Badge tone={QUEUE_STATE_TONE[st]} dot>{QUEUE_STATE_LABEL[st].en}</Badge>}
             />
             <CardBody className="flex flex-col gap-4">
@@ -420,7 +424,7 @@ async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { 
                       <li key={d.id} className="flex flex-col gap-1.5 px-5 py-3 text-[13px] sm:px-6">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge tone={d.outcome === "APPROVE" ? "ok" : d.outcome === "RESUBMIT" ? "warn" : "err"}>{OUTCOME_LABEL[d.outcome].en}</Badge>
-                          <span className="text-ink-2">{formatDate(day(d.decidedOn))}{d.decidedBy ? ` · ${d.decidedBy.name}, recorded on their behalf, not signed` : " · the deadline's outcome, nobody's decision"}</span>
+                          <span className="text-ink-2">{formatDate(day(d.decidedOn))}{d.decidedBy ? ` · ${decided.read({ entity: "ApplicationDecision", id: d.id, slot: "decidedBy" }, d.decidedBy.name).en}` : " · the deadline's outcome, nobody's decision"}</span>
                         </div>
                         {d.remarks && <p className="break-words whitespace-pre-line text-ink-2">“{d.remarks}”</p>}
                         {d.items.length > 0 && (

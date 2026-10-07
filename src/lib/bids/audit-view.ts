@@ -60,7 +60,7 @@ export function envelopeFields(e: {
     statedReceived: stamp(e.statedReceivedAt, tz),
     whyRecordedLater: e.entryReason || null,
     markings: e.markings,
-    receivedBy: `${e.receivedBy} (recorded on their behalf, not signed)`,
+    receivedBy: `${e.receivedBy}`,
     timeliness: e.late ? "Late" : "In time",
     judgedAgainstClosing: at(e.closingAtJudged, tz),
     alternativeTo: e.parentSequence != null ? `Envelope ${e.parentSequence}` : null,
@@ -79,14 +79,14 @@ export function withdrawalFields(w: { receivedAt: Date; markings: string; receiv
     /// The letter's own words identifying the envelope: SULIT, under its own key so History chips it
     /// (6.6 CR-4), never "markings", which envelope corrections share.
     letterQuote: w.markings,
-    receivedBy: `${w.receivedBy} (recorded on their behalf, not signed)`,
+    receivedBy: `${w.receivedBy}`,
     envelope: w.envelopeSequence != null ? `Envelope ${w.envelopeSequence}` : "In the tender box: matched at opening",
   };
 }
 
 export const returnFields = (r: { returnedUnopenedOn: Date; note: string }) => ({ returnedUnopened: day(r.returnedUnopenedOn), note: r.note || null });
 
-export const boxFields = (b: { at: Date; by: string; note: string }, tz: string | null) => ({ boxLocked: stamp(b.at, tz), lockedBy: `${b.by} (recorded on their behalf, not signed)`, note: b.note || null });
+export const boxFields = (b: { at: Date; by: string; note: string }, tz: string | null) => ({ boxLocked: stamp(b.at, tz), lockedBy: `${b.by}`, note: b.note || null });
 
 export function extensionFields(x: { fromExpiry: Date; toExpiry: Date; reason: string; consentParty: string; consentReceivedOn: Date; recordedBy: string }) {
   return {
@@ -95,7 +95,7 @@ export function extensionFields(x: { fromExpiry: Date; toExpiry: Date; reason: s
     reason: x.reason,
     consentOf: `${x.consentParty} (named by the officer as the recommended tenderer, not yet checked against an evaluation)`,
     consentReceivedOn: day(x.consentReceivedOn),
-    recordedBy: `${x.recordedBy} (recorded on their behalf, not signed)`,
+    recordedBy: `${x.recordedBy}`,
   };
 }
 

@@ -143,7 +143,9 @@ describe("a disabled Void states its reason on screen (65-C2)", () => {
 });
 
 describe("the annotation (FR-ADV-011)", () => {
-  it("snapshots the purchaser and the closing as stated, with the issuing officer, recorded on their behalf", () => {
+  // Phase 2b (decisions log, 2026-10-07): the annotation says how the sale was recorded, by the officer who issued it or for them from paper, and not the second of
+  // these of every sale.
+  it("snapshots the purchaser and the closing as stated, with the issuing officer and how it was recorded", () => {
     const a = saleAnnotation({ exerciseReference: "SX/1", purchaser: "Alpha Works", address: "1 Jalan Satu", phone: "", fax: "03-1", closingText: "17 Nov 2026 · 14:30", issuedBy: "Officer One", soldOnText: "05 Nov 2026", receiptNo: null });
     expect(isAnnotation(a)).toBe(true);
     expect(annotationLines(a)).toEqual([
@@ -153,9 +155,11 @@ describe("the annotation (FR-ADV-011)", () => {
       "Telephone: Not recorded",
       "Fax: 03-1",
       "Closing: 17 Nov 2026 · 14:30",
-      "Issued by: Officer One, on 05 Nov 2026 (recorded on behalf of, not signed)",
+      "Issued by: Officer One, on 05 Nov 2026 (recorded by the officer who issued it)",
       "Receipt: Not recorded",
     ]);
+    const forSomeone = saleAnnotation({ exerciseReference: "SX/1", purchaser: "Alpha Works", address: "", phone: "", fax: "", closingText: "", issuedBy: "Officer One", recordedForSomeone: true, soldOnText: "05 Nov 2026", receiptNo: null });
+    expect(annotationLines(forSomeone)).toContain("Issued by: Officer One, on 05 Nov 2026 (recorded on behalf of, not signed)");
     expect(isAnnotation({})).toBe(false);
   });
 });

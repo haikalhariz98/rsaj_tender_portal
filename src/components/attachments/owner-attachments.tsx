@@ -6,7 +6,9 @@ import { EmptyState } from "@/components/ui/feedback";
 import { ownerPanel, uploadContext } from "@/lib/documents/read";
 import type { OwnerRef } from "@/lib/documents/repo";
 import { documentOrg } from "@/lib/documents/service";
-import { panelView, type PanelOptions } from "@/lib/documents/views";
+import { loadAttributions } from "@/lib/auth/attribution-read";
+import { db } from "@/lib/db";
+import { panelAttributionQueries, panelView, type PanelOptions } from "@/lib/documents/views";
 
 import { AttachmentPanel } from "./attachment-panel";
 
@@ -41,7 +43,9 @@ export async function OwnerAttachments({ owner, title, subtitle, collapseWhenEmp
       </EmptyState>
     );
   }
-  const view = panelView(panel, upload, org?.timeZone ?? null, opts);
+  // Who recorded each version, signed or recorded from paper, is read from its attribution (Phase 2b).
+  const acted = await loadAttributions(db, organisationId, panelAttributionQueries(panel));
+  const view = panelView(panel, upload, org?.timeZone ?? null, opts, acted);
   if (collapseWhenEmpty && view.items.length === 0 && view.past.length === 0 && view.slots.length > 0 && view.slots.every((s) => s.attachedBy != null)) {
     return (
       <Card>

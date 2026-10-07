@@ -7,6 +7,7 @@
  */
 
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
+import { loadAttributions } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_LABEL } from "@/lib/labels";
@@ -77,7 +78,6 @@ const judged = (fs: readonly Finding[], text: (f: Finding) => string = partFault
 };
 const money = (s: bigint | null) => (s == null ? NOT_SET : formatSen(s));
 const provenance = (p: string | null | undefined) => (p ? ((PROVENANCE_LABEL as Record<string, string>)[p] ?? NOT_SET) : NOT_SET);
-const RECORDED_ON_BEHALF = "recorded on behalf of, not signed";
 
 /// What the exercise's pack kind reads as. Null: prepared before document assembly existed.
 export function packKindText(kind: PackKind | null): string {
@@ -306,6 +306,8 @@ async function routeView(ex: NonNullable<Awaited<ReturnType<typeof loadExercise>
     people = roster.people.filter((p) => ids.has(p.id) && p.id !== req.requestingPersonId).map((p) => ({ value: p.id, label: p.name }));
   }
   const last = pending ? current.steps.every((s) => s.id === pending.id || s.decision === "DONE") : false;
+  // Who decided each step, signed or recorded from paper, is read from its attribution (Phase 2b).
+  const decided = await loadAttributions(db, org.id, [{ entity: "ApprovalStep", slot: "decidedBy", ids: current.steps.map((s) => s.id) }]);
   return {
     status: tenderingRouteLabel(current.status, current.warnings),
     rule: current.ruleLabel ?? NOT_SET,
@@ -316,7 +318,7 @@ async function routeView(ex: NonNullable<Awaited<ReturnType<typeof loadExercise>
       office: s.actingRoleLabel ?? s.roleLabel,
       act: ACT_LABEL[s.act] ?? "Acts",
       decision: tenderingStepLabel(s.decision),
-      decidedBy: s.decidedByName ? `${s.decidedByName}, ${RECORDED_ON_BEHALF}` : null,
+      decidedBy: s.decidedByName ? decided.read({ entity: "ApprovalStep", id: s.id, slot: "decidedBy" }, s.decidedByName).en : null,
       decidedOn: s.decidedOn ? formatDate(s.decidedOn) : null,
       reason: s.reason || null,
     })),

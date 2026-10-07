@@ -157,7 +157,7 @@ function Live({ e, d, exerciseId }: { e: Estimate; d: Data; exerciseId: string }
 
           <section aria-labelledby="estimate-custody" className="flex flex-col gap-2">
             <h3 id="estimate-custody" className="text-[13.5px] font-semibold text-ink">Custody</h3>
-            <p className="text-[12.5px] text-ink-3">Who prepared, lodged and kept each copy. Recorded on behalf of, not signed: nobody signs in yet.</p>
+            <p className="text-[12.5px] text-ink-3">Who prepared, lodged and kept each copy.</p>
             {e.events.length === 0 ? (
               <EmptyState size="sm" title="No custody events yet" />
             ) : (

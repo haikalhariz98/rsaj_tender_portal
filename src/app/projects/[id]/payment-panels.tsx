@@ -1,3 +1,4 @@
+import { ActedBy } from "@/components/attribution";
 import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
@@ -707,7 +708,7 @@ function DamagesSection({ l, v, people, today }: { l: LoadedContract; v: Payment
                     </span>
                     <span className={sub}>{d.reason}</span>
                     {d.outcome === "LAD_APPLIES" && <span className={sub}>{[d.scope ? SCOPE_WORDS[d.scope].en : null, d.rate ? `${formatMoney(senFromDecimal(d.rate))} a day` : null, d.windowFrom ? `damages from ${formatDate(day(d.windowFrom))}${d.windowUntil ? ` to completion on ${formatDate(day(d.windowUntil))}` : ", running"} (the window entered with the decision, assumed)` : null, d.insuranceExpiry ? `insurance to ${formatDate(day(d.insuranceExpiry))}` : null].filter(Boolean).join(" · ")}</span>}
-                    <span className={sub}>{`Decided by ${d.person.name} (recorded on their behalf, not signed)`}</span>
+                    <span className={sub}><ActedBy entity="NonCompletion" id={d.id} slot="person" name={d.person.name} /></span>
                   </span>
                   <span className="flex shrink-0 flex-wrap items-center gap-2">
                     {n === 0 && d.outcome === "LAD_APPLIES" && d.windowFrom && !d.windowUntil && <CloseWindowDrawer id={c.id} decisionId={d.id} today={today} />}

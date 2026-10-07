@@ -43,7 +43,9 @@ describe("document store words", () => {
   it("the trail records labels and the fingerprint, never codes or bytes", () => {
     const v = versionCreated({ versionNo: 1, sha256: "a".repeat(64), byteSize: 2048n, mediaType: "application/pdf", originalFilename: "m.pdf", receivedOn: "2026-09-30", recordedBy: "Aminah", note: "" });
     expect(v.find((c) => c.field === "type")?.after).toBe("PDF");
-    expect(v.find((c) => c.field === "recordedBy")?.after).toBe("Aminah (recorded on behalf of, not signed)");
+    // Phase 2b (decisions log, 2026-10-07): the trail names the person and nothing about how the act was recorded. That is the act's attribution (signed, or recorded
+    // from paper), which a screen reads; the words "recorded on behalf of, not signed" were written under every act, and were true of some.
+    expect(v.find((c) => c.field === "recordedBy")?.after).toBe("Aminah");
     const a = attached({ purpose: "SIGNED_MINUTES", title: "Minutes", versionNo: 1, sha256: "a".repeat(64), owner: "TB 3/2026" });
     expect(a.find((c) => c.field === "purpose")?.after).toBe("Signed minutes");
     expect(policyView(null)).toMatchObject({ allowedTypes: "Not set", largestFile: "Not set" });

@@ -156,7 +156,6 @@ export const LIST_KIND_SINGULAR: Readonly<Record<SupplierListKind, Words>> = {
 export const NOT_RESTRICTED_CHIP = w("Not restricted until sign-in", "Tidak terhad sehingga log masuk");
 /// OD-3 B: the E-Payment form's scan is SULIT at upload and never downloadable before sign-in.
 export const EPAYMENT_SULIT_CHIP = w("SULIT · not downloadable until sign-in", "SULIT · tidak boleh dimuat turun sehingga log masuk");
-export const ON_BEHALF = w("recorded on behalf of, not signed", "direkodkan bagi pihaknya, tidak ditandatangani");
 export const PAPER_CALLOUT = w(
   "Recorded from the paper application by an officer; the supplier cannot sign in yet.",
   "Direkodkan daripada permohonan bertulis oleh pegawai; pembekal belum boleh log masuk.",

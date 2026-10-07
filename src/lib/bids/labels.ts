@@ -88,7 +88,7 @@ export const REGISTER_STATEMENT = {
 
 /// What the register cannot claim (§0.1), said on the tab.
 export const REGISTER_GAPS = [
-  "Nobody signs in yet, so reading the register cannot be restricted, and officers are recorded on their behalf, not signed.",
+  "Reading the register is not restricted by who is signed in: that comes with the rules for a restricted exercise.",
   "No alert is sent: there is no delivery yet. Alerts are shown here.",
   "The company estimate is held plain in the database, never shown before opening; sealed storage arrives with the electronic tender box.",
 ];
@@ -151,7 +151,7 @@ export function bidFindingText(f: Finding): string {
       return "The box has been opened for the opening: the register is now the opening's.";
     // ---- receipt
     case "PERSON_REQUIRED":
-      return "Name the officer, an active person on record (recorded on their behalf, not signed).";
+      return "Name the officer, an active person on record.";
     case "MARKINGS_REQUIRED":
       return "Write the markings as they appear on the envelope.";
     case "CHANNEL_NOT_FOR_OFFICER":

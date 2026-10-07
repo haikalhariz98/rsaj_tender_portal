@@ -10,6 +10,7 @@
 import { storedDay } from "@/lib/dates";
 import { ROUTE_LABEL as EVALUATION_ROUTE_LABEL, evaluationFindingText } from "@/lib/evaluation/labels";
 import { chooseFaults } from "@/lib/evaluation/pin";
+import { loadAttributions } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { uncollectedReceipts } from "@/lib/integration/fee-receipt";
@@ -104,6 +105,8 @@ export async function windowTab(organisationId: string, exerciseId: string) {
   const { org, ex, d, now } = x;
   const tz = org.timeZone;
   const w = d.window;
+  // Who recorded each publication, signed or recorded from paper, is read from its attribution (Phase 2b).
+  const attributed = await loadAttributions(db, org.id, [{ entity: "PublicationRecord", slot: "recordedBy", ids: (w?.publications ?? []).map((x) => x.id) }]);
   const { path, method: methodPath } = pathOf(d);
   const phase = phaseOf(ex, w, now, tz);
   const j = judgePublish(d, ex, org);
@@ -160,7 +163,7 @@ export async function windowTab(organisationId: string, exerciseId: string) {
     channels: path === "ADVERTISED"
       ? d.channels.filter((c) => c.retiredOn == null || w?.publications.some((p) => p.channelId === c.id)).map((c) => {
           const p = w?.publications.find((x) => x.channelId === c.id) ?? null;
-          return { id: c.id, name: c.nameEn, required: c.requiredWhenAdvertised == null ? NOT_SET : c.requiredWhenAdvertised ? "Required" : "Not required", publication: p ? { id: p.id, on: day(p.publishedOn), reference: p.reference, recordedBy: `${p.recordedBy.name} (recorded on their behalf, not signed)` } : null };
+          return { id: c.id, name: c.nameEn, required: c.requiredWhenAdvertised == null ? NOT_SET : c.requiredWhenAdvertised ? "Required" : "Not required", publication: p ? { id: p.id, on: day(p.publishedOn), reference: p.reference, recordedBy: attributed.read({ entity: "PublicationRecord", id: p.id, slot: "recordedBy" }, p.recordedBy.name).en } : null };
         })
       : [],
     advertisementDay: path === "ADVERTISED" ? (() => {
@@ -282,6 +285,8 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
   const w = d.window;
   const phase = phaseOf(ex, w, now, org.timeZone).phase;
   const sales = w?.sales ?? [];
+  // Who issued each set, signed or recorded from paper, is read from its attribution (Phase 2b).
+  const attributed = await loadAttributions(db, org.id, [{ entity: "DocumentSale", slot: "issuedBy", ids: sales.map((x) => x.id) }]);
   const addenda = (w?.addenda ?? []).filter((a) => a.status === "ISSUED");
   // 65-C2: a refusal that holds for every sale is said once beside the register's acts; one about a
   // single sale is said under it. Either way the reason is on screen, never only in a tooltip.
@@ -309,7 +314,7 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
         paymentMethod: s.paymentMethod,
         checks: saleChecks({ authoritySighted: s.authoritySighted, certSighted: s.restrictionCertSighted, certValidUntil: s.restrictionCertValidUntil ? storedDay(s.restrictionCertValidUntil) : null, registrationCheck: s.registrationCheck, suspensionCheck: s.suspensionCheck, registerReadOn: registerReadOn(s.eligibilitySnapshot), noSupplierNamed: s.noSupplierNamed }, closingDay(ex.closingAt, org.timeZone)),
         addendaAcknowledged: `${acked} of ${addenda.length}`,
-        issuedBy: `${s.issuedBy.name} (recorded on their behalf, not signed)`,
+        issuedBy: attributed.read({ entity: "DocumentSale", id: s.id, slot: "issuedBy" }, s.issuedBy.name).en,
         voided: s.voidedAt ? `Voided: ${s.voidReason}` : null,
         void: s.voidedAt ? null : rowVoid(voidSaleFault(s, phase, "-", holders.has(s.partyId))),
         label: isAnnotation(s.annotation) ? annotationLines(s.annotation) : [],
@@ -341,6 +346,8 @@ export async function briefingTab(organisationId: string, exerciseId: string) {
   const permitted = attendance.permitted;
   const events = d.window?.events ?? [];
   const facts = d.window ? eventFactsOf(d.window) : [];
+  // Who recorded each attendance, signed or recorded from paper, is read from its attribution (Phase 2b).
+  const attributed = await loadAttributions(db, org.id, [{ entity: "SiteEventAttendance", slot: "recordedBy", ids: events.flatMap((e) => e.attendance.map((a) => a.id)) }]);
   return {
     pathKey: pathOf(d).path,
     status: ex.status,
@@ -355,7 +362,7 @@ export async function briefingTab(organisationId: string, exerciseId: string) {
       attendance: permitted !== true ? `Not mandatory: mandatory attendance ${!attendance.recorded ? "not recorded with the published window" : permitted == null ? "not set" : "is not permitted"}${attendance.frozen && attendance.recorded ? " when the window was published" : ""}` : e.mandatory == null ? "Not answered" : isMandatory(facts[i], permitted) ? "Mandatory: the documents are sold only to those who attended" : "Not mandatory",
       held: e.heldOn ? day(e.heldOn) : null,
       cancelled: e.cancelledAt ? `Cancelled: ${e.cancelReason}` : null,
-      register: e.attendance.map((a) => ({ contractor: a.party.name, registrationNo: a.party.registrationNo, representative: a.representative, recordedBy: `${a.recordedBy.name} (recorded on their behalf, not signed)`, recordedOn: formatOrgDateTime(a.recordedAt, org.timeZone) })),
+      register: e.attendance.map((a) => ({ contractor: a.party.name, registrationNo: a.party.registrationNo, representative: a.representative, recordedBy: attributed.read({ entity: "SiteEventAttendance", id: a.id, slot: "recordedBy" }, a.recordedBy.name).en, recordedOn: formatOrgDateTime(a.recordedAt, org.timeZone) })),
     })),
   };
 }

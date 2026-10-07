@@ -29,7 +29,7 @@ export function unpurchasedRule(snap: OpeningPolicySnapshot, live: LiveUnpurchas
 export function unpurchasedRecordAudit(consequence: UnpurchasedConsequence, at: Date, by: string, tz: string | null) {
   return {
     before: { unpurchasedBidRule: "Not set when the opening started" },
-    after: { unpurchasedBidRule: `${UNPURCHASED_LABEL[consequence]} (set on the method since the opening started; recorded on this opening ${receiptTime(at, tz)} by ${by}, on their behalf, not signed)` },
+    after: { unpurchasedBidRule: `${UNPURCHASED_LABEL[consequence]} (set on the method since the opening started; recorded on this opening ${receiptTime(at, tz)} by ${by})` },
   };
 }
 

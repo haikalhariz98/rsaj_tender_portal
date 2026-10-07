@@ -462,7 +462,7 @@ export const SCHEDULE_WORDS = {
   itemsNone: { en: "Nothing is waiting for this committee.", ms: "Tiada yang menunggu jawatankuasa ini." },
   tabledBy: { en: "Tabled by", ms: "Dibentangkan oleh" },
   tabledByHint: {
-    en: "A holder of the committee's Secretariat office today, recorded on their behalf. Needed only where something is ticked.",
+    en: "A holder of the committee's Secretariat office today. Needed only where something is ticked.",
     ms: "Pemegang jawatan Urus Setia jawatankuasa hari ini, direkodkan bagi pihaknya. Diperlukan hanya jika ada yang ditanda.",
   },
   tabledByNone: { en: "Nobody holds the Secretariat office today", ms: "Tiada sesiapa memegang jawatan Urus Setia hari ini" },

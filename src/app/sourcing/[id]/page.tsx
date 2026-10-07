@@ -1,3 +1,5 @@
+import { ActedBy } from "@/components/attribution";
+import { routeActed } from "@/lib/auth/attribution-read";
 import { exerciseEvidence } from "@/lib/documents/evidence";
 import { historyEntityLabel } from "@/lib/audit/entity-labels";
 import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
@@ -502,7 +504,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                     <KeyValues
                       columns={2}
                       items={[
-                        { label: "Reviewed by", value: ex.proposalReviewer ? `${ex.proposalReviewer.name} · recorded on behalf of, not signed` : "Not recorded" },
+                        { label: "Reviewed by", value: ex.proposalReviewer ? <ActedBy entity="SourcingExercise" id={ex.id} slot="proposalReviewer" name={ex.proposalReviewer.name} /> : "Not recorded" },
                         { label: "Reviewed on", value: formatDate(ex.proposalReviewedOn) },
                         { label: "Comment", value: ex.proposalReviewComment || "None" },
                       ]}
@@ -760,7 +762,7 @@ function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossi
 
 // ------------------------------------------------------------- name approval
 
-function NamePanel({
+async function NamePanel({
   l,
   current,
   preview,
@@ -786,6 +788,8 @@ function NamePanel({
   const ex = l.ex;
   const inst = current;
   const earlier = latestFirst(nameRoutesOf(ex.approvalInstances)).filter((i) => i.id !== current?.id);
+  // Where the officer sent a refused route is read from the route's attribution (Phase 2b).
+  const chosenBy = await routeActed(db, l.org.id, ex.approvalInstances);
   return (
     <div className="flex flex-col gap-6">
       <Callout tone="info" title="The name is approved for a list, and invitation is held to it">
@@ -870,7 +874,7 @@ function NamePanel({
               return (
                 <div className="border-t border-line px-5 py-3 sm:px-6">
                   <Callout tone="warn" title="Where the refusal sent it">
-                    {appliedText(inst.rejectionApplied as RejectionKind, inst.rejectionSource, officeName(inst.rejectionReturnToRoleCode), inst.rejectionChosenBy?.name ?? null)}
+                    {appliedText(inst.rejectionApplied as RejectionKind, inst.rejectionSource, officeName(inst.rejectionReturnToRoleCode), inst.rejectionChosenBy?.name ?? null, inst.rejectionChosenBy ? chosenBy.chosen(inst.id, inst.rejectionChosenBy.name) : null)}
                   </Callout>
                 </div>
               );

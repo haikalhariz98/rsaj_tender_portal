@@ -105,10 +105,13 @@ describe("declaring a conflict of interest (FR-APR-009, CO-6)", () => {
     expect(stepEscalation(short[0], ctx({ kind: "CONFLICT_DECLARED", declarerEntitled: null }))).toMatchObject({ fault: "DECLARER_REQUIRED" });
   });
 
-  it("reads as a declaration recorded on the declarer's behalf, not signed", () => {
-    expect(escalationText({ roleLabel: "Head of Department", actingRoleLabel: "Head of Division", escalation: "CONFLICT_DECLARED", escalationReason: "Related party", declaredByName: "Aminah" })).toBe(
-      "Head of Division · escalated from Head of Department: conflict declared by Aminah, recorded on their behalf, not signed — Related party",
-    );
+  it("reads as a declaration by the declarer, in the words of the step's attribution where it is read, and the name alone where it is not", () => {
+    // Phase 2b (decisions log, 2026-10-07): the trail and the screen name the person and say how the act was recorded only from its attribution (signed, or recorded from
+  // paper); the fixed words "recorded on behalf of, not signed" were written under every act and were true of some.
+    const step = { roleLabel: "Head of Department", actingRoleLabel: "Head of Division", escalation: "CONFLICT_DECLARED" as const, escalationReason: "Related party", declaredByName: "Aminah" };
+    expect(escalationText(step)).toBe("Head of Division · escalated from Head of Department: conflict declared by Aminah — Related party");
+    expect(escalationText(step, "Conflict declared by Aminah")).toBe("Head of Division · escalated from Head of Department: Conflict declared by Aminah — Related party");
+    expect(escalationText(step, "Recorded by Clerk on behalf of Aminah, not signed")).toMatch(/Recorded by Clerk on behalf of Aminah, not signed/);
   });
 });
 

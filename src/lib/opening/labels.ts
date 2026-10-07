@@ -88,7 +88,7 @@ export const REPORTED_LABEL: Readonly<Record<Reported, string>> = {
 /// The statement the Opening tab makes (C-2): what is recorded, and what it is not.
 export const OPENING_STATEMENT = {
   title: "The box and its key remain the control",
-  body: "Two officers are recorded as authorising the opening; nobody signs in yet, so the portal cannot prove each acted. Every act here is recorded on behalf of the person named, not signed.",
+  body: "Two officers authorise the opening: each signs in with their password, or has their paper authorisation recorded for them and not signed.",
 } as const;
 
 /// The chip beside every price as read (C-4).

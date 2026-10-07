@@ -1,3 +1,4 @@
+import { ActedBy } from "@/components/attribution";
 import { AttachToRecordButton } from "@/components/attachments/attach-to-record";
 import { DocumentButton } from "@/components/attachments/document-drawer";
 import { HistoryButton } from "@/components/history-drawer";
@@ -253,7 +254,7 @@ export default async function DocumentsConfigPage() {
                     <Td label="Document"><CellStack title={d.title} sub={v?.originalFilename} /></Td>
                     <Td label="Class" className="text-ink-2">{d.documentClass.nameEn}</Td>
                     <Td label="Classification"><Badge tone={classificationTone(d.classificationSnapshot)}>{classificationBadge(d.classificationSnapshot)}</Badge></Td>
-                    <Td label="Received"><CellStack title={formatOrgDay(d.createdAt, tz)} sub={v ? `${v.recordedBy.name} · recorded on behalf of, not signed` : undefined} /></Td>
+                    <Td label="Received"><CellStack title={formatOrgDay(d.createdAt, tz)} sub={v ? <ActedBy entity="DocumentVersion" id={v.id} slot="recordedBy" name={v.recordedBy.name} /> : undefined} /></Td>
                     <Td>
                       <RowActions>
                         <AttachToRecordButton versionId={attachableVersion(d.versions)} title={d.title} unclassified={d.classificationSnapshot == null} />
@@ -302,7 +303,7 @@ export default async function DocumentsConfigPage() {
                 <Tr key={h.id}>
                   <Td label="Document"><CellStack title={h.document.title} /></Td>
                   <Td label="Why it is held" className="break-words text-ink-2">{h.reason}</Td>
-                  <Td label="Placed"><CellStack title={formatOrgDay(h.placedAt, tz)} sub={`${h.placedBy.name} · recorded on behalf of, not signed`} /></Td>
+                  <Td label="Placed"><CellStack title={formatOrgDay(h.placedAt, tz)} sub={<ActedBy entity="LegalHold" id={h.id} slot="placedBy" name={h.placedBy.name} />} /></Td>
                   <Td>
                     <RowActions>
                       <DocumentButton documentId={h.document.id} label={h.document.title} />

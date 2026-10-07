@@ -44,13 +44,14 @@ export function ifRejectedText(
 export const SOURCE_TEXT: Record<RejectionSource, string> = {
   CONFIGURED: "as configured for this matter type",
   COMMITTEE_OUTCOME: "as the committee's not-carried outcome says",
-  OFFICER_CHOICE: "the officer's choice, recorded on behalf of a named person, not signed — not policy",
+  OFFICER_CHOICE: "the officer's choice, not policy",
 };
 
 /// What was applied when the route rejected.
-export function appliedText(kind: RejectionKind, source: RejectionSource, office: string | null, chosenBy: string | null): string {
+export function appliedText(kind: RejectionKind, source: RejectionSource, office: string | null, chosenBy: string | null, /// How the officer's choice was recorded, read from the route's attribution (Phase 2b): the words of `routeActed(...).chosen`. Without it, the name alone.
+chosenActed?: string | null): string {
   const what = destinationText(kind, office);
-  if (source === "OFFICER_CHOICE") return `${what}: chosen by ${chosenBy ?? "a person no longer on record"}, recorded on their behalf, not signed. A choice, not policy.`;
+  if (source === "OFFICER_CHOICE") return `${what}: ${chosenActed ?? `chosen by ${chosenBy ?? "a person no longer on record"}`}. A choice, not policy.`;
   return `${what}, ${SOURCE_TEXT[source]}.`;
 }
 
@@ -66,7 +67,7 @@ export const CHOICE_FAULT_TEXT: Record<ChoiceFault, string> = {
   STEP_REQUIRED: "Choose the step it returns to.",
   STEP_NOT_EARLIER: "It can return only to a step before the one that rejected it.",
   REASON_REQUIRED: "Say why it goes there.",
-  PERSON_REQUIRED: "Name who chose: it is recorded on their behalf.",
+  PERSON_REQUIRED: "Name who chose.",
 };
 
 export const DESTINATION_FAULT_TEXT: Record<DestinationFault, { field: string; message: string }> = {

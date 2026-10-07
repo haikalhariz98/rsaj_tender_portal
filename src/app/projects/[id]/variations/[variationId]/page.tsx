@@ -1,3 +1,4 @@
+import { ActedBy } from "@/components/attribution";
 import Link from "next/link";
 import type { ContractStatus } from "@/lib/contract/types";
 import { actStatusBlocker, actStatusFault, actStatusText, statusCalloutTitle } from "@/lib/contract/act-status";
@@ -70,6 +71,7 @@ import {
   type Option,
 } from "../../variation-editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { stepActed } from "@/lib/auth/attribution-read";
 
 export const dynamic = "force-dynamic";
 
@@ -242,7 +244,7 @@ function ApplicationPanel({ l, v, f, vv, people, priorReading, editBlocker, edit
             columns={2}
             items={[
               { label: "Number", value: v.reference ?? dim("Given when it is submitted") },
-              { label: "Originated by", value: `${v.originatorName} (recorded on their behalf, not signed)` },
+              { label: "Originated by", value: <ActedBy entity="Variation" id={v.id} slot="originator" name={v.originatorName} /> },
               { label: "Its path", value: ORIGIN_WORDS[v.origin as "DEPARTMENT"].en },
               ...(v.origin === "DEPARTMENT" ? [{ label: "Reviewed by an S.O.'s Representative", value: v.reviewedBy ? `${v.reviewedBy.name}, ${formatDate(day(v.reviewedOn))}${v.reviewNote ? `: ${v.reviewNote}` : ""}` : dim("Not reviewed yet") }] : []),
               { label: "Allocation confirmed (a Specialist representative)", value: v.allocationConfirmed == null ? dim("Not answered") : `${v.allocationConfirmed ? "Yes" : "No"}${v.allocationNote ? `: ${v.allocationNote}` : ""}` },
@@ -286,7 +288,7 @@ function ApplicationPanel({ l, v, f, vv, people, priorReading, editBlocker, edit
             columns={2}
             items={[
               { label: "Decision", value: v.exemption ? "Not asked: exempt from prior approval" : v.soDecision ? `${SO_DECISION_WORDS[v.soDecision as "SUPPORTED"].en}${v.soDecisionCap ? `, up to ${formatMoney(senFromDecimal(v.soDecisionCap))}` : ""}` : dim("Not decided yet") },
-              { label: "By", value: v.soDecidedBy ? `${v.soDecidedBy.name}, ${formatDate(day(v.soDecidedOn))} (recorded on their behalf, not signed)` : dim("—") },
+              { label: "By", value: v.soDecidedBy ? <><ActedBy entity="Variation" id={v.id} slot="soDecidedBy" name={v.soDecidedBy.name} />, {formatDate(day(v.soDecidedOn))}</> : dim("—") },
               { label: "Note", value: v.soDecisionNote || dim("None") },
               { label: "The application (certificate)", value: appCert ? <Link className="font-medium text-brand-700 underline" href={`/projects/${l.contract.id}/certificates/${appCert.id}`}>{`${appCert.number ?? "Draft"} · ${CERT_WORDS[appCert.status as CertificateStatus].en}`}</Link> : dim(v.exemption ? "None: exempt" : "Opened when its prior approval is approved") },
             ]}
@@ -326,6 +328,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
   };
   const roles = await db.authorityRole.findMany({ where: { organisationId: l.org.id }, select: { code: true, nameEn: true } });
   const routes = [...v.approvals].reverse();
+  const acted = await stepActed(db, l.org.id, routes.flatMap((a) => a.approvalInstance.steps));
   const cards = await Promise.all(
     routes.map(async (a, n) => {
       const inst = a.approvalInstance;
@@ -360,7 +363,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
       const extra = (
         <CardBody className="border-b border-line/70">
           {noForm && <Callout tone="warn" className="mb-2">{`${LAST_STEP_REFUSED.en} ${variationFaultText(noForm)}`}</Callout>}
-          <p className="text-[12.5px] break-words text-ink-3">{`${EVENT_WORDS[a.event as VariationEvent].en}: ${formatMoney(senFromDecimal(a.value))}, read as ${vv.labelOf(reading, inst.domain).en} of ${formatMoney(BigInt(reading.den))} (${BASIS_WORDS[reading.basis].en.toLowerCase()}, over ${BASE_WORDS[reading.base].en.toLowerCase()}), ${vv.labelOf(reading, inst.domain).frozen ? "frozen when sent" : "sent"} ${formatDate(day(a.sentOn))} by ${a.sentBy.name} (recorded on their behalf, not signed).${vv.labelOf(reading, inst.domain).frozen ? "" : " Its percentage was not frozen with it (sent before labels were): read now on the issued matrix's rows, without any funding override."}`}</p>
+          <p className="text-[12.5px] break-words text-ink-3">{`${EVENT_WORDS[a.event as VariationEvent].en}: ${formatMoney(senFromDecimal(a.value))}, read as ${vv.labelOf(reading, inst.domain).en} of ${formatMoney(BigInt(reading.den))} (${BASIS_WORDS[reading.basis].en.toLowerCase()}, over ${BASE_WORDS[reading.base].en.toLowerCase()}), ${vv.labelOf(reading, inst.domain).frozen ? "frozen when sent" : "sent"} ${formatDate(day(a.sentOn))}: `}<ActedBy entity="VariationApproval" id={a.id} slot="sentBy" name={a.sentBy.name} />{`.${vv.labelOf(reading, inst.domain).frozen ? "" : " Its percentage was not frozen with it (sent before labels were): read now on the issued matrix's rows, without any funding override."}`}</p>
           {v.matters.filter((m) => m.domain === inst.domain).map((m) => {
             // Acceptance S-1: the outcome only, linked to the sitting; members' votes stay on its decision record.
             const x = matterLineOf(m);
@@ -368,7 +371,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
           })}
         </CardBody>
       );
-      return <ApprovalRouteCard key={inst.id} route={inst} title={`${EVENT_WORDS[a.event as VariationEvent].en}${routes.length > 1 && n > 0 ? " (earlier)" : ""}`} stepAction={stepAction} officeName={(code) => roles.find((x) => x.code === code)?.nameEn ?? null} extra={extra} />;
+      return <ApprovalRouteCard key={inst.id} route={inst} acted={acted} title={`${EVENT_WORDS[a.event as VariationEvent].en}${routes.length > 1 && n > 0 ? " (earlier)" : ""}`} stepAction={stepAction} officeName={(code) => roles.find((x) => x.code === code)?.nameEn ?? null} extra={extra} />;
     }),
   );
   const consentCommittee = vv.policy?.funderConsentCommitteeId ?? null;

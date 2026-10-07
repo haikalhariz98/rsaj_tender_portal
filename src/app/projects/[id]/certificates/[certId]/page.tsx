@@ -1,3 +1,4 @@
+import { ActedBy } from "@/components/attribution";
 import Link from "next/link";
 import type { CertificateKind } from "@/lib/certificate/types";
 import type { ContractStatus } from "@/lib/contract/types";
@@ -68,6 +69,7 @@ const VARIATION_APPROVED_KINDS: readonly string[] = ["VARIATION_APPLICATION", "V
 
 import { AcknowledgeDrawer, CheckDrawer, ChooseRejectionDrawer, CorrectDateDrawer, DecideRouteStepDrawer, DespatchDrawer, FinancePaymentDrawer, OverrideDrawer, ReceivedDrawer, SendForApprovalDrawer, SendForRoutingDrawer, SendToSigningDrawer, SignatureDrawer, VoidDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { loadAttributions, stepActed } from "@/lib/auth/attribution-read";
 
 export const dynamic = "force-dynamic";
 
@@ -356,7 +358,7 @@ async function FinanceCard({ l, people, today }: { l: LoadedCertificate; people:
         <span className="min-w-0">
           <span className="block text-[13.5px] font-semibold text-ink">Paid by Finance</span>
           <span className="block text-[12.5px] break-words text-ink-3">
-            {paid ? `${formatMoney(parseSen(paid.amount.toString()))}, batch ${paid.batchNo}, paid ${formatDate(day(paid.paidOn))}; recorded for ${paid.person.name} (on their behalf, not signed).` : issued ? "Not recorded yet: Finance returns its batch number and the day paid." : "Once issued, it goes to Accounts and Finance; the payment is recorded here."}
+            {paid ? <>{`${formatMoney(parseSen(paid.amount.toString()))}, batch ${paid.batchNo}, paid ${formatDate(day(paid.paidOn))}; `}<ActedBy entity="FinancePayment" id={paid.id} slot="person" name={paid.person.name} />.</> : issued ? "Not recorded yet: Finance returns its batch number and the day paid." : "Once issued, it goes to Accounts and Finance; the payment is recorded here."}
           </span>
         </span>
         {!paid && issued && v != null && <FinancePaymentDrawer certId={cert.id} amount={formatMoney(parseSen(v))} people={people} today={today} blocker={blocker} />}
@@ -389,7 +391,7 @@ function supervisedText(rule: SupervisedRule, t: SupervisedToday | undefined): s
   return rule === "SO" ? ` Today: ${t.soLabel}, held by ${t.names.join(", ")}.` : ` Today: ${t.names.join(", ")}.`;
 }
 
-function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, today, officeName, supervised, reResolveUnset }: { l: LoadedCertificate; blocks: Block[]; pinned: TemplateRevision | null; formName: string | null; pinBlocker: string | null; people: Option[]; today: string | null; officeName: (code: string | null) => string; supervised: Partial<Record<SupervisedRule, SupervisedToday>>; reResolveUnset: boolean }) {
+async function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, today, officeName, supervised, reResolveUnset }: { l: LoadedCertificate; blocks: Block[]; pinned: TemplateRevision | null; formName: string | null; pinBlocker: string | null; people: Option[]; today: string | null; officeName: (code: string | null) => string; supervised: Partial<Record<SupervisedRule, SupervisedToday>>; reResolveUnset: boolean }) {
   const cert = l.cert;
   const status = cert.status as CertificateStatus;
   const signed = signedOf(cert);
@@ -400,6 +402,8 @@ function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, toda
       ? `In the printed order of ${formName} as it stands now. The first signature pins the form: its order and recipients do not move after it.`
       : // BD-613-103 / S-6: raised without a form, its own words (a void one is given no advice); never the raise's.
         raisedWithoutFormWords({ kind: cert.kind, status }).en;
+  // Who signed each block of the organisation's own, signed in or recorded from paper, is read from its attribution (Phase 2b). A block that is not a person's (the contractor's side) is named by an officer: it is not signed in, and says so.
+  const signedBy = await loadAttributions(db, l.org.id, [{ entity: "CertificateSignature", slot: "person", ids: cert.signatures.filter((x) => x.personId).map((x) => x.id) }]);
   const notOpen = status === "DRAFT" || status === "IN_ROUTING" ? "Signatures open once the certificate is sent to signing." : status === "VOID" ? "The certificate is void." : null;
   const dateNow = certificateDateOf(blocks, signed);
   return (
@@ -407,7 +411,7 @@ function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, toda
       <CardHeader
         icon={<ToolsIcon size={17} />}
         title="Signatures"
-        subtitle={`${subtitle} ${CERT_WORDS.onBehalf.en}.`}
+        subtitle={subtitle}
         actions={cert.certificateDate && status === "SIGNING" ? <CorrectDateDrawer certId={cert.id} current={formatDate(day(cert.certificateDate))} /> : undefined}
         divided={blocks.length > 0}
       />
@@ -431,7 +435,7 @@ function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people, toda
                   {s ? (
                     <span className="block text-[12.5px] break-words text-ink-3">
                       {[
-                        s.refused ? `Refused to sign: ${s.refusalNote}` : `${s.name}${s.officeLabel ? `, ${s.officeLabel}` : ""}`,
+                        s.refused ? `Refused to sign: ${s.refusalNote}` : `${s.personId ? signedBy.read({ entity: "CertificateSignature", id: s.id, slot: "person" }, s.name).en : `${s.name} (named by the officer: they do not sign in)`}${s.officeLabel ? `, ${s.officeLabel}` : ""}`,
                         s.delegationId ? "under delegation" : null,
                         s.decision ? `${DECISION_WORDS[s.decision].en}${s.decisionCap ? ` up to ${formatMoney(parseSen(s.decisionCap.toString()))}` : ""}` : null,
                         s.icMasked ? `IC ${s.icMasked}` : null,
@@ -486,6 +490,7 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
   // 614-C4: a step of the certificate's open route is decided here (Approvals lists it and links here).
   const routes = [...cert.approvalInstances].sort((a, b) => (a.openedAt.getTime() === b.openedAt.getTime() ? a.createdAt.getTime() - b.createdAt.getTime() : a.openedAt.getTime() - b.openedAt.getTime()));
   const latest = routes.at(-1) ?? null;
+  const acted = await stepActed(db, l.org.id, routes.flatMap((r) => r.steps));
   const live = status === "DRAFT" || status === "IN_ROUTING";
   // BD-613-40 (approved with condition): a guarantee below the advance warns, never refuses, and the warning is
   // shown where the approving office decides, not only on the contract.
@@ -537,7 +542,7 @@ async function RoutingPanel({ l, sheet, people, today, roles }: { l: LoadedCerti
         {apgCard}
         {choiceCard}
         {[...routes].reverse().map((r, n) => (
-          <ApprovalRouteCard key={r.id} route={r} title={routes.length === 1 ? "Approval route" : n === 0 ? "Approval route, the latest" : `Approval route ${routes.length - n}`} stepAction={stepAction} officeName={(code) => roles.find((x) => x.code === code)?.nameEn ?? null} />
+          <ApprovalRouteCard key={r.id} route={r} acted={acted} title={routes.length === 1 ? "Approval route" : n === 0 ? "Approval route, the latest" : `Approval route ${routes.length - n}`} stepAction={stepAction} officeName={(code) => roles.find((x) => x.code === code)?.nameEn ?? null} />
         ))}
       </div>
     );

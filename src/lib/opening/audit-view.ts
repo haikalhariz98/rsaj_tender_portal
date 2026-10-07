@@ -45,7 +45,6 @@ export const OPENING_ENTITY_LABEL: Readonly<Record<string, string>> = {
 };
 
 const stamp = (d: Date | null | undefined, tz: string | null) => (d ? receiptTime(d, tz) : null);
-const onBehalf = (name: string) => `${name} (recorded on their behalf, not signed)`;
 
 export function openingStartFields(o: { kind: OpeningKind; committee: string; panel: readonly { name: string; present: boolean }[]; startedAt: Date; startedBy: string; panelOverride: { authority: string; reason: string; by: string } | null; independence: string; estimateLead: string; boxLockedAt: Date | null; lockGap: string | null }, tz: string | null) {
   return {
@@ -53,8 +52,8 @@ export function openingStartFields(o: { kind: OpeningKind; committee: string; pa
     committee: o.committee,
     panel: o.panel.map((p) => `${p.name}${p.present ? "" : " (absent)"}`).join(", "),
     started: stamp(o.startedAt, tz),
-    startedBy: onBehalf(o.startedBy),
-    panelOfAnotherSize: o.panelOverride ? `${o.panelOverride.authority}: ${o.panelOverride.reason} (${onBehalf(o.panelOverride.by)})` : null,
+    startedBy: o.startedBy,
+    panelOfAnotherSize: o.panelOverride ? `${o.panelOverride.authority}: ${o.panelOverride.reason} (${o.panelOverride.by})` : null,
     independence: o.independence,
     estimateLeadTime: o.estimateLead,
     boxLocked: stamp(o.boxLockedAt, tz),
@@ -63,7 +62,7 @@ export function openingStartFields(o: { kind: OpeningKind; committee: string; pa
 }
 
 export const authorisationFields = (a: { person: string; at: Date; sittingNo: number; opensTheBox: boolean }, tz: string | null) => ({
-  authorisedBy: onBehalf(a.person),
+  authorisedBy: a.person,
   at: stamp(a.at, tz),
   sitting: `Sitting ${a.sittingNo}`,
   result: a.opensTheBox ? "Second authorisation: the box opened" : "Recorded",
@@ -72,7 +71,7 @@ export const authorisationFields = (a: { person: string; at: Date; sittingNo: nu
 export const sittingFields = (s: { sittingNo: number; at: Date; by: string; adjourned: boolean; reason: string }, tz: string | null) => ({
   sitting: `Sitting ${s.sittingNo}`,
   [s.adjourned ? "adjourned" : "resumed"]: stamp(s.at, tz),
-  recordedBy: onBehalf(s.by),
+  recordedBy: s.by,
   reason: s.reason || null,
 });
 
@@ -114,13 +113,13 @@ export const verdictFields = (v: { verdict: OpeningVerdict | null; reason: strin
   missing: v.missing.length ? v.missing.join(", ") : null,
 });
 
-export const initialFields = (i: { person: string; listingNo: number; at: Date }, tz: string | null) => ({ initialledBy: onBehalf(i.person), offer: `No. ${i.listingNo}`, at: stamp(i.at, tz) });
-export const signatureFields = (s: { person: string; signedOn: string }) => ({ signedBy: onBehalf(s.person), signedOn: formatDate(s.signedOn) });
+export const initialFields = (i: { person: string; listingNo: number; at: Date }, tz: string | null) => ({ initialledBy: i.person, offer: `No. ${i.listingNo}`, at: stamp(i.at, tz) });
+export const signatureFields = (s: { person: string; signedOn: string }) => ({ signedBy: s.person, signedOn: formatDate(s.signedOn) });
 
 export function finaliseFields(f: { at: Date; by: string; pages: number; rows: number; copy: CopyCheck | null; paper: Sen | null; lodged: Sen | null; disclosed: boolean }, tz: string | null) {
   return {
     finalised: stamp(f.at, tz),
-    finalisedBy: onBehalf(f.by),
+    finalisedBy: f.by,
     pages: String(f.pages),
     offers: String(f.rows),
     estimateDisclosed: f.disclosed ? "yes" : null,
@@ -132,4 +131,4 @@ export function finaliseFields(f: { at: Date; by: string; pages: number; rows: n
   };
 }
 
-export const withdrawalMatchFields = (m: { envelope: string; finding?: string; by?: string }) => (m.finding ? { finding: m.finding, recordedBy: m.by ? onBehalf(m.by) : null } : { matchedTo: m.envelope });
+export const withdrawalMatchFields = (m: { envelope: string; finding?: string; by?: string }) => (m.finding ? { finding: m.finding, recordedBy: m.by ? m.by : null } : { matchedTo: m.envelope });

@@ -1,3 +1,4 @@
+import { ActedBy } from "@/components/attribution";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
@@ -35,7 +36,7 @@ export default async function EvaluationReportPrint(props: PageProps<"/sourcing/
   const ex = await db.sourcingExercise.findFirst({ where: { id, organisationId: org.id }, select: { id: true, reference: true } });
   if (!ex) notFound();
   const back = `/sourcing/${id}?tab=evaluation&section=report`;
-  const issued = await db.evaluation.findMany({ where: { exerciseId: id, issuedAt: { not: null } }, orderBy: { version: "desc" }, select: { version: true, state: true, reportSnapshot: true } });
+  const issued = await db.evaluation.findMany({ where: { exerciseId: id, issuedAt: { not: null } }, orderBy: { version: "desc" }, select: { id: true, version: true, state: true, reportSnapshot: true } });
   const row = (wanted ? issued.find((e) => e.version === wanted) : null) ?? issued[0] ?? null;
   const r = row ? reportFromSnapshot(row.reportSnapshot) : null;
   if (!row || !r) {
@@ -61,7 +62,7 @@ export default async function EvaluationReportPrint(props: PageProps<"/sourcing/
       <Callout tone={row.state === "ISSUED" ? "info" : "warn"} className="mb-5 print:hidden">
         {row.state === "ISSUED" ? `As issued ${r.issuedOn}: the copy frozen then, never recomputed.` : `Version ${r.version}'s report, as issued ${r.issuedOn}. It no longer stands: a later version superseded it, or the exercise was cancelled.`}
       </Callout>
-      <ReportArticle r={r} />
+      <ReportArticle r={r} issuedBy={<ActedBy entity="Evaluation" id={row.id} slot="issuedBy" name={r.issuedBy} />} />
     </>
   );
 }
@@ -69,7 +70,7 @@ export default async function EvaluationReportPrint(props: PageProps<"/sourcing/
 const Sulit = () => <Chip tone="err">{SULIT_CHIP}</Chip>;
 const H2 = ({ children }: { children: ReactNode }) => <h2 className="mt-8 mb-3 text-[16px] font-bold text-ink">{children}</h2>;
 
-function ReportArticle({ r }: { r: ReportSnapshot }) {
+function ReportArticle({ r, issuedBy }: { r: ReportSnapshot; issuedBy: ReactNode }) {
   const annex = (k: string) => r.annexes.find((a) => a.key === k);
   type StageA = { stage: string; kind: StageKind; bidders: { listingNo: number; bidder: string; figure: string | null; passed: boolean | null; band: string | null; outOfRunning: boolean; excluded: string | null; criteria: { criterion: string; marks: string | null; passed: boolean | null; carried: boolean }[] }[] }[];
   type RowB = { listingNo: number; bidder: string; asRead: string; corrected: string | null; evaluated: string; negotiated: string | null; vsEstimate: { difference: string; percent: string | null } | string; vsLowest: { difference: string; percent: string | null } | null; rank: number | null; period: string; excluded: string | null };
@@ -85,13 +86,13 @@ function ReportArticle({ r }: { r: ReportSnapshot }) {
       <h1 className="mb-1 text-[22px] leading-tight font-bold text-ink">Evaluation report</h1>
       <p className="mb-6 text-[13.5px] text-ink-2">{`${r.exercise.reference} · ${r.exercise.title}`}</p>
       <dl className="mb-6 grid gap-x-8 gap-y-2 text-[13.5px] sm:grid-cols-2">
-        {[
+        {([
           ["Reference", r.reference],
-          ["Issued", `${r.issuedOn}, by ${r.issuedBy} (recorded on their behalf, not signed)`],
+          ["Issued", <>{r.issuedOn}, {issuedBy}</>],
           ["Evaluation version", String(r.version)],
           ["Model", `${r.model.name}, version ${r.model.version} (${ROUTE_LABEL[r.model.route as EvaluationRoute] ?? r.model.route})`],
           ["Team", r.team.map((t) => `${t.name} (${SIDE_LABEL[t.side as Side] ?? ""})`).join("; ")],
-        ].map(([k, v]) => (
+        ] as [string, ReactNode][]).map(([k, v]) => (
           <div key={k} className="flex flex-col">
             <dt className="text-[12px] text-ink-3">{k}</dt>
             <dd className="break-words text-ink">{v}</dd>

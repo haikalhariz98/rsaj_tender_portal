@@ -9,6 +9,8 @@ import { fieldLabel } from "@/lib/audit/diff";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 
 import { trailEntry } from "./audit-view";
+import { type AttributionIndex, type SlotQuery } from "@/lib/auth/attribution-read";
+
 import { documentClassificationChoices } from "./classification";
 import { attachableVersion } from "./targets";
 
@@ -24,7 +26,6 @@ import {
   FINGERPRINT_STATEMENT,
   mediaLabel,
   PURPOSE_LABEL,
-  RECORDED_ON_BEHALF,
   RETENTION_TRIGGER_LABEL,
   retentionPeriodText,
   SCAN_LABEL,
@@ -169,7 +170,10 @@ export interface PanelOptions {
   attachedBy?: Partial<Record<AttachmentPurpose, string>>;
 }
 
-export function panelView(p: Panel, u: Upload, timeZone: string | null, opts: PanelOptions = {}): PanelView {
+/// What a panel reads of who recorded each version: the ids to ask the attributions for (`loadAttributions`), and the index read with them.
+export const panelAttributionQueries = (p: Panel): SlotQuery[] => [{ entity: "DocumentVersion", slot: "recordedBy", ids: p.items.map((i) => i.version.id) }];
+
+export function panelView(p: Panel, u: Upload, timeZone: string | null, opts: PanelOptions, acted: AttributionIndex): PanelView {
   const shown = (purpose: AttachmentPurpose) => !opts.only || opts.only.includes(purpose);
   const slots: SlotView[] = p.purposes
     .filter((s) => shown(s.purpose))
@@ -178,7 +182,7 @@ export function panelView(p: Panel, u: Upload, timeZone: string | null, opts: Pa
       const required = opts.required?.[s.purpose] ?? false;
       return { purpose: s.purpose, label: opts.labels?.[s.purpose] ?? PURPOSE_LABEL[s.purpose], required, state: s.state, reason: s.reason, live: s.live, act: slotAct(s.purpose, s.live), status: slotStatus({ state: s.state, live: s.live, required }, opts.statuses?.[s.purpose]), findings: opts.findings?.[s.purpose] ?? [], attachedBy: opts.attachedBy?.[s.purpose] ?? null };
     });
-  const all = p.items.filter((i) => shown(i.purpose)).map((i) => itemView(i, timeZone));
+  const all = p.items.filter((i) => shown(i.purpose)).map((i) => itemView(i, timeZone, acted));
   const frozenAll = slots.length > 0 && slots.every((s) => s.state === "FROZEN") && new Set(slots.map((s) => s.reason)).size === 1;
   return {
     owner: { kind: p.owner.kind, id: p.owner.id, label: p.owner.label },
@@ -193,7 +197,7 @@ export function panelView(p: Panel, u: Upload, timeZone: string | null, opts: Pa
 
 type Item = Panel["items"][number];
 
-export function itemView(i: Item, timeZone: string | null): AttachmentItemView {
+export function itemView(i: Item, timeZone: string | null, acted: AttributionIndex): AttachmentItemView {
   const v = i.version;
   return {
     attachmentId: i.attachmentId,
@@ -210,7 +214,7 @@ export function itemView(i: Item, timeZone: string | null): AttachmentItemView {
     versionNo: v.versionNo,
     newerVersionNo: i.newerVersion?.versionNo ?? null,
     receivedOn: v.receivedOn ? formatDate(v.receivedOn) : null,
-    recordedBy: `${v.recordedBy.name} · ${RECORDED_ON_BEHALF}`,
+    recordedBy: acted.read({ entity: "DocumentVersion", id: v.id, slot: "recordedBy" }, v.recordedBy.name).en,
     size: formatBytes(v.byteSize),
     fingerprint: v.sha256,
     fingerprintShort: shortFingerprint(v.sha256),
@@ -291,7 +295,14 @@ export function classificationForm(current: SecurityClass | null, classClassific
 
 const NOT_SET = "Not set";
 
-export function drawerView(d: Drawer, timeZone: string | null): DrawerView {
+/// What the drawer reads of who recorded each version and who placed and released each hold.
+export const drawerAttributionQueries = (d: Drawer): SlotQuery[] => [
+  { entity: "DocumentVersion", slot: "recordedBy", ids: d.versions.map((v) => v.id) },
+  { entity: "LegalHold", slot: "placedBy", ids: d.holds.map((h) => h.id) },
+  { entity: "LegalHold", slot: "releasedBy", ids: d.holds.filter((h) => h.releasedBy).map((h) => h.id) },
+];
+
+export function drawerView(d: Drawer, timeZone: string | null, acted: AttributionIndex): DrawerView {
   const r = d.retention;
   return {
     id: d.id,
@@ -321,7 +332,7 @@ export function drawerView(d: Drawer, timeZone: string | null): DrawerView {
       fingerprint: v.sha256,
       receivedOn: v.receivedOn ? formatDate(v.receivedOn) : null,
       storedOn: formatOrgDateTime(v.storedAt, timeZone),
-      recordedBy: `${v.recordedBy.name} · ${RECORDED_ON_BEHALF}`,
+      recordedBy: acted.read({ entity: "DocumentVersion", id: v.id, slot: "recordedBy" }, v.recordedBy.name).en,
       note: v.note || null,
       scan: { text: SCAN_LABEL[v.scanState], tone: scanTone(v.scanState) },
       withdrawn: v.withdrawnAt ? { on: formatOrgDay(v.withdrawnAt, timeZone), reason: v.withdrawnReason ?? "" } : null,
@@ -339,10 +350,10 @@ export function drawerView(d: Drawer, timeZone: string | null): DrawerView {
     holds: d.holds.map((h) => ({
       id: h.id,
       reason: h.reason,
-      placedBy: `${h.placedBy.name} · ${RECORDED_ON_BEHALF}`,
+      placedBy: acted.read({ entity: "LegalHold", id: h.id, slot: "placedBy" }, h.placedBy.name).en,
       placedOn: formatOrgDay(h.placedAt, timeZone),
       standing: h.releasedAt == null,
-      released: h.releasedAt ? { by: h.releasedBy ? `${h.releasedBy.name} · ${RECORDED_ON_BEHALF}` : "Not recorded", on: formatOrgDay(h.releasedAt, timeZone), reason: h.releaseReason ?? "" } : null,
+      released: h.releasedAt ? { by: h.releasedBy ? acted.read({ entity: "LegalHold", id: h.id, slot: "releasedBy" }, h.releasedBy.name).en : "Not recorded", on: formatOrgDay(h.releasedAt, timeZone), reason: h.releaseReason ?? "" } : null,
     })),
     history: d.history.map((e) => {
       const t = trailEntry({ entity: e.entity, entityLabel: e.entityLabel, action: e.action, reason: e.reason, changes: e.changes }, formatDate);

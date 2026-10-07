@@ -156,7 +156,7 @@ function OpeningCard({ d, o }: { d: OpeningSectionView; o: OpeningView }) {
               </li>
             ))}
           </ul>
-          {o.authorisations.length > 0 && <p className="text-[12.5px] break-words text-ink-3">{`Authorisations, recorded on the members' behalf, not signed: ${o.authorisations.join("; ")}.`}</p>}
+          {o.authorisations.length > 0 && <p className="text-[12.5px] break-words text-ink-3">{`Authorisations: ${o.authorisations.join("; ")}.`}</p>}
         </div>
       </CardBody>
 

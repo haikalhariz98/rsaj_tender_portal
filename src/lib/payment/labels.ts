@@ -259,7 +259,7 @@ export function paymentFaultWords(f: Finding): Words {
     case "KIND_HAS_NO_ROUTE":
       return w("This kind of certificate opens no approval route here.", "Jenis perakuan ini tidak membuka laluan kelulusan.");
     case "SUBMITTER_REQUIRED":
-      return w("Name who sends it for approval: someone on record and active (recorded on their behalf; they may not decide it).", "Namakan siapa menghantarnya untuk kelulusan.");
+      return w("Name who sends it for approval: someone on record and active (they may not decide it).", "Namakan siapa menghantarnya untuk kelulusan.");
     // ------------------------------------------------ issue (FR-PAY-014)
     case "PRE_EXECUTION_LIMIT_NOT_SET":
       return w(f.level === "warn" ? "The contract is not signed, and how many interim certificates may issue before it is signed is not set under Configuration › Post-award: as things stand, this certificate could not be issued." : "This certificate was raised when no limit on certificates before the contract is signed was set, so it cannot be issued until the contract is executed. Execute the contract, or void the certificate and raise it again once the limit is set.", "Kontrak belum ditandatangani dan had perakuan sebelum pelaksanaan tidak ditetapkan.");

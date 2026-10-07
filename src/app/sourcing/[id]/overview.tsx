@@ -1,3 +1,4 @@
+import { ActedBy } from "@/components/attribution";
 import Link from "next/link";
 
 import { Accordion } from "@/components/accordion";
@@ -222,7 +223,7 @@ function ContractCard({ p }: { p: OverviewProps }) {
                 <span className="flex flex-col items-start gap-0.5">
                   <span>{decided?.contractType.nameEn ?? p.typeName(ex.contractTypeCode) ?? NOT_SET}</span>
                   {overridden && <span className="text-[12.5px] text-ink-3">{`Worked out from what is delivered: ${derivationState === "DERIVED" ? (derivedName ?? NOT_SET) : derivationState ? DERIVATION_TEXT[derivationState] : NOT_SET}`}</span>}
-                  {overridden && <span className="text-[12.5px] text-ink-3">{`${TYPE_STATE_LABEL[state!]} · ${ex.contractTypeOverrideReason || "no reason recorded"}${p.overriddenBy ? ` · decided by ${p.overriddenBy}, recorded on behalf of, not signed` : ""}`}</span>}
+                  {overridden && <span className="text-[12.5px] text-ink-3">{`${TYPE_STATE_LABEL[state!]} · ${ex.contractTypeOverrideReason || "no reason recorded"}`}{p.overriddenBy ? <> · <ActedBy entity="SourcingExercise" id={ex.id} slot="overriddenBy" name={p.overriddenBy} /></> : null}</span>}
                   {!state && <span className="text-[12.5px] text-ink-3">Choose or derive one before documents go into preparation.</span>}
                 </span>
               ),

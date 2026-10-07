@@ -5,6 +5,7 @@
  * refused one give the same reason. Words only: codes never reach the screen.
  */
 
+import { loadAttributions } from "@/lib/auth/attribution-read";
 import { ACT_LABEL } from "@/lib/labels";
 import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
@@ -91,6 +92,14 @@ export async function bidsTab(organisationId: string, exerciseId: string) {
   const withdraw = allowed(withdrawFaults({ exercise: x, now, envelope: null, markings: "-", personActive: true }));
   const lock = allowed(lockFaults({ exercise: x, now, events, personActive: true }));
   const box = boxState(events);
+  // Who received each envelope and withdrawal, locked the box and recorded each extension, signed or recorded from paper, is read from the attributions (Phase 2b).
+  const lastBox = [...events].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime()).at(-1) ?? null;
+  const attributed = await loadAttributions(db, orgId, [
+    { entity: "BidEnvelope", slot: "receivedBy", ids: envelopes.map((e) => e.id) },
+    { entity: "BidWithdrawal", slot: "receivedBy", ids: withdrawals.map((w) => w.id) },
+    { entity: "ValidityExtension", slot: "recordedBy", ids: extensions.map((e) => e.id) },
+    { entity: "BoxEvent", slot: "person", ids: lastBox ? [lastBox.id] : [] },
+  ]);
   const rows = envelopes.map((e) => {
     const f = envelopeFactsOf(e);
     const a = needsAdmission(f) ? admission(e.id, matters) : null;
@@ -128,7 +137,7 @@ export async function bidsTab(organisationId: string, exerciseId: string) {
       opened: e.status === "OPENED",
       returned: back === "NOT_WITHDRAWN" ? null : RETURN_LABEL[back] + (e.returnedUnopenedOn ? ` on ${formatDate(storedDay(e.returnedUnopenedOn))}` : ""),
       markings: e.markings,
-      receivedBy: `${e.receivedBy.name}, recorded on their behalf, not signed`,
+      receivedBy: attributed.read({ entity: "BidEnvelope", id: e.id, slot: "receivedBy" }, e.receivedBy.name).en,
       receivedById: e.receivedByPersonId,
       corrected: e.correctedAt != null,
       admission: a ? { state: a.state, label: ADMISSION_LABEL[a.state], sitting: a.matter?.sittingReference ?? null, matterId: a.matter?.id ?? null } : null,
@@ -185,7 +194,7 @@ export async function bidsTab(organisationId: string, exerciseId: string) {
     rulesNote: reading.frozen ? "The method's late-admission committee, fewest bids and incomplete-bid rule as they stood when the window was published. A later change applies only to exercises published after it." : "The method's rules as they stand today. They are frozen with the window when it is published.",
     exerciseReason: receive.allowed ? null : receive.reason,
     acts: { receive, withdraw, lock, extend, answers },
-    box: box.state === "NOT_LOCKED" ? { state: "NOT_LOCKED" as const, text: "Not locked yet" } : { state: box.state, text: `${box.state === "LOCKED" ? "Locked" : "Opened for the opening"} at ${time(box.at)} by ${box.by}, recorded on their behalf, not signed` },
+    box: box.state === "NOT_LOCKED" ? { state: "NOT_LOCKED" as const, text: "Not locked yet" } : { state: box.state, text: `${box.state === "LOCKED" ? "Locked" : "Opened for the opening"} at ${time(box.at)} · ${lastBox ? attributed.read({ entity: "BoxEvent", id: lastBox.id, slot: "person" }, box.by).en : box.by}` },
     rows,
     bidOptions: rows.filter((r) => r.kind === ENVELOPE_KIND_LABEL.BID && !r.withdrawn).map((r) => ({ value: r.id, label: `Envelope ${r.sequence}: ${r.markings}` })),
     withdrawable: rows.filter((r) => !r.isEstimate && !r.withdrawn && !r.late).map((r) => ({ value: r.id, label: `Envelope ${r.sequence}: ${r.markings}` })),
@@ -195,7 +204,7 @@ export async function bidsTab(organisationId: string, exerciseId: string) {
         id: w.id,
         received: time(w.receivedAt),
         markings: w.markings,
-        receivedBy: `${w.receivedBy.name}, recorded on their behalf, not signed`,
+        receivedBy: attributed.read({ entity: "BidWithdrawal", id: w.id, slot: "receivedBy" }, w.receivedBy.name).en,
         envelope: w.envelope ? `Envelope ${w.envelope.sequence}` : "In the tender box: matched at opening, and not opened",
         letter: letters > 0 ? "Attached" : "Not attached",
         label: `${ex.reference} · Withdrawal of ${w.envelope ? `envelope ${w.envelope.sequence}` : "an envelope in the box"}`,
@@ -244,7 +253,7 @@ export async function bidsTab(organisationId: string, exerciseId: string) {
         reason: e.reason,
         consentOf: `${e.consentParty.name}, ${RECOMMENDED_ATTESTED}`,
         consentReceivedOn: formatDate(storedDay(e.consentReceivedOn)),
-        recordedBy: `${e.recordedBy.name}, recorded on their behalf, not signed`,
+        recordedBy: attributed.read({ entity: "ValidityExtension", id: e.id, slot: "recordedBy" }, e.recordedBy.name).en,
         applied: e.appliedAt ? formatOrgDateTime(e.appliedAt, timeZone) : null,
         consent: liveConsents(e) > 0 ? "Attached" : "Not attached",
         apply: e.appliedAt ? null : allowed(applyFaults({ cancelled, appliedAt: e.appliedAt, liveConsents: liveConsents(e), toExpiry: storedDay(e.toExpiry), currentExpiry: v.expiry })),

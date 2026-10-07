@@ -13,7 +13,7 @@ import { formatSen as formatMoney, parseSen } from "@/lib/money";
 /**
  * One approval route and its steps, drawn the same way wherever a post-award record carries one (6.13 Part A: lifted
  * unchanged from the certificate's page so a variation's routes match it): the rule and issue it was routed under, the
- * value, each step's office, act and decision (recorded on their behalf, not signed), an escalation, and where a
+ * value, each step's office, act and decision (who decided it, signed or recorded from paper, read from its attribution), an escalation, and where a
  * refusal went. The caller supplies the act on a waiting step (deciding it, citing a committee, escalating it).
  */
 
@@ -32,7 +32,7 @@ export interface RouteForCard {
   steps: readonly { id: string; sequence: number; roleCode: string | null; roleLabel: string; actingRoleLabel: string | null; act: string; decision: string; decidedByName: string | null; decidedOn: Date | null; receivedOn: Date | null; reason: string; escalation: string | null; escalationReason: string | null }[];
 }
 
-export function ApprovalRouteCard({ route, title, stepAction, officeName, extra }: { route: RouteForCard; title: string; stepAction: (routeId: string, sequence: number) => ReactNode; officeName: (code: string) => string | null; extra?: ReactNode }) {
+export function ApprovalRouteCard({ route, title, stepAction, officeName, acted, extra }: { route: RouteForCard; acted: (stepId: string, decidedByName: string | null) => string; title: string; stepAction: (routeId: string, sequence: number) => ReactNode; officeName: (code: string) => string | null; extra?: ReactNode }) {
   const state = route.status === "APPROVED" ? { text: "Approved", tone: "ok" as const } : route.status === "REJECTED" ? { text: "Refused", tone: "err" as const } : route.status === "RECALLED" ? { text: "Recalled", tone: "warn" as const } : { text: "Waiting for a decision", tone: "info" as const };
   return (
     <Card className="overflow-hidden">
@@ -44,7 +44,7 @@ export function ApprovalRouteCard({ route, title, stepAction, officeName, extra 
             <span className="min-w-0">
               <span className="block text-[13.5px] font-semibold break-words text-ink">{`${st.sequence}. ${st.actingRoleLabel ?? st.roleLabel}`} <span className="font-normal text-ink-3">{`· ${actLabel(st.act)}`}</span></span>
               <span className="block text-[12.5px] break-words text-ink-3">
-                {st.decision === "PENDING" ? (route.status === "PENDING" ? "Waiting" : "Not decided: the route closed.") : `${st.decision === "DONE" ? "Done" : "Refused"} · ${st.decidedByName ?? "Not recorded"} · ${formatDate(day(st.decidedOn))}${st.receivedOn ? ` · received ${formatDate(day(st.receivedOn))}` : ""}${st.reason ? ` · “${st.reason}”` : ""} · recorded on their behalf, not signed`}
+                {st.decision === "PENDING" ? (route.status === "PENDING" ? "Waiting" : "Not decided: the route closed.") : `${st.decision === "DONE" ? "Done" : "Refused"} · ${acted(st.id, st.decidedByName)} · ${formatDate(day(st.decidedOn))}${st.receivedOn ? ` · received ${formatDate(day(st.receivedOn))}` : ""}${st.reason ? ` · “${st.reason}”` : ""}`}
               </span>
               {st.escalation && <span className="block text-[12.5px] break-words text-amber-800">{`Escalated from ${officeName(st.roleCode ?? "") ?? st.roleLabel}: ${st.escalationReason ?? ""}`}</span>}
             </span>

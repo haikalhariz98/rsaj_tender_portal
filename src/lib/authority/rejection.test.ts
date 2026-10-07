@@ -203,7 +203,10 @@ describe("the destination in words", () => {
     expect(ifRejectedText({ snapshotAt: on, kind: "TERMINATE", returnToOffice: null, provenance: null }, true)).toMatch(/committee's own/);
   });
   it("never shows an officer's choice as policy", () => {
-    expect(appliedText("TERMINATE", "OFFICER_CHOICE", null, "Aminah")).toMatch(/chosen by Aminah.*not signed.*not policy/);
+    // Phase 2b (decisions log, 2026-10-07): the trail and the screen name the person and say how the act was recorded only from its attribution (signed, or recorded from
+  // paper); the fixed words "recorded on behalf of, not signed" were written under every act and were true of some.
+    expect(appliedText("TERMINATE", "OFFICER_CHOICE", null, "Aminah")).toMatch(/chosen by Aminah.*not policy/);
+    expect(appliedText("TERMINATE", "OFFICER_CHOICE", null, "Aminah", "Recorded by Clerk on behalf of Aminah, not signed")).toMatch(/Recorded by Clerk on behalf of Aminah, not signed.*not policy/);
     expect(appliedText("RETURN_TO_ORIGINATOR", "COMMITTEE_OUTCOME", null, null)).toMatch(/committee's not-carried outcome/);
   });
 });

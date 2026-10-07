@@ -114,7 +114,7 @@ function Overview({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
         )}
       </Card>
       <Card>
-        <CardHeader icon={<UsersIcon size={17} />} title="The team" subtitle="Appointed on both sides; recorded on their behalf, not signed. Only a member appointed to a stage's side scores or submits it." actions={<AppointMemberDrawer exerciseId={v.exerciseId} allowed={c.act} people={v.header.people} />} />
+        <CardHeader icon={<UsersIcon size={17} />} title="The team" subtitle="Appointed on both sides. Only a member appointed to a stage's side scores or submits it." actions={<AppointMemberDrawer exerciseId={v.exerciseId} allowed={c.act} people={v.header.people} />} />
         <CardBody>
           <KeyValues columns={2} items={c.team.map((t) => ({ label: t.label, value: t.members.length ? t.members.map((m) => `${m.name} (from ${m.appointedOn})`).join("; ") : <Badge tone="warn">Nobody appointed</Badge> }))} />
         </CardBody>
@@ -198,7 +198,7 @@ function Recommendation({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }
         <RankingList c={c} />
       </Card>
       <Card>
-        <CardHeader title="The recommendation" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.formed ? `Formed ${r.formed.formedAt} by ${r.formed.formedBy}, recorded on their behalf.` : "Not formed yet."} <Sulit /></span>} />
+        <CardHeader title="The recommendation" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.formed ? `Formed ${r.formed.formedAt} · ${r.formed.formedActed}.` : "Not formed yet."} <Sulit /></span>} />
         <CardBody>
           {r.formed ? (
             <KeyValues

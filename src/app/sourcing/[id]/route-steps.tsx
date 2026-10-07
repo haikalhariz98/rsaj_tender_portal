@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
 
+import { requireStaff } from "@/app/_auth/actor";
 import { ActBadge, actLabel } from "@/components/ui/act";
 import { Badge } from "@/components/ui/badge";
+import { routeActed } from "@/lib/auth/attribution-read";
 import { escalationText } from "@/lib/authority/escalation-labels";
 import { stepOriginText } from "@/lib/authority/core-routing-labels";
+import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import type { StatusTone } from "@/lib/ui/status-tone";
 
@@ -41,7 +44,7 @@ type Step = RouteStepsStep;
  * What a step is called when decided, and the controls it carries, are the caller's: the route's
  * own words ("Returned for amendment", a committee step's citation) belong to the route.
  */
-export function RouteSteps<S extends Step = Step>({
+export async function RouteSteps<S extends Step = Step>({
   inst,
   stepLabel,
   stepTone,
@@ -56,6 +59,8 @@ export function RouteSteps<S extends Step = Step>({
   /// How a decided step reads after its label, where the route words it differently (a cited committee decision).
   decided?: (s: S) => ReactNode;
 }) {
+  // Who decided each step, signed or recorded from paper, is read from its attribution (Phase 2b): the screen never says it by itself.
+  const acted = await routeActed(db, (await requireStaff()).organisationId, [{ id: "", steps: inst.steps }]);
   return (
     <ol className="divide-y divide-line/70 border-t border-line">
       {inst.steps.map((s) => {
@@ -72,7 +77,7 @@ export function RouteSteps<S extends Step = Step>({
                 {stepOriginText(inst, s) && <div className="text-[12.5px] text-ink-3">{stepOriginText(inst, s)}</div>}
                 {s.escalation && (
                   <div className="text-[12.5px] break-words text-amber-800">
-                    {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null })}
+                    {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null }, s.declaredBy ? acted.declared(s.id, s.declaredBy.name) : null)}
                   </div>
                 )}
                 <div className="text-[12.5px] break-words text-ink-2">
@@ -80,7 +85,7 @@ export function RouteSteps<S extends Step = Step>({
                     ? inst.status === "PENDING"
                       ? `${earlierDone ? "Awaiting a decision." : "Waits for the step before."}${s.nonDelegable ? " Cannot be delegated." : ""}`
                       : "Not decided: the route closed."
-                    : (decided?.(s) ?? `${stepLabel(s.decision)} · ${s.decidedByName ?? "Not recorded"} · recorded on behalf of, not signed · ${formatDate(s.decidedOn)}${s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}${s.reason ? ` · “${s.reason}”` : ""}`)}
+                    : (decided?.(s) ?? `${stepLabel(s.decision)} · ${acted.decided(s.id, s.decidedByName)} · ${formatDate(s.decidedOn)}${s.delegation ? ` · under delegation from ${s.delegation.fromPerson.name}` : ""}${s.reason ? ` · “${s.reason}”` : ""}`)}
                 </div>
               </div>
             </div>

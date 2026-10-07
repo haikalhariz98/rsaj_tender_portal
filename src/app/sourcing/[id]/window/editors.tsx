@@ -34,7 +34,7 @@ const DELIVERY_OPTIONS: Option[] = [
   { value: "COLLECTION", label: "Collected" },
   { value: "BY_HAND", label: "By hand" },
 ];
-const ON_BEHALF = "It is recorded as yours.";
+const RECORDED_AS_YOURS = "It is recorded as yours.";
 
 // ------------------------------------------------------------------ the notice's items and fee
 
@@ -179,7 +179,7 @@ export function RecordPublicationDrawer({ exerciseId, channels, people, today }:
   return (
     <RecordEditor
       title="Record a publication"
-      description={`Record where and when the notice appeared. ${ON_BEHALF} Keep the proof (a cutting, a screen print) with the exercise's documents below.`}
+      description={`Record where and when the notice appeared. ${RECORDED_AS_YOURS} Keep the proof (a cutting, a screen print) with the exercise's documents below.`}
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -400,7 +400,7 @@ export function RecordSaleDrawer({
   return (
     <RecordEditor
       title="Record a sale of the documents"
-      description={`The set is sold at ${fee}, as the window states it. The day of sale is today. ${ON_BEHALF}`}
+      description={`The set is sold at ${fee}, as the window states it. The day of sale is today. ${RECORDED_AS_YOURS}`}
       columns={2}
       fields={[
         hidden("exerciseId"),
@@ -555,7 +555,7 @@ export function RecordAttendanceDrawer({ exerciseId, eventId, label, parties, in
   return (
     <RecordEditor
       title={`Record attendance at the ${label.toLowerCase()}`}
-      description={`One contractor's representative. ${ON_BEHALF}${invited ? " Only the invited contractors attend." : ""}`}
+      description={`One contractor's representative. ${RECORDED_AS_YOURS}${invited ? " Only the invited contractors attend." : ""}`}
       columns={2}
       fields={[
         hidden("exerciseId"),

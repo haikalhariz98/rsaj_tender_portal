@@ -63,7 +63,6 @@ export const EVALUATION_ENTITY_LABEL: Readonly<Record<string, string>> = {
   EvaluationPolicy: "Evaluation policy",
 };
 
-const onBehalf = (name: string) => `${name} (recorded on their behalf, not signed)`;
 const stamp = (d: Date, tz: string | null) => receiptTime(d, tz);
 
 export function startFields(i: { version: number; trigger: EvaluationTrigger; model: string; at: Date; by: string | null; bidders: number; excluded: number; decimals: number | null }, tz: string | null) {
@@ -72,7 +71,7 @@ export function startFields(i: { version: number; trigger: EvaluationTrigger; mo
     opened: TRIGGER_LABEL[i.trigger],
     model: i.model,
     started: stamp(i.at, tz),
-    startedBy: i.by ? onBehalf(i.by) : "The committee's decision",
+    startedBy: i.by ? i.by : "The committee's decision",
     bidsCarried: i.bidders,
     excludedAboveCeiling: i.excluded || null,
     scoresShownAt: i.decimals == null ? "Not set" : `${i.decimals} decimal places`,
@@ -86,7 +85,7 @@ export const scoreFields = (s: { criterion: string; marks: Fixed | null; passed:
   criterion: s.criterion,
   score: s.marks != null ? formatFixed(s.marks) : s.passed == null ? null : s.passed ? "Pass" : "Fail",
   note: s.note || null,
-  scoredBy: onBehalf(s.by),
+  scoredBy: s.by,
   carriedFromEarlierVersion: s.carried ? "yes" : null,
 });
 
@@ -94,17 +93,17 @@ export const inputFields = (i: { factor: string | null; balances: readonly (Sen 
   factor: i.factor,
   monthlyBalances: i.balances.some((b) => b != null) ? i.balances.map((b) => (b == null ? "Not entered" : formatMoney(b))).join(" / ") : null,
   cprPercent: i.cpr != null ? `${formatFixed(i.cpr, 2)}%` : null,
-  recordedBy: onBehalf(i.by),
+  recordedBy: i.by,
 });
 
-export const correctionFields = (c: { price: Sen; reason: string; by: string; excluded: string }) => ({ correctedPrice: formatMoney(c.price), why: c.reason, correctedBy: onBehalf(c.by), ceiling: c.excluded || "Within the exercise's ceiling" });
+export const correctionFields = (c: { price: Sen; reason: string; by: string; excluded: string }) => ({ correctedPrice: formatMoney(c.price), why: c.reason, correctedBy: c.by, ceiling: c.excluded || "Within the exercise's ceiling" });
 
 /// An aspect's verdict: its narrative under the SULIT key `narrative` (fix R-5: it judges the price against the estimate).
-export const aspectFields = (a: { aspect: string; kind: AspectKind; verdict: AspectVerdict; narrative: string; by: string }) => ({ aspect: `${a.aspect} (${ASPECT_KIND_LABEL[a.kind]})`, verdict: VERDICT_LABEL[a.verdict], narrative: a.narrative, assessedBy: onBehalf(a.by) });
+export const aspectFields = (a: { aspect: string; kind: AspectKind; verdict: AspectVerdict; narrative: string; by: string }) => ({ aspect: `${a.aspect} (${ASPECT_KIND_LABEL[a.kind]})`, verdict: VERDICT_LABEL[a.verdict], narrative: a.narrative, assessedBy: a.by });
 
-export const communicationFields = (c: { direction: CommunicationDirection; channel: CommunicationChannel; on: string | null; subject: string; content: string; by: string }) => ({ direction: DIRECTION_LABEL[c.direction], channel: CHANNEL_LABEL[c.channel], on: c.on, subject: c.subject, communicationContent: c.content, recordedBy: onBehalf(c.by) });
+export const communicationFields = (c: { direction: CommunicationDirection; channel: CommunicationChannel; on: string | null; subject: string; content: string; by: string }) => ({ direction: DIRECTION_LABEL[c.direction], channel: CHANNEL_LABEL[c.channel], on: c.on, subject: c.subject, communicationContent: c.content, recordedBy: c.by });
 
-export const meetingFields = (m: { kind: MeetingKind; round: number; heldOn: string; place: string; by: string }) => ({ meeting: `${MEETING_KIND_LABEL[m.kind]}, round ${m.round}`, heldOn: m.heldOn, place: m.place, recordedBy: onBehalf(m.by) });
+export const meetingFields = (m: { kind: MeetingKind; round: number; heldOn: string; place: string; by: string }) => ({ meeting: `${MEETING_KIND_LABEL[m.kind]}, round ${m.round}`, heldOn: m.heldOn, place: m.place, recordedBy: m.by });
 
 /// A meeting closed: its minutes under the SULIT key `meetingMinutes` (fix R-5: they may quote a price), never the bare `minutes` a sitting's rows use.
 export const closeFields = (m: { minutes: string; priceBefore: Sen | null; priceAfter: Sen | null; by: string; at: Date }, tz: string | null) => ({
@@ -112,7 +111,7 @@ export const closeFields = (m: { minutes: string; priceBefore: Sen | null; price
   priceBeforeRound: m.priceBefore != null ? formatMoney(m.priceBefore) : null,
   priceAfterRound: m.priceAfter != null ? formatMoney(m.priceAfter) : null,
   closed: stamp(m.at, tz),
-  closedBy: onBehalf(m.by),
+  closedBy: m.by,
 });
 
 /// The recommendation: the tenderer under the SULIT key `recommendedTenderer` (Q2, NFR-SEC-002: selected-tender information before the Board decides).
@@ -123,7 +122,7 @@ export const recommendationFields = (r: { bidder: string; price: Sen; period: st
   topRanked: r.topRanked ? "yes" : "no",
   // 6.8 re-review 3: why another than the top-ranked is recommended, SULIT (Q2 reasoning) under a specific key.
   rankingJustification: r.justification || null,
-  formedBy: onBehalf(r.by),
+  formedBy: r.by,
 });
 
-export const signerFields = (s: { role: "CHECKER" | "RECOMMENDER"; name: string; office: string; day: string }) => ({ [s.role === "CHECKER" ? "checkedBy" : "recommendedBy"]: `${onBehalf(s.name)}, ${s.office}`, signedOn: s.day });
+export const signerFields = (s: { role: "CHECKER" | "RECOMMENDER"; name: string; office: string; day: string }) => ({ [s.role === "CHECKER" ? "checkedBy" : "recommendedBy"]: `${s.name}, ${s.office}`, signedOn: s.day });

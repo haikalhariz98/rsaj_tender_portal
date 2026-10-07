@@ -1,3 +1,4 @@
+import { loadAttributions } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
 import { prDataOf, prRefusal, type PrSource } from "@/lib/requisition/pr-pdf-data";
 import { buildPrPdf } from "@/lib/requisition/pr-pdf";
@@ -44,6 +45,7 @@ export async function loadPrPdf(organisationId: string, id: string): Promise<PrD
     })),
   };
 
+  const endorsed = await loadAttributions(db, l.org.id, [{ entity: "RequisitionEndorsement", slot: "person", ids: r.endorsements.map((e) => e.id) }]);
   const data = prDataOf(source, {
     organisationName: org?.name ?? "",
     logo: logo && (logo.mediaType === "image/png" || logo.mediaType === "image/jpeg") ? { bytes: new Uint8Array(logo.bytes), type: logo.mediaType === "image/png" ? "png" : "jpeg" } : null,
@@ -52,6 +54,7 @@ export async function loadPrPdf(organisationId: string, id: string): Promise<PrD
     costCentre: named(costCentres, r.costCentreCode || null),
     account: named(accountCodes, r.accountCode || null),
     generatedAt: new Date(),
+    endorsedActed: (id, name) => endorsed.read({ entity: "RequisitionEndorsement", id, slot: "person" }, name).en,
   });
   return { ok: true, reference: r.reference, bytes: await buildPrPdf(data) };
 }

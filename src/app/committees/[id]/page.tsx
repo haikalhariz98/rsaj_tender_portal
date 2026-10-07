@@ -67,6 +67,8 @@ import {
   TableMatter,
 } from "../editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { loadAttributions } from "@/lib/auth/attribution-read";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -293,8 +295,13 @@ function ConfigurationGaps({ s }: { s: LoadedSitting }) {
 
 // ------------------------------------------------------------------ agenda
 
-function AgendaPanel({ s, prefill, notLinked }: { s: LoadedSitting; prefill?: Record<string, string>; notLinked: ReadonlyMap<string, string> }) {
+async function AgendaPanel({ s, prefill, notLinked }: { s: LoadedSitting; prefill?: Record<string, string>; notLinked: ReadonlyMap<string, string> }) {
   const m = s.meeting;
+  // Who tabled each matter and who cast each vote, signed or recorded from paper, is read from the attributions (Phase 2b): the screen never says it by itself.
+  const attributed = await loadAttributions(db, s.organisationId, [
+    { entity: "CommitteeDecision", slot: "tabledBy", ids: m.decisions.map((d) => d.id) },
+    { entity: "Vote", slot: "person", ids: m.decisions.flatMap((d) => d.votes.map((v) => v.id)) },
+  ]);
   const a = s.assessment;
   const frozen = isFrozen(m.status);
   const voting = new Map(a.voting.map((v) => [v.seatId, v]));
@@ -393,12 +400,12 @@ function AgendaPanel({ s, prefill, notLinked }: { s: LoadedSitting; prefill?: Re
       mandatory: MANDATORY_ACTS.has(d.act),
       outcome: d.outcome,
       outcomeLabel: OUTCOME_LABEL[d.outcome],
-      tabledBy: d.tabledBy?.name ?? null,
+      tabledBy: d.tabledBy ? attributed.read({ entity: "CommitteeDecision", id: d.id, slot: "tabledBy" }, d.tabledBy.name).en : null,
       tabledAt: d.tabledAt,
       dependsOn: d.dependsOn ? { subject: d.dependsOn.subject, outcomeLabel: OUTCOME_LABEL[d.dependsOn.outcome] } : null,
       recusals: d.recusals.map((r) => ({ name: r.person.name, reason: r.reason })),
       voters,
-      votes: d.votes.map((v) => ({ personId: v.personId, choice: v.choice, comment: v.comment, votedAt: day(v.votedAt) })),
+      votes: d.votes.map((v) => ({ personId: v.personId, acted: attributed.read({ entity: "Vote", id: v.id, slot: "person" }, s.names[v.personId] ?? null).en, choice: v.choice, comment: v.comment, votedAt: day(v.votedAt) })),
       canRecord: assessment.canRecord,
       blockers: assessment.blockers.map((b) => BLOCKER_LABEL[b]),
       // Where the committee's configuration is what stops it, one sentence for the

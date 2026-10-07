@@ -384,7 +384,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
           </Table>
         </Section>
 
-        <Section title="Specification panel columns" blurb="The columns of the signed panel form. Each is verified by a named person, recorded on behalf of, not signed. With none configured nothing can be verified." empty={emptyText(c.columns, rows.columns, "No columns are configured, so no panel can be verified.")} count={rows.columns.length} action={<ColumnDrawer units={c.options.units} />}>
+        <Section title="Specification panel columns" blurb="The columns of the signed panel form. Each is verified by a named person. With none configured nothing can be verified." empty={emptyText(c.columns, rows.columns, "No columns are configured, so no panel can be verified.")} count={rows.columns.length} action={<ColumnDrawer units={c.options.units} />}>
           <Table minWidth={640}>
             <colgroup>
               <col />

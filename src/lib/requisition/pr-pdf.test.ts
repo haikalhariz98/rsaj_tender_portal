@@ -38,7 +38,7 @@ const source: PrSource = {
     { lineNo: 1, description: "Laptop 14 inch", quantity: d("5.0000"), unit: "unit", estimatedUnitPrice: d("4500.50"), estimatedAmount: d("22502.50") },
     { lineNo: 2, description: "Docking station", quantity: d("5.0000"), unit: "unit", estimatedUnitPrice: d("350.00"), estimatedAmount: d("1750.00") },
   ],
-  endorsements: [{ tier: "DEPARTMENT", person: { name: "Faridah Ismail" }, endorsedOn: day("2026-09-02"), note: "" }],
+  endorsements: [{ id: "en1", tier: "DEPARTMENT", person: { name: "Faridah Ismail" }, endorsedOn: day("2026-09-02"), note: "" }],
   budgetChecks: [{ asAt: day("2026-09-03"), actualBudget: d("500000.00"), balanceAsAt: d("120000.00"), approvedAccount: null, projectedBalance: d("95747.50") }],
   approvalInstances: [
     {
@@ -58,6 +58,8 @@ const ctx: PrContext = {
   purchaseType: null,
   costCentre: { code: "CC100", label: "CC100 · Operations" },
   account: { code: "5100", label: "5100 · IT equipment" },
+  // Phase 2b (decisions log, 2026-10-07): how an endorsement was recorded is read from its attribution, so the form is given the words, here as for an endorsement recorded from paper.
+  endorsedActed: (_id, name) => `Recorded by Clerk on behalf of ${name}, not signed`,
   generatedAt: new Date("2026-10-05T01:00:00Z"),
 };
 
@@ -86,7 +88,7 @@ describe("prDataOf", () => {
   it("lists registration, each endorsement, then each step with who, when and why, committee steps with the sitting", () => {
     expect(data.approvals.rows).toEqual([
       ["1", "Registration", "Raised", "01 Sep 2026", "Aminah binti Ali", ""],
-      ["2", "Head of Department endorsement", "Endorsed", "02 Sep 2026", "Faridah Ismail", "Recorded on behalf of, not signed"],
+      ["2", "Head of Department endorsement", "Endorsed", "02 Sep 2026", "Faridah Ismail", "Recorded by Clerk on behalf of Faridah Ismail, not signed"],
       ["3", "Head of Finance · Recommend", "Recommended", "05 Sep 2026 · 10:30", "Zul Kifli", "Within budget"],
       ["4", "Tender Committee · Approve", "Approved", "08 Sep 2026", "Tender Committee", "Carried by the Tender Committee at MTG-2026-014 on 08 Sep 2026"],
     ]);

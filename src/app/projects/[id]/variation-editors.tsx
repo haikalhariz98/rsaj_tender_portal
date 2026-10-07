@@ -157,7 +157,7 @@ export function DecideVariationStepDrawer({ id, variationId, stepId, roleLabel, 
   return (
     <RecordEditor
       title={`${roleLabel}: ${act.toLowerCase()}`}
-      description="A named Person's decision, recorded on their behalf: they hold the office (or act for it) on the day, and did not send it."
+      description="A named Person's decision, signed in by them with their password, or recorded from their paper by someone else: they hold the office (or act for it) on the day, and did not send it."
       fields={[
         hidden("id"),
         hidden("variationId"),
@@ -194,7 +194,7 @@ export function ChooseVariationRefusalDrawer({ id, variationId, offered, steps, 
   return (
     <RecordEditor
       title="Where the refused route goes"
-      description="Nothing configured decides where a refused variation goes, so the officer chooses, recorded on behalf of the Person named."
+      description="Nothing configured decides where a refused variation goes, so the officer chooses."
       fields={[hidden("id"), hidden("variationId"), choose("kind", "Where it goes", offered), { kind: "select", name: "returnToSeq", label: "Back to step", placeholder: "Choose", options: steps }, by("ApprovalInstance.rejectionChosenBy", "personId", people), { kind: "textarea", name: "reason", label: "Reason", required: true }]}
       values={{ id, variationId }}
       showWhen={{ returnToSeq: { name: "kind", in: ["RETURN_TO_STEP"] } }}
@@ -209,7 +209,7 @@ export function TableVariationDrawer({ id, variationId, purpose, sittings, table
   return (
     <RecordEditor
       title={purpose === "STEP" ? "Table it for the committee's step" : "Table it for the funder's consent"}
-      description="Tabled as a matter naming this variation at a sitting of the committee, which decides it there (each member's vote, with comments). Only a holder of the committee's Secretariat office on the day tables it, recorded on their behalf."
+      description="Tabled as a matter naming this variation at a sitting of the committee, which decides it there (each member's vote, with comments). Only a holder of the committee's Secretariat office on the day tables it."
       fields={[hidden("id"), hidden("variationId"), hidden("purpose"), choose("meetingId", "Sitting", sittings, sittings.length ? undefined : "No sitting of the committee takes matters now: schedule one under Committees."), by("CommitteeDecision.tabledBy", "tabledByPersonId", tablers)]}
       values={{ id, variationId, purpose }}
       action={tableVariationMatter}

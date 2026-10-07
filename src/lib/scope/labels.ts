@@ -53,7 +53,6 @@ export const sealedVersion = (versionNo: number) => `Sealed (version ${versionNo
 /// OD-7 and the BQ tab (OD-8).
 export const FIRM_NOT_STATED = "Not stated";
 export const BQ_READABLE_STATEMENT = "Priced rates and totals are readable by anyone with access to the portal; the bill issued to tenderers is unpriced.";
-export const ATTESTED = "recorded on behalf of, not signed";
 export const NOT_SET = "Not set";
 /// Where a configured value came from (the three-state honesty of AGENTS.md).
 export const PROVENANCE_LABEL: Readonly<Record<"STATED" | "OBSERVED" | "ASSUMED", string>> = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" };
@@ -226,7 +225,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   PANEL_ALREADY_VERIFIED: "The panel is verified, on a scan that is still attached.",
   // estimate.ts
   NOT_POSITIVE: "Give the estimate as an amount above zero, to the sen.",
-  PERSON_REQUIRED: "Name the person this is recorded on behalf of.",
+  PERSON_REQUIRED: "Name the person.",
   SECOND_PREPARER: "An estimate has one preparer. If they cannot continue, void this estimate before it is lodged and a new officer prepares a fresh one.",
   AFTER_CLOSING: "The closing date has passed, so the estimate is not amended.",
   CLOSING_NOT_SET: "Closing not set: amendments are checked against the closing date once the tender documents are approved.",
@@ -284,7 +283,7 @@ const TEXT: Readonly<Record<ScopeCode, string | ((d: Record<string, string | num
   ISSUE_NO_ITEMS: "The issue has no items. Add them before issuing it.",
   EFFECTIVE_REQUIRED: "Give the day the issue takes effect from.",
   EFFECTIVE_NOT_AFTER_CURRENT: (d) => `Issue ${d.issue ?? ""} took effect on ${d.current ? formatDate(String(d.current)) : "an earlier day"}. A new issue takes effect after that day.`,
-  ISSUER_REQUIRED: "Name who issued it, recorded on their behalf, not signed.",
+  ISSUER_REQUIRED: "Name who issued it.",
   ISSUE_DRAFT_EXISTS: "A draft issue of this schedule is already open. Carry on with it, or issue it first.",
   // the acts
   NO_ORGANISATION: "No organisation is configured. Run npm run setup first.",

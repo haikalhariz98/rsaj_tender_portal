@@ -16,7 +16,8 @@ import { documentOrg, lockDocument, lockVersion, LOCKED_VERSION_SELECT, logAcces
 import { blobStore, sha256Hex } from "@/lib/documents/store";
 import { ATTACHMENT_PURPOSES, blocking, OWNER_COLUMN, OWNER_KINDS, SECURITY_CLASSES, type Finding } from "@/lib/documents/types";
 import { withdrawFault } from "@/lib/documents/versioning";
-import { drawerView, panelView, type DrawerView, type PanelOptions, type PanelView } from "@/lib/documents/views";
+import { loadAttributions } from "@/lib/auth/attribution-read";
+import { drawerAttributionQueries, drawerView, panelAttributionQueries, panelView, type DrawerView, type PanelOptions, type PanelView } from "@/lib/documents/views";
 import { db } from "@/lib/db";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
@@ -320,7 +321,10 @@ export async function verifyVersion(_prev: FormState, data: FormData): Promise<F
 export async function loadDocumentDrawer(documentId: string): Promise<DrawerView | null> {
   const actor = await requireStaff();
   const [org, d] = await Promise.all([documentOrg(actor.organisationId), documentDrawer(actor.organisationId, String(documentId))]);
-  return d ? drawerView(d, org?.timeZone ?? null) : null;
+  if (!d) return null;
+  // Who recorded each version and placed or released each hold, signed or recorded from paper, is read from the attributions (Phase 2b).
+  const acted = await loadAttributions(db, actor.organisationId, drawerAttributionQueries(d));
+  return drawerView(d, org?.timeZone ?? null, acted);
 }
 
 /// An owner's panel, for a drawer that opens it on request (a delegation's documents).
@@ -328,7 +332,9 @@ export async function loadOwnerPanel(ref: OwnerRef, opts: PanelOptions = {}): Pr
   const actor = await requireStaff();
   if (!OWNER_KINDS.includes(ref.kind)) return null;
   const [org, panel, upload] = await Promise.all([documentOrg(actor.organisationId), ownerPanel(actor.organisationId, ref), uploadContext(actor.organisationId)]);
-  return panel && upload ? panelView(panel, upload, org?.timeZone ?? null, opts) : null;
+  if (!panel || !upload) return null;
+  const acted = await loadAttributions(db, actor.organisationId, panelAttributionQueries(panel));
+  return panelView(panel, upload, org?.timeZone ?? null, opts, acted);
 }
 
 /// The records of one kind a received document can be attached to, with what each keeps and whether it is open. `cap` says how many are listed at most.

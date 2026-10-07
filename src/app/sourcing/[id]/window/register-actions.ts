@@ -184,7 +184,7 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
         diffFields({ supplier: null }, { supplier: `${linkAtSale.supplier.reference} · ${linkAtSale.supplier.registeredName}`, numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: linkReason || null, linkedBy: `${person.name}, named on the sale`, recordedOnBehalf: "not signed" }), linkReason);
     }
     const soldOn = dayToDate(l.org.today);
-    const annotation = saleAnnotation({ exerciseReference: l.ex.reference, purchaser: buyer.name, address: buyer.address, phone: buyer.phone, fax: buyer.fax, closingText: formatOrgDateTime(l.ex.closingAt, l.org.timeZone), issuedBy: person.name, soldOnText: formatDate(l.org.today), receiptNo });
+    const annotation = saleAnnotation({ exerciseReference: l.ex.reference, purchaser: buyer.name, address: buyer.address, phone: buyer.phone, fax: buyer.fax, closingText: formatOrgDateTime(l.ex.closingAt, l.org.timeZone), issuedBy: person.name, recordedForSomeone: act.intent.mode === "RECORDED_ON_BEHALF", soldOnText: formatDate(l.org.today), receiptNo });
     const row = {
       partyId: buyer.id,
       soldOn,

@@ -11,7 +11,7 @@ import { dayOf } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { loadExercise } from "@/lib/method/repo";
-import { RECORDED_ON_BEHALF } from "@/lib/documents/labels";
+import { loadAttributions } from "@/lib/auth/attribution-read";
 import { PROVENANCE_LABEL } from "@/lib/scope/labels";
 
 import { assuranceKindsFor, confirmFaults, type AssuranceKind } from "./assurance";
@@ -116,6 +116,12 @@ export async function conditionsTab(organisationId: string, exerciseId: string) 
 
   // ---- assurance (FR-DOC-014), on the draft
   const confirmations = draft ? await loadConfirmations(draft.id) : [];
+  const overridesOf = draft ? await loadOverrides(draft.id) : [];
+  // Who confirmed each assurance and who endorsed each left-out clause, signed or recorded from paper, is read from the attributions (Phase 2b).
+  const attributed = await loadAttributions(db, org.id, [
+    { entity: "PackAssurance", slot: "person", ids: confirmations.map((c) => c.id) },
+    { entity: "ClauseOverride", slot: "person", ids: overridesOf.map((o) => o.id) },
+  ]);
   const startedOn = draft ? dayOf(draft.createdAt, org.timeZone) : null;
   const needed = draft ? assuranceKindsFor(parts) : [];
   const assurance = {
@@ -137,7 +143,7 @@ export async function conditionsTab(organisationId: string, exerciseId: string) 
         label: ASSURANCE_KIND_LABEL[kind],
         needed: needed.includes(kind),
         notNeeded: draft && !needed.includes(kind) ? "The pack binds no drawings, so there is nothing to coordinate." : null,
-        confirmation: c ? { id: c.id, by: `${c.personName} · ${RECORDED_ON_BEHALF}`, on: formatDate(c.confirmedOn), note: c.note || null } : null,
+        confirmation: c ? { id: c.id, by: attributed.read({ entity: "PackAssurance", id: c.id, slot: "person" }, c.personName).en, on: formatDate(c.confirmedOn), note: c.note || null } : null,
         record: policy.assuranceRequired === false ? no("The organisation's policy is that the confirmations are not required.") : record,
       };
     }),
@@ -145,7 +151,7 @@ export async function conditionsTab(organisationId: string, exerciseId: string) 
   };
 
   // ---- mandatory clauses (FR-DOC-011)
-  const overrides = draft ? await loadOverrides(draft.id) : [];
+  const overrides = overridesOf;
   const live = today ? liveClauses(clauses, today) : [];
   const clauseFindings = draft && today ? clauseFaults(parts, clauses, overrides, today) : [];
   const clauseRows = live.map((c) => {
@@ -160,7 +166,7 @@ export async function conditionsTab(organisationId: string, exerciseId: string) 
       status,
       tone: status === CLAUSE_STATUS.carried ? ("ok" as const) : status === CLAUSE_STATUS.missing || status === CLAUSE_STATUS.notSet ? ("warn" as const) : ("neutral" as const),
       findings: missing.map(conditionsFaultText),
-      override: ov ? { id: ov.id, by: `${ov.personName} · ${RECORDED_ON_BEHALF}`, reason: ov.reason } : null,
+      override: ov ? { id: ov.id, by: attributed.read({ entity: "ClauseOverride", id: ov.id, slot: "person" }, ov.personName).en, reason: ov.reason } : null,
       record: c.mandatoryInAgreements !== true ? null : !draft ? no("Start the tender documents first.") : canOverride.length ? no(canOverride.map(overrideFaultText).join(" ")) : ok,
     };
   });

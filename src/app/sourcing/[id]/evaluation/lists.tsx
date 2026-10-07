@@ -235,7 +235,7 @@ export function CommunicationsList({ c }: { c: EvaluationCurrent }) {
     cells: {
       what: { kind: "stack", title: m.subject, sub: `No. ${m.listingNo} · ${m.direction}` },
       on: { kind: "stack", title: m.on, sub: m.channel },
-      by: { kind: "person", name: m.recordedBy, sub: "Recorded on their behalf" },
+      by: { kind: "person", name: m.recordedBy, sub: m.acted },
     },
   }));
   return (

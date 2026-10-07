@@ -104,7 +104,6 @@ export const CERT_WORDS = {
   dateWhenSigned: w("Set when signed: the day of the authorising signature, never typed", "Ditetapkan semasa ditandatangani: hari tandatangan yang membenarkan, tidak ditaip"),
   notDatedBySignature: w("This form has no block that dates it", "Borang ini tiada blok yang menentukan tarikhnya"),
   draftNotIssued: w("Draft — not issued", "Draf — belum dikeluarkan"),
-  onBehalf: w("Recorded on behalf of, not signed", "Direkodkan bagi pihak, tidak ditandatangani"),
   overridden: w("Overridden", "Diganti"),
   computed: w("Computed", "Dikira"),
   targetNotSet: w("Target not set", "Sasaran belum ditetapkan"),

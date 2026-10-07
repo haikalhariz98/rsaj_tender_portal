@@ -1,3 +1,4 @@
+import { ActedBy } from "@/components/attribution";
 import Link from "next/link";
 
 import { EscalateDrawer } from "@/app/approvals/editors";
@@ -15,6 +16,7 @@ import { CellStack, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { AWARD_STATUS_LABEL } from "@/lib/award/labels";
 import { routeCoreText } from "@/lib/authority/core-routing-labels";
 import { storedDay } from "@/lib/dates";
+import { loadAttributions } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { ACT_DONE_LABEL } from "@/lib/labels";
@@ -87,6 +89,8 @@ const approvedOn = (r: { status: string; steps: { decidedOn: Date | null }[] } |
 export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l: LoadedSupplier; cfg: SupplierConfig; reading: StandingReading | null; people: Option[]; fromAward: string | null }) {
   const s = l.supplier;
   const today = l.org.today;
+  // Who recorded each standing event, signed or recorded from paper, is read from its attribution (Phase 2b).
+  const recorded = await loadAttributions(db, l.org.id, [{ entity: "StandingEvent", slot: "recordedBy", ids: s.standingEvents.map((e) => e.id) }]);
   const suggestions = await suggestionsFor(l.org.code, people, today);
   const reasonsFor = (use: "SUSPEND" | "BLACKLIST") => cfg.reasons.filter((x) => x.appliesTo === use && cfg.live(x, today)).map((x) => ({ value: x.id, label: x.nameEn }));
   const requestFacts = (r: (typeof s.standingRequests)[number]): RequestFacts => ({ kind: r.kind, route: routeState(r.routes.map((x) => ({ status: x.status, openedAt: x.createdAt.toISOString() }))), approvedOn: approvedOn(r.routes[0]), recorded: !!r.event, withdrawn: r.withdrawnAt != null });
@@ -161,8 +165,8 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
                 <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 sm:px-6">
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-[14px] font-semibold text-ink">{REQUEST_KIND_LABEL[r.kind].en}{r.reasonSnapshot ? ` · ${r.reasonSnapshot}` : ""}</span>
-                    <span className="text-[12.5px] text-ink-3">Asked by {r.requestedBy.name}, on their behalf, {formatOrgDay(r.requestedAt, l.org.timeZone)}{r.sourceAward ? <> · from the cancelled award <Link href={`/awards/${r.sourceAward.id}`}>{r.sourceAward.reference}</Link></> : null}{r.note ? ` · “${r.note}”` : ""}</span>
-                    {r.withdrawnAt && <span className="text-[12.5px] break-words text-ink-3">Withdrawn by {r.withdrawnBy?.name ?? "a person no longer on record"}, on their behalf, {formatOrgDay(r.withdrawnAt, l.org.timeZone)}: “{r.withdrawnReason}”</span>}
+                    <span className="text-[12.5px] text-ink-3"><ActedBy entity="StandingRequest" id={r.id} slot="requestedBy" name={r.requestedBy.name} />, {formatOrgDay(r.requestedAt, l.org.timeZone)}{r.sourceAward ? <> · from the cancelled award <Link href={`/awards/${r.sourceAward.id}`}>{r.sourceAward.reference}</Link></> : null}{r.note ? ` · “${r.note}”` : ""}</span>
+                    {r.withdrawnAt && <span className="text-[12.5px] break-words text-ink-3"><ActedBy entity="StandingRequest" id={r.id} slot="withdrawnBy" name={r.withdrawnBy?.name} />, {formatOrgDay(r.withdrawnAt, l.org.timeZone)}: “{r.withdrawnReason}”</span>}
                   </div>
                   <span className="flex flex-wrap items-center gap-2">
                     <Badge tone={f.recorded ? "ok" : f.withdrawn ? "neutral" : f.route === "APPROVED" ? "info" : f.route === "REJECTED" ? "neutral" : "warn"}>{f.recorded ? "Recorded" : f.withdrawn ? "Withdrawn: nothing recorded" : f.route === "APPROVED" ? "Approved: to record" : f.route === "REJECTED" ? "Refused: nothing recorded" : "With approval"}</Badge>
@@ -190,7 +194,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
                   {e.withdrawnAt && <Chip tone="neutral">Withdrawn: recorded in error</Chip>}
                   {/* M-1: a cancellation that stood, ended by the supplier registering again (standing's own rule). */}
                   {e.kind === "REGISTRATION_CANCELLED" && !e.withdrawnAt && cancellationEnded(day(s.registeredOn), storedDay(e.effectiveOn)) && <Chip tone="neutral">{cancellationEndedWords(storedDay(e.effectiveOn), day(s.registeredOn)).en}</Chip>}
-                  <span className="text-ink-2">from {formatDate(storedDay(e.effectiveOn))}{e.kind === "BLACKLIST" ? (e.endsOn ? ` (${e.offenceNo === 1 ? "first offence" : `offence ${e.offenceNo}`}, ${e.periodMonths} months) · ${blacklistEndWords(storedDay(e.endsOn)).en}` : ` until further notice (offence ${e.offenceNo})`) : ""} · {e.recordedBy.name}, recorded on their behalf, not signed</span>
+                  <span className="text-ink-2">from {formatDate(storedDay(e.effectiveOn))}{e.kind === "BLACKLIST" ? (e.endsOn ? ` (${e.offenceNo === 1 ? "first offence" : `offence ${e.offenceNo}`}, ${e.periodMonths} months) · ${blacklistEndWords(storedDay(e.endsOn)).en}` : ` until further notice (offence ${e.offenceNo})`) : ""} · {recorded.read({ entity: "StandingEvent", id: e.id, slot: "recordedBy" }, e.recordedBy.name).en}</span>
                 </div>
                 {/* BD-613-105(e) / S-3: a cancellation's line is composed from its body and reference at read, never stored. */}
                 {eventReasonWords(standingEventFacts(e)).en && <p className="text-ink-2">{eventReasonWords(standingEventFacts(e)).en}</p>}
@@ -199,7 +203,7 @@ export async function StandingPanel({ l, cfg, reading, people, fromAward }: { l:
                 {e.kind === "REGISTRATION_CANCELLED" && (
                   <>
                     {e.withdrawnAt ? (
-                      <p className="text-[12.5px] break-words text-ink-3">Withdrawn by {e.withdrawnBy?.name ?? "a person no longer on record"}, on their behalf, {formatOrgDay(e.withdrawnAt, l.org.timeZone)}: “{e.withdrawnReason}”. The supplier&apos;s standing does not read it.</p>
+                      <p className="text-[12.5px] break-words text-ink-3"><ActedBy entity="StandingEvent" id={e.id} slot="withdrawnBy" name={e.withdrawnBy?.name} />, {formatOrgDay(e.withdrawnAt, l.org.timeZone)}: “{e.withdrawnReason}”. The supplier&apos;s standing does not read it.</p>
                     ) : (
                       <span className="flex flex-wrap items-center gap-2"><WithdrawCancellationDrawer eventId={e.id} people={people} notRevisited={notRevisitedWords(judgedWhileCancelled(openings, storedDay(e.effectiveOn), cancellationStoodUntil({ id: e.id, effectiveOn: storedDay(e.effectiveOn) }, cancellationsOnFile(s.standingEvents), day(s.registeredOn)))).en} /></span>
                     )}
@@ -344,7 +348,7 @@ export async function ParticipationPanel({ l, people }: { l: LoadedSupplier; peo
                         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                           <div className="flex min-w-0 flex-col gap-0.5">
                             <span className="text-[13.5px] font-semibold text-ink">Special permission · {RELAXES_LABEL[sp.relaxes].en.toLowerCase()} of {sp.requirementLabelSnapshot}</span>
-                            <span className="text-[12.5px] text-ink-3">Granted by {[...sp.grantingBodyLabels, ...(sp.internalApproval ? ["the organisation, on its route"] : [])].join(" and ")} · both confirmations recorded · asked by {sp.requestedBy.name}, on their behalf</span>
+                            <span className="text-[12.5px] text-ink-3">Granted by {[...sp.grantingBodyLabels, ...(sp.internalApproval ? ["the organisation, on its route"] : [])].join(" and ")} · both confirmations recorded · <ActedBy entity="SpecialPermission" id={sp.id} slot="requestedBy" name={sp.requestedBy.name} /></span>
                           </div>
                           <span className="flex flex-wrap items-center gap-2">
                             <Badge tone={sp.grantedOn ? "ok" : "warn"}>{sp.grantedOn ? `Granted ${formatDate(storedDay(sp.grantedOn))}` : route === "REJECTED" ? "Refused on its route" : "Not granted yet"}</Badge>

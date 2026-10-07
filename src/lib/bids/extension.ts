@@ -83,4 +83,4 @@ export function applyFaults(i: { cancelled: boolean; appliedAt: Date | null; liv
 }
 
 /// What the screen says of the named tenderer before 6.8 exists (OD-7).
-export const RECOMMENDED_ATTESTED = "named by the officer as the recommended tenderer, recorded on their behalf, not yet checked against an evaluation";
+export const RECOMMENDED_ATTESTED = "named by the officer as the recommended tenderer, not yet checked against an evaluation";

@@ -4,7 +4,6 @@
  * never reach a screen (AGENTS.md rule 5): each has its label here.
  */
 
-import { ON_BEHALF_PHRASE, ON_BEHALF_SENTENCE } from "@/lib/auth/attribution";
 import { actStatusFault, actStatusText, type ContractAct } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { formatDate } from "@/lib/format";
@@ -33,10 +32,6 @@ export const SCAN_LABEL: Readonly<Record<ScanState, string>> = {
   THREAT: "Malware found — not served",
 };
 
-/// Who recorded a version: a named Person, on whose behalf it was recorded. Not a signature.
-export const RECORDED_ON_BEHALF = ON_BEHALF_PHRASE;
-/// The same phrase where it starts a line.
-export const RECORDED_ON_BEHALF_SENTENCE = ON_BEHALF_SENTENCE;
 
 // Phase 1 carry D6: the attachment components' field hints, here rather than as literals in the components.
 // Phase 2b retired ON_BEHALF_HINT: the person who acts is the one signed in, and the shared attribution component (`ActAttributionFields`) says so, with its words in `lib/auth/act-text.ts`.

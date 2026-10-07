@@ -10,6 +10,7 @@
  */
 
 import { storedDay } from "@/lib/dates";
+import { loadAttributions } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { CLASSIFICATION_LABEL } from "@/lib/documents/labels";
@@ -21,7 +22,6 @@ import { bqTotals, currentBq, draftEditFaults, finaliseFaults, reviseFaults, sta
 import { estimateFactsOf as factsOf, loadBqVersions, loadEstimates, loadRateIssues, loadScopeMatters, loadHoldings, loadPanel, loadPanelColumns, loadQualifications, loadScopePolicy, loadScopeRules, linesOf, lineOf } from "./repo";
 import { leadTime, lodgeFaults, lodgementBehind, retainedCopyDue, retainFaults, startFault, versionFaults, voidFault } from "./estimate";
 import {
-  ATTESTED,
   BQ_READABLE_STATEMENT,
   BQ_STATUS_LABEL,
   ESTIMATE_STATE_LABEL,
@@ -133,6 +133,8 @@ export async function scopeTab(organisationId: string, exerciseId: string) {
       )
     : [];
   const signatories = new Set(standing.map((v) => v.personId)).size;
+  // Who verified each column, signed or recorded from paper, is read from its attribution (Phase 2b).
+  const attributed = await loadAttributions(db, org.id, [{ entity: "SpecPanelVerification", slot: "person", ids: standing.map((v) => v.id) }]);
   return {
     exercise: { id: ex.id, reference: ex.reference, title: ex.title },
     panel: {
@@ -147,7 +149,7 @@ export async function scopeTab(organisationId: string, exerciseId: string) {
       certifiesBill: panel?.bqVersion ? `Version ${panel.bqVersion.versionNo} (${BQ_STATUS_LABEL[panel.bqVersion.status]})` : NOT_SET,
       columns: inForce.map((c) => {
         const v = standing.find((x) => x.columnCode === c.code);
-        return { code: c.code, label: c.labelEn, verifiedBy: v ? `${v.person.name}, ${ATTESTED}` : null, verifiedOn: v ? storedDay(v.verifiedOn) : null, note: v?.note || null };
+        return { code: c.code, label: c.labelEn, verifiedBy: v ? attributed.read({ entity: "SpecPanelVerification", id: v.id, slot: "person" }, v.person.name).en : null, verifiedOn: v ? storedDay(v.verifiedOn) : null, note: v?.note || null };
       }),
       cleared: panel ? panel.verifications.filter((v) => v.clearedAt != null).map((v) => ({ column: v.columnLabelSnapshot, by: v.person.name, clearedOn: formatOrgDay(v.clearedAt!, org.timeZone) })) : [],
       signatories: signatoriesText(signatories, policy.panelSignatoryLimit),
@@ -170,7 +172,7 @@ export async function scopeTab(organisationId: string, exerciseId: string) {
       verify: verifyPanelFault(state) ? judged([verifyPanelFault(state)!]) : judged(pFaults),
       reverify: state === "SCAN_GONE",
       options: { contractKinds: listOf(policy.panelContractKindTaxonomyCode), projectStatuses: listOf(policy.panelProjectStatusTaxonomyCode), bills: versions.filter((v) => v.status === "FINALISED").map((v) => ({ value: v.id, label: `Version ${v.versionNo}` })), people, columns: inForce.map((c) => ({ value: c.code, label: c.labelEn })) },
-      statement: `Verifications are attested: each is ${ATTESTED}.`,
+      statement: "Each verification says whether the person signed in to give it or it was recorded from their paper.",
     },
     approval: await approvalView(a, people),
   };
@@ -197,6 +199,8 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
     }),
   ]);
   const holders = committee ? secretariatHoldersOn(roster, committee.secretariatRoleCode, org.today) : [];
+  // Who tabled each matter, signed or recorded from paper, is read from its attribution (Phase 2b).
+  const tabled = await loadAttributions(db, org.id, [{ entity: "CommitteeDecision", slot: "tabledBy", ids: rows.map((m) => m.id) }]);
   const finalised = versions.find((v) => v.status === "FINALISED") ?? null;
   const committeeName = committee?.nameEn ?? (code ? "A committee no longer configured" : null);
   const reasons: string[] = [];
@@ -247,7 +251,7 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
       committee: m.meeting.committee.nameEn,
       act: actName(m.act),
       tabledOn: m.tabledAt ? storedDay(m.tabledAt) : null,
-      tabledBy: m.tabledBy ? `${m.tabledBy.name}, ${ATTESTED}` : null,
+      tabledBy: m.tabledBy ? tabled.read({ entity: "CommitteeDecision", id: m.id, slot: "tabledBy" }, m.tabledBy.name).en : null,
       // An undecided matter at a cancelled sitting counts for nothing (scopeApproval), as a withdrawn one.
       outcome: m.withdrawnAt ? "Withdrawn" : m.meeting.status === "CANCELLED" && m.outcome === "PENDING" ? "Sitting cancelled, not decided" : (OUTCOME[m.outcome] ?? "Outcome not known"),
       outcomeTone: (m.withdrawnAt || (m.meeting.status === "CANCELLED" && m.outcome === "PENDING") ? "neutral" : m.outcome === "CARRIED" ? "ok" : m.outcome === "NOT_CARRIED" ? "err" : m.outcome === "DEFERRED" ? "warn" : "info") as "ok" | "err" | "warn" | "info" | "neutral",
@@ -316,7 +320,7 @@ export async function bqTab(organisationId: string, exerciseId: string) {
         standard: v.standardLabelSnapshot ?? policy.measurementStandardLabel ?? NOT_SET,
         followsStandard: yesNo(v.followsStandard),
         departures: v.departuresText || null,
-        preparer: v.preparer ? `${v.preparer.name}, ${ATTESTED}` : NOT_SET,
+        preparer: v.preparer ? v.preparer.name : NOT_SET,
         qualification: snap?.name ? `${snap.name}, held on ${formatDate(snap.judgedOn)}` : v.status === "DRAFT" ? "Checked when it is finalised" : NOT_SET,
         provisionalLeftOut: v.provisionalExcludedFromFirm == null ? "Not stated" : yesNo(v.provisionalExcludedFromFirm),
         revisionReason: v.revisionReason || null,
@@ -394,6 +398,11 @@ export async function estimateTab(organisationId: string, exerciseId: string) {
   const { org, ex, policy, estimates } = a;
   const people = await db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
   const now = new Date();
+  // Who prepared each estimate and who made each custody event, signed or recorded from paper, is read from the attributions (Phase 2b).
+  const attributed = await loadAttributions(db, org.id, [
+    { entity: "CompanyEstimate", slot: "preparer", ids: estimates.map((e) => e.id) },
+    { entity: "EstimateEvent", slot: "person", ids: estimates.flatMap((e) => e.events.map((x) => x.id)) },
+  ]);
   // X-1: the closing the approval for tendering recorded (6.4), null until then.
   const closingAt: Date | null = ex.closingAt;
   const view = (e: (typeof estimates)[number]) => {
@@ -405,7 +414,7 @@ export async function estimateTab(organisationId: string, exerciseId: string) {
       id: e.id,
       classification: CLASSIFICATION_LABEL[e.classification],
       state: ESTIMATE_STATE_LABEL[e.state],
-      preparer: `${e.preparer.name}, ${ATTESTED}`,
+      preparer: attributed.read({ entity: "CompanyEstimate", id: e.id, slot: "preparer" }, e.preparer.name).en,
       preparerName: e.preparer.name,
       preparerPersonId: e.preparerPersonId,
       startedOn: e.versions[0] ? storedDay(e.versions[0].preparedOn) : null,
@@ -418,7 +427,7 @@ export async function estimateTab(organisationId: string, exerciseId: string) {
       retainedCopyDue: retainedCopyDue(facts),
       voidReason: e.state === "VOID" ? e.voidReason : null,
       versions: e.versions.map((v) => ({ versionNo: v.versionNo, preparedOn: storedDay(v.preparedOn), preparer: v.preparer.name, value: SEALED_TEXT, reason: v.versionNo === 1 ? null : SEALED_TEXT })),
-      events: e.events.map((x) => ({ id: x.id, kind: EVENT_KIND_LABEL[x.kind], by: x.person ? `${x.person.name}, ${ATTESTED}` : null, capacity: x.capacity || null, versionNo: x.versionNo, copyNo: x.copyNo, note: x.kind === "VOIDED" || x.kind === "RETAINED" ? x.note || null : null, at: x.at })),
+      events: e.events.map((x) => ({ id: x.id, kind: EVENT_KIND_LABEL[x.kind], by: x.person ? attributed.read({ entity: "EstimateEvent", id: x.id, slot: "person" }, x.person.name).en : null, capacity: x.capacity || null, versionNo: x.versionNo, copyNo: x.copyNo, note: x.kind === "VOIDED" || x.kind === "RETAINED" ? x.note || null : null, at: x.at })),
       lead: { badge: LEAD_STATE_BADGE[lead.state], text: leadTimeText(lead), configured: leadConfiguredText(policy.estimateLeadDays), reading: LEAD_READING },
       actions: {
         amend: asked(versionFaults({ value: 1n, personId: e.preparerPersonId, reason: "given" }, facts, { closingAt, timeZone: org.timeZone, exerciseStatus: ex.status, now })),
@@ -466,6 +475,8 @@ export async function scopeConfiguration(organisationId: string) {
     db.committee.findMany({ where: { organisationId: org.id }, orderBy: { nameEn: "asc" }, select: { code: true, nameEn: true, retiredOn: true } }),
     loadRateIssues(org.id),
   ]);
+  // Who issued each schedule, signed or recorded from paper, is read from its attribution (Phase 2b).
+  const issuedBy = await loadAttributions(db, org.id, [{ entity: "RateSchedule", slot: "issuedBy", ids: rateIssues.map((i) => i.id) }]);
   const nameOf = (rows: readonly { code: string; nameEn: string }[], code: string | null) => (code == null ? NOT_SET : (rows.find((r) => r.code === code)?.nameEn ?? "A row no longer configured"));
   const personName = (id: string) => people.find((p) => p.id === id)?.name ?? "A person no longer on record";
   return {
@@ -530,7 +541,7 @@ export async function scopeConfiguration(organisationId: string) {
           status: RATE_SCHEDULE_STATUS_LABEL[i.status],
           statusTone: (i.status === "ISSUED" ? "ok" : i.status === "DRAFT" ? "info" : "neutral") as "ok" | "info" | "neutral",
           effective: i.effectiveFrom ? formatDate(i.effectiveFrom) : NOT_SET,
-          issued: i.issuedOn ? `${formatDate(i.issuedOn)}${i.issuedBy ? `, by ${i.issuedBy} (${ATTESTED})` : ""}` : null,
+          issued: i.issuedOn ? `${formatDate(i.issuedOn)}${i.issuedBy ? ` · ${issuedBy.read({ entity: "RateSchedule", id: i.id, slot: "issuedBy" }, i.issuedBy).en}` : ""}` : null,
           superseded: i.supersededOn ? formatDate(i.supersededOn) : null,
           provenance: provenanceText(i.provenance),
           rawProvenance: i.provenance as string,

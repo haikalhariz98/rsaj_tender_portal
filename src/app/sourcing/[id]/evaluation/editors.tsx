@@ -259,7 +259,7 @@ export function NegotiationDecisionDrawer({ exerciseId, stepId, office, people: 
   return (
     <RecordEditor
       title={`Decision of ${office}`}
-      description="Recorded on the decider's behalf, not signed: the office's holder or delegate on the day."
+      description="The office's holder or delegate on the day, signed in with their password, or recorded from their paper by someone else."
       fields={[hidden("exerciseId"), hidden("stepId"), { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: "Approved" }, { value: "REJECTED", label: "Refused" }] }, by("ApprovalStep.decidedBy", "personId", ps, undefined, true), { kind: "date", name: "decidedOn", label: "Decided on", required: true }, { kind: "textarea", name: "reason", label: "Reason", hint: "Required when refused." }]}
       values={{ exerciseId, stepId, decidedOn: today }}
       action={recordNegotiationDecision}
@@ -342,7 +342,7 @@ export function ProposalSignerDrawer({ exerciseId, role, office, people: ps, tod
   return (
     <RecordEditor
       title={`Record who ${what} it`}
-      description={`The holder of ${office} on the day; recorded on their behalf, not signed. The checking and the recommending officers are two different people.`}
+      description={`The holder of ${office} on the day signs in with their password. A signature made on paper is recorded for them by someone else, and is not signed. The checking and the recommending officers are two different people.`}
       fields={[hidden("exerciseId"), hidden("role"), by(role === "CHECKER" ? "ProposalPaper.checkedBy" : "ProposalPaper.recommendedBy", "personId", ps), { kind: "date", name: "signedOn", label: "On", required: true }]}
       values={{ exerciseId, role, signedOn: today }}
       action={recordProposalSigner}

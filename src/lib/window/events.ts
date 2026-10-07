@@ -96,7 +96,7 @@ export function attendanceCsv(event: { kindLabel: string; startsText: string; pl
     ["Held on", event.heldText],
     ["Attendance", event.mandatoryText],
     [],
-    ["No.", "Contractor", "Registration number", "Representative", "Recorded by (on their behalf, not signed)", "Recorded"],
+    ["No.", "Contractor", "Registration number", "Representative", "Recorded by", "Recorded"],
     ...rows.map((r, i) => [String(i + 1), r.name, r.registrationNo, r.representative, r.recordedBy, r.recordedText]),
   ];
   return lines.map((l) => l.map(cell).join(",")).join("\r\n") + "\r\n";

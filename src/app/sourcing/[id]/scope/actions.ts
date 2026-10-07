@@ -517,7 +517,7 @@ export async function markPanelVerified(_prev: FormState, data: FormData): Promi
     };
     // Verifying again rewrites the snapshot with the scans live now; the trail keeps what it was verified on before.
     const prior = state === "SCAN_GONE" ? (p.verifiedSnapshot as { verifications?: { column: string; person: string }[]; scans?: { title: string; versionNo: number }[] } | null) : null;
-    const verifiersText = (vs: readonly { column: string; person: string }[]) => vs.map((v) => `${v.column}: ${v.person}`).join("; ") + " (recorded on behalf of, not signed)";
+    const verifiersText = (vs: readonly { column: string; person: string }[]) => vs.map((v) => `${v.column}: ${v.person}`).join("; ");
     const scansText = (ss: readonly { title: string; versionNo: number }[]) => ss.map((s) => `${s.title}, version ${s.versionNo} (${CLASSIFICATION_LABEL.SULIT})`).join("; ");
     await tx.specificationPanel.update({ where: { id: p.id, organisationId: actor.organisationId }, data: { status: "VERIFIED", verifiedAt: new Date(), verifiedSnapshot: snapshot } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.panel, p.id, label(l, "Specification panel"), "UPDATE", [

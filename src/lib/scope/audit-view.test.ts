@@ -11,7 +11,7 @@ describe("the estimate's audit rows: 'Sealed (version N)', never the figure or t
       { field: "version", before: null, after: "2" },
       { field: "value", before: null, after: "Sealed (version 2)" },
       { field: "reason", before: null, after: "Sealed (version 2)" },
-      { field: "preparedBy", before: null, after: "Nurul Izzah Kamal (recorded on behalf of, not signed)" },
+      { field: "preparedBy", before: null, after: "Nurul Izzah Kamal" },
       { field: "preparedOn", before: null, after: "2026-09-29" },
     ]);
     const text = JSON.stringify(rows);
@@ -26,10 +26,12 @@ describe("the estimate's audit rows: 'Sealed (version N)', never the figure or t
     expect(historyChange("CompanyEstimateVersion", { field: "preparedOn", before: null, after: "2026-09-29" }, 1)).toEqual({ field: "preparedOn", before: null, after: "2026-09-29" });
     expect(historyChange("BqItem", { field: "amount", before: null, after: "RM1.00" }, null)).toEqual({ field: "amount", before: null, after: "RM1.00" });
   });
-  it("custody events name who, recorded on behalf of, and carry no figure", () => {
+  // Phase 2b (decisions log, 2026-10-07): the trail and the screen name the person and say how the act was recorded only from its attribution (signed, or recorded from
+  // paper); the fixed words "recorded on behalf of, not signed" were written under every act and were true of some.
+  it("custody events name who, and carry no figure", () => {
     expect(estimateEventAudit({ kind: "RETAINED", personName: "Chen Wei Ling", capacity: "Custodian", versionNo: 2, copyNo: 2, place: "C&P strong room" })).toEqual([
       { field: "event", before: null, after: "Copy retained" },
-      { field: "by", before: null, after: "Chen Wei Ling (recorded on behalf of, not signed)" },
+      { field: "by", before: null, after: "Chen Wei Ling" },
       { field: "capacity", before: null, after: "Custodian" },
       { field: "version", before: null, after: "2" },
       { field: "copy", before: null, after: "2" },
@@ -45,8 +47,8 @@ describe("the bill's rows: formatted money and labels, never codes", () => {
     expect(rows).toContainEqual({ field: "kind", before: null, after: "Measured work" });
     expect(JSON.stringify(rows)).not.toContain("MEASURED");
   });
-  it("a verification is attested, not signed", () => {
-    expect(verificationAudit({ column: "Checked by", personName: "Lim Kok Seng", verifiedOn: "2026-09-25", note: "" })[1]).toEqual({ field: "verifiedBy", before: null, after: "Lim Kok Seng (recorded on behalf of, not signed)" });
+  it("a verification names who verified it", () => {
+    expect(verificationAudit({ column: "Checked by", personName: "Lim Kok Seng", verifiedOn: "2026-09-25", note: "" })[1]).toEqual({ field: "verifiedBy", before: null, after: "Lim Kok Seng" });
   });
 });
 
@@ -73,9 +75,9 @@ describe("increment 2 audit rows", () => {
     expect(rows).toContainEqual({ field: "importedFrom", before: null, after: "bill.csv" });
     expect(rows.map((c) => c.field)).not.toContain("linesReplaced");
   });
-  it("a scope matter tabled names the sitting and who tabled it, attested", () => {
+  it("a scope matter tabled names the sitting and who tabled it", () => {
     const rows = scopeTabledAudit({ subject: "Scope of X: bill of quantities, version 1", versionNo: 1, sitting: "SIT/1", committee: "Technical Committee", act: "Approve", tabledBy: "Aminah", tabledOn: "2026-09-29" });
-    expect(rows).toContainEqual({ field: "tabledBy", before: null, after: "Aminah (recorded on behalf of, not signed)" });
+    expect(rows).toContainEqual({ field: "tabledBy", before: null, after: "Aminah" });
   });
 });
 

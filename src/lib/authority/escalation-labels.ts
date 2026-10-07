@@ -16,11 +16,12 @@ export function escalationText(s: {
   escalation: StepEscalationKind | null;
   escalationReason: string | null;
   declaredByName: string | null;
-}): string | null {
+}, /// Who declared it and how it was recorded, read from the step's attribution (Phase 2b): the words of `routeActed(...).declared`. Without it, the name alone.
+declaredActed?: string | null): string | null {
   if (!s.escalation || !s.actingRoleLabel) return null;
   const why =
     s.escalation === "CONFLICT_DECLARED"
-      ? `conflict declared by ${s.declaredByName ?? "a person no longer on record"}, recorded on their behalf, not signed`
+      ? (declaredActed ?? `conflict declared by ${s.declaredByName ?? "a person no longer on record"}`)
       : "nobody able to act held the office";
   return `${s.actingRoleLabel} · escalated from ${s.roleLabel}: ${why}${s.escalationReason ? ` — ${s.escalationReason}` : ""}`;
 }

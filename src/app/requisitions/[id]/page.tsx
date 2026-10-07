@@ -29,7 +29,6 @@ import { issueDayFor, newerIssueNote, noIssueOnRaisedText } from "@/lib/authorit
 import { loadIssue, loadMatrixVersion, loadOverrideMatrix, loadPinnedRule } from "@/lib/authority/load";
 import { MATTER_KIND_LABEL, OUTCOME_LABEL, SIGNED_MINUTES_LABEL, SIGNED_MINUTES_TONE, signedMinutesState } from "@/lib/committee/labels";
 import { tablingQuery } from "@/lib/committee/table-prefill";
-import { RECORDED_ON_BEHALF_SENTENCE } from "@/lib/documents/labels";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { formatOrgDay, formatDate, formatRM, formatRouteBand } from "@/lib/format";
 import { ACT_DONE_LABEL, ACT_LABEL, condLabel, routedOnLabel } from "@/lib/labels";
@@ -115,6 +114,7 @@ import {
   SubmitDrawer,
 } from "../editors";
 
+import { loadAttributions, routeActed } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
 import { openFault } from "@/lib/method/exercise";
 import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_TONE, findingText, REGIME_SHORT } from "@/lib/method/labels";
@@ -745,7 +745,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
 
 // ------------------------------------------------------------------ overview
 
-function Overview({
+async function Overview({
   l,
   facts,
   fieldNotes,
@@ -767,6 +767,8 @@ function Overview({
   };
 }) {
   const r = l.req;
+  // How each endorsement was recorded, signed or from paper, is read from its attribution (Phase 2b).
+  const endorsed = await loadAttributions(db, l.org.id, [{ entity: "RequisitionEndorsement", slot: "person", ids: r.endorsements.map((e) => e.id) }]);
   const lineTotal = r.lines.reduce((n, x) => n + parseSen(x.estimatedAmount.toString()), 0n);
   return (
     <div className="flex flex-col gap-6">
@@ -870,7 +872,7 @@ function Overview({
         <CardHeader
           icon={<ShieldIcon size={17} />}
           title="Endorsements"
-          subtitle="The heads of the tiers the policy names, before submission. Recorded on their behalf: nobody signs in yet."
+          subtitle="The heads of the tiers the policy names, before submission."
           actions={
             // Offered while a tier is outstanding; once every tier has endorsed, the next
             // step is Mark endorsed, in the header.
@@ -920,7 +922,7 @@ function Overview({
                     </Td>
                     <Td label="Endorsed">
                       {e ? (
-                        <CellStack title={`${e.person.name} · ${formatDate(e.endorsedOn)}`} sub={e.note || RECORDED_ON_BEHALF_SENTENCE} />
+                        <CellStack title={`${e.person.name} · ${formatDate(e.endorsedOn)}`} sub={e.note || endorsed.read({ entity: "RequisitionEndorsement", id: e.id, slot: "person" }, e.person.name).en} />
                       ) : (
                         <Badge tone="warn">Awaiting</Badge>
                       )}
@@ -1123,7 +1125,7 @@ function BudgetPanel({
 
 type Step = LoadedRequisition["req"]["approvalInstances"][number]["steps"][number];
 
-function ApprovalPanel({
+async function ApprovalPanel({
   l,
   gates,
   officeName,
@@ -1158,6 +1160,8 @@ function ApprovalPanel({
   const r = l.req;
   const [inst, ...earlier] = r.approvalInstances;
   const matters = r.committeeDecisions;
+  // Who decided each step, signed or recorded from paper, is read from its attribution (Phase 2b): the screen never says it by itself.
+  const acted = await routeActed(db, l.org.id, r.approvalInstances);
 
   if (!inst) {
     return (
@@ -1249,7 +1253,7 @@ function ApprovalPanel({
           )}
           {inst.status === "REJECTED" && inst.rejectionApplied && inst.rejectionSource && (
             <Callout tone="warn" title="Where the rejection sent it">
-              {appliedText(inst.rejectionApplied as RejectionKind, inst.rejectionSource, officeName(inst.rejectionReturnToRoleCode), inst.rejectionChosenBy?.name ?? null)}
+              {appliedText(inst.rejectionApplied as RejectionKind, inst.rejectionSource, officeName(inst.rejectionReturnToRoleCode), inst.rejectionChosenBy?.name ?? null, inst.rejectionChosenBy ? acted.chosen(inst.id, inst.rejectionChosenBy.name) : null)}
             </Callout>
           )}
           <Accordion title="How this route was chosen" meta={warnings.length > 0 ? `${warnings.length} ${warnings.length === 1 ? "note" : "notes"} to check` : undefined}>
@@ -1320,7 +1324,7 @@ function ApprovalPanel({
                     {stepOriginText(inst, s) && <div className="text-[12.5px] text-ink-3">{stepOriginText(inst, s)}</div>}
                     {s.escalation && (
                       <div className="text-[12.5px] break-words text-amber-800">
-                        {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null })}
+                        {escalationText({ roleLabel: s.roleLabel, actingRoleLabel: s.actingRoleLabel, escalation: s.escalation, escalationReason: s.escalationReason, declaredByName: s.declaredBy?.name ?? null }, s.declaredBy ? acted.declared(s.id, s.declaredBy.name) : null)}
                       </div>
                     )}
                     {s.decision === "PENDING" ? (
@@ -1349,8 +1353,7 @@ function ApprovalPanel({
                       </div>
                     ) : (
                       <div className="text-[12.5px] text-ink-2">
-                        {DECISION_LABEL[s.decision]} · {s.decidedByName ?? "Not recorded"}
-                        {inst.checkedAgainstMatrix ? " · recorded on behalf of, not signed" : ""} · {formatDate(s.decidedOn)}
+                        {DECISION_LABEL[s.decision]} · {acted.decided(s.id, s.decidedByName)} · {formatDate(s.decidedOn)}
                         {s.delegation
                           ? ` · under delegation from ${s.delegation.fromPerson.name} (${s.delegation.valueCeiling == null ? "no ceiling set" : `ceiling ${formatRM(num(s.delegation.valueCeiling))}`})`
                           : ""}
@@ -1436,6 +1439,7 @@ function ApprovalPanel({
                           ? (r.approvalInstances.find((x) => x.supersedesInstanceId === e.id)?.steps.find((x) => !x.carriedFromStepId)?.roleLabel ?? officeName(e.rejectionReturnToRoleCode))
                           : null,
                         e.rejectionChosenBy?.name ?? null,
+                        e.rejectionChosenBy ? acted.chosen(e.id, e.rejectionChosenBy.name) : null,
                       )}
                       {e.rejectionReason ? ` Reason: “${e.rejectionReason}”` : ""}
                     </p>

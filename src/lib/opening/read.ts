@@ -12,6 +12,7 @@ import { lockedAtOrAfterClosing } from "@/lib/bids/box";
 import { ENVELOPE_KIND_LABEL, receiptTime, SOURCE_LABEL } from "@/lib/bids/labels";
 import { toSecond } from "@/lib/bids/lateness";
 import { dayIn, storedDay } from "@/lib/dates";
+import { loadAttributions, type AttributionIndex } from "@/lib/auth/attribution-read";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { loadExercise } from "@/lib/method/repo";
@@ -124,7 +125,10 @@ export async function openingSection(organisationId: string, exerciseId: string)
   // S-5: "not needed" and "not set" read differently; a voluntary copy left unanswered says it was not compared.
   const estimate = estimateCardText({ requires: c.main ? policyOf(c.main.policySnapshot).estimate.requires : (c.method?.requiresCompanyEstimate ?? null), state: c.estimate?.state ?? null, copyCheck: c.main?.estimateCopyCheck ?? null, sealedText: SEALED_UNTIL_FINALISED });
 
-  const openings = c.openings.map((o) => openingView(o, c, { now, tz, closing, people }));
+  // Who started each opening, signed or recorded from paper, is read from its attribution (Phase 2b).
+  const startedBy = await loadAttributions(db, organisationId, [{ entity: "Opening", slot: "startedBy", ids: c.openings.map((o) => o.id) }]);
+  const authorisedBy = await loadAttributions(db, organisationId, [{ entity: "OpeningAuthorisation", slot: "person", ids: c.openings.flatMap((o) => o.authorisations.map((a) => a.id)) }]);
+  const openings = c.openings.map((o) => openingView(o, c, { now, tz, closing, people, startedBy, authorisedBy }));
 
   return {
     exerciseId: l.ex.id,
@@ -147,7 +151,7 @@ export async function openingSection(organisationId: string, exerciseId: string)
   };
 }
 
-function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: string | null; closing: Date | null; people: Option[] }) {
+function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: string | null; closing: Date | null; people: Option[]; startedBy: AttributionIndex; authorisedBy: AttributionIndex }) {
   const { tz, closing } = x;
   const state = stateOf(o, c.ex.status);
   const phase = openingPhase(state);
@@ -282,7 +286,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
     finalised: state.finalised,
     finalisedAt: o.finalisedAt ? time(o.finalisedAt, tz) : null,
     committee: o.committeeNameSnapshot,
-    started: `${time(o.startedAt, tz)} · recorded by ${o.startedBy.name}, on their behalf, not signed`,
+    started: `${time(o.startedAt, tz)} · ${x.startedBy.read({ entity: "Opening", id: o.id, slot: "startedBy" }, o.startedBy.name).en}`,
     admittedBy: o.admissionDecision ? `Admitted at ${o.admissionDecision.meeting.reference}` : null,
     sittingNo: state.sittingNo,
     sittings: o.sittings.map((s) => ({
@@ -300,7 +304,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       authorised: authorisers.includes(p.personId),
       authorise: p.present ? allowedOf(authorisationFaults({ state, panel, auths: o.authorisations, personId: p.personId, now: x.now, closing, boxLocked })) : null,
     })),
-    authorisations: o.authorisations.map((a) => `Sitting ${a.sittingNo}: ${a.person.name}, ${time(a.recordedAt, tz)}${a.lapsedAt ? " · lapsed when the sitting was adjourned" : ""}`),
+    authorisations: o.authorisations.map((a) => `Sitting ${a.sittingNo}: ${x.authorisedBy.read({ entity: "OpeningAuthorisation", id: a.id, slot: "person" }, a.person.name).en}, ${time(a.recordedAt, tz)}${a.lapsedAt ? " · lapsed when the sitting was adjourned" : ""}`),
     adjourn: state.adjourned || state.finalised ? null : allowedOf(adjournFaults({ state, reason: "-", personActive: true, resume: false })),
     resume: state.adjourned && !state.finalised ? allowedOf(adjournFaults({ state, reason: "-", personActive: true, resume: true })) : null,
     registerBox: o.kind === "MAIN" && !state.finalised ? allowedOf([...actFaults(state), ...(o.bids.length ? [{ code: "BOX_EMPTIED", level: "block" as const }] : [])]) : null,

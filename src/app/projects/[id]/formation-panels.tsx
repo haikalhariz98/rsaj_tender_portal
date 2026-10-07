@@ -1,3 +1,4 @@
+import { ActedBy } from "@/components/attribution";
 import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker } from "@/lib/contract/act-status";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
@@ -145,7 +146,7 @@ function ChecksSection({ l, facts, people, today }: { l: LoadedContract; facts: 
                   <span className="min-w-0">
                     <span className="block text-[13.5px] font-semibold text-ink">{COMPARISON_WORDS[cmp].en}</span>
                     <span className="block text-[12.5px] break-words text-ink-3">
-                      {r ? [OUTCOME_WORDS[r.outcome].en, `checked by ${r.checkedBy.name} on ${formatDate(r.checkedOn)} (recorded on their behalf)`, addenda.length ? `addenda taken in: ${addenda.map((a) => `No. ${a.number ?? "?"} ${a.title}`).join("; ")}` : "no tender-stage addendum issued", r.note || null].filter(Boolean).join(" · ") : "Not recorded"}
+                      {r ? <>{OUTCOME_WORDS[r.outcome].en} · <ActedBy entity="ContractReconciliation" id={r.id} slot="checkedBy" name={r.checkedBy.name} /> on {formatDate(r.checkedOn)} · {[addenda.length ? `addenda taken in: ${addenda.map((a) => `No. ${a.number ?? "?"} ${a.title}`).join("; ")}` : "no tender-stage addendum issued", r.note || null].filter(Boolean).join(" · ")}</> : "Not recorded"}
                     </span>
                   </span>
                   <span className="flex shrink-0 flex-wrap items-center gap-2">
@@ -157,7 +158,7 @@ function ChecksSection({ l, facts, people, today }: { l: LoadedContract; facts: 
                   <ul className="ml-1 flex flex-col gap-1 border-l-2 border-line pl-3">
                     {r.amendments.map((a) => (
                       <li key={a.id} className="text-[12.5px] break-words text-ink-3">
-                        <span className="text-ink-2">{a.description}</span> · signed for the contractor by {a.contractorSignatoryName} on {formatDate(a.contractorSignedOn)}, by {a.officer.name} on {formatDate(a.officerSignedOn)} (recorded on their behalf, not signed)
+                        <span className="text-ink-2">{a.description}</span> · signed for the contractor by {a.contractorSignatoryName} on {formatDate(a.contractorSignedOn)} · <ActedBy entity="ReconciliationAmendment" id={a.id} slot="officer" name={a.officer.name} /> on {formatDate(a.officerSignedOn)}
                       </li>
                     ))}
                   </ul>
@@ -196,7 +197,7 @@ function CheckCard({ l, check: k, people, today, editable, preparationOn, applic
       <CardHeader
         icon={<CheckIcon size={17} />}
         title={CHECK_WORDS[kind].en}
-        subtitle={done ? `Complete: ${k.completedBy?.name ?? "an officer"}, ${formatDate(k.completedOn)} (recorded on their behalf).${k.note ? ` ${k.note}` : ""}` : "Not complete."}
+        subtitle={done ? <>Complete: {k.completedBy ? <ActedBy entity="FormationCheck" id={k.id} slot="completedBy" name={k.completedBy.name} /> : "an officer"}, {formatDate(k.completedOn)}.{k.note ? ` ${k.note}` : ""}</> : "Not complete."}
         actions={
           <span className="flex flex-wrap items-center gap-2">
             {editable && !done && kind === "ARITHMETIC" && <CorrectionDrawer id={c.id} checkId={k.id} />}
@@ -301,7 +302,7 @@ function LegalSection({ l, facts, people, today }: { l: LoadedContract; facts: F
                     <Chip tone={r.decision === "ENDORSED" ? "ok" : r.decision === "RETURNED" ? "warn" : "info"}>{r.decision ? DECISION_WORDS[r.decision].en : "With the legal office"}</Chip>
                   </span>
                   <span className="text-[12.5px] break-words text-ink-3">{`Sent ${formatDate(r.submittedOn)} by ${r.submittedBy.name}, with ${pinned.map((p) => `${p.title} (version ${p.versionNo})`).join("; ") || "nothing pinned"}.`}</span>
-                  {r.decision && <span className="text-[12.5px] break-words text-ink-3">{`${DECISION_WORDS[r.decision].en} ${formatDate(r.decidedOn)} by ${r.reviewer?.name ?? "the legal office"} (recorded on their behalf).${r.comments ? ` Comments: ${r.comments}` : ""}`}</span>}
+                  {r.decision && <span className="text-[12.5px] break-words text-ink-3">{`${DECISION_WORDS[r.decision].en} ${formatDate(r.decidedOn)} · `}{r.reviewer ? <ActedBy entity="LegalReview" id={r.id} slot="reviewer" name={r.reviewer.name} /> : "the legal office"}{`.${r.comments ? ` Comments: ${r.comments}` : ""}`}</span>}
                 </li>
               );
             })}
@@ -345,7 +346,7 @@ function SigningSection({ l, facts, people, today }: { l: LoadedContract; facts:
         <CardHeader
           icon={<UsersIcon size={17} />}
           title="Signatures"
-          subtitle="Recorded on behalf of the signers, not signed: nobody signs in yet."
+          subtitle="Each signature is read from how it was recorded: signed in by the holder, or recorded from their paper."
           actions={
             !executed && status !== "CANCELLED" ? (
               <span className="flex flex-wrap items-center gap-2">

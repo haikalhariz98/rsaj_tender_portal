@@ -160,10 +160,10 @@ export function voidSaleFault(s: { voidedAt: Date | null }, phase: WindowPhase, 
 
 /**
  * FR-ADV-011: what every issued set is annotated with — the purchaser's name, address, telephone
- * or fax and the closing as stated — with the issuing officer, recorded on their behalf, not
- * signed. Frozen on the sale; the printable label renders it.
+ * or fax and the closing as stated — with the issuing officer and how it was recorded. Frozen
+ * on the sale; the printable label renders it.
  */
-export function saleAnnotation(i: { purchaser: string; address: string; phone: string; fax: string; closingText: string; issuedBy: string; soldOnText: string; exerciseReference: string; receiptNo: string | null }) {
+export function saleAnnotation(i: { purchaser: string; address: string; phone: string; fax: string; closingText: string; issuedBy: string; recordedForSomeone?: boolean; soldOnText: string; exerciseReference: string; receiptNo: string | null }) {
   return {
     v: 1 as const,
     exercise: i.exerciseReference,
@@ -175,7 +175,8 @@ export function saleAnnotation(i: { purchaser: string; address: string; phone: s
     issuedBy: i.issuedBy,
     issuedOn: i.soldOnText,
     receipt: i.receiptNo,
-    recorded: "recorded on behalf of, not signed",
+    // Frozen with the sale, so it says how this one was recorded: by the officer signed in, or for them from paper.
+    recorded: i.recordedForSomeone ? "recorded on behalf of, not signed" : "recorded by the officer who issued it",
   };
 }
 

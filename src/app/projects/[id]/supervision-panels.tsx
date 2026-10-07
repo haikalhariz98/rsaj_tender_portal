@@ -1,3 +1,4 @@
+import { ActedBy } from "@/components/attribution";
 import { ActGate } from "@/components/act-gate";
 import { actStatusBlocker } from "@/lib/contract/act-status";
 import Link from "next/link";
@@ -367,7 +368,7 @@ async function StartSection({ l, v, people, today }: { l: LoadedContract; v: Sup
               items={[
                 { label: "Date of possession", value: formatDate(day(pos.possessionOn)) },
                 { label: "Date for completion", value: v.values?.dateForCompletion ? formatDate(v.values.dateForCompletion) : dim("Not derived") },
-                { label: "Recorded for", value: `${pos.recordedBy.name} (recorded on their behalf, not signed)` },
+                { label: "Recorded for", value: <ActedBy entity="OpeningPosition" id={pos.id} slot="person" name={pos.recordedBy.name} /> },
                 { label: "Baseline", value: `Version ${pos.baseline.version ?? "—"}, written with it` },
               ]}
             />

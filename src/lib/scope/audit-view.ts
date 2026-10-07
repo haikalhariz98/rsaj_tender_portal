@@ -7,7 +7,7 @@
  * same rule when the History tab renders any row of the estimate's entities, so even a row
  * written some other way never shows a figure.
  *
- * Every named person is "recorded on behalf of, not signed". Money in the bill's rows is
+ * Every named person is named, and nothing is said of how the act was recorded: that is its attribution (Phase 2b). Money in the bill's rows is
  * formatted (the bill is not SULIT, OD-8); codes are rendered as labels.
  */
 
@@ -16,7 +16,7 @@ import { storedDay } from "@/lib/dates";
 import { formatSen, type Sen } from "@/lib/money";
 
 import { itemAmount, type BqTotals } from "./bq";
-import { ATTESTED, BQ_STATUS_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, sealedVersion, SCOPED_BY_LABEL } from "./labels";
+import { BQ_STATUS_LABEL, EVENT_KIND_LABEL, firmValueText, ITEM_KIND_LABEL, sealedVersion, SCOPED_BY_LABEL } from "./labels";
 import type { BqItemKind, BqScopedBy, BqStatus, EstimateEventKind } from "./types";
 
 export const ENTITY = {
@@ -54,7 +54,7 @@ export const RATE_ENTITY = { schedule: "RateSchedule", item: "RateScheduleItem" 
 /// The entities whose rows are labelled `${exercise reference} · …`, for the exercise's History.
 export const SCOPE_ENTITIES: readonly string[] = Object.values(ENTITY);
 
-const named = (name: string | null | undefined) => (name ? `${name} (${ATTESTED})` : null);
+const named = (name: string | null | undefined) => (name ? name : null);
 
 // ------------------------------------------------------------------ estimate
 
