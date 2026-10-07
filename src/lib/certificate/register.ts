@@ -51,7 +51,9 @@ export interface LibraryRow {
  * version (whatever its languages) one entry, each with the instant it was issued or frozen. Newest first; two in one
  * instant by their id in byte order (COLLATE "C"), whatever the database's collation, so a page never depends on it.
  */
-function entries(organisationId: string, variants: readonly string[]) {
+/// `hidden`: the restricted exercises the reader may not see (FR-MTD-007). An award document of an award on one is left out of the list itself, so the count and
+/// the paging stay honest; the row names the award, its reference and the awardee. (A certificate belongs to a contract, which is not hidden: see the decisions log.)
+function entries(organisationId: string, variants: readonly string[], hidden: readonly string[] = []) {
   const pats = likePatterns(variants);
   const kinds = kindsMatching(variants);
   const awardKinds = awardKindsMatching(variants);
@@ -59,14 +61,15 @@ function entries(organisationId: string, variants: readonly string[]) {
     ? Prisma.sql`(c."number" ILIKE ANY(${pats}) OR k."number" ILIKE ANY(${pats}) OR a."awardeeName" ILIKE ANY(${pats}) OR c."kind"::text = ANY(${kinds}) OR EXISTS (SELECT 1 FROM "CertificateDocument" d WHERE d."certificateId" = c."id" AND (d."renderedText" ILIKE ANY(${pats}) OR d."templateName" ILIKE ANY(${pats}))))`
     : Prisma.sql`TRUE`;
   const awardSearch = variants.length ? Prisma.sql`(ad."renderedText" ILIKE ANY(${pats}) OR ad."templateName" ILIKE ANY(${pats}) OR aw."reference" ILIKE ANY(${pats}) OR aw."awardeeName" ILIKE ANY(${pats}) OR ad."kind"::text = ANY(${awardKinds}))` : Prisma.sql`TRUE`;
+  const awardVisible = hidden.length ? Prisma.sql`aw."exerciseId" NOT IN (${Prisma.join([...hidden])})` : Prisma.sql`TRUE`;
   return Prisma.sql`SELECT 'C'::text AS src, c."id" AS id, c."issuedAt" AS at FROM "Certificate" c JOIN "Contract" k ON k."id" = c."contractId" JOIN "Award" a ON a."id" = k."awardId" WHERE c."organisationId" = ${organisationId} AND c."status" = 'ISSUED' AND ${certSearch}
     UNION ALL
-    SELECT 'A'::text AS src, ad."awardId" || ':' || ad."kind"::text || ':' || ad."version"::text AS id, max(ad."frozenAt") AS at FROM "AwardDocument" ad JOIN "Award" aw ON aw."id" = ad."awardId" WHERE aw."organisationId" = ${organisationId} AND ${awardSearch} GROUP BY ad."awardId", ad."kind", ad."version"`;
+    SELECT 'A'::text AS src, ad."awardId" || ':' || ad."kind"::text || ':' || ad."version"::text AS id, max(ad."frozenAt") AS at FROM "AwardDocument" ad JOIN "Award" aw ON aw."id" = ad."awardId" WHERE aw."organisationId" = ${organisationId} AND ${awardVisible} AND ${awardSearch} GROUP BY ad."awardId", ad."kind", ad."version"`;
 }
 
 /// How many entries the Library holds for a search (none: the whole register), counted in the database.
-export async function libraryCount(organisationId: string, variants: readonly string[] = []): Promise<number> {
-  const list = entries(organisationId, variants);
+export async function libraryCount(organisationId: string, variants: readonly string[] = [], hidden: readonly string[] = []): Promise<number> {
+  const list = entries(organisationId, variants, hidden);
   const r = await db.$queryRaw<{ n: number }[]>`WITH entries AS (${list}) SELECT count(*)::int AS n FROM entries`;
   return r[0]?.n ?? 0;
 }
@@ -74,18 +77,18 @@ export async function libraryCount(organisationId: string, variants: readonly st
 type Entry = { src: "C" | "A"; id: string; at: Date };
 
 /// One page of the Library's entries, in the database's order.
-async function libraryEntries(organisationId: string, variants: readonly string[], offset: number, limit: number): Promise<Entry[]> {
-  const list = entries(organisationId, variants);
+async function libraryEntries(organisationId: string, variants: readonly string[], offset: number, limit: number, hidden: readonly string[]): Promise<Entry[]> {
+  const list = entries(organisationId, variants, hidden);
   return db.$queryRaw<Entry[]>`WITH entries AS (${list}) SELECT src, id, at FROM entries ORDER BY at DESC, id COLLATE "C" ASC LIMIT ${limit} OFFSET ${offset}`;
 }
 
 /// `wholeTotal`: the whole Library's count where the caller has it, used when there is no search (never counted twice).
-export async function libraryPage(organisationId: string, query: string, askedPage: string | undefined, timeZone: string | null, wholeTotal?: number) {
+export async function libraryPage(organisationId: string, query: string, askedPage: string | undefined, timeZone: string | null, hidden: readonly string[], wholeTotal?: number) {
   const terms = (await db.term.findMany({ where: { organisationId }, orderBy: { code: "asc" }, include: { aliases: true } })).map(termOf);
   const variants = searchVariants(query, terms);
-  const total = variants.length === 0 && wholeTotal != null ? wholeTotal : await libraryCount(organisationId, variants);
+  const total = variants.length === 0 && wholeTotal != null ? wholeTotal : await libraryCount(organisationId, variants, hidden);
   const page = pageOf(askedPage, total, LIBRARY_PAGE);
-  const list = await libraryEntries(organisationId, variants, page * LIBRARY_PAGE, LIBRARY_PAGE);
+  const list = await libraryEntries(organisationId, variants, page * LIBRARY_PAGE, LIBRARY_PAGE, hidden);
   const certIds = list.filter((e) => e.src === "C").map((e) => e.id);
   const groups = list.filter((e) => e.src === "A").map((e) => {
     const [awardId, kind, version] = e.id.split(":");

@@ -4,7 +4,8 @@ import { openStepOf, oldestWaitingDays } from "@/lib/approvals/queue";
 import { todayIn } from "@/lib/dates";
 import { EXERCISE_STATUS_ORDER } from "@/lib/method/labels";
 import type { ExerciseStatus } from "@/lib/method/types";
-import { exerciseIdNotHidden, exerciseNotHidden } from "@/lib/auth/sulit-store";
+import { exerciseNotHidden } from "@/lib/auth/sulit-store";
+import { hiddenDecisionIds } from "@/lib/committee/hidden";
 import { db } from "@/lib/db";
 import type { FieldChange } from "@/lib/audit/diff";
 import { organisationTimeZone } from "@/lib/org-time";
@@ -62,8 +63,8 @@ export async function loadDashboard(organisationId: string, hidden: readonly str
   });
   if (!org) return null;
 
-  const decisions = await db.committeeDecision.findMany({
-    where: { meeting: { committee: { organisationId: org.id } }, ...exerciseIdNotHidden(hidden) },
+  const everyDecision = await db.committeeDecision.findMany({
+    where: { meeting: { committee: { organisationId: org.id } } },
     include: {
       votes: { include: { person: true }, orderBy: { votedAt: "desc" } },
       meeting: {
@@ -74,6 +75,10 @@ export async function loadDashboard(organisationId: string, hidden: readonly str
     },
     orderBy: { meeting: { meetingDate: "desc" } },
   });
+  // A matter names its exercise in one of four ways (itself, its bill of quantities version, its envelope, its evaluation bidder), and `hiddenDecisionIds` follows
+  // all four. Filtered after the read rather than in the `where`: a negated test on a nullable pointer drops the rows that point nowhere (FR-MTD-007).
+  const hiddenMatters = await hiddenDecisionIds(everyDecision.map((d) => d.id), hidden);
+  const decisions = hiddenMatters.size ? everyDecision.filter((d) => !hiddenMatters.has(d.id)) : everyDecision;
 
   const queue: QueueItem[] = decisions
     .filter((d) => d.outcome === "PENDING" && !d.withdrawnAt)
@@ -188,14 +193,13 @@ async function withoutHiddenExercises(entries: ActivityEntry[], hidden: readonly
   if (hidden.length === 0) return entries;
   const gone = new Set(hidden);
   const idsOf = (entity: string) => [...new Set(entries.filter((e) => e.entity === entity).map((e) => e.entityId))];
-  const [steps, awards, decisions] = await Promise.all([
+  const [steps, awards, hiddenDecision] = await Promise.all([
     db.approvalStep.findMany({ where: { id: { in: idsOf("ApprovalStep") } }, select: { id: true, instance: { select: { exerciseId: true, award: { select: { exerciseId: true } } } } } }),
     db.award.findMany({ where: { id: { in: idsOf("Award") } }, select: { id: true, exerciseId: true } }),
-    db.committeeDecision.findMany({ where: { id: { in: idsOf("CommitteeDecision") } }, select: { id: true, exerciseId: true } }),
+    hiddenDecisionIds(idsOf("CommitteeDecision"), hidden),
   ]);
   const hiddenStep = new Set(steps.filter((s) => (s.instance.exerciseId && gone.has(s.instance.exerciseId)) || (s.instance.award && gone.has(s.instance.award.exerciseId))).map((s) => s.id));
   const hiddenAward = new Set(awards.filter((a) => gone.has(a.exerciseId)).map((a) => a.id));
-  const hiddenDecision = new Set(decisions.filter((d) => d.exerciseId && gone.has(d.exerciseId)).map((d) => d.id));
   return entries.filter((e) => {
     if (e.entity === "SourcingExercise") return !gone.has(e.entityId);
     if (e.entity === "ApprovalStep") return !hiddenStep.has(e.entityId);

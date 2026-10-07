@@ -1,4 +1,4 @@
-import { exerciseIsHidden, hiddenExercises, sulitExerciseValues } from "@/app/_auth/sulit";
+import { exerciseIsHidden, siblingAmountsWithheld } from "@/app/_auth/sulit";
 import { staffRoute } from "@/app/_auth/route";
 import { evaluateExercise, type ExerciseDraft } from "@/lib/method/evaluate";
 import { presentEvaluation } from "@/lib/method/present";
@@ -81,9 +81,7 @@ export async function POST(request: Request) {
   // The findings add up the requisition's exercises. Where one is restricted to people this officer is not among, or its estimate is one they may not read
   // (ADR 0034 D14), the sums are not stated; where they are all readable the reading is logged, since the officer is shown them.
   const others = loaded.req.exercises.filter((x) => x.id !== exerciseId);
-  const hidden = await hiddenExercises(actor);
-  const readable = await sulitExerciseValues(actor, others.filter((x) => !hidden.includes(x.id)).map((x) => ({ id: x.id, reference: x.reference })), "estimatedValue", () => true);
-  const amountsWithheld = others.some((x) => hidden.includes(x.id)) || [...readable.values()].some((v) => v.state === "WITHHELD");
+  const amountsWithheld = await siblingAmountsWithheld(actor, others.map((x) => ({ id: x.id, reference: x.reference })));
   return Response.json({
     ok: true,
     matrixLabel: issue.label,

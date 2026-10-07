@@ -282,6 +282,8 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
   const org = await documentOrg(organisationId);
   if (!org) return { records: [], total: 0 };
   const take = TARGET_CAP;
+  // The `where` fragment that leaves out whatever hangs on a hidden exercise. Their labels carry its reference, so a kind is filtered here, not only the ones that name an exercise.
+  const out = hidden.length ? { notIn: [...hidden] } : undefined;
   switch (kind) {
     case "meeting": {
       const where = { committee: { organisationId: org.id } };
@@ -332,7 +334,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
       return { records: [], total: 0 };
     case "tenderPackPart": {
       // 6.4: the uploaded parts of draft packs, newest pack first, in print order.
-      const where = { organisationId: org.id, source: "UPLOAD" as const, pack: { status: "DRAFT" as const } };
+      const where = { organisationId: org.id, source: "UPLOAD" as const, pack: { status: "DRAFT" as const, ...(out ? { exerciseId: out } : {}) } };
       const [rows, total] = await Promise.all([
         db.tenderPackPart.findMany({ where, orderBy: [{ pack: { createdAt: "desc" } }, { sortOrder: "asc" }], take, select: { id: true, ...PACK_PART_FACTS_SELECT } }),
         db.tenderPackPart.count({ where }),
@@ -341,7 +343,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     }
     case "addendum": {
       // 6.5: draft addenda, newest first: an issued one stands on the copy it was issued on.
-      const where = { organisationId: org.id, status: "DRAFT" as const };
+      const where = { organisationId: org.id, status: "DRAFT" as const, ...(out ? { window: { exerciseId: out } } : {}) };
       const [rows, total] = await Promise.all([
         db.addendum.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, ...ADDENDUM_FACTS_SELECT } }),
         db.addendum.count({ where }),
@@ -350,7 +352,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     }
     case "bidWithdrawal": {
       // 6.6: withdrawals on exercises not cancelled, newest first.
-      const where = { organisationId: org.id, exercise: { status: { not: "CANCELLED" as const } } };
+      const where = { organisationId: org.id, exercise: { status: { not: "CANCELLED" as const } }, ...(out ? { exerciseId: out } : {}) };
       const [rows, total] = await Promise.all([
         db.bidWithdrawal.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, ...WITHDRAWAL_FACTS_SELECT } }),
         db.bidWithdrawal.count({ where }),
@@ -359,7 +361,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     }
     case "validityExtension": {
       // 6.6: extensions not yet applied, newest first: an applied one stands on its consent.
-      const where = { organisationId: org.id, appliedAt: null };
+      const where = { organisationId: org.id, appliedAt: null, ...(out ? { exerciseId: out } : {}) };
       const [rows, total] = await Promise.all([
         db.validityExtension.findMany({ where, orderBy: { createdAt: "desc" }, take, select: { id: true, ...EXTENSION_FACTS_SELECT } }),
         db.validityExtension.count({ where }),
@@ -368,7 +370,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     }
     case "opening": {
       // 6.7: finalised openings, newest first: a signed schedule is attached only once its opening is.
-      const where = { organisationId: org.id, finalisedAt: { not: null } };
+      const where = { organisationId: org.id, finalisedAt: { not: null }, ...(out ? { exerciseId: out } : {}) };
       const [rows, total] = await Promise.all([
         db.opening.findMany({ where, orderBy: { finalisedAt: "desc" }, take, select: { id: true, ...OPENING_FACTS_SELECT } }),
         db.opening.count({ where }),
@@ -377,7 +379,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     }
     case "evaluation": {
       // 6.8: evaluation versions in force (open or issued), newest first.
-      const where = { organisationId: org.id, state: { in: ["OPEN" as const, "ISSUED" as const] } };
+      const where = { organisationId: org.id, state: { in: ["OPEN" as const, "ISSUED" as const] }, ...(out ? { exerciseId: out } : {}) };
       const [rows, total] = await Promise.all([
         db.evaluation.findMany({ where, orderBy: { startedAt: "desc" }, take, select: { id: true, ...EVALUATION_FACTS_SELECT } }),
         db.evaluation.count({ where }),
@@ -386,7 +388,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     }
     case "evaluationMeeting": {
       // 6.8: meetings not closed, on open evaluations, newest first.
-      const where = { organisationId: org.id, closedAt: null, evaluation: { state: "OPEN" as const } };
+      const where = { organisationId: org.id, closedAt: null, evaluation: { state: "OPEN" as const, ...(out ? { exerciseId: out } : {}) } };
       const [rows, total] = await Promise.all([
         db.evaluationMeeting.findMany({ where, orderBy: { openedAt: "desc" }, take, select: { id: true, ...EVALUATION_MEETING_FACTS_SELECT } }),
         db.evaluationMeeting.count({ where }),
@@ -395,7 +397,7 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
     }
     case "evaluationBidder": {
       // 6.8: bids on open evaluations, by listing number.
-      const where = { organisationId: org.id, evaluation: { state: "OPEN" as const } };
+      const where = { organisationId: org.id, evaluation: { state: "OPEN" as const, ...(out ? { exerciseId: out } : {}) } };
       const [rows, total] = await Promise.all([
         db.evaluationBidder.findMany({ where, orderBy: [{ evaluation: { startedAt: "desc" } }, { openedBid: { listingNo: "asc" } }], take, select: { id: true, ...EVALUATION_BIDDER_FACTS_SELECT } }),
         db.evaluationBidder.count({ where }),

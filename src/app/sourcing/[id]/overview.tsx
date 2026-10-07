@@ -1,5 +1,6 @@
 import { ActedBy } from "@/components/attribution";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { Accordion } from "@/components/accordion";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
@@ -283,7 +284,8 @@ function ContractCard({ p }: { p: OverviewProps }) {
                     {DELIVERABLE_LABEL[s.deliverableKind as DeliverableKind]}
                     {s.description ? ` · ${s.description}` : ""}
                   </span>
-                  <span className="tabular-nums text-ink">{money(s.amount)}</span>
+                  {/* The parts add up to the estimate exactly (the scope check refuses otherwise), so a reader who may not read the estimate is not shown them. */}
+                  <span className="tabular-nums text-ink">{p.estimate.state === "WITHHELD" ? <SulitValue of={p.estimate as Sulit<ReactNode>} /> : money(s.amount)}</span>
                 </li>
               ))}
             </ul>
@@ -296,7 +298,8 @@ function ContractCard({ p }: { p: OverviewProps }) {
         </div>
 
         {/* FR-MTD-003: a value exactly on a boundary is said on the card itself, with where the ruling comes from. */}
-        {bands?.boundary.onBoundary && (
+        {/* Not said to a reader who may not read the estimate: the boundary is configuration, so "exactly on it" is the estimate. */}
+        {bands?.boundary.onBoundary && p.estimate.state !== "WITHHELD" && (
           <Callout tone="info" title="The value is on a boundary">
             <span className="flex flex-col items-start gap-1">
               <span>{boundarySentence(bands.boundary.operator, String(bands.boundary.value), bands.boundary.provenance)}</span>
@@ -383,7 +386,7 @@ function RulesUsed({ p }: { p: OverviewProps }) {
                 }
               />
             </div>
-            {bands.boundary.onBoundary && (
+            {bands.boundary.onBoundary && p.estimate.state !== "WITHHELD" && (
               <p className="text-[12.5px] text-ink-3">
                 On the boundary: appointment rule {boundarySide(bands.appointment.boundaryOperator, disagreesAtBoundary(ex.bandWarnings as never, "rule"))}; terms band {boundarySide(bands.terms.boundaryOperator, disagreesAtBoundary(ex.bandWarnings as never, "terms"))}.
               </p>

@@ -123,6 +123,7 @@ async function upload(scope: StaffActor, req: NextRequest, actor: AuditActor) {
       documentClassId: fields.documentClassId,
       documentId: fields.documentId,
       recordedByPersonId: act.subjectPersonId,
+      reader: scope,
       act,
       receivedOn: fields.receivedOn,
       note: fields.note,

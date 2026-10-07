@@ -44,6 +44,7 @@ import {
   EXERCISE_STATUS_TONE,
   findingText,
   findingTextFor,
+  findingsShownTo,
   NAME_STATE_TEXT,
   NOT_SET,
   PROPOSAL_STATE_LABEL,
@@ -123,7 +124,9 @@ import { money, OverviewPanel, pct, tone } from "./overview";
 import type { ReactNode } from "react";
 import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseValue } from "@/app/_auth/sulit";
-import type { Sulit } from "@/lib/auth/sulit-access";
+import { sulitWithheld, type Sulit } from "@/lib/auth/sulit-access";
+import { estimateCustodyForHistory } from "@/lib/opening/read";
+import { namingOthersRefusal } from "@/lib/auth/sulit-store";
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +159,13 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     db.award.findMany({ where: { exerciseId: ex.id }, orderBy: { createdAt: "desc" }, select: { id: true, reference: true, awardeeName: true, awardedValue: true, status: true, instrumentKind: true, cancelReason: true, contract: { select: { number: true } } } }),
     loadAwardPolicy(org.id),
   ]);
+  // FR-EST-008: finalising an opening writes the disclosed company estimate (and the paper copy's figure) into the trail, under this exercise's reference, so
+  // they are in this History. They are judged by the estimate's custody exactly as the opening's schedule judges them, and the access is logged; nothing is asked
+  // (and nothing logged) where no row carries one. An estimate that is void, or none, is not in anyone's custody.
+  const custodyRows = history.entries.some((e) => e.changes.some((c) => CUSTODY_FIELDS.has(c.field) && (c.before || c.after)));
+  const custody: Sulit<string> | null = custodyRows ? await estimateCustodyForHistory(actor, ex.id) : null;
+  // Naming a person opens the exercise's classified figures to them, so the control is offered only to someone who may use it (`namingRefusal`).
+  const namingBlock = await namingOthersRefusal(db, actor, ex.id);
   // Dossier evidence and the scope document, as the document store counts them.
   const evidenceFacts = await attachmentFacts({ kind: "exercise", id: ex.id }, db, ["DOSSIER_EVIDENCE", "COORDINATION_SCOPE"]);
   const evidence = exerciseEvidence(evidenceFacts);
@@ -339,7 +349,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
               ["Requisition band", ex.requisitionRuleLabel ?? "Not checked"],
               ["Method band", ev ? REGIME_LABEL[ev.bands.regime] : NOT_SET],
               ["Contract terms band", ev?.bands.terms.band?.labelEn ?? (ev ? TERMS_STATE_TEXT[ev.bands.terms.state] : NOT_SET)],
-              ...(ev?.bands.boundary.onBoundary ? [["At the boundary", boundarySentence(ev.bands.boundary.operator, String(ev.bands.boundary.boundaryValue), ev.bands.boundary.provenance)] as [string, string]] : []),
+              ...(ev?.bands.boundary.onBoundary && estimate.state !== "WITHHELD" ? [["At the boundary", boundarySentence(ev.bands.boundary.operator, String(ev.bands.boundary.boundaryValue), ev.bands.boundary.provenance)] as [string, string]] : []),
             ],
             notes: [
               ...(method?.requiresDossier ? ["The justification dossier is numbered now."] : []),
@@ -398,7 +408,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             decided={decided}
             bands={bands}
             live={ev ? { derivation: ev.derivation, type: ev.type, taxonomies: ev.taxonomies } : null}
-            findings={ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? [])}
+            findings={findingsShownTo(ev ? ev.findings : ((ex.bandWarnings as unknown as Finding[]) ?? []), estimate.state === "WITHHELD")}
             config={config}
             permitList={cfg.permitList}
             typeName={typeName}
@@ -579,8 +589,13 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       count: ex.participants.length,
       panel: (
         <Card className="overflow-hidden">
-          <CardHeader icon={<UsersIcon size={17} />} title="Named participants" subtitle={restricted ? "Restricted by its method: only the people named on it can see it." : "Not restricted by its method."} actions={ex.status !== "CANCELLED" ? <AddParticipantDrawer id={ex.id} people={activePeople.filter((p) => !ex.participants.some((x) => x.personId === p.value))} /> : undefined} />
+          <CardHeader icon={<UsersIcon size={17} />} title="Named participants" subtitle={restricted ? "Restricted by its method: only the people named on it can see it." : "Not restricted by its method."} actions={ex.status !== "CANCELLED" && !namingBlock ? <AddParticipantDrawer id={ex.id} people={activePeople.filter((p) => !ex.participants.some((x) => x.personId === p.value))} /> : undefined} />
           <CardBody className="flex flex-col gap-4">
+            {namingBlock && ex.status !== "CANCELLED" && (
+              <Callout tone="info" title="Naming people here is for the people named on it">
+                {namingBlock}
+              </Callout>
+            )}
             {restricted && (
               <Callout tone="warn" title="Restricted to the people named on it">
                 This exercise is hidden from everyone else: it is left out of the lists, the counts, the search and the dashboard, and opening it by its address says it does not exist. Each time someone is turned away, or reads a classified figure on it, the portal logs it. Besides the people named here, it is open to the person in charge, the proposal&apos;s reviewer and the members of its evaluation team and opening panel. Anyone who must approve a route for it or sit on its committee has to be named here too: holding the office does not open it.
@@ -615,6 +630,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       panel: (
         <HistoryPanel
           estimate={estimate}
+          custody={custody}
           entries={history.entries}
           total={history.total}
           timeZone={org.timeZone}
@@ -1052,9 +1068,12 @@ const FIELD_NAME: Record<string, string> = {
   workCode: "Work code",
 };
 const MONEY = new Set(["estimatedValue", "amount", "boundaryValue"]);
+/// The History's fields that carry the disclosed company estimate (an opening's finalising writes both).
+const CUSTODY_FIELDS: ReadonlySet<string> = new Set(["companyEstimate", "estimatePaperCopy"]);
 
 function HistoryPanel({
   estimate,
+  custody,
   entries,
   total,
   timeZone,
@@ -1068,6 +1087,8 @@ function HistoryPanel({
 }: {
   /// The department estimate as this reader may see it: its changes in the trail are shown, or withheld, as the figure is (Phase 3a).
   estimate: Sulit<string>;
+  /// The reader's standing with the disclosed company estimate (FR-EST-008), judged as the opening's schedule judges it. Null where no row carries the figure.
+  custody: Sulit<string> | null;
   entries: Awaited<ReturnType<typeof exerciseHistory>>["entries"];
   total: number;
   timeZone: string | null;
@@ -1084,8 +1105,12 @@ function HistoryPanel({
   // The department estimate (a registered SULIT field) reads with the SULIT chip in the trail too.
   // The estimate itself is judged for this reader (`estimate`); any other registered field keeps the chip until its module rolls out (3b).
   const chipped = (field: string, value: string | null, entityId: string, entity: string) => {
-    if (!isSulitField(field) || !value) return read(field, value, entityId, entity);
-    if (field === "estimatedValue") return estimate.state === "GRANTED" ? <SulitValue of={{ ...estimate, value: read(field, value, entityId, entity) }} /> : <SulitValue of={estimate as Sulit<ReactNode>} />;
+    // A scope part's amount is a share of the estimate and the parts add up to it exactly: it is judged as the estimate is.
+    const isEstimate = field === "estimatedValue" || (field === "amount" && entity === "ExerciseScopePart");
+    if ((!isSulitField(field) && !isEstimate) || !value) return read(field, value, entityId, entity);
+    // The disclosed company estimate and the paper copy's figure are judged by custody, never by the exercise's own access.
+    if (CUSTODY_FIELDS.has(field)) return custody && custody.state === "GRANTED" ? <SulitValue of={{ ...custody, value: read(field, value, entityId, entity) }} /> : <SulitValue of={(custody ?? sulitWithheld<ReactNode>("NOT_IN_CUSTODY", "exercise")) as Sulit<ReactNode>} />;
+    if (isEstimate) return estimate.state === "GRANTED" ? <SulitValue of={{ ...estimate, value: read(field, value, entityId, entity) }} /> : <SulitValue of={estimate as Sulit<ReactNode>} />;
     return <SulitValue>{read(field, value, entityId, entity)}</SulitValue>;
   };
   const read = (field: string, value: string | null, entityId: string, entity: string): string => {

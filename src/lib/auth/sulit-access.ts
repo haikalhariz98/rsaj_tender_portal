@@ -113,6 +113,31 @@ export function namedAfterRemovingParticipant(f: ExerciseNamedFacts, personId: s
   return [...new Set([...rest, f.personInChargeId, f.proposalReviewerId, ...f.evaluationTeamIds, ...f.openingPanelIds].filter((x): x is string => !!x))];
 }
 
+/**
+ * Whether the actor may name these people on an exercise (FR-MTD-007, Phase 3a review). Being named is what opens an exercise's classified figures, so naming is
+ * itself an authorised act, never a self-service one: the actor must already be named on the exercise, or hold the permission to name people on exercises
+ * (which the organisation has to decide: undecided refuses). Nobody names themselves into an exercise they are not on, whatever they hold. An administrator
+ * account names no one else (administration is kept apart from transactions). A loader run is the operator's own process.
+ *
+ * `selfAllowed` is for a slot the actor takes by doing the act (the proposal's reviewer), where the slot is always theirs: the rule is then only "named, or holds it".
+ */
+export type NamingFault = "ADMINISTRATOR" | "SELF" | "NOT_NAMED";
+export function namingFault(i: { actor: SulitActor; actorNamed: boolean; holdsPermission: boolean; targets: readonly string[]; selfAllowed?: boolean }): NamingFault | null {
+  if (i.actor.system) return null;
+  const self = i.actor.personId;
+  const others = i.targets.filter((t) => t !== self);
+  if (i.actor.isAdministrator) return others.length > 0 ? "ADMINISTRATOR" : i.selfAllowed ? null : "SELF";
+  if (!self) return "NOT_NAMED";
+  if (i.actorNamed) return null;
+  if (!i.selfAllowed && i.targets.includes(self)) return "SELF";
+  return i.holdsPermission ? null : "NOT_NAMED";
+}
+
+/// Everyone an exercise names once its person in charge is changed to `personId` (or cleared): the rule that a restricted exercise keeps at least one person who can see it.
+export function namedAfterChangingPersonInCharge(f: ExerciseNamedFacts, personId: string | null): string[] {
+  return [...new Set([...f.participantIds, personId, f.proposalReviewerId, ...f.evaluationTeamIds, ...f.openingPanelIds].filter((x): x is string => !!x))];
+}
+
 /// The resolver for the `evaluation` scope: the evaluation is read by its own team, and by those who run or are named on the exercise,
 /// not by the opening panel or the proposal's reviewer, whose part ends before the scores exist.
 export function namedOnEvaluation(f: ExerciseNamedFacts, personId: string): NamedAs[] {

@@ -396,6 +396,13 @@ export function findingTextFor(f: Finding, amountsWithheld: boolean): string {
   }
 }
 
+/**
+ * The findings as a reader is shown them on a record. Where the reader may not read the estimate (SULIT, FR-MTD-007) a finding that the value is exactly on a
+ * band boundary is left out: the boundary is configuration anyone can read, so "exactly on it" says what the estimate is. Rewording it without the figure
+ * would not help. A reader who may read the estimate is shown every finding.
+ */
+export const findingsShownTo = <F extends Finding>(fs: readonly F[], estimateWithheld: boolean): F[] => (estimateWithheld ? fs.filter((f) => f.code !== "BOUNDARY_NOT_RULED") : [...fs]);
+
 /// The exercise's evidence lines (FR-MTD-009, FR-REQ-013): what is attached, as the document store counts it.
 export function evidenceChip(count: number, what: "dossier" | "scope"): { text: string; tone: "ok" | "warn" } {
   if (count > 0) return { text: count === 1 ? "1 document attached" : `${count} documents attached`, tone: "ok" };

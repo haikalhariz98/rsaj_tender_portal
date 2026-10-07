@@ -1,9 +1,9 @@
 "use server";
 
-import { namedAfterRemovingParticipant } from "@/lib/auth/sulit-access";
-import { exerciseAccessFacts } from "@/lib/auth/sulit-store";
+import { namedAfterChangingPersonInCharge, namedAfterRemovingParticipant } from "@/lib/auth/sulit-access";
+import { exerciseAccessFacts, namingRefusal } from "@/lib/auth/sulit-store";
 import type { StaffActor } from "@/lib/auth/types";
-import { sulitExerciseValue } from "@/app/_auth/sulit";
+import { siblingAmountsWithheld, sulitExerciseValue } from "@/app/_auth/sulit";
 import type { Reader } from "@/lib/auth/sulit-store";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { revalidatePath } from "next/cache";
@@ -27,7 +27,7 @@ import { keptForMethod, nameRoutesToWithdraw } from "@/lib/method/config";
 import { remainingOf } from "@/lib/method/value";
 import { evaluateExercise, saveBlockers, type Evaluation, type ExerciseDraft } from "@/lib/method/evaluate";
 import { transitionFault, openFault } from "@/lib/method/exercise";
-import { DELIVERABLE_LABEL, findingText, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
+import { DELIVERABLE_LABEL, findingText, findingTextFor, EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { PACK_KIND_LABEL } from "@/lib/tender-docs/labels";
 import { voidLivePacks } from "@/lib/tender-docs/store";
 import { behaviourProfile } from "@/lib/method/profile";
@@ -86,15 +86,17 @@ function refresh(id?: string, requisitionId?: string) {
 
 
 /**
- * A restricted exercise is never left with nobody who can see it (FR-MTD-007, Phase 3a): when an exercise is made, or edited, so that its method restricts
- * it, the officer doing it is named on it unless they already are. Nothing else names them, and an exercise nobody can see could be neither opened nor
- * corrected from the portal. It is a participant row like any other, audited, and can be removed (`removeParticipant` keeps at least one person named).
+ * Whoever opens an exercise is named on it (Phase 3a review): they typed its value, and being named is what lets them read and correct their own draft. An exercise
+ * is never left with nobody who can see it (FR-MTD-007): when one is edited so that its method restricts it, the officer doing it is named too, `MADE` or `EDITED`.
+ * Nothing else names an officer on an exercise they did not open: `addParticipant` and the other namings are authorised acts (`namingRefusal`), and an edit that
+ * restricts an exercise is refused before it writes to anyone who could not name themselves (see `updateExercise`). It is a participant row like any other, audited,
+ * and can be removed (`removeParticipant` keeps at least one person named on a restricted exercise).
  */
-async function nameActorOnRestricted(tx: Tx, actor: StaffActor, organisationId: string, ex: { id: string; reference: string; restricted: boolean }): Promise<void> {
-  if (!ex.restricted || actor.system || !actor.personId) return;
+async function nameActorOnRestricted(tx: Tx, actor: StaffActor, organisationId: string, ex: { id: string; reference: string; restricted: boolean }, when: "MADE" | "EDITED" = "EDITED"): Promise<void> {
+  if ((when === "EDITED" && !ex.restricted) || actor.system || !actor.personId) return;
   const already = await tx.exerciseParticipant.findFirst({ where: { exerciseId: ex.id, personId: actor.personId }, select: { id: true } });
   if (already) return;
-  const capacity = "Named when the exercise was restricted, so that someone can always see it";
+  const capacity = when === "MADE" ? "Opened the exercise" : "Named when the exercise was restricted, so that someone can always see it";
   const row = await tx.exerciseParticipant.create({ data: { exerciseId: ex.id, personId: actor.personId, capacity } });
   await audit(tx, toAuditActor(actor), organisationId, "ExerciseParticipant", row.id, `${ex.reference} · ${actor.personName}`, "CREATE", diffFields(null, { person: actor.personName, capacity }));
 }
@@ -201,12 +203,17 @@ const FIELD_OF: Record<string, string> = {
   REASON_UNKNOWN: "justificationReasonCode",
 };
 
-function faultState(r: FormReader, fs: readonly Finding[]): FormState {
+const SUMS_SIBLINGS: ReadonlySet<string> = new Set(["EXCEEDS_APPROVED_VALUE", "SPLIT_ACROSS_REGIME"]);
+
+/// The refusal of a save. A finding that adds up the requisition's exercises states the sum only to a reader who may read every exercise in it
+/// (`siblingAmountsWithheld`, ADR 0034 D14): a refusal that said "this comes to RM X" would give a restricted sibling's estimate away by subtraction.
+async function faultState(actor: StaffActor, r: FormReader, fs: readonly Finding[], siblings: readonly { id: string; reference: string }[]): Promise<FormState> {
+  const withheld = fs.some((f) => SUMS_SIBLINGS.has(f.code)) && (await siblingAmountsWithheld(actor, siblings));
   const loose: string[] = [];
   for (const f of fs) {
     const field = FIELD_OF[f.code];
-    if (field && !r.errors[field]) r.reject(field, findingText(f));
-    else loose.push(findingText(f));
+    if (field && !r.errors[field]) r.reject(field, findingTextFor(f, withheld));
+    else loose.push(findingTextFor(f, withheld));
   }
   return { ok: false, errors: r.errors, message: `Nothing was saved. ${loose.join(" ") || "Correct the fields marked below."}` };
 }
@@ -307,7 +314,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
       if (!issue || !ctx) return NO_ISSUE;
       const ev = evaluateExercise(v.draft, ctx);
       const blockers = saveBlockers(ev.findings);
-      if (blockers.length > 0) return faultState(r, blockers);
+      if (blockers.length > 0) return faultState(actor, r, blockers, l.req.exercises);
       const on = dayToDate(l.org.today!);
       const reference = await issueReference(tx, l.org.id, "exercise", on);
       const m = ev.method!;
@@ -327,7 +334,7 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
         },
       });
       await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", auditCreate(row, { requisition: l.req.reference }));
-      await nameActorOnRestricted(tx, actor, l.org.id, { id: row.id, reference: row.reference, restricted: row.restricted });
+      await nameActorOnRestricted(tx, actor, l.org.id, { id: row.id, reference: row.reference, restricted: row.restricted }, "MADE");
       // A contract type chosen other than the derived one is an override, and is attributed to the officer who made it.
       if (ev.type.state !== "DERIVED") await act.write(tx, row.id);
       await writeChildren(tx, toAuditActor(actor), l.org.id, row, null, v.draft.scope, ev, cfg.config);
@@ -383,7 +390,13 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     if (!issue || !ctx) return NO_ISSUE;
     const ev = evaluateExercise(v.draft, ctx);
     const blockers = saveBlockers(ev.findings);
-    if (blockers.length > 0) return faultState(r, blockers);
+    if (blockers.length > 0) return faultState(actor, r, blockers, l.req.exercises.filter((x) => x.id !== ex.id));
+    // Editing a draft so that its method restricts it leaves it to the people named on it. Whoever is not among them (or cannot name themselves) would lose it,
+    // or would be named by the act of restricting it: refused before anything is written (`namingRefusal`, Phase 3a review).
+    if (ev.method?.restrictedAccess) {
+      const refused = await namingRefusal(tx, actor, ex.id, [], { selfAllowed: true });
+      if (refused) return { ok: false, message: `Not saved: the method chosen restricts this exercise to the people named on it. ${refused}` };
+    }
     const on = dayToDate(l.org.today);
     const methodChanged = ex.sourcingMethodCode !== v.draft.methodCode;
     const valueChanged = parseSen(ex.estimatedValue.toString()) !== v.draft.value;
@@ -517,6 +530,9 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
     const t = proposalTransition(ex.proposalState, outcome, { faults: [], reviewerPersonId: person?.id ?? null, on: storedDay(on), today: l.org.today });
     if (t.length > 0) return refuse(t, "The review was not recorded:");
+    // The reviewer is named on the exercise by reviewing it: so the reviewer is someone already named on it, or a holder of the permission to name people (Phase 3a review).
+    const notNamed = await namingRefusal(tx, actor, ex.id, [person!.id], { selfAllowed: true });
+    if (notNamed) return { ok: false, message: `The review was not recorded. ${notNamed}` };
     const after = { proposalState: outcome, proposalReviewedOn: outcome === "REVIEWED" ? on : null, proposalReviewerPersonId: person!.id, proposalReviewComment: comment };
     // Returned for amendment: it is being prepared again, and the next submission records it anew.
     await tx.sourcingExercise.update({ where: { id, organisationId: actor.organisationId }, data: { ...after, ...(outcome === "DRAFT" ? { proposalRecord: Prisma.DbNull } : {}) } });
@@ -906,6 +922,15 @@ export async function saveExerciseDetails(_prev: FormState, data: FormData): Pro
     const before = { personInCharge: trail.before, workCode: ex.workCode };
     const after = { personInCharge: trail.after, workCode };
     if ((person?.id ?? null) === ex.personInChargeId && workCode === ex.workCode) return { ok: true };
+    // A different person in charge is a different person named on the exercise: the same rule as naming a participant, and a restricted exercise keeps someone who can see it.
+    if ((person?.id ?? null) !== ex.personInChargeId) {
+      const refused = person ? await namingRefusal(tx, actor, ex.id, [person.id]) : null;
+      if (refused) return { ok: false, errors: { personInChargeId: refused } };
+      if (ex.restricted) {
+        const facts = (await exerciseAccessFacts(tx, l.org.id, [ex.id])).get(ex.id);
+        if (facts && namedAfterChangingPersonInCharge(facts.named, person?.id ?? null).length === 0) return { ok: false, errors: { personInChargeId: "This exercise is restricted to the people named on it, and the person in charge is the last of them. Name someone else first: an exercise nobody can see could not be opened or corrected." } };
+      }
+    }
     await tx.sourcingExercise.update({ where: { id: ex.id, organisationId: actor.organisationId }, data: { personInChargeId: person?.id ?? null, workCode } });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", ex.id, labelOf(ex), "UPDATE", diffFields(before, after));
     return { ok: true };
@@ -927,6 +952,9 @@ export async function addParticipant(_prev: FormState, data: FormData): Promise<
     if (ex.status === "CANCELLED") return { ok: false, message: "A cancelled exercise's participants are kept as they were." };
     const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
     if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
+    // Naming opens the exercise's classified figures to the person named: only someone named on it, or a holder of the permission, may do it, and never for themselves (Phase 3a review).
+    const refused = await namingRefusal(tx, actor, ex.id, [person.id]);
+    if (refused) return { ok: false, errors: { personId: refused } };
     if (ex.participants.some((p) => p.personId === person.id)) return { ok: false, errors: { personId: `${person.name} is already named.` } };
     const row = await tx.exerciseParticipant.create({ data: { exerciseId: ex.id, personId: person.id, capacity } });
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseParticipant", row.id, `${ex.reference} · ${person.name}`, "CREATE", diffFields(null, { person: person.name, capacity }));

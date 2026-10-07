@@ -19,6 +19,9 @@ import type { AccessKind, Finding, SecurityClass, StorePolicy } from "./types";
 import { nextVersionFault, nextVersionNo } from "./versioning";
 import type { ActWriter } from "@/lib/auth/act-writer";
 import type { AuditActor } from "@/lib/auth/types";
+import { hiddenExerciseIds, refuseHiddenExercise, restrictedExerciseIds, type Reader } from "@/lib/auth/sulit-store";
+
+import { hiddenExerciseOfDocument } from "./hidden";
 
 export interface DocumentOrg {
   id: string;
@@ -78,6 +81,9 @@ export interface UploadInput {
   /// Set to add a version to an existing document instead of creating one.
   documentId: string | null;
   recordedByPersonId: string;
+  /// Whoever is uploading, for a version added to an existing document: a document hanging on an exercise restricted to its named people reads as one that does
+  /// not exist to anyone not named on it (FR-MTD-007). A loader that stores directly has none and is hidden from nothing.
+  reader?: Reader;
   /// How the upload was recorded, attributed in the same transaction (Phase 2b). A loader that stores directly has none.
   act?: ActWriter;
   receivedOn: string | null;
@@ -121,6 +127,9 @@ export async function storeUpload(actor: AuditActor, i: UploadInput): Promise<Up
   if (received) throw new UploadRefusal(received);
   const nameFault = filenameFault(i.originalFilename);
   if (nameFault) throw new UploadRefusal(nameFault);
+  // A refusal is thrown from inside the transaction and rolls it back, which would take the access log with it: the access to a restricted exercise is logged
+  // first, in its own commit, and the same judgement is made again under the document's lock.
+  if (i.documentId && i.reader) await refuseUploadToHiddenDocument(i.reader, i.org.id, i.documentId);
   return db.$transaction(
     async (tx) => {
       const person = await tx.person.findFirst({ where: { id: i.recordedByPersonId, organisationId: i.org.id, isActive: true }, select: { id: true, name: true } });
@@ -136,6 +145,8 @@ export async function storeUpload(actor: AuditActor, i: UploadInput): Promise<Up
         const doc = await tx.document.findFirst({ where: { id: i.documentId, organisationId: i.org.id }, select: { id: true } });
         if (!doc) throw new UploadRefusal({ code: "DOCUMENT_UNKNOWN", level: "block" }, 404);
         await lockDocument(tx, doc.id);
+        // Before the versions are read or compared: whether the same file is already there must not be told to someone who may not see the document.
+        if (i.reader && (await hiddenExerciseOfDocument(doc.id, await hiddenExerciseIds(tx, i.reader), tx))) throw new UploadRefusal({ code: "DOCUMENT_UNKNOWN", level: "block" }, 404);
         const locked = await tx.document.findUniqueOrThrow({ where: { id: doc.id }, include: { versions: { select: { versionNo: true, sha256: true, withdrawnAt: true } } } });
         const fault = nextVersionFault(locked.versions, i.sha256);
         if (fault) throw new UploadRefusal(fault, 409);
@@ -200,6 +211,14 @@ export async function storeUpload(actor: AuditActor, i: UploadInput): Promise<Up
     },
     { timeout: 60_000, maxWait: 10_000 },
   );
+}
+
+/// The access to a restricted exercise's document by someone adding a version to it, logged (allowed or refused) in its own commit; refused as a document that is not there.
+async function refuseUploadToHiddenDocument(reader: Reader, organisationId: string, documentId: string): Promise<void> {
+  const found = await db.document.findFirst({ where: { id: documentId, organisationId }, select: { id: true } });
+  if (!found) return;
+  const under = await hiddenExerciseOfDocument(documentId, await restrictedExerciseIds(db, organisationId));
+  if (under && (await refuseHiddenExercise(db, reader, under))) throw new UploadRefusal({ code: "DOCUMENT_UNKNOWN", level: "block" }, 404);
 }
 
 /// A stored day as YYYY-MM-DD, or null.

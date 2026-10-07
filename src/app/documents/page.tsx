@@ -18,6 +18,7 @@ import { dayOf } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { requireStaff } from "@/app/_auth/actor";
+import { hiddenExercises } from "@/app/_auth/sulit";
 
 export const dynamic = "force-dynamic";
 
@@ -49,13 +50,15 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
   // Code review M-3: only the tab asked for reads its list; the strip's and the header's counts are count queries.
   // Residual S-1: the open sheets are judged whole on every tab (a slim select), for the header and the warning;
   // the Routing sheets tab pages that same set. Residual consider: with no search the Library's page reuses its count.
-  const whole = libraryCount(org.id);
+  // FR-MTD-007: the award documents of a restricted exercise's awards are not in a Library, a count or a search of someone not named on it.
+  const hidden = await hiddenExercises(actor);
+  const whole = libraryCount(org.id, [], hidden);
   const [libraryTotal, dist, sheetCount, judged, library, distribution] = await Promise.all([
     whole,
     distributionCounts(org.id),
     sheetsCounted(org.id),
     today ? openSheetsJudged(org.id, today) : Promise.resolve(null),
-    tab === "library" ? whole.then((t) => libraryPage(org.id, query, sp.page, org.timeZone, t)) : Promise.resolve(null),
+    tab === "library" ? whole.then((t) => libraryPage(org.id, query, sp.page, org.timeZone, hidden, t)) : Promise.resolve(null),
     tab === "distribution" ? distributionPage(org.id, sp.page) : Promise.resolve(null),
   ]);
   const sheets = tab === "routing" && judged ? routingSheetsPage(judged, sp.page) : null;

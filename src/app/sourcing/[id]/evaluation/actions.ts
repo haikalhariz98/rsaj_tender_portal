@@ -3,6 +3,7 @@
 import type { FormState } from "@/components/record-editor";
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields } from "@/lib/audit/diff";
+import { namingRefusal } from "@/lib/auth/sulit-store";
 import { storedDay } from "@/lib/dates";
 import { aspectFields, communicationFields, correctionFields, EVALUATION_ENTITY, inputFields, scoreFields, startFields, teamFields } from "@/lib/evaluation/audit-view";
 import { assessFaults } from "@/lib/evaluation/aspects";
@@ -74,6 +75,10 @@ export async function startEvaluation(_prev: FormState, data: FormData): Promise
     const tf = teamFaults(teamPicks, l.req.requestingUnitCode, c.unitPath);
     const all = [...sf, ...dayFaults, ...tf];
     if (all.some((f) => f.level === "block")) return refuse(all, "Not started:");
+    // The team is named on the exercise: appointing it opens the exercise's figures to each member, so the one who appoints is named on it or holds the permission, and
+    // never puts themselves on it (`namingRefusal`, Phase 3a review).
+    const notNamed = await namingRefusal(tx, actor, l.ex.id, teamPicks.map((p) => p.personId));
+    if (notNamed) return { ok: false, message: `Not started. ${notNamed}` };
     const decimals = c.policy!.scoreDecimals!;
     const ev = await tx.evaluation.create({
       data: {
@@ -128,6 +133,8 @@ export async function appointTeamMember(_prev: FormState, data: FormData): Promi
     const day = storedDay(appointed);
     if (l.org.today && day > l.org.today) tf.push({ code: "DAY_IN_FUTURE", level: "block" });
     if (tf.some((f) => f.level === "block")) return refuse(tf);
+    const notNamed = await namingRefusal(tx, actor, l.ex.id, [personId]);
+    if (notNamed) return { ok: false, message: `Not appointed. ${notNamed}` };
     const m = await tx.evaluationTeamMember.create({ data: { organisationId: l.org.id, evaluationId: e!.id, personId, side, orgUnitCodeSnapshot: pick.unitCode, appointedOn: appointed, recordedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.team, m.id, evLabel(l, e!.version, "Team"), "CREATE", diffFields(null, teamFields({ name: pick.name, side, unit: pick.unitCode, on: day })));
     const said = notes(tf);

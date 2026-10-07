@@ -1,6 +1,7 @@
 "use server";
 
 import { hiddenExerciseIds } from "@/lib/auth/sulit-store";
+import { dependencyIsHidden, exerciseByTabledReference } from "@/lib/committee/tabled-exercise";
 import { matterIsHidden } from "@/app/_auth/sulit";
 import type { Reader } from "@/lib/auth/sulit-store";
 import { isLive } from "@/lib/documents/evidence";
@@ -511,7 +512,7 @@ async function tableWaiting(scope: Reader, tx: Tx, by: AuditActor, meetingId: st
     const refusal = permit(s, "TABLE");
     if (refusal) throw new Refusal(refusal);
     const r = new FormReader(new FormData());
-    const done = await tableInto(tx, by, s, r, { subject: t.subject, domain: t.domain, matterKind: t.matterKind, matterRef: t.matterRef, amount: t.amount, act, tabledByPersonId: tabling.subjectPersonId, tabling, dependsOnDecisionId: null });
+    const done = await tableInto(tx, by, s, r, { reader: scope, subject: t.subject, domain: t.domain, matterKind: t.matterKind, matterRef: t.matterRef, amount: t.amount, act, tabledByPersonId: tabling.subjectPersonId, tabling, dependsOnDecisionId: null });
     if (done.ok) continue;
     const errors = done.errors ?? {};
     // Who tables is the drawer's own field: said there. Anything else names the item.
@@ -743,12 +744,14 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
   return inSitting(actor, meetingId, async (tx, s) => {
     const refusal = permit(s, "TABLE");
     if (refusal) return refusal;
-    return tableInto(tx, toAuditActor(actor), s, r, { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId: tabling.subjectPersonId, tabling, dependsOnDecisionId });
+    return tableInto(tx, toAuditActor(actor), s, r, { reader: actor, subject, domain, matterKind, matterRef, amount, act, tabledByPersonId: tabling.subjectPersonId, tabling, dependsOnDecisionId });
   });
 }
 
 /// What the "Table a matter" writer is given: the drawer's fields, or a waiting route's own words (scheduleSitting).
 interface TablingFields {
+  /// Whoever is tabling it: what they may see decides what a typed reference finds (FR-MTD-007).
+  reader: Reader;
   subject: string;
   domain: string;
   matterKind: (typeof SITTING_TABLED_MATTER_KINDS)[number] | null;
@@ -768,7 +771,7 @@ interface TablingFields {
  * scheduling a sitting tables each waiting item it proposes through this same writer, so nothing is retyped.
  */
 async function tableInto(tx: Tx, by: AuditActor, s: LoadedSitting, r: FormReader, input: TablingFields): Promise<FormState> {
-  const { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, tabling: tablingAct, dependsOnDecisionId } = input;
+  const { reader, subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, tabling: tablingAct, dependsOnDecisionId } = input;
   const meetingId = s.meeting.id;
   const code = s.meeting.committee.secretariatRoleCode;
   const holders = secretariatHoldersOn(s.roster, code, s.today).map((h) => h.id);
@@ -803,7 +806,8 @@ async function tableInto(tx: Tx, by: AuditActor, s: LoadedSitting, r: FormReader
   // 6.8 fix M-3: the evaluation version in force, its bundle checked, recorded on the appointment matter.
   let evaluationVersion: number | null = null;
   if (matterKind === "EXERCISE" && matterRef) {
-    const matches = await tx.sourcingExercise.findMany({ where: { organisationId: s.organisationId, reference: matterRef }, select: { id: true, status: true, reference: true }, take: 2 });
+    // FR-MTD-007: an exercise hidden from the reader reads as a reference no exercise has (`exerciseByTabledReference`).
+    const matches = await exerciseByTabledReference(tx, reader, s.organisationId, matterRef);
     if (matches.length === 1 && matches[0].status !== "CANCELLED") {
       exerciseId = matches[0].id;
       exerciseReference = matches[0].reference;
@@ -828,7 +832,8 @@ async function tableInto(tx: Tx, by: AuditActor, s: LoadedSitting, r: FormReader
       where: { id: dependsOnDecisionId, meeting: { committee: { organisationId: s.organisationId } } },
       select: { id: true },
     });
-    if (!dep) r.reject("dependsOnDecisionId", "That matter no longer exists.");
+    // A matter of an exercise the reader may not see is not theirs to depend on: it reads as a matter that is not there.
+    if (!dep || (await dependencyIsHidden(tx, reader, dep.id))) r.reject("dependsOnDecisionId", "That matter no longer exists.");
   }
 
   const v = { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, dependsOnDecisionId };

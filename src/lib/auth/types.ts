@@ -17,7 +17,8 @@ export type PermissionKey =
   | "audit.read"
   | "supplierAccounts.manage"
   | "sulit.read.organisation"
-  | "acts.recordOnBehalf";
+  | "acts.recordOnBehalf"
+  | "sourcing.participants.manage";
 
 export interface Office {
   roleCode: string;

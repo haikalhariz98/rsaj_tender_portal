@@ -12,10 +12,12 @@ const grant = (permissionKey: string, roleCode: string, decision: "GRANTED" | "W
 
 const ADMIN_ONLY: PermissionKey[] = ["accounts.manage", "security.policy", "permissions.grant"];
 const ADMIN_OR_GRANT: PermissionKey[] = ["configuration.draft", "configuration.issue", "audit.read"];
-const GRANT_ONLY: PermissionKey[] = ["supplierAccounts.manage", "sulit.read.organisation", "acts.recordOnBehalf"];
+const GRANT_ONLY: PermissionKey[] = ["supplierAccounts.manage", "sulit.read.organisation", "acts.recordOnBehalf", "sourcing.participants.manage"];
 
 describe("the closed list of product permissions (ADR 0034 D8)", () => {
-  it("is the nine keys of the ADR, in three kinds", () => {
+  // Phase 3a review: a tenth key, "sourcing.participants.manage" (granted only, like the other transactional ones). Being named on an exercise is what opens its
+  // SULIT figures, so naming someone is an authorised act; the nine of the ADR are unchanged and the new one is undecided (refused) until the organisation decides.
+  it("is the nine keys of the ADR and the one Phase 3a added, in three kinds", () => {
     expect([...PERMISSION_KEYS].sort()).toEqual([...ADMIN_ONLY, ...ADMIN_OR_GRANT, ...GRANT_ONLY].sort());
     for (const k of ADMIN_ONLY) expect([PERMISSIONS[k].source, isGrantable(k), adminConfers(k)]).toEqual(["ADMINISTRATOR_ONLY", false, true]);
     for (const k of ADMIN_OR_GRANT) expect([PERMISSIONS[k].source, isGrantable(k), adminConfers(k)]).toEqual(["ADMINISTRATOR_OR_GRANT", true, true]);

@@ -59,7 +59,7 @@ describe("the act and the panel bound it the same way (source)", () => {
   const acts = readFileSync("src/app/suppliers/standing-actions.ts", "utf8");
   const panel = readFileSync("src/app/suppliers/[id]/standing-panels.tsx", "utf8");
   it("both pass cancellationStoodUntil's day to judgedWhileCancelled", () => {
-    expect(acts).toMatch(/judgedWhileCancelled\(await openingsJudged\(tx, l\.supplier\.id\), storedDay\(ev!\.effectiveOn\), cancellationStoodUntil\(/);
+    expect(acts).toMatch(/judgedWhileCancelled\(await openingsJudged\(tx, l\.supplier\.id, hidden\), storedDay\(ev!\.effectiveOn\), cancellationStoodUntil\(/);
     expect(panel).toMatch(/judgedWhileCancelled\(openings, storedDay\(e\.effectiveOn\), cancellationStoodUntil\(/);
   });
 });

@@ -19,7 +19,7 @@ import { loadExercise } from "@/lib/method/repo";
 import { formatMoney, parseSen, type Sen } from "@/lib/money";
 import { leadTime } from "@/lib/scope/estimate";
 import { loggedEstimateAccess } from "@/lib/scope/estimate-access";
-import { applyDecision } from "@/lib/auth/sulit-access";
+import { applyDecision, sulitWithheld, type Sulit } from "@/lib/auth/sulit-access";
 import type { Reader } from "@/lib/auth/sulit-store";
 
 import { lockGapFinding } from "./box";
@@ -346,6 +346,16 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
 
 export type OpeningSectionView = NonNullable<Awaited<ReturnType<typeof openingSection>>>;
 export type OpeningView = OpeningSectionView["openings"][number];
+
+/**
+ * The reader's standing with the disclosed company estimate, for the exercise's History (FR-EST-008): finalising an opening writes the figure into the trail, so
+ * the History judges it by the same custody as the schedule, through the same logged access. A `Sulit<string>` with no value: the screen puts the row's text in
+ * when it is granted. An estimate that is void, or none, is in no one's custody.
+ */
+export async function estimateCustodyForHistory(reader: Reader & { organisationTimeZone: string | null }, exerciseId: string): Promise<Sulit<string>> {
+  const access = await loggedEstimateAccess(db, reader, exerciseId);
+  return access ? applyDecision(access.decision, "exercise", "") : sulitWithheld<string>("NOT_IN_CUSTODY", "exercise");
+}
 
 // ------------------------------------------------------------------ the Schedule section
 

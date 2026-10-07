@@ -426,6 +426,16 @@ export function withdrawnWords(now: Words | null, notRevisited: Words): Words {
   );
 }
 
+/// Said (and only said) to a reader who is not named on some restricted exercise, whether or not this supplier bid on it: the openings on those are left out of
+/// what is listed as not revisited (FR-MTD-007), and an unconditional sentence cannot tell the reader that this supplier took part in one.
+export const RESTRICTED_OPENINGS_NOT_LISTED = w(
+  "Openings on exercises restricted to their named people are not listed here to anyone not named on them.",
+  "Pembukaan bagi eksesais yang dihadkan kepada orang yang dinamakan padanya tidak disenaraikan di sini kepada sesiapa yang tidak dinamakan padanya.",
+);
+
+/// The not-revisited words with that sentence added, for a reader who is not named on some restricted exercise.
+export const withRestrictedOpeningsNote = (notRevisited: Words): Words => w(`${notRevisited.en} ${RESTRICTED_OPENINGS_NOT_LISTED.en}`, `${notRevisited.ms} ${RESTRICTED_OPENINGS_NOT_LISTED.ms}`);
+
 /// Run 1a (Should 2): the withdrawal drawer's way back for a cancellation that stood.
 export const NEW_APPLICATION_WAY_BACK = w(
   "A cancellation that stood is not withdrawn: the supplier registers again, by a new application on the Applications tab, which ends it once approved.",

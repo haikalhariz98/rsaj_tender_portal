@@ -74,6 +74,12 @@ export const PERMISSIONS: Readonly<Record<PermissionKey, PermissionInfo>> = {
     label: { en: "Record a signature-class act on someone's behalf from paper", ms: "Rekod tindakan kelas tandatangan bagi pihak seseorang daripada kertas" },
     lets: { en: "Record an approval, signature or unseal from a paper record, with the paper reference. It is recorded as not signed.", ms: "Rekod kelulusan, tandatangan atau pembukaan meterai daripada rekod kertas, dengan rujukan kertas. Ia direkodkan sebagai tidak ditandatangani." },
   },
+  // Being named on an exercise is what opens its classified figures (FR-MTD-007, ADR 0034 D14), so naming is an authorised act: by someone already named on it, or by a holder of this.
+  "sourcing.participants.manage": {
+    source: "GRANT_ONLY",
+    label: { en: "Name the people on a sourcing exercise", ms: "Namakan orang pada eksesais sumber" },
+    lets: { en: "Name participants, the person in charge, the proposal's reviewer and the evaluation team on an exercise one is not named on. It never lets a person name themselves, and never opens an exercise by itself.", ms: "Namakan peserta, orang yang bertanggungjawab, penyemak cadangan dan pasukan penilaian pada eksesais yang orang itu tidak dinamakan padanya. Ia tidak pernah membenarkan seseorang menamakan dirinya, dan tidak membuka eksesais dengan sendirinya." },
+  },
 };
 
 export const PERMISSION_KEYS = Object.keys(PERMISSIONS) as readonly PermissionKey[];

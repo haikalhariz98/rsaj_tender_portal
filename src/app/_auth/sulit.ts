@@ -100,6 +100,17 @@ export async function exerciseIsHidden(actor: Reader, exerciseId: string): Promi
   return !standing.visible || !logged;
 }
 
+/**
+ * Whether the amounts that add up a requisition's exercises may not be stated to the actor (ADR 0034 D14): one of the other exercises is restricted to
+ * people the actor is not among, or its estimate is one they may not read. A total that includes it would give its estimate away by subtraction. Where
+ * they are all readable the reading is logged, since the actor is shown the sums. One answer for the determination API and for the save actions' refusals.
+ */
+export async function siblingAmountsWithheld(actor: StaffActor, siblings: readonly ExerciseRef[]): Promise<boolean> {
+  const hidden = await hiddenExercises(actor);
+  const readable = await sulitExerciseValues(actor, siblings.filter((x) => !hidden.includes(x.id)), "estimatedValue", () => true);
+  return siblings.some((x) => hidden.includes(x.id)) || [...readable.values()].some((v) => v.state === "WITHHELD");
+}
+
 /// The ids of the restricted exercises the actor may not see, for a list, a count, a feed or a search to leave out.
 export const hiddenExercises = (actor: Reader): Promise<string[]> => hiddenExerciseIds(db, actor);
 

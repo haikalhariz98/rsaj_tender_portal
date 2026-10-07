@@ -8,6 +8,7 @@ import type { PermissionState } from "./permissions";
 import {
   exerciseVisible,
   namedOn,
+  namingFault,
   NEVER_STORED_BASES,
   sulitAccess,
   type ExerciseNamedFacts,
@@ -156,6 +157,29 @@ export async function refuseHiddenExercise(client: Tx, reader: Reader, exerciseI
   await writeSulitEvents(client, reader, [recordAccessRow(exerciseId, standing.reference, standing.visible, actor)]);
   return !standing.visible;
 }
+
+/**
+ * Whether the actor may name these people on this exercise, as a refusal in words, or null where they may (Phase 3a review; `namingFault`). Read in the
+ * caller's client, so inside the act's transaction it sees who is named at that moment. Nothing is written: the act refuses before it changes anyone's access.
+ * The permission is `sourcing.participants.manage`: undecided by default, so a person not named on an exercise cannot name anyone on it until the organisation decides.
+ */
+export async function namingRefusal(client: Tx, actor: StaffActor, exerciseId: string, targets: readonly string[], opts: { selfAllowed?: boolean } = {}): Promise<string | null> {
+  const sulitActor = sulitActorOf(actor);
+  if (sulitActor.system) return null;
+  const facts = (await exerciseAccessFacts(client, actor.organisationId, [exerciseId])).get(exerciseId);
+  const actorNamed = !!facts && namedOn("exercise", facts.named, sulitActor.personId).length > 0;
+  const holdsPermission = actor.permissions.has("sourcing.participants.manage");
+  const fault = namingFault({ actor: sulitActor, actorNamed, holdsPermission, targets, selfAllowed: opts.selfAllowed });
+  if (!fault) return null;
+  if (fault === "ADMINISTRATOR") return "An administrator account does not name people on an exercise: administration is kept apart from transactions.";
+  if (fault === "SELF") return "You cannot name yourself on an exercise you are not named on: being named opens its classified figures. Ask someone named on it, or a holder of the permission to name people, to add you.";
+  const { words } = await explainRefusal(client, { organisationId: actor.organisationId, personId: actor.personId, isAdministrator: actor.isAdministrator, timeZone: actor.organisationTimeZone, now: new Date() }, "sourcing.participants.manage");
+  return `Being named on an exercise opens its classified figures, so only someone already named on it may name others on it, or a holder of the permission to. You are not named on this one. ${words.en}`;
+}
+
+/// Whether the actor may name anyone else on this exercise, for a screen to offer or withhold the control: the refusal in words, or null. Not a person, so only the
+/// actor's own standing is asked.
+export const namingOthersRefusal = (client: Tx, actor: StaffActor, exerciseId: string): Promise<string | null> => namingRefusal(client, actor, exerciseId, ["someone else"]);
 
 /// The state of `sulit.read.organisation` for the actor, for the rule's last step. Held through a role: no read of the explanation is needed.
 export async function organisationPermissionState(client: Tx, actor: StaffActor): Promise<PermissionState> {

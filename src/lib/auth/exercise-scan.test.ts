@@ -8,7 +8,9 @@ import { describe, expect, it } from "vitest";
  * done where an exercise is reached. This scan keeps it so. Every non-test file under `src/` that reads exercises (a query on the exercise table, or
  * a call to one of the loaders that reads an exercise by its id) must also use one of the guards (`exerciseIsHidden`, `hiddenExercises`,
  * `hiddenExerciseIds`, `refuseHiddenExercise`, `exerciseNotHidden`, `approvalRouteNotHidden`, `matterIsHidden`, `hiddenDecisionIds`,
- * `exerciseAccessFacts`, or takes the `Reader`, the actor, that a guard needs), or be named in `READ_AFTER_A_GUARD` with the reason it is safe.
+ * `exerciseAccessFacts`), or reach exercises only through a locking wrapper that itself refuses a hidden one (`GUARDED_WRAPPERS`, each held to its
+ * guard below), or be named in `READ_AFTER_A_GUARD` with the reason it is safe. Merely taking or importing the `Reader` type is NOT a guard: it was
+ * counted as one in the first build of this scan, and a file that mentioned it passed whatever it read.
  * A file named there that no longer reads exercises, or now has a guard, fails too, so the list cannot go stale.
  *
  * What the scan cannot see (declared): that a file which mentions a guard calls it on every path; that a guard is given the right id; relation reads that
@@ -30,8 +32,12 @@ const walk = (dir: string): string[] =>
 const READS =
   /\bsourcingExercise\.(findMany|findFirst|findUnique|findFirstOrThrow|findUniqueOrThrow|count|aggregate|groupBy)\b|\b(loadExercise|withLockedRequisitionForSourcing|withLockedExerciseScope|withLockedExerciseForAward|scopeTab|bqTab|estimateTab|bidsTab|openingSection|scheduleSection|evaluationTabView|documentsTab|conditionsTab|appendixPage|printView|windowTab|briefingTab|addendaTab|nameListTab|saleRegister|invitationActs|attendanceRegisterCsv|listExercises|tableDocumentNote|windowColumns)\(/;
 
-/// A guard: it keeps a restricted exercise from a reader not named on it, or takes the reader a guard needs.
-const GUARDED = /\b(exerciseIsHidden|hiddenExercises|hiddenExerciseIds|refuseHiddenExercise|exerciseNotHidden|approvalRouteNotHidden|matterIsHidden|hiddenDecisionIds|exerciseAccessFacts|Reader)\b/;
+/// The locking wrappers that refuse a hidden exercise themselves, in the transaction, and write the refusal to the log. A call to one is a guarded read.
+const GUARDED_WRAPPERS = ["withLockedRequisitionForSourcing", "withLockedExerciseScope", "withLockedExerciseForAward"] as const;
+const WRAPPER_CALL = new RegExp(`\\b(${GUARDED_WRAPPERS.join("|")})\\(`, "g");
+
+/// A guard: it keeps a restricted exercise from a reader not named on it.
+const GUARDED = /\b(exerciseIsHidden|hiddenExercises|hiddenExerciseIds|refuseHiddenExercise|exerciseNotHidden|approvalRouteNotHidden|matterIsHidden|hiddenDecisionIds|exerciseAccessFacts)\b/;
 
 /// Files that read exercises without a guard of their own, and why that is safe. Each is reached only from a guarded entry point.
 export const READ_AFTER_A_GUARD: Readonly<Record<string, string>> = {
@@ -43,13 +49,16 @@ export const READ_AFTER_A_GUARD: Readonly<Record<string, string>> = {
   "src/lib/bids/read.ts": "a tab's reader, called by the exercise page after its guard",
   "src/lib/bids/repo.ts": "the bids module's own loaders, called by the exercise page and by acts that run under `withLockedRequisitionForSourcing`",
   "src/lib/documents/hidden.ts": "the document guard itself: it finds the exercise a record of documents hangs on, to be asked about",
+  "src/app/sourcing/[id]/opening/workspace.tsx": "rendered only by the exercise page, which refuses a hidden exercise before it renders a tab",
   "src/lib/documents/read.ts": "the owner and drawer readers, called through `src/app/documents/actions.ts`, which refuses an owner or a document under a hidden exercise first",
   "src/lib/evaluation/gate-read.ts": "the award gate's facts about an exercise already loaded under a guard",
   "src/lib/evaluation/read.ts": "a tab's reader, called by the exercise page after its guard",
   "src/lib/method/overview-read.ts": "the overview tab's reads, called by the exercise page after its guard",
   "src/lib/opening/gate-read.ts": "the award gate's facts about an exercise already loaded under a guard",
+  "src/lib/opening/read.ts": "a tab's reader (the opening, its schedule), called by the exercise page after its guard",
   "src/lib/portal/repo.ts": "the public pages: a restricted exercise is never public (`isPublicOpportunity`), and nobody is signed in to be named",
   "src/lib/scope/read.ts": "a tab's reader, called by the exercise page after its guard",
+  "src/lib/scope/estimate-access.ts": "judges the company estimate's custody for an exercise the caller has already been allowed to open: the opening's schedule and the exercise's History, both after the page's guard",
   "src/lib/suppliers/standing-repo.ts": "judges one supplier's standing for an exercise chosen from a list the guard already filtered, or inside an exercise lock",
   "src/lib/tender-docs/read-conditions.ts": "a tab's reader, called by the exercise page after its guard",
   "src/lib/tender-docs/read.ts": "a tab's reader, called by the exercise page after its guard",
@@ -62,7 +71,13 @@ const withoutComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").re
 
 /// The files under `src/` that read exercises and name no guard.
 export function unguarded(files: readonly { file: string; src: string }[]): string[] {
-  return files.filter((f) => READS.test(withoutComments(f.src)) && !GUARDED.test(withoutComments(f.src))).map((f) => f.file);
+  return files
+    .filter((f) => {
+      const code = withoutComments(f.src);
+      // A call to a guarded wrapper is not a bare read; any other read in the file still is.
+      return READS.test(code.replace(WRAPPER_CALL, "guarded(")) && !GUARDED.test(code);
+    })
+    .map((f) => f.file);
 }
 
 describe("every read of exercises is guarded against a restricted one (FR-MTD-007)", () => {
@@ -81,6 +96,26 @@ describe("every read of exercises is guarded against a restricted one (FR-MTD-00
     for (const [f, why] of Object.entries(READ_AFTER_A_GUARD)) expect(why.length, f).toBeGreaterThan(20);
   });
 
+  it("each guarded wrapper refuses a hidden exercise itself, or hands the reader to one that does", () => {
+    const body = (file: string, fn: string) => {
+      const src = readFileSync(path.join(ROOT, file), "utf8");
+      const at = src.indexOf(`export async function ${fn}`);
+      expect(at, fn).toBeGreaterThan(-1);
+      const next = src.indexOf("\nexport ", at + 10);
+      return src.slice(at, next === -1 ? undefined : next);
+    };
+    expect(body("src/lib/method/repo.ts", "withLockedRequisitionForSourcing")).toMatch(/refuseHiddenExercise\(tx, reader,/);
+    expect(body("src/lib/award/repo.ts", "withLockedExerciseForAward")).toMatch(/refuseHiddenExercise\(tx, reader,/);
+    expect(body("src/lib/scope/lock.ts", "withLockedExerciseScope")).toMatch(/withLockedRequisitionForSourcing\(reader,/);
+  });
+
+  it("a bare mention of the Reader type is not a guard, and a call to a guarded wrapper is (self-test)", () => {
+    const read = "export const x = (reader: Reader) => db.sourcingExercise.findMany({ where: {} });";
+    expect(unguarded([{ file: "a.ts", src: `import type { Reader } from "@/lib/auth/sulit-store";\n${read}` }])).toEqual(["a.ts"]);
+    expect(unguarded([{ file: "b.ts", src: "await withLockedRequisitionForSourcing(actor, r, e, fn);" }])).toEqual([]);
+    expect(unguarded([{ file: "c.ts", src: "await withLockedRequisitionForSourcing(actor, r, e, fn);\nawait loadExercise(org, id);" }])).toEqual(["c.ts"]);
+  });
+
   it("the scan finds an unguarded read, passes a guarded one, and ignores a mention in a comment (self-test)", () => {
     const read = "export const x = () => db.sourcingExercise.findMany({ where: {} });";
     expect(unguarded([{ file: "a.ts", src: read }])).toEqual(["a.ts"]);
@@ -93,6 +128,15 @@ describe("every read of exercises is guarded against a restricted one (FR-MTD-00
     const entries = files.filter((f) => f.file.startsWith("src/app/sourcing/[id]/") && /(page\.tsx|route\.ts|actions\.ts|shared\.ts)$/.test(f.file));
     expect(entries.length).toBeGreaterThan(10);
     expect(unguarded(entries)).toEqual([]);
+  });
+});
+
+describe("tabling a matter by the reference typed finds an exercise only as the reader may see it (FR-MTD-007)", () => {
+  const actions = readFileSync(path.join(SRC, "app/committees/actions.ts"), "utf8");
+  it("the committee actions look an exercise up by its reference only through the guarded lookup, and check a dependency the same way", () => {
+    expect(withoutComments(actions)).not.toMatch(/sourcingExercise\.findMany\(\{ where: \{ organisationId: s\.organisationId, reference/);
+    expect(actions).toMatch(/exerciseByTabledReference\(tx, reader,/);
+    expect(actions).toMatch(/dependencyIsHidden\(tx, reader,/);
   });
 });
 
@@ -115,3 +159,52 @@ describe("a restricted exercise is never left with nobody who can see it (FR-MTD
   });
 });
 
+
+describe("naming a person on an exercise is an authorised act (FR-MTD-007, Phase 3a review)", () => {
+  // Being named is what opens an exercise's classified figures, so every write that names someone asks `namingRefusal` first, in the same transaction.
+  const read = (f: string) => readFileSync(path.join(SRC, f), "utf8");
+  const fnBody = (src: string, fn: string) => {
+    const at = src.indexOf(`export async function ${fn}(`);
+    expect(at, fn).toBeGreaterThan(-1);
+    const next = src.indexOf("\nexport ", at + 10);
+    return src.slice(at, next === -1 ? undefined : next);
+  };
+  const before = (body: string, guard: string, write: string) => {
+    expect(body, guard).toContain(guard);
+    expect(body, write).toContain(write);
+    expect(body.indexOf(guard), `${guard} before ${write}`).toBeLessThan(body.indexOf(write));
+  };
+  const sourcing = read("app/sourcing/actions.ts");
+  const evaluation = read("app/sourcing/[id]/evaluation/actions.ts");
+
+  it("adding a participant, changing the person in charge, reviewing a proposal, restricting an exercise by editing it, and appointing a team each ask before they write", () => {
+    before(fnBody(sourcing, "addParticipant"), "namingRefusal(tx, actor, ex.id, [person.id])", "exerciseParticipant.create");
+    before(fnBody(sourcing, "saveExerciseDetails"), "namingRefusal(tx, actor, ex.id, [person.id])", "sourcingExercise.update(");
+    before(fnBody(sourcing, "saveExerciseDetails"), "namedAfterChangingPersonInCharge(", "sourcingExercise.update(");
+    before(fnBody(sourcing, "reviewProposal"), "namingRefusal(tx, actor, ex.id, [person!.id], { selfAllowed: true })", "sourcingExercise.update(");
+    before(fnBody(sourcing, "updateExercise"), "namingRefusal(tx, actor, ex.id, [], { selfAllowed: true })", "sourcingExercise.updateMany(");
+    before(fnBody(evaluation, "startEvaluation"), "namingRefusal(tx, actor, l.ex.id,", "evaluationTeamMember.create");
+    before(fnBody(evaluation, "appointTeamMember"), "namingRefusal(tx, actor, l.ex.id, [personId])", "evaluationTeamMember.create");
+  });
+
+  it("whoever opens an exercise is named on it, restricted or not, so that they can read and correct their own draft", () => {
+    expect(fnBody(sourcing, "createExercise")).toMatch(/nameActorOnRestricted\(tx, actor, l\.org\.id, \{[^}]*\}, "MADE"\)/);
+  });
+
+  // The files that write a named slot: each asks `namingRefusal`, or says why the slot is not the actor's to choose.
+  const SLOT_WRITES = /\b(exerciseParticipant\.(create|createMany|upsert)|evaluationTeamMember\.(create|createMany|upsert)|openingPanelMember\.(create|createMany|upsert))\(|\b(personInChargeId|proposalReviewerPersonId)\s*:/;
+  const SLOT_WRITERS_WITHOUT_ASKING: Readonly<Record<string, string>> = {
+    "src/app/sourcing/[id]/opening/actions.ts": "the opening panel is the seats of the committee's roster present at the opening (`c.seats`), designated by the committee's configuration and not chosen by the officer who starts it",
+    "src/lib/auth/sulit-access.ts": "the rule's own type for the named slots: no write",
+    "src/app/sourcing/editors.tsx": "a drawer's prop and its form value: the write is `saveExerciseDetails`, which asks",
+    "src/lib/evaluation/versions.ts": "a new evaluation version carries the previous version's team forward, the same people: no one is newly named",
+    "src/lib/method/proposal.ts": "clears the reviewer when a change re-opens the proposal: it names no one",
+  };
+  it("every write of a named slot is guarded, or named here with the reason it is not the actor's choice (the list cannot go stale)", () => {
+    const files = walk(SRC).map((f) => ({ file: rel(f), src: withoutComments(readFileSync(f, "utf8")) }));
+    const writers = files.filter((f) => SLOT_WRITES.test(f.src));
+    const unasked = writers.filter((f) => !/namingRefusal\(/.test(f.src)).map((f) => f.file);
+    expect(unasked.filter((f) => !(f in SLOT_WRITERS_WITHOUT_ASKING))).toEqual([]);
+    for (const f of Object.keys(SLOT_WRITERS_WITHOUT_ASKING)) expect(unasked, f).toContain(f);
+  });
+});

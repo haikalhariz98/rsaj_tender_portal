@@ -14,7 +14,9 @@ import {
   fieldIsFor,
   grantedWords,
   mapSulit,
+  namedAfterChangingPersonInCharge,
   namedAfterRemovingParticipant,
+  namingFault,
   namedOn,
   namedOnEvaluation,
   namedOnExercise,
@@ -243,5 +245,44 @@ describe("the access log's CHECKs are held to the code's lists", () => {
     const checks = sql.match(/ADD CONSTRAINT "\w+" CHECK \(.*\);/g) ?? [];
     expect(checks.length).toBe(4);
     for (const c of checks) expect(c).toMatch(/IS TRUE\);$/);
+  });
+});
+
+describe("naming a person on an exercise is an authorised act (FR-MTD-007, Phase 3a review)", () => {
+  const person = { personId: "p_actor", isAdministrator: false, system: false };
+  const fault = (over: Partial<Parameters<typeof namingFault>[0]> = {}) => namingFault({ actor: person, actorNamed: false, holdsPermission: false, targets: ["p_other"], ...over });
+
+  it("refuses someone who is not named on the exercise and holds nothing: an undecided permission refuses", () => {
+    expect(fault()).toBe("NOT_NAMED");
+  });
+  it("lets someone already named name others", () => {
+    expect(fault({ actorNamed: true })).toBeNull();
+  });
+  it("lets a holder of the permission name others, but never themselves", () => {
+    expect(fault({ holdsPermission: true })).toBeNull();
+    expect(fault({ holdsPermission: true, targets: ["p_actor"] })).toBe("SELF");
+    expect(fault({ holdsPermission: true, targets: ["p_other", "p_actor"] })).toBe("SELF");
+  });
+  it("refuses someone who is not named from naming themselves, whatever else they hold", () => {
+    expect(fault({ targets: ["p_actor"] })).toBe("SELF");
+  });
+  it("the slot an act gives its own actor (the proposal's reviewer) needs only being named or holding the permission", () => {
+    expect(fault({ targets: ["p_actor"], selfAllowed: true })).toBe("NOT_NAMED");
+    expect(fault({ targets: ["p_actor"], selfAllowed: true, holdsPermission: true })).toBeNull();
+    expect(fault({ targets: ["p_actor"], selfAllowed: true, actorNamed: true })).toBeNull();
+  });
+  it("an administrator account names no one else, named or not; a loader run is the operator's own process", () => {
+    expect(fault({ actor: { ...person, isAdministrator: true }, actorNamed: true })).toBe("ADMINISTRATOR");
+    expect(fault({ actor: { ...person, isAdministrator: true }, targets: ["p_actor"], selfAllowed: true })).toBeNull();
+    expect(fault({ actor: { personId: null, isAdministrator: false, system: true } })).toBeNull();
+  });
+  it("a person with no identity names nobody", () => {
+    expect(fault({ actor: { personId: null, isAdministrator: false, system: false } })).toBe("NOT_NAMED");
+  });
+  it("a restricted exercise keeps someone named when its person in charge is changed or cleared", () => {
+    const f = { participantIds: [], personInChargeId: "p_actor", proposalReviewerId: null, evaluationTeamIds: [], openingPanelIds: [] };
+    expect(namedAfterChangingPersonInCharge(f, null)).toEqual([]);
+    expect(namedAfterChangingPersonInCharge(f, "p_other")).toEqual(["p_other"]);
+    expect(namedAfterChangingPersonInCharge({ ...f, participantIds: ["p_x"] }, null)).toEqual(["p_x"]);
   });
 });
