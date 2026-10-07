@@ -103,7 +103,7 @@ export function AuthForm({
               icon={Icon ? <Icon size={16} /> : undefined}
               trailing={
                 f.reveal && f.type === "password" ? (
-                  <IconButton size="sm" touchTarget label={AUTH_WORDS.showPassword.en} title={visible ? AUTH_WORDS.hidePassword.en : AUTH_WORDS.showPassword.en} aria-pressed={visible} onClick={() => setShown((prev) => ({ ...prev, [f.name]: !prev[f.name] }))}>
+                  <IconButton size="sm" touchTarget label={AUTH_WORDS.showPassword.en} aria-pressed={visible} onClick={() => setShown((prev) => ({ ...prev, [f.name]: !prev[f.name] }))}>
                     {visible ? <EyeOffIcon size={16} /> : <EyeIcon size={16} />}
                   </IconButton>
                 ) : undefined
