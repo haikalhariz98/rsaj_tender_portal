@@ -6,6 +6,7 @@
  */
 
 import type { Prisma } from "@/generated/prisma/client";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import { NOT_SIGNED_WORDS } from "@/lib/auth/attribution";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
@@ -53,15 +54,17 @@ export async function closeRejected(tx: Tx, actor: AuditActor, who: Who, inst: {
     ));
 }
 
-/// Record the officer's choice on a rejected route (ruling CO-5): theirs, never policy.
-export async function recordChoice(tx: Tx, actor: AuditActor, who: Who, instId: string, kind: RejectionKind, personId: string, personName: string, reason: string) {
+/// Record the officer's choice on a rejected route (ruling CO-5): theirs, never policy. The choice is attributed in the same transaction (Phase 2b): it is
+/// the signed-in officer's own, so `personId` is the one `act` is attributed to.
+export async function recordChoice(tx: Tx, actor: AuditActor, who: Who, instId: string, kind: RejectionKind, personId: string, personName: string, reason: string, act: ActWriter) {
   const moved = await tx.approvalInstance.updateMany({
     where: { id: instId, status: "REJECTED", rejectionApplied: null },
     data: { rejectionApplied: kind, rejectionSource: "OFFICER_CHOICE", rejectionChosenByPersonId: personId },
   });
   if (moved.count !== 1) throw new Error("The route changed while the choice was being recorded.");
   await writeAudit(tx, { actor, organisationId: who.organisationId, entity: "ApprovalInstance", entityId: instId, entityLabel: who.routeLabel, reason }, "UPDATE",
-    diffFields({ goesTo: null }, { goesTo: REJECTION_KIND_LABEL[kind], chosenBy: personName, recordedOnBehalf: NOT_SIGNED_WORDS, source: "officer's choice" }));
+    diffFields({ goesTo: null }, { goesTo: REJECTION_KIND_LABEL[kind], chosenBy: personName, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? NOT_SIGNED_WORDS : null, source: "officer's choice" }));
+  await act.write(tx, instId);
 }
 
 /**

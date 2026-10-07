@@ -63,6 +63,7 @@ import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { afterStep, audit, CHANGED, citeAppointmentStep, labelOf, mustMove, NO_ZONE, Refusal, routeLabel, sendAwardRejected } from "@/lib/award/route-write";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { OrgScope } from "@/lib/org-scope";
 
 /**
@@ -98,6 +99,8 @@ async function inAward(scope: OrgScope, id: string, fn: (tx: Tx, l: LoadedAward)
     });
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     throw e;
   }
   if (result?.ok) refresh(id, exerciseId);
@@ -496,7 +499,7 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
 
 /**
  * Where a refused appointment goes, chosen by the officer where the refusal decided
- * nothing (FR-APR-016, ruling CO-5): recorded as their choice on behalf of a named Person.
+ * nothing (FR-APR-016, ruling CO-5): recorded as the signed-in officer's own choice (Phase 2b).
  */
 export async function chooseAwardRejection(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
@@ -504,9 +507,12 @@ export async function chooseAwardRejection(_prev: FormState, data: FormData): Pr
   const r = new FormReader(data);
   const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
   const seq = r.int("returnToSeq", "Step", { min: 1 });
-  const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalInstance.rejectionChosenBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inAward(actor, id, async (tx, l) => {
     if (!l.org.today) return NO_ZONE;
     const inst = latestRoute(l.award);
@@ -522,17 +528,17 @@ export async function chooseAwardRejection(_prev: FormState, data: FormData): Pr
     }
     const person = await tx.person.findFirst({ where: { id: personId!, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
     if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
-    await recordChoice(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel: routeLabel(l.award) }, inst!.id, kind!, person.id, person.name, reason);
+    await recordChoice(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel: routeLabel(l.award) }, inst!.id, kind!, person.id, person.name, reason, act);
     await sendAwardRejected(tx, toAuditActor(actor), l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
     return { ok: true };
   });
 }
 
 /**
- * A named Person's decision on a person step of the appointment route, recorded on
- * their behalf: 6.1's holder, delegation, self-approval and date checks. The day the
- * matter reached them is optional (FR-CTE-014). A committee step is refused here: it is
- * discharged by its committee's decision.
+ * A decision on a person step of the appointment route: the holder's own, signed with the password, or recorded for the holder from paper and not
+ * signed (Phase 2b). 6.1's holder, delegation, self-approval and date checks, on whom it is attributed to, and the separation of duties on the
+ * person recording it as well. The day the matter reached them is optional (FR-CTE-014). A committee step is refused here: it is discharged by its
+ * committee's decision.
  */
 export async function decideAppointmentStep(_prev: FormState, data: FormData): Promise<FormState> {
   const holderGuard = await staffForAct("HOLDER_CHECKED");
@@ -542,12 +548,16 @@ export async function decideAppointmentStep(_prev: FormState, data: FormData): P
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);
   const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Decided by", { required: true });
-  const on = r.date("decidedOn", "Decided on", { required: true });
+  r.date("decidedOn", "Decided on");
   const received = r.date("receivedOn", "Received on");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is refused.");
-  if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
+  if (r.failed || !decision) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalStep.decidedBy", { personField: "personId", dateField: "decidedOn" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
+  const on = dayToDate(act.day!);
   return inAward(actor, id, async (tx, l): Promise<FormState> => {
     const inst = latestRoute(l.award);
     if (l.award.status !== "PENDING_APPROVAL" || !inst || inst.status !== "PENDING") return { ok: false, message: "No approval is open on this award." };
@@ -563,6 +573,7 @@ export async function decideAppointmentStep(_prev: FormState, data: FormData): P
       declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
       person,
       requesterId: l.req.requestingPersonId,
+      recorderId: act.recorderId,
       endorserIds: [],
       otherDeciderIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
       earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
@@ -581,7 +592,8 @@ export async function decideAppointmentStep(_prev: FormState, data: FormData): P
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${l.award.reference} · ${step.roleLabel}`, "UPDATE",
-      diffFields({ decision: step.decision, receivedOn: null }, { decision, decidedBy: person!.name, decidedOn: on, receivedOn: received, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
+      diffFields({ decision: step.decision, receivedOn: null }, { decision, decidedBy: person!.name, decidedOn: on, receivedOn: received, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null, underDelegation: check.delegationId ? "yes" : null }), reason);
+    await act.write(tx, step.id, { document: { entity: "Award", id }, roleCode: step.actingRoleCode ?? step.roleCode });
     await afterStep(tx, toAuditActor(actor), l, inst.id, decision, step.id, reason);
     return { ok: true };
   });
@@ -654,9 +666,15 @@ export async function issueAward(_prev: FormState, data: FormData): Promise<Form
   const actor = holderGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
-  const personId = r.text("signatoryPersonId", "Signed by", { required: true });
-  const signed = r.date("signedOn", "Signed on", { required: true });
-  if (r.failed || !signed) return { ok: false, errors: r.errors };
+  r.date("signedOn", "Signed on");
+  if (r.failed) return { ok: false, errors: r.errors };
+  // The signatory signs: the signed-in holder, with the password asked again and the instrument named (NFR-SIG-001); or, from the paper they signed,
+  // another officer records it for them, and it is not a signature (Phase 2b).
+  const begun = await beginAct(actor, data, "Award.signatoryPerson", { personField: "signatoryPersonId", dateField: "signedOn", document: { entity: "Award", id } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
+  const signed = dayToDate(act.day!);
   try {
     // The issue act's own instant: its organisation's day is the issue day the contract number is dated by (issueDayOf).
     const issueActAt = new Date();
@@ -737,7 +755,8 @@ export async function issueAward(_prev: FormState, data: FormData): Promise<Form
       };
       await mustMove(tx, l, "ISSUED", { ...after, issueSnapshot: snapshot as unknown as Prisma.InputJsonValue });
       await audit(tx, toAuditActor(actor), l.org.id, "Award", a.id, labelOf(a), "UPDATE",
-        diffFields({ status: a.status }, { status: "ISSUED", issuedAt: on, signedBy: person!.name, signedOn: signed, signatoryOffice: sig.roleLabel, recordedOnBehalf: "not signed", contractNumber: number, underDelegation: check.delegationId ? "yes" : null }));
+        diffFields({ status: a.status }, { status: "ISSUED", issuedAt: on, signedBy: person!.name, signedOn: signed, signatoryOffice: sig.roleLabel, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null, contractNumber: number, underDelegation: check.delegationId ? "yes" : null }));
+      await act.write(tx, a.id, { document: { entity: "Award", id: a.id }, roleCode: sig.roleCode });
       return { ok: true };
     });
   } catch (e) {
@@ -797,7 +816,8 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
     signedLetterReceivedOn: d("signedLetterReceivedOn", "Signed letter received"),
     declarationReceivedOn: d("declarationReceivedOn", "Declaration received"),
     authorisationReceivedOn: d("authorisationReceivedOn", "Letter of authorisation received"),
-    receivedByPersonId: r.optionalText("receivedByPersonId"),
+    // Received by the officer recording it: the signed-in person (Phase 2b), set below from `beginAct`.
+    receivedByPersonId: null as string | null,
     whereHeld: r.text("whereHeld", "Where the originals are held", { max: 400 }),
     signatoryName: r.text("signatoryName", "Contractor's signatory", { max: 240 }),
     icNumber: r.text("icNumber", "Identity card number", { max: 40 }),
@@ -812,6 +832,10 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
   if (icNumberFault(v.icNumber)) r.reject("icNumber", "An identity card number is twelve digits, with or without the hyphens: 900101-14-5678.");
   const correction = String(data.get("reason") ?? "").trim();
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "AwardReturn.receivedBy", { personField: "receivedByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  v.receivedByPersonId = act.subjectPersonId;
   return inAward(actor, id, async (tx, l) => {
     const a = l.award;
     if (!l.org.today) return NO_ZONE;
@@ -854,6 +878,7 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
     await tx.awardReturn.update({ where: { id: before.id, award: { organisationId: actor.organisationId } }, data: v });
     const view = (x: Record<string, unknown>) => ({ ...x, receivedByPersonId: undefined, receivedBy: x.receivedByPersonId ? (x.receivedByPersonId === receivedBy?.id ? receivedBy?.name : before.receivedBy?.name) : null });
     await audit(tx, toAuditActor(actor), l.org.id, "AwardReturn", before.id, `${a.reference} · return`, "UPDATE", awardAuditPair(view(before), view({ ...before, ...v })), correcting ? `Corrected: ${correction}` : "");
+    await act.write(tx, before.id);
     // The return that completes the instrument, every item with its scan, accepts it in the same act (BD-12).
     const accepted = correcting ? null : await acceptOnCompleteReturn(tx, toAuditActor(actor), l, rec);
     return { ok: true, message: accepted ?? undefined };
@@ -1013,11 +1038,14 @@ export async function reviewSecurity(_prev: FormState, data: FormData): Promise<
   const securityId = String(data.get("securityId") ?? "");
   const r = new FormReader(data);
   const outcome = r.choice("outcome", "Outcome", ["VERIFIED", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Checked by", { required: true });
   const on = r.date("on", "Checked on", { required: true });
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (outcome === "REJECTED" && !reason) r.reject("reason", "Say why it is rejected.");
   if (r.failed || !outcome || !on) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "SecurityInstrument.verifiedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inAward(actor, id, async (tx, l) => {
     const refused = registerRefusal(l);
     if (refused) return { ok: false, message: refused };
@@ -1044,7 +1072,8 @@ export async function reviewSecurity(_prev: FormState, data: FormData): Promise<
       ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requiredValue: req.state === "SET" ? senToDecimalString(req.amount) : null, basis: a.bondBasis, basisPercent: a.bondPercent, basisAmount: a.bondBasisAmount, basisProvenance: a.bondBasisProvenance, requiredUntil: completion && a.bondValidityExtraMonths != null ? dayToDate(bondRequiredUntil(completion, a.bondValidityExtraMonths)!) : null }
       : { status: "REJECTED" as const, verifiedOn: on, verifiedByPersonId: person.id, rejectedReason: reason };
     await tx.securityInstrument.update({ where: { id: s.id, contract: { organisationId: actor.organisationId } }, data: after });
-    await audit(tx, toAuditActor(actor), l.org.id, "SecurityInstrument", s.id, securityLabel(a.reference, s.kind as keyof typeof SECURITY_KIND_LABEL), "UPDATE", diffFields({ status: s.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed", requiredValue: "requiredValue" in after ? after.requiredValue : undefined }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "SecurityInstrument", s.id, securityLabel(a.reference, s.kind as keyof typeof SECURITY_KIND_LABEL), "UPDATE", diffFields({ status: s.status }, { status: after.status, checkedBy: person.name, checkedOn: on, requiredValue: "requiredValue" in after ? after.requiredValue : undefined }), reason);
+    await act.write(tx, s.id);
     return { ok: true };
   });
 }
@@ -1099,11 +1128,14 @@ export async function reviewPolicy(_prev: FormState, data: FormData): Promise<Fo
   const policyId = String(data.get("policyId") ?? "");
   const r = new FormReader(data);
   const outcome = r.choice("outcome", "Outcome", ["VERIFIED", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Checked by", { required: true });
   const on = r.date("on", "Checked on", { required: true });
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (outcome === "REJECTED" && !reason) r.reject("reason", "Say why it is rejected.");
   if (r.failed || !outcome || !on) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "InsurancePolicy.verifiedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inAward(actor, id, async (tx, l) => {
     const refused = registerRefusal(l);
     if (refused) return { ok: false, message: refused };
@@ -1132,7 +1164,8 @@ export async function reviewPolicy(_prev: FormState, data: FormData): Promise<Fo
       ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requirementSnapshot: (requirement ? { name: requirement.nameEn, tailMonths: requirement.tailMonths, tailDays: requirement.tailDays, percent: requirement.percent, dlpMonths: a.dlpMonths, wcBasis: a.wcBasis, sumChecked: p.kind === "WORKMENS_COMPENSATION" ? wcSumCheck(a.wcBasis) === "CHECKED" : true } : null) as Prisma.InputJsonValue }
       : { status: "REJECTED" as const, verifiedOn: on, verifiedByPersonId: person.id, rejectedReason: reason };
     await tx.insurancePolicy.update({ where: { id: p.id, contract: { organisationId: actor.organisationId } }, data: after });
-    await audit(tx, toAuditActor(actor), l.org.id, "InsurancePolicy", p.id, policyLabel(a.reference, p.kind as keyof typeof INSURANCE_KIND_LABEL), "UPDATE", diffFields({ status: p.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "InsurancePolicy", p.id, policyLabel(a.reference, p.kind as keyof typeof INSURANCE_KIND_LABEL), "UPDATE", diffFields({ status: p.status }, { status: after.status, checkedBy: person.name, checkedOn: on }), reason);
+    await act.write(tx, p.id);
     return { ok: true };
   });
 }

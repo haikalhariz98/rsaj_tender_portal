@@ -79,6 +79,7 @@ import { patternFaults } from "@/lib/numbering/series";
 import { MATTER_REF_TEXT, resolveMatterRef } from "@/lib/requisition/matter-link";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct, type PreparedAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -136,7 +137,14 @@ async function audit(
 
 /// Run a sitting write under the lock; a missing sitting reads as gone.
 async function inSitting(scope: OrgScope, meetingId: string, fn: (tx: Tx, s: LoadedSitting) => Promise<FormState>): Promise<FormState> {
-  const result = await withLockedSitting(scope, meetingId, fn);
+  let result: FormState | null;
+  try {
+    result = await withLockedSitting(scope, meetingId, fn);
+  } catch (e) {
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
+    throw e;
+  }
   if (result?.ok) refresh(meetingId);
   return result ?? GONE;
 }
@@ -402,7 +410,6 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
   const typed = r.optionalText("reference");
   // The waiting items left ticked, by their step; read again from the routes under the lock.
   const chosen = [...new Set(data.getAll("items").map((v) => String(v).trim()).filter(Boolean))];
-  const tabledByPersonId = r.optionalText("tabledByPersonId");
 
   const committee = committeeId
     ? await db.committee.findFirst({ where: { id: committeeId, organisationId: orgId } })
@@ -432,6 +439,13 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
 
   const parsed = r.finish({ committeeId, meetingDate, agenda });
   if (!parsed.ok || !committee || !meetingDate) return { ok: false, errors: r.errors };
+  // Tabling the waiting items it proposes is the signed-in holder of the Secretariat office's act (FR-CTE-006, Phase 2b); a sitting with none asks nobody.
+  let tabling: PreparedAct | null = null;
+  if (chosen.length) {
+    const begun = await beginAct(actor, data, "CommitteeDecision.tabledBy", { personField: "tabledByPersonId" });
+    if (!begun.ok) return begun.state;
+    tabling = begun.act;
+  }
 
   const roster = chosen.length ? await loadRoster(actor.organisationCode) : null;
   let created: { id: string };
@@ -443,7 +457,7 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
         const { row } = await createNumberedSitting(tx, { organisationId: orgId, committeeId: committee.id, meetingDate, agenda, typedReference: typed, day });
         await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "Meeting", entityId: row.id, entityLabel: `${committee.nameEn} sitting`, reason: "" }, "CREATE",
           diffFields(null, { committee: committee.nameEn, meetingDate, agenda, reference: typed ?? "(from numbering)" }));
-        if (chosen.length) await tableWaiting(actor, tx, toAuditActor(actor), row.id, committee.code, chosen, tabledByPersonId, roster!);
+        if (chosen.length) await tableWaiting(actor, tx, toAuditActor(actor), row.id, committee.code, chosen, tabling!, roster!);
         return row;
       },
       // An appointment's tabling reads the bids' and the evaluation's gates.
@@ -451,6 +465,8 @@ export async function scheduleSitting(_prev: FormState, data: FormData): Promise
     );
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     // The series was removed or broken between the form and the write: nothing was numbered, and the sitting is not saved.
     if (e instanceof NumberingError) {
       // No "no time zone" arm: with no series number typed and no day known, the request was refused above, before this transaction.
@@ -476,7 +492,7 @@ class Refusal extends Error {
  * locked and re-read before each, so each takes the next agenda place; each item is read again from its route
  * (`loadWaiting` on this transaction) and must still be waiting for this committee and tabled at a sitting.
  */
-async function tableWaiting(scope: OrgScope, tx: Tx, by: AuditActor, meetingId: string, committeeCode: string, chosen: readonly string[], tabledByPersonId: string | null, roster: Awaited<ReturnType<typeof loadRoster>>) {
+async function tableWaiting(scope: OrgScope, tx: Tx, by: AuditActor, meetingId: string, committeeCode: string, chosen: readonly string[], tabling: PreparedAct, roster: Awaited<ReturnType<typeof loadRoster>>) {
   const W = SCHEDULE_WORDS;
   const entries = (await loadWaiting(scope.organisationId, tx))?.entries ?? [];
   for (const stepId of chosen) {
@@ -489,7 +505,7 @@ async function tableWaiting(scope: OrgScope, tx: Tx, by: AuditActor, meetingId: 
     const refusal = permit(s, "TABLE");
     if (refusal) throw new Refusal(refusal);
     const r = new FormReader(new FormData());
-    const done = await tableInto(tx, by, s, r, { subject: t.subject, domain: t.domain, matterKind: t.matterKind, matterRef: t.matterRef, amount: t.amount, act, tabledByPersonId, dependsOnDecisionId: null });
+    const done = await tableInto(tx, by, s, r, { subject: t.subject, domain: t.domain, matterKind: t.matterKind, matterRef: t.matterRef, amount: t.amount, act, tabledByPersonId: tabling.subjectPersonId, tabling, dependsOnDecisionId: null });
     if (done.ok) continue;
     const errors = done.errors ?? {};
     // Who tables is the drawer's own field: said there. Anything else names the item.
@@ -695,9 +711,8 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
  * Table a matter (FR-CTE-006).
  *
  * Only a holder of the committee's Secretariat office on the tabling day — today in
- * the organisation's zone, the same day the drawer offered its tablers from — and
- * the committee must have one set. An attestation until sign-in exists. Under the
- * sitting's lock, so a matter cannot be tabled onto a sitting being minuted.
+ * the organisation's zone — and the committee must have one set. The tabler is the
+ * signed-in person (Phase 2b). Under the sitting's lock, so a matter cannot be tabled onto a sitting being minuted.
  */
 export async function tableMatter(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
@@ -714,13 +729,15 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
   if (matterKind && !matterRef) r.reject("matterRef", "Give the reference of the record the matter concerns.");
   const amount = r.money("amount", "Amount");
   const act = r.choice("act", "Act", ACTS, { required: true });
-  const tabledByPersonId = r.optionalText("tabledByPersonId");
   const dependsOnDecisionId = r.optionalText("dependsOnDecisionId");
+  const begun = await beginAct(actor, data, "CommitteeDecision.tabledBy", { personField: "tabledByPersonId" });
+  if (!begun.ok) return begun.state;
+  const tabling = begun.act;
 
   return inSitting(actor, meetingId, async (tx, s) => {
     const refusal = permit(s, "TABLE");
     if (refusal) return refusal;
-    return tableInto(tx, toAuditActor(actor), s, r, { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, dependsOnDecisionId });
+    return tableInto(tx, toAuditActor(actor), s, r, { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId: tabling.subjectPersonId, tabling, dependsOnDecisionId });
   });
 }
 
@@ -733,6 +750,8 @@ interface TablingFields {
   amount: string | null;
   act: (typeof ACTS)[number] | null;
   tabledByPersonId: string | null;
+  /// How the tabler tabled it, attributed in this transaction (Phase 2b).
+  tabling: PreparedAct;
   dependsOnDecisionId: string | null;
 }
 
@@ -743,7 +762,7 @@ interface TablingFields {
  * scheduling a sitting tables each waiting item it proposes through this same writer, so nothing is retyped.
  */
 async function tableInto(tx: Tx, by: AuditActor, s: LoadedSitting, r: FormReader, input: TablingFields): Promise<FormState> {
-  const { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, dependsOnDecisionId } = input;
+  const { subject, domain, matterKind, matterRef, amount, act, tabledByPersonId, tabling: tablingAct, dependsOnDecisionId } = input;
   const meetingId = s.meeting.id;
   const code = s.meeting.committee.secretariatRoleCode;
   const holders = secretariatHoldersOn(s.roster, code, s.today).map((h) => h.id);
@@ -817,6 +836,7 @@ async function tableInto(tx: Tx, by: AuditActor, s: LoadedSitting, r: FormReader
   });
   await audit(tx, by, s, "CommitteeDecision", row.id, subject, "CREATE",
     diffFields(null, { ...v, linkedRequisition: requisitionReference, linkedExercise: exerciseReference, tabledOnEvaluationVersion: evaluationVersion, tabledBy: tabledByPersonId ? s.names[tabledByPersonId] : null, tabledAt, sequence }));
+  await tablingAct.write(tx, row.id);
   return { ok: true };
 }
 
@@ -828,11 +848,18 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
   if (!meetingId) return { ok: false, message: "That matter no longer exists." };
 
   const r = new FormReader(data);
-  const personId = r.text("personId", "Member", { required: true });
   const reason = r.text("reason", "Reason", { required: true, max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  // A member declares their own recusal, signed in; the Secretariat records it for them from the sitting (Phase 2b).
+  const begun = await beginAct(actor, data, "DecisionRecusal.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
 
   return inSitting(actor, meetingId, async (tx, s) => {
+    if (act.intent.mode === "RECORDED_ON_BEHALF" && !actor.system && !secretariatHoldersOn(s.roster, s.meeting.committee.secretariatRoleCode, s.today).some((h) => h.id === actor.personId)) {
+      return { ok: false, message: "A member declares their own recusal. It is recorded for them only by a holder of the committee's Secretariat office." };
+    }
     const decision = s.meeting.decisions.find((d) => d.id === decisionId);
     if (!decision) return { ok: false, message: "That matter no longer exists." };
     const check = checkRecusal({
@@ -871,7 +898,8 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
     }
     const name = s.names[personId] ?? "Member";
     const row = await tx.decisionRecusal.create({ data: { decisionId, personId, reason, declaredAt: new Date() } });
-    await audit(tx, toAuditActor(actor), s, "DecisionRecusal", row.id, `${name} on ${decision.subject}`, "CREATE", diffFields(null, { member: name, reason }));
+    await audit(tx, toAuditActor(actor), s, "DecisionRecusal", row.id, `${name} on ${decision.subject}`, "CREATE", diffFields(null, { member: name, reason, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null }));
+    await act.write(tx, row.id);
     return { ok: true };
   });
 }

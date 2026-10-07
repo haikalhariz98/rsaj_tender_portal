@@ -1,5 +1,6 @@
 import { RecordEditor } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 
 import { escalateStep } from "./actions";
 
@@ -42,15 +43,7 @@ export function EscalateDrawer({
             { value: "CONFLICT_DECLARED", label: "A conflict of interest is declared, and the declarer recuses" },
           ],
         },
-        {
-          kind: "select",
-          name: "declaredByPersonId",
-          label: "Declared by",
-          required: true,
-          placeholder: "Choose",
-          options: people,
-          hint: "Someone who could decide the step. Recorded on their behalf, not signed; they cannot decide it afterwards.",
-        },
+        actorField("ApprovalStep.declaredBy", { name: "declaredByPersonId", people, hint: "You declare it, as the person who has the conflict and could decide the step. You cannot decide it afterwards." }),
         { kind: "textarea", name: "reason", label: "Reason", hint: "What the conflict is, or why nobody can act." },
       ]}
       showWhen={{ declaredByPersonId: { name: "kind", in: ["CONFLICT_DECLARED"] } }}

@@ -9,7 +9,7 @@ import type { LoadedAward } from "@/lib/award/repo";
 import { awardSheetClosed, awardSheetOf, loadAwardSheetRows } from "@/lib/certificate/award-sheet";
 import { refusalText } from "@/lib/certificate/fault-text";
 import { db } from "@/lib/db";
-import { ON_BEHALF_HINT } from "@/lib/documents/labels";
+import { actorField } from "@/lib/auth/actor-field";
 import { storedDay } from "@/lib/dates";
 
 import { recordAwardRoutingCheck, recordAwardRoutingReceived, startAwardRoutingSheet } from "./routing-actions";
@@ -90,7 +90,7 @@ export async function AwardRoutingSheetPanel({ l, people, today }: { l: LoadedAw
         <RecordEditor
           title={def.labelEn}
           description={def.officeLabel ? `Recorded for a holder of ${def.officeLabel} on the day (or a delegate of the whole office).` : "No office is set for this check on its type: any officer may be named, and the sheet says so."}
-          fields={[hidden("id"), hidden("defOrder"), { kind: "select", name: "personId", label: "Recorded for", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT }, { kind: "date", name: "on", label: "On", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
+          fields={[hidden("id"), hidden("defOrder"), actorField("RoutingCheck.person", { name: "personId", people }), { kind: "date", name: "on", label: "On", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
           values={{ id: award.id, defOrder: String(def.order), on: today }}
           action={recordAwardRoutingCheck}
           submitBlock={sheet.date1 ? null : "Record the day it was received first."}

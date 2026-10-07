@@ -1,9 +1,11 @@
+import { actFormFromJson, attributionRefusalState, beginActFrom } from "@/app/_auth/act";
 import { staffRoute } from "@/app/_auth/route";
 import { toAuditActor } from "@/app/_auth/actor";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
 import { VOTE_FAULT_MESSAGE } from "@/lib/committee/labels";
 import { canVote, VOTE_FAULT_STATUS } from "@/lib/committee/matter";
+import { secretariatHoldersOn } from "@/lib/committee/tabling";
 import { withLockedSitting } from "@/lib/committee/sittings";
 import { dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -14,8 +16,12 @@ import { db } from "@/lib/db";
  * A vote is per member and replaces that member's previous vote on the matter — §7.2
  * is explicit that the model holds individual votes, never one committee position.
  *
- * Body: `{ personId, choice: "SETUJU" | "TIDAK_SETUJU", comment?, votedAt: "YYYY-MM-DD" }`,
+ * Body: `{ choice: "SETUJU" | "TIDAK_SETUJU", comment?, votedAt: "YYYY-MM-DD", onBehalfOf?, paperReference?, reason? }`,
  * where `votedAt` is the date on the member's signed sheet.
+ *
+ * The voter is the signed-in member (Phase 2b, F1): the body never says who is voting. A vote on the member's signed sheet may be recorded for them
+ * by the holder of the committee's Secretariat office on the day (`onBehalfOf`, with the sheet's reference or the reason): both people are stored (the
+ * attribution names the member and the officer who recorded it), and the vote reads as recorded on their behalf, not signed.
  *
  *   401  nobody is signed in; 403  the request is not from a page of this origin
  *   415  the body is not JSON
@@ -44,10 +50,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
     return Response.json({ error: "Body must be JSON" }, { status: 400 });
   }
 
-  const { personId, choice, comment, votedAt } = (body ?? {}) as Record<string, unknown>;
-  if (typeof personId !== "string" || personId === "") {
-    return Response.json({ error: "personId is required" }, { status: 400 });
-  }
+  const { choice, comment, votedAt } = (body ?? {}) as Record<string, unknown>;
   if (typeof choice !== "string") {
     return Response.json({ error: "choice is required" }, { status: 400 });
   }
@@ -58,15 +61,37 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
     return Response.json({ error: "comment must be text of 1000 characters or fewer" }, { status: 400 });
   }
 
+  // Who is voting: the actor, or, where the body says it is recorded for a member, that member, attributed through the wrapper. A loader names no session.
+  // An old caller names the voter as `personId`. That is read only as the member the vote is recorded for: another member's is refused here unless the
+  // actor holds the Secretariat office, and the signed-in member's own is simply theirs (F1: a body never says who the actor is).
+  const named = (body ?? {}) as Record<string, unknown>;
+  const legacy = typeof named.personId === "string" && named.personId !== "" && named.personId !== scope.personId ? named.personId : null;
+  const form = actFormFromJson(legacy && !named.onBehalfOf ? { ...named, onBehalfOf: legacy } : body, { personKey: "onBehalfOf" });
+  const begun = await beginActFrom(scope, form, "Vote.person", { personField: "onBehalfOf" });
+  if (!begun.ok) return Response.json({ error: begun.state.message ?? Object.values(begun.state.errors ?? {}).join(" ") }, { status: 403 });
+  const act = begun.act;
+  const personId = act.subjectPersonId;
+
   const found = await db.committeeDecision.findUnique({ where: { id, meeting: { committee: { organisationId: scope.organisationId } } }, select: { meetingId: true } });
   if (!found) return Response.json({ error: "Decision not found" }, { status: 404 });
 
   // Checked and written under the sitting's row lock, on data read inside the same
   // transaction: an outcome recorded at the same moment either sees this vote or
   // this vote sees the matter decided — never both missing each other.
-  const result = await withLockedSitting(scope, found.meetingId, async (tx, sitting) => {
+  let result: Response | null;
+  try {
+  result = await withLockedSitting(scope, found.meetingId, async (tx, sitting) => {
     const decision = sitting.meeting.decisions.find((d) => d.id === id);
     if (!decision) return Response.json({ error: "Decision not found" }, { status: 404 });
+
+    // A vote recorded for a member is the Secretariat's to record, from the member's signed sheet (F1): only a holder of the committee's Secretariat office on the day.
+    if (act.intent.mode === "RECORDED_ON_BEHALF" && !scope.system) {
+      const code = sitting.meeting.committee.secretariatRoleCode;
+      const holders = secretariatHoldersOn(sitting.roster, code, sitting.today).map((h) => h.id);
+      if (!holders.includes(scope.personId)) {
+        return Response.json({ error: "A vote is cast by the member signed in. It is recorded for a member only by a holder of the committee's Secretariat office, from the member's signed sheet." }, { status: 403 });
+      }
+    }
 
     const check = canVote({
       meetingStatus: sitting.meeting.status,
@@ -114,8 +139,16 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
         changes,
       );
     }
+    // The vote is attributed whether or not it changed the row: this act said who voted and who recorded it.
+    await act.write(tx, vote.id);
     return Response.json({ id: vote.id, choice: vote.choice, votedAt }, { status: 200 });
   });
+  } catch (e) {
+    // The writer refused the attribution in the vote's own transaction (a race the pre-flight could not see): the vote is not recorded.
+    const attribution = attributionRefusalState(e);
+    if (attribution) return Response.json({ error: attribution.message }, { status: 409 });
+    throw e;
+  }
 
   return result ?? Response.json({ error: "Decision not found" }, { status: 404 });
 }

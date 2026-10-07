@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type ReactNode } from "react";
 
+import { useActorPersonId } from "@/components/auth/actor-context";
 import { ActWithLabel } from "@/components/ui/act";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
@@ -291,6 +292,10 @@ function VoterRow({
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
+  // The vote is the signed-in member's own. Another member's, from their signed sheet, is recorded for them by the Secretariat (Phase 2b, F1): the sheet's day
+  // is the reason it is recorded, and the vote reads as recorded on their behalf, not signed.
+  const me = useActorPersonId();
+  const forAnother = me != null && voter.personId !== me;
 
   const save = () => {
     setError(null);
@@ -298,7 +303,7 @@ function VoterRow({
       const res = await fetch(`/api/committees/decisions/${matterId}/votes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personId: voter.personId, choice, comment, votedAt }),
+        body: JSON.stringify({ choice, comment, votedAt, ...(forAnother ? { onBehalfOf: voter.personId, reason: `Recorded from the member's signed voting sheet dated ${votedAt}.` } : {}) }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);

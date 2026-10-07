@@ -25,6 +25,7 @@ import { holdersFor } from "@/lib/requisition/holders";
 import { supplierHolders } from "@/lib/suppliers/route";
 import { FormReader } from "@/lib/validate";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct, type PreparedAct } from "@/app/_auth/act";
 
 /**
  * Escalate a pending person step (FR-APR-009, FR-APR-010, FR-APR-012; rulings CO-6,
@@ -35,8 +36,9 @@ import { toAuditActor, staffForAct } from "@/app/_auth/actor";
  * It takes the locks every write on the matter takes, in the same order — the
  * requisition, then the exercise, then the award — and re-reads the step, the route, the
  * roster and the offices inside the transaction. The step's own office is never
- * rewritten; the acting office, the reason and, for a conflict, the declarer (recorded
- * on their behalf, not signed) are written beside it with the audit row.
+ * rewritten; the acting office, the reason and, for a conflict, the declarer (the
+ * signed-in holder: a conflict is declared by the person who has it, Phase 2b) are
+ * written beside it with the audit row.
  */
 export async function escalateStep(_prev: FormState, data: FormData): Promise<FormState> {
   const holderGuard = await staffForAct("HOLDER_CHECKED");
@@ -46,10 +48,16 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
   const stepId = r.text("stepId", "Step", { required: true });
   const kind = r.choice("kind", "Why", ["NO_AVAILABLE_HOLDER", "CONFLICT_DECLARED"] as const, { required: true });
   const reason = r.text("reason", "Reason", { max: 2000 });
-  const declarerId = r.optionalText("declaredByPersonId");
   if (!reason) r.reject("reason", "Say why the step is escalated.");
-  if (kind === "CONFLICT_DECLARED" && !declarerId) r.reject("declaredByPersonId", "Name who declares the conflict.");
   if (r.failed || !kind) return { ok: false, errors: r.errors };
+  // A conflict is declared by the person who has it: the signed-in holder (Phase 2b). Escalating for want of anyone able to act declares nothing.
+  let act: PreparedAct | null = null;
+  if (kind === "CONFLICT_DECLARED") {
+    const begun = await beginAct(actor, data, "ApprovalStep.declaredBy", { personField: "declaredByPersonId" });
+    if (!begun.ok) return begun.state;
+    act = begun.act;
+  }
+  const declarerId = act?.subjectPersonId ?? null;
 
   const found = await db.approvalStep.findUnique({
     where: { id: stepId, instance: { organisationId: actor.organisationId } },
@@ -76,7 +84,9 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
   const permissionId = route.specialPermissionId;
   if (!requisitionId && !supplierId && !permissionId) return { ok: false, message: "That step's matter cannot be found." };
 
-  const result = await db.$transaction(
+  let result: FormState & { paths?: string[] };
+  try {
+  result = await db.$transaction(
     async (tx): Promise<FormState & { paths?: string[] }> => {
       if (requisitionId) await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${requisitionId} FOR UPDATE`;
       if (exerciseId) await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${exerciseId} FOR UPDATE`;
@@ -184,15 +194,20 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
             actingOffice: after.actingRoleLabel,
             escalation: ESCALATION_KIND_LABEL[kind],
             declaredBy: kind === "CONFLICT_DECLARED" ? declarer!.name : undefined,
-            recordedOnBehalf: kind === "CONFLICT_DECLARED" ? "not signed" : undefined,
             escalatedOn: after.escalatedOn,
           },
         ));
+      if (act) await act.write(tx, step.id);
       const paths = ["/approvals", ...(requisitionId ? [`/requisitions/${requisitionId}`] : []), ...(inst.exercise ? [`/sourcing/${inst.exercise.id}`] : []), ...(inst.award ? [`/awards/${inst.award.id}`] : []), ...(supplierId ? [`/suppliers/${supplierId}`] : []), ...(route.specialPermission?.party.vendorId ? [`/suppliers/${route.specialPermission.party.vendorId}`] : []), ...(cert ? [`/projects/${cert.contractId}`, `/projects/${cert.contractId}/certificates/${cert.id}`] : []), ...(variation ? [`/projects/${variation.contractId}`, `/projects/${variation.contractId}/variations/${variation.id}`] : []), ...(contractMatter ? [`/projects/${contractMatter.contractId}`] : [])];
       return { ok: true, paths };
     },
     { timeout: 20_000, maxWait: 10_000 },
   );
+  } catch (e) {
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
+    throw e;
+  }
   for (const p of result.paths ?? []) revalidatePath(p);
   return { ok: result.ok, message: result.message, errors: result.errors };
 }

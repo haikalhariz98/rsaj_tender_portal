@@ -83,6 +83,7 @@ import {
 import { ACT_LABEL } from "@/lib/labels";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -93,7 +94,7 @@ import type { OrgScope } from "@/lib/org-scope";
  * write to an existing requisition runs inside `withLockedRequisition`, which locks
  * the row and re-reads it in the write's own transaction, and the pure check runs on
  * that data before anything is written. The write and its audit row share the
- * transaction. A refusal saves nothing and names what blocks it. Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that).
+ * transaction. A refusal saves nothing and names what blocks it. Who is signed in is asked first and named on every audit row, and every act is attributed (`beginAct`, Phase 2b): the signed-in person's own, or, from a paper record, recorded on another's behalf and not signed.
  */
 
 const NO_ORG: FormState = { ok: false, message: "No organisation is configured. Run npm run setup first." };
@@ -131,6 +132,8 @@ class Refusal extends Error {
 }
 function caught(e: unknown): FormState {
   if (e instanceof Refusal) return e.state;
+  const attribution = attributionRefusalState(e);
+  if (attribution) return attribution;
   if (e instanceof MoveRefused) return e.fault.code === "CHANGED" ? CHANGED : { ok: false, message: transitionFaultText(e.fault) };
   throw e;
 }
@@ -164,7 +167,8 @@ function readDraft(r: FormReader, data: FormData): RequisitionDraft {
     needStatement: r.text("needStatement", "Need statement", { max: 4000 }),
     requestingUnitCode: r.optionalText("requestingUnitCode"),
     sectionUnitCode: r.optionalText("sectionUnitCode"),
-    requestingPersonId: r.optionalText("requestingPersonId"),
+    // The requester is the act's own person: read through `beginAct` by `createRequisition`, and kept as it was by an edit.
+    requestingPersonId: null,
     costCentreCode: r.optionalText("costCentreCode"),
     accountCode: r.optionalText("accountCode"),
     budgetCodeId: r.optionalText("budgetCodeId"),
@@ -248,8 +252,12 @@ export async function createRequisition(_prev: FormState, data: FormData): Promi
 
   const r = new FormReader(data);
   const draft = readDraft(r, data);
+  // The requesting officer is the signed-in person, or another officer the request is recorded for from their paper form (Phase 2b).
+  const begun = await beginAct(actor, data, "Requisition.requestingPerson", { personField: "requestingPersonId" });
+  if (!begun.ok) return { ...begun.state, errors: { ...r.errors, ...begun.state.errors } };
+  const act = begun.act;
+  draft.requestingPersonId = act.subjectPersonId;
   if (!draft.requestingUnitCode) r.reject("requestingUnitCode", "Requesting department is required.");
-  if (!draft.requestingPersonId) r.reject("requestingPersonId", "Requesting officer is required.");
   if (!safeLines(draft.lines)) r.reject("lines", "Every line needs an amount, and quantities must be numbers.");
   const { lookups, formats } = await loadLookups(org.id);
   // Founder, 2026-10-05: a draft is saved complete, as it must be to leave draft, so the form asks for
@@ -265,10 +273,13 @@ export async function createRequisition(_prev: FormState, data: FormData): Promi
         data: { organisationId: org.id, reference, origin: "PORTAL", raisedOn: dayToDate(today), ...draftData(draft), lines: { create: lineData(draft.lines) } },
       });
       await audit(tx, toAuditActor(actor), org.id, "Requisition", row.id, labelOf(row), "CREATE",
-        diffFields(null, { reference, ...draftData(draft), lines: draft.lines.length, status: "DRAFT" }));
+        diffFields(null, { reference, ...draftData(draft), lines: draft.lines.length, status: "DRAFT", ...(act.intent.mode === "RECORDED_ON_BEHALF" ? { recordedOnBehalf: "not signed" } : {}) }));
+      await act.write(tx, row.id);
       return row.id;
     });
   } catch (e) {
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     if (e instanceof NumberingError) {
       return {
         ok: false,
@@ -296,11 +307,12 @@ export async function editDraft(_prev: FormState, data: FormData): Promise<FormS
   const r = new FormReader(data);
   const draft = readDraft(r, data);
   if (!draft.requestingUnitCode) r.reject("requestingUnitCode", "Requesting department is required.");
-  if (!draft.requestingPersonId) r.reject("requestingPersonId", "Requesting officer is required.");
   if (!safeLines(draft.lines)) r.reject("lines", "Every line needs an amount, and quantities must be numbers.");
 
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (l.req.status !== "DRAFT") return { ok: false, message: `Only a draft can be edited. This one is ${STATUS_LABEL[l.req.status].toLowerCase()}.` };
+    // The requesting officer is set when the requisition is raised (attributed then): an edit keeps them.
+    draft.requestingPersonId = l.req.requestingPersonId;
     if (!l.org.today) return NO_ZONE;
     const { lookups, formats } = await loadLookups(l.org.id, tx);
     faultErrors(r, requisitionFaults(draft, lookups, formats, dayToDate(l.org.today), { complete: true }));
@@ -340,13 +352,21 @@ export async function recordEndorsement(_prev: FormState, data: FormData): Promi
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const tier = r.choice("tier", "Tier", TIERS, { required: true });
-  const personId = r.text("personId", "Endorsed by", { required: true });
-  const on = r.date("endorsedOn", "Endorsed on", { required: true });
+  r.date("endorsedOn", "Endorsed on");
   const note = r.text("note", "Note", { max: 1000 });
-  if (r.failed || !tier || !on) return { ok: false, errors: r.errors };
+  if (r.failed || !tier) return { ok: false, errors: r.errors };
+  // The endorsement is the signed-in head's own, or recorded for the head from their paper endorsement.
+  const begun = await beginAct(actor, data, "RequisitionEndorsement.person", { personField: "personId", dateField: "endorsedOn" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
+  const on = act.day ? dayToDate(act.day) : null;
+  if (!on) return { ok: false, errors: { endorsedOn: "Endorsed on is required." } };
 
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (l.req.status !== "DRAFT") return { ok: false, message: "Endorsements are recorded while the requisition is a draft." };
+    // The requester does not record an endorsement of their own requisition for someone else (F1).
+    if (act.recorderId && act.recorderId === l.req.requestingPersonId) return { ok: false, message: "You raised this requisition. Nobody records the endorsement of their own requisition for someone else." };
     const policy = await loadPolicy(l.org.id, tx);
     if (!policy.endorsementTiers.includes(tier)) {
       return { ok: false, errors: { tier: policy.endorsementTiers.length === 0 ? endorsementFaultText({ code: "NOT_SET" }) : "The policy does not ask for this tier's endorsement." } };
@@ -367,7 +387,8 @@ export async function recordEndorsement(_prev: FormState, data: FormData): Promi
       data: { requisitionId: id, tier, unitCode: unit.code, personId, endorsedOn: on, note },
     });
     await audit(tx, toAuditActor(actor), l.org.id, "RequisitionEndorsement", row.id, `${l.req.reference} · ${TIER_LABEL[tier]}`, "CREATE",
-      diffFields(null, { tier, unit: unit.nameEn, person: person.name, endorsedOn: on, note }));
+      diffFields(null, { tier, unit: unit.nameEn, person: person.name, endorsedOn: on, note, ...(act.intent.mode === "RECORDED_ON_BEHALF" ? { recordedOnBehalf: "not signed" } : {}) }));
+    await act.write(tx, row.id);
     return { ok: true };
   });
 }
@@ -891,9 +912,10 @@ export async function closeWithoutSourcing(_prev: FormState, data: FormData): Pr
 }
 
 /**
- * Record a Person's decision on a step (OD-12): recorded on behalf of, not signed. The
- * holder, delegation, self-approval and conflict checks apply to that Person, and no
- * decision is dated after today. The last step done approves the requisition.
+ * Record a decision on a step. The holder who decides signs it, with the password asked again (Phase 2b); a decision that came from paper is recorded for
+ * the holder by someone with the permission to, with the paper's reference, and is not signed. The holder, delegation, self-approval and conflict checks
+ * apply to the person it is attributed to, and the separation of duties to the person recording it as well. No decision is dated after today, and a
+ * signed one is dated today unless back-dating is recorded as an exception. The last step done approves the requisition.
  */
 export async function recordDecision(_prev: FormState, data: FormData): Promise<FormState> {
   const holderGuard = await staffForAct("HOLDER_CHECKED");
@@ -903,11 +925,17 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);
   const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Decided by", { required: true });
-  const on = r.date("decidedOn", "Decided on", { required: true });
+  r.date("decidedOn", "Decided on");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is rejected.");
-  if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
+  if (r.failed || !decision) return { ok: false, errors: r.errors };
+  // The decision is the signed-in holder's own, signed with the password, or recorded for the holder from paper (Phase 2b, F1): the holder and
+  // delegation checks run on whom it is attributed to, and the separation of duties on them and on the person recording it.
+  const begun = await beginAct(actor, data, "ApprovalStep.decidedBy", { personField: "personId", dateField: "decidedOn" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
+  const on = dayToDate(act.day!);
 
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const inst = openInstance(l);
@@ -927,6 +955,7 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
       declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
       person,
       requesterId: l.req.requestingPersonId,
+      recorderId: act.recorderId,
       endorserIds: [],
       endorsements: l.req.endorsements.map((e) => ({ personId: e.personId, unitCode: e.unitCode })),
       rootUnitCode: unitPath[unitPath.length - 1] ?? null,
@@ -955,7 +984,8 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) return CHANGED;
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${l.req.reference} · ${step.roleLabel}`, "UPDATE",
-      diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
+      diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null, underDelegation: check.delegationId ? "yes" : null }), reason);
+    await act.write(tx, step.id, { document: { entity: "Requisition", id }, roleCode: step.actingRoleCode ?? step.roleCode });
 
     if (decision === "REJECTED") {
       // FR-APR-016: the destination snapshotted at open says where it goes; unset, the
@@ -1005,9 +1035,13 @@ export async function chooseWhereItGoes(_prev: FormState, data: FormData): Promi
   const r = new FormReader(data);
   const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
   const seq = r.int("returnToSeq", "Step", { min: 1 });
-  const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  // The choice is the signed-in officer's own (Phase 2b).
+  const begun = await beginAct(actor, data, "ApprovalInstance.rejectionChosenBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (l.req.status !== "REJECTED") return { ok: false, message: "Only a rejected requisition waits for where it goes next." };
     if (!l.org.today) return NO_ZONE;
@@ -1024,7 +1058,7 @@ export async function chooseWhereItGoes(_prev: FormState, data: FormData): Promi
     }
     const person = await tx.person.findFirst({ where: { id: personId!, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
     if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
-    await recordChoice(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel: routeLabelOf(l) }, inst!.id, kind!, person.id, person.name, reason);
+    await recordChoice(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel: routeLabelOf(l) }, inst!.id, kind!, person.id, person.name, reason, act);
     await sendRejected(tx, toAuditActor(actor), l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
     return { ok: true };
   });

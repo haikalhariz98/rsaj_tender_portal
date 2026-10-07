@@ -76,6 +76,24 @@ describe("who may discharge a step (ruling OD-12)", () => {
     expect(deciderFaults(step, ctx({ otherDeciderIds: ["hodNth"] })).faults).toContain("ALREADY_DISCHARGED_A_STEP");
   });
 
+  // Phase 2b (F1): an approval recorded from paper for the holder is also judged against the person recording it.
+  it("applies the separation of duties to the person recording it for someone else, and only that: they need not hold the office", () => {
+    // The requester records the holder's approval of the requester's own requisition.
+    expect(deciderFaults(step, ctx({ requesterId: "clerk", recorderId: "clerk" })).faults).toEqual(["RECORDER_IS_REQUESTER"]);
+    expect(deciderFaults(step, ctx({ endorserIds: ["clerk"], recorderId: "clerk" })).faults).toEqual(["RECORDER_ENDORSED_IT"]);
+    expect(deciderFaults(step, ctx({ endorsements: [{ personId: "clerk", unitCode: "NTH-MNT" }], recorderId: "clerk" })).faults).toEqual(["RECORDER_ENDORSED_IT"]);
+    expect(deciderFaults(step, ctx({ otherDeciderIds: ["clerk"], recorderId: "clerk" })).faults).toEqual(["RECORDER_DECIDED_ANOTHER_STEP"]);
+    expect(deciderFaults(step, ctx({ declaredConflictIds: ["clerk"], recorderId: "clerk" })).faults).toEqual(["RECORDER_DECLARED_CONFLICT"]);
+    // A recorder who holds nothing and is none of these is not refused: a paper recording needs no office.
+    expect(deciderFaults(step, ctx({ recorderId: "clerk" })).faults).toEqual([]);
+  });
+
+  it("does not judge the person themselves twice: a decider who is the recorder is the ordinary case", () => {
+    expect(deciderFaults(step, ctx({ requesterId: "hodNth", recorderId: "hodNth" })).faults).toEqual(["SELF_APPROVAL"]);
+    expect(deciderFaults(step, ctx({ recorderId: "hodNth" })).faults).toEqual([]);
+    expect(deciderFaults(step, ctx({ recorderId: null })).faults).toEqual([]);
+  });
+
   it("refuses a future date, a date before submission, and a step taken out of order", () => {
     expect(deciderFaults(step, ctx({ decidedOn: "2026-10-01" })).faults).toContain("FUTURE_DATE");
     expect(deciderFaults(step, ctx({ decidedOn: "2026-09-19" })).faults).toContain("BEFORE_SUBMISSION");

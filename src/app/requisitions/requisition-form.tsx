@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
+import { useActorPersonId } from "@/components/auth/actor-context";
 import { ClipboardIcon, FileIcon, PlusIcon, RouteIcon, SaveIcon, XIcon } from "@/components/icons";
 import type { FormState } from "@/components/record-editor";
 import { Button, ButtonLink, iconButtonClass } from "@/components/ui/button";
@@ -112,15 +113,23 @@ export function RequisitionForm({
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const [lines, setLines] = useState<Line[]>(initialLines?.length ? initialLines : [{ ...BLANK_LINE }]);
-  const [officer, setOfficer] = useState(values.requestingPersonId ?? "");
-  const [unit, setUnit] = useState(values.requestingUnitCode ?? "");
-  const [sectionChoice, setSectionChoice] = useState(values.sectionUnitCode ?? "");
-  const [costCentre, setCostCentre] = useState(values.costCentreCode ?? "");
+  const actorId = useActorPersonId();
+  // A new requisition is the signed-in officer's own unless they say it is recorded for another (Phase 2b): the officer starts as them, and their unit fills in.
+  const [start] = useState(() => {
+    const me = !values.requestingPersonId && mode === "new" && actorId ? options.people.find((p) => p.id === actorId) : undefined;
+    if (!me) return null;
+    const result = prefillFromOfficer({ unit: values.requestingUnitCode ?? "", section: values.sectionUnitCode ?? "", costCentre: values.costCentreCode ?? "" }, {}, officerDefaults(me.orgUnitCode, options.units, options.costCentres));
+    return { personId: me.id, result, noUnit: !me.orgUnitCode };
+  });
+  const [officer, setOfficer] = useState(values.requestingPersonId ?? start?.personId ?? "");
+  const [unit, setUnit] = useState(start?.result.values.unit ?? values.requestingUnitCode ?? "");
+  const [sectionChoice, setSectionChoice] = useState(start?.result.values.section ?? values.sectionUnitCode ?? "");
+  const [costCentre, setCostCentre] = useState(start?.result.values.costCentre ?? values.costCentreCode ?? "");
   const [account, setAccount] = useState(values.accountCode ?? "");
   // What choosing the officer filled in, per field: a value still equal to it was never the user's own, so
   // a later officer may replace it. A field the user then chooses leaves this record.
-  const [filled, setFilled] = useState<{ unit?: string; section?: string; costCentre?: string }>({});
-  const [officerNote, setOfficerNote] = useState<PrefillResult | "no-unit" | null>(null);
+  const [filled, setFilled] = useState<{ unit?: string; section?: string; costCentre?: string }>(start?.result.filledBy ?? {});
+  const [officerNote, setOfficerNote] = useState<PrefillResult | "no-unit" | null>(start ? (start.noUnit ? "no-unit" : start.result) : null);
   const e = state.errors ?? {};
 
   const sections = useMemo(() => options.sections.filter((s) => s.parentCode === unit), [options.sections, unit]);
@@ -141,6 +150,7 @@ export function RequisitionForm({
     setFilled(result.filledBy);
     setOfficerNote(!person.orgUnitCode ? "no-unit" : result);
   };
+  const forAnother = mode === "new" && officer !== "" && actorId != null && officer !== actorId;
   const budgetCodes = useMemo(() => (account ? options.budgetCodes.filter((b) => b.accountCode === account) : options.budgetCodes), [options.budgetCodes, account]);
   const total = totalOf(lines);
   // Founder, 2026-10-06: the estimated value is the lines' total, worked out as they are typed (the
@@ -235,10 +245,29 @@ export function RequisitionForm({
         <CardHeader icon={<RouteIcon size={17} />} title="Requester and budget" subtitle="Who is asking, and which budget pays for it." />
         <CardBody className="grid gap-4 sm:grid-cols-2">
           {/* Founder, 2026-10-06: the officer comes first, and their unit fills in department, section and cost centre. */}
-          {select("requestingPersonId", "Requesting officer", options.people.map((p) => ({ value: p.id, label: p.name })), { required: true, value: officer, onChange: chooseOfficer })}
+          {mode === "edit" ? (
+            // The requester is set when the requisition is raised and is not changed by editing the draft.
+            <Field label="Requesting officer" hint="Set when the requisition was raised.">
+              <div className="flex h-10 items-center rounded-control bg-sunken px-3.5 text-[14px] text-ink-2">{options.people.find((p) => p.id === officer)?.name ?? "Not on record"}</div>
+            </Field>
+          ) : (
+            select("requestingPersonId", "Requesting officer", options.people.map((p) => ({ value: p.id, label: p.name })), {
+              required: true,
+              value: officer,
+              onChange: chooseOfficer,
+              hint: forAnother ? "Recorded for another officer, from their paper request: it is not signed by them." : "You, unless you are recording it for another officer.",
+            })
+          )}
           <div className="flex items-end pb-2 text-[13px] text-ink-3" aria-live="polite">
             {officerNote && officerNoteText(officerNote)}
           </div>
+          {forAnother && (
+            <>
+              <input type="hidden" name="requestingPersonId:onBehalf" value="on" />
+              {text("requestingPersonId:paperReference", "Paper reference", { hint: "The reference of the request form it came from." })}
+              {text("requestingPersonId:reason", "Why it is recorded for them", { hint: "Needed where there is no paper reference." })}
+            </>
+          )}
           {select("requestingUnitCode", "Requesting department", options.departments.map((d) => ({ value: d.code, label: d.name })), {
             required: true,
             value: unit,

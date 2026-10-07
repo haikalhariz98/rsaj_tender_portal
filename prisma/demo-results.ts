@@ -320,7 +320,7 @@ export async function loadResultsDemo(db: Db, organisationId: string, hooks: Res
   const matter = sitting.decisions.find((x) => x.exerciseId === sx) ?? fail("the appointment was not tabled");
   await act(`${d}T14:00`, "sitting opened", C.changeStatus, { meetingId: sitting.id, to: "IN_PROGRESS" });
   for (const p of [FD, CLERK]) await act(`${d}T14:05`, `attendance ${p.name}`, C.recordAttendance, { meetingId: sitting.id, personId: p.id, attended: "yes" });
-  for (const p of [FD, CLERK]) await actRoute(`${d}T14:30`, `vote ${p.name}`, () => vote(new Request("http://demo/api", { method: "POST", body: JSON.stringify({ personId: p.id, choice: "SETUJU", votedAt: d }) }), { params: Promise.resolve({ id: matter.id }) } as never));
+  for (const p of [FD, CLERK]) await actRoute(`${d}T14:30`, `vote ${p.name}`, () => vote(new Request("http://demo/api", { method: "POST", body: JSON.stringify({ onBehalfOf: p.id, choice: "SETUJU", votedAt: d }) }), { params: Promise.resolve({ id: matter.id }) } as never));
   await act(`${d}T14:45`, "outcome", C.recordOutcome, { decisionId: matter.id, outcome: "CARRIED", outcomeNote: "" });
   await act(`${d}T15:00`, "minutes", C.saveMinutes, { meetingId: sitting.id, minutes: `The Committee recommended the appointment on ${ref} (demo).` });
   await act(`${d}T15:10`, "sitting minuted", C.changeStatus, { meetingId: sitting.id, to: "MINUTED" });

@@ -10,6 +10,7 @@ import { CertificateRefusal } from "@/lib/certificate/write";
 import { dayOf, storedDay } from "@/lib/dates";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { OrgScope } from "@/lib/org-scope";
 
 /**
@@ -33,6 +34,8 @@ async function inAwardSheet(scope: OrgScope, awardId: string, now: Date, fn: (tx
     });
   } catch (e) {
     if (e instanceof CertificateRefusal) return { ok: false, message: e.message, errors: e.errors };
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     throw e;
   }
   if (result?.ok) revalidatePath(`/awards/${awardId}`);
@@ -64,9 +67,11 @@ export async function recordAwardRoutingCheck(_prev: FormState, data: FormData):
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const defOrder = r.int("defOrder", "Check", { min: 1, required: true });
-  const personId = r.text("personId", "Recorded for", { required: true });
   const on = r.date("on", "On", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || defOrder == null || !on) return { ok: false, errors: r.errors };
-  return inAwardSheet(actor, idOf(data), now, (tx, l, today) => recordAwardCheck(tx, toAuditActor(actor), l, defOrder, personId, storedDay(on), note, now, today));
+  // The check is the signed-in holder's own, or recorded for the holder from their paper (Phase 2b).
+  const begun = await beginAct(actor, data, "RoutingCheck.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  return inAwardSheet(actor, idOf(data), now, (tx, l, today) => recordAwardCheck(tx, toAuditActor(actor), l, defOrder, begun.act, storedDay(on), note, now, today));
 }

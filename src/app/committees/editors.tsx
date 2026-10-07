@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 import { ACT_LABEL, matterLabel } from "@/lib/labels";
 import matters from "@/lib/labels.json";
 import { MATTER_KIND_LABEL, MINUTES_EDITOR_DESCRIPTION, SCHEDULE_WORDS, SITTING_TABLED_MATTER_KINDS, sittingTablesDomain, NOT_APPROVED_KIND_LABEL } from "@/lib/committee/labels";
@@ -32,7 +33,6 @@ export function ScheduleSitting({
   committees,
   numbered,
   proposed,
-  tablers,
   fromRecord,
 }: {
   committees: { id: string; nameEn: string }[];
@@ -40,8 +40,6 @@ export function ScheduleSitting({
   numbered: boolean;
   /// Founder, 2026-10-05: by committee id, what is waiting for it that a sitting tables (`loadWaiting`).
   proposed: Record<string, ProposedItem[]>;
-  /// By committee id, the holders of its Secretariat office today, who may table them.
-  tablers: Record<string, { value: string; label: string }[]>;
   /// Whether anything waiting is tabled from its own record instead (a variation, a contract matter).
   fromRecord: boolean;
 }) {
@@ -73,15 +71,8 @@ export function ScheduleSitting({
       optionsBy: { name: "committeeId", options: proposed, waiting: W.itemsWaiting.en, none: W.itemsNone.en },
       allChecked: true,
     },
-    {
-      kind: "select",
-      name: "tabledByPersonId",
-      label: W.tabledBy.en,
-      hint: W.tabledByHint.en,
-      placeholder: "Choose",
-      options: [],
-      optionsBy: { name: "committeeId", options: tablers, waiting: W.itemsWaiting.en },
-    },
+    // The tabler is the signed-in holder of the committee's Secretariat office (FR-CTE-006): needed only where an item is ticked.
+    actorField("CommitteeDecision.tabledBy", { name: "tabledByPersonId", label: W.tabledBy.en, hint: W.tabledByHint.en }),
     ...(fromRecord ? [{ kind: "note" as const, text: W.fromRecordNote.en }] : []),
   ];
   return (
@@ -310,14 +301,7 @@ export function TableMatter({
           placeholder: "Depends on no other matter",
           options: otherMatters.map((m) => ({ value: m.id, label: m.subject })),
         },
-        {
-          kind: "select",
-          name: "tabledByPersonId",
-          label: "Tabled by",
-          required: true,
-          placeholder: holders.length === 0 ? "Nobody holds the Secretariat office" : "Choose",
-          options: holders.map((h) => ({ value: h.id, label: h.name })),
-        },
+        actorField("CommitteeDecision.tabledBy", { name: "tabledByPersonId", hint: holders.length === 0 ? "Nobody holds the Secretariat office." : "Only a holder of the Secretariat office can table." }),
       ]}
       values={{ ...prefill, meetingId }}
       defaultOpen={!!prefill}
@@ -342,14 +326,8 @@ export function DeclareRecusal({
       description="The member stands aside from this matter only: its vote and its quorum. The rest of the sitting is unaffected."
       fields={[
         { kind: "hidden", name: "decisionId" },
-        {
-          kind: "select",
-          name: "personId",
-          label: "Member",
-          required: true,
-          placeholder: "Choose",
-          options: members.map((m) => ({ value: m.id, label: m.name })),
-        },
+        // The member declares their own recusal, signed in; the Secretariat records it for them from the sitting.
+        actorField("DecisionRecusal.person", { name: "personId", label: "Member", people: members.map((m) => ({ value: m.id, label: m.name })) }),
         { kind: "textarea", name: "reason", label: "Interest declared" },
       ]}
       values={{ decisionId }}

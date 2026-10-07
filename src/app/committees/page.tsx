@@ -4,9 +4,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { matterCount, MEETING_STATUS_LABEL, MEETING_STATUS_TONE, SCHEDULE_WORDS, WAITING_KIND_WORDS, WAITING_WORDS } from "@/lib/committee/labels";
-import { secretariatHoldersOn } from "@/lib/committee/tabling";
 import { loadWaiting } from "@/lib/committee/waiting-load";
-import { loadRoster } from "@/lib/people/load";
 import { listSittings, SITTINGS_PAGE } from "@/lib/committee/sittings";
 import { db } from "@/lib/db";
 import { dayToDate } from "@/lib/dates";
@@ -40,9 +38,7 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
     : null;
   const numbered = series != null && patternFaults(series).length === 0;
   const waiting = await loadWaiting(actor.organisationId);
-  // Founder, 2026-10-05: what the schedule drawer proposes for each committee, and who may table it today.
-  const roster = waiting?.today ? await loadRoster(actor.organisationCode) : null;
-  const secretariats = orgId ? await db.committee.findMany({ where: { organisationId: orgId }, select: { id: true, secretariatRoleCode: true } }) : [];
+  // Founder, 2026-10-05: what the schedule drawer proposes for each committee. It is tabled by the signed-in holder of the Secretariat office (Phase 2b).
   const proposed: Record<string, ProposedItem[]> = {};
   for (const e of waiting?.entries ?? []) {
     if (e.tabledAt !== "SITTING" || !e.committeeId) continue;
@@ -52,9 +48,6 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
       description: `${ACT_LABEL[e.act] ?? "Not on record"} · ${e.waitingDays == null ? WAITING_WORDS.daysUnset.en : `${WAITING_WORDS.waiting.en} ${WAITING_WORDS.days.en(e.waitingDays)}`}`,
     });
   }
-  const tablers = Object.fromEntries(
-    secretariats.map((c) => [c.id, roster ? secretariatHoldersOn(roster, c.secretariatRoleCode, waiting!.today).map((p) => ({ value: p.id, label: p.name })) : []]),
-  );
   const fromRecord = (waiting?.entries ?? []).some((e) => e.tabledAt === "RECORD");
 
   // Counted across every sitting, not only this page.
@@ -100,7 +93,7 @@ export default async function SittingsPage({ searchParams }: { searchParams: Pro
           `${awaiting} awaiting minutes`,
           `${pending} ${pending === 1 ? "matter" : "matters"} pending`,
         ]}
-        actions={schedulable.length > 0 ? <ScheduleSitting committees={schedulable} numbered={numbered} proposed={proposed} tablers={tablers} fromRecord={fromRecord} /> : undefined}
+        actions={schedulable.length > 0 ? <ScheduleSitting committees={schedulable} numbered={numbered} proposed={proposed} fromRecord={fromRecord} /> : undefined}
       />
 
       <WaitingToBeTabled waiting={waiting} />

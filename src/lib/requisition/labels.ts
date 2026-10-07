@@ -311,6 +311,10 @@ export const DECIDER_FAULT_TEXT: Record<DeciderFault, string> = {
   FUTURE_DATE: "A decision cannot be dated after today.",
   BEFORE_SUBMISSION: "A decision cannot be dated before the requisition was submitted.",
   DECLARED_CONFLICT: "That person declared a conflict of interest on this step and recused. The step was escalated to the office above.",
+  RECORDER_IS_REQUESTER: "You raised or sent this matter for decision. Nobody records the decision of their own matter, for themselves or on someone else's behalf.",
+  RECORDER_ENDORSED_IT: "You endorsed this matter. An endorser does not record its decision for someone else.",
+  RECORDER_DECIDED_ANOTHER_STEP: "You have already decided another step of this route. The same person does not record a second decision on it for someone else.",
+  RECORDER_DECLARED_CONFLICT: "You declared a conflict of interest on this step and recused. You do not record its decision for someone else.",
 };
 
 /// Why a received requisition's commitment is not in the portal ledger, as a title.

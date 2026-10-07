@@ -71,7 +71,12 @@ export type DeciderFault =
   | "ALREADY_DISCHARGED_A_STEP"
   | "FUTURE_DATE"
   | "BEFORE_SUBMISSION"
-  | "DECLARED_CONFLICT";
+  | "DECLARED_CONFLICT"
+  /// The person recording an approval for someone else (Phase 2b, F1): the separation of duties applies to them as well as to the person it is for.
+  | "RECORDER_IS_REQUESTER"
+  | "RECORDER_ENDORSED_IT"
+  | "RECORDER_DECIDED_ANOTHER_STEP"
+  | "RECORDER_DECLARED_CONFLICT";
 
 export interface DeciderContext {
   today: string | null;
@@ -91,6 +96,10 @@ export interface DeciderContext {
   otherDeciderIds: readonly string[];
   /// People who declared a conflict on this step and recused (FR-APR-009).
   declaredConflictIds?: readonly string[];
+  /// The signed-in person recording the decision, where it is for someone else (recorded on their behalf, from paper): the checks that keep a person from
+  /// approving their own matter, or one they endorsed or already decided a step of, run on them too. Not the holder or delegation checks: a person
+  /// recording from paper need not hold the office. Absent or the same as `person` where the decider is the person signed in.
+  recorderId?: string | null;
   /// Whether every earlier step is done.
   earlierDone: boolean;
   /// YYYY-MM-DD: the decision date, and the day the route was opened.
@@ -118,6 +127,14 @@ export function deciderFaults(
   if (!ctx.earlierDone) faults.push("OUT_OF_ORDER");
   if (ctx.decidedOn > ctx.today) faults.push("FUTURE_DATE");
   if (ctx.decidedOn < ctx.openedOn) faults.push("BEFORE_SUBMISSION");
+
+  const rid = ctx.recorderId ?? null;
+  if (rid && rid !== ctx.person?.id) {
+    if (rid === ctx.requesterId) faults.push("RECORDER_IS_REQUESTER");
+    if (ctx.endorserIds.includes(rid) || (ctx.endorsements ?? []).some((e) => e.personId === rid)) faults.push("RECORDER_ENDORSED_IT");
+    if (ctx.otherDeciderIds.includes(rid)) faults.push("RECORDER_DECIDED_ANOTHER_STEP");
+    if (ctx.declaredConflictIds?.includes(rid)) faults.push("RECORDER_DECLARED_CONFLICT");
+  }
 
   const pid = ctx.person?.id ?? null;
   if (!ctx.person || !pid) return { faults: [...faults, "NOT_HOLDER"], delegationId };

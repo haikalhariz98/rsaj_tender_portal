@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 
 import {
   cancelRequisition,
@@ -39,21 +40,16 @@ export function RecordEndorsementDrawer({ id, tiers, byTier, today }: { id: stri
   return (
     <RecordEditor
       title="Record an endorsement"
-      description="The head of the tier's unit endorses the draft. Recorded on their behalf: nobody signs in yet."
+      description="The head of the tier's unit endorses the draft, signed in as themselves. An endorsement that came from their paper is recorded for them by someone else, and is not signed."
       fields={[
         hidden("id"),
         { kind: "select", name: "tier", label: "Tier", required: true, placeholder: "Choose", options: tiers },
-        {
-          kind: "select",
+        // Who heads each tier's unit (from the day raised to today). Recorded from paper, the person is one of them; the action checks it is the chosen tier's head.
+        actorField("RequisitionEndorsement.person", {
           name: "personId",
-          label: "Endorsed by",
-          required: true,
-          placeholder: "Choose",
-          options: [],
-          // Only who heads the chosen tier's unit (from the day raised to today), not everyone.
-          optionsBy: { name: "tier", options: byTier, waiting: "Choose the tier first" },
-          hint: "The head of that unit. If nobody is listed, the unit has no head on record: set one in Configuration, Organisation.",
-        },
+          people: [...new Map(Object.values(byTier).flat().map((o) => [o.value, o])).values()],
+          hint: "The head of the tier's unit. If nobody holds it, the unit has no head on record: set one in Configuration, Organisation.",
+        }),
         { kind: "date", name: "endorsedOn", label: "Endorsed on", required: true, hint: "Not after today." },
         { kind: "textarea", name: "note", label: "Note" },
       ]}
@@ -252,12 +248,12 @@ export function WhereItGoesDrawer({
   return (
     <RecordEditor
       title="Where it goes next"
-      description="No destination applied to this rejection, so the officer chooses. The choice is recorded as theirs, on behalf of the person named, not signed — it is not the organisation's policy."
+      description="No destination applied to this rejection, so the officer chooses. The choice is recorded as yours — it is not the organisation's policy."
       fields={[
         hidden("id"),
         { kind: "select", name: "kind", label: "Where it goes", required: true, placeholder: "Choose", options: kinds },
         { kind: "select", name: "returnToSeq", label: "The step it returns to", required: true, placeholder: "Choose", options: steps, hint: "The route continues from this step; the steps before it keep their decisions." },
-        { kind: "select", name: "personId", label: "Chosen by", required: true, placeholder: "Choose", options: people },
+        actorField("ApprovalInstance.rejectionChosenBy", { name: "personId", people }),
         { kind: "textarea", name: "reason", label: "Why it goes there" },
       ]}
       showWhen={{ returnToSeq: { name: "kind", in: ["RETURN_TO_STEP"] } }}
@@ -294,7 +290,7 @@ export function DecisionDrawer({
   return (
     <RecordEditor
       title={`Record ${roleLabel}'s decision`}
-      description={`The ${act.toLowerCase()} step. Name who decided: it is recorded on their behalf, not signed, until sign-in exists. They must hold the office for this requisition's department, or a delegation of it.`}
+      description={`The ${act.toLowerCase()} step. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office for this requisition's department, or a delegation of it, and the person recording it must not have raised or endorsed it.`}
       fields={[
         hidden("id"),
         hidden("stepId"),
@@ -309,8 +305,9 @@ export function DecisionDrawer({
             { value: "REJECTED", label: "Rejected" },
           ],
         },
-        { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: people, hint: "Holders of the office for this department and their delegates come first, then anyone who cannot decide it and why." },
-        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was submitted." },
+        // Recorded from paper, the picker lists the holders of the office for this department and their delegates first, then anyone who cannot decide it and why.
+        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true }),
+        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was submitted. A signed decision is dated today unless back-dating is recorded." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a rejection." },
       ]}
       values={{ id, stepId, decidedOn: today }}

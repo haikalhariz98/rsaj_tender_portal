@@ -26,6 +26,7 @@ import { issuedInForce } from "@/lib/authority/issue";
 import { inProgressSittingRefusal } from "@/lib/committee/sittings";
 import { splitValues } from "@/lib/ui/select-logic";
 import { requireStaff, staffForPermission, toAuditActor } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { disableAccountOfLeaver, LeaverRefused } from "@/lib/auth/administration";
 import { delegationPersonsToCheck, delegationWhat, holdingGrows, officeWhat } from "@/lib/auth/administration-conflict";
 import { assertCanHold, HoldingRefused } from "@/lib/auth/administration-guard";
@@ -382,6 +383,10 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
 
   const parsed = r.finish(v);
   if (!parsed.ok) return { ok: false, errors: parsed.errors };
+  // The grantor is the signed-in person, or another whose delegation is recorded from their paper letter (Phase 2b; the grantor rules of 3c come later).
+  const begun = await beginAct(actor, data, "Delegation.fromPerson", { personField: "fromPersonId", namesSubject: true });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
 
   const recommendationVersionId = r.optionalText("recommendationVersionId");
   const proposed: Delegation = {
@@ -486,10 +491,13 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
         const changes = diffFields(locked, v);
         if (changes.length) await writeAudit(tx, { ...ctx, entityId: id }, "UPDATE", changes);
       }
+      await act.write(tx, delegationId);
       if (recommendationVersionId) await attachRecommendation(tx, toAuditActor(actor), orgId, delegationId, recommendationVersionId);
     });
   } catch (e) {
     if (e instanceof DelegationRefused) return e.state;
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     if (e instanceof RecommendationRefused) return { ok: false, errors: { recommendationVersionId: e.message } };
     throw e;
   }

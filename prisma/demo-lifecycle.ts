@@ -556,7 +556,7 @@ export async function loadLifecycleDemo(db: Db, organisationId: string) {
   for (const p of [people.bala, people.gopal, people.chen]) await act("2026-07-15T09:05", `attendance ${p.name}`, C.recordAttendance, { meetingId: voc1, personId: p.id, attended: "yes" });
   const matter = (await db.committeeDecision.findFirstOrThrow({ where: { meetingId: voc1, variationId: av } })).id;
   const { POST: vote } = await import("../src/app/api/committees/decisions/[id]/votes/route");
-  for (const p of [people.bala, people.gopal]) await actRoute("2026-07-15T09:30", `vote ${p.name}`, () => vote(new Request("http://demo/api", { method: "POST", body: JSON.stringify({ personId: p.id, choice: "SETUJU", votedAt: "2026-07-15" }) }), { params: Promise.resolve({ id: matter }) } as never));
+  for (const p of [people.bala, people.gopal]) await actRoute("2026-07-15T09:30", `vote ${p.name}`, () => vote(new Request("http://demo/api", { method: "POST", body: JSON.stringify({ onBehalfOf: p.id, choice: "SETUJU", votedAt: "2026-07-15" }) }), { params: Promise.resolve({ id: matter }) } as never));
   await act("2026-07-15T10:00", "VOC outcome", C.recordOutcome, { decisionId: matter, outcome: "CARRIED", outcomeNote: "" });
   await act("2026-07-15T11:00", "VOC minutes", C.saveMinutes, { meetingId: voc1, minutes: "The Committee recommended the two additional air valve chambers (demo)." });
   await act("2026-07-16T09:00", "VOC minuted", C.changeStatus, { meetingId: voc1, to: "MINUTED" });

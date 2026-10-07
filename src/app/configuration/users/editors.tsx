@@ -582,7 +582,7 @@ function recommendationUploadFields(upload: UploadView, attachedNote?: string | 
       hint: [upload.allowedTypes.length ? `Allowed: ${upload.allowedTypes.join(", ")}.` : null, upload.capText ? `${upload.capText}.` : null, "Needed where the person delegating is away."].filter(Boolean).join(" "),
     },
     { kind: "select", name: "documentClassId", label: "Class of the scan", placeholder: "Choose a class", options: upload.classes, hint: "Needed when a file is chosen." },
-    { kind: "select", name: "recordedByPersonId", label: "Scan recorded by", placeholder: "Choose who is recording it", options: upload.people, hint: "Recorded on their behalf, not signed. Needed when a file is chosen." },
+    // The scan is recorded by the signed-in officer (Phase 2b): the upload takes the person from the session.
   ];
 }
 
@@ -597,13 +597,13 @@ function useDelegationSave(people: Person[]): SaveAction {
   return useCallback<SaveAction>(
     async (_prev, data) => {
       const next = new FormData();
-      for (const [k, v] of data.entries()) if (k !== "file" && k !== "documentClassId" && k !== "recordedByPersonId") next.append(k, v);
+      for (const [k, v] of data.entries()) if (k !== "file" && k !== "documentClassId") next.append(k, v);
       let staged = false;
       const file = data.get("file");
       if (file instanceof File && file.name) {
         const from = people.find((p) => p.id === String(data.get("fromPersonId") ?? ""));
         const up = new FormData();
-        for (const k of ["file", "documentClassId", "recordedByPersonId"]) up.set(k, data.get(k) ?? "");
+        for (const k of ["file", "documentClassId"]) up.set(k, data.get(k) ?? "");
         up.set("title", `Signed recommendation of ${from?.name ?? "the absent holder"}`);
         const s = await stage(up, stagedRef, {});
         if (!s.ok) return s.state;
