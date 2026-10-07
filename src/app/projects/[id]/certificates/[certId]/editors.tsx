@@ -2,7 +2,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { DECISION_WORDS, METHOD_WORDS } from "@/lib/certificate/labels";
 import { DELIVERY_METHODS, SIGNATURE_DECISIONS, type Block } from "@/lib/certificate/types";
-import { ON_BEHALF_HINT } from "@/lib/documents/labels";
+import { actorField } from "@/lib/auth/actor-field";
 
 import {
   acknowledgeCertificateCopy,
@@ -23,7 +23,7 @@ import {
 
 /**
  * The certificate's drawers (6.14 increment 1). No field carries a default but the day an act is recorded.
- * Every Person named is recorded on their behalf, not signed. No drawer posts a bound field: the figures as
+ * Every act is the signed-in officer's own; a decision, check or signature made on paper is recorded for the holder by someone else, and is not signed (Phase 2b). No drawer posts a bound field: the figures as
  * computed, the number, the sequence and the certificate's date are never inputs (FR-CRT-002). Each act is
  * judged again by the server on locked rows; a drawer that cannot proceed says why beside its button.
  */
@@ -33,7 +33,8 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 const ghost = buttonClass("ghost", "sm");
 const secondary = buttonClass("secondary", "sm");
 const primary = buttonClass("primary", "sm");
-const person = (name: string, label: string, people: Option[]): Field => ({ kind: "select", name, label, required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT });
+/// Who is acting: the signed-in officer, shown and not chosen. Where the slot may come from paper, `people` are who it may be recorded for.
+const by = (slot: string, name: string, people: Option[], label?: string, dated = false): Field => actorField(slot, { name, people, label, dated });
 
 export function SendForRoutingDrawer({ certId, typeLabel, blocker }: { certId: string; typeLabel: string; blocker: string | null }) {
   return (
@@ -83,7 +84,7 @@ export function CheckDrawer({ certId, defOrder, label, office, people, today, bl
     <RecordEditor
       title={label}
       description={office ? `Recorded for a holder of ${office} on the day (or a delegate of the whole office).` : "No office is set for this check on its type: any officer may be named, and the sheet says so."}
-      fields={[hidden("certId"), hidden("defOrder"), person("personId", "Recorded for", people), { kind: "date", name: "on", label: "On", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
+      fields={[hidden("certId"), hidden("defOrder"), by("RoutingCheck.person", "personId", people), { kind: "date", name: "on", label: "On", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
       values={{ certId, defOrder: String(defOrder), on: today }}
       action={recordCertificateCheck}
       submitBlock={blocker}
@@ -95,8 +96,11 @@ export function CheckDrawer({ certId, defOrder, label, office, people, today, bl
 export function SignatureDrawer({ certId, block, people, today, blocker }: { certId: string; block: Block; people: Option[]; today: string | null; blocker: string | null }) {
   const own = ["SO", "SO_REP", "RECOMMENDING_OFFICER", "NAMED_OFFICE"].includes(block.officeRule);
   const fields: Field[] = [hidden("certId"), hidden("blockOrder")];
-  if (own) fields.push(person("personId", "Signed by", people));
-  else {
+  if (own) {
+    fields.push(hidden("personBlock"));
+    fields.push(by("CertificateSignature.person", "personId", people, undefined, true));
+    fields.push({ kind: "date", name: "signedOn", label: "Signed on", hint: "Leave empty to date it today. A signed block is dated today unless back-dating is recorded; from paper, the day it was signed." });
+  } else {
     fields.push({ kind: "text", name: "name", label: "Full name as signed", required: true });
     fields.push({ kind: "text", name: "icNumber", label: "Identity-card number", hint: "Only the last four digits are kept." });
     fields.push({ kind: "date", name: "signedOn", label: "Signed on paper on", required: true });
@@ -114,7 +118,7 @@ export function SignatureDrawer({ certId, block, people, today, blocker }: { cer
       title={block.labelEn}
       description={own ? `Dated the day this is recorded${block.datesCertificate ? ", and that day is the certificate's date" : ""}. The first signature pins the form: its order and recipients do not move after it.` : `Dated the day signed on paper${block.datesCertificate ? ", which is the certificate's date" : ""}.`}
       fields={fields}
-      values={{ certId, blockOrder: String(block.blockOrder), signedOn: own ? null : today }}
+      values={{ certId, blockOrder: String(block.blockOrder), signedOn: own ? null : today, personBlock: own ? "yes" : "no" }}
       showWhen={block.refusalAllowed ? { refusalNote: { name: "refused", in: ["yes"] } } : undefined}
       action={recordCertificateSignature}
       submitLabel="Record"
@@ -129,7 +133,7 @@ export function OverrideDrawer({ certId, fieldKey, label, computed, people }: { 
     <RecordEditor
       title={`Override: ${label}`}
       description={`As computed: ${computed}. An override is an exception: it needs its justification and the officer it is recorded for, and both figures stay on the certificate. Totals are recomputed from the lines.`}
-      fields={[hidden("certId"), hidden("fieldKey"), { kind: "text", name: "value", label: "Overridden to", required: true }, { kind: "textarea", name: "justification", label: "Justification", required: true }, person("personId", "Recorded for", people)]}
+      fields={[hidden("certId"), hidden("fieldKey"), { kind: "text", name: "value", label: "Overridden to", required: true }, { kind: "textarea", name: "justification", label: "Justification", required: true }, by("CertificateOverride.person", "personId", people)]}
       values={{ certId, fieldKey }}
       action={overrideCertificateFigure}
       trigger={{ label: "Override", className: ghost, ariaLabel: `Override ${label}` }}
@@ -200,8 +204,8 @@ export function SendForApprovalDrawer({ certId, figure, people, blocker, again }
   return (
     <RecordEditor
       title={again ? "Send for approval again" : "Send for approval"}
-      description={`Opens its approval route on the approval matrix in force today, routed on ${figure}. The figures go as they stand (any override included) and freeze: nothing is overridden while the route waits or once it is approved. Where it has a routing sheet, the sheet starts too. Name who sends it: recorded on their behalf, not signed, and they may not decide it.`}
-      fields={[hidden("certId"), person("personId", "Sent by", people)]}
+      description={`Opens its approval route on the approval matrix in force today, routed on ${figure}. The figures go as they stand (any override included) and freeze: nothing is overridden while the route waits or once it is approved. Where it has a routing sheet, the sheet starts too. You send it, signed in as yourself: you may not decide it afterwards.`}
+      fields={[hidden("certId"), by("ApprovalInstance.submittedBy", "personId", people)]}
       values={{ certId }}
       action={sendCertificateForApproval}
       submitLabel={again ? "Send again" : "Send for approval"}
@@ -215,12 +219,12 @@ export function DecideRouteStepDrawer({ certId, stepId, roleLabel, act, done, pe
   return (
     <RecordEditor
       title={`Record ${roleLabel}'s decision`}
-      description={`The ${act.toLowerCase()} step of the certificate's approval route. Name who decided: recorded on their behalf, not signed. They must hold the office for the contract's department, or a delegation of it, and may not be who sent it for approval.`}
+      description={`The ${act.toLowerCase()} step of the certificate's approval route. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office for the contract's department, or a delegation of it, and may not be who sent it for approval.`}
       fields={[
         hidden("certId"),
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: "Refused" }] },
-        { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: people },
+        by("ApprovalStep.decidedBy", "personId", people, undefined, true),
         { kind: "date", name: "receivedOn", label: "Received on", hint: "The day it reached them. Optional: not recorded is shown as such." },
         { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was sent for approval." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
@@ -243,7 +247,7 @@ export function ChooseRejectionDrawer({ certId, offered, steps, people }: { cert
         hidden("certId"),
         { kind: "select", name: "goesTo", label: "Where it goes", required: true, placeholder: "Choose", options: offered },
         { kind: "select", name: "returnToSeq", label: "Back to the step", placeholder: steps.length ? "Choose, for a return to a step" : "No earlier step", options: steps },
-        person("personId", "Chosen by", people),
+        by("ApprovalInstance.rejectionChosenBy", "personId", people),
         { kind: "textarea", name: "reason", label: "Why it goes there", required: true },
       ]}
       values={{ certId }}
@@ -261,7 +265,7 @@ export function FinancePaymentDrawer({ certId, amount, people, today, blocker }:
     <RecordEditor
       title="Paid by Finance"
       description={`What Finance returns once it has paid the certificate: its batch number and the day paid. The amount is the certificate's own (${amount}), never keyed.`}
-      fields={[hidden("certId"), { kind: "text", name: "batchNo", label: "Batch number", required: true }, { kind: "date", name: "paidOn", label: "Paid on", required: true }, person("personId", "Recorded for", people), { kind: "textarea", name: "note", label: "Note" }]}
+      fields={[hidden("certId"), { kind: "text", name: "batchNo", label: "Batch number", required: true }, { kind: "date", name: "paidOn", label: "Paid on", required: true }, by("FinancePayment.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ certId, paidOn: today }}
       action={recordCertificatePayment}
       submitLabel="Record the payment"

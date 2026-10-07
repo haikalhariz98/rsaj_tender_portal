@@ -1,8 +1,8 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 import type { AwardTerm } from "@/lib/contract/award-correction";
 import type { EnteredGroup } from "@/lib/contract/baseline";
-import { ON_BEHALF_HINT } from "@/lib/documents/labels";
 
 import {
   acknowledgeCopy,
@@ -37,7 +37,7 @@ import {
 
 /**
  * The contract record's drawers (6.12). No field carries a default but the day, where an act is
- * recorded today. Every person named is recorded on their behalf, not signed. Each act is judged again
+ * recorded today. Every act is the signed-in officer's own; one made on paper is recorded for the holder by someone else, and is not signed (Phase 2b). Each act is judged again
  * by the server on locked rows; a drawer that cannot proceed says why beside its button.
  */
 
@@ -46,7 +46,10 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 const ghost = buttonClass("ghost", "sm");
 const secondary = buttonClass("secondary", "sm");
 const primary = buttonClass("primary", "sm");
-const person = (name: string, label: string, people: Option[]): Field => ({ kind: "select", name, label, required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT });
+/// A person who is not the actor of the act: a custodian, a participant (a state or a roster, not an act).
+const person = (name: string, label: string, people: Option[]): Field => ({ kind: "select", name, label, required: true, placeholder: "Choose", options: people });
+/// Who is acting: the signed-in officer, shown and not chosen. Where the slot may come from paper, `people` are who it may be recorded for.
+const by = (slot: string, name: string, people: Option[], label?: string, dated = false): Field => actorField(slot, { name, people, label, dated });
 const PROVENANCE: Field = {
   kind: "select",
   name: "provenance",
@@ -118,7 +121,7 @@ export function ReconciliationDrawer({ id, comparison, label, people, today, cur
         hidden("id"),
         hidden("comparison"),
         { kind: "select", name: "outcome", label: "Outcome", required: true, placeholder: "Choose", options: [{ value: "MATCHES", label: "Identical" }, { value: "AMENDED", label: "Amended: amendments follow, each signed by both" }] },
-        person("personId", "Checked by", people),
+        by("ContractReconciliation.checkedBy", "personId", people),
         { kind: "date", name: "checkedOn", label: "Checked on", required: true },
         { kind: "textarea", name: "note", label: "Note" },
       ]}
@@ -133,7 +136,7 @@ export function AmendmentDrawer({ id, reconciliationId, people, today }: { id: s
   return (
     <RecordEditor
       title="Record an amendment"
-      description="An amendment to recorded information is signed by the contractor's signatory and the preparing officer. Both are recorded on their behalf, not signed."
+      description="An amendment to recorded information is signed by the contractor's signatory (named: the contractor has no account here) and by the preparing officer, who signs in with their password. An officer's signature made on paper is recorded for them, and is not signed."
       columns={2}
       fields={[
         hidden("id"),
@@ -141,7 +144,7 @@ export function AmendmentDrawer({ id, reconciliationId, people, today }: { id: s
         { kind: "textarea", name: "description", label: "What it amends", required: true },
         { kind: "text", name: "contractorSignatoryName", label: "Signed for the contractor by", required: true },
         { kind: "date", name: "contractorSignedOn", label: "Contractor signed on", required: true },
-        person("officerPersonId", "Preparing officer", people),
+        by("ReconciliationAmendment.officer", "officerPersonId", people, undefined, true),
         { kind: "date", name: "officerSignedOn", label: "Officer signed on", required: true },
       ]}
       values={{ id, reconciliationId, contractorSignedOn: today, officerSignedOn: today }}
@@ -218,7 +221,7 @@ export function CompleteCheckDrawer({ id, checkId, label, people, today, blocker
     <RecordEditor
       title={`Complete: ${label}`}
       description="Recorded complete with the officer and the day. Its lines no longer change."
-      fields={[hidden("id"), hidden("checkId"), person("personId", "Completed by", people), { kind: "date", name: "completedOn", label: "Completed on", required: true }, { kind: "textarea", name: "note", label: "Note", hint: noteHint }]}
+      fields={[hidden("id"), hidden("checkId"), by("FormationCheck.completedBy", "personId", people), { kind: "date", name: "completedOn", label: "Completed on", required: true }, { kind: "textarea", name: "note", label: "Note", hint: noteHint }]}
       values={{ id, checkId, completedOn: today }}
       action={completeCheck}
       submitBlock={blocker}
@@ -234,7 +237,7 @@ export function SubmitLegalDrawer({ id, office, people, blocker, documents }: { 
     <RecordEditor
       title={`Send to ${office}`}
       description={`A new iteration, pinning the versions now attached to go: ${documents}. No limit on iterations and no timeout.`}
-      fields={[hidden("id"), person("personId", "Sent by", people)]}
+      fields={[hidden("id"), by("LegalReview.submittedBy", "personId", people)]}
       values={{ id }}
       action={submitLegal}
       submitLabel="Send"
@@ -252,7 +255,7 @@ export function DecideLegalDrawer({ id, iteration, people, today }: { id: string
       fields={[
         hidden("id"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "ENDORSED", label: "Endorsed" }, { value: "RETURNED", label: "Returned for amendment" }] },
-        person("reviewerPersonId", "Decided by", people),
+        by("LegalReview.reviewer", "reviewerPersonId", people),
         { kind: "date", name: "decidedOn", label: "Decided on", required: true },
         { kind: "textarea", name: "comments", label: "Comments" },
       ]}
@@ -270,7 +273,7 @@ export function WcCheckDrawer({ id, policyId, label, people, today }: { id: stri
     <RecordEditor
       title="Record the uncovered-wages check"
       description={`${label}: the uncovered wages the contractor declares, checked before signature. Recorded, not judged: no basis compares the wages with the sum insured (D4).`}
-      fields={[hidden("id"), hidden("policyId"), person("personId", "Checked by", people), { kind: "date", name: "checkedOn", label: "Checked on", required: true }, { kind: "money", name: "declaredWages", label: "Declared uncovered wages", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
+      fields={[hidden("id"), hidden("policyId"), by("InsurancePolicy.wcCheckedBy", "personId", people), { kind: "date", name: "checkedOn", label: "Checked on", required: true }, { kind: "money", name: "declaredWages", label: "Declared uncovered wages", required: true }, { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, policyId, checkedOn: today }}
       action={recordWcCheck}
       trigger={{ label: "Record the wages check", className: secondary }}
@@ -282,7 +285,7 @@ export function ContractorSignatureDrawer({ id, today, blocker }: { id: string; 
   return (
     <RecordEditor
       title="Record the contractor's signature"
-      description="The contractor's signatory and the witness, with their full names and identity-card numbers, recorded on their behalf. The numbers are masked everywhere but here."
+      description="The contractor's signatory and the witness, with their full names and identity-card numbers, named by you and not signed: they have no account here. The numbers are masked everywhere but here."
       columns={2}
       fields={[
         hidden("id"),
@@ -306,7 +309,7 @@ export function RsajSignatureDrawer({ id, office, people, blocker, contractDate 
     <RecordEditor
       title="Record the signature for the employer"
       description={`Executes the contract. Signed by the holder of ${office} on the day, or a delegate where the rule allows. The Contract Date is not asked for: it is the day this is recorded, ${contractDate}. A signature recorded late is corrected afterwards, with a reason.`}
-      fields={[hidden("id"), person("personId", "Signed by", people)]}
+      fields={[hidden("id"), by("ContractSignature.person", "personId", people)]}
       values={{ id }}
       action={recordRsajSignature}
       submitLabel="Record and execute"
@@ -351,7 +354,7 @@ export function BriefingDrawer({ id, people, today }: { id: string; people: Opti
       fields={[
         hidden("id"),
         { kind: "date", name: "heldOn", label: "Held on", required: true },
-        { kind: "tokens", name: "participantIds", label: "For the employer", options: people, hint: ON_BEHALF_HINT },
+        { kind: "tokens", name: "participantIds", label: "For the employer", options: people, hint: "Who attended for the employer." },
         { kind: "textarea", name: "contractorAttendees", label: "For the contractor", hint: "One name a line." },
         { kind: "textarea", name: "note", label: "Note" },
       ]}
@@ -450,7 +453,7 @@ export function MoveOriginalDrawer({ id, itemId, label, out, people, today }: { 
   return (
     <RecordEditor
       title={`${out ? "Check in" : "Check out"}: ${label}`}
-      fields={[hidden("id"), hidden("itemId"), hidden("direction"), person("personId", out ? "Returned by" : "Taken by", people), { kind: "date", name: "on", label: "On", required: true }, { kind: "text", name: "purpose", label: "Purpose" }]}
+      fields={[hidden("id"), hidden("itemId"), hidden("direction"), by("CustodyMovement.person", "personId", people, out ? "Returned by" : "Taken by"), { kind: "date", name: "on", label: "On", required: true }, { kind: "text", name: "purpose", label: "Purpose" }]}
       values={{ id, itemId, direction: out ? "IN" : "OUT", on: today }}
       action={moveOriginal}
       trigger={{ label: out ? "Check in" : "Check out", className: ghost, ariaLabel: `${out ? "Check in" : "Check out"} ${label}` }}

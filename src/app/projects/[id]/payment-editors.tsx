@@ -2,7 +2,7 @@
 
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
-import { ON_BEHALF_HINT } from "@/lib/documents/labels";
+import { actorField } from "@/lib/auth/actor-field";
 
 import {
   addMaterialLine,
@@ -39,7 +39,9 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 const primary = buttonClass("primary", "sm");
 const secondary = buttonClass("secondary", "sm");
 const ghost = buttonClass("ghost", "sm");
-const person = (name: string, label: string, people: Option[], hint = ON_BEHALF_HINT): Field => ({ kind: "select", name, label, required: true, placeholder: "Choose", options: people, hint });
+/// Who is acting: the signed-in officer, shown and not chosen. Where the act may be recorded from paper, `people` are who it may be recorded for.
+const by = (slot: string, name: string, people: Option[], opts: { label?: string; dated?: boolean; named?: "required" | "optional" } = {}): Field =>
+  actorField(slot, { name, people, label: opts.label, dated: opts.dated, ...(opts.named ? { named: { optional: opts.named === "optional" } } : {}) });
 const choose = (name: string, label: string, options: Option[], hint?: string, required = true): Field => ({ kind: "select", name, label, required, placeholder: "Choose: there is no default", options, ...(hint ? { hint } : {}) });
 const YES_NO: Option[] = [
   { value: "yes", label: "Yes" },
@@ -53,7 +55,7 @@ export function CalendarDrawer({ id, people, today, current }: { id: string; peo
     <RecordEditor
       title={current ? "Change the valuation day" : "Record the valuation day"}
       description="The day of each month agreed with the contractor for the joint site valuation (in a shorter month, its last day). The parties are notified as the notification rules say: nothing is sent yet."
-      fields={[hidden("id"), { kind: "number", name: "dayOfMonth", label: "Day of the month", required: true, hint: "1 to 31." }, { kind: "date", name: "agreedOn", label: "Agreed on", required: true }, { kind: "text", name: "agreedWith", label: "Agreed with, for the contractor", required: true }, person("personId", "Recorded for (the S.O. or the Principal Representative)", people), { kind: "textarea", name: "note", label: "Note" }]}
+      fields={[hidden("id"), { kind: "number", name: "dayOfMonth", label: "Day of the month", required: true, hint: "1 to 31." }, { kind: "date", name: "agreedOn", label: "Agreed on", required: true }, { kind: "text", name: "agreedWith", label: "Agreed with, for the contractor", required: true }, by("PaymentCalendar.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, dayOfMonth: current ? String(current.dayOfMonth) : null, agreedWith: current?.agreedWith ?? null, agreedOn: today }}
       action={recordValuationCalendar}
       reason={current ? { label: "Why the day is changed" } : undefined}
@@ -68,7 +70,7 @@ export function OpenValuationDrawer({ id, people, today, triggers, blocker, warn
     <RecordEditor
       title="Open a valuation"
       description={`On the agreed valuation day, or on a claim from the contractor (the issue period then runs from the day the claim was received). One valuation at a time.${warning ? ` ${warning}` : ""}`}
-      fields={[hidden("id"), choose("trigger", "What started it", triggers), { kind: "date", name: "claimReceivedOn", label: "Claim received on", hint: "For a claim only." }, { kind: "date", name: "valuationDate", label: "Valuation day", required: true }, person("personId", "Recorded for (the S.O., or a representative whose delegation covers valuation)", people)]}
+      fields={[hidden("id"), choose("trigger", "What started it", triggers), { kind: "date", name: "claimReceivedOn", label: "Claim received on", hint: "For a claim only." }, { kind: "date", name: "valuationDate", label: "Valuation day", required: true }, by("InterimValuation.person", "personId", people)]}
       values={{ id, valuationDate: today }}
       showWhen={{ claimReceivedOn: { name: "trigger", in: ["CLAIM"] } }}
       action={openInterimValuation}
@@ -252,7 +254,7 @@ export function ReleaseDrawer({ id, release, label, people, today, blocker }: { 
     <RecordEditor
       title={label}
       description="Released from what the latest issued interim certificate holds, per tier, and paid through the next interim certificate (it comes off the retention held). Once each."
-      fields={[hidden("id"), hidden("release"), { kind: "date", name: "releasedOn", label: "Released on", required: true }, person("personId", "Recorded for (the S.O. or the Principal Representative)", people), { kind: "textarea", name: "note", label: "Note" }]}
+      fields={[hidden("id"), hidden("release"), { kind: "date", name: "releasedOn", label: "Released on", required: true }, by("RetentionRelease.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, release, releasedOn: today }}
       action={releaseRetention}
       submitLabel="Release"
@@ -269,7 +271,7 @@ export function AdvanceDrawer({ id, people, parties, guarantees, parts, blocker 
       description="No documented procedure states who may have an advance, how much, or how it is recouped (B2): eligibility and the percentage are not checked. It rests on an Advance Payment Guarantee verified in the register, and on the recoupment schedule entered here, which must recoup the whole advance. Its certificate opens as a draft and goes for approval on the approval matrix."
       size="lg"
       columns={2}
-      fields={[hidden("id"), choose("advanceFor", "For", parts), { kind: "select", name: "partyId", label: "The nominated sub-contractor", placeholder: parties.length ? "Choose" : "None recorded on Team", options: parties }, { kind: "money", name: "amount", label: "Amount", required: true }, choose("securityId", "Advance Payment Guarantee", guarantees), { kind: "textarea", name: "schedule", label: "Recoupment schedule", required: true, hint: "One line per interim certificate: \"certificate number | amount\"." }, person("personId", "Recorded for (the S.O. or the Principal Representative)", people), { kind: "textarea", name: "note", label: "Note" }]}
+      fields={[hidden("id"), choose("advanceFor", "For", parts), { kind: "select", name: "partyId", label: "The nominated sub-contractor", placeholder: parties.length ? "Choose" : "None recorded on Team", options: parties }, { kind: "money", name: "amount", label: "Amount", required: true }, choose("securityId", "Advance Payment Guarantee", guarantees), { kind: "textarea", name: "schedule", label: "Recoupment schedule", required: true, hint: "One line per interim certificate: \"certificate number | amount\"." }, by("AdvancePayment.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id }}
       showWhen={{ partyId: { name: "advanceFor", in: ["NSC"] } }}
       action={applyAdvancePayment}
@@ -289,7 +291,7 @@ export function WarningDrawer({ id, people, today, blocker, completion }: { id: 
       description={`The standard letter of the intention to impose damages, before they are imposed: the clauses as in the contract, the extended date for completion, and the rate per day from the baseline (never typed). It opens as a certificate; once issued it is sent by registered post, and the contractor's reasons are awaited for the organisation's response window.${completion ? ` The date for completion is ${completion}.` : ""}`}
       size="lg"
       columns={2}
-      fields={[hidden("id"), { kind: "text", name: "eotClause", label: "Extension-of-time clause", required: true }, { kind: "text", name: "ladClause", label: "Damages (non-completion) clause", required: true }, { kind: "date", name: "extendedCompletion", label: "Extended date for completion", required: true, hint: "The date for completion where none is extended." }, person("personId", "Recorded for (the S.O.)", people)]}
+      fields={[hidden("id"), { kind: "text", name: "eotClause", label: "Extension-of-time clause", required: true }, { kind: "text", name: "ladClause", label: "Damages (non-completion) clause", required: true }, { kind: "date", name: "extendedCompletion", label: "Extended date for completion", required: true, hint: "The date for completion where none is extended." }, by("LadWarning.person", "personId", people)]}
       values={{ id, extendedCompletion: null }}
       action={raiseLadWarning}
       submitLabel="Raise the letter"
@@ -327,7 +329,7 @@ export function NonCompletionDrawer({ id, people, outcomes, scopes, sections, pa
         hidden("id"),
         ...(replaces ? ([hidden("replacesId"), { kind: "readonly", name: "replacing", label: "Replaces the decision in force", text: replaces.text }, { kind: "textarea", name: "replaceReason", label: "Why it is replaced", required: true, hint: "Kept with both decisions; the earlier is kept and linked." }] as Field[]) : []),
         choose("decisionOutcome", "Decision", outcomes),
-        person("personId", "Decided by (the S.O.)", people),
+        by("NonCompletion.person", "personId", people),
         { kind: "textarea", name: "decisionReason", label: "Reasons", required: true, hint: "Shown on the certificates it governs." },
         choose("scope", "Covers", scopes, undefined, false),
         { kind: "select", name: "sectionRef", label: "The section", placeholder: sections.length ? "Choose" : "No sections in the baseline", options: sections },
@@ -402,7 +404,7 @@ export function OpeningDrawer({ id, people, groups, values, existing, blocker }:
         ...source("advance", label("advance")),
         { kind: "date", name: "damagesChargedUntil", label: "Damages charged until (the first day not charged)", hint: "Empty: none charged." },
         ...source("damages", label("damages")),
-        person("personId", "Recorded for", people),
+        by("OpeningPosition.person", "personId", people),
         ...(existing ? ([{ kind: "textarea", name: "reason", label: "Why it is corrected", required: true }] as Field[]) : []),
       ]}
       values={{ id, ...values }}

@@ -157,3 +157,9 @@ export async function issuedAdjustmentNets(contractId: string, client: Tx = db):
 /// The matters tabled from a variation, as the tabling rule reads them (tabling.ts).
 export const matterFactsOf = (v: Pick<VariationRow, "matters">): MatterFact[] =>
   v.matters.map((m) => ({ withdrawn: !!m.withdrawnAt, domain: m.domain, committeeCode: m.meeting.committee.code, outcome: m.outcome as MatterFact["outcome"] }));
+
+/// The people a variation names today (its originator, its reviewer and the Principal Representative it passed through), before an edit: a person already
+/// recorded and left as they were is not recorded again (Phase 2b).
+export async function loadVariationPeople(organisationId: string, variationId: string) {
+  return db.variation.findFirst({ where: { id: variationId, organisationId }, select: { originatorPersonId: true, reviewedByPersonId: true, principalPersonId: true } });
+}

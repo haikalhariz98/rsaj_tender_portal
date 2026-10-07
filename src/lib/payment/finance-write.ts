@@ -1,10 +1,11 @@
 /**
  * Recording Finance's payment of an issued certificate (6.13 Part A step 3: FR-PAY-019). Server-only: runs inside the
  * certificate page's act on the rows `withLockedCertificate` locked; re-runs the rule, writes and audits in the same
- * transaction. The signed-in officer is named on every audit row; the officer named is recorded on their behalf.
+ * transaction. The signed-in officer is named on every audit row, and attributed in the same transaction (Phase 2b).
  */
 
 import { diffFields } from "@/lib/audit/diff";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import { writeAudit } from "@/lib/audit/record";
 import { certificateLabel } from "@/lib/certificate/repo";
 import { CertificateRefusal, type CertCtx } from "@/lib/certificate/write";
@@ -14,7 +15,7 @@ import { parseSen, senToDecimalString } from "@/lib/money";
 import { financeFaults, PAID_FIGURE } from "./finance";
 import { paymentRefusal } from "./labels";
 
-export async function recordFinancePayment(c: CertCtx, i: { batchNo: string; paidOn: string; personId: string; note: string }) {
+export async function recordFinancePayment(c: CertCtx, i: { batchNo: string; paidOn: string; act: ActWriter; note: string }) {
   const cert = c.l.cert;
   const snap = cert.issueSnapshot as { issuedOn?: string; figures?: { lines?: { key: string; value: string | null }[]; totals?: { key: string; value: string | null }[] } } | null;
   const key = PAID_FIGURE[cert.kind];
@@ -23,10 +24,11 @@ export async function recordFinancePayment(c: CertCtx, i: { batchNo: string; pai
   const fs = financeFaults({ issued: cert.status === "ISSUED", already: !!existing, batchNo: i.batchNo, paidOn: i.paidOn, issuedOn: snap?.issuedOn ?? null, today: c.today, amount: v == null ? null : parseSen(v) });
   if (!key) fs.unshift({ code: "KIND_HAS_NO_ROUTE", level: "block" });
   if (fs.length) throw new CertificateRefusal(paymentRefusal("Not recorded:", fs));
-  const person = await c.tx.person.findFirst({ where: { id: i.personId, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
+  const person = await c.tx.person.findFirst({ where: { id: i.act.subjectPersonId, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
   if (!person) throw new CertificateRefusal("Not recorded.", { personId: "Choose someone on record and active." });
   const amount = senToDecimalString(parseSen(v!));
   const row = await c.tx.financePayment.create({ data: { organisationId: c.l.org.id, certificateId: cert.id, batchNo: i.batchNo.trim(), paidOn: dayToDate(i.paidOn), amount, personId: person.id, note: i.note.trim(), recordedAt: c.now } });
   await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "FinancePayment", entityId: row.id, entityLabel: `${certificateLabel(c.l, cert)} · paid by Finance`, reason: "" }, "CREATE",
-    diffFields(null, { batchNo: i.batchNo.trim(), paidOn: i.paidOn, amountPaid: amount, recordedFor: person.name, recordedOnBehalf: "not signed", note: i.note.trim() || null }));
+    diffFields(null, { batchNo: i.batchNo.trim(), paidOn: i.paidOn, amountPaid: amount, recordedFor: person.name, note: i.note.trim() || null }));
+  await i.act.write(c.tx, row.id);
 }

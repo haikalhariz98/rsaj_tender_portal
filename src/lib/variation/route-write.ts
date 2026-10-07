@@ -26,6 +26,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { closeRejected, loadDestinations, openSuccessor, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
 import { diffFields } from "@/lib/audit/diff";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import type { AuditActor } from "@/lib/auth/types";
 import { absentOffices } from "@/lib/authority/absence";
@@ -113,6 +114,8 @@ export interface SendInput {
   value: Sen;
   reading: Reading;
   submittedBy: { id: string; name: string };
+  /// How the sender sent it (attributed in this transaction, Phase 2b).
+  act: ActWriter;
 }
 
 /// Resolve and open the route (the act has judged `sendFaults` and the reading on the locked rows).
@@ -183,16 +186,17 @@ export async function sendVariationRoute(c: VariationCtx, v: VariationRow, i: Se
       route: r.resolution.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "),
       fundingOverrideApplied: src.override != null,
       sentBy: i.submittedBy.name,
-      recordedOnBehalf: "not signed",
     }));
-  void appr;
+  await i.act.write(c.tx, inst.id);
+  await i.act.writeAlso(c.tx, "VariationApproval.sentBy", appr.id);
   return { id: inst.id, label, domain, rules: src.matrix.rules };
 }
 
 export interface DecideInput {
   stepId: string;
   decision: "DONE" | "REJECTED";
-  personId: string;
+  /// How the step was decided (attributed in this transaction); `act.subjectPersonId` is the holder it is attributed to.
+  act: ActWriter;
   decidedOn: string;
   receivedOn: string | null;
   reason: string;
@@ -214,7 +218,7 @@ export async function decideVariationStep(c: VariationCtx, v: VariationRow, i: D
   if (i.decidedOn > c.today) throw new VariationRefusal("Not decided.", { decidedOn: "The day decided cannot be after today." });
   const office = actingOffice(step);
   const h = office ? await holdersOn(c, office, i.decidedOn) : null;
-  const person = h?.roster.people.find((p) => p.id === i.personId) ?? (await c.tx.person.findFirst({ where: { id: i.personId, organisationId: c.l.org.id }, select: { id: true, isActive: true, name: true } }));
+  const person = h?.roster.people.find((p) => p.id === i.act.subjectPersonId) ?? (await c.tx.person.findFirst({ where: { id: i.act.subjectPersonId, organisationId: c.l.org.id }, select: { id: true, isActive: true, name: true } }));
   const check = deciderFaults(step, {
     today: c.today,
     holders: h?.holders ?? { scope: null, holderIds: [], delegates: [] },
@@ -222,6 +226,7 @@ export async function decideVariationStep(c: VariationCtx, v: VariationRow, i: D
     person: person ? { id: person.id, isActive: person.isActive } : null,
     // FR-APR-006: whoever sent the variation for approval does not decide it.
     requesterId: inst.submittedByPersonId ?? "",
+    recorderId: i.act.recorderId,
     endorserIds: [],
     otherDeciderIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
     earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
@@ -240,7 +245,8 @@ export async function decideVariationStep(c: VariationCtx, v: VariationRow, i: D
   const done = await c.tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) throw new VariationRefusal("The step changed while this was being saved. Reload and try again.");
   await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${variationLabel(c.l, v)} · ${step.roleLabel}`, reason: i.reason.trim() }, "UPDATE",
-    diffFields({ decision: step.decision, receivedOn: null }, { decision: i.decision, decidedBy: person!.name, decidedOn: i.decidedOn, receivedOn: i.receivedOn, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }));
+    diffFields({ decision: step.decision, receivedOn: null }, { decision: i.decision, decidedBy: person!.name, decidedOn: i.decidedOn, receivedOn: i.receivedOn, recordedOnBehalf: i.act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null, underDelegation: check.delegationId ? "yes" : null }));
+  await i.act.write(c.tx, step.id, { document: { entity: "Variation", id: v.id }, roleCode: step.actingRoleCode ?? step.roleCode });
   await afterStep(c, v, a, step.id, i.decision, i.reason.trim(), null);
 }
 
@@ -339,7 +345,7 @@ async function sendRefused(c: VariationCtx, v: VariationRow, a: VariationRow["ap
 }
 
 /// Where a refused route goes, chosen by the officer where its refusal decided nothing (FR-APR-016, CO-5).
-export async function chooseVariationRejection(c: VariationCtx, v: VariationRow, i: { kind: RejectionKind | null; returnToSeq: number | null; personId: string | null; reason: string }) {
+export async function chooseVariationRejection(c: VariationCtx, v: VariationRow, i: { kind: RejectionKind | null; returnToSeq: number | null; personId: string | null; reason: string; act: ActWriter }) {
   const a = [...v.approvals].reverse().find((x) => x.approvalInstance.status === "REJECTED" && x.approvalInstance.rejectionApplied == null) ?? null;
   const inst = a?.approvalInstance ?? null;
   const rejecting = inst?.steps.find((s) => s.decision === "REJECTED") ?? null;
@@ -350,7 +356,7 @@ export async function chooseVariationRejection(c: VariationCtx, v: VariationRow,
   }
   const person = await c.tx.person.findFirst({ where: { id: i.personId!, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
   if (!person) throw new VariationRefusal("Not recorded.", { personId: "Choose someone on record and active." });
-  await recordChoice(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c, v) }, inst!.id, i.kind!, person.id, person.name, i.reason.trim());
+  await recordChoice(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c, v) }, inst!.id, i.kind!, person.id, person.name, i.reason.trim(), i.act);
   await sendRefused(c, v, a!, i.kind!, i.kind === "RETURN_TO_STEP" ? i.returnToSeq : null, i.reason.trim());
 }
 

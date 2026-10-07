@@ -36,6 +36,7 @@ import { maskIc } from "@/lib/award/mask";
 import { amountOf, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -46,7 +47,7 @@ import type { OrgScope } from "@/lib/org-scope";
  * (truncated to the second), then locks the requisition, the exercise, the award and the contract in
  * the canonical order (`withLockedContract`), then any domain row it changes, re-runs the pure rule on
  * the locked rows, writes, and audits in the same transaction. A refusal saves nothing and says what
- * refuses it. Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that). A cancelled contract refuses
+ * refuses it. Who is signed in is asked first and named on every audit row, and every act is attributed in the same transaction (`beginAct`, Phase 2b): the signed-in person's own, or, from paper, recorded for another and not signed. A cancelled contract refuses
  * every act.
  */
 
@@ -54,7 +55,6 @@ const GONE: FormState = { ok: false, message: "That contract no longer exists." 
 const CHANGED: FormState = { ok: false, message: "The contract changed while this was being saved. Reload and try again." };
 const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zone under Configuration › Organisation first: every act here records the organisation's day, never UTC's." };
 const CANCELLED: FormState = { ok: false, message: "The contract is cancelled: it is kept as it was." };
-const ON_BEHALF = "recorded on behalf of, not signed";
 
 class Refusal extends Error {
   constructor(readonly state: FormState) {
@@ -89,6 +89,8 @@ async function inContract(scope: OrgScope, actor: AuditActor, id: string, now: D
     });
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     throw e;
   }
   if (result?.ok) {
@@ -205,10 +207,13 @@ export async function recordReconciliation(_prev: FormState, data: FormData): Pr
   const r = new FormReader(data);
   const comparison = r.choice("comparison", "Comparison", ["TENDER_DOCUMENT", "TENDER_TABLE_DOCUMENT", "DRAWINGS"] as const, { required: true });
   const outcome = r.choice("outcome", "Outcome", ["MATCHES", "AMENDED"] as const, { required: true });
-  const personId = r.text("personId", "Checked by", { required: true });
   const checkedOn = r.date("checkedOn", "Checked on", { required: true });
   const note = r.text("note", "Note", { max: 4000 });
   if (r.failed || !comparison || !outcome || !checkedOn) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ContractReconciliation.checkedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     if (!formationOpen(c.l.contract.status)) return NOT_OPEN;
     if (storedDay(checkedOn) > c.today) return { ok: false, errors: { checkedOn: "Not after today." } };
@@ -222,12 +227,13 @@ export async function recordReconciliation(_prev: FormState, data: FormData): Pr
     const row = existing
       ? await c.tx.contractReconciliation.update({ where: { id: existing.id, organisationId: actor.organisationId }, data: { outcome, checkedByPersonId: person.id, checkedOn, note, addendaSnapshot: snapshot, recordedAt: now } })
       : await c.tx.contractReconciliation.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, comparison, outcome, checkedByPersonId: person.id, checkedOn, note, addendaSnapshot: snapshot, recordedAt: now } });
-    await audit(c, "ContractReconciliation", row.id, reconciliationLabel(comparison), existing ? "UPDATE" : "CREATE", diffFields(existing ? { outcome: existing.outcome } : null, { outcome, checkedBy: person.name, checkedOn, addendaListed: snapshot.length, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "ContractReconciliation", row.id, reconciliationLabel(comparison), existing ? "UPDATE" : "CREATE", diffFields(existing ? { outcome: existing.outcome } : null, { outcome, checkedBy: person.name, checkedOn, addendaListed: snapshot.length }));
+    await act.write(c.tx, row.id);
     return { ok: true };
   });
 }
 
-/// An amendment to recorded information, with both signatures recorded on their behalf.
+/// An amendment to recorded information, signed by the contractor's signatory (named) and by the preparing officer (signed in, or recorded from paper).
 export async function addAmendment(_prev: FormState, data: FormData): Promise<FormState> {
   const holderGuard = await staffForAct("SIGNATURE");
   if (!holderGuard.ok) return holderGuard.state;
@@ -238,9 +244,13 @@ export async function addAmendment(_prev: FormState, data: FormData): Promise<Fo
   const description = r.text("description", "What it amends", { required: true, max: 4000 });
   const contractorSignatoryName = r.text("contractorSignatoryName", "Signed for the contractor by", { required: true, max: 240 });
   const contractorSignedOn = r.date("contractorSignedOn", "Contractor signed on", { required: true });
-  const officerPersonId = r.text("officerPersonId", "Preparing officer", { required: true });
-  const officerSignedOn = r.date("officerSignedOn", "Officer signed on", { required: true });
-  if (r.failed || !contractorSignedOn || !officerSignedOn) return { ok: false, errors: r.errors };
+  r.date("officerSignedOn", "Officer signed on");
+  if (r.failed || !contractorSignedOn) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ReconciliationAmendment.officer", { personField: "officerPersonId", dateField: "officerSignedOn", document: { entity: "ContractReconciliation", id: reconciliationId } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const officerPersonId = act.subjectPersonId;
+  const officerSignedOn = dayToDate(act.day!);
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     if (!formationOpen(c.l.contract.status)) return NOT_OPEN;
     const rec = c.l.contract.reconciliations.find((x) => x.id === reconciliationId);
@@ -251,7 +261,8 @@ export async function addAmendment(_prev: FormState, data: FormData): Promise<Fo
     const officer = await personOf(c, officerPersonId);
     if (!officer) return { ok: false, errors: { officerPersonId: "Choose someone on record and active." } };
     const row = await c.tx.reconciliationAmendment.create({ data: { organisationId: c.l.org.id, reconciliationId: rec.id, description, contractorSignatoryName, contractorSignedOn, officerPersonId: officer.id, officerSignedOn, recordedAt: now } });
-    await audit(c, "ReconciliationAmendment", row.id, "reconciliation amendment", "CREATE", diffFields(null, { description, contractorSignatory: contractorSignatoryName, contractorSignedOn, officer: officer.name, officerSignedOn, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "ReconciliationAmendment", row.id, "reconciliation amendment", "CREATE", diffFields(null, { description, contractorSignatory: contractorSignatoryName, contractorSignedOn, officer: officer.name, officerSignedOn, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null }));
+    await act.write(c.tx, row.id, { document: { entity: "ContractReconciliation", id: rec.id } });
     return { ok: true };
   });
 }
@@ -339,10 +350,13 @@ export async function completeCheck(_prev: FormState, data: FormData): Promise<F
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const checkId = r.text("checkId", "Check", { required: true });
-  const personId = r.text("personId", "Completed by", { required: true });
   const on = r.date("completedOn", "Completed on", { required: true });
   const note = r.text("note", "Note", { max: 4000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "FormationCheck.completedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract.checks.find((x) => x.id === checkId);
     if (!k) return { ok: false, message: "That check is not on this contract." };
@@ -356,7 +370,8 @@ export async function completeCheck(_prev: FormState, data: FormData): Promise<F
     const done = await c.tx.formationCheck.updateMany({ where: { id: k.id, completedOn: null }, data: { completedByPersonId: person.id, completedOn: on, completedAt: now, note } });
     if (done.count !== 1) throw new Refusal(CHANGED);
     const variance = k.kind === "ARITHMETIC" ? arithmeticVariance(k.corrections.map((x) => ({ tendered: senFromDecimal(x.tendered), corrected: senFromDecimal(x.corrected) }))) : null;
-    await audit(c, "FormationCheck", k.id, formationCheckLabel(k.kind as FormationCheckKind), "UPDATE", diffFields({ completedOn: null }, { completedOn: on, completedBy: person.name, lines: k.corrections.length + k.rates.length, arithmeticVarianceAmount: variance == null ? null : senToDecimalString(variance), recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "FormationCheck", k.id, formationCheckLabel(k.kind as FormationCheckKind), "UPDATE", diffFields({ completedOn: null }, { completedOn: on, completedBy: person.name, lines: k.corrections.length + k.rates.length, arithmeticVarianceAmount: variance == null ? null : senToDecimalString(variance) }));
+    await act.write(c.tx, k.id);
     return { ok: true };
   });
 }
@@ -368,8 +383,11 @@ export async function submitLegal(_prev: FormState, data: FormData): Promise<For
   const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
-  const personId = r.text("personId", "Sent by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "LegalReview.submittedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const form = formationOf(k);
@@ -384,6 +402,7 @@ export async function submitLegal(_prev: FormState, data: FormData): Promise<For
     const row = await c.tx.legalReview.create({ data: { organisationId: c.l.org.id, contractId: k.id, iteration, officeCode: form.snap!.policy.legalOfficeCode, officeLabel: form.snap!.policy.legalOfficeLabel, submittedAt: now, submittedOn: dayToDate(c.today), submittedByPersonId: person.id, pinnedVersions: pinned } });
     await moveTo(c, "PENDING_LEGAL_ENDORSEMENT");
     await audit(c, "LegalReview", row.id, `legal review ${iteration}`, "CREATE", diffFields(null, { iteration, office: form.snap!.policy.legalOfficeLabel, sentBy: person.name, documents: pinned.map((p) => `${p.title} v${p.versionNo}`).join("; ") }));
+    await act.write(c.tx, row.id);
     await audit(c, "Contract", k.id, "", "UPDATE", diffFields({ status: k.status }, { status: "PENDING_LEGAL_ENDORSEMENT" }));
     return { ok: true };
   });
@@ -395,10 +414,14 @@ export async function decideLegal(_prev: FormState, data: FormData): Promise<For
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const decision = r.choice("decision", "Decision", ["ENDORSED", "RETURNED"] as const, { required: true });
-  const reviewerId = r.text("reviewerPersonId", "Decided by", { required: true });
   const decidedOn = r.date("decidedOn", "Decided on", { required: true });
   const comments = r.text("comments", "Comments", { max: 8000 });
   if (r.failed || !decision || !decidedOn) return { ok: false, errors: r.errors };
+  // The legal office's decision is its reviewer's own, signed in, or recorded for them from the office's paper.
+  const begun = await beginAct(actor, data, "LegalReview.reviewer", { personField: "reviewerPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const reviewerId = act.subjectPersonId;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const reviews = reviewsOf(k);
@@ -413,7 +436,8 @@ export async function decideLegal(_prev: FormState, data: FormData): Promise<For
     if (done.count !== 1) throw new Refusal(CHANGED);
     const to = statusAfter(decision);
     await moveTo(c, to);
-    await audit(c, "LegalReview", open!.id, `legal review ${open!.iteration}`, "UPDATE", diffFields({ decision: null }, { decision, decidedOn, decidedBy: reviewer.name, comments: comments || (commentsAttached ? "attached" : ""), recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "LegalReview", open!.id, `legal review ${open!.iteration}`, "UPDATE", diffFields({ decision: null }, { decision, decidedOn, decidedBy: reviewer.name, comments: comments || (commentsAttached ? "attached" : ""), recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null }));
+    await act.write(c.tx, open!.id);
     await audit(c, "Contract", k.id, "", "UPDATE", diffFields({ status: k.status }, { status: to }));
     return { ok: true };
   });
@@ -430,11 +454,14 @@ export async function recordWcCheck(_prev: FormState, data: FormData): Promise<F
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const policyId = r.text("policyId", "Policy", { required: true });
-  const personId = r.text("personId", "Checked by", { required: true });
   const on = r.date("checkedOn", "Checked on", { required: true });
   const wages = r.money("declaredWages", "Declared uncovered wages", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !on || !wages) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "InsurancePolicy.wcCheckedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     if (isExecuted(k.status as ContractStatus)) return { ok: false, message: "The contract is executed: the check stands as recorded before signature." };
@@ -451,14 +478,15 @@ export async function recordWcCheck(_prev: FormState, data: FormData): Promise<F
     if (!person) return WHO;
     const after = { wcCheckedOn: on, wcCheckedByPersonId: person.id, wcDeclaredUncoveredWages: senToDecimalString(parseSen(wages)), wcCheckNote: note, wcCheckRecordedAt: now };
     await c.tx.insurancePolicy.update({ where: { id: p.id, contract: { organisationId: actor.organisationId } }, data: after });
-    await audit(c, "InsurancePolicy", p.id, "workmen's compensation wages check", "UPDATE", diffFields({ wcCheckedOn: null }, { wcCheckedOn: on, checkedBy: person.name, declaredUncoveredWages: after.wcDeclaredUncoveredWages, sumInsured: p.sumInsured.toString(), judged: "no: basis not set (D4)", recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "InsurancePolicy", p.id, "workmen's compensation wages check", "UPDATE", diffFields({ wcCheckedOn: null }, { wcCheckedOn: on, checkedBy: person.name, declaredUncoveredWages: after.wcDeclaredUncoveredWages, sumInsured: p.sumInsured.toString(), judged: "no: basis not set (D4)" }));
+    await act.write(c.tx, p.id);
     return { ok: true };
   });
 }
 
 // ------------------------------------------------------------------ signing
 
-/// The contractor's signature and its witness (FR-CON-007), recorded on their behalf.
+/// The contractor's signature and its witness (FR-CON-007): the contractor's own people, named and not signed in the portal (they have no account here).
 export async function recordContractorSignature(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const now = toSecond(new Date());
@@ -479,8 +507,8 @@ export async function recordContractorSignature(_prev: FormState, data: FormData
     const s1 = await c.tx.contractSignature.create({ data: { organisationId: c.l.org.id, contractId: k.id, party: "CONTRACTOR", name, icNumber: ic, capacity, signedOn, recordedAt: now } });
     const s2 = await c.tx.contractSignature.create({ data: { organisationId: c.l.org.id, contractId: k.id, party: "WITNESS", name: witnessName, icNumber: witnessIc, signedOn, recordedAt: now } });
     // Identity-card numbers are masked in the trail (6.11 R20).
-    await audit(c, "ContractSignature", s1.id, "contractor's signature", "CREATE", diffFields(null, { party: "CONTRACTOR", name, icNumber: maskIc(ic), capacity, signedOn, recordedOnBehalf: ON_BEHALF }));
-    await audit(c, "ContractSignature", s2.id, "witness", "CREATE", diffFields(null, { party: "WITNESS", name: witnessName, icNumber: maskIc(witnessIc), signedOn, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "ContractSignature", s1.id, "contractor's signature", "CREATE", diffFields(null, { party: "CONTRACTOR", name, icNumber: maskIc(ic), capacity, signedOn, recordedOnBehalf: "not signed" }));
+    await audit(c, "ContractSignature", s2.id, "witness", "CREATE", diffFields(null, { party: "WITNESS", name: witnessName, icNumber: maskIc(witnessIc), signedOn, recordedOnBehalf: "not signed" }));
     return { ok: true };
   });
 }
@@ -497,8 +525,13 @@ export async function recordRsajSignature(_prev: FormState, data: FormData): Pro
   const actor = holderGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
-  const personId = r.text("personId", "Signed by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
+  // The employer's signature executes the contract (FR-CON-009): the signing officer signs in with the password asked again, naming the contract it executes; or the
+  // paper they signed is recorded for them. The Contract Date is this act's server day either way (NFR-AUD-005), never a form field.
+  const begun = await beginAct(actor, data, "ContractSignature.person", { personField: "personId", document: { entity: "Contract", id: idOf(data) } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const k = c.l.contract;
     const contractDate = contractDateOf(now, c.l.org.timeZone);
@@ -525,7 +558,8 @@ export async function recordRsajSignature(_prev: FormState, data: FormData): Pro
     const base = currentBaseline(k)!;
     const exec = { ...base, contractDate };
     await writeVersion(c, exec, "EXECUTED", "", { from: prior ? `version ${prior.version}` : "draft" });
-    await audit(c, "ContractSignature", row.id, "signed for the employer", "CREATE", diffFields(null, { party: "RSAJ", signedBy: s.person.name, office: sig.roleLabel, rule: sig.ruleLabel, delegated: s.delegationId ? "yes" : "no", recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "ContractSignature", row.id, "signed for the employer", "CREATE", diffFields(null, { party: "RSAJ", signedBy: s.person.name, office: sig.roleLabel, rule: sig.ruleLabel, delegated: s.delegationId ? "yes" : "no", recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null }));
+    await act.write(c.tx, row.id, { document: { entity: "Contract", id: k.id }, roleCode: sig.roleCode });
     await audit(c, "Contract", k.id, "", "UPDATE", diffFields({ status: k.status, contractDate: null }, { status: "EXECUTED", contractDate, contractDateSource: "the day of the recorded signature act" }));
     // 6.13 Part A (FR-SUP-001, against accepted 6.12): the S.O. this signature resolved, effective from the Contract Date.
     if (s.so?.state === "RESOLVED" && s.soMatrix) {
@@ -647,7 +681,7 @@ export async function recordBriefing(_prev: FormState, data: FormData): Promise<
     const fs = briefingFaults({ status: k.status as ContractStatus, exists: !!k.briefing, participants: people.length, attendees: attendees.length, heldOn: storedDay(heldOn), today: c.today });
     if (fs.length) return refuse("Not recorded:", fs);
     const row = await c.tx.integrityBriefing.create({ data: { organisationId: c.l.org.id, contractId: k.id, heldOn, participantIds: people.map((p) => p.id), participantNames: people.map((p) => p.name), contractorAttendees: attendees, note, recordedAt: now } });
-    await audit(c, "IntegrityBriefing", row.id, "integrity briefing", "CREATE", diffFields(null, { heldOn, participants: people.map((p) => p.name).join(", "), contractorAttendees: attendees.join(", "), recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "IntegrityBriefing", row.id, "integrity briefing", "CREATE", diffFields(null, { heldOn, participants: people.map((p) => p.name).join(", "), contractorAttendees: attendees.join(", ") }));
     return { ok: true };
   });
 }
@@ -820,10 +854,14 @@ export async function moveOriginal(_prev: FormState, data: FormData): Promise<Fo
   const r = new FormReader(data);
   const itemId = r.text("itemId", "Original", { required: true });
   const direction = r.choice("direction", "Movement", ["OUT", "IN"] as const, { required: true });
-  const personId = r.text("personId", direction === "IN" ? "Returned by" : "Taken by", { required: true });
   const on = r.date("on", "On", { required: true });
   const purpose = r.text("purpose", "Purpose", { max: 400 });
   if (r.failed || !direction || !on) return { ok: false, errors: r.errors };
+  // Taken or returned by the person who has it: signed in, or recorded for them from the custody ledger.
+  const begun = await beginAct(actor, data, "CustodyMovement.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "ORIGINALS", async (c) => {
     // The domain row last, after the contract.
     await c.tx.$queryRaw`SELECT id FROM "CustodyItem" WHERE id = ${itemId} FOR UPDATE`;
@@ -838,6 +876,7 @@ export async function moveOriginal(_prev: FormState, data: FormData): Promise<Fo
     const row = await c.tx.custodyMovement.create({ data: { organisationId: c.l.org.id, itemId: item.id, direction, personId: person.id, on, purpose, recordedAt: now } });
     const after = custodyState([...facts, { direction, personId: person.id, personName: person.name, on: storedDay(on) }]);
     await audit(c, "CustodyMovement", row.id, `original ${direction === "OUT" ? "checked out" : "checked in"}`, "CREATE", diffFields(null, { direction, person: person.name, on, purpose, now: after.state }));
+    await act.write(c.tx, row.id);
     return { ok: true };
   });
 }

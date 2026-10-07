@@ -8,7 +8,7 @@
  * rule on those rows, writes, and audits before/after in the same transaction under the certificate's label (so
  * the contract's History shows it). A refusal throws `CertificateRefusal`, so nothing is half-written.
  *
- * The signed-in officer is named on every audit row; who sent it and who decides a step are named Persons, recorded on their behalf, not signed;
+ * The signed-in officer is named on every audit row, and who sent it and who decides a step are attributed in the same transaction (Phase 2b): the officer's own, or, from paper, recorded for someone and not signed;
  * the person who sent it may not decide it (FR-APR-006's self-approval rule, applied to the sender). A step a
  * committee discharges is never on a certificate's route (the route is refused before it opens). Where a refusal
  * sends the certificate is the route's snapshot, else the officer's choice (CO-5): back to whoever raised it (a new
@@ -18,6 +18,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { closeRejected, loadDestinations, openSuccessor, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
 import { diffFields } from "@/lib/audit/diff";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import { writeAudit } from "@/lib/audit/record";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { personDecisionWrite } from "@/lib/authority/decided-step";
@@ -58,6 +59,8 @@ export interface OpenRouteInput {
   resolution: Resolution;
   warnings: readonly ResolutionWarning[];
   submittedBy: { id: string; name: string };
+  /// How the sender sent it (attributed in this transaction).
+  act: ActWriter;
   /// What the figure is, in words, for the trail ("the payment recommended").
   figure: string;
 }
@@ -109,8 +112,8 @@ export async function openCertificateRoute(c: CertCtx, o: OpenRouteInput): Promi
       route: o.resolution.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "),
       fundingOverrideApplied: o.source.override != null,
       sentBy: o.submittedBy.name,
-      recordedOnBehalf: "not signed",
     }));
+  await o.act.write(c.tx, instance.id);
   return instance.id;
 }
 
@@ -124,7 +127,8 @@ async function holdersOn(c: CertCtx, roleCode: string, day: string) {
 export interface DecideInput {
   stepId: string;
   decision: "DONE" | "REJECTED";
-  personId: string;
+  /// How the step was decided (attributed in this transaction); `act.subjectPersonId` is the holder it is attributed to.
+  act: ActWriter;
   decidedOn: string;
   receivedOn: string | null;
   reason: string;
@@ -145,7 +149,7 @@ export async function decideCertificateStep(c: CertCtx, i: DecideInput) {
   if (i.decision === "REJECTED" && !i.reason.trim()) throw new CertificateRefusal("Not decided.", { reason: "Say why it is refused." });
   const office = actingOffice(step);
   const { holders, roster } = office ? await holdersOn(c, office, i.decidedOn) : { holders: { scope: null, holderIds: [], delegates: [] }, roster: null };
-  const person = roster?.people.find((p) => p.id === i.personId) ?? (await c.tx.person.findFirst({ where: { id: i.personId, organisationId: c.l.org.id }, select: { id: true, isActive: true, name: true } }));
+  const person = roster?.people.find((p) => p.id === i.act.subjectPersonId) ?? (await c.tx.person.findFirst({ where: { id: i.act.subjectPersonId, organisationId: c.l.org.id }, select: { id: true, isActive: true, name: true } }));
   const check = deciderFaults(step, {
     today: c.today,
     holders,
@@ -153,6 +157,7 @@ export async function decideCertificateStep(c: CertCtx, i: DecideInput) {
     person: person ? { id: person.id, isActive: person.isActive } : null,
     // FR-APR-006: whoever sent the certificate for approval does not decide it.
     requesterId: inst.submittedByPersonId ?? "",
+    recorderId: i.act.recorderId,
     endorserIds: [],
     otherDeciderIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
     earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
@@ -171,7 +176,8 @@ export async function decideCertificateStep(c: CertCtx, i: DecideInput) {
   const done = await c.tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) throw new CertificateRefusal("The step changed while this was being saved. Reload and try again.");
   await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: stepLabel(c, step.roleLabel), reason: i.reason.trim() }, "UPDATE",
-    diffFields({ decision: step.decision, receivedOn: null }, { decision: i.decision, decidedBy: person!.name, decidedOn: i.decidedOn, receivedOn: i.receivedOn, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }));
+    diffFields({ decision: step.decision, receivedOn: null }, { decision: i.decision, decidedBy: person!.name, decidedOn: i.decidedOn, receivedOn: i.receivedOn, recordedOnBehalf: i.act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null, underDelegation: check.delegationId ? "yes" : null }));
+  await i.act.write(c.tx, step.id, { document: { entity: "Certificate", id: cert.id }, roleCode: step.actingRoleCode ?? step.roleCode });
 
   if (i.decision === "REJECTED") {
     const outcome = rejectionOutcome({ snapshot: snapshotOf(inst), committee: null, steps: inst.steps, rejectingSeq: step.sequence, supports: CERTIFICATE_SUPPORTS });
@@ -201,7 +207,7 @@ async function sendRefused(c: CertCtx, instId: string, kind: RejectionKind, retu
 }
 
 /// Where a refused route goes, chosen by the officer where its refusal decided nothing (FR-APR-016, CO-5).
-export async function chooseCertificateRejection(c: CertCtx, i: { kind: RejectionKind | null; returnToSeq: number | null; personId: string | null; reason: string }) {
+export async function chooseCertificateRejection(c: CertCtx, i: { kind: RejectionKind | null; returnToSeq: number | null; personId: string | null; reason: string; act: ActWriter }) {
   const inst = latestCertificateRoute(c.l.cert.approvalInstances);
   const rejecting = inst?.steps.find((s) => s.decision === "REJECTED") ?? null;
   const fault = choiceFault(
@@ -214,7 +220,7 @@ export async function chooseCertificateRejection(c: CertCtx, i: { kind: Rejectio
   }
   const person = await c.tx.person.findFirst({ where: { id: i.personId!, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
   if (!person) throw new CertificateRefusal("Not recorded.", { personId: "Choose someone on record and active." });
-  await recordChoice(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c) }, inst!.id, i.kind!, person.id, person.name, i.reason.trim());
+  await recordChoice(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c) }, inst!.id, i.kind!, person.id, person.name, i.reason.trim(), i.act);
   await sendRefused(c, inst!.id, i.kind!, i.kind === "RETURN_TO_STEP" ? i.returnToSeq : null, i.reason.trim());
 }
 

@@ -11,6 +11,7 @@
  * - `closeMatter`: closed with its reason (never reopened).
  */
 
+import type { ActWriter } from "@/lib/auth/act-writer";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { contractLabel, type LoadedContract } from "@/lib/contract/repo";
@@ -46,9 +47,11 @@ async function audit(tx: Tx, actor: AuditActor, l: LoadedContract, id: string, l
   await writeAudit(tx, { actor, organisationId: l.org.id, entity: "ContractMatter", entityId: id, entityLabel: label, reason }, action, changes);
 }
 
-export async function openMatter(tx: Tx, actor: AuditActor, l: LoadedContract, kind: ContractMatterKind, personId: string, personName: string, now: Date): Promise<string> {
-  const row = await tx.contractMatter.create({ data: { organisationId: l.org.id, contractId: l.contract.id, kind, personId, recordedAt: now } });
-  await audit(tx, actor, l, row.id, matterLabel(l, { kind, reference: null }), "CREATE", diffFields(null, { matter: MATTER_KIND_WORDS[kind].en, recordedBy: personName, recordedOnBehalf: "not signed" }));
+export async function openMatter(tx: Tx, actor: AuditActor, l: LoadedContract, kind: ContractMatterKind, act: ActWriter, personName: string, now: Date): Promise<string> {
+  const row = await tx.contractMatter.create({ data: { organisationId: l.org.id, contractId: l.contract.id, kind, personId: act.subjectPersonId, recordedAt: now } });
+  await audit(tx, actor, l, row.id, matterLabel(l, { kind, reference: null }), "CREATE", diffFields(null, { matter: MATTER_KIND_WORDS[kind].en, recordedBy: personName }));
+  // The act's own attribution, in this transaction (Phase 2b): the matter's person is whoever the act is attributed to.
+  await act.write(tx, row.id);
   return row.id;
 }
 

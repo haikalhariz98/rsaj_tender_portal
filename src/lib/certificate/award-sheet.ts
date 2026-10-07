@@ -20,6 +20,7 @@ import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { holdersFor } from "@/lib/requisition/holders";
 
 import { refusalText } from "./fault-text";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import { CHECK_KIND_WORDS, ON_BEHALF } from "./labels";
 import { checksOf, routesOf, routingTypeNow } from "./repo";
 import { awardSheetFaults, checkFaults, freezeRoutingType, latestRouteState, readRoutingSnapshot, receivedFaults, routeBounds, routingSheet, typeFaults, type Sheet } from "./routing-sheet";
@@ -94,12 +95,12 @@ export async function recordAwardReceived(tx: Tx, actor: AuditActor, l: LoadedAw
 }
 
 /// An internal check on the award's sheet, in the sheet's order.
-export async function recordAwardCheck(tx: Tx, actor: AuditActor, l: LoadedAward, defOrder: number, personId: string, on: string, note: string, now: Date, today: string) {
+export async function recordAwardCheck(tx: Tx, actor: AuditActor, l: LoadedAward, defOrder: number, act: ActWriter, on: string, note: string, now: Date, today: string) {
   const rows = await loadAwardSheetRows(l.award.id, tx);
   const sheet = rows.sheet ? awardSheetOf(l, rows, today) : null;
   if (!sheet) throw new CertificateRefusal("Start the routing sheet first: choose its type.");
   const slot = sheet.current.checks.find((x) => x.def.order === defOrder);
-  const person = await tx.person.findFirst({ where: { id: personId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
+  const person = await tx.person.findFirst({ where: { id: act.subjectPersonId, organisationId: l.org.id }, select: { id: true, name: true, isActive: true } });
   let holders: { holderIds: string[]; delegateIds: string[] } | null = null;
   if (slot?.def.officeCode) {
     const [roster, delegations, units] = await Promise.all([loadRoster(l.org.code, tx), loadDelegations(l.org.code, tx), tx.orgUnit.findMany({ where: { organisationId: l.org.id } })]);
@@ -113,5 +114,6 @@ export async function recordAwardCheck(tx: Tx, actor: AuditActor, l: LoadedAward
   const fs = checkFaults({ open: true, sheet, defOrder, person, holders, on, today });
   if (fs.length) refuse("Not recorded:", fs);
   const row = await tx.routingCheck.create({ data: { organisationId: l.org.id, awardId: l.award.id, iteration: sheet.current.n, defOrder, kind: slot!.def.kind, label: slot!.def.labelEn, personId: person!.id, personName: person!.name, on: dayToDate(on), note, recordedAt: now } });
-  await audit(tx, actor, l, "RoutingCheck", row.id, slot!.def.labelEn, "CREATE", diffFields(null, { check: `${CHECK_KIND_WORDS[slot!.def.kind].en} (${slot!.def.labelEn})`, round: sheet.current.n, by: person!.name, on, note: note || null, recordedOnBehalf: ON_BEHALF }));
+  await audit(tx, actor, l, "RoutingCheck", row.id, slot!.def.labelEn, "CREATE", diffFields(null, { check: `${CHECK_KIND_WORDS[slot!.def.kind].en} (${slot!.def.labelEn})`, round: sheet.current.n, by: person!.name, on, note: note || null, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? ON_BEHALF : null }));
+  await act.write(tx, row.id);
 }

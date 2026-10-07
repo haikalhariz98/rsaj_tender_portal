@@ -10,7 +10,7 @@ import { withLockedContract } from "@/lib/contract/repo";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { formatMoney, parseSen } from "@/lib/money";
-import { actCtx, type ActCtx, ActRefusal, afterAct, fieldError, lockMatter, NO_ZONE_STATE, ON_BEHALF, recordedFor, tableRefusal, thrownState } from "@/lib/matter/act";
+import { actCtx, type ActCtx, ActRefusal, afterAct, fieldError, lockMatter, NO_ZONE_STATE, recordedFor, tableRefusal, thrownState } from "@/lib/matter/act";
 import { matterFactsOf } from "@/lib/matter/load";
 import { sendFaults } from "@/lib/matter/matter";
 import { matterSeriesSet, sendMatterRoute } from "@/lib/matter/route-write";
@@ -22,6 +22,7 @@ import { eotCondOf } from "@/lib/time/route";
 import { BEST_ENDEAVOURS, CONCURRENCIES, DELAY_NOTICE_PATHS, ENTITLEMENTS, EOT_PACK_ITEMS, FINANCIAL_IMPACTS, type EotInstrumentKind, type Finding, type PackAnswer } from "@/lib/time/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -31,8 +32,8 @@ import type { OrgScope } from "@/lib/org-scope";
  * chain locked in the canonical order, the EOT family's row of the act × status table asked, CANCELLED first, an unset
  * time zone refused), locks the matter and then its claim (`lockMatter`: ContractMatter the first domain row), re-reads
  * the rows on the locked transaction, re-runs the pure rule, writes, and audits before and after in the same
- * transaction. A refusal throws, so nothing is half-written. The signed-in officer is named on every audit row; each act records the Person the
- * officer names, "recorded on behalf of, not signed".
+ * transaction. A refusal throws, so nothing is half-written. The signed-in officer is named on every audit row and every act is attributed in its own
+ * transaction (`beginAct`, Phase 2b): the officer's own, or, from a paper record, recorded for the S.O. or a representative and not signed.
  */
 
 /// The contract's lock, the act × status table's row for the act's family (CANCELLED first), the organisation's day, then
@@ -88,15 +89,18 @@ export async function recordDelayNotice(_prev: FormState, data: FormData): Promi
   const cause = r.text("cause", "The cause of the delay", { required: true, max: 4000 });
   const occurredOn = r.date("occurredOn", "The delay occurred on", { required: true });
   const receivedOn = r.date("receivedOn", "Received on", { required: true });
-  const personId = r.text("personId", "Received for (the S.O. or a representative)", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !path || !occurredOn || !receivedOn) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "DelayNotice.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const fs = noticeFaults({ cause, occurredOn: storedDay(occurredOn), receivedOn: storedDay(receivedOn), today: c.today });
     if (fs.length) refuse("Not recorded:", fs);
-    const who = await recordedFor(c, personId, { act: "CONTRACTOR_COMMUNICATION" }, storedDay(receivedOn));
+    const who = await recordedFor(c, act.subjectPersonId, { act: "CONTRACTOR_COMMUNICATION" }, storedDay(receivedOn));
     const row = await c.tx.delayNotice.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, path, cause: cause.trim(), occurredOn, receivedOn, receivedAt: c.now, personId: who.person.id, note: note.trim(), recordedAt: c.now } });
-    await audit(c, "DelayNotice", row.id, `${c.label} · delay notice of ${storedDay(receivedOn)}`, "CREATE", diffFields(null, { delayNotice: path === "SO_DIRECTION" ? "the S.O.'s direction to give reasons" : "the contractor's notice", cause: cause.trim(), occurredOn: storedDay(occurredOn), receivedOn: storedDay(receivedOn), receivedFor: who.person.name, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "DelayNotice", row.id, `${c.label} · delay notice of ${storedDay(receivedOn)}`, "CREATE", diffFields(null, { delayNotice: path === "SO_DIRECTION" ? "the S.O.'s direction to give reasons" : "the contractor's notice", cause: cause.trim(), occurredOn: storedDay(occurredOn), receivedOn: storedDay(receivedOn), receivedFor: who.person.name }));
+    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
     return { ok: true };
   });
 }
@@ -117,10 +121,13 @@ export async function openEotClaim(_prev: FormState, data: FormData): Promise<Fo
   const financialImpact = r.choice("financialImpact", "Financial impact", FINANCIAL_IMPACTS, { required: true });
   const isWeather = r.bool("isWeather");
   const excludedByConditionId = r.optionalText("excludedByConditionId");
-  const personId = r.text("personId", "Recorded by", { required: true });
   if (r.failed || !scope || proposedDays == null || !financialImpact) return { ok: false, errors: r.errors };
+  // The claim and its matter are recorded by one person: the matter's slot, and the claim's beside it.
+  const begun = await beginAct(actor, data, "ContractMatter.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
-    const who = await recordedFor(c, personId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
+    const who = await recordedFor(c, act.subjectPersonId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const notices = noticeIds.length ? await c.tx.delayNotice.findMany({ where: { id: { in: noticeIds }, organisationId: c.l.org.id }, select: { id: true, contractId: true } }) : [];
     const programme = programmeId ? await c.tx.workProgramme.findFirst({ where: { id: programmeId, contractId: c.l.contract.id, organisationId: actor.organisationId }, select: { id: true, decision: true } }) : null;
     const baseline = baselineOn(c.l, c.today);
@@ -137,12 +144,13 @@ export async function openEotClaim(_prev: FormState, data: FormData): Promise<Fo
       instrument: instrumentFaults(instrument.kind, "EOT", instrument.name),
     });
     if (fs.length) refuse("Not recorded:", fs);
-    const matterId = await openMatter(c.tx, toAuditActor(actor), c.l, "EOT", who.person.id, who.person.name, c.now);
+    const matterId = await openMatter(c.tx, toAuditActor(actor), c.l, "EOT", act, who.person.name, c.now);
     const row = await c.tx.eotClaim.create({
       data: { organisationId: c.l.org.id, matterId, contractId: c.l.contract.id, scope, sectionRef: scope === "SECTION" ? sectionRef : null, groundClause: groundClause.trim(), cause: cause.trim(), programmeId: programme!.id, financialImpact, proposedDays, isWeather, pack: [] as unknown as Prisma.InputJsonValue, excludedByConditionId, personId: who.person.id, recordedAt: c.now },
     });
     for (const n of notices) await c.tx.eotClaimNotice.create({ data: { organisationId: c.l.org.id, claimId: row.id, noticeId: n.id } });
-    await audit(c, "EotClaim", row.id, claimLabel(c, { kind: "EOT", reference: null }), "CREATE", diffFields(null, { covers: scope === "SECTION" ? `section ${sectionRef}` : "the whole works", ground: groundClause.trim(), cause: cause.trim(), daysProposed: proposedDays, financialImpact: financialImpact === "OTHER" ? "a financial impact not due to an authority requirement" : financialImpact === "AUTHORITY_REQUIREMENT" ? "a financial impact due to an authority requirement" : "no financial impact", weatherClaim: isWeather ? "yes" : "no", restsOn: `${notices.length} delay notice(s)`, recordedBy: who.person.name, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "EotClaim", row.id, claimLabel(c, { kind: "EOT", reference: null }), "CREATE", diffFields(null, { covers: scope === "SECTION" ? `section ${sectionRef}` : "the whole works", ground: groundClause.trim(), cause: cause.trim(), daysProposed: proposedDays, financialImpact: financialImpact === "OTHER" ? "a financial impact not due to an authority requirement" : financialImpact === "AUTHORITY_REQUIREMENT" ? "a financial impact due to an authority requirement" : "no financial impact", weatherClaim: isWeather ? "yes" : "no", restsOn: `${notices.length} delay notice(s)`, recordedBy: who.person.name }));
+    await act.writeAlso(c.tx, "EotClaim.person", row.id, { roleCode: who.soRoleCode });
     return { ok: true };
   });
 }
@@ -162,12 +170,15 @@ export async function answerEotClaim(_prev: FormState, data: FormData): Promise<
   const canComplete = tri(r.optionalText("canComplete"));
   const estimatedCompletion = r.date("estimatedCompletion", "Estimated completion");
   const estimate = r.money("lossExpenseEstimate", "Loss-and-expense estimate");
-  const personId = r.text("personId", "Recorded by", { required: true });
   const pack = readPack(data);
   if (r.failed) return { ok: false, errors: r.errors };
+  // The answer is attributed through the loss-and-expense record it creates or updates; an answer with no estimate has no person column, and the audit row names who.
+  const begun = await beginAct(actor, data, "LossExpenseClaim.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const { m, claim } = await lockClaim(c, claimId);
-    const who = await recordedFor(c, personId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
+    const who = await recordedFor(c, act.subjectPersonId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const fs = answerFaults({ closed: m.closedAt ? { reason: m.closeReason } : null, determined: claim.entitlement != null, canComplete, estimatedCompletion: day(estimatedCompletion), actualDelayDays, earthworksDays });
     if (fs.length) refuse("Not recorded:", fs);
     const moved = await c.tx.eotClaim.updateMany({ where: { id: claim.id, entitlement: null }, data: { actualDelayDays, exceptional: claim.isWeather ? exceptional : null, earthworksDays, canComplete, estimatedCompletion, pack: pack as unknown as Prisma.InputJsonValue } });
@@ -175,12 +186,17 @@ export async function answerEotClaim(_prev: FormState, data: FormData): Promise<
     // FR-EOT-006: the loss-and-expense estimate creates (or, while unvalued and unsent, updates) its linked record.
     if (estimate) {
       const linked = claim.lossExpenseClaims.find((x) => x.valued == null && x.matterId == null) ?? null;
-      if (linked) await c.tx.lossExpenseClaim.updateMany({ where: { id: linked.id, valued: null, matterId: null }, data: { claimed: estimate } });
-      else await c.tx.lossExpenseClaim.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, claimId: claim.id, claimed: estimate, personId: who.person.id, recordedAt: c.now } });
+      if (linked) {
+        await c.tx.lossExpenseClaim.updateMany({ where: { id: linked.id, valued: null, matterId: null }, data: { claimed: estimate } });
+        await act.write(c.tx, linked.id, { roleCode: who.soRoleCode });
+      } else {
+        const made = await c.tx.lossExpenseClaim.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, claimId: claim.id, claimed: estimate, personId: who.person.id, recordedAt: c.now } });
+        await act.write(c.tx, made.id, { roleCode: who.soRoleCode });
+      }
     }
     await audit(c, "EotClaim", claim.id, claimLabel(c, m), "UPDATE", diffFields(
       { actualDelayDays: claim.actualDelayDays, exceptional: claim.exceptional == null ? null : claim.exceptional ? "yes" : "no", earthworksDays: claim.earthworksDays, canComplete: claim.canComplete == null ? null : claim.canComplete ? "yes" : "no", estimatedCompletion: day(claim.estimatedCompletion) },
-      { actualDelayDays, exceptional: exceptional == null ? null : exceptional ? "yes" : "no", earthworksDays, canComplete: canComplete == null ? null : canComplete ? "yes" : "no", estimatedCompletion: day(estimatedCompletion), submissionPack: pack.map((p) => `${p.item}: ${p.notRequired ? "not required" : p.text ? "answered" : "not answered"}`).join("; "), lossAndExpenseEstimate: estimate ? formatMoney(parseSen(estimate)) : null, recordedBy: who.person.name, recordedOnBehalf: ON_BEHALF }));
+      { actualDelayDays, exceptional: exceptional == null ? null : exceptional ? "yes" : "no", earthworksDays, canComplete: canComplete == null ? null : canComplete ? "yes" : "no", estimatedCompletion: day(estimatedCompletion), submissionPack: pack.map((p) => `${p.item}: ${p.notRequired ? "not required" : p.text ? "answered" : "not answered"}`).join("; "), lossAndExpenseEstimate: estimate ? formatMoney(parseSen(estimate)) : null, recordedBy: who.person.name }));
     return { ok: true };
   });
 }
@@ -238,11 +254,14 @@ export async function determineEotClaim(_prev: FormState, data: FormData): Promi
   const reason = r.text("entitlementReason", "Why", { max: 4000 });
   const bestEndeavours = r.choice("bestEndeavours", "Best endeavours", BEST_ENDEAVOURS);
   const overrideReason = r.text("exclusionOverrideReason", "Why the condition is overridden", { max: 2000 });
-  const personId = r.text("personId", "Determined by (the S.O.)", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
+  // The determination is the S.O.'s: signed with their password, or recorded from their paper by someone else, and dated by the server (Phase 2b).
+  const begun = await beginAct(actor, data, "EotClaim.determinedBy", { personField: "personId", document: { entity: "EotClaim", id: claimId } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const { m, claim } = await lockClaim(c, claimId);
-    const who = await recordedFor(c, personId, { soOnly: true }, c.today);
+    const who = await recordedFor(c, act.subjectPersonId, { soOnly: true }, c.today);
     const cond = claim.excludedByCondition;
     const exclusion = exclusionOf(cond ? [{ id: cond.id, name: cond.kindName, excludesEot: cond.excludesEot, satisfiedOn: day(cond.satisfiedOn) }] : [], claim.excludedByConditionId);
     const i = {
@@ -264,7 +283,8 @@ export async function determineEotClaim(_prev: FormState, data: FormData): Promi
     if (fs.length) refuse("Not determined:", fs);
     const moved = await c.tx.eotClaim.updateMany({ where: { id: claim.id, entitlement: null }, data: { entitlement, entitlementReason: reason.trim(), bestEndeavours: entitlement === "ENTITLED" ? bestEndeavours : null, exclusionOverrideReason: exclusion ? overrideReason.trim() : "", determinedOn: dayToDate(c.today), determinedByPersonId: who.person.id } });
     if (moved.count !== 1) throw new ActRefusal({ ok: false, message: "The claim changed while this was being saved. Reload and try again." });
-    await audit(c, "EotClaim", claim.id, claimLabel(c, m), "UPDATE", diffFields({ entitlement: null }, { entitlement: entitlement === "ENTITLED" ? "entitled" : "not entitled", why: reason.trim(), bestEndeavours: entitlement === "ENTITLED" ? bestEndeavours : null, conditionOverridden: exclusion && overrideReason.trim() ? `${exclusion.name}: ${overrideReason.trim()}` : null, determinedBy: who.person.name, recordedOnBehalf: ON_BEHALF }), exclusion ? overrideReason.trim() : "");
+    await audit(c, "EotClaim", claim.id, claimLabel(c, m), "UPDATE", diffFields({ entitlement: null }, { entitlement: entitlement === "ENTITLED" ? "entitled" : "not entitled", why: reason.trim(), bestEndeavours: entitlement === "ENTITLED" ? bestEndeavours : null, conditionOverridden: exclusion && overrideReason.trim() ? `${exclusion.name}: ${overrideReason.trim()}` : null, determinedBy: who.person.name }), exclusion ? overrideReason.trim() : "");
+    await act.write(c.tx, claim.id, { roleCode: who.soRoleCode });
     // FR-EOT-002: a failed entitlement closes the EOT path (its matter) and opens the damages decision.
     const effect = determinationEffect({ entitlement: entitlement ?? null, reason });
     if (effect.closeMatter) await closeMatter(c.tx, toAuditActor(actor), c.l, m, effect.closeMatter, c.now);
@@ -278,11 +298,13 @@ export async function sendEotClaim(_prev: FormState, data: FormData): Promise<Fo
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const claimId = r.text("claimId", "Claim", { required: true });
-  const personId = r.text("personId", "Sent by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const { m, claim } = await lockClaim(c, claimId);
-    const sender = await recordedFor(c, personId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
+    const sender = await recordedFor(c, act.subjectPersonId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const cond = eotCondOf(claim.financialImpact);
     const fs: Finding[] = [];
     if (claim.entitlement !== "ENTITLED" && !m.closedAt) fs.push({ code: "NOT_DETERMINED", level: "block" });
@@ -290,7 +312,7 @@ export async function sendEotClaim(_prev: FormState, data: FormData): Promise<Fo
     if (fs.length) refuse("Not sent for approval:", fs);
     const baseline = baselineOn(c.l, c.today);
     if (!baseline) refuse("Not sent for approval:", [{ code: "NO_DATE_FOR_COMPLETION", level: "block" }]);
-    await sendMatterRoute(c, m, { value: null, ratio: null, cond, contractValue: baseline!.values.contractSum, submittedBy: sender.person, what: "Extension of time" });
+    await sendMatterRoute(c, m, { value: null, ratio: null, cond, contractValue: baseline!.values.contractSum, submittedBy: sender.person, act, what: "Extension of time" });
     return { ok: true };
   });
 }

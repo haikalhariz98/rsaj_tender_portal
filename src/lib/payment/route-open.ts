@@ -12,6 +12,7 @@
  * whoever raised it may be sent again on a new route.
  */
 
+import type { ActWriter } from "@/lib/auth/act-writer";
 import { absentOffices } from "@/lib/authority/absence";
 import { loadIssue, loadOverrideMatrix } from "@/lib/authority/load";
 import { applyOverrides } from "@/lib/certificate/override";
@@ -36,13 +37,13 @@ const refuse = (fs: readonly Finding[]): never => {
 };
 const one = (code: string, data: Record<string, string | number | null> = {}): Finding[] => [{ code, level: "block", data }];
 
-export async function submitForApproval(c: CertCtx, personId: string) {
+export async function submitForApproval(c: CertCtx, act: ActWriter) {
   const cert = c.l.cert;
   const domain = KIND_ROUTE_DOMAIN[cert.kind];
   const latest = latestCertificateRoute(cert.approvalInstances);
   const state = submitStateFaults({ domain, status: cert.status, latest: latest ? { status: latest.status, applied: latest.rejectionApplied, choices: latest.rejectionChoices } : null });
   if (state.length) refuse(state);
-  const person = await c.tx.person.findFirst({ where: { id: personId, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
+  const person = await c.tx.person.findFirst({ where: { id: act.subjectPersonId, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
   if (!person) throw new CertificateRefusal("Not sent for approval.", { personId: "Choose someone on record and active: who sends it (they may not decide it)." });
 
   const snap = readComputedSnapshot(cert.computedSnapshot);
@@ -73,7 +74,7 @@ export async function submitForApproval(c: CertCtx, personId: string) {
   );
   if (!r.ok) return refuse(r.faults);
   const source = r.source === "OVERRIDE" && override ? { matrix: override.matrix, override: { id: override.id, label: override.label } } : { matrix: issue.matrix, override: null };
-  await openCertificateRoute(c, { domain: domain!, value: v.value, issue, source, resolution: r.resolution, warnings: r.warnings, submittedBy: person, figure: v.figure });
+  await openCertificateRoute(c, { domain: domain!, value: v.value, issue, source, resolution: r.resolution, warnings: r.warnings, submittedBy: person, act, figure: v.figure });
   // A certificate on a routing sheet starts it now: its type and its figures freeze (the core's own act).
   if (cert.status === "DRAFT" && cert.routingTypeId) await sendForRouting(c);
 }

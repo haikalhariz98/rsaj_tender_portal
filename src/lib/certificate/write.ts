@@ -48,6 +48,7 @@ import { readComputedSnapshot, snapshotFaults, type ComputedSnapshot } from "./s
 import { certificateTransition } from "./status";
 import type { CertificateKind, CertificateStatus, DeliveryMethod, Finding } from "./types";
 import { isPersonRule } from "./types";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import type { AuditActor } from "@/lib/auth/types";
 
 /// A refusal: rolls the transaction back. `errors` names a field where the refusal is about one.
@@ -165,11 +166,11 @@ export async function openCertificate(tx: Tx, actor: AuditActor, l: LoadedContra
 
 /// Override a computed figure (FR-CRT-003): DRAFT only, never a total, with a justification and a named Person.
 /// Both figures go to the trail under their SULIT keys (sulit-fields.ts): History chips them, the export withholds them.
-export async function overrideField(c: CertCtx, fieldKey: string, value: string, justification: string, personId: string) {
+export async function overrideField(c: CertCtx, fieldKey: string, value: string, justification: string, act: ActWriter) {
   const cert = c.l.cert;
   const snap = readComputedSnapshot(cert.computedSnapshot);
   const current = snap ? applyOverrides(snap, cert.overrides) : null;
-  const person = await c.tx.person.findFirst({ where: { id: personId, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
+  const person = await c.tx.person.findFirst({ where: { id: act.subjectPersonId, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
   // 614-C4 (6.13 Part A step 3): figures that went for approval on a route still pending or approved are frozen.
   const routeOpen = cert.approvalInstances.some((i) => i.status === "PENDING" || i.status === "APPROVED");
   const r = overrideFaults({ status: statusOf(c), snapshot: snap, current, fieldKey, value, justification, personKnown: !!person, routeOpen });
@@ -177,7 +178,8 @@ export async function overrideField(c: CertCtx, fieldKey: string, value: string,
   const line = snap!.lines.find((l) => l.key === fieldKey)!;
   const row = await c.tx.certificateOverride.create({ data: { organisationId: c.l.org.id, certificateId: cert.id, fieldKey, computed: r.computed ?? "", overridden: r.normalised!, justification, personId: person!.id, personName: person!.name, recordedAt: c.now } });
   const shown = (v: string | null) => (line.type === "MONEY" ? money(v) : v);
-  await audit(c, "CertificateOverride", row.id, `${labelOf(c)} · ${line.labelEn}`, "CREATE", diffFields(null, { figure: line.labelEn, certificateComputedAmount: shown(r.computed), certificateOverrideAmount: shown(r.normalised), recordedFor: person!.name, recordedOnBehalf: ON_BEHALF }), justification);
+  await audit(c, "CertificateOverride", row.id, `${labelOf(c)} · ${line.labelEn}`, "CREATE", diffFields(null, { figure: line.labelEn, certificateComputedAmount: shown(r.computed), certificateOverrideAmount: shown(r.normalised), recordedFor: person!.name, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? ON_BEHALF : null }), justification);
+  await act.write(c.tx, row.id);
 }
 
 // ------------------------------------------------------------------ the routing sheet
@@ -209,17 +211,18 @@ export async function recordRoutingReceived(c: CertCtx, received: string) {
 }
 
 /// An internal check on the routing sheet, in this round, in the sheet's order (FR-CRT-007, 009).
-export async function recordCheck(c: CertCtx, defOrder: number, personId: string, on: string, note: string) {
+export async function recordCheck(c: CertCtx, defOrder: number, act: ActWriter, on: string, note: string) {
   const cert = c.l.cert;
   const sheet = sheetOf(cert, c.today);
   if (!sheet) refuse("Not recorded:", one("SHEET_CLOSED"));
   const slot = sheet!.current.checks.find((x) => x.def.order === defOrder);
-  const person = await c.tx.person.findFirst({ where: { id: personId, organisationId: c.l.org.id }, select: { id: true, name: true, isActive: true } });
+  const person = await c.tx.person.findFirst({ where: { id: act.subjectPersonId, organisationId: c.l.org.id }, select: { id: true, name: true, isActive: true } });
   const h = slot?.def.officeCode ? await officeHolders(c.l, slot.def.officeCode, on <= c.today ? on : c.today, c.tx) : null;
   const fs = checkFaults({ open: statusOf(c) === "IN_ROUTING", sheet: sheet!, defOrder, person, holders: h ? { holderIds: h.holderIds, delegateIds: h.delegates.map((d) => d.personId) } : null, on, today: c.today });
   if (fs.length) refuse("Not recorded:", fs);
   const row = await c.tx.routingCheck.create({ data: { organisationId: c.l.org.id, certificateId: cert.id, iteration: sheet!.current.n, defOrder, kind: slot!.def.kind, label: slot!.def.labelEn, personId: person!.id, personName: person!.name, on: dayToDate(on), note, recordedAt: c.now } });
-  await audit(c, "RoutingCheck", row.id, `${labelOf(c)} · ${slot!.def.labelEn}`, "CREATE", diffFields(null, { check: `${CHECK_KIND_WORDS[slot!.def.kind].en} (${slot!.def.labelEn})`, round: sheet!.current.n, by: person!.name, on, note: note || null, recordedOnBehalf: ON_BEHALF }));
+  await audit(c, "RoutingCheck", row.id, `${labelOf(c)} · ${slot!.def.labelEn}`, "CREATE", diffFields(null, { check: `${CHECK_KIND_WORDS[slot!.def.kind].en} (${slot!.def.labelEn})`, round: sheet!.current.n, by: person!.name, on, note: note || null, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? ON_BEHALF : null }));
+  await act.write(c.tx, row.id);
 }
 
 /// Into signing: from DRAFT where it has no routing sheet; from IN_ROUTING once its route is approved and every check of this round is recorded.
@@ -264,6 +267,8 @@ export async function proceedToSigning(c: CertCtx) {
 export interface SignatureInput extends SignInput {
   /// The Person named for a block of the organisation's own.
   personId: string | null;
+  /// How the block's person signed (Phase 2b): the signed-in holder with the password, or the paper recorded for them. Absent for a block that is not a person's.
+  act: ActWriter | null;
 }
 
 /**
@@ -342,8 +347,10 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
     formPinned: pinning ? `${rev.nameEn}${rev.formCode ? ` (${rev.formCode})` : ""}, form version ${rev.bodyVersion}` : null,
     // BD-614-26 as ruled: the pin records which typing corrections it froze with the form.
     typingCorrectionsPinned: pinning && rev.corrections?.length ? correctionsWords(rev.corrections).en : null,
-    recordedOnBehalf: ON_BEHALF,
+    recordedOnBehalf: personBlock && input.act?.intent.mode === "SIGNED" ? null : ON_BEHALF,
   }));
+  // NFR-SIG-001: a person's block names the certificate it signs and the office the signer held.
+  if (personBlock && input.act) await input.act.write(c.tx, sig.id, { document: { entity: "Certificate", id: cert.id }, roleCode: block!.officeCode });
   const after = [...signed, { blockOrder: block!.blockOrder, personId: sig.personId, name: sig.name, signedOn: r.signedOn!, refused: sig.refused, decision: sig.decision }];
   // M-1: issued with the certificate's date as read under the lock (carrying any correction made while it was
   // being signed), or this act's day where this act is the dating block's.

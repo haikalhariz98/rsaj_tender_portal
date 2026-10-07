@@ -36,7 +36,7 @@ import type { DelegateKind } from "@/lib/supervision/types";
 import { approvedValue, closeFaults, commenceFaults, cumulativeApproved, fieldFaults, pendingValueRoutes, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, submitFaults, type ApplicationFields, type RepCapacity } from "@/lib/variation/application";
 import { dueOn, instructionFaults, oralLoopFaults, type ClockRule } from "@/lib/variation/instruction";
 import { BASE_WORDS, BASIS_WORDS, DIRECTION_WORDS, EVENT_WORDS, EXEMPTION_WORDS, lowerFirst, ORIGIN_WORDS, RATE_SOURCE_WORDS, SCHEDULE_FORM_WORDS, SO_DECISION_WORDS, TRIGGER_WORDS, variationRefusal } from "@/lib/variation/labels";
-import { adjustmentInProgress, CONSENT_DOMAIN, consentOf, factsOf, issuedAdjustments, liveInstructionRow, liveOrderRow, loadAdjustments, loadVariations, matterFactsOf, orderNetOf, ordersAdjusted, standingMeasurements, type VariationRow } from "@/lib/variation/load";
+import { adjustmentInProgress, CONSENT_DOMAIN, loadVariationPeople, consentOf, factsOf, issuedAdjustments, liveInstructionRow, liveOrderRow, loadAdjustments, loadVariations, matterFactsOf, orderNetOf, ordersAdjusted, standingMeasurements, type VariationRow } from "@/lib/variation/load";
 import { dayworkFaults, measuredAmount, measurementFaults, parseQuantity, parseSignedPercent, removeMeasurementFaults } from "@/lib/variation/measure";
 import { applicationFigures, orderFaults, orderFigures } from "@/lib/variation/order";
 import { applicationPercents, orderBands } from "@/lib/variation/route";
@@ -44,6 +44,8 @@ import { applicationFormNow, chooseVariationRejection, citeVariationDecision, de
 import { ADJUSTMENT_DIRECTIONS, ADJUSTMENT_TRIGGERS, RATE_SOURCES, SO_DECISIONS, VARIATION_EVENTS, VARIATION_EXEMPTIONS, VARIATION_ORIGINS, type AdjustmentTrigger, type Finding, type VariationEvent, type VariationExemption } from "@/lib/variation/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct, type PreparedAct } from "@/app/_auth/act";
+import type { StaffActor } from "@/lib/auth/types";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -57,8 +59,8 @@ import type { OrgScope } from "@/lib/org-scope";
  * re-runs the pure rule, writes, and audits in the same transaction. A refusal throws, so nothing is half-written. The
  * certificates it raises (the instruction, the order, the adjustment; the application when its approval is approved)
  * are opened through the certificate core (Contract → Certificate); they are signed, voided and sent on the core's own
- * page. The signed-in officer is named on every audit row; each act records the Person the officer names, "recorded on behalf of, not signed", and
- * judges whether that Person may be recorded for it on the day. A cancelled contract refuses every act. The
+ * page. The signed-in officer is named on every audit row and every act is attributed in its own transaction (`beginAct`, Phase 2b): the officer's own, or,
+ * from a paper record, recorded for a named person and not signed. Each act judges whether the person it is attributed to may do it on the day. A cancelled contract refuses every act. The
  * organisation's day is the act's day; with no time zone, nothing is recorded (never UTC's day).
  */
 
@@ -66,7 +68,6 @@ const GONE: FormState = { ok: false, message: "That contract no longer exists." 
 const CHANGED: FormState = { ok: false, message: "The variation changed while this was being saved. Reload and try again." };
 const NO_ZONE: FormState = { ok: false, message: "Set the organisation's time zone under Configuration › Organisation first: every act here records the organisation's day, never UTC's." };
 const CANCELLED: FormState = { ok: false, message: "The contract is cancelled: it is kept as it was." };
-const ON_BEHALF = "recorded on behalf of, not signed";
 
 class Refusal extends Error {
   constructor(readonly state: FormState) {
@@ -94,6 +95,8 @@ async function inContract(scope: OrgScope, actor: AuditActor, id: string, now: D
     if (e instanceof Refusal) return e.state;
     if (e instanceof VariationRefusal || e instanceof CertificateRefusal) return { ok: false, message: e.message, ...(e.errors ? { errors: e.errors } : {}) };
     if (e instanceof AdjustmentNetMissing) return { ok: false, message: e.message };
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     throw e;
   }
   if (result?.ok) {
@@ -152,13 +155,13 @@ async function personNamed(c: Ctx, personId: string | null, field = "personId"):
 
 /// The Person named, and the capacity they may be recorded in for the act on the day (the S.O., or a representative
 /// whose delegation in force covers it); refused otherwise.
-async function recordedFor(c: Ctx, personId: string | null, need: ActNeed, on: string, field = "personId"): Promise<{ person: { id: string; name: string }; capacity: Capacity; soLabel: string }> {
+async function recordedFor(c: Ctx, personId: string | null, need: ActNeed, on: string, field = "personId"): Promise<{ person: { id: string; name: string }; capacity: Capacity; soLabel: string; soRoleCode: string }> {
   const person = await personNamed(c, personId, field);
   const s = await loadSupervision(c.l.contract.id, c.tx);
   const so = await soOfficeOn(c.l, s, on, c.tx);
   const r = capacityFor(person.id, need, so?.office ?? null, delegationFactsOf(s), on);
   if (!r.capacity) throw new Refusal({ ok: false, message: supervisionRefusal("Not recorded:", r.faults) });
-  return { person, capacity: r.capacity, soLabel: so!.office.roleLabel };
+  return { person, capacity: r.capacity, soLabel: so!.office.roleLabel, soRoleCode: so!.assignment.roleCode };
 }
 
 /// A representative's capacity for the rules (FR-VAR-001, 002), or null where the Person is not one on the day.
@@ -236,7 +239,6 @@ const recordWords = (x: { origin: string; description: string; reason: string; e
   allocationConfirmed: x.allocationConfirmed == null ? null : yesNo(x.allocationConfirmed),
   passedThrough: x.principal,
   passedThroughOn: x.principalOn,
-  recordedOnBehalf: ON_BEHALF,
 });
 
 async function judgeRecord(c: Ctx, origin: "DEPARTMENT" | "SO_REPRESENTATIVE", fields: ApplicationFields, more: ReturnType<typeof readFields>["more"]) {
@@ -254,6 +256,29 @@ async function judgeRecord(c: Ctx, origin: "DEPARTMENT" | "SO_REPRESENTATIVE", f
   return { originator, reviewer, principal };
 }
 
+/// Who originated it, who reviewed it and who passed it on: each a person the form names. The signed-in person is the plain case; another is recorded for from
+/// their paper (the memo, the review note, the Principal Representative's minute), with its reference or the reason.
+async function beginOrigination(actor: StaffActor, data: FormData, more: ReturnType<typeof readFields>["more"], existing: { originatorPersonId: string; reviewedByPersonId: string | null; principalPersonId: string | null } | null = null): Promise<{ ok: true; acts: PreparedAct[] } | { ok: false; state: FormState }> {
+  const acts: PreparedAct[] = [];
+  // A person already recorded and left as they were is not recorded again: editing the wording of a draft is not a new act of the originator.
+  if (existing?.originatorPersonId !== more.originatorPersonId) {
+    const begun = await beginAct(actor, data, "Variation.originator", { personField: "originatorPersonId", namesSubject: true });
+    if (!begun.ok) return begun;
+    acts.push(begun.act);
+  }
+  if (more.reviewedByPersonId && existing?.reviewedByPersonId !== more.reviewedByPersonId) {
+    const begun = await beginAct(actor, data, "Variation.reviewedBy", { personField: "reviewedByPersonId", namesSubject: true });
+    if (!begun.ok) return begun;
+    acts.push(begun.act);
+  }
+  if (more.principalPersonId && existing?.principalPersonId !== more.principalPersonId) {
+    const begun = await beginAct(actor, data, "Variation.principal", { personField: "principalPersonId", namesSubject: true });
+    if (!begun.ok) return begun;
+    acts.push(begun.act);
+  }
+  return { ok: true, acts };
+}
+
 /// Record a variation as a draft (FR-VAR-001): its path, its originator, what it is and why, its estimate.
 export async function recordVariation(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
@@ -261,6 +286,8 @@ export async function recordVariation(_prev: FormState, data: FormData): Promise
   const r = new FormReader(data);
   const { origin, fields, more } = readFields(r);
   if (r.failed || !origin || fields.estimate == null) return { ok: false, errors: r.errors };
+  const begun = await beginOrigination(actor, data, more);
+  if (!begun.ok) return begun.state;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const who = await judgeRecord(c, origin, fields, more);
     const row = await c.tx.variation.create({
@@ -273,6 +300,7 @@ export async function recordVariation(_prev: FormState, data: FormData): Promise
       },
     });
     await audit(c, "Variation", row.id, vLabel(c, row), "CREATE", diffFields(null, recordWords({ ...fields, estimate: fields.estimate!, origin, originatorName: who.originator.name, reviewer: who.reviewer?.name ?? null, reviewedOn: more.reviewedOn, allocationConfirmed: more.allocationConfirmed, principal: who.principal?.name ?? null, principalOn: more.principalOn })));
+    for (const a of begun.acts) await a.write(c.tx, row.id);
     return { ok: true };
   });
 }
@@ -285,6 +313,9 @@ export async function editVariation(_prev: FormState, data: FormData): Promise<F
   const variationId = r.text("variationId", "Variation", { required: true });
   const { origin, fields, more } = readFields(r);
   if (r.failed || !origin || fields.estimate == null) return { ok: false, errors: r.errors };
+  const was = await loadVariationPeople(actor.organisationId, variationId);
+  const begun = await beginOrigination(actor, data, more, was);
+  if (!begun.ok) return begun.state;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     if (v.status !== "DRAFT") refuse("Not changed:", [{ code: "NOT_DRAFT", level: "block", data: { status: v.status } }]);
@@ -302,6 +333,7 @@ export async function editVariation(_prev: FormState, data: FormData): Promise<F
     const before = recordWords({ origin: v.origin, description: v.description, reason: v.reason, estimate: v.estimate.toString(), exemption: v.exemption, periodImplication: v.periodImplication, agreedRateExists: v.agreedRateExists, funderConsentRequired: v.funderConsentRequired, originatorName: v.originatorName, reviewer: v.reviewedBy?.name ?? null, reviewedOn: day(v.reviewedOn), allocationConfirmed: v.allocationConfirmed, principal: v.principal?.name ?? null, principalOn: day(v.principalOn) });
     const after = recordWords({ ...fields, estimate: fields.estimate!, origin, originatorName: who.originator.name, reviewer: who.reviewer?.name ?? null, reviewedOn: more.reviewedOn, allocationConfirmed: more.allocationConfirmed, principal: who.principal?.name ?? null, principalOn: more.principalOn });
     await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ ...before, estimate: money(senFromDecimal(v.estimate)) }, after));
+    for (const a of begun.acts) await a.write(c.tx, v.id);
     return { ok: true };
   });
 }
@@ -381,13 +413,17 @@ export async function decideVariation(_prev: FormState, data: FormData): Promise
   const decision = r.choice("soDecision", "The S.O.'s decision", SO_DECISIONS, { required: true });
   const capRaw = r.money("soDecisionCap", "Supported up to");
   const note = r.text("soDecisionNote", "Note", { max: 2000 });
-  const decidedOn = dayField(r, "decidedOn", "Decided on", true);
-  const personId = r.text("personId", "The S.O.", { required: true });
+  dayField(r, "decidedOn", "Decided on");
   const chosen = r.choice("whereTo", "Where it goes", ["RETURN_TO_ORIGINATOR", "TERMINATE"] as const);
-  if (r.failed || !decision || !decidedOn) return { ok: false, errors: r.errors };
+  if (r.failed || !decision) return { ok: false, errors: r.errors };
+  // The S.O.'s decision is signed with their password, or recorded from their paper by someone else, and is dated by the server (Phase 2b).
+  const begun = await beginAct(actor, data, "Variation.soDecidedBy", { personField: "personId", dateField: "decidedOn", document: { entity: "Variation", id: variationId } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const decidedOn = act.day!;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    const so = await recordedFor(c, personId, { soOnly: true }, decidedOn);
+    const so = await recordedFor(c, act.subjectPersonId, { soOnly: true }, decidedOn);
     const cap = capRaw ? parseSen(capRaw) : null;
     const fs = soDecisionFaults({ status: v.status as "SUBMITTED", exemption: v.exemption as VariationExemption | null, decision, cap, estimate: senFromDecimal(v.estimate), note, decidedOn, submittedOn: day(v.submittedOn), today: c.today });
     if (fs.length) refuse("Not recorded:", fs);
@@ -406,7 +442,10 @@ export async function decideVariation(_prev: FormState, data: FormData): Promise
       data: { soDecision: decision, soDecisionCap: cap == null ? null : money(cap), soDecidedByPersonId: so.person.id, soDecidedOn: dayToDate(decidedOn), soDecisionNote: note, status: to, ...(to === "CLOSED" ? { closedOn: dayToDate(c.today), closedReason: `Not supported by the S.O.: ${note}`, closedByPersonId: so.person.id } : {}) },
     });
     if (moved.count !== 1) return CHANGED;
-    await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ soAnswer: null, stage: "with the S.O. for a decision" }, { soAnswer: SO_DECISION_WORDS[decision].en, supportedUpTo: cap == null ? null : money(cap), decidedBy: `${so.person.name}, ${capacityText(so.capacity, so.soLabel)}`, decidedOn, stage: to === "SUPPORTED" ? "supported: to be sent for approval" : to === "DRAFT" ? "returned to its originator" : "closed", goesTo: goes, recordedOnBehalf: ON_BEHALF }), note);
+    await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ soAnswer: null, stage: "with the S.O. for a decision" }, { soAnswer: SO_DECISION_WORDS[decision].en, supportedUpTo: cap == null ? null : money(cap), decidedBy: `${so.person.name}, ${capacityText(so.capacity, so.soLabel)}`, decidedOn, stage: to === "SUPPORTED" ? "supported: to be sent for approval" : to === "DRAFT" ? "returned to its originator" : "closed", goesTo: goes, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null }), note);
+    await act.write(c.tx, v.id, { roleCode: so.soRoleCode });
+    // The decision that ends the variation also closes it: the same person, the same way.
+    if (to === "CLOSED") await act.writeAlso(c.tx, "Variation.closedBy", v.id);
     return { ok: true };
   });
 }
@@ -427,11 +466,13 @@ export async function sendVariationForApproval(_prev: FormState, data: FormData)
   const variationId = r.text("variationId", "Variation", { required: true });
   const event = r.choice("event", "Which approval", VARIATION_EVENTS, { required: true });
   const keyed = r.money("value", "The amount at agreed rates");
-  const personId = r.text("personId", "Sent by", { required: true });
   if (r.failed || !event) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { all, v } = await lockVariation(c, variationId);
-    const sender = await personNamed(c, personId);
+    const sender = await personNamed(c, act.subjectPersonId);
     const order = liveOrderRow(v);
     const orderNet = order && order.certificate.status !== "ISSUED" ? orderNetOf(order) : null;
     const facts = factsOf(v);
@@ -446,7 +487,7 @@ export async function sendVariationForApproval(_prev: FormState, data: FormData)
     if (!now2.r.ok) return refuse("Not sent for approval:", now2.r.faults);
     const reading = now2.r.reading;
     // The route first: its matrix (the override's under a funding override), domain and label are resolved once there.
-    const sent = await sendVariationRoute(c, v, { event, value: value!, reading, submittedBy: sender });
+    const sent = await sendVariationRoute(c, v, { event, value: value!, reading, submittedBy: sender, act });
     if (event === "PRIOR") {
       // The application's figures, frozen now with the route (the application is opened from them on approval), its
       // percentages read on the rows the route was resolved on, the route's own label among them (residual S2).
@@ -465,7 +506,7 @@ export async function sendVariationForApproval(_prev: FormState, data: FormData)
       const moved = await c.tx.variation.updateMany({ where: { id: v.id, status: "SUPPORTED" }, data: { applicationReading: snap as unknown as Prisma.InputJsonValue } });
       if (moved.count !== 1) return CHANGED;
     }
-    await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ sentFor: null }, { sentFor: EVENT_WORDS[event].en, value: money(value!), readAs: sent.label.en, readOver: money(BigInt(reading.den)), basis: BASIS_WORDS[reading.basis].en, base: BASE_WORDS[reading.base].en, sentBy: sender.name, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ sentFor: null }, { sentFor: EVENT_WORDS[event].en, value: money(value!), readAs: sent.label.en, readOver: money(BigInt(reading.den)), basis: BASIS_WORDS[reading.basis].en, base: BASE_WORDS[reading.base].en, sentBy: sender.name }));
     return { ok: true };
   });
 }
@@ -480,14 +521,17 @@ export async function decideVariationApprovalStep(_prev: FormState, data: FormDa
   const variationId = r.text("variationId", "Variation", { required: true });
   const stepId = r.text("stepId", "Step", { required: true });
   const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Decided by", { required: true });
-  const decidedOn = dayField(r, "decidedOn", "Decided on", true);
+  dayField(r, "decidedOn", "Decided on");
   const receivedOn = dayField(r, "receivedOn", "Received on");
   const reason = r.text("reason", "Reason", { max: 2000 });
-  if (r.failed || !decision || !decidedOn) return { ok: false, errors: r.errors };
+  if (r.failed || !decision) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalStep.decidedBy", { personField: "personId", dateField: "decidedOn", document: { entity: "Variation", id: variationId } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const decidedOn = act.day!;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    await decideVariationStep(c, v, { stepId, decision, personId, decidedOn, receivedOn, reason });
+    await decideVariationStep(c, v, { stepId, decision, act, decidedOn, receivedOn, reason });
     return { ok: true };
   });
 }
@@ -518,12 +562,14 @@ export async function chooseVariationRefusal(_prev: FormState, data: FormData): 
   const variationId = r.text("variationId", "Variation", { required: true });
   const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
   const seq = r.int("returnToSeq", "Step", { min: 1 });
-  const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalInstance.rejectionChosenBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    await chooseVariationRejection(c, v, { kind: kind ?? null, returnToSeq: seq, personId, reason });
+    await chooseVariationRejection(c, v, { kind: kind ?? null, returnToSeq: seq, personId: act.subjectPersonId, reason, act });
     return { ok: true };
   });
 }
@@ -541,8 +587,12 @@ export async function tableVariationMatter(_prev: FormState, data: FormData): Pr
   const variationId = r.text("variationId", "Variation", { required: true });
   const purpose = r.choice("purpose", "What is tabled", ["STEP", "CONSENT"] as const, { required: true });
   const meetingId = r.text("meetingId", "Sitting", { required: true });
-  const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed || !purpose) return { ok: false, errors: r.errors };
+  // The tabler is the signed-in person: the holder of the committee's Secretariat office, judged below.
+  const begun = await beginAct(actor, data, "CommitteeDecision.tabledBy", { personField: "tabledByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act0 = begun.act;
+  const tabledByPersonId = act0.subjectPersonId;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     const roster = await loadRoster(actor.organisationCode, c.tx);
@@ -584,7 +634,8 @@ export async function tableVariationMatter(_prev: FormState, data: FormData): Pr
     if (!tabling.ok) return tabling.fault === "NOT_TABLED" || tabling.fault === "NOT_SECRETARIAT_HOLDER" ? { ok: false, errors: { tabledByPersonId: TABLING_FAULT_MESSAGE[tabling.fault] } } : { ok: false, message: `Nothing was saved: ${TABLING_FAULT_MESSAGE[tabling.fault]}` };
     const sequence = s!.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     const row = await c.tx.committeeDecision.create({ data: { meetingId: s!.meeting.id, subject, domain, ...tabledFrom.keys, amount, act, tabledByPersonId, tabledAt: dayToDate(s!.today!), sequence } });
-    await audit(c, "CommitteeDecision", row.id, `${vLabel(c, v)} · ${purpose === "STEP" ? "tabled for its approval" : "tabled for the funder's consent"}`, "CREATE", diffFields(null, { matter: subject, sitting: s!.meeting.reference, committee: s!.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s!.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s!.today!), recordedOnBehalf: "yes" }));
+    await audit(c, "CommitteeDecision", row.id, `${vLabel(c, v)} · ${purpose === "STEP" ? "tabled for its approval" : "tabled for the funder's consent"}`, "CREATE", diffFields(null, { matter: subject, sitting: s!.meeting.reference, committee: s!.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s!.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s!.today!) }));
+    await act0.write(c.tx, row.id);
     return { ok: true, message: `Tabled at ${s!.meeting.reference}. It is decided there, at the sitting; cite its decision here once it is decided.` };
   }, ["/committees", `/committees/${meetingId}`]);
 }
@@ -598,12 +649,14 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
   const on = dayField(r, "commencedOn", "Commenced on", true);
-  const personId = r.text("personId", "Supported by", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !on) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "Variation.commencedSupport", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    const person = await personNamed(c, personId);
+    const person = await personNamed(c, act.subjectPersonId);
     const s = await loadSupervision(c.l.contract.id, c.tx);
     const so = await soOfficeOn(c.l, s, on, c.tx);
     const cap = capacityFor(person.id, { act: "INSTRUCTION" }, so?.office ?? null, delegationFactsOf(s), on);
@@ -611,7 +664,8 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
     if (fs.length) refuse("Not recorded:", fs);
     const moved = await c.tx.variation.updateMany({ where: { id: v.id, status: "SUPPORTED", commencedOn: null }, data: { commencedOn: dayToDate(on), commencedSupportPersonId: person.id, commencedNote: note } });
     if (moved.count !== 1) return CHANGED;
-    await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ commencedPendingApproval: null }, { commencedPendingApproval: on, supportedBy: `${person.name}, ${capacityText(cap.capacity!, so!.office.roleLabel)}`, exposure: money(senFromDecimal(v.estimate)), recordedOnBehalf: ON_BEHALF }), note);
+    await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ commencedPendingApproval: null }, { commencedPendingApproval: on, supportedBy: `${person.name}, ${capacityText(cap.capacity!, so!.office.roleLabel)}`, exposure: money(senFromDecimal(v.estimate)), recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null }), note);
+    await act.write(c.tx, v.id);
     return { ok: true };
   });
 }
@@ -622,17 +676,20 @@ export async function closeVariation(_prev: FormState, data: FormData): Promise<
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
-  const personId = r.text("personId", "Recorded for", { required: true });
   const reason = r.text("reason", "Why it is closed", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "Variation.closedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    const person = await personNamed(c, personId);
+    const person = await personNamed(c, act.subjectPersonId);
     const fs = closeFaults({ v: factsOf(v), reason });
     if (fs.length) refuse("Not closed:", fs);
     const moved = await c.tx.variation.updateMany({ where: { id: v.id, status: { not: "CLOSED" } }, data: { status: "CLOSED", closedOn: dayToDate(c.today), closedReason: reason.trim(), closedByPersonId: person.id } });
     if (moved.count !== 1) return CHANGED;
-    await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ stage: v.status === "DRAFT" ? "draft" : "open" }, { stage: "closed", closedOn: c.today, recordedFor: person.name, recordedOnBehalf: ON_BEHALF }), reason.trim());
+    await audit(c, "Variation", v.id, vLabel(c, v), "UPDATE", diffFields({ stage: v.status === "DRAFT" ? "draft" : "open" }, { stage: "closed", closedOn: c.today, recordedFor: person.name }), reason.trim());
+    await act.write(c.tx, v.id);
     return { ok: true };
   });
 }
@@ -652,11 +709,13 @@ export async function raiseInstruction(_prev: FormState, data: FormData): Promis
   const variationId = r.text("variationId", "Variation", { required: true });
   const description = r.text("instructionDescription", "The instruction's description", { required: true, max: 2000 });
   const oralIssuedOn = dayField(r, "oralIssuedOn", "Given orally on");
-  const personId = r.text("personId", "Recorded for", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "VariationInstruction.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    const who = await recordedFor(c, personId, { act: "INSTRUCTION" }, c.today);
+    const who = await recordedFor(c, act.subjectPersonId, { act: "INSTRUCTION" }, c.today);
     const policy = await policyOf(c);
     const form = scheduleFormOf(v.agreedRateExists, { withAgreedRate: policy?.scheduleFormAgreedRate ?? null, withoutAgreedRate: policy?.scheduleFormNoAgreedRate ?? null });
     const fs = instructionFaults({ v: factsOf(v), funderConsentRequired: v.funderConsentRequired, consent: consentOf(v).state, agreedRateExists: v.agreedRateExists, scheduleForm: form, description, oralIssuedOn, today: c.today });
@@ -682,7 +741,8 @@ export async function raiseInstruction(_prev: FormState, data: FormData): Promis
     const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "SO_INSTRUCTION", templateId: kind.templateId, routingTypeId: null, sectionId: null, computed: snap }, c.now, c.today);
     const clock = await clockOf(c, "ORAL_CONFIRM");
     const row = await c.tx.variationInstruction.create({ data: { organisationId: c.l.org.id, variationId: v.id, certificateId: certId, description, scheduleForm: form!, oralIssuedOn: oralIssuedOn ? dayToDate(oralIssuedOn) : null, confirmDueOn: oralIssuedOn && clock ? dayToDate(dueOn(oralIssuedOn, clock)!) : null, personId: who.person.id, recordedAt: c.now } });
-    await audit(c, "VariationInstruction", row.id, `${vLabel(c, v)} · the S.O.'s instruction`, "CREATE", diffFields(null, { description, scheduleForm: SCHEDULE_FORM_WORDS[form!].en, givenOrallyOn: oralIssuedOn, confirmationDue: oralIssuedOn ? (clock ? dueOn(oralIssuedOn, clock) : "clock not set (advisory)") : null, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "VariationInstruction", row.id, `${vLabel(c, v)} · the S.O.'s instruction`, "CREATE", diffFields(null, { description, scheduleForm: SCHEDULE_FORM_WORDS[form!].en, givenOrallyOn: oralIssuedOn, confirmationDue: oralIssuedOn ? (clock ? dueOn(oralIssuedOn, clock) : "clock not set (advisory)") : null, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }));
+    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
     return { ok: true };
   });
 }
@@ -734,7 +794,6 @@ export async function addMeasurement(_prev: FormState, data: FormData): Promise<
   const measuredOn = dayField(r, "measuredOn", "Measured on", true);
   const coveredUp = tri(r.optionalText("coveredUp"));
   const recordsNote = r.text("recordsNote", "Detailed records", { max: 2000 });
-  const personId = r.text("personId", "Recorded for", { required: true });
   let quantity: bigint | null = null;
   try {
     quantity = qtyRaw ? parseQuantity(qtyRaw.replace(/,/g, "")) : null;
@@ -748,9 +807,12 @@ export async function addMeasurement(_prev: FormState, data: FormData): Promise<
     r.reject("adjustmentPct", "A percentage, to at most four places (a reduction with a minus).");
   }
   if (r.failed || !rateSource || !direction || !measuredOn || !rate) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "VariationMeasurement.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    const who = await recordedFor(c, personId, { act: "VALUATION" }, measuredOn);
+    const who = await recordedFor(c, act.subjectPersonId, { act: "VALUATION" }, measuredOn);
     const ins = liveInstructionRow(v);
     const fs = measurementFaults({
       instruction: { description: ins?.description ?? "", issued: ins?.certificate.status === "ISSUED" },
@@ -763,7 +825,8 @@ export async function addMeasurement(_prev: FormState, data: FormData): Promise<
     const qty = `${quantity! / 1000n}.${String(quantity! % 1000n).padStart(3, "0")}`;
     const adjText = adj == null ? null : `${adj < 0n ? "-" : ""}${(adj < 0n ? -adj : adj) / 10_000n}.${String((adj < 0n ? -adj : adj) % 10_000n).padStart(4, "0")}`;
     const row = await c.tx.variationMeasurement.create({ data: { organisationId: c.l.org.id, variationId: v.id, instructionId: ins!.id, heading, itemRef: itemRef.trim(), description, rateSource, bqItemRef: bqItemRef.trim(), quantity: qty, unit, baseRate: rate, adjustmentPct: adjText, amount: money(amount), direction, measuredOn: dayToDate(measuredOn), coveredUp: coveredUp!, recordsNote, personId: who.person.id, recordedAt: c.now } });
-    await audit(c, "VariationMeasurement", row.id, `${vLabel(c, v)} · item ${itemRef.trim()}`, "CREATE", diffFields(null, { item: `${itemRef.trim()}: ${description}`, rateFrom: `${RATE_SOURCE_WORDS[rateSource].en}${bqItemRef.trim() ? ` (${bqItemRef.trim()})` : ""}`, quantity: `${qty} ${unit}`, rate, adjustment: adjText ? `${adjText}%` : null, amount: money(amount), addsOrOmits: DIRECTION_WORDS[direction].en, measuredOn, coveredUp: yesNo(coveredUp), records: recordsNote || null, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "VariationMeasurement", row.id, `${vLabel(c, v)} · item ${itemRef.trim()}`, "CREATE", diffFields(null, { item: `${itemRef.trim()}: ${description}`, rateFrom: `${RATE_SOURCE_WORDS[rateSource].en}${bqItemRef.trim() ? ` (${bqItemRef.trim()})` : ""}`, quantity: `${qty} ${unit}`, rate, adjustment: adjText ? `${adjText}%` : null, amount: money(amount), addsOrOmits: DIRECTION_WORDS[direction].en, measuredOn, coveredUp: yesNo(coveredUp), records: recordsNote || null, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }));
+    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
     return { ok: true };
   });
 }
@@ -802,11 +865,13 @@ export async function recordDaywork(_prev: FormState, data: FormData): Promise<F
   const agreedOn = dayField(r, "agreedOn", "Checked and agreed on");
   const agreedWith = r.text("agreedWith", "Agreed with, for the contractor", { max: 200 });
   const receivedOn = dayField(r, "substantiationReceivedOn", "Substantiation received on");
-  const personId = r.text("personId", "Recorded for", { required: true });
   if (r.failed || !workedOn) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "DayworkRecord.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    const who = await recordedFor(c, personId, { act: "VALUATION" }, c.today);
+    const who = await recordedFor(c, act.subjectPersonId, { act: "VALUATION" }, c.today);
     const fs = dayworkFaults({ workedOn, agreedOn, agreedWith, receivedOn, description, today: c.today, instructed: v.instructions.some((i) => i.certificate.status === "ISSUED") });
     if (fs.length) refuse("Not recorded:", fs);
     const existing = dayworkId ? v.dayworkRecords.find((d) => d.id === dayworkId) : null;
@@ -820,7 +885,8 @@ export async function recordDaywork(_prev: FormState, data: FormData): Promise<F
     const clock = await clockOf(c, "DAYWORK_SUBSTANTIATION");
     const due = dueOn(workedOn, clock);
     const row = await c.tx.dayworkRecord.create({ data: { organisationId: c.l.org.id, variationId: v.id, workedOn: dayToDate(workedOn), description, agreedOn: agreedOn ? dayToDate(agreedOn) : null, agreedWith, substantiationDueOn: due ? dayToDate(due) : null, substantiationReceivedOn: receivedOn ? dayToDate(receivedOn) : null, personId: who.person.id, recordedAt: c.now } });
-    await audit(c, "DayworkRecord", row.id, `${vLabel(c, v)} · daywork of ${workedOn}`, "CREATE", diffFields(null, { workedOn, labourAndPlant: description, agreedOn, agreedWith: agreedWith || null, substantiationDue: due ?? "clock not set (advisory)", substantiationReceivedOn: receivedOn, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "DayworkRecord", row.id, `${vLabel(c, v)} · daywork of ${workedOn}`, "CREATE", diffFields(null, { workedOn, labourAndPlant: description, agreedOn, agreedWith: agreedWith || null, substantiationDue: due ?? "clock not set (advisory)", substantiationReceivedOn: receivedOn, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }));
+    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
     return { ok: true };
   });
 }
@@ -840,11 +906,13 @@ export async function raiseVariationOrder(_prev: FormState, data: FormData): Pro
   const variationId = r.text("variationId", "Variation", { required: true });
   const description = String(data.get("orderDescription") ?? "");
   const clauseId = r.optionalText("valuationClauseId");
-  const personId = r.text("personId", "Recorded for", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "VariationCertificate.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { all, v } = await lockVariation(c, variationId);
-    const who = await recordedFor(c, personId, { act: "VALUATION" }, c.today);
+    const who = await recordedFor(c, act.subjectPersonId, { act: "VALUATION" }, c.today);
     const ins = liveInstructionRow(v);
     const clause = clauseId ? await c.tx.clauseText.findFirst({ where: { id: clauseId, organisationId: c.l.org.id }, select: { id: true, titleEn: true } }) : null;
     const lines = ins ? standingMeasurements(v, ins.id) : [];
@@ -878,7 +946,8 @@ export async function raiseVariationOrder(_prev: FormState, data: FormData): Pro
     const certId = await openCertificate(c.tx, toAuditActor(actor), c.l, { kind: "VARIATION", templateId: kind.templateId, routingTypeId: null, sectionId: null, computed: o.snapshot }, c.now, c.today);
     const judged = { version: 1, measurementIds: lines.map((x) => x.id), approved: approvedValue(self).toString(), cumulative: cumulative.toString(), net: o.totals.net.toString(), agreedRateTotal: agreedRateTotal.toString(), instructionId: ins!.id };
     const row = await c.tx.variationCertificate.create({ data: { organisationId: c.l.org.id, variationId: v.id, instructionId: ins!.id, certificateId: certId, description, direction: o.totals.direction, valuationClauseId: clause!.id, valuationClauseTitle: clause!.titleEn, judgedUnder: judged as Prisma.InputJsonValue, personId: who.person.id, recordedAt: c.now } });
-    await audit(c, "VariationCertificate", row.id, `${vLabel(c, v)} · Variation Order Certificate`, "CREATE", diffFields(null, { measuredAdditions: money(o.totals.additions), measuredOmissions: money(o.totals.omissions), netValue: money(o.totals.net), addsOrOmits: DIRECTION_WORDS[o.totals.direction].en, approvedValue: money(approvedValue(self)), valuedUnder: clause!.titleEn, items: lines.length, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`, recordedOnBehalf: ON_BEHALF }));
+    await audit(c, "VariationCertificate", row.id, `${vLabel(c, v)} · Variation Order Certificate`, "CREATE", diffFields(null, { measuredAdditions: money(o.totals.additions), measuredOmissions: money(o.totals.omissions), netValue: money(o.totals.net), addsOrOmits: DIRECTION_WORDS[o.totals.direction].en, approvedValue: money(approvedValue(self)), valuedUnder: clause!.titleEn, items: lines.length, recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }));
+    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
     return { ok: true };
   });
 }
@@ -899,7 +968,6 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
   const r = new FormReader(data);
   // The tokens field rides out as one newline-joined value (the shared Select).
   const orderIds = [...new Set(data.getAll("orderIds").flatMap((v) => String(v).split("\n")).map((v) => v.trim()).filter(Boolean))];
-  const personId = r.text("personId", "Recorded for", { required: true });
   const others: AdjustmentLineIn[] = [];
   for (let n = 1; n <= OTHER_LINES; n++) {
     const amountRaw = r.money(`other${n}Amount`, `Line ${n}: amount`);
@@ -912,10 +980,13 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
     if (trigger && direction) others.push({ section: "OTHER", trigger, reference, description, direction, amount: parseSen(amountRaw), basis, orderId: null });
   }
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "SumAdjustment.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "SUM_ADJUSTMENT", async (c) => {
     // The contract's lock serialises every act on its variations and certificates (each takes it first): the orders
     // chosen are read on the locked transaction.
-    const who = await recordedFor(c, personId, { act: "VALUATION" }, c.today);
+    const who = await recordedFor(c, act.subjectPersonId, { act: "VALUATION" }, c.today);
     const all = await loadVariations(c.l.contract.id, c.tx);
     const rows = await loadAdjustments(c.l.contract.id, c.tx);
     const baseline = baselineOn(c.l, c.today);
@@ -951,8 +1022,8 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
       earlierAdjustments: money(figures.prior),
       revisedContractSum: money(figures.revised),
       recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}`,
-      recordedOnBehalf: ON_BEHALF,
     }));
+    await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
     return { ok: true };
   });
 }

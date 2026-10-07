@@ -26,6 +26,7 @@ import { timeRefusal } from "@/lib/time/labels";
 import type { Finding } from "@/lib/time/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -89,8 +90,12 @@ export async function tableContractMatter(_prev: FormState, data: FormData): Pro
   const r = new FormReader(data);
   const matterId = r.text("matterId", "Matter", { required: true });
   const meetingId = r.text("meetingId", "Sitting", { required: true });
-  const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
+  // The tabler is the signed-in person: the holder of the Secretariat office, judged below (FR-CTE-006).
+  const begun = await beginAct(actor, data, "CommitteeDecision.tabledBy", { personField: "tabledByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const tabledByPersonId = act.subjectPersonId;
   return run(actor, toAuditActor(actor), data, matterId, now, async (c) => {
     const { m } = await lockMatter(c, matterId);
     const roster = await loadRoster(actor.organisationCode, c.tx);
@@ -110,7 +115,8 @@ export async function tableContractMatter(_prev: FormState, data: FormData): Pro
     const sequence = s!.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     const subject = `${MATTER_KIND_WORDS[m.kind as ContractMatterKind].en[0].toUpperCase()}${MATTER_KIND_WORDS[m.kind as ContractMatterKind].en.slice(1)} ${m.reference ?? "(not yet numbered)"} on contract ${c.l.contract.number}`;
     const row = await c.tx.committeeDecision.create({ data: { meetingId: s!.meeting.id, subject, domain: open!.domain, ...tabledFrom.keys, amount: open!.value?.toString() ?? null, act: step!.act, tabledByPersonId, tabledAt: dayToDate(s!.today!), sequence } });
-    await writeAudit(c.tx, { actor: toAuditActor(actor), organisationId: c.l.org.id, entity: "CommitteeDecision", entityId: row.id, entityLabel: `${matterLabel(c.l, m)} · tabled for its approval`, reason: "" }, "CREATE", diffFields(null, { matter: subject, sitting: s!.meeting.reference, committee: s!.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s!.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s!.today!), recordedOnBehalf: "yes" }));
+    await writeAudit(c.tx, { actor: toAuditActor(actor), organisationId: c.l.org.id, entity: "CommitteeDecision", entityId: row.id, entityLabel: `${matterLabel(c.l, m)} · tabled for its approval`, reason: "" }, "CREATE", diffFields(null, { matter: subject, sitting: s!.meeting.reference, committee: s!.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s!.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s!.today!) }));
+    await act.write(c.tx, row.id);
     return { ok: true, message: `Tabled at ${s!.meeting.reference}. It is decided there, at the sitting; cite its decision here once it is decided.` };
   }, ["/committees", `/committees/${meetingId}`]);
 }
@@ -143,14 +149,17 @@ export async function decideContractMatterStep(_prev: FormState, data: FormData)
   const matterId = r.text("matterId", "Matter", { required: true });
   const stepId = r.text("stepId", "Step", { required: true });
   const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Decided by", { required: true });
-  const decidedOn = dayField(r, "decidedOn", "Decided on", true);
+  dayField(r, "decidedOn", "Decided on");
   const receivedOn = dayField(r, "receivedOn", "Received on");
   const reason = r.text("reason", "Reason", { max: 2000 });
-  if (r.failed || !decision || !decidedOn) return { ok: false, errors: r.errors };
+  if (r.failed || !decision) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalStep.decidedBy", { personField: "personId", dateField: "decidedOn", document: { entity: "ContractMatter", id: matterId } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const decidedOn = act.day!;
   return run(actor, toAuditActor(actor), data, matterId, now, async (c) => {
     const { m } = await lockMatter(c, matterId);
-    await decideMatterStep(c, m, { stepId, decision, personId, decidedOn, receivedOn, reason });
+    await decideMatterStep(c, m, { stepId, decision, act, decidedOn, receivedOn, reason });
     return { ok: true };
   });
 }
@@ -163,12 +172,14 @@ export async function chooseContractMatterRejection(_prev: FormState, data: Form
   const matterId = r.text("matterId", "Matter", { required: true });
   const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
   const seq = r.int("returnToSeq", "Step", { min: 1 });
-  const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalInstance.rejectionChosenBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return run(actor, toAuditActor(actor), data, matterId, now, async (c) => {
     const { m } = await lockMatter(c, matterId);
-    await chooseMatterRejection(c, m, { kind: kind ?? null, returnToSeq: seq, personId, reason });
+    await chooseMatterRejection(c, m, { kind: kind ?? null, returnToSeq: seq, personId: act.subjectPersonId, reason, act });
     return { ok: true };
   });
 }

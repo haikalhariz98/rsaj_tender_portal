@@ -22,6 +22,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { closeRejected, loadDestinations, openSuccessor, recordChoice, snapshotOf } from "@/lib/approvals/rejection-store";
 import { diffFields } from "@/lib/audit/diff";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { absentOffices } from "@/lib/authority/absence";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
@@ -98,6 +99,8 @@ export interface SendInput {
   /// The contract value the matrix reads the regime and contract-value bands at.
   contractValue: Sen;
   submittedBy: { id: string; name: string };
+  /// How the sender sent it (attributed in this transaction, Phase 2b).
+  act: ActWriter;
   /// The kind's own check of the resolved chain (loss and expense: the claims committee, OD-B20): blocks refuse, the
   /// rest are written on the route's warnings.
   chainCheck?: (committeeCodes: string[], committeeName: (code: string) => string) => Finding[];
@@ -177,15 +180,16 @@ export async function sendMatterRoute(c: MatterCtx, m: MatterRow, i: SendInput):
       route: r.resolution.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "),
       fundingOverrideApplied: src.override != null,
       sentBy: i.submittedBy.name,
-      recordedOnBehalf: "not signed",
     }));
+  await i.act.write(c.tx, inst.id);
   return { id: inst.id, reference: reference! };
 }
 
 export interface DecideInput {
   stepId: string;
   decision: "DONE" | "REJECTED";
-  personId: string;
+  /// How the step was decided (attributed in this transaction); `act.subjectPersonId` is the holder it is attributed to.
+  act: ActWriter;
   decidedOn: string;
   receivedOn: string | null;
   reason: string;
@@ -207,7 +211,7 @@ export async function decideMatterStep(c: MatterCtx, m: MatterRow, i: DecideInpu
   const office = actingOffice(step);
   const h = office ? await unitPathOf(c, i.decidedOn) : null;
   const holders = office && h ? holdersFor(office, h.unitPath, h.roster, h.delegations, i.decidedOn) : { scope: null, holderIds: [], delegates: [] };
-  const person = h?.roster.people.find((p) => p.id === i.personId) ?? (await c.tx.person.findFirst({ where: { id: i.personId, organisationId: c.l.org.id }, select: { id: true, isActive: true, name: true } }));
+  const person = h?.roster.people.find((p) => p.id === i.act.subjectPersonId) ?? (await c.tx.person.findFirst({ where: { id: i.act.subjectPersonId, organisationId: c.l.org.id }, select: { id: true, isActive: true, name: true } }));
   const check = deciderFaults(step, {
     today: c.today,
     holders,
@@ -215,6 +219,7 @@ export async function decideMatterStep(c: MatterCtx, m: MatterRow, i: DecideInpu
     person: person ? { id: person.id, isActive: person.isActive } : null,
     // FR-APR-006: whoever sent the matter for approval does not decide it.
     requesterId: inst.submittedByPersonId ?? "",
+    recorderId: i.act.recorderId,
     endorserIds: [],
     otherDeciderIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
     earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
@@ -233,7 +238,8 @@ export async function decideMatterStep(c: MatterCtx, m: MatterRow, i: DecideInpu
   const done = await c.tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) throw new MatterRefusal("The step changed while this was being saved. Reload and try again.");
   await writeAudit(c.tx, { actor: c.actor, organisationId: c.l.org.id, entity: "ApprovalStep", entityId: step.id, entityLabel: `${matterLabel(c.l, m)} · ${step.roleLabel}`, reason: i.reason.trim() }, "UPDATE",
-    diffFields({ decision: step.decision, receivedOn: null }, { decision: i.decision, decidedBy: person!.name, decidedOn: i.decidedOn, receivedOn: i.receivedOn, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }));
+    diffFields({ decision: step.decision, receivedOn: null }, { decision: i.decision, decidedBy: person!.name, decidedOn: i.decidedOn, receivedOn: i.receivedOn, recordedOnBehalf: i.act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null, underDelegation: check.delegationId ? "yes" : null }));
+  await i.act.write(c.tx, step.id, { document: { entity: "ContractMatter", id: m.id }, roleCode: step.actingRoleCode ?? step.roleCode });
   await afterStep(c, m, inst, step.id, i.decision, i.reason.trim(), null);
 }
 
@@ -295,7 +301,7 @@ async function sendRefused(c: MatterCtx, m: MatterRow, inst: MatterRow["routes"]
 }
 
 /// Where a refused route goes, chosen by the officer where its refusal decided nothing (FR-APR-016, CO-5).
-export async function chooseMatterRejection(c: MatterCtx, m: MatterRow, i: { kind: RejectionKind | null; returnToSeq: number | null; personId: string | null; reason: string }) {
+export async function chooseMatterRejection(c: MatterCtx, m: MatterRow, i: { kind: RejectionKind | null; returnToSeq: number | null; personId: string | null; reason: string; act: ActWriter }) {
   const inst = [...m.routes].reverse().find((x) => x.status === "REJECTED" && x.rejectionApplied == null) ?? null;
   const rejecting = inst?.steps.find((s) => s.decision === "REJECTED") ?? null;
   const fault = choiceFault({ status: inst?.status ?? "", applied: (inst?.rejectionApplied as RejectionKind | null) ?? null, offered: (inst?.rejectionChoices as RejectionKind[] | undefined) ?? [], steps: inst?.steps ?? [], rejectingSeq: rejecting?.sequence ?? null }, i);
@@ -305,7 +311,7 @@ export async function chooseMatterRejection(c: MatterCtx, m: MatterRow, i: { kin
   }
   const person = await c.tx.person.findFirst({ where: { id: i.personId!, organisationId: c.l.org.id, isActive: true }, select: { id: true, name: true } });
   if (!person) throw new MatterRefusal("Not recorded.", { personId: "Choose someone on record and active." });
-  await recordChoice(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c, m) }, inst!.id, i.kind!, person.id, person.name, i.reason.trim());
+  await recordChoice(c.tx, c.actor, { organisationId: c.l.org.id, routeLabel: routeLabel(c, m) }, inst!.id, i.kind!, person.id, person.name, i.reason.trim(), i.act);
   await sendRefused(c, m, inst!, i.kind!, i.kind === "RETURN_TO_STEP" ? i.returnToSeq : null, i.reason.trim());
 }
 

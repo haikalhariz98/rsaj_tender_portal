@@ -2,7 +2,7 @@
 
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
-import { ON_BEHALF_HINT } from "@/lib/documents/labels";
+import { actorField } from "@/lib/auth/actor-field";
 
 import {
   addMeasurement,
@@ -39,7 +39,9 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 const primary = buttonClass("primary", "sm");
 const secondary = buttonClass("secondary", "sm");
 const ghost = buttonClass("ghost", "sm");
-const person = (name: string, label: string, people: Option[], hint = ON_BEHALF_HINT): Field => ({ kind: "select", name, label, required: true, placeholder: "Choose", options: people, hint });
+/// Who is acting: the signed-in officer, shown and not chosen. Where the act may be recorded from paper, `people` are who it may be recorded for.
+const by = (slot: string, name: string, people: Option[], opts: { label?: string; dated?: boolean; named?: "required" | "optional" } = {}): Field =>
+  actorField(slot, { name, people, label: opts.label, dated: opts.dated, ...(opts.named ? { named: { optional: opts.named === "optional" } } : {}) });
 const choose = (name: string, label: string, options: Option[], hint?: string, required = true): Field => ({ kind: "select", name, label, required, placeholder: "Choose: there is no default", options, ...(hint ? { hint } : {}) });
 const YES_NO: Option[] = [
   { value: "yes", label: "Yes" },
@@ -61,7 +63,7 @@ export function VariationRecordDrawer({ id, people, origins, exemptions, values,
         hidden("id"),
         hidden("variationId"),
         choose("origin", "Originated by", origins),
-        person("originatorPersonId", "Originator", people, "On the S.O.'s Representative path: the S.O., or a representative whose delegation covers variation applications. Recorded on their behalf, not signed."),
+        by("Variation.originator", "originatorPersonId", people, { named: "required" }),
         { kind: "textarea", name: "description", label: "Description", required: true },
         { kind: "textarea", name: "reason", label: "Reason it is done as a variation", required: true },
         { kind: "text", name: "estimate", label: "Estimated amount (RM)", required: true, hint: "An omission (a reduction of the contract sum) below nothing, with a minus.", placeholder: "0.00" },
@@ -70,13 +72,13 @@ export function VariationRecordDrawer({ id, people, origins, exemptions, values,
         answer("agreedRateExists", "A negotiated agreed rate already exists", "Decides the schedule form it produces."),
         answer("funderConsentRequired", "Affects a funder's assets", "Yes: the funder's consent is tabled before it is instructed."),
         { kind: "note", text: "The department path: the review by an S.O.'s Representative before it is submitted." },
-        { kind: "select", name: "reviewedByPersonId", label: "Reviewed by", placeholder: "Not reviewed yet", options: people },
+        by("Variation.reviewedBy", "reviewedByPersonId", people, { named: "optional" }),
         { kind: "date", name: "reviewedOn", label: "Reviewed on" },
         { kind: "textarea", name: "reviewNote", label: "Review note" },
         { kind: "note", text: "A Specialist representative: the allocation confirmed, and the Principal Representative it passed through." },
         answer("allocationConfirmed", "The allocation is confirmed available"),
         { kind: "textarea", name: "allocationNote", label: "Allocation note" },
-        { kind: "select", name: "principalPersonId", label: "Passed through", placeholder: "Not yet", options: people },
+        by("Variation.principal", "principalPersonId", people, { named: "optional" }),
         { kind: "date", name: "principalOn", label: "Passed through on" },
       ]}
       values={{ id, ...(values ?? {}) }}
@@ -115,7 +117,7 @@ export function SoDecisionDrawer({ id, variationId, people, decisions, today, de
         { kind: "money", name: "soDecisionCap", label: "Supported up to (RM)", hint: "Optional, with support only." },
         { kind: "textarea", name: "soDecisionNote", label: "Note", hint: "Required where it is not supported." },
         { kind: "date", name: "decidedOn", label: "Decided on", required: true },
-        person("personId", "The S.O.", people),
+        by("Variation.soDecidedBy", "personId", people, { dated: true }),
         ...(destinationSet ? [] : [choose("whereTo", "Where it goes, if not supported", [{ value: "RETURN_TO_ORIGINATOR", label: "Back to its originator" }, { value: "TERMINATE", label: "The variation ends" }], undefined, false)]),
       ]}
       values={{ id, variationId, decidedOn: today }}
@@ -139,7 +141,7 @@ export function SendVariationDrawer({ id, variationId, events, people, blocker, 
         hidden("variationId"),
         choose("event", "Which approval", events),
         { kind: "money", name: "value", label: "Amount the agreed rates will value (RM)", hint: "For approval to use rates not in the contract only." },
-        person("personId", "Sent by", people),
+        by("ApprovalInstance.submittedBy", "personId", people),
       ]}
       values={{ id, variationId }}
       showWhen={{ value: { name: "event", in: ["AGREED_RATE"] } }}
@@ -161,7 +163,7 @@ export function DecideVariationStepDrawer({ id, variationId, stepId, roleLabel, 
         hidden("variationId"),
         hidden("stepId"),
         choose("decision", "Decision", [{ value: "DONE", label: done }, { value: "REJECTED", label: "Refused" }]),
-        person("personId", "Decided by", people),
+        by("ApprovalStep.decidedBy", "personId", people, { dated: true }),
         { kind: "date", name: "decidedOn", label: "Decided on", required: true },
         { kind: "date", name: "receivedOn", label: "Received on", hint: "Optional: the day it reached them." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required where it is refused." },
@@ -193,7 +195,7 @@ export function ChooseVariationRefusalDrawer({ id, variationId, offered, steps, 
     <RecordEditor
       title="Where the refused route goes"
       description="Nothing configured decides where a refused variation goes, so the officer chooses, recorded on behalf of the Person named."
-      fields={[hidden("id"), hidden("variationId"), choose("kind", "Where it goes", offered), { kind: "select", name: "returnToSeq", label: "Back to step", placeholder: "Choose", options: steps }, person("personId", "Chosen by", people), { kind: "textarea", name: "reason", label: "Reason", required: true }]}
+      fields={[hidden("id"), hidden("variationId"), choose("kind", "Where it goes", offered), { kind: "select", name: "returnToSeq", label: "Back to step", placeholder: "Choose", options: steps }, by("ApprovalInstance.rejectionChosenBy", "personId", people), { kind: "textarea", name: "reason", label: "Reason", required: true }]}
       values={{ id, variationId }}
       showWhen={{ returnToSeq: { name: "kind", in: ["RETURN_TO_STEP"] } }}
       action={chooseVariationRefusal}
@@ -208,7 +210,7 @@ export function TableVariationDrawer({ id, variationId, purpose, sittings, table
     <RecordEditor
       title={purpose === "STEP" ? "Table it for the committee's step" : "Table it for the funder's consent"}
       description="Tabled as a matter naming this variation at a sitting of the committee, which decides it there (each member's vote, with comments). Only a holder of the committee's Secretariat office on the day tables it, recorded on their behalf."
-      fields={[hidden("id"), hidden("variationId"), hidden("purpose"), choose("meetingId", "Sitting", sittings, sittings.length ? undefined : "No sitting of the committee takes matters now: schedule one under Committees."), { kind: "select", name: "tabledByPersonId", label: "Tabled by", required: true, placeholder: "Choose", options: tablers, hint: ON_BEHALF_HINT }]}
+      fields={[hidden("id"), hidden("variationId"), hidden("purpose"), choose("meetingId", "Sitting", sittings, sittings.length ? undefined : "No sitting of the committee takes matters now: schedule one under Committees."), by("CommitteeDecision.tabledBy", "tabledByPersonId", tablers)]}
       values={{ id, variationId, purpose }}
       action={tableVariationMatter}
       submitLabel="Table"
@@ -225,7 +227,7 @@ export function CommenceDrawer({ id, variationId, people, today, blocker }: { id
     <RecordEditor
       title="Commenced pending approval"
       description="Work proceeds on the support of the S.O. or an S.O.'s Representative while the approval is obtained. Its estimate counts in the exposure until it is approved."
-      fields={[hidden("id"), hidden("variationId"), { kind: "date", name: "commencedOn", label: "Commenced on", required: true }, person("personId", "Supported by", people), { kind: "textarea", name: "note", label: "Note" }]}
+      fields={[hidden("id"), hidden("variationId"), { kind: "date", name: "commencedOn", label: "Commenced on", required: true }, by("Variation.commencedSupport", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
       values={{ id, variationId, commencedOn: today }}
       action={recordCommencement}
       submitLabel="Record"
@@ -240,7 +242,7 @@ export function CloseVariationDrawer({ id, variationId, people, blocker }: { id:
     <RecordEditor
       title="Close the variation"
       description="Withdrawn, or ended. Never once approved: an approved variation is undone only by another variation, an omission."
-      fields={[hidden("id"), hidden("variationId"), person("personId", "Recorded for", people), { kind: "textarea", name: "reason", label: "Why it is closed", required: true }]}
+      fields={[hidden("id"), hidden("variationId"), by("Variation.closedBy", "personId", people), { kind: "textarea", name: "reason", label: "Why it is closed", required: true }]}
       values={{ id, variationId }}
       action={closeVariation}
       submitLabel="Close it"
@@ -257,7 +259,7 @@ export function InstructionDrawer({ id, variationId, description, people, blocke
     <RecordEditor
       title="Raise the S.O.'s instruction"
       description="Opened as a certificate on its form and dated by the S.O.'s signature on its page. Its description is the heading every item is measured under, and the Variation Order Certificate repeats it word for word."
-      fields={[hidden("id"), hidden("variationId"), { kind: "textarea", name: "instructionDescription", label: "Description", required: true }, { kind: "date", name: "oralIssuedOn", label: "First given orally on", hint: "Only where the instruction was given orally first: the contractor's confirmation clock runs from it." }, person("personId", "Recorded for (the S.O., or a representative whose delegation covers instructions)", people)]}
+      fields={[hidden("id"), hidden("variationId"), { kind: "textarea", name: "instructionDescription", label: "Description", required: true }, { kind: "date", name: "oralIssuedOn", label: "First given orally on", hint: "Only where the instruction was given orally first: the contractor's confirmation clock runs from it." }, by("VariationInstruction.person", "personId", people)]}
       values={{ id, variationId, instructionDescription: description }}
       action={raiseInstruction}
       submitLabel="Raise"
@@ -307,7 +309,7 @@ export function MeasurementDrawer({ id, variationId, heading, people, sources, d
         { kind: "date", name: "measuredOn", label: "Measured on", required: true },
         answer("coveredUp", "The work will be covered up"),
         { kind: "textarea", name: "recordsNote", label: "Detailed records", hint: "Required where the work will be covered up." },
-        person("personId", "Recorded for (the S.O., or a representative whose delegation covers valuation)", people),
+        by("VariationMeasurement.person", "personId", people),
       ]}
       values={{ id, variationId, heading, measuredOn: today }}
       action={addMeasurement}
@@ -340,7 +342,7 @@ export function DayworkDrawer({ id, variationId, people, today, values, blocker 
       title={editing ? "Daywork: agreement and substantiation" : "Record daywork"}
       description="Labour and plant time, checked and agreed with the contractor the same day it is worked (otherwise flagged), and the contractor's vouchers, receipts, wage books and timesheets received within the clock read when the record is made."
       columns={2}
-      fields={[hidden("id"), hidden("variationId"), hidden("dayworkId"), { kind: "date", name: "workedOn", label: "Worked on", required: true }, { kind: "textarea", name: "description", label: "Labour and plant", required: true }, { kind: "date", name: "agreedOn", label: "Checked and agreed on" }, { kind: "text", name: "agreedWith", label: "Agreed with, for the contractor" }, { kind: "date", name: "substantiationReceivedOn", label: "Substantiation received on" }, person("personId", "Recorded for (the S.O., or a representative whose delegation covers valuation)", people)]}
+      fields={[hidden("id"), hidden("variationId"), hidden("dayworkId"), { kind: "date", name: "workedOn", label: "Worked on", required: true }, { kind: "textarea", name: "description", label: "Labour and plant", required: true }, { kind: "date", name: "agreedOn", label: "Checked and agreed on" }, { kind: "text", name: "agreedWith", label: "Agreed with, for the contractor" }, { kind: "date", name: "substantiationReceivedOn", label: "Substantiation received on" }, by("DayworkRecord.person", "personId", people)]}
       values={{ id, variationId, workedOn: today, ...(values ?? {}) }}
       action={recordDaywork}
       submitLabel="Record"
@@ -357,7 +359,7 @@ export function OrderDrawer({ id, variationId, description, clauses, people, blo
     <RecordEditor
       title="Raise the Variation Order Certificate"
       description="From the items measured under the instruction, frozen with it. Its description is the instruction's, word for word. It is signed on its page once the variation's approved routes cover its value; a contractor who refuses to sign is recorded as a dispute and does not stop it."
-      fields={[hidden("id"), hidden("variationId"), { kind: "textarea", name: "orderDescription", label: "Description (the instruction's)", required: true }, choose("valuationClauseId", "Valued under", clauses, clauses.length ? undefined : "No clauses in the clause library: add them under Configuration › Tender documents."), person("personId", "Recorded for (the S.O., or a representative whose delegation covers valuation)", people)]}
+      fields={[hidden("id"), hidden("variationId"), { kind: "textarea", name: "orderDescription", label: "Description (the instruction's)", required: true }, choose("valuationClauseId", "Valued under", clauses, clauses.length ? undefined : "No clauses in the clause library: add them under Configuration › Tender documents."), by("VariationCertificate.person", "personId", people)]}
       values={{ id, variationId, orderDescription: description }}
       action={raiseVariationOrder}
       submitLabel="Raise"
@@ -383,7 +385,7 @@ export function AdjustmentDrawer({ id, orders, triggers, directions, people, blo
       description="Section 1.1: the issued Variation Order Certificates chosen; section 1.2: other adjustments. The totals, the revised contract sum (the original plus the issued adjustments before it, plus this) and the sum in words are worked out, never typed. One in progress at a time."
       size="lg"
       columns={2}
-      fields={[hidden("id"), { kind: "tokens", name: "orderIds", label: "Variation Order Certificates (issued, not yet adjusted)", placeholder: orders.length ? "Choose" : "None to adjust", options: orders }, ...other(1), ...other(2), ...other(3), person("personId", "Recorded for (the S.O., or a representative whose delegation covers valuation)", people)]}
+      fields={[hidden("id"), { kind: "tokens", name: "orderIds", label: "Variation Order Certificates (issued, not yet adjusted)", placeholder: orders.length ? "Choose" : "None to adjust", options: orders }, ...other(1), ...other(2), ...other(3), by("SumAdjustment.person", "personId", people)]}
       values={{ id }}
       action={raiseSumAdjustment}
       submitLabel="Raise"

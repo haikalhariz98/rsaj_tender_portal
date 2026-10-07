@@ -19,6 +19,7 @@ import { recordFinancePayment } from "@/lib/payment/finance-write";
 import { submitForApproval } from "@/lib/payment/route-open";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct, type PreparedAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -26,8 +27,8 @@ import type { OrgScope } from "@/lib/org-scope";
  * The certificate page's acts (6.14 increment 1). Each reads the server's clock once on entry (to the second),
  * locks the contract's chain and then the certificate (`withLockedCertificate`), and calls the core's helper,
  * which re-runs the rule on the locked rows, writes and audits in the same transaction. A refusal throws, so
- * nothing is saved, and says what refuses it. A cancelled contract refuses every act. The signed-in officer is named on every audit row;
- * every Person named is recorded on their behalf, not signed. No act posts a bound field (FR-CRT-002): the
+ * nothing is saved, and says what refuses it. A cancelled contract refuses every act. The signed-in officer is named on every audit row, and
+ * every act is attributed in the same transaction (`beginAct`, Phase 2b): the officer's own, or, from paper, recorded for another and not signed. No act posts a bound field (FR-CRT-002): the
  * figures, the number, the sequence and the certificate's date are never form fields.
  */
 
@@ -56,6 +57,8 @@ async function inCertificate(scope: OrgScope, actor: AuditActor, certId: string,
   } catch (e) {
     if (e instanceof CertificateRefusal) return { ok: false, message: e.message, errors: e.errors };
     if (e instanceof AdjustmentNetMissing) return { ok: false, message: e.message };
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     throw e;
   }
   if (result?.ok && contractId) {
@@ -87,11 +90,12 @@ export async function recordCertificateCheck(_prev: FormState, data: FormData): 
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const defOrder = r.int("defOrder", "Check", { min: 1, required: true });
-  const personId = r.text("personId", "Recorded for", { required: true });
   const on = r.date("on", "On", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || defOrder == null || !on) return { ok: false, errors: r.errors };
-  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => recordCheck(c, defOrder, personId, storedDay(on), note));
+  const begun = await beginAct(actor, data, "RoutingCheck.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => recordCheck(c, defOrder, begun.act, storedDay(on), note));
 }
 
 export async function sendCertificateToSigning(_prev: FormState, data: FormData): Promise<FormState> {
@@ -107,7 +111,6 @@ export async function recordCertificateSignature(_prev: FormState, data: FormDat
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const blockOrder = r.int("blockOrder", "Block", { min: 1, required: true });
-  const personId = r.text("personId", "Signed by", { max: 64 });
   const name = r.text("name", "Full name", { max: 240 });
   const icNumber = r.text("icNumber", "Identity-card number", { max: 20 });
   const signedOn = r.date("signedOn", "Signed on");
@@ -116,8 +119,19 @@ export async function recordCertificateSignature(_prev: FormState, data: FormDat
   const decision = r.choice("decision", "Answer", SIGNATURE_DECISIONS);
   const cap = r.money("decisionCap", "Supported up to");
   if (r.failed || blockOrder == null) return { ok: false, errors: r.errors };
+  // A block of the organisation's own is signed by a person: the holder signed in, with the password asked again, or the paper they signed recorded for them.
+  // A block that is not a person's (the contractor's side) names its signatory by name and asks no one's password. The certificate it signs is named (NFR-SIG-001).
+  const personBlock = data.get("personBlock") === "yes";
+  let act: PreparedAct | null = null;
+  if (personBlock) {
+    const begun = await beginAct(actor, data, "CertificateSignature.person", { personField: "personId", dateField: "signedOn", document: { entity: "Certificate", id: certOf(data) } });
+    if (!begun.ok) return begun.state;
+    act = begun.act;
+  }
+  const personId = act?.subjectPersonId ?? null;
+  const signedOnDay = act ? act.day : signedOn ? storedDay(signedOn) : null;
   return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) =>
-    recordSignature(c, { blockOrder, personId: personId || null, name, icNumber, signedOn: signedOn ? storedDay(signedOn) : null, refused: refused === "yes", refusalNote, decision: decision ?? null, decisionCap: cap ? senToDecimalString(parseSen(cap)) : null }),
+    recordSignature(c, { blockOrder, personId: personId || null, act, name, icNumber, signedOn: signedOnDay, refused: refused === "yes", refusalNote, decision: decision ?? null, decisionCap: cap ? senToDecimalString(parseSen(cap)) : null }),
   );
 }
 
@@ -128,9 +142,10 @@ export async function overrideCertificateFigure(_prev: FormState, data: FormData
   const fieldKey = r.text("fieldKey", "Figure", { required: true, max: 120 });
   const value = r.text("value", "Overridden to", { required: true, max: 240 });
   const justification = r.text("justification", "Justification", { required: true, max: 4000 });
-  const personId = r.text("personId", "Recorded for", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => overrideField(c, fieldKey, value, justification, personId));
+  const begun = await beginAct(actor, data, "CertificateOverride.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => overrideField(c, fieldKey, value, justification, begun.act));
 }
 
 export async function correctCertificateDay(_prev: FormState, data: FormData): Promise<FormState> {
@@ -178,12 +193,13 @@ export async function sendCertificateForApproval(_prev: FormState, data: FormDat
   const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
-  const personId = r.text("personId", "Sent by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => submitForApproval(c, personId));
+  const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => submitForApproval(c, begun.act));
 }
 
-/// A named Person's decision on a step of the certificate's open route (614-C4: decided here, under the lock order).
+/// A decision on a step of the certificate's open route (614-C4: decided here, under the lock order): the holder's own, signed, or recorded for them from paper.
 export async function decideCertificateRouteStep(_prev: FormState, data: FormData): Promise<FormState> {
   const holderGuard = await staffForAct("HOLDER_CHECKED");
   if (!holderGuard.ok) return holderGuard.state;
@@ -192,25 +208,27 @@ export async function decideCertificateRouteStep(_prev: FormState, data: FormDat
   const r = new FormReader(data);
   const stepId = r.text("stepId", "Step", { required: true });
   const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Decided by", { required: true });
-  const on = r.date("decidedOn", "Decided on", { required: true });
+  r.date("decidedOn", "Decided on");
   const received = r.date("receivedOn", "Received on");
   const reason = r.text("reason", "Reason", { max: 2000 });
-  if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
-  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => decideCertificateStep(c, { stepId, decision, personId, decidedOn: storedDay(on), receivedOn: received ? storedDay(received) : null, reason }));
+  if (r.failed || !decision) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalStep.decidedBy", { personField: "personId", dateField: "decidedOn", document: { entity: "Certificate", id: certOf(data) } });
+  if (!begun.ok) return begun.state;
+  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => decideCertificateStep(c, { stepId, decision, act: begun.act, decidedOn: begun.act.day!, receivedOn: received ? storedDay(received) : null, reason }));
 }
 
-/// Where a refused route goes, where its refusal decided nothing (CO-5): the officer's choice, on a named Person's behalf.
+/// Where a refused route goes, where its refusal decided nothing (CO-5): the signed-in officer's own choice.
 export async function chooseCertificateRouteRejection(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const kind = r.choice("goesTo", "Where it goes", REJECTION_KINDS);
   const seq = r.int("returnToSeq", "Step", { min: 1 });
-  const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => chooseCertificateRejection(c, { kind: kind ?? null, returnToSeq: seq ?? null, personId, reason }));
+  const begun = await beginAct(actor, data, "ApprovalInstance.rejectionChosenBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => chooseCertificateRejection(c, { kind: kind ?? null, returnToSeq: seq ?? null, personId: begun.act.subjectPersonId, reason, act: begun.act }));
 }
 
 /// Finance's payment of an issued payment certificate (FR-PAY-019, INT-07's manual adapter).
@@ -220,8 +238,9 @@ export async function recordCertificatePayment(_prev: FormState, data: FormData)
   const r = new FormReader(data);
   const batchNo = r.text("batchNo", "Batch number", { required: true, max: 60 });
   const paidOn = r.date("paidOn", "Paid on", { required: true });
-  const personId = r.text("personId", "Recorded for", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !paidOn) return { ok: false, errors: r.errors };
-  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "POST_ISSUE", (c) => recordFinancePayment(c, { batchNo, paidOn: storedDay(paidOn), personId, note }));
+  const begun = await beginAct(actor, data, "FinancePayment.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "POST_ISSUE", (c) => recordFinancePayment(c, { batchNo, paidOn: storedDay(paidOn), act: begun.act, note }));
 }

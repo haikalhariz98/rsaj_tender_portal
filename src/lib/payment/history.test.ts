@@ -19,7 +19,8 @@ const SOURCES = ["src/app/projects/[id]/payment-actions.ts", "src/lib/certificat
 
 describe("the payment acts' trail", () => {
   it("every record type written is registered, in English and Malay", () => {
-    const written = new Set(SOURCES.flatMap((f) => [...read(f).matchAll(/(?:audit\(c, |entity: )"(\w+)"/g)].map((m) => m[1])));
+    // Phase 2b: `document: { entity: "Certificate", id }` names what a signature signs (the attribution's document, NFR-SIG-001); it is not a record type the act writes.
+    const written = new Set(SOURCES.flatMap((f) => [...read(f).matchAll(/(?:audit\(c, |(?<!document: \{ )entity: )"(\w+)"/g)].map((m) => m[1])));
     for (const e of written) expect(PAYMENT_ENTITIES as readonly string[], e).toContain(e);
     for (const e of PAYMENT_ENTITIES) {
       expect(RECORD_TYPE_WORDS[e]?.en, e).toBeTruthy();
