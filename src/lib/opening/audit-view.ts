@@ -61,8 +61,10 @@ export function openingStartFields(o: { kind: OpeningKind; committee: string; pa
   };
 }
 
-export const authorisationFields = (a: { person: string; at: Date; sittingNo: number; opensTheBox: boolean }, tz: string | null) => ({
+export const authorisationFields = (a: { person: string; at: Date; sittingNo: number; opensTheBox: boolean; seat?: string | null }, tz: string | null) => ({
   authorisedBy: a.person,
+  // NFR-SIG-001: the capacity it was made in. Absent where the caller does not say (the box's own rows repeat the authorisation's words).
+  ...(a.seat !== undefined ? { inTheSeatOf: a.seat } : {}),
   at: stamp(a.at, tz),
   sitting: `Sitting ${a.sittingNo}`,
   result: a.opensTheBox ? "Second authorisation: the box opened" : "Recorded",
@@ -114,7 +116,7 @@ export const verdictFields = (v: { verdict: OpeningVerdict | null; reason: strin
 });
 
 export const initialFields = (i: { person: string; listingNo: number; at: Date }, tz: string | null) => ({ initialledBy: i.person, offer: `No. ${i.listingNo}`, at: stamp(i.at, tz) });
-export const signatureFields = (s: { person: string; signedOn: string }) => ({ signedBy: s.person, signedOn: formatDate(s.signedOn) });
+export const signatureFields = (s: { person: string; signedOn: string; seat?: string | null }) => ({ signedBy: s.person, ...(s.seat !== undefined ? { inTheSeatOf: s.seat } : {}), signedOn: formatDate(s.signedOn) });
 
 export function finaliseFields(f: { at: Date; by: string; pages: number; rows: number; copy: CopyCheck | null; paper: Sen | null; lodged: Sen | null; disclosed: boolean }, tz: string | null) {
   return {

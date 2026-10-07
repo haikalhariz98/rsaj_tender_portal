@@ -6455,6 +6455,10 @@ model OpeningPanelMember {
   orgUnitCodeSnapshot String?
   present             Boolean
 
+  /// The acts done from this seat (NFR-SIG-001: a signature records the capacity it was made in).
+  authorisations OpeningAuthorisation[]
+  signatures     OpeningSignature[]
+
   @@unique([openingId, personId])
 }
 
@@ -6469,6 +6473,10 @@ model OpeningAuthorisation {
   opening        Opening      @relation(fields: [openingId], references: [id], onDelete: Restrict)
   personId       String
   person         Person       @relation("OpeningAuthorisedBy", fields: [personId], references: [id], onDelete: Restrict)
+  /// NFR-SIG-001 (product owner's ruling of 2026-10-07): the opening-panel seat the member authorised in, the panel row of this opening, whose `seatLabelSnapshot` a screen reads.
+  /// Null on an authorisation recorded before the seat was kept: no backfill (ADR 0034 D12), so it reads "seat not recorded".
+  panelMemberId  String?
+  panelMember    OpeningPanelMember? @relation(fields: [panelMemberId], references: [id], onDelete: Restrict)
   sittingNo      Int
   recordedAt     DateTime
   lapsedAt       DateTime?
@@ -6574,6 +6582,9 @@ model OpeningSignature {
   opening        Opening      @relation(fields: [openingId], references: [id], onDelete: Restrict)
   personId       String
   person         Person       @relation("OpeningSignedBy", fields: [personId], references: [id], onDelete: Restrict)
+  /// NFR-SIG-001: the opening-panel seat the member signed the schedule in. As on `OpeningAuthorisation`: null before the seat was kept.
+  panelMemberId  String?
+  panelMember    OpeningPanelMember? @relation(fields: [panelMemberId], references: [id], onDelete: Restrict)
   signedOn       DateTime
   recordedAt     DateTime
 
@@ -8040,6 +8051,9 @@ model ContractPolicy {
   controlledCopyStampMs String?
   /// OD-4 A: the `award_signatory` rows' condition for the contract agreement. Null refuses the RSAJ signature.
   signatoryCond         String?
+  /// FR-CON-004, NFR-SIG-001: the office that signs a reconciliation amendment for the employer, as AuthorityRole.code. Null: not set. Unlike the settings above, an unset one does
+  /// not refuse: the amendment is recorded with the offices its signer held on the day, and the screen says "Employer's signing office not set" (product owner's ruling, 2026-10-07).
+  employerSigningRoleCode String?
 
   provenance Provenance?
   notes      String      @default("")

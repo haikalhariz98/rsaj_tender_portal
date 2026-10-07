@@ -39,7 +39,7 @@ export const OPENING_INCLUDE = {
   admissionDecision: { select: { id: true, bidEnvelopeId: true, meeting: { select: { reference: true } } } },
   sittings: { orderBy: { sittingNo: "asc" as const }, include: { recordedBy: { select: { name: true } } } },
   panel: { orderBy: { id: "asc" as const }, include: { person: { select: { id: true, name: true, orgUnitCode: true } } } },
-  authorisations: { orderBy: [{ recordedAt: "asc" as const }, { id: "asc" as const }], include: { person: { select: { name: true } } } },
+  authorisations: { orderBy: [{ recordedAt: "asc" as const }, { id: "asc" as const }], include: { person: { select: { name: true } }, panelMember: { select: { seatLabelSnapshot: true } } } },
   bids: {
     orderBy: { listingNo: "asc" as const },
     include: {
@@ -50,7 +50,7 @@ export const OPENING_INCLUDE = {
       parentOpenedBid: { select: { listingNo: true } },
     },
   },
-  signatures: { include: { person: { select: { name: true } } } },
+  signatures: { include: { person: { select: { name: true } }, panelMember: { select: { seatLabelSnapshot: true } } } },
   copyExplanation: { include: { recordedBy: { select: { name: true } } } },
   attachments: { where: { purpose: "SIGNED_SCHEDULE" as const }, select: { id: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
 } satisfies Prisma.OpeningInclude;

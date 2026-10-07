@@ -20,6 +20,7 @@ import { executedSnapshot, frozenSigningDays } from "@/lib/contract/executed-sna
 import { acknowledgeFaults, despatchFaults, issueFaults, nextCopyNo, recallFaults, reissueFaults, type CopyFacts } from "@/lib/contract/copies";
 import { custodyState, movementFaults, registerFaults } from "@/lib/contract/custody";
 import { refusalText } from "@/lib/contract/fault-text";
+import { employerSigning, employerSigningRefusal, EMPLOYER_SIGNING_NOT_SET, officesWords } from "@/lib/contract/employer-signing";
 import { amendmentFaults, arithmeticVariance, completeFaults, type RateFacts } from "@/lib/contract/formation";
 import { baselineBlocks, currentBaseline, formationOf, reviewsOf, signingFacts } from "@/lib/contract/judge";
 import { decideFaults, nextIteration, openReview, statusAfter, submitFaults } from "@/lib/contract/legal";
@@ -33,6 +34,8 @@ import { confirmFaults, correctionFaults, draftFaults } from "@/lib/contract/ver
 import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
 import { maskIc } from "@/lib/award/mask";
+import { loadRoster } from "@/lib/people/load";
+import { officesHeldBy } from "@/lib/people/roster";
 import { amountOf, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
@@ -260,9 +263,19 @@ export async function addAmendment(_prev: FormState, data: FormData): Promise<Fo
     if (fs.length) return refuse("Not recorded:", fs);
     const officer = await personOf(c, officerPersonId);
     if (!officer) return { ok: false, errors: { officerPersonId: "Choose someone on record and active." } };
+    // NFR-SIG-001 (the product owner's ruling of 2026-10-07): the capacity the employer's signature was made in. Which office signs is the customer's setting; unset, the amendment is still
+    // recorded, with the offices the signer (the subject, never the officer keying a paper record) held on the day, and the screen says it is not set.
+    const roster = await loadRoster(c.l.org.code, c.tx);
+    const heldOn = officesHeldBy(roster, officer.id, officerSignedOn).map((o) => ({ code: o.code, name: o.nameEn }));
+    const policy = await c.tx.contractPolicy.findUnique({ where: { organisationId: c.l.org.id }, select: { employerSigningRoleCode: true } });
+    const capacity = employerSigning({ configuredCode: policy?.employerSigningRoleCode ?? null, held: heldOn });
+    if (capacity.state === "NOT_HELD") {
+      const named = await c.tx.authorityRole.findFirst({ where: { organisationId: c.l.org.id, code: capacity.configured }, select: { nameEn: true } });
+      return { ok: false, message: employerSigningRefusal(capacity, named?.nameEn ?? null, officer.name).en };
+    }
     const row = await c.tx.reconciliationAmendment.create({ data: { organisationId: c.l.org.id, reconciliationId: rec.id, description, contractorSignatoryName, contractorSignedOn, officerPersonId: officer.id, officerSignedOn, recordedAt: now } });
-    await audit(c, "ReconciliationAmendment", row.id, "reconciliation amendment", "CREATE", diffFields(null, { description, contractorSignatory: contractorSignatoryName, contractorSignedOn, officer: officer.name, officerSignedOn, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null }));
-    await act.write(c.tx, row.id, { document: { entity: "ContractReconciliation", id: rec.id } });
+    await audit(c, "ReconciliationAmendment", row.id, "reconciliation amendment", "CREATE", diffFields(null, { description, contractorSignatory: contractorSignatoryName, contractorSignedOn, officer: officer.name, officerSignedOn, signedForTheEmployerAs: capacity.state === "HELD" ? officesWords(capacity.held.filter((o) => o.code === capacity.roleCode)) : `${EMPLOYER_SIGNING_NOT_SET}: held ${officesWords(capacity.held)}`, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null }));
+    await act.write(c.tx, row.id, { document: { entity: "ContractReconciliation", id: rec.id }, roleCode: capacity.roleCode ?? undefined });
     return { ok: true };
   });
 }

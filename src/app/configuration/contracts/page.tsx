@@ -11,6 +11,7 @@ import { ProvenanceBadge } from "@/components/ui/provenance";
 import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { SIGNATORY_DOMAIN } from "@/lib/award/types";
+import { EMPLOYER_SIGNING_NOT_SET, EMPLOYER_SIGNING_NOT_SET_WHY } from "@/lib/contract/employer-signing";
 import { rowInForce, unitInForce } from "@/lib/contract/in-force";
 import { loadContractConfig } from "@/lib/contract/load";
 import { db } from "@/lib/db";
@@ -54,11 +55,13 @@ export default async function ContractControlsPage() {
       </>
     );
   }
-  const [cfg, rules] = await Promise.all([
+  const [cfg, rules, roles] = await Promise.all([
     loadContractConfig(org.id),
     db.authorityRule.findMany({ where: { domain: SIGNATORY_DOMAIN, cond: { not: null }, authorityMatrix: { organisationId: org.id, issuedAt: { not: null } } }, select: { cond: true, labelEn: true }, orderBy: { sortOrder: "asc" } }),
+    db.authorityRole.findMany({ where: { organisationId: org.id, isCommittee: false }, select: { code: true, nameEn: true }, orderBy: { nameEn: "asc" } }),
   ]);
   const p = cfg.policy;
+  const offices = roles.map((r) => ({ value: r.code, label: r.nameEn }));
   // The units in force today (M-2), each code once, by its current name.
   const units = org.today ? [...new Set(cfg.units.map((u) => u.code))].flatMap((code) => { const u = unitInForce(code, cfg.units, org.today!); return u ? [{ value: u.code, label: u.nameEn }] : []; }) : [];
   const byCond = new Map<string, string[]>();
@@ -74,6 +77,7 @@ export default async function ContractControlsPage() {
   const values = {
     legalOfficeCode: p?.legalOfficeCode ?? null,
     signatoryCond: p?.signatoryCond ?? null,
+    employerSigningRoleCode: p?.employerSigningRoleCode ?? null,
     controlledCopyStampEn: p?.controlledCopyStampEn ?? null,
     controlledCopyStampMs: p?.controlledCopyStampMs ?? null,
     frontLoadingRatio: decimalText(p?.frontLoadingRatio),
@@ -95,7 +99,7 @@ export default async function ContractControlsPage() {
         actions={
           <>
             {p?.id && <HistoryButton entity="ContractPolicy" entityId={p.id} label="Contract controls" />}
-            <EditContractPolicy values={values} units={units} conditions={conditions} />
+            <EditContractPolicy values={values} units={units} conditions={conditions} offices={offices} />
           </>
         }
       />
@@ -108,6 +112,7 @@ export default async function ContractControlsPage() {
               items={[
                 { label: "Legal office", value: <Setting value={org.today ? cfg.unitName(p?.legalOfficeCode ?? null, org.today) : null} unset="Preparation does not start: nothing could go for legal review." /> },
                 { label: "The contract agreement's signatory", value: <Setting value={condLabel(p?.signatoryCond ?? null)} unset="Preparation does not start: nobody could be resolved to sign." /> },
+                { label: "Employer's signing office", value: <Setting value={roles.find((r) => r.code === p?.employerSigningRoleCode)?.nameEn ?? (p?.employerSigningRoleCode ? "An office no longer configured" : null)} unset={`${EMPLOYER_SIGNING_NOT_SET}. ${EMPLOYER_SIGNING_NOT_SET_WHY} Nothing is refused while it is unset.`} /> },
                 { label: "Controlled-copy stamp", value: <Setting value={[p?.controlledCopyStampEn, p?.controlledCopyStampMs].filter(Boolean).join(" / ") || null} unset="Preparation does not start: no copy could be stamped." /> },
                 { label: "Front-loading ratio", value: <Setting value={values.frontLoadingRatio ? `Rates above ${values.frontLoadingRatio} times the estimate's are listed. A rate exactly at ${values.frontLoadingRatio} times is listed apart, for the officer's judgement: which side of the ratio counts is not set.` : null} unset="Allowed: the front-loading check is the officer's judgement alone, and says so." /> },
               ]}

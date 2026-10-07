@@ -26,7 +26,7 @@ import { finaliseFaults, markFaults, recordFaults, scheduleScanFault } from "./f
 import { summaryFromSnapshot, type GrandSummary } from "./grand-summary";
 import { freshInitials } from "./initials";
 import { consequenceFor, eligibilityFindingOf, ineligibleOf } from "@/lib/suppliers/opening-hook";
-import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, RESTRICTION_FINDING_LABEL, SALE_FINDING_LABEL, SEALED_UNTIL_FINALISED, VERDICT_LABEL, VERDICT_TONE } from "./labels";
+import { ALTERNATIVE_LABEL, CHECKLIST_ANSWER_LABEL, COPY_CHECK_LABEL, GROUND_LABEL, INVITED_READING_LABEL, OPENING_KIND_LABEL, OPENING_PHASE_LABEL, OPENING_PHASE_TONE, openingFindingText, periodText, REPORTED_LABEL, RESTRICTION_FINDING_LABEL, SALE_FINDING_LABEL, SEALED_UNTIL_FINALISED, seatWords, VERDICT_LABEL, VERDICT_TONE } from "./labels";
 import { unpurchasedRuleText } from "./unpurchased";
 import { alternativeInsideFaults, openFaults } from "./open";
 import { supplementaryPanel } from "./panel";
@@ -304,7 +304,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       authorised: authorisers.includes(p.personId),
       authorise: p.present ? allowedOf(authorisationFaults({ state, panel, auths: o.authorisations, personId: p.personId, recorderId: null, now: x.now, closing, boxLocked })) : null,
     })),
-    authorisations: o.authorisations.map((a) => `Sitting ${a.sittingNo}: ${x.authorisedBy.read({ entity: "OpeningAuthorisation", id: a.id, slot: "person" }, a.person.name).en}, ${time(a.recordedAt, tz)}${a.lapsedAt ? " · lapsed when the sitting was adjourned" : ""}`),
+    authorisations: o.authorisations.map((a) => `Sitting ${a.sittingNo}: ${x.authorisedBy.read({ entity: "OpeningAuthorisation", id: a.id, slot: "person" }, a.person.name).en}, ${seatWords(a.panelMember?.seatLabelSnapshot)}, ${time(a.recordedAt, tz)}${a.lapsedAt ? " · lapsed when the sitting was adjourned" : ""}`),
     adjourn: state.adjourned || state.finalised ? null : allowedOf(adjournFaults({ state, reason: "-", personActive: true, resume: false })),
     resume: state.adjourned && !state.finalised ? allowedOf(adjournFaults({ state, reason: "-", personActive: true, resume: true })) : null,
     registerBox: o.kind === "MAIN" && !state.finalised ? allowedOf([...actFaults(state), ...(o.bids.length ? [{ code: "BOX_EMPTIED", level: "block" as const }] : [])]) : null,
@@ -327,7 +327,7 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       { label: "A bid with no live purchase", value: unpurchasedRuleText(snap, c.method?.unpurchasedBidConsequence ?? null, tz) },
       { label: "Alternatives", value: snap.alternativesPermitted == null ? "Not stated on the window" : snap.alternativesPermitted ? "Permitted" : "Not permitted: recorded, never considered" },
     ],
-    signatures: o.signatures.map((s) => `${s.person.name}, signed on ${formatDate(storedDay(s.signedOn))}`),
+    signatures: o.signatures.map((s) => `${s.person.name}, ${seatWords(s.panelMember?.seatLabelSnapshot)}, signed on ${formatDate(storedDay(s.signedOn))}`),
     signFor: present.filter((p) => !o.signatures.some((s) => s.personId === p.personId)).map((p) => ({ personId: p.personId, name: p.name, allowed: allowedOf(markFaults({ state, panel, personId: p.personId, already: false, sameOpening: true })) })),
     startDay,
     pages: o.schedulePages,

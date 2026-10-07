@@ -50,6 +50,7 @@ export async function saveContractPolicy(_prev: FormState, data: FormData): Prom
     controlledCopyStampEn: r.optionalText("controlledCopyStampEn"),
     controlledCopyStampMs: r.optionalText("controlledCopyStampMs"),
     signatoryCond: r.optionalText("signatoryCond"),
+    employerSigningRoleCode: r.optionalText("employerSigningRoleCode"),
     provenance: r.choice("provenance", "Provenance", PROVENANCE),
     notes: r.text("notes", "Notes", { max: 4000 }),
   };
@@ -59,9 +60,17 @@ export async function saveContractPolicy(_prev: FormState, data: FormData): Prom
     // In force on the organisation's day (M-2): begun, and not ended.
     if (v.legalOfficeCode && !(o.today && unitInForce(v.legalOfficeCode, await tx.orgUnit.findMany({ where: { organisationId: o.id, code: v.legalOfficeCode }, select: { code: true, effectiveFrom: true, effectiveTo: true } }), o.today))) return { ok: false, errors: { legalOfficeCode: "That unit is not in the organisation's structure." } } as FormState;
     await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
+    // The office that signs for the employer is a configured office (NFR-SIG-001, ruling of 2026-10-07): one of this organisation's, never an invented code.
+    if (v.employerSigningRoleCode && !(await tx.authorityRole.findFirst({ where: { organisationId: o.id, code: v.employerSigningRoleCode, isCommittee: false }, select: { id: true } }))) {
+      return { ok: false, errors: { employerSigningRoleCode: "Choose one of the organisation's offices." } };
+    }
     const before = await tx.contractPolicy.findUnique({ where: { organisationId: o.id } });
     const row = await tx.contractPolicy.upsert({ where: { organisationId: o.id }, update: v, create: { organisationId: o.id, ...v } });
-    await audit(tx, toAuditActor(actor), o.id, "ContractPolicy", row.id, "Contract controls", before ? { ...before, frontLoadingRatio: before.frontLoadingRatio?.toString() ?? null } : null, v, reason);
+    // The trail names the office, not its key.
+    const officeName = async (code: string | null | undefined) => (code ? ((await tx.authorityRole.findFirst({ where: { organisationId: o.id, code }, select: { nameEn: true } }))?.nameEn ?? "An office no longer configured") : null);
+    const { employerSigningRoleCode: beforeCode, ...beforeRest } = before ?? { employerSigningRoleCode: null };
+    const { employerSigningRoleCode: afterCode, ...afterRest } = v;
+    await audit(tx, toAuditActor(actor), o.id, "ContractPolicy", row.id, "Contract controls", before ? { ...beforeRest, frontLoadingRatio: before.frontLoadingRatio?.toString() ?? null, employerSigningOffice: await officeName(beforeCode) } : null, { ...afterRest, employerSigningOffice: await officeName(afterCode) }, reason);
     return done();
   });
 }

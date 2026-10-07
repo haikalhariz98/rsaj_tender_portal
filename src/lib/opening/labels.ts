@@ -268,3 +268,7 @@ export const OPENING_FINDING_CODES = Object.keys(TEXT);
 
 /// "120 days" from a period, in words; null where none was read.
 export const periodText = (p: { value: number; unit: PeriodUnit } | null) => (p ? `${p.value} ${PERIOD_UNIT_LABEL[p.unit]}` : "Not stated");
+
+/// NFR-SIG-001: the capacity a panel member authorised or signed in, read from the seat label the opening kept at its start. An act recorded before the seat was kept has none,
+/// and says so: the seat is derivable for it, but a derived value would claim a record that was never made (ADR 0034 D12, no backfill).
+export const seatWords = (seatLabel: string | null | undefined): string => (seatLabel?.trim() ? `seat: ${seatLabel.trim()}` : "seat not recorded");

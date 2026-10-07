@@ -136,7 +136,7 @@ export function AmendmentDrawer({ id, reconciliationId, people, today }: { id: s
   return (
     <RecordEditor
       title="Record an amendment"
-      description="An amendment to recorded information is signed by the contractor's signatory (named: the contractor has no account here) and by the preparing officer, who signs in with their password. An officer's signature made on paper is recorded for them, and is not signed."
+      description="An amendment to recorded information is signed by the contractor's signatory (named: the contractor has no account here) and by the preparing officer, who signs in with their password. An officer's signature made on paper is recorded for them, and is not signed. The office the officer signs in is the one set under Contract controls; where none is set, the offices the officer held that day are recorded."
       columns={2}
       fields={[
         hidden("id"),

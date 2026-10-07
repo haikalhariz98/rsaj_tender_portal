@@ -1,5 +1,6 @@
 import { ActedBy } from "@/components/attribution";
 import { ActGate } from "@/components/act-gate";
+import { EmployerSigningNote } from "./employer-signing-note";
 import { actStatusBlocker } from "@/lib/contract/act-status";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { CheckIcon, FileIcon, InboxIcon, ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
@@ -167,6 +168,11 @@ function ChecksSection({ l, facts, people, today }: { l: LoadedContract; facts: 
             );
           })}
         </ul>
+        {c.reconciliations.some((x) => x.outcome === "AMENDED") && (
+          <div className="border-t border-line px-5 py-3 sm:px-6">
+            <EmployerSigningNote />
+          </div>
+        )}
         <div className="border-t border-line p-4 sm:p-5">
           <OwnerAttachments owner={{ kind: "contract", id: c.id }} title="The signed reconciliation" only={["RECONCILIATION"]} />
         </div>

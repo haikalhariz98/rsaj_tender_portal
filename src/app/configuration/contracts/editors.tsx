@@ -23,7 +23,7 @@ const NOTES: Field = { kind: "textarea", name: "notes", label: "Notes" };
 const code = (editing: boolean): Field[] => (editing ? [] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "Used internally. Never shown on a screen." }]);
 const edit = (label: string) => ({ label: `Edit ${label}`, iconOnly: <PencilIcon size={15} /> });
 
-export function EditContractPolicy({ values, units, conditions }: { values: Values; units: Option[]; conditions: Option[] }) {
+export function EditContractPolicy({ values, units, conditions, offices }: { values: Values; units: Option[]; conditions: Option[]; offices: Option[] }) {
   return (
     <RecordEditor
       title="Contract controls"
@@ -31,6 +31,7 @@ export function EditContractPolicy({ values, units, conditions }: { values: Valu
       fields={[
         { kind: "select", name: "legalOfficeCode", label: "The legal office that reviews contracts", placeholder: "Not set", options: units },
         { kind: "select", name: "signatoryCond", label: "The approval matrix's signatory rows for the contract agreement", placeholder: conditions.length ? "Not set" : "No signatory rows other than the award's instruments", options: conditions, hint: "Rows on the matter of who signs, set on the approval matrix." },
+        { kind: "select", name: "employerSigningRoleCode", label: "The office that signs a reconciliation amendment for the employer", placeholder: "Not set", options: offices, orphanLabel: "An office no longer configured", hint: "Unset, an amendment is still recorded, with the offices its signer held on the day, and the screen says the office is not set. Set, only a holder of this office on the day can sign for the employer." },
         { kind: "text", name: "controlledCopyStampEn", label: "Words stamped on a controlled copy", placeholder: "e.g. Controlled copy" },
         { kind: "text", name: "controlledCopyStampMs", label: "The same words in Malay" },
         { kind: "text", name: "frontLoadingRatio", label: "Front loading: list rates above this multiple of the estimate's", placeholder: "e.g. 1.5", hint: "Unset: no list, the officer's judgement only." },
