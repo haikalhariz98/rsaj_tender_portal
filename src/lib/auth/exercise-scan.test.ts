@@ -140,6 +140,37 @@ describe("tabling a matter by the reference typed finds an exercise only as the 
   });
 });
 
+describe("a reader who may not read the estimate is not told it by what is made of it (FR-MTD-007, Phase 3a review)", () => {
+  const read = (f: string) => readFileSync(path.join(SRC, f), "utf8");
+  const sourcing = read("app/sourcing/actions.ts");
+  const page = read("app/sourcing/[id]/page.tsx");
+  const overview = read("app/sourcing/[id]/overview.tsx");
+  it("a refused save words its findings with findingTextFor, and both saves give it the other exercises of the requisition", () => {
+    const at = sourcing.indexOf("async function faultState(");
+    const faultState = sourcing.slice(at, sourcing.indexOf("\n}\n", at));
+    expect(faultState).toContain("siblingAmountsWithheld(actor, siblings)");
+    expect(faultState).not.toMatch(/\bfindingText\(/);
+    expect(faultState.match(/findingTextFor\(f, withheld\)/g)).toHaveLength(2);
+    expect(sourcing).toMatch(/faultState\(actor, r, blockers, l\.req\.exercises\)/);
+    expect(sourcing).toMatch(/faultState\(actor, r, blockers, l\.req\.exercises\.filter\(\(x\) => x\.id !== ex\.id\)\)/);
+  });
+  it("the scope lines, which add up to the estimate, are judged as the estimate is: on the Overview and in the History", () => {
+    expect(overview).toMatch(/p\.estimate\.state === "WITHHELD" \? <SulitValue of=\{p\.estimate as Sulit<ReactNode>\} \/> : money\(s\.amount\)/);
+    expect(page).toMatch(/field === "amount" && entity === "ExerciseScopePart"/);
+  });
+  it("the boundary is not said, on the exercise's page, to a reader who may not read the estimate: the callout, the line, the summary, the finding and the History row", () => {
+    expect(overview).toMatch(/bands\?\.boundary\.onBoundary && p\.estimate\.state !== "WITHHELD"/);
+    expect(overview).toMatch(/bands\.boundary\.onBoundary && p\.estimate\.state !== "WITHHELD"/);
+    expect(page).toMatch(/ev\?\.bands\.boundary\.onBoundary && estimate\.state !== "WITHHELD"/);
+    expect(page).toMatch(/findingsShownTo\(/);
+    expect(page).toMatch(/field === "onBoundary" && estimate\.state === "WITHHELD"/);
+  });
+  it("the disclosed company estimate in the History goes through the estimate's custody", () => {
+    expect(page).toMatch(/CUSTODY_FIELDS\.has\(field\)/);
+    expect(page).toMatch(/estimateCustodyForHistory\(actor, ex\.id\)/);
+  });
+});
+
 describe("a restricted exercise is never left with nobody who can see it (FR-MTD-007)", () => {
   const actions = readFileSync(path.join(SRC, "app/sourcing/actions.ts"), "utf8");
   const body = (fn: string) => {

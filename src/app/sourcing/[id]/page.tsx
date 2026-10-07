@@ -1150,6 +1150,8 @@ function HistoryPanel({
     (!/(Code|Key)$/.test(field) || NAMED_KEYS.has(field)) &&
     (!/Id$/.test(field) || field === "overriddenByPersonId" || field === "proposalReviewerPersonId") &&
     !historyFieldHidden(routeDomains.get(entityId), field) &&
+    // "On the boundary" with the boundary (configuration) is the estimate to the sen: not shown to a reader who may not read it.
+    !(field === "onBoundary" && estimate.state === "WITHHELD") &&
     // A creation lists what it was given, not every empty field.
     (action !== "CREATE" || (ch.after != null && ch.after !== "" && ch.after !== "false")) &&
     (action !== "UPDATE" || ch.before !== ch.after);

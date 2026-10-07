@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { BEHAVIOUR_KEYS } from "./profile";
-import { BEHAVIOUR_LABEL, findingText } from "./labels";
+import { BEHAVIOUR_LABEL, findingsShownTo, findingText, findingTextFor } from "./labels";
+import type { Finding } from "./types";
 
 /// Every finding code a module in src/lib/method returns. A new code without words
 /// falls through to the default and fails here.
@@ -42,5 +43,26 @@ describe("the boundary in one sentence (UX 9)", () => {
     const t = findingText({ code: "BOUNDARY_NOT_RULED", level: "warn", data: { operator: "GT", value: "300000", provenance: "ASSUMED" } });
     expect(t).toMatch(/falls in the quotation band \(assumed; not yet ruled\)/);
     expect(t).not.toMatch(/lower regime|upper regime/);
+  });
+});
+
+describe("what a reader who may not read the estimate is told (FR-MTD-007, Phase 3a review)", () => {
+  const exceeds: Finding = { code: "EXCEEDS_APPROVED_VALUE", level: "block", data: { combined: "RM 912,345.67", approved: "RM 500,000.00" } };
+  const split: Finding = { code: "SPLIT_ACROSS_REGIME", level: "warn", data: { combined: "RM 912,345.67", own: "tender", together: "tender" } };
+  const onBoundary: Finding = { code: "BOUNDARY_NOT_RULED", level: "warn", data: { operator: "GT", value: "300000.00", provenance: "ASSUMED" } };
+
+  it("a refusal that adds up the requisition's exercises states no sum and no amount where they are withheld", () => {
+    for (const f of [exceeds, split]) {
+      expect(findingText(f)).toMatch(/RM/);
+      expect(findingTextFor(f, true)).not.toMatch(/RM|\d{3}/);
+      expect(findingTextFor(f, false)).toBe(findingText(f));
+    }
+  });
+  it("the finding that a value is exactly on a band boundary is left out for that reader, and every finding is kept for one who may read it", () => {
+    expect(findingsShownTo([exceeds, onBoundary, split], true)).toEqual([exceeds, split]);
+    expect(findingsShownTo([exceeds, onBoundary, split], false)).toEqual([exceeds, onBoundary, split]);
+    const given = [onBoundary];
+    findingsShownTo(given, true);
+    expect(given).toEqual([onBoundary]);
   });
 });

@@ -78,7 +78,7 @@ export const PERMISSIONS: Readonly<Record<PermissionKey, PermissionInfo>> = {
   "sourcing.participants.manage": {
     source: "GRANT_ONLY",
     label: { en: "Name the people on a sourcing exercise", ms: "Namakan orang pada eksesais sumber" },
-    lets: { en: "Name participants, the person in charge, the proposal's reviewer and the evaluation team on an exercise one is not named on. It never lets a person name themselves, and never opens an exercise by itself.", ms: "Namakan peserta, orang yang bertanggungjawab, penyemak cadangan dan pasukan penilaian pada eksesais yang orang itu tidak dinamakan padanya. Ia tidak pernah membenarkan seseorang menamakan dirinya, dan tidak membuka eksesais dengan sendirinya." },
+    lets: { en: "Name participants, the person in charge, the proposal's reviewer and the evaluation team on an exercise one is not named on. It does not let a person add themselves as a participant, person in charge or evaluator, and a holder is named on an exercise only by recording its proposal review or by restricting a draft.", ms: "Namakan peserta, orang yang bertanggungjawab, penyemak cadangan dan pasukan penilaian pada eksesais yang orang itu tidak dinamakan padanya. Ia tidak membenarkan seseorang menambah dirinya sebagai peserta, orang yang bertanggungjawab atau penilai, dan pemegangnya dinamakan pada sesuatu eksesais hanya dengan merekodkan semakan cadangannya atau dengan menghadkan draf." },
   },
 };
 
