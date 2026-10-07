@@ -25,6 +25,7 @@ import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo, wipeE
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo, suppliersDemoDependents, wipeSuppliersDemo } from "./demo-suppliers";
 import { checkResultsDemo, loadResultsDemo, resultsDemoState } from "./demo-results";
 import { removedWithDemo } from "../src/lib/documents/demo-wipe-plan";
+import { DEMO_PREFIX, demoIsLoaded, demoSignInDependents, demoSignInRefusal } from "./demo-sign-in";
 import { inspectLogo } from "../src/lib/organisation/logo";
 import { initialsLogo } from "../src/lib/organisation/png";
 import { DEMO_ACTOR } from "./demo-actor";
@@ -58,7 +59,7 @@ const ORG_CODE = process.env.ORGANISATION_CODE ?? "ORG";
 /// vote (an unset zone blocks them). Set only where the organisation has none, and
 /// cleared by the wipe only if it is still this value.
 const DEMO_TIME_ZONE = "Asia/Kuala_Lumpur";
-const P = "demo_";
+const P = DEMO_PREFIX;
 
 /// The legal name is required, so the seed gives it a placeholder ("Your organisation",
 /// or ORGANISATION_NAME). The demo replaces that placeholder, and only that, with an
@@ -318,6 +319,11 @@ async function wipe() {
   // removed above on the demo's side.
   const documentPlan = await planDocumentWipe(db, org.id, { exerciseIds: hangingExerciseIds, awardIds: awardCheck.hanging.map((a) => a.id), meetingIds: screenMade.meetingIds, delegationIds: screenDelegationIds, supplierIds: supplierDependents.supplierIds }, REMOVE_DEPENDENTS);
 
+  // Phase 1b review: a demo person with a sign-in account, a code they issued, or a change they made while signed in cannot be removed (the sign-in log and the
+  // trail are permanent and point at them). Decided here, before anything is removed, so the wipe never stops half way on the people.
+  const signInDependents = await demoSignInDependents(db, org.id);
+  if (signInDependents.length > 0) console.error(demoSignInRefusal(signInDependents));
+
   const requisitionsRefused = lines.length > 0 && !REMOVE_DEPENDENTS;
   if (requisitionsRefused) {
     console.error(
@@ -346,7 +352,7 @@ async function wipe() {
   }
   const documentsRefused = reportDocumentRefusal(documentPlan);
   const awardsRefused = reportAwardRefusal(awardCheck);
-  if (requisitionsRefused || documentsRefused || awardsRefused || scopeDependents.hard.length || tenderDependents.length || windowDependents.length) {
+  if (signInDependents.length || requisitionsRefused || documentsRefused || awardsRefused || scopeDependents.hard.length || tenderDependents.length || windowDependents.length) {
     process.exitCode = 1;
     return;
   }
@@ -611,8 +617,7 @@ async function load() {
   const organisationId = org.id;
 
   // Refuse to stack one demo run on another.
-  const already = await db.orgUnit.count({ where: { id: { startsWith: P } } });
-  if (already > 0) {
+  if (await demoIsLoaded(db)) {
     console.log("Demo data is already loaded. Run npm run demo:wipe first.");
     return;
   }
@@ -2561,7 +2566,7 @@ async function snapshotMinuted(ids: string[]) {
  */
 async function results() {
   const org = await organisation();
-  if ((await db.orgUnit.count({ where: { id: { startsWith: P } } })) === 0) {
+  if (!(await demoIsLoaded(db))) {
     console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
     return;
   }
