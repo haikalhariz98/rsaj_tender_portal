@@ -36,7 +36,7 @@ describe("the public copy", () => {
   });
 
   it("refuses a look-alike path: a deeper path, a traversal, an encoded slash, a different case", () => {
-    for (const p of ["/supplier/opportunities/demo_sx18/documents", "/supplier/opportunities/../../sourcing/x", "/supplier/opportunities/..%2Fsourcing%2Fx", "/supplier/opportunities/a/b", "/Supplier", "/supplier//opportunities", "/supplier/register/submit/x", "/supplierx", "/supplier/anything", "/organisation/logo", "/organisation/logo/a/b", "/_nextx/a", "//sourcing/x"]) {
+    for (const p of ["/supplier/opportunities/demo_sx18/documents", "/supplier/opportunities/../../sourcing/x", "/supplier/opportunities/..%2Fsourcing%2Fx", "/supplier/opportunities/a/b", "/Supplier", "/supplier//opportunities", "/supplier/register/submit/x", "/supplierx", "/supplier/anything", "/organisation/logo", "/organisation/logo/a/b", "/sign-in", "/sign-in/image/abc", "/_nextx/a", "//sourcing/x"]) {
       expect(get(p), p).toBe(false);
     }
   });
@@ -74,7 +74,7 @@ describe("the route boundary with sign-in (Phase 1b)", () => {
   });
 
   it("the staff copy: with no cookie only the sign-in screens, the portal, the logo and the platform's files", () => {
-    for (const pathname of ["/sign-in", "/sign-in/code", "/supplier", "/supplier/results", "/organisation/logo/abc", "/_next/static/a.js", "/favicon.ico"]) expect(ask({ pathname }), pathname).toBe("next");
+    for (const pathname of ["/sign-in", "/sign-in/code", "/sign-in/image/abc", "/supplier", "/supplier/results", "/organisation/logo/abc", "/_next/static/a.js", "/favicon.ico"]) expect(ask({ pathname }), pathname).toBe("next");
     expect(ask({ pathname: "/sign-in", method: "POST", hasServerAction: true })).toBe("next");
     expect(ask({ pathname: "/supplier/register/submit", method: "POST" })).toBe("next");
     for (const pathname of ["/account", "/welcome", "/supplier/anything", "/_next/image", "/_next/data/x.json"]) expect(ask({ pathname }), pathname).not.toBe("next");

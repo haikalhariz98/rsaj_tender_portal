@@ -39,7 +39,7 @@ describe("the route boundary", () => {
   });
 
   it("lets through, with no cookie, only the sign-in screens, the portal, the logo and the platform's files", () => {
-    for (const path of ["/sign-in", "/sign-in/code", "/supplier", "/supplier/opportunities/demo_sx18", "/organisation/logo/abc123", "/_next/static/chunks/a.js", "/favicon.ico"]) expect(passes(call(path)), path).toBe(true);
+    for (const path of ["/sign-in", "/sign-in/code", "/sign-in/image/" + "a".repeat(64), "/supplier", "/supplier/opportunities/demo_sx18", "/organisation/logo/abc123", "/_next/static/chunks/a.js", "/favicon.ico"]) expect(passes(call(path)), path).toBe(true);
     // The sign-in screens post their own actions with no cookie.
     expect(passes(call("/sign-in", { method: "POST", headers: { "next-action": "abc" } }))).toBe(true);
     expect(passes(call("/supplier/register/submit", { method: "POST" }))).toBe(true);
