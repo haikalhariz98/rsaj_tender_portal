@@ -90,7 +90,7 @@ export async function proposeAdministratorChange(_prev: FormState, data: FormDat
   return propose(guard.actor, data, make ? "ADMINISTRATOR_GRANT" : "ADMINISTRATOR_REVOKE", { accountId: String(data.get("accountId") ?? "") });
 }
 
-/// An activation or reset code for an office holder's account, which a second person issues.
+/// An activation or reset code for an administrator's account, or for the account of someone who holds or has held an office, a seat or a delegation, which a second person issues.
 export async function proposeAccountCode(_prev: FormState, data: FormData): Promise<FormState> {
   const guard = await staffForPermission("accounts.manage");
   if (!guard.ok) return guard.state;
