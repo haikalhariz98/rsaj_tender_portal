@@ -138,9 +138,10 @@ export function issueCodeFaults(i: {
 }
 
 /**
- * What to say beside an office holder's account (ADR 0034 D6, Phase 2c): activating or resetting the account of a person who holds an office, a committee
- * seat or a delegation needs a second person. One administrator proposes the code and a different one issues it and is the one shown it. Null for a person who
- * holds nothing: their code is issued directly.
+ * What to say beside an office holder's account (ADR 0034 D6, Phase 2c): activating or resetting the account of a person who holds, or has held, an office, a
+ * committee seat or a delegation needs a second person. One administrator proposes the code and a different one issues it and is shown it. Null for a person who
+ * has held nothing: their code is issued directly. `h` is what the person has held, ended or not (`holdingHistoryOf`): an office ended or moved away a moment
+ * before a reset must not be what lets one administrator reset an approver's account alone (review of Phase 2c).
  */
 export function officeHolderNotice(h: { offices: number; seats: number; delegations: number }): string | null {
   const parts = [
@@ -149,12 +150,28 @@ export function officeHolderNotice(h: { offices: number; seats: number; delegati
     h.delegations > 0 && `${h.delegations} ${h.delegations === 1 ? "delegation" : "delegations"}`,
   ].filter(Boolean);
   if (parts.length === 0) return null;
-  return `This person holds ${parts.join(", ")}. A code for their account needs a second person: one administrator proposes it, and a different one issues it and is shown it.`;
+  return `This person holds, or has held, ${parts.join(", ")}. A code for their account needs a second person: one administrator proposes it, and a different one issues it and is shown it.`;
+}
+
+/// What to say beside an administrator's account: a code for it needs a second person too, or one administrator could take over another's and decide alone (threat model F7).
+export const ADMINISTRATOR_NOTICE =
+  "This is an administrator's account. A code for it needs a second person: one administrator proposes it, and a different one issues it and is shown it.";
+
+/// The notice for an account, or null where its code is issued directly: an administrator's, or a person who holds or has held anything.
+export function secondPersonNotice(i: { isAdministrator: boolean; held: { offices: number; seats: number; delegations: number } }): string | null {
+  return i.isAdministrator ? ADMINISTRATOR_NOTICE : officeHolderNotice(i.held);
 }
 
 /// Refused by `issueCode`: the code for an office holder's account is made through a two-person change, never by one administrator alone.
 export const OFFICE_HOLDER_NEEDS_SECOND_PERSON = fault(
   "OFFICE_HOLDER_NEEDS_SECOND_PERSON",
-  "This person holds an office, a committee seat or a delegation, so a code for their account needs a second person. Propose it under Changes awaiting a second person: one administrator proposes it, and a different one issues it and is shown it.",
-  "Orang ini memegang jawatan, kerusi jawatankuasa atau perwakilan, jadi kod untuk akaunnya memerlukan orang kedua. Cadangkannya di bawah Perubahan yang menunggu orang kedua: seorang pentadbir mencadangkannya, dan pentadbir lain mengeluarkannya serta ditunjukkan kod itu.",
+  "This person holds, or has held, an office, a committee seat or a delegation, so a code for their account needs a second person. Propose it under Changes awaiting a second person: one administrator proposes it, and a different one issues it and is shown it.",
+  "Orang ini memegang, atau pernah memegang, jawatan, kerusi jawatankuasa atau perwakilan, jadi kod untuk akaunnya memerlukan orang kedua. Cadangkannya di bawah Perubahan yang menunggu orang kedua: seorang pentadbir mencadangkannya, dan pentadbir lain mengeluarkannya serta ditunjukkan kod itu.",
+);
+
+/// Refused by `issueCode`: nobody resets an administrator's account alone, or one administrator could sign in as another and make every two-person rule one person's.
+export const ADMINISTRATOR_NEEDS_SECOND_PERSON = fault(
+  "ADMINISTRATOR_NEEDS_SECOND_PERSON",
+  "This is an administrator's account, so a code for it needs a second person. Propose it under Changes awaiting a second person: one administrator proposes it, and a different one issues it and is shown it.",
+  "Ini akaun pentadbir, jadi kod untuk akaunnya memerlukan orang kedua. Cadangkannya di bawah Perubahan yang menunggu orang kedua: seorang pentadbir mencadangkannya, dan pentadbir lain mengeluarkannya serta ditunjukkan kod itu.",
 );

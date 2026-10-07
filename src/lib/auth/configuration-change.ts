@@ -67,7 +67,7 @@ export const KIND_WORDS: Record<ChangeKind, { en: string; ms: string }> = {
   PERMISSION_GRANT: { en: "Change which roles hold a permission", ms: "Ubah peranan yang memegang sesuatu kebenaran" },
   ADMINISTRATOR_GRANT: { en: "Make a person an administrator", ms: "Jadikan seseorang pentadbir" },
   ADMINISTRATOR_REVOKE: { en: "Take administration from a person", ms: "Tarik balik pentadbiran daripada seseorang" },
-  ACCOUNT_CODE: { en: "Issue a code for an office holder's account", ms: "Keluarkan kod untuk akaun pemegang jawatan" },
+  ACCOUNT_CODE: { en: "Issue a code for an administrator's or office holder's account", ms: "Keluarkan kod untuk akaun pentadbir atau pemegang jawatan" },
 };
 
 /// The product permission that decides each kind.
@@ -78,6 +78,17 @@ export const KIND_PERMISSION: Record<ChangeKind, PermissionKey> = {
   ADMINISTRATOR_REVOKE: "accounts.manage",
   ACCOUNT_CODE: "accounts.manage",
 };
+
+/**
+ * The kinds of change a person may read in the queue (review of Phase 2c): those whose permission they hold. A change names who is being made or unmade an
+ * administrator, whose account is getting a code, the settings that keep password guessing out, and the reason, which for a code records how identity was checked,
+ * so it is read by those who decide that kind, as the screens of the same settings are (and as History keeps these trails to administrators). A person always
+ * reads the changes they proposed themselves.
+ */
+export const kindsReadBy = (permissions: ReadonlySet<PermissionKey>): ChangeKind[] => CHANGE_KINDS.filter((k) => permissions.has(KIND_PERMISSION[k]));
+
+/// Whether a person may read the queue at all: they hold the permission of at least one kind.
+export const mayReadQueue = (permissions: ReadonlySet<PermissionKey>): boolean => kindsReadBy(permissions).length > 0;
 
 // --------------------------------------------------------------------------------------------- parsing
 
@@ -175,7 +186,8 @@ export type LiveState =
   | { kind: "PERMISSION_GRANT"; decision: PermissionChoice; roleExists: boolean }
   | { kind: "ADMINISTRATOR_GRANT"; account: AccountFacts | null; holdings: Holdings }
   | { kind: "ADMINISTRATOR_REVOKE"; account: AccountFacts | null; activeAdministrators: number }
-  | { kind: "ACCOUNT_CODE"; account: AccountFacts | null; holdsOffice: boolean };
+  /// `heldOffice`: the person holds, or has ever held, an office, a seat or a delegation (`holdingHistoryOf`), ended or not.
+  | { kind: "ACCOUNT_CODE"; account: AccountFacts | null; heldOffice: boolean };
 
 /// The `before` snapshot: what the change depends on, as plain JSON, so it can be stored and compared. Only what the change touches or hangs on.
 export function snapshot(change: ParsedChange, live: LiveState): Record<string, unknown> {
@@ -193,7 +205,8 @@ export function snapshot(change: ParsedChange, live: LiveState): Record<string, 
     }
     case "ACCOUNT_CODE": {
       const l = live.kind === "ACCOUNT_CODE" ? live : null;
-      return { exists: l?.account != null, status: l?.account?.status ?? null, holdsOffice: l?.holdsOffice ?? null };
+      // The administrator flag is part of what the proposer saw: a grant or a revoke made in between makes the change stale.
+      return { exists: l?.account != null, status: l?.account?.status ?? null, isAdministrator: l?.account?.isAdministrator ?? null, heldOffice: l?.heldOffice ?? null };
     }
   }
 }
@@ -270,12 +283,12 @@ export function planChange(change: ParsedChange, live: LiveState): Plan {
       if (!l.account) return { ok: false, faults: [f("NO_SUCH_ACCOUNT", "That account no longer exists.", "Akaun itu tidak lagi wujud.")] };
       const out: Fault[] = [];
       if (!l.account.personActive) out.push(f("PERSON_INACTIVE", "That person is no longer active.", "Orang itu tidak lagi aktif."));
-      else if (!l.holdsOffice) {
+      else if (!l.heldOffice && !l.account.isAdministrator) {
         out.push(
           f(
-            "NO_OFFICE_HELD",
-            "That person holds no office, seat or delegation now, so a second person is not needed: an administrator issues the code directly under Sign-in accounts.",
-            "Orang itu tidak memegang jawatan, kerusi atau perwakilan sekarang, jadi orang kedua tidak diperlukan: pentadbir mengeluarkan kod terus di bawah Akaun log masuk.",
+            "NO_SECOND_PERSON_NEEDED",
+            "That account is not an administrator's, and that person has never held an office, seat or delegation, so a second person is not needed: an administrator issues the code directly under Sign-in accounts.",
+            "Akaun itu bukan akaun pentadbir, dan orang itu tidak pernah memegang jawatan, kerusi atau perwakilan, jadi orang kedua tidak diperlukan: pentadbir mengeluarkan kod terus di bawah Akaun log masuk.",
           ),
         );
       } else if (change.payload.purpose === "ACTIVATION" && l.account.status !== "PENDING_ACTIVATION") out.push(f("NOT_AWAITING_ACTIVATION", "An activation code is for an account that has not been activated.", "Kod pengaktifan untuk akaun yang belum diaktifkan."));

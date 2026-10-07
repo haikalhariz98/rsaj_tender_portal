@@ -55,7 +55,7 @@ describe("each kind of change reads as what it does", () => {
   });
 
   it("a code: whose, and which, and that the second person hands it over", () => {
-    const s = describeChange("ACCOUNT_CODE", { accountId: "acct_1", purpose: "RESET" }, { exists: true, status: "ACTIVE", holdsOffice: true }, names);
+    const s = describeChange("ACCOUNT_CODE", { accountId: "acct_1", purpose: "RESET" }, { exists: true, status: "ACTIVE", heldOffice: true }, names);
     expect(s.subject).toBe("Aminah Binti Ali");
     expect(s.lines[0].after).toMatch(/reset code/);
   });

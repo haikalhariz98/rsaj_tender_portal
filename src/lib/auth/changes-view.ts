@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 
 import { eligibleFor } from "./eligibility-store";
-import { CHANGE_KINDS, KIND_PERMISSION, KIND_WORDS, parseChange, STATUS_WORDS, type ChangeKind, type ChangeStatus } from "./configuration-change";
+import { CHANGE_KINDS, KIND_PERMISSION, KIND_WORDS, kindsReadBy, parseChange, STATUS_WORDS, type ChangeKind, type ChangeStatus } from "./configuration-change";
 import { describeChange, type ChangeLine } from "./configuration-change-words";
 import type { StaffActor } from "./types";
 
@@ -50,9 +50,11 @@ export const waitedDays = (since: Date, now: Date): number => Math.max(0, Math.f
 
 export async function loadChangesView(actor: StaffActor, now: Date = new Date()): Promise<ChangesView> {
   const organisationId = actor.organisationId;
+  // Only the kinds the viewer decides, and what they proposed themselves: the rows are cut here, so what the screen lists and exports is cut with them.
+  const readable = { OR: [{ kind: { in: kindsReadBy(actor.permissions) } }, { proposedByPersonId: actor.personId }] };
   const [open, closed] = await Promise.all([
-    db.configurationChange.findMany({ where: { organisationId, status: "PROPOSED" }, orderBy: { proposedAt: "asc" }, include: { proposedBy: { select: { name: true } }, decidedBy: { select: { name: true } } } }),
-    db.configurationChange.findMany({ where: { organisationId, status: { not: "PROPOSED" } }, orderBy: { decidedAt: "desc" }, take: DECIDED_SHOWN, include: { proposedBy: { select: { name: true } }, decidedBy: { select: { name: true } } } }),
+    db.configurationChange.findMany({ where: { organisationId, status: "PROPOSED", ...readable }, orderBy: { proposedAt: "asc" }, include: { proposedBy: { select: { name: true } }, decidedBy: { select: { name: true } } } }),
+    db.configurationChange.findMany({ where: { organisationId, status: { not: "PROPOSED" }, ...readable }, orderBy: { decidedAt: "desc" }, take: DECIDED_SHOWN, include: { proposedBy: { select: { name: true } }, decidedBy: { select: { name: true } } } }),
   ]);
   const rows = [...open, ...closed];
 

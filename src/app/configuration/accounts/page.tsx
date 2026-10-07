@@ -5,7 +5,7 @@ import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { HistoryButton } from "@/components/history-drawer";
-import { officeHolderNotice } from "@/lib/auth/administration-rules";
+import { secondPersonNotice } from "@/lib/auth/administration-rules";
 import { loadAccountsView, type AccountRow } from "@/lib/auth/administration-view";
 import { RUNTIME_ROLE_WORDS } from "@/lib/auth/db-role";
 import { runtimeRoleCheck } from "@/lib/auth/runtime-role-store";
@@ -24,7 +24,7 @@ const STATUS_TONE = { ACTIVE: "ok", PENDING_ACTIVATION: "warn", DISABLED: "err" 
 /**
  * Sign-in accounts (Phase 1b): who can sign in, and the administrator's acts on them. An account is made for a person on record; it waits for an
  * activation code that an administrator issues and hands over by hand (the product sends nothing). Reached by whoever holds `accounts.manage`, which only an
- * administrator holds (Phase 2c). A code for the account of someone who holds an office, a seat or a delegation, and making or ending an administrator, need a
+ * administrator holds (Phase 2c). A code for the account of an administrator, or of someone who holds or has held an office, a seat or a delegation, and making or ending an administrator, need a
  * second person: they are proposed here and decided under Changes awaiting a second person.
  */
 export default async function AccountsPage() {
@@ -92,7 +92,7 @@ export default async function AccountsPage() {
 
       <Section
         title="Accounts"
-        blurb="A person has at most one account. A code is shown once, to the administrator who issues it, who hands it over by hand; nobody issues a code for their own account. For someone who holds an office, a seat or a delegation, a second administrator issues it."
+        blurb="A person has at most one account. A code is shown once, to the administrator who issues it, who hands it over by hand; nobody issues a code for their own account. For an administrator, or someone who holds or has held an office, a seat or a delegation, a second administrator issues it."
         empty="No account exists yet. Create one for a person on record, then issue an activation code."
         count={view.rows.length}
       >
@@ -163,16 +163,19 @@ function holdingsWords(r: AccountRow): string | null {
 }
 
 function rowActions(r: AccountRow, now: Date) {
-  const notice = officeHolderNotice(r.holdings);
+  // A code for an administrator's account, or for a person who holds or has held anything (ended or not), needs a second person. Making someone an administrator
+  // is judged on what they hold now, which is what the rule of keeping administration apart from transactions asks.
+  const notice = secondPersonNotice({ isAdministrator: r.isAdministrator, held: r.held });
+  const holdsNow = r.holdings.offices + r.holdings.seats + r.holdings.delegations > 0;
   const locked = (r.lockedUntil != null && r.lockedUntil > now) || r.failedAttempts > 0;
-  // An office holder's code is made by two people: proposed here, issued by a second administrator. Everyone else's is issued directly.
+  // An administrator's or office holder's code is made by two people: proposed here, issued by a second administrator. Everyone else's is issued directly.
   const codeFor = (purpose: "ACTIVATION" | "RESET") =>
     notice ? <ProposeAccountCode accountId={r.id} name={r.personName} purpose={purpose} notice={notice} /> : <IssueCode accountId={r.id} name={r.personName} purpose={purpose} />;
   return (
     <>
       {r.status === "PENDING_ACTIVATION" && codeFor("ACTIVATION")}
       {r.status === "ACTIVE" && !r.isYou && codeFor("RESET")}
-      {r.status === "ACTIVE" && r.personActive && !r.isAdministrator && !notice && <ProposeAdministrator accountId={r.id} name={r.personName} direction="GRANT" />}
+      {r.status === "ACTIVE" && r.personActive && !r.isAdministrator && !holdsNow && <ProposeAdministrator accountId={r.id} name={r.personName} direction="GRANT" />}
       {r.status === "ACTIVE" && r.isAdministrator && <ProposeAdministrator accountId={r.id} name={r.personName} direction="REVOKE" />}
       {locked && r.status !== "DISABLED" && <UnlockAccount accountId={r.id} name={r.personName} />}
       {r.status === "DISABLED" ? <EnableAccount accountId={r.id} name={r.personName} /> : !r.isYou && <DisableAccount accountId={r.id} name={r.personName} loginName={r.loginName} />}

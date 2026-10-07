@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
+import { writeAudit } from "@/lib/audit/record";
 import { auditActorOfStaff } from "@/lib/auth/audit-actor";
 import { ensureAdministrator, facts, kindsOf, makeAccount, makePerson, randomId, randomPassword, setPolicy, SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
@@ -172,6 +173,61 @@ describe("issuing a code", () => {
     const outcome = await issueCode(admin.actor, { accountId, purpose: "ACTIVATION", reason: "new officer" }, facts());
     expect(outcome).toMatchObject({ ok: false, kind: "FAULTS", faults: [{ code: "OFFICE_HOLDER_NEEDS_SECOND_PERSON" }] });
     expect(await db.oneTimeCode.count({ where: { staffAccountId: accountId } })).toBe(0);
+  });
+});
+
+// Review of Phase 2c. An administrator's account, and the account of anyone who has held an office, a seat or a delegation (ended or not, and wherever it has
+// since gone), is not reset by one administrator: that would let one person sign in as another and decide every two-person change alone.
+describe("a code that one administrator may not issue alone", () => {
+  const NOT_ISSUED = { ok: false, kind: "FAULTS" } as const;
+
+  it("is refused for another administrator's account, for a reset and for an activation, and writes nothing", async () => {
+    const a = await administrator();
+    const b = await administrator();
+    expect(await issueCode(a.actor, { accountId: b.account.id, purpose: "RESET", reason: "forgot it" }, facts())).toMatchObject({ ...NOT_ISSUED, faults: [{ code: "ADMINISTRATOR_NEEDS_SECOND_PERSON" }] });
+    await db.staffAccount.update({ where: { id: b.account.id }, data: { status: "PENDING_ACTIVATION" } });
+    expect(await issueCode(a.actor, { accountId: b.account.id, purpose: "ACTIVATION", reason: "back again" }, facts())).toMatchObject({ ...NOT_ISSUED, faults: [{ code: "ADMINISTRATOR_NEEDS_SECOND_PERSON" }] });
+    expect(await db.oneTimeCode.count({ where: { staffAccountId: b.account.id } })).toBe(0);
+  });
+
+  it("is refused for a person whose office has ended: ending it, then resetting alone, then restoring it, is not a way round", async () => {
+    const a = await administrator();
+    const target = await makeAccount(organisationId);
+    await db.roleAssignment.create({ data: { personId: target.person.id, roleCode: "TEST_OFFICE", effectiveFrom: new Date("2020-01-01"), effectiveTo: new Date("2021-01-01") } });
+    expect(await issueCode(a.actor, { accountId: target.account.id, purpose: "RESET", reason: "x" }, facts())).toMatchObject({ ...NOT_ISSUED, faults: [{ code: "OFFICE_HOLDER_NEEDS_SECOND_PERSON" }] });
+    expect(await db.oneTimeCode.count({ where: { staffAccountId: target.account.id } })).toBe(0);
+  });
+
+  it("is refused for a seat or a delegation that has ended, as for an office", async () => {
+    const a = await administrator();
+    const seat = await makeAccount(organisationId);
+    const committee = await db.committee.create({ data: { organisationId, code: `C_${randomId()}`, nameEn: "Test committee", mandate: "test", governingSource: "test" } });
+    await db.committeeMember.create({ data: { committeeId: committee.id, personId: seat.person.id, effectiveFrom: new Date("2020-01-01"), effectiveTo: new Date("2021-01-01") } });
+    expect(await issueCode(a.actor, { accountId: seat.account.id, purpose: "RESET", reason: "x" }, facts())).toMatchObject({ ...NOT_ISSUED, faults: [{ code: "OFFICE_HOLDER_NEEDS_SECOND_PERSON" }] });
+    const delegate = await makeAccount(organisationId);
+    const grantor = await makePerson(organisationId);
+    await db.delegation.create({ data: { organisationId, fromPersonId: grantor.id, toPersonId: delegate.person.id, roleCode: `R_${randomId()}`, capabilityCodes: [], effectiveFrom: new Date("2020-01-01"), effectiveTo: new Date("2021-01-01") } });
+    expect(await issueCode(a.actor, { accountId: delegate.account.id, purpose: "RESET", reason: "x" }, facts())).toMatchObject({ ...NOT_ISSUED, faults: [{ code: "OFFICE_HOLDER_NEEDS_SECOND_PERSON" }] });
+  });
+
+  it("is refused for a person whose office was edited over to someone else: the trail still says whose it was", async () => {
+    const a = await administrator();
+    const target = await makeAccount(organisationId);
+    const other = await makePerson(organisationId);
+    // The office row now names another person, and the trail of the edit records that it named the target before.
+    const row = await db.roleAssignment.create({ data: { personId: other.id, roleCode: "TEST_OFFICE", effectiveFrom: new Date("2020-01-01") } });
+    await db.$transaction((tx) =>
+      writeAudit(tx, { organisationId, entity: "RoleAssignment", entityId: row.id, entityLabel: "TEST_OFFICE assignment", reason: "moved", actor: auditActorOfStaff(a.actor) }, "UPDATE", [
+        { field: "personId", before: target.person.id, after: other.id },
+      ]),
+    );
+    expect(await issueCode(a.actor, { accountId: target.account.id, purpose: "RESET", reason: "x" }, facts())).toMatchObject({ ...NOT_ISSUED, faults: [{ code: "OFFICE_HOLDER_NEEDS_SECOND_PERSON" }] });
+  });
+
+  it("is still issued directly for an ordinary account that has held nothing", async () => {
+    const a = await administrator();
+    const plain = await makeAccount(organisationId);
+    expect(await issueCode(a.actor, { accountId: plain.account.id, purpose: "RESET", reason: "forgot it" }, facts())).toMatchObject({ ok: true });
   });
 });
 

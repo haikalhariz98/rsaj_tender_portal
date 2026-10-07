@@ -4,6 +4,7 @@ import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
 import { loadChangesView, type ChangeRow } from "@/lib/auth/changes-view";
+import { mayReadQueue } from "@/lib/auth/configuration-change";
 import { formatOrgDateTime } from "@/lib/format";
 
 import { Stat, Stats } from "../records-ui";
@@ -20,6 +21,18 @@ export const dynamic = "force-dynamic";
  */
 export default async function ChangesPage() {
   const actor = await requireStaff();
+  // The queue names who is being made an administrator, whose account is getting a code and why, and which sign-in settings are changing: it is read by those who decide
+  // a kind of change, and each reads the kinds they decide (`loadChangesView`).
+  if (!mayReadQueue(actor.permissions)) {
+    return (
+      <>
+        <PageHeader title="Changes awaiting a second person" subtitle="Proposed by one person, decided by a different one. Nothing is applied until then." />
+        <Callout tone="warn" title="Only those who decide these changes read them">
+          This queue is read by people who hold the permission to change the sign-in settings, to grant permissions to roles, or to manage sign-in accounts. Ask an administrator if a change is waiting on you.
+        </Callout>
+      </>
+    );
+  }
   const now = new Date();
   const zone = actor.organisationTimeZone;
   const view = await loadChangesView(actor, now);

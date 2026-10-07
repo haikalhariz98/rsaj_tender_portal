@@ -1,9 +1,10 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { writeAudit } from "@/lib/audit/record";
 import { db } from "@/lib/db";
 import { ensureAdministrator, makeAccount, makePerson, randomId, randomPassword, setPolicy, SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
-import { assertCanHold, HoldingRefused, holdingsOf, makeAdministratorConflict } from "./administration-guard";
+import { assertCanHold, HoldingRefused, holdingHistoryOf, holdingsOf, makeAdministratorConflict } from "./administration-guard";
 import { bootstrapAdministrator } from "./bootstrap";
 
 /**
@@ -42,6 +43,26 @@ describe("making a Person an administrator", () => {
     await db.delegation.create({ data: { organisationId, fromPersonId: p.id, toPersonId: other.id, roleCode: code(), capabilityCodes: [], effectiveFrom: day("2020-01-01") } });
     await db.delegation.create({ data: { organisationId, fromPersonId: other.id, toPersonId: p.id, roleCode: code(), capabilityCodes: [], effectiveFrom: day("2020-01-01") } });
     expect(await db.$transaction((tx) => holdingsOf(tx, p.id, NOW))).toEqual({ offices: 1, seats: 1, delegations: 2 });
+  });
+
+  it("holdingHistoryOf counts what ended as well, and a row found by the table and by the trail once (review of Phase 2c)", async () => {
+    const p = await makePerson(organisationId);
+    const other = await makePerson(organisationId);
+    const trail = (entity: string, entityId: string, action: "CREATE" | "UPDATE", changes: { field: string; before: string | null; after: string | null }[]) =>
+      db.$transaction((tx) => writeAudit(tx, { organisationId, entity, entityId, entityLabel: "x", reason: "", actor: { kind: "SYSTEM", label: "test" } }, action, changes));
+    expect(await db.$transaction((tx) => holdingHistoryOf(tx, p.id))).toEqual({ offices: 0, seats: 0, delegations: 0 });
+    const ended = await office(p.id, { effectiveTo: day("2021-01-01") });
+    expect(await db.$transaction((tx) => holdingHistoryOf(tx, p.id))).toEqual({ offices: 1, seats: 0, delegations: 0 });
+    // The trail of its creation names the person after, and the row names them as it stands: still one.
+    await trail("RoleAssignment", ended.id, "CREATE", [{ field: "personId", before: null, after: p.id }]);
+    expect(await db.$transaction((tx) => holdingHistoryOf(tx, p.id))).toEqual({ offices: 1, seats: 0, delegations: 0 });
+    // A delegation names two people, and a seat edited over to someone else is found in the trail alone.
+    await db.delegation.create({ data: { organisationId, fromPersonId: p.id, toPersonId: other.id, roleCode: code(), capabilityCodes: [], effectiveFrom: day("2020-01-01"), effectiveTo: day("2021-01-01") } });
+    const moved = await db.committeeMember.create({ data: { committeeId: (await committee()).id, personId: other.id, effectiveFrom: day("2020-01-01") } });
+    await trail("CommitteeMember", moved.id, "UPDATE", [{ field: "personId", before: p.id, after: other.id }]);
+    expect(await db.$transaction((tx) => holdingHistoryOf(tx, p.id))).toEqual({ offices: 1, seats: 1, delegations: 1 });
+    // What making an administrator judges is what is live, and nothing of this person's is.
+    expect(await db.$transaction((tx) => holdingsOf(tx, p.id, NOW))).toEqual({ offices: 0, seats: 0, delegations: 0 });
   });
 
   it("does not count an office that has ended", async () => {

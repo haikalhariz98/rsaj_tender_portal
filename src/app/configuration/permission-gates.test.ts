@@ -113,6 +113,16 @@ describe("the approval route is changed only by someone who holds the permission
     }
   });
 
+  // Review of Phase 2c: the queue was open to every signed-in member of staff, with the proposers' reasons (how a person's identity was checked) and the sign-in settings in it.
+  it("the changes queue is read only by someone who holds the permission of at least one kind, and is asked before anything is loaded", () => {
+    const page = lex(readFileSync(path.join(CONFIG, "changes", "page.tsx"), "utf8"), { only: "comments" });
+    const ask = page.search(/if \(!mayReadQueue\(actor\.permissions\)\)/);
+    expect(ask).toBeGreaterThan(-1);
+    expect(page.indexOf("loadChangesView(")).toBeGreaterThan(ask);
+    // And the rows themselves are cut to the kinds the viewer decides, whatever page asks.
+    expect(readFileSync(path.join(process.cwd(), "src", "lib", "auth", "changes-view.ts"), "utf8")).toMatch(/kindsReadBy\(actor\.permissions\)/);
+  });
+
   it("every other configuration editor is named, so a new one is not silently ungated", () => {
     const dirs = readdirSync(CONFIG, { withFileTypes: true }).filter((d) => d.isDirectory() && readdirSync(path.join(CONFIG, d.name)).includes("actions.ts")).map((d) => d.name);
     const known = new Set(["approval-matrix", "accounts", "changes", ...Object.keys(GIVES_AUTHORITY), ...OTHER_EDITORS]);

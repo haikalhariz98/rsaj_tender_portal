@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { accountCodeTargetFaults, CHANGE_KINDS, CHANGE_MACHINE, CHANGE_STATUSES, decisionFaults, isStale, KIND_PERMISSION, KIND_WORDS, nextStatus, parseChange, planChange, proposalFaults, secondPersonFault, snapshot, STATUS_WORDS, type ChangeDecision, type LiveState, type ParsedChange } from "./configuration-change";
+import { accountCodeTargetFaults, CHANGE_KINDS, CHANGE_MACHINE, CHANGE_STATUSES, decisionFaults, isStale, KIND_PERMISSION, KIND_WORDS, kindsReadBy, mayReadQueue, nextStatus, parseChange, planChange, proposalFaults, secondPersonFault, snapshot, STATUS_WORDS, type ChangeDecision, type LiveState, type ParsedChange } from "./configuration-change";
 import { EMPTY_POLICY } from "./policy";
 import type { PermissionKey, SecurityPolicyValues } from "./types";
 
@@ -117,8 +117,8 @@ describe("the snapshot and the STALE check", () => {
 
   it("is stale for an account that was deleted from under the proposal", () => {
     const code = parsed("ACCOUNT_CODE", { accountId: "a1", purpose: "RESET" });
-    const there: LiveState = { kind: "ACCOUNT_CODE", account: { isAdministrator: false, status: "ACTIVE", personActive: true }, holdsOffice: true };
-    expect(isStale(snapshot(code, there), snapshot(code, { kind: "ACCOUNT_CODE", account: null, holdsOffice: false }))).toBe(true);
+    const there: LiveState = { kind: "ACCOUNT_CODE", account: { isAdministrator: false, status: "ACTIVE", personActive: true }, heldOffice: true };
+    expect(isStale(snapshot(code, there), snapshot(code, { kind: "ACCOUNT_CODE", account: null, heldOffice: false }))).toBe(true);
   });
 });
 
@@ -174,14 +174,27 @@ describe("applying runs the rules of the kind on the live state", () => {
     const reset = parsed("ACCOUNT_CODE", { accountId: "a1", purpose: "RESET" });
     const activation = parsed("ACCOUNT_CODE", { accountId: "a1", purpose: "ACTIVATION" });
     const pending = { ...active, status: "PENDING_ACTIVATION" } as const;
-    expect(planChange(reset, { kind: "ACCOUNT_CODE", account: active, holdsOffice: true })).toMatchObject({ ok: true });
-    expect(planChange(activation, { kind: "ACCOUNT_CODE", account: pending, holdsOffice: true })).toMatchObject({ ok: true });
-    expect(planChange(reset, { kind: "ACCOUNT_CODE", account: pending, holdsOffice: true })).toMatchObject({ ok: false, faults: [{ code: "NOT_ACTIVE" }] });
-    expect(planChange(activation, { kind: "ACCOUNT_CODE", account: active, holdsOffice: true })).toMatchObject({ ok: false, faults: [{ code: "NOT_AWAITING_ACTIVATION" }] });
+    expect(planChange(reset, { kind: "ACCOUNT_CODE", account: active, heldOffice: true })).toMatchObject({ ok: true });
+    expect(planChange(activation, { kind: "ACCOUNT_CODE", account: pending, heldOffice: true })).toMatchObject({ ok: true });
+    expect(planChange(reset, { kind: "ACCOUNT_CODE", account: pending, heldOffice: true })).toMatchObject({ ok: false, faults: [{ code: "NOT_ACTIVE" }] });
+    expect(planChange(activation, { kind: "ACCOUNT_CODE", account: active, heldOffice: true })).toMatchObject({ ok: false, faults: [{ code: "NOT_AWAITING_ACTIVATION" }] });
   });
 
   it("refuses a state read for another kind of change", () => {
-    expect(planChange(parsed("ADMINISTRATOR_GRANT", { accountId: "a" }), { kind: "ACCOUNT_CODE", account: null, holdsOffice: false })).toMatchObject({ ok: false, faults: [{ code: "WRONG_STATE" }] });
+    expect(planChange(parsed("ADMINISTRATOR_GRANT", { accountId: "a" }), { kind: "ACCOUNT_CODE", account: null, heldOffice: false })).toMatchObject({ ok: false, faults: [{ code: "WRONG_STATE" }] });
+  });
+});
+
+describe("who reads the queue of changes (review of Phase 2c)", () => {
+  const held = (...p: PermissionKey[]) => new Set<PermissionKey>(p);
+
+  it("a person reads the kinds whose permission they hold, and nobody who holds none reads the queue", () => {
+    expect(mayReadQueue(held())).toBe(false);
+    expect(mayReadQueue(held("audit.read", "configuration.draft"))).toBe(false);
+    expect(kindsReadBy(held("permissions.grant"))).toEqual(["PERMISSION_GRANT"]);
+    expect(kindsReadBy(held("security.policy"))).toEqual(["SECURITY_POLICY"]);
+    expect(kindsReadBy(held("accounts.manage"))).toEqual(["ADMINISTRATOR_GRANT", "ADMINISTRATOR_REVOKE", "ACCOUNT_CODE"]);
+    expect(mayReadQueue(held("accounts.manage"))).toBe(true);
   });
 });
 
@@ -258,13 +271,28 @@ describe("who may propose, and whose code it is", () => {
   });
 });
 
-describe("a code for an account is a change only for an office holder, and an empty change is no change (Phase 2c)", () => {
+describe("a code for an account is a change for an administrator or an office holder, and an empty change is no change (Phase 2c)", () => {
   const active = { isAdministrator: false, status: "ACTIVE", personActive: true } as const;
 
-  it("is refused where the person holds nothing: that code is issued directly, and says so", () => {
+  // Review of Phase 2c: this said NO_OFFICE_HELD and that an administrator's code was issued directly. An administrator's account is the one a second person
+  // is most needed for (one administrator could take over another's and decide every two-person change alone), and a person who held an office, however long
+  // ago, is not a person whose account one administrator resets alone.
+  it("is refused where the account is not an administrator's and the person has never held anything: that code is issued directly, and says so", () => {
     const reset = parsed("ACCOUNT_CODE", { accountId: "a1", purpose: "RESET" });
-    expect(planChange(reset, { kind: "ACCOUNT_CODE", account: active, holdsOffice: false })).toMatchObject({ ok: false, faults: [{ code: "NO_OFFICE_HELD" }] });
-    expect(planChange(reset, { kind: "ACCOUNT_CODE", account: active, holdsOffice: true })).toMatchObject({ ok: true });
+    expect(planChange(reset, { kind: "ACCOUNT_CODE", account: active, heldOffice: false })).toMatchObject({ ok: false, faults: [{ code: "NO_SECOND_PERSON_NEEDED" }] });
+    expect(planChange(reset, { kind: "ACCOUNT_CODE", account: active, heldOffice: true })).toMatchObject({ ok: true });
+  });
+
+  it("is a change for an administrator's account, whether or not anything was ever held", () => {
+    const reset = parsed("ACCOUNT_CODE", { accountId: "a1", purpose: "RESET" });
+    expect(planChange(reset, { kind: "ACCOUNT_CODE", account: { ...active, isAdministrator: true }, heldOffice: false })).toMatchObject({ ok: true });
+  });
+
+  it("goes stale when the administrator flag moves between the proposal and the decision", () => {
+    const reset = parsed("ACCOUNT_CODE", { accountId: "a1", purpose: "RESET" });
+    const as = (isAdministrator: boolean): LiveState => ({ kind: "ACCOUNT_CODE", account: { ...active, isAdministrator }, heldOffice: false });
+    expect(isStale(snapshot(reset, as(true)), snapshot(reset, as(true)))).toBe(false);
+    expect(isStale(snapshot(reset, as(true)), snapshot(reset, as(false)))).toBe(true);
   });
 
   it("a setting already at the value proposed is refused, so no change waits that changes nothing", () => {

@@ -5,7 +5,7 @@ import { lockOrganisation } from "@/lib/authority/locks";
 import { db } from "@/lib/db";
 import { formatOrgDateTime } from "@/lib/format";
 
-import { holdingsOf, lockPersons } from "./administration-guard";
+import { holdingHistoryOf, holdingsOf, lockPersons } from "./administration-guard";
 import { auditActorOfStaff } from "./audit-actor";
 import { codeExpiry, formatCode, generateCode, hashCode } from "./codes";
 import {
@@ -129,8 +129,9 @@ export async function readLive(tx: Tx, organisationId: string, change: ParsedCha
     }
     case "ACCOUNT_CODE": {
       const account = target.accountId ? await accountFacts(tx, organisationId, target.accountId) : null;
-      const h = target.personId ? await holdingsOf(tx, target.personId, now) : { offices: 0, seats: 0, delegations: 0 };
-      return { kind: change.kind, account, holdsOffice: h.offices + h.seats + h.delegations > 0 };
+      // What the person has ever held, not what they hold this minute: an office ended a moment ago is not what lets one person reset an approver's account.
+      const h = target.personId ? await holdingHistoryOf(tx, target.personId) : { offices: 0, seats: 0, delegations: 0 };
+      return { kind: change.kind, account, heldOffice: h.offices + h.seats + h.delegations > 0 };
     }
   }
 }

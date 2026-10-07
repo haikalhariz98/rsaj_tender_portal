@@ -30,6 +30,42 @@ export async function holdingsOf(tx: Tx, personId: string, now: Date): Promise<H
   return { offices, seats, delegations };
 }
 
+/**
+ * What each of these people has ever held, ended or not, and wherever it has since gone (review of Phase 2c). The one question it answers is whether a code for
+ * their account needs a second person, and that must not turn on what they hold this minute: one administrator could end an office, reset the account alone, and
+ * restore the office. So it counts every row that names the person as it stands, and every row the trail records as having named them, because an office, a seat
+ * or a delegation can be edited from one person to another and the row no longer says who it was. Each row is counted once, however many ways it is found.
+ * Every person asked about is in the answer, with zeros for one who has held nothing.
+ */
+export async function holdingHistoryFor(tx: Tx, personIds: readonly string[]): Promise<Map<string, Holdings>> {
+  const ids = [...new Set(personIds)];
+  const [offices, seats, delegations, trail] = await Promise.all([
+    tx.roleAssignment.findMany({ where: { personId: { in: ids } }, select: { id: true, personId: true } }),
+    tx.committeeMember.findMany({ where: { personId: { in: ids } }, select: { id: true, personId: true } }),
+    tx.delegation.findMany({ where: { OR: [{ fromPersonId: { in: ids } }, { toPersonId: { in: ids } }] }, select: { id: true, fromPersonId: true, toPersonId: true } }),
+    // Every audit row of a holding that names the person in any of its changes, before or after (a creation names them after, a move away names them before).
+    tx.$queryRaw<{ entity: string; entityId: string; personId: string }[]>`
+      SELECT DISTINCT a."entity", a."entityId", v.p AS "personId"
+      FROM "AuditEntry" a
+      CROSS JOIN LATERAL jsonb_array_elements(a."changes") c
+      CROSS JOIN LATERAL (VALUES (c->>'before'), (c->>'after')) v(p)
+      WHERE a."entity" IN ('RoleAssignment', 'CommitteeMember', 'Delegation')
+        AND c->>'field' IN ('personId', 'fromPersonId', 'toPersonId')
+        AND v.p = ANY(${ids}::text[])`,
+  ]);
+  const found = new Map<string, { RoleAssignment: Set<string>; CommitteeMember: Set<string>; Delegation: Set<string> }>(ids.map((id) => [id, { RoleAssignment: new Set(), CommitteeMember: new Set(), Delegation: new Set() }]));
+  for (const r of offices) found.get(r.personId)?.RoleAssignment.add(r.id);
+  for (const r of seats) if (r.personId) found.get(r.personId)?.CommitteeMember.add(r.id);
+  for (const r of delegations) for (const p of [r.fromPersonId, r.toPersonId]) found.get(p)?.Delegation.add(r.id);
+  for (const t of trail) found.get(t.personId)?.[t.entity as "RoleAssignment" | "CommitteeMember" | "Delegation"]?.add(t.entityId);
+  return new Map([...found].map(([id, f]) => [id, { offices: f.RoleAssignment.size, seats: f.CommitteeMember.size, delegations: f.Delegation.size }]));
+}
+
+/// `holdingHistoryFor`, for one person. Read inside the caller's transaction, after the Person's lock.
+export async function holdingHistoryOf(tx: Tx, personId: string): Promise<Holdings> {
+  return (await holdingHistoryFor(tx, [personId])).get(personId) ?? { offices: 0, seats: 0, delegations: 0 };
+}
+
 /// Whether the Person has an administrator's sign-in account, of whatever status: a disabled one can be enabled again (an open item for the product owner).
 export async function personIsAdministrator(tx: Tx, personId: string): Promise<boolean> {
   const account = await tx.staffAccount.findUnique({ where: { personId }, select: { isAdministrator: true } });

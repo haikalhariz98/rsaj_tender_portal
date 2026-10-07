@@ -8,12 +8,12 @@ import { db } from "@/lib/db";
 import { formatOrgDateTime } from "@/lib/format";
 
 import { auditActorOfStaff } from "./audit-actor";
-import { createAccountFaults, disableFaults, enableFaults, issueCodeFaults, leaverFaults, OFFICE_HOLDER_NEEDS_SECOND_PERSON, officeHolderNotice, unlockFaults } from "./administration-rules";
+import { ADMINISTRATOR_NEEDS_SECOND_PERSON, createAccountFaults, disableFaults, enableFaults, issueCodeFaults, leaverFaults, OFFICE_HOLDER_NEEDS_SECOND_PERSON, officeHolderNotice, unlockFaults } from "./administration-rules";
 import { codeExpiry, formatCode, generateCode, hashCode } from "./codes";
 import { recordSignInEvent } from "./events";
 import { hashPool } from "./hash-pool";
 import { lockAccount, loginKeyOf } from "./identity";
-import { holdingsOf, lockPersons } from "./administration-guard";
+import { holdingHistoryOf, lockPersons } from "./administration-guard";
 import { LOGIN_NAME } from "./bootstrap";
 import { hashPassword } from "./password";
 import { loadSecurityPolicy } from "./policy-store";
@@ -28,8 +28,8 @@ import type { AuditActor, Fault, SecurityPolicyKey, StaffActor } from "./types";
  * under the organisation's lock and then the account's (the order bootstrap takes them in). No password, hash, token or code is ever written to the trail.
  *
  * Who may administer is `accounts.manage`, which only an administrator holds (Phase 2a). Nobody issues a code for, or disables, their own account. Activating
- * or resetting the account of a person who holds an office, a committee seat or a delegation needs a second person (Phase 2c, ADR 0034 D6): `issueCode`
- * refuses it, and the code is made by deciding an `ACCOUNT_CODE` change (`change-store.ts`), which a second administrator issues and is the one shown.
+ * or resetting the account of an administrator, or of a person who holds or has held an office, a committee seat or a delegation, needs a second person (Phase 2c,
+ * ADR 0034 D6, threat model F7): `issueCode` refuses it, and the code is made by deciding an `ACCOUNT_CODE` change (`change-store.ts`), which a second administrator issues and is the one shown.
  */
 
 export type AdminOutcome<T extends object = object> =
@@ -236,11 +236,13 @@ export async function issueCode(
     });
     if (faults.length > 0) return refuse(faults);
 
-    // An office holder's account is not reset by one person: the Person's row is locked (the order every path takes: the account, then the Person), so a
-    // holding given a moment ago is seen, and the code is made by a second person through a change.
+    // The account of an administrator, or of someone who holds or has held an office, a seat or a delegation, is not reset by one person: the Person's row is
+    // locked (the order every path takes: the account, then the Person), so a holding given a moment ago is seen, and the code is made by a second person
+    // through a change. What was held counts whether or not it has ended (`holdingHistoryOf`), so that ending an office does not open the account to one person.
+    if (target!.isAdministrator) return refuse([ADMINISTRATOR_NEEDS_SECOND_PERSON]);
     await lockPersons(tx, [target!.personId]);
-    const holdings = await holdingsOf(tx, target!.personId, now);
-    if (officeHolderNotice(holdings)) return refuse([OFFICE_HOLDER_NEEDS_SECOND_PERSON]);
+    const held = await holdingHistoryOf(tx, target!.personId);
+    if (officeHolderNotice(held)) return refuse([OFFICE_HOLDER_NEEDS_SECOND_PERSON]);
     const expiresAt = codeExpiry(now, validity);
     const voided = await tx.oneTimeCode.updateMany({ where: { store: "STAFF", staffAccountId: target!.id, usedAt: null }, data: { usedAt: now } });
     await tx.oneTimeCode.create({

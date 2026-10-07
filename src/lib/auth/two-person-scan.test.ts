@@ -184,12 +184,15 @@ describe("each table a two-person change writes has one writer", () => {
 
   it("a one-time code for an office holder's account is made only by deciding a change: the direct issue refuses one", () => {
     const direct = lex(read("src/lib/auth/administration.ts"), { only: "comments" });
-    expect(direct).toMatch(/if \(officeHolderNotice\(holdings\)\) return refuse\(\[OFFICE_HOLDER_NEEDS_SECOND_PERSON\]\);/);
+    // Review of Phase 2c: the gate judges what the person has ever held (`holdingHistoryOf`, not the live count), and an administrator's account is never
+    // issued alone. These lines said `holdings` and judged live holdings only, which one administrator could end and restore around a direct reset.
+    expect(direct).toMatch(/if \(officeHolderNotice\(held\)\) return refuse\(\[OFFICE_HOLDER_NEEDS_SECOND_PERSON\]\);/);
+    expect(direct).toMatch(/if \(target!\.isAdministrator\) return refuse\(\[ADMINISTRATOR_NEEDS_SECOND_PERSON\]\);/);
     // The refusal is judged under the Person's lock, before the code is made.
     // (The scan's span finder stops at a type in a return type, so the function is cut by its own first and last line.)
     const text = read("src/lib/auth/administration.ts");
     const issue = text.slice(text.indexOf("export async function issueCode("), text.indexOf("\n}\n", text.indexOf("export async function issueCode(")));
-    inOrder(issue, ["lockAccount(tx", "lockPersons(tx", "holdingsOf(tx", "OFFICE_HOLDER_NEEDS_SECOND_PERSON", "tx.oneTimeCode.create("]);
+    inOrder(issue, ["lockAccount(tx", "ADMINISTRATOR_NEEDS_SECOND_PERSON", "lockPersons(tx", "holdingHistoryOf(tx", "OFFICE_HOLDER_NEEDS_SECOND_PERSON", "tx.oneTimeCode.create("]);
   });
 });
 

@@ -10,6 +10,7 @@ import { beginActWith, type ActDeps } from "./act-begin";
 import { actFieldNames } from "./act-field-names";
 import { attributeAct } from "./attribution-store";
 import { decideChange, proposeChange, type ChangeAct } from "./change-store";
+import { loadChangesView } from "./changes-view";
 import { type ChangeKind } from "./configuration-change";
 import { authenticateStaff, confirmStaffPassword } from "./identity";
 import { randomPassword } from "@/lib/test-db/auth-fixtures";
@@ -510,10 +511,43 @@ describe("a code for an office holder's account", () => {
     expect(applied).toMatchObject({ ok: true, code: { purpose: "ACTIVATION" } });
   });
 
-  it("is a change only for an office holder: for anyone else it is refused and says to issue it directly", async () => {
+  // Review of Phase 2c: an administrator's account is reset by two people, never one. A proposal for it is judged like an office holder's.
+  it("is made for an administrator's account by a second administrator, and never by the account's own Person", async () => {
+    const a = await administrator();
+    const b = await administrator();
+    const c = await administrator();
+    const id = await proposed(a, "ACCOUNT_CODE", { accountId: b.account.id, purpose: "RESET" });
+    expect(await decide(a, id, "APPLY")).toMatchObject({ ok: false, faults: [{ code: "PROPOSER_IS_DECIDER" }] });
+    expect(await decide(b, id, "APPLY")).toMatchObject({ ok: false, faults: [{ code: "OWN_ACCOUNT" }] });
+    const applied = await decide(c, id, "APPLY");
+    expect(applied).toMatchObject({ ok: true, code: { purpose: "RESET" } });
+    expect(await db.oneTimeCode.findFirstOrThrow({ where: { staffAccountId: b.account.id } })).toMatchObject({ issuedByPersonId: c.person.id });
+  });
+
+  it("with only two administrators it is refused, and says a second person is needed: one cannot reset the other", async () => {
+    const org = await db.organisation.create({ data: { code: `CHG_${randomId()}`, name: "Two administrators", timeZone: "Asia/Kuala_Lumpur" } });
+    await setPolicy(org.id, SETTINGS);
+    const a = await administrator(org.id);
+    const b = await administrator(org.id);
+    expect(await propose(a, "ACCOUNT_CODE", { accountId: b.account.id, purpose: "RESET" })).toMatchObject({ ok: false, faults: [{ code: "SECOND_PERSON_NEEDED" }] });
+    expect(await db.configurationChange.count({ where: { organisationId: org.id } })).toBe(0);
+  });
+
+  it("an administrator made or unmade between the proposal and the decision makes it stale, and nothing is issued", async () => {
+    const a = await administrator();
+    const b = await administrator();
+    const target = await administrator();
+    const id = await proposed(a, "ACCOUNT_CODE", { accountId: target.account.id, purpose: "RESET" });
+    await db.staffAccount.update({ where: { id: target.account.id }, data: { isAdministrator: false } });
+    expect(await decide(b, id, "APPLY")).toMatchObject({ ok: false, kind: "STALE" });
+    expect(await db.oneTimeCode.count({ where: { staffAccountId: target.account.id } })).toBe(0);
+  });
+
+  // Review of Phase 2c: this said NO_OFFICE_HELD. The code is now refused for anyone who is neither an administrator nor has ever held anything.
+  it("is a change for an administrator or an office holder: for anyone else it is refused and says to issue it directly", async () => {
     const a = await administrator();
     const plain = await signedIn();
-    expect(await propose(a, "ACCOUNT_CODE", { accountId: plain.account.id, purpose: "RESET" })).toMatchObject({ ok: false, faults: [{ code: "NO_OFFICE_HELD" }] });
+    expect(await propose(a, "ACCOUNT_CODE", { accountId: plain.account.id, purpose: "RESET" })).toMatchObject({ ok: false, faults: [{ code: "NO_SECOND_PERSON_NEEDED" }] });
   });
 
   it("nobody proposes one for their own account, and the account's own Person never decides it", async () => {
@@ -554,3 +588,42 @@ describe("a code for an office holder's account", () => {
   });
 });
 
+// Review of Phase 2c: the queue was read by every signed-in member of staff. A change names who is being made an administrator, whose account is getting a code,
+// the settings that keep password guessing out, and the reason, which for a code records how identity was checked.
+describe("who reads the queue", () => {
+  const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
+
+  it("each person reads the kinds whose permission they hold, and what they proposed themselves, and nothing else", async () => {
+    const a = await administrator();
+    const b = await administrator();
+    const policyChange = await proposed(a, "SECURITY_POLICY", { changes: { staffIdleMinutes: 21 } });
+    const target = await signedIn();
+    await db.roleAssignment.create({ data: { personId: target.person.id, roleCode: "TEST_OFFICE", effectiveFrom: new Date("2020-01-01") } });
+    const codeChange = await proposed(a, "ACCOUNT_CODE", { accountId: target.account.id, purpose: "RESET" });
+
+    // An administrator holds every permission a kind asks for and reads all of them.
+    expect(ids((await loadChangesView(b.actor)).waiting)).toEqual(expect.arrayContaining([policyChange, codeChange]));
+    // Someone who holds only the permission to grant permissions to roles reads neither, and not the reason a code was proposed.
+    const grantOnly = { ...b.actor, permissions: new Set<PermissionKey>(["permissions.grant"]) };
+    const seen = await loadChangesView(grantOnly);
+    expect(ids(seen.waiting)).not.toContain(policyChange);
+    expect(ids(seen.waiting)).not.toContain(codeChange);
+    expect([...seen.waiting, ...seen.decided].filter((r) => r.kind !== "PERMISSION_GRANT" && !r.isYours)).toEqual([]);
+    // One who holds the permission of a single kind reads that kind only.
+    const accountsOnly = { ...b.actor, permissions: new Set<PermissionKey>(["accounts.manage"]) };
+    expect(ids((await loadChangesView(accountsOnly)).waiting)).toContain(codeChange);
+    expect(ids((await loadChangesView(accountsOnly)).waiting)).not.toContain(policyChange);
+    // A member of staff who holds none reads none of it, whatever they ask of the loader.
+    const officer = await signedIn();
+    const none = await loadChangesView(officer.actor);
+    expect(none.waiting).toEqual([]);
+    expect(none.decided).toEqual([]);
+    // What a person proposed themselves they still read, and withdraw, even where they no longer hold the permission.
+    const own = await proposed(b, "SECURITY_POLICY", { changes: { staffIdleMinutes: 22 } });
+    expect(ids((await loadChangesView({ ...b.actor, permissions: new Set<PermissionKey>() })).waiting)).toEqual([own]);
+    // A decided change is cut the same way.
+    expect(await decide(b, policyChange, "DECLINE", "not now")).toMatchObject({ ok: true });
+    expect(ids((await loadChangesView(grantOnly)).decided)).not.toContain(policyChange);
+    expect(ids((await loadChangesView(b.actor)).decided)).toContain(policyChange);
+  });
+});

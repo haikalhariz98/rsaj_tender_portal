@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createAccountFaults, disableFaults, enableFaults, issueCodeFaults, leaverFaults, officeHolderNotice, unlockFaults } from "./administration-rules";
+import { createAccountFaults, disableFaults, enableFaults, issueCodeFaults, leaverFaults, officeHolderNotice, secondPersonNotice, unlockFaults } from "./administration-rules";
 
 const codes = (faults: { code: string }[]) => faults.map((f) => f.code);
 const NOW = new Date("2026-10-06T10:00:00Z");
@@ -114,5 +114,14 @@ describe("the notice beside an office holder's account", () => {
     expect(n).toContain("needs a second person");
     expect(n).not.toContain("not built");
     expect(n).not.toMatch(/\bapproved\b/);
+  });
+
+  // Review of Phase 2c: an administrator's account needs a second person too, and what a person has held counts whether or not it has ended.
+  it("says a second person is needed for an administrator's account, whatever it holds, and says nothing for an ordinary account that held nothing", () => {
+    const none = { offices: 0, seats: 0, delegations: 0 };
+    expect(secondPersonNotice({ isAdministrator: true, held: none })).toContain("administrator's account");
+    expect(secondPersonNotice({ isAdministrator: false, held: none })).toBeNull();
+    expect(secondPersonNotice({ isAdministrator: false, held: { ...none, delegations: 1 } })).toContain("1 delegation");
+    expect(officeHolderNotice({ ...none, offices: 1 })).toContain("holds, or has held,");
   });
 });
