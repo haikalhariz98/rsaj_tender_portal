@@ -49,7 +49,6 @@ export default async function DocumentsConfigPage() {
   const readiness = classReadiness(classes);
   const attention = attentionText(readiness.needAttention.length);
   const unclassified = classes.filter((c) => c.classification == null);
-  const people = upload?.people.map((p) => ({ value: p.id, label: p.name })) ?? [];
 
   return (
     <>
@@ -307,7 +306,7 @@ export default async function DocumentsConfigPage() {
                   <Td>
                     <RowActions>
                       <DocumentButton documentId={h.document.id} label={h.document.title} />
-                      <ReleaseHold holdId={h.id} title={h.document.title} reason={h.reason} people={people} />
+                      <ReleaseHold holdId={h.id} title={h.document.title} reason={h.reason} />
                     </RowActions>
                   </Td>
                 </Tr>

@@ -2,8 +2,9 @@ import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import type { DocumentClass } from "@/lib/records/load";
 
+import { actorField } from "@/lib/auth/actor-field";
 import { classClassificationChoices } from "@/lib/documents/classification";
-import { CLASS_CLASSIFICATION_HINT, classificationChoiceText, DISPOSAL_METHOD_LABEL, MEDIA_LABEL, ON_BEHALF_HINT, RETENTION_TRIGGER_LABEL } from "@/lib/documents/labels";
+import { CLASS_CLASSIFICATION_HINT, classificationChoiceText, DISPOSAL_METHOD_LABEL, MEDIA_LABEL, RETENTION_TRIGGER_LABEL } from "@/lib/documents/labels";
 import { bytesToMegabytes } from "@/lib/documents/policy";
 import { DISPOSAL_METHODS, KNOWN_MEDIA_TYPES, RETENTION_TRIGGERS, type SecurityClass } from "@/lib/documents/types";
 import { buttonClass } from "@/components/ui/button";
@@ -177,14 +178,14 @@ export function EditStorePolicy({ policy }: { policy: { allowedMediaTypes: reado
 }
 
 /// Release a standing legal hold: by a named person, with the reason.
-export function ReleaseHold({ holdId, title, reason, people }: { holdId: string; title: string; reason: string; people: { value: string; label: string }[] }) {
+export function ReleaseHold({ holdId, title, reason }: { holdId: string; title: string; reason: string }) {
   return (
     <RecordEditor
       title={`Release the legal hold on ${title}`}
       fields={[
         { kind: "hidden", name: "holdId" },
         { kind: "note", text: `The hold was placed because: ${reason}` },
-        { kind: "select", name: "personId", label: "Released by", required: true, placeholder: "Choose who is recording it", options: people, hint: ON_BEHALF_HINT },
+        actorField("LegalHold.releasedBy", { name: "personId" }),
       ]}
       values={{ holdId }}
       reason={{ label: "Why is the hold released?" }}

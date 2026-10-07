@@ -9,6 +9,8 @@ const { documentOrg, logAccess, storeUpload, guard } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/app/_auth/actor", async () => (await import("@/lib/test-support/staff")).actorModule());
+// Phase 2b: every act is attributed to the signed-in person (`beginAct`). The real reading of the form stands, with the organisation's switch, the password and the write faked.
+vi.mock("@/app/_auth/act", async () => (await import("@/lib/test-support/staff")).actModule().module);
 vi.mock("@/app/_auth/route", async () => {
   const support = await import("@/lib/test-support/staff");
   const real = support.routeModule();

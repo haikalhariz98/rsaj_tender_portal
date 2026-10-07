@@ -5,7 +5,8 @@ import { useCallback, useRef, useTransition } from "react";
 import { attachDocument, attachNewVersion, detachDocument, verifyVersion } from "@/app/documents/actions";
 import { EMPTY_FORM_STATE, RecordEditor, type Field, type FormState, type SaveAction } from "@/components/record-editor";
 import { Button, buttonClass } from "@/components/ui/button";
-import { DETACH_NOTE, DOCUMENT_CLASS_HINT, DOCUMENT_NOTE_HINT, DOCUMENT_TITLE_HINT, NEW_VERSION_NOTE, ON_BEHALF_HINT } from "@/lib/documents/labels";
+import { actorField } from "@/lib/auth/actor-field";
+import { DETACH_NOTE, DOCUMENT_CLASS_HINT, DOCUMENT_NOTE_HINT, DOCUMENT_TITLE_HINT, NEW_VERSION_NOTE } from "@/lib/documents/labels";
 import type { AttachmentItemView, SlotView, UploadView } from "@/lib/documents/views";
 
 import { fieldOfRefusal, postUpload } from "./post-upload";
@@ -65,15 +66,8 @@ function uploadFields(upload: UploadView, opts: { newDocument: boolean; titleHin
           },
         ] satisfies Field[])
       : []),
-    {
-      kind: "select",
-      name: "recordedByPersonId",
-      label: "Recorded by",
-      required: true,
-      placeholder: "Choose who is recording it",
-      options: upload.people,
-      hint: ON_BEHALF_HINT,
-    },
+    // The upload is recorded by the signed-in officer (Phase 2b): the route takes the person from the session.
+    actorField("DocumentVersion.recordedBy", { name: "recordedByPersonId", people: upload.people }),
     { kind: "date", name: "receivedOn", label: "Received on", hint: upload.receivedHint },
     { kind: "textarea", name: "note", label: "Note", hint: DOCUMENT_NOTE_HINT },
   ];

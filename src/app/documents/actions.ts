@@ -20,6 +20,8 @@ import { drawerView, panelView, type DrawerView, type PanelOptions, type PanelVi
 import { db } from "@/lib/db";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { attributionRefusalState } from "@/app/_auth/act";
+import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -28,7 +30,7 @@ import type { OrgScope } from "@/lib/org-scope";
  * so each re-runs its pure check inside one transaction on locked rows: the owner first
  * (by its own module's lock), then the document. The write and its audit row share the
  * transaction; a refusal writes nothing and names what to do instead. The signed-in
- * officer is named on every audit row; a hold names the Person it was placed by, recorded on their behalf.
+ * officer is named on every audit row, and a hold is attributed to the officer who placed or released it (`beginAct`, Phase 2b).
  *
  * The upload itself is the Route Handler `POST /api/documents` (Server Actions cap a
  * body at 1 MB); attaching what it stored is `attachDocument`, with the `versionId` it returned.
@@ -54,6 +56,8 @@ async function inOwner(scope: OrgScope, actor: AuditActor, ref: OwnerRef, fn: (t
     });
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     throw e;
   }
   if (result?.ok) for (const p of [...paths, "/configuration/documents"]) revalidatePath(p);
@@ -238,12 +242,15 @@ export async function reclassifyDocument(_prev: FormState, data: FormData): Prom
   });
 }
 
-/// Place a legal hold, by a named Person, with the reason (NFR-RET-002).
+/// Place a legal hold, by the signed-in officer, with the reason (NFR-RET-002).
 export async function placeLegalHold(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
+  const begun = await beginAct(actor, data, "LegalHold.placedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   const documentId = String(data.get("documentId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
-  const personId = String(data.get("personId") ?? "").trim() || null;
   return inDocument(actor, documentId, async (tx, orgId) => {
     const doc = await tx.document.findUniqueOrThrow({ where: { id: documentId, organisationId: actor.organisationId }, include: { holds: { select: { releasedAt: true } } } });
     const person = personId ? await tx.person.findFirst({ where: { id: personId, organisationId: orgId, isActive: true }, select: { id: true, name: true } }) : null;
@@ -252,16 +259,20 @@ export async function placeLegalHold(_prev: FormState, data: FormData): Promise<
     if (faults.length) return refuse(faults);
     const hold = await tx.legalHold.create({ data: { organisationId: orgId, documentId, reason, placedByPersonId: person!.id } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "LegalHold", entityId: hold.id, entityLabel: `${docLabel(doc.title)} · legal hold`, reason }, "CREATE", holdPlaced({ reason, placedBy: person!.name }));
+    await act.write(tx, hold.id);
     return { ok: true };
   });
 }
 
-/// Release a standing legal hold, by a named Person, with the reason.
+/// Release a standing legal hold, by the signed-in officer, with the reason.
 export async function releaseLegalHold(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
+  const begun = await beginAct(actor, data, "LegalHold.releasedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   const holdId = String(data.get("holdId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
-  const personId = String(data.get("personId") ?? "").trim() || null;
   const org = await documentOrg(actor.organisationId);
   if (!org) return refuse([{ code: "NO_ORGANISATION", level: "block" }]);
   // Within the organisation, so another's hold id reads as missing does (audit C-5).
@@ -275,6 +286,7 @@ export async function releaseLegalHold(_prev: FormState, data: FormData): Promis
     if (faults.length) return refuse(faults);
     await tx.legalHold.update({ where: { id: hold.id, organisationId: actor.organisationId }, data: { releasedAt: new Date(), releaseReason: reason, releasedByPersonId: person!.id } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "LegalHold", entityId: hold.id, entityLabel: `${docLabel(hold.document.title)} · legal hold`, reason }, "UPDATE", holdReleased({ reason, releasedBy: person!.name }));
+    await act.write(tx, hold.id);
     return { ok: true };
   });
 }

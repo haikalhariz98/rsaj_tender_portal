@@ -9,10 +9,11 @@ import { EyeIcon, FileIcon } from "@/components/icons";
 import { EMPTY_FORM_STATE, RecordEditor, type SaveAction } from "@/components/record-editor";
 import { Badge, Chip } from "@/components/ui/badge";
 import { Button, buttonClass, iconButtonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
-import { endSentence, ON_BEHALF_HINT, plural, RECLASSIFY_NOTE, WITHDRAW_NOTE, withdrawnLine } from "@/lib/documents/labels";
+import { endSentence, plural, RECLASSIFY_NOTE, WITHDRAW_NOTE, withdrawnLine } from "@/lib/documents/labels";
 import type { AttachmentItemView, DrawerView, DrawerVersionView, UploadView } from "@/lib/documents/views";
 
 import { AttachToRecordButton } from "./attach-to-record";
@@ -440,7 +441,7 @@ function Holds({ d, onDone }: { d: DrawerView; onDone: (n: Notice) => void }) {
             fields={[
               { kind: "hidden", name: "holdId" },
               { kind: "note", text: `The hold was placed because: ${standing.reason}` },
-              { kind: "select", name: "personId", label: "Released by", required: true, placeholder: "Choose who is recording it", options: d.people, hint: ON_BEHALF_HINT },
+              actorField("LegalHold.releasedBy", { name: "personId", people: d.people }),
             ]}
             values={{ holdId: standing.id }}
             reason={{ label: "Why is the hold released?" }}
@@ -453,7 +454,7 @@ function Holds({ d, onDone }: { d: DrawerView; onDone: (n: Notice) => void }) {
           <RecordEditor
             title={`Place a legal hold on ${d.title}`}
             fields={[
-              { kind: "select", name: "personId", label: "Placed by", required: true, placeholder: "Choose who is recording it", options: d.people, hint: ON_BEHALF_HINT },
+              actorField("LegalHold.placedBy", { name: "personId", people: d.people }),
             ]}
             reason={{ label: "Why is the hold placed?" }}
             action={place}

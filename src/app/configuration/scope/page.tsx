@@ -451,7 +451,7 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
                           <>
                             <RateItemDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} />
                             <DiscardRateIssueDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} />
-                            <IssueRateScheduleDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} people={people} today={c.today} />
+                            <IssueRateScheduleDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} today={c.today} />
                           </>
                         )}
                       </span>

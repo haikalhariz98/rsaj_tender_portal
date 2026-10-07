@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 
 import { discardRateIssue, issueRateSchedule, removeRateItem, saveBasisBqRule, saveBqTemplate, saveBqTemplateSection, saveMethodEstimateRule, saveMethodScopeRule, savePersonQualification, saveQualification, saveRateItem, saveScopePolicy, saveSpecPanelColumn, startRateIssue } from "./actions";
 
@@ -306,7 +307,7 @@ export function RemoveRateItemDrawer({ scheduleId, item }: { scheduleId: string;
   );
 }
 
-export function IssueRateScheduleDrawer({ scheduleId, title, people, today }: { scheduleId: string; title: string; people: Option[]; today: string | null }) {
+export function IssueRateScheduleDrawer({ scheduleId, title, today }: { scheduleId: string; title: string; today: string | null }) {
   return (
     <RecordEditor
       title={`Issue ${title}`}
@@ -314,7 +315,7 @@ export function IssueRateScheduleDrawer({ scheduleId, title, people, today }: { 
       fields={[
         hidden("scheduleId"),
         { kind: "date", name: "effectiveFrom", label: "Takes effect from", required: true, hint: "The organisation's day. After the day the current issue took effect." },
-        { kind: "select", name: "issuedByPersonId", label: "Issued by", required: true, placeholder: "Choose", options: people, hint: "Recorded on their behalf, not signed." },
+        actorField("RateSchedule.issuedBy", { name: "issuedByPersonId", hint: "You issue it, from your sign-in." }),
         ...(today ? [] : [{ kind: "note", text: "Set the organisation's time zone under Configuration, Organisation first: the day it is issued is the organisation's." } as Field]),
       ]}
       values={{ scheduleId }}

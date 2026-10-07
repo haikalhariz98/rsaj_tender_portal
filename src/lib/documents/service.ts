@@ -17,6 +17,7 @@ import { isRetentionRule, type RetentionRule } from "./retention";
 import type { BlobStore } from "./store";
 import type { AccessKind, Finding, SecurityClass, StorePolicy } from "./types";
 import { nextVersionFault, nextVersionNo } from "./versioning";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import type { AuditActor } from "@/lib/auth/types";
 
 export interface DocumentOrg {
@@ -77,6 +78,8 @@ export interface UploadInput {
   /// Set to add a version to an existing document instead of creating one.
   documentId: string | null;
   recordedByPersonId: string;
+  /// How the upload was recorded, attributed in the same transaction (Phase 2b). A loader that stores directly has none.
+  act?: ActWriter;
   receivedOn: string | null;
   note: string;
 }
@@ -192,6 +195,7 @@ export async function storeUpload(actor: AuditActor, i: UploadInput): Promise<Up
         "CREATE",
         versionCreated({ versionNo, sha256: i.sha256, byteSize: version.byteSize, mediaType: i.mediaType, originalFilename: version.originalFilename, receivedOn: i.receivedOn, recordedBy: person.name, note: i.note }),
       );
+      await i.act?.write(tx, version.id);
       return { documentId, versionId: version.id, versionNo, sha256: i.sha256, byteSize: version.byteSize.toString(), mediaType: i.mediaType, status, warnings };
     },
     { timeout: 60_000, maxWait: 10_000 },

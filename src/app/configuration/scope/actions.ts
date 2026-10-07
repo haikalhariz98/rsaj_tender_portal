@@ -17,6 +17,7 @@ import { dayToDate, todayIn } from "@/lib/dates";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -477,8 +478,7 @@ export async function removeRateItem(_prev: FormState, data: FormData): Promise<
 }
 
 /**
- * Issue a draft: from the day it takes effect, named as issued by a person (recorded on
- * their behalf, not signed), on the organisation's day. The issue issued before it is
+ * Issue a draft: from the day it takes effect, issued by the signed-in officer (attributed in the same transaction, Phase 2b), on the organisation's day. The issue issued before it is
  * superseded in the same act; lines already priced from it keep what it said.
  */
 export async function issueRateSchedule(_prev: FormState, data: FormData): Promise<FormState> {
@@ -488,15 +488,18 @@ export async function issueRateSchedule(_prev: FormState, data: FormData): Promi
   const scheduleId = String(data.get("scheduleId") ?? "");
   const r = new FormReader(data);
   const effectiveFrom = r.date("effectiveFrom", "Takes effect from", { required: true });
-  const issuedByPersonId = r.optionalText("issuedByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
-  return db.$transaction(async (tx) => {
+  const begun = await beginAct(actor, data, "RateSchedule.issuedBy", { personField: "issuedByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  try {
+  return await db.$transaction(async (tx) => {
     const org = await tx.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } });
     const today = org.timeZone ? todayIn(new Date(), org.timeZone) : null;
     const l = await lockedIssue(tx, orgId, scheduleId);
     if (!l) return GONE;
-    const issuer = issuedByPersonId ? await activePerson(orgId, issuedByPersonId, tx) : null;
-    if (issuedByPersonId && !issuer) return { ok: false, errors: { issuedByPersonId: scopeFaultText("PERSON_UNKNOWN") } };
+    const issuer = await activePerson(orgId, act.subjectPersonId, tx);
+    if (!issuer) return { ok: false, errors: { issuedByPersonId: scopeFaultText("PERSON_UNKNOWN") } };
     const effective = effectiveFrom ? storedDay(effectiveFrom) : null;
     const { faults, supersedes } = issueFaults(l.issue, l.issues, { effectiveFrom: effective, issuedByPersonId: issuer?.id ?? null, today });
     if (faults.length) {
@@ -509,10 +512,16 @@ export async function issueRateSchedule(_prev: FormState, data: FormData): Promi
       await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, supersedes.id, issueLabel(supersedes.label, supersedes.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED }, { status: RATE_SCHEDULE_STATUS_LABEL.SUPERSEDED, supersededBy: `issue ${l.issue.issueNo}`, supersededOn: today });
     }
     await tx.rateSchedule.update({ where: { id: l.issue.id, organisationId: actor.organisationId }, data: { status: "ISSUED", effectiveFrom: dayToDate(effective!), issuedOn: dayToDate(today!), issuedByPersonId: issuer!.id } });
-    await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, l.issue.id, issueLabel(l.issue.label, l.issue.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED, effectiveFrom: effective, issuedOn: today, issuedBy: `${issuer!.name} (recorded on behalf of, not signed)`, items: l.issue.items.length });
+    await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, l.issue.id, issueLabel(l.issue.label, l.issue.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED, effectiveFrom: effective, issuedOn: today, issuedBy: issuer!.name, items: l.issue.items.length });
+    await act.write(tx, l.issue.id);
     revalidatePath("/sourcing", "layout");
     return done();
   });
+  } catch (e) {
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
+    throw e;
+  }
 }
 
 /// Discard a draft issue (never an issued one), with its items; the trail keeps every row.

@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server";
 
+import { beginAct } from "@/app/_auth/act";
 import { toAuditActor } from "@/app/_auth/actor";
 import { staffRoute } from "@/app/_auth/route";
-import type { AuditActor } from "@/lib/auth/types";
+import type { AuditActor, StaffActor } from "@/lib/auth/types";
 import { filenameFault } from "@/lib/documents/access";
 import { limitBody } from "@/lib/documents/body";
 import { RETRY_AFTER_SECONDS, uploadLimiter } from "@/lib/documents/concurrency";
@@ -12,7 +13,6 @@ import { mediaFault, sniffMediaType, SNIFF_BYTES } from "@/lib/documents/media";
 import { documentOrg, loadStorePolicy, logAccess, storeUpload, UploadRefusal } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling, sha256Hex } from "@/lib/documents/store";
 import type { Finding } from "@/lib/documents/types";
-import type { OrgScope } from "@/lib/org-scope";
 
 /**
  * Upload a file (plan §2, step 5): stored as a STAGED document's first version, or as
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function upload(scope: OrgScope, req: NextRequest, actor: AuditActor) {
+async function upload(scope: StaffActor, req: NextRequest, actor: AuditActor) {
   const org = await documentOrg(scope.organisationId);
   if (!org) return refusal(503, { code: "NO_ORGANISATION", level: "block" });
   const declaredLength = req.headers.get("content-length");
@@ -87,7 +87,6 @@ async function upload(scope: OrgScope, req: NextRequest, actor: AuditActor) {
     return typeof v === "string" ? v.trim() : "";
   };
   const fields = {
-    personId: text("recordedByPersonId"),
     title: text("title").slice(0, 300),
     documentClassId: text("documentClassId") || null,
     documentId: text("documentId") || null,
@@ -105,7 +104,10 @@ async function upload(scope: OrgScope, req: NextRequest, actor: AuditActor) {
   const sniffed = sniffMediaType(head);
   const media = mediaFault(sniffed, { filename: fileName, contentType: file.type }, policy);
   if (media) return refuse(415, media, at);
-  if (!fields.personId) return refuse(422, { code: "PERSON_REQUIRED", level: "block" }, at);
+  // The upload is recorded by the signed-in officer (Phase 2b): the person is the session's, never a field of the form.
+  const begun = await beginAct(scope, form, "DocumentVersion.recordedBy", { personField: "recordedByPersonId" });
+  if (!begun.ok) return Response.json({ ok: false, code: "ACT_REFUSED", message: begun.state.message ?? Object.values(begun.state.errors ?? {}).join(" ") }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  const act = begun.act;
   // The one copy of the file this route makes; the parsed form is let go with it.
   const bytes = new Uint8Array(await file.arrayBuffer());
   form = null;
@@ -120,7 +122,8 @@ async function upload(scope: OrgScope, req: NextRequest, actor: AuditActor) {
       title: fields.title,
       documentClassId: fields.documentClassId,
       documentId: fields.documentId,
-      recordedByPersonId: fields.personId,
+      recordedByPersonId: act.subjectPersonId,
+      act,
       receivedOn: fields.receivedOn,
       note: fields.note,
     });
