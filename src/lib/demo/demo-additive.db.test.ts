@@ -1,10 +1,13 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "@/generated/prisma/client";
+import { ACT_SLOTS } from "@/lib/auth/act-slots";
+import { slotColumns } from "@/lib/auth/slot-columns";
 import { db } from "@/lib/db";
 
 /**
@@ -89,6 +92,27 @@ describe("the demo loader is additive (Phase 1d)", () => {
     expect(second.status, second.out).toBe(0);
     expect(second.out).toMatch(/already present, loaded wholly or in part: nothing was written/);
     expect(await counts()).toEqual(after1);
+  });
+
+  it("leaves no demo row without its attribution (Phase 2b): the acts it ran are the demo loader's own, and the rows it wrote directly are attributed to it", { timeout: 300_000 }, async () => {
+    const columns = slotColumns(readFileSync(path.join(ROOT, "prisma", "schema.prisma"), "utf8"));
+    const lacking: string[] = [];
+    let held = 0;
+    for (const s of ACT_SLOTS) {
+      const column = columns.get(`${s.entity}.${s.field}`)!;
+      const [row] = await client!.$queryRawUnsafe<{ held: bigint; lacking: bigint }[]>(
+        `SELECT count(*) AS held, count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM "ActAttribution" a WHERE a."entity" = $1 AND a."slot" = $2 AND a."entityId" = t."id")) AS lacking FROM "${s.entity}" t WHERE t."${column}" IS NOT NULL`,
+        s.entity,
+        s.field,
+      );
+      held += Number(row.held);
+      if (row.lacking > 0n) lacking.push(`${s.entity}.${s.field}: ${row.lacking} of ${row.held}`);
+    }
+    expect(held).toBeGreaterThan(100);
+    expect(lacking).toEqual([]);
+    // Every one reads as the loader's, never as a person's signature.
+    const signed = await client!.actAttribution.count({ where: { mode: "SIGNED" } });
+    expect(signed).toBe(0);
   });
 
   it("the retired wipe refuses, exits non-zero and removes nothing", { timeout: 1_000_000 }, async () => {

@@ -16,13 +16,18 @@ const h = vi.hoisted(() => ({
   audits: [] as { entity: string; label: string; action: string; changes: { field: string; before: unknown; after: unknown }[]; reason: string }[],
   locks: [] as string[],
   today: "2026-10-07" as string | null,
+  attributed: [] as { entity: string; entityId: string; slot: string; subjectPersonId: string | null; mode: string }[],
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 // Phase 1b: every action asks who is signed in first; these tests are not about sign-in, so a signed-in officer stands in for the session.
 vi.mock("@/app/_auth/actor", async () => (await import("@/lib/test-support/staff")).actorModule());
 // Phase 2b: every act is attributed to the signed-in person (`beginAct`). The real reading of the form stands, with the organisation's switch, the password and the write faked.
-vi.mock("@/app/_auth/act", async () => (await import("@/lib/test-support/staff")).actModule().module);
+vi.mock("@/app/_auth/act", async () => {
+  const act = (await import("@/lib/test-support/staff")).actModule();
+  h.attributed = act.written;
+  return act.module;
+});
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`REDIRECT ${to}`);
@@ -191,6 +196,13 @@ describe("recording the supplier from an online application", () => {
     const audit = h.audits.find((a) => a.entity === "PortalApplication")!;
     expect(JSON.stringify(audit)).not.toMatch(/Sampel|202001000123|Aini/);
     expect(audit.changes.find((c) => c.field === "supplier")?.after).toBe("DEMO/SUP/0009/2026");
+  });
+
+  it("attributes both slots the one act fills to the signed-in officer: the application's recorder and the online application's decider", async () => {
+    h.attributed.length = 0;
+    await expect(record()).rejects.toThrow(/REDIRECT/);
+    expect(h.attributed.map((a) => `${a.entity}.${a.slot}`).sort()).toEqual(["PortalApplication.decidedBy", "SupplierApplication.recordedBy"]);
+    expect(h.attributed.every((a) => a.subjectPersonId === "person_test" && a.mode === "SIGNED")).toBe(true);
   });
 
   it("lets the officer correct what the applicant typed: the supplier holds what was checked", async () => {

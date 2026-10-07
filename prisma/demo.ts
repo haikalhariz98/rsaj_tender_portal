@@ -23,6 +23,7 @@ import { checkBidsDemo, configureBidsDemo, loadBidsDemo } from "./demo-bids";
 import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo } from "./demo-opening";
 import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo } from "./demo-evaluation";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
+import { attributeSeededRows } from "./demo-attribution";
 import { checkResultsDemo, loadResultsDemo, resultsDemoState } from "./demo-results";
 import { DEMO_PREFIX, DEMO_WIPE_RETIRED, demoIsLoaded, demoStarted } from "./demo-sign-in";
 import { inspectLogo } from "../src/lib/organisation/logo";
@@ -783,6 +784,8 @@ async function load() {
   // last, on everything above (prisma/demo-results.ts). `npm run demo:results` applies it alone to a loaded database.
   await loadResultsDemo(db, organisationId, { determine: determineExercises });
   await checkResultsDemo(db);
+  // Phase 2b: the rows the loaders wrote straight into the tables are attributed to the demo loader, as the acts it ran already are.
+  await attributeSeededRows(db, organisationId);
 
   console.log("Demo data loaded. This is invented data for comparing screens — never ship it.");
   console.log("It stays: the trail is permanent, so a demonstration database is replaced by a new one, never emptied.");
@@ -2072,18 +2075,32 @@ async function results() {
   await checkResultsDemo(db);
 }
 
+/**
+ * Phase 2b: the demo's own rows that have no attribution yet, attributed to the demo loader (prisma/demo-attribution.ts), in a database the demo was loaded in
+ * before attribution existed. Adds and changes nothing else; a second run writes nothing.
+ */
+async function attribute() {
+  const org = await organisation();
+  if (!(await demoIsLoaded(db))) {
+    console.log("The demo is not loaded: nothing to attribute.");
+    return;
+  }
+  const written = await attributeSeededRows(db, org.id);
+  console.log(written > 0 ? `${written} demo rows attributed to the demo loader.` : "Every demo row already has its attribution: nothing was written.");
+}
+
 const mode = process.argv[2];
 
 if (mode === "wipe") {
   console.error(DEMO_WIPE_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results") {
-  console.error("usage: tsx prisma/demo.ts <load|results>");
+if (mode !== "load" && mode !== "results" && mode !== "attribute") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);

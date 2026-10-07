@@ -86,7 +86,9 @@ describe("the award is the real acts'", () => {
 describe("how it is applied", () => {
   it("demo:load runs it last and reads it back", () => {
     const load = demo.slice(demo.indexOf("async function load()"), demo.indexOf('console.log("Demo data loaded.'));
-    expect(load).toMatch(/await loadResultsDemo\(db, organisationId, \{ determine: determineExercises \}\);\n {2}await checkResultsDemo\(db\);\n\n {2}$/);
+    // Phase 2b (decisions log, 2026-10-07): the rows the loaders wrote straight into the tables are attributed to the demo loader once everything is loaded, so the fixture
+    // is still the last of the demo's own data, and the attribution of the rows already there is the one step after it.
+    expect(load).toMatch(/await loadResultsDemo\(db, organisationId, \{ determine: determineExercises \}\);\n {2}await checkResultsDemo\(db\);\n {2}\/\/ [^\n]*\n {2}await attributeSeededRows\(db, organisationId\);\n\n {2}$/);
   });
   it("demo:results adds it to a loaded database without a wipe, writes nothing where it is issued, and refuses part-made", () => {
     const results = demo.slice(demo.indexOf("async function results()"), demo.indexOf("const mode = process.argv[2];"));
