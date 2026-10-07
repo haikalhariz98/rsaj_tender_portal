@@ -1,11 +1,12 @@
 /**
  * Read-only: for every person slot of an act (`src/lib/auth/act-slots.ts`), counts the rows that hold a person and have no attribution (ADR 0034 D12, Phase 2b).
- * A row written before sign-in has none, and reads "(before sign-in)" on a screen; a row written by an act since has one, always. A row made after sign-in that
- * has none (a seed that wrote the table directly, an act no one wired) reads "Attribution missing", and this finds them. It changes nothing.
+ * A row written before sign-in has none, and reads "(before sign-in)" on a screen: its first trail entry names nobody. A row written by an act since has one,
+ * always. A row with none whose first trail entry names an actor (a seed that wrote the table directly, an act no one wired) reads "Attribution missing", and
+ * this finds them. It changes nothing.
  *
  *   npm run auth:attribution
  *
- * Exit status 1 when any slot has rows with no attribution, so a deployment can run it as a check.
+ * Exit status 1 when any row would read "Attribution missing", so a deployment can run it as a check. Rows from before sign-in are counted and do not fail it.
  */
 import "dotenv/config";
 
@@ -19,6 +20,7 @@ import { db } from "../src/lib/db";
 async function main() {
   const columns = slotColumns(readFileSync(path.join(__dirname, "..", "prisma", "schema.prisma"), "utf8"));
   let lacking = 0;
+  let missing = 0;
   let held = 0;
   const lines: string[] = [];
   for (const s of ACT_SLOTS) {
@@ -26,26 +28,30 @@ async function main() {
     const column = columns.get(key);
     if (!column) {
       lines.push(`  ${key}: no column found in the schema`);
-      lacking++;
+      missing++;
       continue;
     }
     // The names come from the registry and the schema, never from a request.
-    const rows = await db.$queryRawUnsafe<{ held: bigint; lacking: bigint }[]>(
+    const rows = await db.$queryRawUnsafe<{ held: bigint; lacking: bigint; missing: bigint }[]>(
       `SELECT count(*) FILTER (WHERE t."${column}" IS NOT NULL) AS held,
-              count(*) FILTER (WHERE t."${column}" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "ActAttribution" a WHERE a."entity" = $1 AND a."slot" = $2 AND a."entityId" = t."id")) AS lacking
+              count(*) FILTER (WHERE t."${column}" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "ActAttribution" a WHERE a."entity" = $1 AND a."slot" = $2 AND a."entityId" = t."id")) AS lacking,
+              count(*) FILTER (WHERE t."${column}" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "ActAttribution" a WHERE a."entity" = $1 AND a."slot" = $2 AND a."entityId" = t."id")
+                AND EXISTS (SELECT 1 FROM (SELECT DISTINCT ON ("entityId") "unattributed" FROM "AuditEntry" e WHERE e."entity" = $1 AND e."entityId" = t."id" ORDER BY "entityId", e."at" ASC) first WHERE NOT first."unattributed")) AS missing
          FROM "${s.entity}" t`,
       s.entity,
       s.field,
     );
     const h = Number(rows[0]?.held ?? 0n);
     const l = Number(rows[0]?.lacking ?? 0n);
+    const m = Number(rows[0]?.missing ?? 0n);
     held += h;
     lacking += l;
-    if (l > 0) lines.push(`  ${key}: ${l} of ${h} with no attribution`);
+    missing += m;
+    if (l > 0) lines.push(`  ${key}: ${l} of ${h} with no attribution${m > 0 ? `, ${m} of them would read "Attribution missing"` : " (from before sign-in)"}`);
   }
-  console.log(`${held} acts hold a person in ${ACT_SLOTS.length} slots; ${lacking} have no attribution.`);
+  console.log(`${held} acts hold a person in ${ACT_SLOTS.length} slots; ${lacking} have no attribution, ${missing} of them would read "Attribution missing".`);
   for (const l of lines) console.log(l);
-  if (lacking > 0) process.exitCode = 1;
+  if (missing > 0) process.exitCode = 1;
 }
 
 main()

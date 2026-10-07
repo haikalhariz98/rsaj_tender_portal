@@ -789,7 +789,7 @@ async function NamePanel({
   const inst = current;
   const earlier = latestFirst(nameRoutesOf(ex.approvalInstances)).filter((i) => i.id !== current?.id);
   // Where the officer sent a refused route is read from the route's attribution (Phase 2b).
-  const chosenBy = await routeActed(db, l.org.id, ex.approvalInstances);
+  const chosenBy = await routeActed(db, l.org.id, nameRoutesOf(ex.approvalInstances));
   return (
     <div className="flex flex-col gap-6">
       <Callout tone="info" title="The name is approved for a list, and invitation is held to it">
