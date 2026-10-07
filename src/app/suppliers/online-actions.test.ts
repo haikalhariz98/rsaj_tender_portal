@@ -21,6 +21,8 @@ const h = vi.hoisted(() => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 // Phase 1b: every action asks who is signed in first; these tests are not about sign-in, so a signed-in officer stands in for the session.
 vi.mock("@/app/_auth/actor", async () => (await import("@/lib/test-support/staff")).actorModule());
+// Phase 2b: every act is attributed to the signed-in person (`beginAct`). The real reading of the form stands, with the organisation's switch, the password and the write faked.
+vi.mock("@/app/_auth/act", async () => (await import("@/lib/test-support/staff")).actModule().module);
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`REDIRECT ${to}`);

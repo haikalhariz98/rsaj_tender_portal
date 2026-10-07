@@ -8,6 +8,7 @@
 
 import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import type { Tx } from "@/lib/audit/record";
 import { dayToDate, storedDay } from "@/lib/dates";
 
@@ -34,7 +35,8 @@ export const appInclude = { supplier: { select: { reference: true } }, routes: {
  * so nothing in the append-only trail needs erasing later. The reason is the officer's own words, so it
  * must not repeat the applicant's details.
  */
-export async function setAsideOnlineApplication(tx: Tx, actor: AuditActor, organisationId: string, i: { id: string; reason: string; personId: string | null; now: Date }): Promise<FormState> {
+export async function setAsideOnlineApplication(tx: Tx, actor: AuditActor, organisationId: string, i: { id: string; reason: string; personId: string | null; now: Date; /// How the officer set it aside, attributed in this transaction (Phase 2b). A loader that calls the core directly has none.
+  act?: ActWriter }): Promise<FormState> {
   await tx.$queryRaw`SELECT id FROM "PortalApplication" WHERE id = ${i.id} AND "organisationId" = ${organisationId} FOR UPDATE`;
   const pa = await tx.portalApplication.findFirst({ where: { id: i.id, organisationId } });
   if (!pa) return { ok: false, message: "That online application no longer exists." };
@@ -44,6 +46,7 @@ export async function setAsideOnlineApplication(tx: Tx, actor: AuditActor, organ
   await tx.portalApplication.update({ where: { id: pa.id }, data: { status: "DISCARDED", decidedAt: i.now, decidedByPersonId: person.id, discardReason: i.reason, erasedAt: i.now, ...ERASED } });
   await audit(tx, actor, organisationId, SUPPLIER_ENTITY.onlineApplication, pa.id, label({ reference: pa.reference }, "Online application"), "UPDATE",
     diffFields({ status: "Received", personalDetails: "Held on the application" }, { status: "Set aside", decidedBy: person.name, personalDetails: "Erased" }), i.reason);
+  await i.act?.write(tx, pa.id);
   return { ok: true };
 }
 
@@ -53,6 +56,8 @@ export interface OutcomeInput {
   remarks: string;
   resubmitBy: string | null;
   personId: string | null;
+  /// How the officer decided it, attributed in this transaction (Phase 2b). A loader that calls the core directly has none.
+  act?: ActWriter;
   /// Each item as written: a lodged document (`documentId`) or a document type not lodged (`typeId`).
   items: { documentId: string | null; typeId: string | null; remarks: string }[];
   now: Date;
@@ -64,7 +69,7 @@ export interface OutcomeInput {
  * Throws a Refusal (rolling everything back) if the application moved under the lock.
  */
 export async function recordOutcome(tx: Tx, actor: AuditActor, l: LockedSupplier, input: OutcomeInput): Promise<FormState> {
-  const { applicationId, outcome, remarks, resubmitBy, personId, items, now } = input;
+  const { applicationId, outcome, remarks, resubmitBy, personId, items, now, act } = input;
   const supplierId = l.supplier.id;
   await tx.$queryRaw`SELECT id FROM "SupplierApplication" WHERE id = ${applicationId} FOR UPDATE`;
   const a = await tx.supplierApplication.findFirst({ where: { id: applicationId, supplierId }, include: appInclude });
@@ -106,6 +111,7 @@ export async function recordOutcome(tx: Tx, actor: AuditActor, l: LockedSupplier
     },
     include: { items: true },
   });
+  await act?.write(tx, dec.id);
   const status = outcome === "RESUBMIT" ? "RESUBMISSION_REQUESTED" : "REJECTED";
   const moved = await tx.supplierApplication.updateMany({ where: { id: a.id, status: a.status, lapsedRecordedAt: null }, data: { status, resubmitBy: outcome === "RESUBMIT" ? dayToDate(resubmitBy!) : a.resubmitBy, ...(outcome === "REJECT" ? { decidedAt: now } : {}) } });
   if (moved.count !== 1) throw new Refusal(CHANGED);

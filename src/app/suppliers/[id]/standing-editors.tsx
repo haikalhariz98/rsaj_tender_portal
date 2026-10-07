@@ -1,7 +1,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { Blocked } from "@/components/ui/blocked";
 import { buttonClass } from "@/components/ui/button";
-import { ON_BEHALF_HINT } from "@/lib/documents/labels";
+import { actorField } from "@/lib/auth/actor-field";
 import { NEW_APPLICATION_WAY_BACK } from "@/lib/suppliers/labels";
 
 import { grantSpecialPermission, linkAwardToSupplier, linkPartyToSupplier, recordSpecialPermission, decidePermissionStep } from "../link-actions";
@@ -19,7 +19,6 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 const secondary = buttonClass("secondary", "sm");
 const primary = buttonClass("primary", "sm");
 const ghost = buttonClass("ghost", "sm");
-const person = (label: string, people: Option[]): Field => ({ kind: "select", name: "personId", label, required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT });
 
 // ------------------------------------------------------------------ suspension and reinstatement
 
@@ -35,7 +34,7 @@ export function SuspendDrawer({ supplierId, reasons, documents, people, today, b
         { kind: "date", name: "effectiveOn", label: "Takes effect on", required: true, hint: "Not after today, nor before the supplier was registered." },
         { kind: "tokens", name: "flaggedDocumentIds", label: "The documents it is for", options: documents, hint: "Reinstating needs each verified and in force again." },
         { kind: "textarea", name: "note", label: "Note" },
-        person("Recorded by", people),
+        actorField("StandingEvent.recordedBy", { name: "personId", people }),
       ]}
       values={{ supplierId, effectiveOn: today }}
       action={suspendSupplier}
@@ -58,7 +57,7 @@ export function ReinstateDrawer({ supplierId, checklist, people, today, blocker 
           : [{ kind: "note", text: "The suspension named no document: there is nothing to tick." } as Field]),
         { kind: "textarea", name: "note", label: "What was done", required: true },
         { kind: "date", name: "effectiveOn", label: "Takes effect on", required: true },
-        person("Recorded by", people),
+        actorField("StandingEvent.recordedBy", { name: "personId", people }),
       ]}
       values={{ supplierId, effectiveOn: today }}
       action={reinstateSupplier}
@@ -81,7 +80,7 @@ export function RequestBlacklistDrawer({ supplierId, reasons, awards, fromAward,
         { kind: "select", name: "reasonId", label: "Reason", required: true, placeholder: "Choose", options: reasons, hint: reasons.length ? undefined : "No blacklisting reason is configured (Configuration › Supplier register, Standing reasons)." },
         ...(awards.length ? [{ kind: "select", name: "sourceAwardId", label: "From the cancelled award", placeholder: "None", options: awards, hint: "An award cancelled with blacklisting recommended." } as Field] : []),
         { kind: "textarea", name: "note", label: "Note" },
-        person("Asked by", people),
+        actorField("StandingRequest.requestedBy", { name: "personId", people }),
       ]}
       values={{ supplierId, sourceAwardId: fromAward ?? "" }}
       action={requestBlacklisting}
@@ -97,7 +96,7 @@ export function RequestLiftDrawer({ supplierId, people, blocker }: { supplierId:
     <RecordEditor
       title="Ask to lift the blacklisting"
       description="Decided on its own route under the approval matrix, and recorded once that route approves it."
-      fields={[hidden("supplierId"), { kind: "textarea", name: "note", label: "Why", required: true }, person("Asked by", people)]}
+      fields={[hidden("supplierId"), { kind: "textarea", name: "note", label: "Why", required: true }, actorField("StandingRequest.requestedBy", { name: "personId", people })]}
       values={{ supplierId }}
       action={requestBlacklistLift}
       submitLabel="Ask, and send on its route"
@@ -116,7 +115,7 @@ export function RecordStandingDrawer({ requestId, kind, people, today, approvedO
       fields={[
         hidden("requestId"),
         { kind: "date", name: "effectiveOn", label: "Takes effect on", required: true, hint: approvedOn ? `Not before the route approved it, nor after today.` : undefined },
-        person("Recorded by", people),
+        actorField("StandingEvent.recordedBy", { name: "personId", people }),
       ]}
       values={{ requestId, effectiveOn: today }}
       action={kind === "BLACKLIST" ? recordBlacklisting : liftBlacklisting}
@@ -132,7 +131,7 @@ export function WithdrawRequestDrawer({ requestId, what, people }: { requestId: 
     <RecordEditor
       title={`Withdraw the request: ${what}`}
       description="It is closed and nothing is recorded from it; the supplier is no longer held open by it, so another may be asked for. The request and its route stay on the record, marked withdrawn, with why."
-      fields={[hidden("requestId"), person("Withdrawn by", people)]}
+      fields={[hidden("requestId"), actorField("StandingRequest.withdrawnBy", { name: "personId", people })]}
       values={{ requestId }}
       destructive={{ reasonLabel: "Why it is withdrawn" }}
       cancelLabel="Keep the request"
@@ -158,7 +157,7 @@ export function RecordCancellationDrawer({ supplierId, bodies, people, today, bl
         { kind: "text", name: "externalReference", label: "The body's reference", required: true, hint: "As on its notice." },
         { kind: "date", name: "effectiveOn", label: "Takes effect on", required: true, hint: "As the notice states; not after today, nor before the supplier was registered." },
         { kind: "textarea", name: "note", label: "Note" },
-        person("Recorded by", people),
+        actorField("StandingEvent.recordedBy", { name: "personId", people }),
       ]}
       values={{ supplierId, effectiveOn: today }}
       action={recordRegistrationCancelled}
@@ -174,7 +173,7 @@ export function WithdrawCancellationDrawer({ eventId, people, notRevisited }: { 
     <RecordEditor
       title="Withdraw the cancellation: recorded in error"
       description={`Only for a record made in error (another supplier's notice, a misread one). It stays on the record, marked withdrawn, with why, and the supplier's standing no longer reads it. ${notRevisited} ${NEW_APPLICATION_WAY_BACK.en}`}
-      fields={[hidden("eventId"), person("Withdrawn by", people)]}
+      fields={[hidden("eventId"), actorField("StandingEvent.withdrawnBy", { name: "personId", people })]}
       values={{ eventId }}
       destructive={{ reasonLabel: "Why it was recorded in error" }}
       cancelLabel="Keep it"
@@ -190,11 +189,11 @@ export function DecideRouteStepDrawer({ stepId, office, done, people, today, mat
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
-      description={`On ${matter}. ${ON_BEHALF_HINT} They must hold the office organisation-wide, or a delegation of it with no value ceiling.`}
+      description={`On ${matter}. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office organisation-wide, or a delegation of it with no value ceiling.`}
       fields={[
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: refused }] },
-        { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: people, hint: people.length === 0 ? "Nobody holds this office organisation-wide today." : undefined },
+        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true, hint: people.length === 0 ? "Nobody holds this office organisation-wide today." : undefined }),
         { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was asked for." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
       ]}
@@ -208,7 +207,7 @@ export function DecideRouteStepDrawer({ stepId, office, done, people, today, mat
 
 // ------------------------------------------------------------------ links (OD-9)
 
-export function LinkPartyDrawer({ supplierId, parties, people }: { supplierId: string; parties: Option[]; people: Option[] }) {
+export function LinkPartyDrawer({ supplierId, parties }: { supplierId: string; parties: Option[] }) {
   if (parties.length === 0) return <Blocked label="Link a party" reason="No unlinked party on any exercise." />;
   return (
     <RecordEditor
@@ -218,7 +217,7 @@ export function LinkPartyDrawer({ supplierId, parties, people }: { supplierId: s
         hidden("supplierId"),
         { kind: "select", name: "partyId", label: "Party", required: true, placeholder: "Choose", options: parties },
         { kind: "textarea", name: "reason", label: "Why they are the same company", hint: "Needed where the numbers differ." },
-        person("Linked by", people),
+        // The officer who links is the one signed in: the History names them.
       ]}
       values={{ supplierId }}
       action={linkPartyToSupplier}
@@ -228,7 +227,7 @@ export function LinkPartyDrawer({ supplierId, parties, people }: { supplierId: s
   );
 }
 
-export function LinkAwardDrawer({ supplierId, awards, people }: { supplierId: string; awards: Option[]; people: Option[] }) {
+export function LinkAwardDrawer({ supplierId, awards }: { supplierId: string; awards: Option[] }) {
   if (awards.length === 0) return null;
   return (
     <RecordEditor
@@ -238,7 +237,7 @@ export function LinkAwardDrawer({ supplierId, awards, people }: { supplierId: st
         hidden("supplierId"),
         { kind: "select", name: "awardId", label: "Award", required: true, placeholder: "Choose", options: awards },
         { kind: "textarea", name: "reason", label: "Why they are the same company", hint: "Needed where the numbers differ." },
-        person("Linked by", people),
+        // The officer who links is the one signed in: the History names them.
       ]}
       values={{ supplierId }}
       action={linkAwardToSupplier}
@@ -267,7 +266,7 @@ export function PermissionDrawer({ partyId, partyLabel, requirements, bodies, pe
         { kind: "switch", name: "goodRecordConfirmed", label: "The party's record is good" },
         { kind: "date", name: "grantedOn", label: "Granted on", hint: "Where no approval inside the organisation is needed. Not after today." },
         { kind: "textarea", name: "note", label: "Note" },
-        person("Recorded by", people),
+        actorField("SpecialPermission.requestedBy", { name: "personId", people }),
       ]}
       values={{ partyId, grantedOn: today }}
       action={recordSpecialPermission}
@@ -284,7 +283,7 @@ export function GrantPermissionDrawer({ permissionId, people, today, blocker }: 
     <RecordEditor
       title="Record the permission granted"
       description="Its route has approved it."
-      fields={[hidden("permissionId"), { kind: "date", name: "grantedOn", label: "Granted on", required: true }, person("Recorded by", people)]}
+      fields={[hidden("permissionId"), { kind: "date", name: "grantedOn", label: "Granted on", required: true }, actorField("SpecialPermission.grantedBy", { name: "personId", people })]}
       values={{ permissionId, grantedOn: today }}
       action={grantSpecialPermission}
       submitLabel="Record it granted"

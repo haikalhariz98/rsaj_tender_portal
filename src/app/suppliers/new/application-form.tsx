@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 
+import { ActAttributionFields } from "@/components/act-attribution-fields";
 import { SaveIcon } from "@/components/icons";
 import type { FormState } from "@/components/record-editor";
 import { Chip } from "@/components/ui/badge";
@@ -11,7 +12,7 @@ import { Callout } from "@/components/ui/feedback";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
 import { formatDate } from "@/lib/format";
-import { ON_BEHALF_HINT } from "@/lib/documents/labels";
+import { actorField } from "@/lib/auth/actor-field";
 
 import { recordApplication } from "../actions";
 
@@ -22,7 +23,7 @@ type Option = { value: string; label: string };
  * refused save; every rule is the action's (`applicationFaults`). The contact is the supplier's, never
  * a Person, and readable by anyone until sign-in (condition 2).
  */
-export function ApplicationForm({ entityTypes, countries, channels, people, formatExample, today, notRestricted, portal }: { entityTypes: Option[]; countries: Option[]; channels: Option[]; people: Option[]; formatExample: string | null; today: string | null; notRestricted: string; portal?: { id: string; reference: string; receivedOn: string; initial: Record<string, string> } }) {
+export function ApplicationForm({ entityTypes, countries, channels, formatExample, today, notRestricted, portal }: { entityTypes: Option[]; countries: Option[]; channels: Option[]; formatExample: string | null; today: string | null; notRestricted: string; portal?: { id: string; reference: string; receivedOn: string; initial: Record<string, string> } }) {
   const [state, setState] = useState<FormState>({ ok: false });
   const [pending, startTransition] = useTransition();
   const [v, setV] = useState<Record<string, string>>(portal?.initial ?? {});
@@ -85,7 +86,7 @@ export function ApplicationForm({ entityTypes, countries, channels, people, form
               <p className="text-[12.5px] font-semibold text-ink-3">Sent on</p>
               <p className="mt-0.5 font-semibold text-ink">{formatDate(portal.receivedOn)}</p>
             </div>
-            {select("recordedByPersonId", "Recorded by", people, { required: true, hint: ON_BEHALF_HINT })}
+            <ActAttributionFields spec={actorField("SupplierApplication.recordedBy", { name: "recordedByPersonId", hint: "Recorded by you, from your sign-in." })} errors={state.errors} />
           </CardBody>
         </Card>
       ) : (
@@ -96,7 +97,7 @@ export function ApplicationForm({ entityTypes, countries, channels, people, form
           {select("channel", "How it came in", channels, { required: true })}
           {text("declarationSignedOn", "Declaration signed on", { type: "date", hint: "The day on the signed false-declaration and blacklisting declaration. Needed before it is sent for decision." })}
           {text("epaymentFormReceivedOn", "E-Payment form received on", { type: "date", hint: "Only that it was received: no bank detail is recorded before sign-in. Its scan is SULIT." })}
-          {select("recordedByPersonId", "Recorded by", people, { required: true, hint: ON_BEHALF_HINT })}
+          <ActAttributionFields spec={actorField("SupplierApplication.recordedBy", { name: "recordedByPersonId", hint: "Recorded by you, from your sign-in." })} errors={state.errors} />
         </CardBody>
       </Card>
       )}

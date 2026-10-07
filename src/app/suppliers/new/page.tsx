@@ -4,7 +4,6 @@ import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { storedDay } from "@/lib/dates";
-import { db } from "@/lib/db";
 import { flagWords } from "@/lib/portal/queue";
 import { formatDate } from "@/lib/format";
 import { loadPortalApplication } from "@/lib/portal/queue-repo";
@@ -33,7 +32,7 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
       </>
     );
   }
-  const [cfg, people] = await Promise.all([loadSupplierConfig(org.id), db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })]);
+  const cfg = await loadSupplierConfig(org.id);
   const list = (kind: "ENTITY_TYPE" | "COUNTRY") => cfg.lists.filter((l) => l.list === kind && cfg.live(l, org.today)).map((l) => ({ value: l.code, label: l.nameEn }));
   // From an online application: the form opens with what the applicant typed, and the portal fixes the channel and the day.
   const online = from ? await loadPortalApplication(org.id, from) : null;
@@ -78,7 +77,7 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
         entityTypes={list("ENTITY_TYPE")}
         countries={list("COUNTRY")}
         channels={PAPER_CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABEL[c].en }))}
-        people={people.map((p) => ({ value: p.id, label: p.name }))}
+       
         formatExample={cfg.format?.example || null}
         today={org.today}
         notRestricted={NOT_RESTRICTED_CHIP.en}

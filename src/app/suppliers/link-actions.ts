@@ -22,6 +22,7 @@ import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 
 import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { activePerson, audit, CHANGED, notes, NO_ORG, refuse, Refusal, stampNow } from "./shared";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { OrgScope } from "@/lib/org-scope";
@@ -57,6 +58,8 @@ async function onExerciseSide(scope: OrgScope, exerciseId: string, lockMiddle: (
     );
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     if (transactionTimedOut(e)) return { ok: false, message: "This took too long and nothing was saved. Try again." };
     throw e;
   }
@@ -75,7 +78,6 @@ export async function linkPartyToSupplier(_prev: FormState, data: FormData): Pro
   const partyId = r.text("partyId", "Party", { required: true });
   const supplierId = r.text("supplierId", "Supplier", { required: true });
   const reason = r.text("reason", "Why they are the same company", { max: 1000 });
-  const personId = r.text("personId", "Linked by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
   const p0 = await db.exerciseParty.findUnique({ where: { id: partyId, organisationId: actor.organisationId }, select: { exerciseId: true } });
   if (!p0) return { ok: false, message: "That party no longer exists." };
@@ -85,8 +87,8 @@ export async function linkPartyToSupplier(_prev: FormState, data: FormData): Pro
   }, supplierId, async (tx, l) => {
     const party = await tx.exerciseParty.findUniqueOrThrow({ where: { id: partyId, organisationId: actor.organisationId }, select: { id: true, name: true, registrationNo: true, vendorId: true, awards: { select: { id: true, reference: true, vendorId: true, awardeePartyId: true } } } });
     const supplier = await tx.supplier.findFirst({ where: { id: supplierId, organisationId: l.org.id }, select: { id: true, reference: true, registeredName: true, registrationNo: true, status: true } });
-    const person = await activePerson(tx, l.org.id, personId);
-    if (!person) return { ok: false, errors: { personId: "Name the officer (an active person)." } };
+    // The officer who links is the signed-in one: no person column holds it, and the audit row names them (Phase 2b).
+    const person = { id: actor.personId, name: actor.personName };
     // fix R-12: the exercise's other parties, read with the exercise locked, so two links cannot race.
     const others = await tx.exerciseParty.findMany({ where: { exerciseId: l.ex.id, NOT: { id: party.id } }, select: { name: true, vendorId: true } });
     const fs = linkPartyFaults(party, supplier, reason, others);
@@ -94,7 +96,7 @@ export async function linkPartyToSupplier(_prev: FormState, data: FormData): Pro
     await tx.exerciseParty.update({ where: { id: party.id, organisationId: actor.organisationId }, data: { vendorId: supplier!.id } });
     const differs = fs.find((f) => f.code === "NUMBER_DIFFERS");
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.party, party.id, `${l.ex.reference} · Party ${party.name}`, "UPDATE",
-      diffFields({ supplier: null }, { supplier: supplierWords(supplier!), numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: reason || null, linkedBy: person.name, recordedOnBehalf: "not signed" }), reason);
+      diffFields({ supplier: null }, { supplier: supplierWords(supplier!), numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: reason || null, linkedBy: person.name }), reason);
     // The party's awards follow its link (the party is authoritative); one that disagreed is refused, never moved.
     for (const a of party.awards) {
       if (a.vendorId && a.vendorId !== supplier!.id) throw new Refusal({ ok: false, message: `Nothing was saved: award ${a.reference} already names another supplier, against its party's link.` });
@@ -114,7 +116,6 @@ export async function linkAwardToSupplier(_prev: FormState, data: FormData): Pro
   const awardId = r.text("awardId", "Award", { required: true });
   const supplierId = r.text("supplierId", "Supplier", { required: true });
   const reason = r.text("reason", "Why they are the same company", { max: 1000 });
-  const personId = r.text("personId", "Linked by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
   const a0 = await db.award.findUnique({ where: { id: awardId, organisationId: actor.organisationId }, select: { exerciseId: true } });
   if (!a0) return { ok: false, message: "That award no longer exists." };
@@ -123,14 +124,14 @@ export async function linkAwardToSupplier(_prev: FormState, data: FormData): Pro
   }, supplierId, async (tx, l) => {
     const award = await tx.award.findUniqueOrThrow({ where: { id: awardId, organisationId: actor.organisationId }, select: { id: true, reference: true, awardeePartyId: true, awardeeRegistrationNo: true, vendorId: true } });
     const supplier = await tx.supplier.findFirst({ where: { id: supplierId, organisationId: l.org.id }, select: { id: true, reference: true, registeredName: true, registrationNo: true, status: true } });
-    const person = await activePerson(tx, l.org.id, personId);
-    if (!person) return { ok: false, errors: { personId: "Name the officer (an active person)." } };
+    // The officer who links is the signed-in one: no person column holds it, and the audit row names them (Phase 2b).
+    const person = { id: actor.personId, name: actor.personName };
     const fs = linkAwardFaults(award, supplier, reason);
     if (blocking(fs).length) return refuseLink(fs);
     await tx.award.update({ where: { id: award.id, organisationId: actor.organisationId }, data: { vendorId: supplier!.id } });
     const differs = fs.find((f) => f.code === "NUMBER_DIFFERS");
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.award, award.id, `${award.reference} · Awardee's supplier`, "UPDATE",
-      diffFields({ supplier: null }, { supplier: supplierWords(supplier!), numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: reason || null, linkedBy: person.name, recordedOnBehalf: "not signed" }), reason);
+      diffFields({ supplier: null }, { supplier: supplierWords(supplier!), numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: reason || null, linkedBy: person.name }), reason);
     const n = notes(fs);
     return { ok: true, message: `Linked to ${supplierWords(supplier!)}.${n ? ` ${n}` : ""}` };
   }, [`/suppliers/${supplierId}`, `/awards/${awardId}`]);
@@ -158,13 +159,16 @@ export async function recordSpecialPermission(_prev: FormState, data: FormData):
   const requirementId = r.optionalText("requirementId");
   const relaxes = r.choice("relaxes", "What it relaxes", ["GRADE", "FIELD_CODE"] as const);
   const internal = r.choice("internalApproval", "Approved inside the organisation too", ["yes", "no"] as const, { required: true });
-  const personId = r.text("personId", "Recorded by", { required: true });
   const granted = r.date("grantedOn", "Granted on");
   const note = r.text("note", "Note", { max: 2000 });
   const bodies = splitValues(data.get("grantingBodyIds"));
   const existingClassConfirmed = data.get("existingClassConfirmed") === "on" || data.get("existingClassConfirmed") === "true";
   const goodRecordConfirmed = data.get("goodRecordConfirmed") === "on" || data.get("goodRecordConfirmed") === "true";
   if (r.failed || !internal) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "SpecialPermission.requestedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   const internalApproval = internal === "yes";
   const p0 = await db.exerciseParty.findUnique({ where: { id: partyId, organisationId: actor.organisationId }, select: { exerciseId: true, vendorId: true } });
   if (!p0) return { ok: false, message: "That party no longer exists." };
@@ -193,9 +197,11 @@ export async function recordSpecialPermission(_prev: FormState, data: FormData):
         ...(internalApproval ? {} : { grantedOn: dayToDate(grantedOn!), grantedByPersonId: person!.id, grantedAt: now }),
       },
     });
+    if (!internalApproval) await act.writeAlso(tx, "SpecialPermission.grantedBy", perm.id);
     const permLabel = `${l.ex.reference} · Special permission for ${party.name}`;
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.permission, perm.id, permLabel, "CREATE",
-      diffFields(null, { requirement: reqLabel, relaxes: RELAXES_LABEL[relaxes!].en, grantedByBodies: grantingBodyLabels.join(", ") || null, internalApproval: internalApproval ? "Yes, on its route" : "No", existingClassConfirmed: "Confirmed", goodRecordConfirmed: "Confirmed", note: note || null, grantedOn: grantedOn, recordedBy: person!.name, recordedOnBehalf: "not signed" }), note);
+      diffFields(null, { requirement: reqLabel, relaxes: RELAXES_LABEL[relaxes!].en, grantedByBodies: grantingBodyLabels.join(", ") || null, internalApproval: internalApproval ? "Yes, on its route" : "No", existingClassConfirmed: "Confirmed", goodRecordConfirmed: "Confirmed", note: note || null, grantedOn: grantedOn, recordedBy: person!.name }), note);
+    await act.write(tx, perm.id);
     if (!internalApproval) return { ok: true, message: `Granted on ${formatDate(grantedOn!)}. ${RELAXES_LABEL[relaxes!].en} passes by special permission for this requirement.` };
     const opened = await openSupplierRoute(tx, toAuditActor(actor), l.org, { domain: SPECIAL_PERMISSION_DOMAIN, cond: null, owner: { specialPermissionId: perm.id }, requester: person!, what: PERMISSION_MATTER, routeLabel: `${permLabel} · route`, matter: `Special permission for ${party.name} on ${l.ex.reference}`, ifRefused: PERMISSION_REFUSED_DECIDED_BY, now });
     if (!opened.ok) throw new Refusal(opened.state);
@@ -203,7 +209,7 @@ export async function recordSpecialPermission(_prev: FormState, data: FormData):
   }, p0.vendorId ? [`/suppliers/${p0.vendorId}`] : []);
 }
 
-/// A named Person's decision on a step of a special permission's route.
+/// A decision on a step of a special permission's route: the holder's own, signed, or recorded for them from paper (Phase 2b).
 export async function decidePermissionStep(_prev: FormState, data: FormData): Promise<FormState> {
   const holderGuard = await staffForAct("HOLDER_CHECKED");
   if (!holderGuard.ok) return holderGuard.state;
@@ -212,11 +218,14 @@ export async function decidePermissionStep(_prev: FormState, data: FormData): Pr
   const r = new FormReader(data);
   const stepId = r.text("stepId", "Step", { required: true });
   const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Decided by", { required: true });
-  const on = r.date("decidedOn", "Decided on", { required: true });
+  r.date("decidedOn", "Decided on");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is refused.");
-  if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
+  if (r.failed || !decision) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalStep.decidedBy", { personField: "personId", dateField: "decidedOn" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const on = dayToDate(act.day!);
   const found = await db.approvalStep.findUnique({ where: { id: stepId, instance: { organisationId: actor.organisationId } }, select: { instance: { select: { specialPermission: { select: { id: true, exerciseId: true, party: { select: { vendorId: true } } } } } } } });
   const perm0 = found?.instance.specialPermission;
   if (!perm0) return { ok: false, message: "That step is not on a special permission's route." };
@@ -226,7 +235,7 @@ export async function decidePermissionStep(_prev: FormState, data: FormData): Pr
     const perm = await tx.specialPermission.findUniqueOrThrow({ where: { id: perm0.id, organisationId: actor.organisationId }, include: { party: { select: { name: true } }, routes: { where: { status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } } } });
     const full = perm.routes.find((x) => x.steps.some((s) => s.id === stepId));
     if (!full) return { ok: false, message: "That step is not on a route awaiting a decision." };
-    const res = await decideSupplierStep(tx, toAuditActor(actor), l.org, full, stepId, { decision, personId, decidedOn: on, reason, requesterId: perm.requestedByPersonId, routeLabel: `${l.ex.reference} · Special permission for ${perm.party.name} · route`, refusedGoesTo: PERMISSION_REFUSED_DECIDED_BY, now });
+    const res = await decideSupplierStep(tx, toAuditActor(actor), l.org, full, stepId, { decision, act, document: { entity: "SpecialPermission", id: perm.id }, decidedOn: on, reason, requesterId: perm.requestedByPersonId, routeLabel: `${l.ex.reference} · Special permission for ${perm.party.name} · route`, refusedGoesTo: PERMISSION_REFUSED_DECIDED_BY, now });
     if ("refused" in res) return res.refused;
     if (res.outcome === "REJECTED") return { ok: true, message: "Refused on its route: the permission is not granted." };
     if (res.outcome === "APPROVED") return { ok: true, message: "Approved on its route. Record the day it was granted." };
@@ -241,8 +250,11 @@ export async function grantSpecialPermission(_prev: FormState, data: FormData): 
   const r = new FormReader(data);
   const permissionId = r.text("permissionId", "Permission", { required: true });
   const granted = r.date("grantedOn", "Granted on", { required: true });
-  const personId = r.text("personId", "Recorded by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "SpecialPermission.grantedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   const p0 = await db.specialPermission.findUnique({ where: { id: permissionId, organisationId: actor.organisationId }, select: { exerciseId: true, partyId: true, party: { select: { vendorId: true } } } });
   if (!p0) return { ok: false, message: "That permission no longer exists." };
   return onExerciseSide(actor, p0.exerciseId, async (tx) => {
@@ -259,7 +271,8 @@ export async function grantSpecialPermission(_prev: FormState, data: FormData): 
     const moved = await tx.specialPermission.updateMany({ where: { id: perm.id, grantedOn: null }, data: { grantedOn: dayToDate(grantedOn!), grantedByPersonId: person!.id, grantedAt: now } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.permission, perm.id, `${l.ex.reference} · Special permission for ${perm.party.name}`, "UPDATE",
-      diffFields({ grantedOn: null }, { grantedOn: grantedOn!, grantedBy: person!.name, recordedOnBehalf: "not signed" }));
+      diffFields({ grantedOn: null }, { grantedOn: grantedOn!, grantedBy: person!.name }));
+    await act.write(tx, perm.id);
     return { ok: true, message: `Granted on ${formatDate(grantedOn!)}.` };
   }, p0.party.vendorId ? [`/suppliers/${p0.party.vendorId}`] : []);
 }

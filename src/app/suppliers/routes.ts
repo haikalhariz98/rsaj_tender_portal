@@ -25,6 +25,7 @@ import { SUPPLIER_DECIDER_TEXT } from "@/lib/suppliers/labels";
 import type { SupplierOrg } from "@/lib/suppliers/repo";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 
+import type { ActWriter } from "@/lib/auth/act-writer";
 import { audit, CHANGED, Refusal } from "./shared";
 import type { AuditActor } from "@/lib/auth/types";
 
@@ -90,7 +91,7 @@ export async function openSupplierRoute(
     },
   });
   await audit(tx, actor, org.id, "ApprovalInstance", instance.id, o.routeLabel, "CREATE",
-    diffFields(null, { matter: o.matter, matrix: issue.label, rule: rule.labelEn, routedOn: "No value (supplier matters are not routed on a value)", route: res.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), ifRefused: o.ifRefused, askedBy: o.requester.name, recordedOnBehalf: "not signed" }));
+    diffFields(null, { matter: o.matter, matrix: issue.label, rule: rule.labelEn, routedOn: "No value (supplier matters are not routed on a value)", route: res.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), ifRefused: o.ifRefused, askedBy: o.requester.name }));
   return { ok: true, id: instance.id };
 }
 
@@ -107,13 +108,14 @@ export async function decideSupplierStep(
   org: SupplierOrg,
   full: RouteWithSteps,
   stepId: string,
-  d: { decision: "DONE" | "REJECTED"; personId: string; decidedOn: Date; reason: string; requesterId: string; routeLabel: string; refusedGoesTo: string; now: Date },
+  d: { decision: "DONE" | "REJECTED"; /// How the step was decided (attributed here); `act.subjectPersonId` is the holder it is attributed to.
+    act: ActWriter; document: { entity: string; id: string }; decidedOn: Date; reason: string; requesterId: string; routeLabel: string; refusedGoesTo: string; now: Date },
 ): Promise<{ outcome: "APPROVED" | "REJECTED" | "PENDING"; person: { id: string; name: string } } | { refused: FormState }> {
   const step = full.steps.find((s) => s.id === stepId);
   if (!step || full.status !== "PENDING") return { refused: { ok: false, message: "That step is not on a route awaiting a decision." } };
   const roster = await loadRoster(org.code, tx);
   const delegations = await loadDelegations(org.code, tx);
-  const person = await tx.person.findFirst({ where: { id: d.personId, organisationId: org.id }, select: { id: true, name: true, isActive: true } });
+  const person = await tx.person.findFirst({ where: { id: d.act.subjectPersonId, organisationId: org.id }, select: { id: true, name: true, isActive: true } });
   const decidedOn = storedDay(d.decidedOn);
   const office = actingOffice(step);
   const check = deciderFaults(step, {
@@ -122,6 +124,7 @@ export async function decideSupplierStep(
     declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
     person,
     requesterId: d.requesterId,
+    recorderId: d.act.recorderId,
     endorserIds: [],
     otherDeciderIds: full.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
     earlierDone: full.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
@@ -136,7 +139,8 @@ export async function decideSupplierStep(
   const after = personDecisionWrite({ decision: d.decision, person: { id: person!.id, name: person!.name }, decidedOn: d.decidedOn, delegationId: check.delegationId, reason: d.reason, recordedAt: d.now });
   const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
   if (done.count !== 1) throw new Refusal(CHANGED);
-  await audit(tx, actor, org.id, "ApprovalStep", step.id, `${d.routeLabel} · ${step.roleLabel}`, "UPDATE", diffFields({ decision: step.decision }, { decision: d.decision, decidedBy: person!.name, decidedOn: d.decidedOn, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), d.reason);
+  await audit(tx, actor, org.id, "ApprovalStep", step.id, `${d.routeLabel} · ${step.roleLabel}`, "UPDATE", diffFields({ decision: step.decision }, { decision: d.decision, decidedBy: person!.name, decidedOn: d.decidedOn, recordedOnBehalf: d.act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null, underDelegation: check.delegationId ? "yes" : null }), d.reason);
+  await d.act.write(tx, step.id, { document: d.document, roleCode: step.actingRoleCode ?? step.roleCode });
   if (d.decision === "REJECTED") {
     await closeRejected(tx, actor, { organisationId: org.id, routeLabel: d.routeLabel }, full, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, d.reason, d.refusedGoesTo);
     return { outcome: "REJECTED", person: person! };

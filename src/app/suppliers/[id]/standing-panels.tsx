@@ -305,7 +305,7 @@ export async function ParticipationPanel({ l, people }: { l: LoadedSupplier; peo
           icon={<LinkIcon size={17} />}
           title="On exercises"
           subtitle="Parties on exercises linked to this supplier by an explicit act, never by a matching number; what the register read at each sale and each opening, frozen there; and any special permission."
-          actions={<span className="flex flex-wrap items-center gap-2"><LinkPartyDrawer supplierId={s.id} parties={unlinked.map((p) => ({ value: p.id, label: `${p.exercise.reference} · ${p.name} (${p.registrationNo || "no number"})` }))} people={people} /><LinkAwardDrawer supplierId={s.id} awards={partyless.map((a) => ({ value: a.id, label: `${a.reference} · ${a.awardeeName}` }))} people={people} /></span>}
+          actions={<span className="flex flex-wrap items-center gap-2"><LinkPartyDrawer supplierId={s.id} parties={unlinked.map((p) => ({ value: p.id, label: `${p.exercise.reference} · ${p.name} (${p.registrationNo || "no number"})` }))} /><LinkAwardDrawer supplierId={s.id} awards={partyless.map((a) => ({ value: a.id, label: `${a.reference} · ${a.awardeeName}` }))} /></span>}
           divided={s.parties.length === 0}
         />
         {s.parties.length === 0 ? (

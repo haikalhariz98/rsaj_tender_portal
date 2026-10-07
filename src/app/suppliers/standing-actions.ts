@@ -22,8 +22,8 @@ import { FormReader } from "@/lib/validate";
 import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
-import type { AuditActor } from "@/lib/auth/types";
-import type { OrgScope } from "@/lib/org-scope";
+import { beginAct } from "@/app/_auth/act";
+import type { AuditActor, StaffActor } from "@/lib/auth/types";
 
 /**
  * A supplier's standing (FR-VND-010, FR-TRM-017, plan 6.15 §4.2, increment a2; FR-ADV-010 and 615-C2): suspended by an officer
@@ -68,10 +68,13 @@ export async function suspendSupplier(_prev: FormState, data: FormData): Promise
   const r = new FormReader(data);
   const reasonId = r.optionalText("reasonId");
   const effective = r.date("effectiveOn", "Takes effect on", { required: true });
-  const personId = r.text("personId", "Recorded by", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   const flagged = splitValues(data.get("flaggedDocumentIds"));
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "StandingEvent.recordedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inSupplier(actor, supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     const { reading, status, s } = await lockedStanding(tx, l);
@@ -83,7 +86,8 @@ export async function suspendSupplier(_prev: FormState, data: FormData): Promise
     const flaggedLabels = s.documents.filter((d) => flagged.includes(d.id)).map((d) => `${d.typeLabelSnapshot}${d.reference ? ` ${d.reference}` : ""}`);
     const e = await tx.standingEvent.create({ data: { organisationId: l.org.id, supplierId, kind: "SUSPEND", reasonId: reason!.id, reasonSnapshot: reason!.nameEn, effectiveOn: dayToDate(effectiveOn!), flaggedDocumentIds: flagged, note, recordedByPersonId: person!.id, recordedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.standingEvent, e.id, standingLabel(l, "Suspension"), "CREATE",
-      diffFields(null, { standing: "Suspended", reason: reason!.nameEn, effectiveOn: effectiveOn!, flaggedDocuments: flaggedLabels.join(", ") || null, note: note || null, recordedBy: person!.name, recordedOnBehalf: "not signed" }), note);
+      diffFields(null, { standing: "Suspended", reason: reason!.nameEn, effectiveOn: effectiveOn!, flaggedDocuments: flaggedLabels.join(", ") || null, note: note || null, recordedBy: person!.name }), note);
+    await act.write(tx, e.id);
     return { ok: true, message: `Suspended from ${formatDate(effectiveOn!)}. The notice to the supplier is shown, not sent.` };
   });
 }
@@ -95,10 +99,13 @@ export async function reinstateSupplier(_prev: FormState, data: FormData): Promi
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
   const effective = r.date("effectiveOn", "Takes effect on", { required: true });
-  const personId = r.text("personId", "Recorded by", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   const checked = splitValues(data.get("checkedDocumentIds"));
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "StandingEvent.recordedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inSupplier(actor, supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     const { reading, s } = await lockedStanding(tx, l);
@@ -118,7 +125,8 @@ export async function reinstateSupplier(_prev: FormState, data: FormData): Promi
     const answered = checklist.map((c) => ({ documentId: c.documentId, type: c.typeLabel, seenVerified: true }));
     const e = await tx.standingEvent.create({ data: { organisationId: l.org.id, supplierId, kind: "REINSTATE", effectiveOn: dayToDate(effectiveOn!), reinstatesEventId: susp.id, checklist: answered as unknown as Prisma.InputJsonValue, note, recordedByPersonId: person!.id, recordedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.standingEvent, e.id, standingLabel(l, "Reinstatement"), "CREATE",
-      diffFields(null, { standing: "Reinstated", effectiveOn: effectiveOn!, checklist: answered.map((a) => `${a.type}: seen verified`).join("; ") || "No document was flagged", note, recordedBy: person!.name, recordedOnBehalf: "not signed" }), note);
+      diffFields(null, { standing: "Reinstated", effectiveOn: effectiveOn!, checklist: answered.map((a) => `${a.type}: seen verified`).join("; ") || "No document was flagged", note, recordedBy: person!.name }), note);
+    await act.write(tx, e.id);
     return { ok: true, message: `Reinstated from ${formatDate(effectiveOn!)}. The notice to the supplier is shown, not sent.` };
   });
 }
@@ -132,10 +140,13 @@ export async function requestBlacklisting(_prev: FormState, data: FormData): Pro
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
   const reasonId = r.optionalText("reasonId");
-  const personId = r.text("personId", "Asked by", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   const sourceAwardId = r.optionalText("sourceAwardId");
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "StandingRequest.requestedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inSupplier(actor, supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     const { reading, status, requests, requestFacts } = await lockedStanding(tx, l);
@@ -149,7 +160,8 @@ export async function requestBlacklisting(_prev: FormState, data: FormData): Pro
     if (blocking(fs).length) return refuse(fs);
     const req = await tx.standingRequest.create({ data: { organisationId: l.org.id, supplierId, kind: "BLACKLIST", reasonId: reason!.id, reasonSnapshot: reason!.nameEn, note, sourceAwardId: award?.id ?? null, requestedByPersonId: person!.id, requestedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.standingRequest, req.id, standingLabel(l, "Blacklisting asked for"), "CREATE",
-      diffFields(null, { askedFor: REQUEST_KIND_LABEL.BLACKLIST.en, reason: reason!.nameEn, note: note || null, fromAward: award?.reference ?? null, askedBy: person!.name, recordedOnBehalf: "not signed" }), note);
+      diffFields(null, { askedFor: REQUEST_KIND_LABEL.BLACKLIST.en, reason: reason!.nameEn, note: note || null, fromAward: award?.reference ?? null, askedBy: person!.name }), note);
+    await act.write(tx, req.id);
     const opened = await openSupplierRoute(tx, toAuditActor(actor), l.org, { domain: SUPPLIER_BLACKLIST_DOMAIN, cond: "BLACKLIST", owner: { standingRequestId: req.id }, requester: person!, what: BLACKLIST_MATTER, routeLabel: standingLabel(l, "Blacklisting route"), matter: `Blacklisting of ${l.supplier.registeredName}`, ifRefused: STANDING_REFUSED_DECIDED_BY, now });
     if (!opened.ok) throw new Refusal(opened.state);
     return { ok: true, message: "Asked for, and sent on its route. It is recorded once the route approves it." };
@@ -162,9 +174,12 @@ export async function requestBlacklistLift(_prev: FormState, data: FormData): Pr
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
-  const personId = r.text("personId", "Asked by", { required: true });
   const note = r.text("note", "Why", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "StandingRequest.requestedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inSupplier(actor, supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     const { reading, requests, requestFacts } = await lockedStanding(tx, l);
@@ -174,7 +189,8 @@ export async function requestBlacklistLift(_prev: FormState, data: FormData): Pr
     const b = reading.blacklist!;
     const req = await tx.standingRequest.create({ data: { organisationId: l.org.id, supplierId, kind: "BLACKLIST_LIFT", reasonSnapshot: b.reasonLabel, liftsEventId: b.id, note, requestedByPersonId: person!.id, requestedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.standingRequest, req.id, standingLabel(l, "Lifting asked for"), "CREATE",
-      diffFields(null, { askedFor: REQUEST_KIND_LABEL.BLACKLIST_LIFT.en, lifts: `the blacklisting from ${formatDate(b.effectiveOn)} (${b.reasonLabel})`, note, askedBy: person!.name, recordedOnBehalf: "not signed" }), note);
+      diffFields(null, { askedFor: REQUEST_KIND_LABEL.BLACKLIST_LIFT.en, lifts: `the blacklisting from ${formatDate(b.effectiveOn)} (${b.reasonLabel})`, note, askedBy: person!.name }), note);
+    await act.write(tx, req.id);
     const opened = await openSupplierRoute(tx, toAuditActor(actor), l.org, { domain: SUPPLIER_BLACKLIST_DOMAIN, cond: "BLACKLIST_LIFT", owner: { standingRequestId: req.id }, requester: person!, what: BLACKLIST_MATTER, routeLabel: standingLabel(l, "Blacklisting lift route"), matter: `Lifting the blacklisting of ${l.supplier.registeredName}`, ifRefused: STANDING_REFUSED_DECIDED_BY, now });
     if (!opened.ok) throw new Refusal(opened.state);
     return { ok: true, message: "Asked for, and sent on its route. The lifting is recorded once the route approves it." };
@@ -190,11 +206,14 @@ export async function decideStandingStep(_prev: FormState, data: FormData): Prom
   const r = new FormReader(data);
   const stepId = r.text("stepId", "Step", { required: true });
   const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Decided by", { required: true });
-  const on = r.date("decidedOn", "Decided on", { required: true });
+  r.date("decidedOn", "Decided on");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is refused.");
-  if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
+  if (r.failed || !decision) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalStep.decidedBy", { personField: "personId", dateField: "decidedOn" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const on = dayToDate(act.day!);
   const found = await db.approvalStep.findUnique({ where: { id: stepId, instance: { organisationId: actor.organisationId } }, select: { instance: { select: { standingRequestId: true, standingRequest: { select: { supplierId: true } } } } } });
   const requestId = found?.instance.standingRequestId ?? null;
   const supplierId = found?.instance.standingRequest?.supplierId ?? null;
@@ -204,7 +223,7 @@ export async function decideStandingStep(_prev: FormState, data: FormData): Prom
     const req = await tx.standingRequest.findUniqueOrThrow({ where: { id: requestId, organisationId: actor.organisationId }, include: { routes: { where: { status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } } } });
     const full = req.routes.find((x) => x.steps.some((s) => s.id === stepId));
     if (!full) return { ok: false, message: "That step is not on a route awaiting a decision." };
-    const res = await decideSupplierStep(tx, toAuditActor(actor), l.org, full, stepId, { decision, personId, decidedOn: on, reason, requesterId: req.requestedByPersonId, routeLabel: standingLabel(l, req.kind === "BLACKLIST" ? "Blacklisting route" : "Blacklisting lift route"), refusedGoesTo: STANDING_REFUSED_DECIDED_BY, now });
+    const res = await decideSupplierStep(tx, toAuditActor(actor), l.org, full, stepId, { decision, act, document: { entity: "StandingRequest", id: req.id }, decidedOn: on, reason, requesterId: req.requestedByPersonId, routeLabel: standingLabel(l, req.kind === "BLACKLIST" ? "Blacklisting route" : "Blacklisting lift route"), refusedGoesTo: STANDING_REFUSED_DECIDED_BY, now });
     if ("refused" in res) return res.refused;
     if (res.outcome === "REJECTED") return { ok: true, message: "Refused on its route: nothing is recorded. It may be asked for again." };
     if (res.outcome === "APPROVED") return { ok: true, message: `Approved on its route. Record the ${req.kind === "BLACKLIST" ? "blacklisting" : "lifting"} on the supplier's Standing tab, with the day it takes effect.` };
@@ -212,13 +231,16 @@ export async function decideStandingStep(_prev: FormState, data: FormData): Prom
   });
 }
 
-async function recordFromRequest(scope: OrgScope, actor: AuditActor, data: FormData, kind: "BLACKLIST" | "BLACKLIST_LIFT"): Promise<FormState> {
+async function recordFromRequest(scope: StaffActor, actor: AuditActor, data: FormData, kind: "BLACKLIST" | "BLACKLIST_LIFT"): Promise<FormState> {
   const now = stampNow();
   const r = new FormReader(data);
   const requestId = r.text("requestId", "Request", { required: true });
   const effective = r.date("effectiveOn", "Takes effect on", { required: true });
-  const personId = r.text("personId", "Recorded by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(scope, data, "StandingEvent.recordedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   const found = await db.standingRequest.findUnique({ where: { id: requestId, organisationId: scope.organisationId }, select: { supplierId: true } });
   if (!found) return GONE;
   return inSupplier(scope, found.supplierId, async (tx, l) => {
@@ -236,14 +258,16 @@ async function recordFromRequest(scope: OrgScope, actor: AuditActor, data: FormD
       const ends = period?.kind === "ENDS" ? period : null;
       const e = await tx.standingEvent.create({ data: { organisationId: l.org.id, supplierId: l.supplier.id, kind: "BLACKLIST", reasonId: req.reasonId, reasonSnapshot: req.reasonSnapshot, effectiveOn: dayToDate(effectiveOn!), endsOn: ends ? dayToDate(ends.endsOn) : null, offenceNo, periodMonths: ends?.months ?? null, requestId: req.id, note: req.note, recordedByPersonId: person!.id, recordedAt: now } });
       await audit(tx, actor, l.org.id, SUPPLIER_ENTITY.standingEvent, e.id, standingLabel(l, "Blacklisting"), "CREATE",
-        diffFields(null, { standing: "Blacklisted", reason: req.reasonSnapshot, effectiveOn: effectiveOn!, offence: offenceNo === 1 ? "First offence" : `Offence ${offenceNo}`, period: ends ? `${ends.months} months` : "Until further notice", lastBlacklistedDay: ends?.lastDay ?? null, endsOn: ends?.endsOn ?? null, recordedBy: person!.name, recordedOnBehalf: "not signed" }));
+        diffFields(null, { standing: "Blacklisted", reason: req.reasonSnapshot, effectiveOn: effectiveOn!, offence: offenceNo === 1 ? "First offence" : `Offence ${offenceNo}`, period: ends ? `${ends.months} months` : "Until further notice", lastBlacklistedDay: ends?.lastDay ?? null, endsOn: ends?.endsOn ?? null, recordedBy: person!.name }));
+      await act.write(tx, e.id);
       return { ok: true, message: ends ? `Blacklisted from ${formatDate(effectiveOn!)} (first offence, ${ends.months} months): last blacklisted day ${formatDate(ends.lastDay)} · free from ${formatDate(ends.endsOn)}. The notice is shown, not sent.` : `Blacklisted from ${formatDate(effectiveOn!)}, until further notice. The notice is shown, not sent.` };
     }
     const lifted = reading.blacklist!;
     if (req.liftsEventId !== lifted.id) return { ok: false, message: "The blacklisting this lift asked to end is no longer the one in effect. Ask again." };
     const e = await tx.standingEvent.create({ data: { organisationId: l.org.id, supplierId: l.supplier.id, kind: "BLACKLIST_LIFT", reasonSnapshot: req.reasonSnapshot, effectiveOn: dayToDate(effectiveOn!), liftsEventId: lifted.id, requestId: req.id, note: req.note, recordedByPersonId: person!.id, recordedAt: now } });
     await audit(tx, actor, l.org.id, SUPPLIER_ENTITY.standingEvent, e.id, standingLabel(l, "Blacklisting lifted"), "CREATE",
-      diffFields({ standing: standingWords(reading).en }, { standing: "Blacklisting lifted", effectiveOn: effectiveOn!, lifts: `the blacklisting from ${formatDate(lifted.effectiveOn)}`, note: req.note, recordedBy: person!.name, recordedOnBehalf: "not signed" }));
+      diffFields({ standing: standingWords(reading).en }, { standing: "Blacklisting lifted", effectiveOn: effectiveOn!, lifts: `the blacklisting from ${formatDate(lifted.effectiveOn)}`, note: req.note, recordedBy: person!.name }));
+    await act.write(tx, e.id);
     return { ok: true, message: `The blacklisting is lifted from ${formatDate(effectiveOn!)}. The notice is shown, not sent.` };
   });
 }
@@ -270,9 +294,12 @@ export async function withdrawStandingRequest(_prev: FormState, data: FormData):
   const now = stampNow();
   const requestId = String(data.get("requestId") ?? "");
   const r = new FormReader(data);
-  const personId = r.text("personId", "Withdrawn by", { required: true });
   const reason = String(data.get("reason") ?? "").trim();
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "StandingRequest.withdrawnBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   const found = await db.standingRequest.findUnique({ where: { id: requestId, organisationId: actor.organisationId }, select: { supplierId: true } });
   if (!found) return GONE;
   return inSupplier(actor, found.supplierId, async (tx, l) => {
@@ -291,7 +318,8 @@ export async function withdrawStandingRequest(_prev: FormState, data: FormData):
     const moved = await tx.standingRequest.updateMany({ where: { id: req.id, withdrawnAt: null, event: null }, data: { withdrawnAt: now, withdrawnReason: reason, withdrawnByPersonId: person!.id } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.standingRequest, req.id, standingLabel(l, req.kind === "BLACKLIST" ? "Blacklisting asked for" : "Lifting asked for"), "UPDATE",
-      diffFields({ withdrawn: null }, { withdrawn: "Withdrawn: not recorded", withdrawnBy: person!.name, recordedOnBehalf: "not signed" }), reason);
+      diffFields({ withdrawn: null }, { withdrawn: "Withdrawn: not recorded", withdrawnBy: person!.name }), reason);
+    await act.write(tx, req.id);
     return { ok: true, message: "Withdrawn. Nothing is recorded from it; another may be asked for." };
   });
 }
@@ -311,9 +339,12 @@ export async function recordRegistrationCancelled(_prev: FormState, data: FormDa
   const bodyId = r.optionalText("cancellingBodyId");
   const reference = r.text("externalReference", "The body's reference", { required: true, max: CANCELLATION_REFERENCE_MAX });
   const effective = r.date("effectiveOn", "Takes effect on", { required: true });
-  const personId = r.text("personId", "Recorded by", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "StandingEvent.recordedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inSupplier(actor, supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     const { reading, status, s } = await lockedStanding(tx, l);
@@ -325,7 +356,8 @@ export async function recordRegistrationCancelled(_prev: FormState, data: FormDa
     const ref = reference.trim();
     const e = await tx.standingEvent.create({ data: { organisationId: l.org.id, supplierId, kind: "REGISTRATION_CANCELLED", cancellingBodyId: body!.id, bodyLabelSnapshot: body!.labelEn, externalReference: ref, cancelsRegistrationOn: s.registeredOn!, effectiveOn: dayToDate(effectiveOn!), note, recordedByPersonId: person!.id, recordedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.standingEvent, e.id, standingLabel(l, "Registration cancelled"), "CREATE",
-      diffFields(null, { standing: "Registration cancelled", cancelledBy: body!.labelEn, bodyReference: ref, effectiveOn: effectiveOn!, note: note || null, recordedBy: person!.name, recordedOnBehalf: "not signed" }), note);
+      diffFields(null, { standing: "Registration cancelled", cancelledBy: body!.labelEn, bodyReference: ref, effectiveOn: effectiveOn!, note: note || null, recordedBy: person!.name }), note);
+    await act.write(tx, e.id);
     return { ok: true, message: `Recorded: the registration is cancelled from ${formatDate(effectiveOn!)}, by ${body!.labelEn} (${ref}). Attach the body's notice on the record. The notice to the supplier is shown, not sent.` };
   });
 }
@@ -346,9 +378,12 @@ export async function withdrawRegistrationCancelled(_prev: FormState, data: Form
   const now = stampNow();
   const eventId = String(data.get("eventId") ?? "");
   const r = new FormReader(data);
-  const personId = r.text("personId", "Withdrawn by", { required: true });
   const reason = String(data.get("reason") ?? "").trim();
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "StandingEvent.withdrawnBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   const found = await db.standingEvent.findUnique({ where: { id: eventId, organisationId: actor.organisationId }, select: { supplierId: true } });
   if (!found) return GONE;
   return inSupplier(actor, found.supplierId, async (tx, l) => {
@@ -376,7 +411,8 @@ export async function withdrawRegistrationCancelled(_prev: FormState, data: Form
     const judged = judgedWhileCancelled(await openingsJudged(tx, l.supplier.id), storedDay(ev!.effectiveOn), cancellationStoodUntil({ id: ev!.id, effectiveOn: storedDay(ev!.effectiveOn) }, cancellationsOnFile(file.standingEvents), day(file.registeredOn)));
     const notRevisited = notRevisitedWords(judged);
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.standingEvent, ev!.id, standingLabel(l, "Registration cancelled"), "UPDATE",
-      diffFields({ withdrawn: null, ...(was !== standingAfter ? { standing: was } : {}) }, { withdrawn: `Withdrawn: recorded in error (the cancellation by ${ev!.bodyLabelSnapshot}, ${ev!.externalReference}, from ${formatDate(storedDay(ev!.effectiveOn))})`, ...(was !== standingAfter ? { standing: standingAfter } : {}), withdrawnBy: person!.name, recordedOnBehalf: "not signed", notRevisited: notRevisited.en }), reason);
+      diffFields({ withdrawn: null, ...(was !== standingAfter ? { standing: was } : {}) }, { withdrawn: `Withdrawn: recorded in error (the cancellation by ${ev!.bodyLabelSnapshot}, ${ev!.externalReference}, from ${formatDate(storedDay(ev!.effectiveOn))})`, ...(was !== standingAfter ? { standing: standingAfter } : {}), withdrawnBy: person!.name, notRevisited: notRevisited.en }), reason);
+    await act.write(tx, ev!.id);
     return { ok: true, message: withdrawnWords(nowWords, notRevisited).en };
   });
 }

@@ -1,6 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
-import { ON_BEHALF_HINT } from "@/lib/documents/labels";
+import { actorField } from "@/lib/auth/actor-field";
 
 import { decideApplication, decideRegistrationStep, lodgeDocument, openApplication, recordApplicationPaper, recordLapse, saveContact, setErpVendorCode, submitForDecision, verifyDocument } from "../actions";
 
@@ -74,7 +74,7 @@ export function LodgeDocumentDrawer({ supplierId, types, values, people, renews,
         { kind: "date", name: "expiresOn", label: "Expires on", hint: "Required where the type carries an expiry." },
         { kind: "tokens", name: "valueIds", label: "Values it records", options: values, hint: "Grades, categories, codes, as the certificate states them." },
         ...(renews ? [] : [{ kind: "switch", name: "notApplicable", label: "Not applicable to this supplier", hint: "Only where the type allows it. Nothing else is recorded then." } as Field]),
-        { kind: "select", name: "recordedByPersonId", label: "Recorded by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT },
+        actorField("SupplierDocument.recordedBy", { name: "recordedByPersonId", people }),
         { kind: "textarea", name: "note", label: "Note" },
       ]}
       values={{ supplierId, renewsId: renews?.id ?? "", typeId: renews?.typeId ?? "" }}
@@ -91,11 +91,11 @@ export function VerifyDocumentDrawer({ documentId, label, people, today, blocker
   return (
     <RecordEditor
       title={`Record the check of ${label}`}
-      description={`Checked against the original or a certified copy, by a named officer. ${ON_BEHALF_HINT} A document is not checked twice: a corrected one is lodged as its renewal.`}
+      description={`Checked against the original or a certified copy, by you, signed in. A document is not checked twice: a corrected one is lodged as its renewal.`}
       fields={[
         hidden("documentId"),
         { kind: "select", name: "verification", label: "Outcome", required: true, placeholder: "Choose", options: [{ value: "VERIFIED", label: "Verified" }, { value: "NOT_IN_ORDER", label: "Not in order" }] },
-        { kind: "select", name: "personId", label: "Checked by", required: true, placeholder: "Choose", options: people },
+        actorField("SupplierDocument.verifiedBy", { name: "personId", people }),
         { kind: "date", name: "verifiedOn", label: "Checked on", required: true, hint: "Not after today, nor before it was lodged." },
         { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required where it is not in order." },
       ]}
@@ -123,7 +123,7 @@ export function OpenApplicationDrawer({ supplierId, kinds, channels, people, tod
         { kind: "select", name: "channel", label: "How it came in", required: true, placeholder: "Choose", options: channels },
         { kind: "date", name: "declarationSignedOn", label: "Declaration signed on" },
         { kind: "date", name: "epaymentFormReceivedOn", label: "E-Payment form received on", hint: "Only that it was received: no bank detail before sign-in." },
-        { kind: "select", name: "recordedByPersonId", label: "Recorded by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT },
+        actorField("SupplierApplication.recordedBy", { name: "recordedByPersonId", people }),
       ]}
       values={{ supplierId, receivedOn: today }}
       action={openApplication}
@@ -152,7 +152,7 @@ export function SubmitApplicationDrawer({ applicationId, people, blocker, route 
     <RecordEditor
       title="Send for decision"
       description={`The file goes to its approval route: ${route.length ? route.join(" → ") : "as the approval matrix resolves it"}. Whoever sends it may not decide a step of it.`}
-      fields={[hidden("applicationId"), { kind: "select", name: "personId", label: "Sent by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT }]}
+      fields={[hidden("applicationId"), actorField("SupplierApplication.submittedBy", { name: "personId", people })]}
       values={{ applicationId }}
       action={submitForDecision}
       submitLabel="Send for decision"
@@ -166,11 +166,11 @@ export function DecideStepDrawer({ stepId, office, done, people, today }: { step
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
-      description={`On the supplier's registration. ${ON_BEHALF_HINT} They must hold the office organisation-wide, or a delegation of it with no value ceiling. A refusal leaves the application open.`}
+      description={`On the supplier's registration. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office organisation-wide, or a delegation of it with no value ceiling. A refusal leaves the application open.`}
       fields={[
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: "Refused: the application stays open" }] },
-        { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: people, hint: people.length === 0 ? "Nobody holds this office organisation-wide today." : undefined },
+        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true, hint: people.length === 0 ? "Nobody holds this office organisation-wide today." : undefined }),
         { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was sent." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
       ]}
@@ -194,7 +194,7 @@ export function ResubmissionDrawer({ applicationId, items, people, blocker }: { 
         ...items.map((i) => ({ kind: "textarea", name: i.name, label: i.label } as Field)),
         { kind: "date", name: "resubmitBy", label: "Resubmit by", required: true, hint: "After today. It lapses the day after: the application is then rejected when the lapse is recorded." },
         { kind: "textarea", name: "remarks", label: "General remarks" },
-        { kind: "select", name: "personId", label: "Recorded by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT },
+        actorField("ApplicationDecision.decidedBy", { name: "personId", people }),
       ]}
       values={{ applicationId, outcome: "RESUBMIT" }}
       action={decideApplication}
@@ -211,7 +211,7 @@ export function RejectApplicationDrawer({ applicationId, people, blocker }: { ap
     <RecordEditor
       title="Reject the application"
       description="The reasons are recorded as written, to be given to the supplier. The notice is shown on the record, not sent. A first registration rejected leaves the supplier not registered; it may apply again."
-      fields={[hidden("applicationId"), hidden("outcome"), { kind: "select", name: "personId", label: "Recorded by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF_HINT }]}
+      fields={[hidden("applicationId"), hidden("outcome"), actorField("ApplicationDecision.decidedBy", { name: "personId", people })]}
       values={{ applicationId, outcome: "REJECT" }}
       destructive={{ reasonLabel: "The reasons, as written" }}
       action={decideApplication}

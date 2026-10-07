@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { supplierFaultText } from "@/lib/suppliers/labels";
 import { blocking, type Finding } from "@/lib/suppliers/types";
+import { attributionRefusalState } from "@/app/_auth/act";
 import { Refusal, withLockedSupplier, type LockedSupplier } from "@/lib/suppliers/write";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -46,6 +47,8 @@ export async function inSupplier(scope: OrgScope, supplierId: string, fn: (tx: T
     );
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     if (transactionTimedOut(e)) return { ok: false, message: "This took too long and nothing was saved. Try again." };
     throw e;
   }

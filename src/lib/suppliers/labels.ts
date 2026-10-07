@@ -553,6 +553,10 @@ export const SUPPLIER_DECIDER_TEXT: Readonly<Record<DeciderFault, Words>> = {
   FUTURE_DATE: w("A decision cannot be dated after today.", "Keputusan tidak boleh bertarikh selepas hari ini."),
   BEFORE_SUBMISSION: w("A decision cannot be dated before the matter was sent for decision.", "Keputusan tidak boleh bertarikh sebelum perkara dihantar untuk keputusan."),
   DECLARED_CONFLICT: w("That person declared a conflict of interest on this step and recused.", "Orang itu mengisytiharkan konflik kepentingan pada langkah ini dan menarik diri."),
+  RECORDER_IS_REQUESTER: w("You sent this matter for decision. Nobody records the decision of a matter they sent, for themselves or on someone else's behalf.", "Anda menghantar perkara ini untuk keputusan. Tiada sesiapa merekodkan keputusan perkara yang dihantarnya, untuk diri sendiri atau bagi pihak orang lain."),
+  RECORDER_ENDORSED_IT: w("You endorsed this matter. An endorser does not record its decision for someone else.", "Anda telah menyokong perkara ini. Penyokong tidak merekodkan keputusannya bagi pihak orang lain."),
+  RECORDER_DECIDED_ANOTHER_STEP: w("You have already decided another step of this route. The same person does not record a second decision on it for someone else.", "Anda telah memutuskan langkah lain laluan ini. Orang yang sama tidak merekodkan keputusan kedua padanya bagi pihak orang lain."),
+  RECORDER_DECLARED_CONFLICT: w("You declared a conflict of interest on this step and recused. You do not record its decision for someone else.", "Anda mengisytiharkan konflik kepentingan pada langkah ini dan menarik diri. Anda tidak merekodkan keputusannya bagi pihak orang lain."),
 };
 
 /// What a supplier's registration is called in a route refusal.
