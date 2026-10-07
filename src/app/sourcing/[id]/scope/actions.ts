@@ -130,7 +130,7 @@ export async function startBq(_prev: FormState, data: FormData): Promise<FormSta
 /// The draft's lock and re-read: the version must be this exercise's, and a draft.
 async function lockedDraft(tx: Tx, l: LockedExercise, versionId: string) {
   await lockBqRows(tx, l.ex.id);
-  const v = await tx.bqVersion.findFirst({ where: { id: versionId, exerciseId: l.ex.id }, include: { preparer: { select: { name: true } } } });
+  const v = await tx.bqVersion.findFirst({ where: { id: versionId, exerciseId: l.ex.id, organisationId: l.org.id }, include: { preparer: { select: { name: true } } } });
   if (!v) throw new Refusal(RECORD_GONE);
   const faults = draftEditFaults(v, l.ex.status);
   if (faults.length) throw new Refusal(refuse(faults));
@@ -157,7 +157,7 @@ export async function saveBqHeader(_prev: FormState, data: FormData): Promise<Fo
     const preparer = preparerPersonId ? await activePerson(l.org.id, preparerPersonId, tx) : null;
     if (preparerPersonId && !preparer) return { ok: false, errors: { preparerPersonId: scopeFaultText("PERSON_UNKNOWN") } };
     const after = { scopedBy, scopeStatement, followsStandard, departuresText, preparerPersonId: preparer?.id ?? null, provisionalExcludedFromFirm };
-    await tx.bqVersion.update({ where: { id: v.id }, data: after });
+    await tx.bqVersion.update({ where: { id: v.id, organisationId: actor.organisationId }, data: after });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqVersion, v.id, label(l, `Bill of quantities v${v.versionNo}`), "UPDATE",
       bqHeaderAudit({ ...v, preparerName: v.preparer?.name ?? null }, { ...after, preparerName: preparer?.name ?? null }));
     return { ok: true };
@@ -177,10 +177,10 @@ export async function saveBqSection(_prev: FormState, data: FormData): Promise<F
   if (r.failed) return { ok: false, errors: r.errors };
   return inExercise(actor, exerciseId, async (tx, l) => {
     const v = await lockedDraft(tx, l, versionId);
-    const before = sectionId ? await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id } }) : null;
+    const before = sectionId ? await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id, organisationId: actor.organisationId } }) : null;
     if (sectionId && !before) return RECORD_GONE;
     const row = before
-      ? await tx.bqSection.update({ where: { id: before.id }, data: { number, title, sortOrder } })
+      ? await tx.bqSection.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { number, title, sortOrder } })
       : await tx.bqSection.create({ data: { organisationId: l.org.id, versionId: v.id, number, title, sortOrder } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqSection, row.id, label(l, `Bill of quantities v${v.versionNo} · section ${number}`), before ? "UPDATE" : "CREATE", sectionAudit(before ? { number: before.number, title: before.title } : null, { number, title }));
     return { ok: true };
@@ -202,13 +202,13 @@ export async function removeBqSection(_prev: FormState, data: FormData): Promise
   const sectionId = String(data.get("sectionId") ?? "");
   return inExercise(actor, exerciseId, async (tx, l) => {
     const v = await lockedDraft(tx, l, versionId);
-    const s = await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id }, include: { items: true } });
+    const s = await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id, organisationId: actor.organisationId }, include: { items: true } });
     if (!s) return RECORD_GONE;
     for (const i of s.items) {
-      await tx.bqItem.delete({ where: { id: i.id } });
+      await tx.bqItem.delete({ where: { id: i.id, organisationId: actor.organisationId } });
       await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqItem, i.id, label(l, `Bill of quantities v${v.versionNo} · ${i.itemRef || i.description}`), "DELETE", itemAudit(null, lineOf(i)));
     }
-    await tx.bqSection.delete({ where: { id: s.id } });
+    await tx.bqSection.delete({ where: { id: s.id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqSection, s.id, label(l, `Bill of quantities v${v.versionNo} · section ${s.number}`), "DELETE", sectionAudit(null, { number: s.number, title: s.title }));
     return { ok: true };
   });
@@ -237,9 +237,9 @@ export async function saveBqItem(_prev: FormState, data: FormData): Promise<Form
   const quantity = quantityRaw ? quantityRaw.replace(/,/g, "") : null;
   return inExercise(actor, exerciseId, async (tx, l) => {
     const v = await lockedDraft(tx, l, versionId);
-    const section = await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id } });
+    const section = await tx.bqSection.findFirst({ where: { id: sectionId, versionId: v.id, organisationId: actor.organisationId } });
     if (!section) return { ok: false, errors: { sectionId: scopeFaultText("SECTION_REQUIRED") } };
-    const before = itemId ? await tx.bqItem.findFirst({ where: { id: itemId, section: { versionId: v.id } } }) : null;
+    const before = itemId ? await tx.bqItem.findFirst({ where: { id: itemId, section: { versionId: v.id }, organisationId: actor.organisationId } }) : null;
     if (itemId && !before) return RECORD_GONE;
     // A rate from a schedule is taken from the issue in force on the organisation's day,
     // read in this transaction, and kept with what the issue said (priceFromSchedule).
@@ -271,7 +271,7 @@ export async function saveBqItem(_prev: FormState, data: FormData): Promise<Form
         ? { rateSource: "SCHEDULE" as const, rateScheduleId: priced.rateScheduleId, rateItemCode: priced.rateItemCode, scheduleLabelSnapshot: priced.scheduleLabelSnapshot, scheduleIssueSnapshot: priced.scheduleIssueSnapshot, scheduleEffectiveFromSnapshot: dayToDate(priced.scheduleEffectiveFromSnapshot) }
         : { rateSource: "ENTERED" as const, rateScheduleId: null, rateItemCode: null, scheduleLabelSnapshot: null, scheduleIssueSnapshot: null, scheduleEffectiveFromSnapshot: null }),
     };
-    const saved = before ? await tx.bqItem.update({ where: { id: before.id }, data: row }) : await tx.bqItem.create({ data: { organisationId: l.org.id, ...row } });
+    const saved = before ? await tx.bqItem.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row }) : await tx.bqItem.create({ data: { organisationId: l.org.id, ...row } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqItem, saved.id, label(l, `Bill of quantities v${v.versionNo} · ${itemRef || description}`), before ? "UPDATE" : "CREATE",
       itemAudit(before ? { ...lineOf(before), rateFrom: fromText(before) } : null, { itemRef, description, unit, kind, quantity, rate, provisional, rateFrom: fromText(priced) }));
     return { ok: true };
@@ -285,9 +285,9 @@ export async function removeBqItem(_prev: FormState, data: FormData): Promise<Fo
   const itemId = String(data.get("itemId") ?? "");
   return inExercise(actor, exerciseId, async (tx, l) => {
     const v = await lockedDraft(tx, l, versionId);
-    const i = await tx.bqItem.findFirst({ where: { id: itemId, section: { versionId: v.id } } });
+    const i = await tx.bqItem.findFirst({ where: { id: itemId, section: { versionId: v.id }, organisationId: actor.organisationId } });
     if (!i) return RECORD_GONE;
-    await tx.bqItem.delete({ where: { id: i.id } });
+    await tx.bqItem.delete({ where: { id: i.id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqItem, i.id, label(l, `Bill of quantities v${v.versionNo} · ${i.itemRef || i.description}`), "DELETE", itemAudit(null, lineOf(i)));
     return { ok: true };
   });
@@ -321,11 +321,11 @@ export async function finaliseBq(_prev: FormState, data: FormData): Promise<Form
     const totals = totalsSnapshot(computed);
     const qualification = qualificationSnapshot(holding, qualifications.find((q) => q.code === code), day);
     for (const prev of versions.filter((x) => x.status === "FINALISED")) {
-      await tx.bqVersion.update({ where: { id: prev.id }, data: { status: "SUPERSEDED" } });
+      await tx.bqVersion.update({ where: { id: prev.id, organisationId: actor.organisationId }, data: { status: "SUPERSEDED" } });
       await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqVersion, prev.id, label(l, `Bill of quantities v${prev.versionNo}`), "UPDATE", bqStatusAudit("FINALISED", "SUPERSEDED", { supersededBy: `version ${v.versionNo}` }));
     }
     await tx.bqVersion.update({
-      where: { id: v.id },
+      where: { id: v.id, organisationId: actor.organisationId },
       data: { status: "FINALISED", finalisedAt: new Date(), totalsSnapshot: totals, standardLabelSnapshot: policy.measurementStandardLabel, preparerQualificationSnapshot: qualification },
     });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqVersion, v.id, label(l, `Bill of quantities v${v.versionNo}`), "UPDATE",
@@ -410,7 +410,7 @@ export async function savePanel(_prev: FormState, data: FormData): Promise<FormS
     };
     const kind = await listed(policy.panelContractKindTaxonomyCode, contractKindCode, "contractKindCode");
     const status = await listed(policy.panelProjectStatusTaxonomyCode, projectStatusCode, "projectStatusCode");
-    const bq = bqVersionId ? await tx.bqVersion.findFirst({ where: { id: bqVersionId, exerciseId }, select: { id: true, versionNo: true } }) : null;
+    const bq = bqVersionId ? await tx.bqVersion.findFirst({ where: { id: bqVersionId, exerciseId, organisationId: actor.organisationId }, select: { id: true, versionNo: true } }) : null;
     if (bqVersionId && !bq) return { ok: false, errors: { bqVersionId: "That bill is not this exercise's." } };
     const after = {
       contractKindCode: kind, contractKindOther, projectStatusCode: status, projectStatusOther, currentRevisionNo, currentRevisionOn, revisedRevisionNo, revisedRevisionOn, completionPeriodText, bqVersionId: bq?.id ?? null,
@@ -433,12 +433,12 @@ export async function savePanel(_prev: FormState, data: FormData): Promise<FormS
     const clears = editClearsVerifications({ status: before.status, verifications: before.verifications });
     const changes = panelAudit(facts({ ...before, bqVersionNo: before.bqVersion?.versionNo ?? null }), afterFacts);
     if (changes.length === 0) return { ok: true };
-    await tx.specificationPanel.update({ where: { id: before.id }, data: { ...after, ...(clears ? { status: "DRAFT", verifiedAt: null, verifiedSnapshot: Prisma.DbNull } : {}) } });
+    await tx.specificationPanel.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { ...after, ...(clears ? { status: "DRAFT", verifiedAt: null, verifiedSnapshot: Prisma.DbNull } : {}) } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.panel, before.id, panelLabel, "UPDATE", [...changes, ...(before.status === "VERIFIED" ? [{ field: "status", before: "Verified", after: "Draft" }] : [])]);
     if (clears) {
       const now = new Date();
       for (const v of standingVerifications(before.verifications) as typeof before.verifications) {
-        await tx.specPanelVerification.update({ where: { id: v.id }, data: { clearedAt: now } });
+        await tx.specPanelVerification.update({ where: { id: v.id, organisationId: actor.organisationId }, data: { clearedAt: now } });
         await audit(tx, toAuditActor(actor), l.org.id, ENTITY.verification, v.id, label(l, `Specification panel · ${v.columnLabelSnapshot}`), "UPDATE", verificationClearedAudit({ column: v.columnLabelSnapshot, personName: v.person.name }));
       }
     }
@@ -512,7 +512,7 @@ export async function markPanelVerified(_prev: FormState, data: FormData): Promi
     const prior = state === "SCAN_GONE" ? (p.verifiedSnapshot as { verifications?: { column: string; person: string }[]; scans?: { title: string; versionNo: number }[] } | null) : null;
     const verifiersText = (vs: readonly { column: string; person: string }[]) => vs.map((v) => `${v.column}: ${v.person}`).join("; ") + " (recorded on behalf of, not signed)";
     const scansText = (ss: readonly { title: string; versionNo: number }[]) => ss.map((s) => `${s.title}, version ${s.versionNo} (${CLASSIFICATION_LABEL.SULIT})`).join("; ");
-    await tx.specificationPanel.update({ where: { id: p.id }, data: { status: "VERIFIED", verifiedAt: new Date(), verifiedSnapshot: snapshot } });
+    await tx.specificationPanel.update({ where: { id: p.id, organisationId: actor.organisationId }, data: { status: "VERIFIED", verifiedAt: new Date(), verifiedSnapshot: snapshot } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.panel, p.id, label(l, "Specification panel"), "UPDATE", [
       { field: "status", before: PANEL_STATE_LABEL[state], after: PANEL_STATE_LABEL.VERIFIED },
       { field: "verifiedBy", before: prior?.verifications ? verifiersText(prior.verifications) : null, after: verifiersText(snapshot.verifications) },
@@ -600,7 +600,7 @@ export async function amendEstimate(_prev: FormState, data: FormData): Promise<F
     const preparedOn = preparedOnOf(l)!;
     const bq = await tx.bqVersion.findFirst({ where: { exerciseId, status: "FINALISED" }, select: { id: true } });
     const v = await writeEstimateVersion(tx, { organisationId: l.org.id, estimateId: row.id, versionNo, value: value!, reason, preparedOn, preparerPersonId: person!.id, bqVersionId: bq?.id ?? null });
-    await tx.companyEstimate.update({ where: { id: row.id }, data: { currentVersionNo: versionNo } });
+    await tx.companyEstimate.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { currentVersionNo: versionNo } });
     const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "AMENDED", personId: person!.id, capacity: "Preparer", versionNo } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateVersion, v.id, label(l, `Company estimate · version ${versionNo}`), "CREATE", estimateVersionAudit({ versionNo, preparerName: person!.name, preparedOn: storedDay(preparedOn) }));
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · amended"), "CREATE", estimateEventAudit({ kind: "AMENDED", personName: person!.name, capacity: "Preparer", versionNo }));
@@ -621,7 +621,7 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
     if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
     const result = actionResult(lodgeFaults(facts, { personId: person?.id ?? null }, l.ex.status));
     if (!result.ok) return refuseCodes(result.codes);
-    await tx.companyEstimate.update({ where: { id: row.id }, data: { state: "LODGED", lodgedAt: new Date() } });
+    await tx.companyEstimate.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { state: "LODGED", lodgedAt: new Date() } });
     const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "LODGED", personId: person!.id, capacity, versionNo: facts.currentVersionNo, copyNo: 1 } });
     if (facts.state !== "LODGED") await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimate, row.id, label(l, "Company estimate"), "UPDATE", estimateStateAudit(ESTIMATE_STATE_LABEL[facts.state], ESTIMATE_STATE_LABEL.LODGED));
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · lodged"), "CREATE", estimateEventAudit({ kind: "LODGED", personName: person!.name, capacity, versionNo: facts.currentVersionNo, copyNo: 1 }));
@@ -646,7 +646,7 @@ export async function recordRetainedCopy(_prev: FormState, data: FormData): Prom
     if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
     const result = actionResult(retainFaults(facts, { personId: person?.id ?? null, place }));
     if (!result.ok) return refuseCodes(result.codes);
-    await tx.companyEstimate.update({ where: { id: row.id }, data: { retainedPlace: place } });
+    await tx.companyEstimate.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { retainedPlace: place } });
     const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "RETAINED", personId: person!.id, capacity, note: place, versionNo: facts.lodgedVersionNo, copyNo: 2 } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · copy retained"), "CREATE", estimateEventAudit({ kind: "RETAINED", personName: person!.name, capacity, versionNo: facts.lodgedVersionNo, copyNo: 2, place }));
     return { ok: true };
@@ -669,7 +669,7 @@ export async function voidEstimate(_prev: FormState, data: FormData): Promise<Fo
     if (personId && !person) return refuseCodes(["PERSON_UNKNOWN"]);
     const faults = voidFault(facts, reason);
     if (faults.length) return faults.length === 1 && faults[0].code === "REASON_REQUIRED" ? { ok: false, errors: { reason: scopeFaultText("REASON_REQUIRED") } } : refuseCodes(faults.map((f) => f.code));
-    await tx.companyEstimate.update({ where: { id: row.id }, data: { state: "VOID", voidedAt: new Date(), voidReason: reason } });
+    await tx.companyEstimate.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { state: "VOID", voidedAt: new Date(), voidReason: reason } });
     const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "VOIDED", personId: person?.id ?? null, note: reason, versionNo: facts.currentVersionNo } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimate, row.id, label(l, "Company estimate"), "UPDATE", estimateStateAudit(ESTIMATE_STATE_LABEL[facts.state], ESTIMATE_STATE_LABEL.VOID), reason);
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · voided"), "CREATE", estimateEventAudit({ kind: "VOIDED", personName: person?.name ?? null, versionNo: facts.currentVersionNo, reason }), reason);
@@ -772,7 +772,7 @@ export async function importBqCsv(_prev: FormState, data: FormData): Promise<For
     });
     const doc = await lockVersion(tx, documentVersionId, l.org.id);
     if (!doc) return { ok: false, message: documentFaultText({ code: "VERSION_UNKNOWN", level: "block" }) };
-    const stored = await tx.documentVersion.findUniqueOrThrow({ where: { id: doc.id }, select: { mediaType: true, originalFilename: true, document: { select: { id: true, title: true, status: true, classificationSnapshot: true, documentClass: { select: { classification: true } } } } } });
+    const stored = await tx.documentVersion.findUniqueOrThrow({ where: { id: doc.id, organisationId: actor.organisationId }, select: { mediaType: true, originalFilename: true, document: { select: { id: true, title: true, status: true, classificationSnapshot: true, documentClass: { select: { classification: true } } } } } });
     if (stored.mediaType !== "text/csv") return { ok: false, message: scopeFaultText("FILE_NOT_CSV") };
     const bytes = await s.store.get(l.org.id, doc.sha256);
     if (!bytes || sha256Hex(bytes) !== doc.sha256) return { ok: false, message: scopeFaultText("FILE_UNREADABLE") };
@@ -795,16 +795,16 @@ export async function importBqCsv(_prev: FormState, data: FormData): Promise<For
       const earlier = await tx.documentAttachment.findMany({ where: { bqVersionId: v.id, purpose: "BQ_IMPORT_SOURCE", detachedAt: null }, include: { version: { select: { versionNo: true, document: { select: { title: true } } } } } });
       for (const e of earlier) {
         const why = `Replaced: the draft's lines were imported again, from ${stored.originalFilename}.`;
-        await tx.documentAttachment.update({ where: { id: e.id }, data: { detachedAt: new Date(), detachReason: why } });
+        await tx.documentAttachment.update({ where: { id: e.id, organisationId: actor.organisationId }, data: { detachedAt: new Date(), detachReason: why } });
         await writeAudit(tx, { actor: toAuditActor(actor), organisationId: l.org.id, entity: "DocumentAttachment", entityId: e.id, entityLabel: `${label(l, vLabel)} · ${PURPOSE_LABEL.BQ_IMPORT_SOURCE}`, reason: why }, "UPDATE",
           detached({ purpose: "BQ_IMPORT_SOURCE", title: e.version.document.title, versionNo: e.version.versionNo, reason: why }));
       }
       for (const sec of existing) {
         for (const i of sec.items) {
-          await tx.bqItem.delete({ where: { id: i.id } });
+          await tx.bqItem.delete({ where: { id: i.id, organisationId: actor.organisationId } });
           await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqItem, i.id, label(l, `${vLabel} · ${i.itemRef || i.description}`), "DELETE", itemAudit(null, lineOf(i)));
         }
-        await tx.bqSection.delete({ where: { id: sec.id } });
+        await tx.bqSection.delete({ where: { id: sec.id, organisationId: actor.organisationId } });
         await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqSection, sec.id, label(l, `${vLabel} · section ${sec.number}`), "DELETE", sectionAudit(null, { number: sec.number, title: sec.title }));
       }
     } else {
@@ -812,7 +812,7 @@ export async function importBqCsv(_prev: FormState, data: FormData): Promise<For
       // file's sections take their place, so none is doubled. Each removal is audited.
       const why = `Replaced by the sections of the imported file, ${stored.originalFilename}.`;
       for (const sec of existing) {
-        await tx.bqSection.delete({ where: { id: sec.id } });
+        await tx.bqSection.delete({ where: { id: sec.id, organisationId: actor.organisationId } });
         await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqSection, sec.id, label(l, `${vLabel} · section ${sec.number}`), "DELETE", sectionAudit(null, { number: sec.number, title: sec.title }), why);
       }
     }
@@ -836,7 +836,7 @@ export async function importBqCsv(_prev: FormState, data: FormData): Promise<For
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: l.org.id, entity: "DocumentAttachment", entityId: attachment.id, entityLabel: `${ownerLabel} · ${PURPOSE_LABEL.BQ_IMPORT_SOURCE}` }, "CREATE",
       attached({ purpose: "BQ_IMPORT_SOURCE", title: stored.document.title, versionNo: doc.versionNo, sha256: doc.sha256, owner: ownerLabel }));
     if (stored.document.status === "STAGED") {
-      await tx.document.update({ where: { id: stored.document.id }, data: { status: "FILED", filedAt: new Date() } });
+      await tx.document.update({ where: { id: stored.document.id, organisationId: actor.organisationId }, data: { status: "FILED", filedAt: new Date() } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: l.org.id, entity: "Document", entityId: stored.document.id, entityLabel: `Document · ${stored.document.title}` }, "UPDATE", filed());
     }
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqVersion, v.id, label(l, vLabel), "UPDATE",
@@ -872,7 +872,7 @@ export async function exportBqCsv(_prev: BqExportResult, data: FormData): Promis
   let out: BqExportResult = { ok: false };
   const result = await inExercise(actor, exerciseId, async (tx, l) => {
     const v = await tx.bqVersion.findFirst({
-      where: { id: bqVersionId, exerciseId },
+      where: { id: bqVersionId, exerciseId, organisationId: actor.organisationId },
       select: {
         id: true, versionNo: true,
         sections: { orderBy: [{ sortOrder: "asc" }, { number: "asc" }], select: { number: true, title: true, items: { orderBy: [{ sortOrder: "asc" }, { itemRef: "asc" }], select: { itemRef: true, description: true, unit: true, kind: true, quantity: true, rate: true, provisional: true } } } },

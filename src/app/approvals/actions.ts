@@ -50,7 +50,7 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
   if (r.failed || !kind) return { ok: false, errors: r.errors };
 
   const found = await db.approvalStep.findUnique({
-    where: { id: stepId },
+    where: { id: stepId, instance: { organisationId: actor.organisationId } },
     select: { instance: { select: { id: true, requisitionId: true, exerciseId: true, awardId: true, exercise: { select: { requisitionId: true } }, supplierApplicationId: true, supplierApplication: { select: { supplierId: true } }, standingRequestId: true, standingRequest: { select: { supplierId: true } }, specialPermissionId: true, specialPermission: { select: { party: { select: { vendorId: true } } } }, certificateId: true, certificate: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } }, variationId: true, variation: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } }, contractMatterId: true, contractMatter: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } } } } },
   });
   if (!found) return { ok: false, message: "That step no longer exists." };
@@ -99,7 +99,7 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
       if (permissionId) await tx.$queryRaw`SELECT id FROM "SpecialPermission" WHERE id = ${permissionId} FOR UPDATE`;
 
       const inst = await tx.approvalInstance.findUnique({
-        where: { id: route.id },
+        where: { id: route.id, organisationId: actor.organisationId },
         include: {
           steps: { orderBy: { sequence: "asc" } },
           requisition: { select: { id: true, reference: true } },
@@ -132,7 +132,7 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
       if (inst.certificate?.status != null && inst.certificate.status !== "DRAFT" && inst.certificate.status !== "IN_ROUTING") return { ok: false, message: "That certificate is past its approval route." };
       // A supplier matter belongs to no unit: no requisition, and its offices are held organisation-wide.
       const req = requisitionId
-        ? await tx.requisition.findUniqueOrThrow({ where: { id: requisitionId }, select: { organisationId: true, sectionUnitCode: true, requestingUnitCode: true, organisation: { select: { timeZone: true } } } })
+        ? await tx.requisition.findUniqueOrThrow({ where: { id: requisitionId, organisationId: actor.organisationId }, select: { organisationId: true, sectionUnitCode: true, requestingUnitCode: true, organisation: { select: { timeZone: true } } } })
         : { organisationId: inst.organisationId, sectionUnitCode: "", requestingUnitCode: "", organisation: await tx.organisation.findUniqueOrThrow({ where: { id: inst.organisationId }, select: { timeZone: true } }) };
       const today = todayIn(new Date(), req.organisation.timeZone);
       const [roles, units, roster, delegations] = await Promise.all([

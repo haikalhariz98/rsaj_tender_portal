@@ -64,19 +64,19 @@ const dayField = (r: FormReader, name: string, label: string, required = false) 
 };
 
 /// The matter's family, from its kind as read before the lock (read again under it by run).
-async function familyOf(matterId: string) {
-  const m = await db.contractMatter.findUnique({ where: { id: matterId }, select: { kind: true } });
+async function familyOf(scope: OrgScope, matterId: string) {
+  const m = await db.contractMatter.findUnique({ where: { id: matterId, organisationId: scope.organisationId }, select: { kind: true } });
   return m ? MATTER_FAMILY[m.kind as ContractMatterKind] : null;
 }
 
 /// The act on a matter: its family read before the lock (only to choose the row), then inContract.
 async function run(scope: OrgScope, by: AuditActor, data: FormData, matterId: string, now: Date, fn: (c: ActCtx) => Promise<FormState>, paths: readonly string[] = []): Promise<FormState> {
-  const family = await familyOf(matterId);
+  const family = await familyOf(scope, matterId);
   if (!family) return { ok: false, message: "That matter no longer exists." };
   return inContract(scope, by, idOf(data), now, family, async (c) => {
     // The row asked was chosen from the kind read before the lock: read it again under the lock (a matter's kind never
     // changes, so this refuses only a matter that vanished or a forged id).
-    const again = await c.tx.contractMatter.findFirst({ where: { id: matterId, contractId: c.l.contract.id }, select: { kind: true } });
+    const again = await c.tx.contractMatter.findFirst({ where: { id: matterId, contractId: c.l.contract.id, organisationId: scope.organisationId }, select: { kind: true } });
     if (!again || MATTER_FAMILY[again.kind as ContractMatterKind] !== family) return { ok: false, message: "The matter changed while this was being saved. Reload and try again." };
     return fn(c);
   }, paths);

@@ -701,7 +701,7 @@ export async function recordOralLoop(_prev: FormState, data: FormData): Promise<
     // The objection clock, frozen from the confirmation's receipt the first time it is recorded.
     const clock = confirmedOn && !ins.objectionDueOn ? await clockOf(c, "ORAL_OBJECTION") : null;
     const objectionDue = ins.objectionDueOn ? day(ins.objectionDueOn) : confirmedOn && clock ? dueOn(confirmedOn, clock) : null;
-    await c.tx.variationInstruction.update({ where: { id: ins.id }, data: { contractorConfirmedOn: confirmedOn ? dayToDate(confirmedOn) : null, confirmationMatches: matches, objectedOn: objectedOn ? dayToDate(objectedOn) : null, objectionNote, objectionDueOn: objectionDue ? dayToDate(objectionDue) : null } });
+    await c.tx.variationInstruction.update({ where: { id: ins.id, organisationId: actor.organisationId }, data: { contractorConfirmedOn: confirmedOn ? dayToDate(confirmedOn) : null, confirmationMatches: matches, objectedOn: objectedOn ? dayToDate(objectedOn) : null, objectionNote, objectionDueOn: objectionDue ? dayToDate(objectionDue) : null } });
     await audit(c, "VariationInstruction", ins.id, `${vLabel(c, v)} · the S.O.'s instruction`, "UPDATE", diffFields({ confirmationReceivedOn: day(ins.contractorConfirmedOn), confirmationMatches: ins.confirmationMatches == null ? null : yesNo(ins.confirmationMatches), objectedOn: day(ins.objectedOn) }, { confirmationReceivedOn: confirmedOn, confirmationMatches: matches == null ? null : yesNo(matches), objectionDue, objectedOn }), objectionNote);
     return { ok: true };
   });
@@ -807,7 +807,7 @@ export async function recordDaywork(_prev: FormState, data: FormData): Promise<F
     if (dayworkId && !existing) return { ok: false, message: "That daywork record is not on this variation." };
     if (existing) {
       if (storedDay(existing.workedOn) !== workedOn) fieldError("workedOn", "The day worked is not changed: record another day as its own record.");
-      await c.tx.dayworkRecord.update({ where: { id: existing.id }, data: { description, agreedOn: agreedOn ? dayToDate(agreedOn) : null, agreedWith, substantiationReceivedOn: receivedOn ? dayToDate(receivedOn) : null } });
+      await c.tx.dayworkRecord.update({ where: { id: existing.id, organisationId: actor.organisationId }, data: { description, agreedOn: agreedOn ? dayToDate(agreedOn) : null, agreedWith, substantiationReceivedOn: receivedOn ? dayToDate(receivedOn) : null } });
       await audit(c, "DayworkRecord", existing.id, `${vLabel(c, v)} · daywork of ${workedOn}`, "UPDATE", diffFields({ description: existing.description, agreedOn: day(existing.agreedOn), agreedWith: existing.agreedWith || null, substantiationReceivedOn: day(existing.substantiationReceivedOn) }, { description, agreedOn, agreedWith: agreedWith || null, substantiationReceivedOn: receivedOn }));
       return { ok: true };
     }

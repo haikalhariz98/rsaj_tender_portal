@@ -156,7 +156,7 @@ export default async function ApprovalMatrixPage({
   // The terms family and the boundary ruling (6.3).
   const [termsBands, boundaryMeta] = await Promise.all([
     loadTermsBands(selected.id),
-    db.authorityMatrix.findUniqueOrThrow({ where: { id: selected.id }, select: { boundaryProvenance: true, boundarySource: true } }),
+    db.authorityMatrix.findUniqueOrThrow({ where: { id: selected.id, organisationId: actor.organisationId }, select: { boundaryProvenance: true, boundarySource: true } }),
   ]);
   const consistency = bandConsistencyFaults(matrix, termsBands);
   // The core routing (FR-APR-004): this issue's own rows, in the offices' order, and the

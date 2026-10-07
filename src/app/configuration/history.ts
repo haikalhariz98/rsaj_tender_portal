@@ -202,7 +202,7 @@ export async function historyOf(entity: string, entityId: string): Promise<Histo
   if (!ENTITIES.has(entity) || !entityId) return [];
   // A sign-in account's trail names sign-in names and why codes were issued: for the people who administer accounts.
   if (entity === "StaffAccount" && !actor.isAdministrator) return [];
-  const issue = entity === "AuthorityMatrix" ? await db.authorityMatrix.findUnique({ where: { id: entityId }, select: { label: true } }) : null;
+  const issue = entity === "AuthorityMatrix" ? await db.authorityMatrix.findUnique({ where: { id: entityId, organisationId: actor.organisationId }, select: { label: true } }) : null;
   const [own, core, read, org] = await Promise.all([
     loadAudit(actor.organisationCode, { entity, entityId, take: 100 }),
     issue

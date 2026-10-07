@@ -126,7 +126,7 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
       const created = await tx.windowPolicy.create({ data: { organisationId: org.id, ...row } });
       await audit(tx, toAuditActor(actor), org.id, "WindowPolicy", created.id, "Invitation controls · policy", "CREATE", diffFields(null, words(v)!), reason);
     } else {
-      await tx.windowPolicy.update({ where: { id: before.id }, data: row });
+      await tx.windowPolicy.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), org.id, "WindowPolicy", before.id, "Invitation controls · policy", "UPDATE", diffFields(words(before), words(v)!), reason);
     }
     return done();
@@ -175,7 +175,7 @@ export async function saveChannel(_prev: FormState, data: FormData): Promise<For
       const created = await tx.publicationChannel.create({ data: { organisationId: org.id, ...row } });
       await audit(tx, toAuditActor(actor), org.id, "PublicationChannel", created.id, `Publication channel · ${row.nameEn}`, "CREATE", diffFields(null, channelWords(created)), reason);
     } else {
-      const after = await tx.publicationChannel.update({ where: { id: before.id }, data: row });
+      const after = await tx.publicationChannel.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), org.id, "PublicationChannel", before.id, `Publication channel · ${row.nameEn}`, "UPDATE", diffFields(channelWords(before), channelWords(after)), reason);
     }
     return done();
@@ -197,7 +197,7 @@ export async function setChannelRetired(_prev: FormState, data: FormData): Promi
     if (!before) return GONE;
     const today = todayIn(new Date(), org.timeZone);
     if (!today) return { ok: false, message: "The organisation's time zone is not set, so no day can be recorded. Set it under Configuration, Organisation." };
-    const after = await tx.publicationChannel.update({ where: { id }, data: { retiredOn: retire ? dayToDate(today) : null } });
+    const after = await tx.publicationChannel.update({ where: { id, organisationId: actor.organisationId }, data: { retiredOn: retire ? dayToDate(today) : null } });
     await audit(tx, toAuditActor(actor), org.id, "PublicationChannel", id, `Publication channel · ${before.nameEn}`, "UPDATE", diffFields(channelWords(before), channelWords(after)), reason);
     return done();
   });
@@ -239,7 +239,7 @@ export async function saveFeeFloor(_prev: FormState, data: FormData): Promise<Fo
       const created = await tx.documentFeeFloor.create({ data: { organisationId: org.id, ...row } });
       await audit(tx, toAuditActor(actor), org.id, "DocumentFeeFloor", created.id, `Fee floor · ${REGIME_LABEL[row.regime as Regime] ?? row.regime}`, "CREATE", diffFields(null, floorWords(created)), reason);
     } else {
-      const after = await tx.documentFeeFloor.update({ where: { id: before.id }, data: row });
+      const after = await tx.documentFeeFloor.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), org.id, "DocumentFeeFloor", before.id, `Fee floor · ${REGIME_LABEL[row.regime as Regime] ?? row.regime}`, "UPDATE", diffFields(floorWords(before), floorWords(after)), reason);
     }
     return done();
@@ -258,7 +258,7 @@ export async function removeFeeFloor(_prev: FormState, data: FormData): Promise<
     await lockOrganisation(tx, org.id);
     const before = await tx.documentFeeFloor.findFirst({ where: { id, organisationId: org.id } });
     if (!before) return GONE;
-    await tx.documentFeeFloor.delete({ where: { id } });
+    await tx.documentFeeFloor.delete({ where: { id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), org.id, "DocumentFeeFloor", id, `Fee floor · ${REGIME_LABEL[before.regime as Regime] ?? before.regime}`, "DELETE", diffFields(floorWords(before), { band: null, minimumFee: null, governingSource: null, whereItComesFrom: null }), reason);
     return done();
   });
@@ -307,7 +307,7 @@ export async function saveCalendar(_prev: FormState, data: FormData): Promise<Fo
       const created = await tx.holidayCalendar.create({ data: { organisationId: org.id, ...row } });
       await audit(tx, toAuditActor(actor), org.id, "HolidayCalendar", created.id, `Holiday calendar · ${row.name}`, "CREATE", diffFields(null, calendarWords(created)), reason);
     } else {
-      const after = await tx.holidayCalendar.update({ where: { id: before.id }, data: row });
+      const after = await tx.holidayCalendar.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), org.id, "HolidayCalendar", before.id, `Holiday calendar · ${row.name}`, "UPDATE", diffFields(calendarWords(before), calendarWords(after)), reason);
     }
     return done();
@@ -329,7 +329,7 @@ export async function setCalendarRetired(_prev: FormState, data: FormData): Prom
     if (!before) return GONE;
     const today = todayIn(new Date(), org.timeZone);
     if (!today) return { ok: false, message: "The organisation's time zone is not set, so no day can be recorded. Set it under Configuration, Organisation." };
-    const after = await tx.holidayCalendar.update({ where: { id }, data: { retiredOn: retire ? dayToDate(today) : null } });
+    const after = await tx.holidayCalendar.update({ where: { id, organisationId: actor.organisationId }, data: { retiredOn: retire ? dayToDate(today) : null } });
     await audit(tx, toAuditActor(actor), org.id, "HolidayCalendar", id, `Holiday calendar · ${before.name}`, "UPDATE", diffFields(calendarWords(before), calendarWords(after)), reason);
     return done();
   });
@@ -364,7 +364,7 @@ export async function saveCalendarYear(_prev: FormState, data: FormData): Promis
       const created = await tx.holidayCalendarYear.create({ data: { organisationId: org.id, calendarId, year, ...row } });
       await audit(tx, toAuditActor(actor), org.id, "HolidayCalendarYear", created.id, `Holiday calendar · ${cal.name} · ${year}`, "CREATE", diffFields(null, words(created)!), reason);
     } else {
-      await tx.holidayCalendarYear.update({ where: { id: before.id }, data: row });
+      await tx.holidayCalendarYear.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), org.id, "HolidayCalendarYear", before.id, `Holiday calendar · ${cal.name} · ${year}`, "UPDATE", diffFields(words(before), words(row)!), reason);
     }
     return done();
@@ -411,7 +411,7 @@ export async function removeHoliday(_prev: FormState, data: FormData): Promise<F
     const h = await tx.publicHoliday.findFirst({ where: { id, organisationId: org.id }, include: { calendar: { select: { id: true, name: true } } } });
     if (!h) return GONE;
     await tx.$queryRaw`SELECT id FROM "HolidayCalendar" WHERE id = ${h.calendarId} FOR UPDATE`;
-    await tx.publicHoliday.delete({ where: { id } });
+    await tx.publicHoliday.delete({ where: { id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), org.id, "PublicHoliday", id, `Holiday calendar · ${h.calendar.name} · ${h.nameEn}`, "DELETE", diffFields(holidayWords(h), { day: null, name: null, nameInMalay: null, gazette: null, whereItComesFrom: null }), reason);
     return done();
   });
@@ -480,7 +480,7 @@ export async function saveMethodBidRule(_prev: FormState, data: FormData): Promi
     const faults = bidRuleFaults(draft, { committees });
     if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, BID_RULE_FAULT_TEXT[f.code]])) };
     const v = bidRuleToSave(draft) as { lateAdmissionCommitteeCode: string | null; lateAdmissionProvenance: Prov | null; minimumBids: number | null; minimumBidsProvenance: Prov | null; completenessEliminates: boolean | null; completenessProvenance: Prov | null };
-    await tx.sourcingMethod.update({ where: { id }, data: v });
+    await tx.sourcingMethod.update({ where: { id, organisationId: actor.organisationId }, data: v });
     const { nameEn, ...was } = before;
     await audit(tx, toAuditActor(actor), org.id, "SourcingMethod", id, nameEn, "UPDATE", diffFields(was, v));
     revalidatePath("/configuration/reference-data");
@@ -522,7 +522,7 @@ export async function saveMethodOpeningRule(_prev: FormState, data: FormData): P
     const faults = methodOpeningFaults(draft, { committees: committees.filter((c) => c.retiredOn == null).map((c) => c.code) });
     if (faults.length) return fieldRefusal(faults);
     const v = methodOpeningToSave(draft);
-    await tx.sourcingMethod.update({ where: { id }, data: v });
+    await tx.sourcingMethod.update({ where: { id, organisationId: actor.organisationId }, data: v });
     // Codes never reach History: the committee by its name, the consequence in words.
     const words = (m: { openingCommitteeCode: string | null; openingCommitteeProvenance: string | null; unpurchasedBidConsequence: string | null; unpurchasedProvenance: string | null }) => ({
       openingCommittee: m.openingCommitteeCode == null ? NOT_SET : (committees.find((c) => c.code === m.openingCommitteeCode)?.nameEn ?? "A committee no longer configured"),
@@ -582,7 +582,7 @@ export async function saveOpeningPolicy(_prev: FormState, data: FormData): Promi
       const created = await tx.openingPolicy.create({ data: { organisationId: org.id, ...v } });
       await audit(tx, toAuditActor(actor), org.id, "OpeningPolicy", created.id, "Opening policy", "CREATE", diffFields(null, words(v)), reason);
     } else {
-      await tx.openingPolicy.update({ where: { id: before.id }, data: v });
+      await tx.openingPolicy.update({ where: { id: before.id, organisationId: actor.organisationId }, data: v });
       await audit(tx, toAuditActor(actor), org.id, "OpeningPolicy", before.id, "Opening policy", "UPDATE", diffFields(words(before), words(v)), reason);
     }
     return done();

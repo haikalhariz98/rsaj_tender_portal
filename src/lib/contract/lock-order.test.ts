@@ -184,7 +184,8 @@ describe("ContractMatter's place (BD-613-117): /approvals' escalation and a sitt
     // are asserted against it, none dropped.
     const committee = read("src/app/committees/actions.ts");
     const rec = committee.slice(committee.indexOf("export async function recordOutcome("), committee.indexOf("\n}\n", committee.indexOf("export async function recordOutcome(")));
-    expect(rec).toMatch(/const record = exerciseId \|\| variation \? null : await outcomeRecordOf\(decisionId\);/);
+    // Phase 1c (ADR 0034 D10): the record is found for the signed-in person's organisation (`outcomeRecordOf(actor, …)`); otherwise as pinned.
+    expect(rec).toMatch(/const record = exerciseId \|\| variation \? null : await outcomeRecordOf\(actor, decisionId\);/);
     // Phase 1c (ADR 0034 D10): the path is now asked for the signed-in person's organisation first (`actor`); otherwise as pinned.
     expect(rec).toMatch(/: record\s+\? inSittingAfterRecord\(actor, toAuditActor\(actor\), meetingId, record, decisionId, now, run\)/);
     // The matter locked before the sitting is still the decision's, checked before any write.
@@ -611,8 +612,8 @@ describe("configuration saves read under their lock (Phase 0, group E)", () => {
 
   it("saveRule: the issue is locked first, then the rule, the key clash, the siblings and the offices are read under it", () => {
     const b = body(MATRIX, "saveRule");
-    // Phase 1c (ADR 0034 D10): the issue is read for the signed-in person's organisation (`issueIn(actor, tx, …)`); the order is as pinned.
-    inOrder(b, ["db.$transaction(", "lockIssue(tx, authorityMatrixId)", "tx.authorityMatrix.findFirst(", "tx.authorityRule.findFirst({ where: { id, authorityMatrixId } })", "tx.authorityRule.findFirst({\n      where: { authorityMatrixId, ruleKey", "tx.authorityRole.findMany(", "tx.authorityRule.findMany(", "issueIn(actor, tx, authorityMatrixId)", "tx.authorityRule.create(", "tx.authorityRule.update("]);
+    // Phase 1c (ADR 0034 D10): the rule is found within the signed-in person's organisation's issue, and the issue read for it (`issueIn(actor, tx, …)`); the order is as pinned.
+    inOrder(b, ["db.$transaction(", "lockIssue(tx, authorityMatrixId)", "tx.authorityMatrix.findFirst(", "tx.authorityRule.findFirst({ where: { id, authorityMatrixId, authorityMatrix: { organisationId: actor.organisationId } } })", "tx.authorityRule.findFirst({\n      where: { authorityMatrixId, ruleKey", "tx.authorityRole.findMany(", "tx.authorityRule.findMany(", "issueIn(actor, tx, authorityMatrixId)", "tx.authorityRule.create(", "tx.authorityRule.update("]);
     expect([...b.matchAll(/\bdb\./g)].length).toBe(1);
     expect(b).not.toMatch(/auditedCreate|auditedUpdate/);
     // A rule is found within the issue that was locked, so another issue's rule is never edited through this one.

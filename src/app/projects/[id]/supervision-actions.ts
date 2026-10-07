@@ -223,7 +223,7 @@ export async function revokeDelegation(_prev: FormState, data: FormData): Promis
   return inContract(actor, toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     // The delegation is a domain row: locked after the contract.
     await c.tx.$queryRaw`SELECT id FROM "SoDelegation" WHERE id = ${delegationId} FOR UPDATE`;
-    const d = await c.tx.soDelegation.findFirst({ where: { id: delegationId, contractId: c.l.contract.id } });
+    const d = await c.tx.soDelegation.findFirst({ where: { id: delegationId, contractId: c.l.contract.id, organisationId: actor.organisationId } });
     if (!d) return { ok: false, message: "That delegation is not on this contract." };
     // Review 6: never on or before the representative's latest recorded act or signature on this contract.
     const latestAct = latestActDay(await actsByPerson(await supervisionOf(c), c.l.contract.id, c.tx), d.delegatePersonId);
@@ -455,7 +455,7 @@ export async function recordDiaryEntry(_prev: FormState, data: FormData): Promis
 /// Lock and read a diary entry of this contract.
 async function lockedEntry(c: Ctx, entryId: string) {
   await c.tx.$queryRaw`SELECT id FROM "SiteDiaryEntry" WHERE id = ${entryId} FOR UPDATE`;
-  const e = await c.tx.siteDiaryEntry.findFirst({ where: { id: entryId, contractId: c.l.contract.id }, include: { officer: { select: { name: true } } } });
+  const e = await c.tx.siteDiaryEntry.findFirst({ where: { id: entryId, contractId: c.l.contract.id, organisationId: c.l.org.id }, include: { officer: { select: { name: true } } } });
   if (!e) throw new Refusal({ ok: false, message: "That diary entry is not on this contract." });
   return e;
 }
@@ -684,7 +684,7 @@ export async function retireParty(_prev: FormState, data: FormData): Promise<For
   if (r.failed) return { ok: false, errors: r.errors };
   return inContract(actor, toAuditActor(actor), idOf(data), now, "SUPERVISION", async (c) => {
     await c.tx.$queryRaw`SELECT id FROM "ContractParty" WHERE id = ${partyId} FOR UPDATE`;
-    const p = await c.tx.contractParty.findFirst({ where: { id: partyId, contractId: c.l.contract.id } });
+    const p = await c.tx.contractParty.findFirst({ where: { id: partyId, contractId: c.l.contract.id, organisationId: actor.organisationId } });
     if (!p) return { ok: false, message: "That party is not on this contract." };
     const fs = retirePartyFaults({ retired: p.retiredOn != null, reason });
     if (fs.length) refuse("Not retired:", fs);

@@ -130,11 +130,11 @@ export async function saveTemplate(_prev: FormState, data: FormData): Promise<Fo
     // The row is locked and re-read inside the write, so two saves never both take the
     // same next version: a changed body is a new version, which an issued document names.
     await tx.$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${id} FOR UPDATE`;
-    const before = await tx.documentTemplate.findUnique({ where: { id } });
+    const before = await tx.documentTemplate.findUnique({ where: { id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That template no longer exists." };
     const bodyChanged = (before.bodyMs ?? null) !== write.bodyMs || (before.bodyEn ?? null) !== write.bodyEn || (before.primaryLanguage ?? null) !== write.primaryLanguage;
     const versioned = { ...write, bodyVersion: bodyChanged ? before.bodyVersion + 1 : before.bodyVersion };
-    await tx.documentTemplate.update({ where: { id }, data: versioned });
+    await tx.documentTemplate.update({ where: { id, organisationId: actor.organisationId }, data: versioned });
     const changes = diffFields(before, versioned);
     if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: id }, "UPDATE", changes);
     return { ok: true };

@@ -140,7 +140,7 @@ export async function saveNotificationRule(_prev: FormState, data: FormData): Pr
       tx.notificationRule.create({ data: { organisationId: orgId, ...write } }),
     );
   } else {
-    const before = await db.notificationRule.findUnique({ where: { id } });
+    const before = await db.notificationRule.findUnique({ where: { id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That rule no longer exists." };
     await auditedUpdate(
       { ...ctx, entityId: id },
@@ -150,7 +150,7 @@ export async function saveNotificationRule(_prev: FormState, data: FormData): Pr
         reminderOffsetDays: before.reminderOffsetDays.join(", "),
       },
       forTrail,
-      (tx) => tx.notificationRule.update({ where: { id }, data: write }),
+      (tx) => tx.notificationRule.update({ where: { id, organisationId: actor.organisationId }, data: write }),
     );
   }
 

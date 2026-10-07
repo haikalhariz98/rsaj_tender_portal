@@ -217,7 +217,7 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
     if (person) for (const s of reading) fs.push(...personFaults(s.side, person.id, f.team, f.submissions));
     if (fs.some((x) => x.level === "block")) return refuse(fs);
     const factorLabel = (code: string | null) => (code ? (capital.flatMap((s) => s.factors).find((x) => x.code === code)?.labelEn ?? "A factor no longer offered") : null);
-    await tx.evaluationBidder.update({ where: { id: b.id }, data: { factorOptionCode: factor, balanceMonth1: balances[0], balanceMonth2: balances[1], balanceMonth3: balances[2], cprPercent: cpr != null ? fixedToDecimalString(cpr) : null, inputsRecordedAt: now, inputsRecordedByPersonId: person!.id } });
+    await tx.evaluationBidder.update({ where: { id: b.id, organisationId: actor.organisationId }, data: { factorOptionCode: factor, balanceMonth1: balances[0], balanceMonth2: balances[1], balanceMonth3: balances[2], cprPercent: cpr != null ? fixedToDecimalString(cpr) : null, inputsRecordedAt: now, inputsRecordedByPersonId: person!.id } });
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.bidder, b.id, evLabel(l, e!.version, `Bid No. ${b.listingNo}`), "UPDATE",
       diffFields(inputFields({ factor: factorLabel(b.factorOptionCode), balances: b.balances, cpr: b.cprPercent, by: person!.name }), inputFields({ factor: factorLabel(factor), balances: balances.map((v) => (v == null ? null : parseSen(v))), cpr, by: person!.name })));
     return { ok: true, message: "Recorded." };
@@ -252,7 +252,7 @@ export async function correctPrice(_prev: FormState, data: FormData): Promise<Fo
     if (fs.length) return refuse(fs);
     const sen = parseSen(price);
     const reasonExcluded = exclusionReason(ceilingExclusion(sen, ceilingOf(l.ex)));
-    await tx.evaluationBidder.update({ where: { id: b.id }, data: { correctedPrice: price, correctionReason: reason, correctedAt: now, correctedByPersonId: person!.id, excludedReason: reasonExcluded } });
+    await tx.evaluationBidder.update({ where: { id: b.id, organisationId: actor.organisationId }, data: { correctedPrice: price, correctionReason: reason, correctedAt: now, correctedByPersonId: person!.id, excludedReason: reasonExcluded } });
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.bidder, b.id, evLabel(l, e!.version, `Bid No. ${b.listingNo}`), "UPDATE",
       diffFields(b.correctedPrice != null ? correctionFields({ price: b.correctedPrice, reason: "", by: "", excluded: b.excludedReason }) : { correctedPrice: null }, correctionFields({ price: sen, reason, by: person!.name, excluded: reasonExcluded })), reason);
     return { ok: true, message: reasonExcluded ? "Corrected. On the corrected price the bid is above the exercise's quotation ceiling and is excluded." : "Corrected." };
@@ -320,7 +320,7 @@ export async function recordShortlist(_prev: FormState, data: FormData): Promise
     const sub = await tx.stageSubmission.create({ data: { organisationId: l.org.id, evaluationId: e!.id, stageCode: s.code, side: s.side, submittedByPersonId: person!.id, submittedAt: now } });
     for (const b of eligible) {
       const on = chosen.includes(b.id);
-      await tx.evaluationBidder.update({ where: { id: b.id }, data: { shortlisted: on, shortlistedAt: now, shortlistedByPersonId: person!.id } });
+      await tx.evaluationBidder.update({ where: { id: b.id, organisationId: actor.organisationId }, data: { shortlisted: on, shortlistedAt: now, shortlistedByPersonId: person!.id } });
       await tx.stageResult.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId: b.id, stageCode: s.code, passed: on, outOfRunning: !on } });
     }
     const listing = (id: string) => f.bidders.find((x) => x.id === id)!.listingNo;

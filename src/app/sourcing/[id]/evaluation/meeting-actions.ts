@@ -267,7 +267,7 @@ export async function recordNegotiationDecision(_prev: FormState, data: FormData
       return { ok: true, message: "Refused: the negotiation is not held. It may be asked for again." };
     }
     if (!full.steps.every((s) => s.id === step.id || s.decision === "DONE")) return { ok: true };
-    await tx.approvalInstance.update({ where: { id: full.id }, data: { status: "APPROVED", closedAt: now } });
+    await tx.approvalInstance.update({ where: { id: full.id, organisationId: actor.organisationId }, data: { status: "APPROVED", closedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", full.id, routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), reason);
     return { ok: true, message: "Approved: the negotiation may be held. Record each round on Meetings and letters." };
   });

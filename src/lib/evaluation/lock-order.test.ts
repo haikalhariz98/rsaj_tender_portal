@@ -37,10 +37,11 @@ describe("the outcome of an appointment matter locks the exercise before the sit
   // matter's matters now lock their record first too, and the appointment's path its award; see the describe below.
   it("an appointment matter on an exercise takes that path; a variation's matter its contract's; a record's matter its record's; any other matter the sitting's alone", () => {
     const rec = between(committee, "export async function recordOutcome(", "\n}\n");
-    expect(rec).toMatch(/const exerciseId = await appointmentExerciseOf\(decisionId\);/);
-    expect(rec).toMatch(/const variation = exerciseId \? null : await variationMatterOf\(decisionId\);/);
+    // Phase 1c (ADR 0034 D10): the unlocked pre-reads are asked for the signed-in person's organisation (`actor`); otherwise as pinned.
+    expect(rec).toMatch(/const exerciseId = await appointmentExerciseOf\(actor, decisionId\);/);
+    expect(rec).toMatch(/const variation = exerciseId \? null : await variationMatterOf\(actor, decisionId\);/);
     expect(rec).toMatch(/const awardId = exerciseId \? await openAppointmentOf\(exerciseId\) : null;/);
-    expect(rec).toMatch(/const record = exerciseId \|\| variation \? null : await outcomeRecordOf\(decisionId\);/);
+    expect(rec).toMatch(/const record = exerciseId \|\| variation \? null : await outcomeRecordOf\(actor, decisionId\);/);
     expect(rec).toMatch(/return exerciseId\n\s+\? inSittingAfterExercise\(actor, toAuditActor\(actor\), meetingId, exerciseId, run, awardId \? \{ awardId, decisionId \} : null\)\n\s+: variation\n\s+\? inSittingAfterContract\(actor, toAuditActor\(actor\), meetingId, variation, run, \{ decisionId, now \}\)\n\s+: record\n\s+\? inSittingAfterRecord\(actor, toAuditActor\(actor\), meetingId, record, decisionId, now, run\)\n\s+: inSitting\(actor, meetingId, run\);/);
     expect(rec.indexOf("matterKey(decision) !== outcomeRecordKey(record)")).toBeGreaterThan(-1);
     expect(rec.indexOf("matterKey(decision) !== outcomeRecordKey(record)")).toBeLessThan(rec.indexOf("tx.committeeDecision.updateMany("));
@@ -74,7 +75,8 @@ describe("the outcome of an appointment matter locks the exercise before the sit
 describe("one clock read per act (R-9)", () => {
   it("recordOutcome reads the clock at its entry and the loop-back stamps with it", () => {
     const rec = between(committee, "export async function recordOutcome(", "\n}\n");
-    expect(rec.indexOf("const now = toSecond(new Date());")).toBeLessThan(rec.indexOf("await meetingOf(decisionId)"));
+    // Phase 1c (ADR 0034 D10): the sitting is found for the signed-in person's organisation (`meetingOf(actor, …)`); the order is as pinned.
+    expect(rec.indexOf("const now = toSecond(new Date());")).toBeLessThan(rec.indexOf("await meetingOf(actor, decisionId)"));
     const loop = between(committee, "async function loopBack(", "\n}\n");
     expect(loop).not.toMatch(/new Date\(/);
     expect(loop).toMatch(/timeZone: s\.timeZone, now \}/);

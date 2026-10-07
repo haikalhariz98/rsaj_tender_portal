@@ -191,7 +191,7 @@ export async function setAssemblyPart(_prev: FormState, data: FormData): Promise
     const part = c.l.contract.assemblyParts.find((p) => p.id === partId);
     if (!part) return { ok: false, message: "That part is not in this contract's assembly." };
     const after = { state, cancelledStatement: state === "READY" ? "" : statement };
-    await c.tx.contractAssemblyPart.update({ where: { id: part.id }, data: after });
+    await c.tx.contractAssemblyPart.update({ where: { id: part.id, organisationId: actor.organisationId }, data: after });
     await audit(c, "ContractAssemblyPart", part.id, part.labelSnapshot, "UPDATE", diffFields({ state: part.state, cancelledStatement: part.cancelledStatement }, after));
     return { ok: true };
   });
@@ -220,7 +220,7 @@ export async function recordReconciliation(_prev: FormState, data: FormData): Pr
     const existing = c.l.contract.reconciliations.find((x) => x.comparison === comparison);
     if (existing && existing.amendments.length > 0 && outcome === "MATCHES") return { ok: false, errors: { outcome: "Amendments are recorded under this comparison, so it is not identical." } };
     const row = existing
-      ? await c.tx.contractReconciliation.update({ where: { id: existing.id }, data: { outcome, checkedByPersonId: person.id, checkedOn, note, addendaSnapshot: snapshot, recordedAt: now } })
+      ? await c.tx.contractReconciliation.update({ where: { id: existing.id, organisationId: actor.organisationId }, data: { outcome, checkedByPersonId: person.id, checkedOn, note, addendaSnapshot: snapshot, recordedAt: now } })
       : await c.tx.contractReconciliation.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, comparison, outcome, checkedByPersonId: person.id, checkedOn, note, addendaSnapshot: snapshot, recordedAt: now } });
     await audit(c, "ContractReconciliation", row.id, reconciliationLabel(comparison), existing ? "UPDATE" : "CREATE", diffFields(existing ? { outcome: existing.outcome } : null, { outcome, checkedBy: person.name, checkedOn, addendaListed: snapshot.length, recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
@@ -322,10 +322,10 @@ export async function removeCheckLine(_prev: FormState, data: FormData): Promise
     const correction = k.corrections.find((x) => x.id === lineId);
     const rate = k.rates.find((x) => x.id === lineId);
     if (correction) {
-      await c.tx.arithmeticCorrection.delete({ where: { id: correction.id } });
+      await c.tx.arithmeticCorrection.delete({ where: { id: correction.id, organisationId: actor.organisationId } });
       await audit(c, "ArithmeticCorrection", correction.id, `correction ${correction.itemRef}`, "DELETE", snapshotFields({ itemRef: correction.itemRef, tenderedLineAmount: correction.tendered.toString(), correctedLineAmount: correction.corrected.toString() }), reason);
     } else if (rate) {
-      await c.tx.rateComparison.delete({ where: { id: rate.id } });
+      await c.tx.rateComparison.delete({ where: { id: rate.id, organisationId: actor.organisationId } });
       await audit(c, "RateComparison", rate.id, `rate ${rate.itemRef}`, "DELETE", snapshotFields({ itemRef: rate.itemRef, tenderedRate: rate.tenderedRate.toString() }), reason);
     } else return { ok: false, message: "That line is not on this check." };
     return { ok: true };
@@ -439,7 +439,7 @@ export async function recordWcCheck(_prev: FormState, data: FormData): Promise<F
     if (c.l.award.wcBasis !== "UNCOVERED_WAGES") return { ok: false, message: "Workmen's compensation on this award is not on uncovered wages, so there is no wages check to record." };
     // The domain row last, after the contract (the canonical order).
     await c.tx.$queryRaw`SELECT id FROM "InsurancePolicy" WHERE id = ${policyId} FOR UPDATE`;
-    const p = await c.tx.insurancePolicy.findFirst({ where: { id: policyId, contractId: k.id } });
+    const p = await c.tx.insurancePolicy.findFirst({ where: { id: policyId, contractId: k.id, contract: { organisationId: actor.organisationId } } });
     if (!p || p.kind !== "WORKMENS_COMPENSATION") return { ok: false, message: "That is not a workmen's compensation policy on this contract." };
     if (p.status !== "VERIFIED") return { ok: false, message: "Verify the policy on the award's Securities tab first." };
     if (p.wcCheckedOn) return { ok: false, message: "The wages check is already recorded on this policy." };
@@ -448,7 +448,7 @@ export async function recordWcCheck(_prev: FormState, data: FormData): Promise<F
     const person = await personOf(c, personId);
     if (!person) return WHO;
     const after = { wcCheckedOn: on, wcCheckedByPersonId: person.id, wcDeclaredUncoveredWages: senToDecimalString(parseSen(wages)), wcCheckNote: note, wcCheckRecordedAt: now };
-    await c.tx.insurancePolicy.update({ where: { id: p.id }, data: after });
+    await c.tx.insurancePolicy.update({ where: { id: p.id, contract: { organisationId: actor.organisationId } }, data: after });
     await audit(c, "InsurancePolicy", p.id, "workmen's compensation wages check", "UPDATE", diffFields({ wcCheckedOn: null }, { wcCheckedOn: on, checkedBy: person.name, declaredUncoveredWages: after.wcDeclaredUncoveredWages, sumInsured: p.sumInsured.toString(), judged: "no: basis not set (D4)", recordedOnBehalf: ON_BEHALF }));
     return { ok: true };
   });
@@ -585,13 +585,13 @@ export async function correctContractDate(_prev: FormState, data: FormData): Pro
       again = judged.resolution;
       againMatrix = issue!.label;
     }
-    await c.tx.contract.update({ where: { id: k.id }, data: { contractDate: proposed, contractDateCorrectedFrom: k.contractDateCorrectedFrom ?? k.contractDate, contractDateCorrectionReason: reason } });
+    await c.tx.contract.update({ where: { id: k.id, organisationId: actor.organisationId }, data: { contractDate: proposed, contractDateCorrectedFrom: k.contractDateCorrectedFrom ?? k.contractDate, contractDateCorrectionReason: reason } });
     const base = currentBaseline(k)!;
     await writeVersion(c, { ...base, contractDate: newDay }, "CORRECTION", reason, { correctedField: "contractDate" });
     await audit(c, "Contract", k.id, "", "UPDATE", diffFields({ contractDate: current }, { contractDate: proposed, correctedFrom: day(k.contractDateCorrectedFrom ?? k.contractDate) }), reason);
     if (moving && again && againMatrix) {
       const notes = again.notes.map((n) => n.messageEn);
-      await c.tx.contractSoAssignment.update({ where: { id: moving.id }, data: { effectiveOn: proposed, matrixLabel: againMatrix, ruleKey: again.ruleKey, ruleLabel: again.ruleLabel, clause: again.clause, warnings: notes as Prisma.InputJsonValue } });
+      await c.tx.contractSoAssignment.update({ where: { id: moving.id, organisationId: actor.organisationId }, data: { effectiveOn: proposed, matrixLabel: againMatrix, ruleKey: again.ruleKey, ruleLabel: again.ruleLabel, clause: again.clause, warnings: notes as Prisma.InputJsonValue } });
       await audit(
         c,
         "ContractSoAssignment",
@@ -660,7 +660,7 @@ export async function answerConsultingEngineer(_prev: FormState, data: FormData)
     const k = c.l.contract;
     if (k.copies.length > 0) return { ok: false, message: "Copies have been issued on the answer as it stands; it no longer changes." };
     const after = v === "yes";
-    await c.tx.contract.update({ where: { id: k.id }, data: { consultingEngineer: after } });
+    await c.tx.contract.update({ where: { id: k.id, organisationId: actor.organisationId }, data: { consultingEngineer: after } });
     await audit(c, "Contract", k.id, "", "UPDATE", diffFields({ consultingEngineer: k.consultingEngineer }, { consultingEngineer: after }));
     return { ok: true };
   });
@@ -719,7 +719,7 @@ export async function despatchCopy(_prev: FormState, data: FormData): Promise<Fo
     const { row, facts } = await onCopy(c, copyId);
     const fs = despatchFaults(facts, storedDay(on), c.today, day(c.l.contract.contractDate));
     if (fs.length) return refuse("Not recorded:", fs);
-    await c.tx.issuedCopy.update({ where: { id: row.id }, data: { method, despatchedOn: on } });
+    await c.tx.issuedCopy.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { method, despatchedOn: on } });
     await audit(c, "IssuedCopy", row.id, `controlled copy ${row.copyNo}`, "UPDATE", diffFields({ despatchedOn: null }, { method, despatchedOn: on }));
     return { ok: true };
   });
@@ -736,7 +736,7 @@ export async function acknowledgeCopy(_prev: FormState, data: FormData): Promise
     const { row, facts } = await onCopy(c, copyId);
     const fs = acknowledgeFaults(facts, storedDay(on), c.today);
     if (fs.length) return refuse("Not recorded:", fs);
-    await c.tx.issuedCopy.update({ where: { id: row.id }, data: { acknowledgedOn: on } });
+    await c.tx.issuedCopy.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { acknowledgedOn: on } });
     await audit(c, "IssuedCopy", row.id, `controlled copy ${row.copyNo}`, "UPDATE", diffFields({ acknowledgedOn: null }, { acknowledgedOn: on }));
     return { ok: true };
   });
@@ -754,7 +754,7 @@ export async function recallCopy(_prev: FormState, data: FormData): Promise<Form
     const { row, facts } = await onCopy(c, copyId);
     const fs = recallFaults(facts, storedDay(on), c.today, reason);
     if (fs.length) return refuse("Not recalled:", fs);
-    await c.tx.issuedCopy.update({ where: { id: row.id }, data: { recalledOn: on, recallReason: reason } });
+    await c.tx.issuedCopy.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { recalledOn: on, recallReason: reason } });
     await audit(c, "IssuedCopy", row.id, `controlled copy ${row.copyNo}`, "UPDATE", diffFields({ recalledOn: null }, { recalledOn: on }), reason);
     return { ok: true };
   });
@@ -935,7 +935,7 @@ export async function saveBaselineEntry(_prev: FormState, data: FormData): Promi
     const values = buildBaseline(inputs, JSON.parse(JSON.stringify(all), (_, x) => (typeof x === "string" && x.startsWith("sen:") ? BigInt(x.slice(4)) : x)) as EnteredValues);
     const before = valuesOf(draft);
     await c.tx.contractSection.deleteMany({ where: { baselineId: draft.id } });
-    await c.tx.contractBaseline.update({ where: { id: draft.id }, data: { ...rowOf(values), entered: stored as Prisma.InputJsonValue } });
+    await c.tx.contractBaseline.update({ where: { id: draft.id, organisationId: actor.organisationId }, data: { ...rowOf(values), entered: stored as Prisma.InputJsonValue } });
     for (const s of sectionRows(values, c.l.org.id)) await c.tx.contractSection.create({ data: { ...s, baselineId: draft.id } });
     // R-2: the group's values before and after, where each came from and the provenance chosen, in the same transaction.
     const was = ((draft.entered ?? {}) as Record<string, { provenance?: string } | undefined>)[group]?.provenance ?? null;

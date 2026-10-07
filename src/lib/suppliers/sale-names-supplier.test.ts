@@ -35,7 +35,8 @@ describe("a sale names the register's supplier (fix M-2)", () => {
   it("recordSale links inside its transaction, judged and audited as the link act, before the register reads it (source)", () => {
     const text = readFileSync("src/app/sourcing/[id]/window/register-actions.ts", "utf8");
     const body = text.slice(text.indexOf("export async function recordSale"), text.indexOf("export async function voidSale"));
-    const order = ["saleSupplier(known?.vendorId ?? null, chosenSupplierId)", "lockSupplierRow(tx, choice.vendorId)", "linkPartyFaults(", "registerAtSale(tx,", "partyFor(tx, toAuditActor(actor), l, d, party, \"PURCHASER\")", "tx.exerciseParty.update({ where: { id: buyer.id }, data: { vendorId: linkAtSale.supplier.id } })", "SUPPLIER_ENTITY.party", "tx.documentSale.create("];
+    // Phase 1c (ADR 0034 D10): the party is written by id within the signed-in person's organisation; the order is as pinned.
+    const order = ["saleSupplier(known?.vendorId ?? null, chosenSupplierId)", "lockSupplierRow(tx, choice.vendorId)", "linkPartyFaults(", "registerAtSale(tx,", "partyFor(tx, toAuditActor(actor), l, d, party, \"PURCHASER\")", "tx.exerciseParty.update({ where: { id: buyer.id, organisationId: actor.organisationId }, data: { vendorId: linkAtSale.supplier.id } })", "SUPPLIER_ENTITY.party", "tx.documentSale.create("];
     let at = -1;
     for (const o of order) {
       const i = body.indexOf(o);

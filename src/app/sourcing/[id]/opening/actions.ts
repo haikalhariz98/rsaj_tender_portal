@@ -233,7 +233,7 @@ export async function startSupplementaryOpening(_prev: FormState, data: FormData
   const picks = readPanel(data);
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const person = await nameOf(tx, l.org.id, startedByPersonId);
-    const decision = await tx.committeeDecision.findFirst({ where: { id: decisionId, bidEnvelope: { exerciseId: l.ex.id } }, select: { id: true, matterKind: true, outcome: true, bidEnvelopeId: true, withdrawnAt: true, meeting: { select: { reference: true } } } });
+    const decision = await tx.committeeDecision.findFirst({ where: { id: decisionId, bidEnvelope: { exerciseId: l.ex.id }, meeting: { committee: { organisationId: actor.organisationId } } }, select: { id: true, matterKind: true, outcome: true, bidEnvelopeId: true, withdrawnAt: true, meeting: { select: { reference: true } } } });
     const envelope = decision?.bidEnvelopeId ? (c.envelopes.find((e) => e.id === decision.bidEnvelopeId) ?? null) : null;
     const sf = supplementaryFaults({ status: l.ex.status, mainFinalised: !!c.main?.finalisedAt, decision: decision && !decision.withdrawnAt ? { matterKind: decision.matterKind ?? "", outcome: decision.outcome, bidEnvelopeId: decision.bidEnvelopeId } : null, alreadyOpened: c.openings.some((o) => o.admissionDecisionId === decisionId), envelope: envelope ? { status: envelope.status, late: envelope.late } : null, personActive: !!person, timeZone: l.org.timeZone });
     if (blocking(sf).length) return refuse(sf);
@@ -303,7 +303,7 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
     const opens = opensTheBox(state, after.count);
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.authorisation, row.id, openingLabel(l, o), "CREATE", diffFields(null, authorisationFields({ person: person!.name, at: now, sittingNo: state.sittingNo, opensTheBox: opens }, l.org.timeZone)));
     if (!opens) return { ok: true, message: after.state === "AUTHORISED" ? "Recorded. The sitting is authorised: the opening may continue." : "Recorded. A second panel member present now authorises it." };
-    await tx.opening.update({ where: { id: o.id }, data: { unsealedAt: now } });
+    await tx.opening.update({ where: { id: o.id, organisationId: actor.organisationId }, data: { unsealedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields({ opened: null }, { opened: authorisationFields({ person: person!.name, at: now, sittingNo: 1, opensTheBox: true }, l.org.timeZone).at }));
     if (o.kind === "MAIN") {
       const ev = await tx.boxEvent.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, kind: "UNLOCKED_FOR_OPENING", occurredAt: now, personId, note: "Opened at the opening, on the second authorisation." } });
@@ -345,10 +345,10 @@ async function sittingAct(scope: OrgScope, actor: AuditActor, data: FormData, re
       return { ok: true, message: "Resumed. Two panel members present now each authorise the new sitting." };
     }
     const sitting = o.sittings.find((s) => s.sittingNo === state.sittingNo)!;
-    await tx.openingSitting.update({ where: { id: sitting.id }, data: { adjournedAt: now, adjournReason: reason } });
+    await tx.openingSitting.update({ where: { id: sitting.id, organisationId: scope.organisationId }, data: { adjournedAt: now, adjournReason: reason } });
     await audit(tx, actor, l.org.id, OPENING_ENTITY.sitting, sitting.id, openingLabel(l, o), "UPDATE", diffFields({ adjourned: null }, sittingFields({ sittingNo: state.sittingNo, at: now, by: person!.name, adjourned: true, reason }, l.org.timeZone)), reason);
     for (const id of lapsedByAdjourning(state.sittingNo, o.authorisations, panelOf(o))) {
-      await tx.openingAuthorisation.update({ where: { id }, data: { lapsedAt: now } });
+      await tx.openingAuthorisation.update({ where: { id, organisationId: scope.organisationId }, data: { lapsedAt: now } });
       await audit(tx, actor, l.org.id, OPENING_ENTITY.authorisation, id, openingLabel(l, o), "UPDATE", diffFields({ lapsed: null }, { lapsed: "Unpaired when the sitting was adjourned: kept, does not count again" }));
     }
     return { ok: true, message: "Adjourned. Nothing recorded is lost; resuming needs two fresh authorisations." };
@@ -399,7 +399,7 @@ export async function matchWithdrawal(_prev: FormState, data: FormData): Promise
     const facts = c.withdrawals.map((x) => ({ id: x.id, envelopeId: x.envelopeId, unmatchedFinding: x.unmatchedFinding }));
     const fs = matchFaults({ state: stateOf(o, l.ex.status), withdrawal: facts.find((x) => x.id === w.id)!, envelope: { id: e.id, kind: e.kind, status: e.status, late: e.late, receivedSource: e.receivedSource }, withdrawals: facts });
     if (blocking(fs).length) return refuse(fs);
-    await tx.bidWithdrawal.update({ where: { id: w.id }, data: { envelopeId: e.id } });
+    await tx.bidWithdrawal.update({ where: { id: w.id, organisationId: actor.organisationId }, data: { envelopeId: e.id } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.withdrawal, w.id, label(l, "Withdrawal of an envelope in the box"), "UPDATE", diffFields({ matchedTo: null }, withdrawalMatchFields({ envelope: `Envelope ${e.sequence}` })));
     const moved = await tx.bidEnvelope.updateMany({ where: { id: e.id, status: "RECEIVED" }, data: { status: "WITHDRAWN" } });
     // R-7: thrown, so the withdrawal's match written above rolls back with it.
@@ -427,7 +427,7 @@ export async function recordWithdrawalFinding(_prev: FormState, data: FormData):
     const person = await nameOf(tx, l.org.id, personId);
     const fs = findingFaults({ state: stateOf(o, l.ex.status), withdrawal: { id: w.id, envelopeId: w.envelopeId, unmatchedFinding: w.unmatchedFinding }, finding, personActive: !!person });
     if (blocking(fs).length) return refuse(fs);
-    await tx.bidWithdrawal.update({ where: { id: w.id }, data: { unmatchedFinding: finding, findingRecordedAt: now, findingByPersonId: person!.id } });
+    await tx.bidWithdrawal.update({ where: { id: w.id, organisationId: actor.organisationId }, data: { unmatchedFinding: finding, findingRecordedAt: now, findingByPersonId: person!.id } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.withdrawal, w.id, label(l, "Withdrawal of an envelope in the box"), "UPDATE", diffFields({ finding: null }, withdrawalMatchFields({ envelope: "", finding, by: person!.name })));
     return { ok: true };
   });
@@ -571,7 +571,7 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
     if (blocking(fs).length) return refuse(fs);
     const name = o.panel.find((p) => p.personId === personId)!.person.name;
     if (existing) {
-      await tx.openedBidInitial.update({ where: { id: existing.id }, data: { recordedAt: now, correctionNo: bid.asReadCorrections } });
+      await tx.openedBidInitial.update({ where: { id: existing.id, organisationId: actor.organisationId }, data: { recordedAt: now, correctionNo: bid.asReadCorrections } });
       await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.initial, existing.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields({ initialled: "Before the correction" }, { initialled: initialFields({ person: name, listingNo: bid.listingNo, at: now }, l.org.timeZone).at }));
     } else {
       const row = await tx.openedBidInitial.create({ data: { organisationId: l.org.id, openedBidId: bid.id, personId, recordedAt: now, correctionNo: bid.asReadCorrections } });
@@ -604,7 +604,7 @@ export async function recordChecklistAnswer(_prev: FormState, data: FormData): P
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.answer, row.id, label(l, `Offer ${bid.listingNo}`), before ? "UPDATE" : "CREATE", diffFields(before ? answerFields({ item: item.label, answer: before.answer }) : null, answerFields({ item: item.label, answer: answer! })));
     if (before && bid.verdict) {
       // R-7: the verdict's completeness record is cleared with it (database null), not left as it was.
-      await tx.openedBid.update({ where: { id: bid.id }, data: { verdict: null, verdictReason: "", verdictAt: null, completeness: Prisma.DbNull } });
+      await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { verdict: null, verdictReason: "", verdictAt: null, completeness: Prisma.DbNull } });
       await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields(verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), { verdict: "Cleared: a checklist answer changed; record it again", reason: null }));
       return { ok: true, message: "Recorded. The answer changed, so the offer's verdict is cleared: record it again." };
     }
@@ -643,11 +643,11 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
     const j = judgeBid(facts, checklist, answers, policy);
     // OD-4: an unset unpurchased rule, set since the opening started, is recorded on the opening once, the first time it is used.
     if (unpurchased.record && bid.saleFinding !== "LIVE_SALE") {
-      await tx.opening.update({ where: { id: o.id }, data: { policySnapshot: unpurchased.record as unknown as Prisma.InputJsonValue } });
+      await tx.opening.update({ where: { id: o.id, organisationId: actor.organisationId }, data: { policySnapshot: unpurchased.record as unknown as Prisma.InputJsonValue } });
       const a = unpurchasedRecordAudit(unpurchased.consequence!, now, person.name, l.org.timeZone);
       await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields(a.before, a.after));
     }
-    await tx.openedBid.update({ where: { id: bid.id }, data: { verdict, verdictReason: verdict === "REJECT" ? reason.trim() : "", verdictAt: now, completeness: verdictRecord(j) as unknown as Prisma.InputJsonValue } });
+    await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { verdict, verdictReason: verdict === "REJECT" ? reason.trim() : "", verdictAt: now, completeness: verdictRecord(j) as unknown as Prisma.InputJsonValue } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE",
       diffFields(bid.verdict ? { ...verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), recordedBy: null } : { verdict: null, recordedBy: null }, { ...verdictFields({ verdict, reason: verdict === "REJECT" ? reason.trim() : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) }), recordedBy: `${person.name} (recorded on their behalf, not signed)` }),
       verdict === "REJECT" ? reason.trim() : "");
@@ -677,7 +677,7 @@ export async function correctAsRead(_prev: FormState, data: FormData): Promise<F
     const changed = JSON.stringify(asReadFields(was)) !== JSON.stringify(asReadFields(next));
     const fs = correctionFaults({ state: stateOf(o, l.ex.status), sameOpening: !o.finalisedAt, reason, changed, price: offer.price, period: offer.period });
     if (blocking(fs).length) return refuse(fs);
-    await tx.openedBid.update({ where: { id: bid.id }, data: { bidderNameAsRead: next.bidder, registrationClassAsRead: registrationClass, registrationStatusAsRead: registrationStatus, priceAsRead: senToDecimalString(offer.price!), completionPeriod: period?.value ?? null, completionUnit: period?.unit ?? null, validityDaysStated: offer.validityDays, asReadCorrectedAt: now, asReadCorrections: bid.asReadCorrections + 1 } });
+    await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { bidderNameAsRead: next.bidder, registrationClassAsRead: registrationClass, registrationStatusAsRead: registrationStatus, priceAsRead: senToDecimalString(offer.price!), completionPeriod: period?.value ?? null, completionUnit: period?.unit ?? null, validityDaysStated: offer.validityDays, asReadCorrectedAt: now, asReadCorrections: bid.asReadCorrections + 1 } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields(asReadFields(was), asReadFields(next)), reason);
     return { ok: true, message: "Corrected. Each panel member present initials it again." };
   });
@@ -719,7 +719,7 @@ export async function recordScheduleDetails(_prev: FormState, data: FormData): P
     if (!o) return GONE_OPENING;
     const fs = recordFaults({ state: stateOf(o, l.ex.status), pages });
     if (blocking(fs).length) return refuse(fs);
-    await tx.opening.update({ where: { id: o.id }, data: { schedulePages: pages, minutes } });
+    await tx.opening.update({ where: { id: o.id, organisationId: actor.organisationId }, data: { schedulePages: pages, minutes } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields({ pages: o.schedulePages == null ? null : String(o.schedulePages), minutes: o.minutes || null }, { pages: String(pages), minutes: minutes || null }));
     return { ok: true };
   });
@@ -816,7 +816,7 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     const base = (recordRule ?? o.policySnapshot) as Record<string, unknown> | null;
     const frozenSnapshot = anyIneligible && base ? { ...base, ineligible: { consequence: ineligible, provenance: c.supplierPolicy?.ineligibleProvenance ?? null, recordedAt: now.toISOString(), recordedBy: person!.name } } : recordRule;
     await tx.opening.update({
-      where: { id: o.id },
+      where: { id: o.id, organisationId: actor.organisationId },
       data: {
         finalisedAt: now,
         scheduleSnapshot: { ...schedule, invitedReadingProvenance: snap.invited.provenance } as unknown as Prisma.InputJsonValue,

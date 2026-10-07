@@ -283,7 +283,7 @@ export async function saveMatrix(_prev: FormState, data: FormData): Promise<Form
       return { ok: true, createdId: created.id };
     }
     // The trail's "before" is the row as it stood under the lock.
-    await tx.authorityMatrix.update({ where: { id: locked.id }, data: v });
+    await tx.authorityMatrix.update({ where: { id: locked.id, organisationId: actor.organisationId }, data: v });
     const changes = diffFields(
       {
         ...locked,
@@ -349,7 +349,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
     if (matrix.issuedAt) return FROZEN;
 
     // A rule is found within the issue that is locked: one of another issue (an issued one) is not edited through this one.
-    const before = id ? await tx.authorityRule.findFirst({ where: { id, authorityMatrixId } }) : null;
+    const before = id ? await tx.authorityRule.findFirst({ where: { id, authorityMatrixId, authorityMatrix: { organisationId: actor.organisationId } } }) : null;
     if (id && !before) return { ok: false, message: "That rule no longer exists." };
 
     const r = new FormReader(data);
@@ -522,7 +522,7 @@ export async function saveRule(_prev: FormState, data: FormData): Promise<FormSt
       const created = await tx.authorityRule.create({ data: v });
       await writeAudit(tx, { ...ctx, entityId: created.id }, "CREATE", diffFields(null, v));
     } else {
-      await tx.authorityRule.update({ where: { id: before.id }, data: v });
+      await tx.authorityRule.update({ where: { id: before.id, authorityMatrix: { organisationId: actor.organisationId } }, data: v });
       const changes = diffFields(
         {
           ...before,
@@ -588,9 +588,9 @@ export async function saveRecommender(_prev: FormState, data: FormData): Promise
         // The same check as saving the rule, on the chain as it would stand, under the
         // issue's lock (6.9 departure 1).
         await lockIssue(tx, rule.authorityMatrixId);
-        const locked = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: rule.authorityMatrixId }, select: { issuedAt: true } });
+        const locked = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: rule.authorityMatrixId, organisationId: actor.organisationId }, select: { issuedAt: true } });
         if (locked.issuedAt) throw new Refused(FROZEN);
-        const row = await tx.authorityRule.findUniqueOrThrow({ where: { id: rule.id }, include: { recommenders: { orderBy: { sequence: "asc" } } } });
+        const row = await tx.authorityRule.findUniqueOrThrow({ where: { id: rule.id, authorityMatrix: { organisationId: actor.organisationId } }, include: { recommenders: { orderBy: { sequence: "asc" } } } });
         if (row.generateCoreChain === true) {
           const issue = await issueIn(actor, tx, rule.authorityMatrixId);
           const steps = [...row.recommenders.map((x) => ({ roleCode: x.roleCode, act: x.act as AuthorityAct, sequence: x.sequence })), { roleCode, act: (act ?? "R") as AuthorityAct, sequence }]
@@ -627,13 +627,13 @@ export async function removeRecommender(_prev: FormState, data: FormData): Promi
     if (!owner) return gone;
     const authorityMatrixId = owner.authorityRule.authorityMatrixId;
     await lockIssue(tx, authorityMatrixId);
-    const step = await tx.authorityRuleStep.findFirst({ where: { id, authorityRule: { authorityMatrixId } }, include: { authorityRule: { select: { labelEn: true } } } });
+    const step = await tx.authorityRuleStep.findFirst({ where: { id, authorityRule: { authorityMatrixId, authorityMatrix: { organisationId: actor.organisationId } } }, include: { authorityRule: { select: { labelEn: true } } } });
     if (!step) return gone;
-    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { issuedAt: true } });
+    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId, organisationId: actor.organisationId }, select: { issuedAt: true } });
     if (matrix.issuedAt) return FROZEN;
     // The office by its name, in the label and the record: never its code.
     const office = (await tx.authorityRole.findFirst({ where: { organisationId: orgId, code: step.roleCode }, select: { nameEn: true } }))?.nameEn ?? "An office no longer configured";
-    await tx.authorityRuleStep.delete({ where: { id: step.id } });
+    await tx.authorityRuleStep.delete({ where: { id: step.id, authorityRule: { authorityMatrix: { organisationId: actor.organisationId } } } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "AuthorityRuleStep", entityId: step.id, entityLabel: `${step.authorityRule.labelEn} — ${office}`, reason }, "DELETE",
       snapshotFields({ roleCode: office, act: actWithCode(step.act), sequence: step.sequence }));
     return { ok: true };
@@ -814,7 +814,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
     const predecessor = predecessorOf(issued, day);
     const now = new Date();
     if (predecessor) {
-      await tx.authorityMatrix.update({ where: { id: predecessor.id }, data: { effectiveTo: day } });
+      await tx.authorityMatrix.update({ where: { id: predecessor.id, organisationId: actor.organisationId }, data: { effectiveTo: day } });
       await writeAudit(
         tx,
         {
@@ -830,7 +830,7 @@ export async function issueDraft(_prev: FormState, data: FormData): Promise<Form
       );
     }
     await tx.authorityMatrix.update({
-      where: { id: draft.id },
+      where: { id: draft.id, organisationId: actor.organisationId },
       data: { effectiveFrom: day, effectiveTo: null, issuedAt: now },
     });
     await writeAudit(
@@ -895,7 +895,7 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
     const matrix = await tx.authorityMatrix.findFirst({ where: { id: authorityMatrixId, organisationId: orgId }, select: { id: true, label: true, issuedAt: true, boundaryValue: true, boundaryInclusive: true } });
     if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." } as FormState;
     if (matrix.issuedAt) return FROZEN;
-    const before = id ? await tx.termsBand.findFirst({ where: { id, authorityMatrixId } }) : null;
+    const before = id ? await tx.termsBand.findFirst({ where: { id, authorityMatrixId, authorityMatrix: { organisationId: actor.organisationId } } }) : null;
     // Two terms sets never both apply at one value (ruling on BD-24).
     const siblings = await tx.termsBand.findMany({ where: { authorityMatrixId, ...(id ? { NOT: { id } } : {}) } });
     const clash = overlappingBands(
@@ -921,7 +921,7 @@ export async function saveTermsBand(_prev: FormState, data: FormData): Promise<F
       const row = await tx.termsBand.create({ data: { authorityMatrixId, ...data2 } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TermsBand", entityId: row.id, entityLabel: label }, "CREATE", diffFields(null, data2));
     } else {
-      await tx.termsBand.update({ where: { id: before.id }, data: data2 });
+      await tx.termsBand.update({ where: { id: before.id, authorityMatrix: { organisationId: actor.organisationId } }, data: data2 });
       const changes = diffFields(decimals({ ...before }), data2);
       if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TermsBand", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
     }
@@ -941,10 +941,10 @@ export async function removeTermsBand(_prev: FormState, data: FormData): Promise
     const band = await tx.termsBand.findFirst({ where: { id, authorityMatrix: { organisationId: orgId } }, include: { authorityMatrix: { select: { id: true, label: true } } } });
     if (!band) return { ok: false, message: "That terms band no longer exists." } as FormState;
     await tx.$queryRaw`SELECT id FROM "AuthorityMatrix" WHERE id = ${band.authorityMatrixId} FOR UPDATE`;
-    const m = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: band.authorityMatrixId }, select: { issuedAt: true } });
+    const m = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: band.authorityMatrixId, organisationId: actor.organisationId }, select: { issuedAt: true } });
     if (m.issuedAt) return FROZEN;
     const { authorityMatrix, ...row } = band;
-    await tx.termsBand.delete({ where: { id } });
+    await tx.termsBand.delete({ where: { id, authorityMatrix: { organisationId: actor.organisationId } } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TermsBand", entityId: id, entityLabel: `${authorityMatrix.label} — ${band.labelEn}`, reason }, "DELETE", snapshotFields(decimals(row)));
     revalidatePath(PATH);
     return { ok: true } as FormState;
@@ -974,7 +974,7 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
     await tx.termsBand.deleteMany({ where: { authorityMatrixId: id } });
     await tx.coreRoutingStep.deleteMany({ where: { level: { authorityMatrixId: id } } });
     await tx.coreRoutingLevel.deleteMany({ where: { authorityMatrixId: id } });
-    await tx.authorityMatrix.delete({ where: { id } });
+    await tx.authorityMatrix.delete({ where: { id, organisationId: actor.organisationId } });
     // Every row goes into the trail with what it held, so the draft can be rebuilt from
     // history (6.3 re-review): each rule, each of its steps, each terms band, then the issue.
     const offices = new Map((await tx.authorityRole.findMany({ where: { organisationId: orgId }, select: { code: true, nameEn: true } })).map((o) => [o.code, o.nameEn]));
@@ -1033,7 +1033,7 @@ export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<F
       const matrix = await tx.authorityMatrix.findFirst({ where: { id: authorityMatrixId, organisationId: orgId }, select: { id: true, label: true, issuedAt: true } });
       if (!matrix) return { ok: false, message: "That issue of the limits no longer exists." };
       if (matrix.issuedAt) return FROZEN;
-      const before = id ? await tx.coreRoutingLevel.findFirst({ where: { id, authorityMatrixId }, include: { steps: { orderBy: { sequence: "asc" } } } }) : null;
+      const before = id ? await tx.coreRoutingLevel.findFirst({ where: { id, authorityMatrixId, organisationId: actor.organisationId }, include: { steps: { orderBy: { sequence: "asc" } } } }) : null;
       if (id && !before) return { ok: false, message: "That core routing row no longer exists." };
       const roles = (await issueIn(actor, tx, authorityMatrixId))?.matrix.roles ?? {};
       if (!roles[write.approverCode]) return { ok: false, errors: { approverCode: coreLevelFaultText("UNKNOWN_OFFICE", "") } };
@@ -1049,7 +1049,7 @@ export async function saveCoreLevel(_prev: FormState, data: FormData): Promise<F
         const row = await tx.coreRoutingLevel.create({ data: { organisationId: orgId, authorityMatrixId, ...write } });
         await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingLevel", entityId: row.id, entityLabel: label }, "CREATE", diffFields(null, shown));
       } else {
-        await tx.coreRoutingLevel.update({ where: { id: before.id }, data: write });
+        await tx.coreRoutingLevel.update({ where: { id: before.id, organisationId: actor.organisationId }, data: write });
         const changes = diffFields({ approverCode: officeIn(roles, before.approverCode), clause: before.clause, provenance: before.provenance, note: before.note }, shown);
         if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingLevel", entityId: before.id, entityLabel: label, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
       }
@@ -1074,9 +1074,9 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
     const authorityMatrixId = await lockIssueOfCoreLevel(tx, id, orgId);
     if (!authorityMatrixId) return gone;
     // The row and its steps as they stand under the lock: every step deleted is one read here.
-    const level = await tx.coreRoutingLevel.findFirst({ where: { id, authorityMatrixId }, include: { steps: { orderBy: { sequence: "asc" } } } });
+    const level = await tx.coreRoutingLevel.findFirst({ where: { id, authorityMatrixId, organisationId: actor.organisationId }, include: { steps: { orderBy: { sequence: "asc" } } } });
     if (!level) return gone;
-    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { label: true, issuedAt: true } });
+    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId, organisationId: actor.organisationId }, select: { label: true, issuedAt: true } });
     if (matrix.issuedAt) return FROZEN;
     const roles = (await issueIn(actor, tx, authorityMatrixId))?.matrix.roles ?? {};
     const name = (code: string) => officeIn(roles, code);
@@ -1089,7 +1089,7 @@ export async function removeCoreLevel(_prev: FormState, data: FormData): Promise
     // go unrecorded, so the whole removal rolls back instead.
     const removed = await tx.coreRoutingStep.deleteMany({ where: { coreRoutingLevelId: level.id } });
     if (removed.count !== level.steps.length) throw new Refused({ ok: false, message: "The row's steps changed while this was being saved. Reload and try again." });
-    await tx.coreRoutingLevel.delete({ where: { id } });
+    await tx.coreRoutingLevel.delete({ where: { id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingLevel", entityId: id, entityLabel: label, reason }, "DELETE",
       snapshotFields({ approverCode: name(level.approverCode), clause: level.clause, provenance: level.provenance, note: level.note, steps: level.steps.length }));
     return { ok: true };
@@ -1119,9 +1119,9 @@ export async function saveCoreStep(_prev: FormState, data: FormData): Promise<Fo
     const authorityMatrixId = await lockIssueOfCoreLevel(tx, levelId, orgId);
     if (!authorityMatrixId) return gone;
     // Its steps as they stand under the lock: the place and the chain are checked on these.
-    const level = await tx.coreRoutingLevel.findFirst({ where: { id: levelId, authorityMatrixId }, include: { steps: { orderBy: { sequence: "asc" } } } });
+    const level = await tx.coreRoutingLevel.findFirst({ where: { id: levelId, authorityMatrixId, organisationId: actor.organisationId }, include: { steps: { orderBy: { sequence: "asc" } } } });
     if (!level) return gone;
-    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { label: true, issuedAt: true } });
+    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId, organisationId: actor.organisationId }, select: { label: true, issuedAt: true } });
     if (matrix.issuedAt) return FROZEN;
     const roles = (await issueIn(actor, tx, authorityMatrixId))?.matrix.roles ?? {};
     const sequence = asked ?? (level.steps.at(-1)?.sequence ?? 0) + 1;
@@ -1156,12 +1156,12 @@ export async function removeCoreStep(_prev: FormState, data: FormData): Promise<
     const authorityMatrixId = owner.level.authorityMatrixId;
     await lockIssue(tx, authorityMatrixId);
     // The step as it stands under the lock: what is deleted is what is audited.
-    const step = await tx.coreRoutingStep.findFirst({ where: { id, level: { authorityMatrixId } }, include: { level: true } });
+    const step = await tx.coreRoutingStep.findFirst({ where: { id, level: { authorityMatrixId }, organisationId: actor.organisationId }, include: { level: true } });
     if (!step) return gone;
-    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId }, select: { label: true, issuedAt: true } });
+    const matrix = await tx.authorityMatrix.findUniqueOrThrow({ where: { id: authorityMatrixId, organisationId: actor.organisationId }, select: { label: true, issuedAt: true } });
     if (matrix.issuedAt) return FROZEN;
     const roles = (await issueIn(actor, tx, authorityMatrixId))?.matrix.roles ?? {};
-    await tx.coreRoutingStep.delete({ where: { id } });
+    await tx.coreRoutingStep.delete({ where: { id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "CoreRoutingStep", entityId: id, entityLabel: coreRoutingEntryLabel(matrix.label, officeIn(roles, step.level.approverCode), officeIn(roles, step.roleCode)), reason }, "DELETE",
       snapshotFields({ office: officeIn(roles, step.roleCode), act: actWithCode(step.act), sequence: step.sequence, provenance: step.provenance, note: step.note }));
     return { ok: true };
@@ -1211,7 +1211,7 @@ export async function saveRejectionDestination(_prev: FormState, data: FormData)
       where: { organisationId: orgId, domain: v.domain, effectiveFrom: { lt: v.effectiveFrom! }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: v.effectiveFrom! } }] },
     });
     for (const old of replaced) {
-      await tx.rejectionDestination.update({ where: { id: old.id }, data: { effectiveTo: v.effectiveFrom } });
+      await tx.rejectionDestination.update({ where: { id: old.id, organisationId: actor.organisationId }, data: { effectiveTo: v.effectiveFrom } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "RejectionDestination", entityId: old.id, entityLabel: label, reason }, "UPDATE", diffFields({ effectiveTo: old.effectiveTo }, { effectiveTo: v.effectiveFrom }));
     }
     const row = await tx.rejectionDestination.create({ data: { organisationId: orgId, ...write, returnToRoleCode: write.returnToRoleCode ?? null } });
@@ -1239,7 +1239,7 @@ export async function endRejectionDestination(_prev: FormState, data: FormData):
     { actor: toAuditActor(actor), organisationId: orgId, entity: "RejectionDestination", entityId: id, entityLabel: `When rejected: ${matterLabel(row.domain)}`, reason },
     { effectiveTo: row.effectiveTo },
     { effectiveTo: on },
-    (tx) => tx.rejectionDestination.update({ where: { id }, data: { effectiveTo: on } }),
+    (tx) => tx.rejectionDestination.update({ where: { id, organisationId: actor.organisationId }, data: { effectiveTo: on } }),
   );
   revalidatePath(PATH);
   return { ok: true };

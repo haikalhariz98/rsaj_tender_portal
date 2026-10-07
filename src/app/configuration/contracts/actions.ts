@@ -88,7 +88,7 @@ export async function saveDocumentPart(_prev: FormState, data: FormData): Promis
     if (id) {
       const before = await tx.contractDocumentPart.findFirst({ where: { id, organisationId: o.id } });
       if (!before) return { ok: false, message: "That part no longer exists." } as FormState;
-      await tx.contractDocumentPart.update({ where: { id }, data: { ...v, provenance: v.provenance! } });
+      await tx.contractDocumentPart.update({ where: { id, organisationId: actor.organisationId }, data: { ...v, provenance: v.provenance! } });
       await audit(tx, toAuditActor(actor), o.id, "ContractDocumentPart", id, v.labelEn, before, v, "");
     } else {
       if (await tx.contractDocumentPart.findFirst({ where: { organisationId: o.id, contractBasisCode: v.contractBasisCode, code: code! }, select: { id: true } })) return { ok: false, errors: { code: "That code is already used for this basis." } } as FormState;
@@ -121,7 +121,7 @@ export async function saveCopyRecipient(_prev: FormState, data: FormData): Promi
     if (id) {
       const before = await tx.controlledCopyRecipient.findFirst({ where: { id, organisationId: o.id } });
       if (!before) return { ok: false, message: "That recipient no longer exists." } as FormState;
-      await tx.controlledCopyRecipient.update({ where: { id }, data: { ...v, provenance: v.provenance! } });
+      await tx.controlledCopyRecipient.update({ where: { id, organisationId: actor.organisationId }, data: { ...v, provenance: v.provenance! } });
       await audit(tx, toAuditActor(actor), o.id, "ControlledCopyRecipient", id, v.nameEn, before, v, "");
     } else {
       if (await tx.controlledCopyRecipient.findFirst({ where: { organisationId: o.id, code: code! }, select: { id: true } })) return { ok: false, errors: { code: "That code is already used." } } as FormState;

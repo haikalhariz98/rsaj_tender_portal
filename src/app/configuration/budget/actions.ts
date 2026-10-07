@@ -95,10 +95,10 @@ export async function saveAllocation(_prev: FormState, data: FormData): Promise<
       tx.budgetAllocation.create({ data: { organisationId: orgId, ...write } }),
     );
   } else {
-    const before = await db.budgetAllocation.findUnique({ where: { id } });
+    const before = await db.budgetAllocation.findUnique({ where: { id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That allocation no longer exists." };
     await auditedUpdate({ ...ctx, entityId: id }, { ...before, amount: before.amount.toString() }, v, (tx) =>
-      tx.budgetAllocation.update({ where: { id }, data: write }),
+      tx.budgetAllocation.update({ where: { id, organisationId: actor.organisationId }, data: write }),
     );
   }
 
@@ -163,7 +163,7 @@ export async function releaseCommitment(_prev: FormState, data: FormData): Promi
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
 
-  const before = await db.budgetCommitment.findUnique({ where: { id } });
+  const before = await db.budgetCommitment.findUnique({ where: { id, allocation: { organisationId: actor.organisationId } } });
   if (!before) return { ok: false, message: "That commitment no longer exists." };
   if (before.releasedOn) return { ok: false, message: "That commitment is already released." };
 
@@ -179,7 +179,7 @@ export async function releaseCommitment(_prev: FormState, data: FormData): Promi
     },
     { releasedOn: null },
     { releasedOn, releaseNote: reason },
-    (tx) => tx.budgetCommitment.update({ where: { id }, data: { releasedOn, releaseNote: reason } }),
+    (tx) => tx.budgetCommitment.update({ where: { id, allocation: { organisationId: actor.organisationId } }, data: { releasedOn, releaseNote: reason } }),
   );
 
   revalidatePath(PATH);
@@ -222,7 +222,7 @@ export async function endAllocation(_prev: FormState, data: FormData): Promise<F
       if (!locked.row) throw new Refused({ ok: false, message: "That allocation no longer exists." });
       if (!locked.result.ok) throw new Refused({ ok: false, message: locked.result.message });
       const effectiveTo = locked.result.effectiveTo;
-      await tx.budgetAllocation.update({ where: { id }, data: { effectiveTo } });
+      await tx.budgetAllocation.update({ where: { id, organisationId: actor.organisationId }, data: { effectiveTo } });
       await writeAudit(
         tx,
         { actor: toAuditActor(actor), organisationId: orgId, entity: "BudgetAllocation", entityId: id, entityLabel: `${locked.row.costCentreCode} / ${locked.row.accountCodeCode}`, reason },
@@ -300,10 +300,10 @@ export async function saveBudgetCode(_prev: FormState, data: FormData): Promise<
     const row = { organisationId: orgId, code, ...v };
     await auditedCreate(ctx, row, (tx) => tx.budgetCode.create({ data: row }));
   } else {
-    const before = await db.budgetCode.findUnique({ where: { id: current.id } });
+    const before = await db.budgetCode.findUnique({ where: { id: current.id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That budget code no longer exists." };
     await auditedUpdate({ ...ctx, entityId: current.id }, before, v, (tx) =>
-      tx.budgetCode.update({ where: { id: current.id }, data: v }),
+      tx.budgetCode.update({ where: { id: current.id, organisationId: actor.organisationId }, data: v }),
     );
   }
 
@@ -365,7 +365,7 @@ async function setPeriodOpen(scope: OrgScope, by: AuditActor, periodId: string, 
     },
     { openedOn: before.openedOn, closedOn: before.closedOn },
     after,
-    (tx) => tx.budgetPeriod.update({ where: { id: periodId }, data: after }),
+    (tx) => tx.budgetPeriod.update({ where: { id: periodId, organisationId: scope.organisationId }, data: after }),
   );
 
   revalidatePath(PATH);
@@ -399,7 +399,7 @@ export async function setRollForward(year: number, on: boolean): Promise<FormSta
       { rollUnspentForward: before.rollUnspentForward },
       { rollUnspentForward: on },
       (tx) =>
-        tx.budgetYear.update({ where: { id: before.id }, data: { rollUnspentForward: on } }),
+        tx.budgetYear.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { rollUnspentForward: on } }),
     );
   }
 
@@ -668,7 +668,7 @@ export async function saveBudgetControls(_prev: FormState, data: FormData): Prom
     );
   } else {
     await auditedUpdate({ ...ctx, entityId: before.id }, before, v, (tx) =>
-      tx.budgetSettings.update({ where: { id: before.id }, data: v }),
+      tx.budgetSettings.update({ where: { id: before.id, organisationId: actor.organisationId }, data: v }),
     );
   }
 
@@ -713,7 +713,7 @@ export async function clearBudgetControls(): Promise<FormState> {
     },
     before,
     cleared,
-    (tx) => tx.budgetSettings.update({ where: { id: before.id }, data: cleared }),
+    (tx) => tx.budgetSettings.update({ where: { id: before.id, organisationId: actor.organisationId }, data: cleared }),
   );
 
   revalidatePath(PATH);
@@ -753,7 +753,7 @@ export async function saveFinanceSettings(_prev: FormState, data: FormData): Pro
     );
   } else {
     await auditedUpdate({ ...ctx, entityId: before.id }, before, v, (tx) =>
-      tx.financeIntegration.update({ where: { id: before.id }, data: v }),
+      tx.financeIntegration.update({ where: { id: before.id, organisationId: actor.organisationId }, data: v }),
     );
   }
 
@@ -840,7 +840,7 @@ export async function acceptPortalFigure(varianceId: string): Promise<FormState>
     },
     { resolvedOn: before.resolvedOn, resolvedNote: before.resolvedNote },
     after,
-    (tx) => tx.financeVariance.update({ where: { id: varianceId }, data: after }),
+    (tx) => tx.financeVariance.update({ where: { id: varianceId, organisationId: actor.organisationId }, data: after }),
   );
 
   revalidatePath(PATH);

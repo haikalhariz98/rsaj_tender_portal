@@ -141,14 +141,14 @@ async function inSitting(scope: OrgScope, meetingId: string, fn: (tx: Tx, s: Loa
   return result ?? GONE;
 }
 
-async function meetingOf(decisionId: string): Promise<string | null> {
-  const found = await db.committeeDecision.findUnique({ where: { id: decisionId }, select: { meetingId: true } });
+async function meetingOf(scope: OrgScope, decisionId: string): Promise<string | null> {
+  const found = await db.committeeDecision.findUnique({ where: { id: decisionId, meeting: { committee: { organisationId: scope.organisationId } } }, select: { meetingId: true } });
   return found?.meetingId ?? null;
 }
 
 /// An appointment matter's exercise, read without a lock, to know what to lock (6.8 fix M-2).
-async function appointmentExerciseOf(decisionId: string): Promise<string | null> {
-  const found = await db.committeeDecision.findUnique({ where: { id: decisionId }, select: { domain: true, exerciseId: true } });
+async function appointmentExerciseOf(scope: OrgScope, decisionId: string): Promise<string | null> {
+  const found = await db.committeeDecision.findUnique({ where: { id: decisionId, meeting: { committee: { organisationId: scope.organisationId } } }, select: { domain: true, exerciseId: true } });
   return found?.domain === APPOINTMENT_DOMAIN ? found.exerciseId : null;
 }
 
@@ -205,8 +205,8 @@ async function openAppointmentOf(exerciseId: string): Promise<string | null> {
 }
 
 /// A variation's matter's variation and its contract, read without a lock, to know what to lock (residual round, S-3d).
-async function variationMatterOf(decisionId: string): Promise<{ id: string; contractId: string } | null> {
-  const found = await db.committeeDecision.findUnique({ where: { id: decisionId }, select: { variation: { select: { id: true, contractId: true } } } });
+async function variationMatterOf(scope: OrgScope, decisionId: string): Promise<{ id: string; contractId: string } | null> {
+  const found = await db.committeeDecision.findUnique({ where: { id: decisionId, meeting: { committee: { organisationId: scope.organisationId } } }, select: { variation: { select: { id: true, contractId: true } } } });
   return found?.variation ?? null;
 }
 
@@ -260,8 +260,8 @@ const linkRoute = (recordKey: string) => (r: { id: string; domain: string; statu
  * route matter, never a gate's), an exercise's name approval, or a contract matter. Anything else: none, and the
  * sitting's lock alone, as before.
  */
-async function outcomeRecordOf(decisionId: string) {
-  const d = await db.committeeDecision.findUnique({ where: { id: decisionId }, select: { domain: true, requisitionId: true, exerciseId: true, exercise: { select: { requisitionId: true } }, contractMatter: { select: { id: true, contractId: true, kind: true } } } });
+async function outcomeRecordOf(scope: OrgScope, decisionId: string) {
+  const d = await db.committeeDecision.findUnique({ where: { id: decisionId, meeting: { committee: { organisationId: scope.organisationId } } }, select: { domain: true, requisitionId: true, exerciseId: true, exercise: { select: { requisitionId: true } }, contractMatter: { select: { id: true, contractId: true, kind: true } } } });
   if (!d) return null;
   if (d.contractMatter) return { kind: "CONTRACT" as const, id: d.contractMatter.id, contractId: d.contractMatter.contractId, matterKind: d.contractMatter.kind };
   if (d.exerciseId && d.exercise && d.domain === NAME_APPROVAL_DOMAIN) return { kind: "NAME" as const, exerciseId: d.exerciseId, requisitionId: d.exercise.requisitionId };
@@ -517,7 +517,7 @@ export async function editSitting(_prev: FormState, data: FormData): Promise<For
     const parsed = r.finish({ meetingDate, agenda });
     if (!parsed.ok) return { ok: false, errors: parsed.errors };
 
-    await tx.meeting.update({ where: { id: m.id }, data: { meetingDate: meetingDate!, agenda } });
+    await tx.meeting.update({ where: { id: m.id, committee: { organisationId: actor.organisationId } }, data: { meetingDate: meetingDate!, agenda } });
     await audit(tx, toAuditActor(actor), s, "Meeting", m.id, m.reference, "UPDATE",
       diffFields({ meetingDate: m.meetingDate, agenda: m.agenda }, { meetingDate, agenda }));
     return { ok: true };
@@ -608,7 +608,7 @@ export async function saveMinutes(_prev: FormState, data: FormData): Promise<For
     const refusal = permit(s, "MINUTES");
     if (refusal) return refusal;
     const m = s.meeting;
-    await tx.meeting.update({ where: { id: m.id }, data: { minutes } });
+    await tx.meeting.update({ where: { id: m.id, committee: { organisationId: actor.organisationId } }, data: { minutes } });
     await audit(tx, toAuditActor(actor), s, "Meeting", m.id, m.reference, "UPDATE", diffFields({ minutes: m.minutes }, { minutes }));
     return { ok: true };
   });
@@ -824,7 +824,7 @@ async function tableInto(tx: Tx, by: AuditActor, s: LoadedSitting, r: FormReader
 export async function declareRecusal(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const decisionId = String(data.get("decisionId") ?? "");
-  const meetingId = await meetingOf(decisionId);
+  const meetingId = await meetingOf(actor, decisionId);
   if (!meetingId) return { ok: false, message: "That matter no longer exists." };
 
   const r = new FormReader(data);
@@ -892,13 +892,13 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
   // 6.8 fix R-9: the server's clock is read once, at the act's entry, truncated to the second (6.6 CR-3).
   const now = toSecond(new Date());
   const decisionId = String(data.get("decisionId") ?? "");
-  const meetingId = await meetingOf(decisionId);
+  const meetingId = await meetingOf(actor, decisionId);
   if (!meetingId) return { ok: false, message: "That matter no longer exists." };
-  const exerciseId = await appointmentExerciseOf(decisionId);
-  const variation = exerciseId ? null : await variationMatterOf(decisionId);
+  const exerciseId = await appointmentExerciseOf(actor, decisionId);
+  const variation = exerciseId ? null : await variationMatterOf(actor, decisionId);
   // Founder, 2026-10-05: the record whose approval the outcome may discharge, read without a lock, to know what to lock.
   const awardId = exerciseId ? await openAppointmentOf(exerciseId) : null;
-  const record = exerciseId || variation ? null : await outcomeRecordOf(decisionId);
+  const record = exerciseId || variation ? null : await outcomeRecordOf(actor, decisionId);
 
   const r = new FormReader(data);
   const outcome = r.choice("outcome", "Outcome", ["CARRIED", "NOT_CARRIED", "DEFERRED"] as const, { required: true });
@@ -993,7 +993,7 @@ async function loopBack(tx: Tx, actor: AuditActor, s: LoadedSitting, exerciseId:
   const tabled = s.meeting.decisions.find((d) => d.id === decisionId)?.evaluationVersion ?? null;
   const vf = tabledVersionFault({ applies: true, tabledOn: tabled, inForce: ev.version });
   if (vf) return evaluationFindingText({ ...vf, code: vf.code === "TABLED_ON_EARLIER_VERSION" ? "LOOP_ON_EARLIER_VERSION" : "LOOP_VERSION_NOT_RECORDED" });
-  const ex = await tx.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { id: true, reference: true, title: true, status: true, regime: true, boundaryValue: true, boundaryOperator: true } });
+  const ex = await tx.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId, organisationId: s.organisationId }, select: { id: true, reference: true, title: true, status: true, regime: true, boundaryValue: true, boundaryOperator: true } });
   const v = await openNewVersion(tx, actor, { organisationId: s.organisationId, exercise: ex, ceiling: ceilingOf(ex), today: s.today, timeZone: s.timeZone, now }, { trigger: "LOOP", decisionId, key, personId: null });
   return v ? `Evaluation version ${v} of ${ex.reference} is opened: ${LOOP_KEY_LABEL[key].toLowerCase()}.` : null;
 }
@@ -1008,7 +1008,7 @@ export async function withdrawMatter(_prev: FormState, data: FormData): Promise<
   const actor = await requireStaff();
   const decisionId = String(data.get("decisionId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
-  const meetingId = await meetingOf(decisionId);
+  const meetingId = await meetingOf(actor, decisionId);
   if (!meetingId) return { ok: false, message: "That matter no longer exists." };
   return inSitting(actor, meetingId, async (tx, s) => {
     const decision = s.meeting.decisions.find((d) => d.id === decisionId);

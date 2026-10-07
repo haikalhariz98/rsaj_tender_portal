@@ -76,7 +76,7 @@ export async function saveCorrection(_prev: FormState, data: FormData): Promise<
     const fs = correctionFaults({ fromText, toText, templateIds }, all.filter((c) => c.id !== id).map((c) => ({ fromText: c.fromText, toText: c.toText, templateIds: c.forms.map((f) => f.templateId) })));
     if (fs.length) return { ok: false, message: words(fs) };
     const row = before
-      ? await tx.textCorrection.update({ where: { id: before.id }, data: { fromText, toText, provenance, notes } })
+      ? await tx.textCorrection.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { fromText, toText, provenance, notes } })
       : await tx.textCorrection.create({ data: { organisationId: orgId, fromText, toText, provenance, notes } });
     const gone = (before?.forms.map((f) => f.templateId) ?? []).filter((t) => !templateIds.includes(t));
     const added = templateIds.filter((t) => !before?.forms.some((f) => f.templateId === t));
@@ -98,7 +98,7 @@ export async function removeCorrection(_prev: FormState, data: FormData): Promis
     const row = await tx.textCorrection.findFirst({ where: { id, organisationId: orgId }, include: { forms: { include: { template: { select: { nameEn: true } } } } } });
     if (!row) return { ok: false, message: "That correction no longer exists." };
     for (const t of row.forms.map((f) => f.templateId).sort()) await tx.$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = ${t} FOR UPDATE`;
-    await tx.textCorrection.delete({ where: { id: row.id } });
+    await tx.textCorrection.delete({ where: { id: row.id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TextCorrection", entityId: row.id, entityLabel: `Typing correction: ${row.fromText}`, reason }, "DELETE", snapshotFields({ asMisprinted: row.fromText, asItShouldRead: row.toText, appliesTo: row.forms.map((f) => f.template.nameEn).sort().join(", ") }));
     return { ok: true };
   });
@@ -148,7 +148,7 @@ export async function saveTerm(_prev: FormState, data: FormData): Promise<FormSt
       if (inUse.length) return { ok: false, errors: { reason: aliasesInUseText(inUse) } };
     }
     const row = before
-      ? await tx.term.update({ where: { id: before.id }, data: { canonicalEn, canonicalMs, provenance, notes } })
+      ? await tx.term.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { canonicalEn, canonicalMs, provenance, notes } })
       : await tx.term.create({ data: { organisationId: orgId, code, canonicalEn, canonicalMs, provenance, notes } });
     const had = before?.aliases.map((a) => a.alias) ?? [];
     const gone = had.filter((a) => !term.aliases.includes(a));
@@ -173,7 +173,7 @@ export async function removeTerm(_prev: FormState, data: FormData): Promise<Form
     // refuses a term not in the glossary).
     const citing = (await tx.documentTemplate.findMany({ where: { organisationId: orgId, OR: [{ bodyEn: { contains: `term:${row.code}` } }, { bodyMs: { contains: `term:${row.code}` } }] }, select: { nameEn: true, bodyEn: true, bodyMs: true } })).filter((t) => [...fieldsNamed(t.bodyEn), ...fieldsNamed(t.bodyMs)].includes(`term:${row.code}`));
     if (citing.length) return { ok: false, message: `The text of ${citing.map((t) => t.nameEn).join(", ")} cites this term. Take it out of the text under Templates first.` };
-    await tx.term.delete({ where: { id: row.id } });
+    await tx.term.delete({ where: { id: row.id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "Term", entityId: row.id, entityLabel: `Term: ${row.canonicalEn ?? row.canonicalMs}`, reason }, "DELETE", snapshotFields(termWords({ code: row.code, canonicalEn: row.canonicalEn, canonicalMs: row.canonicalMs, aliases: row.aliases.map((a) => a.alias) })));
     return { ok: true };
   });

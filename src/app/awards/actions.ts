@@ -242,7 +242,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
       const filled = tender ? prefill(baselineOf(tender, value)) : {};
       // 6.15a fix M-1 (flagged against 6.11): a new award takes its awardee party's register link, read with the exercise locked.
       const partyId = awardeePartyWrite(opening, awardeePartyId) ?? null;
-      const party = partyId ? await tx.exerciseParty.findUnique({ where: { id: partyId }, select: { vendor: { select: { id: true, reference: true, registeredName: true } } } }) : null;
+      const party = partyId ? await tx.exerciseParty.findUnique({ where: { id: partyId, organisationId: actor.organisationId }, select: { vendor: { select: { id: true, reference: true, registeredName: true } } } }) : null;
       const link = awardVendorOnParty(null, partyId, party?.vendor?.id ?? null);
       const row = await tx.award.create({
         data: {
@@ -312,7 +312,7 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
     // Residual 7: a locked award says it is fixed before anything about its awardee's link.
     if (!editable(l.award.status as AwardStatus).details) return { ok: false, message: `The awardee, value and period are fixed once the award goes for approval. This one is ${AWARD_STATUS_LABEL[l.award.status as AwardStatus].toLowerCase()}.` };
     // 6.15a fix M-1 (flagged against 6.11): the awardee changed, the register link follows its party; an own link that disagrees is refused.
-    const party = partyWrite ? await tx.exerciseParty.findUnique({ where: { id: partyWrite }, select: { vendor: { select: { id: true, reference: true, registeredName: true } } } }) : null;
+    const party = partyWrite ? await tx.exerciseParty.findUnique({ where: { id: partyWrite, organisationId: actor.organisationId }, select: { vendor: { select: { id: true, reference: true, registeredName: true } } } }) : null;
     const link = partyWrite !== undefined ? awardVendorOnParty({ awardeePartyId: l.award.awardeePartyId, vendorId: l.award.vendorId }, partyWrite, party?.vendor?.id ?? null) : null;
     if (link?.fault) return { ok: false, errors: { awardeePartyId: supplierFaultText({ ...link.fault, data: { awardSupplier: l.award.vendor ? supplierWords(l.award.vendor) : null, partySupplier: party?.vendor ? supplierWords(party.vendor) : null } }) } };
     // 6.8 (E-9, flagged): the recommended tenderer, and each difference with its reason (the rest of the gate at submission).
@@ -484,7 +484,7 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
     // The moment it was locked; shown as the organisation's day (formatOrgDay).
     if (!l.ex.classificationLockedAt) {
       const lockedAt = new Date();
-      await tx.sourcingExercise.update({ where: { id: l.ex.id }, data: { classificationLockedAt: lockedAt } });
+      await tx.sourcingExercise.update({ where: { id: l.ex.id, organisationId: actor.organisationId }, data: { classificationLockedAt: lockedAt } });
       await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ classificationLockedAt: null }, { classificationLockedAt: on }), `Award ${l.award.reference} sent for approval.`);
     }
     return { ok: true };
@@ -629,7 +629,7 @@ export async function recordCommitment(_prev: FormState, data: FormData): Promis
       return { ok: false, errors: { erpCommitmentNo: faults.map((x) => T[x]).join(" ") } };
     }
     const after = { erpCommitmentNo: number, erpCommitmentKind: kind, commitmentRecordedOn: dayToDate(l.org.today), indentReceivedOn: kind === "INDENT" ? received : null };
-    await tx.award.update({ where: { id }, data: after });
+    await tx.award.update({ where: { id, organisationId: actor.organisationId }, data: after });
     await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(a), "UPDATE", diffFields({ erpCommitmentNo: null }, { ...after, source: "typed by an officer" }));
     return { ok: true };
   });
@@ -770,7 +770,7 @@ export async function recordDespatch(_prev: FormState, data: FormData): Promise<
       return { ok: false, errors };
     }
     const after = { method, consignmentRef, despatchedOn, acknowledgedOn, note };
-    await tx.awardDistribution.update({ where: { id: row.id }, data: after });
+    await tx.awardDistribution.update({ where: { id: row.id, award: { organisationId: actor.organisationId } }, data: after });
     await audit(tx, toAuditActor(actor), l.org.id, "AwardDistribution", row.id, `${a.reference} · copy to ${row.recipientName}`, "UPDATE", diffFields({ method: row.method, consignmentRef: row.consignmentRef, despatchedOn: row.despatchedOn, acknowledgedOn: row.acknowledgedOn, note: row.note }, after));
     return { ok: true };
   });
@@ -845,7 +845,7 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
       const complete = returnReadsComplete(a.status, kind, rec, attached);
       if (!complete) return { ok: false, message: "Not corrected: the award was accepted on a complete return, and this would leave it incomplete." };
     }
-    await tx.awardReturn.update({ where: { id: before.id }, data: v });
+    await tx.awardReturn.update({ where: { id: before.id, award: { organisationId: actor.organisationId } }, data: v });
     const view = (x: Record<string, unknown>) => ({ ...x, receivedByPersonId: undefined, receivedBy: x.receivedByPersonId ? (x.receivedByPersonId === receivedBy?.id ? receivedBy?.name : before.receivedBy?.name) : null });
     await audit(tx, toAuditActor(actor), l.org.id, "AwardReturn", before.id, `${a.reference} · return`, "UPDATE", awardAuditPair(view(before), view({ ...before, ...v })), correcting ? `Corrected: ${correction}` : "");
     // The return that completes the instrument, every item with its scan, accepts it in the same act (BD-12).
@@ -867,7 +867,7 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
     if (!["ISSUED", "ACCEPTED"].includes(a.status)) return { ok: false, message: "Commencement is recorded once the instrument is issued." };
     if (storedDay(on) > l.org.today) return { ok: false, errors: { commencedOn: "Not after today." } };
     if (a.issuedAt && storedDay(on) < storedDay(a.issuedAt)) return { ok: false, errors: { commencedOn: "Not before the instrument was issued." } };
-    await tx.award.update({ where: { id }, data: { commencedOn: on } });
+    await tx.award.update({ where: { id, organisationId: actor.organisationId }, data: { commencedOn: on } });
     await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(a), "UPDATE", diffFields({ commencedOn: a.commencedOn }, { commencedOn: on }));
     return { ok: true };
   });
@@ -902,11 +902,11 @@ export async function cancelAward(_prev: FormState, data: FormData): Promise<For
     const open = a.approvalInstances.filter((i) => i.status === "PENDING");
     for (const inst of open) {
       const warning = { code: "WITHDRAWN_ON_CANCEL", level: "info", messageEn: `Withdrawn: the award was cancelled — ${reason}` };
-      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
+      await tx.approvalInstance.update({ where: { id: inst.id, organisationId: actor.organisationId }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
       await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, routeLabel(a), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The award was cancelled: ${reason}`);
     }
     if (a.contract && a.contract.status !== "CANCELLED") {
-      await tx.contract.update({ where: { id: a.contract.id }, data: { status: "CANCELLED", cancelReason: reason } });
+      await tx.contract.update({ where: { id: a.contract.id, organisationId: actor.organisationId }, data: { status: "CANCELLED", cancelReason: reason } });
       await audit(tx, toAuditActor(actor), l.org.id, "Contract", a.contract.id, `${a.reference} · contract ${a.contract.number}`, "UPDATE", diffFields({ status: a.contract.status }, { status: "CANCELLED", numberKept: "yes, as a gap" }), reason);
     }
     return { ok: true };
@@ -946,7 +946,7 @@ export async function satisfyCondition(_prev: FormState, data: FormData): Promis
     const c = l.award.conditions.find((x) => x.id === conditionId);
     if (!c) return { ok: false, message: "That condition is not on this award." };
     if (storedDay(on) > l.org.today) return { ok: false, errors: { satisfiedOn: "Not after today." } };
-    await tx.awardCondition.update({ where: { id: c.id }, data: { satisfiedOn: on } });
+    await tx.awardCondition.update({ where: { id: c.id, award: { organisationId: actor.organisationId } }, data: { satisfiedOn: on } });
     await audit(tx, toAuditActor(actor), l.org.id, "AwardCondition", c.id, `${l.award.reference} · ${c.kindName}`, "UPDATE", diffFields({ satisfiedOn: c.satisfiedOn }, { satisfiedOn: on }));
     return { ok: true };
   });
@@ -1037,7 +1037,7 @@ export async function reviewSecurity(_prev: FormState, data: FormData): Promise<
     const after = outcome === "VERIFIED"
       ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requiredValue: req.state === "SET" ? senToDecimalString(req.amount) : null, basis: a.bondBasis, basisPercent: a.bondPercent, basisAmount: a.bondBasisAmount, basisProvenance: a.bondBasisProvenance, requiredUntil: completion && a.bondValidityExtraMonths != null ? dayToDate(bondRequiredUntil(completion, a.bondValidityExtraMonths)!) : null }
       : { status: "REJECTED" as const, verifiedOn: on, verifiedByPersonId: person.id, rejectedReason: reason };
-    await tx.securityInstrument.update({ where: { id: s.id }, data: after });
+    await tx.securityInstrument.update({ where: { id: s.id, contract: { organisationId: actor.organisationId } }, data: after });
     await audit(tx, toAuditActor(actor), l.org.id, "SecurityInstrument", s.id, securityLabel(a.reference, s.kind as keyof typeof SECURITY_KIND_LABEL), "UPDATE", diffFields({ status: s.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed", requiredValue: "requiredValue" in after ? after.requiredValue : undefined }), reason);
     return { ok: true };
   });
@@ -1125,7 +1125,7 @@ export async function reviewPolicy(_prev: FormState, data: FormData): Promise<Fo
     const after = outcome === "VERIFIED"
       ? { status: "VERIFIED" as const, verifiedOn: on, verifiedByPersonId: person.id, requirementSnapshot: (requirement ? { name: requirement.nameEn, tailMonths: requirement.tailMonths, tailDays: requirement.tailDays, percent: requirement.percent, dlpMonths: a.dlpMonths, wcBasis: a.wcBasis, sumChecked: p.kind === "WORKMENS_COMPENSATION" ? wcSumCheck(a.wcBasis) === "CHECKED" : true } : null) as Prisma.InputJsonValue }
       : { status: "REJECTED" as const, verifiedOn: on, verifiedByPersonId: person.id, rejectedReason: reason };
-    await tx.insurancePolicy.update({ where: { id: p.id }, data: after });
+    await tx.insurancePolicy.update({ where: { id: p.id, contract: { organisationId: actor.organisationId } }, data: after });
     await audit(tx, toAuditActor(actor), l.org.id, "InsurancePolicy", p.id, policyLabel(a.reference, p.kind as keyof typeof INSURANCE_KIND_LABEL), "UPDATE", diffFields({ status: p.status }, { status: after.status, checkedBy: person.name, checkedOn: on, recordedOnBehalf: "not signed" }), reason);
     return { ok: true };
   });

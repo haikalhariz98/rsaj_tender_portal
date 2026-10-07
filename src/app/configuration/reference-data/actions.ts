@@ -125,10 +125,10 @@ export async function saveFundingRoute(_prev: FormState, data: FormData): Promis
       tx.fundingRoute.create({ data: { organisationId: orgId, ...v, provenance: v.provenance! } }),
     );
   } else {
-    const before = await db.fundingRoute.findUnique({ where: { id } });
+    const before = await db.fundingRoute.findUnique({ where: { id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That funding route no longer exists." };
     await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.fundingRoute.update({ where: { id }, data: { ...v, provenance: v.provenance! } }),
+      tx.fundingRoute.update({ where: { id, organisationId: actor.organisationId }, data: { ...v, provenance: v.provenance! } }),
     );
   }
 
@@ -201,7 +201,7 @@ export async function saveSourcingMethod(_prev: FormState, data: FormData): Prom
     const [others, series, before] = await Promise.all([
       tx.sourcingMethod.findMany({ where: { organisationId: orgId, OR: [{ retiredOn: null }, { retiredOn: { gt: new Date() } }], ...(id ? { NOT: { id } } : {}) } }),
       tx.numberingSeries.findMany({ where: { organisationId: orgId }, select: { key: true } }),
-      id ? tx.sourcingMethod.findUnique({ where: { id } }) : Promise.resolve(null),
+      id ? tx.sourcingMethod.findUnique({ where: { id, organisationId: actor.organisationId } }) : Promise.resolve(null),
     ]);
     if (id && !before) return { ok: false, message: "That sourcing method no longer exists." };
     if (!id && (await tx.sourcingMethod.findFirst({ where: { organisationId: orgId, code: v.code } }))) return { ok: false, errors: { code: "Code is already in use." } };
@@ -211,7 +211,7 @@ export async function saveSourcingMethod(_prev: FormState, data: FormData): Prom
       const row = await tx.sourcingMethod.create({ data: { organisationId: orgId, ...v } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "SourcingMethod", entityId: row.id, entityLabel: v.nameEn, reason }, "CREATE", diffFields(null, v));
     } else {
-      await tx.sourcingMethod.update({ where: { id: before.id }, data: v });
+      await tx.sourcingMethod.update({ where: { id: before.id, organisationId: actor.organisationId }, data: v });
       const changes = diffFields(before, v);
       if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "SourcingMethod", entityId: before.id, entityLabel: v.nameEn, reason }, "UPDATE", changes);
     }
@@ -267,9 +267,9 @@ export async function saveContractType(_prev: FormState, data: FormData): Promis
       const created = await tx.contractType.create({ data: { organisationId: orgId, ...row } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "ContractType", entityId: created.id, entityLabel: row.nameEn, reason }, "CREATE", diffFields(null, row));
     } else {
-      const before = await tx.contractType.findUnique({ where: { id } });
+      const before = await tx.contractType.findUnique({ where: { id, organisationId: actor.organisationId } });
       if (!before) return { ok: false, message: "That contract type no longer exists." };
-      await tx.contractType.update({ where: { id }, data: row });
+      await tx.contractType.update({ where: { id, organisationId: actor.organisationId }, data: row });
       const changes = diffFields(before, row);
       if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "ContractType", entityId: id, entityLabel: row.nameEn, reason }, "UPDATE", changes);
     }
@@ -383,7 +383,7 @@ export async function saveContractBehaviours(_prev: FormState, data: FormData): 
   if (v.claimsApprovalCommitteeCode && !known.has(v.claimsApprovalCommitteeCode)) r.reject("claimsApprovalCommitteeCode", "Choose a body configured under Users & roles.");
   if (r.failed) return { ok: false, errors: r.errors };
   await auditedUpdate({ actor: toAuditActor(actor), organisationId: orgId, entity: "ContractType", entityId: id, entityLabel: before.nameEn, reason: String(data.get("reason") ?? "") }, before, v, (tx) =>
-    tx.contractType.update({ where: { id }, data: v }),
+    tx.contractType.update({ where: { id, organisationId: actor.organisationId }, data: v }),
   );
   revalidatePath(PATH);
   return { ok: true };
@@ -419,7 +419,7 @@ export async function saveChecklistItem(_prev: FormState, data: FormData): Promi
       const row = await tx.methodChecklistItem.create({ data: { sourcingMethodId: method.id, key: key!, ...v } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "MethodChecklistItem", entityId: row.id, entityLabel: label, reason }, "CREATE", diffFields(null, { key, ...v }));
     } else {
-      await tx.methodChecklistItem.update({ where: { id: before.id }, data: v });
+      await tx.methodChecklistItem.update({ where: { id: before.id, sourcingMethod: { organisationId: actor.organisationId } }, data: v });
       const changes = diffFields(before, v);
       if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "MethodChecklistItem", entityId: before.id, entityLabel: label, reason }, "UPDATE", changes);
     }
@@ -440,7 +440,7 @@ export async function retireChecklistItem(_prev: FormState, data: FormData): Pro
   if (item.retiredOn) return { ok: false, message: "That item is already retired." };
   const retiredOn = new Date();
   await auditedUpdate({ actor: toAuditActor(actor), organisationId: orgId, entity: "MethodChecklistItem", entityId: id, entityLabel: `${item.sourcingMethod.nameEn} — ${item.labelEn}`, reason }, { retiredOn: null }, { retiredOn }, (tx) =>
-    tx.methodChecklistItem.update({ where: { id }, data: { retiredOn } }),
+    tx.methodChecklistItem.update({ where: { id, sourcingMethod: { organisationId: actor.organisationId } }, data: { retiredOn } }),
   );
   revalidatePath(PATH);
   return { ok: true };
@@ -470,7 +470,7 @@ export async function saveJustificationReason(_prev: FormState, data: FormData):
   const ctx = { actor: toAuditActor(actor), organisationId: orgId, entity: "JustificationReason", entityLabel: v.nameEn, reason: String(data.get("reason") ?? "") };
   const row = { ...v, provenance: v.provenance! };
   if (!before) await auditedCreate(ctx, row, (tx) => tx.justificationReason.create({ data: { organisationId: orgId, ...row } }));
-  else await auditedUpdate({ ...ctx, entityId: before.id }, before, row, (tx) => tx.justificationReason.update({ where: { id: before.id }, data: row }));
+  else await auditedUpdate({ ...ctx, entityId: before.id }, before, row, (tx) => tx.justificationReason.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row }));
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -499,7 +499,7 @@ export async function saveContractBasis(_prev: FormState, data: FormData): Promi
   const ctx = { actor: toAuditActor(actor), organisationId: orgId, entity: "ContractBasis", entityLabel: v.nameEn, reason: String(data.get("reason") ?? "") };
   const row = { ...v, provenance: v.provenance! };
   if (!before) await auditedCreate(ctx, row, (tx) => tx.contractBasis.create({ data: { organisationId: orgId, ...row } }));
-  else await auditedUpdate({ ...ctx, entityId: before.id }, before, row, (tx) => tx.contractBasis.update({ where: { id: before.id }, data: row }));
+  else await auditedUpdate({ ...ctx, entityId: before.id }, before, row, (tx) => tx.contractBasis.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row }));
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -526,7 +526,7 @@ export async function saveTaxonomy(_prev: FormState, data: FormData): Promise<Fo
   const ctx = { actor: toAuditActor(actor), organisationId: orgId, entity: "ClassificationTaxonomy", entityLabel: v.nameEn, reason: String(data.get("reason") ?? "") };
   const row = { ...v, provenance: v.provenance! };
   if (!before) await auditedCreate(ctx, row, (tx) => tx.classificationTaxonomy.create({ data: { organisationId: orgId, ...row } }));
-  else await auditedUpdate({ ...ctx, entityId: before.id }, before, row, (tx) => tx.classificationTaxonomy.update({ where: { id: before.id }, data: row }));
+  else await auditedUpdate({ ...ctx, entityId: before.id }, before, row, (tx) => tx.classificationTaxonomy.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row }));
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -552,7 +552,7 @@ export async function saveTaxonomyValue(_prev: FormState, data: FormData): Promi
   if (r.failed) return { ok: false, errors: r.errors };
   const ctx = { actor: toAuditActor(actor), organisationId: orgId, entity: "TaxonomyValue", entityLabel: `${tax.nameEn} — ${v.nameEn}`, reason: String(data.get("reason") ?? "") };
   if (!before) await auditedCreate(ctx, v, (tx) => tx.taxonomyValue.create({ data: { taxonomyId, ...v } }));
-  else await auditedUpdate({ ...ctx, entityId: before.id }, before, v, (tx) => tx.taxonomyValue.update({ where: { id: before.id }, data: v }));
+  else await auditedUpdate({ ...ctx, entityId: before.id }, before, v, (tx) => tx.taxonomyValue.update({ where: { id: before.id, taxonomy: { organisationId: actor.organisationId } }, data: v }));
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -620,7 +620,7 @@ export async function removeTaxonomyMapping(_prev: FormState, data: FormData): P
     db.classificationTaxonomy.findFirst({ where: { organisationId: orgId, code: row.taxonomyCode }, select: { nameEn: true, values: { select: { code: true, nameEn: true } } } }),
   ]);
   await db.$transaction(async (tx) => {
-    await tx.taxonomyMapping.delete({ where: { id } });
+    await tx.taxonomyMapping.delete({ where: { id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "TaxonomyMapping", entityId: id, entityLabel: `${type?.nameEn ?? "A type no longer configured"} — ${tax?.nameEn ?? "a classification no longer configured"}`, reason }, "DELETE", snapshotFields({ contractType: type?.nameEn ?? null, classification: tax?.nameEn ?? null, value: tax?.values.find((x) => x.code === row.valueCode)?.nameEn ?? null, conditioned: row.whenBasisCode || row.whenTaxonomyCode ? "yes" : "no", provenance: row.provenance }));
   });
   revalidatePath(PATH);

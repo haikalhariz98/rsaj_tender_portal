@@ -140,7 +140,7 @@ export async function saveQualification(_prev: FormState, data: FormData): Promi
       await tx.$queryRaw`SELECT id FROM "Qualification" WHERE id = ${id} FOR UPDATE`;
       const before = await tx.qualification.findFirst({ where: { id, organisationId: orgId } });
       if (!before) return GONE;
-      const row = await tx.qualification.update({ where: { id }, data: { ...v, provenance: v.provenance! } });
+      const row = await tx.qualification.update({ where: { id, organisationId: actor.organisationId }, data: { ...v, provenance: v.provenance! } });
       await audit(tx, toAuditActor(actor), orgId, "Qualification", row.id, row.nameEn, "UPDATE", before, v);
       return done();
     }
@@ -179,7 +179,7 @@ export async function savePersonQualification(_prev: FormState, data: FormData):
       await tx.$queryRaw`SELECT id FROM "PersonQualification" WHERE id = ${id} FOR UPDATE`;
       const before = await tx.personQualification.findFirst({ where: { id, organisationId: orgId }, include: { person: { select: { name: true } } } });
       if (!before) return GONE;
-      await tx.personQualification.update({ where: { id }, data: v });
+      await tx.personQualification.update({ where: { id, organisationId: actor.organisationId }, data: v });
       // The holding may move to another qualification: the trail names the old one too, never its code.
       const priorRows = before.qualificationCode === qualificationCode ? [{ code: qualificationCode, nameEn: q.nameEn }] : await tx.qualification.findMany({ where: { organisationId: orgId, code: before.qualificationCode }, select: { code: true, nameEn: true } });
       await audit(tx, toAuditActor(actor), orgId, "PersonQualification", id, entityLabel, "UPDATE", { person: before.person.name, qualification: qualificationName(priorRows, before.qualificationCode), validFrom: before.validFrom, validTo: before.validTo, evidence: before.evidenceNote }, view);
@@ -213,7 +213,7 @@ export async function saveBqTemplate(_prev: FormState, data: FormData): Promise<
       await tx.$queryRaw`SELECT id FROM "BqTemplate" WHERE id = ${id} FOR UPDATE`;
       const before = await tx.bqTemplate.findFirst({ where: { id, organisationId: orgId } });
       if (!before) return GONE;
-      await tx.bqTemplate.update({ where: { id }, data: { ...v, provenance: v.provenance! } });
+      await tx.bqTemplate.update({ where: { id, organisationId: actor.organisationId }, data: { ...v, provenance: v.provenance! } });
       await audit(tx, toAuditActor(actor), orgId, "BqTemplate", id, v.nameEn, "UPDATE", before, v);
       return done();
     }
@@ -239,9 +239,9 @@ export async function saveBqTemplateSection(_prev: FormState, data: FormData): P
     const t = await tx.bqTemplate.findFirst({ where: { id: templateId, organisationId: orgId }, select: { nameEn: true } });
     if (!t) return GONE;
     if (id) {
-      const before = await tx.bqTemplateSection.findFirst({ where: { id, templateId } });
+      const before = await tx.bqTemplateSection.findFirst({ where: { id, templateId, organisationId: actor.organisationId } });
       if (!before) return GONE;
-      await tx.bqTemplateSection.update({ where: { id }, data: v });
+      await tx.bqTemplateSection.update({ where: { id, organisationId: actor.organisationId }, data: v });
       await audit(tx, toAuditActor(actor), orgId, "BqTemplateSection", id, `${t.nameEn} · ${v.number}`, "UPDATE", before, v);
       return done();
     }
@@ -273,7 +273,7 @@ export async function saveSpecPanelColumn(_prev: FormState, data: FormData): Pro
       await tx.$queryRaw`SELECT id FROM "SpecPanelColumn" WHERE id = ${id} FOR UPDATE`;
       const before = await tx.specPanelColumn.findFirst({ where: { id, organisationId: orgId } });
       if (!before) return GONE;
-      await tx.specPanelColumn.update({ where: { id }, data: { ...v, provenance: v.provenance! } });
+      await tx.specPanelColumn.update({ where: { id, organisationId: actor.organisationId }, data: { ...v, provenance: v.provenance! } });
       await audit(tx, toAuditActor(actor), orgId, "SpecPanelColumn", id, v.labelEn, "UPDATE", before, v);
       return done();
     }
@@ -303,7 +303,7 @@ export async function saveMethodEstimateRule(_prev: FormState, data: FormData): 
     await tx.$queryRaw`SELECT id FROM "SourcingMethod" WHERE id = ${id} FOR UPDATE`;
     const before = await tx.sourcingMethod.findFirst({ where: { id, organisationId: orgId }, select: { nameEn: true, requiresCompanyEstimate: true, requiresCompanyEstimateProvenance: true } });
     if (!before) return GONE;
-    await tx.sourcingMethod.update({ where: { id }, data: v });
+    await tx.sourcingMethod.update({ where: { id, organisationId: actor.organisationId }, data: v });
     await audit(tx, toAuditActor(actor), orgId, "SourcingMethod", id, before.nameEn, "UPDATE", before, v);
     revalidatePath("/configuration/reference-data");
     return done();
@@ -326,7 +326,7 @@ export async function saveBasisBqRule(_prev: FormState, data: FormData): Promise
     await tx.$queryRaw`SELECT id FROM "ContractBasis" WHERE id = ${id} FOR UPDATE`;
     const before = await tx.contractBasis.findFirst({ where: { id, organisationId: orgId }, select: { nameEn: true, requiresBq: true, requiresBqProvenance: true } });
     if (!before) return GONE;
-    await tx.contractBasis.update({ where: { id }, data: v });
+    await tx.contractBasis.update({ where: { id, organisationId: actor.organisationId }, data: v });
     await audit(tx, toAuditActor(actor), orgId, "ContractBasis", id, before.nameEn, "UPDATE", before, v);
     revalidatePath("/configuration/reference-data");
     return done();
@@ -360,7 +360,7 @@ export async function saveMethodScopeRule(_prev: FormState, data: FormData): Pro
     const saved = scopeRuleToSave(draft);
     // The act is one of AUTHORITY_ACTS: the form read it as one, and scopeRuleFaults refused any other.
     const v = { ...saved, scopeAct: saved.scopeAct as AuthorityAct | null };
-    await tx.sourcingMethod.update({ where: { id }, data: v });
+    await tx.sourcingMethod.update({ where: { id, organisationId: actor.organisationId }, data: v });
     await audit(tx, toAuditActor(actor), orgId, "SourcingMethod", id, before.nameEn, "UPDATE", { scopeApprovalRequired: before.scopeApprovalRequired, scopeApprovalProvenance: before.scopeApprovalProvenance, scopeCommitteeCode: before.scopeCommitteeCode, scopeAct: before.scopeAct, scopeActProvenance: before.scopeActProvenance }, v);
     revalidatePath("/configuration/reference-data");
     revalidatePath("/sourcing", "layout");
@@ -448,7 +448,7 @@ export async function saveRateItem(_prev: FormState, data: FormData): Promise<Fo
     const before = itemId ? l.issue.items.find((i) => i.id === itemId) ?? null : null;
     if (itemId && !before) return GONE;
     const row = { code: code.trim(), descriptionEn, unit, rate: senToDecimalString(rate), sortOrder };
-    const saved = before ? await tx.rateScheduleItem.update({ where: { id: before.id }, data: row }) : await tx.rateScheduleItem.create({ data: { organisationId: orgId, scheduleId, ...row } });
+    const saved = before ? await tx.rateScheduleItem.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row }) : await tx.rateScheduleItem.create({ data: { organisationId: orgId, scheduleId, ...row } });
     await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.item, saved.id, `${issueLabel(l.issue.label, l.issue.issueNo)} · ${row.code}`, before ? "UPDATE" : "CREATE",
       before ? { code: before.code, description: before.descriptionEn, unit: before.unit, rate: formatSen(before.rate) } : null, { code: row.code, description: descriptionEn, unit, rate: formatSen(rate) });
     return done();
@@ -469,7 +469,7 @@ export async function removeRateItem(_prev: FormState, data: FormData): Promise<
     if (fault) return scheduleRefusal([fault]);
     const item = l.issue.items.find((i) => i.id === itemId);
     if (!item) return GONE;
-    await tx.rateScheduleItem.delete({ where: { id: item.id } });
+    await tx.rateScheduleItem.delete({ where: { id: item.id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: RATE_ENTITY.item, entityId: item.id, entityLabel: `${issueLabel(l.issue.label, l.issue.issueNo)} · ${item.code}` }, "DELETE",
       diffFields({ code: item.code, description: item.descriptionEn, unit: item.unit, rate: formatSen(item.rate) }, {}));
     return done();
@@ -505,10 +505,10 @@ export async function issueRateSchedule(_prev: FormState, data: FormData): Promi
       return Object.keys(byField).length === faults.length ? { ok: false, errors: byField } : scheduleRefusal(faults);
     }
     if (supersedes) {
-      await tx.rateSchedule.update({ where: { id: supersedes.id }, data: { status: "SUPERSEDED", supersededOn: dayToDate(today!) } });
+      await tx.rateSchedule.update({ where: { id: supersedes.id, organisationId: actor.organisationId }, data: { status: "SUPERSEDED", supersededOn: dayToDate(today!) } });
       await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, supersedes.id, issueLabel(supersedes.label, supersedes.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED }, { status: RATE_SCHEDULE_STATUS_LABEL.SUPERSEDED, supersededBy: `issue ${l.issue.issueNo}`, supersededOn: today });
     }
-    await tx.rateSchedule.update({ where: { id: l.issue.id }, data: { status: "ISSUED", effectiveFrom: dayToDate(effective!), issuedOn: dayToDate(today!), issuedByPersonId: issuer!.id } });
+    await tx.rateSchedule.update({ where: { id: l.issue.id, organisationId: actor.organisationId }, data: { status: "ISSUED", effectiveFrom: dayToDate(effective!), issuedOn: dayToDate(today!), issuedByPersonId: issuer!.id } });
     await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, l.issue.id, issueLabel(l.issue.label, l.issue.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED, effectiveFrom: effective, issuedOn: today, issuedBy: `${issuer!.name} (recorded on behalf of, not signed)`, items: l.issue.items.length });
     revalidatePath("/sourcing", "layout");
     return done();
@@ -527,10 +527,10 @@ export async function discardRateIssue(_prev: FormState, data: FormData): Promis
     const fault = scheduleEditFault(l.issue);
     if (fault) return scheduleRefusal([fault]);
     for (const i of l.issue.items) {
-      await tx.rateScheduleItem.delete({ where: { id: i.id } });
+      await tx.rateScheduleItem.delete({ where: { id: i.id, organisationId: actor.organisationId } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: RATE_ENTITY.item, entityId: i.id, entityLabel: `${issueLabel(l.issue.label, l.issue.issueNo)} · ${i.code}` }, "DELETE", diffFields({ code: i.code, description: i.descriptionEn, unit: i.unit, rate: formatSen(i.rate) }, {}));
     }
-    await tx.rateSchedule.delete({ where: { id: l.issue.id } });
+    await tx.rateSchedule.delete({ where: { id: l.issue.id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: RATE_ENTITY.schedule, entityId: l.issue.id, entityLabel: issueLabel(l.issue.label, l.issue.issueNo) }, "DELETE", diffFields({ schedule: l.issue.label, issue: l.issue.issueNo, status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, {}));
     return done();
   });

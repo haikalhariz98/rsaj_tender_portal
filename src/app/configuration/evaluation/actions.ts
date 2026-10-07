@@ -110,7 +110,7 @@ export async function saveModel(_prev: FormState, data: FormData): Promise<FormS
   if (id) {
     if (r.failed) return { ok: false, errors: r.errors };
     return inDraft(actor, id, async (tx, org, m) => {
-      await tx.evaluationModel.update({ where: { id }, data: { ...v, route: v.route!, provenance: v.provenance! } });
+      await tx.evaluationModel.update({ where: { id, organisationId: actor.organisationId }, data: { ...v, route: v.route!, provenance: v.provenance! } });
       await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, id, modelLabel(m), "UPDATE", diffFields(fields({ nameEn: m.nameEn, nameMs: m.nameMs, route: m.route, provenance: m.provenance, governingSource: m.governingSource, notes: m.notes }), fields(v)));
       return { ok: true };
     });
@@ -159,7 +159,7 @@ export async function retireModel(_prev: FormState, data: FormData): Promise<For
     if (!m) return GONE;
     const f = retireFault(m.status);
     if (f) return { ok: false, message: CONFIG_TEXT[f] };
-    await tx.evaluationModel.update({ where: { id }, data: { status: "RETIRED", retiredAt: toSecond(new Date()) } });
+    await tx.evaluationModel.update({ where: { id, organisationId: actor.organisationId }, data: { status: "RETIRED", retiredAt: toSecond(new Date()) } });
     await audit(tx, toAuditActor(actor), orgId, MODEL_ENTITY, id, modelLabel(m), "UPDATE", diffFields({ status: "Issued" }, { status: "Retired" }), reason);
     return { ok: true };
   });
@@ -180,7 +180,7 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
     if (!m) return GONE;
     const f = draftFault(m.status);
     if (f) return { ok: false, message: CONFIG_TEXT[f] };
-    await tx.evaluationModel.delete({ where: { id } });
+    await tx.evaluationModel.delete({ where: { id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), orgId, MODEL_ENTITY, id, modelLabel(m), "DELETE", snapshotFields({ name: m.nameEn, version: m.version, status: "Draft" }), reason);
     return { ok: true };
   });
@@ -291,7 +291,7 @@ export async function saveStage(_prev: FormState, data: FormData): Promise<FormS
       source: x.governingSource || null,
     });
     if (self) {
-      await tx.evaluationStage.update({ where: { id: self.id }, data: row });
+      await tx.evaluationStage.update({ where: { id: self.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, m.id, `${modelLabel(m)} · ${row.labelEn}`, "UPDATE", diffFields(await words(self), await words(row)));
     } else {
       await tx.evaluationStage.create({ data: { ...row, code, organisationId: org, modelId: m.id } });
@@ -308,7 +308,7 @@ export async function removeStage(_prev: FormState, data: FormData): Promise<For
   return inDraft(actor, modelId, async (tx, org, m) => {
     const s = m.stages.find((x) => x.id === stageId);
     if (!s) return GONE;
-    await tx.evaluationStage.delete({ where: { id: s.id } });
+    await tx.evaluationStage.delete({ where: { id: s.id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, m.id, `${modelLabel(m)} · ${s.labelEn}`, "DELETE", snapshotFields({ stage: s.labelEn, kind: STAGE_KIND_LABEL[s.kind], criteria: s.criteria.length, factors: s.factorOptions.length }));
     return { ok: true };
   });
@@ -365,7 +365,7 @@ export async function saveCriterion(_prev: FormState, data: FormData): Promise<F
     });
     const label = `${modelLabel(m)} · ${stage.labelEn} · ${row.labelEn}`;
     if (self) {
-      await tx.evaluationCriterion.update({ where: { id: self.id }, data: row });
+      await tx.evaluationCriterion.update({ where: { id: self.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, m.id, label, "UPDATE", diffFields(words({ ...self, governingSource: self.governingSource }), words(row)));
     } else {
       await tx.evaluationCriterion.create({ data: { ...row, code, organisationId: org, stageId: stage.id } });
@@ -384,7 +384,7 @@ export async function removeCriterion(_prev: FormState, data: FormData): Promise
     const c = stage?.criteria.find((x) => x.id === criterionId);
     if (!stage || !c) return GONE;
     if (stage.criteria.some((x) => x.parentId === c.id)) return { ok: false, message: CONFIG_TEXT.PARENT_IN_USE };
-    await tx.evaluationCriterion.delete({ where: { id: c.id } });
+    await tx.evaluationCriterion.delete({ where: { id: c.id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, m.id, `${modelLabel(m)} · ${stage.labelEn} · ${c.labelEn}`, "DELETE", snapshotFields({ criterion: c.labelEn, judged: SCALE_LABEL[c.scale] }));
     return { ok: true };
   });
@@ -418,7 +418,7 @@ export async function saveFactor(_prev: FormState, data: FormData): Promise<Form
     const words = (x: { labelEn: string; labelMs: string | null; factorPct: { toString(): string }; provenance: string; governingSource: string }) => ({ factor: x.labelEn, nameMs: x.labelMs, percentage: x.factorPct.toString(), provenance: x.provenance, source: x.governingSource || null });
     const label = `${modelLabel(m)} · ${stage.labelEn} · ${row.labelEn}`;
     if (self) {
-      await tx.evaluationFactorOption.update({ where: { id: self.id }, data: row });
+      await tx.evaluationFactorOption.update({ where: { id: self.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, m.id, label, "UPDATE", diffFields(words(self), words(row)));
     } else {
       await tx.evaluationFactorOption.create({ data: { ...row, code, organisationId: org, stageId: stage.id } });
@@ -436,7 +436,7 @@ export async function removeFactor(_prev: FormState, data: FormData): Promise<Fo
     const stage = m.stages.find((s) => s.factorOptions.some((x) => x.id === factorId));
     const x = stage?.factorOptions.find((y) => y.id === factorId);
     if (!stage || !x) return GONE;
-    await tx.evaluationFactorOption.delete({ where: { id: x.id } });
+    await tx.evaluationFactorOption.delete({ where: { id: x.id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, m.id, `${modelLabel(m)} · ${stage.labelEn} · ${x.labelEn}`, "DELETE", snapshotFields({ factor: x.labelEn, percentage: x.factorPct.toString() }));
     return { ok: true };
   });
@@ -463,7 +463,7 @@ export async function saveBandSet(_prev: FormState, data: FormData): Promise<For
     const row = { ...v, provenance: v.provenance! };
     const words = (x: typeof row) => ({ bandSet: x.nameEn, provenance: x.provenance, source: x.governingSource || null });
     if (self) {
-      await tx.evaluationBandSet.update({ where: { id: self.id }, data: row });
+      await tx.evaluationBandSet.update({ where: { id: self.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, m.id, `${modelLabel(m)} · ${row.nameEn}`, "UPDATE", diffFields(words(self), words(row)));
     } else {
       await tx.evaluationBandSet.create({ data: { ...row, code, organisationId: org, modelId: m.id } });
@@ -481,7 +481,7 @@ export async function removeBandSet(_prev: FormState, data: FormData): Promise<F
     const set = m.bandSets.find((b) => b.id === setId);
     if (!set) return GONE;
     if (m.stages.some((s) => s.criteria.some((c) => c.bandSetCode === set.code))) return { ok: false, message: CONFIG_TEXT.BAND_SET_IN_USE };
-    await tx.evaluationBandSet.delete({ where: { id: set.id } });
+    await tx.evaluationBandSet.delete({ where: { id: set.id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, m.id, `${modelLabel(m)} · ${set.nameEn}`, "DELETE", snapshotFields({ bandSet: set.nameEn, bands: set.bands.length }));
     return { ok: true };
   });
@@ -519,7 +519,7 @@ export async function saveBand(_prev: FormState, data: FormData): Promise<FormSt
     const words = (x: typeof row | NonNullable<typeof self>) => ({ band: x.labelEn, nameMs: x.labelMs, from: edge(x.lower, x.lowerInclusive, x.lowerIsFloor), to: edge(x.upper, x.upperInclusive, x.upperIsFloor), means: OUTCOME_LABEL[x.outcome], order: x.sortOrder });
     const label = `${modelLabel(m)} · ${set.nameEn} · ${row.labelEn}`;
     if (self) {
-      await tx.evaluationBand.update({ where: { id: self.id }, data: row });
+      await tx.evaluationBand.update({ where: { id: self.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, m.id, label, "UPDATE", diffFields(words(self), words(row)));
     } else {
       await tx.evaluationBand.create({ data: { ...row, organisationId: org, setId: set.id } });
@@ -537,7 +537,7 @@ export async function removeBand(_prev: FormState, data: FormData): Promise<Form
     const set = m.bandSets.find((s) => s.bands.some((b) => b.id === bandId));
     const b = set?.bands.find((x) => x.id === bandId);
     if (!set || !b) return GONE;
-    await tx.evaluationBand.delete({ where: { id: b.id } });
+    await tx.evaluationBand.delete({ where: { id: b.id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, m.id, `${modelLabel(m)} · ${set.nameEn} · ${b.labelEn}`, "DELETE", snapshotFields({ band: b.labelEn, means: OUTCOME_LABEL[b.outcome] }));
     return { ok: true };
   });
@@ -570,7 +570,7 @@ export async function saveAspect(_prev: FormState, data: FormData): Promise<Form
     if (id) {
       const before = await tx.evaluationAspect.findFirst({ where: { id, organisationId: orgId } });
       if (!before) return GONE;
-      await tx.evaluationAspect.update({ where: { id }, data: row });
+      await tx.evaluationAspect.update({ where: { id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), orgId, "EvaluationAspect", id, `Evaluation aspect ${row.labelEn}`, "UPDATE", diffFields(words(before), words(row)));
       return { ok: true };
     }
@@ -593,7 +593,7 @@ export async function retireAspect(_prev: FormState, data: FormData): Promise<Fo
     await tx.$queryRaw`SELECT id FROM "EvaluationAspect" WHERE id = ${id} FOR UPDATE`;
     const a = await tx.evaluationAspect.findFirst({ where: { id, organisationId: orgId } });
     if (!a || a.retiredOn) return GONE;
-    await tx.evaluationAspect.update({ where: { id }, data: { retiredOn: toSecond(new Date()) } });
+    await tx.evaluationAspect.update({ where: { id, organisationId: actor.organisationId }, data: { retiredOn: toSecond(new Date()) } });
     await audit(tx, toAuditActor(actor), orgId, "EvaluationAspect", id, `Evaluation aspect ${a.labelEn}`, "UPDATE", diffFields({ retired: null }, { retired: "yes" }), reason);
     return { ok: true };
   });
@@ -667,7 +667,7 @@ export async function saveBasisRoute(_prev: FormState, data: FormData): Promise<
     const b = await tx.contractBasis.findFirst({ where: { id, organisationId: orgId } });
     if (!b) return GONE;
     const after = { evaluationRoute: route, evaluationRouteProvenance: route ? provenance : null };
-    await tx.contractBasis.update({ where: { id }, data: after });
+    await tx.contractBasis.update({ where: { id, organisationId: actor.organisationId }, data: after });
     const words = (x: typeof after) => ({ evaluationRoute: x.evaluationRoute ? ROUTE_LABEL[x.evaluationRoute] : null, evaluationRouteFrom: x.evaluationRouteProvenance });
     await audit(tx, toAuditActor(actor), orgId, "ContractBasis", id, `Contract basis ${b.nameEn}`, "UPDATE", diffFields(words(b), words(after)));
     return { ok: true };
@@ -688,7 +688,7 @@ export async function saveMethodModel(_prev: FormState, data: FormData): Promise
     const models = await tx.evaluationModel.findMany({ where: { organisationId: orgId }, orderBy: { version: "desc" }, select: { code: true, nameEn: true } });
     if (code && !models.some((x) => x.code === code)) return reject("defaultEvaluationModelCode", "UNKNOWN_CHOICE");
     const name = (c: string | null) => (c ? (models.find((x) => x.code === c)?.nameEn ?? "A model no longer configured") : null);
-    await tx.sourcingMethod.update({ where: { id }, data: { defaultEvaluationModelCode: code } });
+    await tx.sourcingMethod.update({ where: { id, organisationId: actor.organisationId }, data: { defaultEvaluationModelCode: code } });
     await audit(tx, toAuditActor(actor), orgId, "SourcingMethod", id, `Method ${m.nameEn}`, "UPDATE", diffFields({ suggestedEvaluationModel: name(m.defaultEvaluationModelCode) }, { suggestedEvaluationModel: name(code) }));
     return { ok: true };
   });

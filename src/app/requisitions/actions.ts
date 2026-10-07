@@ -309,7 +309,7 @@ export async function editDraft(_prev: FormState, data: FormData): Promise<FormS
     const before = l.req;
     const after = draftData(draft);
     await tx.requisitionLine.deleteMany({ where: { requisitionId: id } });
-    await tx.requisition.update({ where: { id }, data: { ...after, lines: { create: lineData(draft.lines) } } });
+    await tx.requisition.update({ where: { id, organisationId: actor.organisationId }, data: { ...after, lines: { create: lineData(draft.lines) } } });
     await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(before), "UPDATE",
       diffFields(
         {
@@ -320,7 +320,7 @@ export async function editDraft(_prev: FormState, data: FormData): Promise<FormS
         { ...after, lines: draft.lines.length },
       ));
     for (const e of before.endorsements) {
-      await tx.requisitionEndorsement.delete({ where: { id: e.id } });
+      await tx.requisitionEndorsement.delete({ where: { id: e.id, requisition: { organisationId: actor.organisationId } } });
       await audit(tx, toAuditActor(actor), l.org.id, "RequisitionEndorsement", e.id, `${before.reference} · ${TIER_LABEL[e.tier as OrgUnitKind]}`, "DELETE",
         snapshotFields({ tier: e.tier, person: e.person.name, endorsedOn: e.endorsedOn }),
         "Withdrawn: the draft was edited after it was endorsed.");
@@ -519,7 +519,7 @@ export async function changeFunding(_prev: FormState, data: FormData): Promise<F
       ? { fundingSupersedesAuthority: gate.supersedesAuthority, sourcingPermitted: gate.sourcingPermitted, fundingPosture: gate.posture }
       : {};
     const after = { fundingRouteCode: code, ...snapshot };
-    await tx.requisition.update({ where: { id }, data: after });
+    await tx.requisition.update({ where: { id, organisationId: actor.organisationId }, data: after });
     await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE",
       diffFields({ fundingRouteCode: l.req.fundingRouteCode, sourcingPermitted: l.req.sourcingPermitted }, after), reason);
     l.req.fundingRouteCode = code;
@@ -541,7 +541,7 @@ export async function recordExternalAuthority(_prev: FormState, data: FormData):
     if (["CANCELLED", "CLOSED"].includes(l.req.status)) return { ok: false, message: "A cancelled or closed requisition cannot change." };
     if (successorOpenFault(l.req.approvalInstances)) return { ok: false, message: SUCCESSOR_OPEN_TEXT };
     if (l.req.externalAuthorityRef && !reason) return { ok: false, errors: { reason: "Say why the recorded reference is being changed." } };
-    await tx.requisition.update({ where: { id }, data: { externalAuthorityRef: ref } });
+    await tx.requisition.update({ where: { id, organisationId: actor.organisationId }, data: { externalAuthorityRef: ref } });
     await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ externalAuthorityRef: l.req.externalAuthorityRef }, { externalAuthorityRef: ref }), reason);
     return { ok: true };
   });
@@ -878,10 +878,10 @@ export async function closeWithoutSourcing(_prev: FormState, data: FormData): Pr
     await mustMove(tx, l, "CLOSED", ctx, { closedReason: reason });
     await audit(tx, toAuditActor(actor), l.org.id, "Requisition", id, labelOf(l.req), "UPDATE", diffFields({ status: "APPROVED", closedReason: "" }, { status: "CLOSED", closedReason: reason }), reason);
     if (l.req.commitmentMovementId) {
-      const movement = await tx.budgetMovement.findUnique({ where: { id: l.req.commitmentMovementId } });
+      const movement = await tx.budgetMovement.findUnique({ where: { id: l.req.commitmentMovementId, budgetCode: { organisationId: actor.organisationId } } });
       if (movement && !movement.releasedOn) {
         const note = `Released: ${l.req.reference} closed without sourcing — ${reason}`;
-        await tx.budgetMovement.update({ where: { id: movement.id }, data: { releasedOn: today, releaseNote: note } });
+        await tx.budgetMovement.update({ where: { id: movement.id, budgetCode: { organisationId: actor.organisationId } }, data: { releasedOn: today, releaseNote: note } });
         await audit(tx, toAuditActor(actor), l.org.id, "BudgetMovement", movement.id, `${l.req.budgetCode?.code ?? "Budget code"} · commitment for ${l.req.reference}`, "UPDATE",
           diffFields({ releasedOn: null, releaseNote: "" }, { releasedOn: today, releaseNote: note }), reason);
       }
@@ -1037,7 +1037,7 @@ export async function recallRequisition(_prev: FormState, data: FormData): Promi
     const fault = transitionFault(l.req.status, "RECALLED", { today: l.org.today, anyStepDone: inst?.steps.some((s) => s.decision !== "PENDING") ?? false });
     if (fault) return { ok: false, message: transitionFaultText(fault) };
     if (inst) {
-      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date() } });
+      await tx.approvalInstance.update({ where: { id: inst.id, organisationId: actor.organisationId }, data: { status: "RECALLED", closedAt: new Date() } });
       await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, `${l.req.reference} · approval route`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), reason);
     }
     const from = l.req.status;

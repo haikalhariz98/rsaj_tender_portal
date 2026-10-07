@@ -118,10 +118,10 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
   if (!id) {
     await auditedCreate(ctx, v, (tx) => tx.person.create({ data: { organisationId: orgId, ...v } }));
   } else {
-    const before = await db.person.findUnique({ where: { id } });
+    const before = await db.person.findUnique({ where: { id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That person is no longer on record." };
     await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.person.update({ where: { id }, data: v }),
+      tx.person.update({ where: { id, organisationId: actor.organisationId }, data: v }),
     );
   }
 
@@ -170,7 +170,7 @@ export async function setPersonActive(_prev: FormState, data: FormData): Promise
       { isActive: before.isActive },
       { isActive },
       async (tx) => {
-        const row = await tx.person.update({ where: { id }, data: { isActive } });
+        const row = await tx.person.update({ where: { id, organisationId: actor.organisationId }, data: { isActive } });
         // Phase 1b: a leaver's sign-in account is disabled, and its sessions end, in this same transaction (every request re-checks the person as well; this makes it a recorded fact).
         if (!isActive) await disableAccountOfLeaver(tx, { personId: id, organisationId: orgId, actor: toAuditActor(actor), by: { isAdministrator: actor.isAdministrator, accountId: actor.accountId }, reason });
         return row;
@@ -240,7 +240,7 @@ export async function setGrant(
     await auditedDelete(
       { ...ctx, entityId: existing!.id },
       { roleCode, capability: capability.nameEn },
-      (tx) => tx.roleCapability.delete({ where: { id: existing!.id } }),
+      (tx) => tx.roleCapability.delete({ where: { id: existing!.id, capability: { organisationId: actor.organisationId } } }),
     );
   }
 
@@ -461,8 +461,8 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
         await writeAudit(tx, { ...ctx, entityId: row.id }, "CREATE", diffFields(null, v));
         delegationId = row.id;
       } else {
-        const locked = await tx.delegation.findUniqueOrThrow({ where: { id } });
-        await tx.delegation.update({ where: { id }, data: v });
+        const locked = await tx.delegation.findUniqueOrThrow({ where: { id, organisationId: actor.organisationId } });
+        await tx.delegation.update({ where: { id, organisationId: actor.organisationId }, data: v });
         const changes = diffFields(locked, v);
         if (changes.length) await writeAudit(tx, { ...ctx, entityId: id }, "UPDATE", changes);
       }
@@ -546,10 +546,10 @@ export async function saveOffice(_prev: FormState, data: FormData): Promise<Form
       tx.authorityRole.create({ data: { organisationId: orgId, ...v } }),
     );
   } else {
-    const before = await db.authorityRole.findUnique({ where: { id } });
+    const before = await db.authorityRole.findUnique({ where: { id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That role no longer exists." };
     await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.authorityRole.update({ where: { id }, data: v }),
+      tx.authorityRole.update({ where: { id, organisationId: actor.organisationId }, data: v }),
     );
   }
 
@@ -617,7 +617,7 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
 
   // Holding an office decides who sits in an ex-officio committee seat on a date: the
   // change may not move who sits at a sitting in progress (send-back 9.4).
-  const previous = id ? await db.roleAssignment.findUnique({ where: { id }, select: { roleCode: true } }) : null;
+  const previous = id ? await db.roleAssignment.findUnique({ where: { id, person: { organisationId: actor.organisationId } }, select: { roleCode: true } }) : null;
   for (const code of new Set([roleCode, previous?.roleCode].filter((c): c is string => !!c))) {
     const sitting = await inProgressSittingRefusal(actor, {
       roleCode: code,
@@ -644,10 +644,10 @@ export async function saveAssignment(_prev: FormState, data: FormData): Promise<
   if (!id) {
     await auditedCreate(ctx, v, (tx) => tx.roleAssignment.create({ data: v }));
   } else {
-    const before = await db.roleAssignment.findUnique({ where: { id } });
+    const before = await db.roleAssignment.findUnique({ where: { id, person: { organisationId: actor.organisationId } } });
     if (!before) return { ok: false, message: "That assignment no longer exists." };
     await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.roleAssignment.update({ where: { id }, data: v }),
+      tx.roleAssignment.update({ where: { id, person: { organisationId: actor.organisationId } }, data: v }),
     );
   }
 
@@ -670,7 +670,7 @@ export async function endAssignment(_prev: FormState, data: FormData): Promise<F
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
 
   const judge = async (read: typeof db | Tx) => {
-    const row = await read.roleAssignment.findUnique({ where: { id }, include: { person: { select: { name: true } } } });
+    const row = await read.roleAssignment.findUnique({ where: { id, person: { organisationId: actor.organisationId } }, include: { person: { select: { name: true } } } });
     if (!row) return { row: null, result: null } as const;
     const org = await read.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { timeZone: true } });
     return { row, result: endAssignmentDay({ effectiveFrom: row.effectiveFrom, effectiveTo: row.effectiveTo, endDay, today: todayIn(new Date(), org.timeZone) }) } as const;
@@ -701,7 +701,7 @@ export async function endAssignment(_prev: FormState, data: FormData): Promise<F
       const locked = await judge(tx);
       if (!locked.row) throw new Refused({ ok: false, message: "That assignment no longer exists." });
       if (!locked.result.ok) throw new Refused(refusal(locked.result));
-      await tx.roleAssignment.update({ where: { id }, data: { effectiveTo: locked.result.effectiveTo } });
+      await tx.roleAssignment.update({ where: { id, person: { organisationId: actor.organisationId } }, data: { effectiveTo: locked.result.effectiveTo } });
       await writeAudit(
         tx,
         { actor: toAuditActor(actor), organisationId: orgId, entity: "RoleAssignment", entityId: id, entityLabel: `${locked.row.roleCode} — ${locked.row.person.name}`, reason },
@@ -731,7 +731,7 @@ async function attachRecommendation(tx: Tx, actor: AuditActor, orgId: string, de
   // committed while this act waited is seen here, never pinned.
   const v = await lockVersion(tx, versionId, orgId);
   if (!v) throw new RecommendationRefused(documentFaultText({ code: "VERSION_UNKNOWN", level: "block" }));
-  const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId }, include: { documentClass: { select: { classification: true } } } });
+  const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId, organisationId: orgId }, include: { documentClass: { select: { classification: true } } } });
   // Under the Delegation row lock (the same helper the generic attach uses): attachFault
   // judges what is read here, after the lock, never a read made before it.
   const d = await lockDelegation(tx, delegationId, orgId);
@@ -747,7 +747,7 @@ async function attachRecommendation(tx: Tx, actor: AuditActor, orgId: string, de
   await writeAudit(tx, { actor, organisationId: orgId, entity: "DocumentAttachment", entityId: row.id, entityLabel: `${owner} · ${PURPOSE_LABEL.HOLDER_RECOMMENDATION}` }, "CREATE",
     attached({ purpose: "HOLDER_RECOMMENDATION", title: doc.title, versionNo: v.versionNo, sha256: v.sha256, owner }));
   if (doc.status === "STAGED") {
-    await tx.document.update({ where: { id: doc.id }, data: { status: "FILED", filedAt: new Date() } });
+    await tx.document.update({ where: { id: doc.id, organisationId: orgId }, data: { status: "FILED", filedAt: new Date() } });
     await writeAudit(tx, { actor, organisationId: orgId, entity: "Document", entityId: doc.id, entityLabel: `Document · ${doc.title}` }, "UPDATE", filed());
   }
 }

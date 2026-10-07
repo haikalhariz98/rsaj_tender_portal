@@ -87,7 +87,7 @@ export async function saveRegistrationBody(_prev: FormState, data: FormData): Pr
       const created = await tx.registrationBody.create({ data: { organisationId: org.id, ...row } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "RegistrationBody", entityId: created.id, entityLabel: `Registration body · ${row.labelEn}`, reason }, "CREATE", diffFields(null, bodyWords(created)));
     } else {
-      const after = await tx.registrationBody.update({ where: { id: before.id }, data: row });
+      const after = await tx.registrationBody.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row });
       const changes = diffFields(bodyWords(before), bodyWords(after));
       if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "RegistrationBody", entityId: before.id, entityLabel: `Registration body · ${row.labelEn}`, reason }, "UPDATE", changes);
     }
@@ -152,7 +152,7 @@ export async function saveClause(_prev: FormState, data: FormData): Promise<Form
       const created = await tx.clauseText.create({ data: { organisationId: org.id, ...row, bodyVersion } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "ClauseText", entityId: created.id, entityLabel: `Clause · ${row.titleEn}`, reason }, "CREATE", diffFields(null, clauseWords(created)));
     } else {
-      const after = await tx.clauseText.update({ where: { id: before.id }, data: { ...row, bodyVersion } });
+      const after = await tx.clauseText.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { ...row, bodyVersion } });
       const changes = diffFields(clauseWords(before), { ...clauseWords(after), ...(bodyVersion !== before.bodyVersion ? { textChanged: "yes" } : {}) });
       if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "ClauseText", entityId: before.id, entityLabel: `Clause · ${row.titleEn}`, reason }, "UPDATE", changes);
     }
@@ -188,8 +188,8 @@ async function setRetired(scope: OrgScope, by: AuditActor, model: "registrationB
         ? await tx.registrationBody.findFirst({ where: { id, organisationId: org.id }, select: { labelEn: true, retiredOn: true } }).then((b) => (b ? { label: `Registration body · ${b.labelEn}`, retiredOn: b.retiredOn } : null))
         : await tx.clauseText.findFirst({ where: { id, organisationId: org.id }, select: { titleEn: true, retiredOn: true } }).then((c) => (c ? { label: `Clause · ${c.titleEn}`, retiredOn: c.retiredOn } : null));
     if (!before) return GONE;
-    if (model === "registrationBody") await tx.registrationBody.update({ where: { id }, data: { retiredOn: on } });
-    else await tx.clauseText.update({ where: { id }, data: { retiredOn: on } });
+    if (model === "registrationBody") await tx.registrationBody.update({ where: { id, organisationId: scope.organisationId }, data: { retiredOn: on } });
+    else await tx.clauseText.update({ where: { id, organisationId: scope.organisationId }, data: { retiredOn: on } });
     await writeAudit(tx, { actor: by, organisationId: org.id, entity, entityId: id, entityLabel: before.label, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }, { retiredOn: on ? storedDay(on) : null }));
     return done();
   });

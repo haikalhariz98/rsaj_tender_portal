@@ -58,7 +58,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/committees/
     return Response.json({ error: "comment must be text of 1000 characters or fewer" }, { status: 400 });
   }
 
-  const found = await db.committeeDecision.findUnique({ where: { id }, select: { meetingId: true } });
+  const found = await db.committeeDecision.findUnique({ where: { id, meeting: { committee: { organisationId: scope.organisationId } } }, select: { meetingId: true } });
   if (!found) return Response.json({ error: "Decision not found" }, { status: 404 });
 
   // Checked and written under the sitting's row lock, on data read inside the same

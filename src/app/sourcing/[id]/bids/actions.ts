@@ -191,7 +191,7 @@ export async function recordReturnedUnopened(_prev: FormState, data: FormData): 
     const fs = returnFaults({ envelope: env, withdrawnOn: orgDay(env.withdrawal?.receivedAt ?? null, l.org.timeZone), day, today: l.org.today, cancelled: l.ex.status === "CANCELLED" });
     if (fs.length) return { ok: false, errors: { returnedOn: fs.map(bidFindingText).join(" ") } };
     const on = dayToDate(day);
-    await tx.bidEnvelope.update({ where: { id: env.id }, data: { returnedUnopenedOn: on, returnNote: note } });
+    await tx.bidEnvelope.update({ where: { id: env.id, organisationId: actor.organisationId }, data: { returnedUnopenedOn: on, returnNote: note } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE", diffFields({ returnedUnopened: null, note: null }, returnFields({ returnedUnopenedOn: on, note })));
     return { ok: true };
   });
@@ -219,7 +219,7 @@ export async function correctEnvelope(_prev: FormState, data: FormData): Promise
     const fs = correctionFaults({ exercise: reg.exercise, now, envelope: { kind: env.kind, status: env.status, channel: env.channel, markings: env.markings, receivedByPersonId: env.receivedByPersonId }, change, reason, personActive: !!person });
     if (blocking(fs).length) return refuse(fs);
     const next = { markings: change.markings ?? env.markings, channel: (change.channel ?? env.channel) as EnvelopeChannel, receivedByPersonId: person!.id };
-    await tx.bidEnvelope.update({ where: { id: env.id }, data: { ...next, correctedAt: now } });
+    await tx.bidEnvelope.update({ where: { id: env.id, organisationId: actor.organisationId }, data: { ...next, correctedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.envelope, env.id, label(l, `Envelope ${env.sequence}`), "UPDATE",
       diffFields(correctionFields({ channel: env.channel, markings: env.markings, receivedBy: env.receivedBy.name }), correctionFields({ channel: next.channel, markings: next.markings, receivedBy: person!.name })), reason);
     return { ok: true };
@@ -317,7 +317,7 @@ export async function recordValidityExtension(_prev: FormState, data: FormData):
     const extensions = await loadExtensions(l.ex.id, tx);
     const { offsets } = await loadValidityOffsets(l.org.id, tx);
     const v = validityOf({ closing: l.ex.closingAt, timeZone: l.org.timeZone, days: reg.window?.bidValidityDays ?? null, extensions, offsets, now: new Date() });
-    const party = partyId ? await tx.exerciseParty.findFirst({ where: { id: partyId, exerciseId: l.ex.id }, select: { id: true, name: true } }) : null;
+    const party = partyId ? await tx.exerciseParty.findFirst({ where: { id: partyId, exerciseId: l.ex.id, organisationId: actor.organisationId }, select: { id: true, name: true } }) : null;
     const person = await nameOf(tx, l.org.id, personId);
     const fs = extensionFaults({
       cancelled: l.ex.status === "CANCELLED",
@@ -392,7 +392,7 @@ export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<
     const person = exit ? await nameOf(tx, l.org.id, recordedByPersonId) : null;
     if (exit && !person) return { ok: false, errors: { recordedByPersonId: "Name the officer recording it." } };
     const next = { bidValidityDays: days, bidValidityProvenance: days == null ? null : provenance, alternativesPermitted };
-    await tx.exerciseWindow.update({ where: { id: w.id }, data: next });
+    await tx.exerciseWindow.update({ where: { id: w.id, organisationId: actor.organisationId }, data: next });
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseWindow", w.id, label(l, "Bids and opening, Received · window answers"), "UPDATE",
       diffFields(bidAnswerFields(w), { ...bidAnswerFields(next), ...(person ? { [EXIT_RECORDED_BY_FIELD]: `${person.name}, recorded on their behalf, not signed` } : {}) }), reason);
     return { ok: true };

@@ -152,7 +152,7 @@ export async function saveSeries(_prev: FormState, data: FormData): Promise<Form
       const created = await tx.numberingSeries.create({ data: { organisationId: orgId, ...write } });
       await writeAudit(tx, { ...ctx, entityId: created.id }, "CREATE", diffFields(null, write));
     } else {
-      await tx.numberingSeries.update({ where: { id: stored.id }, data: write });
+      await tx.numberingSeries.update({ where: { id: stored.id, organisationId: actor.organisationId }, data: write });
       const changes = diffFields(stored, write);
       if (changes.length > 0) await writeAudit(tx, { ...ctx, entityId: stored.id }, "UPDATE", changes);
     }

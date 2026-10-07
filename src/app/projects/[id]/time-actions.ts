@@ -63,7 +63,7 @@ const audit = (c: ActCtx, entity: string, id: string, label: string, action: "CR
 
 /// The claim of a matter, locked (the matter first, then the claim).
 async function lockClaim(c: ActCtx, claimId: string) {
-  const pre = await c.tx.eotClaim.findFirst({ where: { id: claimId, contractId: c.l.contract.id }, select: { matterId: true } });
+  const pre = await c.tx.eotClaim.findFirst({ where: { id: claimId, contractId: c.l.contract.id, organisationId: c.l.org.id }, select: { matterId: true } });
   if (!pre) throw new ActRefusal({ ok: false, message: "That claim is not on this contract." });
   const { m } = await lockMatter(c, pre.matterId);
   if (!m.eotClaim) throw new ActRefusal({ ok: false, message: "That claim is not on this contract." });
@@ -122,10 +122,10 @@ export async function openEotClaim(_prev: FormState, data: FormData): Promise<Fo
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const who = await recordedFor(c, personId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const notices = noticeIds.length ? await c.tx.delayNotice.findMany({ where: { id: { in: noticeIds }, organisationId: c.l.org.id }, select: { id: true, contractId: true } }) : [];
-    const programme = programmeId ? await c.tx.workProgramme.findFirst({ where: { id: programmeId, contractId: c.l.contract.id }, select: { id: true, decision: true } }) : null;
+    const programme = programmeId ? await c.tx.workProgramme.findFirst({ where: { id: programmeId, contractId: c.l.contract.id, organisationId: actor.organisationId }, select: { id: true, decision: true } }) : null;
     const baseline = baselineOn(c.l, c.today);
     const instrument = await instrumentOf(c);
-    if (excludedByConditionId && !(await c.tx.awardCondition.findFirst({ where: { id: excludedByConditionId, awardId: c.l.award.id }, select: { id: true } }))) fieldError("excludedByConditionId", "That condition is not of this contract's award.");
+    if (excludedByConditionId && !(await c.tx.awardCondition.findFirst({ where: { id: excludedByConditionId, awardId: c.l.award.id, award: { organisationId: actor.organisationId } }, select: { id: true } }))) fieldError("excludedByConditionId", "That condition is not of this contract's award.");
     const fs = openFaults({
       notices: noticeIds.map((id) => ({ onContract: notices.some((n) => n.id === id && n.contractId === c.l.contract.id) })),
       scope,
@@ -215,12 +215,12 @@ export async function removeEotReason(_prev: FormState, data: FormData): Promise
   const reasonId = r.text("reasonId", "Reason", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
-    const pre = await c.tx.eotReason.findFirst({ where: { id: reasonId, claim: { contractId: c.l.contract.id } }, select: { claimId: true } });
+    const pre = await c.tx.eotReason.findFirst({ where: { id: reasonId, claim: { contractId: c.l.contract.id }, organisationId: actor.organisationId }, select: { claimId: true } });
     if (!pre) return { ok: false, message: "That reason is not on this contract." };
     const { m, claim } = await lockClaim(c, pre.claimId);
     if (m.closedAt || claim.entitlement != null) refuse("Not removed:", m.closedAt ? [{ code: "CLAIM_CLOSED", level: "block", data: { reason: m.closeReason } }] : [{ code: "CLAIM_DETERMINED", level: "block" }]);
     const row = claim.reasons.find((x) => x.id === reasonId)!;
-    await c.tx.eotReason.delete({ where: { id: reasonId } });
+    await c.tx.eotReason.delete({ where: { id: reasonId, organisationId: actor.organisationId } });
     await audit(c, "EotReason", reasonId, `${claimLabel(c, m)} · reason`, "DELETE", diffFields({ clause: row.clause, reason: row.reason, extensionDays: row.extensionDays }, { clause: null, reason: null, extensionDays: null }));
     return { ok: true };
   });

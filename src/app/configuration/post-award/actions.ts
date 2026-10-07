@@ -202,7 +202,7 @@ export async function saveClockRule(_prev: FormState, data: FormData): Promise<F
     if (length == null) {
       if (!before) return { ok: true };
       if (!reason.trim()) return { ok: false, errors: { reason: "Say why the clock is removed." } } as FormState;
-      await tx.contractClockRule.delete({ where: { id: before.id } });
+      await tx.contractClockRule.delete({ where: { id: before.id, organisationId: actor.organisationId } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "ContractClockRule", entityId: before.id, entityLabel: label, reason }, "DELETE", diffFields({ clock: text(before), provenance: before.provenance }, { clock: null, provenance: null }));
     } else {
       const row = await tx.contractClockRule.upsert({ where: { organisationId_clock: { organisationId: o.id, clock } }, update: { length, unit: unit!, provenance: provenance!, notes }, create: { organisationId: o.id, clock, length, unit: unit!, provenance: provenance!, notes } });

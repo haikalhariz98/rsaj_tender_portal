@@ -170,7 +170,7 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
       tx.committee.create({ data: { organisationId: orgId, ...write } }),
     );
   } else {
-    const before = await db.committee.findUnique({ where: { id } });
+    const before = await db.committee.findUnique({ where: { id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That committee no longer exists." };
     await auditedUpdate(
       { ...ctx, entityId: id },
@@ -180,7 +180,7 @@ export async function saveCommittee(_prev: FormState, data: FormData): Promise<F
         valueScopeMax: before.valueScopeMax?.toString() ?? null,
       },
       v,
-      (tx) => tx.committee.update({ where: { id }, data: write }),
+      (tx) => tx.committee.update({ where: { id, organisationId: actor.organisationId }, data: write }),
     );
   }
 
@@ -233,7 +233,7 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
   const alternateForId = isAlternate ? r.optionalText("alternateForId") : null;
   if (alternateForId) {
     const target = await db.committeeMember.findFirst({
-      where: { id: alternateForId, committeeId },
+      where: { id: alternateForId, committeeId, committee: { organisationId: actor.organisationId } },
       select: { id: true, position: true, isAlternate: true },
     });
     const link = checkAlternateLink({ selfId: id || null, target });
@@ -307,10 +307,10 @@ export async function saveMember(_prev: FormState, data: FormData): Promise<Form
   if (!id) {
     await auditedCreate(ctx, v, (tx) => tx.committeeMember.create({ data: write }));
   } else {
-    const before = await db.committeeMember.findUnique({ where: { id } });
+    const before = await db.committeeMember.findUnique({ where: { id, committee: { organisationId: actor.organisationId } } });
     if (!before) return { ok: false, message: "That seat no longer exists." };
     await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
-      tx.committeeMember.update({ where: { id }, data: write }),
+      tx.committeeMember.update({ where: { id, committee: { organisationId: actor.organisationId } }, data: write }),
     );
   }
 
@@ -330,7 +330,7 @@ export async function vacateSeat(_prev: FormState, data: FormData): Promise<Form
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
 
   const before = await db.committeeMember.findUnique({
-    where: { id },
+    where: { id, committee: { organisationId: actor.organisationId } },
     include: { committee: { select: { code: true, nameEn: true } } },
   });
   if (!before) return { ok: false, message: "That seat no longer exists." };
@@ -353,7 +353,7 @@ export async function vacateSeat(_prev: FormState, data: FormData): Promise<Form
     },
     { effectiveTo: null },
     { effectiveTo },
-    (tx) => tx.committeeMember.update({ where: { id }, data: { effectiveTo } }),
+    (tx) => tx.committeeMember.update({ where: { id, committee: { organisationId: actor.organisationId } }, data: { effectiveTo } }),
   );
 
   revalidatePath(PATH);
@@ -422,7 +422,7 @@ export async function saveNotApprovedOutcome(_prev: FormState, data: FormData): 
     await auditedCreate(ctx, v, (tx) => tx.notApprovedOutcome.create({ data: { organisationId: orgId, ...write } }));
   } else {
     const before = await db.notApprovedOutcome.findUnique({
-      where: { id },
+      where: { id, organisationId: actor.organisationId },
       include: { _count: { select: { decisions: true } } },
     });
     if (!before) return { ok: false, message: "That outcome no longer exists." };
@@ -437,7 +437,7 @@ export async function saveNotApprovedOutcome(_prev: FormState, data: FormData): 
     const { _count: _unused, ...row } = before;
     void _unused;
     await auditedUpdate({ ...ctx, entityId: id }, row, v, (tx) =>
-      tx.notApprovedOutcome.update({ where: { id }, data: write }),
+      tx.notApprovedOutcome.update({ where: { id, organisationId: actor.organisationId }, data: write }),
     );
   }
   revalidatePath(PATH);
@@ -462,7 +462,7 @@ export async function retireNotApprovedOutcome(_prev: FormState, data: FormData)
     { actor: toAuditActor(actor), organisationId: orgId, entity: "NotApprovedOutcome", entityId: id, entityLabel: before.nameEn, reason },
     { retiredOn: null },
     { retiredOn },
-    (tx) => tx.notApprovedOutcome.update({ where: { id }, data: { retiredOn } }),
+    (tx) => tx.notApprovedOutcome.update({ where: { id, organisationId: actor.organisationId }, data: { retiredOn } }),
   );
   revalidatePath(PATH);
   return { ok: true };
@@ -505,7 +505,7 @@ export async function saveCommitteePanel(_prev: FormState, data: FormData): Prom
     const faults = committeePanelFaults(draft, { units: units.map((u) => u.code) }, reason, changed);
     if (faults.length) return { ok: false, errors: Object.fromEntries(faults.map((f) => [f.field, OPENING_CONFIG_FAULT_TEXT[f.code]])) };
     if (!changed) return { ok: true };
-    await tx.committee.update({ where: { id }, data: v });
+    await tx.committee.update({ where: { id, organisationId: actor.organisationId }, data: v });
     // Codes never reach History: the unit by its name.
     const words = (c: typeof v) => ({
       openingPanelMembers: c.panelSize ?? "Not set",

@@ -143,10 +143,10 @@ export async function saveOrgUnit(_prev: FormState, data: FormData): Promise<For
     const row = { organisationId: orgId, code, kind, parentCode, effectiveFrom, ...v };
     await auditedCreate(ctx, row, (tx) => tx.orgUnit.create({ data: row }));
   } else {
-    const before = await db.orgUnit.findUnique({ where: { id: current.id } });
+    const before = await db.orgUnit.findUnique({ where: { id: current.id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That unit no longer exists." };
     await auditedUpdate({ ...ctx, entityId: current.id }, before, v, (tx) =>
-      tx.orgUnit.update({ where: { id: current.id }, data: v }),
+      tx.orgUnit.update({ where: { id: current.id, organisationId: actor.organisationId }, data: v }),
     );
   }
 
@@ -204,10 +204,10 @@ export async function saveCostCentre(_prev: FormState, data: FormData): Promise<
     const row = { organisationId: orgId, code, ...v };
     await auditedCreate(ctx, row, (tx) => tx.costCentre.create({ data: row }));
   } else {
-    const before = await db.costCentre.findUnique({ where: { id: current.id } });
+    const before = await db.costCentre.findUnique({ where: { id: current.id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That cost centre no longer exists." };
     await auditedUpdate({ ...ctx, entityId: current.id }, before, v, (tx) =>
-      tx.costCentre.update({ where: { id: current.id }, data: v }),
+      tx.costCentre.update({ where: { id: current.id, organisationId: actor.organisationId }, data: v }),
     );
   }
 
@@ -266,10 +266,10 @@ export async function saveSite(_prev: FormState, data: FormData): Promise<FormSt
     const row = { organisationId: orgId, code, ...v };
     await auditedCreate(ctx, row, (tx) => tx.site.create({ data: row }));
   } else {
-    const before = await db.site.findUnique({ where: { id: current.id } });
+    const before = await db.site.findUnique({ where: { id: current.id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That site no longer exists." };
     await auditedUpdate({ ...ctx, entityId: current.id }, before, v, (tx) =>
-      tx.site.update({ where: { id: current.id }, data: v }),
+      tx.site.update({ where: { id: current.id, organisationId: actor.organisationId }, data: v }),
     );
   }
 
@@ -436,7 +436,7 @@ export async function removeLogo(_prev: FormState, data: FormData): Promise<Form
     await lockOrganisation(tx, org.id);
     const logo = await tx.organisationLogo.findUnique({ where: { organisationId: org.id }, select: { id: true, sha256: true, mediaType: true, sizeBytes: true, width: true, height: true } });
     if (!logo) return { ok: false, message: "There is no logo to remove." };
-    await tx.organisationLogo.delete({ where: { id: logo.id } });
+    await tx.organisationLogo.delete({ where: { id: logo.id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "OrganisationLogo", entityId: logo.id, entityLabel: org.name, reason }, "DELETE", snapshotFields(logoFacts(logo)));
     return { ok: true };
   });

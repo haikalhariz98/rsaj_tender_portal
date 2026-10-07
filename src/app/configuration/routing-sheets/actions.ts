@@ -81,7 +81,7 @@ export async function saveRoutingType(_prev: FormState, data: FormData): Promise
       await tx.$queryRaw`SELECT id FROM "RoutingSheetType" WHERE id = ${id} FOR UPDATE`;
       const before = await tx.routingSheetType.findFirst({ where: { id, organisationId: o.id } });
       if (!before) return { ok: false, message: "That routing sheet type no longer exists." } as FormState;
-      const row = await tx.routingSheetType.update({ where: { id }, data: { ...v, subject: v.subject!, provenance: v.provenance! } });
+      const row = await tx.routingSheetType.update({ where: { id, organisationId: actor.organisationId }, data: { ...v, subject: v.subject!, provenance: v.provenance! } });
       await audit(tx, toAuditActor(actor), o.id, "RoutingSheetType", row.id, row.labelEn, typeWords(before), typeWords(row), reason);
       return done(id);
     }
@@ -104,7 +104,7 @@ export async function retireRoutingType(_prev: FormState, data: FormData): Promi
     const before = await tx.routingSheetType.findFirst({ where: { id, organisationId: o.id } });
     if (!before) return { ok: false, message: "That routing sheet type no longer exists." } as FormState;
     if (before.retiredOn) return { ok: false, message: `Already retired from ${storedDay(before.retiredOn)}.` } as FormState;
-    await tx.routingSheetType.update({ where: { id }, data: { retiredOn: dayToDate(o.today!) } });
+    await tx.routingSheetType.update({ where: { id, organisationId: actor.organisationId }, data: { retiredOn: dayToDate(o.today!) } });
     await audit(tx, toAuditActor(actor), o.id, "RoutingSheetType", id, before.labelEn, { retiredFrom: null }, { retiredFrom: o.today }, reason);
     return done(id);
   });
@@ -145,7 +145,7 @@ export async function saveCheckDef(_prev: FormState, data: FormData): Promise<Fo
     const fs = checkDefFaults(v, rows.filter((x) => x.id !== id), new Set(roles.map((x) => x.code)));
     if (fs.length) return { ok: false, message: configFaultText(fs) };
     const name = (c: string | null) => roles.find((x) => x.code === c)?.nameEn ?? null;
-    const row = before ? await tx.routingCheckDef.update({ where: { id: before.id }, data: v }) : await tx.routingCheckDef.create({ data: { organisationId: t.organisationId, typeId: t.id, ...v } });
+    const row = before ? await tx.routingCheckDef.update({ where: { id: before.id, organisationId: actor.organisationId }, data: v }) : await tx.routingCheckDef.create({ data: { organisationId: t.organisationId, typeId: t.id, ...v } });
     await audit(tx, toAuditActor(actor), t.organisationId, "RoutingCheckDef", row.id, `${t.labelEn} · ${v.labelEn}`, before ? checkWords(before, name(before.officeCode)) : null, checkWords(v, name(v.officeCode)), String(data.get("reason") ?? ""));
     return { ok: true };
   });
@@ -159,9 +159,9 @@ export async function removeCheckDef(_prev: FormState, data: FormData): Promise<
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the check comes off the sheet." } };
   const res = await onType(actor, typeId, async (tx, t) => {
-    const row = await tx.routingCheckDef.findFirst({ where: { id, typeId: t.id } });
+    const row = await tx.routingCheckDef.findFirst({ where: { id, typeId: t.id, organisationId: actor.organisationId } });
     if (!row) return { ok: false, message: "That check is no longer on this type." };
-    await tx.routingCheckDef.delete({ where: { id } });
+    await tx.routingCheckDef.delete({ where: { id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: t.organisationId, entity: "RoutingCheckDef", entityId: id, entityLabel: `${t.labelEn} · ${row.labelEn}`, reason }, "DELETE", snapshotFields(checkWords(row, null)));
     return { ok: true };
   });
@@ -191,7 +191,7 @@ export async function saveTarget(_prev: FormState, data: FormData): Promise<Form
     const str = (x: { pctMin: unknown; pctMax: unknown; targetDays: number }) => ({ pctMin: x.pctMin == null ? null : String(x.pctMin), pctMax: x.pctMax == null ? null : String(x.pctMax), targetDays: x.targetDays });
     const fs = targetFaults(v, rows.filter((x) => x.id !== id).map(str));
     if (fs.length) return { ok: false, message: configFaultText(fs) };
-    const row = before ? await tx.routingTarget.update({ where: { id: before.id }, data: { ...v, provenance, notes } }) : await tx.routingTarget.create({ data: { organisationId: t.organisationId, typeId: t.id, ...v, provenance, notes } });
+    const row = before ? await tx.routingTarget.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { ...v, provenance, notes } }) : await tx.routingTarget.create({ data: { organisationId: t.organisationId, typeId: t.id, ...v, provenance, notes } });
     await audit(tx, toAuditActor(actor), t.organisationId, "RoutingTarget", row.id, `${t.labelEn} · target`, before ? targetWords({ ...str(before), provenance: before.provenance }) : null, targetWords({ ...v, provenance }), String(data.get("reason") ?? ""));
     return { ok: true };
   });
@@ -205,9 +205,9 @@ export async function removeTarget(_prev: FormState, data: FormData): Promise<Fo
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the target comes off." } };
   const res = await onType(actor, typeId, async (tx, t) => {
-    const row = await tx.routingTarget.findFirst({ where: { id, typeId: t.id } });
+    const row = await tx.routingTarget.findFirst({ where: { id, typeId: t.id, organisationId: actor.organisationId } });
     if (!row) return { ok: false, message: "That target is no longer on this type." };
-    await tx.routingTarget.delete({ where: { id } });
+    await tx.routingTarget.delete({ where: { id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: t.organisationId, entity: "RoutingTarget", entityId: id, entityLabel: `${t.labelEn} · target`, reason }, "DELETE", snapshotFields(targetWords({ pctMin: row.pctMin?.toString() ?? null, pctMax: row.pctMax?.toString() ?? null, targetDays: row.targetDays, provenance: row.provenance })));
     return { ok: true };
   });

@@ -119,7 +119,7 @@ export async function saveErpFormat(_prev: FormState, data: FormData): Promise<F
     const label = key === "erp_requisition_no" ? "Finance system requisition no. format" : key === "erp_note_no" ? "Requisition note no. format" : "Indent number format";
     if (!pattern) {
       if (!before) return;
-      await tx.codeFormat.delete({ where: { id: before.id } });
+      await tx.codeFormat.delete({ where: { id: before.id, organisationId: actor.organisationId } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "CodeFormat", entityId: before.id, entityLabel: label, reason }, "DELETE",
         diffFields({ pattern: before.pattern, example: before.example }, { pattern: null, example: null }));
       return;
@@ -198,7 +198,7 @@ export async function saveGateRule(_prev: FormState, data: FormData): Promise<Fo
     }
     const before = await tx.committeeGateRule.findFirst({ where: { id, organisationId: org.id } });
     if (!before) return;
-    await tx.committeeGateRule.update({ where: { id }, data: write });
+    await tx.committeeGateRule.update({ where: { id, organisationId: actor.organisationId }, data: write });
     const changes = diffFields({ ...before, aboveValue: before.aboveValue?.toString() ?? null }, write);
     if (changes.length > 0) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "CommitteeGateRule", entityId: id, entityLabel: `Committee gate: ${v.subjectEn}`, reason }, "UPDATE", changes);
   });

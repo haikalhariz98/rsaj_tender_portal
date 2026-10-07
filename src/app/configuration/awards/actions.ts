@@ -113,8 +113,8 @@ export async function saveRecipient(_prev: FormState, data: FormData): Promise<F
   if (r.failed) return { ok: false, errors: r.errors };
   const w = { ...v, instrumentKind: v.instrumentKind!, provenance: v.provenance! };
   return db.$transaction(async (tx) => {
-    const before = id ? await tx.distributionRecipient.findUnique({ where: { id } }) : null;
-    const row = id ? await tx.distributionRecipient.update({ where: { id }, data: w }) : await tx.distributionRecipient.create({ data: { organisationId: o.id, ...w } });
+    const before = id ? await tx.distributionRecipient.findUnique({ where: { id, organisationId: actor.organisationId } }) : null;
+    const row = id ? await tx.distributionRecipient.update({ where: { id, organisationId: actor.organisationId }, data: w }) : await tx.distributionRecipient.create({ data: { organisationId: o.id, ...w } });
     await audit(tx, toAuditActor(actor), o.id, "DistributionRecipient", row.id, v.nameEn, before, w, reason);
     return done();
   });
@@ -148,9 +148,9 @@ export async function saveVariant(_prev: FormState, data: FormData): Promise<For
     if (!(await templateOk(tx, o.id, v.templateId))) return { ok: false, errors: { templateId: "That template no longer exists." } } as FormState;
     const known = await tx.contractType.findMany({ where: { organisationId: o.id, code: { in: types } }, select: { code: true } });
     if (known.length !== types.length) return { ok: false, errors: { contractTypeCodes: "Choose contract types from the list." } } as FormState;
-    const before = id ? await tx.appointmentLetterVariant.findUnique({ where: { id } }) : null;
+    const before = id ? await tx.appointmentLetterVariant.findUnique({ where: { id, organisationId: actor.organisationId } }) : null;
     const w = { ...v, provenance: v.provenance! };
-    const row = id ? await tx.appointmentLetterVariant.update({ where: { id }, data: w }) : await tx.appointmentLetterVariant.create({ data: { organisationId: o.id, ...w } });
+    const row = id ? await tx.appointmentLetterVariant.update({ where: { id, organisationId: actor.organisationId }, data: w }) : await tx.appointmentLetterVariant.create({ data: { organisationId: o.id, ...w } });
     await audit(tx, toAuditActor(actor), o.id, "AppointmentLetterVariant", row.id, v.nameEn, before && { ...before, contractTypeCodes: before.contractTypeCodes.join(", ") }, { ...w, contractTypeCodes: types.join(", ") }, reason);
     return done();
   });
@@ -178,8 +178,8 @@ export async function saveConditionKind(_prev: FormState, data: FormData): Promi
   if (r.failed) return { ok: false, errors: r.errors };
   const w = { ...v, provenance: v.provenance! };
   return db.$transaction(async (tx) => {
-    const before = id ? await tx.conditionPrecedentKind.findUnique({ where: { id } }) : null;
-    const row = id ? await tx.conditionPrecedentKind.update({ where: { id }, data: w }) : await tx.conditionPrecedentKind.create({ data: { organisationId: o.id, ...w } });
+    const before = id ? await tx.conditionPrecedentKind.findUnique({ where: { id, organisationId: actor.organisationId } }) : null;
+    const row = id ? await tx.conditionPrecedentKind.update({ where: { id, organisationId: actor.organisationId }, data: w }) : await tx.conditionPrecedentKind.create({ data: { organisationId: o.id, ...w } });
     await audit(tx, toAuditActor(actor), o.id, "ConditionPrecedentKind", row.id, v.nameEn, before, w, reason);
     return done();
   });
@@ -215,8 +215,8 @@ export async function saveRequirement(_prev: FormState, data: FormData): Promise
   const w = { ...v, kind: v.kind!, provenance: v.provenance! };
   return db.$transaction(async (tx) => {
     if (v.contractTypeCode && !(await tx.contractType.findFirst({ where: { organisationId: o.id, code: v.contractTypeCode }, select: { id: true } }))) return { ok: false, errors: { contractTypeCode: "Choose a contract type from the list." } } as FormState;
-    const before = id ? await tx.insuranceRequirement.findUnique({ where: { id } }) : null;
-    const row = id ? await tx.insuranceRequirement.update({ where: { id }, data: w }) : await tx.insuranceRequirement.create({ data: { organisationId: o.id, ...w } });
+    const before = id ? await tx.insuranceRequirement.findUnique({ where: { id, organisationId: actor.organisationId } }) : null;
+    const row = id ? await tx.insuranceRequirement.update({ where: { id, organisationId: actor.organisationId }, data: w }) : await tx.insuranceRequirement.create({ data: { organisationId: o.id, ...w } });
     await audit(tx, toAuditActor(actor), o.id, "InsuranceRequirement", row.id, v.nameEn, before, w, reason);
     return done();
   });
@@ -259,8 +259,8 @@ export async function saveBand(_prev: FormState, data: FormData): Promise<FormSt
     const set = [...live.map((b) => ({ code: b.code, minValue: b.minValue ? parseSen(b.minValue.toString()) : null, maxValue: b.maxValue ? parseSen(b.maxValue.toString()) : null, limit: 0n })), { code: w.code, minValue: w.minValue ? parseSen(w.minValue) : null, maxValue: w.maxValue ? parseSen(w.maxValue) : null, limit: 0n }];
     const overlap = bandSetFaults(set).find((f) => f.kind === "OVERLAP" && (f.a === w.code || f.b === w.code));
     if (overlap) return { ok: false, errors: { minValue: "This band would overlap another: a contract price would fall in both. Adjust its edges." } };
-    const before = id ? await tx.liabilityBand.findUnique({ where: { id } }) : null;
-    const row = id ? await tx.liabilityBand.update({ where: { id }, data: w }) : await tx.liabilityBand.create({ data: { organisationId: o.id, ...w } });
+    const before = id ? await tx.liabilityBand.findUnique({ where: { id, organisationId: actor.organisationId } }) : null;
+    const row = id ? await tx.liabilityBand.update({ where: { id, organisationId: actor.organisationId }, data: w }) : await tx.liabilityBand.create({ data: { organisationId: o.id, ...w } });
     await audit(tx, toAuditActor(actor), o.id, "LiabilityBand", row.id, `Liability band ${w.code}`, before, w, reason);
     return done();
   });
@@ -290,8 +290,8 @@ export async function saveIssuer(_prev: FormState, data: FormData): Promise<Form
   if (r.failed) return { ok: false, errors: r.errors };
   const w = { ...v, kind: v.kind!, provenance: v.provenance! };
   return db.$transaction(async (tx) => {
-    const before = id ? await tx.approvedIssuer.findUnique({ where: { id } }) : null;
-    const row = id ? await tx.approvedIssuer.update({ where: { id }, data: w }) : await tx.approvedIssuer.create({ data: { organisationId: o.id, ...w } });
+    const before = id ? await tx.approvedIssuer.findUnique({ where: { id, organisationId: actor.organisationId } }) : null;
+    const row = id ? await tx.approvedIssuer.update({ where: { id, organisationId: actor.organisationId }, data: w }) : await tx.approvedIssuer.create({ data: { organisationId: o.id, ...w } });
     await audit(tx, toAuditActor(actor), o.id, "ApprovedIssuer", row.id, v.name, before, w, reason);
     return done();
   });

@@ -110,13 +110,13 @@ export async function saveDocumentClass(_prev: FormState, data: FormData): Promi
     // person (BD-DS-11 as ruled). Unchanged is no change: the editor posts it back.
     const refused = await db.$transaction(async (tx): Promise<FormState | null> => {
       await tx.$queryRaw`SELECT id FROM "DocumentClass" WHERE id = ${id} FOR UPDATE`;
-      const before = await tx.documentClass.findUnique({ where: { id } });
+      const before = await tx.documentClass.findUnique({ where: { id, organisationId: actor.organisationId } });
       if (!before) return { ok: false, message: "That class no longer exists." };
       if (present.has("classification")) {
         const faults = classClassificationFault(before.classification, classification ?? null);
         if (faults.length) return { ok: false, errors: { classification: faults.map(documentFaultText).join(" ") } };
       }
-      await tx.documentClass.update({ where: { id }, data: write });
+      await tx.documentClass.update({ where: { id, organisationId: actor.organisationId }, data: write });
       const changes = diffFields(before, v);
       if (changes.length) await writeAudit(tx, { ...ctx, entityId: id }, "UPDATE", changes);
       return null;

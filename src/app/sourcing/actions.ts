@@ -229,7 +229,7 @@ async function writeChildren(tx: Tx, actor: AuditActor, orgId: string, ex: { id:
     before.scopeParts.every((p, i) => p.deliverableKind === scope[i].kind && parseSen(p.amount.toString()) === scope[i].amount && p.description === scope[i].description);
   if (!same) {
     for (const p of before?.scopeParts ?? []) {
-      await tx.exerciseScopePart.delete({ where: { id: p.id } });
+      await tx.exerciseScopePart.delete({ where: { id: p.id, exercise: { organisationId: orgId } } });
       await audit(tx, actor, orgId, "ExerciseScopePart", p.id, `${ex.reference} · scope: ${DELIVERABLE_LABEL[p.deliverableKind as DeliverableKind].toLowerCase()}`, "DELETE", snapshotFields({ deliverableKind: p.deliverableKind, amount: p.amount.toString(), description: p.description }));
     }
     for (const [i, p] of scope.entries()) {
@@ -246,7 +246,7 @@ async function writeChildren(tx: Tx, actor: AuditActor, orgId: string, ex: { id:
       keep.delete(tv.taxonomyCode);
       continue;
     }
-    await tx.exerciseTaxonomyValue.delete({ where: { id: tv.id } });
+    await tx.exerciseTaxonomyValue.delete({ where: { id: tv.id, exercise: { organisationId: orgId } } });
     await audit(tx, actor, orgId, "ExerciseTaxonomyValue", tv.id, `${ex.reference} · ${taxName(tv.taxonomyCode)}`, "DELETE", snapshotFields({ taxonomy: taxName(tv.taxonomyCode), value: valName(tv.taxonomyCode, tv.valueCode), pick: tv.pick }));
   }
   for (const t of keep.values()) {
@@ -366,7 +366,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     for (const inst of withdraw.routes) {
       const warning = { code: WITHDRAWN_ON_CHANGE, level: "warn", messageEn: `${withdraw.reason} This route no longer describes the exercise, so it was withdrawn.` };
       await tx.approvalInstance.update({
-        where: { id: inst.id },
+        where: { id: inst.id, organisationId: actor.organisationId },
         data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue },
       });
       await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · name approval`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), withdraw.reason ?? "");
@@ -396,7 +396,7 @@ export async function chooseTaxonomyValue(_prev: FormState, data: FormData): Pro
     if (!outcome.candidates.includes(valueCode)) return { ok: false, errors: { valueCode: "Choose one of the values the mapping allows." } };
     const prior = ex.taxonomyValues.find((t) => t.taxonomyCode === taxonomyCode);
     if (prior) {
-      await tx.exerciseTaxonomyValue.update({ where: { id: prior.id }, data: { valueCode, pick: "CHOSEN" } });
+      await tx.exerciseTaxonomyValue.update({ where: { id: prior.id, exercise: { organisationId: actor.organisationId } }, data: { valueCode, pick: "CHOSEN" } });
       await audit(tx, toAuditActor(actor), l.org.id, "ExerciseTaxonomyValue", prior.id, `${ex.reference} · ${ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.nameEn ?? "classification"}`, "UPDATE", diffFields({ value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === prior.valueCode)?.nameEn ?? null, pick: prior.pick }, { value: ctx.config.taxonomies.find((t) => t.code === taxonomyCode)?.values.find((v) => v.code === valueCode)?.nameEn ?? null, pick: "CHOSEN" }));
     } else {
       const row = await tx.exerciseTaxonomyValue.create({ data: { exerciseId: ex.id, taxonomyCode, valueCode, pick: "CHOSEN" } });
@@ -423,7 +423,7 @@ export async function saveProposalAnswers(_prev: FormState, data: FormData): Pro
       const prior = ex.proposalAnswers.find((a) => a.itemKey === item.key);
       if (prior && prior.text === text) continue;
       if (prior) {
-        await tx.exerciseProposalAnswer.update({ where: { id: prior.id }, data: { text, answeredAt: new Date() } });
+        await tx.exerciseProposalAnswer.update({ where: { id: prior.id, exercise: { organisationId: actor.organisationId } }, data: { text, answeredAt: new Date() } });
         await audit(tx, toAuditActor(actor), l.org.id, "ExerciseProposalAnswer", prior.id, `${ex.reference} · ${item.labelEn}`, "UPDATE", diffFields({ text: prior.text }, { text }));
       } else if (text) {
         const row = await tx.exerciseProposalAnswer.create({ data: { exerciseId: ex.id, itemKey: item.key, text } });
@@ -447,7 +447,7 @@ export async function submitProposal(_prev: FormState, data: FormData): Promise<
     if (t.length > 0) return refuse(t, "The proposal cannot be submitted:");
     // The proposal as submitted, item by item, so its review renders what was reviewed.
     const record = proposalRecordOf(cfg.checklist[ex.sourcingMethodCode] ?? [], ex.proposalAnswers, on);
-    await tx.sourcingExercise.update({ where: { id }, data: { proposalState: "SUBMITTED", proposalSubmittedOn: on, proposalRecord: record as unknown as Prisma.InputJsonValue } });
+    await tx.sourcingExercise.update({ where: { id, organisationId: actor.organisationId }, data: { proposalState: "SUBMITTED", proposalSubmittedOn: on, proposalRecord: record as unknown as Prisma.InputJsonValue } });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", diffFields({ proposalState: ex.proposalState }, { proposalState: "SUBMITTED", proposalSubmittedOn: on }));
     return { ok: true };
   });
@@ -473,7 +473,7 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
     if (t.length > 0) return refuse(t, "The review was not recorded:");
     const after = { proposalState: outcome, proposalReviewedOn: outcome === "REVIEWED" ? on : null, proposalReviewerPersonId: person!.id, proposalReviewComment: comment };
     // Returned for amendment: it is being prepared again, and the next submission records it anew.
-    await tx.sourcingExercise.update({ where: { id }, data: { ...after, ...(outcome === "DRAFT" ? { proposalRecord: Prisma.DbNull } : {}) } });
+    await tx.sourcingExercise.update({ where: { id, organisationId: actor.organisationId }, data: { ...after, ...(outcome === "DRAFT" ? { proposalRecord: Prisma.DbNull } : {}) } });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE",
       diffFields({ proposalState: ex.proposalState, proposalReviewComment: ex.proposalReviewComment }, { ...after, proposalReviewerPersonId: undefined, reviewedBy: person!.name, recordedOnBehalf: "not signed" }), comment);
     return { ok: true };
@@ -640,7 +640,7 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
       return { ok: true };
     }
     if (inst.steps.every((s) => s.id === step.id || s.decision === "DONE")) {
-      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "APPROVED", closedAt: new Date() } });
+      await tx.approvalInstance.update({ where: { id: inst.id, organisationId: actor.organisationId }, data: { status: "APPROVED", closedAt: new Date() } });
       await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, nameLabel(ex), "UPDATE", diffFields({ status: inst.status }, { status: "APPROVED" }), reason);
     }
     return { ok: true };
@@ -809,7 +809,7 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
     // Every pending route of the exercise's own, of each domain (name and tendering), is withdrawn.
     for (const inst of exerciseRoutesOf(ex.approvalInstances).filter((i) => i.status === "PENDING")) {
       const warning = { code: WITHDRAWN_ON_CANCEL, level: "info", messageEn: `Withdrawn: the exercise was cancelled — ${reason}` };
-      await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
+      await tx.approvalInstance.update({ where: { id: inst.id, organisationId: actor.organisationId }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
       await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · ${exerciseRouteMatter(inst.domain).auditNoun}`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise was cancelled: ${reason}`);
     }
     return { ok: true };
@@ -844,7 +844,7 @@ export async function saveExerciseDetails(_prev: FormState, data: FormData): Pro
     const before = { personInCharge: trail.before, workCode: ex.workCode };
     const after = { personInCharge: trail.after, workCode };
     if ((person?.id ?? null) === ex.personInChargeId && workCode === ex.workCode) return { ok: true };
-    await tx.sourcingExercise.update({ where: { id: ex.id }, data: { personInChargeId: person?.id ?? null, workCode } });
+    await tx.sourcingExercise.update({ where: { id: ex.id, organisationId: actor.organisationId }, data: { personInChargeId: person?.id ?? null, workCode } });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", ex.id, labelOf(ex), "UPDATE", diffFields(before, after));
     return { ok: true };
   });
@@ -883,7 +883,7 @@ export async function removeParticipant(_prev: FormState, data: FormData): Promi
     if (ex.status === "CANCELLED") return { ok: false, message: "A cancelled exercise's participants are kept as they were." };
     const p = ex.participants.find((x) => x.id === participantId);
     if (!p) return { ok: false, message: "That participant is no longer named." };
-    await tx.exerciseParticipant.delete({ where: { id: p.id } });
+    await tx.exerciseParticipant.delete({ where: { id: p.id, exercise: { organisationId: actor.organisationId } } });
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseParticipant", p.id, `${ex.reference} · ${p.person.name}`, "DELETE", snapshotFields({ person: p.person.name, capacity: p.capacity }), reason);
     return { ok: true };
   });

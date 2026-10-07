@@ -110,7 +110,7 @@ export async function attachDocument(_prev: FormState, data: FormData): Promise<
     // committed while this act waited is seen here, never pinned.
     const v = await lockVersion(tx, versionId, o.organisationId);
     if (!v) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
-    const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId }, include: { documentClass: { select: { classification: true } } } });
+    const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId, organisationId: actor.organisationId }, include: { documentClass: { select: { classification: true } } } });
     const col = OWNER_COLUMN[kind];
     const already = await tx.documentAttachment.findFirst({ where: { [col]: ownerId, purpose, detachedAt: null, version: { documentId: doc.id } }, select: { id: true } });
     const faults = attachFault({ purpose, owner: o.facts, version: v, documentClass: doc.documentClass, documentClassification: doc.classificationSnapshot, alreadyAttached: !!already });
@@ -120,7 +120,7 @@ export async function attachDocument(_prev: FormState, data: FormData): Promise<
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.organisationId, entity: "DocumentAttachment", entityId: row.id, entityLabel: `${o.label} · ${PURPOSE_LABEL[purpose]}` }, "CREATE",
       attached({ purpose, title: doc.title, versionNo: v.versionNo, sha256: v.sha256, owner: o.label }));
     if (doc.status === "STAGED") {
-      await tx.document.update({ where: { id: doc.id }, data: { status: "FILED", filedAt: new Date() } });
+      await tx.document.update({ where: { id: doc.id, organisationId: actor.organisationId }, data: { status: "FILED", filedAt: new Date() } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.organisationId, entity: "Document", entityId: doc.id, entityLabel: docLabel(doc.title) }, "UPDATE", filed());
     }
     const after = o.afterChange ? await o.afterChange(tx) : null;
@@ -144,7 +144,7 @@ export async function detachDocument(_prev: FormState, data: FormData): Promise<
     // Only a live attachment can be relied on: a withdrawn pin always comes off.
     const faults = detachFault({ purpose: a.purpose, owner: o.facts, reason, reliedOn: reliedOnAttachment(a, () => o.reliance(a.purpose, live, a.versionId)), detachedAt: a.detachedAt });
     if (faults.length) return refuse(faults);
-    await tx.documentAttachment.update({ where: { id: a.id }, data: { detachedAt: new Date(), detachReason: reason } });
+    await tx.documentAttachment.update({ where: { id: a.id, organisationId: actor.organisationId }, data: { detachedAt: new Date(), detachReason: reason } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.organisationId, entity: "DocumentAttachment", entityId: a.id, entityLabel: `${o.label} · ${PURPOSE_LABEL[a.purpose]}`, reason }, "UPDATE",
       detached({ purpose: a.purpose, title: a.version.document.title, versionNo: a.version.versionNo, reason }));
     const after = o.afterChange ? await o.afterChange(tx) : null;
@@ -177,7 +177,7 @@ export async function attachNewVersion(_prev: FormState, data: FormData): Promis
     if (!to) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
     const faults = repinFault({ purpose: a.purpose, owner: o.facts, reason, attachment: { detachedAt: a.detachedAt, versionId: a.versionId, documentId: a.version.documentId }, to });
     if (faults.length) return refuse(faults);
-    await tx.documentAttachment.update({ where: { id: a.id }, data: { detachedAt: new Date(), detachReason: replacedBecause(to.versionNo, reason) } });
+    await tx.documentAttachment.update({ where: { id: a.id, organisationId: actor.organisationId }, data: { detachedAt: new Date(), detachReason: replacedBecause(to.versionNo, reason) } });
     const row = await tx.documentAttachment.create({ data: { organisationId: o.organisationId, purpose: a.purpose, versionId: to.id, [col]: ref.id } });
     // Each attachment's trail under its own id: the old one closed, the new one opened.
     const entityLabel = `${o.label} · ${PURPOSE_LABEL[a.purpose]}`;
@@ -207,7 +207,7 @@ export async function withdrawVersion(_prev: FormState, data: FormData): Promise
     const v = await tx.documentVersion.findFirstOrThrow({ where: { id: versionId, organisationId: orgId }, include: { document: { select: { title: true } } } });
     const f = withdrawFault(v, reason);
     if (f) return f.code === "REASON_REQUIRED" ? { ok: false, errors: { reason: documentFaultText(f) } } : refuse([f]);
-    await tx.documentVersion.update({ where: { id: v.id }, data: { withdrawnAt: new Date(), withdrawnReason: reason } });
+    await tx.documentVersion.update({ where: { id: v.id, organisationId: actor.organisationId }, data: { withdrawnAt: new Date(), withdrawnReason: reason } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "DocumentVersion", entityId: v.id, entityLabel: `${docLabel(v.document.title)} · version ${v.versionNo}`, reason }, "UPDATE", versionWithdrawn({ versionNo: v.versionNo, reason }));
     return { ok: true };
   });
@@ -226,12 +226,12 @@ export async function reclassifyDocument(_prev: FormState, data: FormData): Prom
   return inDocument(actor, documentId, async (tx, orgId) => {
     // The class's classification as it stands now: the class row is held (FOR SHARE) so a
     // concurrent edit of the class waits for this act, then read under the document's lock.
-    const { documentClassId } = await tx.document.findUniqueOrThrow({ where: { id: documentId }, select: { documentClassId: true } });
+    const { documentClassId } = await tx.document.findUniqueOrThrow({ where: { id: documentId, organisationId: actor.organisationId }, select: { documentClassId: true } });
     await tx.$queryRaw`SELECT id FROM "DocumentClass" WHERE id = ${documentClassId} FOR SHARE`;
-    const doc = await tx.document.findUniqueOrThrow({ where: { id: documentId }, include: { documentClass: { select: { classification: true } } } });
+    const doc = await tx.document.findUniqueOrThrow({ where: { id: documentId, organisationId: actor.organisationId }, include: { documentClass: { select: { classification: true } } } });
     const faults = reclassifyFault(doc.classificationSnapshot, next, reason, doc.documentClass.classification);
     if (faults.length) return refuse(faults);
-    await tx.document.update({ where: { id: doc.id }, data: { classificationSnapshot: next } });
+    await tx.document.update({ where: { id: doc.id, organisationId: actor.organisationId }, data: { classificationSnapshot: next } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "Document", entityId: doc.id, entityLabel: docLabel(doc.title), reason: `${reclassifyKind(doc.classificationSnapshot, next!) === "SET" ? "Classification set" : reclassifyKind(doc.classificationSnapshot, next!) === "RAISED" ? "Classification raised" : "Classification lowered"}: ${reason}` }, "UPDATE",
       reclassified({ from: doc.classificationSnapshot, to: next! }));
     return { ok: true };
@@ -245,7 +245,7 @@ export async function placeLegalHold(_prev: FormState, data: FormData): Promise<
   const reason = String(data.get("reason") ?? "").trim();
   const personId = String(data.get("personId") ?? "").trim() || null;
   return inDocument(actor, documentId, async (tx, orgId) => {
-    const doc = await tx.document.findUniqueOrThrow({ where: { id: documentId }, include: { holds: { select: { releasedAt: true } } } });
+    const doc = await tx.document.findUniqueOrThrow({ where: { id: documentId, organisationId: actor.organisationId }, include: { holds: { select: { releasedAt: true } } } });
     const person = personId ? await tx.person.findFirst({ where: { id: personId, organisationId: orgId, isActive: true }, select: { id: true, name: true } }) : null;
     if (personId && !person) return { ok: false, errors: { personId: documentFaultText({ code: "PERSON_UNKNOWN", level: "block" }) } };
     const faults = holdFaults({ reason, personId: person?.id ?? null, standing: doc.holds });
@@ -273,7 +273,7 @@ export async function releaseLegalHold(_prev: FormState, data: FormData): Promis
     if (personId && !person) return { ok: false, errors: { personId: documentFaultText({ code: "PERSON_UNKNOWN", level: "block" }) } };
     const faults = releaseFaults({ hold, reason, personId: person?.id ?? null });
     if (faults.length) return refuse(faults);
-    await tx.legalHold.update({ where: { id: hold.id }, data: { releasedAt: new Date(), releaseReason: reason, releasedByPersonId: person!.id } });
+    await tx.legalHold.update({ where: { id: hold.id, organisationId: actor.organisationId }, data: { releasedAt: new Date(), releaseReason: reason, releasedByPersonId: person!.id } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "LegalHold", entityId: hold.id, entityLabel: `${docLabel(hold.document.title)} · legal hold`, reason }, "UPDATE", holdReleased({ reason, releasedBy: person!.name }));
     return { ok: true };
   });

@@ -218,7 +218,7 @@ export async function recordMainWorks(_prev: FormState, data: FormData): Promise
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VALUATION", async (c) => {
     const { v, label } = await openValuationOf(c, valuationId);
     const after = senToDecimalString(parseSen(value));
-    await c.tx.interimValuation.update({ where: { id: v.id }, data: { mainWorks: after, mainWorksNote: note.trim() } });
+    await c.tx.interimValuation.update({ where: { id: v.id, organisationId: actor.organisationId }, data: { mainWorks: after, mainWorksNote: note.trim() } });
     await audit(c, "InterimValuation", v.id, label, "UPDATE", diffFields({ mainContractorWorks: v.mainWorks == null ? null : money(senFromDecimal(v.mainWorks)) }, { mainContractorWorks: after }), note.trim());
     return { ok: true };
   });
@@ -240,7 +240,7 @@ export async function recordJointValuation(_prev: FormState, data: FormData): Pr
     const { v, label } = await openValuationOf(c, valuationId);
     const fs = jointFaults({ participants, method, answer, dissent, on: storedDay(jointOn), valuationDate: storedDay(v.valuationDate), today: c.today });
     if (fs.length) refuse("Not recorded:", fs);
-    await c.tx.interimValuation.update({ where: { id: v.id }, data: { jointOn, participants, method: method.trim(), contractorAnswer: answer!, dissent: answer === "DISSENT" ? dissent.trim() : "" } });
+    await c.tx.interimValuation.update({ where: { id: v.id, organisationId: actor.organisationId }, data: { jointOn, participants, method: method.trim(), contractorAnswer: answer!, dissent: answer === "DISSENT" ? dissent.trim() : "" } });
     await audit(c, "InterimValuation", v.id, label, "UPDATE", diffFields({ valuedJointlyOn: day(v.jointOn), participants: v.participants.join("; ") || null, valuationMethod: v.method || null, contractorsAnswer: v.contractorAnswer ? ANSWER_WORDS[v.contractorAnswer].en : null }, { valuedJointlyOn: storedDay(jointOn), participants: participants.join("; "), valuationMethod: method.trim(), contractorsAnswer: ANSWER_WORDS[answer!].en, disputes: answer === "DISSENT" ? dissent.trim() : null }));
     return { ok: true };
   });
@@ -285,7 +285,7 @@ export async function removeMaterialLine(_prev: FormState, data: FormData): Prom
     const { v, label } = await openValuationOf(c, valuationId);
     const line = v.materialLines.find((m) => m.id === lineId);
     if (!line) return { ok: false, message: "That line is not on this valuation." };
-    await c.tx.materialLine.delete({ where: { id: line.id } });
+    await c.tx.materialLine.delete({ where: { id: line.id, organisationId: actor.organisationId } });
     await audit(c, "MaterialLine", line.id, `${label} · ${line.description}`, "DELETE", diffFields({ material: line.description, materialValue: money(senFromDecimal(line.value)) }, { material: null, materialValue: null }), reason.trim());
     return { ok: true };
   });
@@ -364,7 +364,7 @@ export async function removeValuationDeduction(_prev: FormState, data: FormData)
     const { v, label } = await openValuationOf(c, valuationId);
     const d = v.deductions.find((x) => x.id === deductionId);
     if (!d) return { ok: false, message: "That deduction is not on this valuation." };
-    await c.tx.valuationDeduction.delete({ where: { id: d.id } });
+    await c.tx.valuationDeduction.delete({ where: { id: d.id, organisationId: actor.organisationId } });
     await audit(c, "ValuationDeduction", d.id, `${label} · ${DEDUCTION_WORDS[d.kind].en}`, "DELETE", diffFields({ deductionFor: d.kind === "OTHER" ? d.label : DEDUCTION_WORDS[d.kind].en, deductionAmount: money(senFromDecimal(d.amount)) }, { deductionFor: null, deductionAmount: null }), reason.trim());
     return { ok: true };
   });
@@ -734,7 +734,7 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
   if (r.failed || !outcome) return { ok: false, errors: r.errors };
   return inContract(actor, toAuditActor(actor), idOf(data), now, "DAMAGES", async (c) => {
     // The named claim's matter, then the claim (ContractMatter the first domain row), before the decision rows.
-    const named = eotClaimId ? await c.tx.eotClaim.findFirst({ where: { id: eotClaimId, contractId: c.l.contract.id }, select: { id: true, matterId: true, scope: true, sectionRef: true } }) : null;
+    const named = eotClaimId ? await c.tx.eotClaim.findFirst({ where: { id: eotClaimId, contractId: c.l.contract.id, organisationId: actor.organisationId }, select: { id: true, matterId: true, scope: true, sectionRef: true } }) : null;
     if (named) {
       await c.tx.$queryRaw`SELECT id FROM "ContractMatter" WHERE id = ${named.matterId} FOR UPDATE`;
       await c.tx.$queryRaw`SELECT id FROM "EotClaim" WHERE id = ${named.id} FOR UPDATE`;

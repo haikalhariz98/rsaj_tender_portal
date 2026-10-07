@@ -173,7 +173,7 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
     if (!buyer) return { ok: false, message: "That contractor is not on this exercise." };
     if (linkAtSale) {
       // OD-9: the explicit link, audited as the link act audits it, recorded at the sale.
-      await tx.exerciseParty.update({ where: { id: buyer.id }, data: { vendorId: linkAtSale.supplier.id } });
+      await tx.exerciseParty.update({ where: { id: buyer.id, organisationId: actor.organisationId }, data: { vendorId: linkAtSale.supplier.id } });
       const differs = linkAtSale.findings.find((f) => f.code === "NUMBER_DIFFERS");
       await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.party, buyer.id, `${l.ex.reference} · Party ${buyer.name}`, "UPDATE",
         diffFields({ supplier: null }, { supplier: `${linkAtSale.supplier.reference} · ${linkAtSale.supplier.registeredName}`, numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: linkReason || null, linkedBy: `${person.name}, named on the sale`, recordedOnBehalf: "not signed" }), linkReason);
@@ -251,7 +251,7 @@ export async function recordReceipt(_prev: FormState, data: FormData): Promise<F
     const fs = manualFeeReceipt.check({ number, recordedOn: l.org.today }, { pattern: null, today: l.org.today, taken });
     if (fs.length) return { ok: false, errors: { financeReceiptNo: fs.map((code) => windowFindingText({ code, level: "block" })).join(" ") } };
     const on = dayToDate(l.org.today);
-    await tx.documentSale.update({ where: { id: s.id }, data: { financeReceiptNo: number, receiptRecordedOn: on } });
+    await tx.documentSale.update({ where: { id: s.id, organisationId: actor.organisationId }, data: { financeReceiptNo: number, receiptRecordedOn: on } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.sale, s.id, label(l, `Sale · ${s.party.name}`), "UPDATE", diffFields({ financeReceipt: null }, { financeReceipt: number, receiptRecordedOn: formatDate(l.org.today), source: "typed by an officer from the finance receipt" }));
     return { ok: true };
   }), { ok: false, errors: { financeReceiptNo: windowFindingText({ code: "TAKEN", level: "block" }) } });
@@ -305,7 +305,7 @@ export async function setEventMandatory(_prev: FormState, data: FormData): Promi
     if (!e || e.cancelledAt) return { ok: false, message: "That event is not scheduled on this exercise." };
     const answer = tri(mandatory);
     if (answer === true && d.policy.mandatoryAttendancePermitted !== true) return refuse([{ code: "MANDATORY_NOT_PERMITTED", level: "block", data: { kind: e.kind, permitted: d.policy.mandatoryAttendancePermitted == null ? "not set" : "no" } }]);
-    await tx.siteEvent.update({ where: { id: e.id }, data: { mandatory: answer } });
+    await tx.siteEvent.update({ where: { id: e.id, organisationId: actor.organisationId }, data: { mandatory: answer } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.event, e.id, label(l, e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"), "UPDATE", diffFields({ mandatory: e.mandatory == null ? "Not answered" : e.mandatory ? "Yes" : "No" }, { mandatory: answer == null ? "Not answered" : answer ? "Yes" : "No" }));
     return { ok: true };
   });
@@ -326,7 +326,7 @@ export async function cancelEvent(_prev: FormState, data: FormData): Promise<For
     const e = d.window?.events.find((x) => x.id === eventId);
     if (!e || e.cancelledAt) return { ok: false, message: "That event is not scheduled on this exercise." };
     if (e.heldOn) return refuse([{ code: "ALREADY_HELD", level: "block" }]);
-    await tx.siteEvent.update({ where: { id: e.id }, data: { cancelledAt: new Date(), cancelReason: reason } });
+    await tx.siteEvent.update({ where: { id: e.id, organisationId: actor.organisationId }, data: { cancelledAt: new Date(), cancelReason: reason } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.event, e.id, label(l, e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"), "UPDATE", diffFields({ cancelled: "no" }, { cancelled: "yes" }), reason);
     const published = isPublished(l.ex.status);
     return { ok: true, message: published ? "Cancelled. The published notice stated it: tell the purchasers by an addendum." : "Cancelled." };
@@ -347,7 +347,7 @@ export async function markEventHeld(_prev: FormState, data: FormData): Promise<F
     if (!e) return { ok: false, message: "That event is not scheduled on this exercise." };
     const f = heldFault({ startsAt: e.startsAt, heldOn: e.heldOn ? storedDay(e.heldOn) : null, cancelled: e.cancelledAt != null }, storedDay(on), l.org.today, l.org.timeZone);
     if (f) return f.code === "HELD_BEFORE_START" || f.code === "HELD_IN_FUTURE" ? { ok: false, errors: { heldOn: windowFindingText(f) } } : refuse([f]);
-    await tx.siteEvent.update({ where: { id: e.id }, data: { heldOn: on } });
+    await tx.siteEvent.update({ where: { id: e.id, organisationId: actor.organisationId }, data: { heldOn: on } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.event, e.id, label(l, e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"), "UPDATE", diffFields({ heldOn: null }, { heldOn: formatDate(storedDay(on)) }));
     return { ok: true };
   });
@@ -408,7 +408,7 @@ export async function saveAddendum(_prev: FormState, data: FormData): Promise<Fo
     if (addendumId) {
       const a = w.addenda.find((x) => x.id === addendumId);
       if (!a || a.status !== "DRAFT") return refuse([{ code: "NOT_DRAFT", level: "block" }]);
-      await tx.addendum.update({ where: { id: a.id }, data: row });
+      await tx.addendum.update({ where: { id: a.id, organisationId: actor.organisationId }, data: row });
       await audit(tx, toAuditActor(actor), l.org.id, ENTITY.addendum, a.id, label(l, `Addendum (draft), ${title}`), "UPDATE", diffFields({ title: a.title, whatChanged: a.whatChanged }, { title, whatChanged }));
     } else {
       const a = await tx.addendum.create({ data: { organisationId: l.org.id, windowId: w.id, ...row } });
@@ -492,7 +492,7 @@ export async function recordAddendumDelivery(_prev: FormState, data: FormData): 
     const fs = deliveryFaults({ method, despatchedOn: sent ? storedDay(sent) : null, acknowledgedOn: ack ? storedDay(ack) : null, withDocuments: copy.withDocuments }, l.org.today);
     if (fs.length) return refuse(fs, "Not recorded:");
     const after = { method, consignmentRef, despatchedOn: sent, acknowledgedOn: ack };
-    await tx.addendumRecipient.update({ where: { id: copy.id }, data: after });
+    await tx.addendumRecipient.update({ where: { id: copy.id, organisationId: actor.organisationId }, data: after });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.addendumCopy, copy.id, label(l, `Addendum ${a.number} · ${copy.party.name}`), "UPDATE", diffFields(deliveryFields(copy), deliveryFields(after)));
     return { ok: true };
   });

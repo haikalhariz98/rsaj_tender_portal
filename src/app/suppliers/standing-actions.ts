@@ -45,7 +45,7 @@ async function lockedStanding(tx: Tx, l: LockedSupplier) {
   const policy = await supplierPolicyOf(l.org.id, tx);
   const st = (await standingOf(l.supplier.id, l.org.id, today, tx, policy))!;
   const [s, requests] = await Promise.all([
-    tx.supplier.findUniqueOrThrow({ where: { id: l.supplier.id }, select: { registeredOn: true, documents: true, standingEvents: true } }),
+    tx.supplier.findUniqueOrThrow({ where: { id: l.supplier.id, organisationId: l.org.id }, select: { registeredOn: true, documents: true, standingEvents: true } }),
     tx.standingRequest.findMany({ where: { supplierId: l.supplier.id }, include: { routes: { include: { steps: true } }, event: { select: { id: true } } } }),
   ]);
   const requestFacts = (r: (typeof requests)[number]): RequestFacts => {
@@ -193,13 +193,13 @@ export async function decideStandingStep(_prev: FormState, data: FormData): Prom
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is refused.");
   if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
-  const found = await db.approvalStep.findUnique({ where: { id: stepId }, select: { instance: { select: { standingRequestId: true, standingRequest: { select: { supplierId: true } } } } } });
+  const found = await db.approvalStep.findUnique({ where: { id: stepId, instance: { organisationId: actor.organisationId } }, select: { instance: { select: { standingRequestId: true, standingRequest: { select: { supplierId: true } } } } } });
   const requestId = found?.instance.standingRequestId ?? null;
   const supplierId = found?.instance.standingRequest?.supplierId ?? null;
   if (!requestId || !supplierId) return { ok: false, message: "That step is not on a supplier's blacklisting route." };
   return inSupplier(actor, supplierId, async (tx, l) => {
     await tx.$queryRaw`SELECT id FROM "StandingRequest" WHERE id = ${requestId} FOR UPDATE`;
-    const req = await tx.standingRequest.findUniqueOrThrow({ where: { id: requestId }, include: { routes: { where: { status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } } } });
+    const req = await tx.standingRequest.findUniqueOrThrow({ where: { id: requestId, organisationId: actor.organisationId }, include: { routes: { where: { status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } } } });
     const full = req.routes.find((x) => x.steps.some((s) => s.id === stepId));
     if (!full) return { ok: false, message: "That step is not on a route awaiting a decision." };
     const res = await decideSupplierStep(tx, toAuditActor(actor), l.org, full, stepId, { decision, personId, decidedOn: on, reason, requesterId: req.requestedByPersonId, routeLabel: standingLabel(l, req.kind === "BLACKLIST" ? "Blacklisting route" : "Blacklisting lift route"), refusedGoesTo: STANDING_REFUSED_DECIDED_BY, now });
@@ -217,7 +217,7 @@ async function recordFromRequest(scope: OrgScope, actor: AuditActor, data: FormD
   const effective = r.date("effectiveOn", "Takes effect on", { required: true });
   const personId = r.text("personId", "Recorded by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  const found = await db.standingRequest.findUnique({ where: { id: requestId }, select: { supplierId: true } });
+  const found = await db.standingRequest.findUnique({ where: { id: requestId, organisationId: scope.organisationId }, select: { supplierId: true } });
   if (!found) return GONE;
   return inSupplier(scope, found.supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
@@ -271,7 +271,7 @@ export async function withdrawStandingRequest(_prev: FormState, data: FormData):
   const personId = r.text("personId", "Withdrawn by", { required: true });
   const reason = String(data.get("reason") ?? "").trim();
   if (r.failed) return { ok: false, errors: r.errors };
-  const found = await db.standingRequest.findUnique({ where: { id: requestId }, select: { supplierId: true } });
+  const found = await db.standingRequest.findUnique({ where: { id: requestId, organisationId: actor.organisationId }, select: { supplierId: true } });
   if (!found) return GONE;
   return inSupplier(actor, found.supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
@@ -347,12 +347,12 @@ export async function withdrawRegistrationCancelled(_prev: FormState, data: Form
   const personId = r.text("personId", "Withdrawn by", { required: true });
   const reason = String(data.get("reason") ?? "").trim();
   if (r.failed) return { ok: false, errors: r.errors };
-  const found = await db.standingEvent.findUnique({ where: { id: eventId }, select: { supplierId: true } });
+  const found = await db.standingEvent.findUnique({ where: { id: eventId, organisationId: actor.organisationId }, select: { supplierId: true } });
   if (!found) return GONE;
   return inSupplier(actor, found.supplierId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
     await tx.$queryRaw`SELECT id FROM "StandingEvent" WHERE id = ${eventId} FOR UPDATE`;
-    const ev = await tx.standingEvent.findFirst({ where: { id: eventId, supplierId: l.supplier.id }, select: { id: true, kind: true, withdrawnAt: true, effectiveOn: true, bodyLabelSnapshot: true, externalReference: true } });
+    const ev = await tx.standingEvent.findFirst({ where: { id: eventId, supplierId: l.supplier.id, organisationId: actor.organisationId }, select: { id: true, kind: true, withdrawnAt: true, effectiveOn: true, bodyLabelSnapshot: true, externalReference: true } });
     const { reading, s: file } = await lockedStanding(tx, l);
     const person = await activePerson(tx, l.org.id, personId);
     const fs = withdrawCancellationFaults({ reason, personActive: !!person }, { today: l.org.today, event: ev ? { kind: ev.kind, withdrawn: ev.withdrawnAt != null } : null });

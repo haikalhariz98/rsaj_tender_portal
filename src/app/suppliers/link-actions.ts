@@ -50,7 +50,7 @@ async function onExerciseSide(scope: OrgScope, exerciseId: string, lockMiddle: (
         await tx.$queryRaw`SELECT id FROM "ExerciseWindow" WHERE "exerciseId" = ${exerciseId} FOR UPDATE`;
         await lockMiddle(tx);
         if (supplierId && !(await lockSupplierRow(tx, supplierId))) return { ok: false, message: "That supplier no longer exists." };
-        const ex = await tx.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { id: true, reference: true } });
+        const ex = await tx.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId, organisationId: scope.organisationId }, select: { id: true, reference: true } });
         return fn(tx, { org, ex });
       },
       { timeout: 20_000, maxWait: 10_000 },
@@ -77,13 +77,13 @@ export async function linkPartyToSupplier(_prev: FormState, data: FormData): Pro
   const reason = r.text("reason", "Why they are the same company", { max: 1000 });
   const personId = r.text("personId", "Linked by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  const p0 = await db.exerciseParty.findUnique({ where: { id: partyId }, select: { exerciseId: true } });
+  const p0 = await db.exerciseParty.findUnique({ where: { id: partyId, organisationId: actor.organisationId }, select: { exerciseId: true } });
   if (!p0) return { ok: false, message: "That party no longer exists." };
   return onExerciseSide(actor, p0.exerciseId, async (tx) => {
     await tx.$queryRaw`SELECT id FROM "ExerciseParty" WHERE id = ${partyId} FOR UPDATE`;
     await tx.$queryRaw`SELECT id FROM "Award" WHERE "awardeePartyId" = ${partyId} FOR UPDATE`;
   }, supplierId, async (tx, l) => {
-    const party = await tx.exerciseParty.findUniqueOrThrow({ where: { id: partyId }, select: { id: true, name: true, registrationNo: true, vendorId: true, awards: { select: { id: true, reference: true, vendorId: true, awardeePartyId: true } } } });
+    const party = await tx.exerciseParty.findUniqueOrThrow({ where: { id: partyId, organisationId: actor.organisationId }, select: { id: true, name: true, registrationNo: true, vendorId: true, awards: { select: { id: true, reference: true, vendorId: true, awardeePartyId: true } } } });
     const supplier = await tx.supplier.findFirst({ where: { id: supplierId, organisationId: l.org.id }, select: { id: true, reference: true, registeredName: true, registrationNo: true, status: true } });
     const person = await activePerson(tx, l.org.id, personId);
     if (!person) return { ok: false, errors: { personId: "Name the officer (an active person)." } };
@@ -91,7 +91,7 @@ export async function linkPartyToSupplier(_prev: FormState, data: FormData): Pro
     const others = await tx.exerciseParty.findMany({ where: { exerciseId: l.ex.id, NOT: { id: party.id } }, select: { name: true, vendorId: true } });
     const fs = linkPartyFaults(party, supplier, reason, others);
     if (blocking(fs).length) return refuseLink(fs);
-    await tx.exerciseParty.update({ where: { id: party.id }, data: { vendorId: supplier!.id } });
+    await tx.exerciseParty.update({ where: { id: party.id, organisationId: actor.organisationId }, data: { vendorId: supplier!.id } });
     const differs = fs.find((f) => f.code === "NUMBER_DIFFERS");
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.party, party.id, `${l.ex.reference} · Party ${party.name}`, "UPDATE",
       diffFields({ supplier: null }, { supplier: supplierWords(supplier!), numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: reason || null, linkedBy: person.name, recordedOnBehalf: "not signed" }), reason);
@@ -99,7 +99,7 @@ export async function linkPartyToSupplier(_prev: FormState, data: FormData): Pro
     for (const a of party.awards) {
       if (a.vendorId && a.vendorId !== supplier!.id) throw new Refusal({ ok: false, message: `Nothing was saved: award ${a.reference} already names another supplier, against its party's link.` });
       if (a.vendorId === supplier!.id) continue;
-      await tx.award.update({ where: { id: a.id }, data: { vendorId: supplier!.id } });
+      await tx.award.update({ where: { id: a.id, organisationId: actor.organisationId }, data: { vendorId: supplier!.id } });
       await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.award, a.id, `${a.reference} · Awardee's supplier`, "UPDATE", diffFields({ supplier: null }, { supplier: supplierWords(supplier!), linkedBy: `${person.name}, through the awardee party's link` }));
     }
     const n = notes(fs);
@@ -116,18 +116,18 @@ export async function linkAwardToSupplier(_prev: FormState, data: FormData): Pro
   const reason = r.text("reason", "Why they are the same company", { max: 1000 });
   const personId = r.text("personId", "Linked by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  const a0 = await db.award.findUnique({ where: { id: awardId }, select: { exerciseId: true } });
+  const a0 = await db.award.findUnique({ where: { id: awardId, organisationId: actor.organisationId }, select: { exerciseId: true } });
   if (!a0) return { ok: false, message: "That award no longer exists." };
   return onExerciseSide(actor, a0.exerciseId, async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Award" WHERE id = ${awardId} FOR UPDATE`;
   }, supplierId, async (tx, l) => {
-    const award = await tx.award.findUniqueOrThrow({ where: { id: awardId }, select: { id: true, reference: true, awardeePartyId: true, awardeeRegistrationNo: true, vendorId: true } });
+    const award = await tx.award.findUniqueOrThrow({ where: { id: awardId, organisationId: actor.organisationId }, select: { id: true, reference: true, awardeePartyId: true, awardeeRegistrationNo: true, vendorId: true } });
     const supplier = await tx.supplier.findFirst({ where: { id: supplierId, organisationId: l.org.id }, select: { id: true, reference: true, registeredName: true, registrationNo: true, status: true } });
     const person = await activePerson(tx, l.org.id, personId);
     if (!person) return { ok: false, errors: { personId: "Name the officer (an active person)." } };
     const fs = linkAwardFaults(award, supplier, reason);
     if (blocking(fs).length) return refuseLink(fs);
-    await tx.award.update({ where: { id: award.id }, data: { vendorId: supplier!.id } });
+    await tx.award.update({ where: { id: award.id, organisationId: actor.organisationId }, data: { vendorId: supplier!.id } });
     const differs = fs.find((f) => f.code === "NUMBER_DIFFERS");
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.award, award.id, `${award.reference} · Awardee's supplier`, "UPDATE",
       diffFields({ supplier: null }, { supplier: supplierWords(supplier!), numberDiffers: differs ? `${differs.data!.recorded} recorded, ${differs.data!.register} on the register` : null, linkReason: reason || null, linkedBy: person.name, recordedOnBehalf: "not signed" }), reason);
@@ -166,13 +166,13 @@ export async function recordSpecialPermission(_prev: FormState, data: FormData):
   const goodRecordConfirmed = data.get("goodRecordConfirmed") === "on" || data.get("goodRecordConfirmed") === "true";
   if (r.failed || !internal) return { ok: false, errors: r.errors };
   const internalApproval = internal === "yes";
-  const p0 = await db.exerciseParty.findUnique({ where: { id: partyId }, select: { exerciseId: true, vendorId: true } });
+  const p0 = await db.exerciseParty.findUnique({ where: { id: partyId, organisationId: actor.organisationId }, select: { exerciseId: true, vendorId: true } });
   if (!p0) return { ok: false, message: "That party no longer exists." };
   return onExerciseSide(actor, p0.exerciseId, async (tx) => {
     await tx.$queryRaw`SELECT id FROM "ExerciseParty" WHERE id = ${partyId} FOR UPDATE`;
   }, p0.vendorId, async (tx, l) => {
     if (!l.org.today) return refuse([{ code: "TIME_ZONE_UNSET", level: "block" }]);
-    const party = await tx.exerciseParty.findUniqueOrThrow({ where: { id: partyId }, select: { id: true, name: true, vendorId: true, specialPermissions: { select: { requirementId: true, relaxes: true, grantedOn: true, routes: { select: { status: true, createdAt: true } } } } } });
+    const party = await tx.exerciseParty.findUniqueOrThrow({ where: { id: partyId, organisationId: actor.organisationId }, select: { id: true, name: true, vendorId: true, specialPermissions: { select: { requirementId: true, relaxes: true, grantedOn: true, routes: { select: { status: true, createdAt: true } } } } } });
     if (!party.vendorId) return { ok: false, message: "Link the party to the register first: a special permission is read by its eligibility." };
     const [w, reqs, bodyRows, person] = await Promise.all([
       tx.exerciseWindow.findUnique({ where: { exerciseId: l.ex.id }, select: { specialPermissionOffered: true } }),
@@ -215,13 +215,13 @@ export async function decidePermissionStep(_prev: FormState, data: FormData): Pr
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is refused.");
   if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
-  const found = await db.approvalStep.findUnique({ where: { id: stepId }, select: { instance: { select: { specialPermission: { select: { id: true, exerciseId: true, party: { select: { vendorId: true } } } } } } } });
+  const found = await db.approvalStep.findUnique({ where: { id: stepId, instance: { organisationId: actor.organisationId } }, select: { instance: { select: { specialPermission: { select: { id: true, exerciseId: true, party: { select: { vendorId: true } } } } } } } });
   const perm0 = found?.instance.specialPermission;
   if (!perm0) return { ok: false, message: "That step is not on a special permission's route." };
   return onExerciseSide(actor, perm0.exerciseId, async (tx) => {
     await tx.$queryRaw`SELECT id FROM "SpecialPermission" WHERE id = ${perm0.id} FOR UPDATE`;
   }, null, async (tx, l) => {
-    const perm = await tx.specialPermission.findUniqueOrThrow({ where: { id: perm0.id }, include: { party: { select: { name: true } }, routes: { where: { status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } } } });
+    const perm = await tx.specialPermission.findUniqueOrThrow({ where: { id: perm0.id, organisationId: actor.organisationId }, include: { party: { select: { name: true } }, routes: { where: { status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } } } });
     const full = perm.routes.find((x) => x.steps.some((s) => s.id === stepId));
     if (!full) return { ok: false, message: "That step is not on a route awaiting a decision." };
     const res = await decideSupplierStep(tx, toAuditActor(actor), l.org, full, stepId, { decision, personId, decidedOn: on, reason, requesterId: perm.requestedByPersonId, routeLabel: `${l.ex.reference} · Special permission for ${perm.party.name} · route`, refusedGoesTo: PERMISSION_REFUSED_DECIDED_BY, now });
@@ -241,13 +241,13 @@ export async function grantSpecialPermission(_prev: FormState, data: FormData): 
   const granted = r.date("grantedOn", "Granted on", { required: true });
   const personId = r.text("personId", "Recorded by", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
-  const p0 = await db.specialPermission.findUnique({ where: { id: permissionId }, select: { exerciseId: true, partyId: true, party: { select: { vendorId: true } } } });
+  const p0 = await db.specialPermission.findUnique({ where: { id: permissionId, organisationId: actor.organisationId }, select: { exerciseId: true, partyId: true, party: { select: { vendorId: true } } } });
   if (!p0) return { ok: false, message: "That permission no longer exists." };
   return onExerciseSide(actor, p0.exerciseId, async (tx) => {
     await tx.$queryRaw`SELECT id FROM "ExerciseParty" WHERE id = ${p0.partyId} FOR UPDATE`;
     await tx.$queryRaw`SELECT id FROM "SpecialPermission" WHERE id = ${permissionId} FOR UPDATE`;
   }, p0.party.vendorId, async (tx, l) => {
-    const perm = await tx.specialPermission.findUniqueOrThrow({ where: { id: permissionId }, include: { party: { select: { name: true } }, routes: { include: { steps: true } } } });
+    const perm = await tx.specialPermission.findUniqueOrThrow({ where: { id: permissionId, organisationId: actor.organisationId }, include: { party: { select: { name: true } }, routes: { include: { steps: true } } } });
     const w = await tx.exerciseWindow.findUnique({ where: { exerciseId: l.ex.id }, select: { specialPermissionOffered: true } });
     const person = await activePerson(tx, l.org.id, personId);
     const newest = [...perm.routes].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];

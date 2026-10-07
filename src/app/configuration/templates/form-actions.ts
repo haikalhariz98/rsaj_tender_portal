@@ -61,11 +61,11 @@ async function onTemplate(scope: OrgScope, templateId: string, fn: (tx: Tx, t: L
 /// A change to the form's blocks or list is a new version of the form (nextFormVersion), audited on the form. The template is locked.
 async function bumpFormVersion(tx: Tx, actor: AuditActor, t: LockedTemplate, what: string) {
   if (t.uses.length) return;
-  const cur = await tx.documentTemplate.findUnique({ where: { id: t.id }, select: { bodyVersion: true } });
+  const cur = await tx.documentTemplate.findUnique({ where: { id: t.id, organisationId: t.organisationId }, select: { bodyVersion: true } });
   if (!cur) return;
   const next = nextFormVersion(cur.bodyVersion);
   if (next === cur.bodyVersion) return;
-  await tx.documentTemplate.update({ where: { id: t.id }, data: { bodyVersion: next } });
+  await tx.documentTemplate.update({ where: { id: t.id, organisationId: t.organisationId }, data: { bodyVersion: next } });
   await writeAudit(tx, { actor, organisationId: t.organisationId, entity: "DocumentTemplate", entityId: t.id, entityLabel: t.nameEn, reason: what }, "UPDATE", diffFields({ formVersion: cur.bodyVersion }, { formVersion: next }));
 }
 
@@ -101,7 +101,7 @@ export async function saveSignatureBlock(_prev: FormState, data: FormData): Prom
     const fs = blockFaults(v, rows.filter((x) => x.id !== id).map(blockOf), offices);
     if (fs.length) return { ok: false, message: configFaultText(fs) };
     const write = { ...v, provenance, notes };
-    const row = before ? await tx.formSignatureBlock.update({ where: { id: before.id }, data: write }) : await tx.formSignatureBlock.create({ data: { organisationId: t.organisationId, templateId: t.id, ...write } });
+    const row = before ? await tx.formSignatureBlock.update({ where: { id: before.id, organisationId: actor.organisationId }, data: write }) : await tx.formSignatureBlock.create({ data: { organisationId: t.organisationId, templateId: t.id, ...write } });
     const changes = diffFields(before ? { ...blockWords(blockOf(before)), provenance: before.provenance } : null, { ...blockWords(v), provenance });
     if (changes.length) {
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: t.organisationId, entity: "FormSignatureBlock", entityId: row.id, entityLabel: `${t.nameEn} · ${v.labelEn}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
@@ -119,9 +119,9 @@ export async function removeSignatureBlock(_prev: FormState, data: FormData): Pr
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the block comes off the form." } };
   return onTemplate(actor, templateId, async (tx, t) => {
-    const row = await tx.formSignatureBlock.findFirst({ where: { id, templateId: t.id } });
+    const row = await tx.formSignatureBlock.findFirst({ where: { id, templateId: t.id, organisationId: actor.organisationId } });
     if (!row) return { ok: false, message: "That block is no longer on this form." };
-    await tx.formSignatureBlock.delete({ where: { id: row.id } });
+    await tx.formSignatureBlock.delete({ where: { id: row.id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: t.organisationId, entity: "FormSignatureBlock", entityId: row.id, entityLabel: `${t.nameEn} · ${row.labelEn}`, reason }, "DELETE", snapshotFields(blockWords(blockOf(row))));
     await bumpFormVersion(tx, toAuditActor(actor), t, `Signature block removed: ${row.labelEn}`);
     return { ok: true };
@@ -160,7 +160,7 @@ export async function saveDistributionRow(_prev: FormState, data: FormData): Pro
     const fs = distributionFaultsOf(row, rows.filter((x) => x.id !== id).map(rowOf));
     if (fs.length) return { ok: false, message: configFaultText(fs) };
     const write = { ...row, provenance, notes };
-    const saved = before ? await tx.formDistribution.update({ where: { id: before.id }, data: write }) : await tx.formDistribution.create({ data: { organisationId: t.organisationId, templateId: t.id, ...write } });
+    const saved = before ? await tx.formDistribution.update({ where: { id: before.id, organisationId: actor.organisationId }, data: write }) : await tx.formDistribution.create({ data: { organisationId: t.organisationId, templateId: t.id, ...write } });
     const changes = diffFields(before ? { ...rowWords(rowOf(before)), provenance: before.provenance } : null, { ...rowWords(row), provenance });
     if (changes.length) {
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: t.organisationId, entity: "FormDistribution", entityId: saved.id, entityLabel: `${t.nameEn} · ${row.labelEn}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
@@ -177,9 +177,9 @@ export async function removeDistributionRow(_prev: FormState, data: FormData): P
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the recipient comes off the list." } };
   return onTemplate(actor, templateId, async (tx, t) => {
-    const row = await tx.formDistribution.findFirst({ where: { id, templateId: t.id } });
+    const row = await tx.formDistribution.findFirst({ where: { id, templateId: t.id, organisationId: actor.organisationId } });
     if (!row) return { ok: false, message: "That recipient is no longer on this form." };
-    await tx.formDistribution.delete({ where: { id: row.id } });
+    await tx.formDistribution.delete({ where: { id: row.id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: t.organisationId, entity: "FormDistribution", entityId: row.id, entityLabel: `${t.nameEn} · ${row.labelEn}`, reason }, "DELETE", snapshotFields(rowWords(rowOf(row))));
     await bumpFormVersion(tx, toAuditActor(actor), t, `Recipient removed: ${row.labelEn}`);
     return { ok: true };
@@ -203,9 +203,9 @@ export async function savePageCount(_prev: FormState, data: FormData): Promise<F
   const fs = pageCountFaults(pageCount);
   if (fs.length) return { ok: false, errors: { pageCount: certificateFaultWords(fs[0]).en } };
   return onTemplate(actor, templateId, async (tx, t) => {
-    const before = await tx.documentTemplate.findUnique({ where: { id: t.id }, select: { pageCount: true } });
+    const before = await tx.documentTemplate.findUnique({ where: { id: t.id, organisationId: actor.organisationId }, select: { pageCount: true } });
     if ((before?.pageCount ?? null) === pageCount) return { ok: true };
-    await tx.documentTemplate.update({ where: { id: t.id }, data: { pageCount } });
+    await tx.documentTemplate.update({ where: { id: t.id, organisationId: actor.organisationId }, data: { pageCount } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: t.organisationId, entity: "DocumentTemplate", entityId: t.id, entityLabel: t.nameEn, reason: String(data.get("reason") ?? "") }, "UPDATE", diffFields({ printedPages: before?.pageCount ?? null }, { printedPages: pageCount }));
     await bumpFormVersion(tx, toAuditActor(actor), t, `Printed pages: ${pageCount ?? "not recorded"}`);
     return { ok: true };
@@ -238,7 +238,7 @@ export async function savePrintedField(_prev: FormState, data: FormData): Promis
     const fs = printedFieldFaults(v, rows.filter((x) => x.id !== id).map(printedFieldOf));
     if (fs.length) return { ok: false, message: fs.map((f) => certificateFaultWords(f).en).join(" ") };
     const write = { ...v, provenance, notes };
-    const row = before ? await tx.formField.update({ where: { id: before.id }, data: write }) : await tx.formField.create({ data: { organisationId: t.organisationId, templateId: t.id, ...write } });
+    const row = before ? await tx.formField.update({ where: { id: before.id, organisationId: actor.organisationId }, data: write }) : await tx.formField.create({ data: { organisationId: t.organisationId, templateId: t.id, ...write } });
     const changes = diffFields(before ? { ...fieldWords(printedFieldOf(before)), provenance: before.provenance } : null, { ...fieldWords(v), provenance });
     if (changes.length) {
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: t.organisationId, entity: "FormField", entityId: row.id, entityLabel: `${t.nameEn} · ${v.labelEn}`, reason: String(data.get("reason") ?? "") }, before ? "UPDATE" : "CREATE", changes);
@@ -255,9 +255,9 @@ export async function removePrintedField(_prev: FormState, data: FormData): Prom
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
   if (!reason) return { ok: false, errors: { reason: "Say why the field comes off the form." } };
   return onTemplate(actor, templateId, async (tx, t) => {
-    const row = await tx.formField.findFirst({ where: { id, templateId: t.id } });
+    const row = await tx.formField.findFirst({ where: { id, templateId: t.id, organisationId: actor.organisationId } });
     if (!row) return { ok: false, message: "That field is no longer on this form." };
-    await tx.formField.delete({ where: { id: row.id } });
+    await tx.formField.delete({ where: { id: row.id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: t.organisationId, entity: "FormField", entityId: row.id, entityLabel: `${t.nameEn} · ${row.labelEn}`, reason }, "DELETE", snapshotFields(fieldWords(printedFieldOf(row))));
     await bumpFormVersion(tx, toAuditActor(actor), t, `Printed field removed: ${row.labelEn}`);
     return { ok: true };

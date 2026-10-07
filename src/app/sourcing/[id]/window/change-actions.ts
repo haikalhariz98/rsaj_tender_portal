@@ -242,17 +242,17 @@ async function applyClosingChange(tx: Tx, actor: AuditActor, l: LockedWindow, d:
   );
   if (fs.length) {
     const why = fs.map(windowFindingText).join(" ");
-    await tx.closingChange.update({ where: { id: change.id }, data: { refusedAt: now, refusedReason: why } });
+    await tx.closingChange.update({ where: { id: change.id, organisationId: l.org.id }, data: { refusedAt: now, refusedReason: why } });
     await audit(tx, actor, l.org.id, ENTITY.change, change.id, label(l, `Closing ${change.kind === "EXTENSION" ? "extension" : "correction"}`), "UPDATE", diffFields({ outcome: null }, { outcome: "Approved, but not applied" }), why);
     const inst = windowChangeRoutesOf(l.ex.approvalInstances).find((i) => i.id === instId)!;
     const warning = { code: "CHANGE_NOT_APPLIED", level: "warn", messageEn: `Approved, but not applied: ${why}` };
-    await tx.approvalInstance.update({ where: { id: instId }, data: { warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
+    await tx.approvalInstance.update({ where: { id: instId, organisationId: l.org.id }, data: { warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
     return `Approved, but the change was not applied: ${why}`;
   }
   const moved = await tx.sourcingExercise.updateMany({ where: { id: l.ex.id, status: l.ex.status }, data: { closingAt: change.toClosingAt } });
   if (moved.count !== 1) throw new Refusal(CHANGED);
-  if (change.toPurchaseCloseDay) await tx.exerciseWindow.update({ where: { id: d.window!.id }, data: { purchaseCloseDay: change.toPurchaseCloseDay } });
-  await tx.closingChange.update({ where: { id: change.id }, data: { appliedAt: now } });
+  if (change.toPurchaseCloseDay) await tx.exerciseWindow.update({ where: { id: d.window!.id, organisationId: l.org.id }, data: { purchaseCloseDay: change.toPurchaseCloseDay } });
+  await tx.closingChange.update({ where: { id: change.id, organisationId: l.org.id }, data: { appliedAt: now } });
   await audit(tx, actor, l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE",
     diffFields({ closing: formatOrgDateTime(change.fromClosingAt, l.org.timeZone), lastDayOfSale: change.fromPurchaseCloseDay ? formatDate(storedDay(change.fromPurchaseCloseDay)) : null }, { closing: formatOrgDateTime(change.toClosingAt, l.org.timeZone), lastDayOfSale: change.toPurchaseCloseDay ? formatDate(storedDay(change.toPurchaseCloseDay)) : null }), change.reason);
   await audit(tx, actor, l.org.id, ENTITY.change, change.id, label(l, `Closing ${change.kind === "EXTENSION" ? "extension" : "correction"}`), "UPDATE", diffFields({ outcome: null }, { outcome: "Applied" }));
@@ -269,7 +269,7 @@ async function applyCancellation(tx: Tx, actor: AuditActor, l: LockedWindow, d: 
   const fs = cancelFaults({ status: l.ex.status, reason: c.reason, feeRefund: c.feeRefund, changePending: false, awardStands: live?.reference ?? null, today: l.org.today, openingAdjourned: await mainOpeningAdjourned(l.ex.id, tx), openingInProgress: await openingInProgress(l.ex.id, tx) });
   if (fs.length) {
     const why = fs.map(windowFindingText).join(" ");
-    await tx.windowCancellation.update({ where: { id: c.id }, data: { refusedAt: now, refusedReason: why } });
+    await tx.windowCancellation.update({ where: { id: c.id, organisationId: l.org.id }, data: { refusedAt: now, refusedReason: why } });
     await audit(tx, actor, l.org.id, ENTITY.cancellation, c.id, label(l, "Cancellation"), "UPDATE", diffFields({ outcome: null }, { outcome: "Approved, but not applied" }), why);
     return `Approved, but the exercise was not cancelled: ${why}`;
   }
@@ -278,12 +278,12 @@ async function applyCancellation(tx: Tx, actor: AuditActor, l: LockedWindow, d: 
   // 6.8 (E-10, flagged): the evaluation in force is closed as cancelled, its records kept; locked after the openings.
   await lockEvaluationRows(tx, l.ex.id);
   await closeOnCancellation(tx, actor, { organisationId: l.org.id, exercise: { id: l.ex.id, reference: l.ex.reference }, now, reason: c.reason });
-  await tx.windowCancellation.update({ where: { id: c.id }, data: { appliedAt: now } });
+  await tx.windowCancellation.update({ where: { id: c.id, organisationId: l.org.id }, data: { appliedAt: now } });
   await audit(tx, actor, l.org.id, ENTITY.cancellation, c.id, label(l, "Cancellation"), "UPDATE", diffFields({ outcome: null }, { outcome: "Applied", feesRefunded: c.feeRefund ? "Yes" : "No" }));
   await voidLivePacks(tx, actor, l, c.reason);
   for (const inst of exerciseRoutesOf(l.ex.approvalInstances).filter((i) => i.status === "PENDING" && i.id !== instId)) {
     const warning = { code: WITHDRAWN_ON_CANCEL, level: "info", messageEn: `Withdrawn: the exercise was cancelled — ${c.reason}` };
-    await tx.approvalInstance.update({ where: { id: inst.id }, data: { status: "RECALLED", closedAt: now, warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
+    await tx.approvalInstance.update({ where: { id: inst.id, organisationId: l.org.id }, data: { status: "RECALLED", closedAt: now, warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
     await audit(tx, actor, l.org.id, "ApprovalInstance", inst.id, label(l, exerciseRouteMatter(inst.domain).auditNoun), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), `The exercise was cancelled: ${c.reason}`);
   }
   const told = await writeNotices(tx, actor, l, d, { cancellationId: c.id }, "Exercise cancelled");
@@ -349,16 +349,16 @@ export async function recordWindowChangeDecision(_prev: FormState, data: FormDat
     if (decision === "REJECTED") {
       await closeRejected(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel }, full, { apply: "RETURN_TO_ORIGINATOR", source: "CONFIGURED" }, reason, CHANGE_REFUSED_DECIDED_BY);
       if (change) {
-        await tx.closingChange.update({ where: { id: change.id }, data: { refusedAt: now, refusedReason: reason } });
+        await tx.closingChange.update({ where: { id: change.id, organisationId: actor.organisationId }, data: { refusedAt: now, refusedReason: reason } });
         await audit(tx, toAuditActor(actor), l.org.id, ENTITY.change, change.id, label(l, `Closing ${change.kind === "EXTENSION" ? "extension" : "correction"}`), "UPDATE", diffFields({ outcome: null }, { outcome: "Refused" }), reason);
       } else {
-        await tx.windowCancellation.update({ where: { id: cancellation!.id }, data: { refusedAt: now, refusedReason: reason } });
+        await tx.windowCancellation.update({ where: { id: cancellation!.id, organisationId: actor.organisationId }, data: { refusedAt: now, refusedReason: reason } });
         await audit(tx, toAuditActor(actor), l.org.id, ENTITY.cancellation, cancellation!.id, label(l, "Cancellation"), "UPDATE", diffFields({ outcome: null }, { outcome: "Refused" }), reason);
       }
       return { ok: true, message: "Refused: the change is not made. It may be asked for again." };
     }
     if (!full.steps.every((s) => s.id === step.id || s.decision === "DONE")) return { ok: true };
-    await tx.approvalInstance.update({ where: { id: full.id }, data: { status: "APPROVED", closedAt: now } });
+    await tx.approvalInstance.update({ where: { id: full.id, organisationId: actor.organisationId }, data: { status: "APPROVED", closedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", full.id, routeLabel, "UPDATE", diffFields({ status: full.status }, { status: "APPROVED" }), reason);
     const message = change ? await applyClosingChange(tx, toAuditActor(actor), l, d, change, full.id) : await applyCancellation(tx, toAuditActor(actor), l, d, cancellation!, full.id);
     return { ok: true, message };
@@ -383,7 +383,7 @@ export async function recordNoticeDelivery(_prev: FormState, data: FormData): Pr
     const fs = deliveryFaults({ method, despatchedOn: sent ? storedDay(sent) : null, acknowledgedOn: ack ? storedDay(ack) : null }, l.org.today);
     if (fs.length) return refuse(fs, "Not recorded:");
     const after = { method, consignmentRef, despatchedOn: sent, acknowledgedOn: ack };
-    await tx.windowNotice.update({ where: { id: n.id }, data: after });
+    await tx.windowNotice.update({ where: { id: n.id, organisationId: actor.organisationId }, data: after });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.notice, n.id, label(l, `Notice · ${n.party.name}`), "UPDATE", diffFields(deliveryFields(n), deliveryFields(after)));
     return { ok: true };
   });

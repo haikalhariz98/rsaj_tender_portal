@@ -132,7 +132,7 @@ export async function saveTenderPart(_prev: FormState, data: FormData): Promise<
       const row = await tx.tenderDocumentPart.create({ data: { organisationId: org.id, ...part } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: row.id, entityLabel: `Tender document part · ${part.labelEn}`, reason }, "CREATE", diffFields(null, await partWords(tx, org.id, part)));
     } else {
-      await tx.tenderDocumentPart.update({ where: { id: before.id }, data: part });
+      await tx.tenderDocumentPart.update({ where: { id: before.id, organisationId: actor.organisationId }, data: part });
       const changes = diffFields(await partWords(tx, org.id, { ...before, provenance: before.provenance as Provenance, retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }), await partWords(tx, org.id, { ...part, retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }));
       if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: before.id, entityLabel: `Tender document part · ${part.labelEn}`, reason }, "UPDATE", changes);
     }
@@ -154,7 +154,7 @@ export async function retireTenderPart(_prev: FormState, data: FormData): Promis
     await tx.$queryRaw`SELECT id FROM "TenderDocumentPart" WHERE id = ${id} FOR UPDATE`;
     const before = await tx.tenderDocumentPart.findFirst({ where: { id, organisationId: org.id }, select: { labelEn: true, retiredOn: true } });
     if (!before) return GONE;
-    await tx.tenderDocumentPart.update({ where: { id }, data: { retiredOn: on } });
+    await tx.tenderDocumentPart.update({ where: { id, organisationId: actor.organisationId }, data: { retiredOn: on } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: id, entityLabel: `Tender document part · ${before.labelEn}`, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }, { retiredOn: storedDay(on) }));
     return done();
   });
@@ -184,7 +184,7 @@ export async function restoreTenderPart(_prev: FormState, data: FormData): Promi
     const clash = partConfigFaults({ ...before, provenance: before.provenance as Provenance, id }, { others: others.map((o) => ({ ...o, retiredOn: o.retiredOn ? storedDay(o.retiredOn) : null })), bases: bases.map((b) => b.code), templates: templates.map((t) => t.code), units: units.map((u) => u.code), today });
     const role = clash.find((f) => f.code === "ROLE_TAKEN");
     if (role) return { ok: false, message: PART_CONFIG_FAULT_TEXT.ROLE_TAKEN };
-    await tx.tenderDocumentPart.update({ where: { id }, data: { retiredOn: null } });
+    await tx.tenderDocumentPart.update({ where: { id, organisationId: actor.organisationId }, data: { retiredOn: null } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.config, entityId: id, entityLabel: `Tender document part · ${before.labelEn}`, reason }, "UPDATE", diffFields({ retiredOn: before.retiredOn ? storedDay(before.retiredOn) : null }, { retiredOn: null }));
     return done();
   });
@@ -262,7 +262,7 @@ export async function saveTenderPolicy(_prev: FormState, data: FormData): Promis
     if (more.length) return { ok: false, errors: Object.fromEntries(more.map((f) => [String(f.data?.field), conditionsPolicyFaultText(f)])) };
     const taxonomyName = (code: string | null | undefined) => (code ? (taxonomies.find((t) => t.code === code)?.nameEn ?? "A list no longer configured") : null);
     const before = await tx.tenderDocumentPolicy.findUnique({ where: { organisationId: org.id } });
-    const row = before ? await tx.tenderDocumentPolicy.update({ where: { id: before.id }, data: value }) : await tx.tenderDocumentPolicy.create({ data: { organisationId: org.id, ...value } });
+    const row = before ? await tx.tenderDocumentPolicy.update({ where: { id: before.id, organisationId: actor.organisationId }, data: value }) : await tx.tenderDocumentPolicy.create({ data: { organisationId: org.id, ...value } });
     const changes = diffFields(before ? policyWords({ ...before, regulatorPermitTaxonomyName: taxonomyName(before.regulatorPermitTaxonomyCode) }) : null, policyWords({ ...value, regulatorPermitTaxonomyName: taxonomyName(value.regulatorPermitTaxonomyCode) }));
     if (!before || changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: ENTITY.policy, entityId: row.id, entityLabel: "Tender documents policy", reason }, before ? "UPDATE" : "CREATE", changes);
     return done();
@@ -289,7 +289,7 @@ export async function saveMethodDocumentPack(_prev: FormState, data: FormData): 
     await tx.$queryRaw`SELECT id FROM "SourcingMethod" WHERE id = ${id} FOR UPDATE`;
     const before = await tx.sourcingMethod.findFirst({ where: { id, organisationId: org.id }, select: { nameEn: true, documentPackKind: true, documentPackKindProvenance: true } });
     if (!before) return GONE;
-    await tx.sourcingMethod.update({ where: { id }, data: v });
+    await tx.sourcingMethod.update({ where: { id, organisationId: actor.organisationId }, data: v });
     const words = (x: { documentPackKind: string | null; documentPackKindProvenance: string | null }) => ({ documentPack: x.documentPackKind ? PACK_KIND_LABEL[x.documentPackKind as keyof typeof PACK_KIND_LABEL] : NOT_SET, documentPackComesFrom: prov(x.documentPackKindProvenance) });
     const changes = diffFields(words(before), words(v));
     if (changes.length) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "SourcingMethod", entityId: id, entityLabel: before.nameEn, reason: String(data.get("reason") ?? "") }, "UPDATE", changes);
