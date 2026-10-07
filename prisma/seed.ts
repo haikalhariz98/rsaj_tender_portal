@@ -21,7 +21,9 @@ const ORG_NAME = process.env.ORGANISATION_NAME ?? "Your organisation";
 async function main() {
   const organisation = await db.organisation.upsert({
     where: { code: ORG_CODE },
-    update: { name: ORG_NAME },
+    // Created with the name, never renamed: the legal name is edited under Configuration, Organisation, and every printed record
+    // (certificates, award letters) names its issuer from this row. Re-running setup must not put the placeholder back over it.
+    update: {},
     create: { code: ORG_CODE, name: ORG_NAME },
   });
 

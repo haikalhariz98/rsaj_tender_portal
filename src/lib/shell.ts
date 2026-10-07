@@ -32,7 +32,8 @@ export async function loadShell(opts: { organisationId: string | null; counts: b
   counts: Record<string, number>;
   organisation: ShellOrganisation;
 }> {
-  // The environment name is only for a deployment with no organisation row yet.
+  // The environment name is only for a deployment with no organisation row yet (or a database that cannot be read): the frame, never a
+  // printed record, which names its organisation from the row (`exerciseOrg`). `tenant-scan.test.ts` allows it here and nowhere else.
   const fallback = {
     counts: {} as Record<string, number>,
     organisation: { name: ORGANISATION_NAME, logo: null } as ShellOrganisation,

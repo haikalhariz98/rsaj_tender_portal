@@ -40,7 +40,6 @@ import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { formatSen as formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { paymentFaultWords } from "@/lib/payment/labels";
-import { ORGANISATION_NAME } from "@/lib/org";
 import { ratioPercentText } from "@/lib/percent-band";
 import { isSulitField } from "@/lib/sulit-fields";
 import { isSupervisedRule, type SupervisedRule } from "@/lib/supervision/blocks";
@@ -668,7 +667,7 @@ function PrintPanel({ l, figures, revision, form, sheet }: { l: LoadedCertificat
   const values = (lang: "EN" | "MS") => ({
     ...certificateFieldValues({
       lang,
-      organisationName: ORGANISATION_NAME,
+      organisationName: l.org.name,
       contract: { number: l.contract.number, title: l.ex.title, contractorName: l.award.awardeeName },
       baseline: { contractSum: b.contractSum.toString(), contractDate: day(b.contractDate), completionPeriod: b.completionPeriod, completionUnit: b.completionUnit },
       certificate: { kind: cert.kind, number: null, sequence: null, date: day(cert.certificateDate) },

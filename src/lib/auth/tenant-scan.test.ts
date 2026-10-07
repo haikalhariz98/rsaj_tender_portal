@@ -54,9 +54,19 @@ const MAY_READ: Readonly<Record<string, string>> = {
 /// The portal's own modules serve anonymous public pages (ADR 0034 D10 names `src/lib/portal/**`); none reads the constant today except through deployment.ts.
 const PORTAL = "src/lib/portal/";
 
-/// The files under src/ whose code (not their comments or strings) names `ORGANISATION_CODE`.
-export function readersOf(files: readonly { file: string; src: string }[]): string[] {
-  return files.filter((f) => /\bORGANISATION_CODE\b/.test(lex(f.src))).map((f) => f.file);
+/// `ORGANISATION_NAME` (Phase 1c review): the environment's name for the deployment. A printed record names its issuer from the
+/// organisation's own row (`exerciseOrg().name`), so a second organisation's certificates and award letters never carry the deployment's
+/// name. The constant is read only where there is no row to read.
+const MAY_READ_NAME: Readonly<Record<string, string>> = {
+  "src/lib/org.ts": "it is defined here, from the environment",
+  "src/lib/shell.ts": "the frame's name where there is no organisation row yet, or the database cannot be read; the frame only, never a printed record",
+  "src/lib/auth/tenant.db.test.ts": "reads it only to prove that the name an award and a contract carry is the organisation's own, not this",
+};
+
+/// The files under src/ whose code (not their comments or strings) names the constant (`ORGANISATION_CODE` unless another is given).
+export function readersOf(files: readonly { file: string; src: string }[], constant = "ORGANISATION_CODE"): string[] {
+  const read = new RegExp(String.raw`\b${constant}\b`);
+  return files.filter((f) => read.test(lex(f.src))).map((f) => f.file);
 }
 
 describe("ORGANISATION_CODE is read only where nobody is signed in (ADR 0034 D10)", () => {
@@ -74,6 +84,106 @@ describe("ORGANISATION_CODE is read only where nobody is signed in (ADR 0034 D10
   it("the scan sees a read, and not a mention in a comment or a string (self-test)", () => {
     expect(readersOf([{ file: "a.ts", src: 'import { ORGANISATION_CODE } from "@/lib/org";\nconst x = ORGANISATION_CODE;' }])).toEqual(["a.ts"]);
     expect(readersOf([{ file: "b.ts", src: '// ORGANISATION_CODE is not read here\nconst y = "ORGANISATION_CODE";' }])).toEqual([]);
+  });
+});
+
+describe("ORGANISATION_NAME is read only where there is no organisation row to name (Phase 1c review)", () => {
+  const files = walk(SRC).map((f) => ({ file: rel(f), src: readFileSync(f, "utf8") }));
+  const readers = readersOf(files, "ORGANISATION_NAME");
+
+  it("no file under src/ reads it outside the portal and the named readers", () => {
+    expect(readers.filter((f) => !(f in MAY_READ_NAME) && !f.startsWith(PORTAL))).toEqual([]);
+  });
+
+  it("every named reader still reads it (the list cannot go stale)", () => {
+    for (const f of Object.keys(MAY_READ_NAME)) expect(readers, f).toContain(f);
+  });
+
+  it("the scan sees a read of this constant and not of another (self-test)", () => {
+    const src = 'import { ORGANISATION_NAME } from "@/lib/org";\nconst n = ORGANISATION_NAME;';
+    expect(readersOf([{ file: "a.ts", src }], "ORGANISATION_NAME")).toEqual(["a.ts"]);
+    expect(readersOf([{ file: "a.ts", src }])).toEqual([]);
+  });
+});
+
+// ------------------------------------------------------------------ who may ask for the deployment's organisation
+
+/**
+ * `deploymentOrganisation()` and `loadPublicShell()` (`src/lib/portal/deployment.ts`) and `signInOrganisation()` (`src/lib/auth/deployment.ts`)
+ * return the organisation the environment names, not the actor's. Code that runs after sign-in must not ask for it: once more than one
+ * organisation can sign in, an act that did would read and write the deployment's rows for another organisation's user (threat F6). So
+ * the modules that import either file are named here, each with its reason, and any other importer fails, as does a named one that no
+ * longer imports (the list cannot go stale).
+ *
+ * Read: static imports and re-exports (`from "…"`), dynamic `import("…")`, by the `@/` alias or a relative path. Blind spots (declared):
+ * test files, which mock the module; a module that reaches the deployment's organisation through an allowed importer (an action calling
+ * `src/lib/portal/repo.ts`, say), which this scan does not follow; `require`.
+ */
+const DEPLOYMENT_MODULES: readonly string[] = ["src/lib/portal/deployment", "src/lib/auth/deployment"];
+
+const MAY_IMPORT_DEPLOYMENT: Readonly<Record<string, string>> = {
+  "src/app/layout.tsx": "the frame's organisation where nobody is signed in (the sign-in screens, the public pages); a signed-in actor's own otherwise",
+  "src/app/organisation/logo/[sha]/route.ts": "the logo the frame shows where nobody is signed in; a signed-in actor's own organisation otherwise",
+  "src/app/_auth/loader.ts": "a loader script's acts, where nobody is signed in to name an organisation",
+  "src/app/sign-in/page.tsx": "the sign-in screen names its policy before anyone has signed in",
+  "src/app/sign-in/code/page.tsx": "the one-time-code screen names its policy before anyone has signed in",
+  "src/app/supplier/page.tsx": "an anonymous public page",
+  "src/app/supplier/opportunities/page.tsx": "an anonymous public page",
+  "src/app/supplier/results/page.tsx": "an anonymous public page",
+  "src/app/supplier/register/page.tsx": "an anonymous public page",
+  "src/app/supplier/register/receive.ts": "the public registration form's one POST, which nobody signed in sends",
+  "src/lib/auth/deployment.ts": "the sign-in screens' name for the deployment's organisation",
+  "src/lib/auth/identity.ts": "signing in: the organisation whose policy and accounts a sign-in is checked against, before there is an actor",
+  "src/lib/auth/account-store.ts": "using a one-time code: as signing in, before there is an actor",
+  "src/lib/portal/repo.ts": "the public pages' loaders (ADR 0034 D10)",
+  "src/lib/portal/apply-repo.ts": "the public registration form's loader (ADR 0034 D10)",
+};
+
+/// The modules a source imports, resolved to repository paths without their extension (`@/x` is `src/x`; `./x` is relative to the file).
+export function importsOf(file: string, src: string): string[] {
+  const code = lex(src, { only: "comments" });
+  const out: string[] = [];
+  for (const x of code.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*["']([^"']+)["']/g)) {
+    const spec = x[1];
+    const p = spec.startsWith("@/") ? `src/${spec.slice(2)}` : spec.startsWith(".") ? path.posix.join(path.posix.dirname(file), spec) : null;
+    if (p) out.push(p.replace(/\.(ts|tsx|js)$/, "").replace(/\/index$/, ""));
+  }
+  return out;
+}
+
+/// The files that import either deployment module (the portal's own, which defines the organisation, excepted).
+export function deploymentImporters(files: readonly { file: string; src: string }[]): string[] {
+  return files
+    .filter((f) => f.file !== "src/lib/portal/deployment.ts")
+    .filter((f) => importsOf(f.file, f.src).some((m) => DEPLOYMENT_MODULES.includes(m)))
+    .map((f) => f.file);
+}
+
+describe("only the pre-sign-in code asks for the deployment's organisation (Phase 1c review, threat F6)", () => {
+  const files = walk(SRC)
+    .filter((f) => !/\.test\.tsx?$/.test(f))
+    .map((f) => ({ file: rel(f), src: readFileSync(f, "utf8") }));
+  const importers = deploymentImporters(files);
+
+  it("no file imports the deployment modules outside the named importers", () => {
+    expect(importers.filter((f) => !(f in MAY_IMPORT_DEPLOYMENT))).toEqual([]);
+  });
+
+  it("every named importer still imports one (the list cannot go stale)", () => {
+    for (const f of Object.keys(MAY_IMPORT_DEPLOYMENT)) expect(importers, f).toContain(f);
+  });
+
+  it("sees static, dynamic and relative imports, and not a mention in a comment or a string (self-test)", () => {
+    const cases = [
+      { file: "src/app/a/actions.ts", src: 'import { deploymentOrganisation } from "@/lib/portal/deployment";' },
+      { file: "src/app/b/actions.ts", src: 'const { deploymentOrganisation } = await import("@/lib/portal/deployment");' },
+      { file: "src/lib/auth/c.ts", src: 'import { signInOrganisation } from "./deployment";' },
+      { file: "src/lib/portal/d.ts", src: 'import type { DeploymentOrganisation } from "./deployment.ts";' },
+      { file: "src/app/e/actions.ts", src: 'export { loadPublicShell } from "../../lib/portal/deployment";' },
+      { file: "src/app/f/actions.ts", src: '// see "@/lib/portal/deployment"\nimport { x } from "@/lib/deployment";\nconst s = "./deployment";' },
+      { file: "src/lib/g/h.ts", src: 'import { y } from "./deployment";' },
+    ];
+    expect(deploymentImporters(cases)).toEqual(["src/app/a/actions.ts", "src/app/b/actions.ts", "src/lib/auth/c.ts", "src/lib/portal/d.ts", "src/app/e/actions.ts"]);
   });
 });
 

@@ -22,7 +22,6 @@ import { nameRoutesOf } from "@/lib/method/approval";
 import { approvedRouteOf, evaluationContext, exerciseOrg, loadExercise, type ExerciseOrg, type LoadedExercise } from "@/lib/method/repo";
 import { isBandSnapshot } from "@/lib/method/snapshot";
 import { parseSen, senFromDecimal } from "@/lib/money";
-import { ORGANISATION_NAME } from "@/lib/org";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
@@ -338,7 +337,8 @@ export async function awardFacts(l: LoadedAward, client: Tx = db) {
 
   const facts: AwardFacts = {
     today: org.today,
-    organisationName: ORGANISATION_NAME,
+    // Phase 1c review: the award's organisation as its own row names it, not the deployment's environment.
+    organisationName: org.name,
     award: {
       status: award.status as AwardStatus,
       reference: award.reference,

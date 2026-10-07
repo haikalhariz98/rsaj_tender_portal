@@ -20,7 +20,6 @@ import type { LoadedContract } from "@/lib/contract/repo";
 import { dayToDate, storedDay } from "@/lib/dates";
 import { formatSen, parseSen } from "@/lib/money";
 import { issueReference, NumberingError } from "@/lib/numbering/issue";
-import { ORGANISATION_NAME } from "@/lib/org";
 import { isSupervisedRule } from "@/lib/supervision/blocks";
 import { supervisedHoldersOn } from "@/lib/supervision/load";
 
@@ -379,7 +378,8 @@ async function issue(c: CertCtx, rev: TemplateRevision, certificateDate: string 
   const values = (lang: Lang) =>
     certificateFieldValues({
       lang,
-      organisationName: ORGANISATION_NAME,
+      // Phase 1c review: the issuer is the contract's organisation as its own row names it, not the deployment's environment.
+      organisationName: c.l.org.name,
       contract: { number: c.l.contract.number, title: c.l.ex.title, contractorName: c.l.award.awardeeName },
       baseline: { contractSum: b.contractSum.toString(), contractDate: day(b.contractDate), completionPeriod: b.completionPeriod, completionUnit: b.completionUnit },
       certificate: { kind: cert.kind, number, sequence, date: certificateDate },

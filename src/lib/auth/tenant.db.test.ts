@@ -401,6 +401,16 @@ describe("the loaders the pages read through return A's records to A and nothing
     expect(await loadSitting(asB, A.meeting)).toBeNull();
   });
 
+  // Phase 1c review: a certificate and an award letter name as their issuer the name the loaders carry (`l.org.name`), which is the
+  // organisation's own row, never the deployment's ORGANISATION_NAME.
+  it("an award's and a contract's issuer is the organisation's own name", async () => {
+    const [{ loadAward }, { loadContract }, { ORGANISATION_NAME }] = await Promise.all([import("@/lib/award/repo"), import("@/lib/contract/repo"), import("@/lib/org")]);
+    const own = (await db.organisation.findUniqueOrThrow({ where: { id: fx.actorA.organisationId }, select: { name: true } })).name;
+    expect(own).not.toBe(ORGANISATION_NAME);
+    expect((await loadAward(fx.actorA.organisationId, A.award))?.org.name).toBe(own);
+    expect((await loadContract(fx.actorA.organisationId, A.contract))?.org.name).toBe(own);
+  });
+
   it("documents: an owner's facts and a document's drawer", async () => {
     const { readOwner, documentDrawer } = await import("@/lib/documents/read");
     expect(await readOwner(fx.actorA.organisationId, { kind: "exercise", id: A.exercise })).not.toBeNull();

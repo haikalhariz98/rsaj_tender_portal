@@ -27,11 +27,12 @@ import type { ApprovedRoute } from "./value";
 
 const num = (v: { toString(): string } | null): number | null => (v == null ? null : Number(v.toString()));
 
-/// The signed-in actor's organisation (ADR 0034 D10): its id, code, zone and today. Null when it no longer exists.
+/// The signed-in actor's organisation (ADR 0034 D10): its id, code, legal name, zone and today. Null when it no longer exists.
+/// `name` is the legal name a printed record (a certificate, an award letter) names as its issuer: the organisation's own row, never the environment's.
 export async function exerciseOrg(organisationId: string, client: Tx = db) {
-  const org = await client.organisation.findUnique({ where: { id: organisationId }, select: { id: true, code: true, timeZone: true } });
+  const org = await client.organisation.findUnique({ where: { id: organisationId }, select: { id: true, code: true, name: true, timeZone: true } });
   if (!org) return null;
-  return { id: org.id, code: org.code, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) };
+  return { id: org.id, code: org.code, name: org.name, timeZone: org.timeZone, today: todayIn(new Date(), org.timeZone) };
 }
 
 export type ExerciseOrg = NonNullable<Awaited<ReturnType<typeof exerciseOrg>>>;

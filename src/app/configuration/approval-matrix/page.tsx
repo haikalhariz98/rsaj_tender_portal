@@ -12,7 +12,6 @@ import { coreChainFaultsAcross, coreLevelFaults } from "@/lib/authority/core-rou
 import { actLabel } from "@/components/ui/act";
 import { formatPercentBand, formatValueBand } from "@/lib/format";
 import { actWithCode, condLabel, matterLabel, methodLabel } from "@/lib/labels";
-import { ORGANISATION_NAME } from "@/lib/org";
 import { formatDate } from "@/lib/format";
 import { loadReferenceData } from "@/lib/reference/load";
 import { activeOn } from "@/lib/reference/vocabulary";
@@ -97,7 +96,7 @@ export default async function ApprovalMatrixPage({
     sourcingMethods.find((m) => m.authorityMethodKey === code)?.nameEn ?? methodLabel(code);
 
   const roster = await loadRoster(actor.organisationCode);
-  const orgRow = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true } });
+  const orgRow = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true, name: true } });
   const destinations: DestinationRow[] = orgRow
     ? (await db.rejectionDestination.findMany({ where: { organisationId: orgRow.id } })).map((d) => ({ ...d, kind: d.kind as RejectionKind, provenance: d.provenance as DestinationRow["provenance"] }))
     : [];
@@ -132,7 +131,7 @@ export default async function ApprovalMatrixPage({
 
         <Card>
           <EmptyState title="No approval limits yet" action={<AddMatrix />}>
-            {ORGANISATION_NAME} has no authority limits, so the portal cannot say who
+            {orgRow?.name ?? "This organisation"} has no authority limits, so the portal cannot say who
             approves anything. Draft the first issue, add its rules, then issue it.
           </EmptyState>
         </Card>
