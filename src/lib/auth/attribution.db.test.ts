@@ -425,6 +425,28 @@ describe("the maker records and the issuer of a matrix", () => {
     expect(await refusal(db.authorityMatrixMaker.create({ data: { matrixId: d.id, personId: p2 } }))).toBeNull();
   });
 
+  // Review of Phase 2c: the issue rule judges the issuer against these rows, so a login that could rewrite them (the app's, or any that reaches the database) could
+  // move its own name off its draft and issue it. The rows now change only by going with their matrix.
+  it("keeps who made a draft: the row is not changed to name someone else, and not deleted while its matrix stands (PA005)", async () => {
+    const d = await draft();
+    const row = await db.authorityMatrixMaker.create({ data: { matrixId: d.id, personId: p1 } });
+    expect(await refusal(db.authorityMatrixMaker.update({ where: { id: row.id }, data: { personId: p2 } }))).toBe("PA005");
+    expect(await refusal(db.authorityMatrixMaker.update({ where: { id: row.id }, data: { firstAt: new Date() } }))).toBe("PA005");
+    expect(await refusal(db.authorityMatrixMaker.delete({ where: { id: row.id } }))).toBe("PA005");
+    expect(await refusal(db.authorityMatrixMaker.deleteMany({ where: { matrixId: d.id } }))).toBe("PA005");
+    expect(await db.authorityMatrixMaker.findUniqueOrThrow({ where: { id: row.id } })).toMatchObject({ personId: p1 });
+    // So the maker still cannot issue what they made.
+    expect(await refusal(db.authorityMatrix.update({ where: { id: d.id }, data: { issuedAt: new Date(), issuedByPersonId: p1 } }))).toBe("PA005");
+  });
+
+  it("goes with its matrix when a draft is discarded: the cascade is the one delete it allows", async () => {
+    const d = await draft();
+    await db.authorityMatrixMaker.create({ data: { matrixId: d.id, personId: p1 } });
+    await db.authorityMatrixMaker.create({ data: { matrixId: d.id, personId: p2 } });
+    expect(await refusal(db.authorityMatrix.delete({ where: { id: d.id } }))).toBeNull();
+    expect(await db.authorityMatrixMaker.count({ where: { matrixId: d.id } })).toBe(0);
+  });
+
   it("names an issuer only on an issued matrix", async () => {
     const d = await draft();
     expect(await refusal(db.authorityMatrix.update({ where: { id: d.id }, data: { issuedByPersonId: p1 } }))).toBe("23514");
@@ -454,22 +476,36 @@ describe("a two-person configuration change", () => {
     expect(row).toMatchObject({ status: "PROPOSED", decidedByPersonId: null, decidedAt: null });
   });
 
+  // Review of Phase 2c: these tests wrote a decided row in one INSERT. The database now refuses that (PA004: a change is written as a proposal, and decided by an
+  // update), so the same rows are made by proposing and then deciding. The CHECKs they exercise are the same, and each expectation is unchanged.
+  const decided = async (data: Record<string, unknown>) => {
+    const { status, decidedByPersonId, decidedAt, ...proposal } = data;
+    const row = await make2(change(proposal));
+    return db.configurationChange.update({ where: { id: row.id }, data: { status: status as "APPLIED", decidedByPersonId: decidedByPersonId as string | null, decidedAt: decidedAt as Date | null } });
+  };
+
   it("is decided by a different Person: the proposer cannot apply, decline or stale it, in the database too", async () => {
     for (const status of ["APPLIED", "DECLINED", "STALE"]) {
-      expect(await refusal(make2(change({ status, decidedByPersonId: p1, decidedAt: new Date() }))), status).toBe("23514");
-      expect(await refusal(make2(change({ status, decidedByPersonId: p2, decidedAt: new Date() }))), status).toBeNull();
+      expect(await refusal(decided({ status, decidedByPersonId: p1, decidedAt: new Date() })), status).toBe("23514");
+      expect(await refusal(decided({ status, decidedByPersonId: p2, decidedAt: new Date() })), status).toBeNull();
     }
   });
 
   it("is withdrawn only by the proposer", async () => {
-    expect(await refusal(make2(change({ status: "WITHDRAWN", decidedByPersonId: p2, decidedAt: new Date() })))).toBe("23514");
-    expect(await refusal(make2(change({ status: "WITHDRAWN", decidedByPersonId: p1, decidedAt: new Date() })))).toBeNull();
+    expect(await refusal(decided({ status: "WITHDRAWN", decidedByPersonId: p2, decidedAt: new Date() }))).toBe("23514");
+    expect(await refusal(decided({ status: "WITHDRAWN", decidedByPersonId: p1, decidedAt: new Date() }))).toBeNull();
   });
 
   it("names and dates a decision exactly when the change is no longer proposed", async () => {
-    expect(await refusal(make2(change({ status: "APPLIED" })))).toBe("23514");
+    expect(await refusal(decided({ status: "APPLIED" }))).toBe("23514");
     expect(await refusal(make2(change({ decidedByPersonId: p2, decidedAt: new Date() })))).toBe("23514");
-    expect(await refusal(make2(change({ status: "APPLIED", decidedByPersonId: p2 })))).toBe("23514");
+    expect(await refusal(decided({ status: "APPLIED", decidedByPersonId: p2 }))).toBe("23514");
+  });
+
+  it("is never inserted already decided, whoever it names as the decider (PA004)", async () => {
+    for (const status of ["APPLIED", "DECLINED", "STALE", "WITHDRAWN"]) {
+      expect(await refusal(make2(change({ status, decidedByPersonId: p2, decidedAt: new Date() }))), status).toBe("PA004");
+    }
   });
 
   it("carries its payload and its snapshot as objects", async () => {
