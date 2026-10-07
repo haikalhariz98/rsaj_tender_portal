@@ -36,6 +36,21 @@ export function runtimeRoleCheck(): Promise<RuntimeRoleVerdict> {
   return kept.perolehanRuntimeRole;
 }
 
+/// At start-up (`src/instrumentation.ts`): one line in the server log when the app is not running as its own role. Never throws.
+export async function reportRuntimeRole(): Promise<void> {
+  try {
+    const verdict = await runtimeRoleCheck();
+    if (verdict.safe) return;
+    const what = verdict.reason === "SUPERUSER" ? "a superuser" : "the owner of the tables";
+    console.warn(
+      `[perolehan] The app is connected to the database as "${verdict.name}", ${what}. ` +
+        (verdict.refuseSignIn ? "Sign-in is refused until DATABASE_URL names the app role (npm run db:roles)." : "Allowed in development only. See the README, Running in production."),
+    );
+  } catch (error) {
+    console.warn("[perolehan] Could not ask the database which login the app runs as:", error instanceof Error ? error.message : error);
+  }
+}
+
 /// For sign-in: true when this process must refuse every sign-in because it runs as the owner or a superuser in production.
 export async function signInRefusedForRole(): Promise<boolean> {
   const verdict = await runtimeRoleCheck();

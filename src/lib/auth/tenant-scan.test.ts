@@ -50,6 +50,8 @@ const MAY_READ: Readonly<Record<string, string>> = {
   "src/lib/org.ts": "it is defined here, from the environment",
   "src/lib/portal/deployment.ts": "the deployment's one organisation, for what runs before anyone signs in: the public pages, the sign-in screens and the frame around them, and a loader's acts",
   "src/lib/test-db/setup.ts": "sets the variable to the database tests' own organisation before anything reads it; it reads nothing itself",
+  // Phase 1d: added deliberately (decisions log, Phase 1d tests).
+  "src/lib/demo/demo-additive.db.test.ts": "sets it for the demo loader it runs as a child process, as an operator would; it reads nothing itself",
 };
 /// The portal's own modules serve anonymous public pages (ADR 0034 D10 names `src/lib/portal/**`); none reads the constant today except through deployment.ts.
 const PORTAL = "src/lib/portal/";
