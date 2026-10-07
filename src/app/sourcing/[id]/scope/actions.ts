@@ -1,6 +1,8 @@
 "use server";
 
-import type { Reader } from "@/lib/auth/sulit-store";
+import { sulitWriteRefusal, type Reader } from "@/lib/auth/sulit-store";
+import type { StaffActor } from "@/lib/auth/types";
+import { BQ_FIELDS } from "@/lib/scope/bq-fields";
 import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
@@ -80,10 +82,18 @@ async function audit(tx: Tx, actor: AuditActor, orgId: string, entity: string, e
 /// Every 6.2 row is labelled with its exercise's reference, so the exercise's History finds it.
 const label = (l: LockedExercise, what: string) => `${l.ex.reference} · ${what}`;
 
-async function inExercise(scope: Reader, exerciseId: string, fn: (tx: Tx, l: LockedExercise) => Promise<FormState>): Promise<FormState> {
+/// `bq`: the act writes or reveals the bill's priced figures, so it is done by someone they are open to (Phase 3b): what they may not read they may not change or export,
+/// and are told why. Asked under the exercise's lock and logged in the act's transaction, so a refusal this returns is kept.
+async function inExercise(scope: Reader, exerciseId: string, fn: (tx: Tx, l: LockedExercise) => Promise<FormState>, opts: { bq?: StaffActor } = {}): Promise<FormState> {
   let result: FormState | null;
   try {
-    result = await withLockedExerciseScope(scope, exerciseId, fn);
+    result = await withLockedExerciseScope(scope, exerciseId, async (tx, l) => {
+      if (opts.bq) {
+        const refusal = await sulitWriteRefusal(tx, opts.bq, { scope: "exercise", exerciseId: l.ex.id }, BQ_FIELDS);
+        if (refusal) return { ok: false, message: `Nothing was done: the priced bill is SULIT and is closed to you. ${refusal}` };
+      }
+      return fn(tx, l);
+    });
   } catch (e) {
     if (e instanceof Refusal) return e.state;
     const attribution = attributionRefusalState(e);
@@ -278,7 +288,7 @@ export async function saveBqItem(_prev: FormState, data: FormData): Promise<Form
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqItem, saved.id, label(l, `Bill of quantities v${v.versionNo} · ${itemRef || description}`), before ? "UPDATE" : "CREATE",
       itemAudit(before ? { ...lineOf(before), rateFrom: fromText(before) } : null, { itemRef, description, unit, kind, quantity, rate, provisional, rateFrom: fromText(priced) }));
     return { ok: true };
-  });
+  }, { bq: actor });
 }
 
 export async function removeBqItem(_prev: FormState, data: FormData): Promise<FormState> {
@@ -334,7 +344,7 @@ export async function finaliseBq(_prev: FormState, data: FormData): Promise<Form
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqVersion, v.id, label(l, `Bill of quantities v${v.versionNo}`), "UPDATE",
       bqFinalisedAudit(computed, { standard: policy.measurementStandardLabel, preparerQualification: qualification.name }));
     return { ok: true };
-  });
+  }, { bq: actor });
 }
 
 /// Start a revision: a new draft copied from the latest finalised version, with the reason.
@@ -880,7 +890,7 @@ export async function importBqCsv(_prev: FormState, data: FormData): Promise<For
     revalidatePath("/configuration/documents");
     const warns = [...parsed.faults.filter((f) => f.level !== "block").map(csvFaultText), ...parsed.keyedMismatches.slice(0, 5).map(keyedMismatchText)];
     return { ok: true, message: [`Imported ${parsed.lineCount} ${parsed.lineCount === 1 ? "line" : "lines"} in ${parsed.sections.length} ${parsed.sections.length === 1 ? "section" : "sections"}; the file is kept with version ${v.versionNo}.`, ...warns].join(" ") };
-  });
+  }, { bq: actor });
 }
 
 export interface BqExportResult {
@@ -923,6 +933,6 @@ export async function exportBqCsv(_prev: BqExportResult, data: FormData): Promis
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqExport, v.id, label(l, `Bill of quantities v${v.versionNo} · CSV export`), "CREATE", bqExportAudit({ versionNo: v.versionNo, priced, fileName, sha256, lines }));
     out = { ok: true, file, fileName, sha256, exportId: randomUUID() };
     return { ok: true };
-  });
+  }, priced ? { bq: actor } : {});
   return result.ok ? out : { ok: false, message: result.message };
 }

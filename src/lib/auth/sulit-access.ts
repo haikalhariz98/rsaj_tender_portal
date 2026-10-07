@@ -191,6 +191,13 @@ export function sulitAccess(actor: SulitActor, ctx: SulitContext, field: string)
   return decide(actor, ctx);
 }
 
+/// The rule for several fields of one record at once (a tab that shows a dozen figures asks once): the first field the record does not carry refuses,
+/// otherwise the answer is the same for all of them.
+export function sulitAccessAll(actor: SulitActor, ctx: SulitContext, fields: readonly string[]): SulitDecision {
+  if (fields.length === 0 || fields.some((f) => !fieldIsFor(f, ctx.scope))) return { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" };
+  return decide(actor, ctx);
+}
+
 /// The rule without a field: the same answer for every field of one record in one scope.
 export function decide(actor: SulitActor, ctx: SulitContext): SulitDecision {
   if (actor.system || !actor.personId) return { state: "WITHHELD", basis: "NOT_A_PERSON" };
@@ -307,6 +314,13 @@ export const sulitWithheld = <T = never>(basis: SulitRefusalBasis, scope: SulitS
 export function applyDecision<T>(decision: SulitDecision, scope: SulitScope | "estimate", value: T | (() => T)): Sulit<T> {
   if (decision.state === "WITHHELD") return sulitWithheld<T>(decision.basis, scope);
   return sulitGranted(typeof value === "function" ? (value as () => T)() : value, decision.basis);
+}
+
+/// A value (or a thunk, read only where it is granted) held to a gate: the gate is a `Sulit<true>` asked once for a record, and everything on that record
+/// that the gate covers is judged by it. A withheld gate carries no value, so what it holds back never leaves the loader.
+export function through<T>(gate: Sulit<true>, value: T | (() => T)): Sulit<T> {
+  if (gate.state === "WITHHELD") return gate;
+  return sulitGranted(typeof value === "function" ? (value as () => T)() : value, gate.basis);
 }
 
 /// The value, or null where it is withheld.

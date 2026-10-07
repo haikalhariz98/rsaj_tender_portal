@@ -4,6 +4,7 @@ import { hiddenDecisionIds } from "@/lib/committee/hidden";
 import { applyDecision, sulitWithheld, type Sulit, type SulitDecision } from "@/lib/auth/sulit-access";
 import {
   decisionFor,
+  decisionForFields,
   eventKey,
   exerciseAccessFacts,
   exerciseStanding,
@@ -85,6 +86,56 @@ export async function sulitExerciseValues<T>(actor: StaffActor, exercises: reado
 export async function sulitExerciseValue<T>(actor: StaffActor, exercise: ExerciseRef, field: string, value: T | (() => T), scope: SulitScope = "exercise"): Promise<Sulit<T>> {
   const got = await sulitExerciseValues(actor, [exercise], field, () => (typeof value === "function" ? (value as () => T)() : value), scope);
   return got.get(exercise.id)!;
+}
+
+/// What a gate is asked about: a record, and which scope's rule judges it. An exercise's (and its evaluation's) is judged by who is named on the exercise; the other
+/// three keep no list of who is named, so only the organisation-wide permission opens them (ADR 0034 D14).
+export type GateSubject =
+  | { scope: "exercise" | "evaluation"; id: string; label: string }
+  | { scope: "requisition" | "contract" | "supplier"; entity: string; id: string; label: string };
+
+/**
+ * One answer for each record, for several of its fields at once: `Sulit<true>`, granted with the basis or withheld with the reason in words. A screen that
+ * shows a dozen figures of one evaluation asks once, then holds every figure to the answer (`through`), so a withheld record carries none of them. One
+ * `SulitAccessEvent` is written per record and field set, allowed or refused, and written once within a request. If the log cannot be written nothing is
+ * granted (NFR-AUD-004). The key of the map is the subject's id.
+ */
+export async function sulitGates(actor: StaffActor, subjects: readonly GateSubject[], fields: readonly string[]): Promise<Map<string, Sulit<true>>> {
+  const out = new Map<string, Sulit<true>>();
+  if (subjects.length === 0) return out;
+  const exerciseIds = subjects.filter((x) => !("entity" in x)).map((x) => x.id);
+  const [facts, permission] = await Promise.all([exerciseIds.length ? exerciseAccessFacts(db, actor.organisationId, exerciseIds) : Promise.resolve(new Map()), permissionOf(actor)]);
+  const rows: SulitEventRow[] = [];
+  const decided = new Map<string, SulitDecision>();
+  for (const x of subjects) {
+    if (!("entity" in x)) {
+      const f = facts.get(x.id);
+      const decision: SulitDecision = f ? decisionForFields(actor, x.scope, fields, { restricted: f.restricted, named: f.named }, permission).decision : { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" };
+      decided.set(x.id, decision);
+      if (f) rows.push({ scope: x.scope, entity: "SourcingExercise", entityId: x.id, entityLabel: x.label, fields: [...fields], decision });
+    } else {
+      const decision = decisionForFields(actor, x.scope, fields, { restricted: false, named: null }, permission).decision;
+      decided.set(x.id, decision);
+      rows.push({ scope: x.scope, entity: x.entity, entityId: x.id, entityLabel: x.label, fields: [...fields], decision });
+    }
+  }
+  const logged = await log(actor, rows);
+  for (const x of subjects) {
+    const decision = decided.get(x.id)!;
+    out.set(x.id, !logged ? sulitWithheld<true>("NOT_LOGGED", x.scope) : applyDecision(decision, x.scope, true as const));
+  }
+  return out;
+}
+
+export async function sulitGate(actor: StaffActor, subject: GateSubject, fields: readonly string[]): Promise<Sulit<true>> {
+  return (await sulitGates(actor, [subject], fields)).get(subject.id)!;
+}
+
+/// `sulitGate` for an exercise (or its evaluation) named by its id: the reference is read for the log. An exercise that is not the organisation's is withheld.
+export async function sulitExerciseGate(actor: StaffActor, exerciseId: string, scope: "exercise" | "evaluation", fields: readonly string[]): Promise<Sulit<true>> {
+  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: actor.organisationId }, select: { reference: true } });
+  if (!ex) return sulitWithheld<true>("FIELD_NOT_FOR_THIS_RECORD", scope);
+  return sulitGate(actor, { scope, id: exerciseId, label: ex.reference }, fields);
 }
 
 /**

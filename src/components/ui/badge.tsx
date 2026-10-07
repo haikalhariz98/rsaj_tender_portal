@@ -121,6 +121,19 @@ export function SulitLock({ size = 13, className, label = VALUE_SULIT_LABEL }: {
   );
 }
 
+/// The tag on a card or section whose content is SULIT: it says the figures are shown only to the people entitled to them and that every reading is logged. It
+/// promises nothing about who the reader is: the figures themselves are drawn, or withheld with the reason, one by one.
+export function SulitTag({ className }: { className?: string }) {
+  const words = "SULIT. Shown only to the people entitled to it, and every reading is logged.";
+  return (
+    <span title={words} className={cx("inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[12.5px] font-medium text-rose-700", className)}>
+      <LockIcon size={12} strokeWidth={2} />
+      <span>SULIT</span>
+      <span className="sr-only">{words}</span>
+    </span>
+  );
+}
+
 /// What stands where a SULIT value is withheld from the reader: the lock and "SULIT · withheld", with the reason in words as the tooltip and to a
 /// screen reader. Never the value, never a placeholder shaped like one.
 export function SulitWithheld({ words, className }: { words: string; className?: string }) {

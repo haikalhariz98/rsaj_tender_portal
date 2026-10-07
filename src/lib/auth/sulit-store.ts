@@ -10,7 +10,9 @@ import {
   namedOn,
   namingFault,
   NEVER_STORED_BASES,
+  refusalWords,
   sulitAccess,
+  sulitAccessAll,
   type ExerciseNamedFacts,
   type SulitActor,
   type SulitDecision,
@@ -196,6 +198,13 @@ export function decisionFor(actor: StaffActor, scope: SulitScope, field: string,
   return { decision: sulitAccess(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission }, field), namedAs };
 }
 
+/// The decision for several fields of one record of one scope (a tab asks once for everything it shows from the record).
+export function decisionForFields(actor: StaffActor, scope: SulitScope, fields: readonly string[], record: { restricted: boolean; named: ExerciseNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
+  const sulitActor = sulitActorOf(actor);
+  const namedAs = namedOn(scope, record.named, sulitActor.personId);
+  return { decision: sulitAccessAll(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission }, fields), namedAs };
+}
+
 // ------------------------------------------------------------------ the log
 
 export interface SulitEventRow {
@@ -237,6 +246,35 @@ export async function writeSulitEvents(client: Tx, actor: Reader, rows: readonly
       basis: r.decision.basis,
     })),
   });
+}
+
+/**
+ * Whether the actor may change what these fields of a record hold, inside the act's own transaction: a person who may not read a record's SULIT values may not
+ * change them either, and is told why in words (the rule Phase 3a made for an exercise's estimate, carried to the evaluation and the rest). The access is written
+ * to the log as a read is, allowed or refused; written in the act's transaction, so a refusal the act returns (not throws) is kept. Null where the actor may.
+ * A loader run is the operator's own process and is let through without a row.
+ */
+export type WriteSubject =
+  | { scope: "exercise" | "evaluation"; exerciseId: string }
+  | { scope: "requisition" | "contract" | "supplier"; entity: string; id: string; label: string };
+
+export async function sulitWriteRefusal(client: Tx, actor: StaffActor, subject: WriteSubject, fields: readonly string[]): Promise<string | null> {
+  if (actor.system) return null;
+  const permission = await organisationPermissionState(client, actor);
+  let decision: SulitDecision;
+  let row: SulitEventRow;
+  if ("exerciseId" in subject) {
+    const f = (await exerciseAccessFacts(client, actor.organisationId, [subject.exerciseId])).get(subject.exerciseId);
+    // An exercise that is not the organisation's is no record of theirs: the act's own not-found handles it.
+    if (!f) return null;
+    decision = decisionForFields(actor, subject.scope, fields, { restricted: f.restricted, named: f.named }, permission).decision;
+    row = { scope: subject.scope, entity: "SourcingExercise", entityId: f.id, entityLabel: f.reference, fields: [...fields], decision };
+  } else {
+    decision = decisionForFields(actor, subject.scope, fields, { restricted: false, named: null }, permission).decision;
+    row = { scope: subject.scope, entity: subject.entity, entityId: subject.id, entityLabel: subject.label, fields: [...fields], decision };
+  }
+  await writeSulitEvents(client, actor, [row]);
+  return decision.state === "WITHHELD" ? refusalWords(decision.basis, subject.scope).en : null;
 }
 
 /// The organisation's day is not known without a time zone: custody is judged on it, so an unset zone is said, not guessed.

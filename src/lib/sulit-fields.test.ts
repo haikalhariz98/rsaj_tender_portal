@@ -41,6 +41,17 @@ describe("every registered field says whose record it belongs to", () => {
   });
 });
 
+// Phase 3b: the priced bill of quantities and the identity-card number join the registry (a deliberate change to this group-J file, logged).
+describe("the fields Phase 3b adds say whose record they belong to", () => {
+  const by = (n: string) => SULIT_FIELDS.find((f) => f.field === n)!;
+  it("the priced bill is an exercise's, and the unpriced bill is not a field at all", () => {
+    for (const n of ["bqRate", "bqAmount", "bqTotals"]) expect(by(n).scope, n).toBe("exercise");
+  });
+  it("the identity-card number is the award's (an exercise's) and is also carried on a contract's signature", () => {
+    expect(by("icNumber")).toMatchObject({ scope: "exercise", alsoIn: ["contract"] });
+  });
+});
+
 describe("the scan finds an unflagged registered field", () => {
   const list = (cols: string) => `const rows = r.map((x) => ({ v: x.estimatedValue }));\n<DataList columns={[${cols}]} rows={rows} />`;
   it("fails a list whose registered field has no flagged column", () => {

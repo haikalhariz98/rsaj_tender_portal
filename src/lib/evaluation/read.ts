@@ -7,6 +7,7 @@
  */
 
 import { loadAttributions } from "@/lib/auth/attribution-read";
+import { sulitGranted, through, type Sulit } from "@/lib/auth/sulit-access";
 import { db } from "@/lib/db";
 import { storedDay } from "@/lib/dates";
 import { isLive } from "@/lib/documents/evidence";
@@ -41,7 +42,18 @@ const allowedOf = (fs: readonly Finding[]): Allowed => {
 const money = (s: bigint | null | undefined) => (s == null ? null : formatMoney(s));
 const fig = (v: bigint | null | undefined, dp: number | null) => (v == null ? null : formatFixed(v, dp ?? 4));
 
-export async function evaluationTabView(organisationId: string, exerciseId: string) {
+/**
+ * What the tab is told about who may read the evaluation (Phase 3b, FR-EVL-014): `evaluation` is one answer for the whole version, asked and logged by the
+ * caller; `estimate` is asked only when there is a disclosed company estimate to compare with, and judges the saving and the estimate by its custody.
+ * Nothing that the evaluation's figures could be read from (scores, prices, who is ahead, what was said to a tenderer) is built unless `evaluation` is
+ * granted, so a reader who is refused is sent none of it, not even in a payload the page does not draw.
+ */
+export interface EvaluationGates {
+  evaluation: Sulit<true>;
+  estimate: () => Promise<Sulit<true> | null>;
+}
+
+export async function evaluationTabView(organisationId: string, exerciseId: string, gates: EvaluationGates) {
   const x = await loadExercise(organisationId, exerciseId);
   if (!x) return null;
   const { org, ex } = x;
@@ -82,6 +94,18 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   // ---- the team and the bidders (Overview)
   const sides: Side[] = ["IMPLEMENTING_DEPARTMENT", "CONTRACT_PROCUREMENT"];
   const team = sides.map((s) => ({ side: s, label: SIDE_LABEL[s], members: e.team.filter((t) => t.side === s).map((t) => ({ id: t.id, name: t.person.name, appointedOn: formatDate(storedDay(t.appointedOn)), unit: t.orgUnitCodeSnapshot ? "Unit recorded" : "Unit not recorded" })) }));
+  // The report's reference, who issued it and its annexes' names say nothing of a figure: they are the surface, and the rest is held back (the detail).
+  const report = reportFromSnapshot(e.reportSnapshot);
+  const p = e.proposalPaper;
+  const office = (code: string | null | undefined) => (code ? (c.roster.offices.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : null);
+  const reportSurface = {
+    issued: e.state !== "OPEN" && e.reportReference ? { reference: e.reportReference, issuedAt: e.issuedAt ? formatOrgDateTime(e.issuedAt, tz) : null, issuedBy: e.issuedBy?.name ?? null, stale: e.state === "ISSUED" && reportStale(e.bidders.map((b) => b.openedBidId), c.carried.map((b) => b.id)), annexes: report?.annexes.map((a) => ({ key: a.key, label: a.label })) ?? [], template: report?.text.template.name ?? null } : null,
+    proposal: p
+      ? { frozenAt: formatOrgDateTime(p.frozenAt, tz), checker: office(p.checkerRoleCode), recommender: office(p.recommenderRoleCode), checkedBy: p.checkedBy ? `${p.checkedBy.name}, ${p.checkedOn ? formatDate(storedDay(p.checkedOn)) : ""}` : null, recommendedBy: p.recommendedBy ? `${p.recommendedBy.name}, ${p.recommendedOn ? formatDate(storedDay(p.recommendedOn)) : ""}` : null }
+      : null,
+  };
+
+  const detailOf = async () => {
   const firstStage = f.model.stages[0] ?? null;
   const capitalStages = f.model.stages.filter((s) => s.criteria.some((cr) => cr.scale === "BANDED" && cr.computedInput === "MIN_CAPITAL_RATIO"));
   const cprStages = f.model.stages.filter((s) => s.criteria.some((cr) => cr.scale === "BANDED" && cr.computedInput === "CPR_PERCENT"));
@@ -192,6 +216,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   const comp = f.model.stages.find((s) => s.kind === "COMPOSITE") ?? null;
   const rec = e.recommendation;
   const rb = rec ? (f.bidders.find((b) => b.id === rec.bidderId) ?? null) : null;
+  const estimateGate = "value" in f.estimate ? ((await gates.estimate()) ?? ({ state: "WITHHELD", basis: "CUSTODY_NOT_SET", scope: "estimate", words: { en: "The company estimate has no one in its custody to ask.", ms: "Anggaran syarikat tiada yang memegangnya untuk ditanya." } } as Sulit<true>)) : null;
   const sv = rb ? saving(f.estimate, recommendedPriceOf(rb)) : null;
   const incomplete = incompleteStages(f);
   const recommendation = {
@@ -199,14 +224,14 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
     ranked: ranked.map((r) => ({ id: r.bidder.id, rank: r.rank, listingNo: r.bidder.listingNo, bidder: r.bidder.bidderName, compositeScore: r.composite != null ? fig(r.composite, dp) : null, evaluatedPrice: formatMoney(r.price), recommendedPrice: formatMoney(recommendedPriceOf(r.bidder)), negotiated: r.bidder.negotiatedPrice != null, period: periodWords(r.bidder.period), ceiling: ((x) => (x ? evaluationFindingText(x) : null))(recommendedCeilingFault(recommendedPriceOf(r.bidder), ceiling)) })),
     incomplete,
     formed: rec && rb ? { listingNo: rb.listingNo, bidder: rb.bidderName, recommendedPrice: formatMoney(senFromDecimal(rec.price)), period: rec.completionPeriod != null && rec.completionUnit ? periodWords({ value: rec.completionPeriod, unit: rec.completionUnit }) : "Not stated", topRanked: rec.topRanked, justification: rec.justification || null, formedBy: rec.formedBy.name, formedActed: attributed.read({ entity: "Recommendation", id: rec.id, slot: "formedBy" }, rec.formedBy.name).en, formedAt: formatOrgDateTime(rec.formedAt, tz) } : null,
-    savingAmount: sv == null ? null : "sealed" in sv ? "The company estimate is still sealed" : "noEstimate" in sv ? "No company estimate" : `${formatMoney(sv.amount)}${sv.pct != null ? ` (${pctText(sv.pct, 2)})` : ""}`,
-    estimate: "value" in f.estimate ? { label: f.estimate.label ?? "Company estimate", value: formatMoney(f.estimate.value) } : null,
+    // The saving is the estimate less the price: a reader who may not read the estimate may not read it either (the review of Phase 3a).
+    savingAmount: (sv == null ? null : "sealed" in sv ? "The company estimate is still sealed" : "noEstimate" in sv ? "No company estimate" : through(estimateGate!, `${formatMoney(sv.amount)}${sv.pct != null ? ` (${pctText(sv.pct, 2)})` : ""}`)) as Sulit<string> | string | null,
+    estimate: ("value" in f.estimate ? { label: f.estimate.label ?? "Company estimate", value: through(estimateGate!, formatMoney(f.estimate.value)) } : null) as { label: string; value: Sulit<string> } | null,
     form: rec ? { allowed: false as const, reason: "The recommendation is formed." } : allowedOf([...openActFaults({ exerciseStatus: ex.status, state: e.state }), ...incomplete.map((stage): Finding => ({ code: "STAGES_NOT_COMPLETE", level: "block", data: { stage } })), ...(e.meetings.some((m) => !m.closedAt) ? [{ code: "NEGOTIATION_OPEN", level: "block", data: { count: e.meetings.filter((m) => !m.closedAt).length } } as Finding] : []), ...(e.negotiations.some((n) => n.approvalInstance.status === "PENDING") ? [{ code: "NEGOTIATION_PENDING", level: "block" } as Finding] : [])]),
     topId: ranked.find((r) => r.rank === 1)?.bidder.id ?? null,
   };
 
   // ---- the report and the Kertas Cadangan
-  const report = reportFromSnapshot(e.reportSnapshot);
   const issueFaults = reportFaults({
     stagesIncomplete: incomplete,
     recommended: !!rec,
@@ -222,18 +247,33 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
     today: org.today,
     ceiling: rec ? { price: senFromDecimal(rec.price), snapshot: ceiling } : null,
   });
-  const p = e.proposalPaper;
-  const office = (code: string | null | undefined) => (code ? (c.roster.offices.find((o) => o.code === code)?.nameEn ?? "An office no longer configured") : null);
-  const reportView = {
+  // What may be done with the report, judged by findings that name stages and ceilings: held back with the figures.
+  const reportActs = {
     issue: e.state === "OPEN" ? allowedOf([...openActFaults({ exerciseStatus: ex.status, state: e.state }), ...issueFaults]) : { allowed: false as const, reason: "The report is issued." },
-    issued: e.state !== "OPEN" && e.reportReference ? { reference: e.reportReference, issuedAt: e.issuedAt ? formatOrgDateTime(e.issuedAt, tz) : null, issuedBy: e.issuedBy?.name ?? null, stale: e.state === "ISSUED" && reportStale(e.bidders.map((b) => b.openedBidId), c.carried.map((b) => b.id)), annexes: report?.annexes.map((a) => ({ key: a.key, label: a.label })) ?? [], template: report?.text.template.name ?? null } : null,
-    proposal: p
-      ? { frozenAt: formatOrgDateTime(p.frozenAt, tz), checker: office(p.checkerRoleCode), recommender: office(p.recommenderRoleCode), checkedBy: p.checkedBy ? `${p.checkedBy.name}, ${p.checkedOn ? formatDate(storedDay(p.checkedOn)) : ""}` : null, recommendedBy: p.recommendedBy ? `${p.recommendedBy.name}, ${p.recommendedOn ? formatDate(storedDay(p.recommendedOn)) : ""}` : null }
-      : null,
     render: p ? { allowed: false as const, reason: "The Kertas Cadangan is produced." } : allowedOf([...issuedActFaults({ exerciseStatus: ex.status, state: e.state }), ...(c.policy?.proposalTemplate ? [] : [{ code: "TEMPLATE_NOT_SET", level: "block" as const }]), ...(c.policy?.checkerRoleCode ? [] : [{ code: "CHECKER_NOT_SET", level: "block" as const }]), ...(c.policy?.recommenderRoleCode ? [] : [{ code: "RECOMMENDER_NOT_SET", level: "block" as const }])]),
     sign: issuedAct,
   };
 
+  return {
+    bidders,
+    factors,
+    capitalInputs: capitalStages.length > 0,
+    cprInputs: cprStages.length > 0,
+    correct: e.submissions.length ? { allowed: false as const, reason: evaluationFindingText({ code: "CORRECTION_AFTER_SUBMISSION", level: "block" }) } : openAct,
+    stages,
+    sittings,
+    aspects,
+    meetings,
+    negotiations,
+    communications,
+    runningBidders,
+    allBidders: f.bidders.map((b) => ({ value: b.id, label: `No. ${b.listingNo}, ${b.bidderName}` })),
+    recommendation,
+    reportActs,
+  };
+  };
+
+  const gate = gates.evaluation;
   return {
     exerciseId,
     reference: ex.reference,
@@ -246,21 +286,9 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
       decimals: dp,
       act: openAct,
       team,
-      bidders,
-      factors,
-      capitalInputs: capitalStages.length > 0,
-      cprInputs: cprStages.length > 0,
-      correct: e.submissions.length ? { allowed: false as const, reason: evaluationFindingText({ code: "CORRECTION_AFTER_SUBMISSION", level: "block" }) } : openAct,
-      stages,
-      sittings,
-      aspects,
-      meetings,
-      negotiations,
-      communications,
-      runningBidders,
-      allBidders: f.bidders.map((b) => ({ value: b.id, label: `No. ${b.listingNo}, ${b.bidderName}` })),
-      recommendation,
-      report: reportView,
+      report: reportSurface,
+      /// Everything that is read from scores and prices, or that says what was said to a tenderer: built only for a reader the evaluation is open to.
+      detail: gate.state === "GRANTED" ? sulitGranted(await detailOf(), gate.basis) : gate,
     },
   };
 }
@@ -330,5 +358,19 @@ function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: num
 }
 
 export type EvaluationTabView = NonNullable<Awaited<ReturnType<typeof evaluationTabView>>>;
-export type EvaluationCurrent = NonNullable<EvaluationTabView["current"]>;
+/// The surface of a version, which says nothing of a figure, and its detail, which is the evaluation's SULIT content (FR-EVL-014): a `Sulit` of everything the
+/// scores, prices and letters could be read from.
+export type EvaluationSurface = NonNullable<EvaluationTabView["current"]>;
+export type EvaluationDetail = Extract<EvaluationSurface["detail"], { state: "GRANTED" }>["value"];
+/// A version whose detail is open to the reader: what the lists and drawers are drawn from.
+export type EvaluationCurrent = Omit<EvaluationSurface, "detail" | "report"> & Omit<EvaluationDetail, "reportActs"> & { report: EvaluationSurface["report"] & EvaluationDetail["reportActs"] };
 export type StageView = EvaluationCurrent["stages"][number];
+
+/// The version's surface and detail as one, where the detail is open; null where it is withheld.
+export function openDetail(c: EvaluationSurface): EvaluationCurrent | null {
+  if (c.detail.state === "WITHHELD") return null;
+  const { detail, report, ...surface } = c;
+  const { reportActs, ...rest } = c.detail.value;
+  void detail;
+  return { ...surface, ...rest, report: { ...report, ...reportActs } };
+}

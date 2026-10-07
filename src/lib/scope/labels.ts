@@ -52,7 +52,7 @@ export const sealedVersion = (versionNo: number) => `Sealed (version ${versionNo
 
 /// OD-7 and the BQ tab (OD-8).
 export const FIRM_NOT_STATED = "Not stated";
-export const BQ_READABLE_STATEMENT = "Priced rates and totals are readable by anyone with access to the portal; the bill issued to tenderers is unpriced.";
+export const BQ_READABLE_STATEMENT = "Priced rates, amounts and totals are SULIT: they are read by the people named on the exercise and the roles the organisation has chosen, and every reading is logged. The bill issued to tenderers is unpriced.";
 export const NOT_SET = "Not set";
 /// Where a configured value came from (the three-state honesty of AGENTS.md).
 export const PROVENANCE_LABEL: Readonly<Record<"STATED" | "OBSERVED" | "ASSUMED", string>> = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" };

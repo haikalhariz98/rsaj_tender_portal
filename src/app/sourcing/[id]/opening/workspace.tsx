@@ -1,8 +1,8 @@
-import type { Reader } from "@/lib/auth/sulit-store";
 import type { ReactNode } from "react";
 
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
 import { DataList, type Row } from "@/components/data-list";
+import { sulitText } from "@/components/sulit-cell";
 import { InboxIcon, FileIcon, UsersIcon } from "@/components/icons";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -15,7 +15,11 @@ import { openingSection, scheduleSection, type OpeningSectionView, type OpeningV
 import { EXERCISE_NOTE_ID } from "../../editors";
 import { AdjournDrawer, AuthoriseDrawer, CopyExplanationDrawer, FinaliseDrawer, MatchWithdrawalDrawer, RegisterBoxDrawer, ScheduleDetailsDrawer, SignatureDrawer, StartOpeningDrawer, StartSupplementaryDrawer, WithdrawalFindingDrawer } from "./editors";
 import { EnvelopesToOpen, OffersRead } from "./lists";
-import type { OrgScope } from "@/lib/org-scope";
+import type { StaffActor } from "@/lib/auth/types";
+import { sulitExerciseGate } from "@/app/_auth/sulit";
+
+/// What the opening's prices are registered as (`SULIT_FIELDS`): asked together, once.
+export const PRICE_FIELDS = ["openingPrice", "openingPrices", "correctedPrice", "correctedPrices"] as const;
 
 /// The sections of the exercise's "Bids and opening" tab, in order. The strip is the shared Tabs' second level.
 export const BIDS_SECTIONS = [
@@ -57,8 +61,10 @@ const NOT_HERE = (exerciseId: string, what: string) => (
 
 // ------------------------------------------------------------------ the Opening section
 
-export async function loadOpening(scope: OrgScope, exerciseId: string): Promise<OpeningTabView> {
-  const d = await openingSection(scope.organisationId, exerciseId);
+export async function loadOpening(actor: StaffActor, exerciseId: string): Promise<OpeningTabView> {
+  // The prices read at the opening are SULIT (NFR-SEC-002): one answer for the exercise, logged, and every price is held to it.
+  const prices = await sulitExerciseGate(actor, exerciseId, "exercise", PRICE_FIELDS);
+  const d = await openingSection(actor.organisationId, exerciseId, prices);
   if (!d) return { panel: GONE, actions: null, notes: [] };
   if (!d.applies) {
     return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement />{NOT_HERE(exerciseId, "Bids are opened here for an exercise published through its invitation window with tender or quotation documents. This one was not, so its opening is recorded outside the portal.")}</div> };
@@ -262,8 +268,9 @@ function LateCard({ d }: { d: OpeningSectionView }) {
 
 // ------------------------------------------------------------------ the Schedule section
 
-export async function loadSchedule(scope: Reader & { organisationTimeZone: string | null }, exerciseId: string): Promise<OpeningTabView> {
-  const d = await scheduleSection(scope, exerciseId);
+export async function loadSchedule(scope: StaffActor, exerciseId: string): Promise<OpeningTabView> {
+  const prices = await sulitExerciseGate(scope, exerciseId, "exercise", PRICE_FIELDS);
+  const d = await scheduleSection(scope, exerciseId, prices);
   if (!d) return { panel: GONE, actions: null, notes: [] };
   return { actions: null, notes: [], panel: <SchedulePanel d={d} /> };
 }
@@ -287,7 +294,7 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
     cells: {
       listing: { kind: "text", text: `No. ${r.listingNo}` },
       bidder: { kind: "stack", title: r.bidderName, sub: [r.registrationClass, r.registrationStatus, r.alternative].filter(Boolean).join(" · ") || undefined },
-      openingPrice: { kind: "text", text: r.openingPrice },
+      openingPrice: sulitText(r.openingPrice),
       period: { kind: "text", text: r.period },
     },
   }));
@@ -297,7 +304,7 @@ function ScheduleCard({ d, o }: { d: ScheduleSectionView; o: ScheduleSectionView
     cells: {
       listing: { kind: "text", text: `No. ${r.listingNo}` },
       bidder: { kind: "text", text: r.bidderName },
-      openingPrice: { kind: "text", text: r.openingPrice },
+      openingPrice: sulitText(r.openingPrice),
       label: { kind: "badge", text: r.label, tone: r.lowest ? "brand" : r.qualified ? "ok" : undefined },
     },
   }));

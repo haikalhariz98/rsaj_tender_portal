@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { OwnerDocumentsButton } from "@/components/attachments/owner-documents-button";
 import { ClipboardIcon, ClockIcon, FileIcon, InboxIcon, ShieldIcon } from "@/components/icons";
-import { Badge, Chip } from "@/components/ui/badge";
+import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -15,7 +15,8 @@ import { FromBadge, GONE, SETTINGS_HREF } from "../window/common";
 
 import { ApplyExtensionDrawer, BidAnswersDrawer, ExtensionDrawer, LockBoxDrawer, ReceiveLaterDrawer, ReceiveNowDrawer, TableLateDrawer, WithdrawalDrawer } from "./editors";
 import { EnvelopeList } from "./envelope-list";
-import type { OrgScope } from "@/lib/org-scope";
+import type { StaffActor } from "@/lib/auth/types";
+import { sulitExerciseGate } from "@/app/_auth/sulit";
 
 /// What the page puts in its header for the tab (the acts it asks for, the reasons others are disabled) and the panel.
 export interface BidsView {
@@ -31,8 +32,8 @@ const EARLY = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDER
  * is the tab being looked at. Every act is judged by the rule its action runs; a disabled one says
  * why in the header's note. There is no Delete and no Reject anywhere.
  */
-export async function loadBids(scope: OrgScope, exerciseId: string, status: string): Promise<BidsView> {
-  const d = await bidsTab(scope.organisationId, exerciseId);
+export async function loadBids(scope: StaffActor, exerciseId: string, status: string): Promise<BidsView> {
+  const d = await bidsTab(scope.organisationId, exerciseId, await sulitExerciseGate(scope, exerciseId, "exercise", ["letterQuote"]));
   if (!d) return { panel: GONE, actions: null, notes: [] };
   if (EARLY.includes(status) && d.rows.length === 0) {
     return {
@@ -205,12 +206,12 @@ function WithdrawalsCard({ d }: { d: BidsTab }) {
             <div className="min-w-0">
               <div className="text-[13.5px] font-semibold break-words text-ink">{w.envelope}</div>
               <div className="text-[12.5px] break-words text-ink-3">{`Received ${w.received} · ${w.receivedBy}`}</div>
-              <div className="text-[12.5px] break-words text-ink-2">{`Quoted from the letter: “${w.markings}”`}</div>
+              <div className="text-[12.5px] break-words text-ink-2">Quoted from the letter: <SulitValue of={w.markings.state === "GRANTED" ? { ...w.markings, value: `“${w.markings.value}”` } : w.markings} /></div>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
               <Chip tone={w.letter === "Attached" ? "ok" : "warn"}>{`Letter: ${w.letter.toLowerCase()}`}</Chip>
               <Chip tone="neutral" title={WITHDRAWAL_SULIT_LABEL}>{WITHDRAWAL_SULIT_LABEL}</Chip>
-              <OwnerDocumentsButton owner={{ kind: "bidWithdrawal", id: w.id }} label={w.label} title="Withdrawal letter" subtitle="The bidder's letter, held SULIT: listed, not opened in the portal until sign-in." options={{ only: ["WITHDRAWAL_LETTER"] }} />
+              <OwnerDocumentsButton owner={{ kind: "bidWithdrawal", id: w.id }} label={w.label} title="Withdrawal letter" subtitle="The bidder's letter, held SULIT: opened by the people the exercise is open to, and each opening is logged." options={{ only: ["WITHDRAWAL_LETTER"] }} />
             </div>
           </li>
         ))}

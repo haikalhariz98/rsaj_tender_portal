@@ -7,6 +7,8 @@ import { BqSection } from "./bq-section";
 import { EstimateSection } from "./estimate-section";
 import { ScopeSection } from "./scope-section";
 import { requireStaff } from "@/app/_auth/actor";
+import { sulitExerciseGate } from "@/app/_auth/sulit";
+import { BQ_FIELDS } from "@/lib/scope/bq-fields";
 
 const GONE = (
   <Card>
@@ -23,7 +25,8 @@ export async function ScopeWorkspace({ exerciseId, section }: { exerciseId: stri
   // Whose records: the signed-in person's organisation (ADR 0034 D10). The page has already asked; the read is cached per request.
   const scope = await requireStaff();
   if (section === "bq") {
-    const d = await bqTab(scope.organisationId, exerciseId);
+    // The priced bill is SULIT (6.2 OD-8, Phase 3b): one answer for the exercise, logged, and every rate, amount and total is held to it.
+    const d = await bqTab(scope.organisationId, exerciseId, await sulitExerciseGate(scope, exerciseId, "exercise", BQ_FIELDS));
     return d ? <BqSection d={d} /> : GONE;
   }
   if (section === "estimate") {

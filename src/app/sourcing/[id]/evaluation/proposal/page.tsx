@@ -4,18 +4,21 @@ import { notFound } from "next/navigation";
 import { PrintButton } from "@/app/awards/[id]/print/[kind]/print-button";
 import { PrinterIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
-import { Chip } from "@/components/ui/badge";
+import { SulitTag, SulitWithheld } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { db } from "@/lib/db";
 import { storedDay } from "@/lib/dates";
-import { SULIT_CHIP } from "@/lib/evaluation/labels";
+import { reportFromSnapshot } from "@/lib/evaluation/report";
+import { ESTIMATE_WITHHELD_WORDS, statesEstimateFigures } from "@/lib/evaluation/report-view";
+import { estimateCustodyForHistory } from "@/lib/opening/read";
+import { fieldsOfScope } from "@/lib/sulit-fields";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 import { requireStaff } from "@/app/_auth/actor";
-import { exerciseIsHidden } from "@/app/_auth/sulit";
+import { exerciseIsHidden, sulitGate } from "@/app/_auth/sulit";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +36,7 @@ export default async function ProposalPrint(props: PageProps<"/sourcing/[id]/eva
   const ex = await db.sourcingExercise.findFirst({ where: { id, organisationId: org.id }, select: { id: true, reference: true } });
   if (!ex) notFound();
   const back = `/sourcing/${id}?tab=evaluation&section=report`;
-  const p = await db.proposalPaper.findFirst({ where: { evaluation: { exerciseId: id } }, orderBy: { frozenAt: "desc" }, include: { checkedBy: { select: { name: true } }, recommendedBy: { select: { name: true } }, evaluation: { select: { version: true, state: true, reportReference: true } } } });
+  const p = await db.proposalPaper.findFirst({ where: { evaluation: { exerciseId: id } }, orderBy: { frozenAt: "desc" }, include: { checkedBy: { select: { name: true } }, recommendedBy: { select: { name: true } }, evaluation: { select: { version: true, state: true, reportReference: true, reportSnapshot: true } } } });
   if (!p) {
     return (
       <>
@@ -47,6 +50,12 @@ export default async function ProposalPrint(props: PageProps<"/sourcing/[id]/eva
       </>
     );
   }
+  // FR-EVL-014: the paper is the evaluation's recommendation, read by those the evaluation is open to. Its text was rendered with the saving against the company
+  // estimate merged in, so where the report states one, the text is read by those in the estimate's custody (see `reportForReader`).
+  const gate = await sulitGate(actor, { scope: "evaluation", id, label: ex.reference }, fieldsOfScope("evaluation"));
+  const report = reportFromSnapshot(p.evaluation.reportSnapshot);
+  const estimateAccess = gate.state === "GRANTED" && report && statesEstimateFigures(report) ? await estimateCustodyForHistory(actor, id) : null;
+  const textWithheld = gate.state === "WITHHELD" ? gate.words.en : report && statesEstimateFigures(report) && estimateAccess?.state !== "GRANTED" ? `The paper states the saving against the company estimate, so it is withheld from you. ${ESTIMATE_WITHHELD_WORDS}` : null;
   const roles = await db.authorityRole.findMany({ where: { organisationId: org.id, code: { in: [p.checkerRoleCode, p.recommenderRoleCode] } }, select: { code: true, nameEn: true } });
   const office = (code: string) => roles.find((r) => r.code === code)?.nameEn ?? "An office no longer configured";
   return (
@@ -60,8 +69,15 @@ export default async function ProposalPrint(props: PageProps<"/sourcing/[id]/eva
         {p.evaluation.state === "ISSUED" ? `Frozen ${formatOrgDateTime(p.frozenAt, org.timeZone)} from report ${p.evaluation.reportReference}.` : `Produced from version ${p.evaluation.version}'s report, which no longer stands.`}
       </Callout>
       <article className="mx-auto max-w-[900px] rounded-card border border-line bg-surface px-6 py-10 shadow-card sm:px-12 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
-        <p className="mb-4 flex flex-wrap items-center gap-2 text-[12px] text-ink-3"><Chip tone="err">{SULIT_CHIP}</Chip></p>
-        <div className="text-[13.5px] whitespace-pre-line text-ink">{p.renderedText}</div>
+        <p className="mb-4 flex flex-wrap items-center gap-2 text-[12px] text-ink-3"><SulitTag /></p>
+        {textWithheld ? (
+          <div className="flex flex-col gap-2 text-[13.5px] text-ink-3">
+            <SulitWithheld words={textWithheld} />
+            <p>{textWithheld}</p>
+          </div>
+        ) : (
+          <div className="text-[13.5px] whitespace-pre-line text-ink">{p.renderedText}</div>
+        )}
         <dl className="mt-10 grid gap-x-8 gap-y-4 text-[13.5px] sm:grid-cols-2">
           <div className="flex flex-col">
             <dt className="text-[12px] text-ink-3">{`Checked by (${office(p.checkerRoleCode)})`}</dt>

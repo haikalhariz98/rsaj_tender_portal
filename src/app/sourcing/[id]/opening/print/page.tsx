@@ -4,16 +4,16 @@ import { notFound } from "next/navigation";
 import { PrintButton } from "@/app/awards/[id]/print/[kind]/print-button";
 import { PrinterIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
-import { Chip, SulitValue } from "@/components/ui/badge";
+import { SulitTag, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
-import { VALUE_SULIT_LABEL } from "@/lib/documents/labels";
 import { scheduleSection } from "@/lib/opening/read";
 import { requireStaff } from "@/app/_auth/actor";
-import { exerciseIsHidden } from "@/app/_auth/sulit";
+import { exerciseIsHidden, sulitExerciseGate } from "@/app/_auth/sulit";
+import { PRICE_FIELDS } from "../workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
   // FR-MTD-007: an exercise restricted to its named people reads as one that does not exist to anyone else, and the attempt is logged.
   if (await exerciseIsHidden(actor, id)) notFound();
   const wanted = (await props.searchParams).opening;
-  const d = await scheduleSection(actor, id);
+  const d = await scheduleSection(actor, id, await sulitExerciseGate(actor, id, "exercise", PRICE_FIELDS));
   if (!d) notFound();
   const back = `/sourcing/${id}?tab=bids&section=schedule`;
   const o = d.openings.find((x) => x.id === wanted) ?? d.openings[0] ?? null;
@@ -76,7 +76,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
           ))}
         </dl>
         <p className="mb-2 flex flex-wrap items-center gap-2 text-[12px] text-ink-3">
-          Prices as read <Chip tone="err">{VALUE_SULIT_LABEL}</Chip>
+          Prices as read <SulitTag />
         </p>
         <Table>
           <THead>
@@ -97,7 +97,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
                 <Td label="Bil.">{r.listingNo}</Td>
                 <Td label="Bidder">{r.alternative ? `${r.bidderName} (${r.alternative.toLowerCase()})` : r.bidderName}</Td>
                 <Td label="Class and status">{[r.registrationClass, r.registrationStatus].filter(Boolean).join(" · ") || "—"}</Td>
-                <Td numeric label="Price as read">{r.openingPrice}</Td>
+                <Td numeric label="Price as read"><SulitValue of={r.openingPrice} /></Td>
                 <Td label="Completion period">{r.period}</Td>
               </Tr>
             ))}
@@ -127,7 +127,7 @@ export default async function OpeningPrintPage(props: PageProps<"/sourcing/[id]/
                   <Tr key={r.listingNo}>
                     <Td label="Bil.">{r.listingNo}</Td>
                     <Td label="Bidder">{r.bidderName}</Td>
-                    <Td numeric label="Price as read">{r.openingPrice}</Td>
+                    <Td numeric label="Price as read"><SulitValue of={r.openingPrice} /></Td>
                     <Td label="At the opening">{r.label}</Td>
                   </Tr>
                 ))}

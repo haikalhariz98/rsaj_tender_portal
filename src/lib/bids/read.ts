@@ -6,6 +6,7 @@
  */
 
 import { loadAttributions } from "@/lib/auth/attribution-read";
+import { through, type Sulit } from "@/lib/auth/sulit-access";
 import { ACT_LABEL } from "@/lib/labels";
 import { checkTabling, secretariatHoldersOn } from "@/lib/committee/tabling";
 import { TABLING_FAULT_MESSAGE } from "@/lib/committee/labels";
@@ -39,7 +40,8 @@ type Allowed = { allowed: true } | { allowed: false; reason: string };
 const allowed = (fs: readonly Finding[]): Allowed => (blocking(fs).length ? { allowed: false, reason: blocking(fs).map(bidFindingText).join(" ") } : { allowed: true });
 const PROVENANCE_WORD = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" } as const;
 
-export async function bidsTab(organisationId: string, exerciseId: string) {
+/// `quote` is the caller's one answer for the exercise's withdrawal letters' quoted words (`letterQuote`, 6.6 CR-4): they are held to it.
+export async function bidsTab(organisationId: string, exerciseId: string, quote: Sulit<true>) {
   const org = await exerciseOrg(organisationId);
   if (!org) return null;
   const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, organisationId: true, reference: true, title: true, status: true, closingAt: true, sourcingMethodCode: true, packKindSnapshot: true } });
@@ -203,7 +205,7 @@ export async function bidsTab(organisationId: string, exerciseId: string) {
       return {
         id: w.id,
         received: time(w.receivedAt),
-        markings: w.markings,
+        markings: through(quote, w.markings),
         receivedBy: attributed.read({ entity: "BidWithdrawal", id: w.id, slot: "receivedBy" }, w.receivedBy.name).en,
         envelope: w.envelope ? `Envelope ${w.envelope.sequence}` : "In the tender box: matched at opening, and not opened",
         letter: letters > 0 ? "Attached" : "Not attached",

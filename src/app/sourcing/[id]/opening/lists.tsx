@@ -1,5 +1,6 @@
 "use client";
 
+import { sulitCell } from "@/components/sulit-cell";
 import { DataList, type Row } from "@/components/data-list";
 import type { OpeningView } from "@/lib/opening/read";
 
@@ -72,7 +73,7 @@ export function OffersRead({ exerciseId, o }: { exerciseId: string; o: OpeningVi
     cells: {
       listing: { kind: "stack", title: `No. ${b.listingNo}`, sub: b.envelope },
       bidder: { kind: "stack", title: b.bidder, sub: [b.registration, b.alternative].filter(Boolean).join(" · ") || undefined },
-      openingPrice: { kind: "stack", title: b.openingPrice, sub: `${b.period} · validity ${b.validity}` },
+      openingPrice: sulitCell(b.openingPrice, (title) => ({ kind: "stack", title, sub: `${b.period} · validity ${b.validity}` })),
       findings: {
         kind: "chips",
         items: [

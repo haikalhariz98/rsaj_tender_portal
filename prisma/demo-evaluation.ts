@@ -31,7 +31,7 @@ import { formatDate } from "../src/lib/format";
 import { parseSen, senFromDecimal, senToDecimalString } from "../src/lib/money";
 import { calendarOf } from "./demo-window";
 import { DEMO_ACTOR } from "./demo-actor";
-import { demoOrgId } from "./demo-org";
+import { demoOrgId, loaderGate } from "./demo-org";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -971,11 +971,13 @@ async function tableAppointment(db: Db, organisationId: string, tz: string, entr
 // ------------------------------------------------------------------ the read-back (X-10 b)
 
 export async function checkEvaluationDemo(db: Db) {
-  const { evaluationTabView } = await import("../src/lib/evaluation/read");
+  const { evaluationTabView, openDetail } = await import("../src/lib/evaluation/read");
+  // The loader reads its own seed back to check it (it is not a screen and shows nothing to anyone): the evaluation is open to it here, and no estimate is asked.
+  const operator = { evaluation: await loaderGate(), estimate: async () => null };
   const { loadEvaluationGate } = await import("../src/lib/evaluation/gate-read");
   const { evaluationGateFaults } = await import("../src/lib/evaluation/award-gate");
-  const v = (await evaluationTabView(await demoOrgId(), `${P}sx16`)) ?? fail("sx16 did not load");
-  const cur = v.current ?? fail("sx16 has no evaluation");
+  const v = (await evaluationTabView(await demoOrgId(), `${P}sx16`, operator)) ?? fail("sx16 did not load");
+  const cur = openDetail(v.current ?? fail("sx16 has no evaluation")) ?? fail("sx16's evaluation was withheld from the loader");
   if (cur.state !== "Report issued") fail("sx16's report is not issued");
   if (cur.recommendation.ranked[0]?.listingNo !== 1) fail("sx16's top-ranked bid is not No. 1");
   const g = await loadEvaluationGate(`${P}sx16`);
@@ -989,8 +991,8 @@ export async function checkEvaluationDemo(db: Db) {
   const published = await db.exerciseWindow.count({ where: { exerciseId: demoRef, publishedAt: { not: null } } });
   if (pinned !== published) fail(`${published} demo exercises are published but ${pinned} pinned a model`);
   // sx21: the quotation (67-C3) mid-evaluation: open, two shortlisted, a clarification closed, a negotiation refused.
-  const q = (await evaluationTabView(await demoOrgId(), QUOTATION)) ?? fail("sx21 did not load");
-  const qc = q.current ?? fail("sx21 has no evaluation");
+  const q = (await evaluationTabView(await demoOrgId(), QUOTATION, operator)) ?? fail("sx21 did not load");
+  const qc = openDetail(q.current ?? fail("sx21 has no evaluation")) ?? fail("sx21's evaluation was withheld from the loader");
   if (qc.state === "Report issued") fail("sx21's report should not be issued");
   if (qc.meetings.length !== 1 || !qc.meetings[0].closed || qc.meetings[0].confirmations !== 1) fail("sx21's clarification is not closed with its confirmation");
   if (qc.negotiations.length !== 1 || qc.negotiations[0].status !== "REJECTED") fail("sx21's negotiation request is not refused");

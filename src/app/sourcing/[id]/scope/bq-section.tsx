@@ -1,7 +1,7 @@
 import { Accordion } from "@/components/accordion";
 import { DataList } from "@/components/data-list";
 import { ClipboardIcon, FileIcon, FilesIcon, ScaleIcon, ShieldIcon, SlidersIcon, ToolsIcon } from "@/components/icons";
-import { Badge, Chip } from "@/components/ui/badge";
+import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues, Stat } from "@/components/ui/stat";
@@ -20,8 +20,8 @@ const dash = (t: string) => (t === "Not set" ? "—" : t);
 /**
  * Bill of quantities: manual entry in increment 1 (CSV comes with increment 2). Amounts
  * and totals are worked out by the domain layer from quantities and rates; this screen
- * asks and renders. The bill is not SULIT: its rates and totals are readable by anyone
- * who can reach the portal, and the callout says so.
+ * asks and renders. The priced bill is SULIT (Phase 3b): its rates, amounts and totals are read
+ * by the people named on the exercise and the roles the organisation has chosen, and the callout says so.
  */
 export function BqSection({ d }: { d: Data }) {
   const exerciseId = d.exercise.id;
@@ -31,7 +31,7 @@ export function BqSection({ d }: { d: Data }) {
   if (!v) {
     return (
       <div className="flex flex-col gap-6">
-        <Callout tone="neutral" title="Readable by anyone with access">{d.statement}</Callout>
+        <Callout tone="neutral" title="Priced figures are SULIT">{d.statement}</Callout>
         <Card>
           <CardHeader icon={<ScaleIcon size={17} />} title="Bill of quantities" subtitle="Sections of measured work, prime cost sums and provisional sums, each priced from a quantity and a rate." />
           <EmptyState size="sm" title="No bill of quantities yet" action={<StartBqDrawer exerciseId={exerciseId} templates={d.options.templates} allowed={d.actions.start} />}>
@@ -49,7 +49,7 @@ export function BqSection({ d }: { d: Data }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Callout tone="neutral" title="Readable by anyone with access">{d.statement}</Callout>
+      <Callout tone="neutral" title="Priced figures are SULIT">{d.statement}</Callout>
       {d.finalised && draft && (
         <Callout tone="info">Version {d.finalised.versionNo} is finalised and stands until this draft is finalised.</Callout>
       )}
@@ -89,8 +89,7 @@ export function BqSection({ d }: { d: Data }) {
                   allowed={d.actions.finalise}
                   summary={[
                     ["Lines", String(v.stats.lines)],
-                    ["Total", v.stats.total],
-                    ["Firm value", v.stats.firmValue],
+                    ...(v.totals.state === "GRANTED" ? ([["Total", v.totals.value.total], ["Firm value", v.totals.value.firmValue]] as [string, string][]) : ([["Total", "SULIT · withheld"]] as [string, string][])),
                     ["Standard", `${v.header.standard}, followed: ${v.header.followsStandard}`],
                     ["Prepared by", v.header.preparer],
                   ]}
@@ -169,8 +168,8 @@ export function BqSection({ d }: { d: Data }) {
                         </Td>
                         <Td label="Unit" className="text-ink-2">{i.unit || "—"}</Td>
                         <Td label="Quantity" numeric>{dash(i.quantity)}</Td>
-                        <Td label="Rate (RM)" numeric>{dash(i.rate)}</Td>
-                        <Td label="Amount (RM)" numeric className="font-semibold text-ink">{dash(i.amount)}</Td>
+                        <Td label="Rate (RM)" numeric>{i.rate.state === "GRANTED" ? dash(i.rate.value) : <SulitValue of={i.rate} />}</Td>
+                        <Td label="Amount (RM)" numeric className="font-semibold text-ink">{i.amount.state === "GRANTED" ? dash(i.amount.value) : <SulitValue of={i.amount} />}</Td>
                         {editable && (
                           <Td>
                             <RowActions>
@@ -198,11 +197,17 @@ export function BqSection({ d }: { d: Data }) {
         <div className="flex flex-col gap-6 p-5">
           <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
             <Stat label="Lines" value={v.stats.lines} hint={v.stats.incompleteLines > 0 ? `${v.stats.incompleteLines} not complete yet` : "All have a quantity or a sum, and a rate"} tone={v.stats.incompleteLines > 0 ? "warn" : "brand"} icon={<ClipboardIcon size={16} />} />
-            <Stat label="Total" value={v.stats.total} hint={`Builders' works ${v.stats.buildersWorks}`} icon={<ScaleIcon size={16} />} />
-            <Stat label="Firm value" value={dash(v.stats.firmValue)} hint={v.header.provisionalLeftOut === "Not stated" ? "Not stated: whether provisional quantities are left out is not said" : `Provisional quantities ${v.header.provisionalLeftOut === "Yes" ? "left out" : "counted in"}`} tone={v.stats.firmValue === "Not stated" ? "warn" : "brand"} icon={<ShieldIcon size={16} />} />
-            <Stat label="Provisional quantities" value={v.stats.provisionalQuantities} hint={`${v.stats.provisionalShare} of the total`} icon={<SlidersIcon size={16} />} />
-            <Stat label="Prime cost sums" value={v.stats.primeCostSums} icon={<FilesIcon size={16} />} />
-            <Stat label="Provisional sums" value={v.stats.provisionalSums} icon={<ToolsIcon size={16} />} />
+            {v.totals.state === "GRANTED" ? (
+              <>
+                <Stat label="Total" value={v.totals.value.total} hint={`Builders' works ${v.totals.value.buildersWorks}`} icon={<ScaleIcon size={16} />} />
+                <Stat label="Firm value" value={dash(v.totals.value.firmValue)} hint={v.header.provisionalLeftOut === "Not stated" ? "Not stated: whether provisional quantities are left out is not said" : `Provisional quantities ${v.header.provisionalLeftOut === "Yes" ? "left out" : "counted in"}`} tone={v.totals.value.firmValue === "Not stated" ? "warn" : "brand"} icon={<ShieldIcon size={16} />} />
+                <Stat label="Provisional quantities" value={v.totals.value.provisionalQuantities} hint={`${v.totals.value.provisionalShare} of the total`} icon={<SlidersIcon size={16} />} />
+                <Stat label="Prime cost sums" value={v.totals.value.primeCostSums} icon={<FilesIcon size={16} />} />
+                <Stat label="Provisional sums" value={v.totals.value.provisionalSums} icon={<ToolsIcon size={16} />} />
+              </>
+            ) : (
+              <Stat label="Totals" value={<SulitValue of={v.totals} />} hint="The bill's total and the sums that make it up are SULIT." icon={<ScaleIcon size={16} />} />
+            )}
           </div>
 
           <Card>

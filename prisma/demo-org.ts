@@ -30,3 +30,11 @@ export async function demoReader() {
   const org = await deploymentOrganisation();
   return { ...scope, personId: "", isAdministrator: false, system: { label: "demo loader" }, sessionId: "", sourceAddress: null, organisationTimeZone: org?.timeZone ?? null };
 }
+
+/// For a loader's read-back of its own seed (a check that the load did what it says, never a screen): the answer a screen would be handed after asking whether the
+/// reader may read a record's SULIT values. A loader is not a person and is shown no value by the product's rule; here it reads its own rows, to check them, and
+/// nothing is displayed or sent. The basis is the nearest honest one and is never read.
+export async function loaderGate() {
+  const { sulitGranted } = await import("../src/lib/auth/sulit-access");
+  return sulitGranted(true as const, "NAMED_ON_RECORD");
+}

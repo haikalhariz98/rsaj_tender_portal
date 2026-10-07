@@ -93,11 +93,10 @@ export const PHASE_TONE: Readonly<Record<EvaluationPhase, "brand" | "ok" | "warn
   CANCELLED: "neutral",
 };
 
-/// What the evaluation's figures and records are (E-3): said beside every one.
-export const SULIT_CHIP = "SULIT · not restricted until sign-in";
+/// What the evaluation's figures and records are (E-3, FR-EVL-014): said at the head of the tab.
 export const EVALUATION_STATEMENT = {
   title: "Evaluation records are SULIT",
-  body: "Nobody signs in yet, so the portal cannot restrict who reads them; they are kept off every list, the dashboard and search. Uploaded evidence cannot be downloaded until sign-in: print the report to table it.",
+  body: "They are read by the team appointed to the evaluation, by the people named on the exercise and by the roles the organisation has chosen, and by no one else. Every reading, shown or refused, is logged. Uploaded evidence is downloaded by the same people, and each download is logged. They are kept off every list, the dashboard and search.",
 };
 
 const side = (d: Finding["data"]) => (d?.side ? SIDE_LABEL[d.side as Side]?.toLowerCase() : null) ?? "that side";

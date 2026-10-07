@@ -1,18 +1,24 @@
 import type { ReactNode } from "react";
 
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
-import { FileIcon, SlidersIcon, UsersIcon } from "@/components/icons";
-import { Badge, Chip } from "@/components/ui/badge";
+import { FileIcon, ShieldIcon, SlidersIcon, UsersIcon } from "@/components/icons";
+import { Badge, Chip, SulitTag, SulitValue } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
-import { EVALUATION_STATEMENT, SULIT_CHIP } from "@/lib/evaluation/labels";
-import { evaluationTabView, type EvaluationCurrent, type EvaluationTabView } from "@/lib/evaluation/read";
+import { EVALUATION_STATEMENT } from "@/lib/evaluation/labels";
+import { evaluationTabView, openDetail, type EvaluationCurrent, type EvaluationSurface, type EvaluationTabView } from "@/lib/evaluation/read";
+import { sulitGate } from "@/app/_auth/sulit";
+import { estimateCustodyForHistory } from "@/lib/opening/read";
+import { mapSulit } from "@/lib/auth/sulit-access";
+import { db } from "@/lib/db";
+import { SulitWithheld } from "@/components/ui/badge";
+import { fieldsOfScope } from "@/lib/sulit-fields";
+import type { StaffActor } from "@/lib/auth/types";
 
 import { AppointMemberDrawer, IssueReportDrawer, LogCommunicationDrawer, OpenMeetingDrawer, ProposalSignerDrawer, RecommendDrawer, RenderProposalDrawer, RequestNegotiationDrawer, ShortlistDrawer, StartEvaluationDrawer, SubmitStageDrawer } from "./editors";
 import { AspectsList, BiddersList, CommunicationsList, MeetingsList, NegotiationsList, RankingList, StageList } from "./lists";
-import type { OrgScope } from "@/lib/org-scope";
 
 /// The sections of the exercise's Evaluation tab, in order (plan §5). The strip is the shared Tabs' second level.
 export const EVALUATION_SECTIONS = [
@@ -32,7 +38,6 @@ export interface EvaluationTabPanel {
   notes: [string, string][];
 }
 
-const Sulit = () => <Chip tone="err">{SULIT_CHIP}</Chip>;
 
 function Statement() {
   return (
@@ -47,8 +52,16 @@ function Statement() {
  * Before the opening is finalised it says where the evaluation opens; an exercise published before
  * models existed says it is never evaluated here and names the exit.
  */
-export async function loadEvaluationTab(scope: OrgScope, exerciseId: string, section: EvaluationSectionId): Promise<EvaluationTabPanel> {
-  const v = await evaluationTabView(scope.organisationId, exerciseId);
+export async function loadEvaluationTab(actor: StaffActor, exerciseId: string, section: EvaluationSectionId): Promise<EvaluationTabPanel> {
+  const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: actor.organisationId }, select: { reference: true } });
+  // FR-EVL-014: the evaluation is one record read by its team and those named on the exercise, and by whoever the organisation has chosen. One answer, logged, for the
+  // whole version; nothing the figures could be read from is built for a reader it is refused to.
+  const gate = await sulitGate(actor, { scope: "evaluation", id: exerciseId, label: ex?.reference ?? "" }, fieldsOfScope("evaluation"));
+  const v = await evaluationTabView(actor.organisationId, exerciseId, {
+    evaluation: gate,
+    // The saving and the estimate are the company estimate's own: judged by its custody (FR-EST-008), through the one logged access.
+    estimate: async () => mapSulit(await estimateCustodyForHistory(actor, exerciseId), () => true as const),
+  });
   if (!v) return { panel: <Card><EmptyState title="This exercise could not be found">Its organisation may no longer be configured.</EmptyState></Card>, actions: null, notes: [] };
   const h = v.header;
   if (!h.applies) {
@@ -76,9 +89,38 @@ export async function loadEvaluationTab(scope: OrgScope, exerciseId: string, sec
       ),
     };
   }
-  const c = v.current;
+  const c = openDetail(v.current);
+  // Refused: the surface of the version is shown (its state, its team, the report's reference) and the evaluation's content is not, with the reason in words.
+  if (!c) {
+    const d = v.current.detail;
+    return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement /><Withheld v={v} s={v.current} words={d.state === "WITHHELD" ? d.words.en : ""} /></div> };
+  }
   const body = section === "overview" ? <Overview v={v} c={c} /> : section === "stages" ? <Stages v={v} c={c} /> : section === "aspects" ? <Aspects v={v} c={c} /> : section === "meetings" ? <Meetings v={v} c={c} /> : section === "recommendation" ? <Recommendation v={v} c={c} /> : <Report v={v} c={c} />;
   return { actions, notes: startNote, panel: <div className="flex flex-col gap-6"><Statement />{body}</div> };
+}
+
+/// The evaluation as a reader it is withheld from sees it: where it stands and who is on the team, and in place of the bids, scores, prices and letters the lock with
+/// the reason. No count of bids, no ranking and no name of a bidder is given: those are read from the evaluation.
+function Withheld({ v, s, words }: { v: EvaluationTabView; s: EvaluationSurface; words: string }) {
+  return (
+    <>
+      <ModelCard v={v} />
+      <Card>
+        <CardHeader title={`Version ${s.version}`} subtitle={s.open ? "In progress." : s.state} actions={<Badge tone={s.open ? "brand" : "ok"}>{s.state}</Badge>} />
+        <CardBody>
+          <KeyValues columns={2} items={s.team.map((t) => ({ label: t.label, value: t.members.length ? t.members.map((m) => m.name).join("; ") : <Badge tone="warn">Nobody appointed</Badge> }))} />
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader icon={<ShieldIcon size={17} />} title="The evaluation" subtitle="Scores, prices, the ranking, what was said to a tenderer and the recommendation are SULIT." />
+        <CardBody>
+          <SulitWithheld words={words} />
+          <p className="mt-2 text-[13px] text-ink-3">{words}</p>
+          {s.report.issued && <p className="mt-2 text-[13px] text-ink-3">{`The report is issued as ${s.report.issued.reference}.`}</p>}
+        </CardBody>
+      </Card>
+    </>
+  );
 }
 
 function ModelCard({ v }: { v: EvaluationTabView }) {
@@ -120,12 +162,12 @@ function Overview({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
         </CardBody>
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader title="The bids evaluated" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Carried from the opening. A price is corrected only before the first stage is submitted. <Sulit /></span>} />
+        <CardHeader title="The bids evaluated" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Carried from the opening. A price is corrected only before the first stage is submitted. <SulitTag /></span>} />
         <BiddersList exerciseId={v.exerciseId} c={c} people={v.header.people} />
       </Card>
       {c.cprInputs &&
         c.bidders.filter((b) => !b.excluded).map((b) => (
-          <OwnerAttachments key={b.id} owner={{ kind: "evaluationBidder", id: b.id }} only={["CPR_REPORT"]} title={`Contractor performance report, bid No. ${b.listingNo}`} subtitle="The percentage is entered from this report, not from a register. SULIT: not downloadable until sign-in." />
+          <OwnerAttachments key={b.id} owner={{ kind: "evaluationBidder", id: b.id }} only={["CPR_REPORT"]} title={`Contractor performance report, bid No. ${b.listingNo}`} subtitle="The percentage is entered from this report, not from a register. SULIT: downloadable to the people the evaluation is open to, and every download is logged." />
         ))}
     </>
   );
@@ -170,7 +212,7 @@ function Meetings({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
   return (
     <>
       <Card className="overflow-hidden">
-        <CardHeader title="Clarifications and negotiations" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Each held, then closed on its minutes and the tenderer&apos;s written confirmation. <Sulit /></span>} actions={c.open ? <OpenMeetingDrawer exerciseId={v.exerciseId} bidders={c.allBidders} people={v.header.people} allowed={c.recommendation.formed ? { allowed: false, reason: "The recommendation is formed: no meeting after it." } : c.act} /> : undefined} />
+        <CardHeader title="Clarifications and negotiations" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Each held, then closed on its minutes and the tenderer&apos;s written confirmation. <SulitTag /></span>} actions={c.open ? <OpenMeetingDrawer exerciseId={v.exerciseId} bidders={c.allBidders} people={v.header.people} allowed={c.recommendation.formed ? { allowed: false, reason: "The recommendation is formed: no meeting after it." } : c.act} /> : undefined} />
         <MeetingsList exerciseId={v.exerciseId} c={c} people={v.header.people} />
       </Card>
       {c.meetings.map((m) => (
@@ -181,7 +223,7 @@ function Meetings({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
         <NegotiationsList exerciseId={v.exerciseId} c={c} people={v.header.people} today={v.header.today} />
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader title="Letters, emails and faxes" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Recorded, never sent from here. <Sulit /></span>} actions={c.open ? <LogCommunicationDrawer exerciseId={v.exerciseId} bidders={c.allBidders} people={v.header.people} allowed={c.act} /> : undefined} />
+        <CardHeader title="Letters, emails and faxes" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Recorded, never sent from here. <SulitTag /></span>} actions={c.open ? <LogCommunicationDrawer exerciseId={v.exerciseId} bidders={c.allBidders} people={v.header.people} allowed={c.act} /> : undefined} />
         <CommunicationsList c={c} />
       </Card>
     </>
@@ -193,12 +235,12 @@ function Recommendation({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }
   return (
     <>
       <Card className="overflow-hidden">
-        <CardHeader title="The bids in the running, ranked" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.composite ? `By ${r.composite}, highest first; a tie by the lower price.` : "By evaluated price, lowest first."} <Sulit /></span>} actions={c.open && !r.formed ? <RecommendDrawer exerciseId={v.exerciseId} bidders={r.ranked.map((x) => ({ value: x.id, label: `Rank ${x.rank}: No. ${x.listingNo}, ${x.bidder}` }))} topId={r.topId} allowed={r.form} people={v.header.people} /> : undefined} />
+        <CardHeader title="The bids in the running, ranked" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.composite ? `By ${r.composite}, highest first; a tie by the lower price.` : "By evaluated price, lowest first."} <SulitTag /></span>} actions={c.open && !r.formed ? <RecommendDrawer exerciseId={v.exerciseId} bidders={r.ranked.map((x) => ({ value: x.id, label: `Rank ${x.rank}: No. ${x.listingNo}, ${x.bidder}` }))} topId={r.topId} allowed={r.form} people={v.header.people} /> : undefined} />
         {r.incomplete.length > 0 && <p className="border-t border-line px-5 py-3 text-[13px] text-ink-3 sm:px-6">{`Still to complete: ${r.incomplete.join(", ")}.`}</p>}
         <RankingList c={c} />
       </Card>
       <Card>
-        <CardHeader title="The recommendation" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.formed ? `Formed ${r.formed.formedAt} · ${r.formed.formedActed}.` : "Not formed yet."} <Sulit /></span>} />
+        <CardHeader title="The recommendation" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.formed ? `Formed ${r.formed.formedAt} · ${r.formed.formedActed}.` : "Not formed yet."} <SulitTag /></span>} />
         <CardBody>
           {r.formed ? (
             <KeyValues
@@ -209,7 +251,7 @@ function Recommendation({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }
                 { label: "Completion period", value: r.formed.period },
                 { label: "Top-ranked", value: r.formed.topRanked ? "Yes" : "No" },
                 ...(r.formed.justification ? [{ label: "Why this one", value: r.formed.justification }] : []),
-                { label: "Saving against the company estimate", value: r.savingAmount ?? "—" },
+                { label: "Saving against the company estimate", value: r.savingAmount == null ? "—" : typeof r.savingAmount === "string" ? r.savingAmount : <SulitValue of={r.savingAmount} /> },
               ]}
             />
           ) : (
@@ -251,7 +293,7 @@ function Report({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
           )}
         </Card>
       )}
-      <OwnerAttachments owner={{ kind: "evaluation", id: c.id }} title="The evaluation's documents" subtitle="The signed report and paper, and the drawings annex F lists. SULIT: not downloadable until sign-in." />
+      <OwnerAttachments owner={{ kind: "evaluation", id: c.id }} title="The evaluation's documents" subtitle="The signed report and paper, and the drawings annex F lists. SULIT: downloadable to the people the evaluation is open to, and every download is logged." />
     </>
   );
 }

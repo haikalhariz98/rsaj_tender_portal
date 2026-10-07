@@ -41,8 +41,13 @@ describe("the statements the screens carry", () => {
   // The same decision removed the readiness card (PACK_CARD_HEADING, OD-4), so its "not yet
   // enforced" heading is not pinned either; the checks themselves stay in pack.ts and are enforced
   // at submission, and pack.test.ts pins them.
-  it("the BQ tab says priced rates are readable by anyone (OD-8)", () => {
-    expect(BQ_READABLE_STATEMENT).toMatch(/readable by anyone/);
+  // Phase 3b, a deliberate change to this test (with a decisions-log line): the priced bill is SULIT, read by the people named on the exercise and the roles the
+  // organisation has chosen. It used to say "readable by anyone" (6.2 OD-8) because nothing could restrict it before sign-in.
+  it("the BQ tab says priced rates are SULIT, who reads them, and that the bill issued to tenderers is unpriced", () => {
+    expect(BQ_READABLE_STATEMENT).toMatch(/SULIT/);
+    expect(BQ_READABLE_STATEMENT).toMatch(/named on the exercise/);
+    expect(BQ_READABLE_STATEMENT).toMatch(/unpriced/);
+    expect(BQ_READABLE_STATEMENT).not.toMatch(/readable by anyone|until sign-in/);
   });
   it("sealed rows and an unstated firm value", () => {
     expect(sealedVersion(2)).toBe("Sealed (version 2)");

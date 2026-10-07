@@ -8,7 +8,8 @@
  * People are recorded on their behalf, not signed. Codes go back, never figures.
  */
 
-import type { Reader } from "@/lib/auth/sulit-store";
+import { sulitWriteRefusal } from "@/lib/auth/sulit-store";
+import type { StaffActor } from "@/lib/auth/types";
 import type { FormState } from "@/components/record-editor";
 import type { Tx } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
@@ -16,6 +17,7 @@ import { lockEvaluationRows } from "@/lib/evaluation/lock";
 import { evaluationFindingText } from "@/lib/evaluation/labels";
 import { loadEvaluationContext, type EvaluationContext } from "@/lib/evaluation/repo";
 import { blocking, type Finding } from "@/lib/evaluation/types";
+import { fieldsOfScope } from "@/lib/sulit-fields";
 import { lockOpeningRows } from "@/lib/opening/lock";
 
 import { inWindow, type LockedWindow } from "../window/shared";
@@ -29,8 +31,12 @@ export const NO_EVALUATION: FormState = { ok: false, message: "No evaluation is 
 export const GONE_BIDDER: FormState = { ok: false, message: "That bid is not in this evaluation." };
 
 /// Run an evaluation write with every lock its order asks for, and the context read under them.
-export async function inEvaluation(scope: Reader, exerciseId: string, fn: (tx: Tx, l: LockedWindow, c: EvaluationContext) => Promise<FormState>): Promise<FormState> {
-  return inWindow(scope, exerciseId, async (tx, l) => {
+/// FR-EVL-014: a person the evaluation is closed to may not change it, and is told so (the rule Phase 3a made for an exercise's estimate). Asked first, under the
+/// exercise's lock, and logged in the act's transaction, so a refusal is kept.
+export async function inEvaluation(actor: StaffActor, exerciseId: string, fn: (tx: Tx, l: LockedWindow, c: EvaluationContext) => Promise<FormState>): Promise<FormState> {
+  return inWindow(actor, exerciseId, async (tx, l) => {
+    const refusal = await sulitWriteRefusal(tx, actor, { scope: "evaluation", exerciseId: l.ex.id }, fieldsOfScope("evaluation"));
+    if (refusal) return { ok: false, message: `Nothing was saved: the evaluation is SULIT and is closed to you. ${refusal}` };
     await lockOpeningRows(tx, l.ex.id);
     await lockEvaluationRows(tx, l.ex.id);
     return fn(tx, l, await loadEvaluationContext(l, tx));

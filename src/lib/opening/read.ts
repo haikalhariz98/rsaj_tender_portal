@@ -2,8 +2,9 @@
  * The Bids and opening tab's Opening and Schedule sections, as read (6.7 plan §5). Every act's
  * availability is judged by the same pure rule its action re-runs under its locks, on the same
  * context (`openingContext`), so a disabled control and a refused act give the same reason. Words
- * only: codes never reach the screen. A price as read is returned under the registered SULIT key
- * `openingPrice` and shown with its chip (C-4); the company estimate's figure is never read here —
+ * only: codes never reach the screen. A price as read is returned as a `Sulit<string>` under the registered SULIT key
+ * `openingPrice` (C-4, Phase 3b): the caller asks once whether the reader may read the exercise's opening prices
+ * and holds every price to the answer; the company estimate's figure is never read here —
  * before finalising it is "Sealed until the schedule is finalised", and after, only the frozen
  * schedule carries it (ADR 0012, OD-2 A).
  */
@@ -19,7 +20,7 @@ import { loadExercise } from "@/lib/method/repo";
 import { formatMoney, parseSen, type Sen } from "@/lib/money";
 import { leadTime } from "@/lib/scope/estimate";
 import { loggedEstimateAccess } from "@/lib/scope/estimate-access";
-import { applyDecision, sulitWithheld, type Sulit } from "@/lib/auth/sulit-access";
+import { applyDecision, sulitWithheld, through, type Sulit } from "@/lib/auth/sulit-access";
 import type { Reader } from "@/lib/auth/sulit-store";
 
 import { lockGapFinding } from "./box";
@@ -70,7 +71,8 @@ function admissionOf(c: OpeningContext, envelopeId: string) {
 
 // ------------------------------------------------------------------ the Opening section
 
-export async function openingSection(organisationId: string, exerciseId: string) {
+/// The caller's one answer, asked and logged, for the exercise's opening prices (`openingPrice`, `correctedPrice`): every price this read returns is held to it.
+export async function openingSection(organisationId: string, exerciseId: string, prices: Sulit<true>) {
   const r = await load(organisationId, exerciseId);
   if (!r) return null;
   const { l, c, now, people } = r;
@@ -131,7 +133,7 @@ export async function openingSection(organisationId: string, exerciseId: string)
   // Who started each opening, signed or recorded from paper, is read from its attribution (Phase 2b).
   const startedBy = await loadAttributions(db, organisationId, [{ entity: "Opening", slot: "startedBy", ids: c.openings.map((o) => o.id) }]);
   const authorisedBy = await loadAttributions(db, organisationId, [{ entity: "OpeningAuthorisation", slot: "person", ids: c.openings.flatMap((o) => o.authorisations.map((a) => a.id)) }]);
-  const openings = c.openings.map((o) => openingView(o, c, { now, tz, closing, people, startedBy, authorisedBy }));
+  const openings = c.openings.map((o) => openingView(o, c, { now, tz, closing, people, startedBy, authorisedBy, prices }));
 
   return {
     exerciseId: l.ex.id,
@@ -154,7 +156,8 @@ export async function openingSection(organisationId: string, exerciseId: string)
   };
 }
 
-function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: string | null; closing: Date | null; people: Option[]; startedBy: AttributionIndex; authorisedBy: AttributionIndex }) {
+function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: string | null; closing: Date | null; people: Option[]; startedBy: AttributionIndex; authorisedBy: AttributionIndex; prices: Sulit<true> }) {
+  const { prices } = x;
   const { tz, closing } = x;
   const state = stateOf(o, c.ex.status);
   const phase = openingPhase(state);
@@ -201,8 +204,8 @@ function openingView(o: OpeningRow, c: OpeningContext, x: { now: Date; tz: strin
       envelope: `Envelope ${b.envelope.sequence}`,
       bidder: b.bidderNameAsRead,
       registration: [b.party.registrationNo, b.registrationClassAsRead, b.registrationStatusAsRead].filter(Boolean).join(" · "),
-      /// SULIT (C-4): shown with its chip, never on a broadcast surface.
-      openingPrice: money(b.priceAsRead),
+      /// SULIT (C-4): held to the reader's answer, so a refused reader is sent no figure.
+      openingPrice: through(prices, () => money(b.priceAsRead)),
       period: periodText(period),
       validity: b.validityDaysStated == null ? "Not stated" : `${b.validityDaysStated} days`,
       alternative: b.isAlternative ? `${b.alternativeStatus ? ALTERNATIVE_LABEL[b.alternativeStatus] : "Alternative"}${b.parentOpenedBid ? ` to No. ${b.parentOpenedBid.listingNo}` : ""}` : null,
@@ -364,7 +367,7 @@ export async function estimateCustodyForHistory(reader: Reader & { organisationT
  * before, a draft built from the record with the estimate's row sealed and no Grand Summary
  * (FR-OPN-010: after finalising only). The copy finding and its explanation, and the signed scan.
  */
-export async function scheduleSection(reader: Reader & { organisationTimeZone: string | null }, exerciseId: string) {
+export async function scheduleSection(reader: Reader & { organisationTimeZone: string | null }, exerciseId: string, prices: Sulit<true>) {
   const r = await load(reader.organisationId, exerciseId);
   if (!r) return null;
   // FR-EST-008: the disclosed company estimate's figure is read by its preparer and the offices that hold its copies and audit it, and by nobody else. Judged
@@ -421,9 +424,10 @@ export async function scheduleSection(reader: Reader & { organisationTimeZone: s
         // S-3: a rule recorded on the opening after it started says so, with when and by whom.
         ...(snap.unpurchased.recordedLater ? [{ label: "A bid with no live purchase", value: unpurchasedRuleText(snap, null, tz) }] : []),
       ],
-      rows: s.rows.map((row) => ({ ...row, openingPrice: formatMoney(parseSen(row.openingPrice)), period: periodText(row.period), alternative: row.isAlternative ? `Alternative${row.parentListingNo != null ? ` to No. ${row.parentListingNo}` : ""}` : null })),
+      rows: s.rows.map((row) => ({ ...row, openingPrice: through(prices, () => formatMoney(parseSen(row.openingPrice))), period: periodText(row.period), alternative: row.isAlternative ? `Alternative${row.parentListingNo != null ? ` to No. ${row.parentListingNo}` : ""}` : null })),
       benchmark: "notRequired" in bm ? null : bm.sealed ? { sealed: true as const, text: SEALED_UNTIL_FINALISED } : { sealed: false as const, label: bm.label ?? "Company estimate", companyEstimate: applyDecision<string>(estimate?.decision ?? { state: "WITHHELD", basis: "SEALED" }, "estimate", () => formatMoney(parseSen(bm.companyEstimate))) },
-      summary: summary ? { labels: summary.labels, rows: summary.rows.map((x) => ({ ...x, openingPrice: formatMoney(parseSen(x.openingPrice)) })) } : null,
+      // The lowest qualifying offer is marked by comparing the prices: for a reader who may not read them the mark is left off, or it would say which is lowest.
+      summary: summary ? { labels: summary.labels, rows: summary.rows.map((x) => ({ ...x, openingPrice: through(prices, () => formatMoney(parseSen(x.openingPrice))), lowest: prices.state === "GRANTED" && x.lowest, label: prices.state === "GRANTED" || !x.lowest ? x.label : x.qualified ? summary.labels.qualified : summary.labels.notQualified })) } : null,
       copy: copyView,
       explanation: o.copyExplanation ? { text: o.copyExplanation.explanation, by: o.copyExplanation.recordedBy.name, at: time(o.copyExplanation.recordedAt, tz) } : null,
       explain: copy && o.finalisedAt ? allowedOf(l.ex.status === "CANCELLED" ? [{ code: "CANCELLED", level: "block" }] : []) : null,

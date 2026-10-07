@@ -11,6 +11,7 @@
 
 import { storedDay } from "@/lib/dates";
 import { loadAttributions } from "@/lib/auth/attribution-read";
+import { through, type Sulit } from "@/lib/auth/sulit-access";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { CLASSIFICATION_LABEL } from "@/lib/documents/labels";
@@ -273,7 +274,8 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
 
 // ------------------------------------------------------------------ Bill of quantities tab
 
-export async function bqTab(organisationId: string, exerciseId: string) {
+/// `figures` is the caller's one answer, asked and logged, for the bill's priced figures (`bqRate`, `bqAmount`, `bqTotals`): every rate, amount and total is held to it.
+export async function bqTab(organisationId: string, exerciseId: string, figures: Sulit<true>) {
   const a = await loadAll(organisationId, exerciseId);
   if (!a) return null;
   const { org, ex, policy, versions } = a;
@@ -305,6 +307,10 @@ export async function bqTab(organisationId: string, exerciseId: string) {
       status: BQ_STATUS_LABEL[v.status],
       stats: {
         lines: lines.length,
+        incompleteLines: t.incompleteLines,
+      },
+      /// The bill's total and the sums that make it up: the department's estimate, in a figure.
+      totals: through(figures, () => ({
         total: money(t.total),
         provisionalQuantities: money(t.provisionalQuantities),
         primeCostSums: money(t.primeCostSums),
@@ -312,8 +318,7 @@ export async function bqTab(organisationId: string, exerciseId: string) {
         buildersWorks: money(t.buildersWorks),
         firmValue: firmValueText(t.firmValue),
         provisionalShare: t.provisionalSharePct == null ? NOT_SET : sharePercentText(t.provisionalSharePct),
-        incompleteLines: t.incompleteLines,
-      },
+      })),
       header: {
         scopedBy: v.scopedBy ? SCOPED_BY_LABEL[v.scopedBy as BqScopedBy] : NOT_SET,
         scopeStatement: v.scopeStatement || NOT_SET,
@@ -342,12 +347,12 @@ export async function bqTab(organisationId: string, exerciseId: string) {
           const l = lineOf(i);
           return {
             id: i.id, itemRef: i.itemRef, description: i.description, unit: i.unit, kind: ITEM_KIND_LABEL[l.kind],
-            quantity: l.quantity ?? NOT_SET, rate: l.rate == null ? NOT_SET : money(l.rate), amount: i.amount == null ? NOT_SET : formatSen(parseSen(i.amount.toString())),
+            quantity: l.quantity ?? NOT_SET, rate: through(figures, () => (l.rate == null ? NOT_SET : money(l.rate))), amount: through(figures, () => (i.amount == null ? NOT_SET : formatSen(parseSen(i.amount.toString())))),
             chips: l.provisional ? [PROVISIONAL_CHIP] : [],
             rateSource: i.rateSource === "SCHEDULE" && i.scheduleLabelSnapshot && i.scheduleIssueSnapshot && i.rateItemCode
               ? `${RATE_SOURCE_LABEL.SCHEDULE}: ${rateFromText({ label: i.scheduleLabelSnapshot, issue: i.scheduleIssueSnapshot, effectiveFrom: i.scheduleEffectiveFromSnapshot ? storedDay(i.scheduleEffectiveFromSnapshot) : "", itemCode: i.rateItemCode, supersededOn: supersededOn(i.rateScheduleId) }, (x) => (x ? formatDate(x) : NOT_SET))}`
               : RATE_SOURCE_LABEL[i.rateSource],
-            raw: { itemRef: i.itemRef, description: i.description, unit: i.unit, kind: l.kind, quantity: l.quantity ?? "", rate: l.rate == null ? "" : senToDecimalString(l.rate), provisional: l.provisional, sortOrder: String(i.sortOrder), scheduleItem: i.rateSource === "SCHEDULE" ? "keep" : "" },
+            raw: { itemRef: i.itemRef, description: i.description, unit: i.unit, kind: l.kind, quantity: l.quantity ?? "", rate: figures.state === "GRANTED" && l.rate != null ? senToDecimalString(l.rate) : "", provisional: l.provisional, sortOrder: String(i.sortOrder), scheduleItem: i.rateSource === "SCHEDULE" ? "keep" : "" },
           };
         }),
       })),
@@ -361,8 +366,9 @@ export async function bqTab(organisationId: string, exerciseId: string) {
     versions: versions.map((v) => ({ id: v.id, versionNo: v.versionNo, status: BQ_STATUS_LABEL[v.status], finalisedOn: v.finalisedAt ? formatOrgDay(v.finalisedAt, org.timeZone) : null, revisionReason: v.revisionReason || null })),
     actions: {
       start: judged(startBqFaults(versions, ex.status)),
-      edit: draft ? judged(draftEditFaults(draft, ex.status)) : ({ allowed: false, reason: "Start the bill, or a revision, to edit it." } as Allowed),
-      finalise: draft
+      // A rate cannot be entered, a line cannot be priced and a bill cannot be finalised by someone the bill's figures are closed to (Phase 3b).
+      edit: figures.state === "WITHHELD" ? ({ allowed: false, reason: `The priced bill is SULIT and is closed to you. ${figures.words.en}` } as Allowed) : draft ? judged(draftEditFaults(draft, ex.status)) : ({ allowed: false, reason: "Start the bill, or a revision, to edit it." } as Allowed),
+      finalise: figures.state === "WITHHELD" ? ({ allowed: false, reason: `The priced bill is SULIT and is closed to you. ${figures.words.en}` } as Allowed) : draft
         ? judged(finaliseFaults({ status: draft.status, scopedBy: draft.scopedBy, followsStandard: draft.followsStandard, departuresText: draft.departuresText, preparerPersonId: draft.preparerPersonId, lines: linesOf(draft), sectionNumbers: draft.sections.map((s) => s.number) }, { policy, holdings, qualifications, today: org.today, exerciseStatus: ex.status }))
         : ({ allowed: false, reason: "There is no draft to finalise." } as Allowed),
       // A reason is asked for in the dialog; the button is judged without it.

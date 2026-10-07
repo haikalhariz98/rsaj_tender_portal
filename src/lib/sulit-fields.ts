@@ -91,7 +91,17 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "matterRoutedValue", scope: "contract", what: "the value a contract matter's route is resolved on (6.13 Part B)" },
   { field: "matterRatioNum", scope: "contract", what: "the numerator of the exact ratio a contract matter's route is resolved on, e.g. the damages waived (6.13 Part B)" },
   { field: "matterRatioDen", scope: "contract", what: "the denominator of the exact ratio a contract matter's route is resolved on, e.g. the damages amount (6.13 Part B)" },
+  // Phase 3b (6.2 OD-8, sign-in plan 3b): the priced bill of quantities is the department's estimate in detail, so its rates, line amounts and totals are an
+  // exercise's SULIT, read by the people named on it. The bill issued to tenderers is unpriced and carries none of them.
+  { field: "bqRate", scope: "exercise", what: "a bill of quantities line's rate (6.2, Phase 3b)" },
+  { field: "bqAmount", scope: "exercise", what: "a bill of quantities line's amount (6.2, Phase 3b)" },
+  { field: "bqTotals", scope: "exercise", what: "a bill of quantities version's total, firm value and the sums that make it up (6.2, Phase 3b)" },
+  // Phase 3b (FR-AWD-008, 6.11 ruling; 6.11 R20): the identity card number of the contractor's signatory, on the award's return and on the contract's signature.
+  { field: "icNumber", scope: "exercise", alsoIn: ["contract"], what: "the identity card number of a contractor's signatory (FR-AWD-008, 6.11)" },
 ];
+
+/// The registered fields a kind of record carries: its own, and those it also carries. What a screen that shows several of them asks the rule about at once.
+export const fieldsOfScope = (scope: SulitScope): string[] => SULIT_FIELDS.filter((f) => f.scope === scope || f.alsoIn?.includes(scope)).map((f) => f.field);
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History
 /// that shows its change shows it with the SULIT chip.

@@ -1,6 +1,6 @@
 "use server";
 
-import type { Reader } from "@/lib/auth/sulit-store";
+import { sulitWriteRefusal, type Reader } from "@/lib/auth/sulit-store";
 import { Prisma } from "@/generated/prisma/client";
 import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
@@ -74,8 +74,13 @@ const GONE_BID: FormState = { ok: false, message: "That offer is not on this exe
 const ENVELOPE_CHANGED: FormState = { ok: false, message: "The envelope changed while this was being saved. Nothing was saved. Reload and try again." };
 
 /// Run an opening write with every lock its order asks for, and the context read under them.
-async function inOpening(scope: Reader, exerciseId: string, now: Date, fn: (tx: Tx, l: LockedWindow, c: OpeningContext) => Promise<FormState>, opts: { estimate?: boolean } = {}): Promise<FormState> {
+async function inOpening(scope: Reader, exerciseId: string, now: Date, fn: (tx: Tx, l: LockedWindow, c: OpeningContext) => Promise<FormState>, opts: { estimate?: boolean; prices?: StaffActor } = {}): Promise<FormState> {
   return inWindow(scope, exerciseId, async (tx, l) => {
+    // Phase 3b: an act that writes a price as read is done by someone the prices are open to; what they may not read they may not change, and are told why. Logged in this transaction.
+    if (opts.prices) {
+      const refusal = await sulitWriteRefusal(tx, opts.prices, { scope: "exercise", exerciseId: l.ex.id }, ["openingPrice", "correctedPrice"]);
+      if (refusal) return { ok: false, message: `Nothing was saved: the prices read at the opening are SULIT and are closed to you. ${refusal}` };
+    }
     await lockOpeningRows(tx, l.ex.id);
     if (opts.estimate) await lockLiveEstimateRows(tx, l.ex.id);
     await lockEnvelopeRows(tx, l.ex.id);
@@ -565,7 +570,7 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${listingNo}`), "CREATE",
       diffFields(null, { ...openedBidFields({ listingNo, envelope: `Envelope ${e!.sequence}`, bidder: bid.bidderNameAsRead, registrationClass, registrationStatus, price: offer.price!, period, validityDays: offer.validityDays, alternative, parentListingNo: parent?.listingNo ?? null, sale, restriction: restriction.finding, at: now }, l.org.timeZone), ...(eligibility ? { supplierRegister: `${eligibility.supplierReference}: ${eligibility.verdict === "ELIGIBLE" ? "eligible" : eligibility.verdict === "NOT_ELIGIBLE" ? "not eligible" : "not assessed"}, judged ${eligibility.judgedOn}` } : {}) }));
     return { ok: true, message: `Opened as No. ${listingNo}. Each panel member present now initials it, and its checklist is answered.` };
-  });
+  }, { prices: actor });
 }
 
 /// FR-BID-006: an alternative offer found inside an envelope already opened at this opening.
@@ -600,7 +605,7 @@ export async function recordAlternative(_prev: FormState, data: FormData): Promi
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${listingNo}`), "CREATE",
       diffFields(null, openedBidFields({ listingNo, envelope: `Envelope ${main.envelope.sequence}`, bidder: main.bidderNameAsRead, registrationClass: main.registrationClassAsRead, registrationStatus: main.registrationStatusAsRead, price: offer.price!, period, validityDays: offer.validityDays, alternative, parentListingNo: main.listingNo, sale: main.saleFinding, restriction: main.restrictionFinding, at: now }, l.org.timeZone)));
     return { ok: true, message: `Recorded as No. ${listingNo}, an alternative to No. ${main.listingNo}.` };
-  });
+  }, { prices: actor });
 }
 
 // ------------------------------------------------------------------ initials, checklist, verdicts, corrections (plan §4.5)
@@ -734,7 +739,7 @@ export async function correctAsRead(_prev: FormState, data: FormData): Promise<F
     await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { bidderNameAsRead: next.bidder, registrationClassAsRead: registrationClass, registrationStatusAsRead: registrationStatus, priceAsRead: senToDecimalString(offer.price!), completionPeriod: period?.value ?? null, completionUnit: period?.unit ?? null, validityDaysStated: offer.validityDays, asReadCorrectedAt: now, asReadCorrections: bid.asReadCorrections + 1 } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields(asReadFields(was), asReadFields(next)), reason);
     return { ok: true, message: "Corrected. Each panel member present initials it again." };
-  });
+  }, { prices: actor });
 }
 
 // ------------------------------------------------------------------ the schedule's paper (plan §4.7)
