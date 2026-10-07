@@ -22,21 +22,26 @@ import { FormReader } from "@/lib/validate";
 import { audit, exerciseIdOf, inWindow } from "../window/shared";
 import { evLabel, GONE_BIDDER, refuse } from "./shared";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { beginAct } from "@/app/_auth/act";
 
 /**
  * Table a two-stage tender's first-stage matter for one bidder (FR-EVL-005) at a sitting of the
  * committee the pinned model's first stage names. Locks: requisition → exercise → window → openings,
  * then the sitting, then the evaluations (`src/lib/evaluation/lock.ts`: every act reaching the
  * evaluations from a sitting takes the sitting first). The committee's decision there is the act; the
- * matter carries no amount. Tabled on the Secretariat's holder's behalf, not signed.
+ * matter carries no amount. Tabled by the Secretariat's holder, signed in (FR-CTE-006, Phase 2b).
  */
 export async function tableStageOneMatter(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
   const meetingId = r.text("meetingId", "Sitting", { required: true });
-  const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
+  // The tabler is the signed-in person: the holder of the Secretariat office, judged below (FR-CTE-006).
+  const begun = await beginAct(actor, data, "CommitteeDecision.tabledBy", { personField: "tabledByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const tabledByPersonId = act.subjectPersonId;
   const roster = await loadRoster(actor.organisationCode);
   const result = await inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     await lockOpeningRows(tx, l.ex.id);
@@ -70,7 +75,8 @@ export async function tableStageOneMatter(_prev: FormState, data: FormData): Pro
     const sequence = s.meeting.decisions.reduce((n, d) => Math.max(n, d.sequence), 0) + 1;
     // The committee decides the first stage itself: its decision is the act.
     const m = await tx.committeeDecision.create({ data: { meetingId: s.meeting.id, subject, domain: EVALUATION_STAGE_DOMAIN, matterKind: "EVALUATION_STAGE", matterRef: l.ex.reference, evaluationBidderId: b.id, act: "A", tabledByPersonId, tabledAt: dayToDate(s.today!), sequence } });
-    await audit(tx, toAuditActor(actor), l.org.id, "CommitteeDecision", m.id, evLabel(l, e!.version, subject), "CREATE", diffFields(null, { matter: subject, bid: `No. ${b.listingNo}`, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s.today!), recordedOnBehalf: "yes" }));
+    await audit(tx, toAuditActor(actor), l.org.id, "CommitteeDecision", m.id, evLabel(l, e!.version, subject), "CREATE", diffFields(null, { matter: subject, bid: `No. ${b.listingNo}`, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s.today!) }));
+    await act.write(tx, m.id);
     return { ok: true, message: `Tabled at ${s.meeting.reference}. The committee decides it there.` };
   });
   if (result.ok) {

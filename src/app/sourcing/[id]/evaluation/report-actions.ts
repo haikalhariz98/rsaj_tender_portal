@@ -24,6 +24,7 @@ import { FormReader } from "@/lib/validate";
 import { activePerson, audit, exerciseIdOf, Refusal } from "../window/shared";
 import { evLabel, GONE_BIDDER, inEvaluation, refuse, stampNow } from "./shared";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { beginAct } from "@/app/_auth/act";
 
 /**
  * The recommendation, the report and the Kertas Cadangan (FR-EVL-004, 017, 018; FR-CTE-007, 013;
@@ -48,8 +49,11 @@ export async function formRecommendation(_prev: FormState, data: FormData): Prom
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Recommended tenderer", { required: true });
   const justification = r.text("justification", "Why this one", { max: 4000 });
-  const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "Recommendation.formedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
@@ -63,6 +67,7 @@ export async function formRecommendation(_prev: FormState, data: FormData): Prom
     const price = recommendedPriceOf(b);
     const row = await tx.recommendation.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId, price: senToDecimalString(price), completionPeriod: b.period?.value ?? null, completionUnit: b.period?.unit ?? null, topRanked: rf.topRanked, justification: rf.topRanked ? "" : justification, formedByPersonId: person!.id, formedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.recommendation, row.id, evLabel(l, e!.version, "Recommendation"), "CREATE", diffFields(null, recommendationFields({ bidder: `No. ${b.listingNo}, ${b.bidderName}`, price, period: periodWords(b.period), topRanked: rf.topRanked, justification: rf.topRanked ? "" : justification, by: person!.name })));
+    await act.write(tx, row.id);
     return { ok: true, message: "Recommendation formed. Issue the report on the Report section." };
   });
 }
@@ -76,7 +81,10 @@ export async function formRecommendation(_prev: FormState, data: FormData): Prom
 export async function issueReport(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const now = stampNow();
-  const personId = String(data.get("personId") ?? "") || null;
+  const begun = await beginAct(actor, data, "Evaluation.issuedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
@@ -134,7 +142,8 @@ export async function issueReport(_prev: FormState, data: FormData): Promise<For
     });
     const done = await tx.evaluation.updateMany({ where: { id: e!.id, state: "OPEN" }, data: { state: "ISSUED", issuedAt: now, issuedByPersonId: person!.id, reportReference: reference, reportSnapshot: snapshot as unknown as Prisma.InputJsonValue, consentCheckSnapshot: consent.rows as unknown as Prisma.InputJsonValue } });
     if (done.count !== 1) throw new Refusal(CHANGED_EVALUATION);
-    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.evaluation, e!.id, evLabel(l, e!.version), "UPDATE", diffFields({ state: "In progress", report: null }, { state: "Report issued", report: reference, issuedBy: `${person!.name} (recorded on their behalf, not signed)`, template: `${template!.nameEn}, text version ${template!.bodyVersion}`, consentChecked: consent.rows.some((x) => x.outcome === "CHECKED") ? "the extension in force, from the recommended tenderer" : null }));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.evaluation, e!.id, evLabel(l, e!.version), "UPDATE", diffFields({ state: "In progress", report: null }, { state: "Report issued", report: reference, issuedBy: person!.name, template: `${template!.nameEn}, text version ${template!.bodyVersion}`, consentChecked: consent.rows.some((x) => x.outcome === "CHECKED") ? "the extension in force, from the recommended tenderer" : null }));
+    await act.write(tx, e!.id);
     await moveExercise(tx, l.ex, "EVALUATED", { today, via: "REPORT_ISSUED", reportFaults: 0 });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "EVALUATED" }));
     return { ok: true, message: `Report ${reference} issued. Produce the Kertas Cadangan on this section next.` };
@@ -145,7 +154,10 @@ export async function issueReport(_prev: FormState, data: FormData): Promise<For
 export async function renderProposalPaper(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const now = stampNow();
-  const personId = String(data.get("personId") ?? "") || null;
+  const begun = await beginAct(actor, data, "ProposalPaper.renderedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = issuedActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
@@ -165,7 +177,8 @@ export async function renderProposalPaper(_prev: FormState, data: FormData): Pro
     const fs = renderFaults({ rendered: e!.proposalPaper != null, checkerRoleCode: c.policy?.checkerRoleCode ?? null, recommenderRoleCode: c.policy?.recommenderRoleCode ?? null, template: tFaults(rendered, "PROPOSAL"), personActive: !!person, reportIssuedOn: issuedOn });
     if (fs.length) return refuse(fs, "Not produced:");
     const row = await tx.proposalPaper.create({ data: { organisationId: l.org.id, evaluationId: e!.id, templateId: template!.id, templateCode: template!.code, templateBodyVersion: template!.bodyVersion, language: rendered.language!, renderedText: rendered.text!, frozenAt: now, renderedByPersonId: person!.id, checkerRoleCode: c.policy!.checkerRoleCode!, recommenderRoleCode: c.policy!.recommenderRoleCode! } });
-    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.proposal, row.id, evLabel(l, e!.version, "Kertas Cadangan"), "CREATE", diffFields(null, { produced: `${template!.nameEn}, text version ${template!.bodyVersion}`, language: rendered.language === "MS" ? "Malay" : "English", checkedBy: office(c.policy?.checkerRoleCode), recommendedBy: office(c.policy?.recommenderRoleCode), producedBy: `${person!.name} (recorded on their behalf, not signed)` }));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.proposal, row.id, evLabel(l, e!.version, "Kertas Cadangan"), "CREATE", diffFields(null, { produced: `${template!.nameEn}, text version ${template!.bodyVersion}`, language: rendered.language === "MS" ? "Malay" : "English", checkedBy: office(c.policy?.checkerRoleCode), recommendedBy: office(c.policy?.recommenderRoleCode), producedBy: person!.name }));
+    await act.write(tx, row.id);
     return { ok: true, message: "Produced and frozen. Record its checking and its recommending officer." };
   });
 }
@@ -176,9 +189,13 @@ export async function recordProposalSigner(_prev: FormState, data: FormData): Pr
   const now = stampNow();
   const r = new FormReader(data);
   const role = r.choice("role", "Role", ["CHECKER", "RECOMMENDER"] as const, { required: true });
-  const personId = r.optionalText("personId");
   const day = r.date("signedOn", "Signed on", { required: true });
   if (r.failed || !role || !day) return { ok: false, errors: r.errors };
+  // The checking officer and the recommending officer are the office holders themselves, signed in; a paper record of either is recorded for them.
+  const begun = await beginAct(actor, data, role === "CHECKER" ? "ProposalPaper.checkedBy" : "ProposalPaper.recommendedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = issuedActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
@@ -204,6 +221,7 @@ export async function recordProposalSigner(_prev: FormState, data: FormData): Pr
     if (done.count !== 1) throw new Refusal({ ok: false, message: "The Kertas Cadangan changed while this was being saved. Reload and try again." });
     const office = c.roster.offices.find((o) => o.code === roleCode)?.nameEn ?? "An office no longer configured";
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.proposal, p!.id, evLabel(l, e!.version, "Kertas Cadangan"), "UPDATE", diffFields(null, signerFields({ role, name: person!.name, office, day: storedDay(day) })));
+    await act.write(tx, p!.id);
     return { ok: true, message: "Recorded." };
   });
 }

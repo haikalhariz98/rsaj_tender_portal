@@ -25,6 +25,8 @@ const advance = (ms: number) => vi.setSystemTime(new Date(Date.now() + ms));
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 // Phase 1b: every action asks who is signed in first; these tests are not about sign-in, so a signed-in officer stands in for the session.
 vi.mock("@/app/_auth/actor", async () => (await import("@/lib/test-support/staff")).actorModule());
+// Phase 2b: every act is attributed to the signed-in person (`beginAct`). The real reading of the form stands, with the organisation's switch, the password and the write faked.
+vi.mock("@/app/_auth/act", async () => (await import("@/lib/test-support/staff")).actModule().module);
 vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("@/lib/org-time", () => ({ organisationTimeZone: async () => "Asia/Kuala_Lumpur" }));
 vi.mock("@/lib/people/load", () => ({ loadRoster: async () => null }));
@@ -161,21 +163,23 @@ describe("the server's stamp is read at the act's entry, before the locks (6.6 C
 
 describe("the validity recorded after publication names who recorded it (6.6 review S-6)", () => {
   const EXIT = { exerciseId: "x1", bidValidityDays: "120", bidValidityProvenance: "STATED", alternativesPermitted: "unset", reason: "From the instructions to tenderers." };
-  it("refused without the officer, nothing written", async () => {
-    const r = await saveBidAnswers({ ok: false }, form(EXIT));
-    expect(r.ok).toBe(false);
-    expect(r.errors?.recordedByPersonId).toBe("Name the officer recording it.");
-    expect(h.updated).toHaveLength(0);
-    expect(h.audits).toHaveLength(0);
+  // Phase 2b (decisions log, 2026-10-07): the officer who records it is the signed-in one, named from the session. The form no longer asks who, and a person it names is
+  // not read, so "refused without the officer" is replaced by "the officer is the one signed in, whatever the form says".
+  it("records it without asking who: the officer is the one signed in, and a person the form names is not read", async () => {
+    const r = await saveBidAnswers({ ok: false }, form({ ...EXIT, recordedByPersonId: "someone_else" }));
+    expect(r.ok).toBe(true);
+    const a = h.audits.at(-1)!;
+    expect(JSON.stringify(a.changes)).not.toContain("someone_else");
+    expect(a.changes).toContainEqual({ field: "recordedBy", before: null, after: "Test Officer" });
   });
-  it("with the officer, the trail keeps who beside the change and why, as the card reads it", async () => {
-    const r = await saveBidAnswers({ ok: false }, form({ ...EXIT, recordedByPersonId: "p1" }));
+  it("the trail keeps who beside the change and why, as the card reads it", async () => {
+    const r = await saveBidAnswers({ ok: false }, form(EXIT));
     expect(r.ok).toBe(true);
     const a = h.audits.at(-1)!;
     expect(a.reason).toBe("From the instructions to tenderers.");
     expect(a.changes).toContainEqual({ field: "bidValidity", before: "Not set", after: "120 days" });
-    expect(a.changes).toContainEqual({ field: "recordedBy", before: null, after: "Clerk, recorded on their behalf, not signed" });
+    expect(a.changes).toContainEqual({ field: "recordedBy", before: null, after: "Test Officer" });
     const { validityExitOf } = await import("@/lib/bids/window-fields");
-    expect(validityExitOf([{ at: PUBLISHED, reason: a.reason, changes: a.changes }], PUBLISHED)?.by).toBe("Clerk, recorded on their behalf, not signed");
+    expect(validityExitOf([{ at: PUBLISHED, reason: a.reason, changes: a.changes }], PUBLISHED)?.by).toBe("Test Officer");
   });
 });

@@ -47,7 +47,7 @@ export function EstimateSection({ d }: { d: Data }) {
           </EmptyState>
         </Card>
       ) : (
-        <Live e={e} d={d} exerciseId={exerciseId} people={people} />
+        <Live e={e} d={d} exerciseId={exerciseId} />
       )}
 
       {d.voided.length > 0 && (
@@ -71,7 +71,7 @@ export function EstimateSection({ d }: { d: Data }) {
   );
 }
 
-function Live({ e, d, exerciseId, people }: { e: Estimate; d: Data; exerciseId: string; people: { value: string; label: string }[] }) {
+function Live({ e, d, exerciseId }: { e: Estimate; d: Data; exerciseId: string }) {
   const lodged = e.state === "Lodged";
   const closed = e.state === "Void" || e.state === "Disclosed at opening";
   return (
@@ -101,10 +101,10 @@ function Live({ e, d, exerciseId, people }: { e: Estimate; d: Data; exerciseId: 
           />
           {!closed && (
             <div className="flex flex-wrap items-start gap-3 border-t border-line pt-5">
-              <AmendEstimateDrawer exerciseId={exerciseId} estimateId={e.id} preparerName={e.preparerName} preparerPersonId={e.preparerPersonId} versionNo={e.currentVersionNo} lodged={lodged} allowed={e.actions.amend} />
-              {(!lodged || e.lodgementBehind) && <LodgeEstimateDrawer exerciseId={exerciseId} estimateId={e.id} versionNo={e.currentVersionNo} people={people} allowed={e.actions.lodge} again={e.lodgementBehind} />}
-              {e.retainedCopyDue && <RetainCopyDrawer exerciseId={exerciseId} estimateId={e.id} people={people} allowed={e.actions.retain} versionNo={e.lodgedVersionNo} />}
-              <VoidEstimateDrawer exerciseId={exerciseId} estimateId={e.id} preparerName={e.preparerName} people={people} allowed={e.actions.void} />
+              <AmendEstimateDrawer exerciseId={exerciseId} estimateId={e.id} preparerName={e.preparerName} versionNo={e.currentVersionNo} lodged={lodged} allowed={e.actions.amend} />
+              {(!lodged || e.lodgementBehind) && <LodgeEstimateDrawer exerciseId={exerciseId} estimateId={e.id} versionNo={e.currentVersionNo} allowed={e.actions.lodge} again={e.lodgementBehind} />}
+              {e.retainedCopyDue && <RetainCopyDrawer exerciseId={exerciseId} estimateId={e.id} allowed={e.actions.retain} versionNo={e.lodgedVersionNo} />}
+              <VoidEstimateDrawer exerciseId={exerciseId} estimateId={e.id} preparerName={e.preparerName} allowed={e.actions.void} />
             </div>
           )}
         </CardBody>

@@ -1,6 +1,7 @@
 import { Blocked } from "@/app/requisitions/editors";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 import type { Allowed } from "@/lib/opening/read";
 
 import {
@@ -29,7 +30,7 @@ import {
  * action and the pure checks behind it (`src/lib/opening`). Where those checks already say an act
  * cannot proceed, the control is disabled with the reason beside it, judged by the rule the action
  * runs. No time is ever asked: the server's clock stamps every act, to the second. Every person
- * named is recorded on their behalf, not signed (ADR 0017). Nothing here offers a Delete.
+ * named is the signed-in officer, or, for a panel member's paper authorisation, initial or signature, recorded for them and not signed (ADR 0017, Phase 2b). Nothing here offers a Delete.
  */
 
 type Option = { value: string; label: string };
@@ -37,13 +38,13 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 const ghost = buttonClass("ghost", "sm");
 const secondary = buttonClass("secondary", "sm");
 const primary = buttonClass("primary", "sm");
-const ON_BEHALF = "Recorded on their behalf, not signed.";
 const PERIOD_UNITS: Option[] = [
   { value: "DAYS", label: "Days" },
   { value: "WEEKS", label: "Weeks" },
   { value: "MONTHS", label: "Months" },
 ];
-const recorder = (people: Option[], name = "personId", label = "Recorded by"): Field => ({ kind: "select", name, label, required: true, placeholder: "Choose", options: people, hint: ON_BEHALF });
+/// Who is acting: the signed-in officer, shown and not chosen (Phase 2b).
+const by = (slot: string, people: Option[], name = "personId", label?: string, paper = false): Field => actorField(slot, { name, people, label, paper });
 
 function blockedOr(allowed: Allowed, label: string, node: () => React.ReactNode, opts: { primary?: boolean; noteId?: string } = {}) {
   if (!allowed.allowed) return <Blocked label={label} reason={allowed.reason} primary={opts.primary} noteId={opts.noteId} />;
@@ -55,11 +56,10 @@ function blockedOr(allowed: Allowed, label: string, node: () => React.ReactNode,
 const panelFields = (seats: Option[], people: Option[], panelSize: number | null): Field[] => [
   { kind: "tokens", name: "panel", label: "The panel", options: seats, placeholder: "Pick from the committee's seats", hint: panelSize == null ? "The committee's panel size is not set." : `The committee's opening panel has ${panelSize} ${panelSize === 1 ? "member" : "members"}.` },
   { kind: "tokens", name: "present", label: "Present at the opening", options: seats, placeholder: "Pick who is present", hint: "Fixed when the opening starts. An absent member neither authorises, initials nor signs. At least two must be present." },
-  recorder(people, "startedByPersonId", "Recorded by"),
-  { kind: "note", text: "Only for a panel of another size than the committee's: the authority it is assigned under, the reason and who records it." },
+  by("Opening.startedBy", people, "startedByPersonId", "Recorded by"),
+  { kind: "note", text: "Only for a panel of another size than the committee's: the authority it is assigned under and the reason. You record it." },
   { kind: "text", name: "panelOverrideAuthority", label: "Authority for a panel of another size" },
   { kind: "textarea", name: "panelOverrideReason", label: "Why the panel is of another size" },
-  { kind: "select", name: "panelOverrideByPersonId", label: "Recorded by (panel of another size)", placeholder: "Not applicable", options: people, hint: ON_BEHALF },
 ];
 
 export function StartOpeningDrawer({ exerciseId, allowed, seats, people, panelSize, independence, estimateLate, noteId }: { exerciseId: string; allowed: Allowed; seats: Option[]; people: Option[]; panelSize: number | null; independence: string; estimateLate: string | null; noteId: string }) {
@@ -77,7 +77,7 @@ export function StartOpeningDrawer({ exerciseId, allowed, seats, people, panelSi
           ...(estimateLate
             ? ([
                 { kind: "note", text: estimateLate },
-                { kind: "select", name: "lateOverridePersonId", label: "Override by", placeholder: "Choose", options: people, hint: "Someone holding the office that may override a late estimate. Recorded on their behalf, not signed." },
+                actorField("EstimateEvent.person", { name: "lateOverridePersonId", people, label: "Override by", hint: "Someone holding the office that may override a late estimate: you, if you hold it, or from their paper, for them." }),
                 { kind: "textarea", name: "lateOverrideReason", label: "Why the late estimate is accepted" },
               ] as Field[])
             : []),
@@ -115,9 +115,9 @@ export function AuthoriseDrawer({ exerciseId, openingId, personId, name, allowed
   return blockedOr(allowed, "Authorise", () => (
     <RecordEditor
       title={`${name} authorises the opening`}
-      description="Recorded on their behalf, not signed, and stamped by the portal's clock when you save. The second present member's authorisation opens the box (or lets a resumed sitting record again). The box and its key remain the control."
-      fields={[hidden("exerciseId"), hidden("openingId"), hidden("personId"), { kind: "readonly", name: "who", label: "Authorised by", text: name }]}
-      values={{ exerciseId, openingId, personId }}
+      description="Signed by the panel member with their password, or recorded from their paper for them, and stamped by the portal's clock when you save. The second present member's authorisation opens the box (or lets a resumed sitting record again). The box and its key remain the control."
+      fields={[hidden("exerciseId"), hidden("openingId"), actorField("OpeningAuthorisation.person", { name: "personId", forPerson: { id: personId, name } })]}
+      values={{ exerciseId, openingId }}
       action={recordAuthorisation}
       submitLabel="Record the authorisation"
       trigger={{ label: "Authorise", className: secondary, ariaLabel: `Record ${name}'s authorisation` }}
@@ -132,7 +132,7 @@ export function AdjournDrawer({ exerciseId, openingId, allowed, people, resume }
     <RecordEditor
       title={resume ? "Resume the opening" : "Adjourn the opening"}
       description={resume ? "A new sitting starts. Nothing is recorded until two panel members present each authorise it again." : "The sitting ends. Nothing recorded is lost; an authorisation not yet paired lapses and is kept, marked lapsed. Resuming needs two fresh authorisations."}
-      fields={[hidden("exerciseId"), hidden("openingId"), { kind: "textarea", name: "reason", label: resume ? "Why it resumes now" : "Why it is adjourned", required: true }, recorder(people)]}
+      fields={[hidden("exerciseId"), hidden("openingId"), { kind: "textarea", name: "reason", label: resume ? "Why it resumes now" : "Why it is adjourned", required: true }, by("OpeningSitting.recordedBy", people)]}
       values={{ exerciseId, openingId }}
       action={resume ? resumeOpening : adjournOpening}
       submitLabel={resume ? "Resume" : "Adjourn"}
@@ -154,7 +154,7 @@ export function RegisterBoxDrawer({ exerciseId, openingId, allowed, people }: { 
         hidden("openingId"),
         { kind: "select", name: "kind", label: "Envelope", required: true, placeholder: "Choose", options: [{ value: "BID", label: "Bid" }, { value: "ALTERNATIVE", label: "Alternative bid (marked as one on the envelope)" }] },
         { kind: "textarea", name: "markings", label: "Markings, as written on the envelope", required: true },
-        recorder(people),
+        by("BidEnvelope.receivedBy", people),
       ]}
       values={{ exerciseId, openingId }}
       action={registerBoxEnvelope}
@@ -185,7 +185,7 @@ export function WithdrawalFindingDrawer({ exerciseId, openingId, withdrawalId, a
     <RecordEditor
       title="No envelope matched the withdrawal"
       description="Say what the panel found. The opening is not finalised while a withdrawal is neither matched nor explained."
-      fields={[hidden("exerciseId"), hidden("openingId"), hidden("withdrawalId"), { kind: "textarea", name: "finding", label: "What the panel found", required: true }, recorder(people)]}
+      fields={[hidden("exerciseId"), hidden("openingId"), hidden("withdrawalId"), { kind: "textarea", name: "finding", label: "What the panel found", required: true }, by("BidWithdrawal.findingBy", people)]}
       values={{ exerciseId, openingId, withdrawalId }}
       action={recordWithdrawalFinding}
       submitLabel="Record it"
@@ -254,9 +254,9 @@ export function InitialDrawer({ exerciseId, bid, person, allowed }: { exerciseId
   return (
     <RecordEditor
       title={`${person.name} initials No. ${bid.listingNo}`}
-      description="The member's initial on the offer as read out, recorded on their behalf, not signed. After a correction it is taken again."
-      fields={[hidden("exerciseId"), hidden("openedBidId"), hidden("personId"), { kind: "readonly", name: "who", label: "Initialled by", text: person.name }]}
-      values={{ exerciseId, openedBidId: bid.id, personId: person.id }}
+      description="The member's initial on the offer as read out: made by the member signed in, or recorded from their paper for them, and not signed. After a correction it is taken again."
+      fields={[hidden("exerciseId"), hidden("openedBidId"), actorField("OpenedBidInitial.person", { name: "personId", forPerson: { id: person.id, name: person.name } })]}
+      values={{ exerciseId, openedBidId: bid.id }}
       action={recordInitial}
       submitLabel="Record the initial"
       trigger={{ label: `Initial: ${person.name}`, className: ghost, ariaLabel: `Record ${person.name}'s initial on No. ${bid.listingNo}` }}
@@ -286,7 +286,7 @@ export function ChecklistDrawer({ exerciseId, bid, items, allowed }: { exerciseI
   ));
 }
 
-export function VerdictDrawer({ exerciseId, bid, options, grounds, reported, allowed, people }: { exerciseId: string; bid: { id: string; listingNo: number }; options: { value: string; label: string; disabled?: boolean }[]; grounds: string[]; reported: string[]; allowed: Allowed; people: Option[] }) {
+export function VerdictDrawer({ exerciseId, bid, options, grounds, reported, allowed }: { exerciseId: string; bid: { id: string; listingNo: number }; options: { value: string; label: string; disabled?: boolean }[]; grounds: string[]; reported: string[]; allowed: Allowed }) {
   return blockedOr(allowed, "Record the verdict", () => (
     <RecordEditor
       title={`Verdict on No. ${bid.listingNo}`}
@@ -296,7 +296,6 @@ export function VerdictDrawer({ exerciseId, bid, options, grounds, reported, all
         hidden("openedBidId"),
         { kind: "select", name: "verdict", label: "Verdict", required: true, placeholder: "Choose", options },
         { kind: "textarea", name: "verdictReason", label: "Why it is not carried", hint: "In words, for the committee." },
-        recorder(people),
       ]}
       showWhen={{ verdictReason: { name: "verdict", in: ["REJECT"] } }}
       values={{ exerciseId, openedBidId: bid.id }}
@@ -340,9 +339,9 @@ export function SignatureDrawer({ exerciseId, openingId, person, allowed }: { ex
   return (
     <RecordEditor
       title={`${person.name} signed the schedule`}
-      description="The day written beside the signature on the paper schedule. Recorded on their behalf, not signed."
-      fields={[hidden("exerciseId"), hidden("openingId"), hidden("personId"), { kind: "date", name: "signedOn", label: "Signed on", required: true }]}
-      values={{ exerciseId, openingId, personId: person.id }}
+      description="The member signs the schedule with their password, dated today; or the paper they signed is recorded for them, with the day written beside the signature, and is not a signature in the portal."
+      fields={[hidden("exerciseId"), hidden("openingId"), actorField("OpeningSignature.person", { name: "personId", dated: true, forPerson: { id: person.id, name: person.name } }), { kind: "date", name: "signedOn", label: "Signed on", required: true, hint: "Not after today. A signed schedule is dated today unless back-dating is recorded." }]}
+      values={{ exerciseId, openingId }}
       action={recordSignature}
       submitLabel="Record the signature"
       trigger={{ label: `Signed: ${person.name}`, className: ghost, ariaLabel: `Record ${person.name}'s signature on the schedule` }}
@@ -374,7 +373,7 @@ export function FinaliseDrawer({ exerciseId, openingId, title, allowed, people, 
       fields={[
         hidden("exerciseId"),
         hidden("openingId"),
-        recorder(people, "personId", "Finalised by"),
+        actorField("EstimateEvent.person", { name: "personId", people, label: "Finalised by", paper: false }),
         ...(paper
           ? ([
               { kind: "select", name: "paperCopy", label: "The estimate's paper copy in the box", required: paper.required, placeholder: paper.required ? "Choose" : "Not entered", options: [{ value: "figure", label: "It was in the box: enter its figure" }, { value: "notInBox", label: "It was not in the box" }], hint: "Compared only once everything else is in order, when the estimate is disclosed. A difference never refuses finalising: it is a finding to explain." },
@@ -397,7 +396,7 @@ export function CopyExplanationDrawer({ exerciseId, openingId, people }: { exerc
     <RecordEditor
       title="Explain the estimate's paper copy"
       description="Recorded once and never edited. Evaluation and the award wait for it."
-      fields={[hidden("exerciseId"), hidden("openingId"), { kind: "textarea", name: "explanation", label: "Explanation", required: true }, recorder(people)]}
+      fields={[hidden("exerciseId"), hidden("openingId"), { kind: "textarea", name: "explanation", label: "Explanation", required: true }, by("EstimateCopyExplanation.recordedBy", people)]}
       values={{ exerciseId, openingId }}
       action={recordCopyExplanation}
       submitLabel="Record the explanation"

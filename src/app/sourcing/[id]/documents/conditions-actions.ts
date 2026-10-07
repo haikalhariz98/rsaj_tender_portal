@@ -19,6 +19,7 @@ import { loadClauses, loadConfirmations, loadOverrides, loadPacks, loadPermitLis
 import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -62,6 +63,8 @@ async function locked(scope: OrgScope, exerciseId: string, fn: (tx: Tx, l: Locke
       return fn(tx, { org: l.org, ex: l.ex, packs: await loadPacks(exerciseId, tx) });
     });
   } catch (e) {
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     if (transactionTimedOut(e)) return { ok: false, message: "This took too long and nothing was saved. Try again." };
     throw e;
   }
@@ -177,16 +180,19 @@ export async function savePermit(_prev: FormState, data: FormData): Promise<Form
 
 // ------------------------------------------------------------------ assurance (FR-DOC-014)
 
-/// Record a confirmation on the draft: a named Person and the day, recorded on their behalf, not signed.
+/// Record a confirmation on the draft: the signed-in person and the day (Phase 2b: FR-DOC-014 asks the person confirming to be the one signed in).
 export async function recordAssurance(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const kind = r.choice("kind", "Confirmation", ASSURANCE_KINDS, { required: true });
-  const personId = r.text("personId", "Confirmed by", { required: true });
   const on = r.date("confirmedOn", "Confirmed on", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed || !kind || !on) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "PackAssurance.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return locked(actor, exerciseId, async (tx, l) => {
     const pack = draftOf(l.packs);
     if (!pack) return NO_DRAFT;
@@ -199,7 +205,8 @@ export async function recordAssurance(_prev: FormState, data: FormData): Promise
       return f.code === "PERSON_REQUIRED" || f.code === "PERSON_NOT_ACTIVE" ? { ok: false, errors: { personId: confirmFaultText(f) } } : f.code.startsWith("DAY") ? { ok: false, errors: { confirmedOn: confirmFaultText(f) } } : refuse(faults, confirmFaultText);
     }
     const row = await tx.packAssurance.create({ data: { organisationId: l.org.id, packId: pack.id, kind, personId: person!.id, confirmedOn: dayToDate(storedDay(on)), note, recordedAt: new Date() } });
-    await audit(tx, toAuditActor(actor), l.org.id, "PackAssurance", row.id, label(l, `Tender documents v${pack.versionNo} · ${ASSURANCE_KIND_LABEL[kind]}`), "CREATE", diffFields(null, { confirmation: ASSURANCE_KIND_LABEL[kind], confirmedBy: person!.name, confirmedOn: storedDay(on), recordedOnBehalf: "not signed", note: note || null }));
+    await audit(tx, toAuditActor(actor), l.org.id, "PackAssurance", row.id, label(l, `Tender documents v${pack.versionNo} · ${ASSURANCE_KIND_LABEL[kind]}`), "CREATE", diffFields(null, { confirmation: ASSURANCE_KIND_LABEL[kind], confirmedBy: person!.name, confirmedOn: storedDay(on), note: note || null }));
+    await act.write(tx, row.id);
     return { ok: true };
   });
 }
@@ -225,15 +232,18 @@ export async function removeAssurance(_prev: FormState, data: FormData): Promise
 
 // ------------------------------------------------------------------ clause overrides (FR-DOC-011)
 
-/// Record a legal endorsement letting this version go without a mandatory clause: a named Person and the reason.
+/// Record a legal endorsement letting this version go without a mandatory clause: the signed-in person and the reason (Phase 2b: FR-DOC-011).
 export async function recordClauseOverride(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const clauseCode = r.text("clauseCode", "Clause", { required: true, max: 80 });
-  const personId = r.text("personId", "Endorsed by", { required: true });
   const reason = r.text("reason", "Why", { required: true, max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ClauseOverride.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return locked(actor, exerciseId, async (tx, l) => {
     if (!l.org.today) return NO_ZONE;
     const pack = draftOf(l.packs);
@@ -248,7 +258,8 @@ export async function recordClauseOverride(_prev: FormState, data: FormData): Pr
     }
     const live = liveClauses([clause!], l.org.today)[0];
     const row = await tx.clauseOverride.create({ data: { organisationId: l.org.id, packId: pack.id, clauseCode, clauseTitleSnapshot: live.titleEn, personId: person!.id, reason, recordedAt: new Date() } });
-    await audit(tx, toAuditActor(actor), l.org.id, "ClauseOverride", row.id, label(l, `Tender documents v${pack.versionNo} · without ${live.titleEn}`), "CREATE", diffFields(null, { clauseLeftOut: live.titleEn, endorsedBy: person!.name, recordedOnBehalf: "not signed" }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "ClauseOverride", row.id, label(l, `Tender documents v${pack.versionNo} · without ${live.titleEn}`), "CREATE", diffFields(null, { clauseLeftOut: live.titleEn, endorsedBy: person!.name }), reason);
+    await act.write(tx, row.id);
     return { ok: true };
   });
 }

@@ -41,6 +41,7 @@ import { FormReader } from "@/lib/validate";
 import { bidFindingText } from "@/lib/bids/labels";
 import { recordEstimateLodgement } from "@/lib/bids/lodgement";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -85,6 +86,8 @@ async function inExercise(scope: OrgScope, exerciseId: string, fn: (tx: Tx, l: L
     result = await withLockedExerciseScope(scope.organisationId, exerciseId, fn);
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     // A backstop index refused what another act got in first (OD-2's one live estimate,
     // one draft bill). Any other unique violation is not a rule's refusal: rethrown.
     const backstop = backstopCode(e);
@@ -446,16 +449,19 @@ export async function savePanel(_prev: FormState, data: FormData): Promise<FormS
   });
 }
 
-/// Record one column's verification: attested on behalf of the person named, on a day not after today.
+/// Record one column's verification: by the signed-in officer (Phase 2b; FR-EST-005 asks it signed, which is the next phase), on a day not after today.
 export async function recordPanelVerification(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const r = new FormReader(data);
   const exerciseId = exerciseIdOf(data);
   const columnCode = r.text("columnCode", "Column", { required: true });
-  const personId = r.optionalText("personId");
   const verifiedOn = r.date("verifiedOn", "Verified on");
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "SpecPanelVerification.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inExercise(actor, exerciseId, async (tx, l) => {
     const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
     if (!existing) return { ok: false, message: "Save the panel's details first." };
@@ -469,6 +475,7 @@ export async function recordPanelVerification(_prev: FormState, data: FormData):
     const column = columnsInForce(columns, today(l)).find((c) => c.code === columnCode)!;
     const row = await tx.specPanelVerification.create({ data: { organisationId: l.org.id, panelId: p.id, columnCode, columnLabelSnapshot: column.labelEn, personId: person!.id, verifiedOn: verifiedOn!, note } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.verification, row.id, label(l, `Specification panel · ${column.labelEn}`), "CREATE", verificationAudit({ column: column.labelEn, personName: person!.name, verifiedOn: storedDay(verifiedOn!), note }));
+    await act.write(tx, row.id);
     return { ok: true };
   });
 }
@@ -546,8 +553,12 @@ const preparedOnOf = (l: LockedExercise) => {
 export async function prepareEstimate(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
-  const personId = String(data.get("personId") ?? "").trim() || null;
   const value = readValue(data);
+  // The preparer is the signed-in officer (Phase 2b).
+  const begun = await beginAct(actor, data, "CompanyEstimate.preparer", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inExercise(actor, exerciseId, async (tx, l) => {
     await lockLiveEstimateRows(tx, exerciseId);
     const estimates = await tx.companyEstimate.findMany({ where: { exerciseId }, select: { state: true } });
@@ -566,6 +577,9 @@ export async function prepareEstimate(_prev: FormState, data: FormData): Promise
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimate, est.id, label(l, "Company estimate"), "CREATE", estimateCreatedAudit({ preparerName: person!.name, classification: CLASSIFICATION_LABEL.SULIT }));
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateVersion, v.id, label(l, "Company estimate · version 1"), "CREATE", estimateVersionAudit({ versionNo: 1, preparerName: person!.name, preparedOn: storedDay(preparedOn) }));
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · prepared"), "CREATE", estimateEventAudit({ kind: "PREPARED", personName: person!.name, capacity: "Preparer", versionNo: 1 }));
+    await act.write(tx, est.id);
+    await act.writeAlso(tx, "CompanyEstimateVersion.preparer", v.id);
+    await act.writeAlso(tx, "EstimateEvent.person", ev.id);
     return { ok: true };
   });
 }
@@ -586,9 +600,12 @@ export async function amendEstimate(_prev: FormState, data: FormData): Promise<F
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const estimateId = String(data.get("estimateId") ?? "");
-  const personId = String(data.get("personId") ?? "").trim() || null;
   const reason = String(data.get("reason") ?? "");
   const value = readValue(data);
+  const begun = await beginAct(actor, data, "CompanyEstimateVersion.preparer", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inExercise(actor, exerciseId, async (tx, l) => {
     const { row, facts } = await lockedEstimate(tx, l, estimateId);
     const person = await activePerson(l.org.id, personId, tx);
@@ -604,6 +621,8 @@ export async function amendEstimate(_prev: FormState, data: FormData): Promise<F
     const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "AMENDED", personId: person!.id, capacity: "Preparer", versionNo } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateVersion, v.id, label(l, `Company estimate · version ${versionNo}`), "CREATE", estimateVersionAudit({ versionNo, preparerName: person!.name, preparedOn: storedDay(preparedOn) }));
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · amended"), "CREATE", estimateEventAudit({ kind: "AMENDED", personName: person!.name, capacity: "Preparer", versionNo }));
+    await act.write(tx, v.id);
+    await act.writeAlso(tx, "EstimateEvent.person", ev.id);
     return { ok: true };
   });
 }
@@ -613,8 +632,11 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const estimateId = String(data.get("estimateId") ?? "");
-  const personId = String(data.get("personId") ?? "").trim() || null;
   const capacity = String(data.get("capacity") ?? "").trim().slice(0, 200);
+  const begun = await beginAct(actor, data, "EstimateEvent.person", { personField: "personId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inExercise(actor, exerciseId, async (tx, l) => {
     const { row, facts } = await lockedEstimate(tx, l, estimateId);
     const person = await activePerson(l.org.id, personId, tx);
@@ -625,8 +647,9 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
     const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "LODGED", personId: person!.id, capacity, versionNo: facts.currentVersionNo, copyNo: 1 } });
     if (facts.state !== "LODGED") await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimate, row.id, label(l, "Company estimate"), "UPDATE", estimateStateAudit(ESTIMATE_STATE_LABEL[facts.state], ESTIMATE_STATE_LABEL.LODGED));
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · lodged"), "CREATE", estimateEventAudit({ kind: "LODGED", personName: person!.name, capacity, versionNo: facts.currentVersionNo, copyNo: 1 }));
+    await act.write(tx, ev.id);
     // 6.6 (flagged hook): copy 1 goes into the box, recorded on the envelope register in this transaction, under these locks.
-    const box = await recordEstimateLodgement(tx, toAuditActor(actor), l, { personId: person!.id, personName: person!.name, versionNo: facts.currentVersionNo, now: new Date() });
+    const box = await recordEstimateLodgement(tx, toAuditActor(actor), l, { personId: person!.id, personName: person!.name, versionNo: facts.currentVersionNo, now: new Date(), act });
     if (!box.ok) throw new Refusal({ ok: false, message: `Nothing was saved: ${box.faults.map(bidFindingText).join(" ")}` });
     return { ok: true };
   });
@@ -637,9 +660,12 @@ export async function recordRetainedCopy(_prev: FormState, data: FormData): Prom
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
   const estimateId = String(data.get("estimateId") ?? "");
-  const personId = String(data.get("personId") ?? "").trim() || null;
   const capacity = String(data.get("capacity") ?? "").trim().slice(0, 200);
   const place = String(data.get("place") ?? "").trim().slice(0, 300);
+  const begun = await beginAct(actor, data, "EstimateEvent.person", { personField: "personId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inExercise(actor, exerciseId, async (tx, l) => {
     const { row, facts } = await lockedEstimate(tx, l, estimateId);
     const person = await activePerson(l.org.id, personId, tx);
@@ -649,6 +675,7 @@ export async function recordRetainedCopy(_prev: FormState, data: FormData): Prom
     await tx.companyEstimate.update({ where: { id: row.id, organisationId: actor.organisationId }, data: { retainedPlace: place } });
     const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "RETAINED", personId: person!.id, capacity, note: place, versionNo: facts.lodgedVersionNo, copyNo: 2 } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · copy retained"), "CREATE", estimateEventAudit({ kind: "RETAINED", personName: person!.name, capacity, versionNo: facts.lodgedVersionNo, copyNo: 2, place }));
+    await act.write(tx, ev.id);
     return { ok: true };
   });
 }
@@ -662,7 +689,10 @@ export async function voidEstimate(_prev: FormState, data: FormData): Promise<Fo
   const exerciseId = exerciseIdOf(data);
   const estimateId = String(data.get("estimateId") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
-  const personId = String(data.get("personId") ?? "").trim() || null;
+  const begun = await beginAct(actor, data, "EstimateEvent.person", { personField: "personId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inExercise(actor, exerciseId, async (tx, l) => {
     const { row, facts } = await lockedEstimate(tx, l, estimateId);
     const person = await activePerson(l.org.id, personId, tx);
@@ -673,6 +703,7 @@ export async function voidEstimate(_prev: FormState, data: FormData): Promise<Fo
     const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: row.id, kind: "VOIDED", personId: person?.id ?? null, note: reason, versionNo: facts.currentVersionNo } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimate, row.id, label(l, "Company estimate"), "UPDATE", estimateStateAudit(ESTIMATE_STATE_LABEL[facts.state], ESTIMATE_STATE_LABEL.VOID), reason);
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.estimateEvent, ev.id, label(l, "Company estimate · voided"), "CREATE", estimateEventAudit({ kind: "VOIDED", personName: person?.name ?? null, versionNo: facts.currentVersionNo, reason }), reason);
+    await act.write(tx, ev.id);
     return { ok: true };
   });
 }
@@ -697,8 +728,12 @@ export async function tableScope(_prev: FormState, data: FormData): Promise<Form
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
   const meetingId = r.text("meetingId", "Sitting", { required: true });
-  const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
+  // The tabler is the signed-in person: the holder of the Secretariat office, judged below (FR-CTE-006).
+  const begun = await beginAct(actor, data, "CommitteeDecision.tabledBy", { personField: "tabledByPersonId" });
+  if (!begun.ok) return begun.state;
+  const tablerAct = begun.act;
+  const tabledByPersonId = tablerAct.subjectPersonId;
   const roster = await loadRoster(actor.organisationCode);
   const result = await inExercise(actor, exerciseId, async (tx, l) => {
     await lockBqRows(tx, exerciseId);
@@ -734,6 +769,7 @@ export async function tableScope(_prev: FormState, data: FormData): Promise<Form
     });
     await audit(tx, toAuditActor(actor), l.org.id, "CommitteeDecision", row.id, subject, "CREATE",
       scopeTabledAudit({ subject, versionNo: version.versionNo, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, act: ACT_LABEL[act] ?? "An act the portal does not name", tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: s.today! }));
+    await tablerAct.write(tx, row.id);
     return { ok: true, message: `Tabled at ${s.meeting.reference}. It is decided there, at the sitting.` };
   });
   if (result.ok) {

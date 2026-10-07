@@ -1,6 +1,7 @@
 import { Blocked } from "@/app/requisitions/editors";
 import { RecordEditor, type Field, type SaveAction } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 import { Callout } from "@/components/ui/feedback";
 import { EXERCISE_NOTE_ID } from "../../editors";
 import { Facts } from "../documents/editors";
@@ -13,7 +14,7 @@ import { cancelEvent, issueAddendum, markEventHeld, recordAddendumDelivery, reco
  * The drawers of the Invitation tab. Fields are data; every rule sits in the action and the pure
  * checks behind it (`src/lib/window`). Where those checks already say an act cannot proceed, the
  * control is disabled with the reason beside it (read.ts judges with the rule the action runs).
- * Every act that names a person reads "recorded on behalf of, not signed": nobody is signed in.
+ * Every act is the signed-in officer's own (Phase 2b). A decision of an office that was made on paper is recorded for the holder by someone else, and is not signed.
  * Nothing is sent from here: delivery is recorded, never carried out.
  */
 
@@ -33,7 +34,7 @@ const DELIVERY_OPTIONS: Option[] = [
   { value: "COLLECTION", label: "Collected" },
   { value: "BY_HAND", label: "By hand" },
 ];
-const ON_BEHALF = "Name who did it: recorded on their behalf, not signed.";
+const ON_BEHALF = "It is recorded as yours.";
 
 // ------------------------------------------------------------------ the notice's items and fee
 
@@ -185,7 +186,7 @@ export function RecordPublicationDrawer({ exerciseId, channels, people, today }:
         { kind: "select", name: "channelId", label: "Channel", required: true, placeholder: "Choose", options: channels },
         { kind: "date", name: "publishedOn", label: "Published on", required: true, hint: "Not after today." },
         { kind: "text", name: "reference", label: "Title and edition, board or address" },
-        { kind: "select", name: "recordedByPersonId", label: "Recorded by", required: true, placeholder: "Choose", options: people },
+        actorField("PublicationRecord.recordedBy", { name: "recordedByPersonId", people }),
       ]}
       values={{ exerciseId, publishedOn: today }}
       action={recordPublication}
@@ -349,12 +350,12 @@ export function WindowDecisionDrawer({ exerciseId, stepId, office, done, people,
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
-      description={`On ${what}. ${ON_BEHALF} They must hold the office for the requisition's department, or a delegation of it. A refusal means the change is not made; it may be asked for again.`}
+      description={`On ${what}. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office for the requisition's department, or a delegation of it. A refusal means the change is not made; it may be asked for again.`}
       fields={[
         hidden("exerciseId"),
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: "Refused: the change is not made" }] },
-        { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: people, hint: people.length === 0 ? "Nobody holds this office for the requisition's department today." : undefined },
+        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true, hint: people.length === 0 ? "Nobody holds this office for the requisition's department today." : undefined }),
         { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was asked for." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
       ]}
@@ -430,7 +431,7 @@ export function RecordSaleDrawer({
         { kind: "textarea", name: "checkNote", label: "Note on the checks" },
         { kind: "text", name: "paymentMethod", label: "How the fee was paid", required: true },
         { kind: "text", name: "financeReceiptNo", label: "Finance receipt number", mono: true, hint: "Typed as it reads on finance's receipt: the portal never makes one. Leave empty if not yet to hand: the sale then shows among the receipts to collect." },
-        { kind: "select", name: "issuedByPersonId", label: "Issued by", required: true, placeholder: "Choose", options: people },
+        actorField("DocumentSale.issuedBy", { name: "issuedByPersonId", people }),
       ]}
       values={{ exerciseId }}
       action={recordSale}
@@ -562,7 +563,7 @@ export function RecordAttendanceDrawer({ exerciseId, eventId, label, parties, in
         { kind: "select", name: "partyId", label: invited ? "Invited contractor" : "Contractor already on this exercise", required: invited, placeholder: invited ? "Choose" : "A contractor not yet on the exercise", options: parties, hint: invited ? undefined : "Leave empty to enter a new contractor below." },
         ...(invited ? [] : ([{ kind: "text", name: "name", label: "Contractor" }, { kind: "text", name: "registrationNo", label: "Registration number", mono: true }] as Field[])),
         { kind: "text", name: "representative", label: "Representative", required: true },
-        { kind: "select", name: "recordedByPersonId", label: "Recorded by", required: true, placeholder: "Choose", options: people },
+        actorField("SiteEventAttendance.recordedBy", { name: "recordedByPersonId", people }),
       ]}
       values={{ exerciseId, eventId }}
       action={recordAttendance}

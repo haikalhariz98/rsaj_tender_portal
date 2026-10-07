@@ -19,7 +19,7 @@ type Option = { value: string; label: string };
  * under the row (the shared list's `below` placement), so the markings keep the row's width and
  * "Table for admission" is never cut at the card's edge (6.6 review S-2).
  */
-export function EnvelopeList({ exerciseId, rows, people, late }: { exerciseId: string; rows: EnvelopeRow[]; people: Option[]; late: { committee: string | null; sittings: Option[]; holders: Option[] } }) {
+export function EnvelopeList({ exerciseId, rows, late }: { exerciseId: string; rows: EnvelopeRow[]; late: { committee: string | null; sittings: Option[]; holders: Option[] } }) {
   const byId = new Map(rows.map((r) => [r.id, r]));
   const list: Row[] = rows.map((r) => ({
     id: r.id,
@@ -79,7 +79,7 @@ export function EnvelopeList({ exerciseId, rows, people, late }: { exerciseId: s
         if (!r.correct?.allowed && !r.returnable && !r.table?.allowed) return null;
         return (
           <span className="flex flex-wrap items-center justify-end gap-1">
-            {r.correct?.allowed && <CorrectDrawer exerciseId={exerciseId} envelope={{ id: r.id, sequence: r.sequence, markings: r.markings, channel: r.channelCode, receivedById: r.receivedById }} people={people} />}
+            {r.correct?.allowed && <CorrectDrawer exerciseId={exerciseId} envelope={{ id: r.id, sequence: r.sequence, markings: r.markings, channel: r.channelCode, receivedById: r.receivedById }} />}
             {r.returnable && <ReturnedDrawer exerciseId={exerciseId} envelopeId={r.id} sequence={r.sequence} />}
             {r.table?.allowed && <TableLateDrawer exerciseId={exerciseId} envelopeId={r.id} sequence={r.sequence} committee={late.committee} sittings={late.sittings} holders={late.holders} allowed={r.table} />}
           </span>

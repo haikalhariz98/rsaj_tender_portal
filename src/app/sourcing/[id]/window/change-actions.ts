@@ -39,6 +39,7 @@ import { FormReader } from "@/lib/validate";
 
 import { audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, type LockedWindow } from "./shared";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 
 /**
@@ -291,8 +292,8 @@ async function applyCancellation(tx: Tx, actor: AuditActor, l: LockedWindow, d: 
 }
 
 /**
- * Record a named Person's decision on a step of a window change's route: recorded on their behalf,
- * not signed; the holder, delegation, self-approval and date checks are 6.1's (`deciderFaults`).
+ * Record a decision on a step of a window change's route: the holder's own, signed with the password, or recorded for the
+ * holder from paper and not signed (Phase 2b); the holder, delegation, self-approval and date checks are 6.1's (`deciderFaults`).
  * The step that completes the route applies the change here; a refusal means it is not made.
  */
 export async function recordWindowChangeDecision(_prev: FormState, data: FormData): Promise<FormState> {
@@ -303,11 +304,16 @@ export async function recordWindowChangeDecision(_prev: FormState, data: FormDat
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);
   const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Decided by", { required: true });
-  const on = r.date("decidedOn", "Decided on", { required: true });
+  r.date("decidedOn", "Decided on");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is refused.");
-  if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
+  if (r.failed || !decision) return { ok: false, errors: r.errors };
+  // The decision is the signed-in holder's own, signed with the password, or recorded for the holder from paper and not signed (Phase 2b, F1).
+  const begun = await beginAct(actor, data, "ApprovalStep.decidedBy", { personField: "personId", dateField: "decidedOn" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
+  const on = dayToDate(act.day!);
   return inWindow(actor, exerciseId, async (tx, l, d) => {
     const w = d.window;
     const full = windowChangeRoutesOf(l.ex.approvalInstances).find((i) => i.status === "PENDING") ?? null;
@@ -330,6 +336,7 @@ export async function recordWindowChangeDecision(_prev: FormState, data: FormDat
       person,
       // Nobody decides a step of a matter on a requisition they raised.
       requesterId: l.req.requestingPersonId,
+      recorderId: act.recorderId,
       endorserIds: [],
       otherDeciderIds: full.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
       earlierDone: full.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
@@ -345,7 +352,8 @@ export async function recordWindowChangeDecision(_prev: FormState, data: FormDat
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${l.ex.reference} · ${step.roleLabel}`, "UPDATE",
-      diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
+      diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null, underDelegation: check.delegationId ? "yes" : null }), reason);
+    await act.write(tx, step.id, { document: { entity: "SourcingExercise", id: exerciseId }, roleCode: step.actingRoleCode ?? step.roleCode });
     const routeLabel = label(l, exerciseRouteMatter(WINDOW_CHANGE_DOMAIN).auditNoun);
     const now = new Date();
     if (decision === "REJECTED") {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
+import { ActAttributionFields } from "@/components/act-attribution-fields";
 import { ClipboardIcon, FileIcon, RouteIcon, SaveIcon } from "@/components/icons";
 import type { FormState } from "@/components/record-editor";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { AffixInput, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
+import { actorField } from "@/lib/auth/actor-field";
 import { EVIDENCE_NOTE_HINT, SCOPE_NOTE_HINT } from "@/lib/method/labels";
 import type { Presented } from "@/lib/method/present";
 
@@ -100,7 +102,7 @@ export function ExerciseForm({
         const res = await fetch("/api/method/determine", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ...v, value, requisitionId: requisition.id, exerciseId: id ?? null, methodCode: v.sourcingMethodCode, scope, typeReason: v.contractTypeOverrideReason, typePersonId: v.overriddenByPersonId, basisCode: v.contractBasisCode }),
+          body: JSON.stringify({ ...v, value, requisitionId: requisition.id, exerciseId: id ?? null, methodCode: v.sourcingMethodCode, scope, typeReason: v.contractTypeOverrideReason, basisCode: v.contractBasisCode }),
         });
         const body = await res.json();
         if (n !== seq.current) return;
@@ -227,9 +229,7 @@ export function ExerciseForm({
             {typeChosen && (
               <>
                 {text("contractTypeOverrideReason", "Why this type", { area: true, hint: "Required where it is not the derived type." })}
-                {select("overriddenByPersonId", "Decided by", options.people.map((p) => ({ value: p.id, label: p.name })), {
-                  hint: "In Contract & Procurement. Recorded on their behalf, not signed.",
-                })}
+                <ActAttributionFields spec={actorField("SourcingExercise.overriddenBy", { name: "overriddenByPersonId", hint: "The type is overridden by you, in Contract & Procurement. It is attributed to you from your sign-in." })} errors={e} />
               </>
             )}
           </CardBody>

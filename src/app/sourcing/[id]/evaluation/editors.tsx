@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 import { CHANNEL_LABEL, DIRECTION_LABEL, SIDE_LABEL } from "@/lib/evaluation/labels";
 import { COMMUNICATION_CHANNELS, COMMUNICATION_DIRECTIONS, TEAM_SIDES } from "@/lib/evaluation/types";
 
@@ -21,9 +22,8 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 const secondary = buttonClass("secondary", "sm");
 const primary = buttonClass("primary", "sm");
 const ghost = buttonClass("ghost", "sm");
-const ON_BEHALF = "Recorded on their behalf, not signed.";
-const who = (name: string, label = "Recorded by", required = true): Field => ({ kind: "select", name, label, required, placeholder: "Choose", options: [], hint: ON_BEHALF });
-const people = (f: Field, options: Option[]): Field => (f.kind === "select" ? { ...f, options } : f);
+/// Who is acting: the signed-in officer, shown and not chosen (Phase 2b). A paper approval may be recorded for the holder, from `ps`.
+const by = (slot: string, name: string, ps: Option[], label?: string, dated = false): Field => actorField(slot, { name, people: ps, label, dated });
 const block = (a: Allowed) => (a.allowed ? null : a.reason);
 
 // ------------------------------------------------------------------ starting and the team
@@ -39,7 +39,7 @@ export function StartEvaluationDrawer({ exerciseId, allowed, people: ps, carried
         { kind: "tokens", name: "implementing", label: "For the implementing department", options: ps, hint: "Of the requisition's unit or a unit under it." },
         { kind: "tokens", name: "procurement", label: "For contract and procurement", options: ps, hint: "Nobody sits on both sides." },
         { kind: "date", name: "appointedOn", label: "Appointed on", required: true },
-        people(who("startedByPersonId", "Started by"), ps),
+        by("Evaluation.startedBy", "startedByPersonId", ps),
       ]}
       values={{ exerciseId }}
       action={startEvaluation}
@@ -74,7 +74,7 @@ export function CorrectPriceDrawer({ exerciseId, bidder, people: ps }: { exercis
     <RecordEditor
       title={`Correct the price of bid No. ${bidder.listingNo}`}
       description={`As read at the opening: ${bidder.asRead}. An arithmetic correction, with its reason, only before the first stage is submitted. The ceiling is judged again on the corrected price.`}
-      fields={[hidden("exerciseId"), hidden("bidderId"), { kind: "money", name: "correctedPrice", label: "Corrected price", required: true }, { kind: "textarea", name: "correctionReason", label: "Why it is corrected", required: true }, people(who("personId"), ps)]}
+      fields={[hidden("exerciseId"), hidden("bidderId"), { kind: "money", name: "correctedPrice", label: "Corrected price", required: true }, { kind: "textarea", name: "correctionReason", label: "Why it is corrected", required: true }, by("EvaluationBidder.correctedBy", "personId", ps)]}
       values={{ exerciseId, bidderId: bidder.id }}
       action={correctPrice}
       submitLabel="Correct"
@@ -102,7 +102,7 @@ export function InputsDrawer({ exerciseId, bidder, factors, capital, cpr, people
             ] as Field[])
           : []),
         ...(cpr ? ([{ kind: "text", name: "cprPercent", label: "Contractor performance (%)", hint: "From the report attached to the bid, not from a register." }] as Field[]) : []),
-        people(who("personId"), ps),
+        by("EvaluationBidder.inputsRecordedBy", "personId", ps),
       ]}
       values={{ exerciseId, bidderId: bidder.id, ...bidder.raw }}
       action={recordInputs}
@@ -130,7 +130,7 @@ export function ScoreDrawer({ exerciseId, stage, bidder, criteria, people: ps }:
         ...(marks ? ([{ kind: "text", name: "marks", label: "Marks", hint: "For a criterion marked out of a maximum." }] as Field[]) : []),
         ...(pass ? ([{ kind: "select", name: "passed", label: "Pass or fail", placeholder: "Choose", options: [{ value: "yes", label: "Passes" }, { value: "no", label: "Fails" }], hint: "For a criterion passed or failed." }] as Field[]) : []),
         { kind: "textarea", name: "note", label: "Note" },
-        people(who("scoredByPersonId", "Scored by"), ps),
+        by("EvaluationScore.scoredBy", "scoredByPersonId", ps),
       ]}
       values={{ exerciseId, bidderId: bidder.id, stageCode: stage.code }}
       action={recordScore}
@@ -146,7 +146,7 @@ export function SubmitStageDrawer({ exerciseId, stage, notBanded, pending, peopl
     <RecordEditor
       title={`Submit ${stage.label}`}
       description="Every bid in the running is computed and its result frozen with the submission, by a member on the stage's side. A value no band holds is submitted with the evaluator's note."
-      fields={[hidden("exerciseId"), hidden("stageCode"), ...notBanded.map((n): Field => ({ kind: "textarea", name: `note:${n.key}`, label: n.label, required: true, hint: "Why it is so, for the report." })), people(who("personId", "Submitted by"), ps)]}
+      fields={[hidden("exerciseId"), hidden("stageCode"), ...notBanded.map((n): Field => ({ kind: "textarea", name: `note:${n.key}`, label: n.label, required: true, hint: "Why it is so, for the report." })), by("StageSubmission.submittedBy", "personId", ps)]}
       values={{ exerciseId, stageCode: stage.code }}
       action={submitStage}
       submitLabel="Submit"
@@ -162,7 +162,7 @@ export function ShortlistDrawer({ exerciseId, stage, bidders, people: ps }: { ex
     <RecordEditor
       title={`Record ${stage.label}`}
       description="The bids chosen among those in the running, under the stage's rule. Those not chosen go out of the running."
-      fields={[hidden("exerciseId"), hidden("stageCode"), { kind: "tokens", name: "chosen", label: "Shortlisted", options: bidders }, people(who("personId", "Decided by"), ps)]}
+      fields={[hidden("exerciseId"), hidden("stageCode"), { kind: "tokens", name: "chosen", label: "Shortlisted", options: bidders }, by("StageSubmission.submittedBy", "personId", ps, "Decided by")]}
       values={{ exerciseId, stageCode: stage.code }}
       action={recordShortlist}
       submitLabel="Record the shortlist"
@@ -177,7 +177,7 @@ export function TableStageOneDrawer({ exerciseId, bidder, sittings, people: ps, 
     <RecordEditor
       title={`Table bid No. ${bidder.listingNo}'s first stage${again ? " again" : ""}`}
       description={`${again ? "The committee deferred it: table it again at a sitting. " : ""}The committee decides each bid's first stage at its sitting; the decision there is the act. Tabled on the Secretariat holder's behalf.`}
-      fields={[hidden("exerciseId"), hidden("bidderId"), { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: sittings.length ? "Choose" : "No sitting of the committee is open", options: sittings }, people(who("tabledByPersonId", "Tabled by"), ps)]}
+      fields={[hidden("exerciseId"), hidden("bidderId"), { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: sittings.length ? "Choose" : "No sitting of the committee is open", options: sittings }, by("CommitteeDecision.tabledBy", "tabledByPersonId", ps)]}
       values={{ exerciseId, bidderId: bidder.id }}
       action={tableStageOneMatter}
       submitLabel="Table"
@@ -194,7 +194,7 @@ export function AssessDrawer({ exerciseId, bidder, aspect, suggestion, people: p
     <RecordEditor
       title={`${aspect.label}: bid No. ${bidder.listingNo}`}
       description={`A verdict and a narrative. What the opening found is offered to start from; it is recorded only when saved. A reassessment is kept beside the earlier one.${suggestion.guide ? ` ${suggestion.guide} (SULIT: kept out of the narrative, which goes to the History.)` : ""}`}
-      fields={[hidden("exerciseId"), hidden("bidderId"), hidden("aspectCode"), { kind: "select", name: "verdict", label: "Verdict", required: true, placeholder: "Choose", options: [{ value: "SATISFACTORY", label: "Satisfactory" }, { value: "NOT_SATISFACTORY", label: "Not satisfactory" }] }, { kind: "textarea", name: "narrative", label: "Narrative", required: true }, people(who("personId", "Assessed by"), ps)]}
+      fields={[hidden("exerciseId"), hidden("bidderId"), hidden("aspectCode"), { kind: "select", name: "verdict", label: "Verdict", required: true, placeholder: "Choose", options: [{ value: "SATISFACTORY", label: "Satisfactory" }, { value: "NOT_SATISFACTORY", label: "Not satisfactory" }] }, { kind: "textarea", name: "narrative", label: "Narrative", required: true }, by("AspectAssessment.assessedBy", "personId", ps)]}
       values={{ exerciseId, bidderId: bidder.id, aspectCode: aspect.code, verdict: suggestion.verdict, narrative: suggestion.narrative }}
       action={assessAspect}
       submitLabel="Record"
@@ -212,7 +212,7 @@ export function OpenMeetingDrawer({ exerciseId, bidders, people: ps, allowed }: 
       title="Record a meeting held"
       description="A clarification with any tenderer, as often as needed; a negotiation only with a bid in the running, once its approval is recorded. Close it on its minutes once the tenderer's written confirmation is attached."
       columns={2}
-      fields={[hidden("exerciseId"), { kind: "select", name: "bidderId", label: "Tenderer", required: true, placeholder: "Choose", options: bidders }, { kind: "select", name: "kind", label: "Meeting", required: true, placeholder: "Choose", options: [{ value: "CLARIFICATION", label: "Clarification" }, { value: "NEGOTIATION", label: "Negotiation" }] }, { kind: "date", name: "heldOn", label: "Held on", required: true }, { kind: "text", name: "place", label: "Where", required: true }, people(who("personId"), ps)]}
+      fields={[hidden("exerciseId"), { kind: "select", name: "bidderId", label: "Tenderer", required: true, placeholder: "Choose", options: bidders }, { kind: "select", name: "kind", label: "Meeting", required: true, placeholder: "Choose", options: [{ value: "CLARIFICATION", label: "Clarification" }, { value: "NEGOTIATION", label: "Negotiation" }] }, { kind: "date", name: "heldOn", label: "Held on", required: true }, { kind: "text", name: "place", label: "Where", required: true }, by("EvaluationMeeting.openedBy", "personId", ps)]}
       values={{ exerciseId }}
       action={openMeeting}
       submitLabel="Record"
@@ -229,7 +229,7 @@ export function CloseMeetingDrawer({ exerciseId, meeting, people: ps }: { exerci
       title={`Close ${meeting.label}`}
       description={meeting.isNegotiation ? "On its minutes, the tenderer's written confirmation attached, and the price before and after the round. Closed, it is frozen." : "On its minutes, the tenderer's written confirmation attached. Closed, it is frozen."}
       columns={meeting.isNegotiation ? 2 : 1}
-      fields={[hidden("exerciseId"), hidden("meetingId"), { kind: "textarea", name: "minutes", label: "Minutes", required: true }, ...(meeting.isNegotiation ? ([{ kind: "money", name: "priceBefore", label: "Price before the round", required: true }, { kind: "money", name: "priceAfter", label: "Price after the round", required: true }] as Field[]) : []), people(who("personId", "Closed by"), ps)]}
+      fields={[hidden("exerciseId"), hidden("meetingId"), { kind: "textarea", name: "minutes", label: "Minutes", required: true }, ...(meeting.isNegotiation ? ([{ kind: "money", name: "priceBefore", label: "Price before the round", required: true }, { kind: "money", name: "priceAfter", label: "Price after the round", required: true }] as Field[]) : []), by("EvaluationMeeting.closedBy", "personId", ps)]}
       values={{ exerciseId, meetingId: meeting.id }}
       action={closeMeeting}
       submitLabel="Close"
@@ -244,7 +244,7 @@ export function RequestNegotiationDrawer({ exerciseId, bidders, people: ps, allo
     <RecordEditor
       title="Ask for a negotiation"
       description="The route is resolved from your approval matrix's rules for a negotiation; none ships. Refused, the negotiation is not held, and may be asked for again."
-      fields={[hidden("exerciseId"), { kind: "select", name: "bidderId", label: "Tenderer", required: true, placeholder: "Choose", options: bidders }, { kind: "textarea", name: "reason", label: "Why a negotiation is needed", required: true }, people(who("personId", "Asked by"), ps)]}
+      fields={[hidden("exerciseId"), { kind: "select", name: "bidderId", label: "Tenderer", required: true, placeholder: "Choose", options: bidders }, { kind: "textarea", name: "reason", label: "Why a negotiation is needed", required: true }, by("NegotiationRequest.requestedBy", "personId", ps)]}
       values={{ exerciseId }}
       action={requestNegotiation}
       submitLabel="Ask"
@@ -260,7 +260,7 @@ export function NegotiationDecisionDrawer({ exerciseId, stepId, office, people: 
     <RecordEditor
       title={`Decision of ${office}`}
       description="Recorded on the decider's behalf, not signed: the office's holder or delegate on the day."
-      fields={[hidden("exerciseId"), hidden("stepId"), { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: "Approved" }, { value: "REJECTED", label: "Refused" }] }, { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: ps }, { kind: "date", name: "decidedOn", label: "Decided on", required: true }, { kind: "textarea", name: "reason", label: "Reason", hint: "Required when refused." }]}
+      fields={[hidden("exerciseId"), hidden("stepId"), { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: "Approved" }, { value: "REJECTED", label: "Refused" }] }, by("ApprovalStep.decidedBy", "personId", ps, undefined, true), { kind: "date", name: "decidedOn", label: "Decided on", required: true }, { kind: "textarea", name: "reason", label: "Reason", hint: "Required when refused." }]}
       values={{ exerciseId, stepId, decidedOn: today }}
       action={recordNegotiationDecision}
       submitLabel="Record"
@@ -276,7 +276,7 @@ export function LogCommunicationDrawer({ exerciseId, bidders, people: ps, allowe
       title="Record a letter, email or fax"
       description="A written communication with a tenderer, recorded, never sent from here. Attach the letter itself to the tenderer's record."
       columns={2}
-      fields={[hidden("exerciseId"), { kind: "select", name: "bidderId", label: "Tenderer", required: true, placeholder: "Choose", options: bidders }, { kind: "select", name: "direction", label: "Direction", required: true, placeholder: "Choose", options: COMMUNICATION_DIRECTIONS.map((d) => ({ value: d, label: DIRECTION_LABEL[d] })) }, { kind: "select", name: "channel", label: "By", required: true, placeholder: "Choose", options: COMMUNICATION_CHANNELS.map((d) => ({ value: d, label: CHANNEL_LABEL[d] })) }, { kind: "date", name: "on", label: "Sent or received on", required: true }, { kind: "text", name: "subject", label: "Subject", required: true }, { kind: "textarea", name: "content", label: "What it says", required: true }, people(who("personId"), ps)]}
+      fields={[hidden("exerciseId"), { kind: "select", name: "bidderId", label: "Tenderer", required: true, placeholder: "Choose", options: bidders }, { kind: "select", name: "direction", label: "Direction", required: true, placeholder: "Choose", options: COMMUNICATION_DIRECTIONS.map((d) => ({ value: d, label: DIRECTION_LABEL[d] })) }, { kind: "select", name: "channel", label: "By", required: true, placeholder: "Choose", options: COMMUNICATION_CHANNELS.map((d) => ({ value: d, label: CHANNEL_LABEL[d] })) }, { kind: "date", name: "on", label: "Sent or received on", required: true }, { kind: "text", name: "subject", label: "Subject", required: true }, { kind: "textarea", name: "content", label: "What it says", required: true }, by("TendererCommunication.recordedBy", "personId", ps)]}
       values={{ exerciseId }}
       action={logCommunication}
       submitLabel="Record"
@@ -294,7 +294,7 @@ export function RecommendDrawer({ exerciseId, bidders, topId, allowed, people: p
     <RecordEditor
       title="Form the recommendation"
       description="A bid in the running after every stage. Recommending another than the top-ranked needs its justification. Its price is the one after negotiation where one was held."
-      fields={[hidden("exerciseId"), { kind: "select", name: "bidderId", label: "Recommended tenderer", required: true, placeholder: "Choose", options: bidders }, { kind: "textarea", name: "justification", label: "Why this one", hint: "Required where it is not the top-ranked." }, people(who("personId", "Formed by"), ps)]}
+      fields={[hidden("exerciseId"), { kind: "select", name: "bidderId", label: "Recommended tenderer", required: true, placeholder: "Choose", options: bidders }, { kind: "textarea", name: "justification", label: "Why this one", hint: "Required where it is not the top-ranked." }, by("Recommendation.formedBy", "personId", ps)]}
       values={{ exerciseId, bidderId: topId }}
       action={formRecommendation}
       submitLabel="Form"
@@ -310,7 +310,7 @@ export function IssueReportDrawer({ exerciseId, allowed, people: ps }: { exercis
     <RecordEditor
       title="Issue the report"
       description="Its reference is drawn from the configured series and its text from the configured template; annexes A to F are frozen with it. It is never edited: a later version supersedes it. The exercise is then Evaluated."
-      fields={[hidden("exerciseId"), people(who("personId", "Issued by"), ps)]}
+      fields={[hidden("exerciseId"), by("Evaluation.issuedBy", "personId", ps)]}
       values={{ exerciseId }}
       action={issueReport}
       submitLabel="Issue"
@@ -326,7 +326,7 @@ export function RenderProposalDrawer({ exerciseId, allowed, people: ps }: { exer
     <RecordEditor
       title="Produce the Kertas Cadangan"
       description="From the issued report, through the configured template, frozen. Its checking and its recommending officers are then recorded: the offices' holders on the day, two different people."
-      fields={[hidden("exerciseId"), people(who("personId", "Produced by"), ps)]}
+      fields={[hidden("exerciseId"), by("ProposalPaper.renderedBy", "personId", ps)]}
       values={{ exerciseId }}
       action={renderProposalPaper}
       submitLabel="Produce"
@@ -343,7 +343,7 @@ export function ProposalSignerDrawer({ exerciseId, role, office, people: ps, tod
     <RecordEditor
       title={`Record who ${what} it`}
       description={`The holder of ${office} on the day; recorded on their behalf, not signed. The checking and the recommending officers are two different people.`}
-      fields={[hidden("exerciseId"), hidden("role"), { kind: "select", name: "personId", label: role === "CHECKER" ? "Checked by" : "Recommended by", required: true, placeholder: "Choose", options: ps }, { kind: "date", name: "signedOn", label: "On", required: true }]}
+      fields={[hidden("exerciseId"), hidden("role"), by(role === "CHECKER" ? "ProposalPaper.checkedBy" : "ProposalPaper.recommendedBy", "personId", ps), { kind: "date", name: "signedOn", label: "On", required: true }]}
       values={{ exerciseId, role, signedOn: today }}
       action={recordProposalSigner}
       submitLabel="Record"

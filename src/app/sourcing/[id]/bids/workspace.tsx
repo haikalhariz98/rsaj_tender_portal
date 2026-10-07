@@ -112,7 +112,7 @@ function BidsPanel({ d }: { d: BidsTab }) {
           subtitle={`${register.length} ${register.length === 1 ? "envelope" : "envelopes"} recorded: ${d.count.inTime} in time, ${d.count.late} late, ${d.count.withdrawn} withdrawn. ${d.count.fromBox > 0 ? `${d.count.fromBox} ${d.count.fromBox === 1 ? "was" : "were"} found in the box at opening, timed by its lock.` : "The box is counted at opening."}`}
           divided={false}
         />
-        <EnvelopeList exerciseId={d.exerciseId} rows={d.rows} people={d.people} late={d.late} />
+        <EnvelopeList exerciseId={d.exerciseId} rows={d.rows} late={d.late} />
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-2">
@@ -229,7 +229,7 @@ function ValidityCard({ d }: { d: BidsTab }) {
         subtitle={v.alertRule}
         actions={
           <span className="flex flex-wrap items-center gap-2">
-            <BidAnswersDrawer exerciseId={d.exerciseId} allowed={d.acts.answers} values={v.answerValues} needsReason={v.answersNeedReason} people={d.people} />
+            <BidAnswersDrawer exerciseId={d.exerciseId} allowed={d.acts.answers} values={v.answerValues} needsReason={v.answersNeedReason} />
             {d.publishedThroughWindow && <ExtensionDrawer exerciseId={d.exerciseId} allowed={d.acts.extend} parties={d.parties} people={d.people} expiry={v.expiry} />}
           </span>
         }

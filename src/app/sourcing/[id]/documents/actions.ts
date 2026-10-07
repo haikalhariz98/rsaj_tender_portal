@@ -47,6 +47,7 @@ import { approvalDatesFault, estimateLeadWarning, frozenWindowFault, RETURN_DECI
 import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -100,6 +101,8 @@ async function inPacks(scope: OrgScope, exerciseId: string, fn: (tx: Tx, l: Lock
     });
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     if (e instanceof ExerciseMoveRefused) return e.findings[0]?.code === "CHANGED" ? CHANGED : refuse(e.findings, findingText, "The exercise cannot move:");
     if (transactionTimedOut(e)) return { ok: false, message: "This took too long and nothing was saved. Try again." };
     throw e;
@@ -717,9 +720,10 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
 // ------------------------------------------------------------------ deciding the route
 
 /**
- * Record a named Person's decision on a step of the Approval for Tendering route: recorded
- * on their behalf, not signed. The holder, delegation, self-approval and date checks are
- * 6.1's (`deciderFaults`). The step that completes the route records DATE START and CLOSING
+ * Record a decision on a step of the Approval for Tendering route: the holder's own, signed with the
+ * password, or recorded for the holder from paper and not signed (Phase 2b). The holder, delegation,
+ * self-approval and date checks are 6.1's (`deciderFaults`), on whom it is attributed to, and the
+ * separation of duties on the person recording it as well. The step that completes the route records DATE START and CLOSING
  * DATE (FR-DOC-012, X-2): the exercise's tenderingStartOn and closingAt are written here and
  * frozen on the approved pack in the same act — this is the closing's one writer in 6.4.
  * A rejection returns the documents for amendment (Q-3): the route closes, the pack is
@@ -733,8 +737,7 @@ export async function recordTenderingDecision(_prev: FormState, data: FormData):
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);
   const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Decided by", { required: true });
-  const on = r.date("decidedOn", "Decided on", { required: true });
+  r.date("decidedOn", "Decided on");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why the documents are returned.");
   // Read as dates (a real day each, never rolled into the next month), then judged as days.
@@ -743,7 +746,12 @@ export async function recordTenderingDecision(_prev: FormState, data: FormData):
   const startOn = startDate ? storedDay(startDate) : null;
   const closingDay = closingDate ? storedDay(closingDate) : null;
   const closingTime = r.optionalText("closingTime");
-  if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
+  if (r.failed || !decision) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalStep.decidedBy", { personField: "personId", dateField: "decidedOn" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
+  const on = dayToDate(act.day!);
 
   return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const ex = l.ex;
@@ -766,6 +774,7 @@ export async function recordTenderingDecision(_prev: FormState, data: FormData):
       person,
       // Nobody decides a step of a matter on a requisition they raised.
       requesterId: l.req.requestingPersonId,
+      recorderId: act.recorderId,
       endorserIds: [],
       otherDeciderIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
       earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
@@ -790,7 +799,8 @@ export async function recordTenderingDecision(_prev: FormState, data: FormData):
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",
-      diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
+      diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null, underDelegation: check.delegationId ? "yes" : null }), reason);
+    await act.write(tx, step.id, { document: { entity: "TenderPack", id: pack.id }, roleCode: step.actingRoleCode ?? step.roleCode });
     const routeLabel = label(l, exerciseRouteMatter(TENDERING_DOMAIN).auditNoun);
     const now = new Date();
 

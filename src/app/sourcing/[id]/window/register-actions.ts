@@ -30,6 +30,7 @@ import { registerAtSale } from "@/lib/suppliers/sale-hook";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, notes, refuse, Refusal, type LockedWindow } from "./shared";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 
 /**
@@ -100,13 +101,17 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
   const checkNote = r.text("checkNote", "Note on the checks", { max: 2000 });
   const paymentMethod = r.text("paymentMethod", "How the fee was paid", { max: 120 });
   const receiptNo = r.optionalText("financeReceiptNo");
-  const personId = r.optionalText("issuedByPersonId");
   // 6.15a fix M-2: the register's supplier this contractor is, named on the sale (an explicit link, OD-9).
   const pickedSupplierId = r.optionalText("supplierId");
   // Residual 6: a supplier past the form's list is named by its register reference, looked up here.
   const supplierReference = r.optionalText("supplierReference");
   const linkReason = r.text("linkReason", "Why they are the same company", { max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  // The sale is the signed-in officer's own act (Phase 2b).
+  const begun = await beginAct(actor, data, "DocumentSale.issuedBy", { personField: "issuedByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return receiptGuarded(() => inWindow(actor, exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
     const w = d.window;
@@ -199,6 +204,7 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
       noSupplierNamed: !register.linked,
     };
     const sale = await tx.documentSale.create({ data: { organisationId: l.org.id, windowId: w.id, ...row, annotation: annotation as unknown as Prisma.InputJsonValue, ...(register.snapshot ? { eligibilitySnapshot: register.snapshot as unknown as Prisma.InputJsonValue } : {}) } });
+    await act.write(tx, sale.id);
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.sale, sale.id, label(l, `Sale · ${buyer.name}`), "CREATE", diffFields(null, { ...saleFields({ ...row, partyName: buyer.name, issuedBy: person.name }), ...(register.snapshot ? { supplierRegister: `${register.snapshot.supplierReference}: ${register.snapshot.verdict === "ELIGIBLE" ? "eligible" : register.snapshot.verdict === "NOT_ELIGIBLE" ? "not eligible" : "not assessed"}, judged ${formatDate(register.snapshot.judgedOn)}` } : {}) }));
     // Every addendum issued so far goes with the documents (FR-ADV-014).
     for (const a of addendaForNewPurchaser(w.addenda)) {
@@ -353,7 +359,7 @@ export async function markEventHeld(_prev: FormState, data: FormData): Promise<F
   });
 }
 
-/// Record a contractor's attendance at a held event, by a named Person (recorded on their behalf, not signed).
+/// Record a contractor's attendance at a held event, by the signed-in officer (Phase 2b).
 export async function recordAttendance(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
@@ -361,8 +367,11 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
   const r = new FormReader(data);
   const party = readParty(r);
   const representative = r.text("representative", "Representative", { required: true, max: 240 });
-  const personId = r.optionalText("recordedByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "SiteEventAttendance.recordedBy", { personField: "recordedByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inWindow(actor, exerciseId, async (tx, l, d) => {
     const w = d.window;
     const e = w?.events.find((x) => x.id === eventId);
@@ -381,7 +390,8 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
     const attendee = await partyFor(tx, toAuditActor(actor), l, d, party, "ATTENDEE");
     if (!attendee) return { ok: false, message: "That contractor is not on this exercise." };
     const row = await tx.siteEventAttendance.create({ data: { organisationId: l.org.id, eventId: e.id, partyId: attendee.id, representative, recordedByPersonId: person.id } });
-    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.attendance, row.id, label(l, `${e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"} · ${attendee.name}`), "CREATE", diffFields(null, { contractor: attendee.name, representative, recordedBy: person.name, recordedOnBehalf: "not signed" }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.attendance, row.id, label(l, `${e.kind === "BRIEFING" ? "Tender briefing" : "Site visit"} · ${attendee.name}`), "CREATE", diffFields(null, { contractor: attendee.name, representative, recordedBy: person.name }));
+    await act.write(tx, row.id);
     return { ok: true };
   });
 }

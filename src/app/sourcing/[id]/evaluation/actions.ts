@@ -26,6 +26,7 @@ import { FormReader } from "@/lib/validate";
 import { activePerson, audit, exerciseIdOf } from "../window/shared";
 import { evLabel, GONE_BIDDER, inEvaluation, notes, picks, refuse, signedMoney, stampNow } from "./shared";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { beginAct } from "@/app/_auth/act";
 
 /**
  * Writes for 6.8's evaluation (plan §4, as ruled E-1..E-13): starting it, the team, scores, the
@@ -36,7 +37,8 @@ import { requireStaff, toAuditActor } from "@/app/_auth/actor";
  * locked rows; every write is audited in it, SULIT figures under their registered keys.
  */
 
-const ON_BEHALF = "recorded on their behalf, not signed";
+// Every act below is the signed-in officer's own (Phase 2b, FR-EVL-001: each evaluator acts under their own identity): `beginAct` reads who, and the
+// action writes the attribution in the act's own transaction.
 
 // ------------------------------------------------------------------ starting (plan §4.2)
 
@@ -49,9 +51,12 @@ export async function startEvaluation(_prev: FormState, data: FormData): Promise
   const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
-  const personId = r.optionalText("startedByPersonId");
   const appointed = r.date("appointedOn", "Appointed on", { required: true });
   if (r.failed || !appointed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "Evaluation.startedBy", { personField: "startedByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   const sides: Record<string, Side> = { implementing: "IMPLEMENTING_DEPARTMENT", procurement: "CONTRACT_PROCUREMENT" };
   const picked = Object.entries(sides).flatMap(([field, side]) => picks(data, field).map((personId) => ({ personId, side })));
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
@@ -96,6 +101,7 @@ export async function startEvaluation(_prev: FormState, data: FormData): Promise
       if (reason) await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.bidder, row.id, evLabel(l, 1, `Bid No. ${b.listingNo}`), "CREATE", diffFields(null, { bid: `No. ${b.listingNo}`, excluded: reason }));
     }
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.evaluation, ev.id, evLabel(l, 1), "CREATE", diffFields(null, startFields({ version: 1, trigger: "START", model: `${c.model!.nameEn}, version ${c.model!.version}`, at: now, by: person!.name, bidders: c.carried.length, excluded, decimals }, l.org.timeZone)));
+    await act.write(tx, ev.id);
     await moveExercise(tx, l.ex, "UNDER_EVALUATION", { today: l.org.today, via: "EVALUATION_STARTED", startFaults: 0 });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "UNDER_EVALUATION" }));
     const said = notes(all);
@@ -143,7 +149,6 @@ export async function recordScore(_prev: FormState, data: FormData): Promise<For
   const bidderId = r.text("bidderId", "Bid", { required: true });
   const stageCode = r.text("stageCode", "Stage", { required: true });
   const criterionCode = r.text("criterionCode", "Criterion", { required: true });
-  const personId = r.optionalText("scoredByPersonId");
   const note = r.text("note", "Note", { max: 2000 });
   const marksRaw = r.optionalText("marks");
   const passedRaw = r.choice("passed", "Pass or fail", ["yes", "no"] as const);
@@ -151,6 +156,10 @@ export async function recordScore(_prev: FormState, data: FormData): Promise<For
   if (marksRaw == null && passedRaw == null) r.reject(String(data.get("scale") ?? "") === "PASS_FAIL" ? "passed" : "marks", "Enter the score.");
   if (r.failed) return { ok: false, errors: r.errors };
   const value: { marks: bigint } | { passed: boolean } = marksRaw != null ? { marks: parseFixed(marksRaw) } : { passed: passedRaw === "yes" };
+  const begun = await beginAct(actor, data, "EvaluationScore.scoredBy", { personField: "scoredByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
@@ -169,6 +178,7 @@ export async function recordScore(_prev: FormState, data: FormData): Promise<For
     const before = b.scores.get(scoreKey(stageCode, criterionCode));
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.score, row.id, evLabel(l, e!.version, `${s.labelEn} · bid No. ${b.listingNo}`), prev ? "UPDATE" : "CREATE",
       diffFields(before ? scoreFields({ criterion, marks: before.marks, passed: before.passed, note: before.note, by: before.scoredBy }) : null, scoreFields({ criterion, marks: "marks" in value ? value.marks : null, passed: "passed" in value ? value.passed : null, note, by: person.name })));
+    await act.write(tx, row.id);
     return { ok: true, message: prev ? "Rescored: the earlier score is kept in the History." : "Scored." };
   });
 }
@@ -183,7 +193,6 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
-  const personId = r.optionalText("personId");
   const factor = r.optionalText("factorOptionCode");
   const balances = ["balanceMonth1", "balanceMonth2", "balanceMonth3"].map((n) => {
     const v = signedMoney(data, n);
@@ -193,6 +202,10 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
   const cprRaw = r.optionalText("cprPercent")?.replace(/%$/, "").trim() ?? null;
   if (cprRaw != null && !isFixed(cprRaw)) r.reject("cprPercent", "A percentage, to at most four decimal places.");
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "EvaluationBidder.inputsRecordedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
@@ -220,6 +233,7 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
     await tx.evaluationBidder.update({ where: { id: b.id, organisationId: actor.organisationId }, data: { factorOptionCode: factor, balanceMonth1: balances[0], balanceMonth2: balances[1], balanceMonth3: balances[2], cprPercent: cpr != null ? fixedToDecimalString(cpr) : null, inputsRecordedAt: now, inputsRecordedByPersonId: person!.id } });
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.bidder, b.id, evLabel(l, e!.version, `Bid No. ${b.listingNo}`), "UPDATE",
       diffFields(inputFields({ factor: factorLabel(b.factorOptionCode), balances: b.balances, cpr: b.cprPercent, by: person!.name }), inputFields({ factor: factorLabel(factor), balances: balances.map((v) => (v == null ? null : parseSen(v))), cpr, by: person!.name })));
+    await act.write(tx, b.id);
     return { ok: true, message: "Recorded." };
   });
 }
@@ -236,8 +250,11 @@ export async function correctPrice(_prev: FormState, data: FormData): Promise<Fo
   const bidderId = r.text("bidderId", "Bid", { required: true });
   const price = r.money("correctedPrice", "Corrected price", { required: true });
   const reason = r.text("correctionReason", "Why it is corrected", { required: true, max: 2000 });
-  const personId = r.optionalText("personId");
   if (r.failed || !price) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "EvaluationBidder.correctedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
@@ -255,6 +272,7 @@ export async function correctPrice(_prev: FormState, data: FormData): Promise<Fo
     await tx.evaluationBidder.update({ where: { id: b.id, organisationId: actor.organisationId }, data: { correctedPrice: price, correctionReason: reason, correctedAt: now, correctedByPersonId: person!.id, excludedReason: reasonExcluded } });
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.bidder, b.id, evLabel(l, e!.version, `Bid No. ${b.listingNo}`), "UPDATE",
       diffFields(b.correctedPrice != null ? correctionFields({ price: b.correctedPrice, reason: "", by: "", excluded: b.excludedReason }) : { correctedPrice: null }, correctionFields({ price: sen, reason, by: person!.name, excluded: reasonExcluded })), reason);
+    await act.write(tx, b.id);
     return { ok: true, message: reasonExcluded ? "Corrected. On the corrected price the bid is above the exercise's quotation ceiling and is excluded." : "Corrected." };
   });
 }
@@ -269,9 +287,12 @@ export async function submitStage(_prev: FormState, data: FormData): Promise<For
   const actor = await requireStaff();
   const now = stampNow();
   const stageCode = String(data.get("stageCode") ?? "");
-  const personId = String(data.get("personId") ?? "") || null;
   const notesMap = new Map<string, string>();
   for (const [k, v] of data.entries()) if (k.startsWith("note:") && typeof v === "string") notesMap.set(k.slice(5), v.trim());
+  const begun = await beginAct(actor, data, "StageSubmission.submittedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
@@ -287,7 +308,8 @@ export async function submitStage(_prev: FormState, data: FormData): Promise<For
       await tx.stageResult.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId: row.bidderId, stageCode: s.code, percent: row.percent != null ? fixedToDecimalString(row.percent) : null, shown: row.shown != null ? fixedToDecimalString(row.shown) : null, passed: row.passed, bandLabel: row.bandLabel, outOfRunning: row.outOfRunning, detail: row.detail as Prisma.InputJsonValue } });
     }
     const out = r.results.filter((x) => x.outOfRunning).length;
-    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.submission, sub.id, evLabel(l, e!.version, s.labelEn), "CREATE", diffFields(null, { stage: s.labelEn, submittedBy: `${person!.name} (${ON_BEHALF})`, bidsJudged: r.results.length, outOfTheRunning: out || null }));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.submission, sub.id, evLabel(l, e!.version, s.labelEn), "CREATE", diffFields(null, { stage: s.labelEn, submittedBy: person!.name, bidsJudged: r.results.length, outOfTheRunning: out || null }));
+    await act.write(tx, sub.id);
     return { ok: true, message: `${s.labelEn} submitted: ${r.results.length} ${r.results.length === 1 ? "bid" : "bids"} judged${out ? `, ${out} out of the running` : ""}.` };
   });
 }
@@ -300,8 +322,11 @@ export async function recordShortlist(_prev: FormState, data: FormData): Promise
   const actor = await requireStaff();
   const now = stampNow();
   const stageCode = String(data.get("stageCode") ?? "");
-  const personId = String(data.get("personId") ?? "") || null;
   const chosen = picks(data, "chosen");
+  const begun = await beginAct(actor, data, "StageSubmission.submittedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
@@ -322,9 +347,11 @@ export async function recordShortlist(_prev: FormState, data: FormData): Promise
       const on = chosen.includes(b.id);
       await tx.evaluationBidder.update({ where: { id: b.id, organisationId: actor.organisationId }, data: { shortlisted: on, shortlistedAt: now, shortlistedByPersonId: person!.id } });
       await tx.stageResult.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId: b.id, stageCode: s.code, passed: on, outOfRunning: !on } });
+      await act.writeAlso(tx, "EvaluationBidder.shortlistedBy", b.id);
     }
     const listing = (id: string) => f.bidders.find((x) => x.id === id)!.listingNo;
-    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.submission, sub.id, evLabel(l, e!.version, s.labelEn), "CREATE", diffFields(null, { stage: s.labelEn, shortlisted: chosen.map((id) => `No. ${listing(id)}`).join(", ") || "None", notShortlisted: eligible.filter((b) => !chosen.includes(b.id)).map((b) => `No. ${listing(b.id)}`).join(", ") || null, recordedBy: `${person!.name} (${ON_BEHALF})` }));
+    await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.submission, sub.id, evLabel(l, e!.version, s.labelEn), "CREATE", diffFields(null, { stage: s.labelEn, shortlisted: chosen.map((id) => `No. ${listing(id)}`).join(", ") || "None", notShortlisted: eligible.filter((b) => !chosen.includes(b.id)).map((b) => `No. ${listing(b.id)}`).join(", ") || null, recordedBy: person!.name }));
+    await act.write(tx, sub.id);
     const said = notes(fs);
     return { ok: true, message: `Shortlist recorded.${said ? ` ${said}` : ""}` };
   });
@@ -341,8 +368,11 @@ export async function assessAspect(_prev: FormState, data: FormData): Promise<Fo
   const aspectCode = r.text("aspectCode", "Aspect", { required: true });
   const verdict = r.choice("verdict", "Verdict", ASPECT_VERDICTS);
   const narrative = r.text("narrative", "Narrative", { max: 4000 });
-  const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "AspectAssessment.assessedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
@@ -366,6 +396,7 @@ export async function assessAspect(_prev: FormState, data: FormData): Promise<Fo
     const row = await tx.aspectAssessment.create({ data: { organisationId: l.org.id, bidderId, aspectCode, verdict: verdict!, narrative, assessedByPersonId: person.id, recordedAt: now, supersedesId: prev?.id ?? null } });
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.aspect, row.id, evLabel(l, e!.version, `Aspects · bid No. ${b.listingNo}`), prev ? "UPDATE" : "CREATE",
       diffFields(prev ? aspectFields({ aspect: aspect!.labelEn, kind: aspect!.kind, verdict: prev.verdict, narrative: prev.narrative, by: prev.assessedBy.name }) : null, aspectFields({ aspect: aspect!.labelEn, kind: aspect!.kind, verdict: verdict!, narrative, by: person.name })));
+    await act.write(tx, row.id);
     return { ok: true, message: "Assessed." };
   });
 }
@@ -381,8 +412,11 @@ export async function logCommunication(_prev: FormState, data: FormData): Promis
   const on = r.date("on", direction === "FROM_TENDERER" ? "Received on" : "Sent on", { required: true });
   const subject = r.text("subject", "Subject", { required: true, max: 300 });
   const content = r.text("content", "What it says", { required: true, max: 8000 });
-  const personId = r.optionalText("personId");
   if (r.failed || !direction || !channel || !on) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "TendererCommunication.recordedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inEvaluation(actor, exerciseIdOf(data), async (tx, l, c) => {
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
@@ -398,6 +432,7 @@ export async function logCommunication(_prev: FormState, data: FormData): Promis
     if (fs.length) return refuse(fs);
     const row = await tx.tendererCommunication.create({ data: { organisationId: l.org.id, evaluationId: e!.id, bidderId, direction, channel, sentOn: direction === "TO_TENDERER" ? on : null, receivedOn: direction === "FROM_TENDERER" ? on : null, subject, content, recordedByPersonId: person!.id, recordedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.communication, row.id, evLabel(l, e!.version, `Communication · bid No. ${b.listingNo}`), "CREATE", diffFields(null, communicationFields({ direction, channel, on: day, subject, content, by: person!.name })));
+    await act.write(tx, row.id);
     return { ok: true, message: "Recorded. Attach the letter itself to the tenderer's record if you have it." };
   });
 }

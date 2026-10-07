@@ -48,7 +48,8 @@ import { findingFaults, matchFaults, openFault } from "@/lib/opening/withdrawals
 
 import { activePerson, audit, exerciseIdOf, inWindow, label, Refusal, type LockedWindow } from "../window/shared";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
-import type { AuditActor } from "@/lib/auth/types";
+import { beginAct, type PreparedAct } from "@/app/_auth/act";
+import type { StaffActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
 /**
@@ -58,7 +59,8 @@ import type { OrgScope } from "@/lib/org-scope";
  * that order (`src/lib/opening/lock.ts`); re-reads everything the rules judge under those locks
  * (`openingContext`) and re-runs the pure rule on the locked data. The server's clock is read once,
  * at the act's entry, before any lock, truncated to the second (6.6 CR-3). Every write is audited
- * before and after in the same transaction. People are recorded on their behalf, not signed (ADR
+ * before and after in the same transaction. Every act is the signed-in officer's own, attributed in the same
+ * transaction (`beginAct`, Phase 2b): a panel member signs their own authorisation and signature with the password, and a paper one is recorded for them (ADR
  * 0017). Codes go back, never figures: no refusal names a price or the estimate.
  */
 
@@ -120,13 +122,24 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
   const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
-  const startedByPersonId = r.optionalText("startedByPersonId");
   const overrideAuthority = r.text("panelOverrideAuthority", "Authority", { max: 300 });
   const overrideReason = r.text("panelOverrideReason", "Reason", { max: 1000 });
-  const overridePersonId = r.optionalText("panelOverrideByPersonId");
-  const lateOverridePersonId = r.optionalText("lateOverridePersonId");
   const lateOverrideReason = r.text("lateOverrideReason", "Why the late estimate is accepted", { max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  // The opening is started by the signed-in officer, who also records a panel of another size. The late estimate's override is the act of the holder of the
+  // office that may override it: signed in as themselves, or recorded for them from paper (Phase 2b).
+  const begun = await beginAct(actor, data, "Opening.startedBy", { personField: "startedByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const startedByPersonId = act.subjectPersonId;
+  const overridePersonId = overrideAuthority.trim() || overrideReason.trim() ? startedByPersonId : null;
+  let lateAct: PreparedAct | null = null;
+  if (lateOverrideReason.trim()) {
+    const late = await beginAct(actor, data, "EstimateEvent.person", { personField: "lateOverridePersonId" });
+    if (!late.ok) return late.state;
+    lateAct = late.act;
+  }
+  const lateOverridePersonId = lateAct?.subjectPersonId ?? null;
   const picks = readPanel(data);
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const person = await nameOf(tx, l.org.id, startedByPersonId);
@@ -198,7 +211,10 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
         policySnapshot: policy as unknown as Prisma.InputJsonValue,
       },
     });
-    await tx.openingSitting.create({ data: { organisationId: l.org.id, openingId: opening.id, sittingNo: 1, startedAt: now, recordedByPersonId: person!.id } });
+    const firstSitting = await tx.openingSitting.create({ data: { organisationId: l.org.id, openingId: opening.id, sittingNo: 1, startedAt: now, recordedByPersonId: person!.id } });
+    await act.write(tx, opening.id);
+    await act.writeAlso(tx, "OpeningSitting.recordedBy", firstSitting.id);
+    if (panelOverride) await act.writeAlso(tx, "Opening.panelOverrideBy", opening.id);
     for (const p of picked) {
       const seat = c.seats.find((s) => s.personId === p.personId)!;
       await tx.openingPanelMember.create({ data: { organisationId: l.org.id, openingId: opening.id, personId: p.personId, committeeMemberId: seat.committeeMemberId || null, seatLabelSnapshot: seat.seatLabel, orgUnitCodeSnapshot: p.orgUnitCode, present: p.present } });
@@ -209,6 +225,7 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
     // FR-EST-007: the override is 6.2's LATE_OVERRIDE custody event, frozen with the opening.
     if (est.outcome === "OVERRIDDEN" && c.estimate) {
       const ev = await tx.estimateEvent.create({ data: { organisationId: l.org.id, estimateId: c.estimate.id, kind: "LATE_OVERRIDE", personId: overrider!.id, capacity: "At the opening", note: lateOverrideReason, versionNo: c.estimate.currentVersionNo, at: now } });
+      await lateAct!.write(tx, ev.id);
       await audit(tx, toAuditActor(actor), l.org.id, SCOPE_ENTITY.estimateEvent, ev.id, label(l, "Company estimate · late, overridden"), "CREATE", estimateEventAudit({ kind: "LATE_OVERRIDE", personName: overrider!.name, capacity: "At the opening", versionNo: c.estimate.currentVersionNo, reason: lateOverrideReason }), lateOverrideReason);
     }
     const said = warnings([...pf, ...(est.ok ? est.warnings : [])]);
@@ -225,11 +242,14 @@ export async function startSupplementaryOpening(_prev: FormState, data: FormData
   const now = stampNow();
   const r = new FormReader(data);
   const decisionId = r.text("decisionId", "Admission", { required: true });
-  const startedByPersonId = r.optionalText("startedByPersonId");
   const overrideAuthority = r.text("panelOverrideAuthority", "Authority", { max: 300 });
   const overrideReason = r.text("panelOverrideReason", "Reason", { max: 1000 });
-  const overridePersonId = r.optionalText("panelOverrideByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "Opening.startedBy", { personField: "startedByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const startedByPersonId = act.subjectPersonId;
+  const overridePersonId = overrideAuthority.trim() || overrideReason.trim() ? startedByPersonId : null;
   const picks = readPanel(data);
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const person = await nameOf(tx, l.org.id, startedByPersonId);
@@ -270,7 +290,10 @@ export async function startSupplementaryOpening(_prev: FormState, data: FormData
         policySnapshot: { ...mainPolicy, panel: panelSnapshot(committee) } as unknown as Prisma.InputJsonValue,
       },
     });
-    await tx.openingSitting.create({ data: { organisationId: l.org.id, openingId: opening.id, sittingNo: 1, startedAt: now, recordedByPersonId: person!.id } });
+    const firstSitting = await tx.openingSitting.create({ data: { organisationId: l.org.id, openingId: opening.id, sittingNo: 1, startedAt: now, recordedByPersonId: person!.id } });
+    await act.write(tx, opening.id);
+    await act.writeAlso(tx, "OpeningSitting.recordedBy", firstSitting.id);
+    if (panelOverride) await act.writeAlso(tx, "Opening.panelOverrideBy", opening.id);
     for (const p of picked) {
       const seat = c.mainSeats.find((s) => s.personId === p.personId)!;
       await tx.openingPanelMember.create({ data: { organisationId: l.org.id, openingId: opening.id, personId: p.personId, committeeMemberId: seat.committeeMemberId || null, seatLabelSnapshot: seat.seatLabel, orgUnitCodeSnapshot: p.orgUnitCode, present: p.present } });
@@ -291,7 +314,11 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
   const actor = holderGuard.actor;
   const now = stampNow();
   const openingId = String(data.get("openingId") ?? "");
-  const personId = String(data.get("personId") ?? "");
+  // The panel member authorises with the password, or a paper authorisation is recorded for them (UNSEAL, Phase 2b).
+  const begun = await beginAct(actor, data, "OpeningAuthorisation.person", { personField: "personId", document: { entity: "Opening", id: openingId } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
@@ -304,12 +331,14 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
     const after = unsealState(state.sittingNo, [...o.authorisations, { personId, sittingNo: state.sittingNo, recordedAt: now, lapsedAt: null }], panelOf(o));
     const opens = opensTheBox(state, after.count);
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.authorisation, row.id, openingLabel(l, o), "CREATE", diffFields(null, authorisationFields({ person: person!.name, at: now, sittingNo: state.sittingNo, opensTheBox: opens }, l.org.timeZone)));
+    await act.write(tx, row.id, { document: { entity: "Opening", id: o.id } });
     if (!opens) return { ok: true, message: after.state === "AUTHORISED" ? "Recorded. The sitting is authorised: the opening may continue." : "Recorded. A second panel member present now authorises it." };
     await tx.opening.update({ where: { id: o.id, organisationId: actor.organisationId }, data: { unsealedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.opening, o.id, openingLabel(l, o), "UPDATE", diffFields({ opened: null }, { opened: authorisationFields({ person: person!.name, at: now, sittingNo: 1, opensTheBox: true }, l.org.timeZone).at }));
     if (o.kind === "MAIN") {
       const ev = await tx.boxEvent.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, kind: "UNLOCKED_FOR_OPENING", occurredAt: now, personId, note: "Opened at the opening, on the second authorisation." } });
-      await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.box, ev.id, label(l, "Tender box opened"), "CREATE", diffFields(null, { boxOpened: authorisationFields({ person: person!.name, at: now, sittingNo: 1, opensTheBox: true }, l.org.timeZone).at, openedBy: `${person!.name} (recorded on their behalf, not signed)` }));
+      await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.box, ev.id, label(l, "Tender box opened"), "CREATE", diffFields(null, { boxOpened: authorisationFields({ person: person!.name, at: now, sittingNo: 1, opensTheBox: true }, l.org.timeZone).at, openedBy: person!.name }));
+      await act.writeAlso(tx, "BoxEvent.person", ev.id);
       await moveExercise(tx, l.ex, "OPENING_IN_PROGRESS", { today: l.org.today, via: "UNSEAL", authorisations: after.count });
       await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", l.ex.id, `${l.ex.reference} · ${l.ex.title}`, "UPDATE", diffFields({ status: l.ex.status }, { status: "OPENING_IN_PROGRESS" }));
     }
@@ -320,20 +349,24 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
 /// FR-OPN-011, C-2: adjourn, with the reason; an unpaired authorisation of the sitting lapses (kept).
 export async function adjournOpening(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return sittingAct(actor, toAuditActor(actor), data, false);
+  return sittingAct(actor, data, false);
 }
 
 /// Resume an adjourned opening: a new sitting, which needs two fresh authorisations.
 export async function resumeOpening(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
-  return sittingAct(actor, toAuditActor(actor), data, true);
+  return sittingAct(actor, data, true);
 }
 
-async function sittingAct(scope: OrgScope, actor: AuditActor, data: FormData, resume: boolean): Promise<FormState> {
+async function sittingAct(scope: StaffActor, data: FormData, resume: boolean): Promise<FormState> {
   const now = stampNow();
+  const actor = toAuditActor(scope);
   const openingId = String(data.get("openingId") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 1000);
-  const personId = String(data.get("personId") ?? "") || null;
+  const begun = await beginAct(scope, data, "OpeningSitting.recordedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inOpening(scope, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
@@ -344,6 +377,7 @@ async function sittingAct(scope: OrgScope, actor: AuditActor, data: FormData, re
     if (resume) {
       const row = await tx.openingSitting.create({ data: { organisationId: l.org.id, openingId: o.id, sittingNo: state.sittingNo + 1, startedAt: now, resumeReason: reason, recordedByPersonId: person!.id } });
       await audit(tx, actor, l.org.id, OPENING_ENTITY.sitting, row.id, openingLabel(l, o), "CREATE", diffFields(null, sittingFields({ sittingNo: state.sittingNo + 1, at: now, by: person!.name, adjourned: false, reason }, l.org.timeZone)), reason);
+      await act.write(tx, row.id);
       return { ok: true, message: "Resumed. Two panel members present now each authorise the new sitting." };
     }
     const sitting = o.sittings.find((s) => s.sittingNo === state.sittingNo)!;
@@ -367,8 +401,11 @@ export async function registerBoxEnvelope(_prev: FormState, data: FormData): Pro
   const openingId = r.text("openingId", "Opening", { required: true });
   const kind = r.choice("kind", "Envelope", ["BID", "ALTERNATIVE"] as const, { required: true });
   const markings = r.text("markings", "Markings", { required: true, max: 1000 });
-  const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "BidEnvelope.receivedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
@@ -381,6 +418,7 @@ export async function registerBoxEnvelope(_prev: FormState, data: FormData): Pro
       data: { organisationId: l.org.id, exerciseId: l.ex.id, sequence, kind: kind!, channel: "BOX", receivedAt: j.receivedAt, receivedSource: j.receivedSource, receivedByPersonId: person!.id, markings, late: j.late, closingAtJudged: j.closingAtJudged, recordedAfterClosing: j.recordedAfterClosing, registeredAtOpeningId: o.id },
     });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.envelope, row.id, label(l, `Envelope ${sequence}`), "CREATE", diffFields(null, envelopeFields({ ...row, receivedBy: person!.name, parentSequence: null }, l.org.timeZone)));
+    await act.write(tx, row.id);
     return { ok: true, message: `Envelope ${sequence} registered from the box (${ENVELOPE_KIND_LABEL[kind!].toLowerCase()}).` };
   });
 }
@@ -419,8 +457,11 @@ export async function recordWithdrawalFinding(_prev: FormState, data: FormData):
   const openingId = r.text("openingId", "Opening", { required: true });
   const withdrawalId = r.text("withdrawalId", "Withdrawal", { required: true });
   const finding = r.text("finding", "What the panel found", { required: true, max: 2000 });
-  const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "BidWithdrawal.findingBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
@@ -431,6 +472,7 @@ export async function recordWithdrawalFinding(_prev: FormState, data: FormData):
     if (blocking(fs).length) return refuse(fs);
     await tx.bidWithdrawal.update({ where: { id: w.id, organisationId: actor.organisationId }, data: { unmatchedFinding: finding, findingRecordedAt: now, findingByPersonId: person!.id } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.withdrawal, w.id, label(l, "Withdrawal of an envelope in the box"), "UPDATE", diffFields({ finding: null }, withdrawalMatchFields({ envelope: "", finding, by: person!.name })));
+    await act.write(tx, w.id);
     return { ok: true };
   });
 }
@@ -562,7 +604,11 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
   const actor = await requireStaff();
   const now = stampNow();
   const bidId = String(data.get("openedBidId") ?? "");
-  const personId = String(data.get("personId") ?? "");
+  // The panel member initials the offer themselves, or a paper initial is recorded for them (Phase 2b).
+  const begun = await beginAct(actor, data, "OpenedBidInitial.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
@@ -575,9 +621,11 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
     if (existing) {
       await tx.openedBidInitial.update({ where: { id: existing.id, organisationId: actor.organisationId }, data: { recordedAt: now, correctionNo: bid.asReadCorrections } });
       await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.initial, existing.id, label(l, `Offer ${bid.listingNo}`), "UPDATE", diffFields({ initialled: "Before the correction" }, { initialled: initialFields({ person: name, listingNo: bid.listingNo, at: now }, l.org.timeZone).at }));
+      await act.write(tx, existing.id);
     } else {
       const row = await tx.openedBidInitial.create({ data: { organisationId: l.org.id, openedBidId: bid.id, personId, recordedAt: now, correctionNo: bid.asReadCorrections } });
       await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.initial, row.id, label(l, `Offer ${bid.listingNo}`), "CREATE", diffFields(null, initialFields({ person: name, listingNo: bid.listingNo, at: now }, l.org.timeZone)));
+      await act.write(tx, row.id);
     }
     return { ok: true };
   });
@@ -625,15 +673,13 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
   const bidId = r.text("openedBidId", "Offer", { required: true });
   const verdict = r.choice("verdict", "Verdict", ["PASS", "REJECT"] as const, { required: true }) as OpeningVerdict | null;
   const reason = r.text("verdictReason", "Reason", { max: 2000 });
-  const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const found = bidOf(c, bidId);
     if (!found) return GONE_BID;
     const { opening: o, bid } = found;
-    // S-3: who records the verdict is named, so a rule recorded with it says by whom.
-    const person = await nameOf(tx, l.org.id, personId);
-    if (!person) return { ok: false, errors: { personId: openingFindingText({ code: "PERSON_REQUIRED", level: "block" }) } };
+    // S-3: who records the verdict is named, so a rule recorded with it says by whom: the signed-in officer (Phase 2b).
+    const person = { name: actor.personName };
     const snap = policyOf(o.policySnapshot);
     const checklist = checklistFromSnapshot(o.checklistSnapshot);
     const answers = new Map(bid.answers.map((a) => [a.itemKey, a.answer]));
@@ -651,7 +697,7 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
     }
     await tx.openedBid.update({ where: { id: bid.id, organisationId: actor.organisationId }, data: { verdict, verdictReason: verdict === "REJECT" ? reason.trim() : "", verdictAt: now, completeness: verdictRecord(j) as unknown as Prisma.InputJsonValue } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.bid, bid.id, label(l, `Offer ${bid.listingNo}`), "UPDATE",
-      diffFields(bid.verdict ? { ...verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), recordedBy: null } : { verdict: null, recordedBy: null }, { ...verdictFields({ verdict, reason: verdict === "REJECT" ? reason.trim() : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) }), recordedBy: `${person.name} (recorded on their behalf, not signed)` }),
+      diffFields(bid.verdict ? { ...verdictFields({ verdict: bid.verdict, reason: bid.verdictReason, grounds: [], reported: [], missing: [] }), recordedBy: null } : { verdict: null, recordedBy: null }, { ...verdictFields({ verdict, reason: verdict === "REJECT" ? reason.trim() : "", grounds: j.grounds, reported: j.reported, missing: j.missing.map((m) => m.label) }), recordedBy: person.name }),
       verdict === "REJECT" ? reason.trim() : "");
     return { ok: true };
   });
@@ -694,8 +740,12 @@ export async function recordSignature(_prev: FormState, data: FormData): Promise
   const actor = holderGuard.actor;
   const now = stampNow();
   const openingId = String(data.get("openingId") ?? "");
-  const personId = String(data.get("personId") ?? "");
-  const signedOn = String(data.get("signedOn") ?? "");
+  // The panel member signs the schedule with the password, or the paper they signed is recorded for them, with the paper's day (Phase 2b).
+  const begun = await beginAct(actor, data, "OpeningSignature.person", { personField: "personId", dateField: "signedOn", document: { entity: "Opening", id: openingId } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
+  const signedOn = act.day ?? "";
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
@@ -705,6 +755,7 @@ export async function recordSignature(_prev: FormState, data: FormData): Promise
     const name = o.panel.find((p) => p.personId === personId)!.person.name;
     const row = await tx.openingSignature.create({ data: { organisationId: l.org.id, openingId: o.id, personId, signedOn: dayToDate(signedOn), recordedAt: now } });
     await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.signature, row.id, openingLabel(l, o), "CREATE", diffFields(null, signatureFields({ person: name, signedOn })));
+    await act.write(tx, row.id, { document: { entity: "Opening", id: o.id } });
     return { ok: true };
   });
 }
@@ -741,7 +792,11 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
   const actor = await requireStaff();
   const now = stampNow();
   const openingId = String(data.get("openingId") ?? "");
-  const personId = String(data.get("personId") ?? "") || null;
+  // Finalised by the signed-in officer: the person the disclosure of the estimate and a new evaluation version are attributed to (Phase 2b).
+  const begun = await beginAct(actor, data, "EstimateEvent.person", { personField: "personId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   const paperChoice = String(data.get("paperCopy") ?? "");
   const paperRaw = String(data.get("paperFigure") ?? "");
   const paperAnswered = paperChoice === "notInBox" || (paperChoice === "figure" && paperRaw.trim() !== "");
@@ -795,7 +850,7 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     let disclosed: Awaited<ReturnType<typeof discloseAtFinalising>> | null = null;
     if (o.kind === "MAIN" && c.estimateFacts && c.estimate?.state === "LODGED") {
       try {
-        disclosed = await discloseAtFinalising(tx, toAuditActor(actor), { organisationId: l.org.id, reference: l.ex.reference, facts: c.estimateFacts, at: now, person: person!, paper, benchmarkLabelEn: c.scopePolicy.benchmarkLabelEn });
+        disclosed = await discloseAtFinalising(tx, toAuditActor(actor), { organisationId: l.org.id, reference: l.ex.reference, facts: c.estimateFacts, at: now, person: person!, act, paper, benchmarkLabelEn: c.scopePolicy.benchmarkLabelEn });
       } catch (e) {
         // R-1: thrown as a Refusal, so anything written in this transaction rolls back with it.
         if (e instanceof DisclosureRefused) throw new Refusal({ ok: false, message: "Nothing was saved: the company estimate could not be disclosed as it stands. Check its state on the Scope and estimate tab." });
@@ -849,7 +904,7 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
     let reopened: number | null = null;
     if (o.kind === "SUPPLEMENTARY") {
       await lockEvaluationRows(tx, l.ex.id);
-      reopened = await openNewVersion(tx, toAuditActor(actor), { organisationId: l.org.id, exercise: { id: l.ex.id, reference: l.ex.reference, title: l.ex.title, status: l.ex.status }, ceiling: ceilingOf(l.ex), today: l.org.today, timeZone: l.org.timeZone, now }, { trigger: "SUPPLEMENTARY_OPENING", openingId: o.id, personId: person!.id });
+      reopened = await openNewVersion(tx, toAuditActor(actor), { organisationId: l.org.id, exercise: { id: l.ex.id, reference: l.ex.reference, title: l.ex.title, status: l.ex.status }, ceiling: ceilingOf(l.ex), today: l.org.today, timeZone: l.org.timeZone, now }, { trigger: "SUPPLEMENTARY_OPENING", openingId: o.id, personId: person!.id, act });
     }
     const again = reopened ? ` Evaluation version ${reopened} is opened with the late ${o.bids.length === 1 ? "offer" : "offers"}; every stage is submitted again.` : "";
     const copy = disclosed?.check === "MISMATCH" || disclosed?.check === "NOT_IN_BOX" ? " The estimate's paper copy is recorded as a finding to explain on the Schedule section." : "";
@@ -864,8 +919,11 @@ export async function recordCopyExplanation(_prev: FormState, data: FormData): P
   const r = new FormReader(data);
   const openingId = r.text("openingId", "Opening", { required: true });
   const explanation = r.text("explanation", "Explanation", { required: true, max: 4000 });
-  const personId = r.optionalText("personId");
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "EstimateCopyExplanation.recordedBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inOpening(actor, exerciseIdOf(data), now, async (tx, l, c) => {
     const o = openingOf(c, openingId);
     if (!o) return GONE_OPENING;
@@ -873,7 +931,8 @@ export async function recordCopyExplanation(_prev: FormState, data: FormData): P
     const fs = refuseIfCancelled(l.ex.status === "CANCELLED", () => explanationFaults({ finalised: !!o.finalisedAt, check: o.estimateCopyCheck, explained: !!o.copyExplanation, text: explanation, personActive: !!person }));
     if (blocking(fs).length) return refuse(fs);
     const row = await tx.estimateCopyExplanation.create({ data: { organisationId: l.org.id, openingId: o.id, explanation, recordedByPersonId: person!.id, recordedAt: now } });
-    await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.explanation, row.id, openingLabel(l, o), "CREATE", diffFields(null, { explanation, recordedBy: `${person!.name} (recorded on their behalf, not signed)` }));
+    await audit(tx, toAuditActor(actor), l.org.id, OPENING_ENTITY.explanation, row.id, openingLabel(l, o), "CREATE", diffFields(null, { explanation, recordedBy: person!.name }));
+    await act.write(tx, row.id);
     return { ok: true };
   });
 }

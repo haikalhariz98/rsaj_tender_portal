@@ -8,6 +8,7 @@
  */
 
 import type { Tx } from "@/lib/audit/record";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import { writeAudit } from "@/lib/audit/record";
 import { diffFields } from "@/lib/audit/diff";
 
@@ -23,7 +24,8 @@ export async function recordEstimateLodgement(
   tx: Tx,
   actor: AuditActor,
   l: LockedExercise,
-  i: { personId: string; personName: string; versionNo: number; now: Date },
+  i: { personId: string; personName: string; versionNo: number; now: Date; /// The lodging officer's act, which also receives the copy into the box (Phase 2b).
+    act: ActWriter },
 ): Promise<{ ok: true; sequence: number } | { ok: false; faults: Finding[] }> {
   const faults = lodgementFaults({ status: l.ex.status, closing: l.ex.closingAt, now: i.now });
   if (faults.length) return { ok: false, faults };
@@ -51,5 +53,6 @@ export async function recordEstimateLodgement(
   });
   await writeAudit(tx, { actor, organisationId: l.org.id, entity: BID_ENTITY.envelope, entityId: row.id, entityLabel: `${l.ex.reference} · Envelope ${sequence}` }, "CREATE",
     diffFields(null, envelopeFields({ ...row, receivedBy: i.personName, parentSequence: null }, l.org.timeZone)));
+  await i.act.writeAlso(tx, "BidEnvelope.receivedBy", row.id);
   return { ok: true, sequence };
 }

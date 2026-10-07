@@ -1,6 +1,7 @@
 import { Blocked } from "@/app/requisitions/editors";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 import { Callout } from "@/components/ui/feedback";
 
 import { TENDERING_STATE_LABEL } from "@/lib/tender-docs/labels";
@@ -189,13 +190,13 @@ export function DecideDrawer({ exerciseId, stepId, office, done, people, today, 
   return (
     <RecordEditor
       title={`Record ${office}'s decision`}
-      description={`Name who decided: recorded on behalf of, not signed. They must hold the office for the requisition's department, or a delegation of it. A refusal returns the documents for amendment.${recordsDates ? " This is the last step: it records the dates tendering starts and closes." : ""}`}
+      description={`The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office for the requisition's department, or a delegation of it. A refusal returns the documents for amendment.${recordsDates ? " This is the last step: it records the dates tendering starts and closes." : ""}`}
       fields={[
         hidden("exerciseId"),
         hidden("stepId"),
         { kind: "select", name: "decision", label: "Decision", required: true, placeholder: "Choose", options: [{ value: "DONE", label: done }, { value: "REJECTED", label: TENDERING_STATE_LABEL.RETURNED }] },
-        { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: people, hint: people.length === 0 ? "Nobody holds this office for the requisition's department today." : undefined },
-        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was submitted." },
+        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true, hint: people.length === 0 ? "Nobody holds this office for the requisition's department today." : undefined }),
+        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was submitted. A signed decision is dated today unless back-dating is recorded." },
         { kind: "textarea", name: "reason", label: "Reason for returning them", required: true, hint: "Say what is to be amended." },
         ...(recordsDates
           ? (fixedWindow

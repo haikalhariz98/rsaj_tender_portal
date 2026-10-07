@@ -88,7 +88,8 @@ describe("the unpurchased rule set since the start (S-3, OD-4)", () => {
   it("recordVerdict names who records it", () => {
     const actions = readFileSync("src/app/sourcing/[id]/opening/actions.ts", "utf8");
     const verdict = actions.slice(actions.indexOf("export async function recordVerdict"), actions.indexOf("export async function correctAsRead"));
-    expect(verdict).toMatch(/const person = await nameOf\(tx, l\.org\.id, personId\);/);
+    // Phase 2b (decisions log, 2026-10-07): the officer who records it is the signed-in one, named from the session; the form no longer carries who.
+    expect(verdict).toMatch(/const person = \{ name: actor\.personName \};/);
     expect(verdict).toMatch(/unpurchasedRule\(snap, liveUnpurchased\(c\), now, person\.name\)/);
   });
 });

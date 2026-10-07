@@ -21,6 +21,7 @@ import { lockEstimateRow } from "@/lib/scope/lock";
 import { disclosureFault } from "./disclosure";
 import { copyCheck, type PaperCopy } from "./estimate-copy";
 import type { CopyCheck } from "./types";
+import type { ActWriter } from "@/lib/auth/act-writer";
 import type { AuditActor } from "@/lib/auth/types";
 
 export class DisclosureRefused extends Error {
@@ -33,7 +34,8 @@ export class DisclosureRefused extends Error {
 export async function discloseAtFinalising(
   tx: Tx,
   actor: AuditActor,
-  i: { organisationId: string; reference: string; facts: EstimateFacts & { id: string }; at: Date; person: { id: string; name: string }; paper: PaperCopy | null; benchmarkLabelEn: string | null },
+  i: { organisationId: string; reference: string; facts: EstimateFacts & { id: string }; at: Date; person: { id: string; name: string }; /// The act whose person disclosed it, attributed in this transaction (Phase 2b). A loader that writes directly has none.
+    act?: ActWriter; paper: PaperCopy | null; benchmarkLabelEn: string | null },
 ): Promise<{ benchmark: { label: string | null; value: Sen } | null; lodged: Sen; paper: Sen | null; check: CopyCheck | null }> {
   await lockEstimateRow(tx, i.facts.id);
   // R-1: every refusal is decided before the first write (the version numbers carry no figure).
@@ -44,6 +46,7 @@ export async function discloseAtFinalising(
   if (!d.ok) throw new DisclosureRefused(d.fault);
   await tx.companyEstimate.update({ where: { id: i.facts.id }, data: { state: "DISCLOSED", disclosedAt: d.disclosedAt } });
   const ev = await tx.estimateEvent.create({ data: { organisationId: i.organisationId, estimateId: i.facts.id, kind: "DISCLOSED", personId: i.person.id, capacity: "At the opening", versionNo: i.facts.currentVersionNo, at: d.disclosedAt } });
+  await i.act?.write(tx, ev.id);
   await writeAudit(tx, { actor, organisationId: i.organisationId, entity: SCOPE_ENTITY.estimate, entityId: i.facts.id, entityLabel: `${i.reference} · Company estimate` }, "UPDATE", estimateStateAudit(ESTIMATE_STATE_LABEL[i.facts.state], ESTIMATE_STATE_LABEL.DISCLOSED));
   await writeAudit(tx, { actor, organisationId: i.organisationId, entity: SCOPE_ENTITY.estimateEvent, entityId: ev.id, entityLabel: `${i.reference} · Company estimate · disclosed` }, "CREATE", estimateEventAudit({ kind: "DISCLOSED", personName: i.person.name, capacity: "At the opening", versionNo: i.facts.currentVersionNo }));
   // Disclosed in this transaction: the figures may now be shown, and only now are they read.

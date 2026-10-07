@@ -1,5 +1,6 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 
 import { Blocked } from "../requisitions/editors";
 import {
@@ -103,7 +104,7 @@ export function ReviewProposalDrawer({ id, people, today }: { id: string; people
   return (
     <RecordEditor
       title="Record Contract & Procurement's review"
-      description="Reviewed, or returned for amendment with what to change. Name who reviewed it: recorded on their behalf, not signed."
+      description="Reviewed, or returned for amendment with what to change. The reviewer signs in and records their own review."
       fields={[
         hidden("id"),
         {
@@ -117,7 +118,7 @@ export function ReviewProposalDrawer({ id, people, today }: { id: string; people
             { value: "DRAFT", label: "Returned for amendment" },
           ],
         },
-        { kind: "select", name: "reviewerPersonId", label: "Reviewed by", required: true, placeholder: "Choose", options: people },
+        actorField("SourcingExercise.proposalReviewer", { name: "reviewerPersonId", people }),
         { kind: "date", name: "reviewedOn", label: "Reviewed on", required: true, hint: "Not after today." },
         { kind: "textarea", name: "comment", label: "Comment", hint: "Required when it is returned." },
       ]}
@@ -202,7 +203,7 @@ export function NameDecisionDrawer({
   return (
     <RecordEditor
       title={`Record ${roleLabel}'s decision`}
-      description={`The ${act.toLowerCase()} step of the name approval. Name who decided: recorded on their behalf, not signed. They must hold the office for the requisition's department, or a delegation of it.`}
+      description={`The ${act.toLowerCase()} step of the name approval. The holder signs in and decides it with their password. A decision that came from paper is recorded for them by someone else, and is not signed. Whoever it is for must hold the office for the requisition's department, or a delegation of it.`}
       fields={[
         hidden("id"),
         hidden("stepId"),
@@ -217,8 +218,8 @@ export function NameDecisionDrawer({
             { value: "REJECTED", label: "Refused" },
           ],
         },
-        { kind: "select", name: "personId", label: "Decided by", required: true, placeholder: "Choose", options: people },
-        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was requested." },
+        actorField("ApprovalStep.decidedBy", { name: "personId", people, dated: true }),
+        { kind: "date", name: "decidedOn", label: "Decided on", required: true, hint: "Not after today, nor before it was requested. A signed decision is dated today unless back-dating is recorded." },
         { kind: "textarea", name: "reason", label: "Reason", hint: "Required for a refusal." },
       ]}
       values={{ id, stepId, decidedOn: today }}
@@ -315,12 +316,12 @@ export function NameChoiceDrawer({ id, kinds, steps, people }: { id: string; kin
   return (
     <RecordEditor
       title="Where the refused name goes next"
-      description="No destination applied to this refusal, so the officer chooses. The choice is recorded as theirs, on behalf of the person named, not signed — it is not the organisation's policy."
+      description="No destination applied to this refusal, so the officer chooses. The choice is recorded as yours — it is not the organisation's policy."
       fields={[
         { kind: "hidden", name: "id" },
         { kind: "select", name: "kind", label: "Where it goes", required: true, placeholder: "Choose", options: kinds },
         { kind: "select", name: "returnToSeq", label: "The step it returns to", required: true, placeholder: "Choose", options: steps, hint: "The route continues from this step; the steps before it keep their decisions." },
-        { kind: "select", name: "personId", label: "Chosen by", required: true, placeholder: "Choose", options: people },
+        actorField("ApprovalInstance.rejectionChosenBy", { name: "personId", people }),
         { kind: "textarea", name: "reason", label: "Why it goes there" },
       ]}
       showWhen={{ returnToSeq: { name: "kind", in: ["RETURN_TO_STEP"] } }}

@@ -1,6 +1,7 @@
 import { Blocked } from "@/app/requisitions/editors";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 import { WITHDRAWAL_QUOTE_HINT } from "@/lib/bids/labels";
 
 import { applyValidityExtension, correctEnvelope, lockBox, recordReceiptAfterTheFact, recordReceiptNow, recordReturnedUnopened, recordValidityExtension, recordWithdrawal, saveBidAnswers, tableLateMatter } from "./actions";
@@ -19,7 +20,6 @@ const hidden = (name: string): Field => ({ kind: "hidden", name });
 const ghost = buttonClass("ghost", "sm");
 const secondary = buttonClass("secondary", "sm");
 const primary = buttonClass("primary", "sm");
-const ON_BEHALF = "Recorded on their behalf, not signed.";
 const KIND_OPTIONS: Option[] = [
   { value: "BID", label: "Bid" },
   { value: "ALTERNATIVE", label: "Alternative bid (marked as one on the envelope)" },
@@ -41,7 +41,7 @@ const receiptFields = (people: Option[], bids: Option[]): Field[] => [
   { kind: "select", name: "parentEnvelopeId", label: "Alternative to", placeholder: "Not named on the envelope", options: bids, hint: "Only where the envelope names the bid it goes with." },
   { kind: "select", name: "channel", label: "How it came", required: true, placeholder: "Choose", options: CHANNEL_OPTIONS, hint: "An envelope in the tender box is registered at the opening, not here." },
   { kind: "textarea", name: "markings", label: "Markings, as written on the envelope", required: true, hint: "The tender's title, number and closing as the envelope shows them. A bidder is not named here unless the envelope names one; bidders are named at the opening." },
-  { kind: "select", name: "receivedByPersonId", label: "Received by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF },
+  actorField("BidEnvelope.receivedBy", { name: "receivedByPersonId", people }),
 ];
 
 /// FR-BID-002: the server stamps the receipt when it is saved. No time is asked.
@@ -97,7 +97,7 @@ export function WithdrawalDrawer({ exerciseId, allowed, people, envelopes, noteI
         hidden("exerciseId"),
         { kind: "select", name: "envelopeId", label: "Envelope withdrawn", placeholder: "In the tender box: matched at the opening", options: envelopes },
         { kind: "textarea", name: "markings", label: "How the letter identifies the envelope", required: true, hint: WITHDRAWAL_QUOTE_HINT },
-        { kind: "select", name: "receivedByPersonId", label: "Received by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF },
+        actorField("BidWithdrawal.receivedBy", { name: "receivedByPersonId", people }),
       ]}
       values={{ exerciseId }}
       action={recordWithdrawal}
@@ -117,7 +117,7 @@ export function LockBoxDrawer({ exerciseId, allowed, people, noteId }: { exercis
       description="The box, its lock and its key remain the control. The portal records that it was locked, by whom, stamped now; it does not enforce it."
       fields={[
         hidden("exerciseId"),
-        { kind: "select", name: "personId", label: "Locked by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF },
+        actorField("BoxEvent.person", { name: "personId", people, label: "Locked by" }),
         { kind: "textarea", name: "note", label: "Note" },
       ]}
       values={{ exerciseId }}
@@ -130,19 +130,18 @@ export function LockBoxDrawer({ exerciseId, allowed, people, noteId }: { exercis
 }
 
 /// FR-BID-005: the one correction — the portal's record of the envelope, never the bid.
-export function CorrectDrawer({ exerciseId, envelope, people }: { exerciseId: string; envelope: { id: string; sequence: number; markings: string; channel: string; receivedById: string }; people: Option[] }) {
+export function CorrectDrawer({ exerciseId, envelope }: { exerciseId: string; envelope: { id: string; sequence: number; markings: string; channel: string; receivedById: string } }) {
   return (
     <RecordEditor
       title={`Correct the record of envelope ${envelope.sequence}`}
-      description="A clerical correction of the markings, how it came or who received it, before the closing, with a reason. The received time, the sequence, the late flag and the kind are never corrected, and nothing changes after the closing."
+      description="A clerical correction of the markings or how it came, before the closing, with a reason. The receiving officer is the officer who recorded it. The received time, the sequence, the late flag and the kind are never corrected, and nothing changes after the closing."
       fields={[
         hidden("exerciseId"),
         hidden("envelopeId"),
         { kind: "select", name: "channel", label: "How it came", required: true, options: CHANNEL_OPTIONS },
         { kind: "textarea", name: "markings", label: "Markings, as written on the envelope", required: true },
-        { kind: "select", name: "receivedByPersonId", label: "Received by", required: true, options: people, hint: ON_BEHALF },
       ]}
-      values={{ exerciseId, envelopeId: envelope.id, channel: envelope.channel, markings: envelope.markings, receivedByPersonId: envelope.receivedById }}
+      values={{ exerciseId, envelopeId: envelope.id, channel: envelope.channel, markings: envelope.markings }}
       action={correctEnvelope}
       submitLabel="Save the correction"
       destructive={{ reasonLabel: "Why is it corrected?" }}
@@ -174,12 +173,12 @@ export function TableLateDrawer({ exerciseId, envelopeId, sequence, committee, s
   return (
     <RecordEditor
       title={`Table envelope ${sequence} for admission`}
-      description={`A matter at a sitting of the ${committee ?? "committee"}, naming this envelope. Carried, it is admitted; not carried, it is not. It is decided there; tabling is by a holder of the committee's Secretariat office, recorded on their behalf, not signed.`}
+      description={`A matter at a sitting of the ${committee ?? "committee"}, naming this envelope. Carried, it is admitted; not carried, it is not. It is decided there; tabling is by a holder of the committee's Secretariat office, who signs in and tables it.`}
       fields={[
         hidden("exerciseId"),
         hidden("envelopeId"),
         { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: "Choose", options: sittings, hint: "Sittings of the committee that are scheduled or in progress." },
-        { kind: "select", name: "tabledByPersonId", label: "Tabled by", required: true, placeholder: holders.length === 0 ? "Nobody holds the Secretariat office" : "Choose", options: holders },
+        actorField("CommitteeDecision.tabledBy", { name: "tabledByPersonId", people: holders, hint: holders.length === 0 ? "Nobody holds the Secretariat office." : "Only a holder of the Secretariat office can table." }),
       ]}
       values={{ exerciseId, envelopeId }}
       action={tableLateMatter}
@@ -203,7 +202,7 @@ export function ExtensionDrawer({ exerciseId, allowed, parties, people, expiry }
         { kind: "date", name: "toExpiry", label: "Valid until", required: true },
         { kind: "date", name: "consentReceivedOn", label: "Consent received on", required: true },
         { kind: "select", name: "consentPartyId", label: "Recommended tenderer", required: true, placeholder: "Choose", options: parties, hint: "Named by you, recorded on your behalf, not yet checked against an evaluation." },
-        { kind: "select", name: "recordedByPersonId", label: "Recorded by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF },
+        actorField("ValidityExtension.recordedBy", { name: "recordedByPersonId", people }),
         { kind: "textarea", name: "reason", label: "Why it is extended", required: true },
       ]}
       values={{ exerciseId }}
@@ -232,7 +231,7 @@ export function ApplyExtensionDrawer({ exerciseId, extensionId, to, allowed }: {
 }
 
 /// FR-BID-006, 009: the window's bid answers.
-export function BidAnswersDrawer({ exerciseId, allowed, values, needsReason, people }: { exerciseId: string; allowed: Allowed; values: Record<string, string>; needsReason: boolean; people: Option[] }) {
+export function BidAnswersDrawer({ exerciseId, allowed, values, needsReason }: { exerciseId: string; allowed: Allowed; values: Record<string, string>; needsReason: boolean }) {
   if (!allowed.allowed) return null;
   return (
     <RecordEditor
@@ -244,7 +243,7 @@ export function BidAnswersDrawer({ exerciseId, allowed, values, needsReason, peo
         { kind: "select", name: "bidValidityProvenance", label: "Where the days came from", placeholder: "Choose", options: PROVENANCE_OPTIONS },
         { kind: "select", name: "alternativesPermitted", label: "Alternative bids", required: true, placeholder: "Choose", placeholderDisabled: true, options: [{ value: "yes", label: "Permitted" }, { value: "no", label: "Not permitted" }, { value: "unset", label: "Not stated" }] },
         ...(needsReason
-          ? [{ kind: "textarea", name: "reason", label: "Why it is recorded now", required: true } as Field, { kind: "select", name: "recordedByPersonId", label: "Recorded by", required: true, placeholder: "Choose", options: people, hint: ON_BEHALF } as Field]
+          ? [{ kind: "textarea", name: "reason", label: "Why it is recorded now", required: true } as Field]
           : []),
       ]}
       values={{ exerciseId, ...values }}

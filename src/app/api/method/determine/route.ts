@@ -64,7 +64,8 @@ export async function POST(request: Request) {
     scope,
     contractTypeCode: opt(body.contractTypeCode),
     typeReason: str(body.typeReason),
-    typePersonId: opt(body.typePersonId),
+    // The override is the signed-in officer's (FR-MTD-011), never a person the request names. A loader run names none.
+    typePersonId: actor.system ? null : actor.personId,
     basisCode: opt(body.basisCode),
     justificationReasonCode: opt(body.justificationReasonCode),
     justificationText: str(body.justificationText),

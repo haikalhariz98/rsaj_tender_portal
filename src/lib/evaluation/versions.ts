@@ -19,6 +19,8 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
+import type { ActWriter } from "@/lib/auth/act-writer";
+import { carryAttribution } from "@/lib/auth/attribution-store";
 import { exerciseRouteMatter, WITHDRAWN_ON_CHANGE } from "@/lib/method/approval";
 import { moveExercise } from "@/lib/method/move";
 import type { ExerciseStatus } from "@/lib/method/types";
@@ -33,7 +35,8 @@ import { NEGOTIATION_DOMAIN } from "./types";
 import { senFromDecimal, formatMoney } from "@/lib/money";
 import type { AuditActor } from "@/lib/auth/types";
 
-export type NewVersionCause = { trigger: "LOOP"; decisionId: string; key: LoopStageKey; personId: null } | { trigger: "SUPPLEMENTARY_OPENING"; openingId: string; personId: string };
+/// A supplementary opening starts the version for the person who finalised it, and says how in `act` (attributed in the same transaction); a committee's loop starts it for nobody.
+export type NewVersionCause = { trigger: "LOOP"; decisionId: string; key: LoopStageKey; personId: null } | { trigger: "SUPPLEMENTARY_OPENING"; openingId: string; personId: string; act: ActWriter };
 
 /// The reason a bid is excluded above the ceiling, in words (the boundary is the matrix's, never a bid's price).
 export function exclusionReason(j: ReturnType<typeof ceilingExclusion>): string {
@@ -87,6 +90,7 @@ export async function openNewVersion(
       supplementaryOpeningId: cause.trigger === "SUPPLEMENTARY_OPENING" ? cause.openingId : null,
     },
   });
+  if (cause.trigger === "SUPPLEMENTARY_OPENING") await cause.act.writeAlso(tx, "Evaluation.startedBy", next.id);
   const label = evaluationLabel({ version, exercise: { reference: x.exercise.reference } });
   const by = cause.personId ? ((await tx.person.findUnique({ where: { id: cause.personId }, select: { name: true } }))?.name ?? null) : null;
   for (const m of prev.team) {
@@ -122,11 +126,18 @@ export async function openNewVersion(
     });
     if (b.excludedReason) excluded++;
     idMap.set(b.id, row.id);
+    // The copied rows keep their person columns, so each is attributed as carried forward (a copy is not a new act).
+    const carry = (entity: string, slot: string, entityId: string, personId: string | null) => (personId ? carryAttribution(tx, x.organisationId, { entity, slot, entityId, personId }) : Promise.resolve());
+    await carry("EvaluationBidder", "correctedBy", row.id, b.correctedByPersonId);
+    if (carryStages) await carry("EvaluationBidder", "shortlistedBy", row.id, b.shortlistedByPersonId);
+    await carry("EvaluationBidder", "inputsRecordedBy", row.id, b.inputsRecordedByPersonId);
     for (const s of b.scores.filter((s) => !s.supersededBy)) {
-      await tx.evaluationScore.create({ data: { organisationId: x.organisationId, bidderId: row.id, stageCode: s.stageCode, criterionCode: s.criterionCode, marks: s.marks, passed: s.passed, note: s.note, scoredByPersonId: s.scoredByPersonId, recordedAt: s.recordedAt, carriedFromScoreId: s.id } });
+      const copy = await tx.evaluationScore.create({ data: { organisationId: x.organisationId, bidderId: row.id, stageCode: s.stageCode, criterionCode: s.criterionCode, marks: s.marks, passed: s.passed, note: s.note, scoredByPersonId: s.scoredByPersonId, recordedAt: s.recordedAt, carriedFromScoreId: s.id } });
+      await carry("EvaluationScore", "scoredBy", copy.id, s.scoredByPersonId);
     }
     for (const a of b.aspects.filter((a) => !a.supersededBy)) {
-      await tx.aspectAssessment.create({ data: { organisationId: x.organisationId, bidderId: row.id, aspectCode: a.aspectCode, verdict: a.verdict, narrative: a.narrative, assessedByPersonId: a.assessedByPersonId, recordedAt: a.recordedAt } });
+      const copy = await tx.aspectAssessment.create({ data: { organisationId: x.organisationId, bidderId: row.id, aspectCode: a.aspectCode, verdict: a.verdict, narrative: a.narrative, assessedByPersonId: a.assessedByPersonId, recordedAt: a.recordedAt } });
+      await carry("AspectAssessment", "assessedBy", copy.id, a.assessedByPersonId);
     }
   }
   for (const openedBidId of plan.fresh) {
@@ -137,7 +148,10 @@ export async function openNewVersion(
     await tx.evaluationBidder.create({ data: { organisationId: x.organisationId, evaluationId: next.id, openedBidId, excludedReason: reason, ceilingSnapshot: { regime: x.ceiling.regime, boundary: x.ceiling.boundary != null ? x.ceiling.boundary.toString() : null, operator: x.ceiling.operator } } });
   }
   if (carryStages) {
-    for (const s of prev.submissions) await tx.stageSubmission.create({ data: { organisationId: x.organisationId, evaluationId: next.id, stageCode: s.stageCode, side: s.side, submittedByPersonId: s.submittedByPersonId, submittedAt: s.submittedAt } });
+    for (const s of prev.submissions) {
+      const copy = await tx.stageSubmission.create({ data: { organisationId: x.organisationId, evaluationId: next.id, stageCode: s.stageCode, side: s.side, submittedByPersonId: s.submittedByPersonId, submittedAt: s.submittedAt } });
+      await carryAttribution(tx, x.organisationId, { entity: "StageSubmission", slot: "submittedBy", entityId: copy.id, personId: s.submittedByPersonId });
+    }
     for (const r of prev.results.filter((r) => idMap.has(r.bidderId))) {
       await tx.stageResult.create({ data: { organisationId: x.organisationId, evaluationId: next.id, bidderId: idMap.get(r.bidderId)!, stageCode: r.stageCode, percent: r.percent, shown: r.shown, passed: r.passed, bandLabel: r.bandLabel, outOfRunning: r.outOfRunning, detail: (r.detail ?? undefined) as Prisma.InputJsonValue | undefined } });
     }

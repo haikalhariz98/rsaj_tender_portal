@@ -26,7 +26,8 @@ describe("E-7: a supplementary opening finalised reopens the evaluation (6.7 fin
   it("only a supplementary opening opens a version, after the opening's own finalising writes", () => {
     const hook = fin.indexOf('if (o.kind === "SUPPLEMENTARY") {\n      await lockEvaluationRows');
     expect(hook).toBeGreaterThan(fin.indexOf("await tx.opening.update("));
-    expect(fin.slice(hook)).toMatch(/openNewVersion\(tx, [\s\S]*\{ trigger: "SUPPLEMENTARY_OPENING", openingId: o\.id, personId: person!\.id \}\)/);
+    // Phase 2b (decisions log, 2026-10-07): the version is started by the act that finalised the opening, attributed in the same transaction (`act`).
+    expect(fin.slice(hook)).toMatch(/openNewVersion\(tx, [\s\S]*\{ trigger: "SUPPLEMENTARY_OPENING", openingId: o\.id, personId: person!\.id, act \}\)/);
   });
   it("the evaluations are locked after the opened bids: inOpening takes those first", () => {
     const inOpening = opening.slice(opening.indexOf("async function inOpening("), opening.indexOf("const openingOf"));

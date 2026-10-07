@@ -31,6 +31,7 @@ import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, exerciseIdOf, inWindow, label, type LockedWindow } from "../window/shared";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { beginAct, type PreparedAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -43,8 +44,8 @@ import type { OrgScope } from "@/lib/org-scope";
  * truncated to the second (`stampNow`, 6.6 CR-3); it is judged against the closing read under the
  * locks, so an extension committed while the act waited is honoured. No form field carries a time
  * on the server-stamped path. `sequence` stays recording order (taken under the envelope lock), so
- * under contention it may differ from stamp order by up to a second; it is never reordered. Every write is audited before and after in the same transaction. People are
- * "recorded on their behalf, not signed": there is no sign-in.
+ * under contention it may differ from stamp order by up to a second; it is never reordered. Every write is audited before and after in the same transaction. Every act is the
+ * signed-in officer's own, attributed in the same transaction (`beginAct`, Phase 2b).
  */
 
 const PROVENANCES = ["STATED", "OBSERVED", "ASSUMED"] as const;
@@ -71,7 +72,6 @@ function readReceipt(r: FormReader) {
     kind: r.choice("kind", "Envelope", RECEIPT_KINDS, { required: true }),
     channel: r.choice("channel", "How it came", OFFICER_CHANNELS, { required: true }),
     markings: r.text("markings", "Markings", { required: true, max: 1000 }),
-    receivedByPersonId: r.optionalText("receivedByPersonId"),
     parentEnvelopeId: r.optionalText("parentEnvelopeId"),
   };
 }
@@ -80,10 +80,10 @@ function readReceipt(r: FormReader) {
  * Record a receipt, stamped now by the server. `stated` is the after-the-fact path's: the
  * officer's stated time and reason, kept beside the stamp and never judged (OD-3 amended).
  */
-async function receive(scope: OrgScope, actor: AuditActor, exerciseId: string, v: ReturnType<typeof readReceipt>, stated: { at: Date; reason: string } | null, now: Date): Promise<FormState> {
+async function receive(scope: OrgScope, actor: AuditActor, act: PreparedAct, exerciseId: string, v: ReturnType<typeof readReceipt>, stated: { at: Date; reason: string } | null, now: Date): Promise<FormState> {
   return inWindow(scope, exerciseId, async (tx, l) => {
     const r = await locked(tx, l);
-    const person = await nameOf(tx, l.org.id, v.receivedByPersonId);
+    const person = await nameOf(tx, l.org.id, act.subjectPersonId);
     const parent = v.parentEnvelopeId ? (r.envelopes.find((e) => e.id === v.parentEnvelopeId) ?? null) : undefined;
     const fs = receiptFaults({ exercise: r.exercise, kind: v.kind!, channel: v.channel!, markings: v.markings, personActive: !!person, now, stated, parent: parent === undefined ? undefined : parent && { kind: parent.kind, status: parent.status } });
     if (blocking(fs).length) return refuse(fs);
@@ -110,6 +110,7 @@ async function receive(scope: OrgScope, actor: AuditActor, exerciseId: string, v
     });
     await audit(tx, actor, l.org.id, BID_ENTITY.envelope, row.id, label(l, `Envelope ${sequence}`), "CREATE",
       diffFields(null, envelopeFields({ ...row, receivedBy: person!.name, parentSequence: parent ? parent.sequence : null }, l.org.timeZone)), stated?.reason ?? "");
+    await act.write(tx, row.id);
     const said = warnings(fs);
     return { ok: true, message: `Envelope ${sequence} recorded${judged.late ? ", late" : ", in time"}.${said ? ` ${said}` : ""}` };
   });
@@ -122,7 +123,9 @@ export async function recordReceiptNow(_prev: FormState, data: FormData): Promis
   const r = new FormReader(data);
   const v = readReceipt(r);
   if (r.failed) return { ok: false, errors: r.errors };
-  return receive(actor, toAuditActor(actor), exerciseIdOf(data), v, null, now);
+  const begun = await beginAct(actor, data, "BidEnvelope.receivedBy", { personField: "receivedByPersonId" });
+  if (!begun.ok) return begun.state;
+  return receive(actor, toAuditActor(actor), begun.act, exerciseIdOf(data), v, null, now);
 }
 
 /// OD-3 amended: a receipt recorded after the event. The server still stamps it and the stamp decides; the officer's stated time and reason are kept beside it, shown.
@@ -140,7 +143,9 @@ export async function recordReceiptAfterTheFact(_prev: FormState, data: FormData
   const tz = await organisationTimeZone(actor.organisationId);
   const at = instantAt(statedDay, statedTime, tz);
   if (!at) return { ok: false, errors: tz ? { statedTime: "Give a time of day, as HH:MM." } : {}, message: tz ? undefined : bidFindingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
-  return receive(actor, toAuditActor(actor), exerciseId, v, { at, reason }, now);
+  const begun = await beginAct(actor, data, "BidEnvelope.receivedBy", { personField: "receivedByPersonId" });
+  if (!begun.ok) return begun.state;
+  return receive(actor, toAuditActor(actor), begun.act, exerciseId, v, { at, reason }, now);
 }
 
 /**
@@ -154,8 +159,11 @@ export async function recordWithdrawal(_prev: FormState, data: FormData): Promis
   const r = new FormReader(data);
   const envelopeId = r.optionalText("envelopeId");
   const markings = r.text("markings", "How the letter identifies the envelope", { required: true, max: 1000 });
-  const personId = r.optionalText("receivedByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "BidWithdrawal.receivedBy", { personField: "receivedByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
     await lockWithdrawalRows(tx, l.ex.id);
@@ -166,6 +174,7 @@ export async function recordWithdrawal(_prev: FormState, data: FormData): Promis
     if (blocking(fs).length) return refuse(fs);
     const w = await tx.bidWithdrawal.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, receivedAt: now, receivedByPersonId: person!.id, markings, closingAtJudged: l.ex.closingAt!, envelopeId: env?.id ?? null } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.withdrawal, w.id, label(l, env ? `Withdrawal of envelope ${env.sequence}` : "Withdrawal of an envelope in the box"), "CREATE", diffFields(null, withdrawalFields({ receivedAt: w.receivedAt, markings, receivedBy: person!.name, envelopeSequence: env?.sequence ?? null }, l.org.timeZone)));
+    await act.write(tx, w.id);
     if (env) {
       const moved = await tx.bidEnvelope.updateMany({ where: { id: env.id, status: "RECEIVED" }, data: { status: "WITHDRAWN" } });
       if (moved.count !== 1) return { ok: false, message: "The envelope changed while this was being saved. Reload and try again." };
@@ -210,12 +219,14 @@ export async function correctEnvelope(_prev: FormState, data: FormData): Promise
     if (["exerciseId", "envelopeId", "reason"].includes(k) || k.startsWith("$")) continue;
     change[k] = typeof v === "string" ? v.trim() : v;
   }
+  // The receiving officer is the officer who recorded the receipt, signed in (Phase 2b): a correction does not name another.
+  if (change.receivedByPersonId !== undefined) return { ok: false, message: "The receiving officer is the officer who recorded the receipt. It is not corrected to another person." };
   if (r.failed) return { ok: false, errors: r.errors };
   return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
     const env = reg.envelopes.find((e) => e.id === envelopeId);
     if (!env) return { ok: false, message: "That envelope is not on this exercise." };
-    const person = change.receivedByPersonId !== undefined ? await nameOf(tx, l.org.id, String(change.receivedByPersonId)) : env.receivedBy;
+    const person = env.receivedBy;
     const fs = correctionFaults({ exercise: reg.exercise, now, envelope: { kind: env.kind, status: env.status, channel: env.channel, markings: env.markings, receivedByPersonId: env.receivedByPersonId }, change, reason, personActive: !!person });
     if (blocking(fs).length) return refuse(fs);
     const next = { markings: change.markings ?? env.markings, channel: (change.channel ?? env.channel) as EnvelopeChannel, receivedByPersonId: person!.id };
@@ -231,9 +242,12 @@ export async function lockBox(_prev: FormState, data: FormData): Promise<FormSta
   const actor = await requireStaff();
   const now = stampNow();
   const r = new FormReader(data);
-  const personId = r.optionalText("personId");
   const note = r.text("note", "Note", { max: 1000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "BoxEvent.person", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
     await lockBoxRows(tx, l.ex.id);
@@ -243,6 +257,7 @@ export async function lockBox(_prev: FormState, data: FormData): Promise<FormSta
     const at = now;
     const row = await tx.boxEvent.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, kind: "LOCKED", occurredAt: at, personId: person!.id, note } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.box, row.id, label(l, "Tender box locked"), "CREATE", diffFields(null, boxFields({ at, by: person!.name, note }, l.org.timeZone)));
+    await act.write(tx, row.id);
     return { ok: true };
   });
 }
@@ -259,8 +274,12 @@ export async function tableLateMatter(_prev: FormState, data: FormData): Promise
   const r = new FormReader(data);
   const envelopeId = r.text("envelopeId", "Envelope", { required: true });
   const meetingId = r.text("meetingId", "Sitting", { required: true });
-  const tabledByPersonId = r.optionalText("tabledByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
+  // The tabler is the signed-in person: the holder of the Secretariat office, judged below (FR-CTE-006).
+  const begun = await beginAct(actor, data, "CommitteeDecision.tabledBy", { personField: "tabledByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const tabledByPersonId = act.subjectPersonId;
   const roster = await loadRoster(actor.organisationCode);
   const result = await inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
@@ -286,7 +305,8 @@ export async function tableLateMatter(_prev: FormState, data: FormData): Promise
     // The committee decides admission itself: its decision is the act (BD-66-6).
     const row = await tx.committeeDecision.create({ data: { meetingId: s.meeting.id, subject, domain: LATE_DOMAIN, matterKind: "LATE_TENDER", matterRef: l.ex.reference, bidEnvelopeId: env.id, act: "A", tabledByPersonId, tabledAt, sequence } });
     await audit(tx, toAuditActor(actor), l.org.id, "CommitteeDecision", row.id, label(l, subject), "CREATE",
-      diffFields(null, { matter: subject, envelope: `Envelope ${env.sequence}`, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s.today!), recordedOnBehalf: "yes" }));
+      diffFields(null, { matter: subject, envelope: `Envelope ${env.sequence}`, sitting: s.meeting.reference, committee: s.meeting.committee.nameEn, tabledBy: tabledByPersonId ? (s.names[tabledByPersonId] ?? null) : null, tabledOn: formatDate(s.today!) }));
+    await act.write(tx, row.id);
     return { ok: true, message: `Tabled at ${s.meeting.reference}. It is decided there, at the sitting.` };
   });
   if (result.ok) {
@@ -307,10 +327,13 @@ export async function recordValidityExtension(_prev: FormState, data: FormData):
   const reason = r.text("reason", "Reason", { required: true, max: 1000 });
   const partyId = r.optionalText("consentPartyId");
   const consentOn = r.text("consentReceivedOn", "Consent received on", { required: true, max: 10 });
-  const personId = r.optionalText("recordedByPersonId");
   if (toExpiry && !isDay(toExpiry)) r.reject("toExpiry", "Give a day.");
   if (consentOn && !isDay(consentOn)) r.reject("consentReceivedOn", "Give a day.");
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ValidityExtension.recordedBy", { personField: "recordedByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
     await lockExtensionRows(tx, l.ex.id);
@@ -339,6 +362,7 @@ export async function recordValidityExtension(_prev: FormState, data: FormData):
     if (blocking(fs).length) return refuse(fs);
     const row = await tx.validityExtension.create({ data: { organisationId: l.org.id, exerciseId: l.ex.id, fromExpiry: dayToDate(v.expiry!), toExpiry: dayToDate(toExpiry), reason, consentPartyId: party!.id, consentReceivedOn: dayToDate(consentOn), recordedByPersonId: person!.id } });
     await audit(tx, toAuditActor(actor), l.org.id, BID_ENTITY.extension, row.id, label(l, `Validity extension to ${formatDate(toExpiry)}`), "CREATE", diffFields(null, extensionFields({ ...row, consentParty: party!.name, recordedBy: person!.name })), reason);
+    await act.write(tx, row.id);
     return { ok: true, message: "Extension recorded. Attach the tenderer's written consent to it, then apply it." };
   });
 }
@@ -378,7 +402,6 @@ export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<
   const provenance = r.choice("bidValidityProvenance", "Where the days came from", PROVENANCES);
   const alt = r.choice("alternativesPermitted", "Alternative bids", ["yes", "no", "unset"] as const, { required: true });
   const reason = r.text("reason", "Reason", { max: 1000 });
-  const recordedByPersonId = r.optionalText("recordedByPersonId");
   if (r.failed) return { ok: false, errors: r.errors };
   const alternativesPermitted = alt === "yes" ? true : alt === "no" ? false : null;
   return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
@@ -389,12 +412,12 @@ export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<
     // S-6: recorded after publication (BD-66-7's exit), the officer who records it is named, and the
     // trail keeps who beside when and why, so the validity card can show all three.
     const exit = w.publishedAt != null;
-    const person = exit ? await nameOf(tx, l.org.id, recordedByPersonId) : null;
-    if (exit && !person) return { ok: false, errors: { recordedByPersonId: "Name the officer recording it." } };
+    // The officer who records it is the signed-in one (Phase 2b): named from the session, not from the form.
+    const person = exit ? { name: actor.personName } : null;
     const next = { bidValidityDays: days, bidValidityProvenance: days == null ? null : provenance, alternativesPermitted };
     await tx.exerciseWindow.update({ where: { id: w.id, organisationId: actor.organisationId }, data: next });
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseWindow", w.id, label(l, "Bids and opening, Received · window answers"), "UPDATE",
-      diffFields(bidAnswerFields(w), { ...bidAnswerFields(next), ...(person ? { [EXIT_RECORDED_BY_FIELD]: `${person.name}, recorded on their behalf, not signed` } : {}) }), reason);
+      diffFields(bidAnswerFields(w), { ...bidAnswerFields(next), ...(person ? { [EXIT_RECORDED_BY_FIELD]: person.name } : {}) }), reason);
     return { ok: true };
   });
 }

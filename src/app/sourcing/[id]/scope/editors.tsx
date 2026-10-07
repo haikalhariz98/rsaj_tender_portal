@@ -1,6 +1,7 @@
 import { Blocked } from "@/app/requisitions/editors";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 import { AMEND_LODGED_NOTE } from "@/lib/scope/labels";
 
 import {
@@ -98,11 +99,11 @@ export function VerifyColumnDrawer({ exerciseId, column, columnLabel, people }: 
   return (
     <RecordEditor
       title={`Record who verified: ${columnLabel}`}
-      description="Recorded on behalf of the person named, not signed: nobody signs in yet. The signed form itself is attached below."
+      description="The verification is recorded as yours, from your sign-in. The signed form itself is attached below."
       fields={[
         hidden("exerciseId"),
         hidden("columnCode"),
-        { kind: "select", name: "personId", label: "Verified by", required: true, placeholder: "Choose", options: people },
+        actorField("SpecPanelVerification.person", { name: "personId", people }),
         { kind: "date", name: "verifiedOn", label: "Verified on", required: true, hint: "Not after today." },
         { kind: "text", name: "note", label: "Note" },
       ]}
@@ -167,7 +168,7 @@ export function EditBqHeaderDrawer({ exerciseId, versionId, raw, scopedBy, peopl
         { kind: "textarea", name: "scopeStatement", label: "Scope statement" },
         { kind: "select", name: "followsStandard", label: "Follows the measurement standard", placeholder: "Not answered yet", options: YES_NO },
         { kind: "textarea", name: "departuresText", label: "Departures from the standard", hint: "Required when the bill does not follow it." },
-        { kind: "select", name: "preparerPersonId", label: "Prepared by", placeholder: "Not named", options: people, hint: "Recorded on behalf of, not signed. Checked against their qualification when the bill is finalised." },
+        { kind: "select", name: "preparerPersonId", label: "Prepared by", placeholder: "Not named", options: people, hint: "The officer the bill is prepared by: a designation, checked against their qualification when the bill is finalised. Who edits it is in the History." },
         {
           kind: "select",
           name: "provisionalExcludedFromFirm",
@@ -361,7 +362,7 @@ export function PrepareEstimateDrawer({ exerciseId, people, allowed }: { exercis
       description="Version 1, by one preparer. The figure is shown only while it is typed and once for checking, then sealed. The day is the organisation's day, set when it is saved."
       fields={[
         hidden("exerciseId"),
-        { kind: "select", name: "personId", label: "Prepared by", required: true, placeholder: "Choose", options: people, hint: "Recorded on behalf of, not signed. An estimate has one preparer throughout." },
+        actorField("CompanyEstimate.preparer", { name: "personId", people, hint: "You prepare it, signed in. An estimate has one preparer throughout." }),
         { kind: "money", name: "value", label: "Company estimate", required: true, sealed: true, hint: "To the sen. Sealed on saving." },
       ]}
       values={{ exerciseId }}
@@ -374,7 +375,7 @@ export function PrepareEstimateDrawer({ exerciseId, people, allowed }: { exercis
   );
 }
 
-export function AmendEstimateDrawer({ exerciseId, estimateId, preparerName, preparerPersonId, versionNo, lodged, allowed }: { exerciseId: string; estimateId: string; preparerName: string; preparerPersonId: string; versionNo: number; lodged: boolean; allowed: Allowed }) {
+export function AmendEstimateDrawer({ exerciseId, estimateId, preparerName, versionNo, lodged, allowed }: { exerciseId: string; estimateId: string; preparerName: string; versionNo: number; lodged: boolean; allowed: Allowed }) {
   if (!allowed.allowed) return <Blocked label="Amend the estimate" reason={allowed.reason} />;
   return (
     <RecordEditor
@@ -383,13 +384,12 @@ export function AmendEstimateDrawer({ exerciseId, estimateId, preparerName, prep
       fields={[
         hidden("exerciseId"),
         hidden("estimateId"),
-        hidden("personId"),
-        { kind: "readonly", name: "amendedBy", label: "Amended by", text: preparerName, hint: "The preparer. Recorded on behalf of, not signed." },
+        actorField("CompanyEstimateVersion.preparer", { name: "personId", label: "Amended by", hint: `Only the preparer, ${preparerName}, amends it, signed in.` }),
         { kind: "money", name: "value", label: "New company estimate", required: true, sealed: true, hint: "To the sen. Sealed on saving." },
         ...(lodged ? [{ kind: "note" as const, text: AMEND_LODGED_NOTE }] : []),
         { kind: "textarea", name: "reason", label: "Why it is amended", required: true, hint: "Sealed with the figure: it is not recorded in the audit trail or shown on any screen." },
       ]}
-      values={{ exerciseId, estimateId, personId: preparerPersonId }}
+      values={{ exerciseId, estimateId }}
       confirm={FIGURE_CONFIRM}
       action={amendEstimate}
       submitLabel="Check the figure"
@@ -399,16 +399,16 @@ export function AmendEstimateDrawer({ exerciseId, estimateId, preparerName, prep
   );
 }
 
-export function LodgeEstimateDrawer({ exerciseId, estimateId, versionNo, people, allowed, again }: { exerciseId: string; estimateId: string; versionNo: number; people: Option[]; allowed: Allowed; again: boolean }) {
+export function LodgeEstimateDrawer({ exerciseId, estimateId, versionNo, allowed, again }: { exerciseId: string; estimateId: string; versionNo: number; allowed: Allowed; again: boolean }) {
   if (!allowed.allowed) return <Blocked label={again ? "Lodge the new version" : "Lodge the estimate"} reason={allowed.reason} />;
   return (
     <RecordEditor
       title={`Lodge version ${versionNo}`}
-      description="The version goes into the sealed set as the lodged copy. Lodging is a custody event, recorded on behalf of the person named, not signed."
+      description="The version goes into the sealed set as the lodged copy. Lodging is a custody event, recorded as yours."
       fields={[
         hidden("exerciseId"),
         hidden("estimateId"),
-        { kind: "select", name: "personId", label: "Lodged by", required: true, placeholder: "Choose", options: people },
+        actorField("EstimateEvent.person", { name: "personId", label: "Lodged by", paper: false }),
         { kind: "text", name: "capacity", label: "Capacity", placeholder: "e.g. head of department" },
       ]}
       values={{ exerciseId, estimateId }}
@@ -420,7 +420,7 @@ export function LodgeEstimateDrawer({ exerciseId, estimateId, versionNo, people,
   );
 }
 
-export function RetainCopyDrawer({ exerciseId, estimateId, people, allowed, versionNo }: { exerciseId: string; estimateId: string; people: Option[]; allowed: Allowed; versionNo: number | null }) {
+export function RetainCopyDrawer({ exerciseId, estimateId, allowed, versionNo }: { exerciseId: string; estimateId: string; allowed: Allowed; versionNo: number | null }) {
   if (!allowed.allowed) return <Blocked label="Record the retained copy" reason={allowed.reason} />;
   return (
     <RecordEditor
@@ -429,7 +429,7 @@ export function RetainCopyDrawer({ exerciseId, estimateId, people, allowed, vers
       fields={[
         hidden("exerciseId"),
         hidden("estimateId"),
-        { kind: "select", name: "personId", label: "Held by", required: true, placeholder: "Choose", options: people },
+        actorField("EstimateEvent.person", { name: "personId", label: "Held by", paper: false }),
         { kind: "text", name: "capacity", label: "Capacity" },
         { kind: "text", name: "place", label: "Where it is kept", required: true, placeholder: "e.g. the department's safe" },
       ]}
@@ -442,7 +442,7 @@ export function RetainCopyDrawer({ exerciseId, estimateId, people, allowed, vers
   );
 }
 
-export function VoidEstimateDrawer({ exerciseId, estimateId, preparerName, people, allowed }: { exerciseId: string; estimateId: string; preparerName: string; people: Option[]; allowed: Allowed }) {
+export function VoidEstimateDrawer({ exerciseId, estimateId, preparerName, allowed }: { exerciseId: string; estimateId: string; preparerName: string; allowed: Allowed }) {
   if (!allowed.allowed) return <Blocked label="Void the company estimate" reason={allowed.reason} destructive />;
   return (
     <RecordEditor
@@ -451,7 +451,7 @@ export function VoidEstimateDrawer({ exerciseId, estimateId, preparerName, peopl
       fields={[
         hidden("exerciseId"),
         hidden("estimateId"),
-        { kind: "select", name: "personId", label: "Recorded on behalf of", placeholder: "Not named", options: people, hint: "Not signed: nobody signs in yet." },
+        actorField("EstimateEvent.person", { name: "personId", label: "Voided by", paper: false }),
       ]}
       values={{ exerciseId, estimateId }}
       destructive={{ reasonLabel: "Why the preparer cannot continue" }}
@@ -477,12 +477,12 @@ export function TableScopeDrawer({
   return (
     <RecordEditor
       title={`Table version ${table.versionNo} of the bill for scope approval`}
-      description={`A matter at a sitting of the ${table.committee ?? "committee"}, naming this version, under the act the sourcing method sets (${table.act ?? "not set"}). It is decided there; tabling is by a holder of the committee's Secretariat office, recorded on their behalf, not signed.`}
+      description={`A matter at a sitting of the ${table.committee ?? "committee"}, naming this version, under the act the sourcing method sets (${table.act ?? "not set"}). It is decided there; tabling is by a holder of the committee's Secretariat office, who signs in and tables it.`}
       fields={[
         hidden("exerciseId"),
         hidden("versionId"),
         { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: "Choose", options: table.sittings, hint: "Sittings of the committee that are scheduled or in progress." },
-        { kind: "select", name: "tabledByPersonId", label: "Tabled by", required: true, placeholder: table.holders.length === 0 ? "Nobody holds the Secretariat office" : "Choose", options: table.holders },
+        actorField("CommitteeDecision.tabledBy", { name: "tabledByPersonId", hint: table.holders.length === 0 ? "Nobody holds the Secretariat office." : "Only a holder of the Secretariat office can table." }),
       ]}
       values={{ exerciseId, versionId: table.versionId }}
       action={tableScope}

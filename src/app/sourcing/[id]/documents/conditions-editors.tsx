@@ -1,6 +1,7 @@
 import { Blocked } from "@/app/requisitions/editors";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { actorField } from "@/lib/auth/actor-field";
 
 import { addRequirement, recordAssurance, recordClauseOverride, removeAssurance, removeClauseOverride, removeRequirement, savePermit, saveRestriction } from "./conditions-actions";
 
@@ -104,11 +105,11 @@ export function ConfirmAssuranceDrawer({ exerciseId, kind, label, people, allowe
   return (
     <RecordEditor
       title={`Confirmed: ${label.toLowerCase()}`}
-      description="Name who confirmed it and the day: recorded on behalf of, not signed. It belongs to this version; an amended version is confirmed again."
+      description="You confirm it, and the day. It belongs to this version; an amended version is confirmed again."
       fields={[
         hidden("exerciseId"),
         hidden("kind"),
-        { kind: "select", name: "personId", label: "Confirmed by", required: true, placeholder: "Choose", options: people },
+        actorField("PackAssurance.person", { name: "personId", people }),
         { kind: "date", name: "confirmedOn", label: "Confirmed on", required: true, hint: today ? "Not after today, nor before this version was started." : undefined },
         { kind: "textarea", name: "note", label: "Note" },
       ]}
@@ -144,11 +145,11 @@ export function OverrideClauseDrawer({ exerciseId, clauseCode, title, people, al
   return (
     <RecordEditor
       title={`Go without the ${title.toLowerCase()}`}
-      description="Only a legal endorsement lets an agreement go without a clause every agreement must carry. Name who gave it and why: recorded on behalf of, not signed. Who may give the endorsement is not checked, because no policy names them. It holds for this version only."
+      description="Only a legal endorsement lets an agreement go without a clause every agreement must carry. You give it, and say why. Who may give the endorsement is not checked, because no policy names them. It holds for this version only."
       fields={[
         hidden("exerciseId"),
         hidden("clauseCode"),
-        { kind: "select", name: "personId", label: "Endorsed by", required: true, placeholder: "Choose", options: people },
+        actorField("ClauseOverride.person", { name: "personId", people }),
         { kind: "textarea", name: "reason", label: "Why", required: true },
       ]}
       values={{ exerciseId, clauseCode }}

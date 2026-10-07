@@ -26,6 +26,7 @@ import { chooseFaults } from "@/lib/evaluation/pin";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, notes } from "./shared";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 
 /**
@@ -189,7 +190,7 @@ export async function removeInvitee(_prev: FormState, data: FormData): Promise<F
 
 // ------------------------------------------------------------------ publications (FR-ADV-001)
 
-/// Record an advertised exercise's publication on a channel, by a named Person (recorded on their behalf, not signed).
+/// Record an advertised exercise's publication on a channel, by the signed-in officer (Phase 2b).
 export async function recordPublication(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const exerciseId = exerciseIdOf(data);
@@ -197,8 +198,11 @@ export async function recordPublication(_prev: FormState, data: FormData): Promi
   const channelId = r.text("channelId", "Channel", { required: true });
   const on = r.date("publishedOn", "Published on", { required: true });
   const reference = r.text("reference", "Title and edition, board or address", { max: 400 });
-  const personId = r.optionalText("recordedByPersonId");
   if (r.failed || !on) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "PublicationRecord.recordedBy", { personField: "recordedByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inWindow(actor, exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
     if (!d.window) return NO_WINDOW;
@@ -216,7 +220,8 @@ export async function recordPublication(_prev: FormState, data: FormData): Promi
     });
     if (fs.length) return fs.length === 1 && fs[0].code === "PERSON_REQUIRED" ? { ok: false, errors: { recordedByPersonId: windowFindingText(fs[0]) } } : refuse(fs, "Not recorded:");
     const row = await tx.publicationRecord.create({ data: { organisationId: l.org.id, windowId: d.window.id, channelId, channelName: channel!.nameEn, publishedOn: on, reference, recordedByPersonId: person!.id } });
-    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.publication, row.id, label(l, `Publication · ${channel!.nameEn}`), "CREATE", diffFields(null, { channel: channel!.nameEn, publishedOn: formatDate(storedDay(on)), reference: reference || null, recordedBy: person!.name, recordedOnBehalf: "not signed" }));
+    await audit(tx, toAuditActor(actor), l.org.id, ENTITY.publication, row.id, label(l, `Publication · ${channel!.nameEn}`), "CREATE", diffFields(null, { channel: channel!.nameEn, publishedOn: formatDate(storedDay(on)), reference: reference || null, recordedBy: person!.name }));
+    await act.write(tx, row.id);
     return { ok: true };
   });
 }

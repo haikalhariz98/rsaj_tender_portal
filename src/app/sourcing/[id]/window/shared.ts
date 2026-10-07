@@ -12,6 +12,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import type { FieldChange } from "@/lib/audit/diff";
 import { writeAudit, type Tx } from "@/lib/audit/record";
+import { attributionRefusalState } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import { findingText } from "@/lib/method/labels";
 import { ExerciseMoveRefused } from "@/lib/method/move";
@@ -66,6 +67,8 @@ export async function inWindow(scope: OrgScope, exerciseId: string, fn: (tx: Tx,
     });
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     if (e instanceof ExerciseMoveRefused) return e.findings[0]?.code === "CHANGED" ? CHANGED : { ok: false, message: `The exercise cannot move: ${e.findings.map(findingText).join(" ")}` };
     if (transactionTimedOut(e)) return { ok: false, message: "This took too long and nothing was saved. Try again." };
     throw e;

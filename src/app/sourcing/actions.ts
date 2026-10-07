@@ -54,6 +54,7 @@ import { FormReader } from "@/lib/validate";
 import { nameListFault } from "@/lib/window/invitees";
 import { audit, CHANGED, citeNameStep, labelOf, nameLabel, nameSupports, Refusal, refuse, sendNameRejected } from "@/lib/method/name-route-write";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -64,7 +65,7 @@ import type { OrgScope } from "@/lib/org-scope";
  * transaction that locks the parent requisition and then the exercise, and reads the
  * issue in force, the configuration and the siblings there. The write and its audit
  * rows share the transaction; a refusal saves nothing and names what blocks it.
- * Who is signed in is asked first and named on every audit row; a Person the form picks is still only recorded on their behalf, "not signed" (Phase 2b changes that).
+ * Who is signed in is asked first and named on every audit row, and every act is attributed (`beginAct`, Phase 2b): the signed-in person's own, or, from a paper record, recorded on another's behalf and not signed.
  */
 
 const GONE: FormState = { ok: false, message: "That exercise no longer exists." };
@@ -88,6 +89,8 @@ async function inExercise(scope: OrgScope, id: string, fn: (tx: Tx, l: { org: Ex
     result = await withLockedRequisitionForSourcing(scope.organisationId, reqId, id, (tx, l) => (l.ex ? fn(tx, { ...l, ex: l.ex }) : Promise.resolve(GONE)));
   } catch (e) {
     if (e instanceof Refusal) return e.state;
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     if (e instanceof MoveRefused) return e.fault.code === "CHANGED" ? CHANGED : { ok: false, message: `The requisition cannot move: ${transitionFaultText(e.fault)}` };
     throw e;
   }
@@ -144,7 +147,8 @@ function readForm(r: FormReader, data: FormData, id: string | null): FormValues 
       scope: scope.rows,
       contractTypeCode: r.optionalText("contractTypeCode"),
       typeReason: r.text("contractTypeOverrideReason", "Why this type", { max: 2000 }),
-      typePersonId: r.optionalText("overriddenByPersonId"),
+      // Who overrides the contract type is the signed-in officer (FR-MTD-011): set by the action from `beginAct`, never read from the form.
+      typePersonId: null,
       basisCode: r.optionalText("contractBasisCode"),
       justificationReasonCode: r.optionalText("justificationReasonCode"),
       justificationText: r.text("justificationText", "Justification", { max: 4000 }),
@@ -265,6 +269,10 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
   const r = new FormReader(data);
   const v = readForm(r, data, null);
   if (!v || r.failed) return { ok: false, errors: r.errors, message: "Nothing was saved. Correct the fields marked below." };
+  const begun = await beginAct(actor, data, "SourcingExercise.overriddenBy", { personField: "overriddenByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  v.draft.typePersonId = act.subjectPersonId;
 
   let id: string | null = null;
   try {
@@ -300,6 +308,8 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
         },
       });
       await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", row.id, labelOf(row), "CREATE", auditCreate(row, { requisition: l.req.reference }));
+      // A contract type chosen other than the derived one is an override, and is attributed to the officer who made it.
+      if (ev.type.state !== "DERIVED") await act.write(tx, row.id);
       await writeChildren(tx, toAuditActor(actor), l.org.id, row, null, v.draft.scope, ev, cfg.config);
       id = row.id;
       return { ok: true };
@@ -307,6 +317,8 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
     if (!result) return { ok: false, message: "That requisition no longer exists." };
     if (!result.ok) return result;
   } catch (e) {
+    const attribution = attributionRefusalState(e);
+    if (attribution) return attribution;
     if (e instanceof NumberingError) {
       return {
         ok: false,
@@ -333,11 +345,17 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
   const r = new FormReader(data);
   const v = readForm(r, data, id);
   if (!v || r.failed) return { ok: false, errors: r.errors, message: "Nothing was saved. Correct the fields marked below." };
+  const begun = await beginAct(actor, data, "SourcingExercise.overriddenBy", { personField: "overriddenByPersonId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
 
   const result = await inExercise(actor, id, async (tx, l): Promise<FormState> => {
     const ex = l.ex;
     if (ex.status !== "DRAFT") return { ok: false, message: `Only a draft exercise can be edited. This one is ${EXERCISE_STATUS_LABEL[ex.status].toLowerCase()}.` };
     if (!l.org.today) return { ok: false, message: findingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
+    // The override is whoever made it: the officer saving it now where it is new or changed, and otherwise whoever made it before, not whoever edits the draft next.
+    const overrideChanged = ex.contractTypeCode !== v.draft.contractTypeCode || ex.contractTypeOverrideReason !== v.draft.typeReason || !ex.overriddenByPersonId;
+    v.draft.typePersonId = overrideChanged ? act.subjectPersonId : ex.overriddenByPersonId;
     const { issue, cfg, ctx } = await evaluationContext(l.org, l.req, ex, tx);
     if (!issue || !ctx) return NO_ISSUE;
     const ev = evaluateExercise(v.draft, ctx);
@@ -361,6 +379,7 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
     const moved = await tx.sourcingExercise.updateMany({ where: { id, status: "DRAFT", updatedAt: ex.updatedAt }, data: after });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE", auditPair(ex, { ...ex, ...after }), String(data.get("reason") ?? ""));
+    if (ev.type.state !== "DERIVED" && overrideChanged) await act.write(tx, id);
     await writeChildren(tx, toAuditActor(actor), l.org.id, ex, ex, v.draft.scope, ev, cfg.config);
     const withdraw = nameRoutesToWithdraw(nameRoutesOf(ex.approvalInstances), { methodChanged, valueChanged });
     for (const inst of withdraw.routes) {
@@ -453,18 +472,21 @@ export async function submitProposal(_prev: FormState, data: FormData): Promise<
   });
 }
 
-/// C&P's review: reviewed, or returned for amendment. The reviewer is a named Person,
-/// recorded on their behalf.
+/// C&P's review: reviewed, or returned for amendment. The reviewer is the signed-in officer (Phase 2b).
 export async function reviewProposal(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const outcome = r.choice("outcome", "Outcome", ["REVIEWED", "DRAFT"] as const, { required: true });
-  const personId = r.text("reviewerPersonId", "Reviewed by", { required: true });
-  const on = r.date("reviewedOn", "Reviewed on", { required: true });
+  r.date("reviewedOn", "Reviewed on");
   const comment = r.text("comment", "Comment", { max: 4000 });
   if (outcome === "DRAFT" && !comment) r.reject("comment", "Say what needs amending.");
-  if (r.failed || !outcome || !on) return { ok: false, errors: r.errors };
+  if (r.failed || !outcome) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "SourcingExercise.proposalReviewer", { personField: "reviewerPersonId", dateField: "reviewedOn" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
+  const on = dayToDate(act.day!);
   return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     if (ex.status !== "DRAFT") return { ok: false, message: "Only a draft exercise's proposal can be reviewed." };
@@ -475,7 +497,8 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
     // Returned for amendment: it is being prepared again, and the next submission records it anew.
     await tx.sourcingExercise.update({ where: { id, organisationId: actor.organisationId }, data: { ...after, ...(outcome === "DRAFT" ? { proposalRecord: Prisma.DbNull } : {}) } });
     await audit(tx, toAuditActor(actor), l.org.id, "SourcingExercise", id, labelOf(ex), "UPDATE",
-      diffFields({ proposalState: ex.proposalState, proposalReviewComment: ex.proposalReviewComment }, { ...after, proposalReviewerPersonId: undefined, reviewedBy: person!.name, recordedOnBehalf: "not signed" }), comment);
+      diffFields({ proposalState: ex.proposalState, proposalReviewComment: ex.proposalReviewComment }, { ...after, proposalReviewerPersonId: undefined, reviewedBy: person!.name, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null }), comment);
+    await act.write(tx, id);
     return { ok: true };
   });
 }
@@ -581,8 +604,8 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
   });
 }
 
-/// Record a named Person's decision on a step of the name's route: recorded on their
-/// behalf, not signed. The holder, delegation, self-approval and date checks are 6.1's.
+/// Record a decision on a step of the name's route: the holder's own, signed with the password, or recorded for the holder from paper and not signed
+/// (Phase 2b). The holder, delegation, self-approval and date checks are 6.1's, on whom it is attributed to; the separation of duties also on the person recording it.
 export async function recordNameDecision(_prev: FormState, data: FormData): Promise<FormState> {
   const holderGuard = await staffForAct("HOLDER_CHECKED");
   if (!holderGuard.ok) return holderGuard.state;
@@ -591,11 +614,15 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
   const stepId = String(data.get("stepId") ?? "");
   const r = new FormReader(data);
   const decision = r.choice("decision", "Decision", ["DONE", "REJECTED"] as const, { required: true });
-  const personId = r.text("personId", "Decided by", { required: true });
-  const on = r.date("decidedOn", "Decided on", { required: true });
+  r.date("decidedOn", "Decided on");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (decision === "REJECTED" && !reason) r.reject("reason", "Say why it is refused.");
-  if (r.failed || !decision || !on) return { ok: false, errors: r.errors };
+  if (r.failed || !decision) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalStep.decidedBy", { personField: "personId", dateField: "decidedOn" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
+  const on = dayToDate(act.day!);
 
   return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
@@ -616,6 +643,7 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
       person,
       // Nobody decides the name for an exercise on a requisition they raised.
       requesterId: l.req.requestingPersonId,
+      recorderId: act.recorderId,
       endorserIds: [],
       otherDeciderIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.decidedByPersonId!),
       earlierDone: inst.steps.filter((s) => s.sequence < step.sequence).every((s) => s.decision === "DONE"),
@@ -631,7 +659,8 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
     const done = await tx.approvalStep.updateMany({ where: { id: step.id, decision: "PENDING", actingRoleCode: step.actingRoleCode }, data: after });
     if (done.count !== 1) throw new Refusal(CHANGED);
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalStep", step.id, `${ex.reference} · ${step.roleLabel}`, "UPDATE",
-      diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: "not signed", underDelegation: check.delegationId ? "yes" : null }), reason);
+      diffFields({ decision: step.decision }, { decision, decidedBy: person!.name, decidedOn: on, recordedOnBehalf: act.intent.mode === "RECORDED_ON_BEHALF" ? "not signed" : null, underDelegation: check.delegationId ? "yes" : null }), reason);
+    await act.write(tx, step.id, { document: { entity: "SourcingExercise", id }, roleCode: step.actingRoleCode ?? step.roleCode });
     if (decision === "REJECTED") {
       // FR-APR-016: the destination snapshotted at open says where it goes; unset, the
       // officer chooses. A refusal is never refused.
@@ -653,7 +682,7 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
 
 /**
  * Where a refused name goes, chosen by the officer where the refusal decided nothing
- * (FR-APR-016, ruling CO-5): recorded as their choice on behalf of a named Person.
+ * (FR-APR-016, ruling CO-5): recorded as the signed-in officer's own choice (Phase 2b).
  */
 export async function chooseNameRejection(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
@@ -661,9 +690,12 @@ export async function chooseNameRejection(_prev: FormState, data: FormData): Pro
   const r = new FormReader(data);
   const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
   const seq = r.int("returnToSeq", "Step", { min: 1 });
-  const personId = r.optionalText("personId");
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalInstance.rejectionChosenBy", { personField: "personId" });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const personId = act.subjectPersonId;
   return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     if (!l.org.today) return { ok: false, message: findingText({ code: "TIME_ZONE_UNSET", level: "block" }) };
@@ -681,7 +713,7 @@ export async function chooseNameRejection(_prev: FormState, data: FormData): Pro
     }
     const person = await tx.person.findFirst({ where: { id: personId!, organisationId: l.org.id, isActive: true }, select: { id: true, name: true } });
     if (!person) return { ok: false, errors: { personId: "Choose someone on record and active." } };
-    await recordChoice(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel: nameLabel(ex) }, inst!.id, kind!, person.id, person.name, reason);
+    await recordChoice(tx, toAuditActor(actor), { organisationId: l.org.id, routeLabel: nameLabel(ex) }, inst!.id, kind!, person.id, person.name, reason, act);
     await sendNameRejected(tx, toAuditActor(actor), l, inst!.id, kind!, kind === "RETURN_TO_STEP" ? seq : null, reason);
     return { ok: true };
   });
