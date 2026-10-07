@@ -6,9 +6,12 @@ import {
   decisionFor,
   eventKey,
   exerciseAccessFacts,
-  exerciseHiddenFrom,
+  exerciseStanding,
   hiddenExerciseIds,
   organisationPermissionState,
+  recordAccessRow,
+  restrictedExerciseIds,
+  sulitActorOf,
   writeSulitEvents,
   type Reader,
   type SulitEventRow,
@@ -89,10 +92,12 @@ export async function sulitExerciseValue<T>(actor: StaffActor, exercise: Exercis
  * not there. The refusal is logged. An exercise that does not exist, or is the organisation's and not restricted, is not hidden.
  */
 export async function exerciseIsHidden(actor: Reader, exerciseId: string): Promise<boolean> {
-  if (!(await exerciseHiddenFrom(db, actor, exerciseId))) return false;
-  const facts = (await exerciseAccessFacts(db, actor.organisationId, [exerciseId])).get(exerciseId);
-  await log(actor, [{ scope: "exercise", entity: "SourcingExercise", entityId: exerciseId, entityLabel: facts?.reference ?? "", fields: ["record"], decision: { state: "WITHHELD", basis: actor.isAdministrator ? "ADMINISTRATOR" : "RESTRICTED_NOT_NAMED" } }]);
-  return true;
+  const standing = await exerciseStanding(db, actor, exerciseId);
+  // An exercise that is not the organisation's, or is not restricted, is no SULIT record: nothing is asked and nothing is written.
+  if (!standing || !standing.restricted || actor.system) return false;
+  // Every access to a restricted exercise is logged, allowed or refused (FR-MTD-007). If an allowed one cannot be logged it is not allowed.
+  const logged = await log(actor, [recordAccessRow(exerciseId, standing.reference, standing.visible, sulitActorOf(actor))]);
+  return !standing.visible || !logged;
 }
 
 /// The ids of the restricted exercises the actor may not see, for a list, a count, a feed or a search to leave out.
@@ -103,11 +108,14 @@ export const hiddenExercises = (actor: Reader): Promise<string[]> => hiddenExerc
  * matter that does not exist. The refusal is logged against the exercise.
  */
 export async function matterIsHidden(actor: Reader, decisionId: string): Promise<boolean> {
-  const hidden = await hiddenExerciseIds(db, actor);
-  if (hidden.length === 0) return false;
-  if ((await hiddenDecisionIds([decisionId], hidden)).size === 0) return false;
+  const restricted = await restrictedExerciseIds(db, actor.organisationId);
+  if (restricted.length === 0) return false;
+  if ((await hiddenDecisionIds([decisionId], restricted)).size === 0) return false;
   const row = await db.committeeDecision.findUnique({ where: { id: decisionId, meeting: { committee: { organisationId: actor.organisationId } } }, select: { exerciseId: true, bqVersion: { select: { exerciseId: true } }, bidEnvelope: { select: { exerciseId: true } }, evaluationBidder: { select: { evaluation: { select: { exerciseId: true } } } } } });
-  const exerciseId = [row?.exerciseId, row?.bqVersion?.exerciseId, row?.bidEnvelope?.exerciseId, row?.evaluationBidder?.evaluation.exerciseId].find((id): id is string => !!id && hidden.includes(id));
-  if (exerciseId) await exerciseIsHidden(actor, exerciseId);
-  return true;
+  const exerciseId = [row?.exerciseId, row?.bqVersion?.exerciseId, row?.bidEnvelope?.exerciseId, row?.evaluationBidder?.evaluation.exerciseId].find((id): id is string => !!id && restricted.includes(id));
+  return exerciseId ? exerciseIsHidden(actor, exerciseId) : false;
 }
+
+/// Every restricted exercise of the actor's organisation, whoever may see it. A guard that logs a named reader's access as well as a refusal asks this and then
+/// `exerciseIsHidden`, which decides and writes (FR-MTD-007).
+export const restrictedExercises = (actor: Reader): Promise<string[]> => restrictedExerciseIds(db, actor.organisationId);

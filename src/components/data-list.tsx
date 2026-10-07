@@ -91,6 +91,9 @@ export interface Column {
   /// downloaded from a list (NFR-SEC-002, NFR-AUD-004). The registry of fields that
   /// require this flag is `src/lib/sulit-fields.ts`; a test scans the screens for it.
   sulit?: boolean;
+  /// What the column's lock says, for a column whose cells a loader has judged for the reader (`Sulit<T>`, Phase 3a): the figure is shown to those entitled and
+  /// withheld from the rest, so the default sentence ("not restricted until sign-in") would be untrue of it. Left out, the default stands until the column's module rolls out (3b).
+  sulitLabel?: string;
 }
 
 /// The columns a CSV download carries: every column but a SULIT one, so a classified figure never
@@ -107,8 +110,8 @@ export function canExport(columns: readonly Column[]): boolean {
 
 /// The mark a SULIT column's header carries: the shared lock beside the column name, the
 /// whole sentence in the tooltip and to a screen reader (founder, 2026-10-04: a lock, not a chip).
-function SulitMark() {
-  return <SulitLock size={12} />;
+function SulitMark({ label }: { label?: string }) {
+  return <SulitLock size={12} label={label} />;
 }
 // Written out whole for Tailwind (see HIDE_COL_BELOW): the stacked list below the breakpoint, the table from it.
 const STACKED_BELOW = { md: "md:hidden", xl: "xl:hidden", "2xl": "2xl:hidden" } as const;
@@ -711,7 +714,7 @@ export function DataList({
                         <div key={c.key} className="min-w-0">
                           <dt className="flex items-center gap-1 text-[11.5px] font-semibold text-ink-3">
                             {c.label}
-                            {c.sulit && <SulitMark />}
+                            {c.sulit && <SulitMark label={c.sulitLabel} />}
                           </dt>
                           <dd className={cx("mt-0.5 min-w-0 text-[13.5px] [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal", c.numeric && "tabular-nums")}>
                             <CellView cell={row.cells[c.key]} />
@@ -790,7 +793,7 @@ export function DataList({
                     {c.sulit ? (
                       <span className={cx("inline-flex items-center gap-1", c.numeric ? "justify-end" : "justify-start")}>
                         {c.sortable ? sortButton(c) : c.label}
-                        <SulitMark />
+                        <SulitMark label={c.sulitLabel} />
                       </span>
                     ) : c.sortable ? (
                       sortButton(c)

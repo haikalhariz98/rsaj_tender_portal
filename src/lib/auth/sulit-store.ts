@@ -115,6 +115,24 @@ export const approvalRouteNotHidden = (hidden: readonly string[]): { AND?: objec
       }
     : {};
 
+/// Every restricted exercise of the organisation, whoever may see it: what a guard that must LOG a named reader's access too is asked about (FR-MTD-007: every access).
+export async function restrictedExerciseIds(client: Tx, organisationId: string): Promise<string[]> {
+  return (await client.sourcingExercise.findMany({ where: { organisationId, restricted: true }, select: { id: true } })).map((r) => r.id);
+}
+
+/// What the viewer's standing is with one exercise: null where it is not the organisation's, else its reference, whether it is restricted and whether the viewer may see it.
+export async function exerciseStanding(client: Tx, viewer: Viewer, exerciseId: string): Promise<{ reference: string; restricted: boolean; visible: boolean } | null> {
+  const facts = (await exerciseAccessFacts(client, viewer.organisationId, [exerciseId])).get(exerciseId);
+  if (!facts) return null;
+  return { reference: facts.reference, restricted: facts.restricted, visible: exerciseVisible(sulitActorOf(viewer), facts.restricted, facts.named) };
+}
+
+/// The log's row for a reader's access to a restricted exercise reached as a record, shown or refused.
+export function recordAccessRow(exerciseId: string, reference: string, visible: boolean, actor: SulitActor): SulitEventRow {
+  const decision: SulitDecision = visible ? { state: "GRANTED", basis: "NAMED_ON_RECORD" } : { state: "WITHHELD", basis: actor.isAdministrator ? "ADMINISTRATOR" : "RESTRICTED_NOT_NAMED" };
+  return { scope: "exercise", entity: "SourcingExercise", entityId: exerciseId, entityLabel: reference, fields: ["record"], decision };
+}
+
 /// Whether this exercise exists in the organisation and the viewer may not see it. An exercise that does not exist is not "hidden": the
 /// caller's own not-found handles it, in the same words.
 export async function exerciseHiddenFrom(client: Tx, viewer: Viewer, exerciseId: string): Promise<boolean> {
@@ -126,16 +144,17 @@ export async function exerciseHiddenFrom(client: Tx, viewer: Viewer, exerciseId:
 }
 
 /**
- * For a lock that must refuse a hidden exercise: whether the reader may not see it, and, where so, the refusal written to the log in the caller's
- * client (a transaction that then returns "gone" commits it). The words an exercise that does not exist gets are the caller's own.
+ * For a lock that must refuse a hidden exercise: whether the reader may not see it. The access to a restricted exercise is written to the log in the caller's
+ * client whether it is allowed or refused (FR-MTD-007: every access is logged; a transaction that then returns "gone" commits the refusal). An exercise that is
+ * not restricted is no SULIT record and writes nothing. The words an exercise that does not exist gets are the caller's own.
  */
 export async function refuseHiddenExercise(client: Tx, reader: Reader, exerciseId: string): Promise<boolean> {
   const actor = sulitActorOf(reader);
   if (actor.system) return false;
-  const facts = (await exerciseAccessFacts(client, reader.organisationId, [exerciseId])).get(exerciseId);
-  if (!facts || exerciseVisible(actor, facts.restricted, facts.named)) return false;
-  await writeSulitEvents(client, reader, [{ scope: "exercise", entity: "SourcingExercise", entityId: exerciseId, entityLabel: facts.reference, fields: ["record"], decision: { state: "WITHHELD", basis: actor.isAdministrator ? "ADMINISTRATOR" : "RESTRICTED_NOT_NAMED" } }]);
-  return true;
+  const standing = await exerciseStanding(client, reader, exerciseId);
+  if (!standing || !standing.restricted) return false;
+  await writeSulitEvents(client, reader, [recordAccessRow(exerciseId, standing.reference, standing.visible, actor)]);
+  return !standing.visible;
 }
 
 /// The state of `sulit.read.organisation` for the actor, for the rule's last step. Held through a role: no read of the explanation is needed.

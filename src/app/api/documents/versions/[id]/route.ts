@@ -1,4 +1,4 @@
-import { exerciseIsHidden, hiddenExercises } from "@/app/_auth/sulit";
+import { exerciseIsHidden, restrictedExercises } from "@/app/_auth/sulit";
 import { hiddenExerciseOfVersion } from "@/lib/documents/hidden";
 import type { Reader } from "@/lib/auth/sulit-store";
 import type { NextRequest } from "next/server";
@@ -49,11 +49,8 @@ async function download(scope: Reader, ctx: RouteContext<"/api/documents/version
   });
   if (!version) return plain(404, "No such document version.");
   // FR-MTD-007: a version hanging on an exercise restricted to its named people (or on anything under it) reads as one that does not exist, and the attempt is logged.
-  const under = await hiddenExerciseOfVersion(version.id, await hiddenExercises(scope));
-  if (under) {
-    await exerciseIsHidden(scope, under);
-    return plain(404, "No such document version.");
-  }
+  const under = await hiddenExerciseOfVersion(version.id, await restrictedExercises(scope));
+  if (under && (await exerciseIsHidden(scope, under))) return plain(404, "No such document version.");
 
   const decision = downloadDecision({ classification: version.document.classificationSnapshot, scanState: version.scanState });
   if (!decision.allow) {

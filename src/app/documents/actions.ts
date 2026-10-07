@@ -1,8 +1,8 @@
 "use server";
 
-import { exerciseIsHidden, hiddenExercises } from "@/app/_auth/sulit";
-import { exerciseOfOwner, hiddenExerciseOfDocument } from "@/lib/documents/hidden";
-import { hiddenExerciseIds, refuseHiddenExercise, type Reader } from "@/lib/auth/sulit-store";
+import { exerciseIsHidden, hiddenExercises, restrictedExercises } from "@/app/_auth/sulit";
+import { exerciseOfOwner, hiddenExerciseOfDocument, hiddenExerciseOfVersion } from "@/lib/documents/hidden";
+import { refuseHiddenExercise, restrictedExerciseIds, type Reader } from "@/lib/auth/sulit-store";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -77,7 +77,7 @@ async function inDocument(scope: Reader, documentId: string, fn: (tx: Tx, orgId:
       const found = await tx.document.findFirst({ where: { id: documentId, organisationId: org.id }, select: { id: true } });
       if (!found) return refuse([{ code: "DOCUMENT_UNKNOWN", level: "block" }]);
       // FR-MTD-007: a document hanging on an exercise restricted to its named people reads as one that does not exist, and the attempt is logged.
-      const under = await hiddenExerciseOfDocument(documentId, await hiddenExerciseIds(tx, scope), tx);
+      const under = await hiddenExerciseOfDocument(documentId, await restrictedExerciseIds(tx, scope.organisationId), tx);
       if (under && (await refuseHiddenExercise(tx, scope, under))) return refuse([{ code: "DOCUMENT_UNKNOWN", level: "block" }]);
       await lockDocument(tx, documentId);
       return fn(tx, org.id);
@@ -310,6 +310,9 @@ export async function verifyVersion(_prev: FormState, data: FormData): Promise<F
   if (!org) return refuse([{ code: "NO_ORGANISATION", level: "block" }]);
   const v = await db.documentVersion.findFirst({ where: { id: versionId, organisationId: org.id }, select: { id: true, sha256: true } });
   if (!v) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
+  // FR-MTD-007: a version hanging on an exercise restricted to its named people reads as one that does not exist, and the attempt is logged.
+  const under = await hiddenExerciseOfVersion(v.id, await restrictedExercises(actor));
+  if (under && (await exerciseIsHidden(actor, under))) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
   const s = blobStore();
   if ("fault" in s) return refuse([{ code: s.fault, level: "block" }]);
   const bytes = await s.store.get(org.id, v.sha256);
@@ -329,11 +332,8 @@ export async function loadDocumentDrawer(documentId: string): Promise<DrawerView
   const [org, d] = await Promise.all([documentOrg(actor.organisationId), documentDrawer(actor.organisationId, String(documentId))]);
   if (!d) return null;
   // FR-MTD-007: a document hanging on an exercise restricted to its named people reads as one that does not exist, and the attempt is logged.
-  const under = await hiddenExerciseOfDocument(d.id, await hiddenExercises(actor));
-  if (under) {
-    await exerciseIsHidden(actor, under);
-    return null;
-  }
+  const under = await hiddenExerciseOfDocument(d.id, await restrictedExercises(actor));
+  if (under && (await exerciseIsHidden(actor, under))) return null;
   // Who recorded each version and placed or released each hold, signed or recorded from paper, is read from the attributions (Phase 2b).
   const acted = await loadAttributions(db, actor.organisationId, drawerAttributionQueries(d));
   return drawerView(d, org?.timeZone ?? null, acted);

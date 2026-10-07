@@ -139,7 +139,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
           // at least 260px (the table scrolls in its card rather than squeeze it) and the others are narrower.
           { key: "title", label: "Exercise", minWidth: "260px", sortable: true, mobile: "primary" },
           { key: "method", label: "Method and contract type", width: "18%", hideBelow: "2xl" },
-          { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, sulit: true, mobile: "meta" },
+          { key: "value", label: "Value", width: "132px", numeric: true, sortable: true, sulit: true, sulitLabel: "SULIT. Shown to the people named on each exercise and to the roles the organisation has chosen; withheld from everyone else. Not exported.", mobile: "meta" },
           { key: "window", label: "Closing", width: "168px", hideBelow: "lg", mobile: "meta" },
           { key: "status", label: "Status", width: "200px", sortable: true, mobile: "meta" },
           { key: "checks", label: "Band and checks", width: "168px", hideBelow: "2xl", mobile: "meta" },

@@ -60,9 +60,16 @@ beforeAll(async () => {
 });
 
 describe("a write on a restricted exercise (FR-MTD-007)", () => {
-  it("runs for a person named on it", async () => {
+  it("runs for a person named on it, and logs the access (FR-MTD-007: every access, allowed or refused)", async () => {
     const out = await withLockedRequisitionForSourcing(reader(who.named), requisitionId, exerciseId, async (_tx, l) => l.ex?.id ?? null);
     expect(out).toBe(exerciseId);
+    const e = await db.sulitAccessEvent.findFirstOrThrow({ where: { entityId: exerciseId, actorPersonId: who.named }, orderBy: { at: "desc" } });
+    expect(e).toMatchObject({ outcome: "GRANTED", basis: "NAMED_ON_RECORD", fields: ["record"], scope: "exercise" });
+  });
+  it("writes nothing for an exercise that is not restricted: it is no SULIT record", async () => {
+    const before = await db.sulitAccessEvent.count({ where: { entityId: openExerciseId } });
+    await withLockedRequisitionForSourcing(reader(who.named), requisitionId, openExerciseId, async (_tx, l) => l.ex?.id ?? null);
+    expect(await db.sulitAccessEvent.count({ where: { entityId: openExerciseId } })).toBe(before);
   });
   it("answers 'gone' for a person who is not named, runs nothing, and logs the refusal against the exercise", async () => {
     let ran = false;
