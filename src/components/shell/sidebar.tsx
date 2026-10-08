@@ -28,12 +28,14 @@ import { cx } from "@/components/ui/cx";
 import { showsNameBesideLogo } from "@/lib/organisation/details";
 import type { ShellOrganisation } from "@/lib/shell";
 import {
+  CONFIG_PINNED,
   CONFIG_SECTIONS,
   navFor,
   STAFF_NAV,
   SUPPLIER_NAV,
   workspaceFor,
   type NavGroup,
+  type NavItem,
   type Workspace,
 } from "@/lib/nav";
 
@@ -56,11 +58,9 @@ const ICONS: Record<string, ComponentType<{ size?: number }>> = {
 
 /// Configuration's sections in the sidebar's own shape. Inside Configuration the
 /// sidebar becomes its navigator — the settings pattern — so the sections never have
-/// to sit in a second rail squeezed beside the screen.
-const CONFIG_NAV: NavGroup[] = CONFIG_SECTIONS.map((g) => ({
-  label: g.group,
-  items: g.items.map(({ href, label, icon, built }) => ({ href, label, icon, built })),
-}));
+/// to sit in a second rail squeezed beside the screen. The pinned items are held apart,
+/// drawn above the groups with no header (founder, 2026-10-08).
+const CONFIG_NAV: NavGroup[] = CONFIG_SECTIONS.map((g) => ({ label: g.group, items: g.items }));
 
 export function Sidebar({
   organisation,
@@ -86,10 +86,24 @@ export function Sidebar({
   const workspace = workspaceFor(pathname);
   const inConfig = pathname === "/configuration" || pathname.startsWith("/configuration/");
   const groups = inConfig ? CONFIG_NAV : navFor(workspace);
+  const pinned = inConfig ? CONFIG_PINNED : [];
 
   const [switching, setSwitching] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const brand = useRef<HTMLDivElement>(null);
+  const rail = useRef<HTMLDivElement>(null);
+
+  // The active item can sit below the fold of a long rail (Configuration's has two dozen). Scroll the rail's own container to it, by
+  // `scrollTop`: `scrollIntoView` would scroll the page as well. Only when the item is out of sight, so a rail that fits never jumps.
+  useEffect(() => {
+    const box = rail.current;
+    const el = box?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!box || !el) return;
+    const b = box.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    if (r.top < b.top) box.scrollTop += r.top - b.top - 8;
+    else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom + 8;
+  }, [pathname, inConfig]);
 
   // Close on Escape and on a click outside. Escape returns focus to the trigger,
   // because a menu that closes and drops the caret leaves a keyboard user nowhere.
@@ -129,6 +143,48 @@ export function Sidebar({
   // /supplier/bids does not light Home as well.
   const isActive = (href: string) =>
     href === "/" || href === "/supplier" ? pathname === href : pathname.startsWith(href);
+
+  const renderItem = (item: NavItem) => {
+    const Ico = ICONS[item.icon] ?? GridIcon;
+    const count = counts[item.href];
+    const active = isActive(item.href);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={onNavigate}
+        aria-current={active ? "page" : undefined}
+        className={cx(
+          "group flex items-center gap-3 rounded-xl px-3 py-1.5 text-[14px] font-medium no-underline transition hover:no-underline",
+          active ? "bg-brand-50 font-semibold text-brand-800" : "text-ink-2 hover:bg-ink/[0.04] hover:text-ink",
+        )}
+      >
+        <span
+          className={cx(
+            "grid size-7 shrink-0 place-items-center rounded-lg transition",
+            active ? "bg-brand-600 text-white" : "text-ink-3 group-hover:text-ink-2",
+          )}
+        >
+          <Ico size={16} />
+        </span>
+        {/* A long label wraps onto a second line rather than being cut off ("Changes awaiting a second person"). */}
+        <span className="line-clamp-2 min-w-0 flex-1 leading-snug">{item.label}</span>
+        {inConfig && !item.built && (
+          <span className="mt-1 self-start rounded-full bg-amber-100 px-2 text-[11px] leading-5 font-bold text-amber-800">soon</span>
+        )}
+        {count ? (
+          <span
+            className={cx(
+              "mt-1 min-w-6 shrink-0 self-start rounded-full px-1.5 text-center text-[11.5px] leading-5 font-bold",
+              item.href === "/" ? "bg-rose-500 text-white" : "bg-ink/[0.07] text-ink-2",
+            )}
+          >
+            {count}
+          </span>
+        ) : null}
+      </Link>
+    );
+  };
 
   return (
     <nav className="flex h-full flex-col gap-2 px-4 pt-5 pb-4" aria-label="Main">
@@ -230,56 +286,12 @@ export function Sidebar({
       </div>
       )}
 
-      <div className="-mx-1 mt-2 flex-1 overflow-y-auto px-1 [scrollbar-width:thin]">
-        {groups.map((group) => (
-          <div key={group.label} className="mt-3.5 first:mt-1">
+      <div ref={rail} className="-mx-1 mt-2 flex-1 overflow-y-auto px-1 [scrollbar-width:thin]">
+        {pinned.length > 0 && <div className="mt-1 mb-1 flex flex-col gap-0.5">{pinned.map(renderItem)}</div>}
+        {groups.map((group, i) => (
+          <div key={group.label} className={cx("mt-3.5", i === 0 && pinned.length === 0 && "first:mt-1")}>
             <div className="px-3 pb-1.5 text-[11.5px] font-semibold text-ink-4">{group.label}</div>
-            <div className="flex flex-col gap-0.5">
-              {group.items.map((item) => {
-                const Ico = ICONS[item.icon] ?? GridIcon;
-                const count = counts[item.href];
-                const active = isActive(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onNavigate}
-                    aria-current={active ? "page" : undefined}
-                    className={cx(
-                      "group flex items-center gap-3 rounded-xl px-3 py-1.5 text-[14px] font-medium no-underline transition hover:no-underline",
-                      active
-                        ? "bg-brand-50 font-semibold text-brand-800"
-                        : "text-ink-2 hover:bg-ink/[0.04] hover:text-ink",
-                    )}
-                  >
-                    <span
-                      className={cx(
-                        "grid size-7 place-items-center rounded-lg transition",
-                        active ? "bg-brand-600 text-white" : "text-ink-3 group-hover:text-ink-2",
-                      )}
-                    >
-                      <Ico size={16} />
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    {inConfig && !item.built && (
-                      <span className="rounded-full bg-amber-100 px-2 text-[11px] leading-5 font-bold text-amber-800">
-                        soon
-                      </span>
-                    )}
-                    {count ? (
-                      <span
-                        className={cx(
-                          "min-w-6 rounded-full px-1.5 text-center text-[11.5px] leading-5 font-bold",
-                          item.href === "/" ? "bg-rose-500 text-white" : "bg-ink/[0.07] text-ink-2",
-                        )}
-                      >
-                        {count}
-                      </span>
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </div>
+            <div className="flex flex-col gap-0.5">{group.items.map(renderItem)}</div>
           </div>
         ))}
       </div>

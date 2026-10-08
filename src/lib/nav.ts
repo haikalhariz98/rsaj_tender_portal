@@ -112,201 +112,114 @@ export function navFor(workspace: Workspace): NavGroup[] {
   return workspace === "supplier" ? SUPPLIER_NAV : STAFF_NAV;
 }
 
-/// Sections of the Configuration area, in the prototype's own grouping and order.
-export const CONFIG_SECTIONS: {
-  group: string;
-  items: { href: string; label: string; description: string; icon: string; built?: boolean }[];
-}[] = [
+export interface ConfigItem {
+  href: string;
+  label: string;
+  icon: string;
+  built?: boolean;
+}
+
+/// The groups of Configuration's navigator, as a fixed set: adding a group is a deliberate edit here, not a new string in a list.
+export type ConfigGroup =
+  | "People and access"
+  | "Governance"
+  | "Across every stage"
+  | "Requisitions"
+  | "Sourcing and award"
+  | "Contracts"
+  | "Records";
+
+/// Pinned above the groups, with no header (founder, 2026-10-08): Organisation, which everything else hangs from and where Configuration
+/// opens, and the changes waiting on a second person. The second one is shown to everyone; its page says who may decide. Its count is the
+/// viewer's own "waiting for you" number and never an organisation-wide one, so it arrives with the actor in `loadShell`, not here.
+export const CONFIG_PINNED: ConfigItem[] = [
+  { href: "/configuration/organisation", label: "Organisation", icon: "building", built: true },
+  { href: "/configuration/changes", label: "Changes awaiting a second person", icon: "clipboard", built: true },
+];
+
+/**
+ * Sections of the Configuration area (founder, 2026-10-08), grouped by where a setting acts and named by stage, following the main
+ * navigation's modules. A grouping by owner was rejected: every owner would be a guess, it would build one customer's split of work
+ * into the product, and several sections have more than one owner.
+ *
+ * Where a new section goes: take the first line that applies.
+ *   1. Who someone is, or how they sign in                  -> People and access
+ *   2. Who may decide, or how a body decides                -> Governance
+ *   3. The screens of one main-navigation module            -> that module's group (Requisitions; Sourcing and award; Contracts)
+ *   4. The paper the portal issues or keeps                 -> Records
+ *   5. Two or more modules equally                          -> Across every stage
+ * No group of one section, no "Other" or "General" group; a group past seven sections splits along module lines; once the rail nears
+ * forty sections it gets a filter field, never collapsing groups. No rail item points at a tab inside another section (the active
+ * item matches on the path, so two would light at once). A label never holds a code and reads on its own in a breadcrumb.
+ * `config-nav.test.ts` fails when a section folder has no entry here, a group is outside two to seven, or a label differs from its crumb.
+ */
+export const CONFIG_SECTIONS: { group: ConfigGroup; items: ConfigItem[] }[] = [
   {
-    group: "Structure",
+    group: "People and access",
     items: [
-      {
-        href: "/configuration/organisation",
-        label: "Organisation",
-        description: "Companies, divisions, departments, sections, cost centres and sites.",
-        icon: "building",
-        built: true,
-      },
-      {
-        href: "/configuration/committees",
-        label: "Committees",
-        description: "Membership, quorum and the decisions each body may take.",
-        icon: "users",
-        built: true,
-      },
-      {
-        href: "/configuration/users",
-        label: "Users & roles",
-        description: "Officers, the offices they hold and what each may see.",
-        icon: "user",
-        built: true,
-      },
+      { href: "/configuration/users", label: "Users & roles", icon: "user", built: true },
+      // Phase 1b: the administrator's screen for who can sign in. Staff reach it by the link; the page itself says so to anyone who is not an administrator.
+      { href: "/configuration/accounts", label: "Sign-in accounts", icon: "shield", built: true },
+      // Phase 2c: the sign-in settings.
+      { href: "/configuration/security", label: "Sign-in settings", icon: "sliders", built: true },
     ],
   },
   {
-    group: "Money and authority",
+    group: "Governance",
     items: [
-      {
-        href: "/configuration/budget",
-        label: "Budget",
-        description: "Allocations, commitments and the balance a requirement is checked against.",
-        icon: "chart",
-        built: true,
-      },
-      {
-        href: "/configuration/approval-matrix",
-        label: "Approval matrix",
-        description: "Who proposes, who recommends and who approves, at every value.",
-        icon: "sliders",
-        built: true,
-      },
-      {
-        href: "/configuration/awards",
-        label: "Award controls",
-        description: "Instruments, signatories' templates, distribution, letter variants, conditions, insurance and liability bands.",
-        icon: "award",
-        built: true,
-      },
-      {
-        href: "/configuration/contracts",
-        label: "Contract controls",
-        description: "The legal office, the contract agreement's signatory rows, controlled copies and the Contract Document's parts.",
-        icon: "file",
-        built: true,
-      },
-      {
-        href: "/configuration/post-award",
-        label: "Post-award controls",
-        description: "When a contract is In Delay, whether its Superintending Officer follows the contract sum, and the delegation letters' forms.",
-        icon: "tools",
-        built: true,
-      },
-      {
-        href: "/configuration/scope",
-        label: "Scope and estimate",
-        description: "The standard bills follow, who may prepare them, specification panels and the company estimate's lead time.",
-        icon: "tools",
-        built: true,
-      },
-      {
-        href: "/configuration/tender-documents",
-        label: "Tender documents",
-        description: "The parts each pack assembles, the wording it carries and the figures it is judged by.",
-        icon: "files",
-        built: true,
-      },
-      {
-        href: "/configuration/invitation",
-        label: "Invitation controls",
-        description: "The window's date rules, publication channels, least fees and holiday calendars.",
-        icon: "globe",
-        built: true,
-      },
-      {
-        href: "/configuration/evaluation",
-        label: "Evaluation models",
-        description: "How bids are evaluated: stages, weights, pass marks, bands and aspects, and the report's policy.",
-        icon: "sliders",
-        built: true,
-      },
-      {
-        href: "/configuration/requisitions",
-        label: "Requisition controls",
-        description: "Endorsement tiers and budget re-checks.",
-        icon: "clipboard",
-        built: true,
-      },
+      { href: "/configuration/approval-matrix", label: "Approval matrix", icon: "sliders", built: true },
+      { href: "/configuration/committees", label: "Committees", icon: "users", built: true },
     ],
   },
   {
+    group: "Across every stage",
+    items: [
+      { href: "/configuration/reference-data", label: "Reference data", icon: "globe", built: true },
+      { href: "/configuration/notifications", label: "Notifications", icon: "inbox", built: true },
+    ],
+  },
+  {
+    group: "Requisitions",
+    items: [
+      { href: "/configuration/requisitions", label: "Requisition controls", icon: "clipboard", built: true },
+      { href: "/configuration/budget", label: "Budget", icon: "chart", built: true },
+    ],
+  },
+  {
+    // In the order a matter takes them: scope, the pack, the invitation, evaluation, the award.
+    group: "Sourcing and award",
+    items: [
+      { href: "/configuration/scope", label: "Scope and estimate", icon: "tools", built: true },
+      { href: "/configuration/tender-documents", label: "Tender documents", icon: "files", built: true },
+      { href: "/configuration/invitation", label: "Invitation controls", icon: "globe", built: true },
+      { href: "/configuration/evaluation", label: "Evaluation models", icon: "sliders", built: true },
+      { href: "/configuration/awards", label: "Award controls", icon: "award", built: true },
+    ],
+  },
+  {
+    group: "Contracts",
+    items: [
+      { href: "/configuration/contracts", label: "Contract controls", icon: "file", built: true },
+      { href: "/configuration/post-award", label: "Post-award controls", icon: "tools", built: true },
+    ],
+  },
+  {
+    // Routing sheets stay here, not under Contracts: the Documents register's Routing sheets tab and awards use them too.
     group: "Records",
     items: [
-      {
-        href: "/configuration/numbering",
-        label: "Numbering",
-        description: "How exercise, contract and certificate references are formed.",
-        icon: "grid",
-        built: true,
-      },
-      {
-        href: "/configuration/documents",
-        label: "Documents",
-        description: "Classification, retention and controlled-copy rules.",
-        icon: "files",
-        built: true,
-      },
-      {
-        href: "/configuration/audit",
-        label: "Audit trail",
-        description: "Every change on record, and its export with a digest for an outside auditor.",
-        icon: "clock",
-        built: true,
-      },
-      {
-        href: "/configuration/templates",
-        label: "Templates",
-        description: "The certificates, letters and routing sheets the portal issues.",
-        icon: "files",
-        built: true,
-      },
-      {
-        href: "/configuration/routing-sheets",
-        label: "Routing sheets",
-        description: "Routing sheets: their checks and the targets elapsed days are judged against.",
-        icon: "clock",
-        built: true,
-      },
-    ],
-  },
-  {
-    group: "System",
-    items: [
-      {
-        href: "/configuration/reference-data",
-        label: "Reference data",
-        description: "Sourcing methods, contract types, funding routes and code lists.",
-        icon: "globe",
-        built: true,
-      },
       // 6.15a: the prototype keeps CIDB grades and MOF codes on Reference data; here every registration
       // body's values sit with the register, per body, never as regulator columns (FR-VND-003).
-      {
-        href: "/configuration/suppliers",
-        label: "Supplier register",
-        description: "Registration bodies' values, statutory document types, entity types and countries, and the verification notice.",
-        icon: "building",
-        built: true,
-      },
-      {
-        href: "/configuration/notifications",
-        label: "Notifications",
-        description: "What the portal sends, to whom, and when reminders are issued.",
-        icon: "inbox",
-        built: true,
-      },
-      // Phase 1b: the administrator's screen for who can sign in. Staff reach it by the link; the page itself says so to anyone who is not an administrator.
-      {
-        href: "/configuration/accounts",
-        label: "Sign-in accounts",
-        description: "Who can sign in, and how they get their first password.",
-        icon: "shield",
-        built: true,
-      },
-      // Phase 2c: the sign-in settings, and the queue of changes that need a second person to decide them.
-      {
-        href: "/configuration/security",
-        label: "Sign-in settings",
-        description: "How long a session lasts, when an account is locked, and how long a password must be.",
-        icon: "sliders",
-        built: true,
-      },
-      {
-        href: "/configuration/changes",
-        label: "Changes awaiting a second person",
-        description: "High-risk changes that one person proposes and a different person decides.",
-        icon: "clipboard",
-        built: true,
-      },
+      { href: "/configuration/suppliers", label: "Supplier register", icon: "building", built: true },
+      { href: "/configuration/documents", label: "Documents", icon: "files", built: true },
+      { href: "/configuration/templates", label: "Templates", icon: "files", built: true },
+      { href: "/configuration/routing-sheets", label: "Routing sheets", icon: "clock", built: true },
+      { href: "/configuration/numbering", label: "Numbering", icon: "grid", built: true },
+      { href: "/configuration/audit", label: "Audit trail", icon: "clock", built: true },
     ],
   },
 ];
+
+/// A section's folder name to its label, from the rail itself, so the breadcrumb and the rail cannot split.
+export const CONFIG_LABELS: Record<string, string> = Object.fromEntries(
+  [...CONFIG_PINNED, ...CONFIG_SECTIONS.flatMap((g) => g.items)].map((item) => [item.href.slice("/configuration/".length), item.label]),
+);

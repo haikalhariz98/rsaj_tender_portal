@@ -12,31 +12,32 @@ import {
   UserIcon,
 } from "@/components/icons";
 import { ButtonLink, iconButtonClass } from "@/components/ui/button";
-import { workspaceFor } from "@/lib/nav";
+import { CONFIG_LABELS, workspaceFor } from "@/lib/nav";
 import type { ShellUser } from "@/lib/shell";
 
 import { useRecordCrumb, useRecordParentCrumb } from "./record-crumb";
 import { UserMenu } from "./user-menu";
 
-/// Path segment to the label the breadcrumb should read.
+/// Path segment to the label the breadcrumb should read. A segment that only names a Configuration section takes its word from the rail
+/// (`CONFIG_LABELS`), so the two cannot split; the key is still needed here, because a key is how a known section word is told from a record's key.
 const SEGMENT_LABEL: Record<string, string> = {
   configuration: "Configuration",
-  "approval-matrix": "Approval matrix",
+  "approval-matrix": CONFIG_LABELS["approval-matrix"],
   committees: "Committees",
-  organisation: "Organisation",
-  users: "Users & roles",
-  budget: "Budget",
-  numbering: "Numbering",
-  templates: "Templates",
-  "routing-sheets": "Routing sheets",
-  "reference-data": "Reference data",
-  "tender-documents": "Tender documents",
-  invitation: "Invitation controls",
+  organisation: CONFIG_LABELS["organisation"],
+  users: CONFIG_LABELS["users"],
+  budget: CONFIG_LABELS["budget"],
+  numbering: CONFIG_LABELS["numbering"],
+  templates: CONFIG_LABELS["templates"],
+  "routing-sheets": CONFIG_LABELS["routing-sheets"],
+  "reference-data": CONFIG_LABELS["reference-data"],
+  "tender-documents": CONFIG_LABELS["tender-documents"],
+  invitation: CONFIG_LABELS["invitation"],
   appendix: "Appendix",
-  notifications: "Notifications",
-  accounts: "Sign-in accounts",
-  security: "Sign-in settings",
-  changes: "Changes awaiting a second person",
+  notifications: CONFIG_LABELS["notifications"],
+  accounts: CONFIG_LABELS["accounts"],
+  security: CONFIG_LABELS["security"],
+  changes: CONFIG_LABELS["changes"],
   sourcing: "Sourcing",
   projects: "Contracts",
   suppliers: "Suppliers",
@@ -48,7 +49,7 @@ const SEGMENT_LABEL: Record<string, string> = {
   account: "Your account",
   welcome: "Welcome",
   "sign-in": "Sign in",
-  audit: "Audit trail",
+  audit: CONFIG_LABELS["audit"],
   print: "Print",
   // Short: the crumb shares the bar with search. The page title says the rest.
   receive: "Receive",
@@ -82,23 +83,18 @@ const RECORD_LABEL: Record<string, string> = {
 
 /// Segments whose label depends on where they sit.
 const NESTED_LABEL: Record<string, string> = {
+  // Every Configuration section, named as the rail names it. Under Configuration "requisitions" is Requisition controls, not the requisitions list.
+  ...Object.fromEntries(Object.entries(CONFIG_LABELS).map(([slug, label]) => [`configuration/${slug}`, label])),
   // The sign-in screens, shown without the frame but named for the breadcrumb test.
   "sign-in/code": "Use a code",
-  "configuration/requisitions": "Requisition controls",
   "requisitions/new": "New requisition",
-  "configuration/awards": "Award controls",
-  "configuration/scope": "Scope and estimate",
   "awards/new": "New award",
   // 6.15a: the register's configuration, and recording a paper application.
-  "configuration/suppliers": "Supplier register",
   "suppliers/new": "New application",
   // Online applications waiting for an officer: the list is the Online tab, one application sits under it.
   "suppliers/online": "Online applications",
   // 6.14 residual: every page names its crumbs (crumbs.test.ts walks every page).
   "sourcing/new": "New exercise",
-  "configuration/contracts": "Contract controls",
-  "configuration/post-award": "Post-award controls",
-  "configuration/evaluation": "Evaluation models",
   "evaluation/report": "Evaluation report",
   "evaluation/proposal": "Kertas Cadangan",
   // The supplier portal's own words, where a segment is also a staff section's name ("projects" is Contracts there).
