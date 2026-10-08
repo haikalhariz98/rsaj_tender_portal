@@ -44,7 +44,13 @@ export type ActNeed = { act: SupervisionAct } | { soOnly: true } | { principalOr
 
 export type Capacity = { as: "SO" } | { as: "DELEGATE"; delegationId: string; kind: DelegateKind };
 
-export type AuthorityFault = "NO_SO" | "NOT_SO" | "NOT_PRINCIPAL" | "NOT_IN_SCOPE" | "NOT_AUTHORISED";
+/// Whom an act is recorded for and who records it: a prepared act (`PreparedAct`) is one. `recorderId` is null where the act is the Person's own.
+export interface ActWho {
+  subjectPersonId: string | null;
+  recorderId: string | null;
+}
+
+export type AuthorityFault = "NO_SO" | "NOT_SO" | "NOT_PRINCIPAL" | "NOT_IN_SCOPE" | "NOT_AUTHORISED" | "RECORDER_OUT_OF_SCOPE";
 
 export function capacityFor(personId: string, need: ActNeed, so: SoOffice | null, delegations: readonly DelegationFacts[], day: Day): { capacity: Capacity | null; faults: Finding<AuthorityFault>[] } {
   const fault = (code: AuthorityFault, data: Record<string, string | number | null> = {}) => ({ capacity: null, faults: [{ code, level: "block" as const, data }] });
@@ -59,6 +65,25 @@ export function capacityFor(personId: string, need: ActNeed, so: SoOffice | null
   if (live.length === 0) return fault("NOT_AUTHORISED", { office: so.roleLabel, act: need.act });
   const d = live.find((x) => x.scope.includes(need.act));
   return d ? { capacity: { as: "DELEGATE", delegationId: d.id, kind: d.kind }, faults: [] } : fault("NOT_IN_SCOPE", { act: need.act });
+}
+
+/**
+ * The officer who RECORDS an act is judged as well as the Person it is recorded for (FR-SUP-004, Phase 3d: "no communication with the contractor on matters outside the delegated
+ * scope" is "a genuine security requirement, not a display rule"). `capacityFor` judges the Person named, and an act may be recorded from paper for the S.O. by any officer,
+ * so a representative could otherwise record an act their letter does not list by naming the S.O. as the Person: the S.O. passes, and the scope of the delegate is never asked.
+ *
+ * A recorder who is a representative in force on the day (and not the S.O. or someone acting in the office) may record only what their own delegation covers: the same rule
+ * `capacityFor` applies to the Person, applied to the recorder, whatever Person the act is recorded for. A recorder who is the S.O., or who is no representative (a clerk
+ * keying the S.O.'s paper), or no one (the act is the Person's own, or a loader's), is not judged here: the paper path of an officer who is no representative stays. Null: allowed.
+ */
+export function recorderFault(recorderId: string | null, need: ActNeed, so: SoOffice | null, delegations: readonly DelegationFacts[], day: Day): Finding<AuthorityFault> | null {
+  if (!recorderId || !so) return null;
+  if (so.holderIds.includes(recorderId) || so.actingIds.includes(recorderId)) return null;
+  if (!delegations.some((d) => d.delegatePersonId === recorderId && inForce(d, day))) return null;
+  const own = capacityFor(recorderId, need, so, delegations, day);
+  if (own.capacity) return null;
+  const kind = "soOnly" in need ? "SO" : "principalOrSo" in need ? "PRINCIPAL" : "ACT";
+  return { code: "RECORDER_OUT_OF_SCOPE", level: "block", data: { kind, act: "act" in need ? need.act : null, office: so.roleLabel } };
 }
 
 /**

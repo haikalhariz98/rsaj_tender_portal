@@ -48,3 +48,32 @@ describe("each drawer that opens a supervision act is left off when its act is h
     });
   }
 });
+
+// The same Must is a server rule and not only a screen: the officer who records an act is judged beside the Person it is recorded for (`recorderFault`), in every place a
+// supervision act's capacity is judged for recording. A `recordedFor` handed a bare person would judge the S.O. and never the recorder.
+describe("every place that judges a recorded supervision act asks for the recorder too", () => {
+  const FILES = [`${CONTRACT}/supervision-actions.ts`, `${CONTRACT}/payment-actions.ts`, `${CONTRACT}/variation-actions.ts`, "src/lib/matter/act.ts"];
+
+  for (const file of FILES) {
+    it(`${file}: recordedFor takes whom and who records, asks recorderFault, and no call hands it a bare person`, () => {
+      const text = read(file);
+      expect(text).toMatch(/function recordedFor\(c: (?:Ctx|ActCtx), (?:s: SupervisionRows, )?who: ActWho,/);
+      expect(text).toMatch(/recorderFault\(who\.recorderId,/);
+      expect(text, "a call that names the person alone").not.toMatch(/recordedFor\(c, (?:s, )?[\w.]*(?:PersonId|\.id)/);
+    });
+  }
+
+  it("the callers in the time actions pass the prepared act, not its person", () => {
+    const text = read(`${CONTRACT}/time-actions.ts`);
+    const calls = [...text.matchAll(/recordedFor\(c, ([^,]+),/g)].map((m) => m[1]);
+    expect(calls.length).toBeGreaterThan(3);
+    expect(calls.every((a) => a === "act")).toBe(true);
+  });
+
+  it("recording the S.O.'s support of work commenced, and a variation's originator, ask the recorder too", () => {
+    const text = read(`${CONTRACT}/variation-actions.ts`);
+    expect(text).toMatch(/recorderFault\(act\.recorderId, \{ act: "INSTRUCTION" \}/);
+    expect(text).toMatch(/recorderId: recorder !== more\.originatorPersonId \? recorder : null/);
+    expect(text).toMatch(/judgeRecord\(c, origin, fields, more, actor\.system \? null : actor\.personId\)/);
+  });
+});

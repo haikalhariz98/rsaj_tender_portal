@@ -97,7 +97,7 @@ export async function recordDelayNotice(_prev: FormState, data: FormData): Promi
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const fs = noticeFaults({ cause, occurredOn: storedDay(occurredOn), receivedOn: storedDay(receivedOn), today: c.today });
     if (fs.length) refuse("Not recorded:", fs);
-    const who = await recordedFor(c, act.subjectPersonId, { act: "CONTRACTOR_COMMUNICATION" }, storedDay(receivedOn));
+    const who = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, storedDay(receivedOn));
     const row = await c.tx.delayNotice.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, path, cause: cause.trim(), occurredOn, receivedOn, receivedAt: c.now, personId: who.person.id, note: note.trim(), recordedAt: c.now } });
     await audit(c, "DelayNotice", row.id, `${c.label} · delay notice of ${storedDay(receivedOn)}`, "CREATE", diffFields(null, { delayNotice: path === "SO_DIRECTION" ? "the S.O.'s direction to give reasons" : "the contractor's notice", cause: cause.trim(), occurredOn: storedDay(occurredOn), receivedOn: storedDay(receivedOn), receivedFor: who.person.name }));
     await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
@@ -127,7 +127,7 @@ export async function openEotClaim(_prev: FormState, data: FormData): Promise<Fo
   if (!begun.ok) return begun.state;
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
-    const who = await recordedFor(c, act.subjectPersonId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
+    const who = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const notices = noticeIds.length ? await c.tx.delayNotice.findMany({ where: { id: { in: noticeIds }, organisationId: c.l.org.id }, select: { id: true, contractId: true } }) : [];
     const programme = programmeId ? await c.tx.workProgramme.findFirst({ where: { id: programmeId, contractId: c.l.contract.id, organisationId: actor.organisationId }, select: { id: true, decision: true } }) : null;
     const baseline = baselineOn(c.l, c.today);
@@ -179,7 +179,7 @@ export async function answerEotClaim(_prev: FormState, data: FormData): Promise<
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const { m, claim } = await lockClaim(c, claimId);
-    const who = await recordedFor(c, act.subjectPersonId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
+    const who = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const fs = answerFaults({ closed: m.closedAt ? { reason: m.closeReason } : null, determined: claim.entitlement != null, canComplete, estimatedCompletion: day(estimatedCompletion), actualDelayDays, earthworksDays });
     if (fs.length) refuse("Not recorded:", fs);
     const moved = await c.tx.eotClaim.updateMany({ where: { id: claim.id, entitlement: null }, data: { actualDelayDays, exceptional: claim.isWeather ? exceptional : null, earthworksDays, canComplete, estimatedCompletion, pack: pack as unknown as Prisma.InputJsonValue, answeredByPersonId: who.person.id } });
@@ -263,7 +263,7 @@ export async function determineEotClaim(_prev: FormState, data: FormData): Promi
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const { m, claim } = await lockClaim(c, claimId);
-    const who = await recordedFor(c, act.subjectPersonId, { soOnly: true }, c.today);
+    const who = await recordedFor(c, act, { soOnly: true }, c.today);
     const cond = claim.excludedByCondition;
     const exclusion = exclusionOf(cond ? [{ id: cond.id, name: cond.kindName, excludesEot: cond.excludesEot, satisfiedOn: day(cond.satisfiedOn) }] : [], claim.excludedByConditionId);
     const i = {
@@ -306,7 +306,7 @@ export async function sendEotClaim(_prev: FormState, data: FormData): Promise<Fo
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "EOT", async (c) => {
     const { m, claim } = await lockClaim(c, claimId);
-    const sender = await recordedFor(c, act.subjectPersonId, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
+    const sender = await recordedFor(c, act, { act: "CONTRACTOR_COMMUNICATION" }, c.today);
     const cond = eotCondOf(claim.financialImpact);
     const fs: Finding[] = [];
     if (claim.entitlement !== "ENTITLED" && !m.closedAt) fs.push({ code: "NOT_DETERMINED", level: "block" });

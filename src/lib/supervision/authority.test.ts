@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { capacityFor, hiddenActsFor, inForce, type DelegationFacts } from "./authority";
+import { capacityFor, hiddenActsFor, inForce, recorderFault, type DelegationFacts } from "./authority";
 import { SUPERVISION_ACTS } from "./types";
 import { delegationFaults, delegationState, latestActDay, revokeFaults } from "./delegation";
 import { supervisionFaultWords } from "./labels";
@@ -143,5 +143,54 @@ describe("what a representative is shown", () => {
 
   it("hides nothing where the contract has no S.O. resolved: there is nothing to be a representative of", () => {
     expect(hiddenActsFor("ravi", null, ds, "2026-10-03", ALL)).toEqual([]);
+  });
+});
+
+// FR-SUP-004 (Phase 3d, review): hiding is not enough. A representative could sign in, name the S.O. as the Person an act is recorded for from paper, and `capacityFor` would judge
+// the S.O., who passes: the delegate's scope never asked. The officer who records is judged too.
+describe("the officer who records is judged beside the Person it is recorded for", () => {
+  const rf = (who: string | null, need: Parameters<typeof recorderFault>[1], day = "2026-10-03", delegations: readonly DelegationFacts[] = ds) => recorderFault(who, need, so, delegations, day);
+
+  it("refuses a representative recording an act outside their scope, even for the S.O. (who would pass)", () => {
+    // Ravi's letter lists the diary and progress. Recorded for Aminah (the S.O.), the Person passes, so only the recorder can refuse it.
+    expect(capacityFor("aminah", { act: "OBSERVATION" }, so, ds, "2026-10-03").capacity).toEqual({ as: "SO" });
+    expect(rf("ravi", { act: "OBSERVATION" })?.code).toBe("RECORDER_OUT_OF_SCOPE");
+    expect(rf("ravi", { act: "CONTRACTOR_COMMUNICATION" })?.data).toMatchObject({ kind: "ACT", act: "CONTRACTOR_COMMUNICATION" });
+    expect(rf("ravi", { act: "INSTRUCTION" })?.code).toBe("RECORDER_OUT_OF_SCOPE");
+  });
+
+  it("allows a representative to record what their own letter lists", () => {
+    expect(rf("ravi", { act: "DIARY" })).toBeNull();
+    expect(rf("ravi", { act: "PROGRESS" })).toBeNull();
+  });
+
+  it("refuses a representative recording the S.O.'s own act for them, and a Specialist the Principal Representative's", () => {
+    expect(rf("ravi", { soOnly: true })?.data).toMatchObject({ kind: "SO" });
+    // Ravi is a Principal Representative: the programme's approval is his (or the S.O.'s). A Specialist's is not.
+    expect(rf("ravi", { principalOrSo: true })).toBeNull();
+    const specialist: DelegationFacts = { id: "d9", kind: "SPECIALIST", delegatePersonId: "sam", letterIssuedOn: "2026-10-02", revokedOn: null, scope: ["VALUATION"] };
+    expect(rf("sam", { principalOrSo: true }, "2026-10-03", [specialist])?.data).toMatchObject({ kind: "PRINCIPAL" });
+  });
+
+  it("does not judge the S.O., someone acting in the office, an officer who is no representative, or nobody", () => {
+    expect(rf("aminah", { act: "OBSERVATION" })).toBeNull();
+    expect(rf("acting", { soOnly: true })).toBeNull();
+    expect(rf("clerk", { act: "OBSERVATION" })).toBeNull();
+    expect(rf("clerk", { soOnly: true })).toBeNull();
+    expect(rf(null, { act: "OBSERVATION" })).toBeNull();
+  });
+
+  it("does not judge a person whose letter is not issued yet, or is revoked: they are no representative in force", () => {
+    expect(rf("ravi", { act: "OBSERVATION" }, "2026-10-01")).toBeNull();
+    expect(rf("ravi", { act: "OBSERVATION" }, "2026-10-09", [{ ...ravi, revokedOn: "2026-10-05" }])).toBeNull();
+  });
+
+  it("judges nothing where the contract has no S.O. resolved: there is nothing to be a representative of", () => {
+    expect(recorderFault("ravi", { act: "OBSERVATION" }, null, ds, "2026-10-03")).toBeNull();
+  });
+
+  it("agrees with what hiddenActsFor leaves off the screen: the acts hidden from a representative are the acts they cannot record for anyone", () => {
+    const hidden = hiddenActsFor("ravi", so, ds, "2026-10-03", SUPERVISION_ACTS);
+    for (const a of SUPERVISION_ACTS) expect(rf("ravi", { act: a }) != null, a).toBe(hidden.includes(a));
   });
 });

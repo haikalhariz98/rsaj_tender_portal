@@ -29,7 +29,7 @@ import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 import { baselineOn } from "@/lib/payment/load";
 import { loadRoster } from "@/lib/people/load";
 import { percentLabel, percentLabelText, variationReading, type Reading } from "@/lib/variation/percent";
-import { capacityFor, capacityText, type ActNeed, type Capacity } from "@/lib/supervision/authority";
+import { capacityFor, capacityText, recorderFault, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 import { supervisionRefusal } from "@/lib/supervision/labels";
 import type { DelegateKind } from "@/lib/supervision/types";
@@ -155,12 +155,15 @@ async function personNamed(c: Ctx, personId: string | null, field = "personId"):
 
 /// The Person named, and the capacity they may be recorded in for the act on the day (the S.O., or a representative
 /// whose delegation in force covers it); refused otherwise.
-async function recordedFor(c: Ctx, personId: string | null, need: ActNeed, on: string, field = "personId"): Promise<{ person: { id: string; name: string }; capacity: Capacity; soLabel: string; soRoleCode: string }> {
-  const person = await personNamed(c, personId, field);
+async function recordedFor(c: Ctx, who: ActWho, need: ActNeed, on: string, field = "personId"): Promise<{ person: { id: string; name: string }; capacity: Capacity; soLabel: string; soRoleCode: string }> {
+  const person = await personNamed(c, who.subjectPersonId, field);
   const s = await loadSupervision(c.l.contract.id, c.tx);
   const so = await soOfficeOn(c.l, s, on, c.tx);
   const r = capacityFor(person.id, need, so?.office ?? null, delegationFactsOf(s), on);
   if (!r.capacity) throw new Refusal({ ok: false, message: supervisionRefusal("Not recorded:", r.faults) });
+  // FR-SUP-004 (Phase 3d): the officer who records it is judged too, whoever it is recorded for.
+  const recorder = recorderFault(who.recorderId, need, so?.office ?? null, delegationFactsOf(s), on);
+  if (recorder) throw new Refusal({ ok: false, message: supervisionRefusal("Not recorded:", [recorder]) });
   return { person, capacity: r.capacity, soLabel: so!.office.roleLabel, soRoleCode: so!.assignment.roleCode };
 }
 
@@ -241,7 +244,8 @@ const recordWords = (x: { origin: string; description: string; reason: string; e
   passedThroughOn: x.principalOn,
 });
 
-async function judgeRecord(c: Ctx, origin: "DEPARTMENT" | "SO_REPRESENTATIVE", fields: ApplicationFields, more: ReturnType<typeof readFields>["more"]) {
+/// `recorder`: the signed-in officer, who is judged beside a representative they name (FR-SUP-004, Phase 3d); null for a loader run.
+async function judgeRecord(c: Ctx, origin: "DEPARTMENT" | "SO_REPRESENTATIVE", fields: ApplicationFields, more: ReturnType<typeof readFields>["more"], recorder: string | null) {
   if (!EXECUTED_STATUSES.includes(c.l.contract.status)) refuse("Not recorded:", [{ code: "NOT_EXECUTED", level: "block" }]);
   // The record's own shape (the sign of the estimate against the exemption), as the table holds it.
   const sign = fieldFaults(fields).filter((f) => f.code !== "FIELD_REQUIRED");
@@ -250,7 +254,7 @@ async function judgeRecord(c: Ctx, origin: "DEPARTMENT" | "SO_REPRESENTATIVE", f
   if (origin !== "DEPARTMENT" && (more.reviewedByPersonId || more.reviewedOn)) fieldError("reviewedByPersonId", "Only a variation the implementing department originates is reviewed before submission.");
   if (!!more.reviewedByPersonId !== !!more.reviewedOn) fieldError("reviewedOn", "A review names who reviewed it and on which day.");
   if (!!more.principalPersonId !== !!more.principalOn) fieldError("principalOn", "Passing it through a Principal Representative names who and on which day.");
-  const originator = origin === "SO_REPRESENTATIVE" ? (await recordedFor(c, more.originatorPersonId, { act: "VARIATION_APPLICATION" }, c.today, "originatorPersonId")).person : await personNamed(c, more.originatorPersonId, "originatorPersonId");
+  const originator = origin === "SO_REPRESENTATIVE" ? (await recordedFor(c, { subjectPersonId: more.originatorPersonId, recorderId: recorder !== more.originatorPersonId ? recorder : null }, { act: "VARIATION_APPLICATION" }, c.today, "originatorPersonId")).person : await personNamed(c, more.originatorPersonId, "originatorPersonId");
   const reviewer = more.reviewedByPersonId ? await personNamed(c, more.reviewedByPersonId, "reviewedByPersonId") : null;
   const principal = more.principalPersonId ? await personNamed(c, more.principalPersonId, "principalPersonId") : null;
   return { originator, reviewer, principal };
@@ -289,7 +293,7 @@ export async function recordVariation(_prev: FormState, data: FormData): Promise
   const begun = await beginOrigination(actor, data, more);
   if (!begun.ok) return begun.state;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
-    const who = await judgeRecord(c, origin, fields, more);
+    const who = await judgeRecord(c, origin, fields, more, actor.system ? null : actor.personId);
     const row = await c.tx.variation.create({
       data: {
         organisationId: c.l.org.id, contractId: c.l.contract.id, origin, originatorPersonId: who.originator.id, originatorName: who.originator.name,
@@ -319,7 +323,7 @@ export async function editVariation(_prev: FormState, data: FormData): Promise<F
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
     if (v.status !== "DRAFT") refuse("Not changed:", [{ code: "NOT_DRAFT", level: "block", data: { status: v.status } }]);
-    const who = await judgeRecord(c, origin, fields, more);
+    const who = await judgeRecord(c, origin, fields, more, actor.system ? null : actor.personId);
     const moved = await c.tx.variation.updateMany({
       where: { id: v.id, status: "DRAFT" },
       data: {
@@ -423,7 +427,7 @@ export async function decideVariation(_prev: FormState, data: FormData): Promise
   const decidedOn = act.day!;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    const so = await recordedFor(c, act.subjectPersonId, { soOnly: true }, decidedOn);
+    const so = await recordedFor(c, act, { soOnly: true }, decidedOn);
     const cap = capRaw ? parseSen(capRaw) : null;
     // The product owner's ruling (decisions log, 2026-10-07): the S.O. does not decide a variation they originated or keyed, and neither does an officer recording it for them.
     // The hands on the origination are read inside the act's transaction, from the attribution of its `originator` slot (every occurrence).
@@ -668,6 +672,9 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
     const s = await loadSupervision(c.l.contract.id, c.tx);
     const so = await soOfficeOn(c.l, s, on, c.tx);
     const cap = capacityFor(person.id, { act: "INSTRUCTION" }, so?.office ?? null, delegationFactsOf(s), on);
+    // FR-SUP-004 (Phase 3d): the officer who records the support is judged too, whoever it is recorded for.
+    const recorderBad = recorderFault(act.recorderId, { act: "INSTRUCTION" }, so?.office ?? null, delegationFactsOf(s), on);
+    if (recorderBad) refuse("Not recorded:", [recorderBad]);
     const fs = commenceFaults({ v: factsOf(v), on, today: c.today, soDecidedOn: day(v.soDecidedOn), supporterCapable: !!cap.capacity });
     if (fs.length) refuse("Not recorded:", fs);
     const moved = await c.tx.variation.updateMany({ where: { id: v.id, status: "SUPPORTED", commencedOn: null }, data: { commencedOn: dayToDate(on), commencedSupportPersonId: person.id, commencedNote: note } });
@@ -723,7 +730,7 @@ export async function raiseInstruction(_prev: FormState, data: FormData): Promis
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    const who = await recordedFor(c, act.subjectPersonId, { act: "INSTRUCTION" }, c.today);
+    const who = await recordedFor(c, act, { act: "INSTRUCTION" }, c.today);
     const policy = await policyOf(c);
     const form = scheduleFormOf(v.agreedRateExists, { withAgreedRate: policy?.scheduleFormAgreedRate ?? null, withoutAgreedRate: policy?.scheduleFormNoAgreedRate ?? null });
     const fs = instructionFaults({ v: factsOf(v), funderConsentRequired: v.funderConsentRequired, consent: consentOf(v).state, agreedRateExists: v.agreedRateExists, scheduleForm: form, description, oralIssuedOn, today: c.today });
@@ -820,7 +827,7 @@ export async function addMeasurement(_prev: FormState, data: FormData): Promise<
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    const who = await recordedFor(c, act.subjectPersonId, { act: "VALUATION" }, measuredOn);
+    const who = await recordedFor(c, act, { act: "VALUATION" }, measuredOn);
     const ins = liveInstructionRow(v);
     const fs = measurementFaults({
       instruction: { description: ins?.description ?? "", issued: ins?.certificate.status === "ISSUED" },
@@ -879,7 +886,7 @@ export async function recordDaywork(_prev: FormState, data: FormData): Promise<F
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { v } = await lockVariation(c, variationId);
-    const who = await recordedFor(c, act.subjectPersonId, { act: "VALUATION" }, c.today);
+    const who = await recordedFor(c, act, { act: "VALUATION" }, c.today);
     const fs = dayworkFaults({ workedOn, agreedOn, agreedWith, receivedOn, description, today: c.today, instructed: v.instructions.some((i) => i.certificate.status === "ISSUED") });
     if (fs.length) refuse("Not recorded:", fs);
     const existing = dayworkId ? v.dayworkRecords.find((d) => d.id === dayworkId) : null;
@@ -920,7 +927,7 @@ export async function raiseVariationOrder(_prev: FormState, data: FormData): Pro
   const act = begun.act;
   return inContract(actor, toAuditActor(actor), idOf(data), now, "VARIATION", async (c) => {
     const { all, v } = await lockVariation(c, variationId);
-    const who = await recordedFor(c, act.subjectPersonId, { act: "VALUATION" }, c.today);
+    const who = await recordedFor(c, act, { act: "VALUATION" }, c.today);
     const ins = liveInstructionRow(v);
     const clause = clauseId ? await c.tx.clauseText.findFirst({ where: { id: clauseId, organisationId: c.l.org.id }, select: { id: true, titleEn: true } }) : null;
     const lines = ins ? standingMeasurements(v, ins.id) : [];
@@ -994,7 +1001,7 @@ export async function raiseSumAdjustment(_prev: FormState, data: FormData): Prom
   return inContract(actor, toAuditActor(actor), idOf(data), now, "SUM_ADJUSTMENT", async (c) => {
     // The contract's lock serialises every act on its variations and certificates (each takes it first): the orders
     // chosen are read on the locked transaction.
-    const who = await recordedFor(c, act.subjectPersonId, { act: "VALUATION" }, c.today);
+    const who = await recordedFor(c, act, { act: "VALUATION" }, c.today);
     const all = await loadVariations(c.l.contract.id, c.tx);
     const rows = await loadAdjustments(c.l.contract.id, c.tx);
     const baseline = baselineOn(c.l, c.today);

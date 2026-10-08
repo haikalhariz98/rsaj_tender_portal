@@ -20,7 +20,7 @@ import { contractLabel, type LoadedContract } from "@/lib/contract/repo";
 import { dayOf } from "@/lib/dates";
 import type { Tx } from "@/lib/audit/record";
 import type { AuditActor } from "@/lib/auth/types";
-import { capacityFor, type ActNeed, type Capacity } from "@/lib/supervision/authority";
+import { capacityFor, recorderFault, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
 import { supervisionRefusal } from "@/lib/supervision/labels";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
@@ -95,12 +95,15 @@ export async function personNamed(c: ActCtx, personId: string | null, field = "p
 
 /// The Person named, and the capacity they may be recorded in on the day (the S.O., or a representative whose delegation
 /// in force covers the act); refused otherwise.
-export async function recordedFor(c: ActCtx, personId: string | null, need: ActNeed, on: string, field = "personId"): Promise<{ person: { id: string; name: string }; capacity: Capacity; soLabel: string; soRoleCode: string }> {
-  const person = await personNamed(c, personId, field);
+export async function recordedFor(c: ActCtx, who: ActWho, need: ActNeed, on: string, field = "personId"): Promise<{ person: { id: string; name: string }; capacity: Capacity; soLabel: string; soRoleCode: string }> {
+  const person = await personNamed(c, who.subjectPersonId, field);
   const s = await loadSupervision(c.l.contract.id, c.tx);
   const so = await soOfficeOn(c.l, s, on, c.tx);
   const r = capacityFor(person.id, need, so?.office ?? null, delegationFactsOf(s), on);
   if (!r.capacity) throw new ActRefusal({ ok: false, message: supervisionRefusal("Not recorded:", r.faults) });
+  // FR-SUP-004 (Phase 3d): the officer who records it is judged too, whoever it is recorded for.
+  const recorder = recorderFault(who.recorderId, need, so?.office ?? null, delegationFactsOf(s), on);
+  if (recorder) throw new ActRefusal({ ok: false, message: supervisionRefusal("Not recorded:", [recorder]) });
   return { person, capacity: r.capacity, soLabel: so!.office.roleLabel, soRoleCode: so!.assignment.roleCode };
 }
 

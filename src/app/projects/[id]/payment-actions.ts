@@ -31,7 +31,7 @@ import { OPENING_GROUPS, openingClosed, openingFaults, openingReconciles, type O
 import { firstReleaseShare, releaseOf } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, RETENTION_RELEASES, VALUATION_TRIGGERS, type Finding, type PackItem } from "@/lib/payment/types";
 import { calendarFaults, jointFaults, openFaults } from "@/lib/payment/valuation";
-import { capacityFor, capacityText, type ActNeed, type Capacity } from "@/lib/supervision/authority";
+import { capacityFor, capacityText, recorderFault, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 import { supervisionRefusal } from "@/lib/supervision/labels";
 import { formatDate } from "@/lib/format";
@@ -134,13 +134,16 @@ const paymentOf = (c: Ctx) => loadPayment(c.l.contract.id, c.tx);
 const configOf = (c: Ctx) => loadPaymentConfig(c.l.org.id, c.tx);
 
 /// The Person the officer names, and the capacity they may be recorded in for the act on the day; refused otherwise.
-async function recordedFor(c: Ctx, personId: string | null, need: ActNeed, on: string): Promise<{ person: { id: string; name: string }; capacity: Capacity; soLabel: string; soRoleCode: string }> {
-  const person = personId ? await c.tx.person.findFirst({ where: { id: personId, organisationId: c.l.org.id }, select: { id: true, name: true, isActive: true } }) : null;
+async function recordedFor(c: Ctx, who: ActWho, need: ActNeed, on: string): Promise<{ person: { id: string; name: string }; capacity: Capacity; soLabel: string; soRoleCode: string }> {
+  const person = who.subjectPersonId ? await c.tx.person.findFirst({ where: { id: who.subjectPersonId, organisationId: c.l.org.id }, select: { id: true, name: true, isActive: true } }) : null;
   if (!person || !person.isActive) throw new Refusal({ ok: false, errors: { personId: "Choose someone on record and active." } });
   const s = await loadSupervision(c.l.contract.id, c.tx);
   const so = await soOfficeOn(c.l, s, on, c.tx);
   const r = capacityFor(person.id, need, so?.office ?? null, delegationFactsOf(s), on);
   if (!r.capacity) throw new Refusal({ ok: false, message: supervisionRefusal("Not recorded:", r.faults) });
+  // FR-SUP-004 (Phase 3d): the officer who records it is judged too, whoever it is recorded for.
+  const recorder = recorderFault(who.recorderId, need, so?.office ?? null, delegationFactsOf(s), on);
+  if (recorder) throw new Refusal({ ok: false, message: supervisionRefusal("Not recorded:", [recorder]) });
   return { person, capacity: r.capacity, soLabel: so!.office.roleLabel, soRoleCode: so!.assignment.roleCode };
 }
 
@@ -175,7 +178,7 @@ export async function recordValuationCalendar(_prev: FormState, data: FormData):
     const before = p.paymentCalendar;
     const fs = calendarFaults({ dayOfMonth, agreedOn: storedDay(agreedOn), agreedWith, today: c.today, existing: !!before, reason });
     if (fs.length) refuse("Not recorded:", fs);
-    const who = await recordedFor(c, act.subjectPersonId, { principalOrSo: true }, storedDay(agreedOn));
+    const who = await recordedFor(c, act, { principalOrSo: true }, storedDay(agreedOn));
     const v = { dayOfMonth, agreedOn, agreedWith: agreedWith.trim(), personId: who.person.id, note: note.trim(), recordedAt: c.now };
     const row = await c.tx.paymentCalendar.upsert({ where: { contractId: c.l.contract.id }, update: v, create: { organisationId: c.l.org.id, contractId: c.l.contract.id, ...v } });
     const words = (x: { dayOfMonth: number; agreedOn: Date; agreedWith: string }) => ({ valuationDay: `day ${x.dayOfMonth} of each month (the last day of a shorter month)`, agreedOn: storedDay(x.agreedOn), agreedWith: x.agreedWith });
@@ -206,7 +209,7 @@ export async function openInterimValuation(_prev: FormState, data: FormData): Pr
     // Residual MUST 3: an advance applied for and not yet issued or void holds its schedule open.
     fs.push(...pendingAdvanceFaults(pendingAdvancesOf(p)));
     if (fs.length) refuse("Not opened:", fs);
-    const who = await recordedFor(c, act.subjectPersonId, { act: "VALUATION" }, storedDay(valuationDate));
+    const who = await recordedFor(c, act, { act: "VALUATION" }, storedDay(valuationDate));
     const row = await c.tx.interimValuation.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, trigger, triggerDate: trigger === "CLAIM" ? claimOn : null, valuationDate, personId: who.person.id, participants: [], recordedAt: c.now, recordedOn: dayToDate(c.today) } });
     await audit(c, "InterimValuation", row.id, `interim valuation of ${storedDay(valuationDate)}`, "CREATE", diffFields(null, { startedBy: TRIGGER_WORDS[trigger].en, claimReceivedOn: trigger === "CLAIM" ? day(claimOn) : null, valuationDay: storedDay(valuationDate), forInterimCertificate: nextInterimSequence(p), recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }));
     await act.write(c.tx, row.id, { roleCode: who.soRoleCode });
@@ -478,7 +481,7 @@ export async function releaseRetention(_prev: FormState, data: FormData): Promis
     const handover = p.siteRecordsHandovers.at(-1) ?? null;
     const rel = releaseOf({ kind: release, held: held!.held, already: rs.already, firstReleasePct: pct, asBuiltHandedOver: !!handover, makingGoodIssued: false, firstReleased: rs.firstReleased });
     if (rel.faults.length) refuse("Not released:", rel.faults);
-    const who = await recordedFor(c, act.subjectPersonId, { principalOrSo: true }, storedDay(releasedOn));
+    const who = await recordedFor(c, act, { principalOrSo: true }, storedDay(releasedOn));
     const a = rel.amounts!;
     const row = await c.tx.retentionRelease.create({ data: { organisationId: c.l.org.id, contractId: c.l.contract.id, kind: release, main: money(a.MAIN), nsc: money(a.NSC), ns: money(a.NS), heldMain: money(held!.held.MAIN), heldNsc: money(held!.held.NSC), heldNs: money(held!.held.NS), pct: release === "RELEASED_FIRST" ? pct : null, pctProvenance: release === "RELEASED_FIRST" ? (policy?.firstReleaseProvenance ?? null) : null, basisCertificateId: held!.certificateId, handoverId: release === "RELEASED_FIRST" ? handover!.id : null, releasedOn, personId: who.person.id, note: note.trim(), recordedAt: c.now } });
     await audit(c, "RetentionRelease", row.id, RELEASE_WORDS[release].en.toLowerCase(), "CREATE", diffFields(null, { release: RELEASE_WORDS[release].en, releasedMainContractor: money(a.MAIN), releasedNominatedSubcontractors: money(a.NSC), releasedNominatedSuppliers: money(a.NS), heldOnTheLatestCertificate: money(held!.held.MAIN + held!.held.NSC + held!.held.NS), share: pct ? `${pct}%` : null, paidThrough: "the next interim certificate", releasedOn: storedDay(releasedOn), recordedFor: `${who.person.name}, ${capacityText(who.capacity, who.soLabel)}` }), note.trim());
@@ -526,7 +529,7 @@ export async function recordOpeningPosition(_prev: FormState, data: FormData): P
     const input = { lastCertificateNumber, lastSequence, grossToDate, previouslyCertified, retention, released, advanceRecouped, damagesChargedUntil: chargedUntil ? storedDay(chargedUntil) : null, provenance };
     const fs = openingFaults(input, { valuationRaised: openingClosed(p.interimValuations.map((v) => ({ certificateStatus: v.certificate?.status ?? null }))), existing: !!p.openingPosition, reason, foreignSequences: p.certificates.map((x) => x.sequence ?? 0) });
     if (fs.length) refuse("Not recorded:", fs);
-    const who = await recordedFor(c, act.subjectPersonId, { principalOrSo: true }, c.today);
+    const who = await recordedFor(c, act, { principalOrSo: true }, c.today);
     const prov = (g: OpeningGroup) => ({ [`${g}Provenance`]: provenance[g].provenance!, [`${g}Note`]: provenance[g].note.trim() });
     const v = {
       lastCertificateNumber: lastCertificateNumber.trim(),
@@ -622,7 +625,7 @@ export async function applyAdvancePayment(_prev: FormState, data: FormData): Pro
     if (fs.some((f) => f.level === "block")) refuse("Not applied for:", fs.filter((f) => f.level === "block"));
     const cfg = await configOf(c);
     const form = formFor(cfg, "ADVANCE_PAYMENT");
-    const who = await recordedFor(c, act.subjectPersonId, { principalOrSo: true }, c.today);
+    const who = await recordedFor(c, act, { principalOrSo: true }, c.today);
     const amountText = senToDecimalString(parseSen(amount));
     const computed: ComputedSnapshot = {
       version: 1,
@@ -667,7 +670,7 @@ export async function raiseLadWarning(_prev: FormState, data: FormData): Promise
     const setting = kindSettingOf(cfg, "LAD_WARNING");
     const fs = warningFaults({ dateForCompletion: b?.values.dateForCompletion ?? null, rate: b?.values.ladDaily ?? null, eotClause, ladClause, extendedCompletion: storedDay(extended), liveWarning, formSet: !!setting?.templateId });
     if (fs.length) refuse("Not raised:", fs);
-    const who = await recordedFor(c, act.subjectPersonId, { soOnly: true }, c.today);
+    const who = await recordedFor(c, act, { soOnly: true }, c.today);
     const clock = cfg.clocks.find((k) => k.clock === "LAD_WARNING_RESPONSE") ?? null;
     const rate = b!.values.ladDaily!;
     const computed: ComputedSnapshot = {
@@ -801,7 +804,7 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
       formSet: !lad || !!kindSettingOf(cfg, "NON_COMPLETION")?.templateId,
     });
     if (fs.length) refuse("Not recorded:", fs);
-    const who = await recordedFor(c, act.subjectPersonId, { soOnly: true }, c.today);
+    const who = await recordedFor(c, act, { soOnly: true }, c.today);
     const rate = lad ? (scope === "SECTION" ? section!.ladDaily! : b!.values.ladDaily!) : null;
     let certId: string | null = null;
     if (lad) {

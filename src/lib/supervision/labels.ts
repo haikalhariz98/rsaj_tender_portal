@@ -200,6 +200,15 @@ export function supervisionFaultWords(f: Finding): Words {
       return w(`This is the S.O.'s or the Principal Representative's: the person named is neither (the S.O. is ${String(d.office ?? "the office")}).`, `Ini untuk P.P. atau Wakil P.P. Utama sahaja.`);
     case "NOT_IN_SCOPE":
       return w(`The person named is the S.O.'s representative, but "${ACT_WORDS[d.act as SupervisionAct]?.en ?? "this act"}" is outside their delegation's scope. The S.O. records it, or a delegation that covers it.`, `Orang yang dinamakan ialah wakil P.P., tetapi perkara ini di luar skop perwakilannya.`);
+    case "RECORDER_OUT_OF_SCOPE":
+      return w(
+        d.kind === "SO"
+          ? `You act as the S.O.'s representative, and this is the S.O.'s own act (${String(d.office ?? "the office")}), so you cannot record it, not even for the S.O. The S.O. records it.`
+          : d.kind === "PRINCIPAL"
+            ? `You act as a representative of the S.O., and this is the S.O.'s or the Principal Representative's act, so you cannot record it, not even for the S.O. The S.O. or a Principal Representative records it.`
+            : `You act as the S.O.'s representative, and "${ACT_WORDS[d.act as SupervisionAct]?.en ?? "this act"}" is outside your delegation's scope, so you cannot record it, not even for the S.O. The S.O. records it, or a representative whose delegation covers it.`,
+        `Anda bertindak sebagai wakil P.P., dan perkara ini di luar skop perwakilan anda, jadi anda tidak boleh merekodkannya, walaupun bagi pihak P.P. P.P. atau wakil yang perwakilannya meliputinya merekodkannya.`,
+      );
     case "NOT_AUTHORISED":
       return w(`The person named is neither the S.O. (${String(d.office ?? "the office")}) nor a representative whose delegation is in force today.`, `Orang yang dinamakan bukan P.P. dan bukan wakil yang perwakilannya berkuat kuasa.`);
     // ------------------------------------------------ delegation
