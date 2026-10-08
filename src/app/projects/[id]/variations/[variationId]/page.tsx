@@ -37,8 +37,8 @@ import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 import { loadRoster } from "@/lib/people/load";
-import { capacityFor, hiddenActsFor } from "@/lib/supervision/authority";
-import { SUPERVISION_ACTS, type SupervisionAct } from "@/lib/supervision/types";
+import { capacityFor, hiddenFor, type HiddenAct } from "@/lib/supervision/authority";
+import { SUPERVISION_ACTS } from "@/lib/supervision/types";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 import { approvedValue, awaitingChoice, closeFaults, commenceFaults, commencedPending, cumulativeApproved, lastStepFormFault, newSumOf, pendingRoute, pendingValueRoutes, priorValueOf, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, stageOf, submitFaults, type VariationFacts } from "@/lib/variation/application";
 import { clockReading, instructionFaults, sketchesLine } from "@/lib/variation/instruction";
@@ -52,6 +52,7 @@ import { ADJUSTMENT_DIRECTIONS, RATE_SOURCES, SO_DECISIONS, VARIATION_EVENTS, VA
 import { variationView, type VariationView } from "@/lib/variation/view";
 
 import { AdjustmentRefusedCallout } from "../../adjustment-refused";
+import { HiddenNote } from "../../hidden-note";
 import {
   ChooseVariationRefusalDrawer,
   CiteCommitteeDrawer,
@@ -116,7 +117,7 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
   const s = today ? await loadSupervision(l.contract.id) : null;
   const so = s && today ? await soOfficeOn(l, s, today) : null;
   // FR-SUP-004 (Phase 3d): the acts outside the delegated scope of a representative who is signed in are not offered to them. Nothing is hidden from the S.O. or from an officer who is no representative.
-  const hidden = today && s && !actor.system ? hiddenActsFor(actor.personId, so?.office ?? null, delegationFactsOf(s), today, SUPERVISION_ACTS) : [];
+  const hidden = today && s && !actor.system ? hiddenFor(actor.personId, so?.office ?? null, delegationFactsOf(s), today, SUPERVISION_ACTS) : [];
   const cap = (pid: string | null, on: string | null) => (pid && on && s ? capacityFor(pid, { act: "VARIATION_APPLICATION" }, so?.office ?? null, delegationFactsOf(s), on).capacity : null);
   const rep = (c: ReturnType<typeof cap>) => (c ? (c.as === "SO" ? ({ as: "SO" } as const) : ({ as: "DELEGATE", kind: c.kind } as const)) : null);
   const principal = v.principalPersonId && v.principalOn && s ? capacityFor(v.principalPersonId, { principalOrSo: true }, so?.office ?? null, delegationFactsOf(s), day(v.principalOn)!).capacity : null;
@@ -139,7 +140,7 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
   } else if (stage === "WITH_SO") {
     const fs = today ? soDecisionFaults({ status: "SUBMITTED", exemption: null, decision: "SUPPORTED", cap: null, estimate: f.estimate, note: "", decidedOn: today, submittedOn: day(v.submittedOn), today }) : [];
     note = blockedBy ?? say(fs);
-    action = <SoDecisionDrawer id={l.contract.id} variationId={v.id} people={people} decisions={SO_DECISIONS.map((d) => ({ value: d, label: SO_DECISION_WORDS[d].en }))} today={today} destinationSet={destinationSet} blocker={note} />;
+    action = hidden.includes("SO_ONLY") ? null : <SoDecisionDrawer id={l.contract.id} variationId={v.id} people={people} decisions={SO_DECISIONS.map((d) => ({ value: d, label: SO_DECISION_WORDS[d].en }))} today={today} destinationSet={destinationSet} blocker={note} />;
   }
   const closeBlocker = blockedBy ?? say(closeFaults({ v: f, reason: "a reason" }));
   const editValues = { variationId: v.id, origin: v.origin, originatorPersonId: v.originatorPersonId, description: v.description, reason: v.reason, estimate: v.estimate.toString(), exemption: v.exemption, periodImplication: v.periodImplication == null ? null : v.periodImplication ? "yes" : "no", agreedRateExists: v.agreedRateExists == null ? null : v.agreedRateExists ? "yes" : "no", funderConsentRequired: v.funderConsentRequired == null ? null : v.funderConsentRequired ? "yes" : "no", reviewedByPersonId: v.reviewedByPersonId, reviewedOn: day(v.reviewedOn), reviewNote: v.reviewNote, allocationConfirmed: v.allocationConfirmed == null ? null : v.allocationConfirmed ? "yes" : "no", allocationNote: v.allocationNote, principalPersonId: v.principalPersonId, principalOn: day(v.principalOn) };
@@ -189,6 +190,7 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
         }
       />
       <div className="mb-6 flex flex-col gap-3">
+        <HiddenNote hidden={hidden} />
         {!today && <Callout tone="warn" title="The organisation's time zone is not set">Every act on a variation records the organisation&apos;s day: none is assumed to be UTC.</Callout>}
         {vv.refused && <AdjustmentRefusedCallout l={l} refused={vv.refused} />}
         {statusRefused?.code === "CONTRACT_CANCELLED" && <Callout tone="warn" title="The contract is cancelled">Its variations are kept as they were; nothing more is recorded on them.</Callout>}
@@ -205,7 +207,7 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
 }
 
 /// `hidden`: the acts outside the delegated scope of a representative who is signed in, which their screen does not offer (FR-SUP-004, Phase 3d).
-type PanelProps = { l: LoadedContract; v: VariationRow; f: VariationFacts; vv: VariationView; people: Option[]; today: string | null; hidden: readonly SupervisionAct[] };
+type PanelProps = { l: LoadedContract; v: VariationRow; f: VariationFacts; vv: VariationView; people: Option[]; today: string | null; hidden: readonly HiddenAct[] };
 
 // ------------------------------------------------------------------ application
 
@@ -458,7 +460,7 @@ function InstructionPanel({ l, v, f, vv, people, today, hidden, blockedBy }: Pan
       )}
       {v.exemption == null && v.status === "SUPPORTED" && !v.commencedOn && stageOf(f) !== "APPROVED" && (
         <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="Commenced pending approval" subtitle="Work may proceed on the support of the S.O. or an S.O.'s Representative while the approval is obtained; it is listed with its estimate and age until approved." actions={<CommenceDrawer id={l.contract.id} variationId={v.id} people={people} today={today} blocker={commenceBlocker} />} />
+          <CardHeader icon={<ClockIcon size={17} />} title="Commenced pending approval" subtitle="Work may proceed on the support of the S.O. or an S.O.'s Representative while the approval is obtained; it is listed with its estimate and age until approved." actions={hidden.includes("INSTRUCTION") ? undefined : <CommenceDrawer id={l.contract.id} variationId={v.id} people={people} today={today} blocker={commenceBlocker} />} />
         </Card>
       )}
       <Card className="overflow-hidden">
@@ -480,7 +482,7 @@ function InstructionPanel({ l, v, f, vv, people, today, hidden, blockedBy }: Pan
                     </span>
                     <span className="block text-[12.5px] break-words text-ink-3">{`${d.description} · ${d.agreedOn ? `agreed ${formatDate(day(d.agreedOn))} with ${d.agreedWith}` : "not agreed"} · ${fl?.substantiation.state === "NOT_SET" ? "substantiation clock not set" : d.substantiationReceivedOn ? `substantiation received ${formatDate(day(d.substantiationReceivedOn))}` : `substantiation due by ${formatDate(day(d.substantiationDueOn))}`} · recorded for ${d.person.name}`}</span>
                   </span>
-                  <DayworkDrawer id={l.contract.id} variationId={v.id} people={people} today={today} values={{ dayworkId: d.id, workedOn: storedDay(d.workedOn), description: d.description, agreedOn: day(d.agreedOn), agreedWith: d.agreedWith, substantiationReceivedOn: day(d.substantiationReceivedOn) }} blocker={blockedBy} />
+                  {!hidden.includes("VALUATION") && <DayworkDrawer id={l.contract.id} variationId={v.id} people={people} today={today} values={{ dayworkId: d.id, workedOn: storedDay(d.workedOn), description: d.description, agreedOn: day(d.agreedOn), agreedWith: d.agreedWith, substantiationReceivedOn: day(d.substantiationReceivedOn) }} blocker={blockedBy} />}
                 </li>
               );
             })}
@@ -493,7 +495,7 @@ function InstructionPanel({ l, v, f, vv, people, today, hidden, blockedBy }: Pan
 
 // ------------------------------------------------------------------ measurement
 
-function MeasurementPanel({ l, v, people, today, hidden, blockedBy }: { l: LoadedContract; v: VariationRow; people: Option[]; today: string | null; hidden: readonly SupervisionAct[]; blockedBy: string | null }) {
+function MeasurementPanel({ l, v, people, today, hidden, blockedBy }: { l: LoadedContract; v: VariationRow; people: Option[]; today: string | null; hidden: readonly HiddenAct[]; blockedBy: string | null }) {
   const ins = liveInstructionRow(v);
   const orderLive = !!liveOrderRow(v);
   const pre = measurementFaults({ instruction: { description: ins?.description ?? "", issued: ins?.certificate.status === "ISSUED" }, orderLive, heading: ins?.description ?? "", itemRef: "item", measuredRefs: [], rateSource: "CONTRACT_RATE", bqItemRef: "item", agreedRateApproved: true, quantity: 1n, baseRate: 0n, adjustmentTt: null, coveredUp: false, recordsNote: "", measuredOn: today ?? "", today: today ?? "" }).filter((x) => x.code === "INSTRUCTION_NOT_ISSUED" || x.code === "ORDER_RAISED");

@@ -1,4 +1,9 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
+
+import { dateCorrectionFaults } from "@/lib/contract/contract-date";
 
 import { slotOf } from "./act-slots";
 
@@ -50,5 +55,30 @@ describe("the module Musts of Phase 3d, as the acts that carry them are register
   it("lists each Must once", () => {
     const keys = MUSTS.map((m) => `${m.must}|${m.slot}`);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+// FR-CON-009: the Contract Date IS the server day of the employer's signature act (above). A later CORRECTION of it exists (OD-1 A), and it is not a signature: it is audited with its actor and a
+// reason, can only move the date EARLIER, never before the readiness day or the contractor's or witness's signature, and is refused to an administrator account (the sweep, NFR-SEC-004).
+// Whether it should be a signature-class act of its own is a question for the product owner (decisions log, Phase 3d review fix).
+describe("correcting the Contract Date after execution (FR-CON-009, OD-1 A)", () => {
+  const base = { executed: true, current: "2026-10-05", proposed: "2026-10-03", readySince: "2026-10-01", reason: "The signature was recorded late", signed: { contractor: "2026-10-02", witness: null } };
+  const codes = (o: Partial<typeof base>) => dateCorrectionFaults({ ...base, ...o }).map((f) => f.code);
+
+  it("moves the date earlier only, with a reason, and not before the readiness day or the contractor's signature", () => {
+    expect(codes({})).toEqual([]);
+    expect(codes({ proposed: "2026-10-05" })).toContain("NOT_EARLIER");
+    expect(codes({ proposed: "2026-10-07" })).toContain("NOT_EARLIER");
+    expect(codes({ proposed: "2026-09-30", readySince: "2026-10-01" })).toContain("BEFORE_READY");
+    expect(codes({ proposed: "2026-10-01", signed: { contractor: "2026-10-02", witness: null } })).toContain("BEFORE_CONTRACTOR_SIGNED");
+    expect(codes({ reason: "  " })).toContain("REASON_REQUIRED");
+    expect(codes({ executed: false })).toEqual(["NOT_EXECUTED"]);
+  });
+
+  it("is refused to an administrator account at the door of the action, like every transaction", () => {
+    const src = readFileSync(path.join(process.cwd(), "src", "app", "projects", "[id]", "actions.ts"), "utf8");
+    const at = src.indexOf("export async function correctContractDate");
+    expect(at).toBeGreaterThan(0);
+    expect(src.slice(at, at + 400)).toMatch(/await staffForAct\("TRANSACTION"\)/);
   });
 });

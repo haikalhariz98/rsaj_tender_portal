@@ -21,11 +21,11 @@ import { dayOf, dayToDate, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { amountOf, parseSen, senToDecimalString } from "@/lib/money";
 import { parsePercent } from "@/lib/securities/money";
-import { capacityFor, capacityText, recorderFault, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
+import { capacityFor, capacityText, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
 import { delegationFaults, latestActDay, revokeFaults } from "@/lib/supervision/delegation";
 import { attestFaults, disputeFaults, endorseFaults, entryFaults } from "@/lib/supervision/diary";
 import { ACT_WORDS, AREA_WORDS, BRANCH_WORDS, CAUSE_WORDS, DELEGATE_KIND_WORDS, ENDORSER_WORDS, PARTY_KIND_WORDS, PROGRAMME_DECISION_WORDS, PROGRAMME_KIND_WORDS, RECORDS_SET_WORDS, supervisionRefusal, VARIANT_WORDS } from "@/lib/supervision/labels";
-import { actsByPerson, delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, methodKeyOf, revisionsOf, soOfficeOn, type SupervisionRows } from "@/lib/supervision/load";
+import { actsByPerson, delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, methodKeyOf, recorderFaultToday, revisionsOf, soOfficeOn, type SupervisionRows } from "@/lib/supervision/load";
 import { possessionFaults, soFromOf, startRuleReading } from "@/lib/supervision/possession";
 import { decideFaults, openRevision, pointFaults, scrutinyFaults, submitFaults, type PointIn } from "@/lib/supervision/programme";
 import { earlyActionFaults, handoverFaults, meetingFaults, onSiteFaults, partyFaults, progressFaults, retirePartyFaults, selfHelpFaults } from "@/lib/supervision/records";
@@ -127,7 +127,7 @@ async function recordedFor(c: Ctx, s: SupervisionRows, who: ActWho, need: ActNee
   const r = capacityFor(person.id, need, so?.office ?? null, delegationFactsOf(s), on);
   if (!r.capacity) refuse("Not recorded:", r.faults);
   // FR-SUP-004 (Phase 3d): the officer who records it is judged too, whoever it is recorded for (a representative does not record outside their letter by naming the S.O.).
-  const recorder = recorderFault(who.recorderId, need, so?.office ?? null, delegationFactsOf(s), on);
+  const recorder = await recorderFaultToday(c.l, s, who.recorderId, need, on, so?.office ?? null, c.today, c.tx);
   if (recorder) refuse("Not recorded:", [recorder]);
   return { person, capacity: r.capacity!, soLabel: so!.office.roleLabel, soRoleCode: so!.assignment.roleCode };
 }

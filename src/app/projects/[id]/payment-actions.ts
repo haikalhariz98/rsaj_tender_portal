@@ -31,8 +31,8 @@ import { OPENING_GROUPS, openingClosed, openingFaults, openingReconciles, type O
 import { firstReleaseShare, releaseOf } from "@/lib/payment/retention";
 import { ADVANCE_PARTIES, CONTRACTOR_ANSWERS, KEYED_DEDUCTION_KINDS, NON_COMPLETION_OUTCOMES, NON_COMPLETION_SCOPES, PACK_ITEMS, RETENTION_RELEASES, VALUATION_TRIGGERS, type Finding, type PackItem } from "@/lib/payment/types";
 import { calendarFaults, jointFaults, openFaults } from "@/lib/payment/valuation";
-import { capacityFor, capacityText, recorderFault, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
-import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
+import { capacityFor, capacityText, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
+import { delegationFactsOf, loadSupervision, recorderFaultToday, soOfficeOn } from "@/lib/supervision/load";
 import { supervisionRefusal } from "@/lib/supervision/labels";
 import { formatDate } from "@/lib/format";
 import { FormReader } from "@/lib/validate";
@@ -142,7 +142,7 @@ async function recordedFor(c: Ctx, who: ActWho, need: ActNeed, on: string): Prom
   const r = capacityFor(person.id, need, so?.office ?? null, delegationFactsOf(s), on);
   if (!r.capacity) throw new Refusal({ ok: false, message: supervisionRefusal("Not recorded:", r.faults) });
   // FR-SUP-004 (Phase 3d): the officer who records it is judged too, whoever it is recorded for.
-  const recorder = recorderFault(who.recorderId, need, so?.office ?? null, delegationFactsOf(s), on);
+  const recorder = await recorderFaultToday(c.l, s, who.recorderId, need, on, so?.office ?? null, c.today, c.tx);
   if (recorder) throw new Refusal({ ok: false, message: supervisionRefusal("Not recorded:", [recorder]) });
   return { person, capacity: r.capacity, soLabel: so!.office.roleLabel, soRoleCode: so!.assignment.roleCode };
 }

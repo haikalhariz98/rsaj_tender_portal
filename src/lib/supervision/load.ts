@@ -14,13 +14,13 @@ import type { BaselineReason } from "@/lib/contract/types";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 
-import type { DelegationFacts, SoOffice } from "./authority";
+import { recorderFaultOver, type ActNeed, type AuthorityFault, type DelegationFacts, type RecorderDay, type SoOffice } from "./authority";
 import { supervisedHolders, type SupervisedRule } from "./blocks";
 import { delayReadingsOf as delayReadingsBatch } from "./delay-batch";
 import { assumedDelayIds, inDelay, inDelayIds, type DelayReading } from "./delay";
 import { programmeInForce, type PointIn, type RevisionFacts } from "./programme";
 import { soOn } from "./so";
-import type { DelegateKind, ProgrammeDecision, SupervisionAct } from "./types";
+import type { DelegateKind, Finding, ProgrammeDecision, SupervisionAct } from "./types";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
@@ -78,6 +78,18 @@ export async function soOfficeOn(l: LoadedContract, s: SupervisionRows, on: stri
   const h = await officeHolders(l, a.roleCode, on, client);
   const row = s.soAssignments.find((x) => x.id === a.id)!;
   return { office: { roleLabel: a.roleLabel, holderIds: h.holderIds, actingIds: h.delegates.map((d) => d.personId) }, assignment: row };
+}
+
+/**
+ * The officer who records a supervision act, judged on the act's own day AND on the day it is recorded (`recorderFaultOver`): the act's day is what the form says, so a representative
+ * could otherwise back-date an act to before their letter was issued, when they were no representative, and record what the letter does not cover by naming the S.O. as the Person.
+ * `soOnDay` is the S.O. office already read for the act's day; today's is read here when it is another day. Null: allowed (no recorder, the act is the Person's own).
+ */
+export async function recorderFaultToday(l: LoadedContract, s: SupervisionRows, recorderId: string | null, need: ActNeed, on: string, soOnDay: SoOffice | null, today: string, client: Tx = db): Promise<Finding<AuthorityFault> | null> {
+  if (!recorderId) return null;
+  const days: RecorderDay[] = [{ so: soOnDay, day: on }];
+  if (today !== on) days.push({ so: (await soOfficeOn(l, s, today, client))?.office ?? null, day: today });
+  return recorderFaultOver(recorderId, need, days, delegationFactsOf(s));
 }
 
 /**

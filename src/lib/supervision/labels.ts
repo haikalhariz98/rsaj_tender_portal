@@ -5,6 +5,7 @@
 
 import { formatDate } from "@/lib/format";
 
+import type { HiddenAct, HiddenNeed } from "./authority";
 import { restsOnStraightLine, type DelayReading } from "./delay";
 import type { DelegationState } from "./delegation";
 import type { EntryState } from "./diary";
@@ -40,6 +41,41 @@ export const ACT_WORDS: Readonly<Record<SupervisionAct, Words>> = {
   VALUATION: w("Value work for interim payment", "Menilai kerja untuk bayaran interim"),
   VARIATION_APPLICATION: w("Apply for variations", "Memohon perubahan kerja"),
 };
+
+/// The acts that are on no letter of delegation, which a representative is not offered (FR-SUP-004): said in words, never by their code.
+export const HIDDEN_NEED_WORDS: Readonly<Record<HiddenNeed, Words>> = {
+  SO_ONLY: w(
+    "the acts that are the S.O.'s own, which no letter of delegation gives (such as early action, special site meetings, warning letters, and the decision on a variation)",
+    "tindakan yang khusus bagi P.P. sendiri, yang tidak diberikan oleh sebarang surat perwakilan (seperti tindakan awal, mesyuarat tapak khas, surat amaran, dan keputusan mengenai perubahan kerja)",
+  ),
+  PRINCIPAL_OR_SO: w(
+    "the acts that are the Principal Representative's or the S.O.'s (such as possession of the site, the decision on the work programme, directions on it, and the release of retention)",
+    "tindakan Wakil P.P. Utama atau P.P. (seperti pemilikan tapak, keputusan mengenai program kerja, arahan mengenainya, dan pelepasan wang tahanan)",
+  ),
+};
+
+/**
+ * What a representative is told is left off their screens (FR-SUP-004): the title and the note of the callout that stands at the top of every screen that hides something, so a
+ * reader can tell an act that is not offered to them from one that is not possible. Null where nothing is hidden. Pure; the acts are named in words.
+ */
+export function hiddenNote(hidden: readonly HiddenAct[]): { title: Words; body: Words } | null {
+  if (hidden.length === 0) return null;
+  const listed = hidden.filter((a): a is SupervisionAct => a !== "SO_ONLY" && a !== "PRINCIPAL_OR_SO");
+  const needs = hidden.filter((a): a is HiddenNeed => a === "SO_ONLY" || a === "PRINCIPAL_OR_SO");
+  const en = ["You act as the S.O.'s representative, so some acts are left off your screens."];
+  const ms = ["Anda bertindak sebagai wakil P.P., jadi sesetengah tindakan tidak dipaparkan pada skrin anda."];
+  if (listed.length > 0) {
+    en.push(`Your letter of delegation does not list ${listed.map((a) => ACT_WORDS[a].en.toLowerCase()).join(", ")}.`);
+    ms.push(`Surat perwakilan anda tidak menyenaraikan ${listed.map((a) => ACT_WORDS[a].ms.toLowerCase()).join(", ")}.`);
+  }
+  if (needs.length > 0) {
+    en.push(`Also left off: ${needs.map((n) => HIDDEN_NEED_WORDS[n].en).join("; and ")}.`);
+    ms.push(`Turut tidak dipaparkan: ${needs.map((n) => HIDDEN_NEED_WORDS[n].ms).join("; dan ")}.`);
+  }
+  en.push("The S.O. records them.");
+  ms.push("P.P. merekodkannya.");
+  return { title: w("Acts outside your delegation are not shown", "Tindakan di luar perwakilan anda tidak dipaparkan"), body: w(en.join(" "), ms.join(" ")) };
+}
 
 export const VARIANT_WORDS: Readonly<Record<DelegationVariant, Words>> = {
   CONVENTIONAL: w("Conventional contracts (letters A/1 and A/2)", "Kontrak konvensional (surat A/1 dan A/2)"),

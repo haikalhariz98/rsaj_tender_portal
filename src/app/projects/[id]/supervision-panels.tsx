@@ -24,6 +24,7 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { amountOf, formatMoney, senFromDecimal, senToDecimalString } from "@/lib/money";
+import type { HiddenAct } from "@/lib/supervision/authority";
 import { delegationFaults, delegationState } from "@/lib/supervision/delegation";
 import { entryState, missingDays } from "@/lib/supervision/diary";
 import { delayOn, delegationFactsOf, loadPostAwardPolicy, loadSupervision, methodKeyOf, revisionsOf, soOfficeOn } from "@/lib/supervision/load";
@@ -55,7 +56,7 @@ import {
   supervisionFaultText,
   VARIANT_WORDS,
 } from "@/lib/supervision/labels";
-import { COMPLIANCE_AREAS, CONTRACT_PARTY_KINDS, DELEGATE_KINDS, DIARY_ENDORSERS, DIRECTION_CAUSES, EARLY_ACTION_BRANCHES, PROGRAMME_DECISIONS, PROGRAMME_KINDS, SITE_RECORDS_SETS, SUPERVISION_ACTS, type DelegationVariant, type Finding, type SupervisionAct } from "@/lib/supervision/types";
+import { COMPLIANCE_AREAS, CONTRACT_PARTY_KINDS, DELEGATE_KINDS, DIARY_ENDORSERS, DIRECTION_CAUSES, EARLY_ACTION_BRANCHES, PROGRAMME_DECISIONS, PROGRAMME_KINDS, SITE_RECORDS_SETS, SUPERVISION_ACTS, type DelegationVariant, type Finding } from "@/lib/supervision/types";
 
 import {
   AttestDrawer,
@@ -80,6 +81,7 @@ import {
   SubmitProgrammeDrawer,
   type Option,
 } from "./supervision-editors";
+import { WithHiddenNote } from "./hidden-note";
 
 /**
  * The contract's supervision on screen (6.13 Part A, 4b): the Team tab (the S.O., the representatives and the
@@ -319,7 +321,7 @@ export async function TeamPanel({ l, v, people, today }: { l: LoadedContract; v:
 // ------------------------------------------------------------------ Site
 
 /// `hidden`: the acts outside the delegated scope of a representative who is signed in, which their screen does not offer (FR-SUP-004, Phase 3d).
-export async function SitePanel({ l, v, people, today, section, page, hidden = [] }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null; section: SiteSection; page: number; hidden?: readonly SupervisionAct[] }) {
+export async function SitePanel({ l, v, people, today, section, page, hidden = [] }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null; section: SiteSection; page: number; hidden?: readonly HiddenAct[] }) {
   const body = (() => {
     switch (section) {
       case "start":
@@ -332,21 +334,13 @@ export async function SitePanel({ l, v, people, today, section, page, hidden = [
         return <RecordsSection l={l} v={v} people={people} today={today} />;
     }
   })();
-  if (hidden.length === 0) return body;
-  return (
-    <div className="flex flex-col gap-6">
-      <Callout tone="info" title="Acts outside your delegation are not shown">
-        {`You act as the S.O.'s representative. Your letter of delegation does not list ${hidden.map((a) => ACT_WORDS[a].en.toLowerCase()).join(", ")}, so they are left off your screens. The S.O. records them.`}
-      </Callout>
-      {body}
-    </div>
-  );
+  return <WithHiddenNote hidden={hidden}>{body}</WithHiddenNote>;
 }
 
 const zone = (today: string | null) => (today ? null : "Set the organisation's time zone first.");
 const possessed = (v: SupervisionView, today: string | null) => zone(today) ?? (v.s.possession ? null : "Possession of site is not recorded yet.");
 
-async function StartSection({ l, v, people, today, hidden }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null; hidden: readonly SupervisionAct[] }) {
+async function StartSection({ l, v, people, today, hidden }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null; hidden: readonly HiddenAct[] }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("SUPERVISION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -371,7 +365,7 @@ async function StartSection({ l, v, people, today, hidden }: { l: LoadedContract
           icon={<BuildingIcon size={17} />}
           title="Possession of site"
           subtitle={`Recorded once. It starts the contract period and makes the contract active. Start of work: ${START_RULE_WORDS[startRule].en.toLowerCase()}.`}
-          actions={pos ? <Badge tone="ok">Recorded</Badge> : <PossessionDrawer id={c.id} people={people} today={today} blocker={possessionBlocker} startRule={START_RULE_WORDS[startRule].en.toLowerCase()} />}
+          actions={pos ? <Badge tone="ok">Recorded</Badge> : hidden.includes("PRINCIPAL_OR_SO") ? undefined : <PossessionDrawer id={c.id} people={people} today={today} blocker={possessionBlocker} startRule={START_RULE_WORDS[startRule].en.toLowerCase()} />}
         />
         {pos && (
           <CardBody>
@@ -411,7 +405,7 @@ async function StartSection({ l, v, people, today, hidden }: { l: LoadedContract
                   </span>
                   <span className="flex shrink-0 flex-wrap items-center gap-2">
                     {!p.decision && !p.scrutinisedOn && !hidden.includes("PROGRAMME_SCRUTINY") && <ScrutinyDrawer id={c.id} programmeId={p.id} revision={p.revision} people={people} today={today} />}
-                    {!p.decision && (p.scrutinisedOn ? <DecideProgrammeDrawer id={c.id} programmeId={p.id} revision={p.revision} people={people} today={today} decisions={opts(PROGRAMME_DECISIONS, PROGRAMME_DECISION_WORDS)} /> : <Blocked label="Decide" reason="Scrutinise it first." />)}
+                    {!p.decision && (p.scrutinisedOn ? (hidden.includes("PRINCIPAL_OR_SO") ? null : <DecideProgrammeDrawer id={c.id} programmeId={p.id} revision={p.revision} people={people} today={today} decisions={opts(PROGRAMME_DECISIONS, PROGRAMME_DECISION_WORDS)} />) : <Blocked label="Decide" reason="Scrutinise it first." />)}
                   </span>
                 </li>
               );
@@ -443,7 +437,7 @@ async function StartSection({ l, v, people, today, hidden }: { l: LoadedContract
   );
 }
 
-function DiarySection({ l, v, people, today, page, hidden }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null; page: number; hidden: readonly SupervisionAct[] }) {
+function DiarySection({ l, v, people, today, page, hidden }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null; page: number; hidden: readonly HiddenAct[] }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("SUPERVISION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -524,7 +518,7 @@ function DiarySection({ l, v, people, today, page, hidden }: { l: LoadedContract
   );
 }
 
-function OversightSection({ l, v, people, today, hidden }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null; hidden: readonly SupervisionAct[] }) {
+function OversightSection({ l, v, people, today, hidden }: { l: LoadedContract; v: SupervisionView; people: Option[]; today: string | null; hidden: readonly HiddenAct[] }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("SUPERVISION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -534,7 +528,7 @@ function OversightSection({ l, v, people, today, hidden }: { l: LoadedContract; 
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card className="overflow-hidden">
-        <CardHeader icon={<UsersIcon size={17} />} title="Special site meetings" subtitle="Chaired by the S.O. once the contract is In Delay." actions={<MeetingDrawer id={c.id} people={people} today={today} blocker={zone(today) ?? (inDelay ? null : "The contract is not In Delay today: a special meeting is called by that reading.")} />} divided={v.s.siteMeetings.length > 0} />
+        <CardHeader icon={<UsersIcon size={17} />} title="Special site meetings" subtitle="Chaired by the S.O. once the contract is In Delay." actions={hidden.includes("SO_ONLY") ? undefined : <MeetingDrawer id={c.id} people={people} today={today} blocker={zone(today) ?? (inDelay ? null : "The contract is not In Delay today: a special meeting is called by that reading.")} />} divided={v.s.siteMeetings.length > 0} />
         {v.s.siteMeetings.length === 0 ? (
           <EmptyState size="sm" title="None recorded">No special meeting has been held.</EmptyState>
         ) : (
@@ -572,7 +566,7 @@ function OversightSection({ l, v, people, today, hidden }: { l: LoadedContract; 
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<CalendarIcon size={17} />} title="Directions on the programme" subtitle="A direction to review the completion date and submit a revised programme. A variation's is raised by the variation." actions={<DirectionDrawer id={c.id} people={people} causes={opts(DIRECTION_CAUSES.filter((x) => x !== "VARIATION"), CAUSE_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.programmeDirections.length > 0} />
+        <CardHeader icon={<CalendarIcon size={17} />} title="Directions on the programme" subtitle="A direction to review the completion date and submit a revised programme. A variation's is raised by the variation." actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <DirectionDrawer id={c.id} people={people} causes={opts(DIRECTION_CAUSES.filter((x) => x !== "VARIATION"), CAUSE_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.programmeDirections.length > 0} />
         {v.s.programmeDirections.length === 0 ? (
           <EmptyState size="sm" title="None recorded">No direction is recorded.</EmptyState>
         ) : (
@@ -595,7 +589,7 @@ function OversightSection({ l, v, people, today, hidden }: { l: LoadedContract; 
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<FileIcon size={17} />} title="Early action" subtitle="The S.O.'s decision on the courses open once the contract is going wrong." actions={<EarlyActionDrawer id={c.id} people={people} branches={opts(EARLY_ACTION_BRANCHES, BRANCH_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.earlyActionDecisions.length > 0} />
+        <CardHeader icon={<FileIcon size={17} />} title="Early action" subtitle="The S.O.'s decision on the courses open once the contract is going wrong." actions={hidden.includes("SO_ONLY") ? undefined : <EarlyActionDrawer id={c.id} people={people} branches={opts(EARLY_ACTION_BRANCHES, BRANCH_WORDS)} today={today} blocker={possessed(v, today)} />} divided={v.s.earlyActionDecisions.length > 0} />
         {v.s.earlyActionDecisions.length === 0 ? (
           <EmptyState size="sm" title="None recorded">No early-action decision is recorded.</EmptyState>
         ) : (
@@ -615,7 +609,7 @@ function OversightSection({ l, v, people, today, hidden }: { l: LoadedContract; 
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<ShieldIcon size={17} />} title="Premiums paid by the employer" subtitle="Each is deducted on the next interim certificate raised." actions={<SelfHelpDrawer id={c.id} people={people} policies={policies} today={today} blocker={zone(today) ?? (policies.length ? null : "No insurance policy is on this contract.")} />} divided={v.s.pendingDeductions.length > 0} />
+        <CardHeader icon={<ShieldIcon size={17} />} title="Premiums paid by the employer" subtitle="Each is deducted on the next interim certificate raised." actions={hidden.includes("SO_ONLY") ? undefined : <SelfHelpDrawer id={c.id} people={people} policies={policies} today={today} blocker={zone(today) ?? (policies.length ? null : "No insurance policy is on this contract.")} />} divided={v.s.pendingDeductions.length > 0} />
         {v.s.pendingDeductions.length === 0 ? (
           <EmptyState size="sm" title="None recorded">The employer has paid no premium for the contractor.</EmptyState>
         ) : (

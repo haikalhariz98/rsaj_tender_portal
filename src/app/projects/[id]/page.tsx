@@ -45,7 +45,7 @@ import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
 import { FormationPanel, FORMATION_SECTIONS, type FormationSection } from "./formation-panels";
 import { PAYMENT_SECTIONS, PaymentsPanel, PaymentSummaryCard, paymentView, type PaymentSection, type PaymentView } from "./payment-panels";
 import { OnSiteCard, SITE_SECTIONS, SitePanel, supervisionView, TeamPanel, type SiteSection, type SupervisionView } from "./supervision-panels";
-import { hiddenActsFor } from "@/lib/supervision/authority";
+import { hiddenFor } from "@/lib/supervision/authority";
 import { delegationFactsOf } from "@/lib/supervision/load";
 import { SUPERVISION_ACTS } from "@/lib/supervision/types";
 import { VARIATION_SECTIONS, VariationsPanel, VariationSummaryCard, type VariationSection } from "./variation-panels";
@@ -88,7 +88,7 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
   // Step 4: variations and the adjustments of the contract sum, for the Overview and the Variations tab.
   const [payments, variations] = await Promise.all([paymentView(l, today), variationView(l, today)]);
   // FR-SUP-004 (Phase 3d): the acts outside the delegated scope of a representative who is signed in are not offered to them. Nothing is hidden from the S.O. or from an officer who is no representative.
-  const hiddenActs = today && !actor.system ? hiddenActsFor(actor.personId, supervision.so?.office ?? null, delegationFactsOf(supervision.s), today, SUPERVISION_ACTS) : [];
+  const hiddenActs = today && !actor.system ? hiddenFor(actor.personId, supervision.so?.office ?? null, delegationFactsOf(supervision.s), today, SUPERVISION_ACTS) : [];
   const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));
   const phase = facts?.phase ?? status;
   const formationSection = (FORMATION_SECTIONS.find((s) => s.id === section)?.id ?? "assembly") as FormationSection;

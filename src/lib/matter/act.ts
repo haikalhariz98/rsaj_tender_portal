@@ -20,9 +20,9 @@ import { contractLabel, type LoadedContract } from "@/lib/contract/repo";
 import { dayOf } from "@/lib/dates";
 import type { Tx } from "@/lib/audit/record";
 import type { AuditActor } from "@/lib/auth/types";
-import { capacityFor, recorderFault, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
+import { capacityFor, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
 import { supervisionRefusal } from "@/lib/supervision/labels";
-import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
+import { delegationFactsOf, loadSupervision, recorderFaultToday, soOfficeOn } from "@/lib/supervision/load";
 
 import { loadMatters, type MatterRow } from "./load";
 import { MatterRefusal } from "./route-write";
@@ -102,7 +102,7 @@ export async function recordedFor(c: ActCtx, who: ActWho, need: ActNeed, on: str
   const r = capacityFor(person.id, need, so?.office ?? null, delegationFactsOf(s), on);
   if (!r.capacity) throw new ActRefusal({ ok: false, message: supervisionRefusal("Not recorded:", r.faults) });
   // FR-SUP-004 (Phase 3d): the officer who records it is judged too, whoever it is recorded for.
-  const recorder = recorderFault(who.recorderId, need, so?.office ?? null, delegationFactsOf(s), on);
+  const recorder = await recorderFaultToday(c.l, s, who.recorderId, need, on, so?.office ?? null, c.today, c.tx);
   if (recorder) throw new ActRefusal({ ok: false, message: supervisionRefusal("Not recorded:", [recorder]) });
   return { person, capacity: r.capacity, soLabel: so!.office.roleLabel, soRoleCode: so!.assignment.roleCode };
 }

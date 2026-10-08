@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { capacityFor, hiddenActsFor, inForce, recorderFault, type DelegationFacts } from "./authority";
+import { capacityFor, hiddenActsFor, hiddenFor, hiddenNeedsFor, inForce, recorderFault, recorderFaultOver, type ActNeed, type DelegationFacts } from "./authority";
 import { SUPERVISION_ACTS } from "./types";
 import { delegationFaults, delegationState, latestActDay, revokeFaults } from "./delegation";
 import { supervisionFaultWords } from "./labels";
@@ -192,5 +192,113 @@ describe("the officer who records is judged beside the Person it is recorded for
   it("agrees with what hiddenActsFor leaves off the screen: the acts hidden from a representative are the acts they cannot record for anyone", () => {
     const hidden = hiddenActsFor("ravi", so, ds, "2026-10-03", SUPERVISION_ACTS);
     for (const a of SUPERVISION_ACTS) expect(rf("ravi", { act: a }) != null, a).toBe(hidden.includes(a));
+  });
+});
+
+// FR-SUP-004 (Phase 3d, review fix): the recorder is judged on the act's own day, which the form chooses, so back-dating an act to before the letter was issued made them "no representative"
+// on that day. They are judged on the day it is recorded too.
+describe("a representative cannot back-date an act to before their letter (the recorder is judged on the day it is recorded)", () => {
+  const TODAY = "2026-10-08";
+  const BEFORE_LETTER = "2026-09-30";
+  const both = (day: string) => [{ so, day }, { so, day: TODAY }];
+  const over = (who: string | null, need: ActNeed, actDay: string, delegations: readonly DelegationFacts[] = ds) => recorderFaultOver(who, need, both(actDay), delegations);
+
+  it("judged on the act's day alone, the back-dated act of a representative passes (the hole)", () => {
+    // Ravi's letter was issued on 2026-10-02 and lists the diary and progress. On 09-30 he was no representative, so the day alone clears him.
+    expect(recorderFault("ravi", { act: "OBSERVATION" }, so, ds, BEFORE_LETTER)).toBeNull();
+  });
+
+  it("refuses it when the day it is recorded is also judged, with a date before the letter was issued", () => {
+    expect(over("ravi", { act: "OBSERVATION" }, BEFORE_LETTER)?.code).toBe("RECORDER_OUT_OF_SCOPE");
+    expect(over("ravi", { act: "CONTRACTOR_COMMUNICATION" }, BEFORE_LETTER)?.code).toBe("RECORDER_OUT_OF_SCOPE");
+    expect(over("ravi", { soOnly: true }, BEFORE_LETTER)?.data).toMatchObject({ kind: "SO" });
+  });
+
+  it("still allows what the letter lists, back-dated or not", () => {
+    expect(over("ravi", { act: "DIARY" }, BEFORE_LETTER)).toBeNull();
+    expect(over("ravi", { act: "PROGRESS" }, TODAY)).toBeNull();
+    expect(over("ravi", { principalOrSo: true }, BEFORE_LETTER)).toBeNull();
+  });
+
+  it("does not judge who is no representative on either day, or the S.O., or nobody", () => {
+    expect(over("clerk", { act: "OBSERVATION" }, BEFORE_LETTER)).toBeNull();
+    expect(over("aminah", { soOnly: true }, BEFORE_LETTER)).toBeNull();
+    expect(over("acting", { act: "OBSERVATION" }, BEFORE_LETTER)).toBeNull();
+    expect(over(null, { act: "OBSERVATION" }, BEFORE_LETTER)).toBeNull();
+    // A letter not yet issued today is no representative today either.
+    expect(over("siti", { act: "OBSERVATION" }, BEFORE_LETTER)).toBeNull();
+  });
+
+  it("judges a representative whose letter was in force on the act's day and is revoked today on the act's day", () => {
+    const revoked = [{ ...ravi, revokedOn: "2026-10-05" }];
+    expect(over("ravi", { act: "OBSERVATION" }, "2026-10-03", revoked)?.code).toBe("RECORDER_OUT_OF_SCOPE");
+    expect(over("ravi", { act: "DIARY" }, "2026-10-03", revoked)).toBeNull();
+  });
+
+  it("uses the S.O. office of each day: someone who held it on the act's day is not judged on that day", () => {
+    const earlier = { roleLabel: "Head of Division", holderIds: ["ravi"], actingIds: [] };
+    expect(recorderFaultOver("ravi", { act: "OBSERVATION" }, [{ so: earlier, day: "2026-10-03" }, { so, day: TODAY }], ds)?.code).toBe("RECORDER_OUT_OF_SCOPE");
+    expect(recorderFaultOver("ravi", { act: "OBSERVATION" }, [{ so: earlier, day: "2026-10-03" }], ds)).toBeNull();
+  });
+
+  it("judges the same day once and nothing where the contract has no S.O. resolved", () => {
+    expect(recorderFaultOver("ravi", { act: "DIARY" }, [{ so, day: TODAY }, { so, day: TODAY }], ds)).toBeNull();
+    expect(recorderFaultOver("ravi", { act: "OBSERVATION" }, [{ so: null, day: TODAY }], ds)).toBeNull();
+    expect(recorderFaultOver("ravi", { act: "OBSERVATION" }, [], ds)).toBeNull();
+  });
+});
+
+// FR-SUP-004 (Phase 3d, review fix): the S.O.'s own acts, and the acts of the Principal Representative or the S.O., are on no letter's scope list, so `hiddenActsFor` never left them off,
+// and a representative was offered what the server refuses whatever their letter says.
+describe("the acts no letter of delegation can give are hidden from a representative too", () => {
+  const sam: DelegationFacts = { id: "d9", kind: "SPECIALIST", delegatePersonId: "sam", letterIssuedOn: "2026-10-02", revokedOn: null, scope: ["VALUATION"] };
+  const all = [ravi, siti, sam];
+  const day = "2026-10-03";
+  const needs = (who: string, on = day, delegations: readonly DelegationFacts[] = all) => hiddenNeedsFor(who, so, delegations, on);
+
+  it("hides the S.O.'s own acts from every representative, and the Principal Representative's acts from one who is not a Principal Representative", () => {
+    expect(needs("ravi")).toEqual(["SO_ONLY"]);
+    expect(needs("sam")).toEqual(["SO_ONLY", "PRINCIPAL_OR_SO"]);
+  });
+
+  it("hides nothing from the S.O., someone acting in the office, or an officer who is no representative", () => {
+    expect(needs("aminah")).toEqual([]);
+    expect(needs("acting")).toEqual([]);
+    expect(needs("clerk")).toEqual([]);
+  });
+
+  it("hides nothing before the letter is issued, after it is revoked, or where no S.O. is resolved", () => {
+    expect(needs("ravi", "2026-10-01")).toEqual([]);
+    expect(needs("ravi", "2026-10-09", [{ ...ravi, revokedOn: "2026-10-05" }])).toEqual([]);
+    expect(hiddenNeedsFor("ravi", null, all, day)).toEqual([]);
+  });
+
+  it("a representative holding a Principal Representative's letter among others is not hidden the Principal's acts", () => {
+    const second: DelegationFacts = { ...sam, id: "d10", delegatePersonId: "ravi" };
+    expect(needs("ravi", day, [second, ravi])).toEqual(["SO_ONLY"]);
+    expect(needs("ravi", day, [second])).toEqual(["SO_ONLY", "PRINCIPAL_OR_SO"]);
+  });
+
+  it("hides exactly what the action refuses: for every need, every person and every day, hidden and refused are the same set", () => {
+    const people = ["aminah", "acting", "clerk", "ravi", "siti", "sam", "nobody"];
+    for (const who of people) {
+      for (const on of ["2026-10-01", "2026-10-03", "2026-10-09"]) {
+        const h = hiddenFor(who, so, all, on, SUPERVISION_ACTS);
+        const live = all.some((d) => d.delegatePersonId === who && inForce(d, on));
+        const representative = live && who !== "aminah" && who !== "acting";
+        const needsOf: [ActNeed, string | null][] = [
+          [{ soOnly: true }, "SO_ONLY"],
+          [{ principalOrSo: true }, "PRINCIPAL_OR_SO"],
+          ...SUPERVISION_ACTS.map((a): [ActNeed, string | null] => [{ act: a }, a]),
+        ];
+        for (const [need, key] of needsOf) {
+          const refused = capacityFor(who, need, so, all, on).capacity == null;
+          // For a person who is a representative in force, the screen leaves off exactly what the server refuses them. For anyone else nothing is hidden: their refusal is the action's.
+          expect(h.includes(key as never), `${who} on ${on}: ${key}`).toBe(representative && refused);
+          // And the recorder is refused exactly that too, for any Person it is recorded for.
+          expect(recorderFault(who, need, so, all, on) != null, `${who} on ${on}: recorder ${key}`).toBe(representative && refused);
+        }
+      }
+    }
   });
 });

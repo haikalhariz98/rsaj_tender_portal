@@ -28,8 +28,9 @@ import { ADJUSTMENT_DIRECTIONS, ADJUSTMENT_TRIGGERS, VARIATION_EXEMPTIONS, VARIA
 import type { VariationView } from "@/lib/variation/view";
 
 import { AdjustmentRefusedCallout } from "./adjustment-refused";
+import { WithHiddenNote } from "./hidden-note";
 import { AdjustmentDrawer, VariationRecordDrawer, type Option } from "./variation-editors";
-import type { SupervisionAct } from "@/lib/supervision/types";
+import type { HiddenAct } from "@/lib/supervision/authority";
 
 /**
  * The contract's Variations tab (6.13 Part A step 4, 4d): its variations from application to certificate, the exposure
@@ -53,8 +54,12 @@ export type VariationSection = (typeof VARIATION_SECTIONS)[number]["id"];
 const pct = (num: bigint, den: bigint | null, edges: readonly string[]) => (den && den > 0n ? percentLabelText(percentLabel({ num, den }, edges)).en : null);
 
 /// `hidden`: the acts outside the delegated scope of a representative who is signed in, which their screen does not offer (FR-SUP-004, Phase 3d).
-export function VariationsPanel({ l, v, people, today, section, page, hidden = [] }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; section: VariationSection; page: number; hidden?: readonly SupervisionAct[] }) {
-  return section === "adjustments" ? <AdjustmentsSection l={l} v={v} people={people} today={today} hidden={hidden} /> : <VariationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} />;
+export function VariationsPanel({ l, v, people, today, section, page, hidden = [] }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; section: VariationSection; page: number; hidden?: readonly HiddenAct[] }) {
+  return (
+    <WithHiddenNote hidden={hidden}>
+      {section === "adjustments" ? <AdjustmentsSection l={l} v={v} people={people} today={today} hidden={hidden} /> : <VariationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} />}
+    </WithHiddenNote>
+  );
 }
 
 /// The contract's position: the original sum, the issued adjustments, the revised sum, the cumulative approved.
@@ -97,7 +102,7 @@ function PositionCard({ l, v }: { l: LoadedContract; v: VariationView }) {
   );
 }
 
-function VariationsSection({ l, v, people, today, page, hidden }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; page: number; hidden: readonly SupervisionAct[] }) {
+function VariationsSection({ l, v, people, today, page, hidden }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; page: number; hidden: readonly HiddenAct[] }) {
   // ADR 0031 (run 1a): the acts' own table, so the screen refuses where the act would.
   const statusRefused = actStatusFault("VARIATION", l.contract.status as ContractStatus);
   // Review S1: the table first, as the act asks it (cancelled in its own words); every drawer below is gated by it.
@@ -188,7 +193,7 @@ function VariationsSection({ l, v, people, today, page, hidden }: { l: LoadedCon
   );
 }
 
-function AdjustmentsSection({ l, v, people, today, hidden }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; hidden: readonly SupervisionAct[] }) {
+function AdjustmentsSection({ l, v, people, today, hidden }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; hidden: readonly HiddenAct[] }) {
   const issuedOrders = v.all.flatMap((x) => x.orders.filter((o) => o.certificate.status === "ISSUED").map((o) => ({ x, o })));
   const adjusted = new Set(ordersAdjusted(v.adjustments));
   const free = issuedOrders.filter(({ o }) => !adjusted.has(o.id));

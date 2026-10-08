@@ -61,6 +61,8 @@ beforeAll(async () => {
   const org = await db.organisation.upsert({ where: { code: "P3C_DELEGATION_TEST" }, update: {}, create: { code: "P3C_DELEGATION_TEST", name: "Delegation test organisation", timeZone: "Asia/Kuala_Lumpur" } });
   organisationId = org.id;
   await db.reportingLine.deleteMany({ where: { organisationId } });
+  // The signed recommendation a previous run attached to a delegation (FR-APR-012) is test data too, and holds the delegation.
+  await db.documentAttachment.deleteMany({ where: { organisationId, delegationId: { not: null } } });
   await db.delegation.deleteMany({ where: { organisationId } });
   a = (await makePerson(organisationId, `A ${run}`)).id;
   b = (await makePerson(organisationId, `B ${run}`)).id;

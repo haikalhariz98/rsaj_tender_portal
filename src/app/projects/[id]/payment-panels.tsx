@@ -31,9 +31,10 @@ import { issueClockFrom, openFaults } from "@/lib/payment/valuation";
 import { pendingAdvanceFaults } from "@/lib/payment/advance";
 import { OPENING_GROUPS, openingClosed, openingReconciles, openingReleaseLine } from "@/lib/payment/opening";
 import { PARTY_KIND_WORDS } from "@/lib/supervision/labels";
-import type { SupervisionAct } from "@/lib/supervision/types";
+import type { HiddenAct } from "@/lib/supervision/authority";
 
 import { AdjustmentRefusedCallout } from "./adjustment-refused";
+import { WithHiddenNote } from "./hidden-note";
 import {
   AdvanceDrawer,
   OpeningDrawer,
@@ -139,22 +140,25 @@ export function PaymentSummaryCard({ l, v }: { l: LoadedContract; v: PaymentView
 // ------------------------------------------------------------------ the tab
 
 /// `hidden`: the acts outside the delegated scope of a representative who is signed in, which their screen does not offer (FR-SUP-004, Phase 3d).
-export function PaymentsPanel({ l, v, people, today, section, page, hidden = [] }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; section: PaymentSection; page: number; hidden?: readonly SupervisionAct[] }) {
-  switch (section) {
-    case "valuations":
-      return <ValuationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} />;
-    case "retention":
-      return <RetentionSection l={l} v={v} people={people} today={today} />;
-    case "advance":
-      return <AdvanceSection l={l} v={v} people={people} />;
-    case "damages":
-      return <DamagesSection l={l} v={v} people={people} today={today} />;
-  }
+export function PaymentsPanel({ l, v, people, today, section, page, hidden = [] }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; section: PaymentSection; page: number; hidden?: readonly HiddenAct[] }) {
+  const body = (() => {
+    switch (section) {
+      case "valuations":
+        return <ValuationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} />;
+      case "retention":
+        return <RetentionSection l={l} v={v} people={people} today={today} hidden={hidden} />;
+      case "advance":
+        return <AdvanceSection l={l} v={v} people={people} hidden={hidden} />;
+      case "damages":
+        return <DamagesSection l={l} v={v} people={people} today={today} hidden={hidden} />;
+    }
+  })();
+  return <WithHiddenNote hidden={hidden}>{body}</WithHiddenNote>;
 }
 
 /// BD-613-41 as amended: the contract's opening position, the way out where earlier interim certificates were not
 /// raised from a valuation here. Entered once, before the first valuation the system raises.
-function OpeningCard({ l, v, people, today }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null }) {
+function OpeningCard({ l, v, people, today, hidden }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; hidden: readonly HiddenAct[] }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("OPENING_POSITION", l.contract.status as ContractStatus);
   const o = v.p.openingPosition;
@@ -197,7 +201,7 @@ function OpeningCard({ l, v, people, today }: { l: LoadedContract; v: PaymentVie
         icon={<ClipboardIcon size={17} />}
         title="Opening position"
         subtitle="Where interim certificates were issued before this system (or not from a valuation here): the last one, and the figures to date, each stated on a certificate or assumed with a reason. Entered once, before the first valuation raised here; the next certificate continues from it."
-        actions={<OpeningDrawer id={l.contract.id} people={people} groups={OPENING_GROUPS.map((g) => ({ group: g, label: OPENING_GROUP_WORDS[g].en }))} values={values} existing={!!o} blocker={blocker} />}
+        actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <OpeningDrawer id={l.contract.id} people={people} groups={OPENING_GROUPS.map((g) => ({ group: g, label: OPENING_GROUP_WORDS[g].en }))} values={values} existing={!!o} blocker={blocker} />}
       />
       <CardBody>
         {foreign.length > 0 && <Callout tone="warn" title="Interim certificates issued here without a valuation">{`${foreign.map((x) => x.number ?? `interim certificate ${x.sequence}`).join(", ")}: record the opening position covering ${foreign.length === 1 ? "it" : "them"} before the next valuation is raised.`}</Callout>}
@@ -226,7 +230,7 @@ function OpeningCard({ l, v, people, today }: { l: LoadedContract; v: PaymentVie
   );
 }
 
-function ValuationsSection({ l, v, people, today, page, hidden }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; page: number; hidden: readonly SupervisionAct[] }) {
+function ValuationsSection({ l, v, people, today, page, hidden }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; page: number; hidden: readonly HiddenAct[] }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("VALUATION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -244,7 +248,7 @@ function ValuationsSection({ l, v, people, today, page, hidden }: { l: LoadedCon
     <ActGate blocker={shut}>
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<CalendarIcon size={17} />} title="Valuation calendar" subtitle="The day of each month agreed with the contractor for the joint site valuation. A valuation on another day is started by a claim." actions={<CalendarDrawer id={c.id} people={people} today={today} current={cal ? { dayOfMonth: cal.dayOfMonth, agreedWith: cal.agreedWith } : null} />} />
+        <CardHeader icon={<CalendarIcon size={17} />} title="Valuation calendar" subtitle="The day of each month agreed with the contractor for the joint site valuation. A valuation on another day is started by a claim." actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <CalendarDrawer id={c.id} people={people} today={today} current={cal ? { dayOfMonth: cal.dayOfMonth, agreedWith: cal.agreedWith } : null} />} />
         <CardBody>
           {cal ? (
             <KeyValues
@@ -261,7 +265,7 @@ function ValuationsSection({ l, v, people, today, page, hidden }: { l: LoadedCon
         </CardBody>
       </Card>
 
-      <OpeningCard l={l} v={v} people={people} today={today} />
+      <OpeningCard l={l} v={v} people={people} today={today} hidden={hidden} />
 
       {v.current?.status === "OPEN" ? <CurrentValuation l={l} v={v} today={today} formSet={formSet} /> : null}
 
@@ -477,7 +481,7 @@ function PreviewFigures({ a }: { a: Assembled | null }) {
 
 // ------------------------------------------------------------------ retention
 
-function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null }) {
+function RetentionSection({ l, v, people, today, hidden }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; hidden: readonly HiddenAct[] }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("RETENTION_RELEASE", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -526,8 +530,8 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
           subtitle="Once each. The balance waits for the Certificate of Making Good Defects, which arrives with completion and defects (Part B): the contract carries on meanwhile."
           actions={
             <span className="flex flex-wrap items-center gap-2">
-              {!rs.already.first && <ReleaseDrawer id={c.id} release="RELEASED_FIRST" label={RELEASE_WORDS.RELEASED_FIRST.en} people={people} today={today} blocker={releaseBlock("RELEASED_FIRST")} />}
-              {!balance && <ReleaseDrawer id={c.id} release="RELEASED_BALANCE" label={RELEASE_WORDS.RELEASED_BALANCE.en} people={people} today={today} blocker={releaseBlock("RELEASED_BALANCE")} />}
+              {!hidden.includes("PRINCIPAL_OR_SO") && !rs.already.first && <ReleaseDrawer id={c.id} release="RELEASED_FIRST" label={RELEASE_WORDS.RELEASED_FIRST.en} people={people} today={today} blocker={releaseBlock("RELEASED_FIRST")} />}
+              {!hidden.includes("PRINCIPAL_OR_SO") && !balance && <ReleaseDrawer id={c.id} release="RELEASED_BALANCE" label={RELEASE_WORDS.RELEASED_BALANCE.en} people={people} today={today} blocker={releaseBlock("RELEASED_BALANCE")} />}
             </span>
           }
           divided={v.p.retentionReleases.length > 0 || !!openingRelease}
@@ -563,7 +567,7 @@ function RetentionSection({ l, v, people, today }: { l: LoadedContract; v: Payme
 
 // ------------------------------------------------------------------ the advance (B2)
 
-function AdvanceSection({ l, v, people }: { l: LoadedContract; v: PaymentView; people: Option[] }) {
+function AdvanceSection({ l, v, people, hidden }: { l: LoadedContract; v: PaymentView; people: Option[]; hidden: readonly HiddenAct[] }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("ADVANCE_PAYMENT", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -579,7 +583,7 @@ function AdvanceSection({ l, v, people }: { l: LoadedContract; v: PaymentView; p
         Eligibility and the percentage are not checked: no rule states them. An advance rests on an Advance Payment Guarantee verified in the register and on a recoupment schedule entered for the contract; it goes for approval on the approval matrix.
       </Callout>
       <Card className="overflow-hidden">
-        <CardHeader icon={<WalletIcon size={17} />} title="Advance payments" subtitle="Each with its schedule: what each interim certificate recoups, and what is still to recoup." actions={<AdvanceDrawer id={c.id} people={people} parties={nscs} guarantees={guarantees} parts={opts(ADVANCE_PARTIES, ADVANCE_PARTY_WORDS)} blocker={blocker} />} divided={v.p.advancePayments.length > 0} />
+        <CardHeader icon={<WalletIcon size={17} />} title="Advance payments" subtitle="Each with its schedule: what each interim certificate recoups, and what is still to recoup." actions={hidden.includes("PRINCIPAL_OR_SO") ? undefined : <AdvanceDrawer id={c.id} people={people} parties={nscs} guarantees={guarantees} parts={opts(ADVANCE_PARTIES, ADVANCE_PARTY_WORDS)} blocker={blocker} />} divided={v.p.advancePayments.length > 0} />
         {v.p.advancePayments.length === 0 ? (
           <EmptyState size="sm" title="None">No advance payment is recorded on this contract.</EmptyState>
         ) : (
@@ -613,7 +617,7 @@ function AdvanceSection({ l, v, people }: { l: LoadedContract; v: PaymentView; p
 
 // ------------------------------------------------------------------ the damages chain
 
-function DamagesSection({ l, v, people, today }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null }) {
+function DamagesSection({ l, v, people, today, hidden }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; hidden: readonly HiddenAct[] }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("DAMAGES", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -656,7 +660,7 @@ function DamagesSection({ l, v, people, today }: { l: LoadedContract; v: Payment
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<AlertTriangle size={17} />} title="Warning letters" subtitle="The letter of intention to impose damages, before they are imposed; sent by registered post. The response window is the organisation's clock (advisory)." actions={<WarningDrawer id={c.id} people={people} today={today} blocker={warningBlock} completion={completion ? formatDate(completion) : null} />} divided={v.p.ladWarnings.length > 0} />
+        <CardHeader icon={<AlertTriangle size={17} />} title="Warning letters" subtitle="The letter of intention to impose damages, before they are imposed; sent by registered post. The response window is the organisation's clock (advisory)." actions={hidden.includes("SO_ONLY") ? undefined : <WarningDrawer id={c.id} people={people} today={today} blocker={warningBlock} completion={completion ? formatDate(completion) : null} />} divided={v.p.ladWarnings.length > 0} />
         {v.p.ladWarnings.length === 0 ? (
           <EmptyState size="sm" title="None">No warning letter has been raised.</EmptyState>
         ) : (
@@ -690,7 +694,7 @@ function DamagesSection({ l, v, people, today }: { l: LoadedContract; v: Payment
           icon={<FileIcon size={17} />}
           title="Non-completion decisions"
           subtitle="The latest decision governs. Until the extension-of-time module, the decision records the entitlement itself; that module's record replaces it and never rewrites an issued certificate."
-          actions={<NonCompletionDrawer id={c.id} people={people} outcomes={opts(NON_COMPLETION_OUTCOMES, OUTCOME_WORDS)} scopes={opts(NON_COMPLETION_SCOPES, SCOPE_WORDS)} sections={(v.baseline?.values.sections ?? []).map((s) => ({ value: s.ref, label: s.description || s.ref }))} pack={PACK_ITEMS.map((item) => ({ item, label: PACK_WORDS[item].en }))} blocker={decisionBlock ?? (liveRow ? say(replacementFaults({ live: { ...liveRow, certificateStatus: liveRow.certificate?.status ?? null }, replacesId: liveRow.id, reason: "x", valuationInProgress: v.current ? `interim valuation of ${formatDate(day(v.current.valuationDate))}` : null })) : null)} windowFrom={completion ? dayPlus(completion, 1) : null} replaces={liveRow ? { id: liveRow.id, text: `${OUTCOME_WORDS[liveRow.outcome].en}, decided ${formatDate(day(liveRow.decidedOn))}` } : null} />}
+          actions={hidden.includes("SO_ONLY") ? undefined : <NonCompletionDrawer id={c.id} people={people} outcomes={opts(NON_COMPLETION_OUTCOMES, OUTCOME_WORDS)} scopes={opts(NON_COMPLETION_SCOPES, SCOPE_WORDS)} sections={(v.baseline?.values.sections ?? []).map((s) => ({ value: s.ref, label: s.description || s.ref }))} pack={PACK_ITEMS.map((item) => ({ item, label: PACK_WORDS[item].en }))} blocker={decisionBlock ?? (liveRow ? say(replacementFaults({ live: { ...liveRow, certificateStatus: liveRow.certificate?.status ?? null }, replacesId: liveRow.id, reason: "x", valuationInProgress: v.current ? `interim valuation of ${formatDate(day(v.current.valuationDate))}` : null })) : null)} windowFrom={completion ? dayPlus(completion, 1) : null} replaces={liveRow ? { id: liveRow.id, text: `${OUTCOME_WORDS[liveRow.outcome].en}, decided ${formatDate(day(liveRow.decidedOn))}` } : null} />}
           divided={v.p.nonCompletions.length > 0}
         />
         {latestWarning && !latestWarning.postedOn && <CardBody className="border-b border-line/70"><p className={sub}>Damages are imposed only once the warning letter is issued and posted.</p></CardBody>}

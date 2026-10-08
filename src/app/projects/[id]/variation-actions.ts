@@ -29,8 +29,8 @@ import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 import { baselineOn } from "@/lib/payment/load";
 import { loadRoster } from "@/lib/people/load";
 import { percentLabel, percentLabelText, variationReading, type Reading } from "@/lib/variation/percent";
-import { capacityFor, capacityText, recorderFault, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
-import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
+import { capacityFor, capacityText, type ActNeed, type ActWho, type Capacity } from "@/lib/supervision/authority";
+import { delegationFactsOf, loadSupervision, recorderFaultToday, soOfficeOn } from "@/lib/supervision/load";
 import { supervisionRefusal } from "@/lib/supervision/labels";
 import type { DelegateKind } from "@/lib/supervision/types";
 import { approvedValue, closeFaults, commenceFaults, cumulativeApproved, fieldFaults, pendingValueRoutes, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, soOriginationFaults, submitFaults, type ApplicationFields, type RepCapacity } from "@/lib/variation/application";
@@ -162,7 +162,7 @@ async function recordedFor(c: Ctx, who: ActWho, need: ActNeed, on: string, field
   const r = capacityFor(person.id, need, so?.office ?? null, delegationFactsOf(s), on);
   if (!r.capacity) throw new Refusal({ ok: false, message: supervisionRefusal("Not recorded:", r.faults) });
   // FR-SUP-004 (Phase 3d): the officer who records it is judged too, whoever it is recorded for.
-  const recorder = recorderFault(who.recorderId, need, so?.office ?? null, delegationFactsOf(s), on);
+  const recorder = await recorderFaultToday(c.l, s, who.recorderId, need, on, so?.office ?? null, c.today, c.tx);
   if (recorder) throw new Refusal({ ok: false, message: supervisionRefusal("Not recorded:", [recorder]) });
   return { person, capacity: r.capacity, soLabel: so!.office.roleLabel, soRoleCode: so!.assignment.roleCode };
 }
@@ -687,7 +687,7 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
     const so = await soOfficeOn(c.l, s, on, c.tx);
     const cap = capacityFor(person.id, { act: "INSTRUCTION" }, so?.office ?? null, delegationFactsOf(s), on);
     // FR-SUP-004 (Phase 3d): the officer who records the support is judged too, whoever it is recorded for.
-    const recorderBad = recorderFault(act.recorderId, { act: "INSTRUCTION" }, so?.office ?? null, delegationFactsOf(s), on);
+    const recorderBad = await recorderFaultToday(c.l, s, act.recorderId, { act: "INSTRUCTION" }, on, so?.office ?? null, c.today, c.tx);
     if (recorderBad) refuse("Not recorded:", [recorderBad]);
     const fs = commenceFaults({ v: factsOf(v), on, today: c.today, soDecidedOn: day(v.soDecidedOn), supporterCapable: !!cap.capacity });
     if (fs.length) refuse("Not recorded:", fs);

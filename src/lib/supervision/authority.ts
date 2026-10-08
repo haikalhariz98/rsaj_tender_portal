@@ -11,8 +11,9 @@
  *   programme's approval is the Principal Representative's (or the S.O.'s).
  * Nobody else is recorded for them.
  *
- * And, since Phase 3d (FR-SUP-004, "communication and instruction actions outside scope are unavailable"), what a delegate is shown: `hiddenActsFor` is the acts a
- * signed-in representative acts outside the scope of, which their screens do not offer. It hides nothing from the S.O., nor from an officer who is no
+ * And, since Phase 3d (FR-SUP-004, "communication and instruction actions outside scope are unavailable"), what a delegate is shown: `hiddenFor` is what a
+ * signed-in representative acts outside the scope of, which their screens do not offer: the acts their letter does not list (`hiddenActsFor`) and the acts that are not on any
+ * letter's list because they are the S.O.'s own, or the Principal Representative's or the S.O.'s (`hiddenNeedsFor`). It hides nothing from the S.O., nor from an officer who is no
  * representative (a clerk entering the S.O.'s paper): the refusal above is theirs. Pure.
  */
 
@@ -86,6 +87,29 @@ export function recorderFault(recorderId: string | null, need: ActNeed, so: SoOf
   return { code: "RECORDER_OUT_OF_SCOPE", level: "block", data: { kind, act: "act" in need ? need.act : null, office: so.roleLabel } };
 }
 
+/// A day the recorder is judged on, with the S.O. office of that day (the holder of the office changes with the roster).
+export interface RecorderDay {
+  so: SoOffice | null;
+  day: Day;
+}
+
+/**
+ * `recorderFault` on every day that matters: the act's own day AND the day it is recorded (the session's today). The act's day comes from the form (a progress report's day, a
+ * measurement's date, a diary entry's day), so judging the recorder on it alone lets a representative back-date an act to before their letter was issued, when they were no
+ * representative, and record what the letter does not cover by naming the S.O. as the Person (review of step 5). A representative in force TODAY is a representative whatever
+ * date the paper bears. The first fault found is returned; the same day twice is judged once. Null: allowed.
+ */
+export function recorderFaultOver(recorderId: string | null, need: ActNeed, days: readonly RecorderDay[], delegations: readonly DelegationFacts[]): Finding<AuthorityFault> | null {
+  const seen = new Set<Day>();
+  for (const d of days) {
+    if (seen.has(d.day)) continue;
+    seen.add(d.day);
+    const fault = recorderFault(recorderId, need, d.so, delegations, d.day);
+    if (fault) return fault;
+  }
+  return null;
+}
+
 /**
  * The acts to leave off the screens of a signed-in person who acts as a representative (FR-SUP-004, Phase 3d, mapped from the session): the acts of `acts` that no
  * delegation of theirs in force on the day lists. They are hidden, not only refused, so the screen of a representative offers what the letter of delegation gives them.
@@ -98,6 +122,29 @@ export function hiddenActsFor(personId: string, so: SoOffice | null, delegations
   const live = delegations.filter((d) => d.delegatePersonId === personId && inForce(d, day));
   if (live.length === 0) return [];
   return acts.filter((a) => !live.some((d) => d.scope.includes(a)));
+}
+
+/// An act left off a representative's screens that is not on the scope list: the S.O.'s own acts, and the acts of the Principal Representative or the S.O.
+export type HiddenNeed = "SO_ONLY" | "PRINCIPAL_OR_SO";
+/// What a screen asks of `hidden`: an act of the scope list, or one of the two needs above.
+export type HiddenAct = SupervisionAct | HiddenNeed;
+
+/**
+ * The acts no letter of delegation can give, left off a representative's screens (FR-SUP-004). `capacityFor` refuses every representative the S.O.'s own acts (`soOnly`), and refuses
+ * the programme's approval and the like (`principalOrSo`) to every representative who has no Principal Representative's delegation in force. Offering those drawers to a representative
+ * is offering what the server will refuse whatever their letter says, so they are hidden by the same conditions: a representative in force on the day, not the S.O. or acting in the office.
+ * Nothing is hidden from the S.O., from a person with no delegation in force, or where the contract has no S.O. resolved.
+ */
+export function hiddenNeedsFor(personId: string, so: SoOffice | null, delegations: readonly DelegationFacts[], day: Day): HiddenNeed[] {
+  if (!so || so.holderIds.includes(personId) || so.actingIds.includes(personId)) return [];
+  const live = delegations.filter((d) => d.delegatePersonId === personId && inForce(d, day));
+  if (live.length === 0) return [];
+  return live.some((d) => d.kind === "PRINCIPAL") ? ["SO_ONLY"] : ["SO_ONLY", "PRINCIPAL_OR_SO"];
+}
+
+/// Everything left off the screens of a signed-in representative: the acts their letter does not list, and the acts no letter can give them.
+export function hiddenFor(personId: string, so: SoOffice | null, delegations: readonly DelegationFacts[], day: Day, acts: readonly SupervisionAct[]): HiddenAct[] {
+  return [...hiddenActsFor(personId, so, delegations, day, acts), ...hiddenNeedsFor(personId, so, delegations, day)];
 }
 
 /// The words a record keeps for the capacity it was recorded in.
