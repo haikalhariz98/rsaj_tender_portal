@@ -58,6 +58,28 @@ export function documentInForce(chain: readonly DocumentFacts[], on: string): Do
   return verified.find((d) => started(d, on)) ?? verified[0] ?? null;
 }
 
+/**
+ * 615-C7: which of these verified documents a LATER link of their chain displaces. `candidates` are verified documents whose own renewal does not displace them (it is
+ * waiting for its check, was found not in order, or starts later), and `later` holds every document that renews one of them, directly or through others. A candidate is
+ * displaced when the document in force of itself and its later links, on `on`, is another one: a chain A (verified), B (waiting), C (verified and started) leaves C in force
+ * and A displaced, which the one-link query for the watched lists could not tell. Pure: it is the register's own rule, `documentInForce`.
+ */
+export function deeperDisplaced(candidates: readonly DocumentFacts[], later: readonly DocumentFacts[], on: string): string[] {
+  const next = new Map(later.filter((d) => d.supersedesId != null).map((d) => [d.supersedesId!, d]));
+  const out: string[] = [];
+  for (const c of candidates) {
+    const chain: DocumentFacts[] = [c];
+    const seen = new Set([c.id]);
+    for (let at = next.get(c.id); at && !seen.has(at.id); at = next.get(at.id)) {
+      chain.push(at);
+      seen.add(at.id);
+    }
+    const inForce = documentInForce(chain, on);
+    if (inForce && inForce.id !== c.id) out.push(c.id);
+  }
+  return out;
+}
+
 export interface TypeStanding {
   state: DocumentState;
   /// The document the state is read from, where there is one.

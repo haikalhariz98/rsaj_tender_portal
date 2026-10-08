@@ -14,6 +14,7 @@ import type { DocumentFacts, DocumentTypeFacts, Provenance, RegistrationValueKin
 import { SUPPLIER_EXPIRY_EVENT } from "./expiry";
 import { REGISTRATION_NO_FORMAT_KEY } from "./types";
 import { cancellationEnded } from "./standing";
+import { deeperDisplaced } from "./documents";
 
 export const supplierOrg = exerciseOrg;
 export type SupplierOrg = NonNullable<Awaited<ReturnType<typeof supplierOrg>>>;
@@ -181,12 +182,46 @@ const OPEN_APPLICATION = { status: { in: ["RECEIVED" as const, "RESUBMISSION_REQ
  * Where a document is the one in force for its type on `today`, as far as one query can tell (residual 1):
  * verified, not "not applicable", and not renewed by a verified renewal whose validity has started (M-3).
  * A renewal lodged and not verified, or verified and starting later, leaves the old one in force, so its
- * expiry still counts. (A chain renewed twice with an unverified link between is read one link deep; the
- * derived reading on the rows loaded is exact.)
+ * expiry still counts.
+ *
+ * 615-C7: that one-link test alone is wrong for a chain renewed twice with an unverified link between (A verified,
+ * B waiting or found not in order, C verified and started): A's own renewal is B, which does not displace it, yet C
+ * does. A query cannot walk a chain, so the documents a deeper link displaces are named by `displacedDocumentIds`
+ * (which decides with the pure `documentInForce`, never in SQL) and passed in as `displaced`.
  */
-export function inForceDocumentWhere(today: string): Prisma.SupplierDocumentWhereInput {
+export function inForceDocumentWhere(today: string, displaced: readonly string[] = []): Prisma.SupplierDocumentWhereInput {
   const T = dayToDate(today);
-  return { verification: "VERIFIED", notApplicable: false, NOT: { renewedBy: { is: { verification: "VERIFIED", OR: [{ validFrom: null }, { validFrom: { lte: T } }] } } } };
+  return {
+    verification: "VERIFIED",
+    notApplicable: false,
+    NOT: { renewedBy: { is: { verification: "VERIFIED", OR: [{ validFrom: null }, { validFrom: { lte: T } }] } } },
+    ...(displaced.length ? { id: { notIn: [...displaced] } } : {}),
+  };
+}
+
+const DISPLACEMENT_FACTS = { id: true, typeId: true, typeLabelSnapshot: true, lodgedOn: true, issuedOn: true, validFrom: true, expiresOn: true, notApplicable: true, verification: true, verifiedOn: true, supersedesId: true } as const;
+
+/**
+ * 615-C7: the verified documents that a LATER link of their chain displaces, which the one-link test of `inForceDocumentWhere` cannot see. The candidates are the verified
+ * documents whose own renewal exists but does not displace them (it is waiting, not in order, or starts later): rare, because each is a renewal still being checked. Each
+ * candidate's later links are read and `documentInForce` decides, so the rule is the register's own, on the whole register (never a page).
+ */
+export async function displacedDocumentIds(organisationId: string, today: string, client: Tx = db): Promise<string[]> {
+  const T = dayToDate(today);
+  const candidates = await client.supplierDocument.findMany({
+    where: { organisationId, verification: "VERIFIED", notApplicable: false, renewedBy: { is: { NOT: { verification: "VERIFIED", OR: [{ validFrom: null }, { validFrom: { lte: T } }] } } } },
+    select: DISPLACEMENT_FACTS,
+  });
+  if (candidates.length === 0) return [];
+  const later: ReturnType<typeof documentFacts>[] = [];
+  let frontier = candidates.map((c) => c.id);
+  // A chain is short; the bound only keeps a corrupt cycle from looping.
+  for (let depth = 0; depth < 100 && frontier.length > 0; depth++) {
+    const next = await client.supplierDocument.findMany({ where: { organisationId, supersedesId: { in: frontier } }, select: DISPLACEMENT_FACTS });
+    later.push(...next.map(documentFacts));
+    frontier = next.map((n) => n.id);
+  }
+  return deeperDisplaced(candidates.map(documentFacts), later, today);
 }
 
 /**
@@ -196,7 +231,7 @@ export function inForceDocumentWhere(today: string): Prisma.SupplierDocumentWher
  * by a reinstatement in effect), a registration cancelled, or, where the lapse rule is set to suspend, a
  * mandatory document in force that has expired.
  */
-export function barredSupplierWhere(organisationId: string, today: string, autoSuspendOnLapse: boolean | null, cancelledIds: readonly string[]): Prisma.SupplierWhereInput {
+export function barredSupplierWhere(organisationId: string, today: string, autoSuspendOnLapse: boolean | null, cancelledIds: readonly string[], displaced: readonly string[] = []): Prisma.SupplierWhereInput {
   const T = dayToDate(today);
   return {
     organisationId,
@@ -207,7 +242,7 @@ export function barredSupplierWhere(organisationId: string, today: string, autoS
       // 615-C2: a cancellation withdrawn as recorded in error never stood. M-1: nor one ended by a later registration, which a
       // query cannot compare across the two rows, so the suppliers are named by `cancelledSupplierIds`, by standing's own rule.
       { id: { in: [...cancelledIds] } },
-      ...(autoSuspendOnLapse === true ? [{ documents: { some: lapsedMandatoryWhere(today) } }] : []),
+      ...(autoSuspendOnLapse === true ? [{ documents: { some: lapsedMandatoryWhere(today, displaced) } }] : []),
     ],
   };
 }
@@ -223,7 +258,7 @@ export async function cancelledSupplierIds(organisationId: string, today: string
 }
 
 /// A mandatory document in force that has expired (the day after its expiry day).
-export const lapsedMandatoryWhere = (today: string): Prisma.SupplierDocumentWhereInput => ({ ...inForceDocumentWhere(today), type: { mandatoryAtRegistration: true }, expiresOn: { lt: dayToDate(today) } });
+export const lapsedMandatoryWhere = (today: string, displaced: readonly string[] = []): Prisma.SupplierDocumentWhereInput => ({ ...inForceDocumentWhere(today, displaced), type: { mandatoryAtRegistration: true }, expiresOn: { lt: dayToDate(today) } });
 
 /**
  * The /suppliers lists, each loading only what it shows (fix R-10, the requisitions' page pattern; residual 1):
@@ -250,10 +285,12 @@ export async function listSuppliers(organisationId: string, page = 0, today: str
   // A page past the end shows the last page.
   const total = await client.supplier.count({ where });
   const at = Math.min(Math.max(0, page), Math.max(0, Math.ceil(total / SUPPLIERS_PAGE) - 1));
-  const expiringDoc: Prisma.SupplierDocumentWhereInput | null = today ? { ...inForceDocumentWhere(today), organisationId: org.id, expiresOn: horizon ? { not: null, lte: dayToDate(horizon) } : { not: null } } : null;
-  const barredWhere = today ? barredSupplierWhere(org.id, today, autoSuspendOnLapse, await cancelledSupplierIds(org.id, today, client)) : null;
+  // 615-C7: the documents a deeper link of a chain displaces, named once and used by every list below.
+  const displaced = today ? await displacedDocumentIds(org.id, today, client) : [];
+  const expiringDoc: Prisma.SupplierDocumentWhereInput | null = today ? { ...inForceDocumentWhere(today, displaced), organisationId: org.id, expiresOn: horizon ? { not: null, lte: dayToDate(horizon) } : { not: null } } : null;
+  const barredWhere = today ? barredSupplierWhere(org.id, today, autoSuspendOnLapse, await cancelledSupplierIds(org.id, today, client), displaced) : null;
   const openRequest: Prisma.SupplierWhereInput = { organisationId: org.id, standingRequests: { some: { event: { is: null }, withdrawnAt: null } } };
-  const lapseUnset: Prisma.SupplierWhereInput | null = today && autoSuspendOnLapse !== true ? { organisationId: org.id, status: "REGISTERED", documents: { some: lapsedMandatoryWhere(today) } } : null;
+  const lapseUnset: Prisma.SupplierWhereInput | null = today && autoSuspendOnLapse !== true ? { organisationId: org.id, status: "REGISTERED", documents: { some: lapsedMandatoryWhere(today, displaced) } } : null;
   const standingWhere: Prisma.SupplierWhereInput | null = barredWhere ? { organisationId: org.id, OR: [barredWhere, openRequest, ...(lapseUnset ? [lapseUnset] : [])] } : null;
   const [suppliers, registered, unsynced, queue, queueTotal, soonest, expiringTotal, barred, requested, lapsed, standingTotal, barredCount] = await Promise.all([
     client.supplier.findMany({

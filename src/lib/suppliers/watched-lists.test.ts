@@ -85,3 +85,14 @@ describe("the lists and the header (source)", () => {
     expect(page).not.toMatch(/barred\(st\.standing\)/);
   });
 });
+
+describe("615-C7: the documents a deeper link displaces", () => {
+  it("with none named the query is exactly as it was; with some, they are left out of 'in force'", () => {
+    expect(inForceDocumentWhere("2026-10-03", [])).toEqual(inForceDocumentWhere("2026-10-03"));
+    expect(inForceDocumentWhere("2026-10-03", ["a"])).toMatchObject({ verification: "VERIFIED", notApplicable: false, id: { notIn: ["a"] } });
+  });
+  it("a lapsed mandatory document and a barred supplier by lapse both apply it", () => {
+    expect(lapsedMandatoryWhere("2026-10-03", ["a"])).toMatchObject({ id: { notIn: ["a"] }, type: { mandatoryAtRegistration: true } });
+    expect(JSON.stringify(barredSupplierWhere("org", "2026-10-03", true, [], ["a"]))).toContain(`"id":{"notIn":["a"]}`);
+  });
+});
