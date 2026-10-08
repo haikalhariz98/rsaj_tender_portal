@@ -29,8 +29,9 @@ const HIGHLIGHT_ICON: Record<SignInIcon, ComponentType<{ size?: number }>> = {
  * panel and one for the tagline, each as strong as it needs to be for white text to keep 4.5:1 over even a pure white pixel (see sign-in-shading.ts), so no
  * photograph an organisation uploads can make the words unreadable.
  *
- * The logo is the organisation's own, never recoloured. With a logo for dark backgrounds it is drawn as it is. Without one the ordinary logo sits on a light
- * translucent backdrop with tight padding, and the page does not try to judge whether it would have read without one.
+ * The logo is the organisation's own, never recoloured. With a logo for dark backgrounds it is drawn as it is. Without one the ordinary logo is drawn with no
+ * box behind it and a soft light halo that follows its outline (`drop-shadow`, which adds light around the mark and changes none of its colours), so dark
+ * lettering still reads on the shaded photograph. A logo for dark backgrounds, such as one in white, reads better still and is the proper fix.
  *
  * On a phone the panel is a short band above the card and carries only the logo, the portal name and the headline.
  */
@@ -40,7 +41,7 @@ export function SignInScreen({ branding, children }: { branding: SignInBranding;
   const shown = darkLogo ?? logo;
   const beside = shown ? showsNameBesideLogo(shown.width, shown.height) : false;
   const logoAlt = view.organisationName ? `${view.organisationName} logo` : "Organisation logo";
-  const logoClass = cx("w-auto object-contain", beside ? "h-14 max-w-40 lg:h-20 lg:max-w-56" : "h-12 max-w-64 lg:h-14");
+  const logoClass = cx("w-auto object-contain", beside ? "h-14 max-w-40 lg:h-28 lg:max-w-72" : "h-12 max-w-64 lg:h-14");
   const showsTagline = !!view.tagline;
   return (
     <div className={view.hasPanel ? "min-h-dvh lg:grid lg:grid-cols-[48fr_52fr]" : "min-h-dvh"}>
@@ -74,10 +75,8 @@ export function SignInScreen({ branding, children }: { branding: SignInBranding;
                     <img src={`/sign-in/image/${darkLogo.sha}`} width={darkLogo.width} height={darkLogo.height} alt={logoAlt} className={logoClass} />
                   ) : (
                     logo && (
-                      <span className="inline-flex rounded-xl bg-white/90 p-1.5 ring-1 ring-white/60 backdrop-blur-md">
-                        {/* eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint */}
-                        <img src={`/organisation/logo/${logo.sha}`} width={logo.width} height={logo.height} alt={logoAlt} className={logoClass} />
-                      </span>
+                      // eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint
+                      <img src={`/organisation/logo/${logo.sha}`} width={logo.width} height={logo.height} alt={logoAlt} className={cx(logoClass, "[filter:drop-shadow(0_0_1px_#fff)_drop-shadow(0_0_5px_rgb(255_255_255/0.95))]")} />
                     )
                   )}
                 </div>
@@ -91,7 +90,7 @@ export function SignInScreen({ branding, children }: { branding: SignInBranding;
                   {view.highlights.map((h) => {
                     const Glyph = HIGHLIGHT_ICON[h.icon ?? "check"];
                     return (
-                      <li key={h.text} className="flex w-[7.5rem] flex-col items-center gap-3 text-center text-[14px] leading-snug font-semibold text-white">
+                      <li key={h.text} className="flex w-[7.5rem] flex-col items-center gap-3 text-center text-[14px] leading-snug font-semibold [overflow-wrap:anywhere] text-white">
                         <span className="grid size-16 shrink-0 place-items-center rounded-full" style={ICON_CIRCLE_STYLE}>
                           <Glyph size={26} />
                         </span>

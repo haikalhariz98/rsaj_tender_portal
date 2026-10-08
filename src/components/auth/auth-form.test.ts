@@ -117,6 +117,74 @@ describe("a refusal is said only until the field is changed", () => {
   });
 });
 
+describe("the form before and while it works", () => {
+  it("says method=post, so a submit before the page's script has run never puts what was typed into the address", () => {
+    const form = mount(refuseEmpty);
+    expect(form.host.querySelector("form")!.getAttribute("method")).toBe("post");
+  });
+
+  it("moves focus to the first field the refusal names, in the order the fields are declared", async () => {
+    const form = mount(refuseEmpty);
+    form.input("password").focus();
+    await form.submit();
+    expect(document.activeElement).toBe(form.input("loginName"));
+
+    autofill(form.input("loginName"), "someone");
+    form.input("password").focus();
+    await form.submit();
+    expect(document.activeElement).toBe(form.input("password"));
+  });
+
+  it("moves focus to the message when the refusal names no field, and a keystroke afterwards moves nothing", async () => {
+    const form = mount(() => ({ ok: false, message: "Sign-in failed." }));
+    form.input("loginName").value = "someone";
+    form.input("password").value = "wrong-password";
+    await form.submit();
+    const message = form.host.querySelector<HTMLElement>("[tabindex='-1']")!;
+    expect(message.textContent).toContain("Sign-in failed.");
+    expect(document.activeElement).toBe(message);
+
+    form.input("loginName").focus();
+    autofill(form.input("loginName"), "someone.else");
+    expect(document.activeElement).toBe(form.input("loginName"));
+  });
+
+  it("keeps focus on the field while an attempt is in flight: read-only and aria-disabled, never disabled; the label stays and a spinner shows", async () => {
+    let finish: (s: FormState) => void = () => {};
+    const action = vi.fn(() => new Promise<FormState>((resolve) => (finish = resolve)));
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => root!.render(createElement(AuthForm, { action, fields: FIELDS, submitLabel: "Sign in", busyLabel: "Signing in…" })));
+    const password = host.querySelector<HTMLInputElement>('input[name="password"]')!;
+    password.focus();
+    password.value = "a-long-password";
+    host.querySelector<HTMLInputElement>('input[name="loginName"]')!.value = "someone";
+    await act(async () => {
+      host.querySelector("form")!.requestSubmit();
+    });
+    const button = host.querySelector<HTMLButtonElement>("button[type=submit]")!;
+    expect(password.readOnly).toBe(true);
+    expect(password.disabled).toBe(false);
+    expect(document.activeElement).toBe(password);
+    expect(button.disabled).toBe(false);
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    expect(button.textContent).toBe("Sign in");
+    expect(button.querySelector("svg")).not.toBeNull();
+
+    // Enter again while it works: still one attempt.
+    await act(async () => {
+      host.querySelector("form")!.requestSubmit();
+    });
+    expect(action).toHaveBeenCalledTimes(1);
+
+    await act(async () => finish({ ok: false, message: "Sign-in failed." }));
+    expect(password.readOnly).toBe(false);
+    expect(button.getAttribute("aria-busy")).toBeNull();
+  });
+});
+
 describe("withoutError", () => {
   it("drops one field's answer and keeps the rest", () => {
     const s: FormState = { ok: false, errors: { a: "A is needed.", b: "B is needed." } };

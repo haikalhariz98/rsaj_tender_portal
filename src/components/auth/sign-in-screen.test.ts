@@ -40,16 +40,18 @@ describe("the logo on the sign-in page's panel", () => {
     expect(out).not.toContain("bg-white/90");
   });
 
-  it("without one: the ordinary logo on a light translucent backdrop, and no white chip", () => {
+  it("without one: the ordinary logo with no box behind it, only a light halo that follows its outline", () => {
     const out = html({ logo: LOGO, darkLogo: null });
     expect(out).toContain(`/organisation/logo/${SHA_LOGO}`);
-    expect(out).toMatch(/<span class="[^"]*bg-white\/90[^"]*backdrop-blur[^"]*"><img[^>]*organisation\/logo/);
-    expect(out).not.toMatch(/class="[^"]*\bbg-white\b(?!\/)[^"]*"[^>]*><img/);
+    expect(out).not.toMatch(/bg-white|backdrop-blur|ring-white/);
+    expect(out).toMatch(/<img[^>]*organisation\/logo[^>]*drop-shadow/);
+    expect(out).toMatch(/drop-shadow[^"]*drop-shadow/);
   });
 
   it("never recolours the logo", () => {
-    const out = html({ logo: LOGO, darkLogo: null });
-    expect(out).not.toMatch(/brightness-|invert|grayscale|filter:/);
+    for (const out of [html({ logo: LOGO, darkLogo: null }), html({ logo: LOGO, darkLogo: DARK })]) {
+      expect(out).not.toMatch(/brightness-|invert|grayscale|sepia|hue-rotate|contrast-|mix-blend/);
+    }
   });
 
   it("with neither: no logo is drawn at all", () => {
@@ -60,6 +62,11 @@ describe("the logo on the sign-in page's panel", () => {
 });
 
 describe("the highlights", () => {
+  it("let a long word break inside its column instead of running into the next icon", () => {
+    const out = html({ settings: { highlight1: "Kebertanggungjawaban", highlight1Icon: "document" } });
+    expect(out).toMatch(/<li[^>]*\[overflow-wrap:anywhere\][^>]*>/);
+  });
+
   it("draw a drawing in a round icon beside each, and the neutral tick where no icon was chosen", () => {
     const out = html({});
     // Three round icons, one per highlight.

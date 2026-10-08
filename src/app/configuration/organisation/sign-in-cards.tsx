@@ -1,16 +1,14 @@
 "use client";
 
-import { useActionState, useState } from "react";
-
 import { RecordEditor, type Field } from "@/components/record-editor";
-import { Button, buttonClass } from "@/components/ui/button";
+import { buttonClass } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
-import { Field as FormField, FileInput } from "@/components/ui/field";
 import { KeyValues } from "@/components/ui/stat";
 import { LOGO_MAX_BYTES, SIGN_IN_IMAGE_MAX_BYTES, SIGN_IN_IMAGE_SUGGESTED_WIDTH } from "@/lib/organisation/logo-limits";
 import { SIGN_IN_ICON_LABEL, SIGN_IN_ICONS, SIGN_IN_LABEL, signInIconOf, type SignInField, type SignInPageSettings } from "@/lib/organisation/sign-in-page";
 
+import { IMAGE_TYPE as TYPE, ImageUploadCard } from "./logo-card";
 import { removeDarkLogo, removeSignInImage, saveSignInPage, uploadDarkLogo, uploadSignInImage } from "./sign-in-actions";
 
 export interface SignInImageInfo {
@@ -24,17 +22,16 @@ export interface SignInImageInfo {
 
 export type SignInDarkLogoInfo = SignInImageInfo;
 
-const TYPE = { "image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WebP" } as Record<string, string>;
-
 const NOT_SET = <span className="text-ink-4">Not set</span>;
 
 /// The sign-in page: its picture and its words, each the organisation's own and each optional. Unset is said, never shown as blank.
 export function SignInPageCards({ image, darkLogo, settings }: { image: SignInImageInfo | null; darkLogo: SignInDarkLogoInfo | null; settings: SignInPageSettings }) {
   return (
     <>
+      {/* The logo for dark backgrounds comes first, so it sits directly under the Logo card it belongs with. */}
+      <SignInDarkLogoCard darkLogo={darkLogo} />
       <SignInWordsCard settings={settings} />
       <SignInImageCard image={image} />
-      <SignInDarkLogoCard darkLogo={darkLogo} />
     </>
   );
 }
@@ -101,35 +98,28 @@ function SignInWordsCard({ settings }: { settings: SignInPageSettings }) {
 }
 
 function SignInImageCard({ image }: { image: SignInImageInfo | null }) {
-  const [state, action, pending] = useActionState(uploadSignInImage, { ok: false });
-  const [tooBig, setTooBig] = useState<string | null>(null);
-  const [chosen, setChosen] = useState(false);
-  const error = tooBig ?? state.errors?.signInImage;
   const src = image ? `/sign-in/image/${image.sha}` : null;
-
   return (
-    <Card>
-      <CardHeader
-        title="Sign-in page: picture"
-        subtitle="The picture on the left of the sign-in page. The organisation's logo, above, is drawn over it."
-        actions={
-          image ? (
-            <RecordEditor
-              title="Remove the sign-in picture"
-              description="The left side of the sign-in page is drawn in the product's own colours until another picture is uploaded."
-              fields={[]}
-              action={removeSignInImage}
-              destructive={{ reasonLabel: "Why is the picture being removed?" }}
-              submitLabel="Remove picture"
-              cancelLabel="Keep the picture"
-              trigger={{ label: "Remove picture", className: buttonClass("ghost", "sm") }}
-              size="sm"
-            />
-          ) : undefined
-        }
-      />
-      <CardBody className="flex flex-col gap-5">
-        {image && src ? (
+    <ImageUploadCard
+      title="Sign-in page: picture"
+      subtitle="The picture on the left of the sign-in page. The organisation's logo, above, is drawn over it."
+      remove={
+        image ? (
+          <RecordEditor
+            title="Remove the sign-in picture"
+            description="The left side of the sign-in page is drawn in the product's own colours until another picture is uploaded."
+            fields={[]}
+            action={removeSignInImage}
+            destructive={{ reasonLabel: "Why is the picture being removed?" }}
+            submitLabel="Remove picture"
+            cancelLabel="Keep the picture"
+            trigger={{ label: "Remove picture", className: buttonClass("ghost", "sm") }}
+            size="sm"
+          />
+        ) : undefined
+      }
+      current={
+        image && src ? (
           <div className="flex flex-col gap-3">
             <div className="max-w-xl overflow-hidden rounded-2xl border border-line bg-sunken">
               {/* eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint */}
@@ -141,71 +131,45 @@ function SignInImageCard({ image }: { image: SignInImageInfo | null }) {
           </div>
         ) : (
           <p className="text-[13.5px] text-ink-3">No picture. The left side of the sign-in page is drawn in the product&rsquo;s own colours.</p>
-        )}
-
-        <form action={action} className="flex flex-col gap-3">
-          <FormField
-            label={image ? "Replace the picture" : "Upload a picture"}
-            htmlFor="signInImage"
-            error={error}
-            hint={`PNG, JPEG or WebP, up to ${SIGN_IN_IMAGE_MAX_BYTES / 1024} KB (a technical limit). At least ${SIGN_IN_IMAGE_SUGGESTED_WIDTH} px wide is suggested. Words and logos are better added above than baked into the picture. SVG is not accepted.`}
-          >
-            <FileInput
-              id="signInImage"
-              name="signInImage"
-              accept="image/png,image/jpeg,image/webp"
-              aria-invalid={!!error}
-              onChange={(e) => {
-                const f = e.currentTarget.files?.[0];
-                setChosen(!!f);
-                setTooBig(f && f.size > SIGN_IN_IMAGE_MAX_BYTES ? `The image is ${Math.ceil(f.size / 1024)} KB. The limit is ${SIGN_IN_IMAGE_MAX_BYTES / 1024} KB.` : null);
-              }}
-            />
-          </FormField>
-          <div>
-            <Button type="submit" variant="primary" size="sm" disabled={pending || !!tooBig || !chosen}>
-              {pending ? "Uploading…" : image ? "Replace picture" : "Upload picture"}
-            </Button>
-          </div>
-          {state.ok && state.message && <Callout tone="ok">{state.message}</Callout>}
-          {!state.ok && state.message && <Callout tone="err">{state.message}</Callout>}
-        </form>
-      </CardBody>
-    </Card>
+        )
+      }
+      field={{
+        name: "signInImage",
+        label: image ? "Replace the picture" : "Upload a picture",
+        hint: `PNG, JPEG or WebP, up to ${SIGN_IN_IMAGE_MAX_BYTES / 1024} KB (a technical limit). At least ${SIGN_IN_IMAGE_SUGGESTED_WIDTH} px wide is suggested. Words and logos are better added above than baked into the picture. SVG is not accepted.`,
+        maxBytes: SIGN_IN_IMAGE_MAX_BYTES,
+        noun: "image",
+      }}
+      action={uploadSignInImage}
+      submitLabel={image ? "Replace picture" : "Upload picture"}
+    />
   );
 }
 
 /// The organisation's logo for the dark, shaded left side of the sign-in page. Optional. Unset is said, with what the page shows instead.
 function SignInDarkLogoCard({ darkLogo }: { darkLogo: SignInDarkLogoInfo | null }) {
-  const [state, action, pending] = useActionState(uploadDarkLogo, { ok: false });
-  const [tooBig, setTooBig] = useState<string | null>(null);
-  const [chosen, setChosen] = useState(false);
-  const error = tooBig ?? state.errors?.darkLogo;
   const src = darkLogo ? `/sign-in/image/${darkLogo.sha}` : null;
-
   return (
-    <Card>
-      <CardHeader
-        title="Sign-in page: logo for dark backgrounds"
-        subtitle="Optional. A version of your logo that reads on the shaded left side of the sign-in page, such as one in white. It is shown as it is, with no backdrop."
-        actions={
-          darkLogo ? (
-            <RecordEditor
-              title="Remove the logo for dark backgrounds"
-              description="The sign-in page shows your ordinary logo on a light backdrop again."
-              fields={[]}
-              action={removeDarkLogo}
-              destructive={{ reasonLabel: "Why is the logo for dark backgrounds being removed?" }}
-              submitLabel="Remove logo"
-              cancelLabel="Keep the logo"
-              trigger={{ label: "Remove logo", className: buttonClass("ghost", "sm") }}
-              size="sm"
-            />
-          ) : undefined
-        }
-      />
-      <CardBody className="flex flex-col gap-5">
-        {darkLogo && src ? (
+    <ImageUploadCard
+      title="Sign-in page: logo for dark backgrounds"
+      subtitle="Optional. A version of your logo that reads on the shaded left side of the sign-in page, such as one in white, cropped close to the mark. It is shown as it is."
+      remove={
+        darkLogo ? (
+          <RecordEditor
+            title="Remove the logo for dark backgrounds"
+            description="The sign-in page shows your ordinary logo, with a soft light halo, again."
+            fields={[]}
+            action={removeDarkLogo}
+            destructive={{ reasonLabel: "Why is the logo for dark backgrounds being removed?" }}
+            submitLabel="Remove logo"
+            cancelLabel="Keep the logo"
+            trigger={{ label: "Remove logo", className: buttonClass("ghost", "sm") }}
+            size="sm"
+          />
+        ) : undefined
+      }
+      current={
+        darkLogo && src ? (
           <div className="flex flex-col gap-3">
             <div className="flex h-28 max-w-xl items-center justify-center rounded-2xl bg-ink p-4">
               {/* eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint */}
@@ -216,37 +180,18 @@ function SignInDarkLogoCard({ darkLogo }: { darkLogo: SignInDarkLogoInfo | null 
             </p>
           </div>
         ) : (
-          <Callout tone="info">Logo for dark backgrounds: not set &mdash; the sign-in page shows your logo on a light backdrop.</Callout>
-        )}
-
-        <form action={action} className="flex flex-col gap-3">
-          <FormField
-            label={darkLogo ? "Replace the logo for dark backgrounds" : "Upload a logo for dark backgrounds"}
-            htmlFor="darkLogo"
-            error={error}
-            hint={`PNG, JPEG or WebP, up to ${LOGO_MAX_BYTES / 1024} KB (a technical limit). Use a file with a transparent background. SVG is not accepted.`}
-          >
-            <FileInput
-              id="darkLogo"
-              name="darkLogo"
-              accept="image/png,image/jpeg,image/webp"
-              aria-invalid={!!error}
-              onChange={(e) => {
-                const f = e.currentTarget.files?.[0];
-                setChosen(!!f);
-                setTooBig(f && f.size > LOGO_MAX_BYTES ? `The logo is ${Math.ceil(f.size / 1024)} KB. The limit is ${LOGO_MAX_BYTES / 1024} KB.` : null);
-              }}
-            />
-          </FormField>
-          <div>
-            <Button type="submit" variant="primary" size="sm" disabled={pending || !!tooBig || !chosen}>
-              {pending ? "Uploading…" : darkLogo ? "Replace logo" : "Upload logo"}
-            </Button>
-          </div>
-          {state.ok && state.message && <Callout tone="ok">{state.message}</Callout>}
-          {!state.ok && state.message && <Callout tone="err">{state.message}</Callout>}
-        </form>
-      </CardBody>
-    </Card>
+          <Callout tone="info">Logo for dark backgrounds: not set &mdash; the sign-in page shows your ordinary logo with a soft light halo, which reads less clearly if its lettering is dark.</Callout>
+        )
+      }
+      field={{
+        name: "darkLogo",
+        label: darkLogo ? "Replace the logo for dark backgrounds" : "Upload a logo for dark backgrounds",
+        hint: `PNG, JPEG or WebP, up to ${LOGO_MAX_BYTES / 1024} KB (a technical limit). Use a file with a transparent background. SVG is not accepted.`,
+        maxBytes: LOGO_MAX_BYTES,
+        noun: "logo",
+      }}
+      action={uploadDarkLogo}
+      submitLabel={darkLogo ? "Replace logo" : "Upload logo"}
+    />
   );
 }

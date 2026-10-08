@@ -379,3 +379,11 @@ export const ShieldCheckIcon = (p: IconProps) => (
     <path d="m9 12 2.2 2.2L15.5 10" />
   </Icon>
 );
+
+/// A busy spinner: a ring with a quarter that turns. Still under `prefers-reduced-motion`, where the quarter alone says "working".
+export const SpinnerIcon = (p: IconProps) => (
+  <Icon {...p} className={`animate-spin motion-reduce:animate-none ${p.className ?? ""}`}>
+    <circle cx="12" cy="12" r="9" opacity="0.25" />
+    <path d="M21 12a9 9 0 0 0-9-9" />
+  </Icon>
+);
