@@ -200,6 +200,8 @@ model Organisation {
   orgUnits        OrgUnit[]
   auditEntries    AuditEntry[]
   sulitAccessEvents SulitAccessEvent[]
+  reportingLines ReportingLine[]
+  staffNotices StaffNotice[]
   staffAccounts   StaffAccount[]
   staffSessions   StaffSession[]
   oneTimeCodes    OneTimeCode[]
@@ -652,6 +654,10 @@ model Person {
   configurationChangesDecided  ConfigurationChange[] @relation("ChangeDecidedBy")
   // Phase 3a (ADR 0034 D14): the SULIT values this person was shown or refused.
   sulitAccessEvents            SulitAccessEvent[]
+  reportingLinesAsSubordinate  ReportingLine[]         @relation("ReportingLineSubordinate")
+  reportingLinesAsSuperior     ReportingLine[]         @relation("ReportingLineSuperior")
+  staffNotices                 StaffNotice[]           @relation("StaffNoticeRecipient")
+  staffNoticesRaised           StaffNotice[]           @relation("StaffNoticeRaisedBy")
   documentAccessEvents         DocumentAccessEvent[] @relation("DocumentAccessActor")
 }
 
@@ -1125,6 +1131,10 @@ model CommitteeDecision {
   /// kept, and the matter is left out of the votes, the quorum and the minuting.
   withdrawnAt     DateTime?
   withdrawnReason String    @default("")
+
+  /// FR-CTE-009 (Phase 3c): what became of the not-approved memo when a NOT_CARRIED outcome was recorded. Null: nothing is recorded (decided before the
+  /// memo was issued in the portal, or not a NOT_CARRIED outcome). Values: `MEMO_STATES`, src/lib/committee/memo.ts (CHECK in the migration).
+  memoState String?
 
   /// Who tabled the matter, and when. An attestation, not an authenticated act (Phase 3d
   /// makes the tabler the signed-in actor).
@@ -11246,4 +11256,72 @@ model SulitAccessEvent {
   @@index([organisationId, at])
   @@index([entity, entityId])
   @@index([actorPersonId, at])
+}
+
+/// Who a person reports to (FR-APR-010, FR-APR-011), for a period. Configuration per organisation, and it ships EMPTY: the sources name no reporting
+/// line, so none is assumed, and nothing derives one from a unit's head. A person with no row on a day has an unset line, and the product says
+/// "reporting line not set" rather than promote a step to a guess. A row with no superior records that the person is the head of their line
+/// (nobody above them), which is a recorded fact and not the same as no row.
+model ReportingLine {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  personId String
+  person   Person @relation("ReportingLineSubordinate", fields: [personId], references: [id], onDelete: Restrict)
+  /// Null: recorded as having no superior. CHECK: never the person themself.
+  superiorPersonId String?
+  superior         Person? @relation("ReportingLineSuperior", fields: [superiorPersonId], references: [id], onDelete: Restrict)
+
+  /// Effective-dated like an assignment: the end day is not included.
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  provenance Provenance @default(ASSUMED)
+  note       String     @default("")
+  createdAt  DateTime   @default(now())
+
+  @@index([organisationId, personId, effectiveFrom])
+  @@index([superiorPersonId])
+}
+
+/// What the staff inbox holds (Phase 3c): a notice delivered in the portal, to a Person. Email is not connected (INT-09), so every notice is
+/// "shown in the portal; not sent": that is a fact about the product and is said on the screen, not stored per row. A notice carries labels
+/// and words, never an amount (it must not give away a SULIT value), and names the exercise it concerns where it concerns one, so that a
+/// restricted exercise's notices are hidden from anyone not named on it (FR-MTD-007). Written by the act that causes it, in that act's
+/// transaction, and never twice: a retried act writes nothing new (the unique key). Only `readAt` ever changes (trigger).
+model StaffNotice {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  recipientPersonId String
+  recipient         Person @relation("StaffNoticeRecipient", fields: [recipientPersonId], references: [id], onDelete: Restrict)
+
+  /// What happened (`STAFF_NOTICE_KINDS`, src/lib/inbox/kinds.ts). A configuration key, never rendered.
+  kind String
+  /// The record it is about (its model and id) and which occurrence of the event this is, so that a repeat of the same event on the same record
+  /// (a second escalation) is another notice and a retry of one is not.
+  subjectEntity String
+  subjectId     String
+  occurrence    String @default("")
+
+  /// The sourcing exercise it concerns, where it concerns one: a notice about a restricted exercise is hidden from those not named on it.
+  exerciseId String?
+
+  title String
+  body  String
+  /// Where it opens. A path in this application, or null.
+  href  String?
+
+  /// Who caused it: the signed-in person, or null where the system did (a loader run).
+  raisedByPersonId String?
+  raisedBy         Person? @relation("StaffNoticeRaisedBy", fields: [raisedByPersonId], references: [id], onDelete: Restrict)
+  raisedAt         DateTime @default(now())
+
+  readAt DateTime?
+
+  @@unique([organisationId, recipientPersonId, kind, subjectEntity, subjectId, occurrence])
+  @@index([recipientPersonId, readAt, raisedAt])
+  @@index([organisationId, subjectEntity, subjectId])
 }
