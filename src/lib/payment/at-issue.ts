@@ -8,6 +8,8 @@
  * - Before the contract is signed, only certificates up to the limit frozen when it was raised, and only with the
  *   letter returned, the bond and every policy verified, every policy's premium receipt and the PERKESO number
  *   recorded, as the registers stand now.
+ * - A payment to the main contractor issues only to a contractor whose bank details an officer has checked (BD-613-44: the latest checked version of its creditor profile, read in this
+ *   transaction), for an interim certificate and for an advance payable to the main contractor.
  * Any other kind: nothing here.
  */
 
@@ -17,7 +19,8 @@ import { formatMoney, senFromDecimal } from "@/lib/money";
 
 import { advanceIssueFaults, advancesMovedFaults } from "./advance";
 import { readJudgedUnder } from "./assemble";
-import { preExecutionFaults } from "./eligibility";
+import { creditorFaults, preExecutionFaults } from "./eligibility";
+import { creditorFactsOf } from "./creditor-store";
 import { paymentRefusal } from "./labels";
 import { baselineOn, basisNamesOf, inProgressSequenceOf, issuedAdjustmentsOf, ladBasisOf, loadPayment, nextInterimSequence, preExecutionFacts } from "./load";
 import { ladBasisMoved } from "@/lib/lad/frozen";
@@ -28,10 +31,12 @@ import type { Finding } from "./types";
 export async function issueRefusal(tx: Tx, l: LoadedContract, cert: { id: string; kind: string }, sequence: number, today?: string): Promise<string | null> {
   if (cert.kind === "ADVANCE_PAYMENT") {
     // Residual MUST 3: no row on or before the interim sequence issued or in progress.
-    const adv = await tx.advancePayment.findUnique({ where: { certificateId: cert.id }, select: { schedule: { select: { sequence: true, amount: true } } } });
+    const adv = await tx.advancePayment.findUnique({ where: { certificateId: cert.id }, select: { party: true, schedule: { select: { sequence: true, amount: true } } } });
     if (!adv) return null;
     const p = await loadPayment(l.contract.id, tx);
-    const fs = advanceIssueFaults(adv.schedule.map((r) => ({ sequence: r.sequence, amount: senFromDecimal(r.amount) })), nextInterimSequence(p) - 1, inProgressSequenceOf(p));
+    const fs: Finding[] = advanceIssueFaults(adv.schedule.map((r) => ({ sequence: r.sequence, amount: senFromDecimal(r.amount) })), nextInterimSequence(p) - 1, inProgressSequenceOf(p));
+    // An advance to a nominated sub-contractor goes to a party the register does not link (ContractParty names no supplier): only the main contractor's is judged here.
+    if (adv.party === "MAIN") fs.push(...creditorFaults(await creditorFactsOf(tx, l.org.id, l.award.vendorId)));
     return fs.length ? paymentRefusal("Not issued:", fs) : null;
   }
   if (cert.kind !== "INTERIM_PAYMENT") return null;
@@ -42,6 +47,8 @@ export async function issueRefusal(tx: Tx, l: LoadedContract, cert: { id: string
   else if (j.sequence !== sequence) fs.push({ code: "SEQUENCE_MOVED", level: "block", data: { expected: j.sequence, allocated: sequence } });
   else {
     fs.push(...preExecutionFaults(sequence, { ...(await preExecutionFacts(l, tx)), limit: j.preExecution.limit }, "block"));
+    // BD-613-44: the contractor's bank details must have been checked by an officer.
+    fs.push(...creditorFaults(await creditorFactsOf(tx, l.org.id, l.award.vendorId)));
     // The advances its recoupment was worked out from must still be the issued set (code review run 2, item 2).
     const issued = await tx.advancePayment.findMany({ where: { contractId: l.contract.id, certificate: { is: { status: "ISSUED" } } }, select: { id: true, party: true, amount: true, contractParty: { select: { name: true } } } });
     fs.push(...advancesMovedFaults(j.advancesRead ?? [], issued.map((a) => ({ id: a.id, label: `the advance to ${a.party === "MAIN" ? "the main contractor" : (a.contractParty?.name ?? "a nominated sub-contractor")} of ${formatMoney(senFromDecimal(a.amount))}` }))));

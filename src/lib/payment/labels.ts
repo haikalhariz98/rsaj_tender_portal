@@ -11,6 +11,7 @@ import { ladFaultWords } from "@/lib/lad/labels";
 import { formatSen } from "@/lib/money";
 
 import type { AdvanceParty, ContractClock, ContractorAnswer, Finding, KeyedDeductionKind, NonCompletionOutcome, NonCompletionScope, PackItem, PaymentRouteFigure, RetentionRelease, RetentionTier, ValuationStatus, ValuationTrigger, WaterfallRemainder } from "./types";
+import { creditorStandingWords } from "./creditor";
 import type { MaterialVerdict } from "./materials";
 import type { OpeningGroup } from "./opening";
 
@@ -265,6 +266,13 @@ export function paymentFaultWords(f: Finding): Words {
       return w(f.level === "warn" ? "The contract is not signed, and how many interim certificates may issue before it is signed is not set under Configuration › Post-award: as things stand, this certificate could not be issued." : "This certificate was raised when no limit on certificates before the contract is signed was set, so it cannot be issued until the contract is executed. Execute the contract, or void the certificate and raise it again once the limit is set.", "Kontrak belum ditandatangani dan had perakuan sebelum pelaksanaan tidak ditetapkan.");
     case "CONTRACT_NOT_SIGNED":
       return w(`Interim certificate ${s(d.sequence, "this")} cannot be issued before the formal contract is signed: ${Number(d.limit) === 0 ? "none may be" : `only certificates up to ${s(d.limit, "the limit")} may be`}. ${f.level === "warn" ? "It may be raised; it issues once the contract is executed." : "Execute the contract first."}`, `Perakuan interim ${s(d.sequence, "ini")} tidak boleh dikeluarkan sebelum kontrak rasmi ditandatangani.`);
+    // ------------------------------------------------ bank details (BD-613-44)
+    case "CREDITOR_NOT_VERIFIED": {
+      const standing = creditorStandingWords({ state: "NONE", reason: d.reason === "AWAITING_CHECK" || d.reason === "NOT_IN_ORDER" ? d.reason : "NOT_ENTERED" });
+      return w(`${standing.en} Have the contractor enter its bank details in its registration, and an officer check them, then issue the certificate again.`, `${standing.ms} Minta kontraktor memasukkan butiran banknya dalam pendaftarannya, dan seorang pegawai menyemaknya, kemudian keluarkan perakuan sekali lagi.`);
+    }
+    case "CONTRACTOR_NOT_ON_REGISTER":
+      return w("The contractor is not linked to the supplier register, so there are no checked bank details to pay to. Link the award to its supplier on the award's page, then issue the certificate again.", "Kontraktor tidak dipautkan kepada daftar pembekal, jadi tiada butiran bank yang telah disemak untuk dibayar. Pautkan anugerah kepada pembekalnya pada halaman anugerah, kemudian keluarkan perakuan sekali lagi.");
     case "PRE_EXECUTION_GATE": {
       const g = GATE[String(d.item)] ?? GATE.RETURNED;
       return w(`Before the contract is signed, a certificate is issued only with ${g.en}.`, `Sebelum kontrak ditandatangani, perakuan dikeluarkan hanya dengan ${g.ms}.`);
