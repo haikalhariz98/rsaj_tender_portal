@@ -310,7 +310,7 @@ function CellView({ cell, nowrap = false }: { cell: Cell | undefined; nowrap?: b
     case "meter":
       return <Meter percent={cell.percent} threshold={cell.threshold} />;
     case "withheld":
-      return <SulitWithheld words={cell.words} />;
+      return <SulitWithheld words={cell.words} compact />;
     case "chips":
       return cell.items.length === 0 ? (
         dash

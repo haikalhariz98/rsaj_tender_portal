@@ -116,7 +116,7 @@ function Withheld({ v, s, words }: { v: EvaluationTabView; s: EvaluationSurface;
       <Card>
         <CardHeader icon={<ShieldIcon size={17} />} title="The evaluation" subtitle="Scores, prices, the ranking, what was said to a tenderer and the recommendation are SULIT." />
         <CardBody>
-          <SulitWithheld words={words} />
+          <SulitWithheld words={words} compact />
           <p className="mt-2 text-[13px] text-ink-3">{words}</p>
           {s.report.issued && <p className="mt-2 text-[13px] text-ink-3">{`The report is issued as ${s.report.issued.reference}.`}</p>}
         </CardBody>

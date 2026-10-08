@@ -72,7 +72,7 @@ export default async function ProposalPrint(props: PageProps<"/sourcing/[id]/eva
         <p className="mb-4 flex flex-wrap items-center gap-2 text-[12px] text-ink-3"><SulitTag /></p>
         {textWithheld ? (
           <div className="flex flex-col gap-2 text-[13.5px] text-ink-3">
-            <SulitWithheld words={textWithheld} />
+            <SulitWithheld words={textWithheld} compact />
             <p>{textWithheld}</p>
           </div>
         ) : (

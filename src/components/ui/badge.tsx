@@ -136,12 +136,15 @@ export function SulitTag({ className }: { className?: string }) {
 
 /// What stands where a SULIT value is withheld from the reader: the lock and "SULIT · withheld", with the reason in words as the tooltip and to a
 /// screen reader. Never the value, never a placeholder shaped like one.
-export function SulitWithheld({ words, className }: { words: string; className?: string }) {
+///
+/// `compact` is for a place that says the reason itself (a list cell, whose column header carries the sentence once; a card that prints it beside): the reason stays in the
+/// tooltip, and a screen reader is not read the same sentence again for every row.
+export function SulitWithheld({ words, className, compact }: { words: string; className?: string; compact?: boolean }) {
   return (
     <span title={words} className={cx("inline-flex items-center gap-1.5 text-[12.5px] font-medium whitespace-nowrap text-ink-3", className)}>
       <LockIcon size={13} strokeWidth={2} />
       <span>SULIT · withheld</span>
-      <span className="sr-only">{words}</span>
+      {!compact && <span className="sr-only">{words}</span>}
     </span>
   );
 }

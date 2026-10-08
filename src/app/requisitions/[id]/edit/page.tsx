@@ -46,13 +46,13 @@ export default async function EditRequisitionPage(props: PageProps<"/requisition
     <>
       <RecordCrumb label={r.reference} />
       <PageHeader eyebrow={<Link href={`/requisitions/${id}`}>{r.reference}</Link>} title={`Edit ${r.title}`} subtitle="Only a draft can be edited." />
-      {estimate.state === "WITHHELD" ? (
-        <Callout tone="warn" title="The department estimate is SULIT and is closed to you">
-          Editing a requisition changes its estimate, so it is open only to those who may read it. {estimate.words.en}
-        </Callout>
-      ) : r.status !== "DRAFT" ? (
+      {r.status !== "DRAFT" ? (
         <Callout tone="warn" title="This requisition is no longer a draft">
           Its fields are fixed once it is endorsed. {backToDraft(r.status)}
+        </Callout>
+      ) : estimate.state === "WITHHELD" ? (
+        <Callout tone="warn" title="The department estimate is SULIT and is closed to you">
+          Editing a requisition changes its estimate, so it is open only to those who may read it. {estimate.words.en}
         </Callout>
       ) : (
         <>

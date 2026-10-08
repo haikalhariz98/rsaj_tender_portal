@@ -66,7 +66,7 @@ export default async function EvaluationReportPrint(props: PageProps<"/sourcing/
         <PageHeader eyebrow={<Link href={back}>Back to the report</Link>} title="Evaluation report" />
         <Card>
           <EmptyState title="The report is SULIT and is withheld from you" action={<ButtonLink href={back} variant="secondary" size="sm">Back to the report</ButtonLink>}>
-            <SulitWithheld words={gate.words.en} />
+            <SulitWithheld words={gate.words.en} compact />
             <span className="mt-2 block">{gate.words.en}</span>
           </EmptyState>
         </Card>
