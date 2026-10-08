@@ -30,6 +30,7 @@ import { ORGANISATION_CODE } from "../src/lib/org";
 import { calendarOf } from "./demo-window";
 import { DEMO_ACTOR } from "./demo-actor";
 import { demoOrgId } from "./demo-org";
+import { DEMO_DIAL_CODES, STEP_ONE_LISTS } from "./demo-step-one";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -56,6 +57,7 @@ const LISTS = [
   { id: `${P}slv3`, list: "ENTITY_TYPE" as const, code: "sole_proprietor", nameEn: "Sole proprietor", nameMs: "Pemilikan tunggal", sortOrder: 3 },
   { id: `${P}slv4`, list: "COUNTRY" as const, code: "demo_home", nameEn: "Demo Country", nameMs: "Negara Demo", sortOrder: 1 },
   { id: `${P}slv5`, list: "COUNTRY" as const, code: "demo_abroad", nameEn: "Another Demo Country", nameMs: "Negara Demo Lain", sortOrder: 2 },
+  ...STEP_ONE_LISTS.map((l) => ({ ...l })),
 ];
 
 const VALUES = [
@@ -99,9 +101,12 @@ export async function configureSuppliersDemo(db: Db, organisationId: string) {
   let n = 0;
   const entry = (entity: string, entityId: string, entityLabel: string, action: Entry["action"], when: Date, changes: object[], reason = "") => trail.push({ id: `${P}vcau${++n}`, organisationId, entity, entityId, entityLabel, action, at: when, changes, reason, ...DEMO_ACTOR });
 
+  const KIND_WORDS = { ENTITY_TYPE: "Entity type", COUNTRY: "Country", STATE: "State", BUMIPUTERA_STATUS: "Bumiputera status" } as const;
   for (const [i, l] of LISTS.entries()) {
-    await db.supplierListValue.create({ data: { ...l, organisationId, provenance: "ASSUMED" } });
-    entry("SupplierListValue", l.id, `${l.list === "ENTITY_TYPE" ? "Entity type" : "Country"} · ${l.nameEn}`, "CREATE", later(i), diffFields(null, { name: l.nameEn, nameInMalay: l.nameMs, whereItComesFrom: "Assumed" }));
+    // Phase 4a: a country may carry a dial code (an invented one: the demo's countries are not real).
+    const callingCode = l.list === "COUNTRY" ? (DEMO_DIAL_CODES[l.code] ?? null) : null;
+    await db.supplierListValue.create({ data: { ...l, callingCode, organisationId, provenance: "ASSUMED" } });
+    entry("SupplierListValue", l.id, `${KIND_WORDS[l.list]} · ${l.nameEn}`, "CREATE", later(i), diffFields(null, { name: l.nameEn, nameInMalay: l.nameMs, ...(callingCode ? { dialCode: callingCode } : {}), whereItComesFrom: "Assumed" }));
   }
   for (const [i, v] of VALUES.entries()) {
     await db.registrationValue.create({ data: { id: v.id, organisationId, bodyId: v.bodyId, kind: v.kind, code: v.code, nameEn: v.nameEn, parentCode: "parentCode" in v ? v.parentCode : null, rank: v.rank, valueCeiling: v.valueCeiling, ceilingProvenance: v.valueCeiling ? "ASSUMED" : null, governingSource: SOURCE, provenance: "ASSUMED", sortOrder: i + 1 } });
@@ -150,7 +155,7 @@ export async function configureSuppliersDemo(db: Db, organisationId: string) {
     const rules = { criticalDays: 30, warningDays: 60, upcomingDays: 90, bandsProvenance: "ASSUMED" as const, blacklistFirstOffenceMonths: 60, blacklistProvenance: "ASSUMED" as const, restrictionEvidenceTypeId: `${P}sdt4`, restrictionProvenance: "ASSUMED" as const };
     await db.supplierPolicy.update({ where: { organisationId }, data: rules });
     // Demo wording and figures, invented and ASSUMED: a customer writes its own notice and sets its own limits.
-    const intake = { personalDataNoticeEn: "The details you enter are used only to review your application to join the supplier register. Only officers of the procurement office see them. They are kept while the application is considered and erased once it is decided. To ask for access or a correction, contact the procurement office quoting your reference (demo wording, invented).", personalDataNoticeMs: "Butiran yang anda masukkan hanya digunakan untuk menyemak permohonan anda menyertai daftar pembekal. Hanya pegawai pejabat perolehan melihatnya. Ia disimpan semasa permohonan dipertimbangkan dan dipadam selepas diputuskan. Untuk meminta akses atau pembetulan, hubungi pejabat perolehan dengan menyatakan rujukan anda (teks demo, rekaan).", personalDataProvenance: "ASSUMED" as const, portalDailyLimit: 100, portalDailyLimitPerNumber: 3, portalLimitProvenance: "ASSUMED" as const };
+    const intake = { personalDataNoticeEn: "The details you enter are used only to review your application to join the supplier register. Only officers of the procurement office see them. They are kept while the application is considered and, once it is accepted, with the supplier's record; an application that is set aside is erased. To ask for access or a correction, contact the procurement office quoting your reference (demo wording, invented).", personalDataNoticeMs: "Butiran yang anda masukkan hanya digunakan untuk menyemak permohonan anda menyertai daftar pembekal. Hanya pegawai pejabat perolehan melihatnya. Ia disimpan semasa permohonan dipertimbangkan dan, setelah diterima, bersama rekod pembekal; permohonan yang diketepikan dipadam. Untuk meminta akses atau pembetulan, hubungi pejabat perolehan dengan menyatakan rujukan anda (teks demo, rekaan).", personalDataProvenance: "ASSUMED" as const, portalDailyLimit: 100, portalDailyLimitPerNumber: 3, portalLimitProvenance: "ASSUMED" as const };
     await db.supplierPolicy.update({ where: { organisationId }, data: intake });
     entry("SupplierPolicy", `${P}spol1`, "Supplier register · online applications", "UPDATE", later(66), diffFields({ personalDataNotice: "Not set", personalDataNoticeInMalay: "Not set", noticeFrom: "Not set", applicationsPerDay: "Not set", applicationsPerNumberPerDay: "Not set", limitsFrom: "Not set" }, { personalDataNotice: intake.personalDataNoticeEn, personalDataNoticeInMalay: intake.personalDataNoticeMs, noticeFrom: "Assumed", applicationsPerDay: 100, applicationsPerNumberPerDay: 3, limitsFrom: "Assumed" }));
     entry("SupplierPolicy", `${P}spol1`, "Supplier register · standing rules", "UPDATE", later(65), diffFields({ expiryBands: "Not set", firstOffenceMonths: "Not set", restrictionEvidence: "Not set" }, { expiryBands: "critical within 30 days, warning within 60, upcoming within 90", bandsFrom: "Assumed", firstOffenceMonths: 60, periodFrom: "Assumed", restrictionEvidence: "Status certificate", restrictionFrom: "Assumed" }));

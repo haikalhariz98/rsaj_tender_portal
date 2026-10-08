@@ -53,7 +53,7 @@ const ACTOR: SupplierActor = {
   accountId: "acc1",
   sessionId: "ses1",
   contactId: "c1",
-  contactName: "Aini",
+  displayName: "Aini",
   supplierId: "sup_mine",
   supplierName: "Sampel Works",
   loginName: "aini",

@@ -382,6 +382,10 @@ export const APPLY = {
       "It is not decided until the office holds your signed declaration on paper and has checked your supporting documents. Contact the procurement office, quoting your reference, to hand them in.",
       "Ia tidak diputuskan sehingga pejabat memegang perakuan bertandatangan anda secara bertulis dan telah menyemak dokumen sokongan anda. Hubungi pejabat perolehan, dengan menyatakan rujukan anda, untuk menyerahkannya.",
     ),
+    w(
+      "When the office accepts your application it can open a portal account for your contact and hand them a one-time code, in person or by letter. Nothing is sent by email. With the account you sign in to follow where your registration stands.",
+      "Apabila pejabat menerima permohonan anda, ia boleh membuka akaun portal untuk orang yang dihubungi dan menyerahkan kod sekali guna kepadanya, secara peribadi atau melalui surat. Tiada apa dihantar melalui e-mel. Dengan akaun itu anda log masuk untuk mengikuti perkembangan pendaftaran anda.",
+    ),
     w("Applying does not register your company or invite it to bid.", "Memohon tidak mendaftarkan syarikat anda atau menjemputnya membida."),
   ] satisfies Words[],
   officeNoticeTitle: w("A note from the procurement office", "Catatan daripada pejabat perolehan"),

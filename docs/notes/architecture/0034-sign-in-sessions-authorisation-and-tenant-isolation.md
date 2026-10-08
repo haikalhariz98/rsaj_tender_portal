@@ -44,6 +44,7 @@
 **D2. Accounts.**
 - **Staff:** `StaffAccount` is 1:1 with `Person` (`personId @unique`). An account is never deleted, only disabled. Making a `Person` inactive disables the account and revokes its sessions in the same transaction.
 - **Supplier:** `SupplierAccount` is 1:1 with `SupplierContact` (`contactId @unique`) and through it belongs to one `Supplier`. Retiring the contact (`retiredOn`) disables the account in the same transaction.
+  - *As built (Phase 4a):* `SupplierAccount` and `SupplierSession` (migration `20261012090200`), a trigger that holds an account to the supplier and organisation of its contact, and `retireContactAction`, which sets `retiredOn` and disables the account, ends its sessions and voids its codes in one transaction. The session read re-checks the account, the contact and the deployment's organisation on every request. A supplier's `displayName` is its contact's name; `supplierId` is the account's and no request names one (`supplier-reach.test.ts`).
 - **Sign-in names** are unique across the whole product within each store, compared in lower case (`loginKey`). This lets the sign-in form work without asking for an organisation.
 
 **D3. Passwords.**
@@ -94,6 +95,7 @@
 - Who may issue a code:
   - **Staff codes:** an administrator. No administrator may issue a code for their own account, and nobody resets their own account. **For a staff account whose Person holds, or has ever held, an office, a committee seat or a delegation, and for the account of an administrator, activating or resetting needs a second person** (the product owner's ruling of 2026-10-07, following NFR-SEC-004 and threat model F7: an administrator's account is not reset by one administrator acting alone): the change is proposed by one and the second person issues the code and is the one shown it (`ConfigurationChange` kind `ACCOUNT_CODE`, Phase 2c). With exactly two administrators neither resets the other through the product, because a second person does not exist, and the product says so. The way out is the operator's bootstrap command with `--recover`, below. **A reset ends the target's sessions when the code is issued**, not only when it is used, because a reset is ordered when the account may be in someone else's hands. An activation code ends nothing. The person whose password was reset sees a notice at their next sign-in (`resetNoticePending`).
   - **Supplier codes:** one officer with `supplierAccounts.manage`, who must record how the caller's identity was checked (`OneTimeCode.identityCheck`). A supplier activation code is offered when a `PortalApplication` is accepted or a contact is added.
+    - *As built (Phase 4a):* the activation page takes only an activation code and the reset page only a reset code; a reset ends the account's sessions when it is issued. Accepting an application offers the account and its code in the same transaction (an officer without the permission, or while the code's validity is unset, records the supplier without it); a contact added later gets its account from the supplier's page. The officer's act needs the reader's right to the contact's SULIT details as well.
 - Using a code needs the sign-in name, the code and a new password. It revokes every session for the account.
 - If the only administrator is locked out, the bootstrap command with `--recover` (D18) recovers the account, because anyone with server access already holds the database.
 
@@ -107,6 +109,7 @@
   - on the internal copy, sends a page request with no cookie to `/sign-in`, and answers a POST with no cookie with 401;
   - keeps `PORTAL_SURFACE` as a second line of defence.
 - Supplier sign-in, sign-out, activation, reset and every 6.15b write are **route handlers** at literal paths added to `publicAllows`.
+  - *As built (Phase 4a):* seven handlers (sign-in, sign-out, activate, reset, and the account's password, sign-out-everywhere and acknowledge). Each passes `foreignRequestFault` (the Origin guard without `next/headers`) and, but for sign-out, a bounded JSON body and a signed form token (HMAC over the form's purpose and the moment, 24 hours and a minute's skew, key `PORTAL_FORM_SECRET`; unset closes the forms and says so). They answer their cookie as a `Set-Cookie` header. Suppliers sign in on the public copy only: on the staff copy the handlers answer 404 and the proxy 404s a supplier cookie, so a demonstration needs a second server with `PORTAL_SURFACE=public` and a separate browser profile (`__Host-` cookie names are host-wide, not port-wide).
   - The public copy still refuses every server action, because an action's encrypted id cannot be allow-listed by path.
   - Every POST route handler calls `assertSameOrigin(request)`. Server actions keep Next's built-in Origin check.
 

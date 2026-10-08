@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { AccountStatus } from "@/generated/prisma/client";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
 import { CONTACT_FIELDS } from "@/lib/suppliers/contact-fields";
 import type { Sulit } from "@/lib/auth/sulit-access";
@@ -161,7 +162,7 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
 // ------------------------------------------------------------------ profile
 
 /// A contact's portal account in words: its state, and when it was last signed in. The sign-in name is the contact's, shown only to a reader the contact is open to (the caller asks that).
-function AccountCell({ account, timeZone }: { account: { loginName: string; status: "ACTIVE" | "DISABLED" | "PENDING_ACTIVATION"; locked: boolean; lastSignInAt: Date | null } | null; timeZone: string | null }) {
+function AccountCell({ account, timeZone }: { account: { loginName: string; status: AccountStatus; locked: boolean; lastSignInAt: Date | null } | null; timeZone: string | null }) {
   if (!account) return <span className="text-ink-4">No account</span>;
   const words = accountStateWords({ status: account.status, locked: account.locked });
   return (
@@ -173,7 +174,7 @@ function AccountCell({ account, timeZone }: { account: { loginName: string; stat
 }
 
 /// What an officer who holds the permission may do to a contact's account, from its state: open it, issue the code it waits for or a reset, unlock it.
-function AccountActions({ supplierId, contact }: { supplierId: string; contact: { id: string; name: string; email: string; account: { id: string; status: "ACTIVE" | "DISABLED" | "PENDING_ACTIVATION"; failedAttempts: number; locked: boolean } | null } }) {
+function AccountActions({ supplierId, contact }: { supplierId: string; contact: { id: string; name: string; email: string; account: { id: string; status: AccountStatus; failedAttempts: number; locked: boolean } | null } }) {
   const a = contact.account;
   if (!a) return <OpenPortalAccount supplierId={supplierId} contactId={contact.id} name={contact.name} suggestedLoginName={/^[A-Za-z0-9][A-Za-z0-9._@-]{2,63}$/.test(contact.email.trim()) ? contact.email.trim().toLowerCase() : ""} />;
   if (a.status === "PENDING_ACTIVATION") return <IssueSupplierCode supplierId={supplierId} accountId={a.id} name={contact.name} purpose="ACTIVATION" />;

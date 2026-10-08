@@ -76,7 +76,7 @@ export async function readSupplierSession(token: string | undefined | null, requ
     accountId: account.id,
     sessionId: session.id,
     contactId: account.contact.id,
-    contactName: account.contact.name,
+    displayName: account.contact.name,
     // The supplier comes from the account, which comes from the session: never from anything the request says.
     supplierId: account.supplier.id,
     supplierName: account.supplier.registeredName,

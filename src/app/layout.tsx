@@ -36,7 +36,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Who is signed in comes from the session, read from the database on this request, never from the environment or from whoever sorts first.
   // On the public copy the one who can be signed in is a supplier's contact (Phase 4a), and the frame names them and their supplier: the same session, read once.
   const supplier = portalOnly ? await currentSupplierOrNull() : null;
-  const user = actor ? { name: actor.personName, jobTitle: actor.jobTitle, kind: "staff" as const } : supplier ? { name: supplier.contactName, jobTitle: supplier.supplierName, kind: "supplier" as const } : null;
+  const user = actor ? { name: actor.personName, jobTitle: actor.jobTitle, kind: "staff" as const } : supplier ? { name: supplier.displayName, jobTitle: supplier.supplierName, kind: "supplier" as const } : null;
 
   return (
     <html lang="en" className={jakarta.variable} style={{ colorScheme: "light" }}>

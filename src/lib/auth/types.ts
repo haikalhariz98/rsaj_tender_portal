@@ -59,7 +59,8 @@ export interface SupplierActor {
   accountId: string;
   sessionId: string;
   contactId: string;
-  contactName: string;
+  /// Who is signed in, as the supplier named them: the contact's name. Shown to that contact on their own pages (never another's).
+  displayName: string;
   supplierId: string;
   supplierName: string;
   loginName: string;

@@ -33,11 +33,14 @@ import type { AuditActor, SecurityPolicyValues } from "../src/lib/auth/types";
 import { db } from "../src/lib/db";
 import { ORGANISATION_CODE } from "../src/lib/org";
 import { DEMO_PREFIX, demoIsLoaded } from "../prisma/demo-sign-in";
+import { DEMO_ACCOUNT_MANAGER_ROLE, DEMO_DIAL_CODES, STEP_ONE_LISTS } from "../prisma/demo-step-one";
 
 /// SAMPLE values for a demonstration. Nothing in the product defaults to them: a customer's own are chosen, never inherited from here.
 const DEMO_POLICY: Partial<SecurityPolicyValues> = {
   staffIdleMinutes: 30,
   staffAbsoluteMinutes: 480,
+  supplierIdleMinutes: 30,
+  supplierAbsoluteMinutes: 480,
   maxConcurrentSessions: 3,
   concurrentSessionAction: "REVOKE_OLDEST",
   maxFailedAttempts: 5,
@@ -85,7 +88,7 @@ async function main() {
   const { values, filled } = fillUnset(existing, DEMO_POLICY);
   const fault = policyFault(values);
   if (fault) throw new Error(fault);
-  const unset = unsetSettings(values, "SIGN_IN", "SET_PASSWORD", "ISSUE_CODE");
+  const unset = unsetSettings(values, "SIGN_IN", "SUPPLIER_SIGN_IN", "SET_PASSWORD", "ISSUE_CODE");
   if (unset.length > 0) throw new Error(`These settings are unset and the demonstration has no sample for them: ${settingLabels(unset).join("; ")}.`);
   const minLength = values.passwordMinLength as number;
   const faults = passwordFaults(password, { loginName: "demo.admin1", minLength });
@@ -152,13 +155,70 @@ async function main() {
     await makeAccount(p.id, p.name, loginName, false);
   }
 
-  if (made.length === 0) {
+  // ---- Phase 4a: what the supplier portal needs to be tried, only where it is not already there. Everything is the demonstration's: invented, ASSUMED, and never a customer's.
+  const supplierNotes: string[] = [];
+  // The lists step one asks for (the states, the Bumiputera statuses to declare) and a dial code on the first country.
+  for (const l of STEP_ONE_LISTS) {
+    if (await db.supplierListValue.findFirst({ where: { organisationId: org.id, list: l.list, code: l.code }, select: { id: true } })) continue;
+    await db.$transaction(async (tx) => {
+      const row = await tx.supplierListValue.create({ data: { ...l, organisationId: org.id, provenance: "ASSUMED" }, select: { id: true } });
+      await writeAudit(tx, { organisationId: org.id, entity: "SupplierListValue", entityId: row.id, entityLabel: `${l.list === "STATE" ? "State" : "Bumiputera status"} · ${l.nameEn}`, reason: "A demonstration list entry, made by the demo accounts command", actor: ACTOR }, "CREATE", diffFields(null, { name: l.nameEn, nameInMalay: l.nameMs, whereItComesFrom: "Assumed" }));
+    });
+    supplierNotes.push(`${l.list === "STATE" ? "state" : "Bumiputera status"} "${l.nameEn}"`);
+  }
+  for (const [code, callingCode] of Object.entries(DEMO_DIAL_CODES)) {
+    const country = await db.supplierListValue.findFirst({ where: { organisationId: org.id, list: "COUNTRY", code, callingCode: null }, select: { id: true, nameEn: true } });
+    if (!country) continue;
+    await db.$transaction(async (tx) => {
+      await tx.supplierListValue.update({ where: { id: country.id }, data: { callingCode } });
+      await writeAudit(tx, { organisationId: org.id, entity: "SupplierListValue", entityId: country.id, entityLabel: `Country · ${country.nameEn}`, reason: "A demonstration dial code (invented), set by the demo accounts command", actor: ACTOR }, "UPDATE", diffFields({ dialCode: "Not set" }, { dialCode: callingCode }));
+    });
+    supplierNotes.push(`dial code ${callingCode} on "${country.nameEn}"`);
+  }
+  // The office that approves a supplier's registration in the demo's matrix may manage supplier accounts: an ASSUMED grant. The organisation decides this for itself; it is undecided until it does.
+  const officerRole = (await db.roleAssignment.count({ where: { roleCode: DEMO_ACCOUNT_MANAGER_ROLE, personId: { startsWith: DEMO_PREFIX } } })) > 0 ? DEMO_ACCOUNT_MANAGER_ROLE : null;
+  if (officerRole && !(await db.rolePermission.findFirst({ where: { organisationId: org.id, permissionKey: "supplierAccounts.manage", roleCode: officerRole }, select: { id: true } }))) {
+    await db.$transaction(async (tx) => {
+      const row = await tx.rolePermission.create({ data: { organisationId: org.id, permissionKey: "supplierAccounts.manage", roleCode: officerRole, decision: "GRANTED" }, select: { id: true } });
+      await writeAudit(tx, { organisationId: org.id, entity: "RolePermission", entityId: row.id, entityLabel: `Permission to manage supplier accounts · ${officerRole}`, reason: "A demonstration grant (assumed), made by the demo accounts command: the organisation decides this for itself", actor: ACTOR }, "CREATE", diffFields(null, { permission: "Manage supplier accounts", role: officerRole, decision: "Granted" }));
+    });
+    supplierNotes.push(`the permission to manage supplier accounts, granted (assumed) to the role ${officerRole}`);
+  }
+  // A portal account for the primary contact of two demonstration suppliers, signing in with the same published password.
+  const suppliers = [
+    { id: `${DEMO_PREFIX}vnd1`, loginName: "demo.supplier1" },
+    { id: `${DEMO_PREFIX}vnd7`, loginName: "demo.supplier2" },
+  ];
+  const supplierTaken = new Set((await db.supplierAccount.findMany({ select: { loginKey: true } })).map((a) => a.loginKey));
+  const supplierMade: string[] = [];
+  for (const sp of suppliers) {
+    if (supplierTaken.has(loginKeyOf(sp.loginName))) continue;
+    const contact = await db.supplierContact.findFirst({ where: { supplierId: sp.id, organisationId: org.id, isPrimary: true, retiredOn: null, account: null }, select: { id: true, supplier: { select: { reference: true } } } });
+    if (!contact) continue;
+    const passwordHash = await hashPassword(password);
+    await db.$transaction(async (tx) => {
+      const now = new Date();
+      const account = await tx.supplierAccount.create({ data: { organisationId: org.id, contactId: contact.id, supplierId: sp.id, loginName: sp.loginName, loginKey: loginKeyOf(sp.loginName), passwordHash, passwordChangedAt: now, status: AccountStatus.ACTIVE }, select: { id: true } });
+      await writeAudit(tx, { organisationId: org.id, entity: "SupplierAccount", entityId: account.id, entityLabel: `${contact.supplier.reference} · Portal account`, reason: "A demonstration portal account, made by the demo accounts command", actor: ACTOR }, "CREATE", diffFields(null, { status: AccountStatus.ACTIVE }));
+      await recordSignInEvent(tx, { organisationId: org.id, supplierAccountId: account.id, kind: "ACCOUNT_CREATED", at: now });
+    });
+    supplierMade.push(`${sp.loginName.padEnd(36)} supplier        ${contact.supplier.reference}`);
+  }
+
+  if (made.length === 0 && supplierNotes.length === 0 && supplierMade.length === 0) {
     console.log("Every account the demonstration needs is already there. Nothing was changed.");
     return;
   }
-  console.log(`Made ${made.length} account${made.length === 1 ? "" : "s"}. Each signs in with the password in DEMO_ACCOUNT_PASSWORD:`);
-  for (const m of made) console.log(`  ${m.loginName.padEnd(36)} ${m.kind.padEnd(14)} ${m.person}`);
-  console.log("\nOpen http://localhost:3000 (not 127.0.0.1: the session cookie is Secure) and sign in.");
+  if (made.length > 0) {
+    console.log(`Made ${made.length} account${made.length === 1 ? "" : "s"}. Each signs in with the password in DEMO_ACCOUNT_PASSWORD:`);
+    for (const m of made) console.log(`  ${m.loginName.padEnd(36)} ${m.kind.padEnd(14)} ${m.person}`);
+    console.log("\nOpen http://localhost:3000 (not 127.0.0.1: the session cookie is Secure) and sign in.");
+  }
+  if (supplierNotes.length > 0) console.log(`\nSupplier register, for the portal: ${supplierNotes.join("; ")}.`);
+  if (supplierMade.length > 0) {
+    console.log(`\nMade ${supplierMade.length} supplier portal account${supplierMade.length === 1 ? "" : "s"} (same password). Suppliers sign in on the PUBLIC copy only: start a second server with PORTAL_SURFACE=public on another port, and use a separate browser profile (the cookie names are host-wide, not port-wide):`);
+    for (const line of supplierMade) console.log(`  ${line}`);
+  }
 }
 
 main()

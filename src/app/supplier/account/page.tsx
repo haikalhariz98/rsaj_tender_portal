@@ -66,7 +66,7 @@ export default async function SupplierAccountPage() {
 
   return (
     <>
-      <PageHeader title="Your account" subtitle={`${actor.supplierName}. Where your registration stands, and your sign-in.`} meta={[actor.contactName, actor.loginName]} />
+      <PageHeader title="Your account" subtitle={`${actor.supplierName}. Where your registration stands, and your sign-in.`} meta={[actor.displayName, actor.loginName]} />
 
       <div className="flex max-w-4xl flex-col gap-5">
         {actor.mustChangePassword && (
