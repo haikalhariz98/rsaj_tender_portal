@@ -22,7 +22,7 @@ import { historyEntityLabel, historyValueWords } from "./entity-labels";
 import { createHash } from "node:crypto";
 
 import { dayIn } from "@/lib/dates";
-import { isSulitField } from "@/lib/sulit-fields";
+import { sulitFieldOf } from "@/lib/sulit-trail";
 
 import { CORE_ROUTING_ENTITY_NAME } from "./core-routing-trail";
 import { rowFieldLabel } from "./diff";
@@ -72,7 +72,7 @@ function labelledChanges(changes: unknown, entity = ""): unknown {
     if (!c || typeof c !== "object" || !("field" in c)) return c;
     const raw = String((c as { field: unknown }).field);
     const change = c as { before?: unknown; after?: unknown };
-    return { ...c, field: rowFieldLabel(raw, fields), ...(isSulitField(raw) ? { before: withheld(change.before), after: withheld(change.after) } : { before: words(raw, change.before), after: words(raw, change.after) }) };
+    return { ...c, field: rowFieldLabel(raw, fields), ...(sulitFieldOf(entity, raw) ? { before: withheld(change.before), after: withheld(change.after) } : { before: words(raw, change.before), after: words(raw, change.after) }) };
   });
 }
 

@@ -123,8 +123,9 @@ const itemFields = (i: ItemAuditFacts) => ({
   unit: i.unit || null,
   kind: ITEM_KIND_LABEL[i.kind],
   quantity: i.quantity,
-  rate: i.rate == null ? null : formatSen(i.rate),
-  amount: (() => {
+  // The priced figures are SULIT (Phase 3b): kept under their registered keys, which History judges and the audit export withholds. Rows written before this carry "rate" and "amount", read by `sulitFieldOf`.
+  bqRate: i.rate == null ? null : formatSen(i.rate),
+  bqAmount: (() => {
     const a = itemAmount(i.quantity, i.rate);
     return a == null ? null : formatSen(a);
   })(),
@@ -187,7 +188,7 @@ export function bqStatusAudit(before: BqStatus | null, after: BqStatus, extra: R
 
 /// Finalising a draft: its totals as money in words (never raw decimals), the standard and the preparer's qualification.
 export function bqFinalisedAudit(t: Pick<BqTotals, "total" | "buildersWorks" | "firmValue">, i: { standard: string | null; preparerQualification: string | null }): FieldChange[] {
-  return bqStatusAudit("DRAFT", "FINALISED", { total: formatSen(t.total), buildersWorks: formatSen(t.buildersWorks), firmValue: firmValueText(t.firmValue), standard: i.standard, preparerQualification: i.preparerQualification });
+  return bqStatusAudit("DRAFT", "FINALISED", { bqTotals: formatSen(t.total), bqBuildersWorks: formatSen(t.buildersWorks), bqFirmValue: firmValueText(t.firmValue), standard: i.standard, preparerQualification: i.preparerQualification });
 }
 
 // ------------------------------------------------------------------ panel

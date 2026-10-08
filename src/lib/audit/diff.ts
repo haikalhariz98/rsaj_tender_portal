@@ -119,6 +119,12 @@ const NAMED_FIELDS: Record<string, string> = {
   completionUnit: "Completion period counted in",
   // 6.6 CR-4: a withdrawal letter's quote, held SULIT.
   letterQuote: "How the letter identifies the envelope",
+  // Phase 3b: the priced bill's figures in the trail, held SULIT under their registered keys.
+  bqRate: "Rate",
+  bqAmount: "Amount",
+  bqTotals: "Total",
+  bqBuildersWorks: "Builders' works",
+  bqFirmValue: "Firm value",
   // 6.7 re-review: the commitment written on approval is the department estimate, SULIT (sulit-fields.ts).
   committedEstimate: "Amount committed (the department estimate)",
   // 6.7 (C-7, review R-7): the bidder an award names, by name.

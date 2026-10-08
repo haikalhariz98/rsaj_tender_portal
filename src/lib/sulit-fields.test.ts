@@ -100,9 +100,9 @@ describe("a History trail shows a registered SULIT field's change with the chip 
       const src = readFileSync(join(process.cwd(), file), "utf8");
       const history = src.slice(src.indexOf("function HistoryPanel("));
       if (file.includes("sourcing")) {
-        expect(history, "the exercise's History reads the registry, shows the estimate as the reader may see it, and judges every other registered field by its record").toMatch(/isSulitField\(field\)/);
+        expect(history, "the exercise's History reads the registry (by entity and key, for the older rows), shows the estimate as the reader may see it, and judges every other registered field by its record").toMatch(/sulitFieldOf\(entity, field\)/);
         expect(history).toMatch(/<SulitValue of=\{/);
-        expect(history).toMatch(/sulitHistoryValue\(field, scope, gate, read\(field/);
+        expect(history).toMatch(/sulitHistoryValue\(registered, scope, gate, read\(field/);
       } else {
         expect(history, "the requisition's History judges the registry's fields by the requisition's one answer").toMatch(/sulitHistoryValue\(field, "requisition", estimate, read\(field/);
         expect(history).toMatch(/<SulitValue of=\{sulit\} \/>/);

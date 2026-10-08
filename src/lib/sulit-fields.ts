@@ -106,7 +106,12 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   // exercise's SULIT, read by the people named on it. The bill issued to tenderers is unpriced and carries none of them.
   { field: "bqRate", scope: "exercise", what: "a bill of quantities line's rate (6.2, Phase 3b)" },
   { field: "bqAmount", scope: "exercise", what: "a bill of quantities line's amount (6.2, Phase 3b)" },
-  { field: "bqTotals", scope: "exercise", what: "a bill of quantities version's total, firm value and the sums that make it up (6.2, Phase 3b)" },
+  { field: "bqTotals", scope: "exercise", what: "a bill of quantities version's total and the sums that make it up (6.2, Phase 3b)" },
+  { field: "bqBuildersWorks", scope: "exercise", what: "a bill of quantities version's builders' works, as the finalising trail names it (6.2, Phase 3b)" },
+  { field: "bqFirmValue", scope: "exercise", what: "a bill of quantities version's firm value, as the finalising trail names it (6.2, Phase 3b)" },
+  // Phase 3b: a budget check records the amount it was run for, which is the department estimate on the day, and what it would leave. Named for the registry in the trail they were written under.
+  { field: "requestedAmount", scope: "requisition", what: "the amount a budget check was run for: the department estimate on that day (6.3, Phase 3b)" },
+  { field: "projectedBalance", scope: "requisition", what: "what a budget check's balance would be after the department estimate (6.3, Phase 3b)" },
   // Phase 3b: a committee matter's amount (`matter-amount.ts` says which kinds): a requisition's gate matter carries the department estimate, a contract matter its routed value,
   // and a manual matter or one not yet decided is read as SULIT. A record that keeps no list of who is named, so only the organisation-wide permission opens it.
   { field: "matterAmount", scope: "requisition", alsoIn: ["contract"], contextual: true, what: "a committee matter's amount, where its kind is SULIT or not decided (Phase 3b)" },

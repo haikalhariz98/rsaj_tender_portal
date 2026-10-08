@@ -17,7 +17,7 @@ import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/
 import { routeCoreText } from "@/lib/authority/core-routing-labels";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
 import { Badge, Chip, SulitValue } from "@/components/ui/badge";
-import { isSulitField } from "@/lib/sulit-fields";
+import { sulitFieldOf } from "@/lib/sulit-trail";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -167,7 +167,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const custody: Sulit<string> | null = custodyRows ? await estimateCustodyForHistory(actor, ex.id) : null;
   // Any other registered SULIT field in the trail (a price as read, a score, a bill's rate) is judged by the record it belongs to: the exercise's own answer for what an exercise
   // carries, the evaluation's for what an evaluation carries; asked (and logged) only where a row carries one, and withheld for any other kind of record.
-  const present = new Set(history.entries.flatMap((e) => e.changes.filter((c) => (c.before || c.after) && isSulitField(c.field) && !CUSTODY_FIELDS.has(c.field) && c.field !== "estimatedValue").map((c) => c.field)));
+  const present = new Set(history.entries.flatMap((e) => e.changes.filter((c) => (c.before || c.after) && sulitFieldOf(e.entity, c.field) && !CUSTODY_FIELDS.has(c.field) && c.field !== "estimatedValue").map((c) => sulitFieldOf(e.entity, c.field)!)));
   const ofScope = (scope: "exercise" | "evaluation") => [...present].filter((f) => fieldIsFor(f, scope));
   const trailGates: TrailGates = {
     exercise: ofScope("exercise").length ? await sulitExerciseGate(actor, ex.id, "exercise", ofScope("exercise")) : null,
@@ -1122,14 +1122,15 @@ function HistoryPanel({
   const chipped = (field: string, value: string | null, entityId: string, entity: string) => {
     // A scope part's amount is a share of the estimate and the parts add up to it exactly: it is judged as the estimate is.
     const isEstimate = field === "estimatedValue" || (field === "amount" && entity === "ExerciseScopePart");
-    if ((!isSulitField(field) && !isEstimate) || !value) return read(field, value, entityId, entity);
+    const registered = sulitFieldOf(entity, field);
+    if ((!registered && !isEstimate) || !value) return read(field, value, entityId, entity);
     // The disclosed company estimate and the paper copy's figure are judged by custody, never by the exercise's own access.
     if (CUSTODY_FIELDS.has(field)) return custody && custody.state === "GRANTED" ? <SulitValue of={{ ...custody, value: read(field, value, entityId, entity) }} /> : <SulitValue of={(custody ?? sulitWithheld<ReactNode>("NOT_IN_CUSTODY", "exercise")) as Sulit<ReactNode>} />;
     if (isEstimate) return estimate.state === "GRANTED" ? <SulitValue of={{ ...estimate, value: read(field, value, entityId, entity) }} /> : <SulitValue of={estimate as Sulit<ReactNode>} />;
-    const scope = fieldIsFor(field, "exercise") ? "exercise" : fieldIsFor(field, "evaluation") ? "evaluation" : null;
+    const scope = registered && fieldIsFor(registered, "exercise") ? "exercise" : registered && fieldIsFor(registered, "evaluation") ? "evaluation" : null;
     const gate = scope ? trailGates[scope] : null;
     // A field that is neither an exercise's nor an evaluation's is not shown on a guess.
-    return <SulitValue of={scope && gate ? sulitHistoryValue(field, scope, gate, read(field, value, entityId, entity))! : sulitWithheld<string>("FIELD_NOT_FOR_THIS_RECORD", "exercise")} />;
+    return <SulitValue of={scope && gate && registered ? sulitHistoryValue(registered, scope, gate, read(field, value, entityId, entity))! : sulitWithheld<string>("FIELD_NOT_FOR_THIS_RECORD", "exercise")} />;
   };
   const read = (field: string, value: string | null, entityId: string, entity: string): string => {
     if (value == null || value === "") return "—";

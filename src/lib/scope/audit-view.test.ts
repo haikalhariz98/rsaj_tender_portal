@@ -41,9 +41,11 @@ describe("the estimate's audit rows: 'Sealed (version N)', never the figure or t
 });
 
 describe("the bill's rows: formatted money and labels, never codes", () => {
+  // Phase 3b, a deliberate change to this test (logged): the priced bill is SULIT, so a line's rate and amount are written under their registered keys (bqRate, bqAmount), which History
+  // judges and the audit export withholds. Rows written before read as "rate" and "amount" and are mapped by entity (sulit-trail.ts).
   it("a line's amount is computed, formatted, and its kind labelled", () => {
     const rows = itemAudit(null, { itemRef: "B", description: "Pipe laying", unit: "m", kind: "MEASURED", quantity: "1250.5", rate: parseSen("182.40"), provisional: false });
-    expect(rows).toContainEqual({ field: "amount", before: null, after: "RM228,091.20" });
+    expect(rows).toContainEqual({ field: "bqAmount", before: null, after: "RM228,091.20" });
     expect(rows).toContainEqual({ field: "kind", before: null, after: "Measured work" });
     expect(JSON.stringify(rows)).not.toContain("MEASURED");
   });
@@ -92,14 +94,14 @@ describe("finalising: the totals are money in words, never raw decimals", () => 
     const t = { total: parseSen("317973.70"), buildersWorks: parseSen("293473.70"), firmValue: parseSen("297591.20") };
     expect(bqFinalisedAudit(t, { standard: "Standard method", preparerQualification: "Qualified measurer" })).toEqual([
       { field: "status", before: "Draft", after: "Finalised" },
-      { field: "total", before: null, after: "RM317,973.70" },
-      { field: "buildersWorks", before: null, after: "RM293,473.70" },
-      { field: "firmValue", before: null, after: "RM297,591.20" },
+      { field: "bqTotals", before: null, after: "RM317,973.70" },
+      { field: "bqBuildersWorks", before: null, after: "RM293,473.70" },
+      { field: "bqFirmValue", before: null, after: "RM297,591.20" },
       { field: "standard", before: null, after: "Standard method" },
       { field: "preparerQualification", before: null, after: "Qualified measurer" },
     ]);
     const unstated = bqFinalisedAudit({ ...t, firmValue: null }, { standard: null, preparerQualification: null });
-    expect(unstated.find((c) => c.field === "firmValue")?.after).toBe("Not stated");
+    expect(unstated.find((c) => c.field === "bqFirmValue")?.after).toBe("Not stated");
     expect(JSON.stringify(unstated)).not.toContain("317973.70");
   });
 });
