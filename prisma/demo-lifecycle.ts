@@ -397,6 +397,20 @@ export async function loadLifecycleAward(db: Db, organisationId: string): Promis
 
 /// Every act from formation on (after the payment demo's, on the configuration above).
 export async function loadLifecycleDemo(db: Db, organisationId: string) {
+  // BD-613-44: a payment certificate issues only to a contractor whose bank details an officer has checked, and only to the supplier its award names on the register. So the awardee is put on
+  // the register with such details (the supplier series exists by now), and the award is linked to it as an officer links one (`linkAwardToSupplier`), before the first certificate is signed.
+  const { createRegisteredContractor } = await import("./demo-contractor");
+  const contractorId = await createRegisteredContractor(db, organisationId, { key: "ctr13", name: AWARDEE.name, registrationNo: AWARDEE.reg, address: AWARDEE.address, registeredOn: "2026-04-15" });
+  const award = await db.award.findUniqueOrThrow({ where: { id: AW }, select: { reference: true, vendorId: true } });
+  if (award.vendorId) throw new Error(`demo ${AW}: it already names a supplier`);
+  await db.award.update({ where: { id: AW }, data: { vendorId: contractorId } });
+  const supplier = await db.supplier.findUniqueOrThrow({ where: { id: contractorId }, select: { reference: true, registeredName: true } });
+  await db.auditEntry.create({
+    data: {
+      id: `${contractorId}_au_link`, organisationId, entity: "Award", entityId: AW, entityLabel: `${award.reference} · Awardee's supplier`, action: "UPDATE", at: new Date("2026-06-01T02:00:00.000Z"), reason: "",
+      changes: [{ field: "supplier", before: null, after: `${supplier.reference} · ${supplier.registeredName}` }, { field: "linkedBy", before: null, after: "the demo loader, as an officer links an award with no party" }], unattributed: false, actorKind: "SYSTEM", actorSystemLabel: "demo loader",
+    } as never,
+  });
   const A = {
     contract: await import("../src/app/projects/[id]/actions"),
     supervision: await import("../src/app/projects/[id]/supervision-actions"),
