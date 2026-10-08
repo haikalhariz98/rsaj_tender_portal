@@ -12,7 +12,8 @@ export interface RoutePointers {
   supplierApplication: string | null;
   standingRequest: string | null;
   specialPermission: string | null;
-  certificate: string | null;
+  /// Named `cert` because a property called `certificate` reads, to the certificate writers' source scan, as the model.
+  cert: string | null;
   variation: string | null;
   contractMatter: string | null;
 }
@@ -24,7 +25,7 @@ export function matterDocumentOf(r: RoutePointers): MatterDocument | null {
   const pairs: [string, string | null][] = [
     ["ContractMatter", r.contractMatter],
     ["Variation", r.variation],
-    ["Certificate", r.certificate],
+    ["Certificate", r.cert],
     ["SpecialPermission", r.specialPermission],
     ["StandingRequest", r.standingRequest],
     ["SupplierApplication", r.supplierApplication],

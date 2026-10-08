@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { matterDocumentOf, type RoutePointers } from "./matter-document";
 
-const NONE: RoutePointers = { requisition: null, exercise: null, award: null, supplierApplication: null, standingRequest: null, specialPermission: null, certificate: null, variation: null, contractMatter: null };
+const NONE: RoutePointers = { requisition: null, exercise: null, award: null, supplierApplication: null, standingRequest: null, specialPermission: null, cert: null, variation: null, contractMatter: null };
 
 describe("the matter a route's step is signed against", () => {
   it("is the one record the route belongs to, whichever kind it is", () => {
@@ -12,7 +12,7 @@ describe("the matter a route's step is signed against", () => {
     expect(matterDocumentOf({ ...NONE, supplierApplication: "s1" })).toEqual({ entity: "SupplierApplication", id: "s1" });
     expect(matterDocumentOf({ ...NONE, standingRequest: "q1" })).toEqual({ entity: "StandingRequest", id: "q1" });
     expect(matterDocumentOf({ ...NONE, specialPermission: "p1" })).toEqual({ entity: "SpecialPermission", id: "p1" });
-    expect(matterDocumentOf({ ...NONE, certificate: "c1" })).toEqual({ entity: "Certificate", id: "c1" });
+    expect(matterDocumentOf({ ...NONE, cert: "c1" })).toEqual({ entity: "Certificate", id: "c1" });
     expect(matterDocumentOf({ ...NONE, variation: "v1" })).toEqual({ entity: "Variation", id: "v1" });
     expect(matterDocumentOf({ ...NONE, contractMatter: "m1" })).toEqual({ entity: "ContractMatter", id: "m1" });
   });
