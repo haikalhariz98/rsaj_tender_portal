@@ -521,6 +521,7 @@ export const CONDITION_LABEL: Readonly<Record<ConditionKind, Words>> = {
   CATEGORY: w("Category", "Kategori"),
   SPECIALISATION: w("Specialisation", "Pengkhususan"),
   FIELD_CODES: w("Field codes", "Kod bidang"),
+  PERMITS: w("Permit types", "Jenis permit"),
   QUALIFIERS: w("What the requirement states", "Apa yang dinyatakan keperluan"),
   RESTRICTION: w("The restriction's evidence across the window", "Bukti sekatan sepanjang tempoh"),
 };
@@ -544,6 +545,8 @@ export function conditionWords(r: Pick<ConditionRow, "reason" | "data">): Words 
     case "VALUE_NOT_HELD": return w(`Holds none of ${d.needed}.`, `Tidak memegang mana-mana ${d.needed}.`);
     case "FIELD_CODES_HELD": return w("Holds every field code asked.", "Memegang setiap kod bidang yang diminta.");
     case "FIELD_CODES_MISSING": return w(`Does not hold ${d.missing}.`, `Tidak memegang ${d.missing}.`);
+    case "PERMITS_HELD": return w("Holds every permit type asked.", "Memegang setiap jenis permit yang diminta.");
+    case "PERMITS_MISSING": return w(`Does not hold ${d.missing}.`, `Tidak memegang ${d.missing}.`);
     case "RESTRICTION_NOT_STATED": return w("Whether the exercise is restricted is not stated on it.", "Sama ada latihan terhad tidak dinyatakan padanya.");
     case "EVIDENCE_TYPE_NOT_SET": return w(`The document type that evidences the restriction is not set (${SETTINGS.en}, Standing).`, `Jenis dokumen yang membuktikan sekatan belum ditetapkan (${SETTINGS.ms}, Kedudukan).`);
     case "COVERS_WINDOW": return d.body ? w(`${asHeading(String(d.body))}: verified and in force from the advertisement to past the closing.`, `${asHeading(String(d.body))}: disahkan dan berkuat kuasa dari iklan hingga selepas tutup.`) : w("Verified and in force from the advertisement to past the closing.", "Disahkan dan berkuat kuasa dari iklan hingga selepas tutup.");

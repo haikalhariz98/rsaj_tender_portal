@@ -16,6 +16,8 @@ import { eligibilityEditFault, requirementFaults } from "@/lib/tender-docs/eligi
 import { NOT_SET, yesNoNotSet } from "@/lib/tender-docs/labels";
 import { lockPackRows } from "@/lib/tender-docs/owner";
 import { permitLabel, permitSaveFaults } from "@/lib/tender-docs/permit";
+import { NEED_FIELD, NEED_KINDS, needFaultField, needFaults, type NeedChoice, type NeedFault } from "@/lib/tender-docs/requirement-needs";
+import { createRequirement, deleteRequirement, loadNeedValues } from "@/lib/tender-docs/requirement-store";
 import { loadClauses, loadConfirmations, loadOverrides, loadPacks, loadPermitList, loadRegistrationBodies, loadRequirements, loadTenderPolicy, partFactsOf, type PackRow } from "@/lib/tender-docs/repo";
 import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
@@ -89,23 +91,32 @@ export async function addRequirement(_prev: FormState, data: FormData): Promise<
   const qualifiers = r.text("qualifiers", "What is required with it", { max: 500 });
   const alternativeGroup = r.int("alternativeGroup", "Group", { required: true, min: 1 });
   if (r.failed || alternativeGroup == null) return { ok: false, errors: r.errors };
+  // 615-C1: the grade and codes the requirement asks for, as the body's own configured values (never parsed from the words).
+  const choices: NeedChoice[] = NEED_KINDS.flatMap((kind) => data.getAll(NEED_FIELD[kind]).map((v) => String(v).trim()).filter(Boolean).map((valueId) => ({ kind, valueId })));
   return locked(actor, exerciseId, async (tx, l) => {
     if (!l.org.today) return NO_ZONE;
     const stop = frozen(l);
     if (stop) return stop;
     const bodies = await loadRegistrationBodies(l.org.id, tx);
-    const faults = requirementFaults({ bodyCode, qualifiers, alternativeGroup }, bodies, l.org.today);
+    const faults = requirementFaults({ bodyCode, qualifiers, alternativeGroup, hasNeeds: choices.length > 0 }, bodies, l.org.today);
     if (faults.length) {
       const f = faults[0];
       const field = f.code === "QUALIFIERS_REQUIRED" || f.code === "QUALIFIERS_NOT_TAKEN" ? "qualifiers" : f.code === "GROUP_NOT_VALID" ? "alternativeGroup" : "bodyCode";
+      return { ok: false, errors: { [field]: conditionsFaultText(f) } };
+    }
+    const needValues = await loadNeedValues(l.org.id, tx);
+    const needFindings = needFaults(choices, needValues, { code: bodyCode, qualifierLabelEn: bodies.find((b) => b.code === bodyCode)?.qualifierLabelEn ?? null }, l.org.today);
+    if (needFindings.length) {
+      const f = needFindings[0];
+      const field = needFaultField(f as Finding<NeedFault>);
       return { ok: false, errors: { [field]: conditionsFaultText(f) } };
     }
     const existing = await loadRequirements(exerciseId, tx);
     if (existing.some((x) => x.bodyCode === bodyCode && x.alternativeGroup === alternativeGroup)) return { ok: false, errors: { bodyCode: conditionsFaultText({ code: "BODY_TWICE_IN_GROUP", level: "block", data: { body: bodies.find((b) => b.code === bodyCode)!.labelEn } }) } };
     const body = bodies.find((b) => b.code === bodyCode)!;
     const sortOrder = existing.filter((x) => x.alternativeGroup === alternativeGroup).reduce((m, x) => Math.max(m, x.sortOrder + 1), 0);
-    const row = await tx.exerciseRegistrationRequirement.create({ data: { organisationId: l.org.id, exerciseId, bodyCode, bodyLabelSnapshot: body.labelEn, qualifierLabelSnapshot: body.qualifierLabelEn, qualifiers: qualifiers.trim(), alternativeGroup, sortOrder } });
-    await audit(tx, toAuditActor(actor), l.org.id, "ExerciseRegistrationRequirement", row.id, label(l, `Registration required · ${body.labelEn}`), "CREATE", diffFields(null, { registrationBody: body.labelEn, requiredWithIt: qualifiers.trim() || null, alternativeGroup: `Group ${alternativeGroup}` }));
+    const row = await createRequirement(tx, { organisationId: l.org.id, exerciseId, body, qualifiers, alternativeGroup, sortOrder, choices, values: needValues });
+    await audit(tx, toAuditActor(actor), l.org.id, "ExerciseRegistrationRequirement", row.id, label(l, `Registration required · ${body.labelEn}`), "CREATE", diffFields(null, { registrationBody: body.labelEn, requiredWithIt: row.qualifiers || null, compared: row.needs.length ? row.needs.map((n) => n.label).join("; ") : null, alternativeGroup: `Group ${alternativeGroup}` }));
     return { ok: true };
   });
 }
@@ -125,7 +136,7 @@ export async function removeRequirement(_prev: FormState, data: FormData): Promi
     if (stop) return stop;
     const row = await tx.exerciseRegistrationRequirement.findFirst({ where: { id, exerciseId, organisationId: actor.organisationId } });
     if (!row) return { ok: false, message: "That requirement is no longer on the exercise." };
-    await tx.exerciseRegistrationRequirement.delete({ where: { id, organisationId: actor.organisationId } });
+    await deleteRequirement(tx, actor.organisationId, id);
     await audit(tx, toAuditActor(actor), l.org.id, "ExerciseRegistrationRequirement", id, label(l, `Registration required · ${row.bodyLabelSnapshot}`), "DELETE", snapshotFields({ registrationBody: row.bodyLabelSnapshot, requiredWithIt: row.qualifiers || null, alternativeGroup: `Group ${row.alternativeGroup}` }), reason);
     return { ok: true };
   });

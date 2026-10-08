@@ -10,7 +10,7 @@ import { db } from "@/lib/db";
 
 import { awardStanding, type AwardStanding } from "./award-standing";
 import { documentStates } from "./documents";
-import { eligibility, type Eligibility, type EligibilitySnapshot, type HeldValue, type RequirementFacts } from "./eligibility";
+import { eligibility, structuredOf, type Eligibility, type EligibilitySnapshot, type HeldValue, type RequirementFacts } from "./eligibility";
 import { lockSupplierRow } from "./lock";
 import { documentFacts, typeFacts } from "./repo";
 import { standing, type StandingEventFacts, type StandingEventKind, type StandingReading } from "./standing";
@@ -67,7 +67,7 @@ export async function eligibilityOf(supplierId: string, exerciseId: string, org:
   if (!st) return null;
   const [supplier, ex, bodies, types, permissions] = await Promise.all([
     client.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { reference: true, documents: { include: { values: { include: { registrationValue: { select: { rank: true } } } } } } } }),
-    client.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { closingAt: true, restrictedTender: true, window: { select: { advertisementDay: true } }, registrationRequirements: { orderBy: [{ alternativeGroup: "asc" }, { sortOrder: "asc" }] } } }),
+    client.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { closingAt: true, restrictedTender: true, window: { select: { advertisementDay: true } }, registrationRequirements: { orderBy: [{ alternativeGroup: "asc" }, { sortOrder: "asc" }], include: { needs: { orderBy: { id: "asc" }, include: { registrationValue: { select: { rank: true } } } } } } } }),
     client.registrationBody.findMany({ where: { organisationId: org.id }, select: { id: true, code: true } }),
     client.supplierDocumentType.findMany({ where: { organisationId: org.id }, select: { id: true, bodyId: true } }),
     client.specialPermission.findMany({ where: { exerciseId, party: { vendorId: supplierId }, grantedOn: { not: null } }, select: { requirementId: true, relaxes: true } }),
@@ -77,7 +77,7 @@ export async function eligibilityOf(supplierId: string, exerciseId: string, org:
   for (const b of bodies) typesOfBody[b.code] = types.filter((t) => t.bodyId === b.id).map((t) => t.id);
   const valuesOf: Record<string, HeldValue[]> = {};
   for (const d of supplier.documents) valuesOf[d.id] = d.values.map((v) => ({ kind: v.kind as RegistrationValueKind, code: v.codeSnapshot, label: v.labelSnapshot, rank: v.registrationValue.rank }));
-  const requirements: RequirementFacts[] = ex.registrationRequirements.map((r) => ({ id: r.id, bodyCode: r.bodyCode, bodyLabel: r.bodyLabelSnapshot, qualifiers: r.qualifiers, alternativeGroup: r.alternativeGroup, structured: null }));
+  const requirements: RequirementFacts[] = ex.registrationRequirements.map((r) => ({ id: r.id, bodyCode: r.bodyCode, bodyLabel: r.bodyLabelSnapshot, qualifiers: r.qualifiers, alternativeGroup: r.alternativeGroup, qualifiersFromNeeds: r.qualifiersFromNeeds, structured: structuredOf(r.needs.map((n) => ({ kind: n.kind, codeSnapshot: n.codeSnapshot, labelSnapshot: n.labelSnapshot, rankNow: n.registrationValue.rank }))) }));
   const e = eligibility({
     supplier: { status: st.status },
     standing: st.reading,

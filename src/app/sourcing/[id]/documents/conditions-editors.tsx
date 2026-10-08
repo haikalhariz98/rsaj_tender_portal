@@ -22,7 +22,11 @@ const THREE: Option[] = [
   { value: "unset", label: "Not answered" },
 ];
 
-export function AddRequirementDrawer({ exerciseId, allowed, bodies, groups, typeTest }: { exerciseId: string; allowed: Allowed; bodies: Option[]; groups: Option[]; typeTest: string }) {
+type NeedOptions = { grade: Record<string, Option[]>; categories: Record<string, Option[]>; specialisations: Record<string, Option[]>; fieldCodes: Record<string, Option[]>; permits: Record<string, Option[]> };
+const WAITING = "Choose the registration body first.";
+const NONE_FOR_BODY = "This body offers nothing to choose here: its list is not configured, or it takes nothing stated with it.";
+
+export function AddRequirementDrawer({ exerciseId, allowed, bodies, groups, typeTest, needs }: { exerciseId: string; allowed: Allowed; bodies: Option[]; groups: Option[]; typeTest: string; needs: NeedOptions }) {
   if (!allowed.allowed) return <Blocked label="Add a registration" reason={allowed.reason} />;
   return (
     <RecordEditor
@@ -31,7 +35,12 @@ export function AddRequirementDrawer({ exerciseId, allowed, bodies, groups, type
       fields={[
         hidden("exerciseId"),
         { kind: "select", name: "bodyCode", label: "Registration body", required: true, placeholder: "Choose", options: bodies },
-        { kind: "text", name: "qualifiers", label: "What is required with it", hint: "As the notice should print it: the grade, category and specialisation, or the field codes. Empty for a body that takes nothing." },
+        { kind: "select", name: "needGrade", label: "Lowest grade accepted", placeholder: "No grade asked for", hint: "Compared by the grade's order in the body's list: a bidder at this grade or above passes.", options: [], optionsBy: { name: "bodyCode", options: needs.grade, waiting: WAITING } },
+        { kind: "checks", name: "needCategories", label: "Category (any one is enough)", options: [], optionsBy: { name: "bodyCode", options: needs.categories, waiting: WAITING, none: NONE_FOR_BODY } },
+        { kind: "checks", name: "needSpecialisations", label: "Specialisation (any one is enough)", options: [], optionsBy: { name: "bodyCode", options: needs.specialisations, waiting: WAITING, none: NONE_FOR_BODY } },
+        { kind: "checks", name: "needFieldCodes", label: "Field codes (every one is needed)", options: [], optionsBy: { name: "bodyCode", options: needs.fieldCodes, waiting: WAITING, none: NONE_FOR_BODY } },
+        { kind: "checks", name: "needPermits", label: "Permit types (every one is needed)", options: [], optionsBy: { name: "bodyCode", options: needs.permits, waiting: WAITING, none: NONE_FOR_BODY } },
+        { kind: "text", name: "qualifiers", label: "What is required with it, in words", hint: "Leave empty to have it written from the grade and codes chosen above. Words typed here are printed on the notice but are not compared, so eligibility reads \"not assessed\" for them." },
         { kind: "select", name: "alternativeGroup", label: "How it counts", required: true, options: groups },
       ]}
       values={{ exerciseId, alternativeGroup: groups[0]?.value ?? "" }}

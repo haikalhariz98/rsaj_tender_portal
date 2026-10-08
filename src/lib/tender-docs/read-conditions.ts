@@ -24,6 +24,8 @@ import { assuranceRequiredText, BEFORE_CONDITIONS_TEXT, frozenConditionsView, gr
 import { NOT_SET, yesNoNotSet } from "./labels";
 import { permitFaults, permitLabel } from "./permit";
 import { loadConfirmations, loadOverrides, loadPacks, loadPermitList, loadRegistrationBodies, loadRequirements, loadTenderPolicy, loadClauses, partFactsOf, profileOf } from "./repo";
+import { needLabel, type NeedKind } from "./requirement-needs";
+import { loadNeedValues } from "./requirement-store";
 import { restrictionFaults } from "./stamp";
 import type { Finding } from "./types";
 
@@ -67,6 +69,7 @@ export async function conditionsTab(organisationId: string, exerciseId: string) 
     loadClauses(org.id),
     db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
+  const needValues = await loadNeedValues(org.id);
   const list = await loadPermitList(org.id, policy.regulatorPermitTaxonomyCode, today);
   const draft = packs.find((p) => p.status === "DRAFT") ?? null;
   const editFault = eligibilityEditFault(ex.status);
@@ -76,8 +79,11 @@ export async function conditionsTab(organisationId: string, exerciseId: string) 
   const profile = profileOf(ex.classificationSnapshot);
   const registrationTest = profile?.find((p) => p.key === "registrationTest")?.value;
 
-  // ---- the registrations (FR-DOC-005)
+  // ---- the registrations (FR-DOC-005). 615-C1: what each live body offers to ask for, by the body's code, as "code - name" (a body that takes nothing stated with it offers nothing).
+  const needOptionsOf = (kind: NeedKind) =>
+    Object.fromEntries(bodies.filter((b) => isLive(b.retiredOn)).map((b) => [b.code, b.qualifierLabelEn ? needValues.filter((v) => v.bodyCode === b.code && v.kind === kind && isLive(v.retiredOn)).map((v) => ({ value: v.id, label: needLabel(v) })) : []]));
   const eligibility = {
+    needOptions: { grade: needOptionsOf("GRADE"), categories: needOptionsOf("CATEGORY"), specialisations: needOptionsOf("SPECIALISATION"), fieldCodes: needOptionsOf("FIELD_CODE"), permits: needOptionsOf("PERMIT_TYPE") },
     groups: groupHeadings(requirements, (r) => ({ id: r.id, body: r.bodyLabel, qualifiers: r.qualifiers || null, qualifierLabel: r.qualifierLabel })),
     text: requirements.length ? registrationText(requirements, "EN") : null,
     /// The contract type's registration test, as the exercise was decided under it: guidance for choosing the bodies.

@@ -30,7 +30,7 @@ import { bestReading, windowValidity, type Assessment, type WindowDays, type Win
 export type Result = Assessment | "PASS_BY_PERMISSION";
 export type Verdict = "ELIGIBLE" | "NOT_ELIGIBLE" | "NOT_ASSESSED";
 
-export type ConditionKind = "REGISTERED" | "STANDING" | "REGISTRATION" | "GRADE" | "CATEGORY" | "SPECIALISATION" | "FIELD_CODES" | "QUALIFIERS" | "RESTRICTION";
+export type ConditionKind = "REGISTERED" | "STANDING" | "REGISTRATION" | "GRADE" | "CATEGORY" | "SPECIALISATION" | "FIELD_CODES" | "PERMITS" | "QUALIFIERS" | "RESTRICTION";
 
 export type ConditionReason =
   | WindowReading["reason"]
@@ -49,6 +49,8 @@ export type ConditionReason =
   | "VALUE_NOT_HELD"
   | "FIELD_CODES_HELD"
   | "FIELD_CODES_MISSING"
+  | "PERMITS_HELD"
+  | "PERMITS_MISSING"
   | "RESTRICTION_NOT_STATED"
   | "EVIDENCE_TYPE_NOT_SET";
 
@@ -67,13 +69,37 @@ export interface NeededValue {
   label: string;
 }
 
-/// What a requirement asks for, where it is structured. As built (6.4), none reaches a requirement yet.
+/// What a requirement asks for, where it is structured (Phase 4c, 615-C1: from the requirement's own needs; none for a requirement stated in words only).
 export interface StructuredNeeds {
   /// The lowest grade accepted, by its configured rank. A rank of null cannot be compared.
   grade?: { rank: number | null; label: string };
   categories?: readonly NeededValue[];
   specialisations?: readonly NeededValue[];
   fieldCodes?: readonly NeededValue[];
+  /// Every one is needed (permit types are not ruled either way; the default taken, logged for the product owner).
+  permitTypes?: readonly NeededValue[];
+}
+
+/// A stored need as eligibility reads it: what it was entered as (code and name, for display), and the value's rank NOW (read live; null: not set).
+export interface StoredNeed {
+  kind: string;
+  codeSnapshot: string;
+  labelSnapshot: string;
+  rankNow: number | null;
+}
+
+/// A requirement's stored needs as the structured comparison reads them (615-C1). None: the requirement is stated in words only, and stays so.
+export function structuredOf(needs: readonly StoredNeed[]): StructuredNeeds | null {
+  if (needs.length === 0) return null;
+  const of = (k: string): NeededValue[] => needs.filter((n) => n.kind === k).map((n) => ({ code: n.codeSnapshot, label: n.labelSnapshot }));
+  const grade = needs.find((n) => n.kind === "GRADE");
+  return {
+    ...(grade ? { grade: { rank: grade.rankNow, label: grade.labelSnapshot } } : {}),
+    categories: of("CATEGORY"),
+    specialisations: of("SPECIALISATION"),
+    fieldCodes: of("FIELD_CODE"),
+    permitTypes: of("PERMIT_TYPE"),
+  };
 }
 
 export interface RequirementFacts {
@@ -84,6 +110,8 @@ export interface RequirementFacts {
   qualifiers: string;
   alternativeGroup: number;
   structured?: StructuredNeeds | null;
+  /// True when `qualifiers` was composed from the structured needs: the words then say nothing more than the needs do.
+  qualifiersFromNeeds?: boolean;
 }
 
 export interface HeldValue {
@@ -165,6 +193,11 @@ function structuredRows(req: RequirementFacts, held: readonly HeldValue[], permi
     if (missing.length === 0) rows.push(row("FIELD_CODES", "PASS", "FIELD_CODES_HELD"));
     else rows.push(row("FIELD_CODES", permitted("FIELD_CODE") ? "PASS_BY_PERMISSION" : "FAIL", "FIELD_CODES_MISSING", { missing: missing.map((n) => n.label).join(", ") }));
   }
+  if (s.permitTypes?.length) {
+    const missing = s.permitTypes.filter((n) => !held.some((h) => h.kind === "PERMIT_TYPE" && h.code === n.code));
+    if (missing.length === 0) rows.push(row("PERMITS", "PASS", "PERMITS_HELD"));
+    else rows.push(row("PERMITS", "FAIL", "PERMITS_MISSING", { missing: missing.map((n) => n.label).join(", ") }));
+  }
   return rows;
 }
 
@@ -196,7 +229,10 @@ export function eligibility(i: EligibilityInput): Eligibility {
       if (req.structured) {
         const permitted = (r: "GRADE" | "FIELD_CODE") => i.permissions.some((p) => p.requirementId === req.id && p.relaxes === r);
         own.push(...structuredRows(req, heldValues(typeIds, i.docs, i.valuesOf, i.on), permitted));
-      } else if (req.qualifiers.trim()) {
+      }
+      // Words an officer typed are never parsed, and never quietly promoted (AGENTS.md rule 2): beside the structured needs they stay "stated in words only, not compared", so the
+      // requirement reads "not assessed" for them. Words composed from the needs say nothing more than the needs, and are not a second condition.
+      if (req.qualifiers.trim() && !(req.structured && req.qualifiersFromNeeds)) {
         own.push({ kind: "QUALIFIERS", result: "NOT_ASSESSED", reason: "QUALIFIERS_IN_WORDS", requirementId: req.id, data: { body: req.bodyLabel, qualifiers: req.qualifiers.trim() } });
       }
       rows.push(...own);

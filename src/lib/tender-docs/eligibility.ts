@@ -18,6 +18,7 @@ import { formatDay } from "@/lib/award/fields";
 import { fieldsNamed } from "@/lib/templates/merge";
 
 import { ELIGIBILITY_FIELDS } from "./fields";
+import type { NeedFault } from "./requirement-needs";
 import type { DocumentLanguage, ExerciseStatus, Finding, PackPartFacts } from "./types";
 
 /// A configured registration body as the rules read it.
@@ -49,18 +50,20 @@ export type EligibilityFault =
   | "QUALIFIERS_REQUIRED"
   | "QUALIFIERS_NOT_TAKEN"
   | "GROUP_NOT_VALID"
-  | "BODY_TWICE_IN_GROUP";
+  | "BODY_TWICE_IN_GROUP"
+  | NeedFault;
 
 const live = (b: RegistrationBodyFacts, today: string) => b.retiredOn == null || b.retiredOn > today;
 
 /// One requirement as saved or as judged at submission: a live configured body, its qualifiers where it takes them, a group from 1.
-export function requirementFaults(r: Pick<RequirementFacts, "bodyCode" | "qualifiers" | "alternativeGroup">, bodies: readonly RegistrationBodyFacts[], today: string): Finding<EligibilityFault>[] {
+export function requirementFaults(r: Pick<RequirementFacts, "bodyCode" | "qualifiers" | "alternativeGroup"> & { hasNeeds?: boolean }, bodies: readonly RegistrationBodyFacts[], today: string): Finding<EligibilityFault>[] {
   const body = bodies.find((b) => b.code === r.bodyCode);
   if (!body) return [{ code: "BODY_NOT_CONFIGURED", level: "block" }];
   const out: Finding<EligibilityFault>[] = [];
   const data = { body: body.labelEn };
   if (!live(body, today)) out.push({ code: "BODY_RETIRED", level: "block", data });
-  if (body.qualifierLabelEn && !r.qualifiers.trim()) out.push({ code: "QUALIFIERS_REQUIRED", level: "block", data: { ...data, qualifier: body.qualifierLabelEn } });
+  // Structured needs (615-C1) say what is required, and their words are composed, so a body that takes a qualifier is satisfied by them.
+  if (body.qualifierLabelEn && !r.qualifiers.trim() && !r.hasNeeds) out.push({ code: "QUALIFIERS_REQUIRED", level: "block", data: { ...data, qualifier: body.qualifierLabelEn } });
   if (!body.qualifierLabelEn && r.qualifiers.trim()) out.push({ code: "QUALIFIERS_NOT_TAKEN", level: "block", data });
   if (!Number.isInteger(r.alternativeGroup) || r.alternativeGroup < 1) out.push({ code: "GROUP_NOT_VALID", level: "block" });
   return out;

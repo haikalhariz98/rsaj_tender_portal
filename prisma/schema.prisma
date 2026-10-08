@@ -287,6 +287,7 @@ model Organisation {
   appendixSections      AppendixSection[]
   registrationBodies    RegistrationBody[]
   exerciseRegistrationRequirements ExerciseRegistrationRequirement[]
+  exerciseRequirementNeeds         ExerciseRequirementNeed[]
   clauseTexts           ClauseText[]
   clauseOverrides       ClauseOverride[]
   packAssurances        PackAssurance[]
@@ -5500,6 +5501,31 @@ model ExerciseRegistrationRequirement {
 
   @@index([exerciseId])
   specialPermissions SpecialPermission[]
+
+  /// Phase 4c (615-C1). True when `qualifiers` was composed from the structured needs below rather than typed: the words then say the same as the needs, and eligibility
+  /// does not read them as a second, uncompared condition. False when an officer typed words: those stay "stated in words only, not compared".
+  qualifiersFromNeeds Boolean                   @default(false)
+  needs               ExerciseRequirementNeed[]
+}
+
+/// Phase 4c (615-C1, ruled 2026-10-02): what a requirement asks of a bidder's registration, as references to the body's configured values, so eligibility can compare it. One minimum
+/// grade (compared by the value's configured rank, read live), categories and specialisations (any one), field codes and permit types (every one). Snapshotted when entered (the code
+/// and name as they read) and frozen with the requirement. Free text is never parsed. A class is not a need in this version.
+model ExerciseRequirementNeed {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  requirementId  String
+  requirement    ExerciseRegistrationRequirement @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+
+  registrationValueId String
+  registrationValue   RegistrationValue @relation(fields: [registrationValueId], references: [id], onDelete: Restrict)
+  kind                RegistrationValueKind
+  codeSnapshot        String
+  labelSnapshot       String
+
+  @@unique([requirementId, registrationValueId])
+  @@index([requirementId])
 }
 
 /// A clause every agreement must carry (FR-DOC-011), cited in a template as {{clause:code}}.
@@ -7494,6 +7520,7 @@ model RegistrationValue {
 
   documentValues SupplierDocumentValue[]
   draftValues    RegistrationDraftValue[]
+  requirementNeeds ExerciseRequirementNeed[]
 
   @@unique([bodyId, kind, code])
 }

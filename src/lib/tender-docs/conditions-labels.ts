@@ -8,6 +8,7 @@
 import type { AssuranceKind, ConfirmFault } from "./assurance";
 import type { ClauseConfigFault, OverrideFault } from "./clauses";
 import type { ConditionsFault } from "./conditions";
+import { NEED_FAULT_TEXT, type NeedFault } from "./requirement-needs";
 import type { Finding } from "./types";
 
 const d = (f: Finding, k: string) => (f.data?.[k] == null ? "" : String(f.data[k]));
@@ -33,6 +34,8 @@ const TEXT: Record<ConditionsFault, (f: Finding) => string> = {
   QUALIFIERS_NOT_TAKEN: (f) => `${d(f, "body")} takes nothing stated with it. Clear what is entered against it ${DETAILS}.`,
   GROUP_NOT_VALID: () => "Give the alternative group as a whole number from 1.",
   BODY_TWICE_IN_GROUP: (f) => `${d(f, "body")} is required twice in one group. Remove one ${DETAILS}.`,
+  // 615-C1: the grade and codes a requirement asks for.
+  ...(Object.fromEntries((Object.keys(NEED_FAULT_TEXT) as NeedFault[]).map((k) => [k, (f: Finding) => NEED_FAULT_TEXT[k]((f.data ?? {}) as Record<string, string | number | null>)])) as Record<NeedFault, (f: Finding) => string>),
   NOTICE_PART_MISSING: () => `The pack has no notice of invitation to carry the eligibility block. Add an invitation part for this pack kind ${CONFIG}.`,
   NOTICE_LACKS_ELIGIBILITY: (f) => `Part ${d(f, "part")}: the template ${d(f, "template")} does not state ${d(f, "fields")}, so the notice would go without its eligibility block. Add them under Configuration, Templates, or choose another template.`,
   NOTICE_NOT_CHECKED: (f) => `Part ${d(f, "part")} is an uploaded file, which the portal cannot read: check that it states the registrations and their validity window before it goes.`,

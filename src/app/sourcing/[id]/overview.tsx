@@ -511,7 +511,7 @@ function DetailsCard({ p }: { p: OverviewProps }) {
             <MoreText text="The registrations, the restriction and the permit are fixed once the documents go for approval. The work code and the person in charge stay open until an award goes for approval." label="When these can change" />
           </>
         }
-        actions={live && live.edit.allowed ? <AddRequirementDrawer exerciseId={live.exerciseId} allowed={live.eligibility.noBodies ? { allowed: false, reason: live.eligibility.noBodies } : live.edit} bodies={live.eligibility.bodyOptions} groups={live.eligibility.groupOptions} typeTest={live.eligibility.typeTest} /> : undefined}
+        actions={live && live.edit.allowed ? <AddRequirementDrawer exerciseId={live.exerciseId} allowed={live.eligibility.noBodies ? { allowed: false, reason: live.eligibility.noBodies } : live.edit} bodies={live.eligibility.bodyOptions} groups={live.eligibility.groupOptions} typeTest={live.eligibility.typeTest} needs={live.eligibility.needOptions} /> : undefined}
       />
       <CardBody className="flex flex-col gap-5">
         <ul className="divide-y divide-line/70 rounded-2xl border border-line">
