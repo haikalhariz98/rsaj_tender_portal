@@ -20,13 +20,18 @@ const h = vi.hoisted(() => ({
   /// Phase 4a: what the officer holds, the organisation's settings, and what the portal account's tables hold.
   validityMinutes: 60 as number | null,
   loginTaken: false,
+  revalidated: [] as string[],
   accounts: [] as Row[],
   codes: [] as Row[],
   signInEvents: [] as Row[],
   attributed: [] as { entity: string; entityId: string; slot: string; subjectPersonId: string | null; mode: string }[],
 }));
 
-vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+vi.mock("next/cache", () => ({
+  revalidatePath: (path: string) => {
+    h.revalidated.push(path);
+  },
+}));
 // Phase 1b: every action asks who is signed in first; these tests are not about sign-in, so a signed-in officer stands in for the session.
 vi.mock("@/app/_auth/actor", async () => (await import("@/lib/test-support/staff")).actorModule());
 // Phase 2b: every act is attributed to the signed-in person (`beginAct`). The real reading of the form stands, with the organisation's switch, the password and the write faked.
@@ -182,6 +187,7 @@ beforeEach(() => {
   (STAFF_FIXTURE.permissions as Set<string>).clear();
   h.validityMinutes = 60;
   h.loginTaken = false;
+  h.revalidated = [];
   h.accounts = [];
   h.codes = [];
   h.signInEvents = [];
@@ -365,6 +371,20 @@ describe("opening the contact's portal account when the supplier is recorded (Ph
     expect(h.codes).toEqual([expect.objectContaining({ store: "SUPPLIER", purpose: "ACTIVATION", issuedByPersonId: "person_test", identityCheck: "Seen at the counter with her identity card" })]);
     expect(h.signInEvents.map((e) => e.kind)).toEqual(["ACCOUNT_CREATED", "CODE_ISSUED"]);
     expect(h.signInEvents.every((e) => e.store === "SUPPLIER" && e.supplierAccountId === "acc1")).toBe(true);
+  });
+
+  it("does not make Next render the form again while the code is on screen: a recorded online application would swap the form (and the code) for \"not waiting any more\" (found in the rehearsal)", async () => {
+    grant();
+    const r = await record(ASK);
+    expect(r.ok).toBe(true);
+    expect(r.issued).toBeTruthy();
+    expect(h.revalidated).toEqual([]);
+  });
+
+  it("revalidates the register's list when it goes straight on to the supplier", async () => {
+    grant();
+    await expect(record()).rejects.toThrow(/REDIRECT/);
+    expect(h.revalidated).toContain("/suppliers");
   });
 
   it("writes the code nowhere: the database holds its hash, and the trail the fact that one was issued and how identity was checked", async () => {

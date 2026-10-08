@@ -312,9 +312,11 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
     throw e;
   }
   if (!result.ok || !created) return result;
-  revalidatePath("/suppliers");
-  // A code issued is shown once by the form before it goes on; without one the officer goes straight to the supplier.
+  // A code issued is shown once by the form before it goes on, and the form must stay on screen while it is: revalidating here would have Next render this page again, and an
+  // online application that is now recorded is "not waiting any more", so the form (and the code with it) would be swapped for that message under the officer's eyes. Found in the
+  // rehearsal. Nothing is stale for it: every screen it leads to is dynamic and reads the database when it is opened.
   if (issued) return { ok: true, issued };
+  revalidatePath("/suppliers");
   redirect(`/suppliers/${created}?tab=documents`);
 }
 
