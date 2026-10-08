@@ -1,7 +1,10 @@
 import Link from "next/link";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
-import { Badge } from "@/components/ui/badge";
+import { Badge, SulitValue } from "@/components/ui/badge";
+import { sulitGate } from "@/app/_auth/sulit";
+import { through } from "@/lib/auth/sulit-access";
+import { CONTACT_FIELDS } from "@/lib/suppliers/contact-fields";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -44,6 +47,8 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
   }
   const { application: a, erased, flags } = loaded;
   const [cfg, people] = await Promise.all([loadSupplierConfig(org.id), db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })]);
+  // The applicant's contact is SULIT as a supplier's is (6.15 condition 2): a supplier keeps no list of who is named, so only the organisation-wide permission opens it. Judged once, logged.
+  const contact = await sulitGate(actor, { scope: "supplier", entity: "PortalApplication", id: a.id, label: a.reference }, CONTACT_FIELDS);
   const status = STATUS[a.status];
   const waiting = a.status === "RECEIVED";
   const stops = blocksRecording(flags);
@@ -128,10 +133,10 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
               <KeyValues
                 columns={2}
                 items={[
-                  { label: "Name", value: a.contactName },
-                  { label: "Position", value: a.contactDesignation || "—" },
-                  { label: "Email", value: a.contactEmail || "—" },
-                  { label: "Telephone", value: a.contactPhone || "—" },
+                  { label: "Name", value: <SulitValue of={through(contact, a.contactName)} /> },
+                  { label: "Position", value: <SulitValue of={through(contact, a.contactDesignation || "—")} /> },
+                  { label: "Email", value: <SulitValue of={through(contact, a.contactEmail || "—")} /> },
+                  { label: "Telephone", value: <SulitValue of={through(contact, a.contactPhone || "—")} /> },
                 ]}
               />
             </CardBody>

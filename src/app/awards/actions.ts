@@ -31,7 +31,7 @@ import { recommendationDifferences } from "@/lib/evaluation/award-gate";
 import { loadEvaluationGate, type EvaluationGate } from "@/lib/evaluation/gate-read";
 import { openingFindingText } from "@/lib/opening/labels";
 import { awardValueFaults, instrumentFor } from "@/lib/award/instrument";
-import { AWARD_STATUS_LABEL, awardFindingText, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, INSURANCE_KIND_LABEL, SECURITY_KIND_LABEL, SIGNER_FAULT_TEXT, differsRefusal, tenderTermText } from "@/lib/award/labels";
+import { AWARD_STATUS_LABEL, awardFindingTextFor, BOND_FAULT_TEXT, DESPATCH_FAULT_TEXT, INSURANCE_FAULT_TEXT, INSURANCE_KIND_LABEL, SECURITY_KIND_LABEL, SIGNER_FAULT_TEXT, differsRefusal, tenderTermText } from "@/lib/award/labels";
 import { policyLabel, securityLabel } from "@/lib/audit/entity-labels";
 import { renderedText } from "@/lib/award/merge";
 import { awardFacts, dossierEvidenceOf, frozenTenderOf, loadAwardConfig, withLockedAwardFor, withLockedExerciseForAward, latestRoute, type LoadedAward } from "@/lib/award/repo";
@@ -82,7 +82,8 @@ const GONE: FormState = { ok: false, message: "That award no longer exists." };
 
 
 
-const refuse = (fs: readonly Finding[], lead: string): FormState => ({ ok: false, message: `${lead} ${fs.map(awardFindingText).join(" ")}` });
+// An action's response goes to whoever acted and is built without the department estimate's figures (Phase 3b): `awardFindingTextFor(f, false)`.
+const refuse = (fs: readonly Finding[], lead: string): FormState => ({ ok: false, message: `${lead} ${fs.map((f) => awardFindingTextFor(f, false)).join(" ")}` });
 
 function refresh(id?: string, exerciseId?: string) {
   revalidatePath("/awards");
@@ -159,7 +160,7 @@ function recommendationRefusal(e: EvaluationGate, awardeePartyId: string | null,
   if (!fs.length) return null;
   const general = fs.filter((f) => !FIELD[f.code]);
   if (general.length) return refuse(general, "Nothing was saved:");
-  return { ok: false, errors: Object.fromEntries(fs.map((f) => [FIELD[f.code], awardFindingText(f)])) };
+  return { ok: false, errors: Object.fromEntries(fs.map((f) => [FIELD[f.code], awardFindingTextFor(f, false)])) };
 }
 
 /// The reasons written: each only where its figure differs from the recommendation (cleared where it no longer does).
@@ -240,7 +241,7 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
         approvedValue: approvedRouteOf({ approvalInstances: req.approvalInstances })?.value ?? null,
         otherAwards: siblings.map((s) => senFromDecimal(s.awardedValue)),
       }).filter((f) => f.level === "block");
-      if (faults.length) return { ok: false, errors: { awardedValue: faults.map(awardFindingText).join(" ") } };
+      if (faults.length) return { ok: false, errors: { awardedValue: faults.map((f) => awardFindingTextFor(f, false)).join(" ") } };
       const reference = await issueReference(tx, org.id, "award", dayToDate(org.today));
       // 64-C4 (6.4 Q-1 B): on an exercise whose approved pack froze an Appendix, the terms open as the tender stated them.
       const tender = await frozenTenderOf(ex.id, org.timeZone, tx);
@@ -333,7 +334,7 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
     const { facts } = await awardFacts({ ...l, award: { ...l.award, awardedValue: after.awardedValue as never } }, tx);
     const ev = evaluateAward(facts);
     const blocks = ev.valueFaults.filter((f) => f.level === "block");
-    if (blocks.length) return { ok: false, errors: { awardedValue: blocks.map(awardFindingText).join(" ") } };
+    if (blocks.length) return { ok: false, errors: { awardedValue: blocks.map((f) => awardFindingTextFor(f, false)).join(" ") } };
     const moved = await tx.award.updateMany({ where: { id, status: "DRAFT", updatedAt: l.award.updatedAt }, data: after });
     if (moved.count !== 1) throw new Refusal(CHANGED);
     // R-7: the bidder named reads by name in the trail, never as the party's id.

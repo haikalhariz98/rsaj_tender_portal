@@ -14,7 +14,7 @@ import { addSen, formatMoney, parseSen, subtractSen } from "@/lib/money";
 
 import { ExerciseForm } from "../../exercise-form";
 import { requireStaff } from "@/app/_auth/actor";
-import { exerciseIsHidden, sulitExerciseValue } from "@/app/_auth/sulit";
+import { exerciseIsHidden, sulitExerciseValue, sulitGate } from "@/app/_auth/sulit";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +58,8 @@ export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/
   const on = org.today ? dayToDate(org.today) : new Date();
   const options = await exerciseFormOptions(org.id, on, req.fundingPosture);
   const approved = approvedRouteOf(req);
+  // What the requisition's approval covers is the requisition's department estimate, judged by the requisition's own answer, not the exercise's (Phase 3b).
+  const reqEstimate = await sulitGate(actor, { scope: "requisition", entity: "Requisition", id: req.id, label: req.reference }, ["estimatedValue"]);
   const others = addSen(...req.exercises.filter((x) => x.id !== ex.id && x.status !== "CANCELLED").map((x) => parseSen(x.estimatedValue.toString())));
   const s = (v: string | null | undefined) => v ?? "";
   return (
@@ -70,7 +72,7 @@ export default async function EditExercisePage(props: PageProps<"/sourcing/[id]/
           id: req.id,
           reference: req.reference,
           title: req.title,
-          approved: approved ? `The requisition's approval covers ${formatMoney(approved.value)}; its other live exercises hold ${formatMoney(others)}, leaving ${formatMoney(subtractSen(approved.value, others))}.` : "",
+          approved: reqEstimate.state === "WITHHELD" ? "What the requisition's approval covers, and what its other exercises leave, are made of the department estimate, which is closed to you." : approved ? `The requisition's approval covers ${formatMoney(approved.value)}; its other live exercises hold ${formatMoney(others)}, leaving ${formatMoney(subtractSen(approved.value, others))}.` : "",
         }}
         options={options}
         initial={{

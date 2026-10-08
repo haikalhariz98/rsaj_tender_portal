@@ -13,6 +13,8 @@ import { PAPER_CHANNELS } from "@/lib/suppliers/types";
 
 import { ApplicationForm } from "./application-form";
 import { requireStaff } from "@/app/_auth/actor";
+import { sulitGate } from "@/app/_auth/sulit";
+import { CONTACT_FIELDS } from "@/lib/suppliers/contact-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +51,8 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
     );
   }
   const a = online?.application;
+  // The applicant's contact is SULIT (6.15 condition 2): it is put into the form only for a reader it is open to (the form's payload is the page's), and the others type it.
+  const contact = a ? await sulitGate(actor, { scope: "supplier", entity: "PortalApplication", id: a.id, label: a.reference }, CONTACT_FIELDS) : null;
   return (
     <>
       {header}
@@ -80,7 +84,7 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
        
         formatExample={cfg.format?.example || null}
         today={org.today}
-        portal={a ? { id: a.id, reference: a.reference, receivedOn: storedDay(a.receivedOn), initial: { registeredName: a.registeredName, registrationNo: a.registrationNo, entityTypeCode: a.entityTypeCode, countryCode: a.countryCode, registeredAddress: a.registeredAddress, companyEmail: a.companyEmail, contactName: a.contactName, contactDesignation: a.contactDesignation, contactEmail: a.contactEmail, contactPhone: a.contactPhone } } : undefined}
+        portal={a ? { id: a.id, reference: a.reference, receivedOn: storedDay(a.receivedOn), initial: { registeredName: a.registeredName, registrationNo: a.registrationNo, entityTypeCode: a.entityTypeCode, countryCode: a.countryCode, registeredAddress: a.registeredAddress, companyEmail: a.companyEmail, contactName: contact?.state === "GRANTED" ? a.contactName : "", contactDesignation: contact?.state === "GRANTED" ? a.contactDesignation : "", contactEmail: contact?.state === "GRANTED" ? a.contactEmail : "", contactPhone: contact?.state === "GRANTED" ? a.contactPhone : "" } } : undefined}
       />
     </>
   );

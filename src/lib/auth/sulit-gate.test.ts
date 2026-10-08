@@ -36,8 +36,15 @@ describe("a record's several fields are asked at once", () => {
     expect(fieldsOfScope("exercise")).toContain("estimatedValue");
     expect(fieldsOfScope("requisition")).toContain("estimatedValue");
     expect(fieldsOfScope("evaluation")).not.toContain("estimatedValue");
-    expect(fieldsOfScope("contract")).toContain("icNumber");
-    expect(fieldsOfScope("exercise")).toContain("icNumber");
+  });
+  // The access log must say what was read, not what could have been (Phase 3b review): a page asks about the figures it shows, and a field read on one path only is named by that path.
+  it("leaves out the fields read on one path only: a document's bytes, a bidder's name, a matter's amount, a waiting route's value, an identity-card number", () => {
+    for (const scope of ["exercise", "evaluation", "requisition", "contract", "supplier"] as const) {
+      for (const f of ["documentBytes", "bidderIdentity", "matterAmount", "waitingValue", "icNumber"]) expect(fieldsOfScope(scope), `${scope} ${f}`).not.toContain(f);
+    }
+    expect(fieldsOfScope("evaluation")).toContain("score");
+    expect(fieldsOfScope("contract")).toContain("estimateRate");
+    expect(fieldsOfScope("requisition")).toContain("estimatedValue");
   });
 });
 

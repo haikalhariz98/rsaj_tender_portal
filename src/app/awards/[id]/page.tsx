@@ -34,6 +34,7 @@ import {
   AWARD_STATUS_LABEL,
   AWARD_STATUS_TONE,
   awardFindingText,
+  awardFindingTextFor,
   BOND_BASIS_LABEL,
   COMMITMENT_KIND_LABEL,
   CONTRACT_STATUS_LABEL,
@@ -129,12 +130,12 @@ const yesNo = (v: boolean | null) => (v == null ? null : v ? "yes" : "no");
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const tone = (l: string) => (l === "block" || l === "err" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 
-function FaultList({ faults }: { faults: readonly Finding[] }) {
+function FaultList({ faults, figures = true }: { faults: readonly Finding[]; figures?: boolean }) {
   return (
     <ul className="flex list-disc flex-col gap-1 pl-5">
       {faults.map((f, i) => (
         <li key={i}>
-          {awardFindingText(f)}
+          {awardFindingTextFor(f, figures)}
           {FIX_AT[f.code] && (
             <>
               {" "}
@@ -417,16 +418,16 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
         )}
         {status === "DRAFT" && submitBlocks.length > 0 && (
           <Callout tone="warn" title="Before it can go for approval">
-            <FaultList faults={submitBlocks} />
+            <FaultList faults={submitBlocks} figures={sulit.state === "GRANTED"} />
           </Callout>
         )}
         {status === "APPROVED" && ev.issueFaults.length > 0 && (
           <Callout tone="warn" title="Not ready to issue">
-            <FaultList faults={ev.issueFaults} />
+            <FaultList faults={ev.issueFaults} figures={sulit.state === "GRANTED"} />
           </Callout>
         )}
         {ev.valueFaults.filter((x) => x.level === "warn").map((x, i) => (
-          <Callout key={i} tone="warn">{awardFindingText(x)}</Callout>
+          <Callout key={i} tone="warn">{awardFindingTextFor(x, sulit.state === "GRANTED")}</Callout>
         ))}
         {ev.commencement?.state === "LATE" && status === "ISSUED" && (
           <Callout tone="err" title="Work has not commenced">

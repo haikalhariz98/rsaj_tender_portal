@@ -3,7 +3,7 @@
  * version, issued once and frozen: its reference from the configured series (§9.5), its text from the
  * configured template, and annexes A to F in order — A the scores, B the comparison of offers, C the
  * opening's frozen schedule as 6.7 froze it, D contractor performance, E the site visit's attendance
- * (6.5), F the drawings attached (listed: they are SULIT and not downloadable until sign-in, E-11). A
+ * (6.5), F the drawings attached (listed: they are SULIT, downloaded by the people the evaluation is open to, each download logged, E-11). A
  * later version supersedes it; nothing edits it. Everything it needs is asked first (`reportFaults`),
  * so a refusal names each gap. Strings only in the snapshot: no float, no code. Pure.
  */

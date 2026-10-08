@@ -12,6 +12,7 @@ import { db } from "@/lib/db";
 import type { SulitScope } from "@/lib/sulit-fields";
 
 import { exerciseOfOwner } from "./hidden";
+import { scopeOfOwner } from "./owner-scope";
 import { OWNER_COLUMN, OWNER_KINDS, type OwnerKind } from "./types";
 
 /**
@@ -36,11 +37,7 @@ export interface DocumentSubject {
   label: string;
 }
 
-/// What each owner kind is, for the log and for the scope that judges it. An exercise's papers (including its award, bill, tender pack and opening) are an exercise’s; an evaluation’s, its own.
-const EVALUATION_OWNERS: readonly OwnerKind[] = ["evaluation", "evaluationMeeting", "evaluationBidder"];
-const SUPPLIER_OWNERS: readonly OwnerKind[] = ["supplierDocument", "supplierApplication", "standingEvent"];
-const CONTRACT_OWNERS: readonly OwnerKind[] = ["contract", "variationInstruction", "delayNotice", "eotClaim"];
-
+/// What each owner kind is, for the log.
 const ENTITY_OF: Readonly<Record<OwnerKind, string>> = {
   meeting: "Meeting",
   exercise: "SourcingExercise",
@@ -64,14 +61,6 @@ const ENTITY_OF: Readonly<Record<OwnerKind, string>> = {
   delayNotice: "DelayNotice",
   eotClaim: "EotClaim",
 };
-
-/// The scope that judges an owner of this kind: the pure half of `subjectOfOwner`.
-export function scopeOfOwner(kind: OwnerKind, exerciseId: string | null): SulitScope {
-  if (exerciseId) return EVALUATION_OWNERS.includes(kind) ? "evaluation" : "exercise";
-  if (SUPPLIER_OWNERS.includes(kind)) return "supplier";
-  if (CONTRACT_OWNERS.includes(kind)) return "contract";
-  return "requisition";
-}
 
 /// The record an owner of documents is judged as (read without a lock).
 export async function subjectOfOwner(client: Tx | typeof db, kind: OwnerKind, id: string): Promise<DocumentSubject> {

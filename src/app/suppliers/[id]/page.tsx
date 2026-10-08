@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
-import { fieldsOfScope } from "@/lib/sulit-fields";
+import { CONTACT_FIELDS } from "@/lib/suppliers/contact-fields";
 import type { Sulit } from "@/lib/auth/sulit-access";
 import { hiddenExercises, sulitGate } from "@/app/_auth/sulit";
 import { ActedBy } from "@/components/attribution";
@@ -91,7 +91,7 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
   const { supplier: s, org } = l;
   // A supplier's contacts and the figures held about it (its contractor performance percentage) are SULIT: it keeps no list of who is named on it, so only the organisation-wide
   // permission opens them (undecided until decided). One answer for the page, logged.
-  const sulit = await sulitGate(actor, { scope: "supplier", entity: "Supplier", id: s.id, label: s.reference }, fieldsOfScope("supplier"));
+  const sulit = await sulitGate(actor, { scope: "supplier", entity: "Supplier", id: s.id, label: s.reference }, CONTACT_FIELDS);
   const today = org.today;
   const [cfg, people, history] = await Promise.all([loadSupplierConfig(org.id), db.person.findMany({ where: { organisationId: org.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }), supplierHistory(l)]);
   const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));

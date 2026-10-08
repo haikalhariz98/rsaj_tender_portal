@@ -1,6 +1,6 @@
 "use server";
 
-import { hiddenExerciseIds } from "@/lib/auth/sulit-store";
+import { hiddenExerciseIds, sulitWriteRefusal, type SulitReader } from "@/lib/auth/sulit-store";
 import { dependencyIsHidden, exerciseByTabledReference } from "@/lib/committee/tabled-exercise";
 import { matterIsHidden } from "@/app/_auth/sulit";
 import type { Reader } from "@/lib/auth/sulit-store";
@@ -744,7 +744,7 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
   return inSitting(actor, meetingId, async (tx, s) => {
     const refusal = permit(s, "TABLE");
     if (refusal) return refusal;
-    return tableInto(tx, toAuditActor(actor), s, r, { reader: actor, subject, domain, matterKind, matterRef, amount, act, tabledByPersonId: tabling.subjectPersonId, tabling, dependsOnDecisionId });
+    return tableInto(tx, toAuditActor(actor), s, r, { reader: actor, typedBy: actor, subject, domain, matterKind, matterRef, amount, act, tabledByPersonId: tabling.subjectPersonId, tabling, dependsOnDecisionId });
   });
 }
 
@@ -752,6 +752,8 @@ export async function tableMatter(_prev: FormState, data: FormData): Promise<For
 interface TablingFields {
   /// Whoever is tabling it: what they may see decides what a typed reference finds (FR-MTD-007).
   reader: Reader;
+  /// Set when the amount was typed by the person tabling (the form), not carried from the record by the schedule drawer: only a typed amount can test a guess at the estimate.
+  typedBy?: SulitReader;
   subject: string;
   domain: string;
   matterKind: (typeof SITTING_TABLED_MATTER_KINDS)[number] | null;
@@ -798,6 +800,12 @@ async function tableInto(tx: Tx, by: AuditActor, s: LoadedSitting, r: FormReader
     requisitionReference = found.ok ? matches[0].reference : null;
     if (!found.ok) r.reject("matterRef", MATTER_REF_TEXT[found.fault]);
     requisitionId = found.ok ? found.requisitionId : null;
+    // Phase 3b: a gate matter's amount is compared with the requisition's department estimate (the citation refuses any other), so a figure typed here by a reader the estimate is
+    // closed to would test a guess at it. They may table the matter without an amount, which the citation accepts; they may not state one. Logged in this transaction.
+    if (requisitionId && amount != null && input.typedBy) {
+      const closed = await sulitWriteRefusal(tx, input.typedBy, { scope: "requisition", entity: "Requisition", id: requisitionId, label: requisitionReference ?? matterRef }, ["estimatedValue"]);
+      if (closed) r.reject("amount", `A requisition's gate matter's amount is its department estimate, which is closed to you, so it cannot be stated here. Leave it blank. ${closed}`);
+    }
   }
   // An exercise matter links to its exercise the same way (6.11): by the exercise's
   // portal reference, exactly one, and not a cancelled one.

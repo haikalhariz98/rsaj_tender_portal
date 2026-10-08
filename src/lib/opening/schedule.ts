@@ -7,7 +7,7 @@
  *   finalising), the count of late envelopes (from the register, never typed: FR-OPN-007), and the
  *   signed paper's pages (entered).
  * - One row per offer opened, in opening order (Bil.): the bidder, its registration class and status
- *   as read, the price as read (SULIT, not restricted until sign-in, C-4) and the completion period.
+ *   as read, the price as read (SULIT, shown to the people the prices are open to, C-4) and the completion period.
  *   A withdrawn envelope and a late one not admitted are never rows.
  * - The company estimate's benchmark row, only once disclosed (at finalising, OD-2 A); before that it
  *   reads "Sealed until the schedule is finalised" and no figure exists here.

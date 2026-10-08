@@ -162,6 +162,25 @@ export const FIX_AT: Record<string, { href: string; label: string }> = {
 /// recommendation cannot be judged against it; the recommended price was judged when it was formed.
 export const AWARD_CEILING_NOT_RECORDED = "This quotation's ceiling was never recorded when the exercise was classified, so an awarded value different from the recommendation cannot be judged against it. Award at the recommended price.";
 
+/**
+ * The same text for a reader who may not read the department estimate (Phase 3b): the two findings that quote it, the figure the requisition's approval covered and the exercise's
+ * estimate with the difference, say what is wrong without the figures. Every other finding is the same text. An action's refusal uses this form (its response goes to whoever
+ * acted), a page uses whichever the reader may have.
+ */
+export function awardFindingTextFor(f: Finding, figures: boolean): string {
+  if (figures) return awardFindingText(f);
+  switch (f.code) {
+    case "EXCEEDS_APPROVED_VALUE":
+      return Number(f.data?.others ?? 0) > 0
+        ? "With the requisition's other awards this comes to more than its approval covered. Reduce the awarded value, cancel another award, or raise a further requisition for the difference. The figures are the department estimate's, which is closed to you."
+        : "This is above what the requisition's approval covered. Reduce the awarded value, or raise a further requisition for the difference. The figures are the department estimate's, which is closed to you.";
+    case "ABOVE_ESTIMATE":
+      return "Above the exercise's estimate, within what the requisition's approval covered. The difference is not posted to the budget ledger: it waits for the finance system's commitment. The figures are closed to you.";
+    default:
+      return awardFindingText(f);
+  }
+}
+
 export function awardFindingText(f: Finding): string {
   const d = f.data ?? {};
   switch (f.code) {

@@ -1,4 +1,4 @@
-import { exerciseIsHidden, sulitExerciseGate } from "@/app/_auth/sulit";
+import { exerciseIsHidden, sulitExerciseGate, sulitGate } from "@/app/_auth/sulit";
 import Link from "next/link";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
@@ -65,6 +65,8 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
     db.award.findMany({ where: { exercise: { requisitionId: l.req.id }, status: { in: [...LIVE_STATUSES] } }, select: { awardedValue: true } }),
     frozenTenderOf(ex.id, org.timeZone),
   ]);
+  // What the requisition's approval covers is the requisition's department estimate, judged by the requisition's own answer (Phase 3b).
+  const reqEstimate = await sulitGate(actor, { scope: "requisition", entity: "Requisition", id: l.req.id, label: l.req.reference }, ["estimatedValue"]);
   const headroom = awardHeadroom(approvedRouteOf(l.req)?.value ?? null, siblings.map((s) => senFromDecimal(s.awardedValue)));
   const method = cfg.config.methods.find((m) => m.code === ex.sourcingMethodCode) ?? null;
   // The dossier's evidence as the document store counts it: the note shows only while there is none.
@@ -126,7 +128,7 @@ export default async function NewAwardPage(props: PageProps<"/awards/new">) {
       <AwardForm
         exercise={{ id: ex.id, facts }}
         cancelHref={`/sourcing/${ex.id}?tab=award`}
-        valueHint={headroom == null ? "The requisition has no approved value on record, so nothing can be awarded against it." : `Up to ${formatMoney(headroom)}: what the requisition's approval covers${siblings.length ? ", less its other awards" : ""}. In ringgit, to at most two decimal places.`}
+        valueHint={headroom == null ? "The requisition has no approved value on record, so nothing can be awarded against it." : reqEstimate.state === "WITHHELD" ? "What the requisition's approval covers is made of the department estimate, which is closed to you, so the most that can be awarded is not stated. In ringgit, to at most two decimal places." : `Up to ${formatMoney(headroom)}: what the requisition's approval covers${siblings.length ? ", less its other awards" : ""}. In ringgit, to at most two decimal places.`}
         dossier={dossierEvidenceMissing(method, { justificationReasonCode: ex.justificationReasonCode, dossierReference: ex.dossierReference, evidenceAttachments: dossierEvidence })}
         parties={carried ? carried.map((p) => { const r = register.get(p.id); return { ...p, register: r ? { supplier: r.supplier, words: r.standing.words.en, tone: r.standing.tone, warning: r.standing.warning?.en ?? null } : null }; }) : undefined}
         recommended={evaluation.gate.applies && evaluation.recommended ? { partyId: evaluation.recommended.party.id, name: evaluation.recommended.party.name, registrationNo: evaluation.recommended.party.registrationNo, address: evaluation.recommended.party.address, value: senToDecimalString(evaluation.recommended.price), valueText: formatMoney(evaluation.recommended.price), period: evaluation.recommended.period ? String(evaluation.recommended.period.value) : "", unit: evaluation.recommended.period?.unit ?? "", version: evaluation.version! } : undefined}

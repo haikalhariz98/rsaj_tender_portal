@@ -33,12 +33,16 @@ export interface SulitField {
   /// A field a second kind of record also carries, read by the scope of the record in hand (the department estimate sits on a
   /// requisition and is copied onto its sourcing exercise).
   alsoIn?: readonly SulitScope[];
+  /// A field read on one path only (a document's bytes at a download, a bidder's name at a reveal, a matter's amount on a sitting, a route's value on the waiting list, an
+  /// identity-card number on the return). A page that shows a record's figures asks about the fields it shows (`fieldsOfScope`), not about these, which the path that reads
+  /// them names itself: the access log must say what was read, not what could have been.
+  contextual?: true;
 }
 
 export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "estimatedValue", scope: "requisition", alsoIn: ["exercise"], what: "the department estimate on a requisition or a sourcing exercise" },
   // Founder, 2026-10-05: the value an open route was routed on, on the sittings page's "Waiting to be tabled" list.
-  { field: "waitingValue", scope: "requisition", alsoIn: ["exercise", "contract"], what: "the value a route waiting to be tabled was routed on (a requisition's is the department estimate)" },
+  { field: "waitingValue", scope: "requisition", alsoIn: ["exercise", "contract"], contextual: true, what: "the value a route waiting to be tabled was routed on (a requisition's is the department estimate)" },
   { field: "companyEstimate", scope: "exercise", what: "the sealed company estimate" },
   { field: "openingPrice", scope: "exercise", what: "a price read out at bid opening" },
   { field: "openingPrices", scope: "exercise", what: "prices read out at bid opening" },
@@ -97,7 +101,7 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "matterRatioNum", scope: "contract", what: "the numerator of the exact ratio a contract matter's route is resolved on, e.g. the damages waived (6.13 Part B)" },
   { field: "matterRatioDen", scope: "contract", what: "the denominator of the exact ratio a contract matter's route is resolved on, e.g. the damages amount (6.13 Part B)" },
   // Phase 3b (FR-EVL-020): a bidder's name on an anonymised technical scoring stage, revealed only for a criterion that needs the named contractor. Judged and logged as the evaluation is.
-  { field: "bidderIdentity", scope: "evaluation", what: "a bidder's name on an anonymised technical scoring stage, revealed for a criterion that needs it (FR-EVL-020)" },
+  { field: "bidderIdentity", scope: "evaluation", contextual: true, what: "a bidder's name on an anonymised technical scoring stage, revealed for a criterion that needs it (FR-EVL-020)" },
   // Phase 3b (6.2 OD-8, sign-in plan 3b): the priced bill of quantities is the department's estimate in detail, so its rates, line amounts and totals are an
   // exercise's SULIT, read by the people named on it. The bill issued to tenderers is unpriced and carries none of them.
   { field: "bqRate", scope: "exercise", what: "a bill of quantities line's rate (6.2, Phase 3b)" },
@@ -105,16 +109,16 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "bqTotals", scope: "exercise", what: "a bill of quantities version's total, firm value and the sums that make it up (6.2, Phase 3b)" },
   // Phase 3b: a committee matter's amount (`matter-amount.ts` says which kinds): a requisition's gate matter carries the department estimate, a contract matter its routed value,
   // and a manual matter or one not yet decided is read as SULIT. A record that keeps no list of who is named, so only the organisation-wide permission opens it.
-  { field: "matterAmount", scope: "requisition", alsoIn: ["contract"], what: "a committee matter's amount, where its kind is SULIT or not decided (Phase 3b)" },
+  { field: "matterAmount", scope: "requisition", alsoIn: ["contract"], contextual: true, what: "a committee matter's amount, where its kind is SULIT or not decided (Phase 3b)" },
   // Phase 3b (OD-2, doc store): the bytes of a document classified SULIT. Every kind of record can hold one (an exercise's tender papers, a requisition's, a contract's statutory
   // declaration, a supplier's scan), so the field belongs to whichever record the document hangs on: it is read by the people that record's scope names.
-  { field: "documentBytes", scope: "exercise", alsoIn: ["evaluation", "requisition", "contract", "supplier"], what: "the bytes of a document classified SULIT, downloaded from the record it hangs on (OD-2)" },
+  { field: "documentBytes", scope: "exercise", alsoIn: ["evaluation", "requisition", "contract", "supplier"], contextual: true, what: "the bytes of a document classified SULIT, downloaded from the record it hangs on (OD-2)" },
   // Phase 3b (FR-AWD-008, 6.11 ruling; 6.11 R20): the identity card number of the contractor's signatory, on the award's return and on the contract's signature.
-  { field: "icNumber", scope: "exercise", alsoIn: ["contract"], what: "the identity card number of a contractor's signatory (FR-AWD-008, 6.11)" },
+  { field: "icNumber", scope: "exercise", alsoIn: ["contract"], contextual: true, what: "the identity card number of a contractor's signatory (FR-AWD-008, 6.11)" },
 ];
 
 /// The registered fields a kind of record carries: its own, and those it also carries. What a screen that shows several of them asks the rule about at once.
-export const fieldsOfScope = (scope: SulitScope): string[] => SULIT_FIELDS.filter((f) => f.scope === scope || f.alsoIn?.includes(scope)).map((f) => f.field);
+export const fieldsOfScope = (scope: SulitScope): string[] => SULIT_FIELDS.filter((f) => !f.contextual && (f.scope === scope || f.alsoIn?.includes(scope))).map((f) => f.field);
 
 /// Whether a stored field (an audit change's field name) is a registered SULIT field: a History
 /// that shows its change shows it with the SULIT chip.

@@ -246,7 +246,7 @@ class Acts {
     const sulit = purpose === "SUPPLIER_EPAYMENT_FORM";
     const e = await writeDemoDocs(this.db, this.org, [{
       id: docId, title, classId: sulit ? `${P}dc2` : `${P}dc1`, className: sulit ? "Certificates" : "Contract documents", classification: sulit ? "SULIT" : "INTERNAL", createdAt: at,
-      versions: [{ id: `${docId}v1`, n: 1, bytes: demoPdf([`${title} (demo scan)`, "Handed in on paper; scanned by the officer.", sulit ? "SULIT: never downloadable before sign-in." : "Not restricted until sign-in."]), mediaType: "application/pdf", filename: `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`, receivedOn: this.dayOf(when), storedAt: at }],
+      versions: [{ id: `${docId}v1`, n: 1, bytes: demoPdf([`${title} (demo scan)`, "Handed in on paper; scanned by the officer.", sulit ? "SULIT: downloaded only by the people entitled to it." : "Opened by signed-in staff who can open the supplier's record."]), mediaType: "application/pdf", filename: `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`, receivedOn: this.dayOf(when), storedAt: at }],
       attachments: [{ id: `${docId}a1`, purpose, owner, ownerLabel, versionId: `${docId}v1`, at }],
     }], `${P}${docId.slice(P.length)}au`, OFFICER);
     await e.flush();

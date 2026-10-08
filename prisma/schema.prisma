@@ -1125,8 +1125,8 @@ model CommitteeDecision {
   withdrawnAt     DateTime?
   withdrawnReason String    @default("")
 
-  /// Who tabled the matter, and when. An attestation, not an authenticated act,
-  /// until sign-in exists.
+  /// Who tabled the matter, and when. An attestation, not an authenticated act (Phase 3d
+  /// makes the tabler the signed-in actor).
   tabledByPersonId String?
   tabledBy         Person?   @relation("TabledBy", fields: [tabledByPersonId], references: [id], onDelete: Restrict)
   tabledAt         DateTime?
@@ -4278,9 +4278,9 @@ enum AttachmentPurpose {
   SIGNED_REPORT
   /// 6.8 (FR-CTE-013): the signed Kertas Cadangan's scan, on the evaluation. SULIT.
   SIGNED_PROPOSAL_PAPER
-  /// 6.15 (FR-VND-002): a statutory document's scan, on the supplier's document. Not restricted until sign-in.
+  /// 6.15 (FR-VND-002): a statutory document's scan, on the supplier's document. SULIT: downloaded by the roles the organisation has chosen, each download logged.
   SUPPLIER_DOCUMENT
-  /// 6.15 (FR-VND-006): the signed paper declaration's scan, on the application. Not restricted until sign-in.
+  /// 6.15 (FR-VND-006): the signed paper declaration's scan, on the application. SULIT: downloaded by the roles the organisation has chosen, each download logged.
   SUPPLIER_DECLARATION
   /// 6.15 OD-3 B (FR-VND-005): the paper E-Payment form's scan, on the application. SULIT at upload, never downloadable before sign-in.
   SUPPLIER_EPAYMENT_FORM
@@ -6497,8 +6497,8 @@ model OpeningAuthorisation {
 }
 
 /// One offer as read at an opening (FR-OPN-005). The only table holding a bid's figure; written only
-/// by `openEnvelope`, `recordAlternative` and `correctAsRead` (source scan). SULIT, not restricted
-/// until sign-in (C-4).
+/// by `openEnvelope`, `recordAlternative` and `correctAsRead` (source scan). SULIT (C-4): read by the people
+/// named on the exercise and the roles the organisation has chosen.
 model OpenedBid {
   id             String           @id @default(cuid())
   organisationId String
@@ -6981,8 +6981,8 @@ model EvaluationPolicy {
 }
 
 /// One evaluation version of an exercise (FR-EVL-017, FR-CTE-009, E-7). Its report is issued
-/// once, frozen, and superseded by the next version, never edited. SULIT: not restricted until
-/// sign-in (E-3).
+/// once, frozen, and superseded by the next version, never edited. SULIT (E-3, FR-EVL-014): read by
+/// the evaluation's team, the people named on the exercise and the roles the organisation has chosen.
 model Evaluation {
   id             String           @id @default(cuid())
   organisationId String
@@ -7558,7 +7558,7 @@ model Supplier {
 }
 
 /// A person at a supplier, as the supplier names them. Not a `Person` (NFR-SEC-005; 6.15b attaches a
-/// vendor account to a contact, ADR 0020). Not restricted until sign-in.
+/// vendor account to a contact, ADR 0020). SULIT (6.15 condition 2): read by the roles the organisation has chosen.
 model SupplierContact {
   id             String       @id @default(cuid())
   organisationId String
