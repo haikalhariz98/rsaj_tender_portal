@@ -379,8 +379,8 @@ export const APPLY = {
   nextItems: [
     w("The procurement office sees your application in its review queue.", "Pejabat perolehan melihat permohonan anda dalam senarai semakannya."),
     w(
-      "It is not decided until the office holds your signed declaration on paper and has checked your supporting documents. Contact the procurement office, quoting your reference, to hand them in.",
-      "Ia tidak diputuskan sehingga pejabat memegang perakuan bertandatangan anda secara bertulis dan telah menyemak dokumen sokongan anda. Hubungi pejabat perolehan, dengan menyatakan rujukan anda, untuk menyerahkannya.",
+      "Your company is not registered by this form. Once the office accepts it, you complete your registration online (your documents, bank details and declarations), and it is decided after the office has checked them. Contact the procurement office, quoting your reference, if you have a question.",
+      "Syarikat anda tidak didaftarkan melalui borang ini. Setelah pejabat menerimanya, anda melengkapkan pendaftaran dalam talian (dokumen, butiran bank dan perakuan anda), dan ia diputuskan selepas pejabat menyemaknya. Hubungi pejabat perolehan, dengan menyatakan rujukan anda, jika ada pertanyaan.",
     ),
     w(
       "When the office accepts your application it can open a portal account for your contact and hand them a one-time code, in person or by letter. Nothing is sent by email. With the account you sign in to follow where your registration stands.",

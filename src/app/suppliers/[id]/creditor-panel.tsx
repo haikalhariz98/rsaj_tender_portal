@@ -40,7 +40,7 @@ const COLUMNS: Column[] = [
   { key: "version", label: "Version", width: "230px", nowrap: true },
   { key: "sent", label: "Sent", width: "170px", nowrap: true },
   { key: "state", label: "Where it stands", width: "190px" },
-  { key: "checked", label: "Checked", minWidth: "200px" },
+  { key: "checked", label: "Checked" },
 ];
 
 export async function CreditorPanel({ actor, l, version }: { actor: StaffActor; l: LoadedSupplier; version: string | null }) {

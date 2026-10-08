@@ -57,14 +57,16 @@ const REQUIREMENT_TONE = { REQUIRED: "brand", OPTIONAL: "neutral", NOT_SAID: "wa
 
 let counter = 0;
 const virtualId = () => `new:v${Date.now().toString(36)}${(counter++).toString(36)}`;
-const blankRow = (typeId: string): DocRowView => ({ id: virtualId(), typeId, title: "", reference: "", issuingAuthority: "", expiresOn: "", ratePercent: "", notApplicable: false, files: [] });
+/// A row the supplier has not saved yet. The ones the page starts with get an id made from their type, so the server's HTML and the browser's agree (a clock or a counter read while rendering would not);
+/// one added by a click is named by the clock and the counter, which only a click reads.
+const blankRow = (typeId: string, id: string = virtualId()): DocRowView => ({ id, typeId, title: "", reference: "", issuingAuthority: "", expiresOn: "", ratePercent: "", notApplicable: false, files: [] });
 const hasContent = (r: DocRowView) => !!(r.title || r.reference || r.issuingAuthority || r.expiresOn || r.ratePercent || r.notApplicable);
 
 export function DocumentsStep({ token, version, types, rows: initial, uploadClosed, acceptNote }: { token: string | null; version: number; types: DocTypeView[]; rows: DocRowView[]; uploadClosed: string | null; acceptNote: string | null }) {
   const router = useRouter();
   const base = useId();
   const { version: current, setVersion, busy, message, saved, faults, stale, save, setMessage } = useStepSave("documents", token, version);
-  const [rows, setRows] = useState<DocRowView[]>(() => [...initial, ...types.filter((t) => !t.repeatable && !initial.some((r) => r.typeId === t.id)).map((t) => blankRow(t.id))]);
+  const [rows, setRows] = useState<DocRowView[]>(() => [...initial, ...types.filter((t) => !t.repeatable && !initial.some((r) => r.typeId === t.id)).map((t) => blankRow(t.id, `new:i${t.id}`))]);
 
   const patch = (id: string, change: Partial<DocRowView>) => setRows((all) => all.map((r) => (r.id === id ? { ...r, ...change } : r)));
 
@@ -213,7 +215,7 @@ export function DocumentsStep({ token, version, types, rows: initial, uploadClos
                 {t.repeatable && (
                   <div>
                     <Button size="sm" variant="secondary" onClick={() => setRows((all) => [...all, blankRow(t.id)])}>
-                      {mine.length ? "Add another" : `Add a ${t.name.toLowerCase()}`}
+                      {mine.length ? "Add another" : `Add ${t.name.toLowerCase()}`}
                     </Button>
                   </div>
                 )}

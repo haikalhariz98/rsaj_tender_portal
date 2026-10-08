@@ -132,13 +132,23 @@ export function ReviewStep({
         </Callout>
       )}
 
+      {reasons.length > 0 && (
+        <Callout tone="warn" title={reasons.length === 1 ? "One thing to finish before you can send" : `${reasons.length} things to finish before you can send`}>
+          <ul className="list-disc pl-5">
+            {reasons.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+        </Callout>
+      )}
+
       <div className="flex flex-wrap items-center gap-3 border-t border-line pt-5">
         <ButtonLink href={stepHref("epayment")} variant="secondary">
           Back
         </ButtonLink>
         <span className="ml-auto flex flex-col items-end gap-1.5">
           {reasons.length > 0 || !falseText || !notice ? (
-            <Blocked label="Send registration" primary reason={reasons.length ? reasons.join(" ") : !notice ? "The notice you read before sending is not set." : "The false-declaration text is not set."} />
+            <Blocked label="Send registration" primary reason={reasons.length ? "Finish what is listed above." : !notice ? "The notice you read before sending is not set." : "The false-declaration text is not set."} />
           ) : (
             <>
               <Button type="button" variant="primary" disabled={busy || !!missing} aria-busy={busy || undefined} onClick={send} title={missing ?? undefined}>
