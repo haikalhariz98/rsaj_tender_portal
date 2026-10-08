@@ -36,6 +36,11 @@ export const AUTH_WORDS = {
   passwordChanged: { en: "Your password is changed. Every other sign-in of yours has ended.", ms: "Kata laluan anda telah ditukar. Semua log masuk anda yang lain telah ditamatkan." },
   signedOutEverywhere: { en: "You are signed out everywhere, this device included.", ms: "Anda telah log keluar di mana-mana, termasuk peranti ini." },
   notSignedIn: { en: "You are not signed in.", ms: "Anda belum log masuk." },
+  portalFormsClosed: {
+    en: "This form is closed: the portal has not been set up to sign its forms. Tell the procurement office.",
+    ms: "Borang ini ditutup: portal belum disediakan untuk menandatangani borangnya. Maklumkan kepada pejabat perolehan.",
+  },
+  formExpired: { en: "This form is out of date. Reload the page and try again.", ms: "Borang ini telah luput. Muat semula halaman dan cuba lagi." },
   wrongOrigin: { en: "That request did not come from this site, so it was refused.", ms: "Permintaan itu tidak datang daripada laman ini, jadi ia ditolak." },
   resetNoticeTitle: { en: "Your password was reset", ms: "Kata laluan anda telah ditetapkan semula" },
   resetNoticeBody: {

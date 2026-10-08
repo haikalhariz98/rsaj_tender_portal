@@ -95,3 +95,57 @@ export async function eventsOf(accountId: string) {
 }
 
 export const kindsOf = async (accountId: string) => (await eventsOf(accountId)).map((e) => e.kind);
+
+// ---------------------------------------------------------------------------------------------- the supplier store (Phase 4a)
+
+/// The settings a supplier's sign-in needs, beside the staff ones: the supplier's own timeouts.
+export const SUPPLIER_SETTINGS: SecurityPolicyValues = { ...SETTINGS, supplierIdleMinutes: 20, supplierAbsoluteMinutes: 120 };
+
+/// A supplier with one contact and, unless told not to, that contact's portal account.
+export async function makeSupplierAccount(
+  organisationId: string,
+  opts: { password?: string; loginName?: string; status?: "ACTIVE" | "DISABLED" | "PENDING_ACTIVATION"; retired?: boolean; withAccount?: boolean; supplierId?: string } = {},
+) {
+  const password = opts.password ?? randomPassword();
+  const loginName = opts.loginName ?? `supplier.${randomId()}`;
+  const supplier = opts.supplierId
+    ? await db.supplier.findUniqueOrThrow({ where: { id: opts.supplierId } })
+    : await db.supplier.create({
+        data: {
+          organisationId,
+          reference: `TEST/SUP/${randomId()}`,
+          registeredName: `Test Supplier ${randomId()}`,
+          registrationNo: randomId(),
+          registrationNoKey: randomId().toUpperCase() + randomId().toUpperCase(),
+          entityTypeCode: "x",
+          countryCode: "x",
+          registeredAddress: "1 Test Street",
+          companyEmail: "test@example.test",
+        },
+      });
+  const contact = await db.supplierContact.create({ data: { organisationId, supplierId: supplier.id, name: `Contact ${loginName}`, email: `${loginName}@example.test`, isPrimary: !opts.supplierId, retiredOn: opts.retired ? new Date("2026-01-01") : null } });
+  const status = opts.status ?? "ACTIVE";
+  const account =
+    opts.withAccount === false
+      ? null
+      : await db.supplierAccount.create({
+          data: {
+            organisationId,
+            contactId: contact.id,
+            supplierId: supplier.id,
+            loginName,
+            loginKey: loginName.toLowerCase(),
+            passwordHash: await hashPassword(password),
+            passwordChangedAt: new Date(),
+            status,
+            ...(status === "DISABLED" ? { disabledAt: new Date(), disabledReason: "test" } : {}),
+          },
+        });
+  return { supplier, contact, account, password, loginName };
+}
+
+export async function supplierEventsOf(accountId: string) {
+  return db.signInEvent.findMany({ where: { supplierAccountId: accountId }, orderBy: { at: "asc" }, include: { detail: true } });
+}
+
+export const supplierKindsOf = async (accountId: string) => (await supplierEventsOf(accountId)).map((e) => e.kind);

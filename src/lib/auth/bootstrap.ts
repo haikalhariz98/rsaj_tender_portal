@@ -5,6 +5,7 @@ import { lockOrganisation } from "@/lib/authority/locks";
 import { db } from "@/lib/db";
 
 import { makeAdministratorConflict } from "./administration-guard";
+import { LOGIN_NAME } from "./login-name";
 import { hashPassword, passwordFaults } from "./password";
 import { loadSecurityPolicy } from "./policy-store";
 import { fillUnset, policyFault, settingLabels, unsetSettings } from "./policy";
@@ -46,8 +47,7 @@ const fail = (code: string, message: string, unset?: SecurityPolicyKey[]): Boots
 /// The audit label says which way the command was run.
 export const bootstrapLabel = (mode: BootstrapMode) => (mode === "FIRST" ? "bootstrap command" : mode === "ADDITIONAL" ? "bootstrap command (--additional)" : "bootstrap command (--recover)");
 
-/// Letters, digits and . _ - @ only, so that a sign-in name is one word that can be read out and typed.
-export const LOGIN_NAME = /^[A-Za-z0-9][A-Za-z0-9._@-]{2,63}$/;
+export { LOGIN_NAME };
 
 function systemActor(mode: BootstrapMode): AuditActor {
   return { kind: "SYSTEM", label: bootstrapLabel(mode) };

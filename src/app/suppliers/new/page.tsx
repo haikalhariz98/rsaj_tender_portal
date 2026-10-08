@@ -3,7 +3,10 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { LOGIN_NAME } from "@/lib/auth/login-name";
+import { loadSecurityPolicy } from "@/lib/auth/policy-store";
 import { storedDay } from "@/lib/dates";
+import { db } from "@/lib/db";
 import { flagWords } from "@/lib/portal/queue";
 import { formatDate } from "@/lib/format";
 import { loadPortalApplication } from "@/lib/portal/queue-repo";
@@ -35,7 +38,7 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
     );
   }
   const cfg = await loadSupplierConfig(org.id);
-  const list = (kind: "ENTITY_TYPE" | "COUNTRY") => cfg.lists.filter((l) => l.list === kind && cfg.live(l, org.today)).map((l) => ({ value: l.code, label: l.nameEn }));
+  const list = (kind: "ENTITY_TYPE" | "COUNTRY" | "STATE" | "BUMIPUTERA_STATUS") => cfg.lists.filter((l) => l.list === kind && cfg.live(l, org.today)).map((l) => ({ value: l.code, label: l.nameEn }));
   // From an online application: the form opens with what the applicant typed, and the portal fixes the channel and the day.
   const online = from ? await loadPortalApplication(org.id, from) : null;
   if (from && (!online || online.application.status !== "RECEIVED")) {
@@ -51,8 +54,11 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
     );
   }
   const a = online?.application;
+  // Opening the contact's portal account while recording (Phase 4a): offered only to an officer who holds the permission, and only while the code's validity is set.
+  const policy = await loadSecurityPolicy(db, org.id);
   // The applicant's contact is SULIT (6.15 condition 2): it is put into the form only for a reader it is open to (the form's payload is the page's), and the others type it.
   const contact = a ? await sulitGate(actor, { scope: "supplier", entity: "PortalApplication", id: a.id, label: a.reference }, CONTACT_FIELDS) : null;
+  const contactEmail = contact?.state === "GRANTED" && a ? a.contactEmail : "";
   return (
     <>
       {header}
@@ -80,11 +86,15 @@ export default async function NewSupplierApplicationPage(props: { searchParams: 
       <ApplicationForm
         entityTypes={list("ENTITY_TYPE")}
         countries={list("COUNTRY")}
+        states={list("STATE")}
+        bumiputeraStatuses={list("BUMIPUTERA_STATUS")}
+        contactNeedsEmailAndPhone={cfg.policy?.contactNeedsEmailAndPhone === true}
+        account={a ? { permitted: actor.permissions.has("supplierAccounts.manage"), validitySet: policy?.resetCodeValidityMinutes != null, suggestedLoginName: LOGIN_NAME.test(contactEmail.trim()) ? contactEmail.trim().toLowerCase() : "" } : undefined}
         channels={PAPER_CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABEL[c].en }))}
        
         formatExample={cfg.format?.example || null}
         today={org.today}
-        portal={a ? { id: a.id, reference: a.reference, receivedOn: storedDay(a.receivedOn), initial: { registeredName: a.registeredName, registrationNo: a.registrationNo, entityTypeCode: a.entityTypeCode, countryCode: a.countryCode, registeredAddress: a.registeredAddress, companyEmail: a.companyEmail, contactName: contact?.state === "GRANTED" ? a.contactName : "", contactDesignation: contact?.state === "GRANTED" ? a.contactDesignation : "", contactEmail: contact?.state === "GRANTED" ? a.contactEmail : "", contactPhone: contact?.state === "GRANTED" ? a.contactPhone : "" } } : undefined}
+        portal={a ? { id: a.id, reference: a.reference, receivedOn: storedDay(a.receivedOn), initial: { registeredName: a.registeredName, registrationNo: a.registrationNo, entityTypeCode: a.entityTypeCode, countryCode: a.countryCode, addressLine1: a.addressLine1 || a.registeredAddress, addressLine2: a.addressLine2, city: a.city, postcode: a.postcode, stateCode: a.stateCode, bumiputeraClaimCode: a.bumiputeraClaimCode, incorporatedOn: a.incorporatedOn ? storedDay(a.incorporatedOn) : "", companyEmail: a.companyEmail, contactName: contact?.state === "GRANTED" ? a.contactName : "", contactDesignation: contact?.state === "GRANTED" ? a.contactDesignation : "", contactEmail: contact?.state === "GRANTED" ? a.contactEmail : "", contactPhone: contact?.state === "GRANTED" ? a.contactPhone : "" } } : undefined}
       />
     </>
   );

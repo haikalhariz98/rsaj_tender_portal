@@ -12,11 +12,12 @@ import type { PreviousSignIn } from "@/lib/auth/session-store";
  * With no second sign-in factor, this is how a person notices that their password is in someone else's hands. It sits on the page after
  * sign-in and on the account page, in the same words. Failures against a name that matched no account cannot be attributed to anyone and are not counted.
  */
-export function LastSignIn({ info, timeZone }: { info: PreviousSignIn; timeZone: string | null }) {
+export function LastSignIn({ info, timeZone, contact = "an administrator" }: { info: PreviousSignIn; timeZone: string | null; /// Who to tell if it was not them: an administrator on the staff side, the procurement office on the portal.
+  contact?: string }) {
   const failed = info.failedSince ?? 0;
   return (
     <Card>
-      <CardHeader icon={<ClockIcon size={18} />} title={AUTH_WORDS.previousTitle.en} subtitle="Check that this was you. If it was not, change your password and tell an administrator." />
+      <CardHeader icon={<ClockIcon size={18} />} title={AUTH_WORDS.previousTitle.en} subtitle={`Check that this was you. If it was not, change your password and tell ${contact}.`} />
       <CardBody>
         {info.previous ? (
           <div className="flex flex-col gap-4">

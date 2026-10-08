@@ -15,8 +15,10 @@ const h = vi.hoisted(() => ({
   /// What the counts return: [in the last 24 hours, for this number].
   counts: [0, 0] as [number, number],
   countWheres: [] as Record<string, unknown>[],
-  lists: { ENTITY_TYPE: ["sdn_bhd"], COUNTRY: ["my"] } as Record<string, string[]>,
-  policy: { personalDataNoticeEn: "We use your details to review this application.", personalDataNoticeMs: "Kami menggunakan butiran anda untuk menyemak permohonan ini.", portalDailyLimit: 50, portalDailyLimitPerNumber: 3 } as Record<string, unknown> | null,
+  lists: { ENTITY_TYPE: ["sdn_bhd"], COUNTRY: ["my"], STATE: ["sbh"], BUMIPUTERA_STATUS: ["declared_yes"] } as Record<string, string[]>,
+  /// The dial code a country carries (Phase 4a). Null: none set.
+  callingCodes: { my: "+60" } as Record<string, string | null>,
+  policy: { personalDataNoticeEn: "We use your details to review this application.", personalDataNoticeMs: "Kami menggunakan butiran anda untuk menyemak permohonan ini.", portalDailyLimit: 50, portalDailyLimitPerNumber: 3, contactNeedsEmailAndPhone: null } as Record<string, unknown> | null,
   /// Anything that touches the register or the audit trail is recorded here: the public path must leave it empty.
   touched: [] as string[],
 }));
@@ -54,7 +56,13 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/portal/deployment", () => ({ deploymentOrganisation: async () => ({ id: "o1", code: "ORG", timeZone: "Asia/Kuala_Lumpur" }) }));
 vi.mock("@/lib/suppliers/repo", () => ({
   supplierOrg: async () => ({ id: "o1", timeZone: "Asia/Kuala_Lumpur", today: h.today }),
-  loadSupplierConfig: async () => ({ policy: h.policy, format: null, liveCodes: (kind: string) => h.lists[kind] ?? [] }),
+  loadSupplierConfig: async () => ({
+    policy: h.policy,
+    format: null,
+    liveCodes: (kind: string) => h.lists[kind] ?? [],
+    listName: (kind: string, code: string) => (kind === "STATE" && code === "sbh" ? "Sabah" : null),
+    callingCodeOf: (country: string | null) => (country ? (h.callingCodes[country] ?? null) : null),
+  }),
 }));
 vi.mock("@/lib/numbering/issue", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/numbering/issue")>();
@@ -69,14 +77,25 @@ vi.mock("@/lib/numbering/issue", async (importOriginal) => {
 });
 vi.mock("../../suppliers/shared", () => ({ stampNow: () => new Date("2026-10-06T03:00:00.000Z") }));
 
+import { FORM_SECRET_MIN_LENGTH, FORM_TOKEN_FIELD, signFormToken } from "@/lib/auth/form-token";
+import { HONEYPOT_FIELD } from "@/lib/portal/apply";
+
 import { receiveApplication } from "./receive";
 
+/// The deployment's form key, as the environment would hold it. Every form here carries a token signed with it unless a test says otherwise.
+const KEY = "t".repeat(FORM_SECRET_MIN_LENGTH);
 const FORM = {
   registeredName: "Sampel Works Sdn Bhd",
   registrationNo: "202001000123",
   entityTypeCode: "sdn_bhd",
   countryCode: "my",
-  registeredAddress: "1 Jalan Contoh, 50000 Kuala Lumpur",
+  addressLine1: "1 Jalan Contoh",
+  addressLine2: "",
+  city: "Kota Kinabalu",
+  postcode: "88000",
+  stateCode: "sbh",
+  bumiputeraClaimCode: "",
+  incorporatedOn: "2015-03-02",
   companyEmail: "office@sampel.example",
   contactName: "Aini",
   contactDesignation: "",
@@ -85,7 +104,7 @@ const FORM = {
 };
 const form = (o: Record<string, string> = {}) => {
   const f = new FormData();
-  for (const [k, v] of Object.entries({ ...FORM, ...o })) f.set(k, v);
+  for (const [k, v] of Object.entries({ ...FORM, [FORM_TOKEN_FIELD]: signFormToken(KEY, "register", new Date()), ...o })) f.set(k, v);
   return f;
 };
 const send = (o?: Record<string, string>) => receiveApplication(form(o));
@@ -93,6 +112,7 @@ const row = () => h.created.find((c) => c.model === "portalApplication")?.data;
 
 const PRISTINE = { notice: "We use your details to review this application." };
 beforeEach(() => {
+  vi.stubEnv("PORTAL_FORM_SECRET", KEY);
   h.created = [];
   h.transactions = 0;
   h.issued = [];
@@ -100,8 +120,9 @@ beforeEach(() => {
   h.today = "2026-10-06";
   h.counts = [0, 0];
   h.countWheres = [];
-  h.lists = { ENTITY_TYPE: ["sdn_bhd"], COUNTRY: ["my"] };
-  h.policy = { personalDataNoticeEn: PRISTINE.notice, personalDataNoticeMs: "Kami menggunakan butiran anda untuk menyemak permohonan ini.", portalDailyLimit: 50, portalDailyLimitPerNumber: 3 };
+  h.lists = { ENTITY_TYPE: ["sdn_bhd"], COUNTRY: ["my"], STATE: ["sbh"], BUMIPUTERA_STATUS: ["declared_yes"] };
+  h.callingCodes = { my: "+60" };
+  h.policy = { personalDataNoticeEn: PRISTINE.notice, personalDataNoticeMs: "Kami menggunakan butiran anda untuk menyemak permohonan ini.", portalDailyLimit: 50, portalDailyLimitPerNumber: 3, contactNeedsEmailAndPhone: null };
   h.touched = [];
 });
 
@@ -113,6 +134,9 @@ describe("a public application, as written", () => {
     expect(h.issued).toEqual(["portal_application"]);
     const app = row()!;
     expect(app).toMatchObject({ reference: "DEMO/APP/0007/2026", registeredName: "Sampel Works Sdn Bhd", registrationNoKey: "202001000123", contactName: "Aini", contactEmail: "aini@sampel.example" });
+    // Phase 4a: the address in parts, the single text composed from them (the state by its name), the claim blank and the day incorporated stored as a day.
+    expect(app).toMatchObject({ addressLine1: "1 Jalan Contoh", addressLine2: "", city: "Kota Kinabalu", postcode: "88000", stateCode: "sbh", bumiputeraClaimCode: "", registeredAddress: "1 Jalan Contoh\n88000 Kota Kinabalu\nSabah" });
+    expect(app.incorporatedOn).toEqual(new Date("2015-03-02T00:00:00.000Z"));
     expect(app.receivedOn).toEqual(new Date("2026-10-06T00:00:00.000Z"));
     expect(app.receivedAt).toEqual(new Date("2026-10-06T03:00:00.000Z"));
     // No supplier, no contact, no supplier reference, no audit row and no lock on anything.
@@ -128,6 +152,45 @@ describe("a public application, as written", () => {
     expect((app.receivedOn as Date).toISOString()).toBe("2026-10-06T00:00:00.000Z");
   });
 
+  it("joins the country's dial code to the mobile number, once, and keeps an international number as typed", async () => {
+    await send({ contactPhone: "12-345 6789" });
+    expect(row()!.contactPhone).toBe("+60 12-345 6789");
+    h.created = [];
+    await send({ contactPhone: "+65 8123 4567" });
+    expect(row()!.contactPhone).toBe("+65 8123 4567");
+    h.created = [];
+    h.callingCodes = { my: null };
+    await send({ contactPhone: "12-345 6789" });
+    expect(row()!.contactPhone).toBe("12-345 6789");
+  });
+
+  it("stores a declared Bumiputera claim from the list, and refuses one that is not on it", async () => {
+    await send({ bumiputeraClaimCode: "declared_yes" });
+    expect(row()!.bumiputeraClaimCode).toBe("declared_yes");
+    h.created = [];
+    const r = await send({ bumiputeraClaimCode: "made_up" });
+    expect(r.ok).toBe(false);
+    expect(r.errors).toHaveProperty("bumiputeraClaimCode");
+    expect(h.created).toEqual([]);
+  });
+
+  it("requires the date incorporated, a real day and not after the day it is sent", async () => {
+    for (const bad of ["", "2026-10-07", "2026-02-31", "yesterday"]) {
+      h.created = [];
+      const r = await send({ incorporatedOn: bad });
+      expect(r.ok, bad).toBe(false);
+      expect(r.errors, bad).toHaveProperty("incorporatedOn");
+      expect(h.created).toEqual([]);
+    }
+  });
+
+  it("is closed while the list of states is empty, and the reply names nothing", async () => {
+    h.lists = { ...h.lists, STATE: [] };
+    const r = await send();
+    expect(r).toEqual({ ok: false, message: "Online applications are not open yet, so nothing was sent." });
+    expect(h.created).toEqual([]);
+  });
+
   it("takes no bank field and no file", async () => {
     await send({ bankAccount: "1234", bankName: "X" });
     expect(JSON.stringify(row())).not.toMatch(/1234|bank/i);
@@ -136,10 +199,37 @@ describe("a public application, as written", () => {
 
 describe("what a stranger can and cannot do", () => {
   it("drops a filled bait field without creating anything, and says only that it was received", async () => {
-    const r = await send({ faxNumber: "http://spam.example" });
+    const r = await send({ [HONEYPOT_FIELD]: "http://spam.example" });
     expect(r).toEqual({ ok: true, reference: null });
     expect(h.transactions).toBe(0);
     expect(h.created).toEqual([]);
+  });
+
+  it("a field named faxNumber is no longer the bait: it is ignored like any other the form does not take (Phase 4a renamed the bait)", async () => {
+    const r = await send({ faxNumber: "03-1234567" });
+    expect(r).toEqual({ ok: true, reference: "DEMO/APP/0007/2026" });
+    expect(JSON.stringify(row())).not.toContain("03-1234567");
+  });
+
+  it("is closed, saying nothing of why, while the deployment's form key is not set", async () => {
+    vi.stubEnv("PORTAL_FORM_SECRET", "");
+    const r = await send();
+    expect(r).toEqual({ ok: false, message: "Online applications are not open yet, so nothing was sent." });
+    expect(h.created).toEqual([]);
+  });
+
+  it("refuses a form with no token, a forged one, one for another form and an old one, and writes nothing", async () => {
+    const noToken = form();
+    noToken.delete(FORM_TOKEN_FIELD);
+    const other = form({ [FORM_TOKEN_FIELD]: signFormToken(KEY, "sign-in", new Date()) });
+    const forged = form({ [FORM_TOKEN_FIELD]: signFormToken("x".repeat(FORM_SECRET_MIN_LENGTH), "register", new Date()) });
+    const old = form({ [FORM_TOKEN_FIELD]: signFormToken(KEY, "register", new Date(Date.now() - 25 * 60 * 60 * 1000)) });
+    for (const f of [noToken, other, forged, old]) {
+      const r = await receiveApplication(f);
+      expect(r).toEqual({ ok: false, message: "This form is out of date, so nothing was sent. Reload the page and send it again." });
+    }
+    expect(h.created).toEqual([]);
+    expect(h.transactions).toBe(0);
   });
 
   it("gives a number already on the register the same reply as any other: the register is never asked", async () => {

@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { parseAllowedOrigins } from "@/lib/auth/allowed-origins";
 import { originFault, type OriginFault } from "@/lib/auth/origin";
 import { requestFacts, trustedProxyHops, type RequestFacts } from "@/lib/auth/request";
-import { STAFF_COOKIE } from "@/lib/auth/routes";
+import { STAFF_COOKIE, SUPPLIER_COOKIE } from "@/lib/auth/routes";
 
 /**
  * The staff session cookie and what a request says about itself (ADR 0034 D4).
@@ -16,7 +16,7 @@ import { STAFF_COOKIE } from "@/lib/auth/routes";
  * password actions call them. Reading works anywhere.
  */
 
-export { STAFF_COOKIE };
+export { STAFF_COOKIE, SUPPLIER_COOKIE };
 
 export async function staffToken(): Promise<string | null> {
   return (await cookies()).get(STAFF_COOKIE)?.value ?? null;
@@ -30,6 +30,19 @@ export async function clearStaffCookie(): Promise<void> {
   const store = await cookies();
   // A __Host- cookie is deleted by setting it again with the same attributes and no life.
   store.set({ name: STAFF_COOKIE, value: "", httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 0 });
+}
+
+/// The supplier session cookie (Phase 4a): the other store's, with the same attributes. A supplier cookie means nothing to the staff copy, and a staff cookie nothing to the public copy.
+export async function supplierToken(): Promise<string | null> {
+  return (await cookies()).get(SUPPLIER_COOKIE)?.value ?? null;
+}
+
+export async function setSupplierCookie(token: string, maxAgeSeconds: number): Promise<void> {
+  (await cookies()).set({ name: SUPPLIER_COOKIE, value: token, httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: maxAgeSeconds });
+}
+
+export async function clearSupplierCookie(): Promise<void> {
+  (await cookies()).set({ name: SUPPLIER_COOKIE, value: "", httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 0 });
 }
 
 /// The source address (where the deployment says how to read it) and the user agent of the request being served.

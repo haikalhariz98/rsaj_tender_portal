@@ -14,6 +14,7 @@
  */
 
 import { contactFaults, identityFaults, type ContactInput, type IdentityFault, type IdentityInput } from "@/lib/suppliers/identity";
+import { stepOneFaults, type AddressParts, type StepOneFault } from "@/lib/suppliers/step-one";
 import { blocking, type Finding } from "@/lib/suppliers/types";
 
 import { APPLY, type Words } from "./labels";
@@ -34,7 +35,13 @@ export const PORTAL_APPLICATION_SERIES_KEY = "portal_application";
 export const APPLICATION_LIMITS = {
   registeredName: 240,
   registrationNo: 120,
+  /// The legacy single address text, kept for the readers that want one. The form no longer posts it: it is composed from the parts below.
   registeredAddress: 1000,
+  addressLine1: 240,
+  addressLine2: 240,
+  city: 120,
+  postcode: 30,
+  incorporatedOn: 10,
   companyEmail: 240,
   contactName: 240,
   contactDesignation: 240,
@@ -45,13 +52,20 @@ export const APPLICATION_LIMITS = {
 /// The most bytes a submission may weigh: every field at its limit is under 4 KB, so this is generous and still small.
 export const APPLICATION_BODY_LIMIT = 32 * 1024;
 
-/// The name of the form's bait field. A person never sees it; a script that fills every field does.
-export const HONEYPOT_FIELD = "faxNumber";
+/// The name of the form's bait field. A person never sees it; a script that fills every field does. It was `faxNumber` until Phase 4a: a real Fax field is coming to
+/// the form (the creditor's profile asks for one), and the bait must not share a name with a field a person is asked to fill.
+export const HONEYPOT_FIELD = "website2";
 
 /// A filled bait field: the submission is dropped without a word.
 export const honeypotTripped = (value: FormDataEntryValue | null | undefined) => typeof value === "string" && value.trim() !== "";
 
-export interface PortalApplicationInput extends IdentityInput {
+/// The identity of the company as the public form takes it. The address is in parts: the single `registeredAddress` is composed from them, never typed.
+export interface PortalApplicationInput extends Omit<IdentityInput, "registeredAddress"> {
+  address: AddressParts;
+  /// A code on the BUMIPUTERA_STATUS list: what the applicant declares. Null: no claim.
+  bumiputeraClaimCode: string | null;
+  /// YYYY-MM-DD as typed.
+  incorporatedOn: string | null;
   contact: ContactInput;
 }
 
@@ -61,28 +75,42 @@ export interface PortalApplicationContext {
   formatPattern: string | null;
   entityTypeCodes: readonly string[];
   countryCodes: readonly string[];
+  /// The live codes of the STATE list. Empty: not set, and the form is closed.
+  stateCodes: readonly string[];
+  /// The live codes of the BUMIPUTERA_STATUS list. Empty: not set, and the claim is not asked.
+  bumiputeraCodes: readonly string[];
+  /// `SupplierPolicy.contactNeedsEmailAndPhone`. Null: not set, and the contact needs an email or a telephone.
+  contactNeedsEmailAndPhone: boolean | null;
 }
 
-/// The faults that mean the register cannot take applications yet, whatever was typed.
-export const CLOSED_FAULTS: readonly IdentityFault[] = ["TIME_ZONE_UNSET", "ENTITY_TYPES_NOT_SET", "COUNTRIES_NOT_SET"];
+export type PortalFault = IdentityFault | StepOneFault;
 
-export function portalApplicationFaults(i: PortalApplicationInput, ctx: PortalApplicationContext): Finding<IdentityFault>[] {
+/// The faults that mean the register cannot take applications yet, whatever was typed.
+export const CLOSED_FAULTS: readonly PortalFault[] = ["TIME_ZONE_UNSET", "ENTITY_TYPES_NOT_SET", "COUNTRIES_NOT_SET", "STATES_NOT_SET"];
+
+export function portalApplicationFaults(i: PortalApplicationInput, ctx: PortalApplicationContext): Finding<PortalFault>[] {
   if (ctx.today == null) return [{ code: "TIME_ZONE_UNSET", level: "block" }];
   return [
-    ...identityFaults(i, {
-      today: ctx.today,
-      formatPattern: ctx.formatPattern,
-      entityTypeCodes: ctx.entityTypeCodes,
-      countryCodes: ctx.countryCodes,
-      // Never asked of the register here: a stranger must not learn which numbers are held.
-      duplicate: null,
-    }),
-    ...contactFaults(i.contact),
+    // The address is judged by its parts (`stepOneFaults`), so the identity rule's own "address required" is not asked: it would say the same thing twice.
+    ...identityFaults(
+      { ...i, registeredAddress: "" },
+      {
+        addressJudgedByParts: true,
+        today: ctx.today,
+        formatPattern: ctx.formatPattern,
+        entityTypeCodes: ctx.entityTypeCodes,
+        countryCodes: ctx.countryCodes,
+        // Never asked of the register here: a stranger must not learn which numbers are held.
+        duplicate: null,
+      },
+    ),
+    ...stepOneFaults({ address: i.address, bumiputeraClaimCode: i.bumiputeraClaimCode, incorporatedOn: i.incorporatedOn }, { today: ctx.today, stateCodes: ctx.stateCodes, bumiputeraCodes: ctx.bumiputeraCodes }),
+    ...contactFaults(i.contact, ctx.contactNeedsEmailAndPhone),
   ];
 }
 
 /// The form field each fault belongs to.
-export const PORTAL_FIELD_OF: Partial<Record<IdentityFault, string>> = {
+export const PORTAL_FIELD_OF: Partial<Record<PortalFault, string>> = {
   NAME_REQUIRED: "registeredName",
   REGISTRATION_NO_REQUIRED: "registrationNo",
   FORMAT_MISMATCH: "registrationNo",
@@ -90,18 +118,28 @@ export const PORTAL_FIELD_OF: Partial<Record<IdentityFault, string>> = {
   ENTITY_TYPE_NOT_LISTED: "entityTypeCode",
   COUNTRY_REQUIRED: "countryCode",
   COUNTRY_NOT_LISTED: "countryCode",
-  ADDRESS_REQUIRED: "registeredAddress",
+  ADDRESS_LINE_REQUIRED: "addressLine1",
+  CITY_REQUIRED: "city",
+  POSTCODE_REQUIRED: "postcode",
+  ADDRESS_STATE_REQUIRED: "stateCode",
+  ADDRESS_STATE_NOT_LISTED: "stateCode",
+  BUMIPUTERA_NOT_LISTED: "bumiputeraClaimCode",
+  INCORPORATED_ON_REQUIRED: "incorporatedOn",
+  INCORPORATED_ON_NOT_A_DAY: "incorporatedOn",
+  INCORPORATED_IN_FUTURE: "incorporatedOn",
   EMAIL_REQUIRED: "companyEmail",
   EMAIL_NOT_VALID: "companyEmail",
   CONTACT_NAME_REQUIRED: "contactName",
   CONTACT_REACH_REQUIRED: "contactEmail",
+  CONTACT_EMAIL_REQUIRED: "contactEmail",
+  CONTACT_PHONE_REQUIRED: "contactPhone",
   CONTACT_EMAIL_NOT_VALID: "contactEmail",
 };
 
 export type PortalRefusal = { closed: true } | { closed: false; errors: Record<string, string>; message: string };
 
 /// What a refusal tells the applicant: the register is not open, or one plain sentence per field. Null: nothing blocks.
-export function portalRefusal(findings: readonly Finding<IdentityFault>[]): PortalRefusal | null {
+export function portalRefusal(findings: readonly Finding<PortalFault>[]): PortalRefusal | null {
   const blocks = blocking(findings);
   if (blocks.length === 0) return null;
   if (blocks.some((f) => CLOSED_FAULTS.includes(f.code))) return { closed: true };
@@ -109,7 +147,7 @@ export function portalRefusal(findings: readonly Finding<IdentityFault>[]): Port
   let unplaced = false;
   for (const f of blocks) {
     const field = PORTAL_FIELD_OF[f.code];
-    const words = (APPLY.faults as Partial<Record<IdentityFault, Words>>)[f.code];
+    const words = (APPLY.faults as Partial<Record<PortalFault, Words>>)[f.code];
     if (field && words) errors[field] ??= words.en;
     else unplaced = true;
   }
@@ -141,13 +179,15 @@ export function portalCapacity(load: PortalLoad, limits: PortalLimits): PortalCa
 export const validLimit = (n: number) => Number.isInteger(n) && n >= 1 && n <= 100_000;
 
 /// What the register still lacks before it can take an application, in the order a person would set it.
-export function whatIsMissing(c: { today: string | null; entityTypeCodes: readonly string[]; countryCodes: readonly string[]; numberingReady: boolean; noticeSet: boolean; limitsSet: boolean }): Words[] {
+export function whatIsMissing(c: { today: string | null; entityTypeCodes: readonly string[]; countryCodes: readonly string[]; stateCodes: readonly string[]; numberingReady: boolean; noticeSet: boolean; limitsSet: boolean; formKeySet: boolean }): Words[] {
   return [
     ...(c.today == null ? [APPLY.missing.timeZone] : []),
     ...(c.entityTypeCodes.length === 0 ? [APPLY.missing.entityTypes] : []),
     ...(c.countryCodes.length === 0 ? [APPLY.missing.countries] : []),
+    ...(c.stateCodes.length === 0 ? [APPLY.missing.states] : []),
     ...(c.numberingReady ? [] : [APPLY.missing.numbering]),
     ...(c.noticeSet ? [] : [APPLY.missing.notice]),
     ...(c.limitsSet ? [] : [APPLY.missing.limits]),
+    ...(c.formKeySet ? [] : [APPLY.missing.formKey]),
   ];
 }

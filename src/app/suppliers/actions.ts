@@ -4,7 +4,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
+import { settingLabels, unsetSettings } from "@/lib/auth/policy";
+import { loadSecurityPolicy } from "@/lib/auth/policy-store";
 import { sulitWriteRefusal } from "@/lib/auth/sulit-store";
+import { LoginNameTaken, openSupplierAccount, unusableSupplierPasswordHash, type OpenAccountInput } from "@/lib/auth/supplier-administration";
 import type { Prisma } from "@/generated/prisma/client";
 import { closeRejected } from "@/lib/approvals/rejection-store";
 import { diffFields } from "@/lib/audit/diff";
@@ -24,7 +27,7 @@ import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
 import { ableToAct, deciderFaults } from "@/lib/requisition/holders";
 import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
-import { appInclude, ERASED, recordOutcome, rejectApplicant, setAsideOnlineApplication } from "@/lib/suppliers/application-acts";
+import { appInclude, recordOutcome, rejectApplicant, setAsideOnlineApplication } from "@/lib/suppliers/application-acts";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
 import { lodgeFaults, verifyFaults } from "@/lib/suppliers/documents";
 import { applicationFaults, contactFaults, normaliseRegistrationNo, receiptFaults } from "@/lib/suppliers/identity";
@@ -35,11 +38,13 @@ import { documentFacts, loadSupplierConfig, supplierOrg, typeFacts } from "@/lib
 import { approveFaults, decisionSnapshot, fileFacts, isOpen, lapseFaults, openApplicationFaults, submitFaults, type FileFacts } from "@/lib/suppliers/review";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 import { standingOf } from "@/lib/suppliers/standing-repo";
+import { composeAddress, stepOneFaults, typedDay } from "@/lib/suppliers/step-one";
 import { PAPER_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_SERIES_KEY, VERIFICATION_STATES, type ApplicationKind, type Finding, type RegistrationValueKind, type SupplierStatus } from "@/lib/suppliers/types";
 import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
+import { currentRequestFacts } from "@/app/_auth/cookies";
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, lockOrganisation, NO_ORG, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { routeRequesterId } from "@/lib/approvals/requester";
@@ -74,6 +79,17 @@ const FIELD_OF: Record<string, string> = {
   CONTACT_NAME_REQUIRED: "contactName",
   CONTACT_REACH_REQUIRED: "contactEmail",
   CONTACT_EMAIL_NOT_VALID: "contactEmail",
+  ADDRESS_LINE_REQUIRED: "addressLine1",
+  CITY_REQUIRED: "city",
+  POSTCODE_REQUIRED: "postcode",
+  ADDRESS_STATE_REQUIRED: "stateCode",
+  ADDRESS_STATE_NOT_LISTED: "stateCode",
+  BUMIPUTERA_NOT_LISTED: "bumiputeraClaimCode",
+  INCORPORATED_ON_REQUIRED: "incorporatedOn",
+  INCORPORATED_ON_NOT_A_DAY: "incorporatedOn",
+  INCORPORATED_IN_FUTURE: "incorporatedOn",
+  CONTACT_EMAIL_REQUIRED: "contactEmail",
+  CONTACT_PHONE_REQUIRED: "contactPhone",
   RECEIVED_ON_REQUIRED: "receivedOn",
   RECEIVED_IN_FUTURE: "receivedOn",
   CHANNEL_REQUIRED: "channel",
@@ -82,6 +98,17 @@ const FIELD_OF: Record<string, string> = {
   RECORDER_REQUIRED: "recordedByPersonId",
   PERSON_REQUIRED: "personId",
 };
+
+/// The portal account opened inside the supplier's own transaction (Phase 4a). A sign-in name taken between the check and the write by another act (the unique index is the backstop)
+/// is a refusal in the same words as the check, which rolls everything back, rather than a database error.
+async function openSupplierAccountSafely(tx: Tx, input: OpenAccountInput) {
+  try {
+    return await openSupplierAccount(tx, input);
+  } catch (e) {
+    if (e instanceof LoginNameTaken) throw new Refusal({ ok: false, errors: { accountLoginName: "That sign-in name is already used." }, message: "Nothing was saved: that sign-in name is already used." });
+    throw e;
+  }
+}
 
 /// Blocks as field errors where a field is named, the rest as the message.
 function refusal(fs: readonly Finding[]): FormState {
@@ -110,12 +137,34 @@ function readContact(r: FormReader) {
   };
 }
 
+/// Step one's parts (Phase 4a): the address in parts, the declared Bumiputera claim and the day incorporated. The same fields the public form takes.
+function readStepOne(r: FormReader) {
+  return {
+    address: {
+      addressLine1: r.text("addressLine1", "Street address", { max: 240 }),
+      addressLine2: r.text("addressLine2", "Street address, second line", { max: 240 }),
+      city: r.text("city", "City", { max: 120 }),
+      postcode: r.text("postcode", "Postcode", { max: 30 }),
+      stateCode: r.optionalText("stateCode"),
+    },
+    bumiputeraClaimCode: r.optionalText("bumiputeraClaimCode"),
+    incorporatedOn: r.optionalText("incorporatedOn"),
+  };
+}
+
+/// What recording a supplier answers. Where an activation code was issued with it, the code is returned ONCE, to the form that asked, with where to go afterwards: it is kept nowhere else (not in an address, not in the page, not in the trail), so the form shows it before it navigates.
+export type RecordApplicationState = FormState & { issued?: { code: string; validUntil: string; supplierHref: string } };
+
 /**
- * Record a new supplier from its paper application (FR-VND-001): the supplier as an applicant, its
- * primary contact (a SupplierContact, never a Person: ADR 0019), and the application received. The
- * reference is issued from the `supplier` series; unset, nothing is recorded and the setting is named.
+ * Record a new supplier from its application (FR-VND-001): the supplier as an applicant, its primary contact (a SupplierContact, never a Person: ADR 0019), and the
+ * application received. The reference is issued from the `supplier` series; unset, nothing is recorded and the setting is named.
+ *
+ * Phase 4a, from an online application: the supplier takes step one's parts (the address in parts, the day incorporated, the declared Bumiputera claim) and the online
+ * application is marked recorded WITHOUT erasing the applicant's words (they are shown beside the register's entry with every difference listed, and erased only when
+ * the application is set aside). An officer who holds `supplierAccounts.manage` may open the contact's portal account in the same transaction and have its activation
+ * code, saying how the caller's identity was checked; without the permission the supplier is recorded and the account is opened later by someone who holds it.
  */
-export async function recordApplication(_prev: FormState, data: FormData): Promise<FormState> {
+export async function recordApplication(_prev: FormState, data: FormData): Promise<RecordApplicationState> {
   const txGuard = await staffForAct("TRANSACTION");
   if (!txGuard.ok) return txGuard.state;
   const actor = txGuard.actor;
@@ -129,20 +178,27 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
     registrationNo: r.text("registrationNo", "Registration number", { max: 120 }),
     entityTypeCode: r.optionalText("entityTypeCode"),
     countryCode: r.optionalText("countryCode"),
-    registeredAddress: r.text("registeredAddress", "Registered address", { max: 1000 }),
     companyEmail: r.text("companyEmail", "Company email", { max: 240 }),
     receivedOn: portalApplicationId ? null : r.optionalText("receivedOn"),
     channel: portalApplicationId ? null : r.choice("channel", "How it came in", PAPER_CHANNELS),
     declarationSignedOn: portalApplicationId ? null : r.optionalText("declarationSignedOn"),
     epaymentFormReceivedOn: portalApplicationId ? null : r.optionalText("epaymentFormReceivedOn"),
   };
+  const stepOne = readStepOne(r);
   const contact = readContact(r);
+  // The portal account (Phase 4a): only for a supplier recorded from an online application, and only if the officer asks for it.
+  const openAccount = portalApplicationId ? r.bool("openAccount") : false;
+  const accountLoginName = openAccount ? r.text("accountLoginName", "Sign-in name", { max: 64 }) : "";
+  const identityCheck = openAccount ? r.text("identityCheck", "How the caller's identity was checked", { max: 1000 }) : "";
   if (r.failed) return { ok: false, errors: r.errors };
   // The application is recorded by the signed-in officer (Phase 2b).
   const begun = await beginAct(actor, data, "SupplierApplication.recordedBy", { personField: "recordedByPersonId" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
+  // A hash is slow, so the password nobody knows that an account waits with is made before the transaction, and only when an account is asked for.
+  const waitingHash = openAccount ? await unusableSupplierPasswordHash() : "";
   let created: string | null = null;
+  let issued: RecordApplicationState["issued"];
   let result: FormState;
   try {
   result = await db.$transaction(
@@ -162,12 +218,26 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
       const key = normaliseRegistrationNo(v.registrationNo);
       const dup = key ? await tx.supplier.findFirst({ where: { organisationId: org.id, registrationNoKey: key }, select: { reference: true, registeredName: true } }) : null;
       const person = await activePerson(tx, org.id, act.subjectPersonId);
-      const fs: Finding[] = applicationFaults(
-        { ...v, contact, recorderActive: !!person },
-        { today: org.today, formatPattern: cfg.format?.pattern ?? null, entityTypeCodes: cfg.liveCodes("ENTITY_TYPE", org.today), countryCodes: cfg.liveCodes("COUNTRY", org.today), duplicate: dup ? { reference: dup.reference, name: dup.registeredName } : null },
-      );
+      const stateName = stepOne.address.stateCode ? cfg.listName("STATE", stepOne.address.stateCode) : null;
+      const registeredAddress = composeAddress(stepOne.address, stateName);
+      const fs: Finding[] = [
+        ...applicationFaults(
+          { ...v, registeredAddress, contact, recorderActive: !!person, contactNeedsEmailAndPhone: cfg.policy?.contactNeedsEmailAndPhone ?? null },
+          { today: org.today, formatPattern: cfg.format?.pattern ?? null, entityTypeCodes: cfg.liveCodes("ENTITY_TYPE", org.today), countryCodes: cfg.liveCodes("COUNTRY", org.today), duplicate: dup ? { reference: dup.reference, name: dup.registeredName } : null, addressJudgedByParts: true },
+        ),
+        ...(org.today ? stepOneFaults({ ...stepOne }, { today: org.today, stateCodes: cfg.liveCodes("STATE", org.today), bumiputeraCodes: cfg.liveCodes("BUMIPUTERA_STATUS", org.today) }) : []),
+      ];
       if (v.epaymentFormReceivedOn && org.today && v.epaymentFormReceivedOn > org.today) fs.push({ code: "IN_FUTURE", level: "block" });
       if (blocking(fs).length) return refusal(fs);
+      // The portal account is judged before anything is written, so a refusal here saves nothing: the permission, the code's validity setting, and (by the rules below) the name and the check.
+      let validityMinutes = 0;
+      if (openAccount) {
+        if (!actor.permissions.has("supplierAccounts.manage")) return { ok: false, message: "Nothing was saved: opening a supplier's portal account needs the permission to manage supplier accounts, which your role has not been given. Record the supplier without the account, and ask someone who holds the permission to open it." };
+        const policy = await loadSecurityPolicy(tx, org.id);
+        const unset = unsetSettings(policy, "ISSUE_CODE");
+        if (unset.length > 0 || policy?.resetCodeValidityMinutes == null) return { ok: false, message: `Nothing was saved: the account's activation code cannot be issued until the organisation sets ${settingLabels(unset).join("; ")} (Configuration › Security).` };
+        validityMinutes = policy.resetCodeValidityMinutes;
+      }
       const today = org.today!;
       let reference: string;
       try {
@@ -185,7 +255,14 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
           registrationNoKey: key,
           entityTypeCode: v.entityTypeCode!,
           countryCode: v.countryCode!,
-          registeredAddress: v.registeredAddress,
+          registeredAddress,
+          addressLine1: stepOne.address.addressLine1,
+          addressLine2: stepOne.address.addressLine2,
+          city: stepOne.address.city,
+          postcode: stepOne.address.postcode,
+          stateCode: stepOne.address.stateCode!,
+          bumiputeraClaimCode: stepOne.bumiputeraClaimCode ?? "",
+          incorporatedOn: dayToDate(typedDay(stepOne.incorporatedOn)!),
           companyEmail: v.companyEmail,
         },
       });
@@ -205,17 +282,23 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
         include: { supplier: { select: { reference: true } } },
       });
       await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.supplier, supplier.id, label(supplier, supplier.registeredName), "CREATE",
-        diffFields(null, { reference, registeredName: supplier.registeredName, registrationNo: supplier.registrationNo, formatChecked: fs.some((f) => f.code === "FORMAT_NOT_CHECKED") ? "Not checked: no format is set" : "Matches the configured format", entityType: listWords(cfg, "ENTITY_TYPE", supplier.entityTypeCode), country: listWords(cfg, "COUNTRY", supplier.countryCode), registeredAddress: supplier.registeredAddress, companyEmail: supplier.companyEmail, status: "Applicant" }));
+        diffFields(null, { reference, registeredName: supplier.registeredName, registrationNo: supplier.registrationNo, formatChecked: fs.some((f) => f.code === "FORMAT_NOT_CHECKED") ? "Not checked: no format is set" : "Matches the configured format", entityType: listWords(cfg, "ENTITY_TYPE", supplier.entityTypeCode), country: listWords(cfg, "COUNTRY", supplier.countryCode), registeredAddress: supplier.registeredAddress, state: stateName, dateIncorporated: day(supplier.incorporatedOn), bumiputeraDeclared: stepOne.bumiputeraClaimCode ? (cfg.listName("BUMIPUTERA_STATUS", stepOne.bumiputeraClaimCode) ?? "A status no longer listed") : "No claim made", companyEmail: supplier.companyEmail, status: "Applicant" }));
       await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.contact, c.id, label(supplier, "Primary contact"), "CREATE", diffFields(null, { contactName: c.name, contactDesignation: c.designation || null, contactEmail: c.email || null, contactPhone: c.phone || null, primary: true }));
       await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.application, app.id, supplierApplicationLabel(app), "CREATE",
         diffFields(null, { kind: APPLICATION_KIND_LABEL.NEW.en, receivedOn: v.receivedOn, channel: CHANNEL_LABEL[v.channel!].en, recordedBy: person!.name, declarationSignedOn: v.declarationSignedOn, epaymentFormReceivedOn: v.epaymentFormReceivedOn, ...(portal ? { onlineApplication: portal.reference } : {}) }));
       await act.write(tx, app.id);
       if (portal) {
-        // The supplier record now holds what the officer checked, so the applicant's own words are erased: nothing is kept twice.
-        await tx.portalApplication.update({ where: { id: portal.id, organisationId: actor.organisationId }, data: { status: "RECORDED", acceptedSupplierId: supplier.id, decidedAt: now, decidedByPersonId: person!.id, erasedAt: now, ...ERASED } });
+        // Phase 4a: the applicant's words are KEPT (CPD's registration, ruling 6): the online page shows them beside the register's entry and lists every difference. They are erased only if the application is set aside.
+        await tx.portalApplication.update({ where: { id: portal.id, organisationId: actor.organisationId }, data: { status: "RECORDED", acceptedSupplierId: supplier.id, decidedAt: now, decidedByPersonId: person!.id } });
         await act.writeAlso(tx, "PortalApplication.decidedBy", portal.id);
         await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.onlineApplication, portal.id, label({ reference: portal.reference }, "Online application"), "UPDATE",
-          diffFields({ status: "Received", personalDetails: "Held on the application" }, { status: "Recorded as a supplier", supplier: supplier.reference, decidedBy: person!.name, personalDetails: "Erased: the supplier record holds them" }));
+          diffFields({ status: "Received" }, { status: "Recorded as a supplier", supplier: supplier.reference, decidedBy: person!.name }));
+      }
+      if (openAccount) {
+        const opened = await openSupplierAccountSafely(tx, { actor, supplier: { id: supplier.id, reference: supplier.reference }, contactId: c.id, loginName: accountLoginName, identityCheck, reason: `Account opened when the supplier was recorded from online application ${portal!.reference}`, validityMinutes, passwordHash: waitingHash, request: await currentRequestFacts(), now });
+        // A refusal rolls everything back, the supplier included: the officer corrects the sign-in name or the check and records again.
+        if (!opened.ok) throw new Refusal({ ok: false, errors: Object.fromEntries(Object.entries(opened.fields ?? {}).flatMap(([k, f]) => (f ? [[k === "*" || k === "loginName" ? "accountLoginName" : k, f.en]] : []))), message: `Nothing was saved: ${opened.faults.map((f) => f.en).join(" ")}` });
+        issued = { code: opened.issued.code, validUntil: formatOrgDateTime(opened.issued.expiresAt, actor.organisationTimeZone), supplierHref: `/suppliers/${supplier.id}?tab=documents` };
       }
       created = supplier.id;
       return { ok: true };
@@ -223,12 +306,15 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
     { timeout: 20_000, maxWait: 10_000 },
   );
   } catch (e) {
+    if (e instanceof Refusal) return e.state;
     const attribution = attributionRefusalState(e);
     if (attribution) return attribution;
     throw e;
   }
   if (!result.ok || !created) return result;
   revalidatePath("/suppliers");
+  // A code issued is shown once by the form before it goes on; without one the officer goes straight to the supplier.
+  if (issued) return { ok: true, issued };
   redirect(`/suppliers/${created}?tab=documents`);
 }
 

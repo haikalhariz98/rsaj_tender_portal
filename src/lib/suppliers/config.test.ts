@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { supplierFaultText } from "./labels";
 import { documentTypeFaults, listValueFaults, valueFaults, type ValueInput } from "./config";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
@@ -49,5 +50,18 @@ describe("the register's lists", () => {
   it("an entry needs a code, a name and its provenance", () => {
     expect(listValueFaults({ code: "MY", nameEn: "Malaysia", provenance: "ASSUMED" }, { codeTaken: false, kindListed: true })).toEqual([]);
     expect(codes(listValueFaults({ code: "", nameEn: "", provenance: null }, { codeTaken: false, kindListed: false }))).toEqual(["KIND_NOT_LISTED", "CODE_REQUIRED", "NAME_REQUIRED", "PROVENANCE_REQUIRED"]);
+  });
+
+  it("a dial code belongs to a country: a plus sign and up to six digits, and nowhere else (Phase 4a)", () => {
+    const ok = { code: "MY", nameEn: "Malaysia", provenance: "ASSUMED" };
+    const ctx = { codeTaken: false, kindListed: true, list: "COUNTRY" };
+    expect(listValueFaults({ ...ok, callingCode: "+60" }, ctx)).toEqual([]);
+    expect(listValueFaults({ ...ok, callingCode: "+1684" }, ctx)).toEqual([]);
+    expect(listValueFaults({ ...ok, callingCode: null }, ctx)).toEqual([]);
+    for (const bad of ["60", "+", "+0", "+60 1", "+1234567", "+6A", " +60"]) expect(codes(listValueFaults({ ...ok, callingCode: bad }, ctx)), bad).toEqual(["CALLING_CODE_NOT_VALID"]);
+    expect(codes(listValueFaults({ ...ok, callingCode: "+60" }, { ...ctx, list: "STATE" }))).toEqual(["CALLING_CODE_ONLY_FOR_COUNTRY"]);
+    expect(codes(listValueFaults({ ...ok, callingCode: "+60" }, { ...ctx, list: "ENTITY_TYPE" }))).toEqual(["CALLING_CODE_ONLY_FOR_COUNTRY"]);
+    // The words exist in both languages, and name no code.
+    expect(supplierFaultText({ code: "CALLING_CODE_NOT_VALID", level: "block" }, "ms")).toMatch(/Kod dailan/);
   });
 });

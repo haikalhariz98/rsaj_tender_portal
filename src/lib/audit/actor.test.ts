@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { actorColumns } from "./actor";
+import { actorColumns, actorDisplayName } from "./actor";
 
 describe("actorColumns", () => {
   it("writes a row with no actor as it always was: unattributed, with no actor reference", () => {
@@ -37,5 +37,14 @@ describe("actorColumns", () => {
   it("refuses an actor that would break the database CHECK, here, not in the middle of a write", () => {
     expect(() => actorColumns({ kind: "STAFF", personId: "", sessionId: "s", offices: [], sourceAddress: null })).toThrow();
     expect(() => actorColumns({ kind: "SUPPLIER", supplierAccountId: "", sessionId: "s", sourceAddress: null })).toThrow();
+  });
+});
+
+describe("who an entry says acted, in words (Phase 4a)", () => {
+  it("names a supplier's own act for what it is, and never as a person who is gone", () => {
+    expect(actorDisplayName({ actorKind: "SUPPLIER", actorPerson: null, actorSystemLabel: null })).toBe("A supplier's portal account");
+    expect(actorDisplayName({ actorKind: "STAFF", actorPerson: { name: "Aziz" } })).toBe("Aziz");
+    expect(actorDisplayName({ actorKind: "SYSTEM", actorSystemLabel: "demo loader" })).toBe("System: demo loader");
+    expect(actorDisplayName({})).toBeNull();
   });
 });

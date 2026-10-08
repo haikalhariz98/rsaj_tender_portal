@@ -45,11 +45,12 @@ export type SignInOutcome =
 
 export type ConfirmOutcome = { ok: true; at: Date } | { ok: false; kind: "WRONG" | "LOCKED" | "POLICY_NOT_SET" };
 
-export interface IdentityProvider {
+/// One façade, two stores (ADR 0034 D1): `StaffCredentials` (here) and `SupplierCredentials` (`supplier-identity.ts`, Phase 4a) differ in the actor they confirm and in what a refusal can be.
+export interface IdentityProvider<A = StaffActor, S = SignInOutcome, C = ConfirmOutcome> {
   readonly name: string;
-  authenticate(credentials: Credentials, context: { request: RequestFacts; replacingToken: string | null }): Promise<SignInOutcome>;
+  authenticate(credentials: Credentials, context: { request: RequestFacts; replacingToken: string | null }): Promise<S>;
   /// The signed-in person gives their password again, for an act that needs it. A second factor, when authorised, attaches here.
-  confirmPassword(actor: StaffActor, password: string, request: RequestFacts): Promise<ConfirmOutcome>;
+  confirmPassword(actor: A, password: string, request: RequestFacts): Promise<C>;
 }
 
 /// The row lock every change to an account's counters and sessions queues on. `FOR NO KEY UPDATE`, never `FOR UPDATE`: a sign-in log row and a session name the account by a foreign key, and `FOR UPDATE` would conflict with the key-share lock their inserts take (the lesson of Phase 0's organisation lock).

@@ -37,6 +37,7 @@ export function actorColumns(actor: AuditActor | undefined): Pick<
  * Who an entry says acted, in words: the person by name; the system by what ran ("System: bootstrap command"), so that a row it wrote is never read as a
  * person who is gone. Null where neither is named. One rule for History and for the export, so the two cannot disagree.
  */
-export function actorDisplayName(row: { actorPerson?: { name: string } | null; actorSystemLabel?: string | null }): string | null {
-  return row.actorPerson?.name ?? (row.actorSystemLabel ? `System: ${row.actorSystemLabel}` : null);
+export function actorDisplayName(row: { actorPerson?: { name: string } | null; actorSystemLabel?: string | null; actorKind?: string | null }): string | null {
+  // A supplier's own act (Phase 4a) is named for what it is, not for a person: the supplier's contact is SULIT and the trail does not carry the account's sign-in name.
+  return row.actorPerson?.name ?? (row.actorSystemLabel ? `System: ${row.actorSystemLabel}` : row.actorKind === "SUPPLIER" ? "A supplier's portal account" : null);
 }

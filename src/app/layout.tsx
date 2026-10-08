@@ -5,6 +5,7 @@ import { ActorProvider } from "@/components/auth/actor-context";
 import { AppShell } from "@/components/shell/app-shell";
 import { loadShell } from "@/lib/shell";
 import { currentStaffOrNull } from "./_auth/actor";
+import { currentSupplierOrNull } from "./_auth/supplier";
 import { staffCounts } from "./_auth/worklist";
 import { signOutAction } from "./sign-in/actions";
 import { ORGANISATION_STRAPLINE } from "@/lib/org";
@@ -33,7 +34,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // The steps waiting for the person and their unread notices (Phase 3c): their own, never anyone else's.
   const personal = actor != null && !portalOnly ? await staffCounts(actor) : {};
   // Who is signed in comes from the session, read from the database on this request, never from the environment or from whoever sorts first.
-  const user = actor ? { name: actor.personName, jobTitle: actor.jobTitle } : null;
+  // On the public copy the one who can be signed in is a supplier's contact (Phase 4a), and the frame names them and their supplier: the same session, read once.
+  const supplier = portalOnly ? await currentSupplierOrNull() : null;
+  const user = actor ? { name: actor.personName, jobTitle: actor.jobTitle, kind: "staff" as const } : supplier ? { name: supplier.contactName, jobTitle: supplier.supplierName, kind: "supplier" as const } : null;
 
   return (
     <html lang="en" className={jakarta.variable} style={{ colorScheme: "light" }}>

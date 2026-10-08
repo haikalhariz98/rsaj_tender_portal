@@ -68,6 +68,8 @@ export async function loadSupplierConfig(organisationId: string, client: Tx = db
     expiryRule,
     reminderOffsets: expiryRule?.isActive ? expiryRule.reminderOffsetDays : [],
     listName,
+    /// The dial code a country carries, or null where none is set (then no prefix is shown and a number is taken as typed).
+    callingCodeOf: (countryCode: string | null): string | null => (countryCode ? (lists.find((l) => l.list === "COUNTRY" && l.code === countryCode)?.callingCode ?? null) : null),
     /// The codes of a list in force on the day. Empty: the list is not set.
     liveCodes: (kind: SupplierListKind, today: string | null) => lists.filter((l) => l.list === kind && live(l, today)).map((l) => l.code),
     live,
@@ -76,7 +78,12 @@ export async function loadSupplierConfig(organisationId: string, client: Tx = db
 export type SupplierConfig = Awaited<ReturnType<typeof loadSupplierConfig>>;
 
 const supplierInclude = {
-  contacts: { orderBy: [{ isPrimary: "desc" as const }, { createdAt: "asc" as const }] },
+  // Phase 4a: each contact's portal account, if one was opened (its state, not its password), and the accounts' ids for the supplier's own History.
+  contacts: {
+    orderBy: [{ isPrimary: "desc" as const }, { createdAt: "asc" as const }],
+    include: { account: { select: { id: true, loginName: true, status: true, failedAttempts: true, lockedUntil: true, lastSignInAt: true } } },
+  },
+  accounts: { select: { id: true } },
   applications: {
     orderBy: [{ receivedOn: "desc" as const }, { createdAt: "desc" as const }],
     include: {
@@ -140,7 +147,10 @@ export async function loadSupplier(organisationId: string, id: string, hidden: r
   const found = await client.supplier.findFirst({ where: { id, organisationId: org.id }, include: supplierInclude });
   if (!found) return null;
   const gone = new Set(hidden);
-  const supplier = { ...found, parties: found.parties.filter((p) => !gone.has(p.exerciseId)), awards: found.awards.filter((a) => !gone.has(a.exerciseId)) };
+  // Phase 4a: whether a contact's portal account is locked right now, read here where the clock may be read, so that a screen draws it without asking the time.
+  const now = Date.now();
+  const contacts = found.contacts.map((c) => ({ ...c, account: c.account ? { ...c.account, locked: c.account.lockedUntil != null && c.account.lockedUntil.getTime() > now } : null }));
+  const supplier = { ...found, contacts, parties: found.parties.filter((p) => !gone.has(p.exerciseId)), awards: found.awards.filter((a) => !gone.has(a.exerciseId)) };
   return { org, supplier, hidden: [...hidden] };
 }
 export type LoadedSupplier = NonNullable<Awaited<ReturnType<typeof loadSupplier>>>;
@@ -282,6 +292,7 @@ export async function supplierHistory(l: LoadedSupplier) {
   const ids = [
     s.id,
     ...s.contacts.map((c) => c.id),
+    ...s.accounts.map((a) => a.id),
     ...s.applications.flatMap((a) => [a.id, ...a.decisions.map((d) => d.id), ...a.routes.flatMap((r) => [r.id, ...r.steps.map((x) => x.id)])]),
     ...s.documents.map((d) => d.id),
     // a2: standing events, requests and their routes; linked parties, awards and special permissions.

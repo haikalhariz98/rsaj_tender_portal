@@ -26,6 +26,9 @@ export type ConfigFault =
   | "CEILING_PROVENANCE_REQUIRED"
   | "KINDS_WITHOUT_BODY"
   | "KIND_NOT_LISTED"
+  | "CALLING_CODE_ONLY_FOR_COUNTRY"
+  | "CALLING_CODE_NOT_VALID"
+  | "CONTACT_RULE_PROVENANCE_REQUIRED"
   | "REASON_REQUIRED";
 
 export interface ValueInput {
@@ -101,9 +104,21 @@ export function documentTypeFaults(t: DocumentTypeInput, ctx: { codeTaken: boole
 }
 
 /// An entry on one of the register's lists (entity types, countries).
-export function listValueFaults(v: { code: string; nameEn: string; provenance: string | null }, ctx: { codeTaken: boolean; kindListed: boolean }): Finding<ConfigFault>[] {
+/// A dial code: a plus sign and one to six digits. A validity bound (the database CHECK holds the same), not the customer's choice of which code a country has.
+export const CALLING_CODE = /^\+[1-9][0-9]{0,5}$/;
+
+export function listValueFaults(
+  v: { code: string; nameEn: string; provenance: string | null; /// Phase 4a: the country's dial code. Only a country has one.
+    callingCode?: string | null },
+  ctx: { codeTaken: boolean; kindListed: boolean; /// The list the entry is on, so a dial code can be refused anywhere but on a country.
+    list?: string | null },
+): Finding<ConfigFault>[] {
   const out: Finding<ConfigFault>[] = [];
   if (!ctx.kindListed) out.push({ code: "KIND_NOT_LISTED", level: "block" });
+  if (v.callingCode) {
+    if (ctx.list !== "COUNTRY") out.push({ code: "CALLING_CODE_ONLY_FOR_COUNTRY", level: "block" });
+    else if (!CALLING_CODE.test(v.callingCode)) out.push({ code: "CALLING_CODE_NOT_VALID", level: "block" });
+  }
   if (!v.code.trim()) out.push({ code: "CODE_REQUIRED", level: "block" });
   else if (ctx.codeTaken) out.push({ code: "CODE_TAKEN", level: "block" });
   if (!v.nameEn.trim()) out.push({ code: "NAME_REQUIRED", level: "block" });

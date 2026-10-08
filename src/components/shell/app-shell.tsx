@@ -87,6 +87,7 @@ export function AppShell({
           hasAlerts={hasAlerts}
           onMenu={() => setOpen(true)}
           signOut={signOut}
+          signInHref={portalOnly ? "/supplier/sign-in" : "/sign-in"}
         />
         <main className="min-w-0 flex-1 px-4 pt-7 pb-16 sm:px-6 lg:px-8 print:p-0">
           <div className="mx-auto w-full max-w-[1400px]">{children}</div>

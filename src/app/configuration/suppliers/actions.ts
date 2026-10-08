@@ -215,6 +215,8 @@ export async function saveListValue(_prev: FormState, data: FormData): Promise<F
     code: r.code("code", "Code"),
     nameEn: r.text("nameEn", "Name", { required: true, max: 240 }),
     nameMs: r.optionalText("nameMs"),
+    // Phase 4a: the country's dial code, shown before the mobile number on the public form. Only a country has one.
+    callingCode: r.optionalText("callingCode"),
     provenance: r.choice("provenance", "Where it comes from", PROVENANCE),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
   };
@@ -225,15 +227,15 @@ export async function saveListValue(_prev: FormState, data: FormData): Promise<F
     if (id && !before) return GONE;
     const list = (before?.list ?? v.list) as SupplierListKind | null;
     const code = before?.code ?? v.code;
-    const fs = listValueFaults({ ...v, code }, { kindListed: !!list, codeTaken: !before && !!list && !!(await tx.supplierListValue.findFirst({ where: { organisationId: org.id, list, code }, select: { id: true } })) });
+    const fs = listValueFaults({ ...v, code }, { kindListed: !!list, list, codeTaken: !before && !!list && !!(await tx.supplierListValue.findFirst({ where: { organisationId: org.id, list, code }, select: { id: true } })) });
     if (fs.length) return refusal(fs);
-    const words = (x: { nameEn: string; nameMs: string | null; provenance: string }) => ({ name: x.nameEn, nameInMalay: x.nameMs, whereItComesFrom: prov(x.provenance) });
+    const words = (x: { nameEn: string; nameMs: string | null; provenance: string; callingCode?: string | null }) => ({ name: x.nameEn, nameInMalay: x.nameMs, ...(list === "COUNTRY" ? { dialCode: x.callingCode ?? "Not set" } : {}), whereItComesFrom: prov(x.provenance) });
     const what = `${LIST_KIND_SINGULAR[list!].en} · ${v.nameEn}`;
     if (!before) {
-      const created = await tx.supplierListValue.create({ data: { organisationId: org.id, list: list!, code, nameEn: v.nameEn, nameMs: v.nameMs, provenance: v.provenance!, sortOrder: v.sortOrder } });
+      const created = await tx.supplierListValue.create({ data: { organisationId: org.id, list: list!, code, nameEn: v.nameEn, nameMs: v.nameMs, callingCode: v.callingCode, provenance: v.provenance!, sortOrder: v.sortOrder } });
       await audit(tx, toAuditActor(actor), org.id, "SupplierListValue", created.id, what, "CREATE", diffFields(null, words(created)));
     } else {
-      const after = await tx.supplierListValue.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { nameEn: v.nameEn, nameMs: v.nameMs, provenance: v.provenance!, sortOrder: v.sortOrder } });
+      const after = await tx.supplierListValue.update({ where: { id: before.id, organisationId: actor.organisationId }, data: { nameEn: v.nameEn, nameMs: v.nameMs, callingCode: v.callingCode, provenance: v.provenance!, sortOrder: v.sortOrder } });
       await audit(tx, toAuditActor(actor), org.id, "SupplierListValue", before.id, what, "UPDATE", diffFields(words(before), words(after)), String(data.get("reason") ?? ""));
     }
     return done();
@@ -260,20 +262,28 @@ export async function saveSupplierPolicy(_prev: FormState, data: FormData): Prom
     verificationNoticeEn: r.optionalText("verificationNoticeEn"),
     verificationNoticeMs: r.optionalText("verificationNoticeMs"),
     noticeProvenance: r.choice("noticeProvenance", "Where the notice comes from", PROVENANCE),
+    // Phase 4a: whether a contact must give an email AND a mobile number. Not set keeps "an email or a telephone". Tri-state: "" is not set.
+    contactRule: r.choice("contactRule", "Contact rule", ["both", "either"] as const),
+    contactRuleProvenance: r.choice("contactRuleProvenance", "Where the contact rule comes from", PROVENANCE),
     governingSource: r.text("governingSource", "Source", { max: 240 }),
   };
   if ((v.verificationNoticeEn || v.verificationNoticeMs) && !v.noticeProvenance) r.reject("noticeProvenance", "Say where the notice comes from.");
+  if (v.contactRule && !v.contactRuleProvenance) r.reject("contactRuleProvenance", "Say where the contact rule comes from.");
   if (r.failed) return { ok: false, errors: r.errors };
   return db.$transaction(async (tx): Promise<FormState> => {
     await lockOrganisation(tx, org.id);
     const before = await tx.supplierPolicy.findUnique({ where: { organisationId: org.id } });
-    const words = (p: typeof v | NonNullable<typeof before> | null) => (p ? { verificationNotice: p.verificationNoticeEn ?? "Not set", verificationNoticeInMalay: p.verificationNoticeMs ?? "Not set", noticeFrom: prov(p.noticeProvenance), governingSource: p.governingSource || null } : null);
+    // The contact rule is tri-state in the form and a nullable boolean in the table: "both" asks for an email AND a mobile number, "either" for one of them, not set keeps today's rule.
+    const { contactRule, ...rest } = v;
+    const row = { ...rest, contactNeedsEmailAndPhone: contactRule === "both" ? true : contactRule === "either" ? false : null, contactRuleProvenance: contactRule ? v.contactRuleProvenance : null };
+    const ruleWords = (b: boolean | null | undefined) => (b == null ? "Not set: an email or a telephone is enough" : b ? "An email and a mobile number" : "An email or a mobile number");
+    const words = (p: typeof row | NonNullable<typeof before> | null) => (p ? { verificationNotice: p.verificationNoticeEn ?? "Not set", verificationNoticeInMalay: p.verificationNoticeMs ?? "Not set", noticeFrom: prov(p.noticeProvenance), contactRule: ruleWords(p.contactNeedsEmailAndPhone), contactRuleFrom: prov(p.contactRuleProvenance), governingSource: p.governingSource || null } : null);
     if (!before) {
-      const created = await tx.supplierPolicy.create({ data: { organisationId: org.id, ...v } });
-      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", created.id, "Supplier register · policy", "CREATE", diffFields(null, words(v)!), String(data.get("reason") ?? ""));
+      const created = await tx.supplierPolicy.create({ data: { organisationId: org.id, ...row } });
+      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", created.id, "Supplier register · policy", "CREATE", diffFields(null, words(row)!), String(data.get("reason") ?? ""));
     } else {
-      await tx.supplierPolicy.update({ where: { id: before.id, organisationId: actor.organisationId }, data: v });
-      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", before.id, "Supplier register · policy", "UPDATE", diffFields(words(before), words(v)!), String(data.get("reason") ?? ""));
+      await tx.supplierPolicy.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row });
+      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", before.id, "Supplier register · policy", "UPDATE", diffFields(words(before), words(row)!), String(data.get("reason") ?? ""));
     }
     return done();
   });

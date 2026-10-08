@@ -6,6 +6,22 @@ export const AFTER_SIGN_IN = "/";
 /// Whether a path belongs to the sign-in screens, which are shown without the staff frame (no navigation, no counts).
 export const isSignInPath = (pathname: string) => pathname === SIGN_IN_PATH || pathname.startsWith(`${SIGN_IN_PATH}/`);
 
+/// The supplier portal's sign-in (Phase 4a). The supplier store signs in on the public copy only, at literal paths: the pages, and the route handlers their forms post to
+/// (a server action cannot be allow-listed by path, and the public copy refuses every one). `publicAllows` (`src/lib/portal/surface.ts`) lists exactly these.
+export const SUPPLIER_SIGN_IN_PATH = "/supplier/sign-in";
+export const SUPPLIER_AFTER_SIGN_IN = "/supplier/account";
+export const SUPPLIER_AUTH_PAGES = ["/supplier/sign-in", "/supplier/activate", "/supplier/reset", "/supplier/account"] as const;
+export const SUPPLIER_AUTH_POSTS = {
+  signIn: "/supplier/sign-in/submit",
+  signOut: "/supplier/sign-out",
+  activate: "/supplier/activate/submit",
+  reset: "/supplier/reset/submit",
+  changePassword: "/supplier/account/password",
+  signOutEverywhere: "/supplier/account/sign-out-everywhere",
+  acknowledgeReset: "/supplier/account/acknowledge",
+} as const;
+export const SUPPLIER_POST_PATHS: readonly string[] = Object.values(SUPPLIER_AUTH_POSTS);
+
 /// The two session cookies (ADR 0034 D4). Names only, so the proxy can know them without importing anything that touches the database or `next/headers`.
 /// `__Host-` ties each to one exact host with no Domain. A staff cookie means nothing to the public copy, and a supplier cookie nothing to the staff copy.
 export const STAFF_COOKIE = "__Host-perolehan-staff";
@@ -26,10 +42,39 @@ export interface PublicEntry {
 
 export const PUBLIC_ENTRY_POINTS: readonly PublicEntry[] = [
   { under: "sign-in", reason: "Signing in is how a person becomes signed in: the sign-in page, the one-time-code page, the page's image (served by its own fingerprint, holding nothing but the picture) and their actions. Each action passes the Origin guard and answers only on the staff copy." },
+  // The supplier portal (Phase 4a): each public part is named, so that an account's own page is NOT exempt. `supplier/account` is guarded by `requireSupplier` (a page) and
+  // `supplierPost` (its handlers), and a source scan holds it to that (`src/app/_auth/supplier-reach.test.ts`, and `auth-reach.test.ts` for the guards' names).
   {
-    under: "supplier",
-    reason:
-      "The supplier portal is for strangers: its pages and its one registration POST are served to people with no account, on the public copy, and on the staff copy as well. Supplier sign-in (Phase 4a) will guard what is behind an account; staff sign-in has nothing to say about it.",
+    file: "supplier/page.tsx",
+    reason: "The supplier portal's home page: served to people with no account, on the public copy and on the staff copy as well. It shows what is open to everyone and holds no supplier's data.",
+  },
+  {
+    under: "supplier/opportunities",
+    reason: "The portal's published opportunities: open to everyone by the founder's ruling (2026-10-06), on the public copy and on the staff copy. What it shows is what is public by `isPublicOpportunity`, never a supplier's own.",
+  },
+  { under: "supplier/results", reason: "The portal's published results: open to everyone, on the public copy and on the staff copy. It holds no supplier's own data." },
+  {
+    under: "supplier/register",
+    reason: "The public registration form and its one POST: served to people with no account, because applying is how a company gets one. The POST passes the Origin guard and a signed form token, and the public copy takes no other write from a stranger but the sign-in posts below.",
+  },
+  { under: "supplier/bids", reason: "A placeholder page that says My Bids needs sign-in and holds no data. It is guarded when it is built (Phase 4c)." },
+  { under: "supplier/company", reason: "A placeholder page that says Company needs sign-in and holds no data. It is guarded when it is built (Phase 4b)." },
+  { under: "supplier/projects", reason: "A placeholder page that says My Projects needs sign-in and holds no data. It is guarded when it is built (Phase 4d)." },
+  {
+    under: "supplier/sign-in",
+    reason: "A supplier signing in is not yet signed in: the sign-in page and its POST are served to people with no account, on the public copy. The POST passes the Origin guard and a signed form token, and answers one sentence whatever was wrong.",
+  },
+  {
+    under: "supplier/activate",
+    reason: "Activating an account is done with a one-time code before any password exists: the page and its POST are served to people with no account, on the public copy, behind the Origin guard and a signed form token.",
+  },
+  {
+    under: "supplier/reset",
+    reason: "Setting a new password with a one-time reset code is done by someone who cannot sign in: the page and its POST are served to people with no account, on the public copy, behind the Origin guard and a signed form token.",
+  },
+  {
+    file: "supplier/sign-out/route.ts",
+    reason: "Signing out works for whoever holds a cookie, signed in or not, and ends only the session the cookie carries. It is a POST that passes the Origin guard.",
   },
   { file: "organisation/logo/[sha]/route.ts", reason: "The organisation's logo, addressed by its own fingerprint. It is shown on the sign-in page and on the public portal, to people who are not signed in, and holds nothing but the image." },
 ];

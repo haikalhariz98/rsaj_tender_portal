@@ -36,7 +36,9 @@ const publicEntry = (file: string) => isPublicEntryFile(file);
 /// The calls that count as asking who is signed in. `staffOrSignIn` is the account page's own wrapper of `requireStaff`, which sends nobody-signed-in to sign in.
 /// `staffForAct` (Phase 2a) is the wrapper an action uses for an act only an office holder may do: it calls `requireStaff` first, and hands an administrator's refusal back as the form's state.
 /// `staffForPermission` (review of Phase 2a) is the same for an action that only someone holding a product permission may do: it calls `requireStaff` first and hands the refusal, in words, back as the form's state.
-const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct(", "staffForPermission("];
+/// Phase 4a: `requireSupplier` (a supplier's page) and `supplierPost` (a handler behind a supplier's account) are the supplier store's `requireStaff` and `staffRoute`. They are asked first in the
+/// pages and handlers of `supplier/account`, which are no longer exempt as a whole folder; `supplier-reach.test.ts` holds what they promise.
+const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct(", "staffForPermission(", "requireSupplier(", "supplierPost("];
 
 interface Entry {
   file: string;
@@ -82,7 +84,8 @@ describe("the scan finds what it should", () => {
     // 61 server modules at the time of writing (the plan counted 54 earlier), less sign-in's.
     expect(ACTION_FILES.length).toBeGreaterThan(50);
     expect(PAGE_FILES.length).toBeGreaterThan(55);
-    expect(ROUTE_FILES.length).toBe(12);
+    // 12 before Phase 4a, and the supplier portal's seven handlers since: sign-in, sign-out, activate, reset, and the account's password, sign-out-everywhere and acknowledge.
+    expect(ROUTE_FILES.length).toBe(19);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });
@@ -146,7 +149,16 @@ describe("every route handler asks who is signed in first, and every one that ch
 
   it("finds the handlers", () => {
     expect(handlers.length).toBeGreaterThanOrEqual(8);
-    expect(ROUTE_FILES.filter((f) => publicEntry(f.file)).map((f) => f.file).sort()).toEqual(["organisation/logo/[sha]/route.ts", "sign-in/image/[sha]/route.ts", "supplier/register/submit/route.ts"]);
+    // The public ones are the logo, the staff sign-in page's picture, the registration post and (Phase 4a) the supplier portal's four doors that a stranger reaches: sign-in, activate, reset and sign-out.
+    expect(ROUTE_FILES.filter((f) => publicEntry(f.file)).map((f) => f.file).sort()).toEqual([
+      "organisation/logo/[sha]/route.ts",
+      "sign-in/image/[sha]/route.ts",
+      "supplier/activate/submit/route.ts",
+      "supplier/register/submit/route.ts",
+      "supplier/reset/submit/route.ts",
+      "supplier/sign-in/submit/route.ts",
+      "supplier/sign-out/route.ts",
+    ]);
   });
 
   it("none is reachable signed out", () => {
@@ -168,6 +180,11 @@ describe("every route handler asks who is signed in first, and every one that ch
     for (const e of writes) {
       // Phase 2a: a handler for an act only an office holder may do also names the kind of act (`, holder: "HOLDER_CHECKED"`); the content types are asked as before.
       const types = /staffRoute\(\{ contentTypes: \[((?:"[a-z-]+\/[a-z-]+"(?:, )?)+)\](?:, holder: "[A-Z_]+")? \}\)/.exec(raw(e));
+      // Phase 4a: a supplier's handler asks `supplierPost`, which accepts a JSON body from a page of this origin and nothing else (`readPortalPost`: `supplier-reach.test.ts` pins it).
+      if (!types && /^supplier\/account\//.test(e.file)) {
+        expect(e.body, `${e.file}: ${e.name}`).toMatch(/^\{\s*const guard = await supplierPost\(request, "[^"]*"\);/);
+        continue;
+      }
       expect(types, `${e.file}: ${e.name}`).not.toBeNull();
       expect(types![1], `${e.file}: ${e.name}`).not.toContain("text/plain");
     }
@@ -175,7 +192,23 @@ describe("every route handler asks who is signed in first, and every one that ch
 
   it("the public routes are the portal's registration post and the logo, and say why", () => {
     for (const e of PUBLIC_ENTRY_POINTS) expect(e.reason.length, e.under ?? e.file).toBeGreaterThan(40);
-    expect(PUBLIC_ENTRY_POINTS.map((e) => e.under ?? e.file).sort()).toEqual(["organisation/logo/[sha]/route.ts", "sign-in", "supplier"]);
+    // Phase 4a narrowed `supplier` (the whole folder) to the parts that are public, one by one: `supplier/account` is not among them.
+    expect(PUBLIC_ENTRY_POINTS.map((e) => e.under ?? e.file).sort()).toEqual([
+      "organisation/logo/[sha]/route.ts",
+      "sign-in",
+      "supplier/activate",
+      "supplier/bids",
+      "supplier/company",
+      "supplier/opportunities",
+      "supplier/page.tsx",
+      "supplier/projects",
+      "supplier/register",
+      "supplier/reset",
+      "supplier/results",
+      "supplier/sign-in",
+      "supplier/sign-out/route.ts",
+    ]);
+    expect(PUBLIC_ENTRY_POINTS.some((e) => (e.under ?? e.file!) === "supplier" || (e.under ?? e.file!).startsWith("supplier/account"))).toBe(false);
   });
 
   it("every public entry names something that exists (none is stale)", () => {

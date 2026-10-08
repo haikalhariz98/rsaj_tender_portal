@@ -32,6 +32,11 @@ describe("recording a paper application (FR-VND-001)", () => {
     expect(codes(applicationFaults({ ...ok, [field]: "  " }, ctx), "block")).toEqual([code]);
   });
 
+  it("an address taken in parts is judged by them: the single text is not asked for as well (Phase 4a)", () => {
+    expect(codes(identityFaults({ ...ok, registeredAddress: "" }, { ...ctx, addressJudgedByParts: true }))).toEqual([]);
+    expect(codes(identityFaults({ ...ok, registeredAddress: "" }, ctx))).toEqual(["ADDRESS_REQUIRED"]);
+  });
+
   it("the entity type and the country must be chosen from the lists in force", () => {
     expect(codes(identityFaults({ ...ok, entityTypeCode: null }, ctx))).toEqual(["ENTITY_TYPE_REQUIRED"]);
     expect(codes(identityFaults({ ...ok, entityTypeCode: "llp" }, ctx))).toEqual(["ENTITY_TYPE_NOT_LISTED"]);
@@ -78,6 +83,17 @@ describe("the primary contact (FR-VND-001; a SupplierContact, never a Person)", 
     expect(codes(contactFaults({ name: "", designation: "", email: "", phone: "" }))).toEqual(["CONTACT_NAME_REQUIRED", "CONTACT_REACH_REQUIRED"]);
     expect(contactFaults({ name: "A", designation: "", email: "", phone: "07-1234567" })).toEqual([]);
     expect(codes(contactFaults({ name: "A", designation: "", email: "a@", phone: "" }))).toEqual(["CONTACT_EMAIL_NOT_VALID"]);
+    // Phase 4a: the switch is the customer's. Not set (null) and false keep "an email or a telephone", true asks for both.
+    const emailOnly = { name: "A", designation: "", email: "a@b.example", phone: "" };
+    const phoneOnly = { name: "A", designation: "", email: "", phone: "07-1234567" };
+    for (const rule of [null, false] as const) {
+      expect(contactFaults(emailOnly, rule)).toEqual([]);
+      expect(contactFaults(phoneOnly, rule)).toEqual([]);
+    }
+    expect(codes(contactFaults(emailOnly, true))).toEqual(["CONTACT_PHONE_REQUIRED"]);
+    expect(codes(contactFaults(phoneOnly, true))).toEqual(["CONTACT_EMAIL_REQUIRED"]);
+    expect(codes(contactFaults({ ...emailOnly, phone: "07-1234567" }, true))).toEqual([]);
+    expect(codes(contactFaults({ name: "", designation: "", email: "", phone: "" }, true))).toEqual(["CONTACT_NAME_REQUIRED", "CONTACT_EMAIL_REQUIRED", "CONTACT_PHONE_REQUIRED"]);
   });
 });
 

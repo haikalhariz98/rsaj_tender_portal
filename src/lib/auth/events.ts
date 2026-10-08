@@ -13,13 +13,17 @@ import type { RequestFacts } from "./request";
 
 export async function recordSignInEvent(
   client: Tx,
-  event: { organisationId: string; staffAccountId?: string | null; kind: SignInEventKind; request?: RequestFacts | null; at: Date },
+  event: { organisationId: string; store?: "STAFF" | "SUPPLIER"; staffAccountId?: string | null; supplierAccountId?: string | null; kind: SignInEventKind; request?: RequestFacts | null; at: Date },
 ): Promise<void> {
+  // The store is the one the account belongs to (Phase 4a): a supplier account's events are the supplier store's. An event that names no account is the staff store's,
+  // as it always was (a name that matched nothing at the staff sign-in); the supplier sign-in says `store: "SUPPLIER"` for a name that matched nothing there.
+  const supplier = (event.store ?? (event.supplierAccountId != null ? "SUPPLIER" : "STAFF")) === "SUPPLIER";
   await client.signInEvent.create({
     data: {
       organisationId: event.organisationId,
-      store: "STAFF",
-      staffAccountId: event.staffAccountId ?? null,
+      store: supplier ? "SUPPLIER" : "STAFF",
+      staffAccountId: supplier ? null : (event.staffAccountId ?? null),
+      supplierAccountId: supplier ? (event.supplierAccountId ?? null) : null,
       kind: event.kind,
       at: event.at,
       ...(event.request ? { detail: { create: { sourceAddress: event.request.sourceAddress, userAgent: event.request.userAgent } } } : {}),
@@ -33,9 +37,9 @@ export async function recordSignInEvent(
 export const ADDRESS_COUNTED_KINDS: SignInEventKind[] = ["FAILED", "LOCKED_OUT", "STEP_UP_FAILED"];
 
 /// How many failed attempts came from this address since `since`. Counted in the database so every instance shares the count. An unknown address is never counted (it is not an address).
-export async function failedSignInsFrom(client: Tx, organisationId: string, sourceAddress: string | null, since: Date): Promise<number> {
+export async function failedSignInsFrom(client: Tx, organisationId: string, sourceAddress: string | null, since: Date, store: "STAFF" | "SUPPLIER" = "STAFF"): Promise<number> {
   if (sourceAddress == null) return 0;
   return client.signInEvent.count({
-    where: { organisationId, store: "STAFF", kind: { in: ADDRESS_COUNTED_KINDS }, at: { gte: since }, detail: { is: { sourceAddress } } },
+    where: { organisationId, store, kind: { in: ADDRESS_COUNTED_KINDS }, at: { gte: since }, detail: { is: { sourceAddress } } },
   });
 }

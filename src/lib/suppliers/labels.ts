@@ -10,6 +10,7 @@ import type { DeciderFault } from "@/lib/requisition/holders";
 
 import type { DocumentState } from "./documents";
 import type { IdentityFault } from "./identity";
+import type { StepOneFault } from "./step-one";
 import type { LodgeFault, VerifyFault } from "./documents";
 import type { ConfigFault } from "./config";
 import type { QueueState, ReviewFault } from "./review";
@@ -146,10 +147,14 @@ export const DOCUMENT_STATE_TONE: Readonly<Record<DocumentState, "ok" | "warn" |
 export const LIST_KIND_LABEL: Readonly<Record<SupplierListKind, Words>> = {
   ENTITY_TYPE: w("Entity types", "Jenis entiti"),
   COUNTRY: w("Countries", "Negara"),
+  STATE: w("States", "Negeri"),
+  BUMIPUTERA_STATUS: w("Bumiputera statuses (as declared)", "Status Bumiputera (diisytiharkan)"),
 };
 export const LIST_KIND_SINGULAR: Readonly<Record<SupplierListKind, Words>> = {
   ENTITY_TYPE: w("Entity type", "Jenis entiti"),
   COUNTRY: w("Country", "Negara"),
+  STATE: w("State", "Negeri"),
+  BUMIPUTERA_STATUS: w("Bumiputera status", "Status Bumiputera"),
 };
 
 /// Condition (2), as Phase 3b closes it: a supplier's contacts and the scans of its papers are SULIT. A supplier keeps no list of who is named on it, so they are read by the
@@ -175,7 +180,7 @@ export const ERP_NOT_SYNCED = w("Approved, not in the finance system", "Dilulusk
 const TYPE_STATE = (s: unknown) => DOCUMENT_STATE_LABEL[s as DocumentState] ?? w("not standing", "tidak berdiri");
 const SETTINGS = w("Configuration › Supplier register", "Konfigurasi › Daftar pembekal");
 
-type AnyFault = IdentityFault | LodgeFault | VerifyFault | ReviewFault | ConfigFault | VendorCodeFault | BandFault | BlacklistFault | SuspendFault | ReinstateFault | SaleFault | LinkFault | PermissionFault | StandingNote | CancellationFault;
+type AnyFault = IdentityFault | StepOneFault | LodgeFault | VerifyFault | ReviewFault | ConfigFault | VendorCodeFault | BandFault | BlacklistFault | SuspendFault | ReinstateFault | SaleFault | LinkFault | PermissionFault | StandingNote | CancellationFault;
 
 const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Words> = {
   // identity (FR-VND-001)
@@ -195,6 +200,22 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   EMAIL_NOT_VALID: () => w("The company email is not an email address.", "E-mel syarikat bukan alamat e-mel."),
   CONTACT_NAME_REQUIRED: () => w("Give the primary contact's name.", "Nyatakan nama orang hubungan utama."),
   CONTACT_REACH_REQUIRED: () => w("Give the primary contact's email or telephone.", "Nyatakan e-mel atau telefon orang hubungan utama."),
+  CONTACT_EMAIL_REQUIRED: () => w("Give the primary contact's email: the organisation asks for both an email and a mobile number.", "Nyatakan e-mel orang hubungan utama: organisasi meminta kedua-dua e-mel dan nombor telefon bimbit."),
+  CONTACT_PHONE_REQUIRED: () => w("Give the primary contact's mobile number: the organisation asks for both an email and a mobile number.", "Nyatakan nombor telefon bimbit orang hubungan utama: organisasi meminta kedua-dua e-mel dan nombor telefon bimbit."),
+  // step one's parts (Phase 4a)
+  CALLING_CODE_ONLY_FOR_COUNTRY: () => w("Only a country has a dial code.", "Hanya negara mempunyai kod dailan."),
+  CALLING_CODE_NOT_VALID: () => w("A dial code is a plus sign and up to six digits, for example +60.", "Kod dailan ialah tanda tambah dan sehingga enam digit, contohnya +60."),
+  CONTACT_RULE_PROVENANCE_REQUIRED: () => w("Say where the contact rule comes from.", "Nyatakan dari mana peraturan orang hubungan datang."),
+  ADDRESS_LINE_REQUIRED: () => w("Give the street address.", "Nyatakan alamat jalan."),
+  CITY_REQUIRED: () => w("Give the city.", "Nyatakan bandar."),
+  POSTCODE_REQUIRED: () => w("Give the postcode.", "Nyatakan poskod."),
+  STATES_NOT_SET: () => w(`No states are set, so none can be recorded. Set them under ${SETTINGS.en}, Lists.`, `Tiada negeri ditetapkan. Tetapkan di ${SETTINGS.ms}, Senarai.`),
+  ADDRESS_STATE_REQUIRED: () => w("Choose the state.", "Pilih negeri."),
+  ADDRESS_STATE_NOT_LISTED: () => w("That state is not on the list in force.", "Negeri itu tiada dalam senarai yang berkuat kuasa."),
+  BUMIPUTERA_NOT_LISTED: () => w("That Bumiputera status is not on the list in force.", "Status Bumiputera itu tiada dalam senarai yang berkuat kuasa."),
+  INCORPORATED_ON_REQUIRED: () => w("Give the day the company was incorporated.", "Nyatakan tarikh syarikat diperbadankan."),
+  INCORPORATED_ON_NOT_A_DAY: () => w("The date incorporated is not a real day.", "Tarikh diperbadankan bukan tarikh yang sebenar."),
+  INCORPORATED_IN_FUTURE: () => w("The date incorporated cannot be after today.", "Tarikh diperbadankan tidak boleh selepas hari ini."),
   CONTACT_EMAIL_NOT_VALID: () => w("The contact's email is not an email address.", "E-mel orang hubungan bukan alamat e-mel."),
   TIME_ZONE_UNSET: () => w("The organisation's time zone is not set, so no day can be recorded. Set it under Configuration › Organisation.", "Zon waktu organisasi belum ditetapkan, jadi tiada tarikh boleh direkodkan. Tetapkan di Konfigurasi › Organisasi."),
   RECEIVED_ON_REQUIRED: () => w("Give the day the application was received.", "Nyatakan tarikh permohonan diterima."),

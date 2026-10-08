@@ -102,6 +102,9 @@ const NESTED_LABEL: Record<string, string> = {
   "supplier/projects": "My Projects",
   "supplier/results": "Results",
   "supplier/register": "Register as a supplier",
+  // Phase 4a: a supplier activating the account an officer opened, and setting a new password with a reset code.
+  "supplier/activate": "Activate your account",
+  "supplier/reset": "Set a new password",
 };
 
 /**
@@ -197,6 +200,7 @@ export function Topbar({
   hasAlerts,
   onMenu,
   signOut,
+  signInHref = "/sign-in",
 }: {
   organisation: string;
   /// Null until authentication exists. Rendered as "not signed in", never as a person.
@@ -206,6 +210,8 @@ export function Topbar({
   onMenu: () => void;
   /// The sign-out action, from the layout.
   signOut: (data: FormData) => Promise<void>;
+  /// Where "Sign in" leads when nobody is signed in: the staff's page, or on the public copy the supplier portal's own (Phase 4a).
+  signInHref?: string;
 }) {
   const pathname = usePathname();
   const workspace = workspaceFor(pathname);
@@ -307,7 +313,7 @@ export function Topbar({
       {user ? (
         <UserMenu user={user} signOut={signOut} />
       ) : (
-        <ButtonLink href="/sign-in" variant="secondary" size="sm" icon={<UserIcon size={15} />}>
+        <ButtonLink href={signInHref} variant="secondary" size="sm" icon={<UserIcon size={15} />}>
           Sign in
         </ButtonLink>
       )}

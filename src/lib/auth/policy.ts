@@ -29,12 +29,23 @@ export const SETTING_LABELS: Record<SecurityPolicyKey, SettingLabel> = {
   signInDetailRetentionDays: { en: "How long sign-in addresses are kept", ms: "Tempoh alamat log masuk disimpan" },
 };
 
-export type PolicyNeed = "SIGN_IN" | "SET_PASSWORD" | "ISSUE_CODE";
+export type PolicyNeed = "SIGN_IN" | "SUPPLIER_SIGN_IN" | "SET_PASSWORD" | "ISSUE_CODE";
 
 const NEEDS: Record<PolicyNeed, readonly SecurityPolicyKey[]> = {
   SIGN_IN: [
     "staffIdleMinutes",
     "staffAbsoluteMinutes",
+    "maxConcurrentSessions",
+    "concurrentSessionAction",
+    "maxFailedAttempts",
+    "lockoutMinutes",
+    "addressThrottleAttempts",
+    "addressThrottleMinutes",
+  ],
+  // The supplier store's own timeouts, and the lockout, throttle and session-limit settings both stores share (Phase 4a).
+  SUPPLIER_SIGN_IN: [
+    "supplierIdleMinutes",
+    "supplierAbsoluteMinutes",
     "maxConcurrentSessions",
     "concurrentSessionAction",
     "maxFailedAttempts",
@@ -110,6 +121,36 @@ export function signInSettings(policy: SecurityPolicyValues | null): SignInSetti
     return null;
   }
   return { staffIdleMinutes, staffAbsoluteMinutes, maxConcurrentSessions, concurrentSessionAction, maxFailedAttempts, lockoutMinutes, addressThrottleAttempts, addressThrottleMinutes };
+}
+
+/// The settings a supplier's sign-in needs, each known to be set: the staff set with the supplier's own timeouts in place of the staff's.
+export interface SupplierSignInSettings {
+  supplierIdleMinutes: number;
+  supplierAbsoluteMinutes: number;
+  maxConcurrentSessions: number;
+  concurrentSessionAction: "REVOKE_OLDEST" | "REFUSE_NEW";
+  maxFailedAttempts: number;
+  lockoutMinutes: number;
+  addressThrottleAttempts: number;
+  addressThrottleMinutes: number;
+}
+
+export function supplierSignInSettings(policy: SecurityPolicyValues | null): SupplierSignInSettings | null {
+  if (!policy) return null;
+  const { supplierIdleMinutes, supplierAbsoluteMinutes, maxConcurrentSessions, concurrentSessionAction, maxFailedAttempts, lockoutMinutes, addressThrottleAttempts, addressThrottleMinutes } = policy;
+  if (
+    supplierIdleMinutes == null ||
+    supplierAbsoluteMinutes == null ||
+    maxConcurrentSessions == null ||
+    concurrentSessionAction == null ||
+    maxFailedAttempts == null ||
+    lockoutMinutes == null ||
+    addressThrottleAttempts == null ||
+    addressThrottleMinutes == null
+  ) {
+    return null;
+  }
+  return { supplierIdleMinutes, supplierAbsoluteMinutes, maxConcurrentSessions, concurrentSessionAction, maxFailedAttempts, lockoutMinutes, addressThrottleAttempts, addressThrottleMinutes };
 }
 
 export const EMPTY_POLICY: SecurityPolicyValues = {

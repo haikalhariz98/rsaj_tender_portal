@@ -52,14 +52,27 @@ export interface StaffActor {
   system?: { label: string };
 }
 
+/// A supplier contact, signed in to the portal (ADR 0034 D2). `supplierId` is the supplier the account belongs to and is read ONLY from the session: a supplier route never
+/// takes one from the request (a source scan holds it to that), and another supplier's record answers "not found".
 export interface SupplierActor {
   kind: "SUPPLIER";
   accountId: string;
   sessionId: string;
   contactId: string;
+  contactName: string;
   supplierId: string;
+  supplierName: string;
+  loginName: string;
   organisationId: string;
+  organisationTimeZone: string | null;
+  stepUpAt: Date | null;
+  /// When this session began: the sign-in that made it, for "your previous sign-in" to be the one before.
+  sessionCreatedAt: Date;
   sourceAddress: string | null;
+  /// The account must choose a new password before anything else (it was reset or created with a temporary one).
+  mustChangePassword: boolean;
+  /// A reset was done to this account and has not been acknowledged.
+  resetNoticePending: boolean;
 }
 
 export type AuditActor =

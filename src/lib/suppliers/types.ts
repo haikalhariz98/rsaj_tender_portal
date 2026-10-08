@@ -53,8 +53,8 @@ export type VerificationState = "NOT_CHECKED" | "VERIFIED" | "NOT_IN_ORDER";
 export const VERIFICATION_STATES: readonly VerificationState[] = ["NOT_CHECKED", "VERIFIED", "NOT_IN_ORDER"];
 
 /// The register's own configured lists (step 0: not classification taxonomies).
-export type SupplierListKind = "ENTITY_TYPE" | "COUNTRY";
-export const SUPPLIER_LIST_KINDS: readonly SupplierListKind[] = ["ENTITY_TYPE", "COUNTRY"];
+export type SupplierListKind = "ENTITY_TYPE" | "COUNTRY" | "BUMIPUTERA_STATUS" | "STATE";
+export const SUPPLIER_LIST_KINDS: readonly SupplierListKind[] = ["ENTITY_TYPE", "COUNTRY", "STATE", "BUMIPUTERA_STATUS"];
 
 /// The engine's route domain for a registration decision (OD-2 A). Rows ship empty.
 export const SUPPLIER_REGISTRATION_DOMAIN = "supplier_registration";

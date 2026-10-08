@@ -1,10 +1,12 @@
 import Link from "next/link";
 
 import { RecordCrumb } from "@/components/shell/record-crumb";
-import { Badge, SulitValue } from "@/components/ui/badge";
+import { Badge, Chip, SulitValue } from "@/components/ui/badge";
 import { sulitGate } from "@/app/_auth/sulit";
 import { through } from "@/lib/auth/sulit-access";
 import { CONTACT_FIELDS } from "@/lib/suppliers/contact-fields";
+import { bumiputeraReading, bumiputeraWords } from "@/lib/suppliers/bumiputera";
+import { companyDifferences, contactDifferences } from "@/lib/portal/differences";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -27,7 +29,9 @@ const STATUS = { RECEIVED: { text: "Waiting for an officer", tone: "info" }, REC
 /**
  * One online application, in full, for an officer: what the applicant typed, what the register holds
  * against its number, and the two things that can be done with it (record the supplier from it, or set
- * it aside). Once decided, the applicant's words are erased and only the outcome stays.
+ * it aside). Phase 4a: once recorded as a supplier the applicant's words are KEPT and shown beside the register's
+ * entry with every difference the officer made listed; they are erased only when the application is set aside (and on the
+ * applications recorded before Phase 4a, which were erased when they were recorded).
  */
 export default async function OnlineApplicationPage(props: PageProps<"/suppliers/online/[id]">) {
   const actor = await requireStaff();
@@ -52,6 +56,19 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
   const status = STATUS[a.status];
   const waiting = a.status === "RECEIVED";
   const stops = blocksRecording(flags);
+  // The Bumiputera claim is the applicant's declaration, read as declared with nothing yet lodged to check it (BD-615-1: the effective status is the verified evidence document).
+  const claim = a.bumiputeraClaimCode ? (cfg.listName("BUMIPUTERA_STATUS", a.bumiputeraClaimCode) ?? "A status no longer listed") : null;
+  const reading = bumiputeraWords(bumiputeraReading(claim, cfg.policy?.restrictionEvidenceTypeId != null, null, "APPLICATION")).en;
+  const stateName = a.stateCode ? (cfg.listName("STATE", a.stateCode) ?? "A state no longer listed") : null;
+  // What the officer changed, once the supplier is on the register: the company's differences, and the contact's for a reader the contact is open to.
+  const entry = a.status === "RECORDED" && !erased ? a.acceptedSupplier : null;
+  const names = { nameOf: (kind: "ENTITY_TYPE" | "COUNTRY" | "STATE" | "BUMIPUTERA_STATUS", code: string) => cfg.listName(kind, code), day: (d: string) => formatDate(d) };
+  const company = (x: { registeredName: string; registrationNo: string; entityTypeCode: string; countryCode: string; addressLine1: string; addressLine2: string; city: string; postcode: string; stateCode: string; bumiputeraClaimCode: string; incorporatedOn: Date | null; companyEmail: string }) => ({
+    registeredName: x.registeredName, registrationNo: x.registrationNo, entityTypeCode: x.entityTypeCode, countryCode: x.countryCode, addressLine1: x.addressLine1, addressLine2: x.addressLine2, city: x.city, postcode: x.postcode, stateCode: x.stateCode, bumiputeraClaimCode: x.bumiputeraClaimCode, incorporatedOn: x.incorporatedOn ? storedDay(x.incorporatedOn) : null, companyEmail: x.companyEmail,
+  });
+  const differences = entry ? companyDifferences(company(a), company(entry), names) : [];
+  const registerContact = entry?.contacts[0] ?? null;
+  const contactChanges = entry && registerContact && contact.state === "GRANTED" ? contactDifferences({ name: a.contactName, designation: a.contactDesignation, email: a.contactEmail, phone: a.contactPhone }, registerContact) : [];
 
   return (
     <>
@@ -93,6 +110,21 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
         )}
       </div>
 
+      {entry && (
+        <Card className="mb-6">
+          <CardHeader title="What the officer changed" subtitle="The applicant's words are kept beside the register's entry. Each field the officer corrected when recording the supplier is listed here." />
+          <CardBody>
+            <p className="mb-3 text-[13.5px] text-ink-2">
+              On the register as <Link href={`/suppliers/${entry.id}`}>{entry.registeredName} ({entry.reference})</Link>.
+            </p>
+            {differences.length + contactChanges.length === 0 ? (
+              <p className="text-[13.5px] text-ink-3">{contact.state === "GRANTED" ? "Nothing was changed: the register holds what the applicant typed." : "Nothing about the company was changed. The contact's details are withheld from you, so whether they were corrected is not shown."}</p>
+            ) : (
+              <KeyValues columns={1} items={[...differences, ...contactChanges].map((d) => ({ label: d.label, value: <span>Applicant: {d.applicant}. Register: {d.register}.</span> }))} />
+            )}
+          </CardBody>
+        </Card>
+      )}
       {erased ? (
         <Card>
           <CardHeader title="What is kept" subtitle="The applicant's own words are erased once an application is decided: nothing is kept twice." />
@@ -121,8 +153,11 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
                   { label: "Registration number", value: a.registrationNo },
                   { label: "Type of company", value: cfg.listName("ENTITY_TYPE", a.entityTypeCode) ?? "A type no longer listed" },
                   { label: "Country", value: cfg.listName("COUNTRY", a.countryCode) ?? "A country no longer listed" },
-                  { label: "Company email", value: a.companyEmail },
-                  { label: "Registered address", value: <span className="whitespace-pre-line">{a.registeredAddress}</span> },
+                  { label: "Date incorporated", value: a.incorporatedOn ? formatDate(storedDay(a.incorporatedOn)) : "Not given" },
+                  { label: "Bumiputera status", value: reading },
+                  { label: "Company email", value: <span className="inline-flex flex-wrap items-center gap-2">{a.companyEmail}<Chip tone="neutral">Not verified</Chip></span> },
+                  // An application received before step one asked for the address in parts holds it as one text.
+                  { label: "Registered address", value: <span className="whitespace-pre-line">{a.addressLine1 ? [a.addressLine1, a.addressLine2, [a.postcode, a.city].filter(Boolean).join(" "), stateName].filter(Boolean).join("\n") : a.registeredAddress}</span> },
                 ]}
               />
             </CardBody>

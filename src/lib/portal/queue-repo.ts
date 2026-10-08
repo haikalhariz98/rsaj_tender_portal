@@ -47,7 +47,32 @@ export async function loadPortalQueue(organisationId: string): Promise<{ total: 
 
 /// One online application, in full, with what the register holds against its number. Null: there is none by that id.
 export async function loadPortalApplication(organisationId: string, id: string) {
-  const a = await db.portalApplication.findFirst({ where: { id, organisationId }, include: { decidedBy: { select: { name: true } }, acceptedSupplier: { select: { id: true, reference: true, registeredName: true } } } });
+  const a = await db.portalApplication.findFirst({
+    where: { id, organisationId },
+    include: {
+      decidedBy: { select: { name: true } },
+      // Phase 4a: the supplier it became is read in full (with its primary contact), so the page can list every difference between the applicant's words and the register's entry.
+      acceptedSupplier: {
+        select: {
+          id: true,
+          reference: true,
+          registeredName: true,
+          registrationNo: true,
+          entityTypeCode: true,
+          countryCode: true,
+          addressLine1: true,
+          addressLine2: true,
+          city: true,
+          postcode: true,
+          stateCode: true,
+          bumiputeraClaimCode: true,
+          incorporatedOn: true,
+          companyEmail: true,
+          contacts: { where: { isPrimary: true, retiredOn: null }, take: 1, select: { name: true, designation: true, email: true, phone: true } },
+        },
+      },
+    },
+  });
   if (!a) return null;
   const erased = a.erasedAt != null;
   const [holder, others] = erased

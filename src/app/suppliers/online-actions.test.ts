@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * An officer's two acts on an online application: set it aside, or record the supplier from it. Both
- * erase what the applicant typed once decided, and neither puts the applicant's details in the audit
- * trail of the application. The database is a recording stand-in.
+ * An officer's two acts on an online application: set it aside, or record the supplier from it. Setting it aside
+ * erases what the applicant typed; recording the supplier does NOT (Phase 4a, CPD's registration, ruling of 2026-10-07: "acceptance must stop erasing the
+ * applicant's words"). Neither puts the applicant's details in the audit trail of the application. Recording may also open the contact's portal account
+ * and issue its activation code, which is returned once and written nowhere. The database is a recording stand-in.
  */
 
 type Row = Record<string, unknown>;
@@ -16,6 +17,12 @@ const h = vi.hoisted(() => ({
   audits: [] as { entity: string; label: string; action: string; changes: { field: string; before: unknown; after: unknown }[]; reason: string }[],
   locks: [] as string[],
   today: "2026-10-07" as string | null,
+  /// Phase 4a: what the officer holds, the organisation's settings, and what the portal account's tables hold.
+  validityMinutes: 60 as number | null,
+  loginTaken: false,
+  accounts: [] as Row[],
+  codes: [] as Row[],
+  signInEvents: [] as Row[],
   attributed: [] as { entity: string; entityId: string; slot: string; subjectPersonId: string | null; mode: string }[],
 }));
 
@@ -48,6 +55,26 @@ vi.mock("@/lib/db", () => ({
             h.audits.push({ entity: data.entity, label: data.entityLabel, action: data.action, changes: data.changes, reason: data.reason });
           },
         },
+        securityPolicy: { findUnique: async () => (h.validityMinutes == null ? { resetCodeValidityMinutes: null } : { resetCodeValidityMinutes: h.validityMinutes }) },
+        supplierAccount: {
+          findUnique: async () => (h.loginTaken ? { id: "other" } : null),
+          create: async ({ data }: { data: Row }) => {
+            h.accounts.push(data);
+            return { id: "acc1" };
+          },
+        },
+        oneTimeCode: {
+          create: async ({ data }: { data: Row }) => {
+            h.codes.push(data);
+            return { id: "code1" };
+          },
+        },
+        signInEvent: {
+          create: async ({ data }: { data: Row }) => {
+            h.signInEvents.push(data);
+            return { id: "ev1" };
+          },
+        },
         portalApplication: {
           findFirst: async () => h.portal,
           update: async ({ where, data }: { where: Row; data: Row }) => {
@@ -67,6 +94,7 @@ vi.mock("@/lib/db", () => ({
             h.created.push({ model: "supplierContact", data });
             return { id: "c1", ...data };
           },
+          findFirst: async () => ({ id: "c1", name: "Aini", retiredOn: null, account: null }),
         },
         supplierApplication: {
           create: async ({ data }: { data: Row }) => {
@@ -79,7 +107,12 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/suppliers/repo", () => ({
   supplierOrg: async () => ({ id: "o1", timeZone: "Asia/Kuala_Lumpur", today: h.today }),
-  loadSupplierConfig: async () => ({ format: null, liveCodes: (kind: string) => (kind === "ENTITY_TYPE" ? ["sdn_bhd"] : ["my"]), listName: (_k: string, code: string) => code }),
+  loadSupplierConfig: async () => ({
+    format: null,
+    policy: null,
+    liveCodes: (kind: string) => ({ ENTITY_TYPE: ["sdn_bhd"], COUNTRY: ["my"], STATE: ["sbh"], BUMIPUTERA_STATUS: ["declared_yes"] })[kind] ?? [],
+    listName: (kind: string, code: string) => (kind === "STATE" ? "Sabah" : code),
+  }),
   documentFacts: () => ({}),
   typeFacts: () => ({}),
 }));
@@ -99,11 +132,24 @@ vi.mock("./shared", () => ({
   },
   NO_ORG: { ok: false, message: "No organisation" },
   refuse: () => ({ ok: false }),
-  Refusal: class extends Error {},
+  // A refusal thrown from inside the transaction carries the words the act answers with (Phase 4a: a portal account refused rolls the supplier back).
+  Refusal: class extends Error {
+    constructor(readonly state: { ok: boolean }) {
+      super("Refused");
+    }
+  },
   stampNow: () => new Date("2026-10-07T03:00:00.000Z"),
 }));
 
+vi.mock("@/app/_auth/cookies", () => ({ currentRequestFacts: async () => ({ sourceAddress: null, userAgent: "" }) }));
+vi.mock("@/lib/auth/supplier-administration", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/auth/supplier-administration")>()), unusableSupplierPasswordHash: async () => "$scrypt$stand-in" }));
+
+import { STAFF_FIXTURE } from "@/lib/test-support/staff";
+
 import { discardPortalApplication, recordApplication } from "./actions";
+
+/// The officer holds the permission to manage supplier accounts (a role the organisation has chosen to grant it to).
+const grant = () => (STAFF_FIXTURE.permissions as Set<string>).add("supplierAccounts.manage");
 
 const WAITING: Row = {
   id: "pa1",
@@ -122,7 +168,7 @@ const form = (o: Record<string, string>) => {
   for (const [k, v] of Object.entries(o)) f.set(k, v);
   return f;
 };
-const PERSONAL = ["registeredName", "registrationNo", "registrationNoKey", "entityTypeCode", "countryCode", "registeredAddress", "companyEmail", "contactName", "contactDesignation", "contactEmail", "contactPhone"];
+const PERSONAL = ["registeredName", "registrationNo", "registrationNoKey", "entityTypeCode", "countryCode", "registeredAddress", "addressLine1", "addressLine2", "city", "postcode", "stateCode", "bumiputeraClaimCode", "companyEmail", "contactName", "contactDesignation", "contactEmail", "contactPhone"];
 
 beforeEach(() => {
   h.portal = { ...WAITING };
@@ -133,6 +179,12 @@ beforeEach(() => {
   h.audits = [];
   h.locks = [];
   h.today = "2026-10-07";
+  (STAFF_FIXTURE.permissions as Set<string>).clear();
+  h.validityMinutes = 60;
+  h.loginTaken = false;
+  h.accounts = [];
+  h.codes = [];
+  h.signInEvents = [];
 });
 
 describe("setting an online application aside", () => {
@@ -145,6 +197,8 @@ describe("setting an online application aside", () => {
     expect(data).toMatchObject({ status: "DISCARDED", decidedByPersonId: "p1", discardReason: "Not a real company: the certificate does not exist" });
     expect(data.erasedAt).toEqual(new Date("2026-10-07T03:00:00.000Z"));
     for (const f of PERSONAL) expect(data[f], f).toBe("");
+    // The day incorporated is the applicant's word too (Phase 4a), and goes with the rest.
+    expect(data.incorporatedOn).toBeNull();
   });
 
   it("audits the outcome and the reason, and none of the applicant's details", async () => {
@@ -178,7 +232,25 @@ describe("setting an online application aside", () => {
 });
 
 describe("recording the supplier from an online application", () => {
-  const FIELDS = { registeredName: "Sampel Works Sdn Bhd", registrationNo: "202001000123", entityTypeCode: "sdn_bhd", countryCode: "my", registeredAddress: "1 Jalan Contoh", companyEmail: "office@sampel.example", contactName: "Aini", contactDesignation: "", contactEmail: "aini@sampel.example", contactPhone: "", recordedByPersonId: "p1" };
+  const FIELDS = {
+    registeredName: "Sampel Works Sdn Bhd",
+    registrationNo: "202001000123",
+    entityTypeCode: "sdn_bhd",
+    countryCode: "my",
+    addressLine1: "1 Jalan Contoh",
+    addressLine2: "",
+    city: "Kota Kinabalu",
+    postcode: "88000",
+    stateCode: "sbh",
+    bumiputeraClaimCode: "",
+    incorporatedOn: "2015-03-02",
+    companyEmail: "office@sampel.example",
+    contactName: "Aini",
+    contactDesignation: "",
+    contactEmail: "aini@sampel.example",
+    contactPhone: "",
+    recordedByPersonId: "p1",
+  };
   const record = (o: Record<string, string> = {}) => recordApplication({ ok: false }, form({ ...FIELDS, portalApplicationId: "pa1", ...o }));
 
   it("takes the channel and the day from the online application, never from the form", async () => {
@@ -188,14 +260,41 @@ describe("recording the supplier from an online application", () => {
     expect((app.receivedOn as Date).toISOString()).toBe("2026-10-05T00:00:00.000Z");
   });
 
-  it("marks the online application recorded, links the supplier, and erases the applicant's own words", async () => {
+  // CHANGED in Phase 4a (log: "Acceptance no longer erases the applicant's words"). This test asserted that recording the supplier ERASED every word the applicant typed; the
+  // product owner ruled the opposite (CPD registration, ruling 6) so that the officer's page can show the applicant's words beside the register entry and list the differences.
+  // It now asserts what the ruling asks: the application is marked recorded and linked, NO word of the applicant's is blanked, `erasedAt` stays null, and the audit row still
+  // carries none of the applicant's details. Setting aside still erases (the tests above are unchanged).
+  it("marks the online application recorded, links the supplier, and KEEPS the applicant's own words", async () => {
     await expect(record()).rejects.toThrow(/REDIRECT/);
     const u = h.updates.find((x) => x.model === "portalApplication")!;
     expect(u.data).toMatchObject({ status: "RECORDED", acceptedSupplierId: "s1", decidedByPersonId: "p1" });
-    for (const f of PERSONAL) expect(u.data[f], f).toBe("");
+    for (const f of PERSONAL) expect(u.data, f).not.toHaveProperty(f);
+    expect(u.data).not.toHaveProperty("erasedAt");
+    expect(u.data).not.toHaveProperty("incorporatedOn");
     const audit = h.audits.find((a) => a.entity === "PortalApplication")!;
     expect(JSON.stringify(audit)).not.toMatch(/Sampel|202001000123|Aini/);
     expect(audit.changes.find((c) => c.field === "supplier")?.after).toBe("DEMO/SUP/0009/2026");
+    expect(audit.changes.map((c) => c.field)).not.toContain("personalDetails");
+  });
+
+  it("records the supplier with step one's parts, the address composed from them, and the declared claim and the day incorporated", async () => {
+    await expect(record({ bumiputeraClaimCode: "declared_yes", addressLine2: "Taman Contoh" })).rejects.toThrow(/REDIRECT/);
+    const s = h.created.find((c) => c.model === "supplier")!.data;
+    expect(s).toMatchObject({ addressLine1: "1 Jalan Contoh", addressLine2: "Taman Contoh", city: "Kota Kinabalu", postcode: "88000", stateCode: "sbh", bumiputeraClaimCode: "declared_yes", registeredAddress: "1 Jalan Contoh\nTaman Contoh\n88000 Kota Kinabalu\nSabah" });
+    expect(s.incorporatedOn).toEqual(new Date("2015-03-02T00:00:00.000Z"));
+    const audit = h.audits.find((a) => a.entity === "Supplier")!;
+    expect(audit.changes.find((c) => c.field === "state")?.after).toBe("Sabah");
+    expect(audit.changes.find((c) => c.field === "dateIncorporated")?.after).toBe("2015-03-02");
+  });
+
+  it("refuses a missing or future date incorporated, a state not on the list and a claim not on the list, naming the field, and records nothing", async () => {
+    for (const [field, value] of [["incorporatedOn", ""], ["incorporatedOn", "2026-10-08"], ["stateCode", "elsewhere"], ["stateCode", ""], ["bumiputeraClaimCode", "made_up"], ["addressLine1", ""], ["city", ""], ["postcode", ""]] as const) {
+      const r = await record({ [field]: value });
+      expect(r.ok, `${field}=${value}`).toBe(false);
+      expect(r.errors, `${field}=${value}`).toHaveProperty(field);
+    }
+    expect(h.created).toEqual([]);
+    expect(h.updates).toEqual([]);
   });
 
   it("attributes both slots the one act fills to the signed-in officer: the application's recorder and the online application's decider", async () => {
@@ -231,5 +330,90 @@ describe("recording the supplier from an online application", () => {
     const r = await record();
     expect(r.ok).toBe(false);
     expect(h.created).toEqual([]);
+  });
+});
+
+describe("opening the contact's portal account when the supplier is recorded (Phase 4a)", () => {
+  const FIELDS = {
+    registeredName: "Sampel Works Sdn Bhd",
+    registrationNo: "202001000123",
+    entityTypeCode: "sdn_bhd",
+    countryCode: "my",
+    addressLine1: "1 Jalan Contoh",
+    addressLine2: "",
+    city: "Kota Kinabalu",
+    postcode: "88000",
+    stateCode: "sbh",
+    bumiputeraClaimCode: "",
+    incorporatedOn: "2015-03-02",
+    companyEmail: "office@sampel.example",
+    contactName: "Aini",
+    contactDesignation: "",
+    contactEmail: "aini@sampel.example",
+    contactPhone: "",
+    recordedByPersonId: "p1",
+  };
+  const ASK = { openAccount: "on", accountLoginName: "aini.sampel", identityCheck: "Seen at the counter with her identity card" };
+  const record = (o: Record<string, string> = {}) => recordApplication({ ok: false }, form({ ...FIELDS, portalApplicationId: "pa1", ...o }));
+
+  it("records the supplier and issues the activation code in one transaction, and returns the code once", async () => {
+    grant();
+    const r = await record(ASK);
+    expect(r.ok).toBe(true);
+    expect(r.issued).toMatchObject({ code: expect.stringMatching(/^[0-9A-Z]{4}(-[0-9A-Z]{2,4}){5,6}$/), supplierHref: "/suppliers/s1?tab=documents" });
+    expect(h.accounts).toEqual([expect.objectContaining({ contactId: "c1", supplierId: "s1", loginName: "aini.sampel", loginKey: "aini.sampel", status: "PENDING_ACTIVATION", passwordHash: "$scrypt$stand-in" })]);
+    expect(h.codes).toEqual([expect.objectContaining({ store: "SUPPLIER", purpose: "ACTIVATION", issuedByPersonId: "person_test", identityCheck: "Seen at the counter with her identity card" })]);
+    expect(h.signInEvents.map((e) => e.kind)).toEqual(["ACCOUNT_CREATED", "CODE_ISSUED"]);
+    expect(h.signInEvents.every((e) => e.store === "SUPPLIER" && e.supplierAccountId === "acc1")).toBe(true);
+  });
+
+  it("writes the code nowhere: the database holds its hash, and the trail the fact that one was issued and how identity was checked", async () => {
+    grant();
+    const r = await record(ASK);
+    const plain = r.issued!.code.replace(/-/g, "");
+    const everything = JSON.stringify({ accounts: h.accounts, codes: h.codes, audits: h.audits, events: h.signInEvents });
+    expect(everything).not.toContain(plain);
+    expect(everything).not.toContain(r.issued!.code);
+    expect(h.codes[0].codeHash).toMatch(/^[0-9a-f]{64}$/);
+    const issuedRow = h.audits.find((a) => a.entity === "SupplierAccount" && a.changes.some((c) => c.field === "oneTimeCode"))!;
+    expect(issuedRow.changes.find((c) => c.field === "identityChecked")?.after).toBe("Seen at the counter with her identity card");
+  });
+
+  it("is refused to an officer who does not hold the permission, saves nothing, and says why", async () => {
+    const r = await record(ASK);
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/permission to manage supplier accounts/);
+    expect(h.created).toEqual([]);
+    expect(h.accounts).toEqual([]);
+  });
+
+  it("records the supplier with no account when none is asked for, whatever the officer holds, and issues no code", async () => {
+    grant();
+    await expect(record()).rejects.toThrow(/REDIRECT \/suppliers\/s1/);
+    expect(h.accounts).toEqual([]);
+    expect(h.codes).toEqual([]);
+  });
+
+  it("is refused while the code's validity is not set, naming the setting, and saves nothing", async () => {
+    grant();
+    h.validityMinutes = null;
+    const r = await record(ASK);
+    expect(r.ok).toBe(false);
+    expect(r.message).toContain("How long a one-time code stays valid");
+    expect(h.created).toEqual([]);
+  });
+
+  it("needs the identity check and a good, free sign-in name, and saves nothing without them", async () => {
+    grant();
+    const noCheck = await record({ ...ASK, identityCheck: " " });
+    expect(noCheck.ok).toBe(false);
+    expect(noCheck.errors).toHaveProperty("identityCheck");
+    const bad = await record({ ...ASK, accountLoginName: "a b" });
+    expect(bad.errors).toHaveProperty("accountLoginName");
+    h.loginTaken = true;
+    const taken = await record(ASK);
+    expect(taken.errors?.accountLoginName).toMatch(/already used/);
+    expect(h.accounts).toEqual([]);
+    expect(h.codes).toEqual([]);
   });
 });

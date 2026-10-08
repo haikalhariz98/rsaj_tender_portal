@@ -137,3 +137,67 @@ export function parseIssueCode(entries: Entries): Parsed<IssueCodeForm> {
   if (purposeText && purposeText !== "ACTIVATION" && purposeText !== "RESET") errors.purpose ??= "A code is for activating an account or for resetting a password.";
   return done(errors, { accountId, reason, purpose: purposeText === "RESET" ? "RESET" : "ACTIVATION" });
 }
+
+// ---------------------------------------------------------------------------------------------- a supplier's portal account (Phase 4a)
+
+const CHECK_MAX = 1000;
+
+/// An officer opens the portal account of one of a supplier's contacts: which supplier and contact, the sign-in name, and how the caller's identity was checked.
+export interface OpenSupplierAccountForm {
+  supplierId: string;
+  contactId: string;
+  loginName: string;
+  identityCheck: string;
+}
+export function parseOpenSupplierAccount(entries: Entries): Parsed<OpenSupplierAccountForm> {
+  const { values, errors } = collect(entries, ["supplierId", "contactId", "loginName", "identityCheck"]);
+  const supplierId = text(values, errors, "supplierId", "The supplier", { max: ID_MAX, trim: true });
+  const contactId = text(values, errors, "contactId", "The contact", { max: ID_MAX, trim: true });
+  const loginName = text(values, errors, "loginName", "The sign-in name", { max: NAME_MAX, trim: true });
+  const identityCheck = text(values, errors, "identityCheck", "How the caller's identity was checked", { max: CHECK_MAX, trim: true });
+  return done(errors, { supplierId, contactId, loginName, identityCheck });
+}
+
+/// An officer issues a one-time code for a supplier's account, saying how the caller's identity was checked.
+export interface IssueSupplierCodeForm {
+  supplierId: string;
+  accountId: string;
+  purpose: "ACTIVATION" | "RESET";
+  identityCheck: string;
+}
+export function parseIssueSupplierCode(entries: Entries): Parsed<IssueSupplierCodeForm> {
+  const { values, errors } = collect(entries, ["supplierId", "accountId", "purpose", "identityCheck"]);
+  const supplierId = text(values, errors, "supplierId", "The supplier", { max: ID_MAX, trim: true });
+  const accountId = text(values, errors, "accountId", "The account", { max: ID_MAX, trim: true });
+  const identityCheck = text(values, errors, "identityCheck", "How the caller's identity was checked", { max: CHECK_MAX, trim: true });
+  const purposeText = text(values, errors, "purpose", "What the code is for", { max: 16, trim: true });
+  if (purposeText && purposeText !== "ACTIVATION" && purposeText !== "RESET") errors.purpose ??= "A code is for activating an account or for resetting a password.";
+  return done(errors, { supplierId, accountId, identityCheck, purpose: purposeText === "RESET" ? "RESET" : "ACTIVATION" });
+}
+
+export interface UnlockSupplierAccountForm {
+  supplierId: string;
+  accountId: string;
+  identityCheck: string;
+}
+export function parseUnlockSupplierAccount(entries: Entries): Parsed<UnlockSupplierAccountForm> {
+  const { values, errors } = collect(entries, ["supplierId", "accountId", "identityCheck"]);
+  const supplierId = text(values, errors, "supplierId", "The supplier", { max: ID_MAX, trim: true });
+  const accountId = text(values, errors, "accountId", "The account", { max: ID_MAX, trim: true });
+  const identityCheck = text(values, errors, "identityCheck", "How the caller's identity was checked", { max: CHECK_MAX, trim: true });
+  return done(errors, { supplierId, accountId, identityCheck });
+}
+
+/// An officer retires one of a supplier's contacts, with the reason.
+export interface RetireContactForm {
+  supplierId: string;
+  contactId: string;
+  reason: string;
+}
+export function parseRetireContact(entries: Entries): Parsed<RetireContactForm> {
+  const { values, errors } = collect(entries, ["supplierId", "contactId", "reason"]);
+  const supplierId = text(values, errors, "supplierId", "The supplier", { max: ID_MAX, trim: true });
+  const contactId = text(values, errors, "contactId", "The contact", { max: ID_MAX, trim: true });
+  const reason = text(values, errors, "reason", "The reason", { max: REASON_MAX, trim: true });
+  return done(errors, { supplierId, contactId, reason });
+}

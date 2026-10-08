@@ -14,6 +14,8 @@ import type { ShellUser } from "@/lib/shell";
  * a test reads without a database, imports nothing of the server.
  */
 export function UserMenu({ user, signOut }: { user: ShellUser; signOut: (data: FormData) => Promise<void> }) {
+  // A supplier's session is the portal's own: its account page, and a sign-out that is a plain POST to the portal's route (the public copy takes no server action).
+  const supplier = user.kind === "supplier";
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -57,11 +59,11 @@ export function UserMenu({ user, signOut }: { user: ShellUser; signOut: (data: F
             {user.jobTitle && <div className="truncate text-[12px] text-ink-3">{user.jobTitle}</div>}
           </div>
           <div className="my-1 h-px bg-line" />
-          <Link href="/account" role="menuitem" className={item} onClick={() => setOpen(false)}>
+          <Link href={supplier ? "/supplier/account" : "/account"} role="menuitem" className={item} onClick={() => setOpen(false)}>
             <UserIcon size={16} />
             Your account
           </Link>
-          <form action={signOut}>
+          <form {...(supplier ? { action: "/supplier/sign-out", method: "post" } : { action: signOut })}>
             <button type="submit" role="menuitem" className={item}>
               <LogOutIcon size={16} />
               Sign out

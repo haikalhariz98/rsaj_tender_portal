@@ -6,8 +6,9 @@ import { ArrowRight, CheckIcon } from "@/components/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { AffixInput, Field, Input, Select } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
+import { FORM_TOKEN_FIELD } from "@/lib/auth/form-token";
 import { HONEYPOT_FIELD, type ApplyState } from "@/lib/portal/apply";
 import { APPLY, PORTAL_PATH } from "@/lib/portal/labels";
 import { SUBMIT_PATH } from "@/lib/portal/surface";
@@ -30,12 +31,37 @@ async function send(data: FormData): Promise<ApplyState> {
  * (`portalApplicationFaults`). On success the form is replaced by the confirmation and the reference,
  * which is shown once: nothing here, and nothing on the server, looks an application up again.
  */
-export function ApplicationForm({ entityTypes, countries, formatExample, notice, personalDataNotice }: { entityTypes: Option[]; countries: Option[]; formatExample: string | null; notice: string | null; personalDataNotice: { en: string; ms: string } }) {
+export function ApplicationForm({
+  formToken,
+  entityTypes,
+  countries,
+  states,
+  bumiputeraStatuses,
+  contactNeedsEmailAndPhone,
+  formatExample,
+  notice,
+  personalDataNotice,
+}: {
+  /// Signed by the server when the page was rendered; the route refuses a post without a good one.
+  formToken: string;
+  entityTypes: Option[];
+  countries: (Option & { callingCode: string | null })[];
+  states: Option[];
+  /// Empty: the claim is not asked.
+  bumiputeraStatuses: Option[];
+  /// True asks for both an email and a mobile number; otherwise either will do.
+  contactNeedsEmailAndPhone: boolean;
+  formatExample: string | null;
+  notice: string | null;
+  personalDataNotice: { en: string; ms: string };
+}) {
   const [state, setState] = useState<ApplyState>({ ok: false });
   const [pending, startTransition] = useTransition();
   const [v, setV] = useState<Record<string, string>>({});
   const confirmation = useRef<HTMLHeadingElement>(null);
   const set = (k: string) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
+  /// The dial code of the country chosen, shown in front of the mobile number; the server joins it to what is stored. None configured: nothing is shown.
+  const dialCode = countries.find((c) => c.value === v.countryCode)?.callingCode ?? null;
   const err = (k: string) => state.errors?.[k];
 
   useEffect(() => {
@@ -77,13 +103,13 @@ export function ApplicationForm({ entityTypes, countries, formatExample, notice,
     );
   }
 
-  const text = (name: string, label: string, opts: { required?: boolean; hint?: string; type?: string; autoComplete?: string } = {}) => (
+  const text = (name: string, label: string, opts: { required?: boolean; hint?: string; type?: string; autoComplete?: string; inputMode?: "numeric" | "tel" | "email" } = {}) => (
     <Field label={label} required={opts.required} htmlFor={name} hint={opts.hint} error={err(name)}>
-      <Input id={name} name={name} type={opts.type ?? "text"} autoComplete={opts.autoComplete} value={v[name] ?? ""} onChange={set(name)} />
+      <Input id={name} name={name} type={opts.type ?? "text"} inputMode={opts.inputMode} autoComplete={opts.autoComplete} value={v[name] ?? ""} onChange={set(name)} />
     </Field>
   );
-  const select = (name: string, label: string, options: Option[], opts: { required?: boolean } = {}) => (
-    <Field label={label} required={opts.required} htmlFor={name} error={err(name)}>
+  const select = (name: string, label: string, options: Option[], opts: { required?: boolean; hint?: string } = {}) => (
+    <Field label={label} required={opts.required} htmlFor={name} hint={opts.hint} error={err(name)}>
       <Select id={name} name={name} value={v[name] ?? ""} onChange={set(name)}>
         <option value="">{APPLY.choose.en}</option>
         {options.map((o) => (
@@ -98,6 +124,7 @@ export function ApplicationForm({ entityTypes, countries, formatExample, notice,
   return (
     <form onSubmit={(e) => { const data = formDataOf(e); startTransition(async () => setState(await send(data))); }} className="flex flex-col gap-6" noValidate>
       {state.message && <Callout tone="err">{state.message}</Callout>}
+      <input type="hidden" name={FORM_TOKEN_FIELD} value={formToken} />
       <Card>
         <CardHeader title={APPLY.companyTitle.en} subtitle={APPLY.companySubtitle.en} />
         <CardBody className="grid gap-4 sm:grid-cols-2">
@@ -105,12 +132,19 @@ export function ApplicationForm({ entityTypes, countries, formatExample, notice,
           {text("registrationNo", APPLY.fields.registrationNo.en, { required: true, hint: formatExample ? APPLY.numberFormatHint(formatExample).en : undefined })}
           {select("entityTypeCode", APPLY.fields.entityType.en, entityTypes, { required: true })}
           {select("countryCode", APPLY.fields.country.en, countries, { required: true })}
-          {text("companyEmail", APPLY.fields.companyEmail.en, { required: true, type: "email", autoComplete: "email" })}
-          <div className="sm:col-span-2">
-            <Field label={APPLY.fields.registeredAddress.en} required htmlFor="registeredAddress" error={err("registeredAddress")}>
-              <Textarea id="registeredAddress" name="registeredAddress" rows={3} autoComplete="street-address" value={v.registeredAddress ?? ""} onChange={set("registeredAddress")} />
-            </Field>
-          </div>
+          {text("incorporatedOn", APPLY.fields.incorporatedOn.en, { required: true, type: "date", hint: APPLY.incorporatedHint.en })}
+          {bumiputeraStatuses.length > 0 && select("bumiputeraClaimCode", APPLY.fields.bumiputeraClaim.en, bumiputeraStatuses, { hint: APPLY.bumiputeraHint.en })}
+          {text("companyEmail", APPLY.fields.companyEmail.en, { required: true, type: "email", autoComplete: "email", hint: APPLY.emailNotVerifiedHint.en })}
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader title={APPLY.addressTitle.en} subtitle={APPLY.addressSubtitle.en} />
+        <CardBody className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">{text("addressLine1", APPLY.fields.addressLine1.en, { required: true, autoComplete: "address-line1" })}</div>
+          <div className="sm:col-span-2">{text("addressLine2", APPLY.fields.addressLine2.en, { autoComplete: "address-line2" })}</div>
+          {text("city", APPLY.fields.city.en, { required: true, autoComplete: "address-level2" })}
+          {text("postcode", APPLY.fields.postcode.en, { required: true, autoComplete: "postal-code" })}
+          {select("stateCode", APPLY.fields.state.en, states, { required: true })}
         </CardBody>
       </Card>
       <Card>
@@ -118,8 +152,10 @@ export function ApplicationForm({ entityTypes, countries, formatExample, notice,
         <CardBody className="grid gap-4 sm:grid-cols-2">
           {text("contactName", APPLY.fields.contactName.en, { required: true, autoComplete: "name" })}
           {text("contactDesignation", APPLY.fields.contactDesignation.en, { autoComplete: "organization-title" })}
-          {text("contactEmail", APPLY.fields.contactEmail.en, { type: "email", hint: APPLY.reachHint.en, autoComplete: "email" })}
-          {text("contactPhone", APPLY.fields.contactPhone.en, { type: "tel", autoComplete: "tel" })}
+          {text("contactEmail", APPLY.fields.contactEmail.en, { type: "email", required: contactNeedsEmailAndPhone, hint: contactNeedsEmailAndPhone ? APPLY.reachHintBoth.en : APPLY.reachHint.en, autoComplete: "email" })}
+          <Field label={APPLY.fields.contactMobile.en} required={contactNeedsEmailAndPhone} htmlFor="contactPhone" hint={APPLY.mobileHint(dialCode).en} error={err("contactPhone")}>
+            <AffixInput id="contactPhone" name="contactPhone" type="tel" inputMode="tel" autoComplete="tel-national" prefix={dialCode ?? undefined} className={dialCode && dialCode.length > 3 ? "[&_input]:pl-16" : undefined} value={v.contactPhone ?? ""} onChange={set("contactPhone")} />
+          </Field>
         </CardBody>
       </Card>
       <Card>

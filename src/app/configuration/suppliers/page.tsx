@@ -65,7 +65,8 @@ export default async function SupplierRegisterConfigPage() {
   const retiredText = (d: Date | null) => (d && !live(d) ? `Retired ${formatDate(storedDay(d))}` : null);
   const bodyOptions = cfg.bodies.filter((b) => live(b.retiredOn)).map((b) => ({ value: b.id, label: asHeading(b.labelEn) }));
   const switchesNotSet = cfg.types.filter((t) => live(t.retiredOn)).reduce((n, t) => n + [t.expires, t.mandatoryAtRegistration, t.notApplicableAllowed].filter((x) => x == null).length, 0);
-  const listsEmpty = SUPPLIER_LIST_KINDS.filter((k) => cfg.liveCodes(k, org.today).length === 0);
+  // The Bumiputera statuses are optional: an empty list means the claim is simply not asked, and blocks nothing. The others close recording (and the public form) while empty.
+  const listsEmpty = SUPPLIER_LIST_KINDS.filter((k) => k !== "BUMIPUTERA_STATUS" && cfg.liveCodes(k, org.today).length === 0);
   const p = cfg.policy;
   // a2: the standing rules, each "Not set" until decided (OD-4..OD-7, condition 4).
   const rulesNotSet = [p?.criticalDays, p?.expiryOnClosingDayCounts, p?.autoSuspendOnLapse, p?.blacklistFirstOffenceMonths, p?.registerRequiredForSale, p?.restrictionEvidenceTypeId, p?.ineligibleBidConsequence, p?.personalDataNoticeEn, p?.personalDataNoticeMs, p?.portalDailyLimit, p?.portalDailyLimitPerNumber].filter((x) => x == null).length;
@@ -83,7 +84,7 @@ export default async function SupplierRegisterConfigPage() {
         actions={
           <>
             {p && <HistoryButton entity="SupplierPolicy" entityId={p.id} label="the register's policy" />}
-            <EditSupplierPolicy values={{ verificationNoticeEn: p?.verificationNoticeEn ?? "", verificationNoticeMs: p?.verificationNoticeMs ?? "", noticeProvenance: p?.noticeProvenance ?? "", governingSource: p?.governingSource ?? "" }} />
+            <EditSupplierPolicy values={{ verificationNoticeEn: p?.verificationNoticeEn ?? "", verificationNoticeMs: p?.verificationNoticeMs ?? "", noticeProvenance: p?.noticeProvenance ?? "", contactRule: p?.contactNeedsEmailAndPhone == null ? "" : p.contactNeedsEmailAndPhone ? "both" : "either", contactRuleProvenance: p?.contactRuleProvenance ?? "", governingSource: p?.governingSource ?? "" }} />
           </>
         }
       />
@@ -102,6 +103,7 @@ export default async function SupplierRegisterConfigPage() {
               items={[
                 { label: "Verification notice", value: p?.verificationNoticeEn ? <span className="flex flex-col items-start gap-1.5"><span className="break-words">{p.verificationNoticeEn}</span><ProvenanceBadge value={p.noticeProvenance} /></span> : <Badge tone="warn">Not set</Badge> },
                 { label: "Verification notice (Malay)", value: p?.verificationNoticeMs || <Badge tone="warn">Not set</Badge> },
+                { label: "What a contact must give", value: p?.contactNeedsEmailAndPhone == null ? <span className="flex flex-col items-start gap-1.5"><Badge tone="warn">Not set</Badge><span className="text-[12px] text-ink-3">An email or a telephone is enough.</span></span> : <span className="flex flex-col items-start gap-1.5"><span>{p.contactNeedsEmailAndPhone ? "Both an email and a mobile number" : "An email or a mobile number"}</span><ProvenanceBadge value={p.contactRuleProvenance} /></span> },
                 { label: "Where it is written", value: p?.governingSource || "No source is cited" },
                 { label: "Registration number format", value: cfg.format ? `${cfg.format.example ? `For example ${cfg.format.example}` : "Set"}` : <span className="flex flex-col items-start gap-1"><Badge tone="warn">Not set</Badge><span className="text-[12px] text-ink-3">Numbers are recorded as typed, marked &quot;format not checked&quot;. Set it under <Link href="/configuration/reference-data">Reference data</Link>.</span></span> },
               ]}
@@ -328,7 +330,7 @@ export default async function SupplierRegisterConfigPage() {
         </Card>
 
         <Card id="lists" className="scroll-mt-24 overflow-hidden">
-          <CardHeader icon={<SlidersIcon size={17} />} title="Lists" subtitle="The entity types and countries an officer chooses from when recording a supplier." />
+          <CardHeader icon={<SlidersIcon size={17} />} title="Lists" subtitle="The entity types, countries (with their dial codes), states and Bumiputera statuses an officer, or an applicant on the public form, chooses from." />
           <div className="divide-y divide-line/70">
             {SUPPLIER_LIST_KINDS.map((k) => {
               const rows = cfg.lists.filter((l) => l.list === k);
@@ -339,7 +341,7 @@ export default async function SupplierRegisterConfigPage() {
                     <ListValueDrawer list={k} listName={LIST_KIND_LABEL[k].en} />
                   </div>
                   {rows.length === 0 ? (
-                    <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">Not set: no supplier can be recorded until it has an entry.</p>
+                    <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">{k === "BUMIPUTERA_STATUS" ? "Not set: the declared Bumiputera status is not asked on the form." : "Not set: no supplier can be recorded until it has an entry."}</p>
                   ) : (
                     <Table minWidth={560}>
                       <colgroup>
@@ -355,12 +357,12 @@ export default async function SupplierRegisterConfigPage() {
                       <tbody>
                         {rows.map((v) => (
                           <Tr key={v.id}>
-                            <Td label="Entry"><CellStack title={v.nameEn} sub={[v.nameMs, retiredText(v.retiredOn)].filter(Boolean).join(" · ") || undefined} /></Td>
+                            <Td label="Entry"><CellStack title={v.nameEn} sub={[v.nameMs, v.list === "COUNTRY" ? (v.callingCode ? `Dial code ${v.callingCode}` : "Dial code not set") : null, retiredText(v.retiredOn)].filter(Boolean).join(" · ") || undefined} /></Td>
                             <Td label="Source"><ProvenanceBadge value={v.provenance} /></Td>
                             <Td>
                               <RowActions>
                                 <HistoryButton iconOnly entity="SupplierListValue" entityId={v.id} label={v.nameEn} />
-                                <ListValueDrawer list={k} listName={LIST_KIND_LABEL[k].en} value={{ id: v.id, name: v.nameEn, values: { id: v.id, list: v.list, code: v.code, nameEn: v.nameEn, nameMs: v.nameMs ?? "", provenance: v.provenance, sortOrder: String(v.sortOrder) } }} />
+                                <ListValueDrawer list={k} listName={LIST_KIND_LABEL[k].en} value={{ id: v.id, name: v.nameEn, values: { id: v.id, list: v.list, code: v.code, nameEn: v.nameEn, nameMs: v.nameMs ?? "", callingCode: v.callingCode ?? "", provenance: v.provenance, sortOrder: String(v.sortOrder) } }} />
                                 <RetireListValueDrawer id={v.id} name={v.nameEn} retired={!live(v.retiredOn)} />
                               </RowActions>
                             </Td>

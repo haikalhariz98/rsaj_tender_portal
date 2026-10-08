@@ -49,6 +49,25 @@ describe("the public copy", () => {
     for (const m of ["PUT", "PATCH", "DELETE", "OPTIONS"]) expect(publicAllows({ method: m, pathname: "/supplier/register/submit", hasServerAction: false })).toBe(false);
   });
 
+  it("serves the supplier portal's sign-in, activation, reset and account pages, each at its one literal path (Phase 4a)", () => {
+    for (const p of ["/supplier/sign-in", "/supplier/activate", "/supplier/reset", "/supplier/account", "/supplier/account/"]) expect(get(p), p).toBe(true);
+    for (const p of ["/supplier/sign-in/submit", "/supplier/account/password", "/supplier/sign-in/", "/supplier/accounts", "/supplier/account/x", "/supplier/sign-in/x", "/supplier/Activate"]) expect(get(p), p).toBe(p === "/supplier/sign-in/");
+  });
+
+  it("takes the supplier portal's writes at their literal paths and no others, and no other method (Phase 4a)", () => {
+    const posts = ["/supplier/sign-in/submit", "/supplier/sign-out", "/supplier/activate/submit", "/supplier/reset/submit", "/supplier/account/password", "/supplier/account/sign-out-everywhere", "/supplier/account/acknowledge"];
+    for (const p of posts) {
+      expect(publicAllows({ method: "POST", pathname: p, hasServerAction: false }), p).toBe(true);
+      expect(publicAllows({ method: "POST", pathname: p, hasServerAction: true }), `${p} as an action`).toBe(false);
+      for (const m of ["PUT", "PATCH", "DELETE", "OPTIONS"]) expect(publicAllows({ method: m, pathname: p, hasServerAction: false }), `${m} ${p}`).toBe(false);
+    }
+    // The handlers are POSTs: a GET for one is not a page, so it is not found.
+    for (const p of posts) expect(get(p), `GET ${p}`).toBe(false);
+    for (const p of ["/supplier/sign-in", "/supplier/activate", "/supplier/reset", "/supplier/account", "/supplier/sign-in/submit/x", "/supplier/account/passwords", "/supplier/sign-out/x"]) {
+      expect(publicAllows({ method: "POST", pathname: p, hasServerAction: false }), p).toBe(false);
+    }
+  });
+
   it("refuses every request that names a server action, wherever it is posted", () => {
     expect(publicAllows({ method: "POST", pathname: "/supplier/register", hasServerAction: true })).toBe(false);
     expect(publicAllows({ method: "POST", pathname: "/supplier/register/submit", hasServerAction: true })).toBe(false);
@@ -85,6 +104,20 @@ describe("the route boundary with sign-in (Phase 1b)", () => {
     expect(ask({ pathname: "/_next/webpack-hmr", development: true })).toBe("next");
     expect(ask({ pathname: "/__nextjs_original-stack-frames", development: true })).toBe("next");
     expect(ask({ pathname: "/sourcing/x", development: true })).toBe("signIn");
+  });
+
+  it("the supplier portal's sign-in is open to a stranger on both copies, and a supplier's cookie is the public copy's alone (Phase 4a)", () => {
+    for (const pathname of ["/supplier/sign-in", "/supplier/activate", "/supplier/reset", "/supplier/account"]) {
+      expect(ask({ surface: "public", pathname }), pathname).toBe("next");
+      expect(ask({ surface: "public", pathname, supplierCookie: true }), pathname).toBe("next");
+      expect(ask({ pathname }), pathname).toBe("next");
+      // On the staff copy a supplier's cookie means nothing, so the whole request is not found.
+      expect(ask({ pathname, supplierCookie: true }), pathname).toBe("notFound");
+    }
+    expect(ask({ surface: "public", pathname: "/supplier/sign-in/submit", method: "POST" })).toBe("next");
+    expect(ask({ surface: "public", pathname: "/supplier/account/password", method: "POST", supplierCookie: true })).toBe("next");
+    // A staff cookie on the public copy is still not found, even at the portal's own sign-in.
+    expect(ask({ surface: "public", pathname: "/supplier/sign-in", staffCookie: true })).toBe("notFound");
   });
 
   it("the public copy: a staff cookie is not found, whatever it asks for; sign-in is not served at all", () => {

@@ -2,6 +2,7 @@ import { BuildingIcon, InfoIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { issueFormToken } from "@/lib/auth/form-secret";
 import { loadRegistrationForm } from "@/lib/portal/apply-repo";
 import { APPLY } from "@/lib/portal/labels";
 import { loadPublicShell } from "@/lib/portal/deployment";
@@ -42,7 +43,17 @@ export default async function SupplierRegisterPage() {
               ))}
             </ul>
           </Callout>
-          <ApplicationForm entityTypes={form.entityTypes} countries={form.countries} formatExample={form.formatExample} notice={form.notice} personalDataNotice={form.personalDataNotice!} />
+          <ApplicationForm
+            formToken={issueFormToken("register")!}
+            entityTypes={form.entityTypes}
+            countries={form.countries}
+            states={form.states}
+            bumiputeraStatuses={form.bumiputeraStatuses}
+            contactNeedsEmailAndPhone={form.contactNeedsEmailAndPhone === true}
+            formatExample={form.formatExample}
+            notice={form.notice}
+            personalDataNotice={form.personalDataNotice!}
+          />
         </div>
       )}
     </>

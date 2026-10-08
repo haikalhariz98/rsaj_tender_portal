@@ -66,6 +66,11 @@ import { asHeading, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, renewalUpcomingWords, s
 import { standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 
+import { accountStateWords } from "@/lib/auth/supplier-administration-rules";
+import { bumiputeraNeedsAttention, bumiputeraReading, bumiputeraWords } from "@/lib/suppliers/bumiputera";
+import { composeAddress } from "@/lib/suppliers/step-one";
+
+import { OpenPortalAccount, IssueSupplierCode, RetireContact, UnlockSupplierAccount } from "./account-editors";
 import { EligibilityPanel, ParticipationPanel, StandingPanel } from "./standing-panels";
 import { ContactDrawer, DecideStepDrawer, LodgeDocumentDrawer, OpenApplicationDrawer, PaperDaysDrawer, RecordLapseDrawer, RejectApplicationDrawer, ResubmissionDrawer, SubmitApplicationDrawer, VendorCodeDrawer, VerifyDocumentDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
@@ -104,7 +109,7 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
   const linkedCount = s.parties.length + s.awards.filter((a) => !a.awardeePartyId).length;
 
   const tabs = [
-    { id: "profile", label: "Profile", icon: <BuildingIcon size={15} />, panel: <ProfilePanel sulit={sulit} l={l} cfg={cfg} /> },
+    { id: "profile", label: "Profile", icon: <BuildingIcon size={15} />, panel: <ProfilePanel sulit={sulit} l={l} cfg={cfg} canManageAccounts={actor.permissions.has("supplierAccounts.manage")} /> },
     { id: "documents", label: "Documents", icon: <FileIcon size={15} />, count: s.documents.length, panel: <DocumentsPanel l={l} cfg={cfg} people={peopleOptions} /> },
     { id: "applications", label: "Applications", icon: <ClipboardIcon size={15} />, count: s.applications.length, panel: <ApplicationsPanel l={l} cfg={cfg} people={peopleOptions} blacklist={reading?.blacklist ?? null} cancellation={reading?.cancellation ?? null} /> },
     { id: "standing", label: "Standing", icon: <ShieldIcon size={15} />, count: s.standingEvents.length, panel: <StandingPanel l={l} cfg={cfg} reading={reading} people={peopleOptions} fromAward={fromAward ?? null} /> },
@@ -155,10 +160,42 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
 
 // ------------------------------------------------------------------ profile
 
-function ProfilePanel({ sulit, l, cfg }: { sulit: Sulit<true>; l: LoadedSupplier; cfg: SupplierConfig }) {
+/// A contact's portal account in words: its state, and when it was last signed in. The sign-in name is the contact's, shown only to a reader the contact is open to (the caller asks that).
+function AccountCell({ account, timeZone }: { account: { loginName: string; status: "ACTIVE" | "DISABLED" | "PENDING_ACTIVATION"; locked: boolean; lastSignInAt: Date | null } | null; timeZone: string | null }) {
+  if (!account) return <span className="text-ink-4">No account</span>;
+  const words = accountStateWords({ status: account.status, locked: account.locked });
+  return (
+    <CellStack
+      title={account.loginName}
+      sub={`${words.en}${account.status === "ACTIVE" ? (account.lastSignInAt ? ` · last signed in ${formatOrgDateTime(account.lastSignInAt, timeZone)}` : " · not signed in yet") : ""}`}
+    />
+  );
+}
+
+/// What an officer who holds the permission may do to a contact's account, from its state: open it, issue the code it waits for or a reset, unlock it.
+function AccountActions({ supplierId, contact }: { supplierId: string; contact: { id: string; name: string; email: string; account: { id: string; status: "ACTIVE" | "DISABLED" | "PENDING_ACTIVATION"; failedAttempts: number; locked: boolean } | null } }) {
+  const a = contact.account;
+  if (!a) return <OpenPortalAccount supplierId={supplierId} contactId={contact.id} name={contact.name} suggestedLoginName={/^[A-Za-z0-9][A-Za-z0-9._@-]{2,63}$/.test(contact.email.trim()) ? contact.email.trim().toLowerCase() : ""} />;
+  if (a.status === "PENDING_ACTIVATION") return <IssueSupplierCode supplierId={supplierId} accountId={a.id} name={contact.name} purpose="ACTIVATION" />;
+  if (a.status === "DISABLED") return null;
+  return (
+    <>
+      {(a.failedAttempts > 0 || a.locked) && <UnlockSupplierAccount supplierId={supplierId} accountId={a.id} name={contact.name} />}
+      <IssueSupplierCode supplierId={supplierId} accountId={a.id} name={contact.name} purpose="RESET" />
+    </>
+  );
+}
+
+function ProfilePanel({ sulit, l, cfg, canManageAccounts }: { sulit: Sulit<true>; l: LoadedSupplier; cfg: SupplierConfig; canManageAccounts: boolean }) {
   const s = l.supplier;
   const fits = matchesFormat(s.registrationNo, cfg.format?.pattern ?? null);
   const contacts = s.contacts.filter((c) => c.retiredOn == null);
+  // The Bumiputera status is DECLARED by the applicant; what counts is the verified evidence document (BD-615-1). Read through one rule, so this page and the online application say the same.
+  const evidenceTypeId = cfg.policy?.restrictionEvidenceTypeId ?? null;
+  const evidence = evidenceTypeId ? (s.documents.filter((d) => d.typeId === evidenceTypeId && !d.notApplicable).find((d) => d.verification === "VERIFIED") ?? s.documents.find((d) => d.typeId === evidenceTypeId && !d.notApplicable) ?? null) : null;
+  const bumiputera = bumiputeraReading(s.bumiputeraClaimCode ? (cfg.listName("BUMIPUTERA_STATUS", s.bumiputeraClaimCode) ?? "A status no longer listed") : null, evidenceTypeId != null, evidence ? { reference: evidence.reference, verification: evidence.verification as "NOT_CHECKED" | "VERIFIED" | "NOT_IN_ORDER" } : null, "REGISTER");
+  // A supplier recorded before step one asked for the address in parts holds it as one text, rendered as it is.
+  const address = s.addressLine1 ? composeAddress(s, s.stateCode ? (cfg.listName("STATE", s.stateCode) ?? null) : null) : s.registeredAddress;
   const vendorBlocker = s.status !== "REGISTERED" ? supplierFaultText({ code: "NOT_REGISTERED", level: "block" }) : null;
   return (
     <div className="flex flex-col gap-6">
@@ -172,8 +209,10 @@ function ProfilePanel({ sulit, l, cfg }: { sulit: Sulit<true>; l: LoadedSupplier
               { label: "Registration number", value: <span className="flex flex-col items-start gap-1"><span>{s.registrationNo}</span>{fits === true ? <Chip tone="ok">Matches the configured format</Chip> : fits === false ? <Chip tone="err">Does not match the configured format</Chip> : <Chip tone="warn">Format not checked: no format is set</Chip>}</span> },
               { label: "Entity type", value: cfg.listName("ENTITY_TYPE", s.entityTypeCode) ?? notSet("An entity type no longer listed") },
               { label: "Country", value: cfg.listName("COUNTRY", s.countryCode) ?? notSet("A country no longer listed") },
-              { label: "Registered address", value: <span className="break-words whitespace-pre-line">{s.registeredAddress}</span> },
-              { label: "Company email", value: <span className="break-all">{s.companyEmail}</span> },
+              { label: "Registered address", value: <span className="break-words whitespace-pre-line">{address}</span> },
+              { label: "Date incorporated", value: s.incorporatedOn ? formatDate(day(s.incorporatedOn)) : notSet("Not given") },
+              { label: "Bumiputera status", value: <span className="flex flex-col items-start gap-1"><span>{bumiputeraWords(bumiputera).en}</span>{bumiputeraNeedsAttention(bumiputera) && <Chip tone="warn">Claimed with no evidence document lodged</Chip>}</span> },
+              { label: "Company email", value: <span className="flex flex-col items-start gap-1"><span className="break-all">{s.companyEmail}</span><Chip tone="neutral">Not verified</Chip></span> },
               { label: "Status", value: SUPPLIER_STATUS_LABEL[s.status as SupplierStatus].en },
               { label: "Registered on", value: s.registeredOn ? formatDate(day(s.registeredOn)) : notSet("Not registered") },
             ]}
@@ -196,12 +235,14 @@ function ProfilePanel({ sulit, l, cfg }: { sulit: Sulit<true>; l: LoadedSupplier
               <col />
               <col style={{ width: 240 }} />
               <col style={{ width: 150 }} />
-              <ActionsCol icons={0} labelled={1} />
+              <col style={{ width: 210 }} />
+              <ActionsCol icons={0} labelled={2} />
             </colgroup>
             <THead>
               <Th>Contact</Th>
               <Th>Email</Th>
               <Th>Telephone</Th>
+              <Th>Portal account</Th>
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
@@ -210,9 +251,12 @@ function ProfilePanel({ sulit, l, cfg }: { sulit: Sulit<true>; l: LoadedSupplier
                   <Td label="Contact">{sulit.state === "GRANTED" ? <CellStack title={c.name} sub={[c.designation, c.isPrimary ? "Primary contact" : null].filter(Boolean).join(" · ") || undefined} /> : <SulitValue of={sulit} />}</Td>
                   <Td label="Email">{sulit.state === "GRANTED" ? <span className="break-all">{c.email || "—"}</span> : <SulitValue of={sulit} />}</Td>
                   <Td label="Telephone">{sulit.state === "GRANTED" ? c.phone || "—" : <SulitValue of={sulit} />}</Td>
+                  <Td label="Portal account">{sulit.state === "GRANTED" ? <AccountCell account={c.account} timeZone={l.org.timeZone} /> : <SulitValue of={sulit} />}</Td>
                   <Td>
                     <RowActions>
+                      {sulit.state === "GRANTED" && canManageAccounts && <AccountActions supplierId={s.id} contact={c} />}
                       {sulit.state === "GRANTED" && <ContactDrawer supplierId={s.id} contact={{ id: c.id, name: c.name, values: { contactId: c.id, contactName: c.name, contactDesignation: c.designation, contactEmail: c.email, contactPhone: c.phone, primary: c.isPrimary } }} />}
+                      {sulit.state === "GRANTED" && !c.isPrimary && <RetireContact supplierId={s.id} contactId={c.id} name={c.name} />}
                     </RowActions>
                   </Td>
                 </Tr>

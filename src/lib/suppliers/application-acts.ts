@@ -22,8 +22,32 @@ import type { AuditActor } from "@/lib/auth/types";
 
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 
-/// What an online application holds of the applicant's own words, blanked once it is decided.
-export const ERASED = { registeredName: "", registrationNo: "", registrationNoKey: "", entityTypeCode: "", countryCode: "", registeredAddress: "", companyEmail: "", contactName: "", contactDesignation: "", contactEmail: "", contactPhone: "" } as const;
+/**
+ * What an online application holds of the applicant's own words, blanked when it is SET ASIDE. Phase 4a (CPD's registration, ruling of 2026-10-07, "acceptance must stop
+ * erasing the applicant's words"): recording the supplier from it no longer erases it. The officer corrects what the applicant typed, and the online page shows the
+ * applicant's words beside the register's entry with every difference listed; erased only when nobody will act on it. The parts of the address, the claim and the day
+ * incorporated are the applicant's words too, and go with the rest.
+ */
+export const ERASED = {
+  registeredName: "",
+  registrationNo: "",
+  registrationNoKey: "",
+  entityTypeCode: "",
+  countryCode: "",
+  registeredAddress: "",
+  addressLine1: "",
+  addressLine2: "",
+  city: "",
+  postcode: "",
+  stateCode: "",
+  bumiputeraClaimCode: "",
+  incorporatedOn: null,
+  companyEmail: "",
+  contactName: "",
+  contactDesignation: "",
+  contactEmail: "",
+  contactPhone: "",
+} as const;
 
 /// An application as the decision acts read it under the lock: its supplier's reference, its routes and its attachments.
 export const appInclude = { supplier: { select: { reference: true } }, routes: { include: { steps: { orderBy: { sequence: "asc" as const } } } }, attachments: { select: { purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } } };

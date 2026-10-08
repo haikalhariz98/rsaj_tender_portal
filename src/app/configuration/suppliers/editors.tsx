@@ -109,6 +109,8 @@ export function ListValueDrawer({ list, listName, value }: { list: string; listN
         ...(value ? [hidden("code")] : [{ kind: "text", name: "code", label: "Code", required: true, mono: true, hint: "A key, not shown to officers; it cannot be changed." } as Field]),
         { kind: "text", name: "nameEn", label: "Name", required: true },
         { kind: "text", name: "nameMs", label: "Name (Malay)" },
+        // A dial code belongs to a country: shown before the mobile number on the public form. Not set: no prefix is shown and a number is taken as typed.
+        ...(list === "COUNTRY" ? [{ kind: "text", name: "callingCode", label: "Dial code", mono: true, hint: "A plus sign and up to six digits, for example +60. Not set: no prefix is shown on the form and the number is taken as typed." } as Field] : []),
         provenance("provenance", "Where it comes from", true),
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
       ]}
@@ -134,6 +136,18 @@ export function EditSupplierPolicy({ values }: { values: Record<string, string> 
         { kind: "textarea", name: "verificationNoticeEn", label: "Verification notice" },
         { kind: "textarea", name: "verificationNoticeMs", label: "Verification notice (Malay)" },
         provenance("noticeProvenance", "Where the notice comes from"),
+        {
+          kind: "select",
+          name: "contactRule",
+          label: "What a contact must give",
+          placeholder: "Not set: an email or a telephone is enough",
+          options: [
+            { value: "both", label: "Both an email and a mobile number" },
+            { value: "either", label: "An email or a mobile number" },
+          ],
+          hint: "Applies to the public form and to an officer recording a supplier. Not set keeps today's rule, either one.",
+        },
+        provenance("contactRuleProvenance", "Where the contact rule comes from"),
         { kind: "text", name: "governingSource", label: "Source" },
       ]}
       values={values}
