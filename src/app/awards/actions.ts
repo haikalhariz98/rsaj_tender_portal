@@ -21,6 +21,7 @@ import { BASELINE_FIELDS, baselineOf, baselineSnapshot, isSumField, ladOnValueCh
 import { percentAboveZero } from "@/lib/securities/money";
 import { sulitWriteRefusal } from "@/lib/auth/sulit-store";
 import { icNumberFault } from "@/lib/award/mask";
+import { RECOMMENDATION_FIELDS } from "@/lib/evaluation/recommendation-fields";
 import { despatchFaults } from "@/lib/award/distribution";
 import { evaluateAward } from "@/lib/award/evaluate";
 import { awardOpenRefusal, evaluationFindings, exerciseOpenForAward } from "@/lib/award/gate";
@@ -213,7 +214,13 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
       if (naming.length) return { ok: false, errors: { awardeePartyId: naming.map(openingFindingText).join(" ") } };
       // 6.8 (E-9, flagged): Evaluated, the report standing, the awardee the recommended tenderer; a value or
       // period that differs from the recommendation carries its reason.
+      // Phase 3b (FR-EVL-014): an award is judged against the evaluation's recommendation (the awardee must be the tenderer it recommends, and a value or period that differs carries a reason),
+      // so choosing one is reading it: an officer the recommendation is closed to may not open or change the award, and is told why. Logged in this transaction.
       const evaluation = await loadEvaluationGate(ex.id, tx);
+      if (evaluation.gate.applies) {
+        const closed = await sulitWriteRefusal(tx, actor, { scope: "evaluation", exerciseId: ex.id }, RECOMMENDATION_FIELDS);
+        if (closed) return { ok: false, message: `Nothing was saved: the award is judged against the evaluation's recommendation, which is SULIT and closed to you. ${closed}` };
+      }
       const period = { value: v.completionPeriod!, unit: v.completionUnit! };
       const evf = recommendationRefusal(evaluation, awardeePartyId, { value: parseSen(v.awardedValue!), period, reasons });
       if (evf) return evf;
@@ -322,7 +329,13 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
     const link = partyWrite !== undefined ? awardVendorOnParty({ awardeePartyId: l.award.awardeePartyId, vendorId: l.award.vendorId }, partyWrite, party?.vendor?.id ?? null) : null;
     if (link?.fault) return { ok: false, errors: { awardeePartyId: supplierFaultText({ ...link.fault, data: { awardSupplier: l.award.vendor ? supplierWords(l.award.vendor) : null, partySupplier: party?.vendor ? supplierWords(party.vendor) : null } }) } };
     // 6.8 (E-9, flagged): the recommended tenderer, and each difference with its reason (the rest of the gate at submission).
+    // Phase 3b (FR-EVL-014): an award is judged against the evaluation's recommendation (the awardee must be the tenderer it recommends, and a value or period that differs carries a reason),
+    // so choosing one is reading it: an officer the recommendation is closed to may not open or change the award, and is told why. Logged in this transaction.
     const evaluation = await loadEvaluationGate(l.ex.id, tx);
+    if (evaluation.gate.applies) {
+      const closed = await sulitWriteRefusal(tx, actor, { scope: "evaluation", exerciseId: l.ex.id }, RECOMMENDATION_FIELDS);
+      if (closed) return { ok: false, message: `Nothing was saved: the award is judged against the evaluation's recommendation, which is SULIT and closed to you. ${closed}` };
+    }
     const period = { value: v.completionPeriod!, unit: v.completionUnit! };
     const evf = recommendationRefusal(evaluation, partyWrite !== undefined ? partyWrite : l.award.awardeePartyId, { value: parseSen(v.awardedValue!), period, reasons }, true);
     if (evf) return evf;

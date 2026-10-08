@@ -11,6 +11,7 @@ import { MATTER_KINDS } from "@/lib/committee/labels";
 import { awardFindingText, awardFindingTextFor } from "@/lib/award/labels";
 import { scopeOfOwner } from "@/lib/documents/owner-scope";
 import { OWNER_KINDS } from "@/lib/documents/types";
+import { RECOMMENDATION_FIELDS } from "@/lib/evaluation/recommendation-fields";
 import { SULIT_FIELDS } from "@/lib/sulit-fields";
 
 import { sulitGranted, sulitWithheld } from "./sulit-access";
@@ -227,5 +228,26 @@ describe("a page that shows a record's figures names them, and a field read on o
       ].sort(),
     );
     expect(relative(root, join(root, "src")).length).toBeGreaterThan(0);
+  });
+});
+
+describe("the award is judged against a recommendation that is SULIT (FR-EVL-014, Phase 3b review)", () => {
+  const src = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
+  it("the fields asked are registered evaluation fields", () => {
+    for (const f of RECOMMENDATION_FIELDS) expect(SULIT_FIELDS.find((x) => x.field === f)?.scope).toBe("evaluation");
+  });
+  it("both award acts refuse a reader the recommendation is closed to, before the recommendation is judged", () => {
+    const actions = src("src/app/awards/actions.ts");
+    const refusals = [...actions.matchAll(/sulitWriteRefusal\(tx, actor, \{ scope: "evaluation", exerciseId: [\w.]+ \}, RECOMMENDATION_FIELDS\)/g)];
+    expect(refusals).toHaveLength(2);
+    for (const m of refusals) expect(actions.indexOf("recommendationRefusal(evaluation,", m.index!)).toBeGreaterThan(m.index!);
+  });
+  it("the pages show the recommendation, and pre-fill from it, only when the gate is granted", () => {
+    const open = src("src/app/awards/new/page.tsx");
+    expect(open).toMatch(/sulitExerciseGate\(actor, ex\.id, "evaluation", RECOMMENDATION_FIELDS\)/);
+    expect(open).not.toMatch(/evaluation\.recommended\.party|evaluation\.recommended\.price/);
+    const page = src("src/app/awards/[id]/page.tsx");
+    expect(page).toMatch(/recommendation = await sulitExerciseGate\(actor, award\.exerciseId, "evaluation", RECOMMENDATION_FIELDS\)/);
+    expect(page).toMatch(/recommendation=\{recommendationShown \?/);
   });
 });

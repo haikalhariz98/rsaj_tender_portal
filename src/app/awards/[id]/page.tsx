@@ -1,4 +1,5 @@
 import { exerciseIsHidden, sulitExerciseGate } from "@/app/_auth/sulit";
+import { RECOMMENDATION_FIELDS } from "@/lib/evaluation/recommendation-fields";
 import { through, type Sulit } from "@/lib/auth/sulit-access";
 import { actStatusFault } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
@@ -243,12 +244,16 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const openingGate = edits.details ? await loadOpeningGate(l.ex.id) : null;
   // 6.8 (E-9): where the evaluation applies, the awardee is the recommended tenderer; it is the one offered.
   const evaluationGate = f.facts.exercise.evaluation ?? null;
-  const recommendedParty = evaluationGate?.facts.issued?.recommendedPartyId ?? null;
+  // Who is recommended, and at what price, is SULIT (FR-EVL-014): read by those the evaluation is open to. A reader it is closed to is offered every bidder carried to
+  // evaluation, no pre-fill, no recommended figure and no "differs from the recommendation" mark; the act that saves the award refuses them too (Phase 3b).
+  const recommendation = await sulitExerciseGate(actor, award.exerciseId, "evaluation", RECOMMENDATION_FIELDS);
+  const recommendationShown = recommendation.state === "GRANTED";
+  const recommendedParty = recommendationShown ? (evaluationGate?.facts.issued?.recommendedPartyId ?? null) : null;
   // 6.15a fix S-3: each bidder's supplier standing beside its name; a barred one warns, the award is not refused.
   const carried = openingGate?.applies ? openingGate.carried.filter((p) => !recommendedParty || p.id === recommendedParty) : null;
   const carriedRegister = carried ? await partyRegister(carried.map((p) => p.id), org, formatDate) : new Map();
   const carriedParties = carried ? carried.map((p) => ({ value: p.id, label: `${p.name} (${p.registrationNo})${carriedRegister.get(p.id) ? ` — ${carriedRegister.get(p.id)!.standing.words.en} on the register` : ""}` })) : undefined;
-  const recommendedText = evaluationGate?.facts.issued ? { valueText: formatMoney(evaluationGate.facts.issued.price) } : null;
+  const recommendedText = recommendationShown && evaluationGate?.facts.issued ? { valueText: formatMoney(evaluationGate.facts.issued.price) } : null;
   const actions = (
     <>
       {edits.details && (
@@ -325,7 +330,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const policies = award.contract?.policies ?? [];
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel sulit={sulit} l={l} ev={ev} awardee={awardee} recommendation={f.facts.exercise.evaluation?.facts.issued ?? null} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} /> },
+    { id: "overview", label: "Overview", icon: <AwardIcon size={15} />, panel: <OverviewPanel sulit={sulit} l={l} ev={ev} awardee={awardee} recommendation={recommendationShown ? (f.facts.exercise.evaluation?.facts.issued ?? null) : null} methodName={methodName} typeName={typeName} policyLabel={policy.regulatedActivityLabel} validityDays={policy.indentValidityDays} expiredRule={!!f.config.indentExpiredRule} unitName={f.config.unitName} /> },
     {
       id: "approval",
       label: "Approval",
