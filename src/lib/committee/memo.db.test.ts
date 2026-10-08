@@ -4,8 +4,11 @@ import type { StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
+import { loadInbox, unreadCount } from "@/lib/inbox/store";
+
+import { hiddenDecisionIds } from "./hidden";
 import { NOT_CARRIED_EVENT_KEY } from "./labels";
-import { issueNotCarriedMemo } from "./memo-store";
+import { issueNotCarriedMemo, matterOfDecision } from "./memo-store";
 
 /**
  * FR-CTE-009 against a real database (Phase 3c): the not-approved memo is issued in the portal to the holders of the offices the organisation's own notification rule
@@ -27,7 +30,7 @@ async function decision() {
 }
 const issue = (decisionId: string, over: Partial<Parameters<typeof issueNotCarriedMemo>[2]> = {}) =>
   db.$transaction((tx) =>
-    issueNotCarriedMemo(tx, actor, { decisionId, subject: "REQ-1 · Roof", committeeLabel: "Tender Board", outcomeLabel: "Re-clarification", note: "Needs more", unitCode: null, exerciseId: null, href: "/committees", today: "2026-10-09", ...over }),
+    issueNotCarriedMemo(tx, actor, { decisionId, subject: "REQ-1 · Roof", committeeLabel: "Tender Board", outcomeLabel: "Re-clarification", note: "Needs more", href: "/committees", today: "2026-10-09", ...over }),
   );
 const stateOf = async (id: string) => (await db.committeeDecision.findUniqueOrThrow({ where: { id } })).memoState;
 
@@ -88,5 +91,66 @@ describe("the not-approved memo, issued in the portal", () => {
     await db.roleAssignment.updateMany({ where: { personId: holder, roleCode: ROLE }, data: { effectiveTo: day("2026-01-01") } });
     const id = await decision();
     expect(await issue(id)).toBe("NO_ONE_HOLDS");
+  });
+});
+
+describe("the memo of a matter that names its exercise only by another road (FR-MTD-007, Phase 3c review)", () => {
+  const UNIT = `MEMO_UNIT_${run}`;
+  let requisitionId = "";
+  let exerciseId = "";
+  let bqVersionId = "";
+
+  beforeAll(async () => {
+    await db.notificationRule.deleteMany({ where: { organisationId, eventKey: NOT_CARRIED_EVENT_KEY } });
+    await db.notificationRule.create({ data: { organisationId, eventKey: NOT_CARRIED_EVENT_KEY, nameEn: "A matter was not carried", recipientRoleCodes: [ROLE], reminderOffsetDays: [], isActive: true } });
+    // The holder holds the office again, for this test's unit only.
+    await db.roleAssignment.deleteMany({ where: { personId: holder, roleCode: ROLE } });
+    await db.orgUnit.create({ data: { organisationId, code: UNIT, nameEn: `Memo unit ${run}`, kind: "DEPARTMENT", effectiveFrom: day("2020-01-01") } });
+    await db.roleAssignment.create({ data: { personId: holder, roleCode: ROLE, scope: UNIT, effectiveFrom: day("2020-01-01") } });
+    requisitionId = (
+      await db.requisition.create({
+        data: {
+          organisationId, reference: `MEMO/REQ/${run}`, requestingUnitCode: UNIT, requestingPersonId: holder, title: "A requisition for the memo tests", justification: "Tests.", needStatement: "None.",
+          costCentreCode: "MEMO_CC", accountCode: "MEMO_AC", placeOfDelivery: "Nowhere", dateRequired: day("2026-12-31"), estimatedValue: "1000.00", raisedOn: day("2026-10-01"),
+        },
+      })
+    ).id;
+    exerciseId = (await db.sourcingExercise.create({ data: { organisationId, reference: `MEMO/EX/${run}`, requisitionId, title: "A restricted exercise for the memo tests", estimatedValue: "1000.00", sourcingMethodCode: "MEMO_METHOD", restricted: true } })).id;
+    bqVersionId = (await db.bqVersion.create({ data: { organisationId, exerciseId, versionNo: 1 } })).id;
+  });
+
+  it("names the exercise of a scope matter, which holds no exercise of its own, so its memo is hidden from people not named on it", async () => {
+    const id = (await db.committeeDecision.create({ data: { meetingId, domain: "scope", subject: "Scope of a restricted exercise", matterKind: "SCOPE", bqVersionId, outcome: "NOT_CARRIED" } })).id;
+    expect((await db.committeeDecision.findUniqueOrThrow({ where: { id } })).exerciseId).toBeNull();
+    expect(await matterOfDecision(db, organisationId, id)).toEqual({ exerciseId, unitCode: UNIT });
+    // The same list of links hides the matter on the committee screens.
+    expect([...(await hiddenDecisionIds([id], [exerciseId]))]).toEqual([id]);
+
+    expect(await issue(id)).toBe("ISSUED");
+    const notice = await db.staffNotice.findFirstOrThrow({ where: { subjectEntity: "CommitteeDecision", subjectId: id, recipientPersonId: holder } });
+    expect(notice.exerciseId).toBe(exerciseId);
+    // A recipient not named on the restricted exercise sees neither the notice nor a count for it; one named on it sees both.
+    const viewer = { organisationId, personId: holder };
+    expect((await loadInbox(db, viewer, [exerciseId])).map((n) => n.id)).not.toContain(notice.id);
+    expect((await loadInbox(db, viewer, [])).map((n) => n.id)).toContain(notice.id);
+    expect((await unreadCount(db, viewer, [])) - (await unreadCount(db, viewer, [exerciseId]))).toBe(1);
+  });
+
+  it("finds the unit of a variation's or a contract matter's decision through its contract, award, exercise and requisition", async () => {
+    const award = await db.award.create({ data: { organisationId, reference: `MEMO/AW/${run}`, exerciseId, instrumentKind: "WORK_INDENT", awardeeName: "A Contractor", awardedValue: "1000.00", completionPeriod: 30, completionUnit: "DAYS", status: "ACCEPTED" } });
+    const contract = await db.contract.create({ data: { organisationId, number: `MEMO/C/${run}`, numberSource: "SERIES", numberedOn: day("2026-10-02"), awardId: award.id, contractSum: "1000.00" } });
+    const matter = await db.contractMatter.create({ data: { organisationId, contractId: contract.id, kind: "EOT", personId: holder, recordedAt: day("2026-10-03") } });
+    const id = (await db.committeeDecision.create({ data: { meetingId, domain: "contract_matter", subject: "An extension", matterKind: "CONTRACT", contractMatterId: matter.id, outcome: "NOT_CARRIED" } })).id;
+    // A contract is not a restricted exercise's own record, so no exercise is named for it; the unit is found, and the department head is told rather than "nobody holds the office".
+    expect(await matterOfDecision(db, organisationId, id)).toEqual({ exerciseId: null, unitCode: UNIT });
+    expect(await issue(id)).toBe("ISSUED");
+    expect((await db.staffNotice.findMany({ where: { subjectEntity: "CommitteeDecision", subjectId: id } })).map((n) => n.recipientPersonId)).toEqual([holder]);
+  });
+
+  it("says the time zone is not set, and does not say nobody holds the office, when the day is not known", async () => {
+    const id = await decision();
+    expect(await issue(id, { today: null })).toBe("NO_TIME_ZONE");
+    expect(await stateOf(id)).toBe("NO_TIME_ZONE");
+    expect(await db.staffNotice.count({ where: { subjectEntity: "CommitteeDecision", subjectId: id } })).toBe(0);
   });
 });

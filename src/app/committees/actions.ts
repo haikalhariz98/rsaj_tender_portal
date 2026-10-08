@@ -1016,15 +1016,12 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
     // FR-CTE-009: the not-approved memo is issued in the portal, to those the organisation's notification rule names, in this same transaction; what became of it is
     // recorded on the decision, so the panel says so in words whatever the rule says later.
     if (outcome === "NOT_CARRIED") {
-      const unitCode = await matterUnitOf(tx, actor.organisationId, decision);
       await issueNotCarriedMemo(tx, actor, {
         decisionId,
         subject: decision.subject,
         committeeLabel: s.committeeName,
         outcomeLabel: chosen?.nameEn ?? "to be decided",
         note,
-        unitCode,
-        exerciseId: decision.exerciseId ?? null,
         href: decision.requisitionId ? `/requisitions/${decision.requisitionId}` : decision.exerciseId ? `/sourcing/${decision.exerciseId}` : `/committees/${meetingId}`,
         today: s.today,
       });
@@ -1039,16 +1036,6 @@ export async function recordOutcome(_prev: FormState, data: FormData): Promise<F
       : record
         ? inSittingAfterRecord(actor, toAuditActor(actor), meetingId, record, decisionId, now, run)
         : inSitting(actor, meetingId, run);
-}
-
-/// The unit a tabled matter belongs to (its requisition's section or requesting unit), for finding who holds an office for it. Null where it has none.
-async function matterUnitOf(tx: Tx, organisationId: string, d: { requisitionId: string | null; exerciseId: string | null }): Promise<string | null> {
-  const req = d.requisitionId
-    ? await tx.requisition.findFirst({ where: { id: d.requisitionId, organisationId }, select: { sectionUnitCode: true, requestingUnitCode: true } })
-    : d.exerciseId
-      ? (await tx.sourcingExercise.findFirst({ where: { id: d.exerciseId, organisationId }, select: { requisition: { select: { sectionUnitCode: true, requestingUnitCode: true } } } }))?.requisition ?? null
-      : null;
-  return req ? req.sectionUnitCode || req.requestingUnitCode || null : null;
 }
 
 /**
