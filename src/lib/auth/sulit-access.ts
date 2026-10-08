@@ -1,6 +1,7 @@
 import { SULIT_FIELDS, SULIT_SCOPES, type SulitScope } from "@/lib/sulit-fields";
 
 import { holds, type PermissionState } from "./permissions";
+import { ROUTED_NAMED_WORDS } from "./routed-people";
 import type { Words } from "./words";
 
 /**
@@ -11,8 +12,9 @@ import type { Words } from "./words";
  * 1. the actor is NAMED ON THE RECORD the value belongs to (each scope has its own resolver, below);
  * 2. the actor holds `sulit.read.organisation` and the record is not a restricted exercise.
  *
- * Three scopes keep no list of who is named on them (a requisition, a contract matter, a supplier), so for those the permission is the only
- * way in, and it is undecided until the organisation decides: refused, and said to be undecided rather than withheld.
+ * Two scopes keep no list of who is named on them as a whole (a contract, a supplier), so for those the permission is the only way in, and it is undecided until
+ * the organisation decides: refused, and said to be undecided rather than withheld. A requisition names its requester and the people who decide its route, and the people who decide
+ * a contract matter's route read that matter's amount and nothing else of the contract (ruling of 2026-10-08, the amendment of the ruling on log line 1526).
  *
  * - An administrator is always refused, even one who is somehow named: administration is kept apart from transactions (D9).
  * - A restricted exercise (FR-MTD-007) admits only the people named on it. The organisation-wide permission never opens it.
@@ -80,9 +82,28 @@ export interface ExerciseNamedFacts {
   proposalReviewerId: string | null;
   evaluationTeamIds: readonly string[];
   openingPanelIds: readonly string[];
+  /// Named by what the exercise's routes and sittings say, worked out when read and never kept as a list (product owner, 2026-10-08, ruling on log line 1711; ADR 0034 D14):
+  /// those able to decide a step that is pending on a route of the exercise now, those who decided a step of one, and the roster of each committee a matter of the exercise is
+  /// tabled to, from the tabling. They name a person on the EXERCISE, not on its evaluation (`namedOnEvaluation` is unchanged), and they do not count towards the rule that a
+  /// restricted exercise keeps someone named who can name others (`namedAfterRemovingParticipant`): a holder passes with the step, and that rule is about the stored list.
+  stepHolderIds: readonly string[];
+  stepDeciderIds: readonly string[];
+  committeeMemberIds: readonly string[];
 }
 
-export type NamedAs = "PARTICIPANT" | "PERSON_IN_CHARGE" | "PROPOSAL_REVIEWER" | "EVALUATION_TEAM" | "OPENING_PANEL";
+/// Who a requisition, or one matter of a contract, names by what its approval route says (ruling of 2026-10-08, the amendment of the 2026-10-06 ruling on log line 1526). Worked out when
+/// read, never kept as a list. The requester is the officer the requisition was raised for.
+export interface RoutedNamedFacts {
+  requesterId: string | null;
+  stepHolderIds: readonly string[];
+  stepDeciderIds: readonly string[];
+}
+
+/// The fields of a CONTRACT matter's route that its deciders read: the amount of the matter they decide, and nothing else of the contract (its priced working, variance, estimate rates and
+/// identity-card number stay with the permission). `matterAmountScope` says which matters carry such an amount.
+export const ROUTED_CONTRACT_FIELDS: readonly string[] = ["waitingValue", "matterAmount", "matterRoutedValue"];
+
+export type NamedAs = "PARTICIPANT" | "PERSON_IN_CHARGE" | "PROPOSAL_REVIEWER" | "EVALUATION_TEAM" | "OPENING_PANEL" | "STEP_HOLDER" | "STEP_DECIDER" | "COMMITTEE_MEMBER" | "REQUESTER";
 
 const NAMED_AS_WORDS: Readonly<Record<NamedAs, Words>> = {
   PARTICIPANT: { en: "a named participant", ms: "peserta yang dinamakan" },
@@ -90,12 +111,17 @@ const NAMED_AS_WORDS: Readonly<Record<NamedAs, Words>> = {
   PROPOSAL_REVIEWER: { en: "the proposal's reviewer", ms: "penyemak cadangan" },
   EVALUATION_TEAM: { en: "on the evaluation team", ms: "dalam pasukan penilaian" },
   OPENING_PANEL: { en: "on the opening panel", ms: "dalam panel pembukaan" },
+  // The product owner's words (2026-10-08, ruling on log line 1711), read after "you are": "someone who holds a step on its route".
+  STEP_HOLDER: { en: `someone who ${ROUTED_NAMED_WORDS.STEP_HOLDER.en}`, ms: `seseorang yang ${ROUTED_NAMED_WORDS.STEP_HOLDER.ms}` },
+  STEP_DECIDER: { en: `someone who ${ROUTED_NAMED_WORDS.STEP_DECIDER.en}`, ms: `seseorang yang ${ROUTED_NAMED_WORDS.STEP_DECIDER.ms}` },
+  COMMITTEE_MEMBER: { en: `a ${ROUTED_NAMED_WORDS.COMMITTEE_MEMBER.en}`, ms: `seorang ${ROUTED_NAMED_WORDS.COMMITTEE_MEMBER.ms}` },
+  REQUESTER: { en: "the officer it was raised for", ms: "pegawai yang untuknya ia dibangkitkan" },
 };
 export const namedAsWords = (n: NamedAs): Words => NAMED_AS_WORDS[n];
 
 /// Every way a person is named on a sourcing exercise: the resolver for the `exercise` scope, and the list a restricted exercise admits.
-/// Holders of a routed step and holders of a seat on the committee the matter is tabled to are NOT named by being in office: the
-/// exercise must name them as participants (an open item for the product owner, logged with Phase 3a).
+/// Those able to decide a pending step of a route of the exercise, those who decided one, and the members of the committee a matter of it is tabled to are named too, from the
+/// routes, the sittings and the roster (ruling of 2026-10-08 on log line 1711, which settled what Phase 3a had left open).
 export function namedOnExercise(f: ExerciseNamedFacts, personId: string): NamedAs[] {
   const out: NamedAs[] = [];
   if (f.participantIds.includes(personId)) out.push("PARTICIPANT");
@@ -103,11 +129,15 @@ export function namedOnExercise(f: ExerciseNamedFacts, personId: string): NamedA
   if (f.proposalReviewerId === personId) out.push("PROPOSAL_REVIEWER");
   if (f.evaluationTeamIds.includes(personId)) out.push("EVALUATION_TEAM");
   if (f.openingPanelIds.includes(personId)) out.push("OPENING_PANEL");
+  if (f.stepHolderIds.includes(personId)) out.push("STEP_HOLDER");
+  if (f.stepDeciderIds.includes(personId)) out.push("STEP_DECIDER");
+  if (f.committeeMemberIds.includes(personId)) out.push("COMMITTEE_MEMBER");
   return out;
 }
 
-/// Everyone an exercise names, by any of the ways, once `personId` is taken off its participants: the rule that a restricted exercise keeps at least one person
-/// who can see it (`removeParticipant`). The person may still be named another way (the person in charge), and then stays.
+/// Everyone an exercise names, by any of the STORED ways, once `personId` is taken off its participants: the rule that a restricted exercise keeps at least one person
+/// who can see it and name others (`removeParticipant`). The person may still be named another way (the person in charge), and then stays. The names worked out from the
+/// routes and the sittings are left out on purpose: they pass with the step, and are not a person the exercise keeps.
 export function namedAfterRemovingParticipant(f: ExerciseNamedFacts, personId: string): string[] {
   const rest = f.participantIds.filter((id) => id !== personId);
   return [...new Set([...rest, f.personInChargeId, f.proposalReviewerId, ...f.evaluationTeamIds, ...f.openingPanelIds].filter((x): x is string => !!x))];
@@ -148,12 +178,25 @@ export function namedOnEvaluation(f: ExerciseNamedFacts, personId: string): Name
   return out;
 }
 
-/// The resolver for a scope. The requisition, contract and supplier scopes keep no record of who is named, so nobody is: only the
-/// organisation-wide permission opens them.
-export function namedOn(scope: SulitScope, f: ExerciseNamedFacts | null, personId: string | null): NamedAs[] {
-  if (!f || !personId) return [];
-  if (scope === "exercise") return namedOnExercise(f, personId);
-  if (scope === "evaluation") return namedOnEvaluation(f, personId);
+/// The resolver for a requisition, or for one matter of a contract that carries an approval route: the officer it was raised for, whoever is able to decide a step that is pending on its
+/// route, and whoever decided one.
+export function namedOnRouted(f: RoutedNamedFacts, personId: string): NamedAs[] {
+  const out: NamedAs[] = [];
+  if (f.requesterId === personId) out.push("REQUESTER");
+  if (f.stepHolderIds.includes(personId)) out.push("STEP_HOLDER");
+  if (f.stepDeciderIds.includes(personId)) out.push("STEP_DECIDER");
+  return out;
+}
+
+/// The resolver for a scope. An exercise and its evaluation list who is named. A requisition names its requester and the people of its route; a contract names NOBODY as a whole (who else
+/// is named on a contract is open under ADR 0034 OQ-2), but the people who decide a matter's route read that matter's amount and nothing else of the contract (`ROUTED_CONTRACT_FIELDS`),
+/// so for a contract-scope matter `routed` counts only where every field asked is one of them. The supplier scope names nobody: only the organisation-wide permission opens it.
+export function namedOn(scope: SulitScope, f: ExerciseNamedFacts | null, personId: string | null, routed: RoutedNamedFacts | null = null, fields: readonly string[] = []): NamedAs[] {
+  if (!personId) return [];
+  if (scope === "exercise") return f ? namedOnExercise(f, personId) : [];
+  if (scope === "evaluation") return f ? namedOnEvaluation(f, personId) : [];
+  if (scope === "requisition") return routed ? namedOnRouted(routed, personId) : [];
+  if (scope === "contract") return routed && fields.length > 0 && fields.every((x) => ROUTED_CONTRACT_FIELDS.includes(x)) ? namedOnRouted(routed, personId) : [];
   return [];
 }
 
@@ -246,13 +289,14 @@ export function estimateFigureAccess(actor: SulitActor, fault: EstimateFigureFau
 
 // ------------------------------------------------------------------ words
 
+const NOT_NAMED_REQUISITION: Words = { en: "You are not the officer it was raised for and you do not decide its route", ms: "Anda bukan pegawai yang untuknya ia dibangkitkan dan anda tidak memutuskan laluannya" };
 const NOT_NAMED_EXERCISE: Words = { en: "You are not named on this exercise", ms: "Anda tidak dinamakan pada eksesais ini" };
 
 /// What a withheld value says, in a sentence a person can act on. `scope` names the kind of record, so that "nobody is named on it" is
 /// said of the three scopes that keep no list, and "you are not named" of the others.
 export function refusalWords(basis: SulitRefusalBasis, scope: SulitScope | "estimate"): Words {
-  const noList = scope === "requisition" || scope === "contract" || scope === "supplier";
-  const why = noList ? { en: "No list names who may read this", ms: "Tiada senarai yang menamakan siapa boleh membacanya" } : { ...NOT_NAMED_EXERCISE };
+  const noList = scope === "contract" || scope === "supplier";
+  const why = scope === "requisition" ? { ...NOT_NAMED_REQUISITION } : noList ? { en: "No list names who may read this", ms: "Tiada senarai yang menamakan siapa boleh membacanya" } : { ...NOT_NAMED_EXERCISE };
   switch (basis) {
     case "ADMINISTRATOR":
       return { en: "An administrator account never reads SULIT values: administration is kept apart from transactions.", ms: "Akaun pentadbir tidak pernah membaca nilai SULIT: pentadbiran diasingkan daripada urus niaga." };

@@ -38,7 +38,7 @@ const loader: SulitActor = { personId: null, isAdministrator: false, system: tru
 
 const undecided: PermissionState = { state: "UNDECIDED" };
 const held: PermissionState = { state: "ROLE", roleCodes: ["SEC"] };
-const facts = (over: Partial<ExerciseNamedFacts> = {}): ExerciseNamedFacts => ({ participantIds: [], personInChargeId: null, proposalReviewerId: null, evaluationTeamIds: [], openingPanelIds: [], ...over });
+const facts = (over: Partial<ExerciseNamedFacts> = {}): ExerciseNamedFacts => ({ participantIds: [], personInChargeId: null, proposalReviewerId: null, evaluationTeamIds: [], openingPanelIds: [], stepHolderIds: [], stepDeciderIds: [], committeeMemberIds: [], ...over });
 const ctx = (over: Partial<SulitContext> = {}): SulitContext => ({ scope: "exercise", restricted: false, named: false, organisationPermission: undecided, ...over });
 
 describe("the registry gives every SULIT field a scope", () => {
@@ -210,6 +210,38 @@ describe("Sulit<T>", () => {
   });
 });
 
+describe("a requisition and a contract matter are named by their route (ruling of 2026-10-08, the amendment of the ruling on log line 1526)", () => {
+  const routed = { requesterId: "req", stepHolderIds: ["hold"], stepDeciderIds: ["dec"] };
+
+  it("a requisition names its requester, a holder of a pending step and a decider, each as what they are", () => {
+    expect(namedOn("requisition", null, "req", routed, ["estimatedValue"])).toEqual(["REQUESTER"]);
+    expect(namedOn("requisition", null, "hold", routed, ["estimatedValue"])).toEqual(["STEP_HOLDER"]);
+    expect(namedOn("requisition", null, "dec", routed, ["estimatedValue"])).toEqual(["STEP_DECIDER"]);
+    expect(namedOn("requisition", null, "other", routed, ["estimatedValue"])).toEqual([]);
+    expect(namedOn("requisition", null, "req", null, ["estimatedValue"])).toEqual([]);
+  });
+
+  it("a contract names its matter's deciders for the amount they decide on, and for nothing else of the contract", () => {
+    for (const field of ["waitingValue", "matterAmount", "matterRoutedValue"]) expect(namedOn("contract", null, "hold", routed, [field]), field).toEqual(["STEP_HOLDER"]);
+    for (const field of ["estimateRate", "tenderedLineAmount", "correctedLineAmount", "arithmeticVarianceAmount", "certificateComputedAmount", "signatureSupportedUpTo", "icNumber", "documentBytes"]) expect(namedOn("contract", null, "hold", routed, [field]), field).toEqual([]);
+    // Asked with another field alongside, the amount does not carry it, and an unspecified ask names nobody.
+    expect(namedOn("contract", null, "hold", routed, ["waitingValue", "estimateRate"])).toEqual([]);
+    expect(namedOn("contract", null, "hold", routed, [])).toEqual([]);
+    expect(namedOn("contract", null, "hold", null, ["waitingValue"])).toEqual([]);
+  });
+
+  it("a supplier is named by nothing, and an administrator is refused whatever the route says", () => {
+    expect(namedOn("supplier", null, "req", routed, ["contactName"])).toEqual([]);
+    const admin = { personId: "hold", isAdministrator: true, system: false };
+    expect(sulitAccess(admin, { scope: "requisition", restricted: false, named: true, organisationPermission: { state: "UNDECIDED" } }, "estimatedValue")).toEqual({ state: "WITHHELD", basis: "ADMINISTRATOR" });
+  });
+
+  it("the refusal for a requisition names the two ways in, in words", () => {
+    expect(refusalWords("NOT_NAMED_PERMISSION_UNDECIDED", "requisition").en).toMatch(/^You are not the officer it was raised for and you do not decide its route/);
+    expect(refusalWords("NOT_NAMED_PERMISSION_UNDECIDED", "contract").en).toMatch(/^No list names/);
+  });
+});
+
 describe("the words", () => {
   it("every refusal has an English and a Malay sentence, none a code, for every scope", () => {
     for (const basis of SULIT_REFUSAL_BASES) {
@@ -280,7 +312,9 @@ describe("naming a person on an exercise is an authorised act (FR-MTD-007, Phase
     expect(fault({ actor: { personId: null, isAdministrator: false, system: false } })).toBe("NOT_NAMED");
   });
   it("a restricted exercise keeps someone named when its person in charge is changed or cleared", () => {
-    const f = { participantIds: [], personInChargeId: "p_actor", proposalReviewerId: null, evaluationTeamIds: [], openingPanelIds: [] };
+    const f = facts({ personInChargeId: "p_actor" });
+    // A holder of a step or a member of a committee, worked out from the routes, is not a person the exercise keeps (ruling of 2026-10-08 on log line 1711).
+    expect(namedAfterChangingPersonInCharge({ ...f, stepHolderIds: ["p_step"], committeeMemberIds: ["p_seat"] }, null)).toEqual([]);
     expect(namedAfterChangingPersonInCharge(f, null)).toEqual([]);
     expect(namedAfterChangingPersonInCharge(f, "p_other")).toEqual(["p_other"]);
     expect(namedAfterChangingPersonInCharge({ ...f, participantIds: ["p_x"] }, null)).toEqual(["p_x"]);

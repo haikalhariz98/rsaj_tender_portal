@@ -1,5 +1,7 @@
 import { ActedBy } from "@/components/attribution";
 import { routeActed } from "@/lib/auth/attribution-read";
+import { ROUTED_NAMED_ABOUT, ROUTED_NAMED_HEADINGS } from "@/lib/auth/routed-people";
+import { exerciseAccessFacts, type ExerciseAccessFacts } from "@/lib/auth/sulit-store";
 import { exerciseEvidence } from "@/lib/documents/evidence";
 import { historyEntityLabel } from "@/lib/audit/entity-labels";
 import { DOCUMENT_ENTITY_LABEL } from "@/lib/documents/audit-view";
@@ -194,6 +196,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const methodName = decided?.method.nameEn ?? method?.nameEn ?? "A method no longer configured";
   const typeName = (code: string | null) => (code ? (config.types.find((t) => t.code === code)?.nameEn ?? "A type no longer configured") : null);
   const personName = (pid: string | null) => (pid ? (people.find((p) => p.id === pid)?.name ?? "Not on record") : null);
+  // The Access tab lists, under their own headings, the people the exercise names by what its routes and sittings say (ruling of 2026-10-08 on log line 1711): worked out now, never a
+  // list anyone keeps. Read only for the tab that shows it.
+  const derivedNames = tab === "access" ? ((await exerciseAccessFacts(db, org.id, [ex.id])).get(ex.id)?.named ?? null) : null;
   const activePeople = people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name }));
 
   // ------------------------------------------------------------- what blocks
@@ -614,7 +619,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
             )}
             {restricted && (
               <Callout tone="warn" title="Restricted to the people named on it">
-                This exercise is hidden from everyone else: it is left out of the lists, the counts, the search and the dashboard, and opening it by its address says it does not exist. Each time someone is turned away, or reads a classified figure on it, the portal logs it. Besides the people named here, it is open to the person in charge, the proposal&apos;s reviewer and the members of its evaluation team and opening panel. Anyone who must approve a route for it or sit on its committee has to be named here too: holding the office does not open it.
+                This exercise is hidden from everyone else: it is left out of the lists, the counts, the search and the dashboard, and opening it by its address says it does not exist. Each time someone is turned away, or reads a classified figure on it, the portal logs it. Besides the people named here, it is open to the person in charge, the proposal&apos;s reviewer and the members of its evaluation team and opening panel. It is also open to whoever is able to decide a step of a route on it, whoever has decided one, and the members of the committee a matter of it is tabled to: they are listed below, and nobody has to name them.
               </Callout>
             )}
             {ex.participants.length === 0 ? (
@@ -634,6 +639,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                 ))}
               </ul>
             )}
+            {derivedNames && <RoutedNames named={derivedNames} personName={(id) => personName(id) ?? "Not on record"} />}
           </CardBody>
         </Card>
       ),
@@ -723,6 +729,38 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 }
 
 // --------------------------------------------------------------------- award
+
+/// The people an exercise names by what its routes and sittings say, each under its own heading (ruling of 2026-10-08 on log line 1711). Nobody keeps these lists: the page says so.
+function RoutedNames({ named, personName }: { named: ExerciseAccessFacts["named"]; personName: (id: string) => string }) {
+  const groups = [
+    { kind: "STEP_HOLDER" as const, ids: named.stepHolderIds },
+    { kind: "STEP_DECIDER" as const, ids: named.stepDeciderIds },
+    { kind: "COMMITTEE_MEMBER" as const, ids: named.committeeMemberIds },
+  ];
+  return (
+    <div className="flex flex-col gap-3">
+      {groups.map((g) => (
+        <section key={g.kind} aria-label={ROUTED_NAMED_HEADINGS[g.kind]} className="rounded-2xl border border-line">
+          <div className="border-b border-line/70 px-4 py-2.5">
+            <h3 className="text-[13.5px] font-semibold text-ink">{ROUTED_NAMED_HEADINGS[g.kind]}</h3>
+            <p className="text-[12.5px] text-ink-3">{ROUTED_NAMED_ABOUT[g.kind].en}</p>
+          </div>
+          {g.ids.length === 0 ? (
+            <p className="px-4 py-2.5 text-[13px] text-ink-3">Nobody, as things stand.</p>
+          ) : (
+            <ul className="divide-y divide-line/70">
+              {g.ids.map((id) => (
+                <li key={id} className="px-4 py-2 text-[13.5px] break-words text-ink">
+                  {personName(id)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
 
 function AwardTab({ exerciseId, status, packKind, window, awards, opening, dossier, bidFaults, openingFaults, evaluationFaults }: { exerciseId: string; status: string; packKind: PackKind | null; window: WindowGate; opening: string | null; dossier: boolean; bidFaults: string[]; openingFaults: string[]; evaluationFaults: string[]; awards: { id: string; reference: string; awardeeName: string; awardedValue: { toString(): string }; status: string; instrumentKind: string; cancelReason: string; contract: { number: string } | null }[] }) {
   const live = awards.find((a) => a.status !== "CANCELLED") ?? null;

@@ -5,6 +5,7 @@ import type { SulitScope } from "@/lib/sulit-fields";
 
 import { explainRefusal } from "./permission-store";
 import type { PermissionState } from "./permissions";
+import { committeeMembersOf, routePeopleOf, type RoutedInstance } from "./routed-people-store";
 import {
   exerciseVisible,
   namedOn,
@@ -14,6 +15,7 @@ import {
   sulitAccess,
   sulitAccessAll,
   type ExerciseNamedFacts,
+  type RoutedNamedFacts,
   type SulitActor,
   type SulitDecision,
 } from "./sulit-access";
@@ -70,6 +72,13 @@ export async function exerciseAccessFacts(client: Tx, organisationId: string, id
       openings: { select: { panel: { select: { personId: true } } } },
     },
   });
+  // What the exercise's routes and sittings name, worked out now for all of the exercises at once (ruling of 2026-10-08 on log line 1711): never a list anyone keeps.
+  const found = rows.map((r) => r.id);
+  const [routes, committees] = await Promise.all([
+    routePeopleOf(client, organisationId, { OR: [{ exerciseId: { in: found } }, { specialPermission: { exerciseId: { in: found } } }] }),
+    committeeMembersOf(client, organisationId, found),
+  ]);
+  const routedOf = (exerciseId: string, pick: "holderIds" | "deciderIds") => [...new Set(routes.filter((x) => x.exerciseId === exerciseId).flatMap((x) => x.people[pick]))];
   for (const r of rows) {
     out.set(r.id, {
       id: r.id,
@@ -81,6 +90,9 @@ export async function exerciseAccessFacts(client: Tx, organisationId: string, id
         proposalReviewerId: r.proposalReviewerPersonId,
         evaluationTeamIds: r.evaluations.flatMap((e) => e.team.map((m) => m.personId)),
         openingPanelIds: r.openings.flatMap((o) => o.panel.map((m) => m.personId)),
+        stepHolderIds: routedOf(r.id, "holderIds"),
+        stepDeciderIds: routedOf(r.id, "deciderIds"),
+        committeeMemberIds: committees.get(r.id) ?? [],
       },
     });
   }
@@ -186,6 +198,67 @@ export async function namingRefusal(client: Tx, actor: StaffActor, exerciseId: s
 /// actor's own standing is asked.
 export const namingOthersRefusal = (client: Tx, actor: StaffActor, exerciseId: string): Promise<string | null> => namingRefusal(client, actor, exerciseId, ["someone else"]);
 
+// ------------------------------------------------------------------ a requisition, or a contract matter, named by its route
+
+/// The record whose approval route names people (ruling of 2026-10-08, the amendment of the 2026-10-06 ruling on log line 1526): a requisition (its requester and the people of its own
+/// route), a variation, a certificate or a contract matter (the people of its route, for its amount only), or one route by its id.
+export type RoutedFrom = { kind: "requisition" | "variation" | "contractMatter" | "certificate" | "instance"; id: string };
+export const routedFromKey = (f: RoutedFrom): string => `${f.kind}:${f.id}`;
+
+/// The route a gate's subject is judged by, from what the subject is: a requisition, a variation, a contract matter or a certificate named by its own id. The contract as a whole is none.
+export function routedFromEntity(entity: string, id: string): RoutedFrom | null {
+  switch (entity) {
+    case "Requisition":
+      return { kind: "requisition", id };
+    case "Variation":
+      return { kind: "variation", id };
+    case "ContractMatter":
+      return { kind: "contractMatter", id };
+    case "Certificate":
+      return { kind: "certificate", id };
+    default:
+      return null;
+  }
+}
+
+/**
+ * Who each of these records names by its route, worked out now, in one pass over the routes (never one query per record, never a list anyone keeps). The key is `routedFromKey`.
+ * A requisition names its requester as well. Where nothing is named the entry holds empty lists, so a record the organisation does not own reads as naming nobody.
+ */
+export async function routedNamedFacts(client: Tx, organisationId: string, froms: readonly RoutedFrom[]): Promise<Map<string, RoutedNamedFacts>> {
+  const out = new Map<string, RoutedNamedFacts>();
+  const idsOf = (kind: RoutedFrom["kind"]) => [...new Set(froms.filter((f) => f.kind === kind).map((f) => f.id))];
+  const requisitions = idsOf("requisition");
+  const variations = idsOf("variation");
+  const matters = idsOf("contractMatter");
+  const certificates = idsOf("certificate");
+  const instances = idsOf("instance");
+  const or = [
+    ...(requisitions.length ? [{ requisitionId: { in: requisitions } }] : []),
+    ...(variations.length ? [{ variationId: { in: variations } }] : []),
+    ...(matters.length ? [{ contractMatterId: { in: matters } }] : []),
+    ...(certificates.length ? [{ certificateId: { in: certificates } }] : []),
+    ...(instances.length ? [{ id: { in: instances } }] : []),
+  ];
+  if (or.length === 0) return out;
+  const [routes, requesters] = await Promise.all([
+    routePeopleOf(client, organisationId, { OR: or }),
+    requisitions.length ? client.requisition.findMany({ where: { id: { in: requisitions }, organisationId }, select: { id: true, requestingPersonId: true } }) : Promise.resolve([]),
+  ]);
+  const requesterOf = new Map(requesters.map((r) => [r.id, r.requestingPersonId]));
+  const match = (f: RoutedFrom, r: RoutedInstance) =>
+    f.kind === "requisition" ? r.requisitionId === f.id : f.kind === "variation" ? r.variationId === f.id : f.kind === "contractMatter" ? r.contractMatterId === f.id : f.kind === "certificate" ? r.certificateId === f.id : r.instanceId === f.id;
+  for (const f of froms) {
+    const mine = routes.filter((r) => match(f, r));
+    out.set(routedFromKey(f), {
+      requesterId: f.kind === "requisition" ? (requesterOf.get(f.id) ?? null) : null,
+      stepHolderIds: [...new Set(mine.flatMap((r) => r.people.holderIds))],
+      stepDeciderIds: [...new Set(mine.flatMap((r) => r.people.deciderIds))],
+    });
+  }
+  return out;
+}
+
 /// The state of `sulit.read.organisation` for the actor, for the rule's last step. Held through a role: no read of the explanation is needed.
 export async function organisationPermissionState(client: Tx, actor: SulitReader): Promise<PermissionState> {
   if (actor.permissions.has("sulit.read.organisation")) return { state: "ROLE", roleCodes: [] };
@@ -195,16 +268,16 @@ export async function organisationPermissionState(client: Tx, actor: SulitReader
 }
 
 /// The decision for a record of one scope, from the facts read for it.
-export function decisionFor(actor: SulitReader, scope: SulitScope, field: string, record: { restricted: boolean; named: ExerciseNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
+export function decisionFor(actor: SulitReader, scope: SulitScope, field: string, record: { restricted: boolean; named: ExerciseNamedFacts | null; routed?: RoutedNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
   const sulitActor = sulitActorOf(actor);
-  const namedAs = namedOn(scope, record.named, sulitActor.personId);
+  const namedAs = namedOn(scope, record.named, sulitActor.personId, record.routed ?? null, [field]);
   return { decision: sulitAccess(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission }, field), namedAs };
 }
 
 /// The decision for several fields of one record of one scope (a tab asks once for everything it shows from the record).
-export function decisionForFields(actor: SulitReader, scope: SulitScope, fields: readonly string[], record: { restricted: boolean; named: ExerciseNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
+export function decisionForFields(actor: SulitReader, scope: SulitScope, fields: readonly string[], record: { restricted: boolean; named: ExerciseNamedFacts | null; routed?: RoutedNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
   const sulitActor = sulitActorOf(actor);
-  const namedAs = namedOn(scope, record.named, sulitActor.personId);
+  const namedAs = namedOn(scope, record.named, sulitActor.personId, record.routed ?? null, fields);
   return { decision: sulitAccessAll(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission }, fields), namedAs };
 }
 
@@ -273,7 +346,9 @@ export async function sulitWriteRefusal(client: Tx, actor: SulitReader, subject:
     decision = decisionForFields(actor, subject.scope, fields, { restricted: f.restricted, named: f.named }, permission).decision;
     row = { scope: subject.scope, entity: "SourcingExercise", entityId: f.id, entityLabel: f.reference, fields: [...fields], decision };
   } else {
-    decision = decisionForFields(actor, subject.scope, fields, { restricted: false, named: null }, permission).decision;
+    const from = routedFromEntity(subject.entity, subject.id);
+    const routed = from ? ((await routedNamedFacts(client, actor.organisationId, [from])).get(routedFromKey(from)) ?? null) : null;
+    decision = decisionForFields(actor, subject.scope, fields, { restricted: false, named: null, routed }, permission).decision;
     row = { scope: subject.scope, entity: subject.entity, entityId: subject.id, entityLabel: subject.label, fields: [...fields], decision };
   }
   await writeSulitEvents(client, actor, [row]);

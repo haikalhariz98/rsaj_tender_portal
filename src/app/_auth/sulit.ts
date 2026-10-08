@@ -3,7 +3,7 @@ import { cache } from "react";
 import { matterAmountScope } from "@/lib/committee/matter-amount";
 import type { MatterKind } from "@/lib/committee/labels";
 import { hiddenDecisionIds } from "@/lib/committee/hidden";
-import { applyDecision, sulitWithheld, type Sulit, type SulitDecision } from "@/lib/auth/sulit-access";
+import { applyDecision, sulitWithheld, type RoutedNamedFacts, type Sulit, type SulitDecision } from "@/lib/auth/sulit-access";
 import {
   decisionFor,
   decisionForFields,
@@ -12,6 +12,10 @@ import {
   exerciseStanding,
   hiddenExerciseIds,
   organisationPermissionState,
+  routedFromEntity,
+  routedFromKey,
+  routedNamedFacts,
+  type RoutedFrom,
   recordAccessRow,
   restrictedExerciseIds,
   sulitActorOf,
@@ -94,7 +98,9 @@ export async function sulitExerciseValue<T>(actor: StaffActor, exercise: Exercis
 /// three keep no list of who is named, so only the organisation-wide permission opens them (ADR 0034 D14).
 export type GateSubject =
   | { scope: "exercise" | "evaluation"; id: string; label: string }
-  | { scope: "requisition" | "contract" | "supplier"; entity: string; id: string; label: string };
+  /// `routedFrom`: the route that names people on this record, where it is not the record itself (a committee matter is judged by the route or the requisition it decides). Not given: a
+  /// requisition, a variation, a contract matter and a certificate are judged by their own route, and every other record names nobody.
+  | { scope: "requisition" | "contract" | "supplier"; entity: string; id: string; label: string; routedFrom?: RoutedFrom | null };
 
 /**
  * One answer for each record, for several of its fields at once: `Sulit<true>`, granted with the basis or withheld with the reason in words. A screen that
@@ -106,7 +112,9 @@ export async function sulitGates(actor: StaffActor, subjects: readonly GateSubje
   const out = new Map<string, Sulit<true>>();
   if (subjects.length === 0) return out;
   const exerciseIds = subjects.filter((x) => !("entity" in x)).map((x) => x.id);
-  const [facts, permission] = await Promise.all([exerciseIds.length ? exerciseAccessFacts(db, actor.organisationId, exerciseIds) : Promise.resolve(new Map()), permissionOf(actor)]);
+  const fromOf = (x: GateSubject): RoutedFrom | null => ("entity" in x ? (x.routedFrom !== undefined ? x.routedFrom : routedFromEntity(x.entity, x.id)) : null);
+  const froms = subjects.flatMap((x) => { const f = fromOf(x); return f ? [f] : []; });
+  const [facts, permission, routed] = await Promise.all([exerciseIds.length ? exerciseAccessFacts(db, actor.organisationId, exerciseIds) : Promise.resolve(new Map()), permissionOf(actor), froms.length ? routedNamedFacts(db, actor.organisationId, froms) : Promise.resolve(new Map<string, RoutedNamedFacts>())]);
   const rows: SulitEventRow[] = [];
   const decided = new Map<string, SulitDecision>();
   for (const x of subjects) {
@@ -116,7 +124,8 @@ export async function sulitGates(actor: StaffActor, subjects: readonly GateSubje
       decided.set(x.id, decision);
       if (f) rows.push({ scope: x.scope, entity: "SourcingExercise", entityId: x.id, entityLabel: x.label, fields: [...fields], decision });
     } else {
-      const decision = decisionForFields(actor, x.scope, fields, { restricted: false, named: null }, permission).decision;
+      const from = fromOf(x);
+      const decision = decisionForFields(actor, x.scope, fields, { restricted: false, named: null, routed: from ? (routed.get(routedFromKey(from)) ?? null) : null }, permission).decision;
       decided.set(x.id, decision);
       rows.push({ scope: x.scope, entity: x.entity, entityId: x.id, entityLabel: x.label, fields: [...fields], decision });
     }
@@ -143,7 +152,21 @@ export async function sulitMatterAmounts(actor: StaffActor, matters: readonly { 
     const scope = m.hasAmount ? matterAmountScope(m.kind) : null;
     return scope ? [{ scope, entity: "CommitteeDecision", id: m.id, label: m.label }] : [];
   });
-  return sulitGates(actor, asked, ["matterAmount"]);
+  if (asked.length === 0) return new Map();
+  // The people who decide the route of the matter read its amount (ruling of 2026-10-08, the amendment of the ruling on log line 1526): a requisition's gate matter by the
+  // requisition (its requester and the people of its route), a contract matter, a variation or a certificate by its own route, for its amount only. A matter with no route to follow
+  // names nobody, and only the organisation-wide permission opens it.
+  const links = await db.committeeDecision.findMany({ where: { id: { in: asked.map((a) => a.id) }, meeting: { committee: { organisationId: actor.organisationId } } }, select: { id: true, requisitionId: true, approvalStep: { select: { instanceId: true } } } });
+  const linkOf = new Map(links.map((l) => [l.id, l]));
+  return sulitGates(
+    actor,
+    asked.map((a): GateSubject => {
+      const l = linkOf.get(a.id);
+      const routedFrom: RoutedFrom | null = a.scope === "requisition" ? (l?.requisitionId ? { kind: "requisition", id: l.requisitionId } : l?.approvalStep ? { kind: "instance", id: l.approvalStep.instanceId } : null) : l?.approvalStep ? { kind: "instance", id: l.approvalStep.instanceId } : null;
+      return { ...a, routedFrom };
+    }),
+    ["matterAmount"],
+  );
 }
 
 /// `sulitGate` for an exercise (or its evaluation) named by its id: the reference is read for the log. An exercise that is not the organisation's is withheld.

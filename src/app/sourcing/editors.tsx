@@ -298,7 +298,7 @@ export function AddParticipantDrawer({ id, people }: { id: string; people: Optio
   return (
     <RecordEditor
       title="Name a participant"
-      description="Who may see this exercise when its method restricts it. Anyone who must approve a route for it, or sit on its committee, has to be named here: holding the office does not open it. The list is on the record."
+      description="Who may see this exercise when its method restricts it. Anyone who is able to decide a step of a route for it, anyone who has decided one, and the members of the committee a matter of it is tabled to are named by that, and need not be named here. The list is on the record."
       fields={[
         hidden("id"),
         { kind: "select", name: "personId", label: "Person", required: true, placeholder: "Choose", options: people },
