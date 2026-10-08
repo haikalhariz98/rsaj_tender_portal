@@ -7,6 +7,7 @@ import { someoneCanAct } from "@/lib/authority/absence";
 import { KIND_WORDS } from "@/lib/certificate/labels";
 import { EVENT_WORDS } from "@/lib/variation/labels";
 import { dayToDate, todayIn } from "@/lib/dates";
+import { senFromDecimal } from "@/lib/money";
 import { approvalRouteNotHidden } from "@/lib/auth/sulit-store";
 import { db } from "@/lib/db";
 import { exerciseRouteMatter } from "@/lib/method/approval";
@@ -20,7 +21,8 @@ import { holdersFor } from "@/lib/requisition/holders";
 import { APPLICATION_KIND_LABEL, REQUEST_KIND_LABEL } from "@/lib/suppliers/labels";
 import { supplierHolders } from "@/lib/suppliers/route";
 
-import { officeQueue, type QueueStep } from "./queue";
+import { decidingDelegates, nextStep, officeQueue, type QueueStep } from "./queue";
+import { requesterRelation, routeRequesterId, type RequesterRouteKind } from "./requester";
 
 /// `hidden`: the restricted exercises the reader may not see. A route on one (its name, its award, a special permission on it) is not in the queue (FR-MTD-007).
 export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
@@ -37,10 +39,10 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
         exercise: { select: { id: true, reference: true, title: true, requisition: { select: { sectionUnitCode: true, requestingUnitCode: true, requestingPersonId: true } } } },
         award: { select: { id: true, reference: true, awardeeName: true } },
         // 6.15 (OD-2 A): a supplier's registration, decided on its own route.
-        supplierApplication: { select: { kind: true, supplier: { select: { id: true, reference: true, registeredName: true } } } },
+        supplierApplication: { select: { kind: true, submittedByPersonId: true, supplier: { select: { id: true, reference: true, registeredName: true } } } },
         // 6.15a (OD-8 A, FR-ADV-017): a blacklisting or its lifting, and a special permission.
-        standingRequest: { select: { kind: true, supplier: { select: { id: true, reference: true, registeredName: true } } } },
-        specialPermission: { select: { exercise: { select: { id: true, reference: true } }, party: { select: { name: true, vendorId: true } } } },
+        standingRequest: { select: { kind: true, requestedByPersonId: true, supplier: { select: { id: true, reference: true, registeredName: true } } } },
+        specialPermission: { select: { requestedByPersonId: true, exercise: { select: { id: true, reference: true } }, party: { select: { name: true, vendorId: true } } } },
         // 6.13 Part A step 3 (614-C4): a certificate's route, decided on the certificate's page.
         certificate: { select: { id: true, kind: true, number: true, contract: { select: { id: true, number: true, award: { select: { awardeeName: true, exercise: { select: { requisition: { select: { sectionUnitCode: true, requestingUnitCode: true, requestingPersonId: true } } } } } } } } } },
         // 6.13 Part A step 4 (614-C4): a variation's route, decided on the variation's page.
@@ -58,12 +60,22 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
   const available = (pid: string) => !!people.get(pid)?.isActive && !!people.get(pid)?.isAvailable;
   const unitOf = new Map<string, string>();
   const barredOf = new Map<string, string[]>();
+  const relationOf = new Map<string, ReturnType<typeof requesterRelation>>();
+  const valueOf = new Map<string, bigint>();
+  const supplierMatter = (r: { supplierApplication: unknown; standingRequest: unknown; specialPermission: unknown }) => !!(r.supplierApplication || r.standingRequest || r.specialPermission);
   const items: QueueStep[] = [];
   for (const r of routes) {
     const req = r.requisition ?? r.exercise?.requisition ?? r.certificate?.contract.award.exercise.requisition ?? r.variation?.contract.award.exercise.requisition ?? null;
     if (req) unitOf.set(r.id, req.sectionUnitCode || req.requestingUnitCode);
-    // Who may not decide it: the officer who raised the requisition behind it, and whoever sent the route (FR-APR-008).
-    barredOf.set(r.id, [...new Set([req?.requestingPersonId, r.submittedByPersonId].filter((x): x is string => !!x))]);
+    // Who may not decide it (FR-APR-008): the one person the decision rule for this kind of route bars (`routeRequesterId`), never a union of the rules of every kind.
+    const kind: RequesterRouteKind | null = r.variation?.id ? "VARIATION" : r.certificate?.id ? "CERTIFICATE" : r.award && r.exercise ? "APPOINTMENT" : r.exercise ? "NAME_APPROVAL" : r.requisition ? "REQUISITION" : r.supplierApplication ? "SUPPLIER_APPLICATION" : r.standingRequest ? "STANDING_REQUEST" : r.specialPermission ? "SPECIAL_PERMISSION" : null;
+    const barred = kind
+      ? routeRequesterId(kind, { requisitionRaiserId: req?.requestingPersonId, routeSenderId: r.submittedByPersonId, applicationSenderId: r.supplierApplication?.submittedByPersonId, requestRaiserId: r.standingRequest?.requestedByPersonId ?? r.specialPermission?.requestedByPersonId })
+      : null;
+    barredOf.set(r.id, barred ? [barred] : []);
+    relationOf.set(r.id, kind ? requesterRelation(kind) : "RAISED");
+    // What a delegate's ceiling is judged against: the route's own figure, as the decision rules read it. A supplier matter has none (it is routed on no value).
+    valueOf.set(r.id, supplierMatter(r) ? 0n : r.value == null ? 0n : senFromDecimal(r.value));
     const matter = r.variation?.id
       ? { label: `${r.variation.contract.number} · ${r.variation.contract.award.awardeeName} · Variation ${r.variation.reference ?? ""}`.trim(), kind: r.variationApproval ? EVENT_WORDS[r.variationApproval.event].en : "Variation", href: `/projects/${r.variation.contract.id}/variations/${r.variation.id}?tab=approval` }
       : r.certificate?.id
@@ -86,10 +98,12 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
                   ? { label: `${r.specialPermission.exercise.reference} · ${r.specialPermission.party.name}`, kind: "Special permission", href: r.specialPermission.party.vendorId ? `/suppliers/${r.specialPermission.party.vendorId}?tab=participation` : `/sourcing/${r.specialPermission.exercise.id}` }
                   : null;
     if (!matter) continue;
-    items.push({ routeId: r.id, matterLabel: matter.label, matterKindLabel: matter.kind, href: matter.href, openedAt: r.openedAt, steps: r.steps, barredIds: barredOf.get(r.id) ?? [] });
+    items.push({ routeId: r.id, matterLabel: matter.label, matterKindLabel: matter.kind, href: matter.href, openedAt: r.openedAt, steps: r.steps, value: valueOf.get(r.id) ?? null, barredIds: barredOf.get(r.id) ?? [], barredRelation: relationOf.get(r.id) ?? "RAISED" });
   }
   // 6.15: a supplier matter has no unit; its offices are held organisation-wide (supplierHolders).
   const supplierRoutes = new Set(routes.filter((r) => r.supplierApplication || r.standingRequest || r.specialPermission).map((r) => r.id));
+  const stepOfRoute = new Map(items.map((i) => [i.routeId, nextStep(i.steps)]));
+  const valueOfRoute = new Map(items.map((i) => [i.routeId, i.value]));
   // Who holds the acting office for the route's matter today: the one reading both questions below ask, so "nobody able to act" and "whose step is it" cannot disagree.
   const holdersOf = (routeId: string, office: string): ReturnType<typeof holdersFor> | null => {
     if (!today) return null;
@@ -109,7 +123,9 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
     },
     (routeId, office, committee) => {
       const h = committee || !office ? null : holdersOf(routeId, office);
-      return h ? { holderIds: h.holderIds, delegateIds: h.delegates.map((d) => d.personId) } : { holderIds: [], delegateIds: [] };
+      // The delegates who would not be refused: not those capped below the route's value, and none where the step is the holder's alone (FR-APR-018's count is of steps a person can decide).
+      const step = stepOfRoute.get(routeId);
+      return h ? { holderIds: h.holderIds, delegateIds: decidingDelegates(h.delegates, step ?? {}, valueOfRoute.get(routeId)).map((d) => d.personId) } : { holderIds: [], delegateIds: [] };
     },
   );
   return { today, timeZone: org.timeZone, groups, linesRecorded: anyLineRecorded(lines) };

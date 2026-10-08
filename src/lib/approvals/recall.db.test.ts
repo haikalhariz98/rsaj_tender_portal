@@ -142,6 +142,73 @@ async function exercise(requisitionId: string) {
   return id;
 }
 
+describe("a requisition sent by a clerk for a requester without an account (Phase 3c review)", () => {
+  it("is recalled by the clerk who sent it, and by nobody else", async () => {
+    const { recallRequisition } = await import("@/app/requisitions/actions");
+    const id = await requisition();
+    const r = await route({ requisitionId: id, domain: "requisition", submittedBy: sender });
+    expect(await as(stranger, () => recallRequisition({ ok: false }, form({ id, reason: "Not mine" })))).toMatchObject({ ok: false, message: expect.stringMatching(/Only the person who sent this approval/) });
+    expect(await as(sender, () => recallRequisition({ ok: false }, form({ id, reason: "I keyed it too early" })))).toEqual({ ok: true });
+    expect((await db.approvalInstance.findUniqueOrThrow({ where: { id: r.id } })).status).toBe("RECALLED");
+  });
+});
+
+describe("a committee's answer cannot be recalled away (Phase 3c review)", () => {
+  async function decided(over: { exerciseId?: string; requisitionId?: string; domain: string; outcome: "CARRIED" | "NOT_CARRIED" | "DEFERRED"; tabledAt: Date; withdrawn?: boolean }) {
+    const committee = await db.committee.create({ data: { organisationId, code: `RD_${randomId()}`, nameEn: "Decided committee", mandate: "Tests.", governingSource: "None." } });
+    const meeting = await db.meeting.create({ data: { committeeId: committee.id, reference: `RD/${randomId()}`, meetingDate: day("2026-10-20") } });
+    await db.committeeDecision.create({
+      data: {
+        meetingId: meeting.id, domain: over.domain, subject: "A decided matter", matterKind: over.exerciseId ? "EXERCISE" : "REQUISITION", exerciseId: over.exerciseId ?? null, requisitionId: over.requisitionId ?? null,
+        outcome: over.outcome, decisionDate: day("2026-10-20"), tabledAt: over.tabledAt, ...(over.outcome === "NOT_CARRIED" ? { outcomeNote: "No." } : {}), ...(over.withdrawn ? { withdrawnAt: new Date(), withdrawnReason: "Withdrawn." } : {}),
+      },
+    });
+  }
+  const ago = () => new Date(Date.now() - 3 * 86_400_000);
+  const soon = () => new Date(Date.now() + 60_000);
+
+  it("refuses the name's recall after a NOT_CARRIED vote while an earlier step is still pending, and the route stays open", async () => {
+    const { recallNameApproval } = await import("@/app/sourcing/actions");
+    const reqId = await requisition("DRAFT");
+    const ex = await exercise(reqId);
+    const sent = await route({ requisitionId: reqId, exerciseId: ex, domain: "name_approval", submittedBy: sender });
+    await decided({ exerciseId: ex, domain: "name_approval", outcome: "NOT_CARRIED", tabledAt: soon() });
+    expect(await as(sender, () => recallNameApproval({ ok: false }, form({ id: ex, reason: "Round it again" })))).toMatchObject({ ok: false, message: expect.stringMatching(/committee has already decided/) });
+    expect((await db.approvalInstance.findUniqueOrThrow({ where: { id: sent.id } })).status).toBe("PENDING");
+  });
+
+  it("refuses the requisition's and the award's recall the same way", async () => {
+    const { recallRequisition } = await import("@/app/requisitions/actions");
+    const reqA = await requisition();
+    await route({ requisitionId: reqA, domain: "requisition" });
+    await decided({ requisitionId: reqA, domain: "requisition", outcome: "CARRIED", tabledAt: soon() });
+    expect(await recallRequisition({ ok: false }, form({ id: reqA, reason: "Too late" }))).toMatchObject({ ok: false, message: expect.stringMatching(/committee has already decided/) });
+
+    const { recallAward } = await import("@/app/awards/actions");
+    const reqB = await requisition("DRAFT");
+    const ex = await exercise(reqB);
+    const awardId = `rd_aw_${randomId()}`;
+    await db.award.create({ data: { id: awardId, organisationId, reference: `RD/AW/${randomId()}`, exerciseId: ex, instrumentKind: "WORK_INDENT", awardeeName: "A Contractor", awardedValue: "1000.00", completionPeriod: 30, completionUnit: "DAYS", status: "PENDING_APPROVAL" } });
+    const sent = await route({ requisitionId: reqB, exerciseId: ex, awardId, domain: "appointment", submittedBy: sender });
+    await decided({ exerciseId: ex, domain: "appointment", outcome: "NOT_CARRIED", tabledAt: soon() });
+    expect(await as(sender, () => recallAward({ ok: false }, form({ id: awardId, reason: "Terms are wrong" })))).toMatchObject({ ok: false, message: expect.stringMatching(/committee has already decided/) });
+    expect((await db.approvalInstance.findUniqueOrThrow({ where: { id: sent.id } })).status).toBe("PENDING");
+    expect((await db.award.findUniqueOrThrow({ where: { id: awardId } })).status).toBe("PENDING_APPROVAL");
+  });
+
+  it("does not count a decision from an earlier round, a deferral or a withdrawn matter", async () => {
+    const { recallNameApproval } = await import("@/app/sourcing/actions");
+    const reqId = await requisition("DRAFT");
+    const ex = await exercise(reqId);
+    const sent = await route({ requisitionId: reqId, exerciseId: ex, domain: "name_approval", submittedBy: sender });
+    await decided({ exerciseId: ex, domain: "name_approval", outcome: "NOT_CARRIED", tabledAt: ago() });
+    await decided({ exerciseId: ex, domain: "name_approval", outcome: "DEFERRED", tabledAt: soon() });
+    await decided({ exerciseId: ex, domain: "name_approval", outcome: "CARRIED", tabledAt: soon(), withdrawn: true });
+    expect(await as(sender, () => recallNameApproval({ ok: false }, form({ id: ex, reason: "Wrong list" })))).toEqual({ ok: true });
+    expect((await db.approvalInstance.findUniqueOrThrow({ where: { id: sent.id } })).status).toBe("RECALLED");
+  });
+});
+
 describe("recalling the name's route", () => {
   it("is refused to anyone but whoever sent it, on a route sent before the sender was recorded, and after a decision", async () => {
     const { recallNameApproval } = await import("@/app/sourcing/actions");

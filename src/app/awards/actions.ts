@@ -68,8 +68,9 @@ import type { ContractStatus } from "@/lib/contract/types";
 import { afterStep, audit, CHANGED, citeAppointmentStep, labelOf, mustMove, NO_ZONE, Refusal, routeLabel, sendAwardRejected } from "@/lib/award/route-write";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
-import { noticeRecall } from "@/lib/approvals/recall-store";
+import { committeeStandingOf, noticeRecall } from "@/lib/approvals/recall-store";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
+import { routeRequesterId } from "@/lib/approvals/requester";
 
 /**
  * Writes for awards (6.11) and the registers on their contracts.
@@ -546,8 +547,8 @@ export async function recallAward(_prev: FormState, data: FormData): Promise<For
     const a = l.award;
     const inst = a.approvalInstances.find((i) => i.status === "PENDING" && i.domain === APPOINTMENT_DOMAIN);
     if (!inst) return { ok: false, message: RECALL_FAULT_TEXT.ROUTE_NOT_OPEN };
-    const tabled = await tx.committeeDecision.count({ where: { exerciseId: l.ex.id, domain: inst.domain, outcome: "PENDING", withdrawnAt: null } });
-    const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: tabled, originatorIds: inst.submittedByPersonId ? [inst.submittedByPersonId] : [], actorPersonId: actor.personId, reason });
+    const standing = await committeeStandingOf(tx, { exerciseId: l.ex.id }, inst.domain, inst.createdAt);
+    const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: standing.awaiting, committeeDecided: standing.decided, originatorIds: inst.submittedByPersonId ? [inst.submittedByPersonId] : [], actorPersonId: actor.personId, reason });
     if (refused) return { ok: false, message: RECALL_FAULT_TEXT[refused] };
     const t = awardTransition(a.status as AwardStatus, "DRAFT", { today: l.org.today });
     if (t === "TIME_ZONE_UNSET") return NO_ZONE;
@@ -638,7 +639,7 @@ export async function decideAppointmentStep(_prev: FormState, data: FormData): P
       holders: actingOffice(step) ? holdersFor(actingOffice(step)!, f.unitPath, f.roster, f.delegations, decidedOn) : { scope: null, holderIds: [], delegates: [] },
       declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
       person,
-      requesterId: l.req.requestingPersonId,
+      requesterId: routeRequesterId("APPOINTMENT", { requisitionRaiserId: l.req.requestingPersonId }) ?? "",
       recorderId: act.recorderId,
       endorserIds: [],
       // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).

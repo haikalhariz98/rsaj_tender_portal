@@ -42,6 +42,7 @@ import { FormReader } from "@/lib/validate";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, lockOrganisation, NO_ORG, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { routeRequesterId } from "@/lib/approvals/requester";
 
 /**
  * The staff-side supplier register's acts (plan 6.15 §4.1, increment a1; ADR 0019). An officer records a
@@ -651,7 +652,7 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
       holders: office ? supplierHolders(office, roster, delegations, decidedOn) : { scope: null, holderIds: [], delegates: [] },
       declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
       person,
-      requesterId: a.submittedByPersonId ?? "",
+      requesterId: routeRequesterId("SUPPLIER_APPLICATION", { applicationSenderId: a.submittedByPersonId }) ?? "",
       recorderId: act.recorderId,
       endorserIds: [],
       // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).

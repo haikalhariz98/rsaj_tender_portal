@@ -40,6 +40,7 @@ import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
 import { certificateLabel, loadCertificate } from "./repo";
 import { certificateDeciderText } from "./route-words";
 import { CertificateRefusal, voidCertificate, type CertCtx } from "./write";
+import { routeRequesterId } from "@/lib/approvals/requester";
 
 /// Where a certificate's refused route may go (FR-APR-016): every kind the engine knows.
 export const CERTIFICATE_SUPPORTS: readonly RejectionKind[] = ["RETURN_TO_ORIGINATOR", "RETURN_TO_STEP", "TERMINATE"];
@@ -157,7 +158,7 @@ export async function decideCertificateStep(c: CertCtx, i: DecideInput) {
     declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
     person: person ? { id: person.id, isActive: person.isActive } : null,
     // FR-APR-006: whoever sent the certificate for approval does not decide it.
-    requesterId: inst.submittedByPersonId ?? "",
+    requesterId: routeRequesterId("CERTIFICATE", { routeSenderId: inst.submittedByPersonId }) ?? "",
     recorderId: i.act.recorderId,
     endorserIds: [],
     // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).

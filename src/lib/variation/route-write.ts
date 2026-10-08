@@ -61,6 +61,7 @@ import { ratioOf, type Reading } from "./percent";
 import { edgesOf, regimeOf, resolveVariationRoute, routeDomainOf, routePercentLabel } from "./route";
 import type { Finding, VariationEvent } from "./types";
 import { linkedVia, type CiteVia } from "@/lib/committee/cite-via";
+import { routeRequesterId } from "@/lib/approvals/requester";
 
 /// A refusal: rolls the transaction back. `errors` names a field where the refusal is about one.
 export class VariationRefusal extends Error {
@@ -226,7 +227,7 @@ export async function decideVariationStep(c: VariationCtx, v: VariationRow, i: D
     declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
     person: person ? { id: person.id, isActive: person.isActive } : null,
     // FR-APR-006: whoever sent the variation for approval does not decide it.
-    requesterId: inst.submittedByPersonId ?? "",
+    requesterId: routeRequesterId("VARIATION", { routeSenderId: inst.submittedByPersonId }) ?? "",
     recorderId: i.act.recorderId,
     endorserIds: [],
     // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).

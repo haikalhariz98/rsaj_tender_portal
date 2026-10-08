@@ -56,6 +56,7 @@ import type { ContractMatterKind } from "./matter";
 import { closeMatter, markSent, matterLabel, writeApprovalOfRecord } from "./write";
 import { linkedVia, type CiteVia } from "@/lib/committee/cite-via";
 import type { AuditActor } from "@/lib/auth/types";
+import { routeRequesterId } from "@/lib/approvals/requester";
 
 /// A refusal: rolls the transaction back. `errors` names a field where the refusal is about one.
 export class MatterRefusal extends Error {
@@ -219,7 +220,7 @@ export async function decideMatterStep(c: MatterCtx, m: MatterRow, i: DecideInpu
     declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
     person: person ? { id: person.id, isActive: person.isActive } : null,
     // FR-APR-006: whoever sent the matter for approval does not decide it.
-    requesterId: inst.submittedByPersonId ?? "",
+    requesterId: routeRequesterId("CONTRACT_MATTER", { routeSenderId: inst.submittedByPersonId }) ?? "",
     recorderId: i.act.recorderId,
     endorserIds: [],
     // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).

@@ -27,6 +27,8 @@ import { Stepper } from "@/components/ui/stepper";
 import { Accordion } from "@/components/accordion";
 import { routeSteps } from "@/lib/approvals/route-steps";
 import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
+import { routeRequesterId } from "@/lib/approvals/requester";
+import { committeeStandingOf } from "@/lib/approvals/recall-store";
 import { CellStack, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { fieldLabel } from "@/lib/audit/diff";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
@@ -358,7 +360,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         today,
         holders: h,
         person,
-        requesterId: r.requestingPersonId,
+        requesterId: routeRequesterId("REQUISITION", { requisitionRaiserId: r.requestingPersonId }) ?? "",
         earlier: earlierByStep.get(step.id) ?? NO_EARLIER_RECORDERS,
         endorserIds: [],
         endorsements: r.endorsements.map((e) => ({ personId: e.personId, unitCode: e.unitCode })),
@@ -389,7 +391,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
 
   const recallBlock = r.status === "PENDING_APPROVAL" ? transitionFault(r.status, "RECALLED", { today, anyStepDone: open?.steps.some((s) => s.decision !== "PENDING") ?? false }) : null;
   // FR-APR-017: only the originator recalls. The action asks the same rule again, and also whether the matter is on a committee's agenda.
-  const recallRule = r.status === "PENDING_APPROVAL" && open ? recallFault({ routeStatus: open.status, steps: open.steps, tabledAwaitingDecision: 0, originatorIds: [r.requestingPersonId], actorPersonId: actor.personId, reason: "asked" }) : null;
+  const requisitionStanding = r.status === "PENDING_APPROVAL" && open ? await committeeStandingOf(db, { requisitionId: r.id }, open.domain, open.createdAt) : null;
+  const recallRule = r.status === "PENDING_APPROVAL" && open ? recallFault({ routeStatus: open.status, steps: open.steps, tabledAwaitingDecision: requisitionStanding?.awaiting ?? 0, committeeDecided: requisitionStanding?.decided ?? 0, originatorIds: [...new Set([r.requestingPersonId, open.submittedByPersonId].filter((x): x is string => !!x))], actorPersonId: actor.personId, reason: "asked" }) : null;
   const locked = !["DRAFT"].includes(r.status);
   const sentBack = sentBackBy(r.status, r.approvalInstances, r.returnedOn);
   const erpFirst = r.erpRequisitionNo ? `${r.erpRequisitionNo} · ${r.reference}` : r.reference;

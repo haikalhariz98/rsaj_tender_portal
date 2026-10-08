@@ -61,9 +61,10 @@ import { nameListFault } from "@/lib/window/invitees";
 import { audit, CHANGED, citeNameStep, labelOf, nameLabel, nameSupports, Refusal, refuse, sendNameRejected } from "@/lib/method/name-route-write";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
-import { noticeRecall } from "@/lib/approvals/recall-store";
+import { committeeStandingOf, noticeRecall } from "@/lib/approvals/recall-store";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
+import { routeRequesterId } from "@/lib/approvals/requester";
 
 /**
  * Writes for sourcing exercises (6.3).
@@ -666,8 +667,8 @@ export async function recallNameApproval(_prev: FormState, data: FormData): Prom
     const ex = l.ex;
     const inst = nameRoutesOf(ex.approvalInstances).find((i) => i.status === "PENDING");
     if (!inst) return { ok: false, message: RECALL_FAULT_TEXT.ROUTE_NOT_OPEN };
-    const tabled = await tx.committeeDecision.count({ where: { exerciseId: ex.id, domain: inst.domain, outcome: "PENDING", withdrawnAt: null } });
-    const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: tabled, originatorIds: inst.submittedByPersonId ? [inst.submittedByPersonId] : [], actorPersonId: actor.personId, reason });
+    const standing = await committeeStandingOf(tx, { exerciseId: ex.id }, inst.domain, inst.createdAt);
+    const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: standing.awaiting, committeeDecided: standing.decided, originatorIds: inst.submittedByPersonId ? [inst.submittedByPersonId] : [], actorPersonId: actor.personId, reason });
     if (refused) return { ok: false, message: RECALL_FAULT_TEXT[refused] };
     const warning = { code: "RECALLED_BY_ORIGINATOR", level: "info", messageEn: `Recalled by ${actor.personName} before any decision: ${reason}` };
     const moved = await tx.approvalInstance.updateMany({ where: { id: inst.id, organisationId: actor.organisationId, status: "PENDING" }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
@@ -716,7 +717,7 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
       declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
       person,
       // Nobody decides the name for an exercise on a requisition they raised.
-      requesterId: l.req.requestingPersonId,
+      requesterId: routeRequesterId("NAME_APPROVAL", { requisitionRaiserId: l.req.requestingPersonId }) ?? "",
       recorderId: act.recorderId,
       endorserIds: [],
       // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).

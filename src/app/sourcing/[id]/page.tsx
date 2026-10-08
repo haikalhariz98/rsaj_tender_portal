@@ -14,6 +14,7 @@ import { Tabs } from "@/components/tabs";
 import { ActBadge, actLabel, isMandatoryAct } from "@/components/ui/act";
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
+import { committeeStandingOf } from "@/lib/approvals/recall-store";
 import { earlierSteps, returnTargetBeforeNext, type RejectionKind } from "@/lib/authority/rejection";
 import { routeCoreText } from "@/lib/authority/core-routing-labels";
 import { appliedText, CHOICE_WHY_TEXT, ifRejectedText, REJECTION_KIND_LABEL } from "@/lib/authority/rejection-labels";
@@ -219,7 +220,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const openName = nameRoutes.find((i) => i.status === "PENDING") ?? null;
   const approvedName = nameRoutes.find((i) => i.status === "APPROVED") ?? null;
   // FR-APR-017: only the originator recalls, before any decision. The action asks the same rule again, and also whether the matter is on a committee's agenda.
-  const nameRecallRule = openName ? recallFault({ routeStatus: openName.status, steps: openName.steps, tabledAwaitingDecision: 0, originatorIds: openName.submittedByPersonId ? [openName.submittedByPersonId] : [], actorPersonId: actor.personId, reason: "asked" }) : null;
+  const nameStanding = openName ? await committeeStandingOf(db, { exerciseId: ex.id }, openName.domain, openName.createdAt) : null;
+  const nameRecallRule = openName ? recallFault({ routeStatus: openName.status, steps: openName.steps, tabledAwaitingDecision: nameStanding?.awaiting ?? 0, committeeDecided: nameStanding?.decided ?? 0, originatorIds: openName.submittedByPersonId ? [openName.submittedByPersonId] : [], actorPersonId: actor.personId, reason: "asked" }) : null;
   const live = ex.status !== "CANCELLED";
   // The route as the request would make it: with the requester's own offices escalated,
   // or refused, and refused where they alone could act for a step (FR-APR-008, R1).

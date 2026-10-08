@@ -5,7 +5,7 @@ import { autoCheck, budgetCheckRefusal } from "@/lib/requisition/auto-check";
 import { MISSING_BUDGET_CODE_TEXT, missingBudgetCode } from "@/lib/requisition/budget-code";
 import { routedValue } from "@/lib/approvals/routed-value";
 import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
-import { noticeRecall } from "@/lib/approvals/recall-store";
+import { committeeStandingOf, noticeRecall } from "@/lib/approvals/recall-store";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { revalidatePath } from "next/cache";
 
@@ -90,6 +90,7 @@ import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
+import { routeRequesterId } from "@/lib/approvals/requester";
 
 /**
  * Writes for requisitions.
@@ -645,6 +646,11 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
   const invoked = data.get("invokeOverBudget") != null;
+  // The person who sends it is recorded as its sender, always the signed-in officer's own act: with the officer who raised the request, they are who can recall it before a
+  // decision (FR-APR-017). A requisition keyed from paper for a requester who has no account can then still be recalled by the clerk who sent it (Phase 3c review).
+  const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
 
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const req = l.req;
@@ -785,6 +791,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
         warnings: warnings as unknown as Prisma.InputJsonValue,
         status: "PENDING",
         openedAt: today,
+        submittedByPersonId: act.subjectPersonId,
         // Where a rejection would send it, as configured now (FR-APR-016, ruling CO-4).
         ...rejectionSnapshot(await loadDestinations(tx, l.org.id), REQUISITION_DOMAIN, today, new Date()),
         // The core routing behind the chain, as it stood (FR-APR-004, ruling C4).
@@ -803,6 +810,7 @@ export async function submitRequisition(_prev: FormState, data: FormData): Promi
         },
       },
     });
+    await act.write(tx, instance.id);
     const after = {
       status: "PENDING_APPROVAL" as const,
       fundingSupersedesAuthority: gate.supersedesAuthority,
@@ -963,7 +971,7 @@ export async function recordDecision(_prev: FormState, data: FormData): Promise<
       holders: actingOffice(step) ? holdersFor(actingOffice(step)!, unitPath, roster, delegations, decidedOn) : { scope: null, holderIds: [], delegates: [] },
       declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
       person,
-      requesterId: l.req.requestingPersonId,
+      requesterId: routeRequesterId("REQUISITION", { requisitionRaiserId: l.req.requestingPersonId }) ?? "",
       recorderId: act.recorderId,
       // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).
       earlier: await earlierRecordersOf(tx, l.org.id, { requisitionId: l.req.id, otherStepIds: inst.steps.filter((s) => s.id !== step.id && s.decidedByPersonId).map((s) => s.id) }),
@@ -1083,10 +1091,12 @@ export async function recallRequisition(_prev: FormState, data: FormData): Promi
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const inst = openInstance(l);
-    // FR-APR-017: only the originator (the officer who raised the request) recalls, before any decision, and not from under a committee's agenda.
+    // FR-APR-017: only the originator (the officer who raised the request, or whoever sent it) recalls, before any decision, and not from under a committee's agenda.
     if (inst) {
-      const tabled = await tx.committeeDecision.count({ where: { requisitionId: id, domain: inst.domain, outcome: "PENDING", withdrawnAt: null } });
-      const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: tabled, originatorIds: [l.req.requestingPersonId], actorPersonId: actor.personId, reason });
+      const standing = await committeeStandingOf(tx, { requisitionId: id }, inst.domain, inst.createdAt);
+      // The officer who raised the request, and whoever sent it (a requisition keyed from paper for a requester without an account is sent by the clerk).
+      const originators = [...new Set([l.req.requestingPersonId, inst.submittedByPersonId].filter((x): x is string => !!x))];
+      const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: standing.awaiting, committeeDecided: standing.decided, originatorIds: originators, actorPersonId: actor.personId, reason });
       if (refused) return { ok: false, message: RECALL_FAULT_TEXT[refused] };
     }
     const fault = transitionFault(l.req.status, "RECALLED", { today: l.org.today, anyStepDone: inst?.steps.some((s) => s.decision !== "PENDING") ?? false });

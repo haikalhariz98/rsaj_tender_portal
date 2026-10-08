@@ -26,6 +26,7 @@ import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { activePerson, audit, CHANGED, notes, NO_ORG, refuse, Refusal, stampNow } from "./shared";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { routeRequesterId } from "@/lib/approvals/requester";
 
 /**
  * The register's acts that touch an exercise too (plan 6.15 §4.2, OD-9, FR-ADV-017): linking a party,
@@ -237,7 +238,7 @@ export async function decidePermissionStep(_prev: FormState, data: FormData): Pr
     const perm = await tx.specialPermission.findUniqueOrThrow({ where: { id: perm0.id, organisationId: actor.organisationId }, include: { party: { select: { name: true } }, routes: { where: { status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } } } });
     const full = perm.routes.find((x) => x.steps.some((s) => s.id === stepId));
     if (!full) return { ok: false, message: "That step is not on a route awaiting a decision." };
-    const res = await decideSupplierStep(tx, toAuditActor(actor), l.org, full, stepId, { decision, act, document: { entity: "SpecialPermission", id: perm.id }, decidedOn: on, reason, requesterId: perm.requestedByPersonId, routeLabel: `${l.ex.reference} · Special permission for ${perm.party.name} · route`, refusedGoesTo: PERMISSION_REFUSED_DECIDED_BY, now });
+    const res = await decideSupplierStep(tx, toAuditActor(actor), l.org, full, stepId, { decision, act, document: { entity: "SpecialPermission", id: perm.id }, decidedOn: on, reason, requesterId: routeRequesterId("SPECIAL_PERMISSION", { requestRaiserId: perm.requestedByPersonId }) ?? "", routeLabel: `${l.ex.reference} · Special permission for ${perm.party.name} · route`, refusedGoesTo: PERMISSION_REFUSED_DECIDED_BY, now });
     if ("refused" in res) return res.refused;
     if (res.outcome === "REJECTED") return { ok: true, message: "Refused on its route: the permission is not granted." };
     if (res.outcome === "APPROVED") return { ok: true, message: "Approved on its route. Record the day it was granted." };

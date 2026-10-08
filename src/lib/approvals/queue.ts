@@ -9,7 +9,10 @@
  * Pure.
  */
 
+import { parseSen } from "@/lib/money";
 import { daysBetween } from "@/lib/requisition/types";
+
+import type { requesterRelation } from "./requester";
 
 export interface QueueStep {
   routeId: string;
@@ -30,10 +33,16 @@ export interface QueueStep {
     decidedOn: Date | null;
     escalation: "NO_AVAILABLE_HOLDER" | "CONFLICT_DECLARED" | null;
     escalationReason: string | null;
+    /// A step only the holder of the office may decide: a delegate of it cannot (FR-APR-009). Unknown: delegable.
+    nonDelegable?: boolean;
   }[];
   openedAt: Date;
-  /// People who may not decide this matter because they raised or sent it (FR-APR-008). Unknown: none named.
+  /// What the route was resolved on, in sen: the figure a delegate's ceiling is judged against. Unknown: no ceiling is judged.
+  value?: bigint | null;
+  /// People who may not decide this matter because they raised or sent it (FR-APR-008). Unknown: none named. Which person that is depends on the kind of route (`requester.ts`).
   barredIds?: readonly string[];
+  /// How the barred person is related to the matter, for the words: they raised it, or they sent it.
+  barredRelation?: ReturnType<typeof requesterRelation>;
 }
 
 export interface QueueItem {
@@ -62,9 +71,24 @@ export interface QueueItem {
   delegateIds: readonly string[];
   /// People barred from deciding it because they raised or sent it.
   barredIds: readonly string[];
+  barredRelation: ReturnType<typeof requesterRelation>;
 }
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
+
+/**
+ * The delegates of an office who could decide a step, which is fewer than the delegates of the office: a step that only the holder may decide (`nonDelegable`) has none, and a
+ * delegation capped below the route's value cannot decide it either (the very checks `deciderFaults` makes, DELEGATION_NOT_PERMITTED and OVER_CEILING). My steps lists only what a
+ * person will not be refused. A null ceiling limits nothing; an unknown value (`null`) is judged against no ceiling.
+ */
+export function decidingDelegates<T extends { personId: string; delegation: { valueCeiling: string | null } }>(
+  delegates: readonly T[],
+  step: { nonDelegable?: boolean },
+  value: bigint | null | undefined,
+): T[] {
+  if (step.nonDelegable) return [];
+  return delegates.filter((d) => d.delegation.valueCeiling == null || value == null || value <= parseSen(d.delegation.valueCeiling));
+}
 
 /// The next step of each open route, in order: the first undecided one.
 export function nextStep<T extends { sequence: number; decision: string }>(steps: readonly T[]): T | null {
@@ -136,6 +160,7 @@ export function officeQueue(
       noneAvailable: noneAvailable(r.routeId, o.officeCode, !!s.committeeCode),
       ...(({ holderIds, delegateIds }) => ({ holderIds, delegateIds }))(deciders(r.routeId, o.officeCode, !!s.committeeCode)),
       barredIds: r.barredIds ?? [],
+      barredRelation: r.barredRelation ?? "RAISED",
     });
   }
   const groups = new Map<string, QueueItem[]>();

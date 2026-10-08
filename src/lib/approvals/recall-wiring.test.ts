@@ -40,6 +40,18 @@ describe("the recall acts ask the one rule", () => {
     expect(body).toMatch(/recallFault\(/);
     expect(body).toMatch(/RECALL_FAULT_TEXT\[refused\]/);
     expect(body).toMatch(/noticeRecall\(tx, actor/);
-    expect(body).toMatch(/committeeDecision\.count/);
+    // Phase 3c review: the count of the committee's matters moved out of the three acts into `committeeStandingOf` (one place, awaiting and decided), which all three call.
+    // The assertion that the committee's matters are counted is unchanged; it now reads the shared function, and the function counts both.
+    expect(body).toMatch(/committeeStandingOf\(tx, /);
+    expect(body).toMatch(/committeeDecided: standing\.decided/);
+  });
+
+  it("committeeStandingOf counts the matters awaiting a vote and the matters decided since the route opened", () => {
+    const store = read("src/lib/approvals/recall-store.ts");
+    const body = store.slice(store.indexOf("export async function committeeStandingOf"), store.indexOf("export async function noticeRecall"));
+    expect((body.match(/committeeDecision\.count/g) ?? []).length).toBe(2);
+    expect(body).toMatch(/outcome: "PENDING"/);
+    expect(body).toMatch(/outcome: \{ in: \["CARRIED", "NOT_CARRIED"\] \}/);
+    expect(body).toMatch(/withdrawnAt: null/);
   });
 });

@@ -12,6 +12,7 @@ import { ESCALATION_KIND_LABEL } from "@/lib/authority/escalation-labels";
 import { dayToDate } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { REPORTING_LINE_NOT_SET } from "@/lib/people/reporting-lines";
+import { BARRED_WORDS } from "@/lib/approvals/requester";
 import { requireStaff } from "@/app/_auth/actor";
 
 import { MoveAwayButton } from "./move-away-button";
@@ -52,7 +53,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
       why: {
         kind: "chips",
         items: [
-          ...(m.barred ? [{ text: "You raised it: you cannot decide it", tone: "warn" as const }] : [{ text: "Waiting for you", tone: "brand" as const, nowrap: true }]),
+          ...(m.barred ? [{ text: BARRED_WORDS[m.item.barredRelation], tone: "warn" as const }] : [{ text: "Waiting for you", tone: "brand" as const, nowrap: true }]),
           ...(m.item.escalation ? [{ text: ESCALATION_KIND_LABEL[m.item.escalation], tone: "warn" as const, nowrap: true }] : []),
         ],
       },

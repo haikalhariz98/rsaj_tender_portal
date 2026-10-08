@@ -25,6 +25,7 @@ import { activePerson, audit, CHANGED, GONE, inSupplier, label, refuse, Refusal,
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor, StaffActor } from "@/lib/auth/types";
+import { routeRequesterId } from "@/lib/approvals/requester";
 
 /**
  * A supplier's standing (FR-VND-010, FR-TRM-017, plan 6.15 §4.2, increment a2; FR-ADV-010 and 615-C2): suspended by an officer
@@ -224,7 +225,7 @@ export async function decideStandingStep(_prev: FormState, data: FormData): Prom
     const req = await tx.standingRequest.findUniqueOrThrow({ where: { id: requestId, organisationId: actor.organisationId }, include: { routes: { where: { status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } } } });
     const full = req.routes.find((x) => x.steps.some((s) => s.id === stepId));
     if (!full) return { ok: false, message: "That step is not on a route awaiting a decision." };
-    const res = await decideSupplierStep(tx, toAuditActor(actor), l.org, full, stepId, { decision, act, document: { entity: "StandingRequest", id: req.id }, decidedOn: on, reason, requesterId: req.requestedByPersonId, routeLabel: standingLabel(l, req.kind === "BLACKLIST" ? "Blacklisting route" : "Blacklisting lift route"), refusedGoesTo: STANDING_REFUSED_DECIDED_BY, now });
+    const res = await decideSupplierStep(tx, toAuditActor(actor), l.org, full, stepId, { decision, act, document: { entity: "StandingRequest", id: req.id }, decidedOn: on, reason, requesterId: routeRequesterId("STANDING_REQUEST", { requestRaiserId: req.requestedByPersonId }) ?? "", routeLabel: standingLabel(l, req.kind === "BLACKLIST" ? "Blacklisting route" : "Blacklisting lift route"), refusedGoesTo: STANDING_REFUSED_DECIDED_BY, now });
     if ("refused" in res) return res.refused;
     if (res.outcome === "REJECTED") return { ok: true, message: "Refused on its route: nothing is recorded. It may be asked for again." };
     if (res.outcome === "APPROVED") return { ok: true, message: `Approved on its route. Record the ${req.kind === "BLACKLIST" ? "blacklisting" : "lifting"} on the supplier's Standing tab, with the day it takes effect.` };

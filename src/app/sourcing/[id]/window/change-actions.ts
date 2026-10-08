@@ -42,6 +42,7 @@ import { audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refu
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
+import { routeRequesterId } from "@/lib/approvals/requester";
 
 /**
  * Changing the window after approval for tendering (plan §4.7; FR-ADV-015, 016; OD-5 A): a
@@ -336,7 +337,7 @@ export async function recordWindowChangeDecision(_prev: FormState, data: FormDat
       declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
       person,
       // Nobody decides a step of a matter on a requisition they raised.
-      requesterId: l.req.requestingPersonId,
+      requesterId: routeRequesterId("NAME_APPROVAL", { requisitionRaiserId: l.req.requestingPersonId }) ?? "",
       recorderId: act.recorderId,
       endorserIds: [],
       // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).
