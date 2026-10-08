@@ -33,7 +33,8 @@ import { checkPeriod, FormReader } from "@/lib/validate";
 import { issuedInForce } from "@/lib/authority/issue";
 import { inProgressSittingRefusal } from "@/lib/committee/sittings";
 import { splitValues } from "@/lib/ui/select-logic";
-import { requireStaff, staffForPermission, toAuditActor } from "@/app/_auth/actor";
+import { permissionGate, requireStaff, staffForPermission, toAuditActor } from "@/app/_auth/actor";
+import { marksAway } from "@/lib/people/mark-away";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { disableAccountOfLeaver, LeaverRefused } from "@/lib/auth/administration";
 import { delegationPersonsToCheck, delegationWhat, holdingGrows, officeWhat } from "@/lib/auth/administration-conflict";
@@ -131,6 +132,12 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
   } else {
     const before = await db.person.findUnique({ where: { id, organisationId: actor.organisationId } });
     if (!before) return { ok: false, message: "That person is no longer on record." };
+    // Product owner, 2026-10-08 (log line 1770): recording a person as away changes who decides their steps, so it needs `configuration.draft`, the key that gives and ends an
+    // office. Only the change from available to away; marking someone available again is not gated.
+    if (marksAway(before.isAvailable, v.isAvailable)) {
+      const gate = await permissionGate(actor, "configuration.draft");
+      if (!gate.ok) return { ok: false, message: gate.message };
+    }
     await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
       tx.person.update({ where: { id, organisationId: actor.organisationId }, data: v }),
     );

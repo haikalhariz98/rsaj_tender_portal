@@ -97,6 +97,7 @@ export default async function UsersPage({
         delegations={delegations}
         lines={lines.map((l) => ({ id: l.id, personId: l.personId, superiorPersonId: l.superiorPersonId, effectiveFrom: l.effectiveFrom, effectiveTo: l.effectiveTo, provenance: l.provenance, note: l.note }))}
         stuck={stuck}
+        mayMarkAway={actor.permissions.has("configuration.draft")}
         upload={uploadView(upload ?? EMPTY_UPLOAD)}
         units={units}
         product={{

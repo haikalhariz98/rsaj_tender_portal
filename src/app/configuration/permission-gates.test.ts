@@ -63,7 +63,9 @@ const GIVES_AUTHORITY: Record<string, [string, Key][]> = {
 
 /// What is left asking only who is signed in, with the reason it is not gated yet. An open item for the product owner: which permission governs it.
 const NOT_YET: Record<string, string> = {
-  "users.savePerson": "A person's own record (name, staff number): not an authority. Which permission edits a person is the product owner's to say.",
+  // Ruling of 2026-10-08 (log line 1770): editing a person's own record (name, staff number) is still not an authority and asks only who is signed in, but the one change that is
+  // one, recording a person as away, asks `configuration.draft` inside the action (pinned by the test below).
+  "users.savePerson": "A person's own record (name, staff number): not an authority, except recording a person as away, which asks configuration.draft inside the action (ruling 1770).",
   "users.setPersonActive": "Marks a person as having left or returned: it ends accounts, which `accounts.manage` governs elsewhere. The product owner's to say.",
   "committees.saveCommittee": "A committee's own terms: not who sits on it. The product owner's to say.",
   "committees.saveNotApprovedOutcome": "What a committee's not-approved outcome does: it routes, and gives no authority. The product owner's to say.",
@@ -103,6 +105,19 @@ describe("the approval route is changed only by someone who holds the permission
     expect(proposals).toEqual([]);
     const decisions = DECISIONS.filter((fn) => !/^await\s+requireStaff\(\)/.test(firstAwait(src, fn) ?? ""));
     expect(decisions).toEqual([]);
+  });
+
+  it("savePerson asks configuration.draft for the change from available to away, and only for that (ruling on log line 1770)", () => {
+    const src = source("users");
+    const m = lex(src);
+    const span = spans(m).find((s) => s.name === "savePerson");
+    expect(span).toBeTruthy();
+    const body = src.slice(span!.from, span!.to);
+    // The gate is asked under the condition that this save marks the person away, before the update is written.
+    expect(body).toMatch(/if \(marksAway\(before\.isAvailable, v\.isAvailable\)\) \{\s*const gate = await permissionGate\(actor, "configuration\.draft"\);\s*if \(!gate\.ok\) return/);
+    expect(body.indexOf("permissionGate(")).toBeLessThan(body.indexOf("auditedUpdate("));
+    // The sweep button stays open to any signed-in officer who is not an administrator: moveStepsOfAbsentHolders asks no permission key.
+    expect(readFileSync(path.join(process.cwd(), "src", "app", "approvals", "actions.ts"), "utf8")).not.toMatch(/staffForPermission\(/);
   });
 
   it("every export of the users and committees editors is gated or named, with its reason, as not gated yet", () => {

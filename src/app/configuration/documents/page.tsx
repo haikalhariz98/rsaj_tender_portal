@@ -4,6 +4,7 @@ import { DocumentButton } from "@/components/attachments/document-drawer";
 import { HistoryButton } from "@/components/history-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Blocked } from "@/components/ui/blocked";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
@@ -18,7 +19,7 @@ import {
   RETENTION_TRIGGER_LABEL,
 } from "@/lib/documents/labels";
 import { attentionText, classReadiness } from "@/lib/documents/readiness";
-import { attachableVersion } from "@/lib/documents/targets";
+import { attachableVersion, attachRefusal } from "@/lib/documents/targets";
 import { stagedDocuments, standingHolds, uploadContext } from "@/lib/documents/read";
 import { documentOrg, loadStorePolicy } from "@/lib/documents/service";
 import { classificationTone } from "@/lib/documents/views";
@@ -50,6 +51,8 @@ export default async function DocumentsConfigPage() {
   const readiness = classReadiness(classes);
   const attention = attentionText(readiness.needAttention.length);
   const unclassified = classes.filter((c) => c.classification == null);
+  // An administrator account is refused the attach (ruling on log lines 1795(2), 1809): shown disabled with the reason, never as a button that then fails.
+  const attachBlocked = attachRefusal(actor);
 
   return (
     <>
@@ -257,7 +260,11 @@ export default async function DocumentsConfigPage() {
                     <Td label="Received"><CellStack title={formatOrgDay(d.createdAt, tz)} sub={v ? <ActedBy entity="DocumentVersion" id={v.id} slot="recordedBy" name={v.recordedBy.name} /> : undefined} /></Td>
                     <Td>
                       <RowActions>
-                        <AttachToRecordButton versionId={attachableVersion(d.versions)} title={d.title} unclassified={d.classificationSnapshot == null} />
+                        {attachBlocked ? (
+                          <Blocked label="Attach to a record…" reason={attachBlocked} ariaLabel={`Attach ${d.title} to a record`} />
+                        ) : (
+                          <AttachToRecordButton versionId={attachableVersion(d.versions)} title={d.title} unclassified={d.classificationSnapshot == null} />
+                        )}
                         <DocumentButton documentId={d.id} label={d.title} />
                       </RowActions>
                     </Td>

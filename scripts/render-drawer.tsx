@@ -233,6 +233,7 @@ async function build(which: string, React: typeof import("react")) {
       isActive: true,
     },
     offices,
+    mayMarkAway: true,
     authorityLevels: ["Level one", "Level two"],
     units: [{ code: "ONE", nameEn: "First department" }],
     capabilities: CAPABILITIES,

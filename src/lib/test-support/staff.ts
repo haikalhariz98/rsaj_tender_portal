@@ -54,6 +54,8 @@ export function actorModule(who: StaffActor | null = STAFF_FIXTURE) {
       const actor = signedIn();
       return actor.permissions.has(key) ? { ok: true as const, actor } : { ok: false as const, state: { ok: false as const, message: `Not permitted: ${key}` } };
     },
+    // The check an action makes mid-way for an act that needs a product permission only in some cases (`permissionGate`): the permissions the actor carries.
+    permissionGate: async (actor: StaffActor, key: PermissionKey) => (actor.permissions.has(key) ? { ok: true as const } : { ok: false as const, message: `Not permitted: ${key}` }),
     AuthRefusal: RefusalForTest,
     currentStaffOrNull: async () => who,
     requireStaff: async () => {

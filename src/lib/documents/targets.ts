@@ -9,6 +9,7 @@
  * same (`exercisePurposes`), so a document is never filed under a heading the exercise never shows.
  */
 
+import { administrationConflict } from "@/lib/auth/administration-conflict";
 import { methodKeeps, ownerState, purposeFits, type OwnerFacts } from "./attach";
 import { exitWords, PURPOSE_LABEL } from "./labels";
 import { ATTACHMENT_PURPOSES, OWNER_ACT_PURPOSES, OWNER_KINDS, PURPOSE_OWNER, type AttachmentPurpose, type OwnerKind } from "./types";
@@ -139,4 +140,13 @@ export function attachTargets(owners: readonly TargetOwner[]): (TargetRecord & {
 /// The version to attach: the newest one that is not withdrawn. Null where every version is withdrawn: nothing can be attached.
 export function attachableVersion(versions: readonly { id: string; versionNo: number; withdrawnAt: Date | null }[]): string | null {
   return [...versions].filter((v) => v.withdrawnAt == null).sort((a, b) => b.versionNo - a.versionNo)[0]?.id ?? null;
+}
+
+/**
+ * Why "Attach to a record" is not offered to this account, in words, or null where it is (product owner, 2026-10-08, ruling on log lines 1795(2) and 1809). Attaching is the
+ * documents module's act, a decision of an office, and `attachDocument` refuses an administrator account; the screen says so up front, as a disabled control with the reason,
+ * rather than offering a button that then fails. The words are the act's own (`administrationConflict`), so the two never differ.
+ */
+export function attachRefusal(actor: { isAdministrator: boolean }): string | null {
+  return administrationConflict({ kind: "ACT", act: "TRANSACTION", actorIsAdministrator: actor.isAdministrator })?.en ?? null;
 }

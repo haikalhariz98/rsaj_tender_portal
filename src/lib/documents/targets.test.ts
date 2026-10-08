@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { attachFault, type ExerciseMethodFlags } from "./attach";
-import { ATTACHABLE_OWNER_KINDS, attachableVersion, attachTargets, exercisePurposes, ownerHref, type TargetOwner } from "./targets";
+import { ATTACHABLE_OWNER_KINDS, attachableVersion, attachRefusal, attachTargets, exercisePurposes, ownerHref, type TargetOwner } from "./targets";
 import { ATTACHMENT_PURPOSES } from "./types";
 
 const exercise = (flags: ExerciseMethodFlags | null, over: Partial<{ status: "DRAFT" | "CANCELLED"; awardApproved: boolean }> = {}): TargetOwner => ({
@@ -106,5 +106,12 @@ describe("the kinds offered for a received document", () => {
     // 6.13 Part B run 1b (faithful update, flagged against the document store): and a delay notice's scan and an EOT
     // claim's meteorological records and calculation.
     expect(ATTACHABLE_OWNER_KINDS).toEqual(["meeting", "exercise", "award", "delegation", "specificationPanel", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction", "standingEvent", "delayNotice", "eotClaim"]);
+  });
+});
+
+describe("attachRefusal (product owner, 2026-10-08: the Attach to a record control is shown disabled to an administrator account)", () => {
+  it("refuses an administrator account in the words the act itself gives, and nobody else", () => {
+    expect(attachRefusal({ isAdministrator: true })).toMatch(/administration is kept apart from transactions/);
+    expect(attachRefusal({ isAdministrator: false })).toBeNull();
   });
 });

@@ -90,6 +90,8 @@ export interface UsersData {
   lines: ReportingLineRow[];
   /// Steps waiting on an office with nobody able to act because its holders are away, and why each stays (the sweep's reasons).
   stuck: { stepId: string; matter: string; office: string; why: string }[];
+  /// The viewer may record a person as away (`configuration.draft`, ruling on log line 1770).
+  mayMarkAway: boolean;
 }
 
 export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }) {
@@ -109,7 +111,7 @@ export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }
 
 // ------------------------------------------------------------------------ People
 
-function PeoplePanel({ people, offices, holdings, capabilities, grants, delegations, units }: UsersData) {
+function PeoplePanel({ people, offices, holdings, capabilities, grants, delegations, units, mayMarkAway }: UsersData) {
   const officeName = (code: string | null) =>
     code ? (offices.find((o) => o.code === code)?.nameEn ?? code) : "";
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? "Not on record";
@@ -189,6 +191,7 @@ function PeoplePanel({ people, offices, holdings, capabilities, grants, delegati
                 )}
                 nameOf={nameOf}
                 units={units}
+                mayMarkAway={mayMarkAway}
               />
               <LeaverToggle person={person} />
             </>

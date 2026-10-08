@@ -83,7 +83,10 @@ beforeAll(async () => {
   const actor = (await makePerson(organisationId, `Actor ${run}`)).id;
   who.actor = {
     kind: "STAFF", accountId: "", sessionId: "", personId: actor, personName: `Actor ${run}`, jobTitle: null, isAdministrator: false,
-    organisationId, organisationCode: org.code, organisationTimeZone: org.timeZone, offices: [], permissions: new Set(), stepUpAt: null,
+    organisationId, organisationCode: org.code, organisationTimeZone: org.timeZone, offices: [],
+    // Changed to match the product owner's ruling of 2026-10-08 (log line 1770): recording a person as away needs `configuration.draft`, so the officer these tests sign in holds it.
+    // The refusal without it is proved below.
+    permissions: new Set(["configuration.draft"]), stepUpAt: null,
     sessionCreatedAt: new Date(), sourceAddress: null, mustChangePassword: false,
   };
   // Three offices: A escalates to B, B to C. A is held by the holder, B by the boss, C by nobody.
@@ -255,6 +258,43 @@ describe("marking a person away on the People screen (savePerson)", () => {
     await savePerson({ ok: false }, form(true));
     expect((await stepOf(r.steps[0]!)).escalationCount).toBe(1);
     expect((await db.staffNotice.findMany({ where: { recipientPersonId: above, kind: "HOLDER_MARKED_ABSENT", subjectId: solo } })).length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("marking a person away needs the permission to draft configuration (ruling on log line 1770)", () => {
+  it("refuses an officer who does not hold it, in words, and changes nothing; marking them available again is not gated", async () => {
+    const { savePerson } = await import("@/app/configuration/users/actions");
+    const target = (await makePerson(organisationId, `Gated ${run}`)).id;
+    const form = (isAway: boolean) => {
+      const f = new FormData();
+      f.set("id", target);
+      f.set("name", `Gated ${run}`);
+      f.set("email", `gated.${run}@example.invalid`);
+      if (isAway) f.set("isAway", "on");
+      return f;
+    };
+    const saved = who.actor;
+    who.actor = { ...saved!, permissions: new Set() };
+    try {
+      const refused = await savePerson({ ok: false }, form(true));
+      expect(refused.ok).toBe(false);
+      expect(refused.message).toMatch(/configuration\.draft/);
+      expect((await db.person.findUniqueOrThrow({ where: { id: target } })).isAvailable).toBe(true);
+      expect(await db.auditEntry.count({ where: { entity: "Person", entityId: target } })).toBe(0);
+      // An edit that leaves them in is not the act.
+      expect(await savePerson({ ok: false }, form(false))).toEqual({ ok: true });
+    } finally {
+      who.actor = saved;
+    }
+    // With the permission it is saved, and once away, an officer without it may mark them available again.
+    expect(await savePerson({ ok: false }, form(true))).toEqual({ ok: true });
+    who.actor = { ...saved!, permissions: new Set() };
+    try {
+      expect(await savePerson({ ok: false }, form(false))).toEqual({ ok: true });
+    } finally {
+      who.actor = saved;
+    }
+    expect((await db.person.findUniqueOrThrow({ where: { id: target } })).isAvailable).toBe(true);
   });
 });
 

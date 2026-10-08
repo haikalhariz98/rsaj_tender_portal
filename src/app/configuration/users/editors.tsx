@@ -8,6 +8,7 @@ import { STAGED_FOR_DELEGATION } from "@/lib/documents/staged-for";
 import type { UploadView } from "@/lib/documents/views";
 import { END_DAY_LABEL, periodText } from "@/lib/effective-text";
 import { RECOMMENDATION_HINT, recommendationNote } from "@/lib/people/labels";
+import { MARK_AWAY_NEEDS_PERMISSION, markAwayDisabled } from "@/lib/people/mark-away";
 import {
   CheckIcon,
   HelpCircle,
@@ -155,6 +156,7 @@ export function EditPerson({
   delegations,
   nameOf,
   units,
+  mayMarkAway,
 }: {
   person: Person;
   offices: Office[];
@@ -165,8 +167,11 @@ export function EditPerson({
   capabilities: Capability[];
   delegations: Delegation[];
   nameOf: (id: string) => string;
+  /// The viewer holds the permission that marking a person away needs (ruling on log line 1770). The server refuses otherwise; this only says so before.
+  mayMarkAway: boolean;
 }) {
   const on = new Date();
+  const awayWithheld = markAwayDisabled(person.isAvailable, mayMarkAway);
 
   return (
     <RecordEditor
@@ -215,7 +220,12 @@ export function EditPerson({
             label="Out of office"
             tip="Marks them as away. Their pending steps move up to the office authority reverts to, where their reporting line is recorded. Marking them available again moves nothing back. Cover is a delegation, recorded separately."
           >
-            <Switch name="isAway" label="Currently away" defaultChecked={!person.isAvailable} />
+            <Switch name="isAway" label="Currently away" defaultChecked={!person.isAvailable} disabled={awayWithheld} aria-describedby={awayWithheld ? `away-needs-${person.id}` : undefined} />
+            {awayWithheld && (
+              <p id={`away-needs-${person.id}`} className="text-[12.5px] text-ink-3">
+                {MARK_AWAY_NEEDS_PERMISSION}
+              </p>
+            )}
           </DrawerSection>
 
           <DrawerSection label="Delegation">
