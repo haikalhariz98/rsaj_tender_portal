@@ -253,8 +253,8 @@ export const VOTE_FAULT_MESSAGE: Record<VoteFault, string> = {
 export const TABLING_FAULT_MESSAGE: Record<TablingFault, string> = {
   SECRETARIAT_NOT_SET:
     "No Secretariat office is set for this committee, so nobody may table a matter. Set one in the committee's configuration.",
-  NOT_TABLED: "Choose who tabled the matter.",
-  NOT_SECRETARIAT_HOLDER: "That person does not hold the Secretariat office on the tabling date.",
+  NOT_TABLED: "Sign in as the person who tables the matter: a matter is tabled by the signed-in holder of the Secretariat office.",
+  NOT_SECRETARIAT_HOLDER: "Only a holder of the Secretariat office on the tabling date tables a matter, and you do not hold it.",
   TIME_ZONE_UNSET:
     "The organisation's time zone is not set, so the tabling day cannot be judged. Set it under Configuration, Organisation.",
 };

@@ -68,7 +68,7 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
       where: { id: stepId, instance: { organisationId: actor.organisationId } },
       select: { instance: { select: { requisitionId: true, exerciseId: true, awardId: true, supplierApplicationId: true, standingRequestId: true, specialPermissionId: true, certificateId: true, variationId: true, contractMatterId: true } } },
     });
-    const begun = await beginAct(actor, data, "ApprovalStep.declaredBy", { personField: "declaredByPersonId", document: route ? matterDocumentOf(route.instance) : null });
+    const begun = await beginAct(actor, data, "ApprovalStep.declaredBy", { personField: "declaredByPersonId", document: route ? matterDocumentOf({ requisition: route.instance.requisitionId, exercise: route.instance.exerciseId, award: route.instance.awardId, supplierApplication: route.instance.supplierApplicationId, standingRequest: route.instance.standingRequestId, specialPermission: route.instance.specialPermissionId, certificate: route.instance.certificateId, variation: route.instance.variationId, contractMatter: route.instance.contractMatterId }) : null });
     if (!begun.ok) return begun.state;
     act = begun.act;
   }

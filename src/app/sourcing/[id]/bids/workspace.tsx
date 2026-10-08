@@ -33,7 +33,7 @@ const EARLY = ["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDER
  * why in the header's note. There is no Delete and no Reject anywhere.
  */
 export async function loadBids(scope: StaffActor, exerciseId: string, status: string): Promise<BidsView> {
-  const d = await bidsTab(scope.organisationId, exerciseId, await sulitExerciseGate(scope, exerciseId, "exercise", ["letterQuote"]));
+  const d = await bidsTab(scope.organisationId, exerciseId, await sulitExerciseGate(scope, exerciseId, "exercise", ["letterQuote"]), scope.system ? null : scope.personId);
   if (!d) return { panel: GONE, actions: null, notes: [] };
   if (EARLY.includes(status) && d.rows.length === 0) {
     return {

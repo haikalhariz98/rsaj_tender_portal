@@ -242,7 +242,7 @@ function LiveCards({ c, packless }: { c: LiveConditions; packless: boolean }) {
           </Card>}
 
           <ClausesCard line={clausesSummary({ none: c.clauses.none, statuses: c.clauses.rows.map((r) => r.status) })}>
-            <p className="text-[12.5px] text-ink-3">Leaving a clause out needs a legal endorsement. Who may give one is not checked, because no policy names them. The person who endorses it and the reason are recorded, with whether it was signed in or recorded from their paper.</p>
+            <p className="text-[12.5px] text-ink-3">Leaving a clause out needs a legal endorsement. Which office may give one is not checked, because no policy names it. The endorser is the person signed in who gave it; the reason is recorded with it.</p>
             <ul className="divide-y divide-line/70 rounded-2xl border border-line">
               {c.clauses.rows.map((r) => (
                 <Row

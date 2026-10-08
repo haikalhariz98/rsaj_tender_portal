@@ -33,6 +33,6 @@ export async function ScopeWorkspace({ exerciseId, section }: { exerciseId: stri
     const d = await estimateTab(scope.organisationId, exerciseId);
     return d ? <EstimateSection d={d} /> : GONE;
   }
-  const d = await scopeTab(scope.organisationId, exerciseId);
+  const d = await scopeTab(scope.organisationId, exerciseId, scope.system ? null : scope.personId);
   return d ? <ScopeSection d={d} /> : GONE;
 }

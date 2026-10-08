@@ -5,7 +5,8 @@
  * assigns no actor, so the policy says whether the confirmations are required: unset blocks
  * (never a guess), no is recorded as the organisation's decision. A confirmation belongs to
  * one pack version and is not carried to the next: an amended pack is confirmed afresh.
- * Recorded on the Person's behalf, not signed. Pure.
+ * Each confirmation is the signed-in officer's own (FR-DOC-014, Phase 3d): the named officer is the actor, and no one confirms for another. Which office may confirm is not
+ * checked, because no policy names one. Pure.
  */
 
 import { isDay } from "@/lib/dates";

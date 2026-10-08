@@ -96,7 +96,7 @@ import type { OrgScope } from "@/lib/org-scope";
  * the same transaction, the pure check runs on that data, and only then is the write
  * made, with its audit row, in that transaction. Two writes to one sitting therefore
  * never both pass a check on data the other is about to change. A refusal saves
- * nothing. Nobody is signed in, so whoever records a tabling or a vote attests it.
+ * nothing. A tabling is the signed-in Secretariat holder's own (FR-CTE-006, Phase 3d), and a vote the signed-in member's or, from a paper sheet, the Secretariat's for the member.
  */
 
 const GONE: FormState = { ok: false, message: "That sitting no longer exists." };

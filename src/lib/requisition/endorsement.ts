@@ -4,8 +4,11 @@
  * The tiers are policy (`RequisitionPolicy.endorsementTiers`), shipped empty: unset
  * blocks, it is never read as "no endorsement needed" (ruling OD-3). Each tier's
  * endorser is the head of the unit of that kind on the requesting unit's path, as the
- * structure stood on the endorsement date. An endorsement names a Person; "named
- * user" waits for sign-in.
+ * structure stood on the endorsement date. An endorsement names a Person, who is the
+ * named user (Phase 3d): the head signed in as themselves, with the time the server
+ * stamped, or, from the head's paper, recorded for them by an officer and shown as not
+ * signed. Either way it is judged against the head, and the officer who recorded it
+ * never endorses their own requisition.
  */
 
 import { inForceOn } from "@/lib/effective";

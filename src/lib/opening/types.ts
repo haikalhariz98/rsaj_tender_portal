@@ -8,7 +8,7 @@
  * labels are the customer's configuration, shipped empty. Unset is "not set", never zero, never a
  * default, and it blocks what it governs, naming the setting.
  *
- * Nobody signs in yet: every person named is recorded on their behalf, not signed (ADR 0017).
+ * Each panel member authorises with their own password in their own sign-in (FR-OPN-003, Phase 3d); the other acts are the signed-in officer's, or, from paper, recorded for the person named and not signed (ADR 0017).
  */
 
 import type { Provenance } from "@/lib/reference/types";

@@ -145,7 +145,7 @@ export function OverrideClauseDrawer({ exerciseId, clauseCode, title, people, al
   return (
     <RecordEditor
       title={`Go without the ${title.toLowerCase()}`}
-      description="Only a legal endorsement lets an agreement go without a clause every agreement must carry. You give it, and say why. Who may give the endorsement is not checked, because no policy names them. It holds for this version only."
+      description="Only a legal endorsement lets an agreement go without a clause every agreement must carry. You give it as yourself, signed in, and say why. Which office may give an endorsement is not checked, because no policy names one. It holds for this version only."
       fields={[
         hidden("exerciseId"),
         hidden("clauseCode"),

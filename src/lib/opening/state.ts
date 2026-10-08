@@ -7,8 +7,8 @@
  * opening have each authorised it, each a separate act stamped by the server. The first pair opens
  * the box (the unseal); adjourning ends the sitting and lapses an unpaired authorisation (kept,
  * marked lapsed); resuming starts a new sitting, which needs two fresh authorisations. This is
- * recorded on the members' behalf, not signed: the key and the box remain the control, and the
- * authenticated half waits for sign-in (ADR 0017).
+ * signed by each member in their own sign-in with their own password (Phase 3d): the key and the box
+ * remain the control, and "no single credential unseals" holds of the electronic box, which waits for 6.15c (ADR 0017).
  */
 
 import type { Finding, OpeningKind, OpeningPhase } from "./types";

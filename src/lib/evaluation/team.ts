@@ -5,7 +5,8 @@
  * belong to the requisition's unit (or a unit under it) where their unit is recorded; where it is not,
  * the screen says "Not recorded" and the appointment stands. A score or a submission is accepted only
  * from a member appointed to that stage's side (NOT_ON_TEAM), and nobody submits for both sides
- * (SAME_PERSON_BOTH_SIDES). Authenticated identities wait for sign-in. Pure.
+ * (SAME_PERSON_BOTH_SIDES). Each member acts under their own identity (FR-EVL-001, Phase 3d): a score and a submission are the signed-in member's own and are never
+ * recorded for another, so these checks run on the signed-in person. Pure.
  */
 
 import type { SubmissionFacts, TeamFacts } from "./facts";

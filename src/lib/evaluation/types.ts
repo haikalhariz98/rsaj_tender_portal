@@ -9,7 +9,7 @@
  * band edge is the customer's configuration, issued in a versioned model and pinned on the exercise
  * at publication (FR-EVL-006, 007; ADR 0018). Unset is "not set", never zero, never a default.
  *
- * Nobody signs in yet: every person named is recorded on their behalf, not signed. Scores, prices,
+ * Each score and submission is the signed-in member's own (FR-EVL-001, Phase 3d). Scores, prices,
  * the estimate and the report are SULIT and shown only on the Evaluation tab and its prints (E-3).
  */
 

@@ -4,16 +4,17 @@
  * Pure: the route's pointers in, the matter's model and id out; null where the route points at nothing the product can name (a route whose matter is gone).
  */
 
+/// The ids a route points at, one key per kind of matter (named for the matter, not for the column, so that this file reads a route and writes nothing).
 export interface RoutePointers {
-  requisitionId: string | null;
-  exerciseId: string | null;
-  awardId: string | null;
-  supplierApplicationId: string | null;
-  standingRequestId: string | null;
-  specialPermissionId: string | null;
-  certificateId: string | null;
-  variationId: string | null;
-  contractMatterId: string | null;
+  requisition: string | null;
+  exercise: string | null;
+  award: string | null;
+  supplierApplication: string | null;
+  standingRequest: string | null;
+  specialPermission: string | null;
+  certificate: string | null;
+  variation: string | null;
+  contractMatter: string | null;
 }
 
 export type MatterDocument = { entity: string; id: string };
@@ -21,15 +22,15 @@ export type MatterDocument = { entity: string; id: string };
 /// The most specific pointer wins: a contract's matter, variation or certificate before the award it hangs from, the award before its exercise, the exercise before its requisition.
 export function matterDocumentOf(r: RoutePointers): MatterDocument | null {
   const pairs: [string, string | null][] = [
-    ["ContractMatter", r.contractMatterId],
-    ["Variation", r.variationId],
-    ["Certificate", r.certificateId],
-    ["SpecialPermission", r.specialPermissionId],
-    ["StandingRequest", r.standingRequestId],
-    ["SupplierApplication", r.supplierApplicationId],
-    ["Award", r.awardId],
-    ["SourcingExercise", r.exerciseId],
-    ["Requisition", r.requisitionId],
+    ["ContractMatter", r.contractMatter],
+    ["Variation", r.variation],
+    ["Certificate", r.certificate],
+    ["SpecialPermission", r.specialPermission],
+    ["StandingRequest", r.standingRequest],
+    ["SupplierApplication", r.supplierApplication],
+    ["Award", r.award],
+    ["SourcingExercise", r.exercise],
+    ["Requisition", r.requisition],
   ];
   const found = pairs.find(([, id]) => id != null);
   return found ? { entity: found[0], id: found[1]! } : null;

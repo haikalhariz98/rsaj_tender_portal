@@ -112,7 +112,7 @@ export async function scopeSectionFacts(organisationId: string, exerciseId: stri
 
 // ------------------------------------------------------------------ Scope tab
 
-export async function scopeTab(organisationId: string, exerciseId: string) {
+export async function scopeTab(organisationId: string, exerciseId: string, viewerPersonId: string | null = null) {
   const a = await loadAll(organisationId, exerciseId);
   if (!a) return null;
   const { org, ex, policy, versions, panel, rules } = a;
@@ -175,7 +175,7 @@ export async function scopeTab(organisationId: string, exerciseId: string) {
       options: { contractKinds: listOf(policy.panelContractKindTaxonomyCode), projectStatuses: listOf(policy.panelProjectStatusTaxonomyCode), bills: versions.filter((v) => v.status === "FINALISED").map((v) => ({ value: v.id, label: `Version ${v.versionNo}` })), people, columns: inForce.map((c) => ({ value: c.code, label: c.labelEn })) },
       statement: "Each verification says whether the person signed in to give it or it was recorded from their paper.",
     },
-    approval: await approvalView(a, people),
+    approval: await approvalView(a, people, viewerPersonId),
   };
 }
 
@@ -185,7 +185,7 @@ export async function scopeTab(organisationId: string, exerciseId: string) {
  * whether the finalised bill can be tabled now, at which sittings, by whom — judged by the
  * same `scopeCitationFault` and Secretariat rule the act runs under its locks.
  */
-async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>, people: { id: string; name: string }[]) {
+async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>, people: { id: string; name: string }[], viewerPersonId: string | null) {
   const { org, ex, rules, versions, approval } = a;
   const rule = rules.method;
   const code = rule?.scopeCommitteeCode ?? null;
@@ -212,8 +212,9 @@ async function approvalView(a: NonNullable<Awaited<ReturnType<typeof loadAll>>>,
   }
   if (reasons.length === 0 && committee && sittings.length === 0) reasons.push(scopeFaultText({ code: "NO_OPEN_SITTING", level: "block", data: { committee: committee.nameEn } }));
   if (reasons.length === 0 && committee) {
-    const t = checkTabling({ secretariatRoleCode: committee.secretariatRoleCode, tabledByPersonId: holders[0]?.id ?? null, holderIdsOnDate: holders.map((h) => h.id), tablingDay: org.today });
-    if (!t.ok) reasons.push(t.fault === "NOT_TABLED" ? "Nobody holds the committee's Secretariat office today, so nobody may table the scope. Assign the office under Configuration, Users & roles." : TABLING_FAULT_MESSAGE[t.fault]);
+    // The tabler is the signed-in person (FR-CTE-006, Phase 3d): judged for the reader. Called with no reader, any holder will do.
+    const t = checkTabling({ secretariatRoleCode: committee.secretariatRoleCode, tabledByPersonId: viewerPersonId ?? holders[0]?.id ?? null, holderIdsOnDate: holders.map((h) => h.id), tablingDay: org.today });
+    if (!t.ok) reasons.push(holders.length === 0 && t.fault !== "SECRETARIAT_NOT_SET" && t.fault !== "TIME_ZONE_UNSET" ? "Nobody holds the committee's Secretariat office today, so nobody may table the scope. Assign the office under Configuration, Users & roles." : TABLING_FAULT_MESSAGE[t.fault]);
   }
   const OUTCOME: Record<string, string> = { PENDING: "Waiting for the decision", CARRIED: "Carried", NOT_CARRIED: "Not carried", DEFERRED: "Deferred" };
   // The configured act in words (overrides BD-62-16): tabling writes it, and only it.

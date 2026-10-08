@@ -29,6 +29,7 @@ import type { VariationView } from "@/lib/variation/view";
 
 import { AdjustmentRefusedCallout } from "./adjustment-refused";
 import { AdjustmentDrawer, VariationRecordDrawer, type Option } from "./variation-editors";
+import type { SupervisionAct } from "@/lib/supervision/types";
 
 /**
  * The contract's Variations tab (6.13 Part A step 4, 4d): its variations from application to certificate, the exposure
@@ -51,8 +52,9 @@ export type VariationSection = (typeof VARIATION_SECTIONS)[number]["id"];
 
 const pct = (num: bigint, den: bigint | null, edges: readonly string[]) => (den && den > 0n ? percentLabelText(percentLabel({ num, den }, edges)).en : null);
 
-export function VariationsPanel({ l, v, people, today, section, page }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; section: VariationSection; page: number }) {
-  return section === "adjustments" ? <AdjustmentsSection l={l} v={v} people={people} today={today} /> : <VariationsSection l={l} v={v} people={people} today={today} page={page} />;
+/// `hidden`: the acts outside the delegated scope of a representative who is signed in, which their screen does not offer (FR-SUP-004, Phase 3d).
+export function VariationsPanel({ l, v, people, today, section, page, hidden = [] }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; section: VariationSection; page: number; hidden?: readonly SupervisionAct[] }) {
+  return section === "adjustments" ? <AdjustmentsSection l={l} v={v} people={people} today={today} hidden={hidden} /> : <VariationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} />;
 }
 
 /// The contract's position: the original sum, the issued adjustments, the revised sum, the cumulative approved.
@@ -95,7 +97,7 @@ function PositionCard({ l, v }: { l: LoadedContract; v: VariationView }) {
   );
 }
 
-function VariationsSection({ l, v, people, today, page }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; page: number }) {
+function VariationsSection({ l, v, people, today, page, hidden }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; page: number; hidden: readonly SupervisionAct[] }) {
   // ADR 0031 (run 1a): the acts' own table, so the screen refuses where the act would.
   const statusRefused = actStatusFault("VARIATION", l.contract.status as ContractStatus);
   // Review S1: the table first, as the act asks it (cancelled in its own words); every drawer below is gated by it.
@@ -144,7 +146,7 @@ function VariationsSection({ l, v, people, today, page }: { l: LoadedContract; v
           icon={<FileIcon size={17} />}
           title="Variations"
           subtitle="Each from its application to its Variation Order Certificate. A variation is opened to see and record its application, approval, instruction, measurement and certificate."
-          actions={<VariationRecordDrawer id={l.contract.id} people={people} origins={VARIATION_ORIGINS.map((o) => ({ value: o, label: ORIGIN_WORDS[o].en }))} exemptions={VARIATION_EXEMPTIONS.map((e) => ({ value: e, label: EXEMPTION_WORDS[e].en }))} blocker={blocker} />}
+          actions={hidden.includes("VARIATION_APPLICATION") ? undefined : <VariationRecordDrawer id={l.contract.id} people={people} origins={VARIATION_ORIGINS.map((o) => ({ value: o, label: ORIGIN_WORDS[o].en }))} exemptions={VARIATION_EXEMPTIONS.map((e) => ({ value: e, label: EXEMPTION_WORDS[e].en }))} blocker={blocker} />}
           divided={false}
         />
         <DataList
@@ -186,7 +188,7 @@ function VariationsSection({ l, v, people, today, page }: { l: LoadedContract; v
   );
 }
 
-function AdjustmentsSection({ l, v, people, today }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null }) {
+function AdjustmentsSection({ l, v, people, today, hidden }: { l: LoadedContract; v: VariationView; people: Option[]; today: string | null; hidden: readonly SupervisionAct[] }) {
   const issuedOrders = v.all.flatMap((x) => x.orders.filter((o) => o.certificate.status === "ISSUED").map((o) => ({ x, o })));
   const adjusted = new Set(ordersAdjusted(v.adjustments));
   const free = issuedOrders.filter(({ o }) => !adjusted.has(o.id));
@@ -208,6 +210,7 @@ function AdjustmentsSection({ l, v, people, today }: { l: LoadedContract; v: Var
           title="Adjustments of the contract sum"
           subtitle="The master record of the contract sum's movement: section 1.1 the variations' issued certificates, 1.2 the other adjustments by their trigger, each with its basis; routed on its own page and signed by the S.O. An interim certificate reads the revised sum from the issued ones only."
           actions={
+            hidden.includes("VALUATION") ? undefined : (
             <AdjustmentDrawer
               id={l.contract.id}
               orders={free.map(({ x, o }) => ({ value: o.id, label: `Variation ${x.reference}: ${DIRECTION_WORDS[orderNetOf(o) < 0n ? "OMISSION" : "ADDITION"].en.toLowerCase()} ${formatMoney(orderNetOf(o) < 0n ? -orderNetOf(o) : orderNetOf(o))}` }))}
@@ -216,6 +219,7 @@ function AdjustmentsSection({ l, v, people, today }: { l: LoadedContract; v: Var
               people={people}
               blocker={blocker}
             />
+            )
           }
         />
         {v.adjustments.length === 0 ? (

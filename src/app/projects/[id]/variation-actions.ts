@@ -586,7 +586,7 @@ export async function chooseVariationRefusal(_prev: FormState, data: FormData): 
  * Table a matter from the variation at a sitting (FR-VAR-009, 010; FR-PAD-004): its open route's committee step (the
  * Variation Orders Committee's mandatory recommendation, a Tender Board's approval), or the funder's consent before
  * the configured committee. Locks the contract's chain, the variation, then the sitting. Only a holder of the
- * committee's Secretariat office on the tabling day tables it (an attestation until sign-in).
+ * committee's Secretariat office on the tabling day tables it: the signed-in person, judged as the actor (FR-CTE-006, Phase 3d).
  */
 export async function tableVariationMatter(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();

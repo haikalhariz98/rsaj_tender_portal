@@ -41,7 +41,7 @@ const allowed = (fs: readonly Finding[]): Allowed => (blocking(fs).length ? { al
 const PROVENANCE_WORD = { STATED: "Stated", OBSERVED: "Observed", ASSUMED: "Assumed" } as const;
 
 /// `quote` is the caller's one answer for the exercise's withdrawal letters' quoted words (`letterQuote`, 6.6 CR-4): they are held to it.
-export async function bidsTab(organisationId: string, exerciseId: string, quote: Sulit<true>) {
+export async function bidsTab(organisationId: string, exerciseId: string, quote: Sulit<true>, viewerPersonId: string | null = null) {
   const org = await exerciseOrg(organisationId);
   if (!org) return null;
   const ex = await db.sourcingExercise.findFirst({ where: { id: exerciseId, organisationId: org.id }, select: { id: true, organisationId: true, reference: true, title: true, status: true, closingAt: true, sourcingMethodCode: true, packKindSnapshot: true } });
@@ -83,8 +83,9 @@ export async function bidsTab(organisationId: string, exerciseId: string, quote:
   const tablingReason = (() => {
     if (!committee) return null;
     if (sittings.length === 0) return `No sitting of the ${committee.nameEn} is scheduled or in progress. Schedule one under Committees.`;
-    const t = checkTabling({ secretariatRoleCode: committee.secretariatRoleCode, tabledByPersonId: holders[0]?.id ?? null, holderIdsOnDate: holders.map((h) => h.id), tablingDay: today });
-    if (!t.ok) return t.fault === "NOT_TABLED" ? "Nobody holds the committee's Secretariat office today, so nobody may table the admission. Assign the office under Configuration, Users & roles." : TABLING_FAULT_MESSAGE[t.fault];
+    // The tabler is the signed-in person (FR-CTE-006, Phase 3d): judged for the reader, who is told at once that they may not. Called with no reader, any holder will do.
+    const t = checkTabling({ secretariatRoleCode: committee.secretariatRoleCode, tabledByPersonId: viewerPersonId ?? holders[0]?.id ?? null, holderIdsOnDate: holders.map((h) => h.id), tablingDay: today });
+    if (!t.ok) return holders.length === 0 && t.fault !== "SECRETARIAT_NOT_SET" && t.fault !== "TIME_ZONE_UNSET" ? "Nobody holds the committee's Secretariat office today, so nobody may table the admission. Assign the office under Configuration, Users & roles." : TABLING_FAULT_MESSAGE[t.fault];
     return null;
   })();
 

@@ -31,6 +31,7 @@ import { issueClockFrom, openFaults } from "@/lib/payment/valuation";
 import { pendingAdvanceFaults } from "@/lib/payment/advance";
 import { OPENING_GROUPS, openingClosed, openingReconciles, openingReleaseLine } from "@/lib/payment/opening";
 import { PARTY_KIND_WORDS } from "@/lib/supervision/labels";
+import type { SupervisionAct } from "@/lib/supervision/types";
 
 import { AdjustmentRefusedCallout } from "./adjustment-refused";
 import {
@@ -137,10 +138,11 @@ export function PaymentSummaryCard({ l, v }: { l: LoadedContract; v: PaymentView
 
 // ------------------------------------------------------------------ the tab
 
-export function PaymentsPanel({ l, v, people, today, section, page }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; section: PaymentSection; page: number }) {
+/// `hidden`: the acts outside the delegated scope of a representative who is signed in, which their screen does not offer (FR-SUP-004, Phase 3d).
+export function PaymentsPanel({ l, v, people, today, section, page, hidden = [] }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; section: PaymentSection; page: number; hidden?: readonly SupervisionAct[] }) {
   switch (section) {
     case "valuations":
-      return <ValuationsSection l={l} v={v} people={people} today={today} page={page} />;
+      return <ValuationsSection l={l} v={v} people={people} today={today} page={page} hidden={hidden} />;
     case "retention":
       return <RetentionSection l={l} v={v} people={people} today={today} />;
     case "advance":
@@ -224,7 +226,7 @@ function OpeningCard({ l, v, people, today }: { l: LoadedContract; v: PaymentVie
   );
 }
 
-function ValuationsSection({ l, v, people, today, page }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; page: number }) {
+function ValuationsSection({ l, v, people, today, page, hidden }: { l: LoadedContract; v: PaymentView; people: Option[]; today: string | null; page: number; hidden: readonly SupervisionAct[] }) {
   // Review S1: the family's row first, in the acts' own words; every drawer and blocked control below is gated by it.
   const shut = actStatusBlocker("VALUATION", l.contract.status as ContractStatus);
   const c = l.contract;
@@ -264,7 +266,7 @@ function ValuationsSection({ l, v, people, today, page }: { l: LoadedContract; v
       {v.current?.status === "OPEN" ? <CurrentValuation l={l} v={v} today={today} formSet={formSet} /> : null}
 
       <Card className="overflow-hidden">
-        <CardHeader icon={<WalletIcon size={17} />} title="Valuations and their certificates" subtitle="Newest first. A valuation raises its interim payment certificate, which goes for approval, is signed and issued from the certificate." actions={<OpenValuationDrawer id={c.id} people={people} today={today} triggers={opts(VALUATION_TRIGGERS, TRIGGER_WORDS)} blocker={openBlocker} warning={null} />} divided={all.length > 0} />
+        <CardHeader icon={<WalletIcon size={17} />} title="Valuations and their certificates" subtitle="Newest first. A valuation raises its interim payment certificate, which goes for approval, is signed and issued from the certificate." actions={hidden.includes("VALUATION") ? undefined : <OpenValuationDrawer id={c.id} people={people} today={today} triggers={opts(VALUATION_TRIGGERS, TRIGGER_WORDS)} blocker={openBlocker} warning={null} />} divided={all.length > 0} />
         {all.length === 0 ? (
           <EmptyState size="sm" title="None yet">No valuation has been opened on this contract.</EmptyState>
         ) : (

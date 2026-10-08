@@ -271,7 +271,7 @@ export function TableMatter({
   return (
     <RecordEditor
       title="Table a matter"
-      description="Tabled by a holder of the committee's Secretariat office. Until sign-in exists this is attested by whoever records it, not proved."
+      description="Tabled by you, as the signed-in holder of the committee's Secretariat office on the tabling date. Nobody tables a matter for another."
       fields={[
         { kind: "hidden", name: "meetingId" },
         { kind: "text", name: "subject", label: "Subject", required: true },

@@ -3,8 +3,9 @@
  *
  * The Secretariat is an office, `Committee.secretariatRoleCode`, resolved through
  * RoleAssignment on the tabling date. Unset means nobody has said who tables, and
- * tabling is refused rather than inferred. Until sign-in exists the tabler is picked
- * by whoever records it, so the screen shows it as attested, not authenticated.
+ * tabling is refused rather than inferred. The tabler is the signed-in person (FR-CTE-006,
+ * Phase 3d): every action that tables a matter begins its act on `CommitteeDecision.tabledBy`,
+ * whose slot is not paper-capable, so the person judged here is the actor and no one else.
  */
 
 import { dayToDate } from "@/lib/dates";

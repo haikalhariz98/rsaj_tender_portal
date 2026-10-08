@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { capacityFor, inForce, type DelegationFacts } from "./authority";
+import { capacityFor, hiddenActsFor, inForce, type DelegationFacts } from "./authority";
+import { SUPERVISION_ACTS } from "./types";
 import { delegationFaults, delegationState, latestActDay, revokeFaults } from "./delegation";
 import { supervisionFaultWords } from "./labels";
 
@@ -99,5 +100,48 @@ describe("making a delegation", () => {
     expect(delegationState({ letterStatus: "ISSUED", revokedOn: null }, "2026-10-03")).toBe("IN_FORCE");
     expect(delegationState({ letterStatus: "ISSUED", revokedOn: "2026-10-03" }, "2026-10-03")).toBe("REVOKED");
     expect(delegationState({ letterStatus: "VOID", revokedOn: null }, "2026-10-03")).toBe("LETTER_VOID");
+  });
+});
+
+// FR-SUP-002–004 (Phase 3d): acts outside a representative's delegated scope are hidden from them, mapped from the session's person.
+describe("what a representative is shown", () => {
+  const ALL = SUPERVISION_ACTS;
+  const hidden = (who: string, day: string, delegations: readonly DelegationFacts[] = ds) => hiddenActsFor(who, so, delegations, day, ALL);
+
+  it("hides from a representative in force every act their letter does not list, and shows what it lists", () => {
+    const h = hidden("ravi", "2026-10-03");
+    expect(h).not.toContain("DIARY");
+    expect(h).not.toContain("PROGRESS");
+    expect(h).toEqual(ALL.filter((a) => a !== "DIARY" && a !== "PROGRESS"));
+    // The act it hides is the act the action refuses, for every act.
+    for (const a of ALL) expect(h.includes(a), a).toBe(capacityFor("ravi", { act: a }, so, ds, "2026-10-03").capacity == null);
+  });
+
+  it("hides nothing from the S.O., nor from someone acting in the office", () => {
+    expect(hidden("aminah", "2026-10-03")).toEqual([]);
+    expect(hidden("acting", "2026-10-03")).toEqual([]);
+  });
+
+  it("hides nothing from an officer who is no representative: a clerk entering the S.O.'s paper keeps the screen, and the action's refusal stays theirs", () => {
+    expect(hidden("clerk", "2026-10-03")).toEqual([]);
+  });
+
+  it("hides nothing before the letter is issued or after it is revoked, when the person is no representative in force", () => {
+    expect(hidden("ravi", "2026-10-01")).toEqual([]);
+    expect(hidden("siti", "2026-10-03")).toEqual([]);
+    expect(hidden("ravi", "2026-10-09", [{ ...ravi, revokedOn: "2026-10-05" }])).toEqual([]);
+    expect(hidden("ravi", "2026-10-04", [{ ...ravi, revokedOn: "2026-10-05" }])).not.toEqual([]);
+  });
+
+  it("gives a representative holding two delegations the union of their scopes", () => {
+    const second: DelegationFacts = { id: "d3", kind: "SPECIALIST", delegatePersonId: "ravi", letterIssuedOn: "2026-10-02", revokedOn: null, scope: ["VALUATION"] };
+    const h = hidden("ravi", "2026-10-03", [ravi, second]);
+    expect(h).not.toContain("VALUATION");
+    expect(h).not.toContain("DIARY");
+    expect(h).toContain("OBSERVATION");
+  });
+
+  it("hides nothing where the contract has no S.O. resolved: there is nothing to be a representative of", () => {
+    expect(hiddenActsFor("ravi", null, ds, "2026-10-03", ALL)).toEqual([]);
   });
 });

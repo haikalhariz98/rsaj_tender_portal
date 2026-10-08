@@ -1,8 +1,8 @@
 /**
  * Who may discharge a step, and why a named Person may not (ruling OD-12).
  *
- * Nobody signs in yet, so the recording officer names the Person who decided. The
- * checks that sign-in would make are made on that Person: they must hold the office
+ * The decider is the signed-in person, or the Person a paper decision is recorded for
+ * (Phase 2b, 3d). The checks are made on that Person, and on the officer who recorded it: they must hold the office
  * for the requesting unit on the day — the unit's own holder, else the nearest
  * ancestor's, else an organisation-wide one — or hold a live delegation of the whole
  * office from such a holder. Nobody decides a requisition they raised or endorsed,

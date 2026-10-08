@@ -6,8 +6,9 @@
  * so the whole transaction rolls back and nothing is half-written. The owning 6.13 module calls these from its
  * own acts; the certificate page's acts call them directly.
  *
- * The signed-in officer is named on every audit row; a signature, a check or an override records the Person the officer names, "recorded on
- * behalf of, not signed". Server stamps are read once, at the act's entry, and passed in as `now` (truncated to
+ * The signed-in officer is named on every audit row; a signature block is signed by the officer signed in, with their password, against the certificate it signs and in the
+ * office they held (FR-CRT-004, NFR-SIG-001, Phase 3d), and a check or an override is the signed-in officer's own; only a signature, check or override made on paper is
+ * recorded for the Person named and shown as "recorded on behalf of, not signed" (Phase 2b). Server stamps are read once, at the act's entry, and passed in as `now` (truncated to
  * the second); `today` is the organisation's day of that instant. The certificate's date is written only by a
  * signature and by its audited correction (a source scan holds that).
  */

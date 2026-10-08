@@ -45,6 +45,9 @@ import { StartPreparationDrawer, WcCheckDrawer } from "./editors";
 import { FormationPanel, FORMATION_SECTIONS, type FormationSection } from "./formation-panels";
 import { PAYMENT_SECTIONS, PaymentsPanel, PaymentSummaryCard, paymentView, type PaymentSection, type PaymentView } from "./payment-panels";
 import { OnSiteCard, SITE_SECTIONS, SitePanel, supervisionView, TeamPanel, type SiteSection, type SupervisionView } from "./supervision-panels";
+import { hiddenActsFor } from "@/lib/supervision/authority";
+import { delegationFactsOf } from "@/lib/supervision/load";
+import { SUPERVISION_ACTS } from "@/lib/supervision/types";
 import { VARIATION_SECTIONS, VariationsPanel, VariationSummaryCard, type VariationSection } from "./variation-panels";
 import { variationView, type VariationView } from "@/lib/variation/view";
 import { requireStaff } from "@/app/_auth/actor";
@@ -84,6 +87,8 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
   // 6.13 Part A step 3: interim payment and the damages chain, for the Overview and the Payments tab.
   // Step 4: variations and the adjustments of the contract sum, for the Overview and the Variations tab.
   const [payments, variations] = await Promise.all([paymentView(l, today), variationView(l, today)]);
+  // FR-SUP-004 (Phase 3d): the acts outside the delegated scope of a representative who is signed in are not offered to them. Nothing is hidden from the S.O. or from an officer who is no representative.
+  const hiddenActs = today && !actor.system ? hiddenActsFor(actor.personId, supervision.so?.office ?? null, delegationFactsOf(supervision.s), today, SUPERVISION_ACTS) : [];
   const peopleOptions: Option[] = people.map((p) => ({ value: p.id, label: p.name }));
   const phase = facts?.phase ?? status;
   const formationSection = (FORMATION_SECTIONS.find((s) => s.id === section)?.id ?? "assembly") as FormationSection;
@@ -112,7 +117,7 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
       sections: [...SITE_SECTIONS],
       section: siteSection,
       lazy: true,
-      panel: tab === "site" ? <SitePanel l={l} v={supervision} people={peopleOptions} today={today} section={siteSection} page={pageNo} /> : null,
+      panel: tab === "site" ? <SitePanel l={l} v={supervision} people={peopleOptions} today={today} section={siteSection} page={pageNo} hidden={hiddenActs} /> : null,
     },
     // 6.13 Part A step 3: valuations and their certificates, retention, the advance and liquidated damages.
     {
@@ -123,7 +128,7 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
       sections: [...PAYMENT_SECTIONS],
       section: paymentSection,
       lazy: true,
-      panel: tab === "payments" ? <PaymentsPanel l={l} v={payments} people={peopleOptions} today={today} section={paymentSection} page={pageNo} /> : null,
+      panel: tab === "payments" ? <PaymentsPanel l={l} v={payments} people={peopleOptions} today={today} section={paymentSection} page={pageNo} hidden={hiddenActs} /> : null,
     },
     // 6.13 Part A step 4: variations, from application to certificate, and the adjustments of the contract sum.
     {
@@ -134,7 +139,7 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
       sections: [...VARIATION_SECTIONS],
       section: variationSection,
       lazy: true,
-      panel: tab === "variations" ? <VariationsPanel l={l} v={variations} people={peopleOptions} today={today} section={variationSection} page={pageNo} /> : null,
+      panel: tab === "variations" ? <VariationsPanel l={l} v={variations} people={peopleOptions} today={today} section={variationSection} page={pageNo} hidden={hiddenActs} /> : null,
     },
     { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: c.securities.length + c.policies.length, panel: <SecuritiesPanel l={l} people={peopleOptions} today={today} /> },
     // 6.14 increment 1 (plan §5): every certificate of the contract, by kind and status.

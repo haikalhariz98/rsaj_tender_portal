@@ -37,7 +37,8 @@ import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
 import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
 import { EXECUTED_STATUSES } from "@/lib/payment/eligibility";
 import { loadRoster } from "@/lib/people/load";
-import { capacityFor } from "@/lib/supervision/authority";
+import { capacityFor, hiddenActsFor } from "@/lib/supervision/authority";
+import { SUPERVISION_ACTS, type SupervisionAct } from "@/lib/supervision/types";
 import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 import { approvedValue, awaitingChoice, closeFaults, commenceFaults, commencedPending, cumulativeApproved, lastStepFormFault, newSumOf, pendingRoute, pendingValueRoutes, priorValueOf, routeValue, scheduleFormOf, sendFaults, soDecisionFaults, stageOf, submitFaults, type VariationFacts } from "@/lib/variation/application";
 import { clockReading, instructionFaults, sketchesLine } from "@/lib/variation/instruction";
@@ -114,6 +115,8 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
   // The header's acts, by where it stands, each judged by its act's own rule.
   const s = today ? await loadSupervision(l.contract.id) : null;
   const so = s && today ? await soOfficeOn(l, s, today) : null;
+  // FR-SUP-004 (Phase 3d): the acts outside the delegated scope of a representative who is signed in are not offered to them. Nothing is hidden from the S.O. or from an officer who is no representative.
+  const hidden = today && s && !actor.system ? hiddenActsFor(actor.personId, so?.office ?? null, delegationFactsOf(s), today, SUPERVISION_ACTS) : [];
   const cap = (pid: string | null, on: string | null) => (pid && on && s ? capacityFor(pid, { act: "VARIATION_APPLICATION" }, so?.office ?? null, delegationFactsOf(s), on).capacity : null);
   const rep = (c: ReturnType<typeof cap>) => (c ? (c.as === "SO" ? ({ as: "SO" } as const) : ({ as: "DELEGATE", kind: c.kind } as const)) : null);
   const principal = v.principalPersonId && v.principalOn && s ? capacityFor(v.principalPersonId, { principalOrSo: true }, so?.office ?? null, delegationFactsOf(s), day(v.principalOn)!).capacity : null;
@@ -152,11 +155,11 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
   ]);
 
   const tabs = [
-    { id: "application", label: "Application", icon: <FileIcon size={15} />, panel: <ApplicationPanel l={l} v={v} f={f} vv={vv} people={people} today={today} priorReading={priorReading} editBlocker={blockedBy ?? (v.status !== "DRAFT" ? say([{ code: "NOT_DRAFT", level: "block", data: { status: v.status } }]) : null)} editValues={editValues} /> },
-    { id: "approval", label: "Approval", icon: <RouteIcon size={15} />, count: v.approvals.length, panel: <ApprovalPanel l={l} v={v} f={f} vv={vv} people={people} today={today} blockedBy={blockedBy} /> },
-    { id: "instruction", label: "Instruction", icon: <ToolsIcon size={15} />, count: v.instructions.length + v.dayworkRecords.length, panel: <InstructionPanel l={l} v={v} f={f} vv={vv} people={people} today={today} blockedBy={blockedBy} /> },
-    { id: "measurement", label: "Measurement", icon: <ScaleIcon size={15} />, count: v.measurements.filter((m) => !m.removedAt).length, panel: <MeasurementPanel l={l} v={v} people={people} today={today} blockedBy={blockedBy} /> },
-    { id: "order", label: "Certificate", icon: <WalletIcon size={15} />, count: v.orders.length, panel: <OrderPanel l={l} v={v} f={f} vv={vv} people={people} blockedBy={blockedBy} /> },
+    { id: "application", label: "Application", icon: <FileIcon size={15} />, panel: <ApplicationPanel l={l} v={v} f={f} vv={vv} people={people} today={today} hidden={hidden} priorReading={priorReading} editBlocker={blockedBy ?? (v.status !== "DRAFT" ? say([{ code: "NOT_DRAFT", level: "block", data: { status: v.status } }]) : null)} editValues={editValues} /> },
+    { id: "approval", label: "Approval", icon: <RouteIcon size={15} />, count: v.approvals.length, panel: <ApprovalPanel l={l} v={v} f={f} vv={vv} people={people} today={today} hidden={hidden} blockedBy={blockedBy} /> },
+    { id: "instruction", label: "Instruction", icon: <ToolsIcon size={15} />, count: v.instructions.length + v.dayworkRecords.length, panel: <InstructionPanel l={l} v={v} f={f} vv={vv} people={people} today={today} hidden={hidden} blockedBy={blockedBy} /> },
+    { id: "measurement", label: "Measurement", icon: <ScaleIcon size={15} />, count: v.measurements.filter((m) => !m.removedAt).length, panel: <MeasurementPanel l={l} v={v} people={people} today={today} hidden={hidden} blockedBy={blockedBy} /> },
+    { id: "order", label: "Certificate", icon: <WalletIcon size={15} />, count: v.orders.length, panel: <OrderPanel l={l} v={v} f={f} vv={vv} people={people} hidden={hidden} blockedBy={blockedBy} /> },
     { id: "history", label: "History", icon: <ClockIcon size={15} />, count: historyTotal, panel: <HistoryPanel entries={history} total={historyTotal} timeZone={l.org.timeZone} /> },
   ];
 
@@ -201,11 +204,12 @@ export default async function VariationPage(props: PageProps<"/projects/[id]/var
   );
 }
 
-type PanelProps = { l: LoadedContract; v: VariationRow; f: VariationFacts; vv: VariationView; people: Option[]; today: string | null };
+/// `hidden`: the acts outside the delegated scope of a representative who is signed in, which their screen does not offer (FR-SUP-004, Phase 3d).
+type PanelProps = { l: LoadedContract; v: VariationRow; f: VariationFacts; vv: VariationView; people: Option[]; today: string | null; hidden: readonly SupervisionAct[] };
 
 // ------------------------------------------------------------------ application
 
-function ApplicationPanel({ l, v, f, vv, people, priorReading, editBlocker, editValues }: PanelProps & { priorReading: ReturnType<typeof variationReading> | null; editBlocker: string | null; editValues: Record<string, string | null> }) {
+function ApplicationPanel({ l, v, f, vv, people, hidden, priorReading, editBlocker, editValues }: PanelProps & { priorReading: ReturnType<typeof variationReading> | null; editBlocker: string | null; editValues: Record<string, string | null> }) {
   const cumulative = cumulativeApproved(vv.facts, v.id);
   const reading = priorReading?.ok ? priorReading.reading : null;
   const den = reading ? BigInt(reading.den) : null;
@@ -237,7 +241,7 @@ function ApplicationPanel({ l, v, f, vv, people, priorReading, editBlocker, edit
           icon={<FileIcon size={17} />}
           title="The application"
           subtitle="What the variation is, why, its estimate and the answers its path needs. The number, the percentage, the cumulative and the new contract sum are worked out, never typed."
-          actions={v.status === "DRAFT" ? <VariationRecordDrawer id={l.contract.id} people={people} origins={VARIATION_ORIGINS.map((o) => ({ value: o, label: ORIGIN_WORDS[o].en }))} exemptions={VARIATION_EXEMPTIONS.map((e) => ({ value: e, label: EXEMPTION_WORDS[e].en }))} values={editValues} blocker={editBlocker} /> : undefined}
+          actions={v.status === "DRAFT" && !hidden.includes("VARIATION_APPLICATION") ? <VariationRecordDrawer id={l.contract.id} people={people} origins={VARIATION_ORIGINS.map((o) => ({ value: o, label: ORIGIN_WORDS[o].en }))} exemptions={VARIATION_EXEMPTIONS.map((e) => ({ value: e, label: EXEMPTION_WORDS[e].en }))} values={editValues} blocker={editBlocker} /> : undefined}
         />
         <CardBody>
           <KeyValues
@@ -408,7 +412,7 @@ async function ApprovalPanel({ l, v, f, vv, people, today, blockedBy }: PanelPro
 
 // ------------------------------------------------------------------ instruction
 
-function InstructionPanel({ l, v, f, vv, people, today, blockedBy }: PanelProps & { blockedBy: string | null }) {
+function InstructionPanel({ l, v, f, vv, people, today, hidden, blockedBy }: PanelProps & { blockedBy: string | null }) {
   const ins = liveInstructionRow(v);
   const form = scheduleFormOf(v.agreedRateExists, { withAgreedRate: vv.policy?.scheduleFormAgreedRate ?? null, withoutAgreedRate: vv.policy?.scheduleFormNoAgreedRate ?? null });
   const insBlocker = blockedBy ?? (today ? say(instructionFaults({ v: f, funderConsentRequired: v.funderConsentRequired, consent: consentOf(v).state, agreedRateExists: v.agreedRateExists, scheduleForm: form, description: v.description, oralIssuedOn: null, today })) : null) ?? (!vv.formSet("SO_INSTRUCTION") ? variationFaultText(noFormFault("SO_INSTRUCTION")) : null);
@@ -420,7 +424,7 @@ function InstructionPanel({ l, v, f, vv, people, today, blockedBy }: PanelProps 
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<ToolsIcon size={17} />} title="The S.O.'s instruction" subtitle="Never before the variation's approval (or its exemption) and the funder's consent where it needs one. Dated by the S.O.'s signature on its page." actions={!ins && v.status === "SUPPORTED" ? <InstructionDrawer id={l.contract.id} variationId={v.id} description={v.description} people={people} blocker={insBlocker} /> : undefined} />
+        <CardHeader icon={<ToolsIcon size={17} />} title="The S.O.'s instruction" subtitle="Never before the variation's approval (or its exemption) and the funder's consent where it needs one. Dated by the S.O.'s signature on its page." actions={!ins && v.status === "SUPPORTED" && !hidden.includes("INSTRUCTION") ? <InstructionDrawer id={l.contract.id} variationId={v.id} description={v.description} people={people} blocker={insBlocker} /> : undefined} />
         <CardBody>
           {ins ? (
             <KeyValues
@@ -458,7 +462,7 @@ function InstructionPanel({ l, v, f, vv, people, today, blockedBy }: PanelProps 
         </Card>
       )}
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClockIcon size={17} />} title="Daywork" subtitle="Labour and plant time checked and agreed with the contractor the same day; the substantiation's clock read when each record is made." actions={<DayworkDrawer id={l.contract.id} variationId={v.id} people={people} today={today} blocker={blockedBy ?? (instructed ? null : variationFaultText({ code: "INSTRUCTION_NOT_ISSUED", level: "block" }))} />} divided={v.dayworkRecords.length > 0} />
+        <CardHeader icon={<ClockIcon size={17} />} title="Daywork" subtitle="Labour and plant time checked and agreed with the contractor the same day; the substantiation's clock read when each record is made." actions={hidden.includes("VALUATION") ? undefined : <DayworkDrawer id={l.contract.id} variationId={v.id} people={people} today={today} blocker={blockedBy ?? (instructed ? null : variationFaultText({ code: "INSTRUCTION_NOT_ISSUED", level: "block" }))} />} divided={v.dayworkRecords.length > 0} />
         {v.dayworkRecords.length === 0 ? (
           <EmptyState size="sm" title="None recorded">Daywork is recorded once the instruction is issued.</EmptyState>
         ) : (
@@ -489,7 +493,7 @@ function InstructionPanel({ l, v, f, vv, people, today, blockedBy }: PanelProps 
 
 // ------------------------------------------------------------------ measurement
 
-function MeasurementPanel({ l, v, people, today, blockedBy }: { l: LoadedContract; v: VariationRow; people: Option[]; today: string | null; blockedBy: string | null }) {
+function MeasurementPanel({ l, v, people, today, hidden, blockedBy }: { l: LoadedContract; v: VariationRow; people: Option[]; today: string | null; hidden: readonly SupervisionAct[]; blockedBy: string | null }) {
   const ins = liveInstructionRow(v);
   const orderLive = !!liveOrderRow(v);
   const pre = measurementFaults({ instruction: { description: ins?.description ?? "", issued: ins?.certificate.status === "ISSUED" }, orderLive, heading: ins?.description ?? "", itemRef: "item", measuredRefs: [], rateSource: "CONTRACT_RATE", bqItemRef: "item", agreedRateApproved: true, quantity: 1n, baseRate: 0n, adjustmentTt: null, coveredUp: false, recordsNote: "", measuredOn: today ?? "", today: today ?? "" }).filter((x) => x.code === "INSTRUCTION_NOT_ISSUED" || x.code === "ORDER_RAISED");
@@ -503,7 +507,7 @@ function MeasurementPanel({ l, v, people, today, blockedBy }: { l: LoadedContrac
         icon={<ScaleIcon size={17} />}
         title="Measured items"
         subtitle={ins ? `Under the instruction's heading, “${ins.description}”, one item each, never merged. Net so far ${formatMoney(total)}.` : "Measured under the instruction once it is issued."}
-        actions={<MeasurementDrawer id={l.contract.id} variationId={v.id} heading={ins?.description ?? ""} people={people} sources={RATE_SOURCES.map((x) => ({ value: x, label: RATE_SOURCE_WORDS[x].en }))} directions={ADJUSTMENT_DIRECTIONS.map((x) => ({ value: x, label: DIRECTION_WORDS[x].en }))} today={today} blocker={blocker} />}
+        actions={hidden.includes("VALUATION") ? undefined : <MeasurementDrawer id={l.contract.id} variationId={v.id} heading={ins?.description ?? ""} people={people} sources={RATE_SOURCES.map((x) => ({ value: x, label: RATE_SOURCE_WORDS[x].en }))} directions={ADJUSTMENT_DIRECTIONS.map((x) => ({ value: x, label: DIRECTION_WORDS[x].en }))} today={today} blocker={blocker} />}
         divided={items.length > 0}
       />
       {items.length === 0 ? (
@@ -532,7 +536,7 @@ function MeasurementPanel({ l, v, people, today, blockedBy }: { l: LoadedContrac
 
 // ------------------------------------------------------------------ the order (VO-663)
 
-async function OrderPanel({ l, v, f, vv, people, blockedBy }: Omit<PanelProps, "today"> & { blockedBy: string | null }) {
+async function OrderPanel({ l, v, f, vv, people, hidden, blockedBy }: Omit<PanelProps, "today"> & { blockedBy: string | null }) {
   const ins = liveInstructionRow(v);
   const order = liveOrderRow(v);
   const lines = ins ? standingMeasurements(v, ins.id) : [];
@@ -544,7 +548,7 @@ async function OrderPanel({ l, v, f, vv, people, blockedBy }: Omit<PanelProps, "
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader icon={<WalletIcon size={17} />} title="The Variation Order Certificate" subtitle="Certifies the measured variation, addition or omission, under the valuation clause chosen, its description the instruction's word for word. Signed by the S.O. after the recommending officer, never by an officer who may only instruct. The contract sum moves only by an issued adjustment of the contract sum." actions={!order ? <OrderDrawer id={l.contract.id} variationId={v.id} description={ins?.description ?? ""} clauses={clauses} people={people} blocker={raiseBlocker} /> : undefined} />
+        <CardHeader icon={<WalletIcon size={17} />} title="The Variation Order Certificate" subtitle="Certifies the measured variation, addition or omission, under the valuation clause chosen, its description the instruction's word for word. Signed by the S.O. after the recommending officer, never by an officer who may only instruct. The contract sum moves only by an issued adjustment of the contract sum." actions={!order && !hidden.includes("VALUATION") ? <OrderDrawer id={l.contract.id} variationId={v.id} description={ins?.description ?? ""} clauses={clauses} people={people} blocker={raiseBlocker} /> : undefined} />
         <CardBody>
           {order ? (
             <KeyValues
