@@ -305,6 +305,7 @@ export const DECIDER_FAULT_TEXT: Record<DeciderFault, string> = {
   DELEGATION_NOT_PERMITTED: "This step cannot be delegated, and that person acts only under a delegation.",
   OVER_CEILING: "The requisition's value is above the ceiling of the delegation that person acts under.",
   SELF_APPROVAL: "That person raised this requisition. Nobody decides their own.",
+  SENT_IT: "That person sent this for approval. Nobody decides what they sent.",
   ENDORSED_IT:
     "That person endorsed this requisition. An endorser may decide only a step of the office they hold directly for the unit they endorsed for — never as a delegate, and never another office's step.",
   ALREADY_DISCHARGED_A_STEP: "That person has already decided another step of this route.",

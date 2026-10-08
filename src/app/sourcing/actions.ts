@@ -64,7 +64,7 @@ import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
 import { committeeStandingOf, noticeRecall } from "@/lib/approvals/recall-store";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
-import { routeRequesterId } from "@/lib/approvals/requester";
+import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester";
 
 /**
  * Writes for sourcing exercises (6.3).
@@ -734,6 +734,8 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
       person,
       // Nobody decides the name for an exercise on a requisition they raised.
       requesterId: routeRequesterId("NAME_APPROVAL", { requisitionRaiserId: l.req.requestingPersonId }) ?? "",
+      // The sender of the route is barred as well (ruling of 2026-10-08 on log line 1789). Where the route records none, nobody is barred on that account.
+      senderId: routeSenderBarredId("NAME_APPROVAL", { routeSenderId: inst.submittedByPersonId }),
       recorderId: act.recorderId,
       endorserIds: [],
       // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).

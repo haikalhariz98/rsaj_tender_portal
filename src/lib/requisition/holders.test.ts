@@ -39,6 +39,41 @@ describe("who holds the office for the requesting unit", () => {
   });
 });
 
+describe("the sender of a name or an appointment route may not decide it (ruling of 2026-10-08 on log line 1789)", () => {
+  const step = { committeeCode: null, nonDelegable: false, decision: "PENDING" };
+  const ctx = (over: Partial<DeciderContext> = {}): DeciderContext => ({
+    today: "2026-09-30",
+    holders: holdersFor("DEPT_HEAD", PATH, ROSTER, [], "2026-09-30"),
+    person: { id: "hodNth", isActive: true },
+    requesterId: "req",
+    endorserIds: [],
+    otherDeciderIds: [], earlier: NO_EARLIER_RECORDERS,
+    earlierDone: true,
+    decidedOn: "2026-09-30",
+    openedOn: "2026-09-20",
+    value: 3_800_000n,
+    ...over,
+  });
+
+  it("refuses the sender, as the holder of the office, with a fault of its own and not the requisition's 'raised it'", () => {
+    expect(deciderFaults(step, ctx({ senderId: "hodNth" })).faults).toEqual(["SENT_IT"]);
+  });
+
+  it("still refuses the requisition's raiser, and says that, when they are also the sender", () => {
+    expect(deciderFaults(step, ctx({ requesterId: "hodNth", senderId: "hodNth" })).faults).toEqual(["SELF_APPROVAL"]);
+  });
+
+  it("refuses the officer who records a decision for someone else when they are the sender", () => {
+    expect(deciderFaults(step, ctx({ senderId: "clerk", recorderId: "clerk" })).faults).toEqual(["RECORDER_IS_REQUESTER"]);
+  });
+
+  it("bars nobody extra where no sender is given", () => {
+    expect(deciderFaults(step, ctx({ senderId: null })).faults).toEqual([]);
+    expect(deciderFaults(step, ctx({ senderId: undefined })).faults).toEqual([]);
+    expect(deciderFaults(step, ctx({ senderId: "somebodyElse" })).faults).toEqual([]);
+  });
+});
+
 describe("who may discharge a step (ruling OD-12)", () => {
   const step = { committeeCode: null, nonDelegable: false, decision: "PENDING" };
   const ctx = (over: Partial<DeciderContext> = {}): DeciderContext => ({

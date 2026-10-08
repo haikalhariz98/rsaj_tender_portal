@@ -7,8 +7,10 @@
  * - a supplier's registration: whoever sent the application;
  * - a blacklisting (or its lifting) and a special permission: whoever raised the request.
  *
- * Whether the sender of a name or an appointment route should be barred as well is a question for the product owner (decisions log, Phase 3c review): until it is
- * ruled, nobody is shown as barred whom the server does not bar, and `submittedByPersonId` on those routes is the originator for recall only.
+ * The sender of a name or an appointment route is barred as well (product owner, 2026-10-08, ruling on log line 1789): one separation rule across every kind of route, as
+ * the sender already is on a certificate's, a variation's and a contract matter's. So those two kinds bar TWO people, the officer who raised the requisition and whoever sent
+ * the route: `routeRequesterId` is the first (what `deciderFaults` reads as `requesterId`), `routeSenderBarredId` the second (`senderId`), and `routeBarred` both, each with how
+ * the person is related to the matter, for the worklist. The decision sites and the worklist read these same helpers, so the screen and the server cannot disagree.
  *
  * Pure.
  */
@@ -55,12 +57,32 @@ export function routeRequesterId(kind: RequesterRouteKind, facts: RequesterFacts
   return facts[SOURCE[kind]] ?? null;
 }
 
-/// How the barred person is related to the matter, for the words on the worklist: they raised it, or they sent it.
+/// The person who sent a name or an appointment route, who may not decide it either (ruling on log line 1789); null for every other kind, whose one barred person is `routeRequesterId`.
+export function routeSenderBarredId(kind: RequesterRouteKind, facts: RequesterFacts): string | null {
+  return kind === "NAME_APPROVAL" || kind === "APPOINTMENT" ? (facts.routeSenderId ?? null) : null;
+}
+
+/// How the barred person is related to the matter, for the words on the worklist: they raised it, they sent it, or they keyed an earlier act of it for someone else.
+export type BarredRelation = "RAISED" | "SENT" | "KEYED";
+
+/// How the person `routeRequesterId` names is related to the matter: they raised it, or they sent it.
 export function requesterRelation(kind: RequesterRouteKind): "RAISED" | "SENT" {
   return SOURCE[kind] === "routeSenderId" || SOURCE[kind] === "applicationSenderId" ? "SENT" : "RAISED";
 }
 
-export const BARRED_WORDS: Readonly<Record<"RAISED" | "SENT", string>> = {
+/// Everyone a route of this kind bars, each with how they are related to it. A person who is both the raiser and the sender is listed once, as the raiser.
+export function routeBarred(kind: RequesterRouteKind, facts: RequesterFacts): { personId: string; relation: BarredRelation }[] {
+  const out: { personId: string; relation: BarredRelation }[] = [];
+  const first = routeRequesterId(kind, facts);
+  if (first) out.push({ personId: first, relation: requesterRelation(kind) });
+  const sender = routeSenderBarredId(kind, facts);
+  if (sender && sender !== first) out.push({ personId: sender, relation: "SENT" });
+  return out;
+}
+
+export const BARRED_WORDS: Readonly<Record<BarredRelation, string>> = {
   RAISED: "You raised it: you cannot decide it",
   SENT: "You sent it: you cannot decide it",
+  // Ruling on log line 1792: the officer who keyed the requisition, an endorsement or an earlier step for someone else is its author as much as the colleague is.
+  KEYED: "You recorded it for someone else: you cannot decide it",
 };

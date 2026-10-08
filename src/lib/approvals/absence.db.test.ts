@@ -298,6 +298,56 @@ describe("marking a person away needs the permission to draft configuration (rul
   });
 });
 
+describe("the automatic move waits for a superior who holds the office above (ruling on log line 1769)", () => {
+  it("leaves the step where it is, and says why, when the line's superior does not hold the office it would move to; an officer's own escalation still goes", async () => {
+    const A5 = `RA5_${run}`;
+    const B5 = `RB5_${run}`;
+    await db.authorityRole.createMany({
+      data: [
+        { organisationId, code: A5, nameEn: `Office A5 ${run}`, nameMs: `Pejabat A5 ${run}`, escalatesToCode: B5 },
+        { organisationId, code: B5, nameEn: `Office B5 ${run}`, nameMs: `Pejabat B5 ${run}` },
+      ],
+    });
+    const away = (await makePerson(organisationId, `Away5 ${run}`)).id;
+    const named = (await makePerson(organisationId, `Named superior ${run}`)).id;
+    const keeper = (await makePerson(organisationId, `Keeper of B5 ${run}`)).id;
+    // The line names `named` as above the holder, but `named` does not hold the office the step would move to: `keeper` does.
+    await db.roleAssignment.createMany({
+      data: [
+        { personId: away, roleCode: A5, effectiveFrom: day("2020-01-01") },
+        { personId: keeper, roleCode: B5, effectiveFrom: day("2020-01-01") },
+      ],
+    });
+    await db.person.update({ where: { id: away }, data: { isAvailable: false } });
+    await db.reportingLine.create({ data: { organisationId, personId: away, superiorPersonId: named, effectiveFrom: day("2020-01-01"), provenance: "ASSUMED" } });
+    const r = await route([{ roleCode: A5, act: "A" }]);
+    const out = await sweep();
+    expect(movedWords(out, r.label)).toBeUndefined();
+    expect(stayedWords(out, r.label)).toContain(`Named superior ${run} is named as above the people who hold this office, but does not hold Office B5 ${run}`);
+    const step = await stepOf(r.steps[0]!);
+    expect(step.actingRoleCode).toBeNull();
+    expect(step.escalationCount).toBe(0);
+    expect(await db.auditEntry.count({ where: { entity: "ApprovalStep", entityId: r.steps[0] } })).toBe(0);
+    expect(await db.staffNotice.count({ where: { subjectId: r.steps[0] } })).toBe(0);
+
+    // An officer's explicit escalation, with a reason, does not wait for a line: it goes to the configured office.
+    const { escalateStep } = await import("@/app/approvals/actions");
+    const f = new FormData();
+    f.set("stepId", r.steps[0]!);
+    f.set("kind", "NO_AVAILABLE_HOLDER");
+    f.set("reason", "The head of the office is away on leave and nobody else can decide this.");
+    expect(await escalateStep({ ok: false }, f)).toMatchObject({ ok: true });
+    expect((await stepOf(r.steps[0]!)).actingRoleCode).toBe(B5);
+
+    // Once the superior the line names holds that office, the sweep moves the next one.
+    await db.roleAssignment.create({ data: { personId: named, roleCode: B5, effectiveFrom: day("2020-01-01") } });
+    const r2 = await route([{ roleCode: A5, act: "A" }]);
+    const out2 = await sweep();
+    expect(movedWords(out2, r2.label)).toBe(`Moved: ${r2.label} from Office ${A5} to Office B5 ${run}.`);
+    expect((await stepOf(r2.steps[0]!)).actingRoleCode).toBe(B5);
+  });
+});
+
 describe("who may move steps, and whose (Phase 3c review)", () => {
   const asAdministrator = async <T,>(fn: () => Promise<T>): Promise<T> => {
     const saved = who.actor;

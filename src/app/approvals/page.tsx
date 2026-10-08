@@ -53,7 +53,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
       why: {
         kind: "chips",
         items: [
-          ...(m.barred ? [{ text: BARRED_WORDS[m.item.barredRelation], tone: "warn" as const }] : [{ text: "Waiting for you", tone: "brand" as const, nowrap: true }]),
+          ...(m.barred ? [{ text: BARRED_WORDS[m.relation ?? "RAISED"], tone: "warn" as const }] : [{ text: "Waiting for you", tone: "brand" as const, nowrap: true }]),
           ...(m.item.escalation ? [{ text: ESCALATION_KIND_LABEL[m.item.escalation], tone: "warn" as const, nowrap: true }] : []),
         ],
       },

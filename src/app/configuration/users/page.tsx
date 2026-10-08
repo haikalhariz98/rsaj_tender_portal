@@ -70,7 +70,7 @@ export default async function UsersPage({
     .filter((i) => i.noneAvailable && !i.committee)
     .map((i) => {
       const verdict = absenceVerdict({ holderIds: i.holderIds, lines, on: lineDay });
-      return { stepId: i.stepId, matter: i.matterLabel, office: i.officeLabel, why: verdict.move ? "The reporting line names who is above its holders, so \"Move steps held by people who are away\" on the worklist will try to move it; if it stays, the worklist says why." : stayText(verdict.why, verdict.holderIdsWithoutLine.map((id) => nameOf.get(id) ?? "A person no longer on record")) };
+      return { stepId: i.stepId, matter: i.matterLabel, office: i.officeLabel, why: verdict.move ? "The reporting line names who is above its holders, so \"Move steps held by people who are away\" on the worklist will try to move it. It moves it only if that superior holds the office the step would move to; if it stays, the worklist says why." : stayText(verdict.why, verdict.holderIdsWithoutLine.map((id) => nameOf.get(id) ?? "A person no longer on record")) };
     });
 
   return (

@@ -9,10 +9,9 @@
  * Pure.
  */
 
-import { parseSen } from "@/lib/money";
 import { daysBetween } from "@/lib/requisition/types";
 
-import type { requesterRelation } from "./requester";
+import type { BarredRelation } from "./requester";
 
 export interface QueueStep {
   routeId: string;
@@ -41,8 +40,9 @@ export interface QueueStep {
   value?: bigint | null;
   /// People who may not decide this matter because they raised or sent it (FR-APR-008). Unknown: none named. Which person that is depends on the kind of route (`requester.ts`).
   barredIds?: readonly string[];
-  /// How the barred person is related to the matter, for the words: they raised it, or they sent it.
-  barredRelation?: ReturnType<typeof requesterRelation>;
+  /// How each barred person is related to the matter, for the words: they raised it, they sent it, or they keyed it for someone else. A name's and an appointment's route bar
+  /// two people who are related differently (ruling of 2026-10-08 on log line 1789), so the relation is the person's, not the route's. One not listed reads as having raised it.
+  barredRelations?: Readonly<Record<string, BarredRelation>>;
 }
 
 export interface QueueItem {
@@ -69,26 +69,16 @@ export interface QueueItem {
   /// Empty for a committee step, which is decided at a sitting, and where the day is not known.
   holderIds: readonly string[];
   delegateIds: readonly string[];
-  /// People barred from deciding it because they raised or sent it.
+  /// People barred from deciding it because they raised or sent it, or keyed it for someone else.
   barredIds: readonly string[];
-  barredRelation: ReturnType<typeof requesterRelation>;
+  /// How each is related to it (see `QueueStep.barredRelations`).
+  barredRelations: Readonly<Record<string, BarredRelation>>;
 }
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
-/**
- * The delegates of an office who could decide a step, which is fewer than the delegates of the office: a step that only the holder may decide (`nonDelegable`) has none, and a
- * delegation capped below the route's value cannot decide it either (the very checks `deciderFaults` makes, DELEGATION_NOT_PERMITTED and OVER_CEILING). My steps lists only what a
- * person will not be refused. A null ceiling limits nothing; an unknown value (`null`) is judged against no ceiling.
- */
-export function decidingDelegates<T extends { personId: string; delegation: { valueCeiling: string | null } }>(
-  delegates: readonly T[],
-  step: { nonDelegable?: boolean },
-  value: bigint | null | undefined,
-): T[] {
-  if (step.nonDelegable) return [];
-  return delegates.filter((d) => d.delegation.valueCeiling == null || value == null || value <= parseSen(d.delegation.valueCeiling));
-}
+// The one reading of which delegates could decide a step lives with `someoneCanAct` (ruling on log line 1790); My steps lists exactly those.
+export { decidingDelegates } from "@/lib/authority/absence";
 
 /// The next step of each open route, in order: the first undecided one.
 export function nextStep<T extends { sequence: number; decision: string }>(steps: readonly T[]): T | null {
@@ -160,7 +150,7 @@ export function officeQueue(
       noneAvailable: noneAvailable(r.routeId, o.officeCode, !!s.committeeCode),
       ...(({ holderIds, delegateIds }) => ({ holderIds, delegateIds }))(deciders(r.routeId, o.officeCode, !!s.committeeCode)),
       barredIds: r.barredIds ?? [],
-      barredRelation: r.barredRelation ?? "RAISED",
+      barredRelations: r.barredRelations ?? {},
     });
   }
   const groups = new Map<string, QueueItem[]>();
@@ -177,6 +167,8 @@ export interface MyStep {
   via: "HOLDER" | "DELEGATE";
   /// They may not decide it: they raised or sent the matter. It is listed so it is not lost, and not counted as waiting for them (FR-APR-008).
   barred: boolean;
+  /// How they are related to the matter, for the words, where they are barred; null where they are not.
+  relation: BarredRelation | null;
 }
 
 /**
@@ -189,7 +181,10 @@ export function myStepsOf(groups: readonly { items: readonly QueueItem[] }[], pe
     for (const item of g.items) {
       if (item.committee) continue;
       const via = item.holderIds.includes(personId) ? "HOLDER" : item.delegateIds.includes(personId) ? "DELEGATE" : null;
-      if (via) out.push({ item, via, barred: item.barredIds.includes(personId) });
+      if (via) {
+        const barred = item.barredIds.includes(personId);
+        out.push({ item, via, barred, relation: barred ? (item.barredRelations[personId] ?? "RAISED") : null });
+      }
     }
   }
   return out.sort((a, b) => a.item.waitingSince.localeCompare(b.item.waitingSince) || a.item.matterLabel.localeCompare(b.item.matterLabel));

@@ -70,7 +70,7 @@ import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
 import { committeeStandingOf, noticeRecall } from "@/lib/approvals/recall-store";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
-import { routeRequesterId } from "@/lib/approvals/requester";
+import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester";
 
 /**
  * Writes for awards (6.11) and the registers on their contracts.
@@ -652,6 +652,8 @@ export async function decideAppointmentStep(_prev: FormState, data: FormData): P
       declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
       person,
       requesterId: routeRequesterId("APPOINTMENT", { requisitionRaiserId: l.req.requestingPersonId }) ?? "",
+      // The sender of the route is barred as well (ruling of 2026-10-08 on log line 1789). Where the route records none, nobody is barred on that account.
+      senderId: routeSenderBarredId("APPOINTMENT", { routeSenderId: inst.submittedByPersonId }),
       recorderId: act.recorderId,
       endorserIds: [],
       // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).

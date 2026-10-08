@@ -67,6 +67,8 @@ export type DeciderFault =
   | "DELEGATION_NOT_PERMITTED"
   | "OVER_CEILING"
   | "SELF_APPROVAL"
+  /// The person sent a name or an appointment route (ruling of 2026-10-08 on log line 1789): nobody decides what they sent.
+  | "SENT_IT"
   | "ENDORSED_IT"
   | "ALREADY_DISCHARGED_A_STEP"
   | "FUTURE_DATE"
@@ -101,6 +103,9 @@ export interface DeciderContext {
   holders: Holders;
   person: { id: string; isActive: boolean } | null;
   requesterId: string;
+  /// The person recorded as having sent the route, where the route's kind bars them as well as the requisition's raiser (a name's or an appointment's, `routeSenderBarredId`).
+  /// Absent: the kind bars the one person `requesterId` names.
+  senderId?: string | null;
   /// People who endorsed it, where the unit they endorsed for is not known: barred.
   endorserIds: readonly string[];
   /// The endorsements, with the unit each endorsed for. A direct holder of this office
@@ -150,7 +155,7 @@ export function deciderFaults(
 
   const rid = ctx.recorderId ?? null;
   if (rid && rid !== ctx.person?.id) {
-    if (rid === ctx.requesterId) faults.push("RECORDER_IS_REQUESTER");
+    if (rid === ctx.requesterId || (ctx.senderId && rid === ctx.senderId)) faults.push("RECORDER_IS_REQUESTER");
     if (ctx.endorserIds.includes(rid) || (ctx.endorsements ?? []).some((e) => e.personId === rid)) faults.push("RECORDER_ENDORSED_IT");
     if (ctx.otherDeciderIds.includes(rid)) faults.push("RECORDER_DECIDED_ANOTHER_STEP");
     if (ctx.declaredConflictIds?.includes(rid)) faults.push("RECORDER_DECLARED_CONFLICT");
@@ -178,6 +183,7 @@ export function deciderFaults(
     }
   }
   if (pid === ctx.requesterId || keyed.requesterRecorderIds.includes(pid)) faults.push("SELF_APPROVAL");
+  else if (ctx.senderId && pid === ctx.senderId) faults.push("SENT_IT");
   // Ruling BD-1: having endorsed does not disqualify a direct holder of the office tied
   // to the tier they endorsed at — the office held for the unit they endorsed for. It
   // still bars them from deciding any step as a delegate, or any other office.

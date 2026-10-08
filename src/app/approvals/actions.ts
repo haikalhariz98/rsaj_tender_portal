@@ -29,8 +29,9 @@ import { FormReader } from "@/lib/validate";
 import { ACT_LABEL } from "@/lib/labels";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { StaffActor } from "@/lib/auth/types";
-import { absenceVerdict, reportWords, stayText, type AbsenceReport } from "@/lib/approvals/absence-move";
+import { absenceVerdict, destinationStayText, reportWords, stayText, superiorHoldsDestination, type AbsenceReport } from "@/lib/approvals/absence-move";
 import { loadWorklist } from "@/lib/approvals/load";
+import { ceilingValue } from "@/lib/approvals/routed-value";
 import { stepEscalatedNotices, stepMovedOnAbsenceNotices } from "@/lib/inbox/notices";
 import { writeNotices } from "@/lib/inbox/store";
 import { loadReportingLines } from "@/lib/people/reporting-line-store";
@@ -221,13 +222,28 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
         routeOpen: inst.status === "PENDING",
         roles: Object.fromEntries(roles.map((x) => [x.code, { escalatesToCode: x.escalatesToCode }])),
         routeSteps: inst.steps,
-        holderAvailable: someoneCanAct(holders, available),
+        // The same reading of "able to act" as the worklist and My steps (ruling on log line 1790): a delegate counts only where this step may be delegated and the ceiling reaches the route's value.
+        holderAvailable: someoneCanAct(holders, available, step, ceilingValue(inst, supplierId != null || permissionId != null)),
         declarerEntitled: kind === "CONFLICT_DECLARED" ? (declarer ? holders.holderIds.includes(declarer.id) || holders.delegates.some((d) => d.personId === declarer.id) : null) : null,
       });
       const nameOf = (code: string | null) => (code ? (roles.find((x) => x.code === code)?.nameEn ?? "An office no longer configured") : null);
       if (!verdict.ok) {
         const text = escalationFaultText(verdict.fault, nameOf(verdict.office ?? null));
         return verdict.fault === "DECLARER_NOT_ENTITLED" ? { ok: false, errors: { declaredByPersonId: text } } : verdict.fault === "REASON_REQUIRED" ? { ok: false, errors: { reason: text } } : { ok: false, message: text };
+      }
+      // The office the step would move to, and who holds it on the day: read before the move, because the automatic move is judged against it (ruling on log line 1769) and the
+      // notices below are addressed to it.
+      const lines = await loadReportingLines(tx, req.organisationId);
+      const toHolders = today ? (supplierId || permissionId ? supplierHolders(verdict.toRoleCode, roster, delegations, today) : holdersFor(verdict.toRoleCode, unitPath, roster, delegations, today)) : null;
+      // Product owner, 2026-10-08, ruling on log line 1769: the AUTOMATIC move (the sweep after an absence) happens only if a superior named by the holders' reporting lines holds,
+      // on the day, the office the step would move to. Otherwise the step stays put, with that reason in words. An officer's own escalation does not wait for a line: it is an
+      // explicit act, goes to the configured office and names both.
+      if (i.mode === "ABSENCE") {
+        const named = absenceVerdict({ holderIds: holders.holderIds, lines, on });
+        if (!named.move) return { ok: false, message: stayText(named.why, named.holderIdsWithoutLine.map((id) => people.get(id)?.name ?? "A person no longer on record")) };
+        if (!superiorHoldsDestination(named.superiorIds, toHolders?.holderIds ?? [])) {
+          return { ok: false, message: destinationStayText(named.superiorIds.map((id) => people.get(id)?.name ?? "A person no longer on record"), nameOf(verdict.toRoleCode) ?? "the office above") };
+        }
       }
       const after = {
         actingRoleCode: verdict.toRoleCode,
@@ -255,9 +271,7 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
       if (act) await act.write(tx, step.id, { roleCode: office });
       // Phase 3c: the people the step now waits on are told, in the portal (the staff inbox), and the immediate superior on record is named where reporting lines
       // are recorded; where they are not, the notice says "Reporting line not set". Written in this transaction with a key that a retry meets and skips.
-      const lines = await loadReportingLines(tx, req.organisationId);
       const superiors = superiorsNote(lines, holders.holderIds, on, (id) => people.get(id)?.name ?? "A person no longer on record");
-      const toHolders = today ? (supplierId || permissionId ? supplierHolders(verdict.toRoleCode, roster, delegations, today) : holdersFor(verdict.toRoleCode, unitPath, roster, delegations, today)) : null;
       const told = toHolders ? [...toHolders.holderIds, ...toHolders.delegates.map((d) => d.personId)].filter((id) => people.get(id)?.isActive) : [];
       const ref = { label: matter, href: "/approvals?tab=mine", exerciseId: behind ?? null };
       const by = actor.system ? null : actor.personId;

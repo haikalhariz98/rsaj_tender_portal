@@ -4,12 +4,12 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { decidingDelegates, myStepsOf, officeQueue, type QueueStep } from "./queue";
-import { BARRED_WORDS, requesterRelation, routeRequesterId, type RequesterRouteKind } from "./requester";
+import { BARRED_WORDS, requesterRelation, routeBarred, routeRequesterId, routeSenderBarredId, type RequesterRouteKind } from "./requester";
 
 const ALL: readonly RequesterRouteKind[] = ["REQUISITION", "NAME_APPROVAL", "APPOINTMENT", "CERTIFICATE", "VARIATION", "CONTRACT_MATTER", "SUPPLIER_APPLICATION", "STANDING_REQUEST", "SPECIAL_PERMISSION"];
 const facts = { requisitionRaiserId: "raiser", routeSenderId: "sender", applicationSenderId: "applicant", requestRaiserId: "requester" };
 
-describe("whom a route bars from deciding it (FR-APR-008): one person per kind of route, the one the decision rule bars", () => {
+describe("whom a route bars from deciding it (FR-APR-008): the people the decision rule for that kind of route bars", () => {
   it("a requisition's route, the name's and the appointment's bar the officer who raised the requisition, not whoever sent the route", () => {
     for (const kind of ["REQUISITION", "NAME_APPROVAL", "APPOINTMENT"] as const) {
       expect(routeRequesterId(kind, facts), kind).toBe("raiser");
@@ -35,13 +35,33 @@ describe("whom a route bars from deciding it (FR-APR-008): one person per kind o
     }
   });
 
-  it("the sender of a name or an appointment route is not shown as barred: the decision rule does not bar them (an open question for the product owner)", () => {
-    expect(routeRequesterId("APPOINTMENT", { routeSenderId: "sender" })).toBeNull();
-    expect(routeRequesterId("NAME_APPROVAL", { routeSenderId: "sender" })).toBeNull();
+  // Changed for the product owner's ruling of 2026-10-08 on log line 1789. This test used to say the sender of a name or an appointment route is NOT barred (an open question);
+  // it is barred now, as the sender already is on a certificate's, a variation's and a contract matter's route, and the raiser of the requisition stays barred too.
+  it("the sender of a name or an appointment route is barred as well as the requisition's raiser, and is told 'You sent it'", () => {
+    for (const kind of ["NAME_APPROVAL", "APPOINTMENT"] as const) {
+      expect(routeRequesterId(kind, facts), kind).toBe("raiser");
+      expect(routeSenderBarredId(kind, facts), kind).toBe("sender");
+      expect(routeBarred(kind, facts), kind).toEqual([{ personId: "raiser", relation: "RAISED" }, { personId: "sender", relation: "SENT" }]);
+    }
+    // With no sender recorded nobody is barred on that account; the raiser stays barred.
+    expect(routeBarred("NAME_APPROVAL", { requisitionRaiserId: "raiser" })).toEqual([{ personId: "raiser", relation: "RAISED" }]);
+    expect(routeBarred("APPOINTMENT", { routeSenderId: "sender" })).toEqual([{ personId: "sender", relation: "SENT" }]);
+    // One person who is both is listed once, as the raiser.
+    expect(routeBarred("NAME_APPROVAL", { requisitionRaiserId: "same", routeSenderId: "same" })).toEqual([{ personId: "same", relation: "RAISED" }]);
+  });
+
+  it("every other kind bars the one person it always did, and a requisition's route does not bar a sender", () => {
+    expect(routeSenderBarredId("REQUISITION", facts)).toBeNull();
+    for (const kind of ["REQUISITION", "CERTIFICATE", "VARIATION", "CONTRACT_MATTER", "SUPPLIER_APPLICATION", "STANDING_REQUEST", "SPECIAL_PERMISSION"] as const) {
+      expect(routeBarred(kind, facts), kind).toHaveLength(1);
+      expect(routeBarred(kind, facts)[0]!.personId, kind).toBe(routeRequesterId(kind, facts));
+    }
   });
 
   it("every kind of route says its own words, and none names a code", () => {
     expect(new Set(ALL.map((k) => BARRED_WORDS[requesterRelation(k)]))).toEqual(new Set(["You raised it: you cannot decide it", "You sent it: you cannot decide it"]));
+    // The officer who keyed an earlier act for someone else has words of their own (ruling on log line 1792).
+    expect(BARRED_WORDS.KEYED).toBe("You recorded it for someone else: you cannot decide it");
   });
 });
 
@@ -68,9 +88,24 @@ describe("the decision sites and the worklist read the same helper", () => {
     });
   }
 
-  it("the worklist bars the person the helper names, and no union of the rules", () => {
+  // Ruling of 2026-10-08 on log line 1789: the five name and appointment decision sites also pass the route's sender, from the same helper the worklist reads.
+  for (const [file, kind] of Object.entries(SITES).filter(([, k]) => k === "NAME_APPROVAL" || k === "APPOINTMENT")) {
+    it(`${file} also bars the sender of a ${kind} route through the helper`, () => {
+      expect(read(file)).toMatch(new RegExp(String.raw`senderId: routeSenderBarredId\("${kind}", \{ routeSenderId: (?:inst|full)\.submittedByPersonId \}\),`));
+    });
+  }
+
+  it("the worklist reads who keyed each requisition for someone else in ONE batched query over the routes it lists, never one per route (ruling on log line 1792)", () => {
     const src = read("src/lib/approvals/load.ts");
-    expect(src).toMatch(/routeRequesterId\(kind,/);
+    expect(src.match(/loadRecorders\(/g)).toHaveLength(1);
+    // Asked before the loop over the routes, with every requisition at once.
+    expect(src.indexOf("loadRecorders(db")).toBeLessThan(src.indexOf("for (const r of routes)"));
+    expect(src).toMatch(/entity: "Requisition", slot: "requestingPerson", ids: requisitionIds/);
+  });
+
+  it("the worklist bars the people the helper names, and no union of the rules", () => {
+    const src = read("src/lib/approvals/load.ts");
+    expect(src).toMatch(/routeBarred\(kind,/);
     expect(src).not.toMatch(/requestingPersonId, r\.submittedByPersonId/);
   });
 });

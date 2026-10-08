@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ReportingLine } from "@/lib/people/reporting-lines";
 
-import { absenceVerdict, reportWords, stayText } from "./absence-move";
+import { absenceVerdict, destinationStayText, reportWords, stayText, superiorHoldsDestination } from "./absence-move";
 
 const day = (d: string) => new Date(`${d}T00:00:00Z`);
 const L = (id: string, personId: string, superiorPersonId: string | null): ReportingLine => ({ id, personId, superiorPersonId, effectiveFrom: day("2026-01-01"), effectiveTo: null });
@@ -58,5 +58,24 @@ describe("the report of a sweep", () => {
 
   it("says plainly when nothing was waiting", () => {
     expect(reportWords({ moved: [], stayed: [] })).toEqual(["No pending step was waiting on that office."]);
+  });
+});
+
+describe("the automatic move waits for a superior who holds the office above (ruling of 2026-10-08 on log line 1769)", () => {
+  it("is allowed when at least one superior the holders' lines name holds the office the step would move to", () => {
+    expect(superiorHoldsDestination(["boss"], ["boss", "colleague"])).toBe(true);
+    expect(superiorHoldsDestination(["boss", "other"], ["other"])).toBe(true);
+  });
+
+  it("is refused when no superior named holds it, or nobody holds it at all", () => {
+    expect(superiorHoldsDestination(["boss"], ["colleague"])).toBe(false);
+    expect(superiorHoldsDestination(["boss"], [])).toBe(false);
+    expect(superiorHoldsDestination([], ["colleague"])).toBe(false);
+  });
+
+  it("says why in words that name the superior and the office, and no code", () => {
+    expect(destinationStayText(["Aminah"], "Head of Division")).toBe("Aminah is named as above the people who hold this office, but does not hold Head of Division, the office the step would move to, so it was not moved. An officer escalates it, with the reason, or the line is corrected.");
+    expect(destinationStayText(["Aminah", "Bala"], "Head of Division")).toContain("Aminah, Bala are named as above");
+    expect(destinationStayText(["Aminah", "Bala"], "Head of Division")).toContain("do not hold Head of Division");
   });
 });

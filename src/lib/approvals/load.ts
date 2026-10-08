@@ -7,7 +7,7 @@ import { someoneCanAct } from "@/lib/authority/absence";
 import { KIND_WORDS } from "@/lib/certificate/labels";
 import { EVENT_WORDS } from "@/lib/variation/labels";
 import { dayToDate, todayIn } from "@/lib/dates";
-import { senFromDecimal } from "@/lib/money";
+import { loadRecorders, recordersOf } from "@/lib/auth/attribution-recorders";
 import { approvalRouteNotHidden } from "@/lib/auth/sulit-store";
 import { db } from "@/lib/db";
 import { exerciseRouteMatter } from "@/lib/method/approval";
@@ -22,7 +22,8 @@ import { APPLICATION_KIND_LABEL, REQUEST_KIND_LABEL } from "@/lib/suppliers/labe
 import { supplierHolders } from "@/lib/suppliers/route";
 
 import { decidingDelegates, nextStep, officeQueue, type QueueStep } from "./queue";
-import { requesterRelation, routeRequesterId, type RequesterRouteKind } from "./requester";
+import { ceilingValue } from "./routed-value";
+import { routeBarred, type BarredRelation, type RequesterRouteKind } from "./requester";
 
 /// `hidden`: the restricted exercises the reader may not see. A route on one (its name, its award, a special permission on it) is not in the queue (FR-MTD-007).
 export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
@@ -36,7 +37,7 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
       include: {
         steps: { orderBy: { sequence: "asc" } },
         requisition: { select: { id: true, reference: true, title: true, sectionUnitCode: true, requestingUnitCode: true, requestingPersonId: true } },
-        exercise: { select: { id: true, reference: true, title: true, requisition: { select: { sectionUnitCode: true, requestingUnitCode: true, requestingPersonId: true } } } },
+        exercise: { select: { id: true, reference: true, title: true, requisition: { select: { id: true, sectionUnitCode: true, requestingUnitCode: true, requestingPersonId: true } } } },
         award: { select: { id: true, reference: true, awardeeName: true } },
         // 6.15 (OD-2 A): a supplier's registration, decided on its own route.
         supplierApplication: { select: { kind: true, submittedByPersonId: true, supplier: { select: { id: true, reference: true, registeredName: true } } } },
@@ -60,22 +61,34 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
   const available = (pid: string) => !!people.get(pid)?.isActive && !!people.get(pid)?.isAvailable;
   const unitOf = new Map<string, string>();
   const barredOf = new Map<string, string[]>();
-  const relationOf = new Map<string, ReturnType<typeof requesterRelation>>();
+  const relationOf = new Map<string, Record<string, BarredRelation>>();
   const valueOf = new Map<string, bigint>();
   const supplierMatter = (r: { supplierApplication: unknown; standingRequest: unknown; specialPermission: unknown }) => !!(r.supplierApplication || r.standingRequest || r.specialPermission);
+  const requisitionOf = (r: (typeof routes)[number]) => r.requisition ?? r.exercise?.requisition ?? r.certificate?.contract.award.exercise.requisition ?? r.variation?.contract.award.exercise.requisition ?? null;
+  const kindOf = (r: (typeof routes)[number]): RequesterRouteKind | null => r.variation?.id ? "VARIATION" : r.certificate?.id ? "CERTIFICATE" : r.award && r.exercise ? "APPOINTMENT" : r.exercise ? "NAME_APPROVAL" : r.requisition ? "REQUISITION" : r.supplierApplication ? "SUPPLIER_APPLICATION" : r.standingRequest ? "STANDING_REQUEST" : r.specialPermission ? "SPECIAL_PERMISSION" : null;
+  // The officers who keyed a requisition for someone else (ruling of 2026-10-08 on log line 1792), in ONE query over the routes listed: the decision rule bars them as it bars the
+  // person they keyed it for (`earlierRecordersOf`, `requesterRecorderIds`), and the sites that read it for a requisition's, a name's and an appointment's route pass the
+  // requisition. A certificate's, a variation's and a contract matter's route read none, so none is looked for there.
+  const keyedKinds: readonly RequesterRouteKind[] = ["REQUISITION", "NAME_APPROVAL", "APPOINTMENT"];
+  const keyedRequisitionId = (r: (typeof routes)[number]): string | null => { const k = kindOf(r); return k && keyedKinds.includes(k) ? (r.requisition?.id ?? r.exercise?.requisition?.id ?? null) : null; };
+  const requisitionIds = [...new Set(routes.flatMap((r) => { const id = keyedRequisitionId(r); return id ? [id] : []; }))];
+  const recorders = await loadRecorders(db, org.id, [{ entity: "Requisition", slot: "requestingPerson", ids: requisitionIds }]);
   const items: QueueStep[] = [];
   for (const r of routes) {
-    const req = r.requisition ?? r.exercise?.requisition ?? r.certificate?.contract.award.exercise.requisition ?? r.variation?.contract.award.exercise.requisition ?? null;
+    const req = requisitionOf(r);
     if (req) unitOf.set(r.id, req.sectionUnitCode || req.requestingUnitCode);
-    // Who may not decide it (FR-APR-008): the one person the decision rule for this kind of route bars (`routeRequesterId`), never a union of the rules of every kind.
-    const kind: RequesterRouteKind | null = r.variation?.id ? "VARIATION" : r.certificate?.id ? "CERTIFICATE" : r.award && r.exercise ? "APPOINTMENT" : r.exercise ? "NAME_APPROVAL" : r.requisition ? "REQUISITION" : r.supplierApplication ? "SUPPLIER_APPLICATION" : r.standingRequest ? "STANDING_REQUEST" : r.specialPermission ? "SPECIAL_PERMISSION" : null;
+    // Who may not decide it (FR-APR-008): the people the decision rule for this kind of route bars (`routeBarred`: a name's and an appointment's bar the requisition's raiser and the
+    // sender of the route; the others one person), never a union of the rules of every kind; and the officers who keyed the requisition for someone else.
+    const kind = kindOf(r);
     const barred = kind
-      ? routeRequesterId(kind, { requisitionRaiserId: req?.requestingPersonId, routeSenderId: r.submittedByPersonId, applicationSenderId: r.supplierApplication?.submittedByPersonId, requestRaiserId: r.standingRequest?.requestedByPersonId ?? r.specialPermission?.requestedByPersonId })
-      : null;
-    barredOf.set(r.id, barred ? [barred] : []);
-    relationOf.set(r.id, kind ? requesterRelation(kind) : "RAISED");
+      ? routeBarred(kind, { requisitionRaiserId: req?.requestingPersonId, routeSenderId: r.submittedByPersonId, applicationSenderId: r.supplierApplication?.submittedByPersonId, requestRaiserId: r.standingRequest?.requestedByPersonId ?? r.specialPermission?.requestedByPersonId })
+      : [];
+    const keyedFor = keyedRequisitionId(r);
+    const keyed = keyedFor ? recordersOf(recorders, "Requisition", "requestingPerson", [keyedFor]).filter((id) => !barred.some((b) => b.personId === id)) : [];
+    barredOf.set(r.id, [...barred.map((b) => b.personId), ...keyed]);
+    relationOf.set(r.id, Object.fromEntries([...barred.map((b) => [b.personId, b.relation] as const), ...keyed.map((id) => [id, "KEYED"] as const)]));
     // What a delegate's ceiling is judged against: the route's own figure, as the decision rules read it. A supplier matter has none (it is routed on no value).
-    valueOf.set(r.id, supplierMatter(r) ? 0n : r.value == null ? 0n : senFromDecimal(r.value));
+    valueOf.set(r.id, ceilingValue(r, supplierMatter(r)));
     const matter = r.variation?.id
       ? { label: `${r.variation.contract.number} · ${r.variation.contract.award.awardeeName} · Variation ${r.variation.reference ?? ""}`.trim(), kind: r.variationApproval ? EVENT_WORDS[r.variationApproval.event].en : "Variation", href: `/projects/${r.variation.contract.id}/variations/${r.variation.id}?tab=approval` }
       : r.certificate?.id
@@ -98,7 +111,7 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
                   ? { label: `${r.specialPermission.exercise.reference} · ${r.specialPermission.party.name}`, kind: "Special permission", href: r.specialPermission.party.vendorId ? `/suppliers/${r.specialPermission.party.vendorId}?tab=participation` : `/sourcing/${r.specialPermission.exercise.id}` }
                   : null;
     if (!matter) continue;
-    items.push({ routeId: r.id, matterLabel: matter.label, matterKindLabel: matter.kind, href: matter.href, openedAt: r.openedAt, steps: r.steps, value: valueOf.get(r.id) ?? null, barredIds: barredOf.get(r.id) ?? [], barredRelation: relationOf.get(r.id) ?? "RAISED" });
+    items.push({ routeId: r.id, matterLabel: matter.label, matterKindLabel: matter.kind, href: matter.href, openedAt: r.openedAt, steps: r.steps, value: valueOf.get(r.id) ?? null, barredIds: barredOf.get(r.id) ?? [], barredRelations: relationOf.get(r.id) ?? {} });
   }
   // 6.15: a supplier matter has no unit; its offices are held organisation-wide (supplierHolders).
   const supplierRoutes = new Set(routes.filter((r) => r.supplierApplication || r.standingRequest || r.specialPermission).map((r) => r.id));
@@ -119,7 +132,8 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
     (routeId, office, committee) => {
       if (committee || !office) return false;
       const h = holdersOf(routeId, office);
-      return h ? !someoneCanAct(h, available) : false;
+      // The same reading of "able to act" as My steps and the sweep (ruling on log line 1790): a delegate counts only where the step may be delegated and the ceiling reaches the value.
+      return h ? !someoneCanAct(h, available, stepOfRoute.get(routeId) ?? {}, valueOfRoute.get(routeId)) : false;
     },
     (routeId, office, committee) => {
       const h = committee || !office ? null : holdersOf(routeId, office);

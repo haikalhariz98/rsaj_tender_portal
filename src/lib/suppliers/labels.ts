@@ -561,6 +561,8 @@ export const SUPPLIER_DECIDER_TEXT: Readonly<Record<DeciderFault, Words>> = {
   DELEGATION_NOT_PERMITTED: w("This step cannot be delegated, and that person acts only under a delegation.", "Langkah ini tidak boleh diwakilkan, dan orang itu bertindak hanya di bawah perwakilan kuasa."),
   OVER_CEILING: w("A delegation with a value ceiling cannot be judged on a supplier matter, which has no value.", "Perwakilan kuasa dengan had nilai tidak boleh dinilai bagi perkara pembekal, yang tiada nilai."),
   SELF_APPROVAL: w("That person sent this matter for decision. Nobody decides a matter they sent.", "Orang itu menghantar perkara ini untuk keputusan. Tiada sesiapa memutuskan perkara yang dihantarnya."),
+  // A supplier route bars the one person who sent it (SELF_APPROVAL), so this code is not met here; it has words because every code does.
+  SENT_IT: w("That person sent this matter for decision. Nobody decides a matter they sent.", "Orang itu menghantar perkara ini untuk keputusan. Tiada sesiapa memutuskan perkara yang dihantarnya."),
   ENDORSED_IT: w("That person endorsed this matter.", "Orang itu telah menyokong perkara ini."),
   ALREADY_DISCHARGED_A_STEP: w("That person has already decided another step of this route.", "Orang itu telah memutuskan langkah lain laluan ini."),
   FUTURE_DATE: w("A decision cannot be dated after today.", "Keputusan tidak boleh bertarikh selepas hari ini."),

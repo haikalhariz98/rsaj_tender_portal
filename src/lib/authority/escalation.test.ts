@@ -121,7 +121,9 @@ describe("who can act in an office (absence)", () => {
     expect(absentOffices(["A", "B", "V"], holders, (p) => p === "p3")).toEqual(["A"]);
   });
   it("nobody can act in a vacant office", () => {
-    expect(someoneCanAct(holders("V"), () => true)).toBe(false);
-    expect(someoneCanAct(holders("B"), (p) => p === "p3")).toBe(true);
+    // Changed for the ruling of 2026-10-08 on log line 1790: `someoneCanAct` judges a step, so it is given the step and the route's value (here a step any delegate may decide, on no ceiling).
+    const delegates = (c: string) => ({ holderIds: holders(c).holderIds, delegates: holders(c).delegates.map((d: { personId: string }) => ({ personId: d.personId, delegation: { valueCeiling: null as string | null } })) });
+    expect(someoneCanAct(delegates("V"), () => true, {}, 0n)).toBe(false);
+    expect(someoneCanAct(delegates("B"), (p) => p === "p3", {}, 0n)).toBe(true);
   });
 });

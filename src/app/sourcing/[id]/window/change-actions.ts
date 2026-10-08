@@ -42,7 +42,7 @@ import { audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refu
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
-import { routeRequesterId } from "@/lib/approvals/requester";
+import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester";
 
 /**
  * Changing the window after approval for tendering (plan §4.7; FR-ADV-015, 016; OD-5 A): a
@@ -342,6 +342,8 @@ export async function recordWindowChangeDecision(_prev: FormState, data: FormDat
       person,
       // Nobody decides a step of a matter on a requisition they raised.
       requesterId: routeRequesterId("NAME_APPROVAL", { requisitionRaiserId: l.req.requestingPersonId }) ?? "",
+      // The sender of the route is barred as well (ruling of 2026-10-08 on log line 1789). Where the route records none, nobody is barred on that account.
+      senderId: routeSenderBarredId("NAME_APPROVAL", { routeSenderId: full.submittedByPersonId }),
       recorderId: act.recorderId,
       endorserIds: [],
       // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).

@@ -11,6 +11,11 @@
  * - LINE_NOT_SET_FOR: lines are recorded, but not for every holder of the office, so who is above them cannot be said for them all.
  * - NO_SUPERIOR_ON_LINE: every holder is recorded as having nobody above them.
  *
+ * A line is not enough on its own (product owner, 2026-10-08, ruling on log line 1769): the step moves to the office above the one that holds it, and the
+ * line's superior must HOLD that office on the day, or the move would hand the step to someone the line does not name. `superiorHoldsDestination` is that test,
+ * made where the destination is known (`escalateOne`); where it fails, the step stays put and `destinationStayText` says so. An officer's own escalation, with a
+ * reason, does not wait for a line: it is an explicit act.
+ *
  * Marking the person available again moves nothing back: the step is wherever the move put it, and an officer may escalate or the new holder may decide it.
  *
  * Pure.
@@ -49,6 +54,17 @@ export function stayText(why: AbsenceStay, names: readonly string[]): string {
     case "NO_SUPERIOR_ON_LINE":
       return "Everyone who holds this office is recorded as having nobody above them, so there is no immediate superior to move the step to.";
   }
+}
+
+/// Whether the step may be moved to the office above: at least one of the superiors the holders' lines name holds that office on the day. Pure.
+export function superiorHoldsDestination(superiorIds: readonly string[], destinationHolderIds: readonly string[]): boolean {
+  return superiorIds.some((id) => destinationHolderIds.includes(id));
+}
+
+/// Why the step stays where the line's superior does not hold the office above. `superiorNames` are the people the holders' lines name.
+export function destinationStayText(superiorNames: readonly string[], officeLabel: string): string {
+  const who = superiorNames.length === 0 ? "the superior the line names" : superiorNames.join(", ");
+  return `${who} ${superiorNames.length === 1 ? "is" : "are"} named as above the people who hold this office, but ${superiorNames.length === 1 ? "does" : "do"} not hold ${officeLabel}, the office the step would move to, so it was not moved. An officer escalates it, with the reason, or the line is corrected.`;
 }
 
 /// What the person who marked someone absent is told about the steps, once the sweep is done.

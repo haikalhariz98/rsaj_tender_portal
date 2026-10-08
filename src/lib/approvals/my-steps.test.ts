@@ -68,3 +68,28 @@ describe("my steps (FR-APR-018): the part of the worklist that is one person's",
     expect(myStepsOf(g, "dina")).toEqual([]);
   });
 });
+
+describe("who is shown as barred, and why (rulings of 2026-10-08 on log lines 1789 and 1792)", () => {
+  const deciders = () => ({ holderIds: ["amir"], delegateIds: [] as string[] });
+  const routes: QueueStep[] = [
+    { ...route("1", [s(1, "HOD")], "2026-09-10", ["raiser", "sender", "keyer"]), barredRelations: { raiser: "RAISED", sender: "SENT", keyer: "KEYED" } },
+  ];
+  const groups = officeQueue(routes, "2026-10-01", () => false, () => ({ holderIds: ["raiser", "sender", "keyer", "free"], delegateIds: [] }));
+
+  it("each barred person gets the words of their own relation, and a free holder none", () => {
+    expect(myStepsOf(groups, "raiser")[0]).toMatchObject({ barred: true, relation: "RAISED" });
+    expect(myStepsOf(groups, "sender")[0]).toMatchObject({ barred: true, relation: "SENT" });
+    expect(myStepsOf(groups, "keyer")[0]).toMatchObject({ barred: true, relation: "KEYED" });
+    expect(myStepsOf(groups, "free")[0]).toMatchObject({ barred: false, relation: null });
+  });
+
+  it("the officer who keyed it for someone else is not counted as waiting, like the others who are barred", () => {
+    expect(waitingForCount(myStepsOf(groups, "keyer"))).toBe(0);
+    expect(waitingForCount(myStepsOf(groups, "free"))).toBe(1);
+  });
+
+  it("reads a barred person with no relation recorded as having raised it", () => {
+    const plain = officeQueue([route("2", [s(1, "HOD")], "2026-09-10", ["amir"])], "2026-10-01", () => false, deciders);
+    expect(myStepsOf(plain, "amir")[0]).toMatchObject({ barred: true, relation: "RAISED" });
+  });
+});

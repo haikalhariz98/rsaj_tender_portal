@@ -34,7 +34,7 @@ import { activePerson, audit, CHANGED, exerciseIdOf, Refusal } from "../window/s
 import { evLabel, GONE_BIDDER, inEvaluation, notes, refuse, stampNow } from "./shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
-import { routeRequesterId } from "@/lib/approvals/requester";
+import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester";
 
 /**
  * Meetings and the negotiation's route (FR-EVL-015, 016; OQ-08 interim; OD-10 A). A clarification is
@@ -275,6 +275,8 @@ export async function recordNegotiationDecision(_prev: FormState, data: FormData
       declaredConflictIds: step.declaredByPersonId ? [step.declaredByPersonId] : [],
       person,
       requesterId: routeRequesterId("NAME_APPROVAL", { requisitionRaiserId: l.req.requestingPersonId }) ?? "",
+      // The sender of the route is barred as well (ruling of 2026-10-08 on log line 1789). Where the route records none, nobody is barred on that account.
+      senderId: routeSenderBarredId("NAME_APPROVAL", { routeSenderId: full.submittedByPersonId }),
       recorderId: act.recorderId,
       endorserIds: [],
       // Who keyed the requisition, an endorsement or another step for someone else: the same checks run on them (Phase 2b review).
