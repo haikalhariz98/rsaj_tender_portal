@@ -4,6 +4,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { CardFooter } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { nameRoutesOf } from "@/lib/method/approval";
+import { BOUNDARY_VIEW_ABOUT, boundaryCountNote, boundaryShown } from "@/lib/method/boundary-reading";
 import { EXERCISE_STATUS_LABEL, EXERCISE_STATUS_ORDER, EXERCISE_STATUS_TONE, REGIME_SHORT, TERM } from "@/lib/method/labels";
 import { EXERCISES_PAGE, listExercises, loadMethodConfig } from "@/lib/method/repo";
 import type { ExerciseStatus, Regime } from "@/lib/method/types";
@@ -43,6 +44,10 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
   const win = await windowColumns(actor.organisationId, rows.map((r) => r.id));
   const today = org?.today ?? null;
   const awaitingName = rows.filter((r) => r.status !== "CANCELLED" && nameRoutesOf(r.approvalInstances).some((i) => i.status === "PENDING")).length;
+  // "On the boundary" states the estimate (ruling of 2026-10-08 on log line 1716), so it is said only for the rows whose estimate this reader may read: the chip, the view, the count.
+  const onBoundary = (r: (typeof rows)[number]) => boundaryShown(r.onBoundary, values.get(r.id)?.state === "GRANTED");
+  const boundaryRows = rows.filter((r) => onBoundary(r) && r.status !== "CANCELLED").length;
+  const boundaryLeftOut = rows.filter((r) => r.onBoundary && r.status !== "CANCELLED" && !onBoundary(r)).length;
   const list: Row[] = rows.map((r) => {
     const status = r.status as ExerciseStatus;
     const nameOpen = status !== "CANCELLED" && nameRoutesOf(r.approvalInstances).some((i) => i.status === "PENDING");
@@ -57,7 +62,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
         ...(status === "DRAFT" ? ["drafts"] : []),
         ...(status === "DOCUMENTS_IN_PREPARATION" ? ["preparing"] : []),
         ...(status === "PENDING_APPROVAL_FOR_TENDERING" ? ["approval"] : []),
-        ...(r.onBoundary && status !== "CANCELLED" ? ["boundary"] : []),
+        ...(onBoundary(r) && status !== "CANCELLED" ? ["boundary"] : []),
         ...(nameOpen ? ["name"] : []),
       ],
       search: [r.title, r.reference, r.requisition.reference, r.requisition.erpRequisitionNo, methodName(r.sourcingMethodCode), EXERCISE_STATUS_LABEL[status]].filter(Boolean).join(" "),
@@ -73,7 +78,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
           kind: "chips",
           items: [
             { text: r.regime ? REGIME_SHORT[r.regime as Regime] : "Regime not determined", tone: "brand" as const },
-            ...(r.onBoundary ? [{ text: r.boundaryRuled ? "On the boundary" : "On the boundary · not ruled", tone: "warn" as const }] : []),
+            ...(onBoundary(r) ? [{ text: r.boundaryRuled ? "On the boundary" : "On the boundary · not ruled", tone: "warn" as const }] : []),
             ...(nameOpen ? [{ text: `${TERM.nameApproval} in progress`, tone: "brand" as const }] : nameApproved ? [{ text: `${TERM.nameApproval} given`, tone: "ok" as const }] : []),
             ...(r.restricted ? [{ text: "Restricted to its named people", tone: "warn" as const }] : []),
           ],
@@ -97,7 +102,9 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
           // The state's own label, as the dashboard counts it: one name for one state.
           ...(["DRAFT", "DOCUMENTS_IN_PREPARATION", "PENDING_APPROVAL_FOR_TENDERING", "ADVERTISED", "INVITED"] as const).map((s) => `${rows.filter((r) => r.status === s).length} ${EXERCISE_STATUS_LABEL[s].toLowerCase()}`),
           `${awaitingName} awaiting name approval`,
-          `${rows.filter((r) => r.onBoundary && r.status !== "CANCELLED").length} on the boundary`,
+          `${boundaryRows} on the boundary`,
+          // Said in words, so that a count of zero is never read as "none are": the rows whose estimate is withheld from this reader are not counted.
+          ...(boundaryCountNote(boundaryLeftOut) ? [boundaryCountNote(boundaryLeftOut)!] : []),
         ]}
         actions={
           org ? (
@@ -128,7 +135,7 @@ export default async function SourcingPage({ searchParams }: { searchParams: Pro
             emptyTitle: `Nothing closes within ${CLOSING_SOON_DAYS} days`,
             emptyBody: "Pick another view, or show all records.",
           },
-          { id: "boundary", label: "On the boundary" },
+          { id: "boundary", label: "On the boundary", about: BOUNDARY_VIEW_ABOUT },
           { id: "name", label: `${TERM.nameApproval} in progress` },
         ]}
         filters={[{ key: "status", label: "Status", order: EXERCISE_STATUS_ORDER.map((s) => EXERCISE_STATUS_LABEL[s]) }]}

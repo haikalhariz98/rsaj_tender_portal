@@ -83,6 +83,7 @@ import { formatDate, formatOrgDay } from "@/lib/format";
 import { awardStanding, type AwardStanding } from "@/lib/suppliers/award-standing";
 import { partyRegister, standingOf } from "@/lib/suppliers/standing-repo";
 import { ACT_DONE_LABEL, ACT_LABEL } from "@/lib/labels";
+import { boundaryShown } from "@/lib/method/boundary-reading";
 import { boundarySentence, REGIME_LABEL } from "@/lib/method/labels";
 import type { Regime } from "@/lib/method/types";
 import { formatMoney, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
@@ -543,7 +544,7 @@ function OverviewPanel({ sulit, l, ev, awardee, recommendation, methodName, type
               { label: "Method", value: methodName },
               { label: "Contract type", value: typeName },
               { label: "Band", value: ex.regime ? REGIME_LABEL[ex.regime as Regime] : notSet("Not determined") },
-              ...(ex.onBoundary && ex.boundaryOperator ? [{ label: "At the boundary", value: boundarySentence(ex.boundaryOperator, ex.boundaryValue?.toString() ?? null, (ex.boundaryProvenance ?? "ASSUMED") as "ASSUMED") }] : []),
+              ...(boundaryShown(ex.onBoundary, sulit.state === "GRANTED") && ex.boundaryOperator ? [{ label: "At the boundary", value: boundarySentence(ex.boundaryOperator, ex.boundaryValue?.toString() ?? null, (ex.boundaryProvenance ?? "ASSUMED") as "ASSUMED") }] : []),
               { label: "Awardee", value: <span className="flex flex-col"><span>{award.awardeeName}</span><span className="text-[12.5px] text-ink-3">{award.awardeeRegistrationNo || "Registration number not recorded"}</span></span> },
               { label: "Address", value: award.awardeeAddress || notSet("Not recorded") },
               // 6.15a (OD-9): the link to the register, made by an explicit act on the supplier's record.
