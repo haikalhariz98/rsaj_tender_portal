@@ -15,7 +15,7 @@ import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { loadExercise } from "@/lib/method/repo";
 import { formatMoney, senFromDecimal, senToDecimalString } from "@/lib/money";
 
-import { anonymousBidder, stageAnonymity, stageReveals, type AnonymisedStage } from "./anonymise";
+import { anonymousBidder, bidIdentityAtStage, faultsForBid, identityHeld, pseudonymNumbers, stageAnonymity, stageReveals, type AnonymisedStage } from "./anonymise";
 import { aspectPrefill } from "./aspects";
 import { recommendedCeilingFault } from "./ceiling";
 import { ceilingOf } from "./repo";
@@ -109,6 +109,9 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   };
 
   const detailOf = async () => {
+  // FR-EVL-020: each bid's pseudonym, from the version and the bid's own id and not from the opening's listing number, and whether the version still holds identities back.
+  const pseudo = pseudonymNumbers(e.id, f.bidders.map((b) => b.id));
+  const held = identityHeld(f.anonymised, f.model.stages.map((s) => ({ kind: s.kind, capitalBase: s.capitalBase, criteria: s.criteria, submitted: isSubmitted(f, s.code) })));
   const firstStage = f.model.stages[0] ?? null;
   const capitalStages = f.model.stages.filter((s) => s.criteria.some((cr) => cr.scale === "BANDED" && cr.computedInput === "MIN_CAPITAL_RATIO"));
   const cprStages = f.model.stages.filter((s) => s.criteria.some((cr) => cr.scale === "BANDED" && cr.computedInput === "CPR_PERCENT"));
@@ -145,7 +148,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   // before any name is put in the view.
   const revealing = f.model.stages.some((s) => stageReveals(stageAnonymity(s, f.anonymised)));
   const reveal = revealing ? (await gates.identity()).state === "GRANTED" : false;
-  const stages = f.model.stages.map((s) => stageView(f, s, dp, e.submissions.find((x) => x.stageCode === s.code) ?? null, tz, reveal));
+  const stages = f.model.stages.map((s) => stageView(f, s, dp, e.submissions.find((x) => x.stageCode === s.code) ?? null, tz, reveal, pseudo));
   // A two-stage tender's first stage is tabled at a sitting of its committee not yet minuted.
   const committeeCodes = [...new Set(f.model.stages.filter((s) => s.kind === "COMMITTEE_DECISION" && s.committeeCode).map((s) => s.committeeCode!))];
   const sittings = committeeCodes.length
@@ -178,14 +181,23 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
     : null;
 
   // ---- meetings, negotiations, communications
-  const listing = (id: string) => f.bidders.find((b) => b.id === id)?.listingNo ?? 0;
+  // FR-EVL-020: while the version holds its bidders' identities back, the records beside the scoring call a bid by its pseudonym (never its listing number or name), so the
+  // scoring is not undone one tab over. Otherwise by its listing number and name, as always.
+  const shownAs = (id: string) => {
+    const b = f.bidders.find((x) => x.id === id);
+    if (!b) return { no: 0, ref: "A bid", name: "" };
+    const n = pseudo.get(b.id) ?? 0;
+    return held ? { no: n, ref: anonymousBidder(n), name: anonymousBidder(n) } : { no: b.listingNo, ref: `No. ${b.listingNo}`, name: b.bidderName };
+  };
+  const listing = (id: string) => shownAs(id).no;
   const meetings = e.meetings.map((m) => ({
     id: m.id,
     kind: MEETING_KIND_LABEL[m.kind],
     isNegotiation: m.kind === "NEGOTIATION",
     round: m.round,
     listingNo: listing(m.bidderId),
-    bidder: f.bidders.find((b) => b.id === m.bidderId)?.bidderName ?? "",
+    ref: shownAs(m.bidderId).ref,
+    bidder: shownAs(m.bidderId).name,
     heldOn: formatDate(storedDay(m.heldOn)),
     place: m.place,
     closed: m.closedAt ? `Closed ${formatOrgDateTime(m.closedAt, tz)}${m.closedBy ? ` by ${m.closedBy.name}` : ""}` : null,
@@ -197,6 +209,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   const negotiations = e.negotiations.map((n) => ({
     id: n.id,
     listingNo: listing(n.bidderId),
+    ref: shownAs(n.bidderId).ref,
     reason: n.reason,
     requestedBy: n.requestedBy.name,
     requestedAt: formatOrgDateTime(n.requestedAt, tz),
@@ -207,6 +220,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   const communications = e.communications.map((m) => ({
     id: m.id,
     listingNo: listing(m.bidderId),
+    ref: shownAs(m.bidderId).ref,
     direction: DIRECTION_LABEL[m.direction],
     channel: CHANNEL_LABEL[m.channel],
     on: formatDate(storedDay((m.sentOn ?? m.receivedOn)!)),
@@ -216,7 +230,10 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
     acted: attributed.read({ entity: "TendererCommunication", id: m.id, slot: "recordedBy" }, m.recordedBy.name).en,
   }));
   const running = f.model.stages.find((s) => s.kind === "RECOMMENDATION");
-  const runningBidders = (running ? inRunningAt(f, running) : f.bidders.filter((b) => !b.excludedReason)).map((b) => ({ value: b.id, label: `No. ${b.listingNo}, ${b.bidderName}` }));
+  /// A picker's option for a bid: by number and name, or (held) by pseudonym alone; held, in pseudonym order, since the order they are listed in is the opening's.
+  const bidderOption = (b: BidderFacts) => ({ value: b.id, label: held ? shownAs(b.id).ref : `No. ${b.listingNo}, ${b.bidderName}`, order: held ? shownAs(b.id).no : b.listingNo });
+  const byPseudonym = (a: { order: number }, z: { order: number }) => a.order - z.order;
+  const runningBidders = (running ? inRunningAt(f, running) : f.bidders.filter((b) => !b.excludedReason)).map((b) => bidderOption(b)).sort(byPseudonym).map(({ value, label }) => ({ value, label }));
 
   // ---- the recommendation
   const ranked = ranking(f);
@@ -274,7 +291,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
     negotiations,
     communications,
     runningBidders,
-    allBidders: f.bidders.map((b) => ({ value: b.id, label: `No. ${b.listingNo}, ${b.bidderName}` })),
+    allBidders: f.bidders.map((b) => bidderOption(b)).sort(byPseudonym).map(({ value, label }) => ({ value, label })),
     recommendation,
     reportActs,
   };
@@ -301,13 +318,14 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
 }
 
 /// One stage as its card shows it: who it is for, whether open, and each bidder's figure.
-function stageView(f: EvaluationFacts, s: StageSnap, dp: number | null, sub: { submittedAt: Date; submittedBy: { name: string } } | null, tz: string | null, reveal: boolean) {
+function stageView(f: EvaluationFacts, s: StageSnap, dp: number | null, sub: { submittedAt: Date; submittedBy: { name: string } } | null, tz: string | null, reveal: boolean, pseudo: ReadonlyMap<string, number>) {
   const anon = stageAnonymity(s, f.anonymised);
   const submitted = !!sub;
   const access = stageAccess(f, s, null);
   const criteria = scoredCriteria(s).map((cr) => ({ code: cr.code, label: cr.labelEn, scale: cr.scale, scaleLabel: SCALE_LABEL[cr.scale], max: cr.maxMarks ? formatFixed(parseFixed(cr.maxMarks), 2) : null }));
-  const rows = f.bidders.map((b) => bidderAtStage(f, s, b, dp, submitted, anon, reveal));
-  const notBanded = submitted ? [] : rows.flatMap((r) => r.notBanded.map((n) => ({ key: `${r.id}/${n.code}`, label: `No. ${r.listingNo}: ${n.label} is in no band` })));
+  // An anonymous stage lists its bids in pseudonym order: the bids' order is the opening's listing order, which is the key to the names.
+  const rows = f.bidders.map((b) => bidderAtStage(f, s, b, dp, submitted, anon, reveal, pseudo.get(b.id) ?? 0)).sort((a, z) => (anon.anonymous ? a.listingNo - z.listingNo : 0));
+  const notBanded = submitted ? [] : rows.flatMap((r) => r.notBanded.map((n) => ({ key: `${r.id}/${n.code}`, label: `${r.ref}: ${n.label} is in no band` })));
   const blockers = submitted || s.kind === "SHORTLIST" || s.kind === "COMMITTEE_DECISION" || s.kind === "RECOMMENDATION" ? [] : rows.flatMap((r) => r.faults);
   return {
     code: s.code,
@@ -331,7 +349,7 @@ function stageView(f: EvaluationFacts, s: StageSnap, dp: number | null, sub: { s
   };
 }
 
-function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: number | null, submitted: boolean, anon: AnonymisedStage, reveal: boolean) {
+function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: number | null, submitted: boolean, anon: AnonymisedStage, reveal: boolean, pseudonym: number) {
   const run = runningAt(f, s, b);
   const r = resultOf(f, b.id, s.code);
   const computed = !submitted && run.state === "IN" ? stageResult(f, s, b) : null;
@@ -349,8 +367,8 @@ function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: num
   });
   return {
     id: b.id,
-    listingNo: b.listingNo,
-    bidder: anon.anonymous ? anonymousBidder(b.listingNo) : b.bidderName,
+    // The number the stage shows the bid by, how a sentence calls it, and its name: on an anonymous stage the pseudonym, never the listing number or the name.
+    ...bidIdentityAtStage(anon.anonymous, b, pseudonym),
     running: RUNNING_LABEL[run.state],
     inRunning: run.state === "IN",
     stageFigure: shown != null ? `${formatFixed(shown, dp ?? 4)}%` : null,
@@ -362,7 +380,7 @@ function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: num
     stageOne: s.kind === "COMMITTEE_DECISION" ? (b.stageOne ?? "NOT_TABLED") : null,
     shortlisted: s.kind === "SHORTLIST" ? b.shortlisted : null,
     notBanded: (computed?.notBanded ?? []).map((code) => ({ code, label: s.criteria.find((x) => x.code === code)?.labelEn ?? "A criterion" })),
-    faults: (computed?.faults ?? []) as Finding[],
+    faults: faultsForBid(anon.anonymous, (computed?.faults ?? []) as Finding[], pseudonym),
   };
 }
 

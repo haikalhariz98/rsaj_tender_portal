@@ -162,12 +162,25 @@ export const FIX_AT: Record<string, { href: string; label: string }> = {
 /// recommendation cannot be judged against it; the recommended price was judged when it was formed.
 export const AWARD_CEILING_NOT_RECORDED = "This quotation's ceiling was never recorded when the exercise was classified, so an awarded value different from the recommendation cannot be judged against it. Award at the recommended price.";
 
+/// The findings that say how the award compares with the evaluation's recommendation, which is SULIT (FR-EVL-014; review of Phase 3b). To a reader the recommendation is closed to, each of
+/// them would tell whether the awardee, value, period or the validity consent matches it, so none is worded for them: they read `RECOMMENDATION_CLOSED_TEXT` instead.
+export const RECOMMENDATION_COMPARISON_CODES: ReadonlySet<string> = new Set(["AWARDEE_NOT_RECOMMENDED", "CONSENT_NOT_FROM_RECOMMENDED", "VALUE_DIFFERS_REASON_REQUIRED", "PERIOD_DIFFERS_REASON_REQUIRED", "VALUE_ABOVE_CEILING"]);
+export const RECOMMENDATION_CLOSED_TEXT = "The award is judged against the evaluation's recommendation, which is SULIT and closed to you. Someone it is open to has to check the awardee, value and period against it.";
+
+/// The findings as a reader the recommendation is closed to has them: the comparison findings are one sentence, so only the first of them stays. Unchanged for a reader it is open to.
+export function findingsForReader<F extends Finding>(faults: readonly F[], recommendation: boolean): F[] {
+  if (recommendation) return [...faults];
+  const first = faults.findIndex((f) => RECOMMENDATION_COMPARISON_CODES.has(f.code));
+  return faults.filter((f, i) => !RECOMMENDATION_COMPARISON_CODES.has(f.code) || i === first);
+}
+
 /**
  * The same text for a reader who may not read the department estimate (Phase 3b): the two findings that quote it, the figure the requisition's approval covered and the exercise's
  * estimate with the difference, say what is wrong without the figures. Every other finding is the same text. An action's refusal uses this form (its response goes to whoever
  * acted), a page uses whichever the reader may have.
  */
-export function awardFindingTextFor(f: Finding, figures: boolean): string {
+export function awardFindingTextFor(f: Finding, figures: boolean, recommendation = true): string {
+  if (!recommendation && RECOMMENDATION_COMPARISON_CODES.has(f.code)) return RECOMMENDATION_CLOSED_TEXT;
   if (figures) return awardFindingText(f);
   switch (f.code) {
     case "EXCEEDS_APPROVED_VALUE":

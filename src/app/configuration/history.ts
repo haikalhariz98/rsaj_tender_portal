@@ -21,15 +21,17 @@ import { formatOrgDateTime } from "@/lib/format";
 import { requireStaff } from "@/app/_auth/actor";
 import { ACCOUNT_STATUS_WORDS } from "@/lib/auth/words";
 import type { OrgScope } from "@/lib/org-scope";
-import { isSulitField } from "@/lib/sulit-fields";
+import { sulitFieldOf } from "@/lib/sulit-trail";
 
 /// The entities whose history a screen may ask for. Anything else is refused rather
 /// than read, so the action cannot be used to page through the whole trail.
+///
+/// Not on it, on purpose (review of Phase 3b): a committee decision, whose trail holds the matter's amount (the department estimate) and the exercise it is for, and a requisition,
+/// whose trail holds its estimate. Their own pages render a History that is judged by the record's gate and the restricted-exercise rule; this action checks neither.
 const ENTITIES = new Set([
   "AuthorityMatrix",
   "AuthorityRule",
   "Committee",
-  "CommitteeDecision",
   "CommitteeMember",
   "ContractType",
   "DocumentClass",
@@ -42,7 +44,6 @@ const ENTITIES = new Set([
   "NotificationRule",
   "NumberingSeries",
   "SourcingMethod",
-  "Requisition",
   "RequisitionPolicy",
   "FinanceIntegration",
   "ScopePolicy",
@@ -230,8 +231,8 @@ export async function historyOf(entity: string, entityId: string): Promise<Histo
     changes: r.changes.filter((c) => !(c.field === "code" && CODE_HIDDEN.has(entity))).map((c) => ({
       field: c.field,
       // This drawer is for configuration, which holds no SULIT value; a registered one that found its way here is withheld, never shown on a guess (Phase 3b).
-      before: isSulitField(c.field) && c.before != null ? SULIT_WITHHELD_IN_DRAWER : read(c.field, c.before == null ? null : String(c.before)),
-      after: isSulitField(c.field) && c.after != null ? SULIT_WITHHELD_IN_DRAWER : read(c.field, c.after == null ? null : String(c.after)),
+      before: sulitFieldOf(r.entity, c.field) && c.before != null ? SULIT_WITHHELD_IN_DRAWER : read(c.field, c.before == null ? null : String(c.before)),
+      after: sulitFieldOf(r.entity, c.field) && c.after != null ? SULIT_WITHHELD_IN_DRAWER : read(c.field, c.after == null ? null : String(c.after)),
     })),
   }));
 }

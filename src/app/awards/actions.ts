@@ -164,6 +164,18 @@ function recommendationRefusal(e: EvaluationGate, awardeePartyId: string | null,
   return { ok: false, errors: Object.fromEntries(fs.map((f) => [FIELD[f.code], awardFindingTextFor(f, false)])) };
 }
 
+/**
+ * The award is judged against the evaluation's recommendation, which is SULIT (FR-EVL-014, Phase 3b): choosing one is reading it. An officer the recommendation is closed to may not open,
+ * change, send for approval or issue the award, and is told why; the refusal is logged in the caller's transaction. Null where the evaluation's gate does not apply or the recommendation
+ * is open to the officer. Asked before anything compares the award with the recommendation, so no refusal can tell a reader how they compare.
+ */
+async function recommendationClosed(tx: Tx, actor: Parameters<typeof sulitWriteRefusal>[1], exerciseId: string, evaluation?: EvaluationGate, lead = "Nothing was saved"): Promise<FormState | null> {
+  const gate = evaluation ?? (await loadEvaluationGate(exerciseId, tx));
+  if (!gate.gate.applies) return null;
+  const closed = await sulitWriteRefusal(tx, actor, { scope: "evaluation", exerciseId }, RECOMMENDATION_FIELDS);
+  return closed ? { ok: false, message: `${lead}: the award is judged against the evaluation's recommendation, which is SULIT and closed to you. ${closed}` } : null;
+}
+
 /// The reasons written: each only where its figure differs from the recommendation (cleared where it no longer does).
 function recordedReasons(e: EvaluationGate, value: Sen, period: AwardFigures["period"], reasons: AwardFigures["reasons"]) {
   const rec = e.gate.applies ? e.gate.issued : null;
@@ -217,10 +229,8 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
       // Phase 3b (FR-EVL-014): an award is judged against the evaluation's recommendation (the awardee must be the tenderer it recommends, and a value or period that differs carries a reason),
       // so choosing one is reading it: an officer the recommendation is closed to may not open or change the award, and is told why. Logged in this transaction.
       const evaluation = await loadEvaluationGate(ex.id, tx);
-      if (evaluation.gate.applies) {
-        const closed = await sulitWriteRefusal(tx, actor, { scope: "evaluation", exerciseId: ex.id }, RECOMMENDATION_FIELDS);
-        if (closed) return { ok: false, message: `Nothing was saved: the award is judged against the evaluation's recommendation, which is SULIT and closed to you. ${closed}` };
-      }
+      const closed = await recommendationClosed(tx, actor, ex.id, evaluation);
+      if (closed) return closed;
       const period = { value: v.completionPeriod!, unit: v.completionUnit! };
       const evf = recommendationRefusal(evaluation, awardeePartyId, { value: parseSen(v.awardedValue!), period, reasons });
       if (evf) return evf;
@@ -332,10 +342,8 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
     // Phase 3b (FR-EVL-014): an award is judged against the evaluation's recommendation (the awardee must be the tenderer it recommends, and a value or period that differs carries a reason),
     // so choosing one is reading it: an officer the recommendation is closed to may not open or change the award, and is told why. Logged in this transaction.
     const evaluation = await loadEvaluationGate(l.ex.id, tx);
-    if (evaluation.gate.applies) {
-      const closed = await sulitWriteRefusal(tx, actor, { scope: "evaluation", exerciseId: l.ex.id }, RECOMMENDATION_FIELDS);
-      if (closed) return { ok: false, message: `Nothing was saved: the award is judged against the evaluation's recommendation, which is SULIT and closed to you. ${closed}` };
-    }
+    const closed = await recommendationClosed(tx, actor, l.ex.id, evaluation);
+    if (closed) return closed;
     const period = { value: v.completionPeriod!, unit: v.completionUnit! };
     const evf = recommendationRefusal(evaluation, partyWrite !== undefined ? partyWrite : l.award.awardeePartyId, { value: parseSen(v.awardedValue!), period, reasons }, true);
     if (evf) return evf;
@@ -440,6 +448,9 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
     const t = awardTransition(l.award.status as AwardStatus, "PENDING_APPROVAL", { today: l.org.today });
     if (t === "TIME_ZONE_UNSET") return NO_ZONE;
     if (t) return { ok: false, message: "Only a draft award is sent for approval." };
+    // Before the award is compared with the recommendation (FR-EVL-014): a reader it is closed to is not told how they compare.
+    const closed = await recommendationClosed(tx, actor, l.ex.id, undefined, "Not sent for approval");
+    if (closed) return closed;
     const r = await awardFacts(l, tx);
     const ev = evaluateAward(r.facts);
     const blocks = ev.submitFaults.filter((f) => f.level === "block");
@@ -699,6 +710,9 @@ export async function issueAward(_prev: FormState, data: FormData): Promise<Form
     return await inAward(actor, id, async (tx, l) => {
       const a = l.award;
       if (!l.org.today) return NO_ZONE;
+      // Before the award is compared with the recommendation (FR-EVL-014): a reader it is closed to is not told how they compare.
+      const closed = await recommendationClosed(tx, actor, l.ex.id, undefined, "Not issued");
+      if (closed) return closed;
       const f = await awardFacts(l, tx);
       const pre = evaluateAward(f.facts);
       if (pre.issueFaults.length) return refuse(pre.issueFaults, "Not issued:");

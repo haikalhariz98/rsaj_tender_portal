@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { db } from "@/lib/db";
 import { sulitGates } from "@/app/_auth/sulit";
-import { documentBytesAccess } from "@/lib/documents/entitlement";
+import { documentBytesAccess, sulitAttachRefused } from "@/lib/documents/entitlement";
 import { documentOrg, logAccess, storeUpload } from "@/lib/documents/service";
 import { bqTab } from "@/lib/scope/read";
 import { sulitWithheld } from "@/lib/auth/sulit-access";
@@ -174,6 +174,35 @@ describe("C-6 against per-person access: adding a version to a SULIT document", 
     await expect(upload(bytes, named())).rejects.toMatchObject({ status: 409, finding: { code: "IDENTICAL_TO_VERSION_N" } });
     const next = await upload(new TextEncoder().encode(`new ${randomId()}`), named());
     expect(next).toBeTruthy();
+  });
+});
+
+describe("attaching a SULIT document to a record you are named on (OD-2, review of Phase 3b)", () => {
+  it("is refused to someone who may not already open it, is allowed to one who may, and a document on no record is the uploader's alone to attach", async () => {
+    const { doc } = await sulitDocument("exercise");
+    expect(await sulitAttachRefused(db, neither(), doc.id)).toBe(true);
+    expect(await sulitAttachRefused(db, named(), doc.id)).toBe(false);
+    expect(await sulitAttachRefused(db, entitled(), doc.id)).toBe(false);
+    // A fresh upload that hangs on no record is the uploader's to attach (the helper files it as the "named" person), and nobody else's: a version's id is listed to other officers.
+    const fresh = await sulitDocument("nothing");
+    expect(await sulitAttachRefused(db, named(), fresh.doc.id)).toBe(false);
+    expect(await sulitAttachRefused(db, neither(), fresh.doc.id)).toBe(true);
+    expect(await sulitAttachRefused(db, entitled(), fresh.doc.id)).toBe(false);
+  });
+  it("a document that is not SULIT is never refused by it", async () => {
+    const { doc } = await sulitDocument("exercise");
+    await db.document.update({ where: { id: doc.id }, data: { classificationSnapshot: "INTERNAL" } });
+    expect(await sulitAttachRefused(db, neither(), doc.id)).toBe(false);
+  });
+  it("a detached attachment judges nothing: a grant by a record the document was taken off does not stand", async () => {
+    const { doc, version } = await sulitDocument("nothing");
+    // The exploit the refusal closes: the reader is named on another exercise, and the document is put on it.
+    const other = await db.sourcingExercise.create({ data: { organisationId, reference: `SR/EX/${randomId()}`, requisitionId, title: "Another exercise", estimatedValue: "1000.00", sourcingMethodCode: "SR_METHOD" } });
+    await db.exerciseParticipant.create({ data: { exerciseId: other.id, personId: who.neither } });
+    const attachment = await db.documentAttachment.create({ data: { organisationId, purpose: "DOSSIER_EVIDENCE", versionId: version.id, exerciseId: other.id } });
+    expect((await documentBytesAccess(db, neither(), doc.id, { logRead: false })).entitled).toBe(true);
+    await db.documentAttachment.update({ where: { id: attachment.id }, data: { detachedAt: new Date(), detachReason: "Taken off again" } });
+    expect((await documentBytesAccess(db, neither(), doc.id, { logRead: false })).entitled).toBe(false);
   });
 });
 

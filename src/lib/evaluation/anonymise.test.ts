@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { anonymisedScoringWords, anonymousBidder, criterionNeedsName, stageAnonymity, stageReveals } from "./anonymise";
+import { anonymisedScoringWords, anonymousBidder, bidIdentityAtStage, bidInSentence, criterionNeedsName, faultsForBid, identityHeld, pseudonymNumbers, stageAnonymity, stageReveals } from "./anonymise";
 import { policyFromSnapshot } from "./start";
 import { TA109 } from "./ta109-fixture";
 
@@ -27,7 +27,8 @@ describe("which stage is anonymous", () => {
     expect(stageAnonymity(financial, true).anonymous).toBe(false);
     expect(stageAnonymity(checklist, true).anonymous).toBe(false);
   });
-  it("a bid is called Bidder n by its listing number", () => {
+  // Changed with the review of Phase 3b (FR-EVL-020): the number is the bid's pseudonym number, no longer the opening's listing number, which the opening publishes beside the name.
+  it("a bid is called Bidder n by its pseudonym number", () => {
     expect(anonymousBidder(3)).toBe("Bidder 3");
   });
 });
@@ -85,6 +86,52 @@ describe("the view names a bidder only after the reveal was asked", () => {
   });
   it("puts a name in a score row only for a criterion that names the bidder, once revealed; every other row carries the anonymous name", () => {
     expect(read).toMatch(/named: anon\.namedFor\.has\(cr\.code\) && reveal \? b\.bidderName : null/);
-    expect(read).toMatch(/bidder: anon\.anonymous \? anonymousBidder\(b\.listingNo\) : b\.bidderName/);
+    // Changed with the review of Phase 3b: the row is built by `bidIdentityAtStage` from the pseudonym, so the listing number cannot reach an anonymous row.
+    expect(read).toMatch(/\.\.\.bidIdentityAtStage\(anon\.anonymous, b, pseudonym\)/);
+    expect(read).not.toMatch(/anonymousBidder\(b\.listingNo\)/);
+  });
+});
+
+describe("the pseudonym is not derivable from the opening (FR-EVL-020, review of Phase 3b)", () => {
+  const ids = ["bid_a", "bid_b", "bid_c", "bid_d", "bid_e", "bid_f", "bid_g", "bid_h"];
+  it("numbers each bid 1 to n once, the same way every time the version is read", () => {
+    const a = pseudonymNumbers("eval_1", ids);
+    expect([...a.values()].sort((x, y) => x - y)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect([...pseudonymNumbers("eval_1", [...ids].reverse()).entries()].sort()).toEqual([...a.entries()].sort());
+  });
+  it("does not follow the order the bids were opened in, and another version numbers them another way", () => {
+    const a = pseudonymNumbers("eval_1", ids);
+    expect(ids.map((id) => a.get(id))).not.toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(ids.map((id) => pseudonymNumbers("eval_2", ids).get(id))).not.toEqual(ids.map((id) => a.get(id)));
+  });
+  it("an anonymous row carries neither the bidder's name nor its listing number, in any field", () => {
+    const row = bidIdentityAtStage(true, { listingNo: 7, bidderName: "Syarikat Contoh" }, 2);
+    expect(row).toEqual({ listingNo: 2, ref: "Bidder 2", anonymous: true, bidder: "Bidder 2" });
+    expect(JSON.stringify(row)).not.toMatch(/Syarikat|No\. 7|7/);
+  });
+  it("an open row is the listing number and the name, as before", () => {
+    expect(bidIdentityAtStage(false, { listingNo: 7, bidderName: "Syarikat Contoh" }, 2)).toEqual({ listingNo: 7, ref: "No. 7", anonymous: false, bidder: "Syarikat Contoh" });
+  });
+  it("a finding about a bid on an anonymous stage is renamed to the pseudonym; on an open stage it is untouched", () => {
+    const f = { code: "SCORE_MISSING", data: { listingNo: 7, criterion: "Staff" } };
+    const [a] = faultsForBid(true, [f], 2);
+    expect(a.data).toMatchObject({ listingNo: 2, bidRef: "Bidder 2" });
+    expect(JSON.stringify(a)).not.toMatch(/7/);
+    expect(faultsForBid(false, [f], 2)[0]).toBe(f);
+  });
+  it("a reference reads in a sentence as it is: bid No. 3, or Bidder 3", () => {
+    expect(bidInSentence("No. 3")).toBe("bid No. 3");
+    expect(bidInSentence("Bidder 3")).toBe("Bidder 3");
+  });
+  it("identities are held while the switch is on and an anonymous technical stage is not yet submitted, and not otherwise", () => {
+    const stage = (submitted: boolean) => [{ kind: technical.kind, capitalBase: technical.capitalBase, criteria: technical.criteria, submitted }];
+    expect(identityHeld(true, stage(false))).toBe(true);
+    expect(identityHeld(true, stage(true))).toBe(false);
+    expect(identityHeld(false, stage(false))).toBe(false);
+    expect(identityHeld(null, stage(false))).toBe(false);
+  });
+  it("the words for the switch say the other lists still name the bidders, rather than claiming they are hidden from the team", () => {
+    expect(anonymisedScoringWords(true).en).toMatch(/still name the bidders/);
+    expect(anonymisedScoringWords(true).en).toMatch(/not the opening's listing number/);
   });
 });

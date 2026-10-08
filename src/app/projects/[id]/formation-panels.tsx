@@ -228,7 +228,7 @@ function CheckCard({ sulit, l, check: k, people, today, editable, preparationOn,
                     <span>{x.reason}</span>
                   </span>
                 </span>
-                {editable && !done && <RemoveLineDrawer id={c.id} checkId={k.id} lineId={x.id} label={`correction ${x.itemRef}`} />}
+                {editable && !done && sulit.state === "GRANTED" && <RemoveLineDrawer id={c.id} checkId={k.id} lineId={x.id} label={`correction ${x.itemRef}`} />}
               </li>
             ))}
           </ul>
@@ -258,7 +258,7 @@ function CheckCard({ sulit, l, check: k, people, today, editable, preparationOn,
                       {/* Whether a rate is above the ratio is worked out from the estimate rate, so it is said only to a reader who may read that rate. */}
                       {sulit.state === "GRANTED" && above && <Chip tone="warn">Above the ratio</Chip>}
                       {sulit.state === "GRANTED" && at && <Chip tone="info">Exactly at the ratio</Chip>}
-                      {editable && !done && <RemoveLineDrawer id={c.id} checkId={k.id} lineId={x.id} label={`rate ${x.itemRef}`} />}
+                      {editable && !done && sulit.state === "GRANTED" && <RemoveLineDrawer id={c.id} checkId={k.id} lineId={x.id} label={`rate ${x.itemRef}`} />}
                     </span>
                   </li>
                 );

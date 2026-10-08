@@ -224,7 +224,7 @@ export async function removeBqSection(_prev: FormState, data: FormData): Promise
     await tx.bqSection.delete({ where: { id: s.id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqSection, s.id, label(l, `Bill of quantities v${v.versionNo} · section ${s.number}`), "DELETE", sectionAudit(null, { number: s.number, title: s.title }));
     return { ok: true };
-  });
+  }, { bq: actor });
 }
 
 /// Add or edit a line of the draft. Its amount is worked out here, from the quantity and the rate, never typed.
@@ -303,7 +303,7 @@ export async function removeBqItem(_prev: FormState, data: FormData): Promise<Fo
     await tx.bqItem.delete({ where: { id: i.id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.bqItem, i.id, label(l, `Bill of quantities v${v.versionNo} · ${i.itemRef || i.description}`), "DELETE", itemAudit(null, lineOf(i)));
     return { ok: true };
-  });
+  }, { bq: actor });
 }
 
 /**

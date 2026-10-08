@@ -8,7 +8,7 @@ import { sortKeyOf, sulitCell, sulitText } from "@/components/sulit-cell";
 import { historyAmount } from "@/lib/committee/matter-history";
 import { matterAmountScope } from "@/lib/committee/matter-amount";
 import { MATTER_KINDS } from "@/lib/committee/labels";
-import { awardFindingText, awardFindingTextFor } from "@/lib/award/labels";
+import { awardFindingText, awardFindingTextFor, findingsForReader, RECOMMENDATION_CLOSED_TEXT } from "@/lib/award/labels";
 import { scopeOfOwner } from "@/lib/documents/owner-scope";
 import { OWNER_KINDS } from "@/lib/documents/types";
 import { RECOMMENDATION_FIELDS } from "@/lib/evaluation/recommendation-fields";
@@ -202,9 +202,63 @@ describe("the writes that change what a reader may not read ask the write rule",
     ["src/app/awards/actions.ts", /sulitWriteRefusal\(tx, actor, \{ scope: "exercise", exerciseId: a\.exerciseId \}, \["icNumber"\]\)/],
     ["src/app/suppliers/actions.ts", /sulitWriteRefusal\(tx, actor, \{ scope: "supplier"/],
     ["src/app/projects/[id]/actions.ts", /sulitWriteRefusal\(c\.tx, actor, \{ scope: "contract"/],
+    ["src/app/projects/[id]/actions.ts", /Nothing was removed: this is SULIT and is closed to you/],
     ["src/app/committees/actions.ts", /sulitWriteRefusal\(tx, input\.typedBy, \{ scope: "requisition"/],
   ];
   for (const [file, pattern] of mustAsk) it(file, () => expect(read(file)).toMatch(pattern));
+
+  // Review of Phase 3b: taking a priced line off changes the SULIT total as adding one does, so the deletions ask as the additions do.
+  it("every bill of quantities act that changes a priced line, deleting included, passes the reader to the exercise lock", () => {
+    const actions = read("src/app/sourcing/[id]/scope/actions.ts");
+    for (const fn of ["saveBqItem", "removeBqItem", "removeBqSection", "finaliseBq", "importBqCsv"]) {
+      const body = actions.slice(actions.indexOf(`export async function ${fn}(`)).split(/\nexport async function /)[0];
+      expect(body, fn).toMatch(/\{ bq: actor \}/);
+    }
+  });
+  it("the contract's check does not offer to take off a line to a reader the working is withheld from", () => {
+    const panels = read("src/app/projects/[id]/formation-panels.tsx");
+    expect(panels.match(/<RemoveLineDrawer /g)).toHaveLength(2);
+    expect(panels.match(/sulit\.state === "GRANTED" && <RemoveLineDrawer /g)).toHaveLength(2);
+  });
+});
+
+describe("the history action returns configuration only (review of Phase 3b)", () => {
+  const history = read("src/app/configuration/history.ts");
+  const entities = history.slice(history.indexOf("const ENTITIES = new Set(["), history.indexOf("]);", history.indexOf("const ENTITIES = new Set([")));
+  it("a committee decision and a requisition, whose trails hold the matter's amount and the estimate, are not on the set", () => {
+    expect(entities).not.toMatch(/"CommitteeDecision"|"Requisition"/);
+  });
+  it("what it does return is withheld by the registered field of that entity, as the audit export does, and not by the bare field name", () => {
+    expect(history).toMatch(/sulitFieldOf\(r\.entity, c\.field\)/);
+    expect(history).not.toMatch(/isSulitField\(/);
+  });
+});
+
+describe("a document is attached only by someone who may already open it (OD-2, review of Phase 3b)", () => {
+  it("both ways a version gets a new owner by a reader's naming it ask, before anything is written, and read as a document that is not there", () => {
+    const docs = read("src/app/documents/actions.ts");
+    const attach = docs.slice(docs.indexOf("export async function attachDocument("));
+    expect(attach.indexOf("sulitAttachRefused(tx, actor, doc.id)")).toBeGreaterThan(-1);
+    expect(attach.indexOf("sulitAttachRefused(tx, actor, doc.id)")).toBeLessThan(attach.indexOf("documentAttachment.create"));
+    expect(attach).toMatch(/hiddenExerciseOfDocument\(doc\.id/);
+    const users = read("src/app/configuration/users/actions.ts");
+    expect(users).toMatch(/recommendationRefused\(actor, recommendationVersionId\)/);
+    expect(users).toMatch(/sulitAttachRefused\(db, actor, v\.documentId\)/);
+  });
+  it("no other app source writes an attachment: the rest carry a part's own files forward, or attach the file the same act just uploaded (the loaders in prisma/ are not a reader)", () => {
+    const creators = SRC.filter((f) => f.startsWith("src/") && /documentAttachment\.create\(/.test(read(f))).sort();
+    expect(creators).toEqual(
+      [
+        "src/app/configuration/users/actions.ts",
+        "src/app/documents/actions.ts",
+        "src/app/sourcing/[id]/documents/actions.ts",
+        "src/app/sourcing/[id]/scope/actions.ts",
+      ].sort(),
+    );
+  });
+  it("a document's grant is judged by the records it hangs on now: a detached attachment is not one", () => {
+    expect(read("src/lib/documents/entitlement.ts")).toMatch(/where: \{ version: \{ documentId \}, detachedAt: null \}/);
+  });
 });
 
 describe("a page that shows a record's figures names them, and a field read on one path is named by that path", () => {
@@ -236,11 +290,37 @@ describe("the award is judged against a recommendation that is SULIT (FR-EVL-014
   it("the fields asked are registered evaluation fields", () => {
     for (const f of RECOMMENDATION_FIELDS) expect(SULIT_FIELDS.find((x) => x.field === f)?.scope).toBe("evaluation");
   });
-  it("both award acts refuse a reader the recommendation is closed to, before the recommendation is judged", () => {
+  // Changed with the review of Phase 3b: the scan pinned two acts (create and update), which left the other two that judge the award against the recommendation, sending it for approval and
+  // issuing it, to tell a refused reader how the awardee, value and period compare. All four ask now, through one helper, and each before it compares.
+  it("all four award acts that judge the award against the recommendation refuse a reader it is closed to, before anything compares", () => {
     const actions = src("src/app/awards/actions.ts");
-    const refusals = [...actions.matchAll(/sulitWriteRefusal\(tx, actor, \{ scope: "evaluation", exerciseId: [\w.]+ \}, RECOMMENDATION_FIELDS\)/g)];
-    expect(refusals).toHaveLength(2);
-    for (const m of refusals) expect(actions.indexOf("recommendationRefusal(evaluation,", m.index!)).toBeGreaterThan(m.index!);
+    expect([...actions.matchAll(/sulitWriteRefusal\(tx, actor, \{ scope: "evaluation", exerciseId \}, RECOMMENDATION_FIELDS\)/g)]).toHaveLength(1);
+    const body = (fn: string) => actions.slice(actions.indexOf(`export async function ${fn}(`)).split(/\nexport async function /)[0];
+    for (const [fn, compares] of [["createAward", "recommendationRefusal(evaluation,"], ["updateAwardDetails", "recommendationRefusal(evaluation,"], ["submitAward", "evaluateAward("], ["issueAward", "evaluateAward("]] as const) {
+      const b = body(fn);
+      expect(b, fn).toMatch(/recommendationClosed\(/);
+      expect(b.indexOf("recommendationClosed("), fn).toBeLessThan(b.indexOf(compares));
+    }
+  });
+  it("the page puts the comparison findings into one sentence for a reader the recommendation is closed to, whatever the list", () => {
+    const page = src("src/app/awards/[id]/page.tsx");
+    expect(page.match(/recommendation=\{recommendationShown\}/g)).toHaveLength(2);
+    // The warnings (a value above the ceiling, a value or period that differs) are filtered and worded the same way.
+    expect(page).toMatch(/findingsForReader\(ev\.valueFaults\.filter\(\(x\) => x\.level === "warn"\), recommendationShown\)/);
+    expect(page).toMatch(/awardFindingTextFor\(x, sulit\.state === "GRANTED", recommendationShown\)/);
+    expect(page).not.toMatch(/awardFindingTextFor\(x, sulit\.state === "GRANTED"\)/);
+    const compare = [
+      { code: "AWARDEE_NOT_RECOMMENDED", level: "block" },
+      { code: "VALUE_DIFFERS_REASON_REQUIRED", level: "block" },
+      { code: "VALUE_ABOVE_CEILING", level: "block" },
+      { code: "EXCEEDS_APPROVED_VALUE", level: "block" },
+    ] as never[];
+    const closed = findingsForReader(compare, false);
+    expect(closed.map((f: { code: string }) => f.code)).toEqual(["AWARDEE_NOT_RECOMMENDED", "EXCEEDS_APPROVED_VALUE"]);
+    expect(awardFindingTextFor(closed[0], true, false)).toBe(RECOMMENDATION_CLOSED_TEXT);
+    expect(RECOMMENDATION_CLOSED_TEXT).not.toMatch(/RM|\d/);
+    expect(findingsForReader(compare, true)).toHaveLength(4);
+    expect(awardFindingTextFor(compare[0], true, true)).toBe(awardFindingText(compare[0]));
   });
   it("the pages show the recommendation, and pre-fill from it, only when the gate is granted", () => {
     const open = src("src/app/awards/new/page.tsx");

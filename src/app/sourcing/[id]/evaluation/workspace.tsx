@@ -7,6 +7,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
+import { bidInSentence } from "@/lib/evaluation/anonymise";
 import { EVALUATION_STATEMENT } from "@/lib/evaluation/labels";
 import { evaluationTabView, openDetail, type EvaluationCurrent, type EvaluationSurface, type EvaluationTabView } from "@/lib/evaluation/read";
 import { sulitGate } from "@/app/_auth/sulit";
@@ -186,7 +187,7 @@ function Stages({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
             actions={
               c.open && !s.submitted && !s.locked ? (
                 s.kind === "SHORTLIST" ? (
-                  <ShortlistDrawer exerciseId={v.exerciseId} stage={s} bidders={s.rows.filter((r) => r.inRunning).map((r) => ({ value: r.id, label: `No. ${r.listingNo}, ${r.bidder}` }))} people={v.header.people} />
+                  <ShortlistDrawer exerciseId={v.exerciseId} stage={s} bidders={s.rows.filter((r) => r.inRunning).map((r) => ({ value: r.id, label: r.anonymous ? r.ref : `${r.ref}, ${r.bidder}` }))} people={v.header.people} />
                 ) : s.kind === "COMMITTEE_DECISION" || s.kind === "RECOMMENDATION" ? undefined : (
                   <SubmitStageDrawer exerciseId={v.exerciseId} stage={s} notBanded={s.notBanded} pending={s.pending} people={v.header.people} />
                 )
@@ -218,7 +219,7 @@ function Meetings({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
         <MeetingsList exerciseId={v.exerciseId} c={c} people={v.header.people} />
       </Card>
       {c.meetings.map((m) => (
-        <OwnerAttachments key={m.id} owner={{ kind: "evaluationMeeting", id: m.id }} only={["TENDERER_CONFIRMATION", "MEETING_MINUTES"]} title={`${m.kind}, round ${m.round}, bid No. ${m.listingNo}: its papers`} subtitle="The tenderer's written confirmation is attached before the meeting is closed." collapseWhenEmpty={!!m.closed} />
+        <OwnerAttachments key={m.id} owner={{ kind: "evaluationMeeting", id: m.id }} only={["TENDERER_CONFIRMATION", "MEETING_MINUTES"]} title={`${m.kind}, round ${m.round}, ${bidInSentence(m.ref)}: its papers`} subtitle="The tenderer's written confirmation is attached before the meeting is closed." collapseWhenEmpty={!!m.closed} />
       ))}
       <Card className="overflow-hidden">
         <CardHeader title="Negotiations asked for" subtitle="A negotiation is held only once its route is approved." actions={c.open ? <RequestNegotiationDrawer exerciseId={v.exerciseId} bidders={c.runningBidders} people={v.header.people} allowed={c.recommendation.formed ? { allowed: false, reason: "The recommendation is formed." } : c.act} /> : undefined} />

@@ -100,7 +100,8 @@ export const EVALUATION_STATEMENT = {
 };
 
 const side = (d: Finding["data"]) => (d?.side ? SIDE_LABEL[d.side as Side]?.toLowerCase() : null) ?? "that side";
-const bid = (d: Finding["data"]) => (d?.listingNo != null ? `bid No. ${d.listingNo}` : "a bid");
+/// `bidRef`: how the screen calls the bid where it is not by its listing number (an anonymised stage: "Bidder 3", FR-EVL-020), which then stands in the sentence.
+const bid = (d: Finding["data"]) => (d?.bidRef ? String(d.bidRef) : d?.listingNo != null ? `bid No. ${d.listingNo}` : "a bid");
 const plural = (n: unknown, one: string, many: string) => (n === 1 ? one : many);
 
 const TEXT: Record<string, (f: Finding) => string> = {
@@ -323,9 +324,9 @@ export function evaluationFindingText(f: Finding): string {
 const listWords = (xs: readonly string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 const capital = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 /// The findings that name one item each for a bid, gathered into one sentence per bid (6.8 re-review 8).
-const GATHERED: Readonly<Record<string, { item: string; words: (no: string | number, items: string) => string }>> = {
-  ASPECT_UNASSESSED: { item: "aspect", words: (no, items) => `No. ${no} is not assessed on ${items}.` },
-  SCORE_MISSING: { item: "criterion", words: (no, items) => `No. ${no} has no score on ${items}.` },
+const GATHERED: Readonly<Record<string, { item: string; words: (ref: string, items: string) => string }>> = {
+  ASPECT_UNASSESSED: { item: "aspect", words: (ref, items) => `${ref} is not assessed on ${items}.` },
+  SCORE_MISSING: { item: "criterion", words: (ref, items) => `${ref} has no score on ${items}.` },
 };
 
 /**
@@ -337,17 +338,18 @@ export const pendingText = (fs: readonly Finding[]): string => pendingSentences(
 
 /// The sentences of `pendingText`, each once.
 export function pendingSentences(fs: readonly Finding[]): string[] {
-  const out: ({ text: string } | { code: string; no: string | number; items: string[] })[] = [];
+  const out: ({ text: string } | { code: string; ref: string; items: string[] })[] = [];
   for (const f of fs) {
     const g = GATHERED[f.code];
     const item = g ? f.data?.[g.item] : null;
     if (g && f.data?.listingNo != null && item != null) {
-      const at = out.find((x): x is { code: string; no: string | number; items: string[] } => "code" in x && x.code === f.code && x.no === f.data!.listingNo);
+      const ref = f.data.bidRef ? String(f.data.bidRef) : `No. ${f.data.listingNo}`;
+      const at = out.find((x): x is { code: string; ref: string; items: string[] } => "code" in x && x.code === f.code && x.ref === ref);
       if (at) at.items.push(String(item));
-      else out.push({ code: f.code, no: f.data.listingNo, items: [String(item)] });
+      else out.push({ code: f.code, ref, items: [String(item)] });
     } else out.push({ text: capital(evaluationFindingText(f)) });
   }
-  return [...new Set(out.map((x) => ("text" in x ? x.text : GATHERED[x.code].words(x.no, listWords(x.items)))))];
+  return [...new Set(out.map((x) => ("text" in x ? x.text : GATHERED[x.code].words(x.ref, listWords(x.items)))))];
 }
 
 /// A draft's finding at issue, in Configuration's words: a rule not set there is set on the draft (never "cancel").

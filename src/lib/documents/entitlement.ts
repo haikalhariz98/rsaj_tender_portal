@@ -73,9 +73,10 @@ export async function subjectOfOwner(client: Tx | typeof db, kind: OwnerKind, id
   return { scope, exerciseId: null, entity: ENTITY_OF[kind], id, label: ENTITY_OF[kind] };
 }
 
-/// The records a document hangs on (live or past), once each, as the records that judge its bytes.
+/// The records a document hangs on now, once each, as the records that judge its bytes. A detached attachment judges nothing: a grant that outlived its detach would let
+/// someone attach a document to a record they are named on, open it, and take it off again (review of Phase 3b).
 export async function subjectsOfDocument(client: Tx | typeof db, documentId: string): Promise<DocumentSubject[]> {
-  const rows = await client.documentAttachment.findMany({ where: { version: { documentId } }, select: Object.fromEntries(OWNER_KINDS.map((k) => [OWNER_COLUMN[k], true])) as Record<string, true> });
+  const rows = await client.documentAttachment.findMany({ where: { version: { documentId }, detachedAt: null }, select: Object.fromEntries(OWNER_KINDS.map((k) => [OWNER_COLUMN[k], true])) as Record<string, true> });
   const seen = new Map<string, { kind: OwnerKind; id: string }>();
   for (const r of rows as unknown as Record<string, string | null>[]) {
     for (const k of OWNER_KINDS) {
@@ -130,6 +131,21 @@ export async function documentBytesAccess(client: Tx, actor: SulitReader, docume
   const decision = granted ?? first ?? ({ state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" } as SulitDecision);
   const lastScope = subjects[subjects.length - 1]?.scope ?? "requisition";
   return { entitled: granted != null, decision, refusal: decision.state === "WITHHELD" ? refusalWords(decision.basis, lastScope).en : null };
+}
+
+/**
+ * Whether attaching this document to a record is refused because it is SULIT and the actor may not already open it (OD-2; review of Phase 3b). Attaching puts the document
+ * on the record, and the record's own people then judge its bytes: without this, anyone named on any exercise could name a SULIT version (its id is shown in a drawer
+ * even where the link is withheld) and so give themselves the file. A document that hangs on no record, live or past, and was filed only by the actor is a fresh upload
+ * nobody else has been shown, and is theirs to attach; one that someone else staged is judged like any other. The judgement is logged unless `logRead` is false.
+ */
+export async function sulitAttachRefused(client: Tx, actor: SulitReader, documentId: string, opts: { logRead?: boolean } = {}): Promise<boolean> {
+  const doc = await client.document.findUnique({ where: { id: documentId }, select: { classificationSnapshot: true } });
+  if (!doc || doc.classificationSnapshot !== "SULIT") return false;
+  // A fresh upload nobody has been shown is the uploader's to attach, and only the uploader's: a version's id is listed to other officers, so an upload someone else staged is not.
+  const unattached = (await client.documentAttachment.count({ where: { version: { documentId } } })) === 0;
+  if (unattached && actor.personId && (await client.documentVersion.count({ where: { documentId, NOT: { recordedByPersonId: actor.personId } } })) === 0) return false;
+  return !(await documentBytesAccess(client, actor, documentId, opts)).entitled;
 }
 
 /// Whether the actor may open the SULIT bytes of documents attached to this owner: the owner's own record judges (a panel lists many documents of one owner). Nothing is logged: showing a link is not opening a file.

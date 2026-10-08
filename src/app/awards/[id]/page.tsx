@@ -36,6 +36,7 @@ import {
   AWARD_STATUS_TONE,
   awardFindingText,
   awardFindingTextFor,
+  findingsForReader,
   BOND_BASIS_LABEL,
   COMMITMENT_KIND_LABEL,
   CONTRACT_STATUS_LABEL,
@@ -131,12 +132,14 @@ const yesNo = (v: boolean | null) => (v == null ? null : v ? "yes" : "no");
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const tone = (l: string) => (l === "block" || l === "err" ? "err" : l === "info" ? "info" : "warn") as "err" | "warn" | "info";
 
-function FaultList({ faults, figures = true }: { faults: readonly Finding[]; figures?: boolean }) {
+/// `recommendation`: whether the evaluation's recommendation is open to the reader. Where it is not, the findings that compare the award with it become one sentence (FR-EVL-014).
+function FaultList({ faults, figures = true, recommendation = true }: { faults: readonly Finding[]; figures?: boolean; recommendation?: boolean }) {
+  const shown = findingsForReader(faults, recommendation);
   return (
     <ul className="flex list-disc flex-col gap-1 pl-5">
-      {faults.map((f, i) => (
+      {shown.map((f, i) => (
         <li key={i}>
-          {awardFindingTextFor(f, figures)}
+          {awardFindingTextFor(f, figures, recommendation)}
           {FIX_AT[f.code] && (
             <>
               {" "}
@@ -291,6 +294,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
       {canCancel && <CancelAwardDrawer id={award.id} issued={status === "ISSUED"} consequence={ev.commencement?.state === "LATE" && consequenceText ? `Work has not commenced within the grace period: the consequence recorded is ${consequenceText.toLowerCase()}.` : null} />}
     </>
   );
+  const issueShownCount = findingsForReader(ev.issueFaults, recommendationShown).length;
   const headerNote =
     status === "DRAFT" && submitBlocks.length ? (
       <span>
@@ -298,7 +302,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
       </span>
     ) : status === "APPROVED" && !issueReady ? (
       <span>
-        <span className="font-semibold text-ink-2">Issue:</span> not yet — {ev.issueFaults.length === 1 ? "one thing below is" : `${ev.issueFaults.length} things below are`} not in place.
+        <span className="font-semibold text-ink-2">Issue:</span> not yet — {issueShownCount === 1 ? "one thing below is" : `${issueShownCount} things below are`} not in place.
       </span>
     ) : null;
 
@@ -423,16 +427,16 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
         )}
         {status === "DRAFT" && submitBlocks.length > 0 && (
           <Callout tone="warn" title="Before it can go for approval">
-            <FaultList faults={submitBlocks} figures={sulit.state === "GRANTED"} />
+            <FaultList faults={submitBlocks} figures={sulit.state === "GRANTED"} recommendation={recommendationShown} />
           </Callout>
         )}
         {status === "APPROVED" && ev.issueFaults.length > 0 && (
           <Callout tone="warn" title="Not ready to issue">
-            <FaultList faults={ev.issueFaults} figures={sulit.state === "GRANTED"} />
+            <FaultList faults={ev.issueFaults} figures={sulit.state === "GRANTED"} recommendation={recommendationShown} />
           </Callout>
         )}
-        {ev.valueFaults.filter((x) => x.level === "warn").map((x, i) => (
-          <Callout key={i} tone="warn">{awardFindingTextFor(x, sulit.state === "GRANTED")}</Callout>
+        {findingsForReader(ev.valueFaults.filter((x) => x.level === "warn"), recommendationShown).map((x, i) => (
+          <Callout key={i} tone="warn">{awardFindingTextFor(x, sulit.state === "GRANTED", recommendationShown)}</Callout>
         ))}
         {ev.commencement?.state === "LATE" && status === "ISSUED" && (
           <Callout tone="err" title="Work has not commenced">

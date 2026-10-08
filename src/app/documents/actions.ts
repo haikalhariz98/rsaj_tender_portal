@@ -14,7 +14,7 @@ import { holdFaults, releaseFaults } from "@/lib/documents/hold";
 import { documentFaultText, FINGERPRINT_STATEMENT, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { ownerOf, withLockedOwner, type LockedOwner } from "@/lib/documents/owners";
 import type { OwnerRef } from "@/lib/documents/repo";
-import { documentBytesAccess, ownerBytesEntitled } from "@/lib/documents/entitlement";
+import { documentBytesAccess, ownerBytesEntitled, sulitAttachRefused } from "@/lib/documents/entitlement";
 import { attachTargetsOf, documentDrawer, ownerPanel, TARGET_CAP, uploadContext } from "@/lib/documents/read";
 import { documentOrg, lockDocument, lockVersion, LOCKED_VERSION_SELECT, logAccess } from "@/lib/documents/service";
 import { blobStore, sha256Hex } from "@/lib/documents/store";
@@ -123,6 +123,10 @@ export async function attachDocument(_prev: FormState, data: FormData): Promise<
     const v = await lockVersion(tx, versionId, o.organisationId);
     if (!v) return refuse([{ code: "VERSION_UNKNOWN", level: "block" }]);
     const doc = await tx.document.findUniqueOrThrow({ where: { id: v.documentId, organisationId: actor.organisationId }, include: { documentClass: { select: { classification: true } } } });
+    // OD-2 (review of Phase 3b): a document hanging on an exercise the actor may not see reads as unknown, and attaching a SULIT document gives its bytes to the record's people,
+    // so it is refused to someone who may not open it already. Both read as a document that is not there, and the attempt is logged.
+    const under = await hiddenExerciseOfDocument(doc.id, await restrictedExerciseIds(tx, actor.organisationId), tx);
+    if ((under && (await refuseHiddenExercise(tx, actor, under))) || (await sulitAttachRefused(tx, actor, doc.id))) return refuse([{ code: "DOCUMENT_UNKNOWN", level: "block" }]);
     const col = OWNER_COLUMN[kind];
     const already = await tx.documentAttachment.findFirst({ where: { [col]: ownerId, purpose, detachedAt: null, version: { documentId: doc.id } }, select: { id: true } });
     const faults = attachFault({ purpose, owner: o.facts, version: v, documentClass: doc.documentClass, documentClassification: doc.classificationSnapshot, alreadyAttached: !!already });

@@ -356,6 +356,11 @@ export async function removeCheckLine(_prev: FormState, data: FormData): Promise
     const k = openCheck(c, checkId);
     const correction = k.corrections.find((x) => x.id === lineId);
     const rate = k.rates.find((x) => x.id === lineId);
+    // Phase 3b (review): taking a line off changes the check's SULIT working (a correction's figures, the variance; a rate's comparison), so it is asked of the officer like adding one is.
+    if (correction || rate) {
+      const closed = await sulitWriteRefusal(c.tx, actor, { scope: "contract", entity: "Contract", id: c.l.contract.id, label: c.l.contract.number }, correction ? ["tenderedLineAmount", "correctedLineAmount"] : ["estimateRate"]);
+      if (closed) return { ok: false, message: `Nothing was removed: this is SULIT and is closed to you. ${closed}` };
+    }
     if (correction) {
       await c.tx.arithmeticCorrection.delete({ where: { id: correction.id, organisationId: actor.organisationId } });
       await audit(c, "ArithmeticCorrection", correction.id, `correction ${correction.itemRef}`, "DELETE", snapshotFields({ itemRef: correction.itemRef, tenderedLineAmount: correction.tendered.toString(), correctedLineAmount: correction.corrected.toString() }), reason);

@@ -1,6 +1,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
+import { bidInSentence } from "@/lib/evaluation/anonymise";
 import { CHANNEL_LABEL, DIRECTION_LABEL, SIDE_LABEL } from "@/lib/evaluation/labels";
 import { COMMUNICATION_CHANNELS, COMMUNICATION_DIRECTIONS, TEAM_SIDES } from "@/lib/evaluation/types";
 
@@ -115,12 +116,12 @@ export function InputsDrawer({ exerciseId, bidder, factors, capital, cpr, people
 
 // ------------------------------------------------------------------ stages
 
-export function ScoreDrawer({ exerciseId, stage, bidder, criteria, people: ps }: { exerciseId: string; stage: { code: string; label: string }; bidder: { id: string; listingNo: number }; criteria: { code: string; label: string; scale: string; scaleLabel: string; max: string | null }[]; people: Option[] }) {
+export function ScoreDrawer({ exerciseId, stage, bidder, criteria, people: ps }: { exerciseId: string; stage: { code: string; label: string }; bidder: { id: string; ref: string }; criteria: { code: string; label: string; scale: string; scaleLabel: string; max: string | null }[]; people: Option[] }) {
   const marks = criteria.some((c) => c.scale === "ENTERED_MARKS");
   const pass = criteria.some((c) => c.scale === "PASS_FAIL");
   return (
     <RecordEditor
-      title={`Score bid No. ${bidder.listingNo} on ${stage.label}`}
+      title={`Score ${bidInSentence(bidder.ref)} on ${stage.label}`}
       description="One criterion at a time; a rescore is kept beside the earlier score. Marks above a criterion's maximum are refused, never capped."
       fields={[
         hidden("exerciseId"),
@@ -135,7 +136,7 @@ export function ScoreDrawer({ exerciseId, stage, bidder, criteria, people: ps }:
       values={{ exerciseId, bidderId: bidder.id, stageCode: stage.code }}
       action={recordScore}
       submitLabel="Record the score"
-      trigger={{ label: "Score", className: ghost, ariaLabel: `Score bid No. ${bidder.listingNo} on ${stage.label}` }}
+      trigger={{ label: "Score", className: ghost, ariaLabel: `Score ${bidInSentence(bidder.ref)} on ${stage.label}` }}
       size="md"
     />
   );
@@ -172,16 +173,16 @@ export function ShortlistDrawer({ exerciseId, stage, bidders, people: ps }: { ex
   );
 }
 
-export function TableStageOneDrawer({ exerciseId, bidder, sittings, people: ps, again = false }: { exerciseId: string; bidder: { id: string; listingNo: number }; sittings: Option[]; people: Option[]; again?: boolean }) {
+export function TableStageOneDrawer({ exerciseId, bidder, sittings, people: ps, again = false }: { exerciseId: string; bidder: { id: string; ref: string }; sittings: Option[]; people: Option[]; again?: boolean }) {
   return (
     <RecordEditor
-      title={`Table bid No. ${bidder.listingNo}'s first stage${again ? " again" : ""}`}
+      title={`Table ${bidInSentence(bidder.ref)}'s first stage${again ? " again" : ""}`}
       description={`${again ? "The committee deferred it: table it again at a sitting. " : ""}The committee decides each bid's first stage at its sitting; the decision there is the act. Tabled on the Secretariat holder's behalf.`}
       fields={[hidden("exerciseId"), hidden("bidderId"), { kind: "select", name: "meetingId", label: "Sitting", required: true, placeholder: sittings.length ? "Choose" : "No sitting of the committee is open", options: sittings }, by("CommitteeDecision.tabledBy", "tabledByPersonId", ps)]}
       values={{ exerciseId, bidderId: bidder.id }}
       action={tableStageOneMatter}
       submitLabel="Table"
-      trigger={{ label: again ? "Table again" : "Table", className: ghost, ariaLabel: `Table bid No. ${bidder.listingNo}'s first stage${again ? " again" : ""}` }}
+      trigger={{ label: again ? "Table again" : "Table", className: ghost, ariaLabel: `Table ${bidInSentence(bidder.ref)}'s first stage${again ? " again" : ""}` }}
       size="md"
     />
   );

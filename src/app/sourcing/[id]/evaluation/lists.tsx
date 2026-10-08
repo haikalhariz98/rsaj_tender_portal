@@ -67,6 +67,9 @@ export function BiddersList({ exerciseId, c, people }: { exerciseId: string; c: 
   );
 }
 
+/// A bid as a list calls it: "No. 3, Syarikat X", or just its pseudonym where the name is withheld.
+const called = (ref: string, name: string) => (name && name !== ref ? `${ref}, ${name}` : ref);
+
 export function StageList({ exerciseId, s, open, sittings, people }: { exerciseId: string; s: StageView; open: boolean; sittings: (Option & { committeeCode: string })[]; people: Option[] }) {
   const byId = new Map(s.rows.map((r) => [r.id, r]));
   const committee = s.kind === "COMMITTEE_DECISION";
@@ -76,7 +79,7 @@ export function StageList({ exerciseId, s, open, sittings, people }: { exerciseI
     sortKeys: { bid: r.listingNo },
     note: [r.scoreRows.length ? r.scoreRows.map((x) => `${x.label}${x.named ? ` (${r.bidder} is ${x.named}; revealed for this criterion and logged)` : ""}: ${x.value ?? "not scored"}${x.by ? ` (${x.by}${x.carried ? ", carried" : ""})` : ""}`).join(" · ") : null, r.notYet ? `Not judged yet: ${r.notYet}` : null].filter(Boolean).join(" ") || undefined,
     cells: {
-      bid: { kind: "stack", title: `No. ${r.listingNo}`, sub: r.bidder },
+      bid: { kind: "stack", title: r.ref, sub: r.anonymous ? undefined : r.bidder },
       running: { kind: "chip", text: committee ? STAGE_ONE[r.stageOne ?? "NOT_TABLED"] : r.running, tone: committee ? (r.stageOne === "CARRIED" ? "ok" : r.stageOne === "NOT_CARRIED" ? "err" : "warn") : r.inRunning ? "ok" : "err" },
       stageFigure: { kind: "text", text: r.stageFigure ?? "—", dim: !r.stageFigure },
       outcome: { kind: "chips", items: [...(r.outcome ? [{ text: r.outcome, tone: r.notYet ? ("warn" as const) : r.outcome === "Passes" ? ("ok" as const) : ("err" as const) }] : []), ...(r.band ? [{ text: r.band, tone: "info" as const }] : []), ...(r.shortlisted != null ? [{ text: r.shortlisted ? "Shortlisted" : "Not shortlisted", tone: r.shortlisted ? ("ok" as const) : ("err" as const) }] : []), ...(r.out ? [{ text: "Out of the running", tone: "err" as const }] : [])] },
@@ -160,7 +163,7 @@ export function MeetingsList({ exerciseId, c, people }: { exerciseId: string; c:
     search: `${m.listingNo} ${m.bidder} ${m.kind}`,
     note: [m.meetingMinutes ? `Minutes: ${m.meetingMinutes}` : null, m.closed ? null : m.confirmations ? "The tenderer's confirmation is attached." : "Attach the tenderer's written confirmation, then close it."].filter(Boolean).join(" ") || undefined,
     cells: {
-      meeting: { kind: "stack", title: `${m.kind}, round ${m.round}`, sub: `No. ${m.listingNo}, ${m.bidder}` },
+      meeting: { kind: "stack", title: `${m.kind}, round ${m.round}`, sub: called(m.ref, m.bidder) },
       held: { kind: "stack", title: m.heldOn, sub: m.place },
       state: { kind: "chip", text: m.closed ?? "Held, not closed", tone: m.closed ? "ok" : "warn" },
       priceAfterRound: { kind: "stack", title: m.priceAfterRound ?? "—", sub: m.priceBeforeRound ? `From ${m.priceBeforeRound}` : undefined },
@@ -186,7 +189,7 @@ export function MeetingsList({ exerciseId, c, people }: { exerciseId: string; c:
       rows={rows}
       actions={(id) => {
         const m = byId.get(id)!;
-        return !m.closed && c.open ? <CloseMeetingDrawer exerciseId={exerciseId} meeting={{ id: m.id, label: `${m.kind.toLowerCase()} round ${m.round} with No. ${m.listingNo}`, isNegotiation: m.isNegotiation }} people={people} /> : null;
+        return !m.closed && c.open ? <CloseMeetingDrawer exerciseId={exerciseId} meeting={{ id: m.id, label: `${m.kind.toLowerCase()} round ${m.round} with ${m.ref}`, isNegotiation: m.isNegotiation }} people={people} /> : null;
       }}
     />
   );
@@ -199,7 +202,7 @@ export function NegotiationsList({ exerciseId, c, people, today }: { exerciseId:
     search: `${n.listingNo} ${n.reason}`,
     note: `Why: ${n.reason} Route: ${n.steps.map((s) => `${s.office} (${s.decision === "DONE" ? "approved" : s.decision === "REJECTED" ? "refused" : "pending"})`).join(" → ")}`,
     cells: {
-      bid: { kind: "stack", title: `Negotiation with No. ${n.listingNo}`, sub: `Asked by ${n.requestedBy}, ${n.requestedAt}` },
+      bid: { kind: "stack", title: `Negotiation with ${n.ref}`, sub: `Asked by ${n.requestedBy}, ${n.requestedAt}` },
       state: { kind: "chip", text: n.statusLabel, tone: n.status === "APPROVED" ? "ok" : n.status === "PENDING" ? "warn" : "err" },
     },
   }));
@@ -233,7 +236,7 @@ export function CommunicationsList({ c }: { c: EvaluationCurrent }) {
     search: `${m.listingNo} ${m.subject}`,
     note: m.communicationContent,
     cells: {
-      what: { kind: "stack", title: m.subject, sub: `No. ${m.listingNo} · ${m.direction}` },
+      what: { kind: "stack", title: m.subject, sub: `${m.ref} · ${m.direction}` },
       on: { kind: "stack", title: m.on, sub: m.channel },
       by: { kind: "person", name: m.recordedBy, sub: m.acted },
     },

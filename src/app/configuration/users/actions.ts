@@ -11,6 +11,9 @@ import { todayIn } from "@/lib/dates";
 import { attached, filed } from "@/lib/documents/audit-view";
 import { documentFaultText, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { lockVersion } from "@/lib/documents/service";
+import { hiddenExerciseOfDocument } from "@/lib/documents/hidden";
+import { sulitAttachRefused } from "@/lib/documents/entitlement";
+import { refuseHiddenExercise, restrictedExerciseIds } from "@/lib/auth/sulit-store";
 import { blocking } from "@/lib/documents/types";
 import { RECOMMENDATION_NOT_ATTACHED, RECOMMENDATION_ZONE_UNSET } from "@/lib/people/labels";
 import { endAssignment as endAssignmentDay } from "@/lib/people/end-assignment";
@@ -30,7 +33,7 @@ import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { disableAccountOfLeaver, LeaverRefused } from "@/lib/auth/administration";
 import { delegationPersonsToCheck, delegationWhat, holdingGrows, officeWhat } from "@/lib/auth/administration-conflict";
 import { assertCanHold, HoldingRefused } from "@/lib/auth/administration-guard";
-import type { AuditActor } from "@/lib/auth/types";
+import type { AuditActor, StaffActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
 const PATH = "/configuration/users";
@@ -390,6 +393,9 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
   const act = begun.act;
 
   const recommendationVersionId = r.optionalText("recommendationVersionId");
+  // OD-2 (review of Phase 3b): attaching a document puts it on the delegation, whose people then judge its bytes, so a SULIT or hidden one the signed-in officer may not already open reads
+  // as not there. Asked before the transaction so the logged refusal is kept.
+  if (recommendationVersionId && (await recommendationRefused(actor, recommendationVersionId))) return { ok: false, errors: { recommendationVersionId: documentFaultText({ code: "VERSION_UNKNOWN", level: "block" }) } };
   const proposed: Delegation = {
     id: id || "proposed",
     ...v,
@@ -770,6 +776,15 @@ export async function endAssignment(_prev: FormState, data: FormData): Promise<F
 }
 
 class RecommendationRefused extends Error {}
+
+/// Whether the version is one the officer may not attach: it hangs on an exercise they may not see, or is SULIT and they may not open it.
+async function recommendationRefused(actor: StaffActor, versionId: string): Promise<boolean> {
+  const v = await db.documentVersion.findFirst({ where: { id: versionId, organisationId: actor.organisationId }, select: { documentId: true } });
+  if (!v) return false;
+  const under = await hiddenExerciseOfDocument(v.documentId, await restrictedExerciseIds(db, actor.organisationId), db);
+  if (under && (await refuseHiddenExercise(db, actor, under))) return true;
+  return sulitAttachRefused(db, actor, v.documentId);
+}
 
 /**
  * Attach the absent holder's signed recommendation (a staged or filed version) to the
