@@ -1,8 +1,11 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
+import { NOT_SCANNED_LABEL, progressPercent, progressText, uploadOutcome, type UploadAnswer, type UploadPhase } from "@/lib/ui/upload-logic";
+
+import { Chip } from "./badge";
 import { CONTROL, NOTCH_LABEL, NOTCH_WRAP, inputClass, type ControlSize } from "./control";
 import { cx } from "./cx";
 import { FieldProvider, fieldAria, useFieldContext } from "./field-context";
@@ -82,30 +85,85 @@ export function AffixInput({
   );
 }
 
+/// An upload mode (Phase 4b): the file is posted, as multipart, to a route handler as soon as it is chosen, and the control shows how far it has got, the refusal in the server's own words,
+/// and, once it is stored, "Not scanned" (nothing scans a file yet). `fields` is read when the upload starts, so the page can say which version of its draft it is showing; the token rides
+/// in `x-form-token`. The answer is handed to `onDone` on success, and to `onRefused` with its words and whether the page is out of date.
+export interface FileUpload {
+  url: string;
+  token: string | null;
+  fields?: () => Record<string, string>;
+  onDone: (answer: UploadAnswer, file: File) => void;
+  onRefused?: (message: string, stale: boolean) => void;
+}
+
 /// A file picker drawn as a control: a "Choose file" pill and the chosen name, in the same
 /// box as every other input. The native input stays in the page (visually hidden, still
 /// focusable and named by its Field), so the form submits the file as it always did.
+
 export function FileInput({
   className,
   onChange,
   chooseLabel = "Choose file",
+  upload,
   ...props
 }: Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "size" | "value" | "defaultValue"> & {
   id: string;
   chooseLabel?: string;
+  upload?: FileUpload;
 }) {
   const ctx = useFieldContext();
   const [name, setName] = useState<string | null>(null);
+  const [phase, setPhase] = useState<UploadPhase>("idle");
+  const [loaded, setLoaded] = useState<[number, number]>([0, 0]);
+  const [said, setSaid] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+
+  function send(file: File) {
+    if (!upload) return;
+    const form = new FormData();
+    form.append("file", file);
+    for (const [k, v] of Object.entries(upload.fields?.() ?? {})) form.append(k, v);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", upload.url);
+    if (upload.token) xhr.setRequestHeader("x-form-token", upload.token);
+    xhr.responseType = "json";
+    xhr.upload.onprogress = (e) => setLoaded([e.loaded, e.lengthComputable ? e.total : 0]);
+    xhr.onload = () => {
+      const body = (xhr.response ?? null) as UploadAnswer | null;
+      const outcome = uploadOutcome(xhr.status, body);
+      setPhase(outcome.phase);
+      setSaid(outcome.message);
+      if (input.current) input.current.value = "";
+      if (outcome.phase === "done" && body) upload.onDone(body, file);
+      else upload.onRefused?.(outcome.message, outcome.stale);
+    };
+    xhr.onerror = () => {
+      const outcome = uploadOutcome(0, null);
+      setPhase("refused");
+      setSaid(outcome.message);
+      upload.onRefused?.(outcome.message, false);
+    };
+    setPhase("uploading");
+    setSaid("");
+    setLoaded([0, file.size]);
+    xhr.send(form);
+  }
+
+  const busy = phase === "uploading";
   return (
     <div className={cx("relative", className)}>
       <input
+        ref={input}
         type="file"
         className="peer sr-only"
         {...props}
+        disabled={props.disabled || busy}
         {...fieldAria(ctx, props)}
         onChange={(e) => {
-          setName(e.currentTarget.files?.[0]?.name ?? null);
+          const file = e.currentTarget.files?.[0];
+          setName(file?.name ?? null);
           onChange?.(e);
+          if (upload && file) send(file);
         }}
       />
       <label
@@ -121,6 +179,34 @@ export function FileInput({
         <span className="shrink-0 rounded-full bg-brand-50 px-3 py-1 text-[13px] font-semibold text-brand-800">{chooseLabel}</span>
         <span className={cx("min-w-0 truncate", name ? "text-ink" : "text-ink-4")}>{name ?? "No file chosen"}</span>
       </label>
+      {upload && busy && (
+        <div className="mt-1.5">
+          <div
+            role="progressbar"
+            aria-label="Upload progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progressPercent(loaded[0], loaded[1])}
+            className="h-1.5 w-full overflow-hidden rounded-full bg-sunken"
+          >
+            <div className="h-full rounded-full bg-brand-600 transition-[width]" style={{ width: `${progressPercent(loaded[0], loaded[1])}%` }} />
+          </div>
+          <p className="mt-1 text-[12.5px] text-ink-3" aria-live="polite">
+            {progressText(loaded[0], loaded[1])}
+          </p>
+        </div>
+      )}
+      {upload && phase === "done" && (
+        <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[12.5px] text-ink-2" aria-live="polite">
+          <span>Uploaded.</span>
+          <Chip tone="warn">{NOT_SCANNED_LABEL}</Chip>
+        </p>
+      )}
+      {upload && phase === "refused" && (
+        <p role="alert" className="mt-1.5 text-[12.5px] font-medium text-rose-700">
+          {said}
+        </p>
+      )}
     </div>
   );
 }

@@ -38,7 +38,8 @@ const publicEntry = (file: string) => isPublicEntryFile(file);
 /// `staffForPermission` (review of Phase 2a) is the same for an action that only someone holding a product permission may do: it calls `requireStaff` first and hands the refusal, in words, back as the form's state.
 /// Phase 4a: `requireSupplier` (a supplier's page) and `supplierPost` (a handler behind a supplier's account) are the supplier store's `requireStaff` and `staffRoute`. They are asked first in the
 /// pages and handlers of `supplier/account`, which are no longer exempt as a whole folder; `supplier-reach.test.ts` holds what they promise.
-const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct(", "staffForPermission(", "requireSupplier(", "supplierPost("];
+/// Phase 4b: `supplierUploadPost` (a multipart upload) and `supplierGet` (a read of codes or of the supplier's own file) are the same guard for the registration wizard's other handlers.
+const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct(", "staffForPermission(", "requireSupplier(", "supplierPost(", "supplierUploadPost(", "supplierGet("];
 
 interface Entry {
   file: string;
@@ -85,7 +86,8 @@ describe("the scan finds what it should", () => {
     expect(ACTION_FILES.length).toBeGreaterThan(50);
     expect(PAGE_FILES.length).toBeGreaterThan(55);
     // 12 before Phase 4a, and the supplier portal's seven handlers since: sign-in, sign-out, activate, reset, and the account's password, sign-out-everywhere and acknowledge.
-    expect(ROUTE_FILES.length).toBe(19);
+    // Phase 4b adds the registration wizard's six: save, upload, withdraw-file, submit, values and file.
+    expect(ROUTE_FILES.length).toBe(25);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });
@@ -145,6 +147,7 @@ describe("every route handler asks who is signed in first, and every one that ch
   /// A handler that refuses outright with no read at all needs no session to do so.
   const EXCEPTIONS: Record<string, string> = {
     "api/documents/versions/[id]/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry: Next would otherwise answer a HEAD with the GET handler, which reads and logs a download (audit C-2).",
+    "supplier/registration/file/route.ts#HEAD": "Answers 405 with no database read, no bytes and no log entry, as the staff download does: Next would otherwise answer a HEAD with the GET handler, which reads and logs a download (audit C-2).",
   };
 
   it("finds the handlers", () => {
@@ -183,6 +186,12 @@ describe("every route handler asks who is signed in first, and every one that ch
       // Phase 4a: a supplier's handler asks `supplierPost`, which accepts a JSON body from a page of this origin and nothing else (`readPortalPost`: `supplier-reach.test.ts` pins it).
       if (!types && /^supplier\/account\//.test(e.file)) {
         expect(e.body, `${e.file}: ${e.name}`).toMatch(/^\{\s*const guard = await supplierPost\(request, "[^"]*"\);/);
+        continue;
+      }
+      // Phase 4b: the registration wizard's POSTs ask `supplierPost` (JSON; with a larger bound for a save) or `supplierUploadPost` (multipart, the upload only), first; `supplier-reach.test.ts`
+      // holds what each promises, and that no other handler accepts a multipart body.
+      if (!types && /^supplier\/registration\//.test(e.file)) {
+        expect(e.body, `${e.file}: ${e.name}`).toMatch(/^\{\s*const guard = await (?:supplierPost\(request, "[^"]*"(?:, \{ maxBytes: \w+ \})?\)|supplierUploadPost\(request, "[^"]*"\));/);
         continue;
       }
       expect(types, `${e.file}: ${e.name}`).not.toBeNull();

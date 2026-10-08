@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_POST_PATHS } from "@/lib/auth/routes";
+import { SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
 import { lex } from "@/lib/scan/source";
 
 /**
@@ -28,7 +28,9 @@ const rel = (f: string) => path.relative(SRC, f).split(path.sep).join("/");
 const read = (f: string) => readFileSync(path.join(SRC, f), "utf8");
 
 const PORTAL = walk(path.join(SRC, "app", "supplier")).map((f) => ({ file: rel(f), src: readFileSync(f, "utf8") }));
-const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/"));
+// Phase 4b: the registration wizard's handlers are held by the section below (`app/supplier/registration/`): six, of which two are reads and one is a multipart upload.
+const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/"));
+const REGISTRATION_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/registration/"));
 const PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file));
 
 /// The text of a handler's POST function with strings and comments blanked.
@@ -91,11 +93,99 @@ describe("the portal's handlers", () => {
   });
 });
 
+describe("the registration wizard's handlers (Phase 4b)", () => {
+  const FILE = (f: { file: string }) => `/${f.file.replace(/^app\//, "").replace(/\/route\.ts$/, "")}`;
+  const HTTP = /export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g;
+  const methods = (src: string) => [...src.matchAll(HTTP)].map((m) => m[1]);
+  const bodyOf = (src: string, method: string): string => {
+    const m = lex(src);
+    const at = m.search(new RegExp(String.raw`export\s+async\s+function\s+${method}\b`));
+    expect(at, method).toBeGreaterThanOrEqual(0);
+    const open = m.indexOf("{", m.indexOf(")", at));
+    let depth = 0;
+    for (let i = open; i < m.length; i++) {
+      if (m[i] === "{") depth++;
+      else if (m[i] === "}" && --depth === 0) return m.slice(open, i + 1);
+    }
+    throw new Error("unbalanced");
+  };
+
+  it("are exactly the literal paths the public copy lists, and the page is there", () => {
+    expect(REGISTRATION_HANDLERS.map(FILE).sort()).toEqual([...SUPPLIER_REGISTRATION_POST_PATHS, ...SUPPLIER_REGISTRATION_GET_PATHS.filter((p) => p !== SUPPLIER_REGISTRATION_PAGE)].sort());
+    expect(Object.values(SUPPLIER_REGISTRATION_POSTS)).toHaveLength(4);
+    expect(Object.values(SUPPLIER_REGISTRATION_GETS)).toHaveLength(2);
+    expect(PAGES.map((f) => `/${f.file.replace(/^app\//, "").replace(/\/page\.tsx$/, "")}`)).toContain(SUPPLIER_REGISTRATION_PAGE);
+  });
+
+  it("each POST asks the portal's guard before anything else is awaited, and returns its refusal as it is", () => {
+    for (const f of REGISTRATION_HANDLERS.filter((x) => methods(x.src).includes("POST"))) {
+      const body = bodyOf(f.src, "POST");
+      const first = body.slice(body.search(/\bawait\b/));
+      const want = f.file === "app/supplier/registration/upload/route.ts" ? "await supplierUploadPost(request, " : "await supplierPost(request, ";
+      expect(first.startsWith(want), f.file).toBe(true);
+      expect(body, f.file).toMatch(/^\{\s*const guard =/);
+      expect(body, f.file).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+      // A POST answers only a POST; a read only a GET.
+      expect(methods(f.src), f.file).toEqual(["POST"]);
+    }
+  });
+
+  it("each read asks the portal's read guard first, and the file's HEAD reads and logs nothing", () => {
+    for (const f of REGISTRATION_HANDLERS.filter((x) => methods(x.src).includes("GET"))) {
+      const body = bodyOf(f.src, "GET");
+      expect(/^await supplierGet\(request, "[^"]*"\)/.test(body.slice(body.search(/\bawait\b/))), f.file).toBe(true);
+      expect(body, f.file).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+      expect(methods(f.src), f.file).toEqual(f.file.endsWith("/file/route.ts") ? ["GET", "HEAD"] : ["GET"]);
+    }
+    const head = bodyOf(REGISTRATION_HANDLERS.find((f) => f.file.endsWith("/file/route.ts"))!.src, "HEAD");
+    expect(head).not.toMatch(/\bawait\b|\bdb\./);
+  });
+
+  it("the upload's guard is judged in the order that keeps a stranger's request cheap: the copy, the Origin guard, the token, then who is signed in", () => {
+    const g = lex(read("app/_auth/supplier.ts"));
+    const upload = g.slice(g.indexOf("export async function supplierUploadPost"), g.indexOf("export async function supplierGet"));
+    const at = (needle: string) => upload.indexOf(needle);
+    expect(at("surfaceOf(")).toBeGreaterThanOrEqual(0);
+    expect(at("foreignRequestFault(")).toBeGreaterThan(at("surfaceOf("));
+    expect(at("tokenRefusal(")).toBeGreaterThan(at("foreignRequestFault("));
+    expect(at("readSupplierSession(")).toBeGreaterThan(at("tokenRefusal("));
+    // The body is not read by the guard at all: the route reads it after the settings.
+    expect(upload).not.toMatch(/formData|\.body\b|readJsonBody/);
+    const read1 = g.slice(g.indexOf("export async function supplierGet"));
+    expect(read1.indexOf("downloadRequestFault(")).toBeGreaterThanOrEqual(0);
+    expect(read1.indexOf("tokenRefusal(")).toBeGreaterThan(read1.indexOf("downloadRequestFault("));
+    expect(read1.indexOf("readSupplierSession(")).toBeGreaterThan(read1.indexOf("tokenRefusal("));
+  });
+
+  it("no handler reads a supplier, an organisation, an account or a day from the request", () => {
+    for (const f of REGISTRATION_HANDLERS) {
+      const code = lex(f.src, { only: "comments" });
+      expect(code, f.file).not.toMatch(/\.get\(\s*["'](?:supplierId|organisationId|accountId|supplierAccountId|actorId)["']\s*\)/);
+      expect(code, f.file).not.toMatch(/(?:fields|body|post\.fields|params|searchParams)\??\.\s*(?:supplierId|organisationId|accountId|supplierAccountId|signedOn|signedAt|receivedOn)\b/);
+    }
+    // The parsers of the bodies read none either.
+    const api = lex(read("lib/portal/registration/api.ts"), { only: "comments" });
+    expect(api).not.toMatch(/["'](?:supplierId|organisationId|accountId|supplierAccountId|signedOn|signedAt|receivedOn)["']/);
+  });
+
+  it("hold no server action", () => {
+    for (const f of REGISTRATION_HANDLERS) expect(f.src, f.file).not.toMatch(/^\s*["']use server["']/m);
+  });
+
+  it("the stores take the supplier from the actor, never from a parameter that a request could set", () => {
+    for (const file of ["lib/portal/registration/draft-store.ts", "lib/portal/registration/upload-store.ts", "lib/portal/registration/submit-store.ts", "lib/portal/registration/own-file-store.ts", "lib/portal/registration/context-store.ts"]) {
+      const src = read(file);
+      expect(src, file).toMatch(/SupplierActor|Pick<SupplierActor/);
+      expect(lex(src, { only: "comments" }), file).not.toMatch(/(?:fields|body|params|searchParams)\??\.\s*supplierId\b/);
+    }
+  });
+});
+
 describe("the supplier is the session's", () => {
   /// The files that act for a signed-in supplier: the portal's pages and handlers, the portal's guard and its loaders.
   const ACTING = [
     ...PORTAL.filter((f) => !f.file.startsWith("app/supplier/register/")),
-    ...["app/_auth/supplier.ts", "lib/portal/registration-status-repo.ts", "lib/auth/supplier-session-store.ts"].map((file) => ({ file, src: read(file) })),
+    ...["app/_auth/supplier.ts", "lib/portal/registration-status-repo.ts", "lib/auth/supplier-session-store.ts", "lib/portal/registration/draft-store.ts", "lib/portal/registration/upload-store.ts", "lib/portal/registration/submit-store.ts", "lib/portal/registration/own-file-store.ts"].map((file) => ({ file, src: read(file) })),
   ];
 
   /// Where a supplier id is read from something the request says: a path or query parameter, a form field or a body, by name or by index.
@@ -156,7 +246,12 @@ describe("the portal's guard", () => {
 
   it("accepts a JSON body and nothing a cross-site form can send", () => {
     expect(read("app/_auth/supplier.ts")).toMatch(/foreignRequestFault\(request, \["application\/json"\], env\)/);
-    expect(read("app/_auth/supplier.ts")).not.toMatch(/text\/plain|multipart/);
+    expect(read("app/_auth/supplier.ts")).not.toMatch(/text\/plain/);
+    // Changed for Phase 4b: the upload takes a multipart body, and only `supplierUploadPost` says so: the JSON guard above names none, and it is the one guard that accepts it.
+    const raw = lex(read("app/_auth/supplier.ts"), { only: "comments" });
+    const upload = raw.slice(raw.indexOf("export async function supplierUploadPost"), raw.indexOf("export async function supplierGet"));
+    expect(upload).toMatch(/foreignRequestFault\(request, \["multipart\/form-data"\], env\)/);
+    expect(raw.replace(upload, "")).not.toMatch(/multipart/);
   });
 
   it("a behind-the-account post asks who is signed in only after the form checks, and answers 401 to nobody", () => {

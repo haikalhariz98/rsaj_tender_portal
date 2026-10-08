@@ -24,14 +24,18 @@ import {
   choiceDropped,
   filterOptions,
   joinValues,
+  labelOfChoice,
   moveActive,
   planChoices,
+  remoteNote,
+  remoteSearchUrl,
   resultsAnnouncement,
   toggleValue,
   typeahead,
   wantsSearch,
   type MoveKey,
   type Opt,
+  type RemoteStatus,
 } from "@/lib/ui/select-logic";
 
 import { Avatar } from "./avatar";
@@ -111,6 +115,10 @@ type Common = {
   variant?: "field" | "chip";
   /// A chip's own words, shown before the chosen value ("Status").
   chipLabel?: string;
+  /// Phase 4b: the choices are searched on the server, not held on the page (a registry's thousands of codes). `url` answers `?q=` with `{ options: [{ value, label }], hasMore }`; `minChars`
+  /// is how much must be typed first (0: the first page is listed on opening); `token` rides in `x-form-token`; `labels` names the values the page already holds (the draft's chosen codes),
+  /// because their options are not among the results. Options and the chosen values read as the labels the server gives ("code — name"); a value with no label is never shown as itself.
+  search?: { url: string; minChars?: number; token?: string | null; labels?: Readonly<Record<string, string>> };
   children?: ReactNode;
 };
 
@@ -211,16 +219,52 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
   const touched = useRef(false);
   const typed = useRef({ text: "", at: 0 });
 
-  const searchOn = wantsSearch(items, searchable);
-  // The rows for a query. "Clear selection" heads the list, and is not searched through.
+  // ---- searching on the server (Phase 4b) ---------------------------------------
+  const searchUrl = props.search?.url;
+  const searchMin = props.search?.minChars ?? 0;
+  const searchToken = props.search?.token ?? null;
+  const searchLabels = props.search?.labels;
+  // The rows the server last answered, and the query they answer. A query the answer is not for is one still being searched (derived, never stored).
+  const [remote, setRemote] = useState<{ rows: Item[]; more: boolean; failed: boolean; query: string | null }>({ rows: [], more: false, failed: false, query: null });
+  const typedQuery = query.trim();
+  const remoteStatus: RemoteStatus = !searchUrl || typedQuery.length < searchMin ? "idle" : remote.query !== typedQuery ? "loading" : remote.failed ? "error" : "ready";
+  const [known, setKnown] = useState<Record<string, string>>({});
+
+  const searchOn = searchUrl ? true : wantsSearch(items, searchable);
+  // The rows for a query. "Clear selection" heads the list, and is not searched through. Searched on the server, the rows are what the server returned for the query.
   const rowsFor = useCallback(
     (q: string): Item[] => {
+      if (searchUrl) return q.trim().length < searchMin ? [] : remote.rows;
       const found = searchOn ? filterOptions(plan.rows, q) : plan.rows;
       return clearRow && !q.trim() ? [clearRow, ...found] : found;
     },
-    [plan.rows, clearRow, searchOn],
+    [plan.rows, clearRow, searchOn, searchUrl, searchMin, remote.rows],
   );
   const shown = useMemo(() => rowsFor(query), [rowsFor, query]);
+
+  useEffect(() => {
+    if (!searchUrl || !open) return;
+    const q = query.trim();
+    if (q.length < searchMin) return;
+    const ctl = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(remoteSearchUrl(searchUrl, q), { signal: ctl.signal, credentials: "same-origin", headers: searchToken ? { "x-form-token": searchToken } : undefined });
+        if (!res.ok) throw new Error(String(res.status));
+        const body = (await res.json()) as { options?: { value: string; label: string }[]; hasMore?: boolean };
+        const rows = (body.options ?? []).map((o) => ({ value: String(o.value), label: String(o.label) }));
+        setKnown((k) => ({ ...k, ...Object.fromEntries(rows.map((o) => [o.value, o.label])) }));
+        setRemote({ rows, more: body.hasMore === true, failed: false, query: q });
+        setActive(rows.length ? 0 : -1);
+      } catch {
+        if (!ctl.signal.aborted) setRemote({ rows: [], more: false, failed: true, query: q });
+      }
+    }, q ? 250 : 0);
+    return () => {
+      clearTimeout(timer);
+      ctl.abort();
+    };
+  }, [searchUrl, searchMin, searchToken, open, query]);
 
   const coarse = () => typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
 
@@ -431,7 +475,7 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
   }
 
   // ---- what the trigger shows ---------------------------------------------------
-  const selectedItems = chosen.map((v) => items.find((o) => o.value === v) ?? { value: v, label: v });
+  const selectedItems = chosen.map((v) => items.find((o) => o.value === v) ?? { value: v, label: searchUrl ? labelOfChoice(v, searchLabels, known) : v });
   const emptyOption = items.find((o) => o.value === "");
   const placeholderText = plan.role === "placeholder";
   const aria = fieldAria(ctx, props);
@@ -606,14 +650,25 @@ export function Select(props: SingleSelectProps | MultiSelectProps) {
             </li>
           );
         })}
-        {shown.length === 0 && (
-          <li role="presentation" className="px-3 py-2 text-[13px] text-ink-3">
-            {plan.rows.length === 0 ? "Nothing to choose yet" : `No matches for “${query.trim()}”`}
-          </li>
+        {searchUrl ? (
+          (() => {
+            const note = remoteNote({ status: remoteStatus, count: shown.length, more: remote.more, minChars: searchMin, query });
+            return note ? (
+              <li role="presentation" className="px-3 py-2 text-[13px] text-ink-3">
+                {note}
+              </li>
+            ) : null;
+          })()
+        ) : (
+          shown.length === 0 && (
+            <li role="presentation" className="px-3 py-2 text-[13px] text-ink-3">
+              {plan.rows.length === 0 ? "Nothing to choose yet" : `No matches for “${query.trim()}”`}
+            </li>
+          )
         )}
       </ul>
       <div aria-live="polite" className="sr-only">
-        {resultsAnnouncement(shown.length)}
+        {searchUrl ? (remoteStatus === "loading" ? "Searching" : remoteStatus === "error" ? "The list could not be loaded" : resultsAnnouncement(shown.length)) : resultsAnnouncement(shown.length)}
       </div>
     </div>
   );

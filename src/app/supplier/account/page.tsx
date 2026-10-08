@@ -6,6 +6,7 @@ import { LockIcon, ShieldIcon } from "@/components/icons";
 import { LastSignIn } from "@/components/auth/last-sign-in";
 import { PortalForm } from "@/components/auth/portal-form";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
@@ -20,6 +21,7 @@ import { AUTH_WORDS } from "@/lib/auth/words";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { loadRegistrationStatus } from "@/lib/portal/registration-status-repo";
+import { loadWizardState } from "@/lib/portal/registration/draft-store";
 import { applicationChannelWords, applicationKindWords, applicationStatusWords, outcomeWords, supplierStatusWords } from "@/lib/portal/registration-status";
 
 import { requireSupplier } from "../../_auth/supplier";
@@ -42,12 +44,13 @@ const COLUMNS: Column[] = [
 export default async function SupplierAccountPage() {
   const actor = await requireSupplier();
   const zone = actor.organisationTimeZone;
-  const [status, last, sessions, account, policy] = await Promise.all([
+  const [status, last, sessions, account, policy, wizard] = await Promise.all([
     loadRegistrationStatus(actor),
     previousSupplierSignIn(actor.accountId, actor.sessionCreatedAt),
     listOpenSupplierSessions(actor.accountId, actor.organisationId, actor.sessionId),
     db.supplierAccount.findFirst({ where: { id: actor.accountId, organisationId: actor.organisationId }, select: { passwordChangedAt: true } }),
     loadSecurityPolicy(db, actor.organisationId),
+    loadWizardState(db, actor),
   ]);
   const token = issueFormToken("account");
 
@@ -88,7 +91,13 @@ export default async function SupplierAccountPage() {
           <CardHeader
             title="Your registration"
             subtitle="What the procurement office has done with your application. Nothing is sent to you by email: this page is where you are told."
-            actions={standing ? <Badge tone={standing.tone} dot>{standing.title.en}</Badge> : undefined}
+            actions={
+              <>
+                {wizard === "OPEN" && <ButtonLink href="/supplier/registration" variant="primary" size="sm">Complete your registration</ButtonLink>}
+                {wizard === "SENT" && <ButtonLink href="/supplier/registration" variant="secondary" size="sm">See what you sent</ButtonLink>}
+                {standing && <Badge tone={standing.tone} dot>{standing.title.en}</Badge>}
+              </>
+            }
           />
           <CardBody>
             {!status || !standing ? (

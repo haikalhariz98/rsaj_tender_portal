@@ -118,3 +118,11 @@ describe("breadcrumbs of the public portal's opportunity pages", () => {
     for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
   });
 });
+
+describe("breadcrumbs of the supplier's registration (Phase 4b)", () => {
+  it("names the page for what it is, and links only to pages that exist", () => {
+    const c = trail("/supplier/registration", null);
+    expect(labels(c).at(-1)).toBe("Registration");
+    for (const x of c) expect(hasPage(x.href), x.href).toBe(true);
+  });
+});

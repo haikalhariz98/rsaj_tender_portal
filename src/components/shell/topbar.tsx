@@ -102,6 +102,8 @@ const NESTED_LABEL: Record<string, string> = {
   "supplier/projects": "My Projects",
   "supplier/results": "Results",
   "supplier/register": "Register as a supplier",
+  // Phase 4b: a signed-in supplier completing its registration.
+  "supplier/registration": "Registration",
   // Phase 4a: a supplier activating the account an officer opened, and setting a new password with a reset code.
   "supplier/activate": "Activate your account",
   "supplier/reset": "Set a new password",

@@ -3,6 +3,7 @@ import { cache } from "react";
 import { matterAmountScope } from "@/lib/committee/matter-amount";
 import type { MatterKind } from "@/lib/committee/labels";
 import { hiddenDecisionIds } from "@/lib/committee/hidden";
+import { creditorDecision, creditorNamedFacts, creditorPermissionState } from "@/lib/auth/creditor-access-store";
 import { evaluationOfficeBases } from "@/lib/auth/evaluation-readers-store";
 import { applyDecision, sulitWithheld, type EvaluationOfficeBasis, type RoutedNamedFacts, type Sulit, type SulitDecision } from "@/lib/auth/sulit-access";
 import {
@@ -44,6 +45,7 @@ import type { SulitScope } from "@/lib/sulit-fields";
 
 const loggedThisRequest = cache(() => new Set<string>());
 const permissionOf = cache((actor: StaffActor) => organisationPermissionState(db, actor));
+const creditorPermissionOf = cache((actor: StaffActor) => creditorPermissionState(db, actor));
 
 /// Write the events this request has not written yet. False where the log could not be written: the caller shows nothing.
 async function log(actor: Reader, rows: SulitEventRow[]): Promise<boolean> {
@@ -101,6 +103,8 @@ export async function sulitExerciseValue<T>(actor: StaffActor, exercise: Exercis
 /// three keep no list of who is named, so only the organisation-wide permission opens them (ADR 0034 D14).
 export type GateSubject =
   | { scope: "exercise" | "evaluation"; id: string; label: string }
+  /// A supplier's creditor profile (Phase 4b): judged by the holders of the steps on its registration's route, the officer who checked it, and `sulit.read.creditorProfile`.
+  | { scope: "creditorProfile"; id: string; label: string; supplierId: string; verifiedByPersonId: string | null }
   /// `routedFrom`: the route that names people on this record, where it is not the record itself (a committee matter is judged by the route or the requisition it decides). Not given: a
   /// requisition, a variation, a contract matter and a certificate are judged by their own route, and every other record names nobody.
   | { scope: "requisition" | "contract" | "supplier"; entity: string; id: string; label: string; routedFrom?: RoutedFrom | null };
@@ -114,15 +118,27 @@ export type GateSubject =
 export async function sulitGates(actor: StaffActor, subjects: readonly GateSubject[], fields: readonly string[]): Promise<Map<string, Sulit<true>>> {
   const out = new Map<string, Sulit<true>>();
   if (subjects.length === 0) return out;
-  const exerciseIds = subjects.filter((x) => !("entity" in x)).map((x) => x.id);
+  const creditors = subjects.filter((x): x is Extract<GateSubject, { scope: "creditorProfile" }> => x.scope === "creditorProfile");
+  const exerciseIds = subjects.filter((x) => x.scope !== "creditorProfile" && !("entity" in x)).map((x) => x.id);
   const fromOf = (x: GateSubject): RoutedFrom | null => ("entity" in x ? (x.routedFrom !== undefined ? x.routedFrom : routedFromEntity(x.entity, x.id)) : null);
   const froms = subjects.flatMap((x) => { const f = fromOf(x); return f ? [f] : []; });
   const evaluationIds = subjects.filter((x) => !("entity" in x) && x.scope === "evaluation").map((x) => x.id);
+  const [creditorFacts, creditorPermission] = await Promise.all([creditors.length ? creditorNamedFacts(db, actor.organisationId, creditors) : Promise.resolve(new Map<string, RoutedNamedFacts>()), creditors.length && !actor.system ? creditorPermissionOf(actor) : Promise.resolve(null)]);
   const [offices, facts, permission, routed] = await Promise.all([
     evaluationIds.length && !actor.system ? evaluationOfficeBases(db, actor, evaluationIds) : Promise.resolve(new Map<string, EvaluationOfficeBasis | null>()),exerciseIds.length ? exerciseAccessFacts(db, actor.organisationId, exerciseIds) : Promise.resolve(new Map()), permissionOf(actor), froms.length ? routedNamedFacts(db, actor.organisationId, froms) : Promise.resolve(new Map<string, RoutedNamedFacts>())]);
   const rows: SulitEventRow[] = [];
   const decided = new Map<string, SulitDecision>();
+  const routeStarted = new Map<string, boolean>();
   for (const x of subjects) {
+    if (x.scope === "creditorProfile") {
+      const named = creditorFacts.get(x.id);
+      // A profile that is not the organisation's is not one anybody here is named on.
+      const decision: SulitDecision = named && creditorPermission ? creditorDecision(actor, named, creditorPermission, fields) : { state: "WITHHELD", basis: actor.system ? "NOT_A_PERSON" : "FIELD_NOT_FOR_THIS_RECORD" };
+      decided.set(x.id, decision);
+      routeStarted.set(x.id, named?.routeStarted ?? false);
+      rows.push({ scope: "creditorProfile", entity: "CreditorProfile", entityId: x.id, entityLabel: x.label, fields: [...fields], decision });
+      continue;
+    }
     if (!("entity" in x)) {
       const f = facts.get(x.id);
       const decision: SulitDecision = f ? decisionForFields(actor, x.scope, fields, { restricted: f.restricted, named: f.named, evaluationOffice: x.scope === "evaluation" ? (offices.get(x.id) ?? null) : null }, permission).decision : { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" };
@@ -138,7 +154,7 @@ export async function sulitGates(actor: StaffActor, subjects: readonly GateSubje
   const logged = await log(actor, rows);
   for (const x of subjects) {
     const decision = decided.get(x.id)!;
-    out.set(x.id, !logged ? sulitWithheld<true>("NOT_LOGGED", x.scope) : applyDecision(decision, x.scope, true as const));
+    out.set(x.id, !logged ? sulitWithheld<true>("NOT_LOGGED", x.scope, { routeStarted: routeStarted.get(x.id) ?? true }) : applyDecision(decision, x.scope, true as const, { routeStarted: routeStarted.get(x.id) ?? true }));
   }
   return out;
 }
