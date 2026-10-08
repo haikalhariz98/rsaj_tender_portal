@@ -32,6 +32,7 @@ import {
   EditDetails,
   EditOrgUnit,
   EditSite,
+  EditTimeZone,
   KIND_LABEL,
 } from "./editors";
 import { LogoCard, type LogoInfo } from "./logo-card";
@@ -54,6 +55,9 @@ export interface OrganisationPanelData {
   logo: LogoInfo | null;
   signInImage: SignInImageInfo | null;
   signInPage: SignInPageSettings;
+  /// The zone the organisation keeps its dates in, with its label; null while unset.
+  timeZone: { value: string; label: string } | null;
+  timeZoneOptions: { value: string; label: string }[];
   roots: UnitNode[];
   detached: UnitNode[];
   units: OrgUnit[];
@@ -106,7 +110,7 @@ export function OrganisationScreen(data: OrganisationPanelData) {
       label="Organisation"
       initial={data.view ?? undefined}
       tabs={[
-        { id: "details", label: "Details", panel: <DetailsView details={data.details} logo={data.logo} signInImage={data.signInImage} signInPage={data.signInPage} /> },
+        { id: "details", label: "Details", panel: <DetailsView details={data.details} logo={data.logo} signInImage={data.signInImage} signInPage={data.signInPage} timeZone={data.timeZone} timeZoneOptions={data.timeZoneOptions} /> },
         { id: "structure", label: "Structure", count: data.units.length, panel: <StructureView {...data} /> },
         {
           id: "cost-centres",
@@ -125,7 +129,7 @@ export function OrganisationScreen(data: OrganisationPanelData) {
 const NOT_SET = <span className="text-ink-4">Not set</span>;
 
 /// The identity the portal, reports and letters carry. Unset reads "Not set", never blank.
-function DetailsView({ details, logo, signInImage, signInPage }: { details: Details; logo: LogoInfo | null; signInImage: SignInImageInfo | null; signInPage: SignInPageSettings }) {
+function DetailsView({ details, logo, signInImage, signInPage, timeZone, timeZoneOptions }: { details: Details; logo: LogoInfo | null; signInImage: SignInImageInfo | null; signInPage: SignInPageSettings; timeZone: OrganisationPanelData["timeZone"]; timeZoneOptions: OrganisationPanelData["timeZoneOptions"] }) {
   const value = (v: string | null) => v ?? NOT_SET;
   const address = [details.addressLine1, details.addressLine2, [details.postcode, details.city].filter(Boolean).join(" "), details.state, details.country].filter(Boolean);
   return (
@@ -151,6 +155,25 @@ function DetailsView({ details, logo, signInImage, signInPage }: { details: Deta
           <Callout tone="info">
             Documents already issued keep the details they were issued with. Changing them here does not rewrite those documents.
           </Callout>
+        </CardBody>
+      </Card>
+      {/* Founder, 2026-10-08: the time zone is one of the organisation's settings, here with the others,
+          not a notice across the top of the Organisation screen. */}
+      <Card>
+        <CardHeader
+          title="Time zone"
+          subtitle="The zone the organisation keeps its dates in. Today, for a vote sheet or a tabling, is the day in this zone."
+          actions={<EditTimeZone timeZone={timeZone?.value ?? null} options={timeZoneOptions} />}
+        />
+        <CardBody>
+          {timeZone ? (
+            <KeyValues items={[{ label: "Dates are judged in", value: timeZone.label }]} />
+          ) : (
+            <Callout tone="warn" title="Time zone not set">
+              &ldquo;Today&rdquo; is not assumed to be UTC. Until the zone the organisation keeps its dates in is set,
+              committee sittings cannot start, matters cannot be tabled and votes cannot be recorded.
+            </Callout>
+          )}
         </CardBody>
       </Card>
       <LogoCard logo={logo} />

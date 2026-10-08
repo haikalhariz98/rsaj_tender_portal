@@ -12,7 +12,6 @@ import { DETAIL_FIELDS, normaliseDetails } from "@/lib/organisation/details";
 import { normaliseSignInPage } from "@/lib/organisation/sign-in-page";
 
 import { timeZoneLabel, timeZoneOptions } from "@/lib/time-zone-label";
-import { EditTimeZone } from "./editors";
 import type { LogoInfo } from "./logo-card";
 import type { SignInImageInfo } from "./sign-in-cards";
 import { OrganisationScreen } from "./panels";
@@ -96,17 +95,6 @@ export default async function OrganisationPage({
         ]}
       />
 
-      {timeZone ? (
-        <Callout tone="info" className="mb-5" title={`Dates are judged in ${timeZoneLabel(timeZone)}`} action={<EditTimeZone timeZone={timeZone} options={timeZoneOptions()} />}>
-          Today, for a vote sheet or a tabling, is the day in this zone.
-        </Callout>
-      ) : (
-        <Callout tone="warn" className="mb-5" title="Time zone not set" action={<EditTimeZone timeZone={null} options={timeZoneOptions()} />}>
-          &ldquo;Today&rdquo; is not assumed to be UTC. Until the zone the organisation keeps its dates in is set,
-          committee sittings cannot start, matters cannot be tabled and votes cannot be recorded.
-        </Callout>
-      )}
-
       {/* A structure that cannot be drawn as stated is the customer's to fix — it is
           shown, never quietly re-rooted. The loader used to drop these. */}
       {faults.length > 0 && (
@@ -128,6 +116,8 @@ export default async function OrganisationPage({
         logo={logo}
         signInImage={signInImage}
         signInPage={normaliseSignInPage(org?.signInPage ?? {})}
+        timeZone={timeZone ? { value: timeZone, label: timeZoneLabel(timeZone) } : null}
+        timeZoneOptions={timeZoneOptions()}
         roots={roots}
         detached={detached}
         units={units}
