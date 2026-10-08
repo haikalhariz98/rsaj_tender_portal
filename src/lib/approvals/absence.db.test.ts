@@ -14,7 +14,17 @@ const who = vi.hoisted(() => ({ actor: null as StaffActor | null }));
 
 vi.mock("@/app/_auth/actor", async () => {
   const { actorModule } = await import("@/lib/test-support/staff");
-  return { ...actorModule(), requireStaff: async () => who.actor };
+  const { administrationConflict } = await import("@/lib/auth/administration-conflict");
+  return {
+    ...actorModule(),
+    requireStaff: async () => who.actor,
+    // The wrapper an action asks for who may act, with the real rule, on the person this file signs in (Phase 3c review: the sweep asks it first, as escalateStep does).
+    staffForAct: async (act: import("@/lib/auth/administration-conflict").AdministratorAct) => {
+      const actor = who.actor!;
+      const fault = administrationConflict({ kind: "ACT", act, actorIsAdministrator: actor.isAdministrator });
+      return fault ? { ok: false as const, state: { ok: false as const, message: fault.en } } : { ok: true as const, actor };
+    },
+  };
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
@@ -245,5 +255,79 @@ describe("marking a person away on the People screen (savePerson)", () => {
     await savePerson({ ok: false }, form(true));
     expect((await stepOf(r.steps[0]!)).escalationCount).toBe(1);
     expect((await db.staffNotice.findMany({ where: { recipientPersonId: above, kind: "HOLDER_MARKED_ABSENT", subjectId: solo } })).length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("who may move steps, and whose (Phase 3c review)", () => {
+  const asAdministrator = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    const saved = who.actor;
+    who.actor = { ...saved!, isAdministrator: true };
+    try {
+      return await fn();
+    } finally {
+      who.actor = saved;
+    }
+  };
+
+  it("refuses an administrator account the sweep, as it refuses them the escalation: the step stays and nothing is written", async () => {
+    await db.person.update({ where: { id: holder }, data: { isAvailable: false } });
+    const r = await route([{ roleCode: A, act: "A" }]);
+    const out = await asAdministrator(() => sweep());
+    expect(out.refused).toMatch(/administrator/i);
+    expect(out).toMatchObject({ words: [], moved: 0, stayed: 0 });
+    expect((await stepOf(r.steps[0]!)).actingRoleCode).toBeNull();
+    expect(await db.auditEntry.count({ where: { entity: "ApprovalStep", entityId: r.steps[0] } })).toBe(0);
+    // The same step is moved by an officer who is not an administrator.
+    expect(movedWords(await sweep(), r.label)).toBeTruthy();
+    expect((await stepOf(r.steps[0]!)).actingRoleCode).toBe(B);
+  });
+
+  it("marking a person away looks only at that person's steps, and an administrator doing it leaves them for an officer and says so in the trail and to the superior", async () => {
+    const { savePerson } = await import("@/app/configuration/users/actions");
+    const A3 = `RA3_${run}`;
+    const B3 = `RB3_${run}`;
+    await db.authorityRole.createMany({
+      data: [
+        { organisationId, code: A3, nameEn: `Office A3 ${run}`, nameMs: `Pejabat A3 ${run}`, escalatesToCode: B3 },
+        { organisationId, code: B3, nameEn: `Office B3 ${run}`, nameMs: `Pejabat B3 ${run}` },
+      ],
+    });
+    const away = (await makePerson(organisationId, `Away ${run}`)).id;
+    const upper = (await makePerson(organisationId, `Upper ${run}`)).id;
+    await db.roleAssignment.createMany({
+      data: [
+        { personId: away, roleCode: A3, effectiveFrom: day("2020-01-01") },
+        { personId: upper, roleCode: B3, effectiveFrom: day("2020-01-01") },
+      ],
+    });
+    await db.reportingLine.create({ data: { organisationId, personId: away, superiorPersonId: upper, effectiveFrom: day("2020-01-01"), provenance: "ASSUMED" } });
+    // Another person's step is already stuck (the holder of office A is away and has a line): marking Away away must not move it.
+    const others = await route([{ roleCode: A, act: "A" }]);
+    const theirs = await route([{ roleCode: A3, act: "A" }]);
+    const form = (isAway: boolean) => {
+      const f = new FormData();
+      f.set("id", away);
+      f.set("name", `Away ${run}`);
+      f.set("email", `away.${run}@example.invalid`);
+      if (isAway) f.set("isAway", "on");
+      return f;
+    };
+    // An administrator marks them away: the absence is saved, the steps stay, and the trail and the superior say they were not moved.
+    expect(await asAdministrator(() => savePerson({ ok: false }, form(true)))).toEqual({ ok: true });
+    expect((await db.person.findUniqueOrThrow({ where: { id: away } })).isAvailable).toBe(false);
+    expect((await stepOf(theirs.steps[0]!)).actingRoleCode).toBeNull();
+    const trail = await db.auditEntry.findMany({ where: { entity: "Person", entityId: away } });
+    expect(trail.map((t) => t.reason ?? "").some((x) => /^Marked away\. Their pending steps were not moved/.test(x))).toBe(true);
+    const told = await db.staffNotice.findMany({ where: { recipientPersonId: upper, kind: "HOLDER_MARKED_ABSENT", subjectId: away } });
+    expect(told).toHaveLength(1);
+    expect(told[0]!.body).toContain("were not moved");
+    expect(told[0]!.body).not.toContain("No pending step was waiting");
+
+    // Back in, then away again by an officer: only their step moves; the other stuck step is left for the worklist button.
+    await savePerson({ ok: false }, form(false));
+    expect(await savePerson({ ok: false }, form(true))).toEqual({ ok: true });
+    expect((await stepOf(theirs.steps[0]!)).actingRoleCode).toBe(B3);
+    expect((await stepOf(others.steps[0]!)).actingRoleCode).toBeNull();
+    expect(await db.auditEntry.count({ where: { entity: "ApprovalStep", entityId: others.steps[0] } })).toBe(0);
   });
 });

@@ -328,6 +328,7 @@ export const OTHER_HOLDER_ENTRY_POINTS: readonly { entry: string; holder: Admini
   { entry: "src/app/awards/actions.ts#citeAppointmentDecision", holder: "HOLDER_CHECKED", why: "Discharges a committee step of an award's appointment route." },
   { entry: "src/app/projects/[id]/matter-actions.ts#citeContractMatterDecision", holder: "HOLDER_CHECKED", why: "Discharges a committee step of a contract matter's route." },
   { entry: "src/app/projects/[id]/variation-actions.ts#citeVariationCommittee", holder: "HOLDER_CHECKED", why: "Discharges a committee step of a variation's route." },
+  { entry: "src/app/approvals/actions.ts#moveStepsOfAbsentHolders", holder: "HOLDER_CHECKED", why: "Moves approval steps up one office (the same escalation as escalateStep) when a holder is away, from the worklist or after marking a person away." },
 ];
 
 /**

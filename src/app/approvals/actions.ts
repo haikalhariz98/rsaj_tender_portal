@@ -26,7 +26,7 @@ import { holdersFor } from "@/lib/requisition/holders";
 import { supplierHolders } from "@/lib/suppliers/route";
 import { FormReader } from "@/lib/validate";
 import { ACT_LABEL } from "@/lib/labels";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import type { StaffActor } from "@/lib/auth/types";
 import { absenceVerdict, reportWords, stayText, type AbsenceReport } from "@/lib/approvals/absence-move";
 import { loadWorklist } from "@/lib/approvals/load";
@@ -283,6 +283,8 @@ export interface AbsenceSweep {
   /// How many steps it moved, and how many stay where they are. Counts only: nothing here names a person or a restricted record.
   moved: number;
   stayed: number;
+  /// Set where nothing was looked at because the person asking may not move approval steps (an administrator account); what it says is for them to read.
+  refused?: string;
 }
 
 /**
@@ -293,10 +295,16 @@ export interface AbsenceSweep {
  * It moves a step only where the reporting line says who is above the people who hold the office (`absenceVerdict`). Otherwise the step stays put and the report
  * says why. It is `escalateOne`'s, so every check of an officer's escalation applies: never a committee's step, never a mandatory act for a vacancy, never down,
  * never onto an office already on the route. The audit row is the signed-in person's who recorded the absence, with the reason "Moved automatically".
+ *
+ * Moving a step is an escalation, and an administrator account is kept apart from transactions (ADR 0034 D9, threat model F7) exactly as `escalateStep` keeps it: asked first,
+ * so no way into `escalateOne` skips the refusal. `onlyFor` limits what is looked at, not only what is reported: marking one person away moves the steps that person holds
+ * and no one else's; the organisation-wide sweep is the worklist button's.
  */
 export async function moveStepsOfAbsentHolders(onlyFor?: string): Promise<AbsenceSweep> {
-  const actor = await requireStaff();
+  const holderGuard = await staffForAct("HOLDER_CHECKED");
   const empty: AbsenceSweep = { words: [], moved: 0, stayed: 0 };
+  if (!holderGuard.ok) return { ...empty, refused: holderGuard.state.message ?? "An administrator account does not move approval steps." };
+  const actor = holderGuard.actor;
   // Everything pending is looked at, so a step is not left because the person recording the absence cannot see its record; the report names only what they can see.
   const [all, visible] = await Promise.all([loadWorklist(actor, []), loadWorklist(actor, await hiddenExercises(actor))]);
   if (!all || !all.today) return empty;
@@ -305,12 +313,13 @@ export async function moveStepsOfAbsentHolders(onlyFor?: string): Promise<Absenc
   const nameOf = new Map(roster.people.map((p) => [p.id, p.name]));
   const on = dayToDate(all.today);
   const report: AbsenceReport = { moved: [], stayed: [] };
-  /// Whose steps they are, so the report can be limited to one absent person (the sweep itself looks at everything pending).
-  const holdersOf = new Map<string, readonly string[]>();
-  const items = all.groups.flatMap((g) => g.items).filter((i) => i.noneAvailable && !i.committee).sort((a, b) => a.stepId.localeCompare(b.stepId));
+  // Limited to one person's steps when the caller asks (the sweep after that person was marked away): the others are not looked at, let alone moved.
+  const items = all.groups
+    .flatMap((g) => g.items)
+    .filter((i) => i.noneAvailable && !i.committee && (!onlyFor || i.holderIds.includes(onlyFor)))
+    .sort((a, b) => a.stepId.localeCompare(b.stepId));
   for (const item of items) {
     const name = visibleSteps.has(item.stepId) ? item.matterLabel : null;
-    holdersOf.set(item.stepId, item.holderIds);
     const verdict = absenceVerdict({ holderIds: item.holderIds, lines, on });
     if (!verdict.move) {
       report.stayed.push({ stepId: item.stepId, matter: name, why: stayText(verdict.why, verdict.holderIdsWithoutLine.map((id) => nameOf.get(id) ?? "A person no longer on record")) });
@@ -330,8 +339,5 @@ export async function moveStepsOfAbsentHolders(onlyFor?: string): Promise<Absenc
     if (moved.ok && moved.info) report.moved.push({ stepId: item.stepId, matter: name, from: moved.info.from, to: moved.info.to });
     else report.stayed.push({ stepId: item.stepId, matter: name, why: moved.message ?? Object.values(moved.errors ?? {})[0] ?? "It could not be moved." });
   }
-  // Limited to one person's steps when the caller asks (the sweep after that person was marked away); otherwise everything it did.
-  const mine = (stepId: string) => !onlyFor || (holdersOf.get(stepId) ?? []).includes(onlyFor);
-  const scoped: AbsenceReport = { moved: report.moved.filter((m) => mine(m.stepId)), stayed: report.stayed.filter((s) => mine(s.stepId)) };
-  return { words: reportWords(scoped), moved: scoped.moved.length, stayed: scoped.stayed.length };
+  return { words: reportWords(report), moved: report.moved.length, stayed: report.stayed.length };
 }

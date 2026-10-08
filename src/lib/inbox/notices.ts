@@ -96,13 +96,15 @@ export function holderMarkedAbsentNotices(i: {
   at: Date;
   moved: number;
   stayed: number;
+  /// The steps were not looked at: whoever recorded the absence may not move approval steps (an administrator account). They wait for an officer, from the worklist.
+  notMoved?: boolean;
   superiors: readonly string[];
   by: string | null;
 }): NoticeDraft[] {
   const parts: string[] = [];
   if (i.moved > 0) parts.push(`${i.moved} pending ${i.moved === 1 ? "step moved" : "steps moved"} up`);
   if (i.stayed > 0) parts.push(`${i.stayed} could not be moved and stay where they are`);
-  const said = parts.length > 0 ? ` ${parts.join("; ")}.` : " No pending step was waiting on their office.";
+  const said = i.notMoved ? " Their pending steps were not moved: an administrator account does not move approval steps, so an officer can move them from the worklist." : parts.length > 0 ? ` ${parts.join("; ")}.` : " No pending step was waiting on their office.";
   return recipientsOf(i.superiors, i.by).map((r) => ({
     recipientPersonId: r,
     kind: "HOLDER_MARKED_ABSENT",

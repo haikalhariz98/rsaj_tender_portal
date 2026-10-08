@@ -148,7 +148,9 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
  * The sweep that follows someone being marked absent, and the notice to the people above them. The person is already saved as away: the sweep sees the office
  * with nobody able to act and moves each pending step as an officer's escalation would (`moveStepsOfAbsentHolders`), or leaves it and says why. What it did is
  * written beside the absence in the trail, so the audit reads "marked away" and then what became of their steps. The superiors are told once per absence.
- * A failure of the sweep never undoes the absence: it is re-run from the worklist.
+ * A failure of the sweep never undoes the absence: it is re-run from the worklist. Only this person's steps are looked at. Where the person who recorded the absence is an
+ * administrator account the sweep is refused as an escalation is (administration is kept apart from transactions): the steps stay, the trail and the superior are told so, and an
+ * officer moves them from the worklist.
  */
 async function afterAbsence(actor: StaffActor, person: { id: string; name: string }): Promise<void> {
   let sweep: Awaited<ReturnType<typeof moveStepsOfAbsentHolders>> | null = null;
@@ -162,12 +164,14 @@ async function afterAbsence(actor: StaffActor, person: { id: string; name: strin
   const day = todayIn(at, actor.organisationTimeZone);
   const superior = day ? immediateSuperior(lines, person.id, dayToDate(day)) : null;
   await db.$transaction(async (tx) => {
-    if (sweep) {
+    if (sweep?.refused) {
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: actor.organisationId, entity: "Person", entityId: person.id, entityLabel: person.name, reason: `Marked away. Their pending steps were not moved: ${sweep.refused} An officer moves them from the worklist.` }, "UPDATE", diffFields({ pendingSteps: "waiting" }, { pendingSteps: "not moved: an administrator account does not move approval steps" }));
+    } else if (sweep) {
       const said = sweep.words.join(" ");
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: actor.organisationId, entity: "Person", entityId: person.id, entityLabel: person.name, reason: `Marked away. ${said}` }, "UPDATE", diffFields({ pendingSteps: "waiting" }, { pendingSteps: `${sweep.moved} moved, ${sweep.stayed} stay` }));
     }
     if (superior) {
-      await writeNotices(tx, actor.organisationId, actor.system ? null : actor.personId, holderMarkedAbsentNotices({ personId: person.id, personName: person.name, at, moved: sweep?.moved ?? 0, stayed: sweep?.stayed ?? 0, superiors: [superior], by: actor.system ? null : actor.personId }));
+      await writeNotices(tx, actor.organisationId, actor.system ? null : actor.personId, holderMarkedAbsentNotices({ personId: person.id, personName: person.name, at, moved: sweep?.moved ?? 0, stayed: sweep?.stayed ?? 0, notMoved: !!sweep?.refused, superiors: [superior], by: actor.system ? null : actor.personId }));
     }
   });
 }
