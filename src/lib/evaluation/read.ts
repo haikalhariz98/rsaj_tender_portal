@@ -15,6 +15,7 @@ import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { loadExercise } from "@/lib/method/repo";
 import { formatMoney, senFromDecimal, senToDecimalString } from "@/lib/money";
 
+import { anonymousBidder, stageAnonymity, stageReveals, type AnonymisedStage } from "./anonymise";
 import { aspectPrefill } from "./aspects";
 import { recommendedCeilingFault } from "./ceiling";
 import { ceilingOf } from "./repo";
@@ -51,6 +52,8 @@ const fig = (v: bigint | null | undefined, dp: number | null) => (v == null ? nu
 export interface EvaluationGates {
   evaluation: Sulit<true>;
   estimate: () => Promise<Sulit<true> | null>;
+  /// FR-EVL-020: asked (and logged) only when an anonymised technical scoring stage has a criterion that names the bidder. Granted: the name is in the view for that criterion; otherwise it is not.
+  identity: () => Promise<Sulit<true>>;
 }
 
 export async function evaluationTabView(organisationId: string, exerciseId: string, gates: EvaluationGates) {
@@ -138,7 +141,11 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   const factors = capitalStages.flatMap((s) => s.factors).map((x) => ({ value: x.code, label: `${x.labelEn} (${formatFixed(parseFixed(x.factorPct), 2)}%)` }));
 
   // ---- the stages
-  const stages = f.model.stages.map((s) => stageView(f, s, dp, e.submissions.find((x) => x.stageCode === s.code) ?? null, tz));
+  // FR-EVL-020: the identity of a bidder on an anonymised technical scoring stage is revealed only for a criterion that needs it, and the reveal is asked of the gate (which logs it)
+  // before any name is put in the view.
+  const revealing = f.model.stages.some((s) => stageReveals(stageAnonymity(s, f.anonymised)));
+  const reveal = revealing ? (await gates.identity()).state === "GRANTED" : false;
+  const stages = f.model.stages.map((s) => stageView(f, s, dp, e.submissions.find((x) => x.stageCode === s.code) ?? null, tz, reveal));
   // A two-stage tender's first stage is tabled at a sitting of its committee not yet minuted.
   const committeeCodes = [...new Set(f.model.stages.filter((s) => s.kind === "COMMITTEE_DECISION" && s.committeeCode).map((s) => s.committeeCode!))];
   const sittings = committeeCodes.length
@@ -294,11 +301,12 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
 }
 
 /// One stage as its card shows it: who it is for, whether open, and each bidder's figure.
-function stageView(f: EvaluationFacts, s: StageSnap, dp: number | null, sub: { submittedAt: Date; submittedBy: { name: string } } | null, tz: string | null) {
+function stageView(f: EvaluationFacts, s: StageSnap, dp: number | null, sub: { submittedAt: Date; submittedBy: { name: string } } | null, tz: string | null, reveal: boolean) {
+  const anon = stageAnonymity(s, f.anonymised);
   const submitted = !!sub;
   const access = stageAccess(f, s, null);
   const criteria = scoredCriteria(s).map((cr) => ({ code: cr.code, label: cr.labelEn, scale: cr.scale, scaleLabel: SCALE_LABEL[cr.scale], max: cr.maxMarks ? formatFixed(parseFixed(cr.maxMarks), 2) : null }));
-  const rows = f.bidders.map((b) => bidderAtStage(f, s, b, dp, submitted));
+  const rows = f.bidders.map((b) => bidderAtStage(f, s, b, dp, submitted, anon, reveal));
   const notBanded = submitted ? [] : rows.flatMap((r) => r.notBanded.map((n) => ({ key: `${r.id}/${n.code}`, label: `No. ${r.listingNo}: ${n.label} is in no band` })));
   const blockers = submitted || s.kind === "SHORTLIST" || s.kind === "COMMITTEE_DECISION" || s.kind === "RECOMMENDATION" ? [] : rows.flatMap((r) => r.faults);
   return {
@@ -323,7 +331,7 @@ function stageView(f: EvaluationFacts, s: StageSnap, dp: number | null, sub: { s
   };
 }
 
-function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: number | null, submitted: boolean) {
+function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: number | null, submitted: boolean, anon: AnonymisedStage, reveal: boolean) {
   const run = runningAt(f, s, b);
   const r = resultOf(f, b.id, s.code);
   const computed = !submitted && run.state === "IN" ? stageResult(f, s, b) : null;
@@ -336,12 +344,13 @@ function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: num
   const notYet = live && live.pending.length ? pendingText(live.pending) : null;
   const scoreRows = scoredCriteria(s).map((cr) => {
     const sc = b.scores.get(scoreKey(s.code, cr.code)) ?? null;
-    return { code: cr.code, label: cr.labelEn, value: sc ? (sc.marks != null ? formatMark(sc.marks, dp) : sc.passed ? "Pass" : "Fail") : null, by: sc?.scoredBy ?? null, carried: sc?.carried ?? false };
+    return { code: cr.code, label: cr.labelEn, value: sc ? (sc.marks != null ? formatMark(sc.marks, dp) : sc.passed ? "Pass" : "Fail") : null, by: sc?.scoredBy ?? null, carried: sc?.carried ?? false, /// FR-EVL-020: the bidder is named for a criterion that needs the named contractor, once the reveal has been asked and logged.
+      named: anon.namedFor.has(cr.code) && reveal ? b.bidderName : null };
   });
   return {
     id: b.id,
     listingNo: b.listingNo,
-    bidder: b.bidderName,
+    bidder: anon.anonymous ? anonymousBidder(b.listingNo) : b.bidderName,
     running: RUNNING_LABEL[run.state],
     inRunning: run.state === "IN",
     stageFigure: shown != null ? `${formatFixed(shown, dp ?? 4)}%` : null,

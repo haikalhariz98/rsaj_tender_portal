@@ -61,6 +61,8 @@ export async function loadEvaluationTab(actor: StaffActor, exerciseId: string, s
     evaluation: gate,
     // The saving and the estimate are the company estimate's own: judged by its custody (FR-EST-008), through the one logged access.
     estimate: async () => mapSulit(await estimateCustodyForHistory(actor, exerciseId), () => true as const),
+    // FR-EVL-020: a bidder's name on an anonymised technical scoring stage is a read of its own, logged as the reveal it is.
+    identity: () => sulitGate(actor, { scope: "evaluation", id: exerciseId, label: ex?.reference ?? "" }, ["bidderIdentity"]),
   });
   if (!v) return { panel: <Card><EmptyState title="This exercise could not be found">Its organisation may no longer be configured.</EmptyState></Card>, actions: null, notes: [] };
   const h = v.header;

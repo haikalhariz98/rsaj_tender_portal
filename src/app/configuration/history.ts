@@ -21,6 +21,7 @@ import { formatOrgDateTime } from "@/lib/format";
 import { requireStaff } from "@/app/_auth/actor";
 import { ACCOUNT_STATUS_WORDS } from "@/lib/auth/words";
 import type { OrgScope } from "@/lib/org-scope";
+import { isSulitField } from "@/lib/sulit-fields";
 
 /// The entities whose history a screen may ask for. Anything else is refused rather
 /// than read, so the action cannot be used to page through the whole trail.
@@ -200,6 +201,8 @@ async function valueReader(scope: OrgScope, entity = ""): Promise<(field: string
 /// One record's history, newest first. An issue's history also holds the entries of its
 /// core routing rows and steps (found by their label, which begins with the issue's), so
 /// a row or step that has since been removed is still reachable.
+const SULIT_WITHHELD_IN_DRAWER = "SULIT · withheld";
+
 export async function historyOf(entity: string, entityId: string): Promise<HistoryEntry[]> {
   const actor = await requireStaff();
   if (!ENTITIES.has(entity) || !entityId) return [];
@@ -226,8 +229,9 @@ export async function historyOf(entity: string, entityId: string): Promise<Histo
     part: issue && r.entity in CORE_ROUTING_ENTITY_NAME ? (coreRoutingEntryName(r.entityLabel, issue.label) ?? "Core routing") : null,
     changes: r.changes.filter((c) => !(c.field === "code" && CODE_HIDDEN.has(entity))).map((c) => ({
       field: c.field,
-      before: read(c.field, c.before == null ? null : String(c.before)),
-      after: read(c.field, c.after == null ? null : String(c.after)),
+      // This drawer is for configuration, which holds no SULIT value; a registered one that found its way here is withheld, never shown on a guess (Phase 3b).
+      before: isSulitField(c.field) && c.before != null ? SULIT_WITHHELD_IN_DRAWER : read(c.field, c.before == null ? null : String(c.before)),
+      after: isSulitField(c.field) && c.after != null ? SULIT_WITHHELD_IN_DRAWER : read(c.field, c.after == null ? null : String(c.after)),
     })),
   }));
 }

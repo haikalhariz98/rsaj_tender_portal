@@ -96,6 +96,8 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "matterRoutedValue", scope: "contract", what: "the value a contract matter's route is resolved on (6.13 Part B)" },
   { field: "matterRatioNum", scope: "contract", what: "the numerator of the exact ratio a contract matter's route is resolved on, e.g. the damages waived (6.13 Part B)" },
   { field: "matterRatioDen", scope: "contract", what: "the denominator of the exact ratio a contract matter's route is resolved on, e.g. the damages amount (6.13 Part B)" },
+  // Phase 3b (FR-EVL-020): a bidder's name on an anonymised technical scoring stage, revealed only for a criterion that needs the named contractor. Judged and logged as the evaluation is.
+  { field: "bidderIdentity", scope: "evaluation", what: "a bidder's name on an anonymised technical scoring stage, revealed for a criterion that needs it (FR-EVL-020)" },
   // Phase 3b (6.2 OD-8, sign-in plan 3b): the priced bill of quantities is the department's estimate in detail, so its rates, line amounts and totals are an
   // exercise's SULIT, read by the people named on it. The bill issued to tenderers is unpriced and carries none of them.
   { field: "bqRate", scope: "exercise", what: "a bill of quantities line's rate (6.2, Phase 3b)" },

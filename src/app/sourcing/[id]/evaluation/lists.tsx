@@ -74,7 +74,7 @@ export function StageList({ exerciseId, s, open, sittings, people }: { exerciseI
     id: r.id,
     search: `${r.listingNo} ${r.bidder}`,
     sortKeys: { bid: r.listingNo },
-    note: [r.scoreRows.length ? r.scoreRows.map((x) => `${x.label}: ${x.value ?? "not scored"}${x.by ? ` (${x.by}${x.carried ? ", carried" : ""})` : ""}`).join(" · ") : null, r.notYet ? `Not judged yet: ${r.notYet}` : null].filter(Boolean).join(" ") || undefined,
+    note: [r.scoreRows.length ? r.scoreRows.map((x) => `${x.label}${x.named ? ` (${r.bidder} is ${x.named}; revealed for this criterion and logged)` : ""}: ${x.value ?? "not scored"}${x.by ? ` (${x.by}${x.carried ? ", carried" : ""})` : ""}`).join(" · ") : null, r.notYet ? `Not judged yet: ${r.notYet}` : null].filter(Boolean).join(" ") || undefined,
     cells: {
       bid: { kind: "stack", title: `No. ${r.listingNo}`, sub: r.bidder },
       running: { kind: "chip", text: committee ? STAGE_ONE[r.stageOne ?? "NOT_TABLED"] : r.running, tone: committee ? (r.stageOne === "CARRIED" ? "ok" : r.stageOne === "NOT_CARRIED" ? "err" : "warn") : r.inRunning ? "ok" : "err" },

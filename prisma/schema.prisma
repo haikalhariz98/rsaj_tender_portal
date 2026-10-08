@@ -6970,6 +6970,10 @@ model EvaluationPolicy {
   /// The annexes' labels, A to F, English and Malay. Null: the product's English labels.
   annexLabels             Json?
   annexLabelsProvenance   Provenance?
+  /// FR-EVL-020 (Phase 3b): anonymise bidder identity during the technical scoring stage, revealing it only for a criterion that needs the named contractor, the reveal logged. Null: not
+  /// decided, and scoring shows the names as it always has. Frozen onto a version when it starts (`Evaluation.policySnapshot`).
+  anonymisedScoring           Boolean?
+  anonymisedScoringProvenance Provenance?
 
   governingSource String   @default("")
   notes           String   @default("")

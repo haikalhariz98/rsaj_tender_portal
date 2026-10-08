@@ -611,6 +611,9 @@ export async function saveEvaluationPolicy(_prev: FormState, data: FormData): Pr
     reportSeriesKey: r.optionalText("reportSeriesKey"),
     scoreDecimals: r.int("scoreDecimals", "Decimal places a score is judged at", { min: 0 }),
     scoreDecimalsProvenance: r.choice("scoreDecimalsProvenance", "Where this came from", PROVENANCE),
+    // FR-EVL-020 (Phase 3b): a three-state setting, never defaulted. Not set: scoring shows the names, and the screen says so.
+    anonymisedScoringChoice: r.choice("anonymisedScoring", "Anonymised technical scoring", ["ON", "OFF"] as const),
+    anonymisedScoringProvenance: r.choice("anonymisedScoringProvenance", "Where this came from", PROVENANCE),
     checkerRoleCode: r.optionalText("checkerRoleCode"),
     recommenderRoleCode: r.optionalText("recommenderRoleCode"),
     reportTemplateId: r.optionalText("reportTemplateId"),
@@ -620,8 +623,10 @@ export async function saveEvaluationPolicy(_prev: FormState, data: FormData): Pr
   };
   if (v.scoreDecimals != null && v.scoreDecimals > 4) r.reject("scoreDecimals", "At most four: scores are kept to four places.");
   if (v.scoreDecimals != null && !v.scoreDecimalsProvenance) r.reject("scoreDecimalsProvenance", CONFIG_TEXT.PROVENANCE_REQUIRED);
+  if (v.anonymisedScoringChoice != null && !v.anonymisedScoringProvenance) r.reject("anonymisedScoringProvenance", CONFIG_TEXT.PROVENANCE_REQUIRED);
   if (r.failed) return { ok: false, errors: r.errors };
-  const row = { ...v, scoreDecimalsProvenance: v.scoreDecimals == null ? null : v.scoreDecimalsProvenance };
+  const { anonymisedScoringChoice, ...rest } = v;
+  const row = { ...rest, scoreDecimalsProvenance: v.scoreDecimals == null ? null : v.scoreDecimalsProvenance, anonymisedScoring: anonymisedScoringChoice == null ? null : anonymisedScoringChoice === "ON", anonymisedScoringProvenance: anonymisedScoringChoice == null ? null : v.anonymisedScoringProvenance };
   const result = await db.$transaction(async (tx) => {
     await lockOrganisation(tx, orgId);
     const series = await tx.numberingSeries.findMany({ where: { organisationId: orgId }, select: { key: true, nameEn: true } });
@@ -636,6 +641,8 @@ export async function saveEvaluationPolicy(_prev: FormState, data: FormData): Pr
       reportSeries: x.reportSeriesKey ? name(series, (s) => s.key === x.reportSeriesKey) : null,
       scoreDecimals: x.scoreDecimals,
       scoreDecimalsFrom: x.scoreDecimalsProvenance,
+      anonymisedScoring: x.anonymisedScoring == null ? null : x.anonymisedScoring ? "On" : "Off",
+      anonymisedScoringFrom: x.anonymisedScoringProvenance,
       checker: x.checkerRoleCode ? name(offices, (o) => o.code === x.checkerRoleCode) : null,
       recommender: x.recommenderRoleCode ? name(offices, (o) => o.code === x.recommenderRoleCode) : null,
       reportTemplate: x.reportTemplateId ? name(templates, (t) => t.id === x.reportTemplateId) : null,

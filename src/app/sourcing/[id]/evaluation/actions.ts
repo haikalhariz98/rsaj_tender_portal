@@ -90,7 +90,7 @@ export async function startEvaluation(_prev: FormState, data: FormData): Promise
         startedAt: now,
         startedByPersonId: person!.id,
         // E-5: the places a score is shown and judged at, frozen now and read from here, never live.
-        policySnapshot: { scoreDecimals: decimals, scoreDecimalsProvenance: c.policy!.scoreDecimalsProvenance ?? null } as Prisma.InputJsonValue,
+        policySnapshot: { scoreDecimals: decimals, scoreDecimalsProvenance: c.policy!.scoreDecimalsProvenance ?? null, anonymisedScoring: c.policy!.anonymisedScoring ?? null } as Prisma.InputJsonValue,
       },
     });
     for (const p of teamPicks) {

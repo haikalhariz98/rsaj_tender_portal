@@ -359,6 +359,8 @@ export function PolicyDrawer({ values, series, offices, templates }: { values: V
         { kind: "select", name: "reportSeriesKey", label: "Report reference series", placeholder: "Not set", options: series },
         { kind: "number", name: "scoreDecimals", label: "Decimal places a score is judged at", min: 0, hint: "The figure shown is the figure judged against a pass mark; rounded half up." },
         { kind: "select", name: "scoreDecimalsProvenance", label: "Where the decimal places came from", placeholder: "Not set", options: PROVENANCE },
+        { kind: "select", name: "anonymisedScoring", label: "Anonymise the technical scoring stage", placeholder: "Not set", options: [{ value: "ON", label: "On" }, { value: "OFF", label: "Off" }], hint: "On: each bid reads as Bidder n while it is scored, and is named only for a criterion that needs the named contractor, the reveal logged. Not set shows the names." },
+        { kind: "select", name: "anonymisedScoringProvenance", label: "Where that choice came from", placeholder: "Not set", options: PROVENANCE },
         { kind: "select", name: "checkerRoleCode", label: "Office checking the Kertas Cadangan", placeholder: "Not set", options: offices },
         { kind: "select", name: "recommenderRoleCode", label: "Office recommending it", placeholder: "Not set", options: offices },
         { kind: "select", name: "reportTemplateId", label: "Report template", placeholder: "Not set", options: templates },

@@ -105,6 +105,8 @@ export interface EvaluationFacts {
   model: ModelSnapshot;
   /// The places scores are shown and judged at, frozen at the start (E-5); null: not set when it started.
   decimals: number | null;
+  /// FR-EVL-020 (Phase 3b): the version anonymises its technical scoring stage (frozen at the start). Absent or null: names are shown.
+  anonymised?: boolean | null;
   bidders: readonly BidderFacts[];
   submissions: readonly SubmissionFacts[];
   results: readonly ResultFacts[];

@@ -17,6 +17,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import { Section, Stat, Stats } from "../records-ui";
 import { AspectDrawer, BasisRouteDrawer, MethodModelDrawer, ModelDrawer, PolicyDrawer, RetireAspectDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { anonymisedScoringWords } from "@/lib/evaluation/anonymise";
 
 export const dynamic = "force-dynamic";
 
@@ -165,7 +166,7 @@ export default async function EvaluationConfigurationPage() {
             <>
               {p && <HistoryButton entity="EvaluationPolicy" entityId={p.id} label="the evaluation policy" />}
               <PolicyDrawer
-                values={{ reportSeriesKey: p?.reportSeriesKey ?? null, scoreDecimals: p?.scoreDecimals == null ? "" : String(p.scoreDecimals), scoreDecimalsProvenance: p?.scoreDecimalsProvenance ?? null, checkerRoleCode: p?.checkerRoleCode ?? null, recommenderRoleCode: p?.recommenderRoleCode ?? null, reportTemplateId: p?.reportTemplateId ?? null, proposalTemplateId: p?.proposalTemplateId ?? null, governingSource: p?.governingSource ?? "", notes: p?.notes ?? "" }}
+                values={{ reportSeriesKey: p?.reportSeriesKey ?? null, scoreDecimals: p?.scoreDecimals == null ? "" : String(p.scoreDecimals), scoreDecimalsProvenance: p?.scoreDecimalsProvenance ?? null, anonymisedScoring: p?.anonymisedScoring == null ? null : p.anonymisedScoring ? "ON" : "OFF", anonymisedScoringProvenance: p?.anonymisedScoringProvenance ?? null, checkerRoleCode: p?.checkerRoleCode ?? null, recommenderRoleCode: p?.recommenderRoleCode ?? null, reportTemplateId: p?.reportTemplateId ?? null, proposalTemplateId: p?.proposalTemplateId ?? null, governingSource: p?.governingSource ?? "", notes: p?.notes ?? "" }}
                 series={c.series.map((s) => ({ value: s.key, label: s.nameEn }))}
                 offices={c.offices.map((o) => ({ value: o.code, label: o.nameEn }))}
                 templates={c.templates.map((t) => ({ value: t.id, label: t.nameEn }))}
@@ -179,6 +180,7 @@ export default async function EvaluationConfigurationPage() {
             items={[
               { label: "Report reference series", value: <Setting value={p?.reportSeriesKey ? (c.series.find((s) => s.key === p.reportSeriesKey)?.nameEn ?? "A series no longer configured") : null} unset="No report can be issued: it has no reference to take." /> },
               { label: "Decimal places a score is judged at", value: <Setting value={p?.scoreDecimals != null ? <span className="flex flex-wrap items-center gap-2"><span>{p.scoreDecimals}</span>{p.scoreDecimalsProvenance && <ProvenanceBadge value={p.scoreDecimalsProvenance} />}</span> : null} unset="No evaluation starts: a score could not be shown as it is judged." /> },
+              { label: "Anonymised technical scoring", value: <Setting value={p?.anonymisedScoring != null ? <span className="flex flex-wrap items-center gap-2"><span>{anonymisedScoringWords(p.anonymisedScoring).en}</span>{p.anonymisedScoringProvenance && <ProvenanceBadge value={p.anonymisedScoringProvenance} />}</span> : null} unset={anonymisedScoringWords(null).en} /> },
               { label: "Office checking the Kertas Cadangan", value: <Setting value={office(p?.checkerRoleCode)} unset="The paper cannot be checked." /> },
               { label: "Office recommending it", value: <Setting value={office(p?.recommenderRoleCode)} unset="The paper cannot be recommended." /> },
               { label: "Report template", value: <Setting value={p?.reportTemplate?.nameEn ?? null} unset="No report can be issued: it has no text." /> },

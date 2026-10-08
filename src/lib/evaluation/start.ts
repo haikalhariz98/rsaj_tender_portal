@@ -76,9 +76,11 @@ export function startFaults(i: {
 export interface EvaluationPolicySnapshot {
   scoreDecimals: number | null;
   scoreDecimalsProvenance: string | null;
+  /// FR-EVL-020 (Phase 3b): whether the version anonymises its technical scoring stage, as the organisation had decided when it started. Null: not decided (names are shown).
+  anonymisedScoring: boolean | null;
 }
 
 export function policyFromSnapshot(json: unknown): EvaluationPolicySnapshot {
   const o = json && typeof json === "object" && !Array.isArray(json) ? (json as Record<string, unknown>) : {};
-  return { scoreDecimals: typeof o.scoreDecimals === "number" ? o.scoreDecimals : null, scoreDecimalsProvenance: typeof o.scoreDecimalsProvenance === "string" ? o.scoreDecimalsProvenance : null };
+  return { scoreDecimals: typeof o.scoreDecimals === "number" ? o.scoreDecimals : null, scoreDecimalsProvenance: typeof o.scoreDecimalsProvenance === "string" ? o.scoreDecimalsProvenance : null, anonymisedScoring: typeof o.anonymisedScoring === "boolean" ? o.anonymisedScoring : null };
 }

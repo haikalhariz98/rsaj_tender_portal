@@ -164,6 +164,7 @@ export function factsOf(e: EvaluationRow, ex: { status: string }, model: ModelSn
     route: model.route,
     model,
     decimals: policy.scoreDecimals,
+    anonymised: policy.anonymisedScoring,
     bidders: e.bidders.map((b) => bidderFacts(b, e.meetings, twoStage, rows)),
     submissions: e.submissions.map((s): SubmissionFacts => ({ stageCode: s.stageCode, side: s.side as Side, personId: s.submittedByPersonId, person: s.submittedBy.name, at: s.submittedAt })),
     results: e.results.map((r): ResultFacts => ({ bidderId: r.bidderId, stageCode: r.stageCode, percent: fixedOf(r.percent), shown: fixedOf(r.shown), passed: r.passed, bandLabel: r.bandLabel, outOfRunning: r.outOfRunning })),
