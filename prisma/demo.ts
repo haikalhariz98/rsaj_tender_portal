@@ -24,6 +24,7 @@ import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo } from "./demo-
 import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo } from "./demo-evaluation";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { attributeSeededRows } from "./demo-attribution";
+import { inboxDemoLoaded, loadInboxDemo } from "./demo-inbox";
 import { checkResultsDemo, loadResultsDemo, resultsDemoState } from "./demo-results";
 import { DEMO_PREFIX, DEMO_WIPE_RETIRED, demoIsLoaded, demoStarted } from "./demo-sign-in";
 import { inspectLogo } from "../src/lib/organisation/logo";
@@ -46,6 +47,7 @@ import { demoOrgId, demoScope } from "./demo-org";
  *
  *   npm run demo:load      populate, once: a database that holds any of it gets nothing more
  *   npm run demo:results   add the Results fixture to a database loaded before it existed
+ *   npm run demo:inbox     add the reporting lines and the not-approved memo rule (Phase 3c) to a database loaded before they existed
  *   npm run demo:wipe      retired (Phase 1d): refuses and explains, removes nothing
  *
  * Every row is created with an id prefixed `demo_`. Nothing else in the product uses that prefix.
@@ -780,6 +782,8 @@ async function load() {
     await checkLifecycleDemo(db);
     await checkFidelityDemo(db);
   }
+  // Phase 3c: a few reporting lines and the memo rule, set only for the demonstration (the product ships both empty). `npm run demo:inbox` applies them alone.
+  await loadInboxDemo(db, organisationId);
   // Ruling 4 (2026-10-06): one advertised quotation taken to an issued award, so the public Results page has a row;
   // last, on everything above (prisma/demo-results.ts). `npm run demo:results` applies it alone to a loaded database.
   await loadResultsDemo(db, organisationId, { determine: determineExercises });
@@ -2089,18 +2093,32 @@ async function attribute() {
   console.log(written > 0 ? `${written} demo rows attributed to the demo loader.` : "Every demo row already has its attribution: nothing was written.");
 }
 
+/**
+ * Phase 3c: the reporting lines and the memo rule, added to a database the demo is already loaded in. Nothing where they stand.
+ */
+async function inbox() {
+  const org = await organisation();
+  if (!(await demoIsLoaded(db))) {
+    console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
+    return;
+  }
+  if (await inboxDemoLoaded(db)) console.log("The reporting lines are already there; only a missing rule is added.");
+  const made = await loadInboxDemo(db, org.id);
+  console.log(`${made.lines} reporting lines added${made.rule ? ", and the notification rule for a matter not carried" : ""}.`);
+}
+
 const mode = process.argv[2];
 
 if (mode === "wipe") {
   console.error(DEMO_WIPE_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results" && mode !== "attribute") {
-  console.error("usage: tsx prisma/demo.ts <load|results|attribute>");
+if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "attribute" ? attribute() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);

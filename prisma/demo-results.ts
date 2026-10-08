@@ -312,7 +312,7 @@ export async function loadResultsDemo(db: Db, organisationId: string, hooks: Res
     id: award.id, bondRequired: "yes", bondBasis: "CONTRACT_PRICE", bondPercent: "5", bondValidityExtraMonths: "12", bondBasisProvenance: "ASSUMED",
     retentionPercent: "5", retentionCapPercent: "5", termsProvenance: "ASSUMED", wcBasis: "PERCENT_OF_CONTRACT",
   });
-  await act(`${d}T09:30`, "award sent for approval", A.submitAward, { id: award.id });
+  await act(`${d}T09:30`, "award sent for approval", A.submitAward, { id: award.id, personId: CLERK.id });
   const route = await db.approvalInstance.findFirst({ where: { awardId: award.id, status: "PENDING" }, include: { steps: { orderBy: { sequence: "asc" } } } }) ?? fail("no appointment route was opened");
   const committeeStep = route.steps.find((s) => s.committeeCode === "QUOTE_CTTE") ?? fail("the route has no Quotation Committee step");
   await act(`${d}T10:00`, "Quotation Committee sitting scheduled", C.scheduleSitting, { committeeId: QUOTATION_COMMITTEE, meetingDate: d, agenda: `Appointment on ${ref}.`, reference: SITTING_REFERENCE, items: [committeeStep.id], tabledByPersonId: HOD_CP.id });
