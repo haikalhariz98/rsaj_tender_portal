@@ -352,6 +352,12 @@ model Organisation {
   supplierContacts         SupplierContact[]
   supplierApplications     SupplierApplication[]
   portalApplications       PortalApplication[]
+  registrationDrafts         RegistrationDraft[]
+  registrationDraftDocuments RegistrationDraftDocument[]
+  registrationDraftValues    RegistrationDraftValue[]
+  creditorProfiles           CreditorProfile[]
+  declarationTexts           DeclarationText[]
+  registrationDeclarations   RegistrationDeclaration[]
   applicationDecisions     ApplicationDecision[]
   resubmissionItems        ResubmissionItem[]
   supplierDocuments        SupplierDocument[]
@@ -574,6 +580,7 @@ model Person {
   applicationDecisions          ApplicationDecision[] @relation("ApplicationDecidedBy")
   portalApplicationsDecided     PortalApplication[]   @relation("PortalApplicationDecidedBy")
   supplierDocumentsRecorded     SupplierDocument[]    @relation("SupplierDocumentRecordedBy")
+  creditorProfilesVerified      CreditorProfile[]     @relation("CreditorProfileVerifiedBy")
   supplierDocumentsVerified     SupplierDocument[]    @relation("SupplierDocumentVerifiedBy")
 
   @@unique([organisationId, staffNo])
@@ -1396,6 +1403,9 @@ model DocumentClass {
 
   templates DocumentTemplate[]
   documents Document[]
+  /// Phase 4b: the supplier policy that names this class for a supplier's uploaded certificates, or for its bank statement.
+  supplierUploadPolicies        SupplierPolicy[] @relation("SupplierUploadClass")
+  supplierBankStatementPolicies SupplierPolicy[] @relation("SupplierBankStatementClass")
 
   @@unique([organisationId, code])
 }
@@ -4367,6 +4377,10 @@ enum AttachmentPurpose {
   METEOROLOGICAL_RECORD
   /// 6.13 Part B run 1b (FR-EOT-006 (a)): how the proposed period was calculated (bar charts or other), on the EOT claim.
   EOT_CALCULATION
+  /// 6.15 Phase 4b (FR-VND-002): a certificate a signed-in supplier uploaded to its registration draft, on the draft's document. Moved to the supplier's document (as SUPPLIER_DOCUMENT) when the registration is sent.
+  SUPPLIER_DRAFT_DOCUMENT
+  /// 6.15 Phase 4b (FR-VND-005): the bank statement a supplier uploaded with its creditor profile, on the profile. SULIT from upload.
+  SUPPLIER_BANK_STATEMENT
 }
 
 enum DocumentAccessKind {
@@ -4459,9 +4473,11 @@ model DocumentVersion {
   originalFilename String
   /// The paper's own received day, in the organisation's days. Never in the future.
   receivedOn       DateTime?
-  /// Who recorded it, named: recorded on behalf of, not signed.
-  recordedByPersonId String
-  recordedBy         Person   @relation("VersionRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  /// Who recorded it, named: recorded on behalf of, not signed. Or (Phase 4b) a supplier's own account, for what a signed-in supplier uploaded. Exactly one (CHECK DocumentVersion_one_recorder).
+  recordedByPersonId String?
+  recordedBy         Person?  @relation("VersionRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  recordedBySupplierAccountId String?
+  recordedBySupplierAccount   SupplierAccount? @relation("VersionRecordedBySupplier", fields: [recordedBySupplierAccountId], references: [id], onDelete: Restrict)
   note               String   @default("")
   /// Server time.
   storedAt           DateTime @default(now())
@@ -4547,6 +4563,12 @@ model DocumentAttachment {
   /// 6.13 Part B run 1b (FR-EOT-005, 006): an EOT claim (the meteorological records, the calculation of the period).
   eotClaimId             String?
   eotClaim               EotClaim?             @relation(fields: [eotClaimId], references: [id], onDelete: Restrict)
+  /// 6.15 Phase 4b (FR-VND-002): a certificate in a supplier's registration draft.
+  registrationDraftDocumentId String?
+  registrationDraftDocument   RegistrationDraftDocument? @relation(fields: [registrationDraftDocumentId], references: [id], onDelete: Restrict)
+  /// 6.15 Phase 4b (FR-VND-005): a creditor profile (the bank statement). SULIT.
+  creditorProfileId           String?
+  creditorProfile             CreditorProfile?           @relation(fields: [creditorProfileId], references: [id], onDelete: Restrict)
 
   attachedAt   DateTime  @default(now())
   detachedAt   DateTime?
@@ -4568,6 +4590,8 @@ model DocumentAttachment {
   @@index([evaluationBidderId])
   @@index([delayNoticeId])
   @@index([eotClaimId])
+  @@index([registrationDraftDocumentId])
+  @@index([creditorProfileId])
   @@index([supplierDocumentId])
   @@index([supplierApplicationId])
   @@index([contractId])
@@ -4616,6 +4640,9 @@ model DocumentAccessEvent {
   actorPersonId    String?
   actorPerson      Person? @relation("DocumentAccessActor", fields: [actorPersonId], references: [id], onDelete: Restrict)
   actorSystemLabel String?
+  /// Phase 4b: a signed-in supplier opening its own registration's file is logged as well. At most one actor.
+  actorSupplierAccountId String?
+  actorSupplierAccount   SupplierAccount? @relation("DocumentAccessSupplierActor", fields: [actorSupplierAccountId], references: [id], onDelete: Restrict)
   actorSessionId   String?
   sourceAddress    String?
   /// For a refused upload: the name and size as offered. Never the bytes.
@@ -7433,6 +7460,10 @@ enum SupplierListKind {
   BUMIPUTERA_STATUS
   /// The states of the registered address (FR-VND-001). The customer's own list; none ships.
   STATE
+  /// The banks a supplier's creditor profile may name (FR-VND-005). The customer's own list; none ships.
+  BANK
+  /// The kinds of bank account a creditor profile may name (FR-VND-005). The customer's own list; none ships.
+  ACCOUNT_TYPE
 }
 
 /// A value under a registration body (FR-VND-003): a grade, a category, a specialisation (under a
@@ -7462,6 +7493,7 @@ model RegistrationValue {
   retiredOn       DateTime?
 
   documentValues SupplierDocumentValue[]
+  draftValues    RegistrationDraftValue[]
 
   @@unique([bodyId, kind, code])
 }
@@ -7483,6 +7515,13 @@ model SupplierDocumentType {
   expires                 Boolean?
   mandatoryAtRegistration Boolean?
   notApplicableAllowed    Boolean?
+  /// Phase 4b. What the applicant is told the document is ("Latest Form 9 or Section 17"): the customer's words. Blank: nothing is said.
+  hintEn String?
+  hintMs String?
+  /// Phase 4b. Whether the document carries a rate (the SST certificate's), recorded as a Decimal. Null: not set, and no rate is asked.
+  recordsRate Boolean?
+  /// Phase 4b. Whether a supplier may lodge several of this type, each with a title ("Other"). Null: not set, and there is one chain per type.
+  repeatable  Boolean?
 
   governingSource String     @default("")
   provenance      Provenance
@@ -7494,6 +7533,7 @@ model SupplierDocumentType {
 
   @@unique([organisationId, code])
   restrictionPolicies SupplierPolicy[] @relation("RestrictionEvidence")
+  draftDocuments      RegistrationDraftDocument[]
 }
 
 /// An entry on one of the register's lists: an entity type or a country.
@@ -7572,6 +7612,25 @@ model SupplierPolicy {
   /// Whether a supplier's contact must give an email AND a mobile number (CPD's form), or either one. Null: not set, and the rule stays "an email or a telephone".
   contactNeedsEmailAndPhone Boolean?
   contactRuleProvenance     Provenance?
+  /// Phase 4b. Who to write to or call for help, shown on the supplier's registration. Null: not set, and the line is left off.
+  helpEmail          String?
+  helpPhone          String?
+  helpProvenance     Provenance?
+  /// Phase 4b. How many files, and how many bytes in all, one registration may hold (counting every version uploaded, withdrawn ones too: bytes are never deleted, ADR 0011).
+  /// Null: not set, and the supplier's uploads are closed, naming the setting.
+  uploadMaxFilesPerApplication Int?
+  uploadMaxBytesPerApplication BigInt?
+  uploadLimitProvenance        Provenance?
+  /// Phase 4b. Whether a portal application's signed online declaration replaces the paper declaration (day and scan) at approval. Null: not set, and the paper is still required.
+  onlineDeclarationReplacesPaper Boolean?
+  onlineDeclarationProvenance    Provenance?
+  /// Phase 4b. The document class a supplier's uploaded certificates take, and the class (it must be SULIT) the bank statement takes. A supplier cannot choose a class,
+  /// and the store refuses an upload without one. Null: not set, and the upload is refused, naming the setting.
+  supplierUploadClassId        String?
+  supplierUploadClass          DocumentClass? @relation("SupplierUploadClass", fields: [supplierUploadClassId], references: [id], onDelete: Restrict)
+  supplierBankStatementClassId String?
+  supplierBankStatementClass   DocumentClass? @relation("SupplierBankStatementClass", fields: [supplierBankStatementClassId], references: [id], onDelete: Restrict)
+  uploadClassProvenance        Provenance?
 
   governingSource String   @default("")
   updatedAt       DateTime @updatedAt
@@ -7632,6 +7691,9 @@ model Supplier {
   awards  Award[]
   /// The online application an officer recorded this supplier from, where it came through the portal.
   portalApplications PortalApplication[]
+  /// Phase 4b: its registration while it is being completed, and its bank details (versioned).
+  registrationDraft RegistrationDraft?
+  creditorProfiles  CreditorProfile[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, registrationNoKey])
@@ -7695,11 +7757,17 @@ model SupplierApplication {
   submittedBy         Person?   @relation("SupplierApplicationSubmittedBy", fields: [submittedByPersonId], references: [id], onDelete: Restrict)
   decidedAt           DateTime?
   createdAt           DateTime  @default(now())
+  /// Phase 4b: a PORTAL application the supplier itself sent from the registration wizard. The server's time, and the supplier's account that sent it (set together, CHECK
+  /// SupplierApplication_submitted_pair). Null on every application an officer recorded.
+  submittedAt                  DateTime?
+  submittedBySupplierAccountId String?
+  submittedBySupplierAccount   SupplierAccount? @relation("SupplierApplicationSubmittedBySupplier", fields: [submittedBySupplierAccountId], references: [id], onDelete: Restrict)
 
-  routes      ApprovalInstance[]
-  decisions   ApplicationDecision[]
-  documents   SupplierDocument[]
-  attachments DocumentAttachment[]
+  routes       ApprovalInstance[]
+  decisions    ApplicationDecision[]
+  documents    SupplierDocument[]
+  attachments  DocumentAttachment[]
+  declarations RegistrationDeclaration[]
 
   @@index([supplierId])
 }
@@ -7831,10 +7899,14 @@ model SupplierDocument {
 
   reference        String    @default("")
   issuingAuthority String    @default("")
+  /// Phase 4b. What the supplier called this one, for a type it may lodge several of ("Other"). Blank for a type with one chain.
+  title            String    @default("")
   issuedOn         DateTime?
   validFrom        DateTime?
   expiresOn        DateTime?
   notApplicable    Boolean   @default(false)
+  /// Phase 4b. The rate the document carries (the SST certificate's), where its type records one. A Decimal, never a float.
+  ratePercent      Decimal?  @db.Decimal(5, 2)
   supersedesId     String?   @unique
   supersedes       SupplierDocument? @relation("DocumentRenewal", fields: [supersedesId], references: [id], onDelete: Restrict)
   renewedBy        SupplierDocument? @relation("DocumentRenewal")
@@ -7842,8 +7914,11 @@ model SupplierDocument {
   /// The organisation's day it was lodged, and who recorded it (on their behalf, not signed).
   lodgedOn           DateTime
   recordedAt         DateTime
-  recordedByPersonId String
-  recordedBy         Person   @relation("SupplierDocumentRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  /// Who lodged it: an officer (on their behalf, not signed), or a supplier's own account (Phase 4b). Exactly one (CHECK SupplierDocument_one_recorder).
+  recordedByPersonId String?
+  recordedBy         Person?  @relation("SupplierDocumentRecordedBy", fields: [recordedByPersonId], references: [id], onDelete: Restrict)
+  recordedBySupplierAccountId String?
+  recordedBySupplierAccount   SupplierAccount? @relation("SupplierDocumentRecordedBySupplier", fields: [recordedBySupplierAccountId], references: [id], onDelete: Restrict)
 
   verification       VerificationState @default(NOT_CHECKED)
   verifiedByPersonId String?
@@ -7874,6 +7949,181 @@ model SupplierDocumentValue {
   labelSnapshot       String
 
   @@unique([documentId, registrationValueId])
+}
+
+/// Which declaration a text, and a signed declaration, is (Phase 4b, FR-VND-005, FR-VND-006).
+enum DeclarationKind {
+  /// The authorisation to pay by GIRO, which names the organisation.
+  GIRO_AUTHORISATION
+  /// The acknowledgement that false information is an offence.
+  FALSE_DECLARATION
+}
+
+/// A supplier's registration while it is being completed in the signed-in wizard (Phase 4b, CPD steps 2 to 5): one per applicant supplier, held for its account(s). It is not an
+/// application: it holds no place in the officers' queue, and nothing in it is read as true until it is sent. A save never claims validity (only shape and length are checked); Next
+/// and Submit apply the rules. `version` rises with every save, so a stale save is refused. Once `submittedAt` is set the draft and what hangs on it are frozen (triggers).
+model RegistrationDraft {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  supplierId     String       @unique
+  supplier       Supplier     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  version Int @default(0)
+  /// Step 4 and 5: who signs the declarations (as the supplier gave them), and that the GIRO authorisation was read and ticked. The false-declaration tick is made at Submit.
+  signatoryName        String  @default("")
+  signatoryDesignation String  @default("")
+  giroConfirmed        Boolean @default(false)
+
+  lastSavedBySupplierAccountId String
+  lastSavedBy                  SupplierAccount @relation("DraftLastSavedBy", fields: [lastSavedBySupplierAccountId], references: [id], onDelete: Restrict)
+  lastSavedAt                  DateTime
+  createdAt                    DateTime        @default(now())
+  /// Set when the registration is sent. Frozen after.
+  submittedAt                  DateTime?
+
+  documents RegistrationDraftDocument[]
+}
+
+/// A certificate in a draft: its type, what the supplier says of it, and its file (a `DocumentAttachment` with the draft purpose). Moved to a `SupplierDocument` when the registration is sent.
+model RegistrationDraftDocument {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  draftId        String
+  draft          RegistrationDraft @relation(fields: [draftId], references: [id], onDelete: Restrict)
+  typeId         String
+  type           SupplierDocumentType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+
+  /// For a type the supplier may lodge several of: what it calls this one. Blank otherwise.
+  title            String    @default("")
+  reference        String    @default("")
+  issuingAuthority String    @default("")
+  expiresOn        DateTime?
+  notApplicable    Boolean   @default(false)
+  ratePercent      Decimal?  @db.Decimal(5, 2)
+  createdAt        DateTime  @default(now())
+  /// The supplier took it off its registration. The row is kept (its files were attached to it, and nothing is deleted), and nothing reads it as part of the draft.
+  removedAt        DateTime?
+
+  values      RegistrationDraftValue[]
+  attachments DocumentAttachment[]
+
+  @@index([draftId])
+}
+
+/// A registration code chosen on a draft's certificate (step 3).
+model RegistrationDraftValue {
+  id                  String                    @id @default(cuid())
+  organisationId      String
+  organisation        Organisation              @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  draftDocumentId     String
+  draftDocument       RegistrationDraftDocument @relation(fields: [draftDocumentId], references: [id], onDelete: Restrict)
+  registrationValueId String
+  registrationValue   RegistrationValue         @relation(fields: [registrationValueId], references: [id], onDelete: Restrict)
+
+  @@unique([draftDocumentId, registrationValueId])
+}
+
+/// A supplier's bank and beneficiary details (Phase 4b, FR-VND-005), SULIT, versioned. A row with no `submittedAt` is the draft the wizard holds; once sent its content never changes
+/// (trigger): a change is a new version. It counts for payment (BD-613-44) only once an officer has verified it, and a newer unverified version leaves the earlier verified one in force.
+model CreditorProfile {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  version      Int
+  supersedesId String?          @unique
+  supersedes   CreditorProfile? @relation("CreditorProfileVersions", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy CreditorProfile? @relation("CreditorProfileVersions")
+
+  beneficiaryName            String @default("")
+  beneficiaryAddress         String @default("")
+  beneficiaryIdentityNo      String @default("")
+  beneficiaryContactPerson   String @default("")
+  beneficiaryTelephone       String @default("")
+  beneficiaryFax             String @default("")
+  beneficiaryTaxRegistrationNo String @default("")
+  beneficiaryEmail           String @default("")
+  /// Codes on the BANK and ACCOUNT_TYPE lists; rendered by their names.
+  bankCode            String @default("")
+  bankAccountNo       String @default("")
+  bankAccountTypeCode String @default("")
+  bankSwiftCode       String @default("")
+  bankAddress         String @default("")
+
+  enteredBySupplierAccountId String
+  enteredBy                  SupplierAccount @relation("CreditorProfileEnteredBy", fields: [enteredBySupplierAccountId], references: [id], onDelete: Restrict)
+  createdAt                  DateTime        @default(now())
+  submittedAt                DateTime?
+
+  /// One officer verifies it (CPD, 2026-10-07: no second officer), signing with their password. The check is of the bank details against the statement.
+  verification       VerificationState @default(NOT_CHECKED)
+  verifiedByPersonId String?
+  verifiedBy         Person?           @relation("CreditorProfileVerifiedBy", fields: [verifiedByPersonId], references: [id], onDelete: Restrict)
+  verifiedOn         DateTime?
+  verifiedAt         DateTime?
+  verificationNote   String            @default("")
+
+  attachments  DocumentAttachment[]
+  declarations RegistrationDeclaration[]
+
+  @@unique([supplierId, version])
+  @@index([organisationId, supplierId])
+}
+
+/// A declaration's wording, versioned, in English and Malay, with where it came from (Phase 4b, FR-VND-005, FR-VND-006). The organisation's name is the placeholder `{organisation}`,
+/// filled from `Organisation.name`. None ships: while a kind has no current text, the step it belongs to is closed and names it.
+model DeclarationText {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  kind           DeclarationKind
+  version        Int
+  bodyEn         String
+  bodyMs         String?
+  provenance     Provenance
+  governingSource String         @default("")
+  issuedOn       DateTime
+  retiredOn      DateTime?
+  createdAt      DateTime        @default(now())
+
+  signed RegistrationDeclaration[]
+
+  @@unique([organisationId, kind, version])
+}
+
+/// A declaration a supplier signed when it sent its registration (Phase 4b): the wording exactly as shown (frozen, with its hash), who signed it, and the server's time. Append-only
+/// (trigger). The signature itself is an `ActAttribution` row (SIGNED, the supplier's account, the password asked again).
+model RegistrationDeclaration {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  applicationId  String
+  application    SupplierApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  /// The GIRO authorisation belongs to the creditor profile it authorises.
+  creditorProfileId String?
+  creditorProfile   CreditorProfile? @relation(fields: [creditorProfileId], references: [id], onDelete: Restrict)
+
+  kind      DeclarationKind
+  textId    String
+  text      DeclarationText @relation(fields: [textId], references: [id], onDelete: Restrict)
+  textVersion Int
+  textSha256 String @db.Char(64)
+  frozenTextEn String
+  frozenTextMs String @default("")
+
+  signatoryName        String
+  signatoryDesignation String
+  /// The organisation's day, stamped by the server. Never typed.
+  signedOn  DateTime
+  signedAt  DateTime
+  signedBySupplierAccountId String
+  signedBy                  SupplierAccount @relation("DeclarationSignedBy", fields: [signedBySupplierAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([applicationId, kind])
 }
 
 /// 6.15a (FR-VND-010): what a standing event records.
@@ -11069,6 +11319,15 @@ model SupplierAccount {
   sessions SupplierSession[]
   codes    OneTimeCode[]
   events   SignInEvent[]
+  /// Phase 4b: what this account lodged, uploaded, saved, entered, signed and read.
+  documentsLodged         SupplierDocument[]        @relation("SupplierDocumentRecordedBySupplier")
+  versionsRecorded        DocumentVersion[]         @relation("VersionRecordedBySupplier")
+  applicationsSubmitted   SupplierApplication[]     @relation("SupplierApplicationSubmittedBySupplier")
+  draftsSaved             RegistrationDraft[]       @relation("DraftLastSavedBy")
+  creditorProfilesEntered CreditorProfile[]         @relation("CreditorProfileEnteredBy")
+  declarationsSigned      RegistrationDeclaration[] @relation("DeclarationSignedBy")
+  sulitAccessEvents       SulitAccessEvent[]        @relation("SulitAccessSupplierActor")
+  documentAccessEvents    DocumentAccessEvent[]     @relation("DocumentAccessSupplierActor")
 
   @@index([organisationId])
   @@index([supplierId])
@@ -11367,6 +11626,9 @@ model SulitAccessEvent {
   actorPersonId    String?
   actorPerson      Person? @relation(fields: [actorPersonId], references: [id], onDelete: Restrict)
   actorSystemLabel String?
+  /// Phase 4b: a signed-in supplier reading its own creditor profile is logged as well (the actor is the supplier's account, not a person).
+  actorSupplierAccountId String?
+  actorSupplierAccount   SupplierAccount? @relation("SulitAccessSupplierActor", fields: [actorSupplierAccountId], references: [id], onDelete: Restrict)
   actorSessionId   String?
   sourceAddress    String?
 

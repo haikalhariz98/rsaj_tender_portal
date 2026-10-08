@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "AttachmentPurpose" ADD VALUE 'SUPPLIER_BANK_STATEMENT';
