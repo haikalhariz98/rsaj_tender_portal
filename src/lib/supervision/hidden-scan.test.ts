@@ -224,5 +224,6 @@ describe("a representative is told what is left off, on every screen that leaves
     expect(n.body.en).toMatch(/Principal Representative/);
     // Only the needs: no letter is named when the letter is not the reason.
     expect(hiddenNote(["SO_ONLY"])!.body.en).not.toMatch(/letter of delegation does not list/);
+    expect(hiddenNote(["DIARY", "PROGRESS"])!.body.en).toMatch(/does not list these acts: keep and attest the site diary; record progress\./);
   });
 });

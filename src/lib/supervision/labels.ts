@@ -65,8 +65,8 @@ export function hiddenNote(hidden: readonly HiddenAct[]): { title: Words; body: 
   const en = ["You act as the S.O.'s representative, so some acts are left off your screens."];
   const ms = ["Anda bertindak sebagai wakil P.P., jadi sesetengah tindakan tidak dipaparkan pada skrin anda."];
   if (listed.length > 0) {
-    en.push(`Your letter of delegation does not list ${listed.map((a) => ACT_WORDS[a].en.toLowerCase()).join(", ")}.`);
-    ms.push(`Surat perwakilan anda tidak menyenaraikan ${listed.map((a) => ACT_WORDS[a].ms.toLowerCase()).join(", ")}.`);
+    en.push(`Your letter of delegation does not list these acts: ${listed.map((a) => ACT_WORDS[a].en.toLowerCase()).join("; ")}.`);
+    ms.push(`Surat perwakilan anda tidak menyenaraikan tindakan ini: ${listed.map((a) => ACT_WORDS[a].ms.toLowerCase()).join("; ")}.`);
   }
   if (needs.length > 0) {
     en.push(`Also left off: ${needs.map((n) => HIDDEN_NEED_WORDS[n].en).join("; and ")}.`);
