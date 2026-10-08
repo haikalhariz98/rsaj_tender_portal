@@ -3,7 +3,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { makePerson, randomId } from "@/lib/test-db/auth-fixtures";
 
-import { loadInbox, markRead, unreadCount, writeNotices } from "./store";
+import { encodeCursor } from "./paging";
+import { inboxTotals, loadInbox, loadInboxPage, markAllRead, markRead, unreadCount, writeNotices } from "./store";
 import { matterNotCarriedMemo, stepEscalatedNotices, type NoticeDraft } from "./notices";
 
 /**
@@ -122,6 +123,64 @@ describe("a person reads their own notices and nobody else's", () => {
     const [e] = stepEscalatedNotices({ stepId: "s", escalationCount: 1, matter: { label: "REQ-1 · Roof", href: "/approvals", exerciseId: null }, actLabel: "approve", fromOffice: "A", toOffice: "B", whyLabel: "No one was able to act", reason: "away", recipients: [bob], by: null, superiorNote: "Reporting line not set: no immediate superior is named." });
     const [m] = matterNotCarriedMemo({ decisionId: "d", matterLabel: "REQ-1", committeeLabel: "Tender Board", outcomeLabel: "Re-clarification", note: "", recipients: [bob], href: "/committees", exerciseId: null });
     for (const n of [e!, m!]) expect(`${n.title} ${n.body}`).not.toMatch(/RM\s?\d/);
+  });
+});
+
+describe("an inbox of any size can be read to its end and marked read as a whole (Phase 3c review)", () => {
+  it("pages from a cursor without losing or repeating a notice, and counts the real totals", async () => {
+    const reader = (await makePerson(organisationId)).id;
+    const viewer = { organisationId, personId: reader };
+    const drafts = Array.from({ length: 7 }, (_, i) => draft({ recipientPersonId: reader, title: `Notice ${i}` }));
+    // Raised a second apart in pairs, two at the very same instant, so that the cursor's tie-break on the id is exercised (a notice is evidence: its time is set when it is written).
+    await db.staffNotice.createMany({ data: drafts.map((d, i) => ({ organisationId, ...d, raisedAt: new Date(Date.UTC(2026, 9, 9, 1, 0, Math.floor(i / 2))) })) });
+    const seen: string[] = [];
+    let before = null as null | { raisedAt: Date; id: string };
+    for (let guard = 0; guard < 10; guard++) {
+      const page = await loadInboxPage(db, viewer, [], { take: 3, before });
+      seen.push(...page.notices.map((n) => n.id));
+      if (!page.more) break;
+      const last = page.notices[page.notices.length - 1]!;
+      before = { raisedAt: last.raisedAt, id: last.id };
+      expect(encodeCursor(before)).toContain(last.id);
+    }
+    expect(seen).toHaveLength(7);
+    expect(new Set(seen).size).toBe(7);
+    expect(await inboxTotals(db, viewer, [])).toEqual({ total: 7, unread: 7 });
+  });
+
+  it("marks every unread notice of the person's own read, beyond what any page showed, and leaves others' and the hidden ones alone", async () => {
+    const reader = (await makePerson(organisationId)).id;
+    const other = (await makePerson(organisationId)).id;
+    const viewer = { organisationId, personId: reader };
+    const hiddenEx = `ex_hidden_${randomId()}`;
+    const mine = Array.from({ length: 5 }, () => draft({ recipientPersonId: reader }));
+    const restricted = draft({ recipientPersonId: reader, exerciseId: hiddenEx });
+    const theirs = draft({ recipientPersonId: other });
+    await db.$transaction((tx) => writeNotices(tx, organisationId, null, [...mine, restricted, theirs]));
+    expect((await inboxTotals(db, viewer, [hiddenEx])).unread).toBe(5);
+
+    const now = new Date();
+    const upTo = new Date(now.getTime() + 1000);
+    expect(await db.$transaction((tx) => markAllRead(tx, viewer, [hiddenEx], now, upTo))).toBe(5);
+    expect(await inboxTotals(db, viewer, [hiddenEx])).toEqual({ total: 5, unread: 0 });
+    // The restricted notice, which the reader may not see, was not marked read for them; the other person's was not touched.
+    expect((await db.staffNotice.findFirstOrThrow({ where: { recipientPersonId: reader, subjectId: restricted.subjectId } })).readAt).toBeNull();
+    expect((await db.staffNotice.findFirstOrThrow({ where: { recipientPersonId: other, subjectId: theirs.subjectId } })).readAt).toBeNull();
+    // Run again: nothing new to mark.
+    expect(await db.$transaction((tx) => markAllRead(tx, viewer, [hiddenEx], now, upTo))).toBe(0);
+  });
+
+  it("leaves unread a notice raised after the page was drawn: it has not been seen", async () => {
+    const reader = (await makePerson(organisationId)).id;
+    const viewer = { organisationId, personId: reader };
+    const early = draft({ recipientPersonId: reader });
+    await db.$transaction((tx) => writeNotices(tx, organisationId, null, [early]));
+    const drawnAt = new Date();
+    await new Promise((r) => setTimeout(r, 20));
+    const late = draft({ recipientPersonId: reader });
+    await db.$transaction((tx) => writeNotices(tx, organisationId, null, [late]));
+    expect(await db.$transaction((tx) => markAllRead(tx, viewer, [], new Date(), drawnAt))).toBe(1);
+    expect((await db.staffNotice.findFirstOrThrow({ where: { recipientPersonId: reader, subjectId: late.subjectId } })).readAt).toBeNull();
   });
 });
 

@@ -10,7 +10,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { db } from "@/lib/db";
 import { formatOrgDateTime } from "@/lib/format";
 import { NOTICE_DELIVERY_STATEMENT, STAFF_NOTICE_KIND_LABEL, type StaffNoticeKind } from "@/lib/inbox/kinds";
-import { loadInbox } from "@/lib/inbox/store";
+import { decodeCursor, encodeCursor } from "@/lib/inbox/paging";
+import { inboxTotals, loadInboxPage } from "@/lib/inbox/store";
 
 import { markNoticesRead } from "./actions";
 
@@ -21,10 +22,15 @@ export const dynamic = "force-dynamic";
  * step moved to your office, a recall, a delegation to you or a not-approved memo is told, and every screen of it says so. A notice about a restricted exercise
  * is left out for anyone not named on it. What is waiting for you to decide is on My approvals, not here.
  */
-export default async function InboxPage() {
+export default async function InboxPage({ searchParams }: { searchParams: Promise<{ before?: string }> }) {
   const actor = await requireStaff();
-  const notices = await loadInbox(db, { organisationId: actor.organisationId, personId: actor.personId }, await hiddenExercises(actor));
-  const unread = notices.filter((n) => !n.readAt);
+  const { before } = await searchParams;
+  const viewer = { organisationId: actor.organisationId, personId: actor.personId };
+  const hidden = await hiddenExercises(actor);
+  // The page is drawn at one moment: "Mark all as read" marks what was raised by then, so a notice that arrives while it is open is not marked unseen.
+  const drawnAt = new Date();
+  const [{ notices, more }, totals] = await Promise.all([loadInboxPage(db, viewer, hidden, { before: decodeCursor(before) }), inboxTotals(db, viewer, hidden)]);
+  const last = notices[notices.length - 1];
   const rows: Row[] = notices.map((n) => ({
     id: n.id,
     views: [n.readAt ? "read" : "unread"],
@@ -43,7 +49,7 @@ export default async function InboxPage() {
       <PageHeader
         title="Inbox"
         subtitle={<LeadWithMore lead="What has been told to you in the portal." more="A step that arrived, was moved or was withdrawn, a delegation given to you, and a memo that a matter was not approved. What is waiting for you to decide is on My approvals." />}
-        meta={[`${unread.length} unread`, `${notices.length} ${notices.length === 1 ? "notice" : "notices"}`]}
+        meta={[`${totals.unread} unread`, `${totals.total} ${totals.total === 1 ? "notice" : "notices"}`]}
         actions={<ButtonLink href="/approvals?tab=mine" size="sm">Open my steps</ButtonLink>}
       />
       <Callout tone="neutral" className="mb-6" title="Delivery">
@@ -53,13 +59,11 @@ export default async function InboxPage() {
         <CardHeader
           icon={<InboxIcon size={17} />}
           title="Notices"
-          subtitle="Newest first."
+          subtitle={before ? `Newest first, older than the ones before. Showing ${notices.length} of ${totals.total}.` : more ? `Newest first. Showing the latest ${notices.length} of ${totals.total}.` : "Newest first."}
           actions={
-            unread.length > 0 ? (
+            totals.unread > 0 ? (
               <form action={markNoticesRead}>
-                {unread.map((n) => (
-                  <input key={n.id} type="hidden" name="id" value={n.id} />
-                ))}
+                <input type="hidden" name="upTo" value={drawnAt.toISOString()} />
                 <Button type="submit" size="sm" variant="secondary">
                   Mark all as read
                 </Button>
@@ -91,6 +95,22 @@ export default async function InboxPage() {
             ]}
             rows={rows}
           />
+        )}
+        {(more || before) && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
+            {before ? (
+              <ButtonLink href="/inbox" size="sm" variant="secondary">
+                Back to the newest
+              </ButtonLink>
+            ) : (
+              <span />
+            )}
+            {more && last && (
+              <ButtonLink href={`/inbox?before=${encodeURIComponent(encodeCursor(last))}`} size="sm" variant="secondary">
+                Older notices
+              </ButtonLink>
+            )}
+          </div>
         )}
       </Card>
     </>
