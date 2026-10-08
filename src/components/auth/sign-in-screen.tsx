@@ -1,67 +1,117 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
-import { CheckIcon } from "@/components/icons";
+import { AwardIcon, ChartIcon, CheckIcon, ClockIcon, DocumentTextIcon, LockIcon, PeopleGroupIcon, ShieldCheckIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 import { cx } from "@/components/ui/cx";
 import { showsNameBesideLogo } from "@/lib/organisation/details";
 import type { SignInBranding } from "@/lib/organisation/sign-in-load";
+import type { SignInIcon } from "@/lib/organisation/sign-in-page";
+import { ICON_CIRCLE_STYLE, SHADE_FEATHER_PX, SHADE_FEATHER_SIDE_PX, shadeStyle, TAGLINE_SHADE_ALPHA, TEXT_SHADE_ALPHA } from "@/lib/organisation/sign-in-shading";
+
+/// The drawing for each icon an organisation may choose. A `Record` over the whole set, so a new icon cannot be added to the set without its drawing.
+const HIGHLIGHT_ICON: Record<SignInIcon, ComponentType<{ size?: number }>> = {
+  document: DocumentTextIcon,
+  people: PeopleGroupIcon,
+  shield: ShieldCheckIcon,
+  check: CheckIcon,
+  lock: LockIcon,
+  clock: ClockIcon,
+  chart: ChartIcon,
+  award: AwardIcon,
+};
 
 /**
  * The frame of the staff sign-in screens: a picture and the organisation's words on the left, the form's card on the right, and the footer line under it.
  *
  * Everything on the left is the organisation's own and optional. With none of it set there is no panel at all and the card stands alone on the page, as
- * it did before. The logo is the one the sidebar shows, on a white chip so it reads over any picture; with none uploaded the spot stays empty. The picture
- * is decoration (an empty `alt`), darkened across the whole text column (never fading out under the words) so white text keeps 4.5:1 against even the brightest pixels of any photograph. On a phone the panel is a short
- * band above the card and carries only the logo, the portal name and the headline.
+ * it did before. The picture is decoration (an empty `alt`) and fills the left panel only: it is bright, not darkened across the panel, and sits at the
+ * panel's foot, zoomed in on the middle of it, with its own sky carried on above it. Shading sits only behind the words, one block for the top of the
+ * panel and one for the tagline, each as strong as it needs to be for white text to keep 4.5:1 over even a pure white pixel (see sign-in-shading.ts), so no
+ * photograph an organisation uploads can make the words unreadable.
+ *
+ * The logo is the organisation's own, never recoloured. With a logo for dark backgrounds it is drawn as it is. Without one the ordinary logo sits on a light
+ * translucent backdrop with tight padding, and the page does not try to judge whether it would have read without one.
+ *
+ * On a phone the panel is a short band above the card and carries only the logo, the portal name and the headline.
  */
 export function SignInScreen({ branding, children }: { branding: SignInBranding; children: ReactNode }) {
-  const { view, imageSha, logo } = branding;
+  const { view, imageSha, logo, darkLogo } = branding;
   /// A square or near-square mark is drawn taller (as the sidebar draws it) so its small wordmark can be read; a wide one is already wide.
-  const beside = logo ? showsNameBesideLogo(logo.width, logo.height) : false;
+  const shown = darkLogo ?? logo;
+  const beside = shown ? showsNameBesideLogo(shown.width, shown.height) : false;
+  const logoAlt = view.organisationName ? `${view.organisationName} logo` : "Organisation logo";
+  const logoClass = cx("w-auto object-contain", beside ? "h-14 max-w-40 lg:h-20 lg:max-w-56" : "h-12 max-w-64 lg:h-14");
+  const showsTagline = !!view.tagline;
   return (
-    <div className={view.hasPanel ? "min-h-dvh lg:grid lg:grid-cols-2" : "min-h-dvh"}>
+    <div className={view.hasPanel ? "min-h-dvh lg:grid lg:grid-cols-[48fr_52fr]" : "min-h-dvh"}>
       {view.hasPanel && (
-        <aside className="relative isolate flex min-h-60 flex-col justify-between gap-8 overflow-hidden bg-brand-900 px-6 py-8 text-white sm:px-10 lg:min-h-dvh lg:px-14 lg:py-12">
+        <aside className="relative isolate flex min-h-60 flex-col justify-between overflow-hidden bg-brand-900 text-white lg:min-h-dvh">
           {imageSha && (
-            // eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint
-            <img src={`/sign-in/image/${imageSha}`} alt="" fetchPriority="high" decoding="async" className="absolute inset-0 -z-20 size-full object-cover object-[20%_bottom]" />
+            <div aria-hidden="true" className="absolute inset-0 -z-20 overflow-hidden">
+              {/* The same picture, blurred, only where the zoomed one below does not reach: it carries the picture's own sky on above its top edge. */}
+              {/* eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint */}
+              <img src={`/sign-in/image/${imageSha}`} alt="" decoding="async" className="absolute inset-0 hidden size-full scale-125 object-cover blur-2xl lg:block" />
+              {/* eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint */}
+              <img
+                src={`/sign-in/image/${imageSha}`}
+                alt=""
+                fetchPriority="high"
+                decoding="async"
+                className="absolute inset-0 size-full object-cover lg:inset-auto lg:bottom-0 lg:left-[-25%] lg:h-auto lg:w-[150%] lg:max-w-none lg:[mask-image:linear-gradient(to_bottom,transparent,#000_30%)]"
+              />
+            </div>
           )}
-          <div aria-hidden="true" className="absolute inset-0 -z-10 bg-linear-to-b from-ink/75 via-ink/55 to-ink/70 lg:bg-linear-to-r lg:from-ink/85 lg:via-ink/72 lg:to-ink/62" />
 
-          <div className="min-h-12">
-            {logo && (
-              <span className={cx("inline-flex rounded-2xl bg-white shadow-card", beside ? "p-3 lg:p-4" : "p-2.5 lg:p-3")}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint */}
-                <img
-                  src={`/organisation/logo/${logo.sha}`}
-                  width={logo.width}
-                  height={logo.height}
-                  alt={view.organisationName ? `${view.organisationName} logo` : "Organisation logo"}
-                  className={cx("w-auto object-contain", beside ? "h-16 max-w-40 lg:h-24 lg:max-w-56" : "h-12 max-w-64 lg:h-14")}
-                />
-              </span>
-            )}
+          <div className="relative px-6 pt-8 pb-6 sm:px-10 lg:px-14 lg:pt-10 lg:pb-8">
+            <div className="relative max-w-[34rem] pb-3">
+              {/* The shade is the size of this column and the panel's edge to its left, and runs on past the column's right and bottom by the length of its fade. */}
+              <div aria-hidden="true" className="absolute -z-10" style={{ top: -80, left: "-100vw", right: -SHADE_FEATHER_SIDE_PX, bottom: -SHADE_FEATHER_PX, ...shadeStyle(TEXT_SHADE_ALPHA, { bottom: true, right: true }) }} />
+
+              {shown && (
+                <div className="mb-8 min-h-12 lg:mb-10">
+                  {darkLogo ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint
+                    <img src={`/sign-in/image/${darkLogo.sha}`} width={darkLogo.width} height={darkLogo.height} alt={logoAlt} className={logoClass} />
+                  ) : (
+                    logo && (
+                      <span className="inline-flex rounded-xl bg-white/90 p-1.5 ring-1 ring-white/60 backdrop-blur-md">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- addressed by its own fingerprint */}
+                        <img src={`/organisation/logo/${logo.sha}`} width={logo.width} height={logo.height} alt={logoAlt} className={logoClass} />
+                      </span>
+                    )
+                  )}
+                </div>
+              )}
+
+              {view.portalName && <p className="text-[12.5px] font-semibold tracking-[0.22em] text-white uppercase">{view.portalName}</p>}
+              {view.headline && <p className="mt-3 text-[30px] leading-[1.1] font-extrabold tracking-[-0.02em] text-balance text-white sm:text-[36px] lg:text-[52px]">{view.headline}</p>}
+              {view.supportingText && <p className="mt-5 hidden max-w-md text-[16px] leading-relaxed text-white lg:block">{view.supportingText}</p>}
+              {view.highlights.length > 0 && (
+                <ul className="mt-8 hidden flex-wrap gap-x-6 gap-y-5 lg:flex">
+                  {view.highlights.map((h) => {
+                    const Glyph = HIGHLIGHT_ICON[h.icon ?? "check"];
+                    return (
+                      <li key={h.text} className="flex w-[7.5rem] flex-col items-center gap-3 text-center text-[14px] leading-snug font-semibold text-white">
+                        <span className="grid size-16 shrink-0 place-items-center rounded-full" style={ICON_CIRCLE_STYLE}>
+                          <Glyph size={26} />
+                        </span>
+                        {h.text}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           </div>
 
-          <div className="max-w-xl">
-            {view.portalName && <p className="text-[12.5px] font-semibold tracking-[0.22em] text-white uppercase">{view.portalName}</p>}
-            {view.headline && <p className="mt-3 text-[30px] leading-[1.1] font-extrabold tracking-[-0.02em] text-balance sm:text-[36px] lg:text-[52px]">{view.headline}</p>}
-            {view.supportingText && <p className="mt-5 hidden max-w-md text-[16px] leading-relaxed text-white lg:block">{view.supportingText}</p>}
-            {view.highlights.length > 0 && (
-              <ul className="mt-10 hidden flex-wrap gap-x-8 gap-y-5 lg:flex">
-                {view.highlights.map((h) => (
-                  <li key={h} className="flex items-center gap-3 text-[14px] font-semibold">
-                    <span className="grid size-11 shrink-0 place-items-center rounded-full bg-white/15 ring-1 ring-white/50">
-                      <CheckIcon size={20} />
-                    </span>
-                    {h}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <p className="hidden min-h-5 text-[14px] text-white lg:block">{view.tagline}</p>
+          {showsTagline && (
+            <div className="relative hidden px-6 pt-6 pb-10 sm:px-10 lg:block lg:px-14">
+              <div className="relative max-w-xs pt-3">
+                <div aria-hidden="true" className="absolute -z-10" style={{ top: -SHADE_FEATHER_PX, left: "-100vw", right: -SHADE_FEATHER_SIDE_PX, bottom: -40, ...shadeStyle(TAGLINE_SHADE_ALPHA, { top: true, right: true }) }} />
+                <p className="text-[14px] leading-snug text-white">{view.tagline}</p>
+              </div>
+            </div>
+          )}
         </aside>
       )}
 

@@ -47,4 +47,16 @@ describe("the organisation the sign-in page names", () => {
     const { logo } = await loadSignInBranding("org-1", NOW);
     expect(logo).toEqual({ sha: "abc", width: 512, height: 512 });
   });
+
+  it("carries the logo for dark backgrounds when one is set, and null when it is not (nothing stands in for it)", async () => {
+    findUnique.mockResolvedValueOnce({ name: "Example", shortName: null, timeZone: null, logo: { sha256: "abc", width: 512, height: 512 }, signInDarkLogo: { sha256: "def", width: 400, height: 120 }, signInImage: null, signInPage: null });
+    expect((await loadSignInBranding("org-1", NOW)).darkLogo).toEqual({ sha: "def", width: 400, height: 120 });
+    findUnique.mockResolvedValueOnce({ name: "Example", shortName: null, timeZone: null, logo: { sha256: "abc", width: 512, height: 512 }, signInImage: null, signInPage: null });
+    expect((await loadSignInBranding("org-1", NOW)).darkLogo).toBeNull();
+  });
+
+  it("a logo for dark backgrounds alone is enough for a panel", async () => {
+    findUnique.mockResolvedValueOnce({ name: "Example", shortName: null, timeZone: null, logo: null, signInDarkLogo: { sha256: "def", width: 400, height: 120 }, signInImage: null, signInPage: null });
+    expect((await loadSignInBranding("org-1", NOW)).view.hasPanel).toBe(true);
+  });
 });

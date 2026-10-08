@@ -11,12 +11,18 @@ import { Field, Input } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
 import { AUTH_WORDS } from "@/lib/auth/words";
 
+import { withoutError } from "./form-errors";
+
 /**
  * The form of the sign-in screens and the account page: a few text or password fields, one button, the action's answer.
  *
  * Fields are data, as in RecordEditor, so a server component declares them beside the action that reads them. Nothing is pre-filled. A
  * refused attempt keeps what was typed, except a password, which is cleared (a wrong one is not worth leaving on the screen). Where the
  * action answers with `href` the form goes there; otherwise a success message is shown and the form is emptied.
+ *
+ * What a field was refused for is said until the field is changed, and not a moment longer: any `input` event on it clears that one answer, and a browser's
+ * autofill fires the same event, so a name filled in after a refusal does not sit beside "needed". What is posted is always read from the fields themselves at
+ * the moment of submitting (never from a copy held here), so a value a browser filled in is the value sent.
  *
  * A password field may carry a show/hide button (`reveal`). It never submits, never moves focus, is never remembered, and goes back to hidden on
  * every submit (its name stays "Show password" and `aria-pressed` says which way it is, as a toggle button's does; only the hover tip switches); and because a shown password is a text input, the clearing after an answer goes by the declared password fields, not by input type.
@@ -78,7 +84,16 @@ export function AuthForm({
   };
 
   return (
-    <form ref={form} onSubmit={(e) => submit(formDataOf(e))} noValidate className="flex flex-col gap-4">
+    <form
+      ref={form}
+      onSubmit={(e) => submit(formDataOf(e))}
+      onInput={(e) => {
+        const name = (e.target as HTMLInputElement).name;
+        if (name) setState((prev) => withoutError(prev, name));
+      }}
+      noValidate
+      className="flex flex-col gap-4"
+    >
       {state.message && (
         <Callout tone={state.ok ? "ok" : "err"} className="mb-1">
           {state.message}

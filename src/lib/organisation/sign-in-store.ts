@@ -10,8 +10,8 @@ import { writeAudit, type Tx } from "@/lib/audit/record";
 import type { db } from "@/lib/db";
 import type { AuditActor } from "@/lib/auth/types";
 
-import { inspectSignInImage, signInImageFaultText } from "./logo";
-import { normaliseSignInPage, SIGN_IN_FIELDS, signInPageFaults, type SignInField, type SignInPageInput } from "./sign-in-page";
+import { inspectLogo, inspectSignInImage, logoFaultText, signInImageFaultText } from "./logo";
+import { normaliseSignInPage, SIGN_IN_FIELDS, signInPageFaults, signInValueLabel, type SignInField, type SignInPageInput } from "./sign-in-page";
 
 type Client = Pick<typeof db, "$transaction">;
 export interface Subject {
@@ -76,6 +76,45 @@ export async function clearSignInImage(client: Client, who: Subject, reason: str
   });
 }
 
+/// Replace the logo for the dark side of the page. It is the logo's own path: judged by the file's bytes, up to the logo's limit, the same bytes again change
+/// nothing, and the write and its audit row are one transaction under the organisation's lock.
+export async function storeDarkLogo(client: Client, who: Subject, bytes: Uint8Array): Promise<ImageOutcome> {
+  const check = inspectLogo(bytes);
+  if (!check.ok) return { ok: false, error: logoFaultText(check.fault, check.sizeBytes) };
+  const changed = await client.$transaction(async (tx) => {
+    await lockOrganisation(tx, who.organisationId);
+    const prior = await tx.organisationSignInDarkLogo.findUnique({ where: { organisationId: who.organisationId }, select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true } });
+    if (prior?.sha256 === check.sha256) return false;
+    const row = { bytes: Buffer.from(bytes), mediaType: check.mediaType, sizeBytes: check.sizeBytes, sha256: check.sha256, width: check.width, height: check.height, uploadedAt: new Date() };
+    const saved = await tx.organisationSignInDarkLogo.upsert({
+      where: { organisationId: who.organisationId },
+      create: { organisationId: who.organisationId, ...row },
+      update: row,
+      select: { id: true },
+    });
+    await writeAudit(
+      tx,
+      { actor: who.actor, organisationId: who.organisationId, entity: "OrganisationSignInDarkLogo", entityId: saved.id, entityLabel: who.organisationName },
+      prior ? "UPDATE" : "CREATE",
+      diffFields(prior ? imageFacts(prior) : null, imageFacts(check)),
+    );
+    return true;
+  });
+  return { ok: true, changed };
+}
+
+/// Remove the logo for the dark side; the page shows the ordinary logo on a light backdrop again. The reason is recorded.
+export async function clearDarkLogo(client: Client, who: Subject, reason: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  return client.$transaction(async (tx) => {
+    await lockOrganisation(tx, who.organisationId);
+    const logo = await tx.organisationSignInDarkLogo.findUnique({ where: { organisationId: who.organisationId }, select: { id: true, sha256: true, mediaType: true, sizeBytes: true, width: true, height: true } });
+    if (!logo) return { ok: false as const, error: "There is no logo for dark backgrounds to remove." };
+    await tx.organisationSignInDarkLogo.delete({ where: { id: logo.id, organisationId: who.organisationId } });
+    await writeAudit(tx, { actor: who.actor, organisationId: who.organisationId, entity: "OrganisationSignInDarkLogo", entityId: logo.id, entityLabel: who.organisationName, reason }, "DELETE", snapshotFields(imageFacts(logo)));
+    return { ok: true as const };
+  });
+}
+
 export type PageOutcome = { ok: true; changed: boolean } | { ok: false; errors: Partial<Record<SignInField, string>> };
 
 /// Save the sign-in page's words and links. Refused, field by field, with what to fix; blank clears a setting.
@@ -86,7 +125,12 @@ export async function storeSignInPage(client: Client, who: Subject, input: SignI
   const changed = await client.$transaction(async (tx) => {
     await lockOrganisation(tx, who.organisationId);
     const prior = await tx.organisationSignInPage.findUnique({ where: { organisationId: who.organisationId } });
-    const changes = diffFields(Object.fromEntries(SIGN_IN_FIELDS.map((f) => [f, prior?.[f] ?? null])), after);
+    // An icon is a setting key and reads in the trail by its label ("Shield with a tick"), as an image reads "PNG" and not "image/png".
+    const shown = (f: SignInField, v: string | null) => signInValueLabel(f, v);
+    const changes = diffFields(
+      Object.fromEntries(SIGN_IN_FIELDS.map((f) => [f, shown(f, prior?.[f] ?? null)])),
+      Object.fromEntries(SIGN_IN_FIELDS.map((f) => [f, shown(f, after[f])])),
+    );
     if (changes.length === 0) return false;
     const saved = await tx.organisationSignInPage.upsert({
       where: { organisationId: who.organisationId },

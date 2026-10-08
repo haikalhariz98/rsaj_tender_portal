@@ -353,3 +353,29 @@ export const LogOutIcon = (p: IconProps) => (
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
   </Icon>
 );
+
+/// A document with lines of text on it.
+export const DocumentTextIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7Z" />
+    <path d="M14 2v5h5M9 12h6M9 16h6M9 8h2" />
+  </Icon>
+);
+
+/// A group: one person in front of two behind.
+export const PeopleGroupIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="8" r="3" />
+    <path d="M6.5 20v-1.5a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4V20" />
+    <path d="M17.5 5.2a2.6 2.6 0 0 1 0 5M20.5 18.5V17a3.5 3.5 0 0 0-2-3.1" />
+    <path d="M6.5 5.2a2.6 2.6 0 0 0 0 5M3.5 18.5V17a3.5 3.5 0 0 1 2-3.1" />
+  </Icon>
+);
+
+/// A shield with a tick in it.
+export const ShieldCheckIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z" />
+    <path d="m9 12 2.2 2.2L15.5 10" />
+  </Icon>
+);

@@ -2,7 +2,7 @@
  * What the staff sign-in page says about the organisation, and how it is judged.
  *
  * Every word here is the organisation's own choice, stored nullable: the portal name, the headline, the supporting sentence, three
- * highlights, the tagline and the three footer links. Nothing is proposed. Unset means the element is not drawn (or, for the card's
+ * highlights (each with an optional icon from a fixed set), the tagline and the three footer links. Nothing is proposed. Unset means the element is not drawn (or, for the card's
  * title, the neutral product word "Sign in" stands); it never means a stand-in sentence about the organisation.
  *
  * Pure: the page asks `signInView` what to draw and renders it, and the configuration action asks `signInPageFaults` and
@@ -12,7 +12,39 @@ import { dayIn } from "@/lib/dates";
 
 export const SIGN_IN_TEXT_FIELDS = ["portalName", "headline", "supportingText", "highlight1", "highlight2", "highlight3", "tagline"] as const;
 export const SIGN_IN_LINK_FIELDS = ["privacyUrl", "termsUrl", "helpDeskUrl"] as const;
-export const SIGN_IN_FIELDS = [...SIGN_IN_TEXT_FIELDS, ...SIGN_IN_LINK_FIELDS] as const;
+/// The icon beside each highlight. Optional: unset draws the neutral tick, because an icon nobody chose would claim a meaning nobody gave it.
+export const SIGN_IN_ICON_FIELDS = ["highlight1Icon", "highlight2Icon", "highlight3Icon"] as const;
+export const SIGN_IN_FIELDS = [...SIGN_IN_TEXT_FIELDS, ...SIGN_IN_ICON_FIELDS, ...SIGN_IN_LINK_FIELDS] as const;
+
+/// The fixed set a highlight's icon is chosen from. These are setting keys: they are stored, and never drawn as text. The screen shows `SIGN_IN_ICON_LABEL`
+/// in the settings form and a drawing (src/components/icons.tsx) on the sign-in page. Adding one means a drawing for it, and the sign-in screen's map says so.
+export const SIGN_IN_ICONS = ["document", "people", "shield", "check", "lock", "clock", "chart", "award"] as const;
+export type SignInIcon = (typeof SIGN_IN_ICONS)[number];
+
+export const SIGN_IN_ICON_LABEL: Record<SignInIcon, string> = {
+  document: "Document",
+  people: "Group of people",
+  shield: "Shield with a tick",
+  check: "Tick",
+  lock: "Padlock",
+  clock: "Clock",
+  chart: "Chart",
+  award: "Award rosette",
+};
+
+const isIconField = (f: SignInField): f is (typeof SIGN_IN_ICON_FIELDS)[number] => (SIGN_IN_ICON_FIELDS as readonly string[]).includes(f);
+
+/// The icon a stored value names, or null: a value that is not in the set (written some other way) is never drawn.
+export function signInIconOf(value: string | null | undefined): SignInIcon | null {
+  return (SIGN_IN_ICONS as readonly string[]).includes(value ?? "") ? (value as SignInIcon) : null;
+}
+
+/// How a stored value reads where a person sees it (the change history): an icon by its label, anything else as it is.
+export function signInValueLabel(field: SignInField, value: string | null): string | null {
+  if (!isIconField(field) || value == null) return value;
+  const icon = signInIconOf(value);
+  return icon ? SIGN_IN_ICON_LABEL[icon] : value;
+}
 
 export type SignInField = (typeof SIGN_IN_FIELDS)[number];
 
@@ -29,6 +61,9 @@ export const SIGN_IN_LABEL: Record<SignInField, string> = {
   highlight1: "First highlight",
   highlight2: "Second highlight",
   highlight3: "Third highlight",
+  highlight1Icon: "First highlight's icon",
+  highlight2Icon: "Second highlight's icon",
+  highlight3Icon: "Third highlight's icon",
   tagline: "Tagline",
   privacyUrl: "Privacy link",
   termsUrl: "Terms link",
@@ -42,6 +77,9 @@ export const SIGN_IN_MAX: Record<SignInField, number> = {
   highlight1: 40,
   highlight2: 40,
   highlight3: 40,
+  highlight1Icon: 20,
+  highlight2Icon: 20,
+  highlight3Icon: 20,
   tagline: 120,
   privacyUrl: 300,
   termsUrl: 300,
@@ -84,6 +122,7 @@ export function normaliseSignInPage(input: SignInPageInput): SignInPageSettings 
     out[f] = v === "" ? null : v;
   }
   for (const f of SIGN_IN_LINK_FIELDS) if (out[f]) out[f] = withScheme(out[f]!);
+  for (const f of SIGN_IN_ICON_FIELDS) if (out[f]) out[f] = out[f]!.toLowerCase();
   return out;
 }
 
@@ -94,6 +133,9 @@ export function signInPageFaults(input: SignInPageInput): Partial<Record<SignInF
   for (const f of SIGN_IN_FIELDS) {
     const text = v[f];
     if (text && text.length > SIGN_IN_MAX[f]) faults[f] = `${SIGN_IN_LABEL[f]} can be at most ${SIGN_IN_MAX[f]} characters. This is ${text.length}.`;
+  }
+  for (const f of SIGN_IN_ICON_FIELDS) {
+    if (v[f] && !signInIconOf(v[f])) faults[f] = `${SIGN_IN_LABEL[f]} must be one of the icons in the list.`;
   }
   for (const f of SIGN_IN_LINK_FIELDS) {
     if (v[f] && !faults[f] && !safeLinkHref(v[f])) faults[f] = `${SIGN_IN_LABEL[f]} must be a web address starting with https:// (or http://), for example https://www.example.com/help.`;
@@ -108,8 +150,8 @@ export interface SignInView {
   portalName: string | null;
   headline: string | null;
   supportingText: string | null;
-  /// Up to three, in order, none empty.
-  highlights: string[];
+  /// Up to three, in order, none without words. `icon` is null where none was chosen: the page then draws the neutral tick.
+  highlights: { text: string; icon: SignInIcon | null }[];
   tagline: string | null;
   /// Only the links that are set and safe, in the order they are shown.
   links: { label: string; href: string }[];
@@ -128,7 +170,11 @@ export function signInView(
   context: { organisationName: string; hasImage: boolean; hasLogo: boolean; now: Date; timeZone: string | null },
 ): SignInView {
   const s = normaliseSignInPage(settings ?? {});
-  const highlights = [s.highlight1, s.highlight2, s.highlight3].filter((h): h is string => h != null);
+  const highlights = (["highlight1", "highlight2", "highlight3"] as const).flatMap((f) => {
+    const text = s[f];
+    // An icon with no words beside it says nothing, so it goes with them.
+    return text == null ? [] : [{ text, icon: signInIconOf(s[`${f}Icon` as const]) }];
+  });
   const links = SIGN_IN_LINK_FIELDS.flatMap((f) => {
     const href = safeLinkHref(s[f]);
     return href ? [{ label: LINK_NAME[f], href }] : [];

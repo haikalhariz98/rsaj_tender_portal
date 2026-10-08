@@ -36,7 +36,7 @@ import {
   KIND_LABEL,
 } from "./editors";
 import { LogoCard, type LogoInfo } from "./logo-card";
-import { SignInPageCards, type SignInImageInfo } from "./sign-in-cards";
+import { SignInPageCards, type SignInDarkLogoInfo, type SignInImageInfo } from "./sign-in-cards";
 import type { SignInPageSettings } from "@/lib/organisation/sign-in-page";
 
 /**
@@ -54,6 +54,7 @@ export interface OrganisationPanelData {
   details: Details;
   logo: LogoInfo | null;
   signInImage: SignInImageInfo | null;
+  signInDarkLogo: SignInDarkLogoInfo | null;
   signInPage: SignInPageSettings;
   /// The zone the organisation keeps its dates in, with its label; null while unset.
   timeZone: { value: string; label: string } | null;
@@ -110,7 +111,7 @@ export function OrganisationScreen(data: OrganisationPanelData) {
       label="Organisation"
       initial={data.view ?? undefined}
       tabs={[
-        { id: "details", label: "Details", panel: <DetailsView details={data.details} logo={data.logo} signInImage={data.signInImage} signInPage={data.signInPage} timeZone={data.timeZone} timeZoneOptions={data.timeZoneOptions} /> },
+        { id: "details", label: "Details", panel: <DetailsView details={data.details} logo={data.logo} signInImage={data.signInImage} signInDarkLogo={data.signInDarkLogo} signInPage={data.signInPage} timeZone={data.timeZone} timeZoneOptions={data.timeZoneOptions} /> },
         { id: "structure", label: "Structure", count: data.units.length, panel: <StructureView {...data} /> },
         {
           id: "cost-centres",
@@ -129,7 +130,7 @@ export function OrganisationScreen(data: OrganisationPanelData) {
 const NOT_SET = <span className="text-ink-4">Not set</span>;
 
 /// The identity the portal, reports and letters carry. Unset reads "Not set", never blank.
-function DetailsView({ details, logo, signInImage, signInPage, timeZone, timeZoneOptions }: { details: Details; logo: LogoInfo | null; signInImage: SignInImageInfo | null; signInPage: SignInPageSettings; timeZone: OrganisationPanelData["timeZone"]; timeZoneOptions: OrganisationPanelData["timeZoneOptions"] }) {
+function DetailsView({ details, logo, signInImage, signInDarkLogo, signInPage, timeZone, timeZoneOptions }: { details: Details; logo: LogoInfo | null; signInImage: SignInImageInfo | null; signInDarkLogo: SignInDarkLogoInfo | null; signInPage: SignInPageSettings; timeZone: OrganisationPanelData["timeZone"]; timeZoneOptions: OrganisationPanelData["timeZoneOptions"] }) {
   const value = (v: string | null) => v ?? NOT_SET;
   const address = [details.addressLine1, details.addressLine2, [details.postcode, details.city].filter(Boolean).join(" "), details.state, details.country].filter(Boolean);
   return (
@@ -177,7 +178,7 @@ function DetailsView({ details, logo, signInImage, signInPage, timeZone, timeZon
         </CardBody>
       </Card>
       <LogoCard logo={logo} />
-      <SignInPageCards image={signInImage} settings={signInPage} />
+      <SignInPageCards image={signInImage} darkLogo={signInDarkLogo} settings={signInPage} />
     </div>
   );
 }

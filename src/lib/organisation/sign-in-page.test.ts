@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normaliseSignInPage, safeLinkHref, SIGN_IN_DEFAULT_TITLE, SIGN_IN_FIELDS, SIGN_IN_MAX, signInPageFaults, signInView } from "./sign-in-page";
+import { normaliseSignInPage, safeLinkHref, SIGN_IN_DEFAULT_TITLE, SIGN_IN_FIELDS, SIGN_IN_ICON_LABEL, SIGN_IN_ICONS, SIGN_IN_MAX, signInIconOf, signInPageFaults, signInValueLabel, signInView } from "./sign-in-page";
 
 const NOW = new Date("2027-01-01T00:30:00Z");
 const ctx = { organisationName: "Example Organisation", hasImage: false, hasLogo: false, now: NOW, timeZone: null as string | null };
@@ -65,7 +65,28 @@ describe("what the page draws", () => {
   it("the portal name becomes the title; highlights keep their order and drop the blanks", () => {
     const v = signInView({ portalName: "Example Portal", highlight1: "One", highlight2: "  ", highlight3: "Three" }, ctx);
     expect(v.title).toBe("Example Portal");
-    expect(v.highlights).toEqual(["One", "Three"]);
+    expect(v.highlights).toEqual([
+      { text: "One", icon: null },
+      { text: "Three", icon: null },
+    ]);
+  });
+
+  it("draws an icon only where one was chosen, beside the words it was chosen for", () => {
+    const v = signInView({ highlight1: "One", highlight1Icon: "document", highlight2: "Two", highlight3: "Three", highlight3Icon: "shield" }, ctx);
+    expect(v.highlights).toEqual([
+      { text: "One", icon: "document" },
+      { text: "Two", icon: null },
+      { text: "Three", icon: "shield" },
+    ]);
+  });
+
+  it("an icon with no words beside it goes with them", () => {
+    expect(signInView({ highlight2Icon: "people" }, ctx).highlights).toEqual([]);
+    expect(signInView({ highlight1: " ", highlight1Icon: "people", highlight2: "Two" }, ctx).highlights).toEqual([{ text: "Two", icon: null }]);
+  });
+
+  it("a stored value that is not in the set is never drawn", () => {
+    expect(signInView({ highlight1: "One", highlight1Icon: "skull" }, ctx).highlights).toEqual([{ text: "One", icon: null }]);
   });
 
   it("shows only the links that are set and safe, in the footer's order", () => {
@@ -80,5 +101,41 @@ describe("what the page draws", () => {
     expect(signInView(null, { ...ctx, timeZone: null }).year).toBe("2027");
     expect(signInView(null, { ...ctx, timeZone: "America/New_York" }).year).toBe("2026");
     expect(signInView(null, { ...ctx, timeZone: "Asia/Kuala_Lumpur" }).year).toBe("2027");
+  });
+});
+
+describe("each highlight's icon, chosen from a fixed set", () => {
+  it("the set is document, people, shield and tick among others, each with a sentence-case label", () => {
+    for (const k of ["document", "people", "shield", "check"]) expect(SIGN_IN_ICONS).toContain(k);
+    for (const k of SIGN_IN_ICONS) expect(SIGN_IN_ICON_LABEL[k]).toMatch(/^[A-Z][a-z]+( [a-z]+)*$/);
+  });
+
+  it("ships with no icon chosen: nothing is a default", () => {
+    const s = normaliseSignInPage({});
+    expect([s.highlight1Icon, s.highlight2Icon, s.highlight3Icon]).toEqual([null, null, null]);
+  });
+
+  it("stores a chosen icon as its key, tidied, and blank as null", () => {
+    expect(normaliseSignInPage({ highlight1Icon: " Document " }).highlight1Icon).toBe("document");
+    expect(normaliseSignInPage({ highlight2Icon: "  " }).highlight2Icon).toBeNull();
+  });
+
+  it("refuses anything that is not in the set, in words", () => {
+    expect(signInPageFaults({ highlight1Icon: "skull" }).highlight1Icon).toMatch(/one of the icons in the list/);
+    expect(signInPageFaults({ highlight3Icon: "<script>" }).highlight3Icon).toMatch(/one of the icons/);
+    expect(signInPageFaults({ highlight1Icon: "people", highlight2Icon: "SHIELD" })).toEqual({});
+  });
+
+  it("knows a key from a value that only looks like one", () => {
+    expect(signInIconOf("shield")).toBe("shield");
+    expect(signInIconOf("Shield")).toBeNull();
+    expect(signInIconOf(null)).toBeNull();
+    expect(signInIconOf("constructor")).toBeNull();
+  });
+
+  it("reads an icon by its label where a person sees it (the change history), and other fields as they are", () => {
+    expect(signInValueLabel("highlight1Icon", "shield")).toBe("Shield with a tick");
+    expect(signInValueLabel("highlight1Icon", null)).toBeNull();
+    expect(signInValueLabel("headline", "shield")).toBe("shield");
   });
 });

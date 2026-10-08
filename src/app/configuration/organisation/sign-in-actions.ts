@@ -6,9 +6,9 @@ import type { FormState } from "@/components/record-editor";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
 import type { StaffActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
-import { SIGN_IN_IMAGE_MAX_BYTES, signInImageFaultText } from "@/lib/organisation/logo";
+import { LOGO_MAX_BYTES, logoFaultText, SIGN_IN_IMAGE_MAX_BYTES, signInImageFaultText } from "@/lib/organisation/logo";
 import { SIGN_IN_FIELDS, type SignInPageInput } from "@/lib/organisation/sign-in-page";
-import { clearSignInImage, storeSignInImage, storeSignInPage, type Subject } from "@/lib/organisation/sign-in-store";
+import { clearDarkLogo, clearSignInImage, storeDarkLogo, storeSignInImage, storeSignInPage, type Subject } from "@/lib/organisation/sign-in-store";
 
 const PATH = "/configuration/organisation";
 
@@ -48,6 +48,33 @@ export async function removeSignInImage(_prev: FormState, data: FormData): Promi
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "Say why the sign-in image is being removed." } };
   const outcome = await clearSignInImage(db, who, reason);
+  if (!outcome.ok) return { ok: false, message: outcome.error };
+  refresh();
+  return { ok: true };
+}
+
+/// Replace the logo for the dark side of the sign-in page. The logo's own rules: PNG, JPEG or WebP by the file's bytes, up to the logo's limit.
+export async function uploadDarkLogo(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const who = await subjectOf(actor);
+  if (!who) return NO_ORG;
+  const file = data.get("darkLogo");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, errors: { darkLogo: logoFaultText("EMPTY", 0) } };
+  if (file.size > LOGO_MAX_BYTES) return { ok: false, errors: { darkLogo: logoFaultText("TOO_LARGE", file.size) } };
+  const outcome = await storeDarkLogo(db, who, new Uint8Array(await file.arrayBuffer()));
+  if (!outcome.ok) return { ok: false, errors: { darkLogo: outcome.error } };
+  if (outcome.changed) refresh();
+  return { ok: true, message: outcome.changed ? "Saved. The sign-in page shows this logo, with no backdrop, now." : "That is already the logo for dark backgrounds." };
+}
+
+/// Remove the logo for the dark side; the sign-in page shows the ordinary logo on a light backdrop again. A reason is required.
+export async function removeDarkLogo(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const who = await subjectOf(actor);
+  if (!who) return NO_ORG;
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "Say why the logo for dark backgrounds is being removed." } };
+  const outcome = await clearDarkLogo(db, who, reason);
   if (!outcome.ok) return { ok: false, message: outcome.error };
   refresh();
   return { ok: true };

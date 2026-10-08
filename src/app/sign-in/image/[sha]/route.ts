@@ -5,7 +5,9 @@ import { db } from "@/lib/db";
 import { deploymentOrganisation } from "@/lib/portal/deployment";
 
 /**
- * The sign-in page's image, by its fingerprint.
+ * The sign-in page's image, and the organisation's logo for the dark side of that page, by their fingerprints.
+ *
+ * Both are the organisation's own pictures for the same public page, so they are served by one address, looked up in this organisation's rows only.
  *
  * Served as the logo is, and for the same reason it is public: it is drawn on a page nobody is signed in to see. The address changes whenever the
  * image does, so it can be cached for good. The type is the one sniffed from the bytes when it was uploaded, `nosniff` stops a browser second-guessing it,
@@ -18,10 +20,10 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/sign-in/image/[
   // Whose image: the signed-in person's organisation (the configuration screen's preview), else the deployment's one (the sign-in page) (ADR 0034 D10).
   const organisationId = (await currentStaffOrNull())?.organisationId ?? (await deploymentOrganisation())?.id;
   if (!organisationId) return missing();
-  const image = await db.organisationSignInImage.findFirst({
-    where: { sha256: sha, organisationId },
-    select: { bytes: true, mediaType: true },
-  });
+  const select = { bytes: true, mediaType: true } as const;
+  const image =
+    (await db.organisationSignInImage.findFirst({ where: { sha256: sha, organisationId }, select })) ??
+    (await db.organisationSignInDarkLogo.findFirst({ where: { sha256: sha, organisationId }, select }));
   if (!image) return missing();
 
   return new Response(new Uint8Array(image.bytes), {

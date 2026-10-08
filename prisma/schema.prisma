@@ -189,6 +189,7 @@ model Organisation {
   logo            OrganisationLogo?
   signInImage     OrganisationSignInImage?
   signInPage      OrganisationSignInPage?
+  signInDarkLogo  OrganisationSignInDarkLogo?
   roles           AuthorityRole[]
   matrices        AuthorityMatrix[]
   people          Person[]
@@ -1646,6 +1647,26 @@ model OrganisationSignInImage {
   @@index([sha256])
 }
 
+/// The organisation's logo for the dark, shaded left side of the staff sign-in page (optional). Stored and judged as the logo is. None means the
+/// sign-in page shows the ordinary logo on a light translucent backdrop; the page never judges whether a logo reads and never recolours it.
+model OrganisationSignInDarkLogo {
+  id             String       @id @default(cuid())
+  organisationId String       @unique
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  bytes     Bytes
+  /// image/png, image/jpeg or image/webp, as sniffed.
+  mediaType String
+  sizeBytes Int
+  /// Fingerprint of the bytes. A new upload is a new address, so nothing needs busting.
+  sha256    String
+  width     Int
+  height    Int
+  uploadedAt DateTime @default(now())
+
+  @@index([sha256])
+}
+
 /// The words and links on the staff sign-in page. Every column is the organisation's own choice and nullable: null means that element is
 /// not drawn (the card's title falls back to the product's neutral "Sign in"). Nothing is seeded. Links are web addresses only, checked on
 /// save and again when drawn.
@@ -1660,6 +1681,11 @@ model OrganisationSignInPage {
   highlight1     String?
   highlight2     String?
   highlight3     String?
+  /// Each highlight's icon, optional, chosen from the fixed set in src/lib/organisation/sign-in-page.ts. A setting key, never drawn as text;
+  /// null draws the neutral tick, because an icon nobody chose would claim a meaning nobody gave it.
+  highlight1Icon String?
+  highlight2Icon String?
+  highlight3Icon String?
   tagline        String?
   privacyUrl     String?
   termsUrl       String?

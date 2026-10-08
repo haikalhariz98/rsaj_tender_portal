@@ -13,7 +13,7 @@ import { normaliseSignInPage } from "@/lib/organisation/sign-in-page";
 
 import { timeZoneLabel, timeZoneOptions } from "@/lib/time-zone-label";
 import type { LogoInfo } from "./logo-card";
-import type { SignInImageInfo } from "./sign-in-cards";
+import type { SignInDarkLogoInfo, SignInImageInfo } from "./sign-in-cards";
 import { OrganisationScreen } from "./panels";
 import { requireStaff } from "@/app/_auth/actor";
 
@@ -41,6 +41,7 @@ export default async function OrganisationPage({
     include: {
       logo: { select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true, uploadedAt: true } },
       signInImage: { select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true, uploadedAt: true } },
+      signInDarkLogo: { select: { sha256: true, mediaType: true, sizeBytes: true, width: true, height: true, uploadedAt: true } },
       signInPage: true,
     },
   });
@@ -64,6 +65,16 @@ export default async function OrganisationPage({
         width: org.signInImage.width,
         height: org.signInImage.height,
         uploadedOn: formatOrgDay(org.signInImage.uploadedAt, timeZone),
+      }
+    : null;
+  const signInDarkLogo: SignInDarkLogoInfo | null = org?.signInDarkLogo
+    ? {
+        sha: org.signInDarkLogo.sha256,
+        mediaType: org.signInDarkLogo.mediaType,
+        sizeKb: Math.ceil(org.signInDarkLogo.sizeBytes / 1024),
+        width: org.signInDarkLogo.width,
+        height: org.signInDarkLogo.height,
+        uploadedOn: formatOrgDay(org.signInDarkLogo.uploadedAt, timeZone),
       }
     : null;
   const { roots, detached, faults } = buildStructure(data.units, on);
@@ -115,6 +126,7 @@ export default async function OrganisationPage({
         details={details ?? normaliseDetails({})}
         logo={logo}
         signInImage={signInImage}
+        signInDarkLogo={signInDarkLogo}
         signInPage={normaliseSignInPage(org?.signInPage ?? {})}
         timeZone={timeZone ? { value: timeZone, label: timeZoneLabel(timeZone) } : null}
         timeZoneOptions={timeZoneOptions()}
