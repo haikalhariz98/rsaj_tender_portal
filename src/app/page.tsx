@@ -32,6 +32,8 @@ import { matterLabel } from "@/lib/labels";
 import { greetingAt } from "@/lib/dates";
 import { organisationTimeZone } from "@/lib/org-time";
 import { requireStaff } from "@/app/_auth/actor";
+import { SignInNotices } from "@/components/auth/sign-in-notices";
+import { loadAccountView } from "@/lib/auth/account-view";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +70,7 @@ const COMING = [
 
 export default async function Dashboard() {
   const actor = await requireStaff();
+  const accountView = await loadAccountView(actor);
   const [data, timeZone] = await Promise.all([loadDashboard(actor.organisationId, await hiddenExercises(actor)), organisationTimeZone(actor.organisationId)]);
 
   if (!data) {
@@ -122,6 +125,8 @@ export default async function Dashboard() {
           </>
         }
       />
+
+      <SignInNotices view={accountView} />
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
