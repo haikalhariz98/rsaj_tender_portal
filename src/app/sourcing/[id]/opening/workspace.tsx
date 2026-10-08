@@ -73,11 +73,11 @@ export async function loadOpening(actor: StaffActor, exerciseId: string): Promis
   return {
     notes,
     actions: d.startNeeded ? <StartOpeningDrawer exerciseId={exerciseId} allowed={d.start.allowed} seats={d.start.seats} people={d.people} panelSize={d.start.panelSize} independence={d.start.independence} estimateLate={d.start.estimateLate} noteId={EXERCISE_NOTE_ID} /> : null,
-    panel: <OpeningPanel d={d} />,
+    panel: <OpeningPanel d={d} viewerPersonId={actor.personId} />,
   };
 }
 
-function OpeningPanel({ d }: { d: OpeningSectionView }) {
+function OpeningPanel({ d, viewerPersonId }: { d: OpeningSectionView; viewerPersonId: string }) {
   return (
     <div className="flex flex-col gap-6">
       <Statement />
@@ -99,7 +99,7 @@ function OpeningPanel({ d }: { d: OpeningSectionView }) {
         </Card>
       )}
       {d.openings.map((o) => (
-        <OpeningCard key={o.id} d={d} o={o} />
+        <OpeningCard key={o.id} d={d} o={o} viewerPersonId={viewerPersonId} />
       ))}
       <LateCard d={d} />
       <Card>
@@ -115,7 +115,7 @@ function OpeningPanel({ d }: { d: OpeningSectionView }) {
 /// A disabled act whose only reason is what holds the whole record back is not repeated: that reason is said once, at the top.
 const shown = (o: OpeningView, a: { allowed: boolean; reason?: string } | null) => !!a && (a.allowed || a.reason !== o.held);
 
-function OpeningCard({ d, o }: { d: OpeningSectionView; o: OpeningView }) {
+function OpeningCard({ d, o, viewerPersonId }: { d: OpeningSectionView; o: OpeningView; viewerPersonId: string }) {
   const ex = d.exerciseId;
   return (
     <Card className="overflow-hidden">
@@ -159,7 +159,7 @@ function OpeningCard({ d, o }: { d: OpeningSectionView; o: OpeningView }) {
                 </span>
                 <Chip tone={p.present ? "ok" : undefined}>{p.present ? "Present" : "Absent"}</Chip>
                 {p.authorised && <Chip tone="brand">{`Authorised sitting ${o.sittingNo}`}</Chip>}
-                {shown(o, p.authorise) && !p.authorised && !o.finalised && p.authorise && <AuthoriseDrawer exerciseId={ex} openingId={o.id} personId={p.personId} name={p.name} allowed={p.authorise} />}
+                {shown(o, p.authorise) && !p.authorised && !o.finalised && p.authorise && (p.personId === viewerPersonId ? <AuthoriseDrawer exerciseId={ex} openingId={o.id} name={p.name} allowed={p.authorise} /> : <span className="text-[12.5px] text-ink-3">Authorises signed in as themselves</span>)}
               </li>
             ))}
           </ul>

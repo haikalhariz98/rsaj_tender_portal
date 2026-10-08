@@ -88,7 +88,7 @@ export const REPORTED_LABEL: Readonly<Record<Reported, string>> = {
 /// The statement the Opening tab makes (C-2): what is recorded, and what it is not.
 export const OPENING_STATEMENT = {
   title: "The box and its key remain the control",
-  body: "Two officers authorise the opening: each signs in with their password, or has their paper authorisation recorded for them and not signed.",
+  body: "Two officers authorise the opening: each present panel member signs in as themselves and gives their own password. Nobody authorises for another.",
 } as const;
 
 /// The benchmark row before disclosure (OD-2 A).

@@ -89,11 +89,15 @@ describe("every Person relation is an act slot or is accounted for", () => {
     }
   });
 
-  it("every signature-class slot a person signs may also be recorded from paper, except the two configuration ones, which are not", () => {
+  // Changed deliberately in Phase 3d, to match the product owner's ruling of 2026-10-07 on the 2b review (FR-OPN-003): an opening authorisation is each present member's own, signed in
+  // as themselves with their own password, and is no longer recorded from paper for a member. It joins the two configuration signatures as a signature that is not paper-capable.
+  it("every signature-class slot a person signs may also be recorded from paper, except the two configuration ones, the opening authorisation, the conflict declaration and the panel verification, which are not", () => {
+    // FR-APR-009 and FR-EST-005 (Phase 3d, "conflict declarations are signed" and "panel verifications are signed"): the declaration and the verification are the signer's own sign-in,
+    // never recorded for them from paper (the signed paper form of the panel stays attached and required; an open item for the product owner).
+    const NOT_FROM_PAPER = ["ApprovalStep.declaredBy", "AuthorityMatrix.issuedByPerson", "ConfigurationChange.decidedBy", "OpeningAuthorisation.person", "SpecPanelVerification.person"];
     for (const s of SIGNATURE_SLOTS) {
       const key = slotKey(s.entity, s.field);
-      const config = key === "AuthorityMatrix.issuedByPerson" || key === "ConfigurationChange.decidedBy";
-      expect(s.onBehalf, key).toBe(!config);
+      expect(s.onBehalf, key).toBe(!NOT_FROM_PAPER.includes(key));
     }
   });
 });
@@ -148,6 +152,7 @@ describe("the signature-class acts", () => {
   it("are the approvals, signatures and unsealings the programme names", () => {
     expect(SIGNATURE_SLOTS.map((s) => slotKey(s.entity, s.field)).sort()).toEqual(
       [
+        "ApprovalStep.declaredBy",
         "ApprovalStep.decidedBy",
         "Award.signatoryPerson",
         "AuthorityMatrix.issuedByPerson",
@@ -160,6 +165,7 @@ describe("the signature-class acts", () => {
         "OpeningAuthorisation.person",
         "OpeningSignature.person",
         "ReconciliationAmendment.officer",
+        "SpecPanelVerification.person",
         "Variation.soDecidedBy",
         "WorkProgramme.decidedBy",
       ].sort(),

@@ -134,8 +134,6 @@ const slot = (entity: string, field: string, label: string, extra: SlotExtra = {
 /// A signature-class act: it may also be recorded from paper.
 const signed = (entity: string, field: string, label: string, holder: AdministratorAct, entryPoints: readonly string[]): ActSlot =>
   slot(entity, field, label, { signatureClass: true, onBehalf: true, holder, entryPoints });
-/// An act only the holder of an office may do, that is not a signature.
-const held = (entity: string, field: string, label: string, entryPoints: readonly string[], holder: AdministratorAct = "HOLDER_CHECKED"): ActSlot => slot(entity, field, label, { holder, entryPoints });
 /// A decision, endorsement, confirmation or record that is not a signature but may come from a paper record: the person it is attributed to (an S.O. or a
 /// representative, a signatory, a member) may not be the officer entering it. The 6.13 contract acts are all of this kind: they are recorded for the S.O. or
 /// a representative, judged on the capacity that person holds on the day.
@@ -172,7 +170,8 @@ export const ACT_SLOTS: readonly ActSlot[] = [
     "src/app/suppliers/link-actions.ts#decidePermissionStep",
     "src/app/suppliers/standing-actions.ts#decideStandingStep",
   ]),
-  held("ApprovalStep", "declaredBy", "Conflict declared by", ["src/app/approvals/actions.ts#escalateStep"]),
+  // FR-APR-009 (Phase 3d): a conflict is declared signed, with the declarer's own password, against the matter the route belongs to; the declarer recuses from the step. Not paper-capable.
+  slot("ApprovalStep", "declaredBy", "Conflict declared by", { signatureClass: true, holder: "HOLDER_CHECKED", entryPoints: ["src/app/approvals/actions.ts#escalateStep"] }),
   slot("SourcingExercise", "overriddenBy", "Contract type overridden by"),
   slot("SourcingExercise", "proposalReviewer", "Proposal reviewed by"),
 
@@ -190,7 +189,9 @@ export const ACT_SLOTS: readonly ActSlot[] = [
 
   // ---- scope, estimates and the tender pack
   slot("RateSchedule", "issuedBy", "Issued by"),
-  slot("SpecPanelVerification", "person", "Verified by"),
+  // FR-EST-005 (Phase 3d): each column of the specification panel is signed by its verifier with their own password, against the panel, in the column's capacity. Not paper-capable: the
+  // signed paper form is still attached (and required), but the verification is the signatory's own sign-in (an open item for the product owner, logged with Phase 3d).
+  slot("SpecPanelVerification", "person", "Verified by", { signatureClass: true, holder: "SIGNATURE", entryPoints: ["src/app/sourcing/[id]/scope/actions.ts#recordPanelVerification"] }),
   slot("CompanyEstimate", "preparer", "Prepared by"),
   slot("CompanyEstimateVersion", "preparer", "Prepared by"),
   paper("EstimateEvent", "person", "Recorded by"),
@@ -204,13 +205,16 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("BidEnvelope", "receivedBy", "Received by"),
   slot("BidWithdrawal", "receivedBy", "Received by"),
   slot("BidWithdrawal", "findingBy", "Finding recorded by"),
-  // The box event the second authorisation of a main opening makes is the consequence of an act that may be recorded from paper, so it can be too; locking the box itself is the officer's own (`onBehalf: false` at `lockBox`).
-  paper("BoxEvent", "person", "Recorded by"),
+  // The box event the second authorisation of a main opening makes is the consequence of an authorisation, which since Phase 3d is each member's own sign-in and is never
+  // recorded from paper; locking the box is the officer's own too. So no box event is recorded for someone else.
+  slot("BoxEvent", "person", "Recorded by"),
   slot("ValidityExtension", "recordedBy", "Recorded by"),
   slot("Opening", "startedBy", "Started by"),
   slot("Opening", "panelOverrideBy", "Panel override recorded by"),
   slot("OpeningSitting", "recordedBy", "Recorded by"),
-  signed("OpeningAuthorisation", "person", "Authorised by", "UNSEAL", ["src/app/sourcing/[id]/opening/actions.ts#recordAuthorisation"]),
+  // Each present panel member authorises with their own password, signed in as themselves: FR-OPN-003 (the product owner's ruling of 2026-10-07 on the 2b review, applied in
+  // Phase 3d). It is never recorded from paper for a member, so it is not paper-capable and the opening's page offers it to the member signed in alone.
+  slot("OpeningAuthorisation", "person", "Authorised by", { signatureClass: true, holder: "UNSEAL", entryPoints: ["src/app/sourcing/[id]/opening/actions.ts#recordAuthorisation"] }),
   paper("OpenedBidInitial", "person", "Initialled by"),
   signed("OpeningSignature", "person", "Signed by", "SIGNATURE", ["src/app/sourcing/[id]/opening/actions.ts#recordSignature"]),
   slot("EstimateCopyExplanation", "recordedBy", "Recorded by"),

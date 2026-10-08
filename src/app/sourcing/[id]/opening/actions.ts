@@ -320,7 +320,7 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
   const actor = holderGuard.actor;
   const now = stampNow();
   const openingId = String(data.get("openingId") ?? "");
-  // The panel member authorises with the password, or a paper authorisation is recorded for them (UNSEAL, Phase 2b).
+  // The panel member authorises with their own password, signed in as themselves (FR-OPN-003, Phase 3d). A person a form names is not read: nobody authorises for a member.
   const begun = await beginAct(actor, data, "OpeningAuthorisation.person", { personField: "personId", document: { entity: "Opening", id: openingId } });
   if (!begun.ok) return begun.state;
   const act = begun.act;
@@ -330,7 +330,8 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
     if (!o) return GONE_OPENING;
     const state = stateOf(o, l.ex.status);
     const person = await nameOf(tx, l.org.id, personId);
-    // Whoever keyed an earlier authorisation of this sitting from a member's paper is a hand behind it as well: two people act, never one (Phase 2b review).
+    // Authorisations recorded before Phase 3d could be keyed from a member's paper, and whoever keyed one is a hand behind it as well: two people act, never one (Phase 2b
+    // review). None is recorded that way now, so for a new one this finds nobody; it stays for the rows that exist.
     const keyedBy = await loadRecorders(tx, l.org.id, [{ entity: "OpeningAuthorisation", slot: "person", ids: o.authorisations.map((a) => a.id) }]);
     const auths = o.authorisations.map((a) => ({ ...a, recordedByPersonId: keyedBy.get(recorderKey({ entity: "OpeningAuthorisation", slot: "person", id: a.id })) ?? null }));
     const fs = authorisationFaults({ state, panel: panelOf(o), auths, personId, recorderId: act.recorderId, now, closing: l.ex.closingAt, boxLocked: lockedAtOrAfterClosing(c.events, l.ex.closingAt) });

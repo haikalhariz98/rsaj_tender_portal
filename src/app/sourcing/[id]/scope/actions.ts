@@ -43,7 +43,7 @@ import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { FormReader } from "@/lib/validate";
 import { bidFindingText } from "@/lib/bids/labels";
 import { recordEstimateLodgement } from "@/lib/bids/lodgement";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, staffForAct, toAuditActor } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 
@@ -459,19 +459,22 @@ export async function savePanel(_prev: FormState, data: FormData): Promise<FormS
   });
 }
 
-/// Record one column's verification: by the signed-in officer (Phase 2b; FR-EST-005 asks it signed, which is the next phase), on a day not after today.
+/// Record one column's verification (FR-EST-005, Phase 3d): signed by the verifier with their own password, in the capacity of the column, against the panel as it stands; dated today
+/// (or earlier as a recorded exception), never after.
 export async function recordPanelVerification(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForAct("SIGNATURE");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const r = new FormReader(data);
   const exerciseId = exerciseIdOf(data);
   const columnCode = r.text("columnCode", "Column", { required: true });
-  const verifiedOn = r.date("verifiedOn", "Verified on");
   const note = r.text("note", "Note", { max: 2000 });
   if (r.failed) return { ok: false, errors: r.errors };
-  const begun = await beginAct(actor, data, "SpecPanelVerification.person", { personField: "personId" });
+  const begun = await beginAct(actor, data, "SpecPanelVerification.person", { personField: "personId", dateField: "verifiedOn" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
   const personId = act.subjectPersonId;
+  const verifiedOn = act.day ? dayToDate(act.day) : null;
   return inExercise(actor, exerciseId, async (tx, l) => {
     const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
     if (!existing) return { ok: false, message: "Save the panel's details first." };
@@ -485,7 +488,8 @@ export async function recordPanelVerification(_prev: FormState, data: FormData):
     const column = columnsInForce(columns, today(l)).find((c) => c.code === columnCode)!;
     const row = await tx.specPanelVerification.create({ data: { organisationId: l.org.id, panelId: p.id, columnCode, columnLabelSnapshot: column.labelEn, personId: person!.id, verifiedOn: verifiedOn!, note } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.verification, row.id, label(l, `Specification panel · ${column.labelEn}`), "CREATE", verificationAudit({ column: column.labelEn, personName: person!.name, verifiedOn: storedDay(verifiedOn!), note }));
-    await act.write(tx, row.id);
+    // NFR-SIG-001: what is signed is the panel as it stands, and the capacity is the column verified (kept on the row: `columnCode`, with its label as it was).
+    await act.write(tx, row.id, { document: { entity: "SpecificationPanel", id: p.id } });
     return { ok: true };
   });
 }

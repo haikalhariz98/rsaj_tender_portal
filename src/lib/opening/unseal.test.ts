@@ -44,7 +44,9 @@ describe("authorising the opening (OD-11 at the closing second)", () => {
 });
 
 describe("two people authorise: one officer is never the hand behind both (review of Phase 2b)", () => {
-  // p1 and p2 are present panel members; "clerk" is an officer who holds the permission to key a paper authorisation and is not on the panel.
+  // Since Phase 3d (the product owner's ruling of 2026-10-07 on the 2b review, FR-OPN-003) a new authorisation is never keyed from a member's paper: `OpeningAuthorisation.person` is
+  // not paper-capable (`act-slots.test.ts`, `act-begin.test.ts`). These cases stay, unchanged, for the authorisations that were keyed that way before and still count.
+  // p1 and p2 are present panel members; "clerk" is an officer who held the permission to key a paper authorisation and is not on the panel.
   it("a member who keyed the other's paper authorisation does not also give their own", () => {
     expect(codes({ personId: "p1", recorderId: null, auths: [auth("p2", 1, false, "p1")] })).toEqual(["SAME_HAND"]);
   });

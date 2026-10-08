@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
 import { writeAudit } from "@/lib/audit/record";
+import { matterDocumentOf } from "@/lib/approvals/matter-document";
 import { someoneCanAct } from "@/lib/authority/absence";
 import { escalationFaultText, ESCALATION_KIND_LABEL } from "@/lib/authority/escalation-labels";
 import { actingOffice, stepEscalation } from "@/lib/authority/escalation";
@@ -59,10 +60,15 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
   const reason = r.text("reason", "Reason", { max: 2000 });
   if (!reason) r.reject("reason", "Say why the step is escalated.");
   if (r.failed || !kind) return { ok: false, errors: r.errors };
-  // A conflict is declared by the person who has it: the signed-in holder (Phase 2b). Escalating for want of anyone able to act declares nothing.
+  // A conflict is declared by the person who has it: the signed-in holder (Phase 2b), signing with their own password (FR-APR-009, Phase 3d) against the matter the route belongs to.
+  // Escalating for want of anyone able to act declares nothing.
   let act: PreparedAct | null = null;
   if (kind === "CONFLICT_DECLARED") {
-    const begun = await beginAct(actor, data, "ApprovalStep.declaredBy", { personField: "declaredByPersonId" });
+    const route = await db.approvalStep.findUnique({
+      where: { id: stepId, instance: { organisationId: actor.organisationId } },
+      select: { instance: { select: { requisitionId: true, exerciseId: true, awardId: true, supplierApplicationId: true, standingRequestId: true, specialPermissionId: true, certificateId: true, variationId: true, contractMatterId: true } } },
+    });
+    const begun = await beginAct(actor, data, "ApprovalStep.declaredBy", { personField: "declaredByPersonId", document: route ? matterDocumentOf(route.instance) : null });
     if (!begun.ok) return begun.state;
     act = begun.act;
   }
@@ -245,7 +251,8 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
             escalatedOn: after.escalatedOn,
           },
         ));
-      if (act) await act.write(tx, step.id);
+      // FR-APR-009 (Phase 3d): the declaration is signed with the declarer's password, against the matter the route belongs to (named when it was begun), in the office they held at the step.
+      if (act) await act.write(tx, step.id, { roleCode: office });
       // Phase 3c: the people the step now waits on are told, in the portal (the staff inbox), and the immediate superior on record is named where reporting lines
       // are recorded; where they are not, the notice says "Reporting line not set". Written in this transaction with a key that a retry meets and skips.
       const lines = await loadReportingLines(tx, req.organisationId);

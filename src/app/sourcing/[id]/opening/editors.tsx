@@ -30,7 +30,7 @@ import {
  * action and the pure checks behind it (`src/lib/opening`). Where those checks already say an act
  * cannot proceed, the control is disabled with the reason beside it, judged by the rule the action
  * runs. No time is ever asked: the server's clock stamps every act, to the second. Every person
- * named is the signed-in officer, or, for a panel member's paper authorisation, initial or signature, recorded for them and not signed (ADR 0017, Phase 2b). Nothing here offers a Delete.
+ * named is the signed-in officer, or, for a panel member's paper initial or signature, recorded for them and not signed (ADR 0017, Phase 2b). A panel member's authorisation is never recorded for them: each signs in as themselves (FR-OPN-003, Phase 3d). Nothing here offers a Delete.
  */
 
 type Option = { value: string; label: string };
@@ -111,12 +111,13 @@ export function StartSupplementaryDrawer({ exerciseId, decisionId, sequence, all
 
 // ------------------------------------------------------------------ authorising, adjourning
 
-export function AuthoriseDrawer({ exerciseId, openingId, personId, name, allowed }: { exerciseId: string; openingId: string; personId: string; name: string; allowed: Allowed }) {
+/// A panel member authorises their own seat, signed in as themselves (FR-OPN-003, Phase 3d): the page offers this only on the row of the member who is signed in.
+export function AuthoriseDrawer({ exerciseId, openingId, name, allowed }: { exerciseId: string; openingId: string; name: string; allowed: Allowed }) {
   return blockedOr(allowed, "Authorise", () => (
     <RecordEditor
       title={`${name} authorises the opening`}
-      description="Signed by the panel member with their password, or recorded from their paper for them, and stamped by the portal's clock when you save. The second present member's authorisation opens the box (or lets a resumed sitting record again). The box and its key remain the control."
-      fields={[hidden("exerciseId"), hidden("openingId"), actorField("OpeningAuthorisation.person", { name: "personId", forPerson: { id: personId, name } })]}
+      description="Signed by you, the panel member, with your own password, and stamped by the portal's clock when you save. Each present member authorises in their own sign-in: nobody authorises for another. The second present member's authorisation opens the box (or lets a resumed sitting record again). The box and its key remain the control."
+      fields={[hidden("exerciseId"), hidden("openingId"), actorField("OpeningAuthorisation.person", { name: "personId" })]}
       values={{ exerciseId, openingId }}
       action={recordAuthorisation}
       submitLabel="Record the authorisation"

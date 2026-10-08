@@ -1,6 +1,7 @@
 /**
  * FR-OPN-003, 004 (C-2, OD-1 A, OD-11): authorising the opening. Each authorisation is one panel
- * member's own act, stamped by the server: signed with their password, or keyed from their paper by another officer; the second distinct
+ * member's own act, stamped by the server and signed with their own password in their own sign-in (since Phase 3d it is never keyed from a member's paper by
+ * another officer; rows recorded that way before still count, and `SAME_HAND` still reads them); the second distinct
  * present member's authorisation opens the box (the unseal) — or, at a resumed sitting, lets the
  * sitting record again. The server clock must be after the closing, to the second: at the closing
  * second itself the box is refused (a bid recorded in that second is in time, FR-BID-002, BD-66-3,

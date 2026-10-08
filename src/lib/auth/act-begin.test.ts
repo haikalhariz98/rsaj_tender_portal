@@ -237,13 +237,27 @@ describe("a signature recorded from paper writes its consequence too (review of 
   const holder = () => actor({ permissions: new Set<PermissionKey>(["acts.recordOnBehalf"]) });
   const doc = { ...OPTS, document: { entity: "Opening", id: "op1" } };
 
-  it("the second authorisation that opens a main box, recorded from paper, writes the box event for the same person the same way", async () => {
-    const { module: m, written } = actModule({ paperSignatureRecording: "ALLOWED" });
-    const begun = await m.beginAct(holder(), paperForm, "OpeningAuthorisation.person", doc);
+  // Changed deliberately in Phase 3d (the product owner's ruling of 2026-10-07 on the 2b review, FR-OPN-003): the authorisation that opens a main box was recorded from paper for a
+  // member here; it is now each member's own, signed in with their own password, and a paper record of one is refused. The box event it writes is the member's own too.
+  it("the second authorisation that opens a main box is the member's own, signed with their password, and writes the box event for the same person", async () => {
+    const { module: m, written } = actModule();
+    const begun = await m.beginAct(actor(), form({ "personId:password": "x" }), "OpeningAuthorisation.person", doc);
     if (!begun.ok) throw new Error(JSON.stringify(begun.state));
+    expect(begun.act.intent.mode).toBe("SIGNED");
+    expect(begun.act.recorderId).toBeNull();
     await begun.act.write(tx, "auth2");
     await begun.act.writeAlso(tx, "BoxEvent.person", "ev1");
-    expect(written.map((w) => `${w.entity}.${w.slot}:${w.mode}:${w.subjectPersonId}`)).toEqual([`OpeningAuthorisation.person:RECORDED_ON_BEHALF:${BOSS}`, `BoxEvent.person:RECORDED_ON_BEHALF:${BOSS}`]);
+    expect(written.map((w) => `${w.entity}.${w.slot}:${w.mode}:${w.subjectPersonId}`)).toEqual([`OpeningAuthorisation.person:SIGNED:${ME}`, `BoxEvent.person:SIGNED:${ME}`]);
+  });
+
+  it("an authorisation is refused when it is recorded for a member from paper, even for a holder of the permission with the switch allowed, and when it names another member without saying so", async () => {
+    const { module: m } = actModule({ paperSignatureRecording: "ALLOWED" });
+    const refused = await m.beginAct(holder(), paperForm, "OpeningAuthorisation.person", doc);
+    expect(refused.ok).toBe(false);
+    expect(!refused.ok && refused.state.errors?.["personId:onBehalf"]).toMatch(/signed-in person's own/);
+    // A form that names another member without the paper switch is not believed: the act is the signed-in person's own.
+    const named = await m.beginAct(actor(), form({ personId: BOSS, "personId:password": "x" }), "OpeningAuthorisation.person", doc);
+    expect(named.ok && named.act.subjectPersonId).toBe(ME);
   });
 
   it("the last step of a registration route, recorded from paper, writes the application's decision the same way", async () => {
@@ -315,5 +329,62 @@ describe("an administrator account does no transactional act (NFR-SEC-004)", () 
     const { module: m } = actModule();
     expect((await m.beginAct(actor(), form({}), OWN, OPTS)).ok).toBe(true);
     expect((await m.beginAct(actor({ isAdministrator: true, system: { label: "demo loader" } }), form({ personId: BOSS }), OWN, OPTS)).ok).toBe(true);
+  });
+});
+
+// Phase 3d: "FR-EST-005: panel verifications are signed" and "FR-APR-009: signed" (the conflict declaration). Each is the signer's own sign-in with their own password, never recorded
+// for someone else from paper, and refused to an administrator account.
+describe("a panel verification and a conflict declaration are signed (FR-EST-005, FR-APR-009)", () => {
+  const KEYS = [
+    { key: "SpecPanelVerification.person", doc: { entity: "SpecificationPanel", id: "pan1" } },
+    { key: "ApprovalStep.declaredBy", doc: { entity: "Requisition", id: "req1" } },
+  ];
+
+  it("asks the signer's password, and signs as them, against the exact record", async () => {
+    for (const { key, doc } of KEYS) {
+      const asked: string[] = [];
+      const { module: m, written } = actModule({
+        stepUp: async (_a, password) => {
+          asked.push(password);
+          return { ok: true as const, at: new Date("2026-10-07T04:00:00Z") };
+        },
+      });
+      const without = await m.beginAct(actor(), form({}), key, { ...OPTS, document: doc });
+      expect(without.ok, key).toBe(false);
+      expect(!without.ok && without.state.errors?.["personId:password"], key).toMatch(/signed with your password/);
+      expect(asked, key).toEqual([]);
+      const begun = await m.beginAct(actor(), form({ "personId:password": "secret" }), key, { ...OPTS, document: doc });
+      if (!begun.ok) throw new Error(JSON.stringify(begun.state));
+      expect(begun.act.intent.mode).toBe("SIGNED");
+      expect(begun.act.recorderId).toBeNull();
+      expect(asked).toEqual(["secret"]);
+      await begun.act.write(tx, "row1", { roleCode: "OFFICE" });
+      expect(written.map((w) => `${w.entity}.${w.slot}:${w.mode}:${w.subjectPersonId}:${w.document?.entity}:${w.roleCode}`), key).toEqual([`${key}:SIGNED:${ME}:${doc.entity}:OFFICE`]);
+    }
+  });
+
+  it("is never recorded for someone else from paper, even by a holder of the permission with the paper switch allowed", async () => {
+    for (const { key, doc } of KEYS) {
+      const { module: m } = actModule({ paperSignatureRecording: "ALLOWED" });
+      const paper = form({ personId: BOSS, "personId:onBehalf": "on", "personId:paperReference": "Minute 9" });
+      const begun = await m.beginAct(actor({ permissions: new Set<PermissionKey>(["acts.recordOnBehalf"]) }), paper, key, { ...OPTS, document: doc });
+      expect(begun.ok, key).toBe(false);
+      expect(!begun.ok && begun.state.errors?.["personId:onBehalf"], key).toMatch(/signed-in person's own/);
+    }
+  });
+
+  it("is refused to an administrator account, before the password is asked", async () => {
+    for (const { key, doc } of KEYS) {
+      const asked: string[] = [];
+      const { module: m } = actModule({
+        stepUp: async (_a, password) => {
+          asked.push(password);
+          return { ok: true as const, at: new Date() };
+        },
+      });
+      const begun = await m.beginAct(actor({ isAdministrator: true }), form({ "personId:password": "secret" }), key, { ...OPTS, document: doc });
+      expect(begun.ok, key).toBe(false);
+      expect(asked, key).toEqual([]);
+    }
   });
 });

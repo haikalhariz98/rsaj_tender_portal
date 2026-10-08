@@ -99,12 +99,12 @@ export function VerifyColumnDrawer({ exerciseId, column, columnLabel, people }: 
   return (
     <RecordEditor
       title={`Record who verified: ${columnLabel}`}
-      description="The verification is recorded as yours, from your sign-in. The signed form itself is attached below."
+      description="You sign the verification with your own password, in this column's capacity, against the panel as it stands now. Editing the panel later clears it. The signed paper form is still attached below."
       fields={[
         hidden("exerciseId"),
         hidden("columnCode"),
-        actorField("SpecPanelVerification.person", { name: "personId", people }),
-        { kind: "date", name: "verifiedOn", label: "Verified on", required: true, hint: "Not after today." },
+        actorField("SpecPanelVerification.person", { name: "personId", people, dated: true }),
+        { kind: "date", name: "verifiedOn", label: "Verified on", hint: "Leave empty for today. A signed verification is dated today unless back-dating is recorded, and is never dated after today." },
         { kind: "text", name: "note", label: "Note" },
       ]}
       values={{ exerciseId, columnCode: column }}

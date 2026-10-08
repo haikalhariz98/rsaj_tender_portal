@@ -280,6 +280,9 @@ describe("a signature-class act asks the password where it is signed", () => {
   const CAPACITY_COLUMN: Readonly<Record<string, string>> = {
     "OpeningAuthorisation.person": "panelMemberId",
     "OpeningSignature.person": "panelMemberId",
+    // FR-EST-005 (Phase 3d): a specification panel's column is verified in the capacity of that column, which is the row's own `columnCode` (written with its label as it was). The column is
+    // required on the row, not nullable like the opening's seat, which is new and has no backfill: the check below accepts either.
+    "SpecPanelVerification.person": "columnCode",
   };
 
   it("every signature-class act records the office the signer held, or is on the list of those that do not, with the reason (NFR-SIG-001)", () => {
@@ -314,7 +317,7 @@ describe("a signature-class act asks the password where it is signed", () => {
     for (const [k, column] of Object.entries(CAPACITY_COLUMN)) {
       expect(wired.has(k), `${k} is wired`).toBe(true);
       const model = new RegExp(String.raw`\nmodel ${k.split(".")[0]} \{([\s\S]*?)\n\}`).exec(schema)?.[1] ?? "";
-      expect(model, `${k.split(".")[0]}.${column} is a column`).toMatch(new RegExp(String.raw`\n\s+${column}\s+String\?`));
+      expect(model, `${k.split(".")[0]}.${column} is a column`).toMatch(new RegExp(String.raw`\n\s+${column}\s+String\??\s`));
     }
   });
 
