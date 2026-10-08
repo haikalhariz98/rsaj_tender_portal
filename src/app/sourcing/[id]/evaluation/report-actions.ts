@@ -22,7 +22,7 @@ import { NumberingError, issueReference } from "@/lib/numbering/issue";
 import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, exerciseIdOf, Refusal } from "../window/shared";
-import { evLabel, GONE_BIDDER, inEvaluation, refuse, stampNow } from "./shared";
+import { evLabel, GONE_BIDDER, inEvaluation, refuse, stampNow, bidderIdFrom } from "./shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 
@@ -49,7 +49,7 @@ export async function formRecommendation(_prev: FormState, data: FormData): Prom
   const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
-  const bidderId = r.text("bidderId", "Recommended tenderer", { required: true });
+  const bidderRef = r.text("bidderId", "Recommended tenderer", { required: true });
   const justification = r.text("justification", "Why this one", { max: 4000 });
   if (r.failed) return { ok: false, errors: r.errors };
   const begun = await beginAct(actor, data, "Recommendation.formedBy", { personField: "personId" });
@@ -60,6 +60,8 @@ export async function formRecommendation(_prev: FormState, data: FormData): Prom
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
+    // Ruling of 2026-10-08 on log line 1751: a blind reader's form names a bid by its opaque key for this version, which is resolved here, under the lock, to the bid's own id.
+    const bidderId = bidderIdFrom(c, bidderRef);
     const f = c.facts!;
     const b = f.bidders.find((x) => x.id === bidderId);
     if (!b) return GONE_BIDDER;

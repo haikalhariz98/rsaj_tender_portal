@@ -31,7 +31,7 @@ import { windowChangeRejectionSnapshot } from "@/lib/window/edit";
 import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, Refusal } from "../window/shared";
-import { evLabel, GONE_BIDDER, inEvaluation, notes, refuse, stampNow } from "./shared";
+import { evLabel, GONE_BIDDER, inEvaluation, notes, refuse, stampNow, bidderIdFrom } from "./shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester";
@@ -54,7 +54,7 @@ export async function openMeeting(_prev: FormState, data: FormData): Promise<For
   const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
-  const bidderId = r.text("bidderId", "Tenderer", { required: true });
+  const bidderRef = r.text("bidderId", "Tenderer", { required: true });
   const kind = r.choice("kind", "Meeting", ["CLARIFICATION", "NEGOTIATION"] as const, { required: true });
   const heldOn = r.date("heldOn", "Held on", { required: true });
   const place = r.text("place", "Where", { max: 300 });
@@ -68,6 +68,8 @@ export async function openMeeting(_prev: FormState, data: FormData): Promise<For
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
+    // Ruling of 2026-10-08 on log line 1751: a blind reader's form names a bid by its opaque key for this version, which is resolved here, under the lock, to the bid's own id.
+    const bidderId = bidderIdFrom(c, bidderRef);
     const f = c.facts!;
     const b = f.bidders.find((x) => x.id === bidderId);
     if (!b) return GONE_BIDDER;
@@ -150,7 +152,7 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
   const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
-  const bidderId = r.text("bidderId", "Tenderer", { required: true });
+  const bidderRef = r.text("bidderId", "Tenderer", { required: true });
   const reason = r.text("reason", "Why a negotiation is needed", { max: 4000 });
   if (r.failed) return { ok: false, errors: r.errors };
   const begun = await beginAct(actor, data, "NegotiationRequest.requestedBy", { personField: "personId" });
@@ -161,6 +163,8 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
+    // Ruling of 2026-10-08 on log line 1751: a blind reader's form names a bid by its opaque key for this version, which is resolved here, under the lock, to the bid's own id.
+    const bidderId = bidderIdFrom(c, bidderRef);
     const f = c.facts!;
     const b = f.bidders.find((x) => x.id === bidderId);
     if (!b) return GONE_BIDDER;

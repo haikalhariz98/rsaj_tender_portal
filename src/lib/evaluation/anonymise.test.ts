@@ -87,7 +87,9 @@ describe("the view names a bidder only after the reveal was asked", () => {
   it("puts a name in a score row only for a criterion that names the bidder, once revealed; every other row carries the anonymous name", () => {
     expect(read).toMatch(/named: anon\.namedFor\.has\(cr\.code\) && reveal \? b\.bidderName : null/);
     // Changed with the review of Phase 3b: the row is built by `bidIdentityAtStage` from the pseudonym, so the listing number cannot reach an anonymous row.
-    expect(read).toMatch(/\.\.\.bidIdentityAtStage\(anon\.anonymous, b, pseudonym\)/);
+    // Changed for the ruling of 2026-10-08 on log line 1751: a blind reader (a member of the evaluation team while identities are held back) is given the pseudonym on every stage,
+    // not only on the anonymous one, so the argument is the stage's anonymity OR the reader's blindness.
+    expect(read).toMatch(/\.\.\.bidIdentityAtStage\(anon\.anonymous \|\| blindKey != null, b, pseudonym\)/);
     expect(read).not.toMatch(/anonymousBidder\(b\.listingNo\)/);
   });
 });
@@ -130,8 +132,12 @@ describe("the pseudonym is not derivable from the opening (FR-EVL-020, review of
     expect(identityHeld(false, stage(false))).toBe(false);
     expect(identityHeld(null, stage(false))).toBe(false);
   });
-  it("the words for the switch say the other lists still name the bidders, rather than claiming they are hidden from the team", () => {
-    expect(anonymisedScoringWords(true).en).toMatch(/still name the bidders/);
+  // Changed for the product owner's ruling of 2026-10-08 on log line 1751. The words used to say the other lists still name the bidders, which was the build before the ruling; they now
+  // say that a team member is sent no name, price or bid identifier until the technical stage is submitted, and that one who sat on the opening panel has seen the names there.
+  it("the words for the switch say a team member is sent no bidder name, price or bid identifier, and that the opening panel has seen the names", () => {
+    expect(anonymisedScoringWords(true).en).toMatch(/no bidder name, no price and no bid identifier/);
+    expect(anonymisedScoringWords(true).en).toMatch(/sat on the opening panel has seen the names/);
+    expect(anonymisedScoringWords(true).en).not.toMatch(/still name the bidders/);
     expect(anonymisedScoringWords(true).en).toMatch(/not the opening's listing number/);
   });
 });

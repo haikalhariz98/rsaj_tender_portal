@@ -13,6 +13,7 @@ import type { StaffActor } from "@/lib/auth/types";
 import type { FormState } from "@/components/record-editor";
 import type { Tx } from "@/lib/audit/record";
 import { toSecond } from "@/lib/bids/lateness";
+import { resolveBidderRef } from "@/lib/evaluation/blind";
 import { lockEvaluationRows } from "@/lib/evaluation/lock";
 import { evaluationFindingText } from "@/lib/evaluation/labels";
 import { loadEvaluationContext, type EvaluationContext } from "@/lib/evaluation/repo";
@@ -28,6 +29,9 @@ export const refuse = (fs: readonly Finding[], lead = "Nothing was saved:"): For
 export const notes = (fs: readonly Finding[]) => [...new Set(fs.filter((f) => f.level !== "block").map(evaluationFindingText))].join(" ");
 
 export const NO_EVALUATION: FormState = { ok: false, message: "No evaluation is in progress on this exercise." };
+/// The id of the bid a form names, by its id or by its opaque key for this version (`bidderKey`); empty where it names none of this version's bids, so the act's own "that bid is not in this evaluation" answers.
+export const bidderIdFrom = (c: EvaluationContext, supplied: string): string => resolveBidderRef(c.current?.id ?? "", (c.facts?.bidders ?? []).map((b) => b.id), supplied) ?? "";
+
 export const GONE_BIDDER: FormState = { ok: false, message: "That bid is not in this evaluation." };
 
 /// Run an evaluation write with every lock its order asks for, and the context read under them.

@@ -24,9 +24,10 @@ export function BiddersList({ exerciseId, c, people }: { exerciseId: string; c: 
     sortKeys: { bid: b.listingNo },
     note: [b.excluded, b.carried ? "Carried from the version before: its scores are labelled so." : null].filter(Boolean).join(" ") || undefined,
     cells: {
-      bid: { kind: "stack", title: `No. ${b.listingNo}`, sub: b.registrationNo },
+      // A blind reader is shown the pseudonym where the opening's number would stand, and no price (ruling of 2026-10-08 on log line 1751).
+      bid: { kind: "stack", title: c.blind ? b.bidder : `No. ${b.listingNo}`, sub: b.registrationNo || undefined },
       bidder: { kind: "stack", title: b.bidder, sub: b.period },
-      evaluatedPrice: { kind: "stack", title: b.evaluatedPrice, sub: b.corrected ? `Corrected; ${b.asRead} as read` : "As read" },
+      evaluatedPrice: { kind: "stack", title: b.evaluatedPrice, sub: c.blind ? undefined : b.corrected ? `Corrected; ${b.asRead} as read` : "As read" },
       running: { kind: "chip", text: b.running, tone: b.runningTone },
       // S-2: an excluded bid takes no inputs, and the column says so; where none is taken now, it says why.
       inputs: b.excluded
@@ -114,7 +115,7 @@ export function StageList({ exerciseId, s, open, sittings, people }: { exerciseI
   );
 }
 
-export function AspectsList({ exerciseId, a, open, people }: { exerciseId: string; a: NonNullable<EvaluationCurrent["aspects"]>; open: boolean; people: Option[] }) {
+export function AspectsList({ exerciseId, a, open, people, blind }: { exerciseId: string; a: NonNullable<EvaluationCurrent["aspects"]>; open: boolean; people: Option[]; blind: boolean }) {
   const byId = new Map(a.bidders.map((b) => [b.id, b]));
   const rows: Row[] = a.bidders.map((b) => ({
     id: b.id,
@@ -122,7 +123,7 @@ export function AspectsList({ exerciseId, a, open, people }: { exerciseId: strin
     sortKeys: { bid: b.listingNo },
     note: b.verdicts.filter((v) => v.narrative).map((v) => `${v.label}: ${v.narrative}`).join(" · ") || undefined,
     cells: {
-      bid: { kind: "stack", title: `No. ${b.listingNo}`, sub: b.bidder },
+      bid: { kind: "stack", title: blind ? b.bidder : `No. ${b.listingNo}`, sub: blind ? undefined : b.bidder },
       verdicts: { kind: "chips", items: b.verdicts.map((v) => ({ text: `${v.label}: ${v.verdict ?? "not assessed"}`, tone: v.tone ?? "warn" })) },
     },
   }));
@@ -270,7 +271,7 @@ export function RankingList({ c }: { c: EvaluationCurrent }) {
     note: x.ceiling ?? undefined,
     cells: {
       rank: { kind: "text", text: String(x.rank) },
-      bid: { kind: "stack", title: `No. ${x.listingNo}, ${x.bidder}`, sub: x.period },
+      bid: { kind: "stack", title: c.blind ? x.bidder : `No. ${x.listingNo}, ${x.bidder}`, sub: x.period },
       compositeScore: { kind: "text", text: x.compositeScore ? `${x.compositeScore}%` : "—", dim: !x.compositeScore },
       recommendedPrice: { kind: "stack", title: x.recommendedPrice, sub: x.negotiated ? `After negotiation; ${x.evaluatedPrice} evaluated` : undefined },
     },

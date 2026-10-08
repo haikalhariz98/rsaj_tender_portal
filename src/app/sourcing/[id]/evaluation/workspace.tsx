@@ -8,6 +8,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
 import { bidInSentence } from "@/lib/evaluation/anonymise";
+import { BLIND_NOTICE } from "@/lib/evaluation/blind";
 import { EVALUATION_STATEMENT } from "@/lib/evaluation/labels";
 import { evaluationTabView, openDetail, type EvaluationCurrent, type EvaluationSurface, type EvaluationTabView } from "@/lib/evaluation/read";
 import { sulitGate } from "@/app/_auth/sulit";
@@ -64,6 +65,8 @@ export async function loadEvaluationTab(actor: StaffActor, exerciseId: string, s
     estimate: async () => mapSulit(await estimateCustodyForHistory(actor, exerciseId), () => true as const),
     // FR-EVL-020: a bidder's name on an anonymised technical scoring stage is a read of its own, logged as the reveal it is.
     identity: () => sulitGate(actor, { scope: "evaluation", id: exerciseId, label: ex?.reference ?? "" }, ["bidderIdentity"]),
+    // FR-EVL-020 (ruling of 2026-10-08 on log line 1751): a member of the evaluation team is read blind while the version holds its bidders' identities back.
+    readerPersonId: actor.personId || null,
   });
   if (!v) return { panel: <Card><EmptyState title="This exercise could not be found">Its organisation may no longer be configured.</EmptyState></Card>, actions: null, notes: [] };
   const h = v.header;
@@ -99,7 +102,7 @@ export async function loadEvaluationTab(actor: StaffActor, exerciseId: string, s
     return { actions: null, notes: [], panel: <div className="flex flex-col gap-6"><Statement /><Withheld v={v} s={v.current} words={d.state === "WITHHELD" ? d.words.en : ""} /></div> };
   }
   const body = section === "overview" ? <Overview v={v} c={c} /> : section === "stages" ? <Stages v={v} c={c} /> : section === "aspects" ? <Aspects v={v} c={c} /> : section === "meetings" ? <Meetings v={v} c={c} /> : section === "recommendation" ? <Recommendation v={v} c={c} /> : <Report v={v} c={c} />;
-  return { actions, notes: startNote, panel: <div className="flex flex-col gap-6"><Statement />{body}</div> };
+  return { actions, notes: startNote, panel: <div className="flex flex-col gap-6"><Statement />{c.blind && <Callout tone="info" title={BLIND_NOTICE.title}>{BLIND_NOTICE.body}</Callout>}{body}</div> };
 }
 
 /// The evaluation as a reader it is withheld from sees it: where it stands and who is on the team, and in place of the bids, scores, prices and letters the lock with
@@ -168,7 +171,13 @@ function Overview({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
         <CardHeader title="The bids evaluated" subtitle={<span className="inline-flex flex-wrap items-center gap-2">Carried from the opening. A price is corrected only before the first stage is submitted. <SulitTag /></span>} />
         <BiddersList exerciseId={v.exerciseId} c={c} people={v.header.people} />
       </Card>
+      {c.cprInputs && c.blind && (
+        <Callout tone="info" title="Contractor performance reports are not listed while the scoring is blind">
+          Each report names its contractor. They are opened for the criterion that needs the named contractor, and that reveal is logged.
+        </Callout>
+      )}
       {c.cprInputs &&
+        !c.blind &&
         c.bidders.filter((b) => !b.excluded).map((b) => (
           <OwnerAttachments key={b.id} owner={{ kind: "evaluationBidder", id: b.id }} only={["CPR_REPORT"]} title={`Contractor performance report, bid No. ${b.listingNo}`} subtitle="The percentage is entered from this report, not from a register. SULIT: downloadable to the people the evaluation is open to, and every download is logged." />
         ))}
@@ -206,7 +215,7 @@ function Aspects({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }) {
   return (
     <Card className="overflow-hidden">
       <CardHeader title={c.aspects.stage} subtitle={c.aspects.submitted ? "Submitted: the verdicts stand." : "A verdict and a narrative for each bid in the running, on each aspect. Submitted on the Stages section."} />
-      <AspectsList exerciseId={v.exerciseId} a={c.aspects} open={c.open} people={v.header.people} />
+      <AspectsList exerciseId={v.exerciseId} a={c.aspects} open={c.open} people={v.header.people} blind={c.blind} />
     </Card>
   );
 }
@@ -238,7 +247,7 @@ function Recommendation({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }
   return (
     <>
       <Card className="overflow-hidden">
-        <CardHeader title="The bids in the running, ranked" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.composite ? `By ${r.composite}, highest first; a tie by the lower price.` : "By evaluated price, lowest first."} <SulitTag /></span>} actions={c.open && !r.formed ? <RecommendDrawer exerciseId={v.exerciseId} bidders={r.ranked.map((x) => ({ value: x.id, label: `Rank ${x.rank}: No. ${x.listingNo}, ${x.bidder}` }))} topId={r.topId} allowed={r.form} people={v.header.people} /> : undefined} />
+        <CardHeader title="The bids in the running, ranked" subtitle={<span className="inline-flex flex-wrap items-center gap-2">{r.composite ? `By ${r.composite}, highest first; a tie by the lower price.` : "By evaluated price, lowest first."} <SulitTag /></span>} actions={c.open && !r.formed ? <RecommendDrawer exerciseId={v.exerciseId} bidders={r.ranked.map((x) => ({ value: x.id, label: c.blind ? `Rank ${x.rank}: ${x.bidder}` : `Rank ${x.rank}: No. ${x.listingNo}, ${x.bidder}` }))} topId={r.topId} allowed={r.form} people={v.header.people} /> : undefined} />
         {r.incomplete.length > 0 && <p className="border-t border-line px-5 py-3 text-[13px] text-ink-3 sm:px-6">{`Still to complete: ${r.incomplete.join(", ")}.`}</p>}
         <RankingList c={c} />
       </Card>
@@ -249,7 +258,7 @@ function Recommendation({ v, c }: { v: EvaluationTabView; c: EvaluationCurrent }
             <KeyValues
               columns={2}
               items={[
-                { label: "Recommended tenderer", value: `No. ${r.formed.listingNo}, ${r.formed.bidder}` },
+                { label: "Recommended tenderer", value: c.blind ? r.formed.bidder : `No. ${r.formed.listingNo}, ${r.formed.bidder}` },
                 { label: "Price", value: r.formed.recommendedPrice },
                 { label: "Completion period", value: r.formed.period },
                 { label: "Top-ranked", value: r.formed.topRanked ? "Yes" : "No" },

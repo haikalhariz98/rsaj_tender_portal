@@ -973,7 +973,7 @@ async function tableAppointment(db: Db, organisationId: string, tz: string, entr
 export async function checkEvaluationDemo(db: Db) {
   const { evaluationTabView, openDetail } = await import("../src/lib/evaluation/read");
   // The loader reads its own seed back to check it (it is not a screen and shows nothing to anyone): the evaluation is open to it here, and no estimate is asked.
-  const operator = { evaluation: await loaderGate(), estimate: async () => null, identity: async () => loaderGate() };
+  const operator = { evaluation: await loaderGate(), estimate: async () => null, identity: async () => loaderGate(), readerPersonId: null };
   const { loadEvaluationGate } = await import("../src/lib/evaluation/gate-read");
   const { evaluationGateFaults } = await import("../src/lib/evaluation/award-gate");
   const v = (await evaluationTabView(await demoOrgId(), `${P}sx16`, operator)) ?? fail("sx16 did not load");

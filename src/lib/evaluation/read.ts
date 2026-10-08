@@ -16,6 +16,7 @@ import { loadExercise } from "@/lib/method/repo";
 import { formatMoney, senFromDecimal, senToDecimalString } from "@/lib/money";
 
 import { anonymousBidder, bidIdentityAtStage, faultsForBid, identityHeld, pseudonymNumbers, stageAnonymity, stageReveals, type AnonymisedStage } from "./anonymise";
+import { BLIND_FIGURE, BLIND_TEXT, bidderKey, blindReader } from "./blind";
 import { aspectPrefill } from "./aspects";
 import { recommendedCeilingFault } from "./ceiling";
 import { ceilingOf } from "./repo";
@@ -54,6 +55,8 @@ export interface EvaluationGates {
   estimate: () => Promise<Sulit<true> | null>;
   /// FR-EVL-020: asked (and logged) only when an anonymised technical scoring stage has a criterion that names the bidder. Granted: the name is in the view for that criterion; otherwise it is not.
   identity: () => Promise<Sulit<true>>;
+  /// FR-EVL-020 (ruling of 2026-10-08 on log line 1751): who is reading, so that a member of the evaluation team is read blind while the version holds its bidders' identities back.
+  readerPersonId: string | null;
 }
 
 export async function evaluationTabView(organisationId: string, exerciseId: string, gates: EvaluationGates) {
@@ -112,21 +115,27 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   // FR-EVL-020: each bid's pseudonym, from the version and the bid's own id and not from the opening's listing number, and whether the version still holds identities back.
   const pseudo = pseudonymNumbers(e.id, f.bidders.map((b) => b.id));
   const held = identityHeld(f.anonymised, f.model.stages.map((s) => ({ kind: s.kind, capitalBase: s.capitalBase, criteria: s.criteria, submitted: isSubmitted(f, s.code) })));
+  // Ruling of 2026-10-08 on log line 1751: a member of the evaluation team, while the version holds its bidders' identities back, is sent no bidder name, no price and no
+  // evaluation-bidder id outside the logged reveal. Their rows carry the pseudonym and an opaque key for this version (`bidderKey`), which the acts resolve on the server.
+  const blind = blindReader(held, e.team.map((t) => t.personId), gates.readerPersonId);
+  const keyOf = (bidderId: string) => (blind ? bidderKey(e.id, bidderId) : bidderId);
+  const pseudoOf = (bidderId: string) => pseudo.get(bidderId) ?? 0;
+  const byPseudonym = <T extends { listingNo: number }>(rows: T[]): T[] => (blind ? [...rows].sort((a, z) => a.listingNo - z.listingNo) : rows);
   const firstStage = f.model.stages[0] ?? null;
   const capitalStages = f.model.stages.filter((s) => s.criteria.some((cr) => cr.scale === "BANDED" && cr.computedInput === "MIN_CAPITAL_RATIO"));
   const cprStages = f.model.stages.filter((s) => s.criteria.some((cr) => cr.scale === "BANDED" && cr.computedInput === "CPR_PERCENT"));
-  const bidders = f.bidders.map((b) => {
+  const bidders = byPseudonym(f.bidders.map((b) => {
     const run = firstStage ? runningAt(f, firstStage, b) : { state: "IN" as const, at: null };
     const finalRun = f.model.stages.find((s) => s.kind === "RECOMMENDATION");
     const after = finalRun ? runningAt(f, finalRun, b) : run;
     return {
-      id: b.id,
-      listingNo: b.listingNo,
-      bidder: b.bidderName,
-      registrationNo: b.registrationNo,
-      asRead: formatMoney(b.priceAsRead),
-      evaluatedPrice: formatMoney(evaluatedPrice(b)),
-      corrected: b.correctedPrice != null,
+      id: keyOf(b.id),
+      listingNo: blind ? pseudoOf(b.id) : b.listingNo,
+      bidder: blind ? anonymousBidder(pseudoOf(b.id)) : b.bidderName,
+      registrationNo: blind ? "" : b.registrationNo,
+      asRead: blind ? BLIND_FIGURE : formatMoney(b.priceAsRead),
+      evaluatedPrice: blind ? BLIND_FIGURE : formatMoney(evaluatedPrice(b)),
+      corrected: blind ? false : b.correctedPrice != null,
       period: periodWords(b.period),
       running: RUNNING_LABEL[after.state] + (after.at ? `: ${after.at}` : ""),
       runningTone: after.state === "IN" ? ("ok" as const) : after.state === "AWAITING_STAGE_ONE" ? ("warn" as const) : ("err" as const),
@@ -140,7 +149,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
       inputs: e.state === "OPEN" ? allowedOf(inputsAccess(f, b)) : ({ allowed: false, reason: "This version is not open." } as Allowed),
       raw: { factorOptionCode: b.factorOptionCode ?? "", balanceMonth1: b.balances[0] != null ? senToDecimalString(b.balances[0]) : "", balanceMonth2: b.balances[1] != null ? senToDecimalString(b.balances[1]) : "", balanceMonth3: b.balances[2] != null ? senToDecimalString(b.balances[2]) : "", cprPercent: b.cprPercent != null ? formatFixed(b.cprPercent) : "" },
     };
-  });
+  }));
   const factors = capitalStages.flatMap((s) => s.factors).map((x) => ({ value: x.code, label: `${x.labelEn} (${formatFixed(parseFixed(x.factorPct), 2)}%)` }));
 
   // ---- the stages
@@ -148,7 +157,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   // before any name is put in the view.
   const revealing = f.model.stages.some((s) => stageReveals(stageAnonymity(s, f.anonymised)));
   const reveal = revealing ? (await gates.identity()).state === "GRANTED" : false;
-  const stages = f.model.stages.map((s) => stageView(f, s, dp, e.submissions.find((x) => x.stageCode === s.code) ?? null, tz, reveal, pseudo));
+  const stages = f.model.stages.map((s) => stageView(f, s, dp, e.submissions.find((x) => x.stageCode === s.code) ?? null, tz, reveal, pseudo, blind ? (id) => bidderKey(e.id, id) : null));
   // A two-stage tender's first stage is tabled at a sitting of its committee not yet minuted.
   const committeeCodes = [...new Set(f.model.stages.filter((s) => s.kind === "COMMITTEE_DECISION" && s.committeeCode).map((s) => s.committeeCode!))];
   const sittings = committeeCodes.length
@@ -162,21 +171,22 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
         stage: aspectStage.labelEn,
         submitted: isSubmitted(f, aspectStage.code),
         list: f.model.aspects.map((a) => ({ code: a.code, label: a.labelEn, required: a.required })),
-        bidders: f.bidders.map((b) => {
+        bidders: byPseudonym(f.bidders.map((b) => {
           const run = runningAt(f, aspectStage, b);
           return {
-            id: b.id,
-            listingNo: b.listingNo,
-            bidder: b.bidderName,
+            id: keyOf(b.id),
+            listingNo: blind ? pseudoOf(b.id) : b.listingNo,
+            bidder: blind ? anonymousBidder(pseudoOf(b.id)) : b.bidderName,
             inRunning: run.state === "IN",
             running: RUNNING_LABEL[run.state],
             verdicts: f.model.aspects.map((a) => {
               const v = b.aspects.get(a.code) ?? null;
               const suggestion = aspectPrefill(a.kind, b, f.estimate);
-              return { code: a.code, label: a.labelEn, verdict: v ? VERDICT_LABEL[v.verdict] : null, tone: v ? VERDICT_TONE[v.verdict] : null, narrative: v?.narrative ?? null, suggestion: { verdict: v?.verdict ?? suggestion.verdict, narrative: v?.narrative ?? suggestion.narrative, guide: suggestion.guide ?? null } };
+              // The aspects' suggestions are worked out from the bid and the estimate and may name or quote it: held back from a blind reader, who records the verdict and the narrative.
+              return { code: a.code, label: a.labelEn, verdict: v ? VERDICT_LABEL[v.verdict] : null, tone: v ? VERDICT_TONE[v.verdict] : null, narrative: blind && v?.narrative ? BLIND_TEXT : (v?.narrative ?? null), suggestion: blind ? { verdict: v?.verdict ?? null, narrative: "", guide: null } : { verdict: v?.verdict ?? suggestion.verdict, narrative: v?.narrative ?? suggestion.narrative, guide: suggestion.guide ?? null } };
             }),
           };
-        }),
+        })),
       }
     : null;
 
@@ -201,16 +211,16 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
     heldOn: formatDate(storedDay(m.heldOn)),
     place: m.place,
     closed: m.closedAt ? `Closed ${formatOrgDateTime(m.closedAt, tz)}${m.closedBy ? ` by ${m.closedBy.name}` : ""}` : null,
-    meetingMinutes: m.minutes || null,
-    priceBeforeRound: m.priceBefore != null ? formatMoney(senFromDecimal(m.priceBefore)) : null,
-    priceAfterRound: m.priceAfter != null ? formatMoney(senFromDecimal(m.priceAfter)) : null,
+    meetingMinutes: blind && m.minutes ? BLIND_TEXT : m.minutes || null,
+    priceBeforeRound: m.priceBefore != null ? (blind ? BLIND_FIGURE : formatMoney(senFromDecimal(m.priceBefore))) : null,
+    priceAfterRound: m.priceAfter != null ? (blind ? BLIND_FIGURE : formatMoney(senFromDecimal(m.priceAfter))) : null,
     confirmations: m.attachments.filter((a) => a.purpose === "TENDERER_CONFIRMATION" && isLive(a)).length,
   }));
   const negotiations = e.negotiations.map((n) => ({
     id: n.id,
     listingNo: listing(n.bidderId),
     ref: shownAs(n.bidderId).ref,
-    reason: n.reason,
+    reason: blind && n.reason ? BLIND_TEXT : n.reason,
     requestedBy: n.requestedBy.name,
     requestedAt: formatOrgDateTime(n.requestedAt, tz),
     status: n.approvalInstance.status,
@@ -224,16 +234,16 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
     direction: DIRECTION_LABEL[m.direction],
     channel: CHANNEL_LABEL[m.channel],
     on: formatDate(storedDay((m.sentOn ?? m.receivedOn)!)),
-    subject: m.subject,
-    communicationContent: m.content,
+    subject: blind ? BLIND_TEXT : m.subject,
+    communicationContent: blind ? BLIND_TEXT : m.content,
     recordedBy: m.recordedBy.name,
     acted: attributed.read({ entity: "TendererCommunication", id: m.id, slot: "recordedBy" }, m.recordedBy.name).en,
   }));
   const running = f.model.stages.find((s) => s.kind === "RECOMMENDATION");
   /// A picker's option for a bid: by number and name, or (held) by pseudonym alone; held, in pseudonym order, since the order they are listed in is the opening's.
-  const bidderOption = (b: BidderFacts) => ({ value: b.id, label: held ? shownAs(b.id).ref : `No. ${b.listingNo}, ${b.bidderName}`, order: held ? shownAs(b.id).no : b.listingNo });
-  const byPseudonym = (a: { order: number }, z: { order: number }) => a.order - z.order;
-  const runningBidders = (running ? inRunningAt(f, running) : f.bidders.filter((b) => !b.excludedReason)).map((b) => bidderOption(b)).sort(byPseudonym).map(({ value, label }) => ({ value, label }));
+  const bidderOption = (b: BidderFacts) => ({ value: keyOf(b.id), label: held ? shownAs(b.id).ref : `No. ${b.listingNo}, ${b.bidderName}`, order: held ? shownAs(b.id).no : b.listingNo });
+  const byOrder = (a: { order: number }, z: { order: number }) => a.order - z.order;
+  const runningBidders = (running ? inRunningAt(f, running) : f.bidders.filter((b) => !b.excludedReason)).map((b) => bidderOption(b)).sort(byOrder).map(({ value, label }) => ({ value, label }));
 
   // ---- the recommendation
   const ranked = ranking(f);
@@ -245,14 +255,14 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   const incomplete = incompleteStages(f);
   const recommendation = {
     composite: comp ? comp.labelEn : null,
-    ranked: ranked.map((r) => ({ id: r.bidder.id, rank: r.rank, listingNo: r.bidder.listingNo, bidder: r.bidder.bidderName, compositeScore: r.composite != null ? fig(r.composite, dp) : null, evaluatedPrice: formatMoney(r.price), recommendedPrice: formatMoney(recommendedPriceOf(r.bidder)), negotiated: r.bidder.negotiatedPrice != null, period: periodWords(r.bidder.period), ceiling: ((x) => (x ? evaluationFindingText(x) : null))(recommendedCeilingFault(recommendedPriceOf(r.bidder), ceiling)) })),
+    ranked: ranked.map((r) => ({ id: keyOf(r.bidder.id), rank: r.rank, listingNo: blind ? pseudoOf(r.bidder.id) : r.bidder.listingNo, bidder: blind ? anonymousBidder(pseudoOf(r.bidder.id)) : r.bidder.bidderName, compositeScore: r.composite != null ? fig(r.composite, dp) : null, evaluatedPrice: blind ? BLIND_FIGURE : formatMoney(r.price), recommendedPrice: blind ? BLIND_FIGURE : formatMoney(recommendedPriceOf(r.bidder)), negotiated: r.bidder.negotiatedPrice != null, period: periodWords(r.bidder.period), ceiling: blind ? null : ((x) => (x ? evaluationFindingText(x) : null))(recommendedCeilingFault(recommendedPriceOf(r.bidder), ceiling)) })),
     incomplete,
-    formed: rec && rb ? { listingNo: rb.listingNo, bidder: rb.bidderName, recommendedPrice: formatMoney(senFromDecimal(rec.price)), period: rec.completionPeriod != null && rec.completionUnit ? periodWords({ value: rec.completionPeriod, unit: rec.completionUnit }) : "Not stated", topRanked: rec.topRanked, justification: rec.justification || null, formedBy: rec.formedBy.name, formedActed: attributed.read({ entity: "Recommendation", id: rec.id, slot: "formedBy" }, rec.formedBy.name).en, formedAt: formatOrgDateTime(rec.formedAt, tz) } : null,
+    formed: rec && rb ? { listingNo: blind ? pseudoOf(rb.id) : rb.listingNo, bidder: blind ? anonymousBidder(pseudoOf(rb.id)) : rb.bidderName, recommendedPrice: blind ? BLIND_FIGURE : formatMoney(senFromDecimal(rec.price)), period: rec.completionPeriod != null && rec.completionUnit ? periodWords({ value: rec.completionPeriod, unit: rec.completionUnit }) : "Not stated", topRanked: rec.topRanked, justification: rec.justification || null, formedBy: rec.formedBy.name, formedActed: attributed.read({ entity: "Recommendation", id: rec.id, slot: "formedBy" }, rec.formedBy.name).en, formedAt: formatOrgDateTime(rec.formedAt, tz) } : null,
     // The saving is the estimate less the price: a reader who may not read the estimate may not read it either (the review of Phase 3a).
-    savingAmount: (sv == null ? null : "sealed" in sv ? "The company estimate is still sealed" : "noEstimate" in sv ? "No company estimate" : through(estimateGate!, `${formatMoney(sv.amount)}${sv.pct != null ? ` (${pctText(sv.pct, 2)})` : ""}`)) as Sulit<string> | string | null,
+    savingAmount: (blind ? (sv == null ? null : BLIND_FIGURE) : sv == null ? null : "sealed" in sv ? "The company estimate is still sealed" : "noEstimate" in sv ? "No company estimate" : through(estimateGate!, `${formatMoney(sv.amount)}${sv.pct != null ? ` (${pctText(sv.pct, 2)})` : ""}`)) as Sulit<string> | string | null,
     estimate: ("value" in f.estimate ? { label: f.estimate.label ?? "Company estimate", value: through(estimateGate!, formatMoney(f.estimate.value)) } : null) as { label: string; value: Sulit<string> } | null,
     form: rec ? { allowed: false as const, reason: "The recommendation is formed." } : allowedOf([...openActFaults({ exerciseStatus: ex.status, state: e.state }), ...incomplete.map((stage): Finding => ({ code: "STAGES_NOT_COMPLETE", level: "block", data: { stage } })), ...(e.meetings.some((m) => !m.closedAt) ? [{ code: "NEGOTIATION_OPEN", level: "block", data: { count: e.meetings.filter((m) => !m.closedAt).length } } as Finding] : []), ...(e.negotiations.some((n) => n.approvalInstance.status === "PENDING") ? [{ code: "NEGOTIATION_PENDING", level: "block" } as Finding] : [])]),
-    topId: ranked.find((r) => r.rank === 1)?.bidder.id ?? null,
+    topId: ((id) => (id ? keyOf(id) : null))(ranked.find((r) => r.rank === 1)?.bidder.id),
   };
 
   // ---- the report and the Kertas Cadangan
@@ -279,6 +289,8 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
   };
 
   return {
+    /// Read blind (ruling of 2026-10-08 on log line 1751): names, prices and the bidders' ids are held back from this reader, and the screen says so.
+    blind,
     bidders,
     factors,
     capitalInputs: capitalStages.length > 0,
@@ -291,7 +303,7 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
     negotiations,
     communications,
     runningBidders,
-    allBidders: f.bidders.map((b) => bidderOption(b)).sort(byPseudonym).map(({ value, label }) => ({ value, label })),
+    allBidders: f.bidders.map((b) => bidderOption(b)).sort(byOrder).map(({ value, label }) => ({ value, label })),
     recommendation,
     reportActs,
   };
@@ -318,13 +330,14 @@ export async function evaluationTabView(organisationId: string, exerciseId: stri
 }
 
 /// One stage as its card shows it: who it is for, whether open, and each bidder's figure.
-function stageView(f: EvaluationFacts, s: StageSnap, dp: number | null, sub: { submittedAt: Date; submittedBy: { name: string } } | null, tz: string | null, reveal: boolean, pseudo: ReadonlyMap<string, number>) {
+function stageView(f: EvaluationFacts, s: StageSnap, dp: number | null, sub: { submittedAt: Date; submittedBy: { name: string } } | null, tz: string | null, reveal: boolean, pseudo: ReadonlyMap<string, number>, blindKey: ((bidderId: string) => string) | null) {
   const anon = stageAnonymity(s, f.anonymised);
   const submitted = !!sub;
   const access = stageAccess(f, s, null);
   const criteria = scoredCriteria(s).map((cr) => ({ code: cr.code, label: cr.labelEn, scale: cr.scale, scaleLabel: SCALE_LABEL[cr.scale], max: cr.maxMarks ? formatFixed(parseFixed(cr.maxMarks), 2) : null }));
   // An anonymous stage lists its bids in pseudonym order: the bids' order is the opening's listing order, which is the key to the names.
-  const rows = f.bidders.map((b) => bidderAtStage(f, s, b, dp, submitted, anon, reveal, pseudo.get(b.id) ?? 0)).sort((a, z) => (anon.anonymous ? a.listingNo - z.listingNo : 0));
+  // A blind reader is shown every stage's bids by pseudonym, not only the anonymous one's: the other stages name the bidder, and the order of the bids is the opening's.
+  const rows = f.bidders.map((b) => bidderAtStage(f, s, b, dp, submitted, anon, reveal, pseudo.get(b.id) ?? 0, blindKey)).sort((a, z) => (anon.anonymous || blindKey ? a.listingNo - z.listingNo : 0));
   const notBanded = submitted ? [] : rows.flatMap((r) => r.notBanded.map((n) => ({ key: `${r.id}/${n.code}`, label: `${r.ref}: ${n.label} is in no band` })));
   const blockers = submitted || s.kind === "SHORTLIST" || s.kind === "COMMITTEE_DECISION" || s.kind === "RECOMMENDATION" ? [] : rows.flatMap((r) => r.faults);
   return {
@@ -349,7 +362,7 @@ function stageView(f: EvaluationFacts, s: StageSnap, dp: number | null, sub: { s
   };
 }
 
-function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: number | null, submitted: boolean, anon: AnonymisedStage, reveal: boolean, pseudonym: number) {
+function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: number | null, submitted: boolean, anon: AnonymisedStage, reveal: boolean, pseudonym: number, blindKey: ((bidderId: string) => string) | null) {
   const run = runningAt(f, s, b);
   const r = resultOf(f, b.id, s.code);
   const computed = !submitted && run.state === "IN" ? stageResult(f, s, b) : null;
@@ -366,9 +379,9 @@ function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: num
       named: anon.namedFor.has(cr.code) && reveal ? b.bidderName : null };
   });
   return {
-    id: b.id,
-    // The number the stage shows the bid by, how a sentence calls it, and its name: on an anonymous stage the pseudonym, never the listing number or the name.
-    ...bidIdentityAtStage(anon.anonymous, b, pseudonym),
+    id: blindKey ? blindKey(b.id) : b.id,
+    // The number the stage shows the bid by, how a sentence calls it, and its name: on an anonymous stage (or for a blind reader) the pseudonym, never the listing number or the name.
+    ...bidIdentityAtStage(anon.anonymous || blindKey != null, b, pseudonym),
     running: RUNNING_LABEL[run.state],
     inRunning: run.state === "IN",
     stageFigure: shown != null ? `${formatFixed(shown, dp ?? 4)}%` : null,
@@ -380,7 +393,7 @@ function bidderAtStage(f: EvaluationFacts, s: StageSnap, b: BidderFacts, dp: num
     stageOne: s.kind === "COMMITTEE_DECISION" ? (b.stageOne ?? "NOT_TABLED") : null,
     shortlisted: s.kind === "SHORTLIST" ? b.shortlisted : null,
     notBanded: (computed?.notBanded ?? []).map((code) => ({ code, label: s.criteria.find((x) => x.code === code)?.labelEn ?? "A criterion" })),
-    faults: faultsForBid(anon.anonymous, (computed?.faults ?? []) as Finding[], pseudonym),
+    faults: faultsForBid(anon.anonymous || blindKey != null, (computed?.faults ?? []) as Finding[], pseudonym),
   };
 }
 

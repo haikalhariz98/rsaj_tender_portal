@@ -25,7 +25,7 @@ import { parseSen, senToDecimalString } from "@/lib/money";
 import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, exerciseIdOf } from "../window/shared";
-import { evLabel, GONE_BIDDER, inEvaluation, notes, picks, refuse, signedMoney, stampNow } from "./shared";
+import { evLabel, GONE_BIDDER, inEvaluation, notes, picks, refuse, signedMoney, stampNow, bidderIdFrom } from "./shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 
@@ -159,7 +159,7 @@ export async function recordScore(_prev: FormState, data: FormData): Promise<For
   const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
-  const bidderId = r.text("bidderId", "Bid", { required: true });
+  const bidderRef = r.text("bidderId", "Bid", { required: true });
   const stageCode = r.text("stageCode", "Stage", { required: true });
   const criterionCode = r.text("criterionCode", "Criterion", { required: true });
   const note = r.text("note", "Note", { max: 2000 });
@@ -177,6 +177,8 @@ export async function recordScore(_prev: FormState, data: FormData): Promise<For
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
+    // Ruling of 2026-10-08 on log line 1751: a blind reader's form names a bid by its opaque key for this version, which is resolved here, under the lock, to the bid's own id.
+    const bidderId = bidderIdFrom(c, bidderRef);
     const f = c.facts!;
     const s = stageOf(f.model, stageCode);
     const b = f.bidders.find((x) => x.id === bidderId);
@@ -207,7 +209,7 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
   const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
-  const bidderId = r.text("bidderId", "Bid", { required: true });
+  const bidderRef = r.text("bidderId", "Bid", { required: true });
   const factor = r.optionalText("factorOptionCode");
   const balances = ["balanceMonth1", "balanceMonth2", "balanceMonth3"].map((n) => {
     const v = signedMoney(data, n);
@@ -225,6 +227,8 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
+    // Ruling of 2026-10-08 on log line 1751: a blind reader's form names a bid by its opaque key for this version, which is resolved here, under the lock, to the bid's own id.
+    const bidderId = bidderIdFrom(c, bidderRef);
     const f = c.facts!;
     const b = f.bidders.find((x) => x.id === bidderId);
     if (!b) return GONE_BIDDER;
@@ -264,7 +268,7 @@ export async function correctPrice(_prev: FormState, data: FormData): Promise<Fo
   const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
-  const bidderId = r.text("bidderId", "Bid", { required: true });
+  const bidderRef = r.text("bidderId", "Bid", { required: true });
   const price = r.money("correctedPrice", "Corrected price", { required: true });
   const reason = r.text("correctionReason", "Why it is corrected", { required: true, max: 2000 });
   if (r.failed || !price) return { ok: false, errors: r.errors };
@@ -276,6 +280,8 @@ export async function correctPrice(_prev: FormState, data: FormData): Promise<Fo
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
+    // Ruling of 2026-10-08 on log line 1751: a blind reader's form names a bid by its opaque key for this version, which is resolved here, under the lock, to the bid's own id.
+    const bidderId = bidderIdFrom(c, bidderRef);
     const f = c.facts!;
     const b = f.bidders.find((x) => x.id === bidderId);
     if (!b) return GONE_BIDDER;
@@ -306,8 +312,8 @@ export async function submitStage(_prev: FormState, data: FormData): Promise<For
   const actor = txGuard.actor;
   const now = stampNow();
   const stageCode = String(data.get("stageCode") ?? "");
-  const notesMap = new Map<string, string>();
-  for (const [k, v] of data.entries()) if (k.startsWith("note:") && typeof v === "string") notesMap.set(k.slice(5), v.trim());
+  const notesRaw = new Map<string, string>();
+  for (const [k, v] of data.entries()) if (k.startsWith("note:") && typeof v === "string") notesRaw.set(k.slice(5), v.trim());
   const begun = await beginAct(actor, data, "StageSubmission.submittedBy", { personField: "personId" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
@@ -316,6 +322,8 @@ export async function submitStage(_prev: FormState, data: FormData): Promise<For
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
+    // Ruling of 2026-10-08 on log line 1751: the note's key names a bid (`<bid>/<criterion>`), by its id or, for a blind reader, by its opaque key for this version.
+    const notesMap = new Map([...notesRaw].map(([k, v]) => { const i = k.indexOf("/"); return [i < 0 ? k : `${bidderIdFrom(c, k.slice(0, i))}${k.slice(i)}`, v] as const; }));
     const f = c.facts!;
     const s = stageOf(f.model, stageCode);
     if (!s) return { ok: false, message: "That stage is not in the pinned model." };
@@ -343,7 +351,7 @@ export async function recordShortlist(_prev: FormState, data: FormData): Promise
   const actor = txGuard.actor;
   const now = stampNow();
   const stageCode = String(data.get("stageCode") ?? "");
-  const chosen = picks(data, "chosen");
+  const chosenRefs = picks(data, "chosen");
   const begun = await beginAct(actor, data, "StageSubmission.submittedBy", { personField: "personId" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
@@ -352,6 +360,8 @@ export async function recordShortlist(_prev: FormState, data: FormData): Promise
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
+    // The bids chosen are named by id or, for a blind reader, by the opaque key for this version (ruling of 2026-10-08 on log line 1751).
+    const chosen = chosenRefs.map((x) => bidderIdFrom(c, x));
     const f = c.facts!;
     const s = stageOf(f.model, stageCode);
     if (!s || s.kind !== "SHORTLIST") return { ok: false, message: "That stage is not a shortlist." };
@@ -387,7 +397,7 @@ export async function assessAspect(_prev: FormState, data: FormData): Promise<Fo
   const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
-  const bidderId = r.text("bidderId", "Bid", { required: true });
+  const bidderRef = r.text("bidderId", "Bid", { required: true });
   const aspectCode = r.text("aspectCode", "Aspect", { required: true });
   const verdict = r.choice("verdict", "Verdict", ASPECT_VERDICTS);
   const narrative = r.text("narrative", "Narrative", { max: 4000 });
@@ -400,6 +410,8 @@ export async function assessAspect(_prev: FormState, data: FormData): Promise<Fo
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
+    // Ruling of 2026-10-08 on log line 1751: a blind reader's form names a bid by its opaque key for this version, which is resolved here, under the lock, to the bid's own id.
+    const bidderId = bidderIdFrom(c, bidderRef);
     const f = c.facts!;
     const b = f.bidders.find((x) => x.id === bidderId);
     if (!b) return GONE_BIDDER;
@@ -431,7 +443,7 @@ export async function logCommunication(_prev: FormState, data: FormData): Promis
   const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
-  const bidderId = r.text("bidderId", "Tenderer", { required: true });
+  const bidderRef = r.text("bidderId", "Tenderer", { required: true });
   const direction = r.choice("direction", "Direction", COMMUNICATION_DIRECTIONS, { required: true });
   const channel = r.choice("channel", "Channel", COMMUNICATION_CHANNELS, { required: true });
   const on = r.date("on", direction === "FROM_TENDERER" ? "Received on" : "Sent on", { required: true });
@@ -446,6 +458,8 @@ export async function logCommunication(_prev: FormState, data: FormData): Promis
     const e = c.current;
     const af = openActFaults({ exerciseStatus: l.ex.status, state: e?.state ?? null });
     if (af.length) return refuse(af);
+    // Ruling of 2026-10-08 on log line 1751: a blind reader's form names a bid by its opaque key for this version, which is resolved here, under the lock, to the bid's own id.
+    const bidderId = bidderIdFrom(c, bidderRef);
     const b = c.facts!.bidders.find((x) => x.id === bidderId);
     if (!b) return GONE_BIDDER;
     const person = await activePerson(tx, l.org.id, personId);

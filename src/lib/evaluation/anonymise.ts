@@ -7,7 +7,8 @@
  *
  * What is anonymised is the bidder's identity on the technical scoring stage. A technical stage is a `SCORED` stage that is not the financial one (the model's financial scored
  * stage names a capital base or computes the minimum capital ratio from the tender amount); a financial test, a composite, a commercial stage and the rest are judged with names,
- * as those stages are about the price. The overview's bid list, which carries the evaluated price, is not a scoring stage and is not anonymised.
+ * as those stages are about the price. The overview's bid list, which carries the evaluated price, is not a scoring stage: it is anonymised for a member of the evaluation team by the
+ * blind reading (`blind.ts`, product owner 2026-10-08, ruling on log line 1751), and other readers see it named as before.
  */
 
 import type { StageKind } from "./types";
@@ -88,7 +89,7 @@ export const stageReveals = (a: AnonymisedStage): boolean => a.anonymous && a.na
 
 /// What the configuration says of the switch, in words.
 export function anonymisedScoringWords(on: boolean | null | undefined): { state: "ON" | "OFF" | "NOT_SET"; en: string } {
-  if (on === true) return { state: "ON", en: "On: the technical scoring stage shows each bid as Bidder n, a number that is not the opening's listing number, and names it only for a criterion that needs the named contractor. Each reveal is logged. The bids list, the aspects and the recommendation still name the bidders, so this limits what the scoring stage shows and does not hide who the bidders are from the team." };
+  if (on === true) return { state: "ON", en: "On: until the technical scoring stage is submitted, a member of the evaluation team is sent no bidder name, no price and no bid identifier. The scoring stage, the bids list, the aspects and the recommendation show each bid as Bidder n, a number that is not the opening's listing number, with its price held back, and a bid is named only for a criterion that needs the named contractor. Each reveal is logged. The opening's own pages are not changed: a team member who sat on the opening panel has seen the names there." };
   if (on === false) return { state: "OFF", en: "Off: scoring shows the bidders' names." };
   return { state: "NOT_SET", en: "Not set: scoring shows the bidders' names until the organisation decides whether to anonymise the technical scoring stage." };
 }
