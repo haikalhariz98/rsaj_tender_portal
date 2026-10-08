@@ -455,10 +455,10 @@ export async function saveDeclarationText(_prev: FormState, data: FormData): Pro
     governingSource: t.governingSource || null,
   });
   return db.$transaction(async (tx): Promise<FormState> => {
-    // A wording being corrected is locked BEFORE the signatures are counted, and before the organisation (the order a registration being sent takes them in: its texts shared, then its inserts). A
-    // registration sent a moment before has then committed its signature and is counted; one sent a moment after waits for this to commit and signs the corrected wording it is then shown.
-    if (id) await tx.$queryRaw`SELECT id FROM "DeclarationText" WHERE id = ${id} AND "organisationId" = ${org.id} FOR UPDATE`;
     await lockOrganisation(tx, org.id);
+    // A wording being corrected is locked BEFORE the signatures are counted, after the organisation (the order a registration being sent takes them in: the organisation shared, then the texts
+    // shared). A registration sent a moment before has then committed its signature and is counted; one sent a moment after waits for this to commit and signs the corrected wording it is then shown.
+    if (id) await tx.$queryRaw`SELECT id FROM "DeclarationText" WHERE id = ${id} AND "organisationId" = ${org.id} FOR UPDATE`;
     const before = id ? await tx.declarationText.findFirst({ where: { id, organisationId: org.id }, include: { _count: { select: { signed: true } } } }) : null;
     if (id && !before) return GONE;
     if (before) {

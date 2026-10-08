@@ -491,17 +491,19 @@ describe("sending the registration", () => {
     const d = await readyDraft(s.actor);
     const original = await db.declarationText.findUniqueOrThrow({ where: { id: falseTextId } });
     const drawn = declarations();
+    // The password is asked before the correction begins: hashing is slow on a busy machine, and the correction holds its locks only for the moments the send needs to meet them.
+    const stepUpAt = await signStep(s);
     let release!: () => void;
     const held = new Promise<void>((r) => (release = r));
-    // The office's correction, as the configuration action takes it: the row locked first, the edit not yet committed.
+    // The office's correction, as the configuration action takes it: the organisation, then the row, the edit not yet committed.
     const correcting = db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${organisationId} FOR UPDATE`;
       await tx.$queryRaw`SELECT id FROM "DeclarationText" WHERE id = ${falseTextId} FOR UPDATE`;
       await tx.declarationText.update({ where: { id: falseTextId }, data: { bodyEn: "A corrected declaration to {organisation}." } });
       await held;
-    });
+    }, { timeout: 30_000 });
     try {
       await new Promise((r) => setTimeout(r, 300));
-      const stepUpAt = await signStep(s);
       const sending = submitRegistration(s.actor, { version: d.v, declarations: drawn, stepUpAt }).then(
         () => "SENT",
         (e: unknown) => (e as { kind?: string }).kind ?? String(e),

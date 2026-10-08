@@ -48,7 +48,10 @@ export async function submitRegistration(actor: SupplierActor, input: SubmitInpu
     async (tx) => {
       const locked = await lockOpenDraft(tx, actor, input.version, now);
       // The wording being signed is held still until this commits: an office correcting an unsigned wording in place waits for this (it takes the row `FOR UPDATE` before it counts the signatures),
-      // and then finds it signed. Taken before the texts are read, and shared, so two registrations being sent do not wait for each other.
+      // and then finds it signed. Taken before the texts are read, and shared, so two registrations being sent do not wait for each other. The organisation comes first, as it does for every
+      // configuration action (the organisation, then the row): this transaction's inserts hold it `FOR KEY SHARE` anyway, and taking it before the texts rather than after keeps the order one way
+      // (a retirement holds the organisation and then waits for the row, and must never meet a send that holds the row and then waits for the organisation).
+      await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${actor.organisationId} FOR KEY SHARE`;
       await tx.$queryRaw`SELECT id FROM "DeclarationText" WHERE "organisationId" = ${actor.organisationId} FOR SHARE`;
       const settings = await loadRegistrationSettings(tx, actor.organisationId);
       if (!settings || !settings.org.today) throw new DraftRefused("INVALID", [{ step: "documents", code: "TIME_ZONE_UNSET", level: "block" }]);
