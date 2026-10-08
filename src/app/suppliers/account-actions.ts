@@ -16,7 +16,8 @@ import { permissionGate, staffForAct, toAuditActor } from "@/app/_auth/actor";
 import { currentRequestFacts, refuseForeignPost } from "@/app/_auth/cookies";
 import { sulitWriteRefusal } from "@/lib/auth/sulit-store";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
-import type { Fault } from "@/lib/auth/types";
+import type { Fault, StaffActor } from "@/lib/auth/types";
+import type { Tx } from "@/lib/audit/record";
 
 /**
  * An officer's acts on a supplier's portal account (Phase 4a, ADR 0034 D2, D6): open it for a contact that has none, issue the one-time code that activates it or
@@ -51,6 +52,14 @@ async function codeValidity(organisationId: string): Promise<{ ok: true; minutes
   return { ok: true, minutes: policy.resetCodeValidityMinutes };
 }
 
+/// Decision 9 (ADR 0034 D6): an officer's act on an account needs the right to read the contact's details as well as the permission, since "an officer who may not read the contact cannot tell
+/// whom they are handing a code to". Enforced here, not by hiding the button: the action is reachable by anyone who holds the permission. Asked first, inside the transaction, so the access is
+/// logged with it; a closed reader is refused in words with nothing written but that log row.
+async function contactsClosed(tx: Tx, actor: StaffActor, supplier: { id: string; reference: string }): Promise<FormState | null> {
+  const closed = await sulitWriteRefusal(tx, actor, { scope: "supplier", entity: "Supplier", id: supplier.id, label: supplier.reference }, ["contactName", "contactEmail", "contactPhone"]);
+  return closed ? { ok: false, message: `Nothing was saved: a supplier's contacts are SULIT and are closed to you. ${closed}` } : null;
+}
+
 export async function openSupplierAccountAction(_prev: FormState, data: FormData): Promise<SupplierCodeState> {
   // Not an administrator account (it does no transactional act: NFR-SEC-004, asked first like every act's guard), and an officer holding `supplierAccounts.manage`, a permission grantable to roles
   // only, so an administrator never holds it: the first refusal is the sweep's, the second the organisation's.
@@ -69,6 +78,8 @@ export async function openSupplierAccountAction(_prev: FormState, data: FormData
   const request = await currentRequestFacts();
   let issued: SupplierCodeState["issued"];
   const state = await inSupplier(actor, parsed.value.supplierId, async (tx, l) => {
+    const closed = await contactsClosed(tx, actor, l.supplier);
+    if (closed) return closed;
     try {
       const opened = await openSupplierAccount(tx, {
         actor,
@@ -89,7 +100,7 @@ export async function openSupplierAccountAction(_prev: FormState, data: FormData
       if (e instanceof LoginNameTaken) throw new Refusal({ ok: false, errors: { loginName: "That sign-in name is already used." } });
       throw e;
     }
-  });
+  }, { revalidate: false });
   return state.ok && issued ? { ok: true, issued } : state;
 }
 
@@ -110,6 +121,8 @@ export async function issueSupplierCodeAction(_prev: FormState, data: FormData):
   const request = await currentRequestFacts();
   let issued: SupplierCodeState["issued"];
   const state = await inSupplier(actor, parsed.value.supplierId, async (tx, l) => {
+    const closed = await contactsClosed(tx, actor, l.supplier);
+    if (closed) return closed;
     const result = await issueSupplierCode(tx, {
       actor,
       supplier: { id: l.supplier.id, reference: l.supplier.reference },
@@ -124,7 +137,7 @@ export async function issueSupplierCodeAction(_prev: FormState, data: FormData):
     if (!result.ok) return faultState(result.faults, undefined);
     issued = { code: result.issued.code, validUntil: formatOrgDateTime(result.issued.expiresAt, actor.organisationTimeZone) };
     return { ok: true };
-  });
+  }, { revalidate: false });
   return state.ok && issued ? { ok: true, issued } : state;
 }
 
@@ -142,6 +155,8 @@ export async function unlockSupplierAccountAction(_prev: FormState, data: FormDa
   const now = stampNow();
   const request = await currentRequestFacts();
   return inSupplier(actor, parsed.value.supplierId, async (tx, l) => {
+    const closed = await contactsClosed(tx, actor, l.supplier);
+    if (closed) return closed;
     const result = await unlockSupplierAccount(tx, { actor, supplier: { id: l.supplier.id, reference: l.supplier.reference }, accountId: parsed.value.accountId, identityCheck: parsed.value.identityCheck, request, now });
     return result.ok ? { ok: true } : faultState(result.faults, undefined);
   });
@@ -164,8 +179,8 @@ export async function retireContactAction(_prev: FormState, data: FormData): Pro
     const contact = await tx.supplierContact.findFirst({ where: { id: parsed.value.contactId, supplierId: l.supplier.id, retiredOn: null, organisationId: actor.organisationId } });
     if (!contact) return GONE;
     // Retiring changes details the form shows: it is done by someone they are open to, as editing them is, and the access is logged in this transaction.
-    const closed = await sulitWriteRefusal(tx, actor, { scope: "supplier", entity: "Supplier", id: l.supplier.id, label: l.supplier.reference }, ["contactName", "contactEmail", "contactPhone"]);
-    if (closed) return { ok: false, message: `Nothing was saved: a supplier's contacts are SULIT and are closed to you. ${closed}` };
+    const closed = await contactsClosed(tx, actor, l.supplier);
+    if (closed) return closed;
     if (contact.isPrimary) return { ok: false, errors: { reason: "This is the primary contact. Mark another contact primary first: the supplier keeps someone to reach." } };
     await tx.supplierContact.update({ where: { id: contact.id, organisationId: actor.organisationId }, data: { retiredOn: dayToDate(l.org.today) } });
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.contact, contact.id, label(l.supplier, "Contact"), "UPDATE", diffFields({ retiredOn: null }, { retiredOn: l.org.today, retiredBecause: parsed.value.reason }), parsed.value.reason);

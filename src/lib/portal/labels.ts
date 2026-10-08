@@ -346,7 +346,7 @@ export const APPLY = {
     contactPhone: w("Telephone", "Telefon"),
     contactMobile: w("Mobile number", "Nombor telefon bimbit"),
   },
-  bumiputeraHint: w("This is what you declare. The procurement office checks it against the certificate you send later.", "Ini ialah apa yang anda isytiharkan. Pejabat perolehan menyemaknya dengan sijil yang anda hantar kemudian."),
+  bumiputeraHint: w("This is what you declare. The procurement office checks it against the certificate you send later. Leave it blank if your company makes no such claim.", "Ini ialah apa yang anda isytiharkan. Pejabat perolehan menyemaknya dengan sijil yang anda hantar kemudian. Biarkan kosong jika syarikat anda tidak membuat tuntutan."),
   incorporatedHint: w("The day the company was incorporated, as its certificate states it.", "Tarikh syarikat diperbadankan, seperti yang dinyatakan pada sijilnya."),
   mobileHint: (dialCode: string | null): Words => (dialCode ? w(`Without the ${dialCode}, which is added for you.`, `Tanpa ${dialCode}, yang ditambah untuk anda.`) : w("With the country code if it is not local.", "Dengan kod negara jika bukan tempatan.")),
   reachHintBoth: w("Give both an email address and a mobile number.", "Berikan kedua-dua alamat e-mel dan nombor telefon bimbit."),

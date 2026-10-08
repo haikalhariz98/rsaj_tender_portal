@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   validityMinutes: 60 as number | null,
   foreign: null as { code: string } | null,
   sulitClosed: null as string | null,
+  sulitAsked: [] as { scope: string; entity: string; id: string; fields: string[] }[],
   today: "2026-10-12" as string | null,
   updates: [] as { model: string; where: Row; data: Row }[],
   created: [] as { model: string; data: Row }[],
@@ -24,7 +25,12 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("@/app/_auth/actor", async () => (await import("@/lib/test-support/staff")).actorModule());
 vi.mock("@/app/_auth/cookies", () => ({ currentRequestFacts: async () => ({ sourceAddress: null, userAgent: "" }), refuseForeignPost: async () => h.foreign }));
-vi.mock("@/lib/auth/sulit-store", () => ({ sulitWriteRefusal: async () => h.sulitClosed }));
+vi.mock("@/lib/auth/sulit-store", () => ({
+  sulitWriteRefusal: async (_tx: unknown, _actor: unknown, subject: { scope: string; entity: string; id: string }, fields: string[]) => {
+    h.sulitAsked.push({ scope: subject.scope, entity: subject.entity, id: subject.id, fields });
+    return h.sulitClosed;
+  },
+}));
 vi.mock("@/lib/auth/policy-store", () => ({ loadSecurityPolicy: async () => (h.validityMinutes == null ? { resetCodeValidityMinutes: null } : { resetCodeValidityMinutes: h.validityMinutes }) }));
 vi.mock("@/lib/auth/supplier-identity", () => ({ lockSupplierAccount: async () => undefined }));
 vi.mock("@/lib/auth/supplier-session-store", () => ({
@@ -108,6 +114,7 @@ beforeEach(() => {
   h.validityMinutes = 60;
   h.foreign = null;
   h.sulitClosed = null;
+  h.sulitAsked = [];
   h.today = "2026-10-12";
   h.updates = [];
   h.created = [];
@@ -153,6 +160,34 @@ describe("the three acts that need the permission to manage supplier accounts", 
     const missing = await act(rest);
     expect(missing.errors).toHaveProperty("identityCheck");
     expect(h.created).toEqual([]);
+  });
+});
+
+describe("the right to read the contact's details (decision 9): enforced by the action, not by the button", () => {
+  const acts = [
+    ["open an account", (f: Record<string, string>) => openSupplierAccountAction({ ok: false }, form(f)), OPEN],
+    ["issue a code", (f: Record<string, string>) => issueSupplierCodeAction({ ok: false }, form(f)), ISSUE],
+    ["unlock an account", (f: Record<string, string>) => unlockSupplierAccountAction({ ok: false }, form(f)), UNLOCK],
+  ] as const;
+
+  it.each(acts)("%s: an officer who holds the permission but is closed to the contact is refused in words, and no account, code, session or audit row is written", async (_n, act, fields) => {
+    grant();
+    h.sulitClosed = "The organisation has not yet decided which roles read these.";
+    const r = await act(fields);
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/SULIT and are closed to you/);
+    expect((r as { issued?: unknown }).issued).toBeUndefined();
+    expect(h.created).toEqual([]);
+    expect(h.updates).toEqual([]);
+    expect(h.audits).toEqual([]);
+    expect(h.events).toEqual([]);
+    expect(h.revoked).toBe(0);
+  });
+
+  it.each(acts)("%s: asks the SULIT gate for the supplier's contact fields before any rule runs", async (_n, act, fields) => {
+    grant();
+    await act(fields);
+    expect(h.sulitAsked).toEqual([{ scope: "supplier", entity: "Supplier", id: "s1", fields: ["contactName", "contactEmail", "contactPhone"] }]);
   });
 });
 

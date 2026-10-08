@@ -34,7 +34,7 @@ export type SupplierSignInOutcome =
   | { ok: false; kind: "UNSAFE_DATABASE_ROLE" }
   | { ok: false; kind: "POLICY_NOT_SET"; unset: SecurityPolicyKey[] };
 
-export type SupplierConfirmOutcome = { ok: true; at: Date } | { ok: false; kind: "WRONG" | "LOCKED" | "POLICY_NOT_SET" };
+export type SupplierConfirmOutcome = { ok: true; at: Date } | { ok: false; kind: "WRONG" | "LOCKED" | "THROTTLED" | "POLICY_NOT_SET" };
 
 /// The row lock every change to a supplier account's counters and sessions queues on. `FOR NO KEY UPDATE`, as the staff account's is: a log row and a session name the account by a foreign key.
 export async function lockSupplierAccount(tx: Tx, accountId: string): Promise<void> {
@@ -209,19 +209,31 @@ export async function confirmSupplierPassword(actor: SupplierActor, password: st
   const account = await db.supplierAccount.findUnique({ where: { id: actor.accountId }, select: { passwordHash: true, failedAttempts: true, lockedUntil: true, status: true, organisationId: true, contact: { select: { retiredOn: true } } } });
   const locked = account != null && isLocked(account, now);
   const fit = account != null && account.status === "ACTIVE" && account.contact.retiredOn == null && account.organisationId === actor.organisationId && !locked && password.length <= MAX_PASSWORD_INPUT;
-  const stored = fit ? account.passwordHash : await dummyHash();
-  const checked = await hashPool.run(() => verifyPassword(stored, password));
 
-  if (!fit || !checked.ok) {
-    await db.$transaction(async (tx) => {
-      await lockSupplierAccount(tx, actor.accountId);
-      const row = await tx.supplierAccount.findUniqueOrThrow({ where: { id: actor.accountId }, select: { failedAttempts: true, lockedUntil: true } });
-      const next: AccountLockState = afterFailedAttempt(row, settings, now);
-      await tx.supplierAccount.update({ where: { id: actor.accountId }, data: { failedAttempts: next.failedAttempts, lockedUntil: next.lockedUntil } });
-      await recordSignInEvent(tx, { organisationId: actor.organisationId, supplierAccountId: actor.accountId, kind: "STEP_UP_FAILED", request, at: now });
-    });
+  // The caller is already signed in, so a quick refusal reveals nothing: a locked or unfit account is refused WITHOUT a hash. Otherwise one session could queue a hash per request
+  // and fill the pool the public sign-in shares (threat model B2); an address that has failed too often, or a queue that is full, is held back the way the sign-in holds it.
+  if (!fit) {
+    await failStepUp(actor, settings, request, now);
     return { ok: false, kind: locked ? "LOCKED" : "WRONG" };
   }
+  const since = throttleSince(now, settings.addressThrottleMinutes);
+  if (hashPool.waiting >= HASH_QUEUE_LIMIT || (await failedSignInsFrom(db, actor.organisationId, request.sourceAddress, since, "SUPPLIER")) >= settings.addressThrottleAttempts) {
+    await recordSignInEvent(db, { organisationId: actor.organisationId, store: "SUPPLIER", supplierAccountId: actor.accountId, kind: "THROTTLED", request, at: now });
+    return { ok: false, kind: "THROTTLED" };
+  }
+  const checked = await hashPool.run(async () => {
+    // The count above was taken before this attempt waited for a hash slot: take it again at the front of the queue, so that a burst is held to the limit.
+    if ((await failedSignInsFrom(db, actor.organisationId, request.sourceAddress, since, "SUPPLIER")) >= settings.addressThrottleAttempts) return null;
+    const result = await verifyPassword(account!.passwordHash, password);
+    // A failure is written before the slot is given up, or the next attempt in the queue would count without it.
+    if (!result.ok) await failStepUp(actor, settings, request, now);
+    return result;
+  });
+  if (checked === null) {
+    await recordSignInEvent(db, { organisationId: actor.organisationId, store: "SUPPLIER", supplierAccountId: actor.accountId, kind: "THROTTLED", request, at: now });
+    return { ok: false, kind: "THROTTLED" };
+  }
+  if (!checked.ok) return { ok: false, kind: "WRONG" };
 
   await db.$transaction(async (tx) => {
     await lockSupplierAccount(tx, actor.accountId);
@@ -231,6 +243,17 @@ export async function confirmSupplierPassword(actor: SupplierActor, password: st
     await recordSignInEvent(tx, { organisationId: actor.organisationId, supplierAccountId: actor.accountId, kind: "STEP_UP_OK", request, at: now });
   });
   return { ok: true, at: now };
+}
+
+/// A step-up that failed: counted against the account (a locked account's count does not move) and logged, which also counts against the address.
+async function failStepUp(actor: SupplierActor, settings: SupplierSignInSettings, request: RequestFacts, now: Date): Promise<void> {
+  await db.$transaction(async (tx) => {
+    await lockSupplierAccount(tx, actor.accountId);
+    const row = await tx.supplierAccount.findUniqueOrThrow({ where: { id: actor.accountId }, select: { failedAttempts: true, lockedUntil: true } });
+    const next: AccountLockState = afterFailedAttempt(row, settings, now);
+    await tx.supplierAccount.update({ where: { id: actor.accountId }, data: { failedAttempts: next.failedAttempts, lockedUntil: next.lockedUntil } });
+    await recordSignInEvent(tx, { organisationId: actor.organisationId, supplierAccountId: actor.accountId, kind: "STEP_UP_FAILED", request, at: now });
+  });
 }
 
 /// End every session a supplier account has, for the account's own "sign out everywhere". Gives back how many it ended.

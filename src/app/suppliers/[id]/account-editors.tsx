@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { CodeDialog } from "@/components/auth/code-dialog";
@@ -49,7 +50,10 @@ function CodeAsker({
   const [state, setState] = useState<SupplierCodeState>(EMPTY_FORM_STATE);
   const [pending, start] = useTransition();
   const opener = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
   const close = () => {
+    // The act did not revalidate the page (it would have unmounted this dialog, and the code with it): the page is refreshed now the code has been read.
+    if (state.issued) router.refresh();
     // The code leaves the screen with the dialog.
     setState(EMPTY_FORM_STATE);
     setOpen(false);

@@ -26,6 +26,8 @@ export async function POST(request: Request) {
       return validationReply(Object.fromEntries(Object.entries(outcome.faults).map(([field, fault]) => [field, fault.en])));
     case "LOCKED":
       return portalReply({ ok: false, code: "LOCKED", message: "This account is locked after too many wrong passwords. Try again later.", error: "locked" }, 403);
+    case "THROTTLED":
+      return portalReply({ ok: false, code: "THROTTLED", message: "Too many attempts just now. Wait a few minutes and try again.", error: "throttled" }, 429);
     case "POLICY_NOT_SET":
       return closedReply(outcome.unset);
   }

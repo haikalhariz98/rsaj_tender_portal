@@ -255,6 +255,13 @@ describe("the account's own posts", () => {
     expect(h.change).toHaveBeenCalledTimes(1);
   });
 
+  it("answers 429 when the password check is held back for the address, and says to wait", async () => {
+    h.change.mockResolvedValue({ ok: false, kind: "THROTTLED" });
+    const res = await changePassword(post("/supplier/account/password", "account", { current: "old password here", password: "a new long password", confirm: "a new long password" }, { headers: { cookie: `${SUPPLIER_COOKIE}=${"c".repeat(43)}` } }));
+    expect(res.status).toBe(429);
+    expect(await res.json()).toMatchObject({ ok: false, code: "THROTTLED" });
+  });
+
   it("ends every session and clears the cookie on sign out everywhere", async () => {
     h.signOutEverywhere.mockResolvedValue(2);
     const res = await signOutEverywhere(post("/supplier/account/sign-out-everywhere", "account"));

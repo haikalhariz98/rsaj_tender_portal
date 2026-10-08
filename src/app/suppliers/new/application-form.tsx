@@ -107,7 +107,7 @@ export function ApplicationForm({
           {select("entityTypeCode", "Entity type", entityTypes, { required: true, hint: entityTypes.length ? undefined : "No entity types are set under Configuration › Supplier register." })}
           {select("countryCode", "Country", countries, { required: true, hint: countries.length ? undefined : "No countries are set under Configuration › Supplier register." })}
           {text("incorporatedOn", "Date incorporated", { required: true, type: "date", hint: "As the certificate states it; not after today." })}
-          {bumiputeraStatuses.length > 0 && select("bumiputeraClaimCode", "Bumiputera status (declared)", bumiputeraStatuses, { hint: "What the applicant declares. The status that counts is the one the certificate shows once it is lodged and verified." })}
+          {bumiputeraStatuses.length > 0 && select("bumiputeraClaimCode", "Bumiputera status (declared)", bumiputeraStatuses, { hint: "What the applicant declares. The status that counts is the one the certificate shows once it is lodged and verified. Leave it blank if the applicant makes no claim." })}
           {text("companyEmail", "Company email", { required: true, type: "email", hint: "Not verified: nothing is e-mailed from the portal." })}
         </CardBody>
       </Card>

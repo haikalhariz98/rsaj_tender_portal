@@ -341,7 +341,7 @@ export default async function SupplierRegisterConfigPage() {
                     <ListValueDrawer list={k} listName={LIST_KIND_LABEL[k].en} />
                   </div>
                   {rows.length === 0 ? (
-                    <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">{k === "BUMIPUTERA_STATUS" ? "Not set: the declared Bumiputera status is not asked on the form." : "Not set: no supplier can be recorded until it has an entry."}</p>
+                    <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">{k === "BUMIPUTERA_STATUS" ? "Not set: the declared Bumiputera status is not asked on the form. List only statuses that are a claim: a value on this list is read as a claim and expects an evidence document, and a blank answer is how no claim is made." : "Not set: no supplier can be recorded until it has an entry."}</p>
                   ) : (
                     <Table minWidth={560}>
                       <colgroup>

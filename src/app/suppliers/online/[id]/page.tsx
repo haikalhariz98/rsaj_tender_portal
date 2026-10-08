@@ -60,7 +60,8 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
   const claim = a.bumiputeraClaimCode ? (cfg.listName("BUMIPUTERA_STATUS", a.bumiputeraClaimCode) ?? "A status no longer listed") : null;
   const reading = bumiputeraWords(bumiputeraReading(claim, cfg.policy?.restrictionEvidenceTypeId != null, null, "APPLICATION")).en;
   const stateName = a.stateCode ? (cfg.listName("STATE", a.stateCode) ?? "A state no longer listed") : null;
-  // What the officer changed, once the supplier is on the register: the company's differences, and the contact's for a reader the contact is open to.
+  // Where the applicant's words differ from the register TODAY, once the supplier is on the register: the company's differences, and the contact's (the register's current primary contact) for a reader
+  // the contact is open to. It is not a record of what the officer corrected when recording: later edits to the register, or another contact made primary, show here too, and the card says so.
   const entry = a.status === "RECORDED" && !erased ? a.acceptedSupplier : null;
   const names = { nameOf: (kind: "ENTITY_TYPE" | "COUNTRY" | "STATE" | "BUMIPUTERA_STATUS", code: string) => cfg.listName(kind, code), day: (d: string) => formatDate(d) };
   const company = (x: { registeredName: string; registrationNo: string; entityTypeCode: string; countryCode: string; addressLine1: string; addressLine2: string; city: string; postcode: string; stateCode: string; bumiputeraClaimCode: string; incorporatedOn: Date | null; companyEmail: string }) => ({
@@ -112,13 +113,13 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
 
       {entry && (
         <Card className="mb-6">
-          <CardHeader title="What the officer changed" subtitle="The applicant's words are kept beside the register's entry. Each field the officer corrected when recording the supplier is listed here." />
+          <CardHeader title="Where the register differs from the applicant's words" subtitle="The applicant's words are kept beside the register's entry as it is today. A difference may be the officer's correction when recording the supplier or a later change to the register: this list does not say which." />
           <CardBody>
             <p className="mb-3 text-[13.5px] text-ink-2">
               On the register as <Link href={`/suppliers/${entry.id}`}>{entry.registeredName} ({entry.reference})</Link>.
             </p>
             {differences.length + contactChanges.length === 0 ? (
-              <p className="text-[13.5px] text-ink-3">{contact.state === "GRANTED" ? "Nothing was changed: the register holds what the applicant typed." : "Nothing about the company was changed. The contact's details are withheld from you, so whether they were corrected is not shown."}</p>
+              <p className="text-[13.5px] text-ink-3">{contact.state === "GRANTED" ? "No difference: the register holds what the applicant typed." : "The company's entry matches what the applicant typed. The contact's details are withheld from you, so whether they differ is not shown."}</p>
             ) : (
               <KeyValues columns={1} items={[...differences, ...contactChanges].map((d) => ({ label: d.label, value: <span>Applicant: {d.applicant}. Register: {d.register}.</span> }))} />
             )}

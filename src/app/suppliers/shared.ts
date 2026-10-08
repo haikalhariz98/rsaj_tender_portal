@@ -37,8 +37,12 @@ export const notes = (fs: readonly Finding[]) => [...new Set(fs.filter((f) => f.
 /**
  * Run a supplier write: the supplier row locked, then `fn`. A Refusal thrown deep inside rolls
  * everything back and returns its words.
+ *
+ * A success revalidates the register's pages, which makes Next render the supplier's page again with the action's answer. An act that hands back a one-time code must not: the page
+ * it renders can show a different component in the form's place (a contact that now has an account gets "issue a code" where it had "open an account"), React unmounts the dialog,
+ * and the code vanishes as it is shown, kept nowhere. Such an act passes `revalidate: false`, and its form refreshes the page when the code is closed.
  */
-export async function inSupplier(scope: OrgScope, supplierId: string, fn: (tx: Tx, l: LockedSupplier) => Promise<FormState>): Promise<FormState> {
+export async function inSupplier(scope: OrgScope, supplierId: string, fn: (tx: Tx, l: LockedSupplier) => Promise<FormState>, options: { revalidate?: boolean } = {}): Promise<FormState> {
   let result: FormState;
   try {
     result = await db.$transaction(
@@ -52,7 +56,7 @@ export async function inSupplier(scope: OrgScope, supplierId: string, fn: (tx: T
     if (transactionTimedOut(e)) return { ok: false, message: "This took too long and nothing was saved. Try again." };
     throw e;
   }
-  if (result.ok) {
+  if (result.ok && options.revalidate !== false) {
     revalidatePath(`/suppliers/${supplierId}`);
     revalidatePath("/suppliers");
     revalidatePath("/approvals");

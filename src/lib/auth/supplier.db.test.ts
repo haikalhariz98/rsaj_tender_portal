@@ -244,6 +244,25 @@ describe("the password asked again", () => {
     for (let i = 0; i < SUPPLIER_SETTINGS.maxFailedAttempts!; i++) await confirmSupplierPassword(session.actor, "wrong", facts());
     expect(await confirmSupplierPassword(session.actor, password, facts())).toEqual({ ok: false, kind: "LOCKED" });
   });
+
+  it("refuses a locked account at once, without a hash, and holds back an address that has failed too often (one session cannot fill the pool the sign-in shares)", async () => {
+    const { password, loginName } = await makeSupplierAccount(organisationId);
+    const outcome = await signIn(loginName, password);
+    if (!outcome.ok) throw new Error("sign-in failed");
+    const session = await read(outcome.token);
+    if (!session.ok) throw new Error("read failed");
+    const address = randomAddress();
+    // From one address, failures up to the throttle are judged; the next attempt is held back, even with the right password, and the log says so.
+    for (let i = 0; i < SUPPLIER_SETTINGS.addressThrottleAttempts!; i++) await db.signInEvent.create({ data: { organisationId, store: "SUPPLIER", supplierAccountId: session.actor.accountId, kind: "STEP_UP_FAILED", at: new Date(), detail: { create: { sourceAddress: address, userAgent: "test" } } } });
+    expect(await confirmSupplierPassword(session.actor, password, facts(address))).toEqual({ ok: false, kind: "THROTTLED" });
+    expect(await supplierKindsOf(session.actor.accountId)).toContain("THROTTLED");
+    // The password was not checked, so it was not stamped on the session.
+    expect((await db.supplierSession.findUniqueOrThrow({ where: { id: session.actor.sessionId } })).stepUpAt).toBeNull();
+    // A locked account is refused as locked and its count does not move.
+    await db.supplierAccount.update({ where: { id: session.actor.accountId }, data: { failedAttempts: 5, lockedUntil: new Date(Date.now() + 600_000) } });
+    expect(await confirmSupplierPassword(session.actor, password, facts())).toEqual({ ok: false, kind: "LOCKED" });
+    expect((await db.supplierAccount.findUniqueOrThrow({ where: { id: session.actor.accountId } })).failedAttempts).toBe(5);
+  });
 });
 
 describe("a one-time code", () => {

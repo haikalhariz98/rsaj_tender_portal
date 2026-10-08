@@ -62,3 +62,16 @@ describe("Bumiputera status is read as declared, never as fact", () => {
     }
   });
 });
+
+describe("what counts as a claim", () => {
+  it("reads any listed value as a claim, so the list holds claims only: no claim is a blank answer, and a value such as 'Not a Bumiputera company' would be flagged for missing evidence", () => {
+    // Pinned on purpose. The register cannot tell a negative declaration from a claim (no per-value flag exists: logged as OPEN for the product owner), so the demonstration's list
+    // does not carry a negative entry, and the forms say that a blank answer is how a company makes no claim.
+    const blank = bumiputeraReading(null, true, null, "REGISTER");
+    expect(blank.kind).toBe("NO_CLAIM");
+    expect(bumiputeraNeedsAttention(blank)).toBe(false);
+    const negative = bumiputeraReading("Not a Bumiputera company", true, null, "REGISTER");
+    expect(negative.kind).toBe("CLAIM_WITHOUT_DOCUMENT");
+    expect(bumiputeraNeedsAttention(negative)).toBe(true);
+  });
+});
