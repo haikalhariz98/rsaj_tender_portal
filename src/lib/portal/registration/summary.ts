@@ -51,6 +51,8 @@ export interface SummaryDocument {
   verification: { state: VerificationState; by: string | null; on: string | null; note: string } | null;
   /// "The supplier's own portal account", or the officer who lodged it.
   lodgedBy: string | null;
+  /// `lodgedBy` names an officer (a person), not the supplier's own account.
+  lodgedByOfficer: boolean;
   /// "code — name", from the name each value had when it was recorded.
   codes: string[];
 }
@@ -60,6 +62,8 @@ export interface SummaryCreditor extends CreditorInput {
   bankName: string;
   accountTypeName: string;
   statementFiles: string[];
+  /// The identity or company number given is not the company's registration number. Allowed, and flagged to the reviewer. Judged where the profile is read, so it exists only in a section the reader may see.
+  identityDiffersFromCompany: boolean;
   verification: { state: VerificationState; by: string | null; on: string | null; note: string } | null;
 }
 
@@ -71,6 +75,8 @@ export interface SummaryDeclaration {
   /// The server's time, formatted.
   signedAt: string;
   by: string;
+  /// The person who signed is not the contact on the account that sent the registration. Allowed, and flagged to the reviewer.
+  signatoryIsNotContact: boolean;
 }
 
 export interface SummaryRecord {
@@ -112,6 +118,23 @@ const verificationNote = (v: NonNullable<SummaryDocument["verification"]>, fmt: 
   if (v.state === "NOT_CHECKED") return w.text;
   return `${w.text}${v.by ? `, by ${v.by}` : ""}${v.on ? `, ${fmt.day(v.on)}` : ""}${v.note ? `. “${v.note}”` : ""}`;
 };
+
+/// What the supplier's own copy says in place of an officer's name.
+export const OFFICE_WORDS = "the procurement office";
+
+/**
+ * The summary as the SUPPLIER may read it, for the page that shows a sent registration. The reviewer's projection names the officer who lodged or checked a document or the bank details,
+ * and carries the note they wrote; the supplier's carries the state and the day, and nothing more. Naming the officer who checks bank details hands the applicant a person to approach, and an
+ * internal note (why an account looked wrong) is the office's own. Pure: the loaders gather what the office knows, and this removes what the supplier may not be told.
+ */
+export function forSupplier(record: SummaryRecord): SummaryRecord {
+  const plain = <V extends { by: string | null; note: string } | null>(v: V): V => (v ? { ...v, by: null, note: "" } : v);
+  return {
+    ...record,
+    documents: record.documents.map((d) => ({ ...d, lodgedBy: d.lodgedByOfficer ? OFFICE_WORDS : d.lodgedBy, lodgedByOfficer: false, verification: plain(d.verification) })),
+    creditor: record.creditor.state === "GRANTED" && record.creditor.value ? { ...record.creditor, value: { ...record.creditor.value, verification: plain(record.creditor.value.verification) } } : record.creditor,
+  };
+}
 
 export function registrationSummary(record: SummaryRecord, fmt: SummaryFormat): SummarySection[] {
   const c = record.company;
@@ -181,14 +204,14 @@ export function registrationSummary(record: SummaryRecord, fmt: SummaryFormat): 
   else if (record.creditor.value == null) sections.push({ key: "creditor", title: "Creditor's profile", items: [], empty: "No bank details have been entered." });
   else {
     const p = record.creditor.value;
-    const item = (k: keyof CreditorInput, value: string): SummaryItem => ({ label: CREDITOR_FIELD_LABEL[k], value: value || "Not given" });
+    const item = (k: keyof CreditorInput, value: string, flag?: Pick<SummaryItem, "note" | "tone">): SummaryItem => ({ label: CREDITOR_FIELD_LABEL[k], value: value || "Not given", ...flag });
     sections.push({
       key: "creditor",
       title: "Creditor's profile",
       items: [
         item("beneficiaryName", p.beneficiaryName),
         item("beneficiaryAddress", p.beneficiaryAddress),
-        item("beneficiaryIdentityNo", p.beneficiaryIdentityNo),
+        item("beneficiaryIdentityNo", p.beneficiaryIdentityNo, p.identityDiffersFromCompany ? { note: "This is not the company's registration number. Check that the account is the supplier's to be paid into.", tone: "warn" } : undefined),
         item("beneficiaryContactPerson", p.beneficiaryContactPerson),
         item("beneficiaryTelephone", p.beneficiaryTelephone),
         item("beneficiaryFax", p.beneficiaryFax),
@@ -212,7 +235,8 @@ export function registrationSummary(record: SummaryRecord, fmt: SummaryFormat): 
     items: record.declarations.map((d) => ({
       label: DECLARATION_TITLE[d.kind],
       value: `${d.signatoryName}, ${d.signatoryDesignation}`,
-      note: `Signed ${d.signedAt} by ${d.by} · wording version ${d.textVersion}`,
+      note: `Signed ${d.signedAt} by ${d.by} · wording version ${d.textVersion}${d.signatoryIsNotContact ? ". The person who signed is not the contact on the account that sent the registration." : ""}`,
+      ...(d.signatoryIsNotContact ? { tone: "warn" as const } : {}),
     })),
   });
   return sections;

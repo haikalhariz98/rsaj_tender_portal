@@ -49,6 +49,12 @@ export const CREDITOR_FIELD_LABEL: Readonly<Record<keyof CreditorInput, string>>
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/// Whether the beneficiary's identity or company number is other than the company's registration number (flagged to the office, never refused: a sole proprietor's beneficiary is a person).
+/// A blank number is not compared. The one place this is judged, for the supplier's step and for the reviewer's summary.
+export function identityDiffers(identityNo: string, registrationNoKey: string): boolean {
+  return !isBlank(identityNo) && normaliseRegistrationNo(identityNo) !== registrationNoKey;
+}
+
 export function creditorFaults(c: CreditorInput, statementCount: number, ctx: RegistrationContext): StepFault[] {
   const out: StepFault[] = [];
   const add = (f: Omit<StepFault, "step">) => out.push({ step: "epayment", ...f });
@@ -73,7 +79,7 @@ export function creditorFaults(c: CreditorInput, statementCount: number, ctx: Re
   checkFormat("bankAccountNo", ctx.accountNoPattern);
   checkFormat("bankSwiftCode", ctx.swiftPattern);
 
-  if (!isBlank(c.beneficiaryIdentityNo) && normaliseRegistrationNo(c.beneficiaryIdentityNo) !== ctx.supplier.registrationNoKey) {
+  if (identityDiffers(c.beneficiaryIdentityNo, ctx.supplier.registrationNoKey)) {
     add({ code: "IDENTITY_DIFFERS", level: "warn", field: at("beneficiaryIdentityNo") });
   }
   if (statementCount === 0) add({ code: "STATEMENT_REQUIRED", level: "block", field: "creditor.statement" });

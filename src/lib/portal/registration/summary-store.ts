@@ -7,6 +7,8 @@ import { bumiputeraReading } from "@/lib/suppliers/bumiputera";
 import { composeAddress } from "@/lib/suppliers/step-one";
 import { REGISTRATION_NO_FORMAT_KEY, type SupplierListKind, type VerificationState } from "@/lib/suppliers/types";
 
+import { identityDiffers } from "./creditor";
+import { signatoryDiffers } from "./declaration";
 import type { DraftView } from "./draft-store";
 import { parseRate } from "./documents";
 import type { SummaryCreditor, SummaryDeclaration, SummaryDocument, SummaryRecord } from "./summary";
@@ -77,6 +79,7 @@ export function draftDocumentsSummary(view: DraftView, ctx: RegistrationContext,
       files: d.files.map((f) => ({ name: f.name, scanLabel: "Not scanned" })),
       verification: null,
       lodgedBy: null,
+      lodgedByOfficer: false,
       codes: d.valueIds.map((id) => valueNames.get(id) ?? "A code no longer listed"),
     };
   });
@@ -110,6 +113,7 @@ export async function loadSentDocumentsSummary(client: Tx, scope: SummaryScope, 
     files: d.attachments.filter((a) => a.version.withdrawnAt == null).map((a) => ({ name: a.version.originalFilename, scanLabel: SCAN_LABEL[a.version.scanState] ?? "Not scanned" })),
     verification: { state: d.verification as VerificationState, by: d.verifiedBy?.name ?? null, on: d.verifiedOn ? storedDay(d.verifiedOn) : null, note: d.verificationNote },
     lodgedBy: d.recordedBy ? d.recordedBy.name : SUPPLIER_UPLOADER_WORDS.toLowerCase(),
+    lodgedByOfficer: d.recordedBy != null,
     codes: d.values.map((v) => valueLabel({ code: v.codeSnapshot, nameEn: v.labelSnapshot })),
   }));
 }
@@ -119,8 +123,10 @@ export async function loadDeclarationsSummary(client: Tx, scope: SummaryScope, z
   const rows = await client.registrationDeclaration.findMany({
     where: { organisationId: scope.organisationId, application: { supplierId: scope.supplierId, ...(opts.applicationId ? { id: opts.applicationId } : {}) } },
     orderBy: [{ signedAt: "asc" }, { kind: "asc" }],
+    include: { signedBy: { select: { contact: { select: { name: true } } } } },
   });
-  return rows.map((d) => ({ kind: d.kind as DeclarationKind, textVersion: d.textVersion, signatoryName: d.signatoryName, signatoryDesignation: d.signatoryDesignation, signedAt: formatOrgDateTime(d.signedAt, zone), by: "the supplier's portal account" }));
+  // The person who signs is compared with the contact of the account that sent the registration (the contact as it reads now): another is flagged to the reviewer, never refused.
+  return rows.map((d) => ({ kind: d.kind as DeclarationKind, textVersion: d.textVersion, signatoryName: d.signatoryName, signatoryDesignation: d.signatoryDesignation, signedAt: formatOrgDateTime(d.signedAt, zone), by: "the supplier's portal account", signatoryIsNotContact: signatoryDiffers(d.signatoryName, d.signedBy.contact.name) }));
 }
 
 export interface CreditorRow {
@@ -167,7 +173,11 @@ export async function loadCreditorRows(client: Tx, scope: SummaryScope): Promise
 
 /// A creditor row as the summary reads it: the bank and the account type by their names, the statement by its file names.
 export async function creditorSummaryOf(client: Tx, organisationId: string, row: CreditorRow): Promise<SummaryCreditor> {
-  const lists = await client.supplierListValue.findMany({ where: { organisationId, list: { in: ["BANK", "ACCOUNT_TYPE"] } }, select: { list: true, code: true, nameEn: true } });
+  const [lists, owner] = await Promise.all([
+    client.supplierListValue.findMany({ where: { organisationId, list: { in: ["BANK", "ACCOUNT_TYPE"] } }, select: { list: true, code: true, nameEn: true } }),
+    // The supplier the profile belongs to is read from the profile itself, in this organisation (never from the caller).
+    client.creditorProfile.findFirst({ where: { id: row.id, organisationId }, select: { supplier: { select: { registrationNoKey: true } } } }),
+  ]);
   const v = row.values;
   return {
     beneficiaryName: v.beneficiaryName ?? "",
@@ -186,6 +196,7 @@ export async function creditorSummaryOf(client: Tx, organisationId: string, row:
     bankName: v.bankCode ? (nameOf(lists, "BANK", v.bankCode) ?? "A bank no longer listed") : "",
     accountTypeName: v.bankAccountTypeCode ? (nameOf(lists, "ACCOUNT_TYPE", v.bankAccountTypeCode) ?? "An account type no longer listed") : "",
     statementFiles: row.statement.map((s) => s.name),
+    identityDiffersFromCompany: owner ? identityDiffers(v.beneficiaryIdentityNo ?? "", owner.supplier.registrationNoKey) : false,
     verification: row.submittedAt ? { state: row.verification, by: row.verifiedByName, on: row.verifiedOn ? storedDay(row.verifiedOn) : null, note: row.verificationNote } : null,
   };
 }

@@ -12,14 +12,14 @@ import { fieldsOfScope } from "@/lib/sulit-fields";
  * Who may read a supplier's creditor profile, read (Phase 4b; ruling 6 of the CPD registration rulings, ADR 0034 D14). The rule is `sulitAccess` with the `creditorProfile` scope; this reads
  * the facts it judges, in the caller's client, and nothing is cached or kept as a list:
  *
- * - the holders of the steps, pending or decided, on the approval route of the supplier's registration (`routePeopleOf`, the same names the routes give everywhere else);
+ * - the holders of the steps, pending or decided, on the registration route of THE APPLICATION the profile was sent with (`routePeopleOf`, the same names the routes give everywhere else), and of no other application of the supplier;
  * - the officer who checked this version of the profile;
  * - the staff the organisation has granted `sulit.read.creditorProfile` (undecided until it decides: refused, and said to be undecided).
  *
  * An administrator account is never entitled, and neither is a loader run. The supplier reads its own profile through its own session, never through this: `ownCreditorRow`.
  */
 
-/// The names a creditor profile has, for each of these profiles: the holders and deciders of the supplier's registration routes, the verifier, and whether any route has been started.
+/// The names a creditor profile has, for each of these profiles: the holders and deciders of the registration route of the application it was sent with, the verifier, and whether that route has been started.
 export async function creditorNamedFacts(
   client: Tx,
   organisationId: string,
@@ -31,12 +31,16 @@ export async function creditorNamedFacts(
   // not this organisation's has no names at all (and so is withheld from everyone).
   const profiles = await client.creditorProfile.findMany({ where: { organisationId, id: { in: asked.map((p) => p.id) } }, select: { id: true, supplierId: true, verifiedByPersonId: true } });
   if (profiles.length === 0) return out;
-  const supplierIds = [...new Set(profiles.map((p) => p.supplierId))];
-  const routes = await routePeopleOf(client, organisationId, { supplierApplicationId: { not: null }, supplierApplication: { supplierId: { in: supplierIds } } });
-  const owners = await client.supplierApplication.findMany({ where: { organisationId, supplierId: { in: supplierIds } }, select: { id: true, supplierId: true } });
-  const supplierOfApplication = new Map(owners.map((a) => [a.id, a.supplierId]));
+  // The application a profile was sent with: the application of its GIRO authorisation (the authorisation belongs to the profile it authorises). The route that names its readers is THAT
+  // application's registration route. A supplier's other applications (an earlier one that was rejected, a renewal, an upgrade) have routes of their own, and whoever holds or decided a step
+  // there is not named on this profile: a profile no application carries (none yet) is named by nobody.
+  const sentWith = await client.registrationDeclaration.findMany({ where: { organisationId, kind: "GIRO_AUTHORISATION", creditorProfileId: { in: profiles.map((p) => p.id) } }, select: { creditorProfileId: true, applicationId: true } });
+  const applicationOf = new Map(sentWith.flatMap((d) => (d.creditorProfileId ? [[d.creditorProfileId, d.applicationId] as const] : [])));
+  const applicationIds = [...new Set(applicationOf.values())];
+  const routes = applicationIds.length ? await routePeopleOf(client, organisationId, { domain: "supplier_registration", supplierApplicationId: { in: applicationIds } }) : [];
   for (const p of profiles) {
-    const mine = routes.filter((r) => r.supplierApplicationId != null && supplierOfApplication.get(r.supplierApplicationId) === p.supplierId);
+    const application = applicationOf.get(p.id);
+    const mine = application ? routes.filter((r) => r.supplierApplicationId === application) : [];
     out.set(p.id, {
       requesterId: null,
       stepHolderIds: [...new Set(mine.flatMap((r) => r.people.holderIds))],

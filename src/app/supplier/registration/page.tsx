@@ -19,7 +19,7 @@ import { loadRegistrationContext, loadRegistrationSettings } from "@/lib/portal/
 import { giroTick } from "@/lib/portal/registration/declaration";
 import { draftOf, loadDraftView, loadWizardState } from "@/lib/portal/registration/draft-store";
 import { blockingFaults, registrationFaults } from "@/lib/portal/registration/faults";
-import { registrationSummary, type SummaryRecord } from "@/lib/portal/registration/summary";
+import { forSupplier, registrationSummary, type SummaryRecord } from "@/lib/portal/registration/summary";
 import { creditorSummaryOf, draftDocumentsSummary, loadCompanySummary, loadContactsSummary, loadCreditorRows, loadDeclarationsSummary, loadSentDocumentsSummary } from "@/lib/portal/registration/summary-store";
 import { isRegistrationStep, REGISTRATION_STEPS, type RegistrationStep } from "@/lib/portal/registration/types";
 import { loadUploadSettings } from "@/lib/portal/registration/upload-settings";
@@ -309,7 +309,8 @@ async function Sent({ actor, settings }: { actor: Awaited<ReturnType<typeof requ
       <Callout tone="ok" title="Your registration has been sent" className="mb-6">
         The procurement office checks it. What it decides is told on your account page: nothing is e-mailed from the portal. Nothing here can be changed now.
       </Callout>
-      <RegistrationSummaryCards sections={registrationSummary(record, { day: formatDate })} />
+      {/* The supplier's copy: the state and the day of the office's checks, never the officer's name or note. */}
+      <RegistrationSummaryCards sections={registrationSummary(forSupplier(record), { day: formatDate })} />
     </>
   );
 }

@@ -2,9 +2,12 @@ import type { Tx } from "@/lib/audit/record";
 import type { SupplierActor } from "@/lib/auth/types";
 
 /**
- * A signed-in supplier's own file, found (Phase 4b, B6 `GET /supplier/registration/file`). A file is the supplier's own when a version of it hangs on the supplier's own registration draft,
- * on one of its own creditor profiles (the bank statement), or on one of its own documents: the supplier is the session's, the organisation is the session's, and a version that hangs
- * on nothing of theirs is not found, whoever's it is. A refusal and a missing file read the same.
+ * A signed-in supplier's own file, found (Phase 4b, B6 `GET /supplier/registration/file`). A file is the supplier's own when a version of it is attached NOW to the supplier's own registration
+ * draft, to one of its own creditor profiles (the bank statement) or to one of its own documents, or when the supplier's own account uploaded it (so it can still open what it withdrew). The
+ * supplier is the session's, the organisation is the session's, and a version that is neither is not found, whoever's it is. A refusal and a missing file read the same.
+ *
+ * An attachment that was DETACHED does not count: an officer who attached another supplier's certificate to this supplier's document by mistake, and then detached it, has corrected the mistake,
+ * and the correction must take the file away from the supplier it should never have reached (the staff side judges only live attachments for the same reason).
  */
 
 export interface OwnVersion {
@@ -21,7 +24,11 @@ export interface OwnVersion {
 export async function findOwnVersion(client: Tx, actor: Pick<SupplierActor, "organisationId" | "supplierId">, versionId: string): Promise<OwnVersion | null> {
   const mine = [{ registrationDraftDocument: { draft: { supplierId: actor.supplierId } } }, { creditorProfile: { supplierId: actor.supplierId } }, { supplierDocument: { supplierId: actor.supplierId } }];
   const v = await client.documentVersion.findFirst({
-    where: { id: versionId, organisationId: actor.organisationId, attachments: { some: { organisationId: actor.organisationId, OR: mine } } },
+    where: {
+      id: versionId,
+      organisationId: actor.organisationId,
+      OR: [{ attachments: { some: { organisationId: actor.organisationId, detachedAt: null, OR: mine } } }, { recordedBySupplierAccount: { supplierId: actor.supplierId } }],
+    },
     select: {
       id: true,
       sha256: true,

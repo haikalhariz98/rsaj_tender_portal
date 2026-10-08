@@ -5,6 +5,7 @@ import { sha256Hex } from "@/lib/documents/store";
 import { postgresBlobStore } from "@/lib/documents/store/postgres";
 import { authenticateSupplier, confirmSupplierPassword } from "@/lib/auth/supplier-identity";
 import { readSupplierSession } from "@/lib/auth/supplier-session-store";
+import { sulitGranted } from "@/lib/auth/sulit-access";
 import type { SupplierActor } from "@/lib/auth/types";
 import { ensureAdministrator, facts, makeSupplierAccount, randomId, setPolicy, SUPPLIER_SETTINGS, testOrganisation } from "@/lib/test-db/auth-fixtures";
 import { UploadRefusal } from "@/lib/documents/service";
@@ -13,7 +14,8 @@ import { contextFor } from "./context-store";
 import { frozenWording } from "./declaration";
 import { CREDITOR_FIELDS } from "./types";
 import { findOwnVersion } from "./own-file-store";
-import { creditorSummaryOf, loadCompanySummary, loadCreditorRows, loadDeclarationsSummary, loadSentDocumentsSummary } from "./summary-store";
+import { forSupplier, registrationSummary } from "./summary";
+import { creditorSummaryOf, loadCompanySummary, loadContactsSummary, loadCreditorRows, loadDeclarationsSummary, loadSentDocumentsSummary } from "./summary-store";
 import { DraftRefused, loadDraftView, loadWizardState, saveSection } from "./draft-store";
 import { submitRegistration } from "./submit-store";
 import { storeSupplierUpload, withdrawDraftFile, type UploadTarget } from "./upload-store";
@@ -659,6 +661,62 @@ describe("one supplier's registration is invisible to another (a supplier named 
     expect(await findOwnVersion(db, b.actor, promoted)).toBeNull();
     // Nor does an actor with another organisation's id see it.
     expect(await findOwnVersion(db, { organisationId: "another_organisation", supplierId: a.supplierId }, promoted)).toBeNull();
+  });
+
+  it("a version an officer attached to the supplier's document and then detached is not the supplier's to fetch; its own withdrawn upload still is", async () => {
+    const a = await supplier();
+    const b = await supplier();
+    const da = await readyDraft(a.actor);
+    const draftB = await readyDraft(b.actor);
+    await submitRegistration(a.actor, { version: da.v, declarations: declarations(), stepUpAt: await signStep(a) });
+    const aDoc = await db.supplierDocument.findFirstOrThrow({ where: { supplierId: a.supplierId, typeId: typeReg } });
+    // B's certificate, as it hangs on B's draft: attached to A's document by an officer's mistake.
+    const bFile = (await db.documentAttachment.findFirstOrThrow({ where: { registrationDraftDocumentId: draftB.rows.reg, purpose: "SUPPLIER_DRAFT_DOCUMENT" } })).versionId;
+    expect(await findOwnVersion(db, a.actor, bFile)).toBeNull();
+    const mistaken = await db.documentAttachment.create({ data: { organisationId, purpose: "SUPPLIER_DOCUMENT", versionId: bFile, supplierDocumentId: aDoc.id } });
+    expect((await findOwnVersion(db, a.actor, bFile))?.id, "while the mistake stands").toBe(bFile);
+    await db.documentAttachment.update({ where: { id: mistaken.id }, data: { detachedAt: new Date(), detachReason: "Attached to the wrong supplier" } });
+    expect(await findOwnVersion(db, a.actor, bFile), "once corrected").toBeNull();
+    // The same for a bank statement: a version detached from the profile is gone from the supplier too.
+    const bStatement = draftB.statement.versionId;
+    const wrongStatement = await db.documentAttachment.create({ data: { organisationId, purpose: "SUPPLIER_DOCUMENT", versionId: bStatement, supplierDocumentId: aDoc.id } });
+    await db.documentAttachment.update({ where: { id: wrongStatement.id }, data: { detachedAt: new Date(), detachReason: "Attached to the wrong supplier" } });
+    expect(await findOwnVersion(db, a.actor, bStatement)).toBeNull();
+
+    // A's own upload, withdrawn from a draft of its own: the supplier uploaded it, so it can still open it.
+    const c = await supplier();
+    const up = await upload(c.actor, 0, { kind: "document", documentId: null, typeId: typeReg, title: "" });
+    const own = (await db.documentAttachment.findFirstOrThrow({ where: { registrationDraftDocumentId: up.rowId!, purpose: "SUPPLIER_DRAFT_DOCUMENT" } })).versionId;
+    await withdrawDraftFile(c.actor, { version: up.version, versionId: own });
+    expect((await findOwnVersion(db, c.actor, own))?.id).toBe(own);
+    expect(await findOwnVersion(db, a.actor, own)).toBeNull();
+  });
+
+  it("the sent registration's summary for the supplier names no officer and carries no officer's note, though the office's own copy does", async () => {
+    const a = await supplier();
+    const d = await readyDraft(a.actor);
+    await submitRegistration(a.actor, { version: d.v, declarations: declarations(), stepUpAt: await signStep(a) });
+    const officer = await db.person.create({ data: { organisationId, name: "Officer Zainal Abidin Binti Ghazali" } });
+    const doc = await db.supplierDocument.findFirstOrThrow({ where: { supplierId: a.supplierId, typeId: typeReg } });
+    await db.supplierDocument.update({ where: { id: doc.id }, data: { verification: "NOT_IN_ORDER", verifiedByPersonId: officer.id, verifiedOn: new Date("2026-10-10T00:00:00Z"), verifiedAt: new Date(), verificationNote: "The seal looks altered, ask the board" } });
+    const profile = await db.creditorProfile.findFirstOrThrow({ where: { supplierId: a.supplierId } });
+    await db.creditorProfile.update({ where: { id: profile.id }, data: { verification: "VERIFIED", verifiedByPersonId: officer.id, verifiedOn: new Date("2026-10-10T00:00:00Z"), verifiedAt: new Date(), verificationNote: "Account number differs from the first statement" } });
+    const scope = { organisationId, supplierId: a.supplierId };
+    const [row] = await loadCreditorRows(db, scope);
+    const record = {
+      company: (await loadCompanySummary(db, scope, "APPLICATION"))!,
+      contacts: sulitGranted(await loadContactsSummary(db, scope), "OWN_RECORD"),
+      documents: await loadSentDocumentsSummary(db, scope),
+      creditor: sulitGranted(await creditorSummaryOf(db, organisationId, row!), "OWN_RECORD"),
+      declarations: await loadDeclarationsSummary(db, scope, "Asia/Kuala_Lumpur"),
+    };
+    const fmt = { day: (iso: string) => iso };
+    const office = JSON.stringify(registrationSummary(record, fmt));
+    expect(office).toContain("Officer Zainal Abidin");
+    const supplierCopy = JSON.stringify(registrationSummary(forSupplier(record), fmt));
+    for (const leaked of ["Zainal", "seal looks altered", "differs from the first statement"]) expect(supplierCopy, leaked).not.toContain(leaked);
+    expect(supplierCopy).toContain("Checked and found not in order, 2026-10-10");
+    expect(supplierCopy).toContain("Checked and in order, 2026-10-10");
   });
 
   it("the summary reads one supplier's rows at a time: the loaders are scoped by the supplier and the organisation they are given", async () => {

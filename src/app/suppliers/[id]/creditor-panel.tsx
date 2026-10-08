@@ -109,11 +109,19 @@ export async function CreditorPanel({ actor, l, version }: { actor: StaffActor; 
             {STATE_WORDS[creditorVersionState({ version: selected.version, sent: true, verification: selected.verification }, facts)].text}
           </Badge>
           {canCheck && gate.state === "GRANTED" && <VerifyCreditorDrawer profileId={selected.id} version={selected.version} today={today} blocker={blocker ? creditorReviewText(blocker).en : null} />}
-          {selected.statement.map((f) => (
-            <ButtonLink key={f.versionId} href={`/api/documents/versions/${f.versionId}`} variant="secondary" size="sm" target="_blank" rel="noopener noreferrer">
-              Bank statement: {f.name}
-            </ButtonLink>
-          ))}
+          {/* A file's name is the supplier's own words and often carries the bank and the account number, so the statement is named, and offered, only to a reader the gate granted. */}
+          {gate.state === "GRANTED"
+            ? selected.statement.map((f) => (
+                <ButtonLink key={f.versionId} href={`/api/documents/versions/${f.versionId}`} variant="secondary" size="sm" target="_blank" rel="noopener noreferrer">
+                  Bank statement: {f.name}
+                </ButtonLink>
+              ))
+            : selected.statement.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-3">
+                  <SulitTag />
+                  Bank statement: {selected.statement.length === 1 ? "1 file" : `${selected.statement.length} files`}, withheld
+                </span>
+              )}
         </div>
         {canCheck && gate.state === "WITHHELD" && <p className="text-[12.5px] text-ink-3">You cannot check these details: you may not read them.</p>}
         <RegistrationSummaryCards sections={[section]} />
