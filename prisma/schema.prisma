@@ -204,6 +204,8 @@ model Organisation {
   staffNotices StaffNotice[]
   staffAccounts   StaffAccount[]
   staffSessions   StaffSession[]
+  supplierAccounts SupplierAccount[]
+  supplierSessions SupplierSession[]
   oneTimeCodes    OneTimeCode[]
   securityPolicy  SecurityPolicy?
   signInEvents    SignInEvent[]
@@ -7426,6 +7428,11 @@ enum VerificationState {
 enum SupplierListKind {
   ENTITY_TYPE
   COUNTRY
+  /// What an applicant may declare of their Bumiputera status (FR-VND-001). A claim, never a verified fact: the effective status is the
+  /// verified restriction-evidence document (BD-615-1). The customer's own list; none ships.
+  BUMIPUTERA_STATUS
+  /// The states of the registered address (FR-VND-001). The customer's own list; none ships.
+  STATE
 }
 
 /// A value under a registration body (FR-VND-003): a grade, a category, a specialisation (under a
@@ -7499,6 +7506,9 @@ model SupplierListValue {
   code       String
   nameEn     String
   nameMs     String?
+  /// The country's dial code ("+60"), on a COUNTRY value only (CHECK SupplierListValue_calling_code_country_only). Shown before the mobile number on the
+  /// public form. Null: not set, and no prefix is shown and the number is taken as typed.
+  callingCode String?
   provenance Provenance
   sortOrder  Int       @default(0)
   retiredOn  DateTime?
@@ -7559,6 +7569,9 @@ model SupplierPolicy {
   /// opening holding such a bid cannot finalise, naming this setting.
   ineligibleBidConsequence IneligibleBidConsequence?
   ineligibleProvenance     Provenance?
+  /// Whether a supplier's contact must give an email AND a mobile number (CPD's form), or either one. Null: not set, and the rule stays "an email or a telephone".
+  contactNeedsEmailAndPhone Boolean?
+  contactRuleProvenance     Provenance?
 
   governingSource String   @default("")
   updatedAt       DateTime @updatedAt
@@ -7580,7 +7593,19 @@ model Supplier {
   /// Codes on the register's lists, rendered by their names.
   entityTypeCode    String
   countryCode       String
+  /// The address as one text: what an officer typed from paper, or what is composed from the parts below when the supplier came through the portal.
   registeredAddress String
+  /// The address in parts (FR-VND-001), where the application gave them. Blank on a supplier recorded from paper before they were asked.
+  addressLine1      String   @default("")
+  addressLine2      String   @default("")
+  city              String   @default("")
+  postcode          String   @default("")
+  /// A code on the STATE list.
+  stateCode         String   @default("")
+  /// What the applicant declared of their Bumiputera status: a code on the BUMIPUTERA_STATUS list. A claim only. Blank: none was made.
+  bumiputeraClaimCode String @default("")
+  /// The day the company was incorporated, as the applicant gave it. Null on a supplier recorded before it was asked.
+  incorporatedOn    DateTime?
   companyEmail      String
 
   status       SupplierStatus @default(APPLICANT)
@@ -7595,6 +7620,8 @@ model Supplier {
   updatedAt DateTime @updatedAt
 
   contacts     SupplierContact[]
+  /// The portal accounts of its contacts (Phase 4a).
+  accounts     SupplierAccount[]
   applications SupplierApplication[]
   documents    SupplierDocument[]
   /// a2: its standing, as recorded acts (append-only); suspension on lapse is derived, never stored.
@@ -7628,6 +7655,9 @@ model SupplierContact {
   retiredOn   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  /// The contact's way into the supplier portal, where one has been opened (ADR 0034 D2). Retiring the contact disables it in the same transaction.
+  account SupplierAccount?
 
   @@index([supplierId])
 }
@@ -7708,6 +7738,16 @@ model PortalApplication {
   entityTypeCode     String    @default("")
   countryCode        String    @default("")
   registeredAddress  String    @default("")
+  /// The address in parts, as typed (FR-VND-001). `registeredAddress` above is composed from them for the readers that want one text.
+  addressLine1       String    @default("")
+  addressLine2       String    @default("")
+  city               String    @default("")
+  postcode           String    @default("")
+  stateCode          String    @default("")
+  /// A claim the applicant declares, from the BUMIPUTERA_STATUS list. Never verified here.
+  bumiputeraClaimCode String   @default("")
+  /// Required of a new application (CPD, 2026-10-07): a real day, not after the day it was sent. Null on an older one, or once erased.
+  incorporatedOn     DateTime?
   companyEmail       String    @default("")
   contactName        String    @default("")
   contactDesignation String    @default("")
@@ -10990,8 +11030,77 @@ model StaffSession {
   @@index([accountId, revokedAt])
 }
 
+/// A supplier contact's way into the portal (ADR 0034 D2, Phase 4a): one per contact, bound for good once made, and through the contact to one
+/// supplier. Not a Person, and no administrator flag: a supplier account administers nothing. Its own table, its own sessions and its own cookie, so
+/// a supplier's session means nothing to the staff side. Never deleted, only disabled. Its CHECKs (hand-appended in the migration) are the staff
+/// account's: the sign-in key is the lower-cased name and a disabled account is dated.
+model SupplierAccount {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  contactId  String          @unique
+  contact    SupplierContact @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  supplierId String
+  supplier   Supplier        @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  /// As typed, for display. `loginKey` is the same lower-cased and is what is compared and unique.
+  loginName String
+  loginKey  String @unique
+
+  /// Held only as a hash. An account waiting for its activation code holds the hash of a secret nobody knows.
+  passwordHash       String
+  passwordChangedAt  DateTime
+  mustChangePassword Boolean       @default(false)
+  status             AccountStatus
+
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  lastSignInAt   DateTime?
+  disabledAt     DateTime?
+  disabledReason String    @default("")
+  /// A reset was done to this account: said once, at the next sign-in, until acknowledged.
+  resetNoticePending Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions SupplierSession[]
+  codes    OneTimeCode[]
+  events   SignInEvent[]
+
+  @@index([organisationId])
+  @@index([supplierId])
+}
+
+/// A signed-in supplier browser: the staff session's shape (only the SHA-256 of a 256-bit token is stored), for the other store.
+model SupplierSession {
+  id             String          @id @default(cuid())
+  organisationId String
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  accountId      String
+  account        SupplierAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  tokenHash String @unique
+
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime
+  /// Fixed when the session is made and never extended.
+  absoluteExpiresAt DateTime
+  /// When the password was last re-entered in this session (a signature-class act reads it).
+  stepUpAt DateTime?
+
+  sourceAddress String?
+  userAgent     String  @default("")
+
+  revokedAt     DateTime?
+  revokedReason SessionRevokeReason?
+
+  @@index([accountId, revokedAt])
+}
+
 /// One-time code to activate an account or reset its password. 128 random bits, shown once, held as SHA-256. Handed
-/// over by an officer who says how identity was checked. The supplier account has no foreign key until Phase 4.
+/// over by an officer who says how identity was checked.
 model OneTimeCode {
   id             String       @id @default(cuid())
   organisationId String
@@ -11001,6 +11110,7 @@ model OneTimeCode {
   staffAccountId    String?
   staffAccount      StaffAccount? @relation(fields: [staffAccountId], references: [id], onDelete: Restrict)
   supplierAccountId String?
+  supplierAccount   SupplierAccount? @relation(fields: [supplierAccountId], references: [id], onDelete: Restrict)
 
   purpose   CodePurpose
   codeHash  String      @unique
@@ -11015,6 +11125,7 @@ model OneTimeCode {
   createdAt     DateTime @default(now())
 
   @@index([staffAccountId])
+  @@index([supplierAccountId])
 }
 
 /// How long and how many, per organisation: every column nullable, with a CHECK range and no default. Unset means
@@ -11046,8 +11157,7 @@ model SecurityPolicy {
 }
 
 /// The permanent sign-in log: append-only (its refusal trigger, migration 20261007100100, has no bypass). It holds no
-/// personal data beyond which account: the address and user agent are in SignInEventDetail (O-1). The supplier
-/// account has no foreign key until Phase 4.
+/// personal data beyond which account: the address and user agent are in SignInEventDetail (O-1).
 model SignInEvent {
   id             String       @id @default(cuid())
   organisationId String
@@ -11058,12 +11168,14 @@ model SignInEvent {
   staffAccountId    String?
   staffAccount      StaffAccount? @relation(fields: [staffAccountId], references: [id], onDelete: Restrict)
   supplierAccountId String?
+  supplierAccount   SupplierAccount? @relation(fields: [supplierAccountId], references: [id], onDelete: Restrict)
   kind              SignInEventKind
   at                DateTime        @default(now())
 
   detail SignInEventDetail?
 
   @@index([staffAccountId, at])
+  @@index([supplierAccountId, at])
   @@index([kind, at])
   @@index([organisationId, at])
 }
