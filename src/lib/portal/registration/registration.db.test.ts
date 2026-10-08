@@ -10,6 +10,8 @@ import { ensureAdministrator, facts, makeSupplierAccount, randomId, setPolicy, S
 import { UploadRefusal } from "@/lib/documents/service";
 
 import { contextFor } from "./context-store";
+import { frozenWording } from "./declaration";
+import { CREDITOR_FIELDS } from "./types";
 import { findOwnVersion } from "./own-file-store";
 import { creditorSummaryOf, loadCompanySummary, loadCreditorRows, loadDeclarationsSummary, loadSentDocumentsSummary } from "./summary-store";
 import { DraftRefused, loadDraftView, loadWizardState, saveSection } from "./draft-store";
@@ -34,6 +36,15 @@ let gradeId: string;
 let categoryId: string;
 let giroTextId: string;
 let falseTextId: string;
+/// The hash of each wording as the page shows it (organisation name filled in): what a tick and a signature are bound to.
+let giroSha: string;
+let falseSha: string;
+
+/// The hash of a stored wording as it reads now, for the organisation as it is named now.
+async function wordingSha(textId: string): Promise<string> {
+  const [t, o] = await Promise.all([db.declarationText.findUniqueOrThrow({ where: { id: textId } }), db.organisation.findUniqueOrThrow({ where: { id: organisationId }, select: { name: true } })]);
+  return frozenWording(t, o.name).sha256;
+}
 
 const PDF = (n: number) => new TextEncoder().encode(`%PDF-1.4 test ${n} ${randomId()}`);
 const STORE = { allowedTypes: ["application/pdf"], capBytes: 100_000n };
@@ -75,6 +86,8 @@ beforeAll(async () => {
   };
   giroTextId = await text("GIRO_AUTHORISATION", "We authorise {organisation} to pay.");
   falseTextId = await text("FALSE_DECLARATION", "What we say to {organisation} is true.");
+  giroSha = await wordingSha(giroTextId);
+  falseSha = await wordingSha(falseTextId);
 });
 
 /// A supplier with a live account, signed in, as the actor the portal reads from its session.
@@ -120,13 +133,13 @@ async function readyDraft(actor: SupplierActor) {
   v = (await saveSection(actor, { version: v, section: { step: "codes", documents: [{ id: b.rowId!, valueIds: [gradeId, categoryId] }] } }, ctxFor(actor))).version;
   const s = await upload(actor, v, { kind: "statement" });
   v = s.version;
-  v = (await saveSection(actor, { version: v, section: { step: "epayment", creditor: { beneficiaryName: "Demonstration Contractors", beneficiaryAddress: "1 Road", beneficiaryIdentityNo: "ID-1", beneficiaryContactPerson: "Aminah", beneficiaryTelephone: "0123", beneficiaryEmail: "a@example.invalid", bankCode: "reg4b_bank", bankAccountNo: "123456789", bankAccountTypeCode: "reg4b_current", bankAddress: "2 Street" }, signatoryName: actor.displayName, signatoryDesignation: "Director", giroConfirmed: true } }, ctxFor(actor))).version;
+  v = (await saveSection(actor, { version: v, section: { step: "epayment", creditor: { beneficiaryName: "Demonstration Contractors", beneficiaryAddress: "1 Road", beneficiaryIdentityNo: "ID-1", beneficiaryContactPerson: "Aminah", beneficiaryTelephone: "0123", beneficiaryEmail: "a@example.invalid", bankCode: "reg4b_bank", bankAccountNo: "123456789", bankAccountTypeCode: "reg4b_current", bankAddress: "2 Street" }, signatoryName: actor.displayName, signatoryDesignation: "Director", giroConfirmed: true, giroTextSha256: giroSha } }, ctxFor(actor))).version;
   return { v, rows: { reg: a.rowId!, works: b.rowId! }, statement: s };
 }
 
 const declarations = (): DeclarationInput[] => [
-  { kind: "GIRO_AUTHORISATION", textVersionId: giroTextId, signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
-  { kind: "FALSE_DECLARATION", textVersionId: falseTextId, signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
+  { kind: "GIRO_AUTHORISATION", textVersionId: giroTextId, textSha256: giroSha, signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
+  { kind: "FALSE_DECLARATION", textVersionId: falseTextId, textSha256: falseSha, signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
 ];
 
 async function signStep(s: { actor: SupplierActor; password: string }) {
@@ -407,6 +420,115 @@ describe("sending the registration", () => {
     await expect(submitRegistration(s.actor, { version: d.v + 1, declarations: declarations(), stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID" });
     expect(await db.supplierApplication.count({ where: { supplierId: s.supplierId } })).toBe(0);
     expect(await db.registrationDeclaration.count({ where: { signedBySupplierAccountId: s.actor.accountId } })).toBe(0);
+  });
+
+  it("stores the signatory the draft holds, never the one the request carries, and the GIRO tick the draft holds", async () => {
+    const s = await supplier();
+    const d = await readyDraft(s.actor);
+    const crafted = declarations().map((x) => ({ ...x, signatoryName: "Somebody Else Entirely", signatoryDesignation: "Chairman", confirmed: true }));
+    const sent = await submitRegistration(s.actor, { version: d.v, declarations: crafted, stepUpAt: await signStep(s) });
+    const signed = await db.registrationDeclaration.findMany({ where: { applicationId: sent.applicationId } });
+    expect(signed).toHaveLength(2);
+    for (const x of signed) expect(x).toMatchObject({ signatoryName: s.actor.displayName, signatoryDesignation: "Director" });
+  });
+
+  it("a GIRO box ticked on one wording does not count for another: refused when a new version took its place, and the supplier ticks again", async () => {
+    const s = await supplier();
+    const d = await readyDraft(s.actor);
+    const latest = await db.declarationText.aggregate({ where: { organisationId, kind: "GIRO_AUTHORISATION" }, _max: { version: true } });
+    const v2 = await db.declarationText.create({ data: { organisationId, kind: "GIRO_AUTHORISATION", version: (latest._max.version ?? 1) + 1, bodyEn: "A new authorisation for {organisation} to pay.", bodyMs: null, provenance: "ASSUMED", governingSource: "A demonstration wording", issuedOn: new Date("2026-02-01T00:00:00Z") } });
+    try {
+      // The page loaded after the new version, so it carries the new text's id and hash: it is the BOX that is stale.
+      const now = declarations();
+      now[0] = { ...now[0]!, textVersionId: v2.id, textSha256: await wordingSha(v2.id) };
+      await expect(submitRegistration(s.actor, { version: d.v, declarations: now, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "TEXT_STALE", field: "giro.confirmed" })] });
+      expect(await db.supplierApplication.count({ where: { supplierId: s.supplierId } })).toBe(0);
+      // A tick that names the old wording is refused at the save; ticking again on the wording now in force is accepted and can be sent.
+      await expect(saveSection(s.actor, { version: d.v, section: { step: "epayment", creditor: {}, giroConfirmed: true, giroTextSha256: giroSha } }, ctxFor(s.actor))).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "TEXT_STALE" })] });
+      const ticked = await saveSection(s.actor, { version: d.v, section: { step: "epayment", creditor: {}, giroConfirmed: true, giroTextSha256: await wordingSha(v2.id) } }, ctxFor(s.actor));
+      const sent = await submitRegistration(s.actor, { version: ticked.version, declarations: now, stepUpAt: await signStep(s) });
+      expect((await db.registrationDeclaration.findFirstOrThrow({ where: { applicationId: sent.applicationId, kind: "GIRO_AUTHORISATION" } })).textVersion).toBe(v2.version);
+    } finally {
+      // The scratch organisation is shared: the second version is signed by now, so it is retired (a signed wording is never deleted) and the first is in force again.
+      await db.declarationText.update({ where: { id: v2.id }, data: { retiredOn: new Date("2026-02-02T00:00:00Z") } });
+    }
+  });
+
+  it("wording corrected in place after the page was drawn is refused, with nothing written", async () => {
+    const s = await supplier();
+    const d = await readyDraft(s.actor);
+    const original = await db.declarationText.findUniqueOrThrow({ where: { id: falseTextId } });
+    // The page was drawn with the false-declaration words as they were; an office then corrects them in place (allowed while nobody has signed that version).
+    const drawn = declarations();
+    await db.declarationText.update({ where: { id: falseTextId }, data: { bodyEn: "A corrected declaration to {organisation}." } });
+    try {
+      await expect(submitRegistration(s.actor, { version: d.v, declarations: drawn, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID", faults: [expect.objectContaining({ code: "TEXT_STALE" })] });
+      expect(await db.supplierApplication.count({ where: { supplierId: s.supplierId } })).toBe(0);
+      expect(await db.registrationDeclaration.count({ where: { signedBySupplierAccountId: s.actor.accountId } })).toBe(0);
+    } finally {
+      await db.declarationText.update({ where: { id: falseTextId }, data: { bodyEn: original.bodyEn } });
+    }
+  });
+
+  it("the organisation renamed after the page was drawn is refused too: what is signed names the organisation", async () => {
+    const s = await supplier();
+    const d = await readyDraft(s.actor);
+    const org = await db.organisation.findUniqueOrThrow({ where: { id: organisationId } });
+    const drawn = declarations();
+    await db.organisation.update({ where: { id: organisationId }, data: { name: `${org.name} (renamed)` } });
+    try {
+      await expect(submitRegistration(s.actor, { version: d.v, declarations: drawn, stepUpAt: await signStep(s) })).rejects.toMatchObject({ kind: "INVALID" });
+      expect(await db.registrationDeclaration.count({ where: { signedBySupplierAccountId: s.actor.accountId } })).toBe(0);
+    } finally {
+      await db.organisation.update({ where: { id: organisationId }, data: { name: org.name } });
+    }
+  });
+
+  it("a correction in flight is waited for: a registration sent while a wording is being corrected is refused, never signed on the old words under the corrected row", async () => {
+    const s = await supplier();
+    const d = await readyDraft(s.actor);
+    const original = await db.declarationText.findUniqueOrThrow({ where: { id: falseTextId } });
+    const drawn = declarations();
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    // The office's correction, as the configuration action takes it: the row locked first, the edit not yet committed.
+    const correcting = db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "DeclarationText" WHERE id = ${falseTextId} FOR UPDATE`;
+      await tx.declarationText.update({ where: { id: falseTextId }, data: { bodyEn: "A corrected declaration to {organisation}." } });
+      await held;
+    });
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      const stepUpAt = await signStep(s);
+      const sending = submitRegistration(s.actor, { version: d.v, declarations: drawn, stepUpAt }).then(
+        () => "SENT",
+        (e: unknown) => (e as { kind?: string }).kind ?? String(e),
+      );
+      await new Promise((r) => setTimeout(r, 500));
+      release();
+      await correcting;
+      // Without the shared lock the send read the old words while the correction was uncommitted, signed them, and the row then changed under the signature.
+      expect(await sending).toBe("INVALID");
+      expect(await db.registrationDeclaration.count({ where: { signedBySupplierAccountId: s.actor.accountId } })).toBe(0);
+    } finally {
+      release();
+      await correcting.catch(() => undefined);
+      await db.declarationText.update({ where: { id: falseTextId }, data: { bodyEn: original.bodyEn } });
+    }
+  });
+
+  it("no audit row of the bank details carries a value that was saved (the trail cannot be erased)", async () => {
+    const s = await supplier();
+    const d = await readyDraft(s.actor);
+    await saveSection(s.actor, { version: d.v, section: { step: "epayment", creditor: { bankAccountNo: "55501234567", beneficiaryIdentityNo: "IC-770101-01-5555", beneficiaryTelephone: "0199998888" } } }, ctxFor(s.actor));
+    const profile = await db.creditorProfile.findFirstOrThrow({ where: { supplierId: s.supplierId } });
+    const rows = await db.auditEntry.findMany({ where: { organisationId, entity: "CreditorProfile", entityId: profile.id } });
+    expect(rows.length).toBeGreaterThan(0);
+    const trail = JSON.stringify(rows.map((r) => [r.entityLabel, r.changes]));
+    for (const v of ["123456789", "55501234567", "IC-770101-01-5555", "0199998888", "Demonstration Contractors", "a@example.invalid", "2 Street", "1 Road", "reg4b_bank"]) expect(trail, v).not.toContain(v);
+    const changed = rows.flatMap((r) => (r.changes as { field: string }[]).map((c) => c.field));
+    expect(changed).toEqual(expect.arrayContaining(["bankAccountNo", "beneficiaryIdentityNo"]));
+    for (const f of changed) expect(CREDITOR_FIELDS as readonly string[]).toContain(f);
   });
 
   it("refuses a password entry that was not asked for this session, or was already used to sign something", async () => {

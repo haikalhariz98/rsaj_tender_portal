@@ -36,6 +36,8 @@ export interface DraftView {
   signatoryName: string;
   signatoryDesignation: string;
   giroConfirmed: boolean;
+  /// The hash of the wording the tick was made on (null while unticked).
+  giroTextSha256: string | null;
   documents: DraftDocumentView[];
   /// The profile being filled in, if one is started (not yet sent).
   creditorId: string | null;
@@ -43,7 +45,7 @@ export interface DraftView {
   statement: FileView[];
 }
 
-export const emptyDraftView = (): DraftView => ({ id: null, version: 0, sentAt: null, lastSavedAt: null, signatoryName: "", signatoryDesignation: "", giroConfirmed: false, documents: [], creditorId: null, creditor: { ...EMPTY_CREDITOR }, statement: [] });
+export const emptyDraftView = (): DraftView => ({ id: null, version: 0, sentAt: null, lastSavedAt: null, signatoryName: "", signatoryDesignation: "", giroConfirmed: false, giroTextSha256: null, documents: [], creditorId: null, creditor: { ...EMPTY_CREDITOR }, statement: [] });
 
 /// The draft as the rules read it: counts, not files.
 export function draftOf(view: DraftView): Draft {
@@ -54,6 +56,7 @@ export function draftOf(view: DraftView): Draft {
     signatoryName: view.signatoryName,
     signatoryDesignation: view.signatoryDesignation,
     giroConfirmed: view.giroConfirmed,
+    giroTextSha256: view.giroTextSha256,
   };
 }
 

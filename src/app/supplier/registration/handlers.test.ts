@@ -243,6 +243,26 @@ describe("saving a section", () => {
     expect(JSON.stringify(input)).not.toMatch(/sup_other|acc9|"o2"/);
   });
 
+  it("a GIRO tick says which wording it was made on, by hash; a tick with none, or with a malformed one, is refused before the store", async () => {
+    h.saveSection.mockResolvedValue({ version: 4, created: {}, faults: [] });
+    const epayment = (section: Record<string, unknown>) => post("/supplier/registration/save", { step: "epayment", version: 3, section: { creditor: {}, ...section } });
+    expect((await save(epayment({ giroConfirmed: true }))).status).toBe(400);
+    expect((await save(epayment({ giroConfirmed: true, giroTextSha256: "not-a-hash" }))).status).toBe(400);
+    expect(h.saveSection).not.toHaveBeenCalled();
+    expect((await save(epayment({ giroConfirmed: true, giroTextSha256: SHA }))).status).toBe(200);
+    expect(h.saveSection.mock.calls[0]![1].section).toMatchObject({ giroConfirmed: true, giroTextSha256: SHA });
+    // unticking needs no hash
+    expect((await save(epayment({ giroConfirmed: false }))).status).toBe(200);
+  });
+
+  it("refuses a signature that does not say which wording it was shown, by hash", async () => {
+    for (const textSha256 of [undefined, "", "abc", "Z".repeat(64)]) {
+      const res = await submit(post("/supplier/registration/submit", { version: 5, password: "correct horse battery", declarations: [{ kind: "FALSE_DECLARATION", textVersionId: "text5678", textSha256, signatoryName: "Aini", signatoryDesignation: "Director", confirmed: true }] }));
+      expect(res.status).toBe(400);
+    }
+    expect(h.confirm).not.toHaveBeenCalled();
+  });
+
   it("refuses a body of the wrong shape by name, before it asks the store", async () => {
     for (const bad of [{ ...body, version: "3" }, { ...body, step: "company" }, { ...body, section: null }, { step: "documents", version: 3, section: { documents: [{ id: "x" }] } }]) {
       expect((await save(post("/supplier/registration/save", bad))).status).toBe(400);
@@ -292,10 +312,12 @@ describe("withdrawing a file", () => {
   });
 });
 
+const SHA = "a".repeat(64);
+
 describe("sending the registration", () => {
   const DECLARATIONS = [
-    { kind: "GIRO_AUTHORISATION", textVersionId: "text1234", signatoryName: "Aini", signatoryDesignation: "Director", confirmed: true },
-    { kind: "FALSE_DECLARATION", textVersionId: "text5678", signatoryName: "Aini", signatoryDesignation: "Director", confirmed: true },
+    { kind: "GIRO_AUTHORISATION", textVersionId: "text1234", textSha256: SHA, signatoryName: "Aini", signatoryDesignation: "Director", confirmed: true },
+    { kind: "FALSE_DECLARATION", textVersionId: "text5678", textSha256: SHA, signatoryName: "Aini", signatoryDesignation: "Director", confirmed: true },
   ];
   const send = (over: Record<string, unknown> = {}) => submit(post("/supplier/registration/submit", { version: 5, password: "correct horse battery", declarations: DECLARATIONS, ...over }));
 

@@ -6,7 +6,7 @@ import { dayToDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 
 import { loadRegistrationContext, loadRegistrationSettings } from "./context-store";
-import { frozenWording } from "./declaration";
+import { declarationsAsSigned, frozenWording } from "./declaration";
 import { DraftRefused, draftOf, loadDraftView, lockOpenDraft, touchDraft } from "./draft-store";
 import { blockingFaults, registrationFaults } from "./faults";
 import { parseRate } from "./documents";
@@ -47,11 +47,18 @@ export async function submitRegistration(actor: SupplierActor, input: SubmitInpu
   return db.$transaction(
     async (tx) => {
       const locked = await lockOpenDraft(tx, actor, input.version, now);
+      // The wording being signed is held still until this commits: an office correcting an unsigned wording in place waits for this (it takes the row `FOR UPDATE` before it counts the signatures),
+      // and then finds it signed. Taken before the texts are read, and shared, so two registrations being sent do not wait for each other.
+      await tx.$queryRaw`SELECT id FROM "DeclarationText" WHERE "organisationId" = ${actor.organisationId} FOR SHARE`;
       const settings = await loadRegistrationSettings(tx, actor.organisationId);
       if (!settings || !settings.org.today) throw new DraftRefused("INVALID", [{ step: "documents", code: "TIME_ZONE_UNSET", level: "block" }]);
       const view = await loadDraftView(tx, actor);
       const ctx = await loadRegistrationContext(tx, actor, settings, view.documents.flatMap((d) => d.valueIds));
-      const faults = blockingFaults(registrationFaults(draftOf(view), ctx, input.declarations));
+      // What is signed is the signatory the supplier gave on step 4 and ticked the GIRO box for, as the draft holds them: nothing the request says of either is stored. The false-declaration tick is
+      // the request's (it is made here), and each signature must name the exact wording the page showed (`textSha256`), judged against the wording read under the lock just above.
+      const draft = draftOf(view);
+      const declarations = declarationsAsSigned(input.declarations, draft);
+      const faults = blockingFaults(registrationFaults(draft, ctx, declarations));
       if (faults.length > 0) throw new DraftRefused("INVALID", faults);
       const today = settings.org.today;
       const supplierAudit = { kind: "SUPPLIER" as const, supplierAccountId: actor.accountId, sessionId: actor.sessionId, sourceAddress: actor.sourceAddress };
@@ -145,11 +152,10 @@ export async function submitRegistration(actor: SupplierActor, input: SubmitInpu
       await writeAudit(tx, at("CreditorProfile", profile.id, "Creditor's profile"), "UPDATE", [{ field: "status", before: "being filled in", after: `version ${profile.version} sent, waiting for an officer to check it` }]);
 
       // The declarations: the wording exactly as shown, its hash, the signatory and the server's day and time.
-      const org0 = await tx.organisation.findUniqueOrThrow({ where: { id: actor.organisationId }, select: { name: true } });
       const declared: { kind: DeclarationKind; id: string }[] = [];
-      for (const i of input.declarations) {
+      for (const i of declarations) {
         const text = ctx.texts[i.kind]!;
-        const wording = frozenWording(text, org0.name);
+        const wording = frozenWording(text, settings.org.name);
         const d = await tx.registrationDeclaration.create({
           data: {
             organisationId: actor.organisationId,

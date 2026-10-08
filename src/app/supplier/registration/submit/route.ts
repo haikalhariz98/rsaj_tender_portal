@@ -3,6 +3,7 @@ import { confirmSupplierPassword } from "@/lib/auth/supplier-identity";
 import { db } from "@/lib/db";
 import { parseSubmitBody } from "@/lib/portal/registration/api";
 import { contextFor } from "@/lib/portal/registration/context-store";
+import { declarationsAsSigned } from "@/lib/portal/registration/declaration";
 import { draftOf, DraftRefused, loadDraftView, loadWizardState } from "@/lib/portal/registration/draft-store";
 import { blockingFaults, registrationFaults } from "@/lib/portal/registration/faults";
 import { submitRegistration } from "@/lib/portal/registration/submit-store";
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
   const view = await loadDraftView(db, actor);
   if (view.version !== version) return refusalReply(new DraftRefused("STALE"))!;
   const ctx = await contextFor(db, actor, view.documents.flatMap((d) => d.valueIds));
-  const faults = blockingFaults(registrationFaults(draftOf(view), ctx, declarations));
+  const faults = blockingFaults(registrationFaults(draftOf(view), ctx, declarationsAsSigned(declarations, draftOf(view))));
   if (faults.length > 0) return reply({ ok: false, code: "VALIDATION", message: faultViews(faults)[0]!.message, faults: faultViews(faults) }, 422);
 
   const asked = await confirmSupplierPassword(actor, password, post.facts);

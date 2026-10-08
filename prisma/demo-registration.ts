@@ -292,9 +292,12 @@ export async function loadRegistrationDemo(db: Db, organisationId: string) {
   const view = await loadDraftView(db as never, actor9);
   const ctx = await contextFor(db as never, actor9, view.documents.flatMap((d) => d.valueIds));
   const texts = [ctx.texts.GIRO_AUTHORISATION ?? fail("no GIRO text"), ctx.texts.FALSE_DECLARATION ?? fail("no false-declaration text")];
-  const faults = blockingFaults(registrationFaults(draftOf(view), ctx, [
-    { kind: "GIRO_AUTHORISATION", textVersionId: texts[0].id, signatoryName: v9.contact.name, signatoryDesignation: v9.contact.designation, confirmed: true },
-    { kind: "FALSE_DECLARATION", textVersionId: texts[1].id, signatoryName: v9.contact.name, signatoryDesignation: v9.contact.designation, confirmed: true },
+  // The GIRO tick is about the wording it was made on: the demonstration's supplier ticked the wording in force, so the draft holds its hash (as the wizard stores it).
+  await db.registrationDraft.update({ where: { id: draft9.id }, data: { giroTextSha256: texts[0].sha256 } });
+  const view9 = { ...view, giroTextSha256: texts[0].sha256 };
+  const faults = blockingFaults(registrationFaults(draftOf(view9), ctx, [
+    { kind: "GIRO_AUTHORISATION", textVersionId: texts[0].id, textSha256: texts[0].sha256, signatoryName: v9.contact.name, signatoryDesignation: v9.contact.designation, confirmed: true },
+    { kind: "FALSE_DECLARATION", textVersionId: texts[1].id, textSha256: texts[1].sha256, signatoryName: v9.contact.name, signatoryDesignation: v9.contact.designation, confirmed: true },
   ]));
   if (faults.length) fail(`the registration of ${v9.name} would be refused: ${faults.map((f) => f.code).join(", ")}`);
 

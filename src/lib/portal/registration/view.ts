@@ -113,10 +113,11 @@ export function codeSectionShapes(view: DraftView, ctx: RegistrationContext): Co
 }
 
 /// A declaration's wording as the page shows it, with the organisation's name filled in, or null while no text is set.
-export function declarationShown(ctx: RegistrationContext, kind: DeclarationKind, organisationName: string): { id: string; en: string; ms: string; version: number } | null {
+export function declarationShown(ctx: RegistrationContext, kind: DeclarationKind, organisationName: string): { id: string; en: string; ms: string; version: number; sha256: string } | null {
   const t = ctx.texts[kind];
   if (!t) return null;
-  return { id: t.id, en: fillText(t.bodyEn, organisationName), ms: t.bodyMs ? fillText(t.bodyMs, organisationName) : "", version: t.version };
+  // `sha256` is the hash of exactly these words: what a tick and a signature are bound to, sent back by the page with them.
+  return { id: t.id, en: fillText(t.bodyEn, organisationName), ms: t.bodyMs ? fillText(t.bodyMs, organisationName) : "", version: t.version, sha256: t.sha256 };
 }
 
 /// Which fields of the bank details were filled in for the supplier from what it had already given, said under the field. The tax number comes from the document that carries a rate (the

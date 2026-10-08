@@ -148,6 +148,8 @@ export const EMPTY_CREDITOR: CreditorInput = {
 export interface DeclarationInput {
   kind: DeclarationKind;
   textVersionId: string;
+  /// The SHA-256 of the wording the page showed (organisation name filled in). A signature is refused unless it is the hash of the wording in force now.
+  textSha256: string;
   signatoryName: string;
   signatoryDesignation: string;
   confirmed: boolean;
@@ -163,6 +165,8 @@ export interface Draft {
   signatoryDesignation: string;
   /// The GIRO authorisation was read and ticked on step 4.
   giroConfirmed: boolean;
+  /// The hash of the wording the tick was made on. A tick counts only while the wording in force hashes to this.
+  giroTextSha256: string | null;
 }
 
 // ------------------------------------------------------------------------------------------------ the configuration
@@ -209,6 +213,8 @@ export interface DeclarationTextConfig {
   version: number;
   bodyEn: string;
   bodyMs: string | null;
+  /// The SHA-256 of the wording as it is shown and signed (organisation name filled in): what a tick and a signature are bound to.
+  sha256: string;
 }
 
 export interface RegistrationContext {

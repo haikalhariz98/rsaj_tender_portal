@@ -2,6 +2,7 @@
  * Test fixtures for the registration's rules. The names and lists are invented for the tests (a `demo_` style configuration), never a customer's: nothing here is read by the product.
  */
 
+import { frozenWording } from "./declaration";
 import type { CreditorInput, DocumentTypeConfig, Draft, DraftDocument, RegistrationContext, RegistrationValueConfig } from "./types";
 import { EMPTY_CREDITOR } from "./types";
 
@@ -43,6 +44,11 @@ const BASE_VALUES = [
   value({ id: "v-b", code: "B", nameEn: "Buildings", kind: "CATEGORY" }),
 ];
 
+/// The hashes of the two fixture wordings, for an organisation named "Demonstration Authority".
+export const FIXTURE_ORGANISATION = "Demonstration Authority";
+export const GIRO_SHA = frozenWording({ bodyEn: "We authorise {organisation} to pay.", bodyMs: "Kami membenarkan {organisation} membayar." }, FIXTURE_ORGANISATION).sha256;
+export const FALSE_SHA = frozenWording({ bodyEn: "We declare this is true to {organisation}.", bodyMs: null }, FIXTURE_ORGANISATION).sha256;
+
 export const ctx = (o: Partial<RegistrationContext> = {}): RegistrationContext => ({
   today: "2026-10-09",
   types: [type({ id: "t-reg", nameEn: "Companies registry certificate" }), type({ id: "t-works", nameEn: "Works board certificate", bodyId: "body-1", valueKinds: ["GRADE", "CATEGORY"] })],
@@ -52,8 +58,8 @@ export const ctx = (o: Partial<RegistrationContext> = {}): RegistrationContext =
   banks: [{ code: "bank-a", nameEn: "Demonstration Bank" }],
   accountTypes: [{ code: "current", nameEn: "Current account" }],
   texts: {
-    GIRO_AUTHORISATION: { id: "text-giro-1", version: 1, bodyEn: "We authorise {organisation} to pay.", bodyMs: "Kami membenarkan {organisation} membayar." },
-    FALSE_DECLARATION: { id: "text-false-1", version: 1, bodyEn: "We declare this is true to {organisation}.", bodyMs: null },
+    GIRO_AUTHORISATION: { id: "text-giro-1", version: 1, bodyEn: "We authorise {organisation} to pay.", bodyMs: "Kami membenarkan {organisation} membayar.", sha256: GIRO_SHA },
+    FALSE_DECLARATION: { id: "text-false-1", version: 1, bodyEn: "We declare this is true to {organisation}.", bodyMs: null, sha256: FALSE_SHA },
   },
   noticeEn: "The office checks your registration.",
   accountNoPattern: null,
@@ -84,5 +90,6 @@ export const draft = (o: Partial<Draft> = {}): Draft => ({
   signatoryName: "Aminah Binti Ali",
   signatoryDesignation: "Director",
   giroConfirmed: true,
+  giroTextSha256: GIRO_SHA,
   ...o,
 });

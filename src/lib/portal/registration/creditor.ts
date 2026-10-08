@@ -12,6 +12,8 @@
 import { matchesFormat } from "@/lib/integration/award-commitment";
 import { normaliseRegistrationNo } from "@/lib/suppliers/identity";
 
+import type { FieldChange } from "@/lib/audit/diff";
+
 import type { CreditorInput, RegistrationContext, StepFault } from "./types";
 import { isBlank } from "./types";
 
@@ -75,5 +77,19 @@ export function creditorFaults(c: CreditorInput, statementCount: number, ctx: Re
     add({ code: "IDENTITY_DIFFERS", level: "warn", field: at("beneficiaryIdentityNo") });
   }
   if (statementCount === 0) add({ code: "STATEMENT_REQUIRED", level: "block", field: "creditor.statement" });
+  return out;
+}
+
+/// What the audit trail says of a change to the bank details: which fields changed, and never their values. The trail is append-only, so a value written to it can never be erased (a request
+/// to remove personal data could not be met) and would live in every backup; the values are held in the profile, behind the creditor profile's gate, and the trail names the field under its
+/// registered name so a reader who may not see the field has the whole row withheld from them. Only fields present in `after` are compared (a partial save does not read as clearing the rest).
+export function creditorTrailChanges(before: Partial<Record<keyof CreditorInput, string>> | null, after: Partial<Record<keyof CreditorInput, string>>): FieldChange[] {
+  const out: FieldChange[] = [];
+  for (const k of Object.keys(after) as (keyof CreditorInput)[]) {
+    const was = (before?.[k] ?? "").trim();
+    const now = (after[k] ?? "").trim();
+    if (was === now) continue;
+    out.push({ field: k, before: was === "" ? null : "Entered", after: now === "" ? null : was === "" ? "Entered" : "Changed" });
+  }
   return out;
 }

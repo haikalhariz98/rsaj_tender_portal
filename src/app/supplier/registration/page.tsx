@@ -16,6 +16,7 @@ import { db } from "@/lib/db";
 import { formatBytes, mediaLabel } from "@/lib/documents/labels";
 import { formatDate, formatOrgDateTime } from "@/lib/format";
 import { loadRegistrationContext, loadRegistrationSettings } from "@/lib/portal/registration/context-store";
+import { giroTick } from "@/lib/portal/registration/declaration";
 import { draftOf, loadDraftView, loadWizardState } from "@/lib/portal/registration/draft-store";
 import { blockingFaults, registrationFaults } from "@/lib/portal/registration/faults";
 import { registrationSummary, type SummaryRecord } from "@/lib/portal/registration/summary";
@@ -213,10 +214,11 @@ async function EpaymentPage({ actor, view, ctx, settings, token, accept, uploads
       accountTypes={ctx.accountTypes.map((b) => ({ value: b.code, label: b.nameEn }))}
       statement={view.statement.map((f) => ({ versionId: f.versionId, name: f.name, size: formatBytes(f.size) }))}
       uploadClosed={uploadClosedWords(uploads.store, uploads.statement, "statement")}
-      giro={{ text: giro ? { en: giro.en, ms: giro.ms, version: giro.version } : null }}
+      giro={{ text: giro ? { en: giro.en, ms: giro.ms, version: giro.version, sha256: giro.sha256 } : null }}
       signatoryName={view.signatoryName || actor.displayName}
       signatoryDesignation={view.signatoryDesignation}
-      giroConfirmed={view.giroConfirmed}
+      giroConfirmed={giroTick(draftOf(view), ctx) === "OK"}
+      giroVoided={giroTick(draftOf(view), ctx) === "VOID"}
       closedReason={missingGiro}
       acceptNote={accept}
       prefilled={prefill.said}
@@ -246,7 +248,7 @@ async function ReviewPage({ actor, view, ctx, settings, token, blockers }: { act
         giroText={giroText}
         signatoryName={view.signatoryName || actor.displayName}
         signatoryDesignation={view.signatoryDesignation}
-        giroConfirmed={view.giroConfirmed}
+        giroConfirmed={giroTick(draftOf(view), ctx) === "OK"}
         blockers={blockers}
       />
     </div>

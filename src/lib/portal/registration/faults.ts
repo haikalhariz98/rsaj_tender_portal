@@ -20,7 +20,7 @@ import { CREDITOR_FIELDS, type CreditorInput, type DeclarationInput, type Draft,
 export type DraftSection =
   | { step: "documents"; documents: readonly { id: string; typeId: string; title: string; reference: string; issuingAuthority: string; expiresOn: string; notApplicable: boolean; ratePercent: string }[] }
   | { step: "codes"; documents: readonly { id: string; valueIds: readonly string[] }[] }
-  | { step: "epayment"; creditor: Partial<CreditorInput>; signatoryName?: string; signatoryDesignation?: string; giroConfirmed?: boolean }
+  | { step: "epayment"; creditor: Partial<CreditorInput>; signatoryName?: string; signatoryDesignation?: string; giroConfirmed?: boolean; /** The hash of the wording on the page when the box was ticked: required with a tick. */ giroTextSha256?: string }
   | { step: "review" };
 
 /// Longest each text may be. Technical bounds on what a row holds, not policy.

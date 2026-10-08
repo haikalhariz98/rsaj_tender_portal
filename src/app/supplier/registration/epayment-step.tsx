@@ -25,7 +25,7 @@ import { errorText, faultsAt, noteText, postJson, stepHref, useStepSave } from "
 
 export interface GiroView {
   /// Null while the organisation has not written the text.
-  text: { en: string; ms: string; version: number } | null;
+  text: { en: string; ms: string; version: number; sha256: string } | null;
 }
 
 export interface ListOption {
@@ -51,6 +51,7 @@ export function EpaymentStep({
   signatoryName: sn,
   signatoryDesignation: sd,
   giroConfirmed: gc,
+  giroVoided,
   closedReason,
   acceptNote,
   prefilled,
@@ -66,6 +67,8 @@ export function EpaymentStep({
   signatoryName: string;
   signatoryDesignation: string;
   giroConfirmed: boolean;
+  /// The box was ticked on wording that has since changed: the tick no longer counts, and the supplier is told why the box is empty.
+  giroVoided: boolean;
   closedReason: string | null;
   acceptNote: string | null;
   /// Which fields were filled in for the supplier from what it had already given (the tax number from its tax certificate, the email from the company's): said under the field.
@@ -94,7 +97,7 @@ export function EpaymentStep({
   );
 
   async function run(next: boolean) {
-    const done = await save({ step: "epayment", creditor: c, signatoryName: name, signatoryDesignation: designation, giroConfirmed: confirmed }, { next });
+    const done = await save({ step: "epayment", creditor: c, signatoryName: name, signatoryDesignation: designation, giroConfirmed: confirmed, ...(giro.text ? { giroTextSha256: giro.text.sha256 } : {}) }, { next });
     if (done.ok && done.advance) router.push(stepHref("review"));
   }
 
@@ -222,6 +225,11 @@ export function EpaymentStep({
               </Field>
             </div>
             <p className="mt-1 text-[12.5px] text-ink-3">Date: signed on submission, on the procurement office&apos;s day. You do not type it.</p>
+            {giroVoided && !confirmed && (
+              <Callout tone="warn" className="mt-3" title="The wording changed after you ticked the box">
+                The procurement office changed this authorisation after you ticked it. Read it again and tick the box again.
+              </Callout>
+            )}
             <div className="mt-2">
               <Checkbox label="I have read this and I authorise it." checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
               {errorText(faultsAt(faults, "giro.confirmed")) && <p className="mt-1 text-[12.5px] font-medium text-rose-600">{errorText(faultsAt(faults, "giro.confirmed"))}</p>}

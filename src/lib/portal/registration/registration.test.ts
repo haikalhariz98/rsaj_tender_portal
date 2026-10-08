@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { codeFaults, codeSections } from "./codes";
-import { creditorFaults } from "./creditor";
-import { currentDeclarationText, declarationFaults, fillText, frozenWording, giroFaults, reviewFaults, type StoredDeclarationText } from "./declaration";
+import { creditorFaults, creditorTrailChanges } from "./creditor";
+import { currentDeclarationText, declarationFaults, declarationsAsSigned, fillText, frozenWording, giroFaults, giroTick, reviewFaults, signatoryDiffers, type StoredDeclarationText } from "./declaration";
 import { documentFaults, parseRate } from "./documents";
 import { blockingFaults, draftShapeFaults, firstBlockedStep, registrationFaults, stepFaults } from "./faults";
-import { creditor, ctx, doc, draft, type as docType, value } from "./fixture";
+import { creditor, ctx, doc, draft, FALSE_SHA, FIXTURE_ORGANISATION, GIRO_SHA, type as docType, value } from "./fixture";
 import type { DeclarationInput } from "./types";
 import { hasRegistrationFaultText, registrationFaultText, uploadFaultText } from "./words";
 import { uploadFault } from "./upload";
@@ -253,6 +253,25 @@ describe("the declarations (FR-VND-005, FR-VND-006)", () => {
     expect(giroFaults(draft({ signatoryName: "  aminah   binti ali " }), ctx())).toEqual([]);
   });
 
+  it("the GIRO tick is about the wording it was made on: the same words keep it, other words void it, and none is no tick", () => {
+    expect(giroTick(draft(), ctx())).toBe("OK");
+    expect(giroTick(draft({ giroConfirmed: false, giroTextSha256: null }), ctx())).toBe("NONE");
+    // ticked on the words of before: a new version, an in-place correction, or a rename of the organisation all change the hash
+    expect(giroTick(draft({ giroTextSha256: FALSE_SHA }), ctx())).toBe("VOID");
+    // a tick from before the hash was kept cannot say which words it was made on
+    expect(giroTick(draft({ giroTextSha256: null }), ctx())).toBe("VOID");
+    const fs = giroFaults(draft({ giroTextSha256: FALSE_SHA }), ctx());
+    expect(fs.map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    expect(registrationFaultText(fs[0]!).en).toContain("since you ticked");
+    expect(registrationFaultText({ code: "TEXT_STALE" }).en).toContain("since you opened this page");
+  });
+
+  it("the signatory is compared with the account's contact, names normalised, and a blank one is not compared", () => {
+    expect(signatoryDiffers("Aminah Binti Ali", "  aminah   binti ali ")).toBe(false);
+    expect(signatoryDiffers("Someone Else", "Aminah Binti Ali")).toBe(true);
+    expect(signatoryDiffers("  ", "Aminah Binti Ali")).toBe(false);
+  });
+
   it("step 5 needs the notice and the false-declaration text, each naming what is missing", () => {
     expect(reviewFaults(ctx())).toEqual([]);
     const fs = reviewFaults(ctx({ noticeEn: "  ", texts: { GIRO_AUTHORISATION: null, FALSE_DECLARATION: null } }));
@@ -262,8 +281,8 @@ describe("the declarations (FR-VND-005, FR-VND-006)", () => {
   });
 
   const good: DeclarationInput[] = [
-    { kind: "GIRO_AUTHORISATION", textVersionId: "text-giro-1", signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
-    { kind: "FALSE_DECLARATION", textVersionId: "text-false-1", signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
+    { kind: "GIRO_AUTHORISATION", textVersionId: "text-giro-1", textSha256: GIRO_SHA, signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
+    { kind: "FALSE_DECLARATION", textVersionId: "text-false-1", textSha256: FALSE_SHA, signatoryName: "Aminah", signatoryDesignation: "Director", confirmed: true },
   ];
   it("a request that names the current texts, a signatory and the ticks has nothing in its way", () => {
     expect(declarationFaults(good, ctx())).toEqual([]);
@@ -271,6 +290,21 @@ describe("the declarations (FR-VND-005, FR-VND-006)", () => {
   it("a stale or forged text id is refused", () => {
     expect(declarationFaults([{ ...good[0]!, textVersionId: "text-giro-0" }, good[1]!], ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
     expect(declarationFaults([good[0]!, { ...good[1]!, textVersionId: "someone-elses-text" }], ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+  });
+  it("wording changed in place under the same id is refused: a signature names the exact words shown (B9: the frozen text matches what was shown)", () => {
+    // The id is the same, the words are not: the page held the hash of the old words.
+    const edited = ctx({ texts: { ...ctx().texts, GIRO_AUTHORISATION: { ...ctx().texts.GIRO_AUTHORISATION!, bodyEn: "We authorise someone else to pay.", sha256: frozenWording({ bodyEn: "We authorise someone else to pay.", bodyMs: "Kami membenarkan {organisation} membayar." }, FIXTURE_ORGANISATION).sha256 } } });
+    expect(declarationFaults(good, edited).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    expect(declarationFaults([good[0]!, { ...good[1]!, textSha256: GIRO_SHA }], ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+    expect(declarationFaults([{ ...good[0]!, textSha256: "" }, good[1]!], ctx()).map((f) => f.code)).toEqual(["TEXT_STALE"]);
+  });
+  it("what is signed is the draft's signatory and the draft's GIRO tick, whatever the request says of either", () => {
+    const crafted = good.map((g) => ({ ...g, signatoryName: "Somebody Else", signatoryDesignation: "Chairman", confirmed: true }));
+    const signed = declarationsAsSigned(crafted, draft({ signatoryName: "Aminah Binti Ali", signatoryDesignation: "Director", giroConfirmed: false }));
+    expect(signed.map((x) => [x.kind, x.signatoryName, x.signatoryDesignation, x.confirmed])).toEqual([
+      ["GIRO_AUTHORISATION", "Aminah Binti Ali", "Director", false],
+      ["FALSE_DECLARATION", "Aminah Binti Ali", "Director", true],
+    ]);
   });
   it("an unticked, unnamed or missing declaration is refused", () => {
     expect(declarationFaults([good[0]!, { ...good[1]!, confirmed: false, signatoryName: " " }], ctx()).map((f) => f.code)).toEqual(["SIGNATORY_NAME_REQUIRED", "NOT_CONFIRMED"]);
@@ -283,20 +317,20 @@ describe("the text in force for a declaration", () => {
   const text = (o: Partial<StoredDeclarationText> & { id: string; version: number }): StoredDeclarationText => ({ kind: "GIRO_AUTHORISATION", bodyEn: "x", bodyMs: null, issuedOn: "2026-01-01", retiredOn: null, ...o });
   it("is the highest version issued on or before the day and not yet retired", () => {
     const texts = [text({ id: "a", version: 1 }), text({ id: "b", version: 2, issuedOn: "2026-06-01" }), text({ id: "c", version: 3, issuedOn: "2026-12-01" })];
-    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-10-09")?.id).toBe("b");
-    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-12-01")?.id).toBe("c");
-    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-05-31")?.id).toBe("a");
+    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-10-09", "Demo Water")?.id).toBe("b");
+    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-12-01", "Demo Water")?.id).toBe("c");
+    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-05-31", "Demo Water")?.id).toBe("a");
   });
   it("is none before any is issued, after the last is retired, for the other kind, and while the day is not known", () => {
     const texts = [text({ id: "a", version: 1, issuedOn: "2026-06-01", retiredOn: "2026-09-01" })];
-    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-05-01")).toBeNull();
-    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-09-01")).toBeNull();
-    expect(currentDeclarationText(texts, "FALSE_DECLARATION", "2026-07-01")).toBeNull();
-    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", null)).toBeNull();
+    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-05-01", "Demo Water")).toBeNull();
+    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-09-01", "Demo Water")).toBeNull();
+    expect(currentDeclarationText(texts, "FALSE_DECLARATION", "2026-07-01", "Demo Water")).toBeNull();
+    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", null, "Demo Water")).toBeNull();
   });
   it("a retired version gives way to the one before it only if that one was not retired too", () => {
     const texts = [text({ id: "a", version: 1 }), text({ id: "b", version: 2, retiredOn: "2026-08-01" })];
-    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-10-09")?.id).toBe("a");
+    expect(currentDeclarationText(texts, "GIRO_AUTHORISATION", "2026-10-09", "Demo Water")?.id).toBe("a");
   });
 });
 
@@ -414,5 +448,19 @@ describe("the rules never name a customer or a literal policy", () => {
       const text = readFileSync(path.join(dir, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
       expect(text, f).not.toMatch(/\b(CIDB|MOF|SPAN|SSM|LHDN|Maybank|CIMB|Ranhill|RSAJ|Suruhanjaya|Surat Akuan)\b/i);
     }
+  });
+});
+
+describe("what the audit trail says of a change to the bank details", () => {
+  it("names the field that changed and never what it held (the trail cannot be erased)", () => {
+    const changes = creditorTrailChanges({ bankAccountNo: "123456789", beneficiaryName: "Old Name", bankSwiftCode: "" }, { bankAccountNo: "987654321", beneficiaryName: "Old Name", bankSwiftCode: "DEMOMYKL", beneficiaryEmail: "" });
+    expect(changes).toEqual([
+      { field: "bankAccountNo", before: "Entered", after: "Changed" },
+      { field: "bankSwiftCode", before: null, after: "Entered" },
+    ]);
+    const text = JSON.stringify(changes);
+    for (const v of ["123456789", "987654321", "Old Name", "DEMOMYKL"]) expect(text).not.toContain(v);
+    expect(creditorTrailChanges({ bankAccountNo: "1" }, { bankAccountNo: " " })).toEqual([{ field: "bankAccountNo", before: "Entered", after: null }]);
+    expect(creditorTrailChanges({ bankAccountNo: "1" }, { bankAccountNo: "1 " })).toEqual([]);
   });
 });

@@ -25,6 +25,8 @@ export interface ReviewText {
   en: string;
   ms: string;
   version: number;
+  /// The SHA-256 of exactly these words (organisation name filled in): the signature names it, and is refused if the wording has changed since.
+  sha256: string;
 }
 
 export function ReviewStep({
@@ -67,8 +69,8 @@ export function ReviewStep({
     setBusy(true);
     setMessage(null);
     const declarations: DeclarationInput[] = [
-      { kind: "GIRO_AUTHORISATION", textVersionId: giroText.id, signatoryName, signatoryDesignation, confirmed: giroConfirmed },
-      { kind: "FALSE_DECLARATION", textVersionId: falseText.id, signatoryName, signatoryDesignation, confirmed },
+      { kind: "GIRO_AUTHORISATION", textVersionId: giroText.id, textSha256: giroText.sha256, signatoryName, signatoryDesignation, confirmed: giroConfirmed },
+      { kind: "FALSE_DECLARATION", textVersionId: falseText.id, textSha256: falseText.sha256, signatoryName, signatoryDesignation, confirmed },
     ];
     const { status, body } = await postJson(SUPPLIER_REGISTRATION_POSTS.submit, token, { version, password, declarations });
     setBusy(false);

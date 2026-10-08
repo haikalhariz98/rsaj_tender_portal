@@ -54,7 +54,9 @@ const TEXT: Readonly<Record<RegistrationFault, (d: Data) => Words>> = {
   TEXT_NOT_SET: (d) => (s(d, "kind") === "GIRO_AUTHORISATION"
     ? w("The GIRO authorisation text is not set. The procurement office has to write it before you can finish this step. Tell the procurement office.", "Teks kebenaran GIRO belum ditetapkan. Pejabat perolehan perlu menulisnya sebelum anda boleh menyiapkan langkah ini. Maklumkan kepada pejabat perolehan.")
     : w("The false-declaration text is not set. The procurement office has to write it before you can send your registration. Tell the procurement office.", "Teks perakuan maklumat palsu belum ditetapkan. Pejabat perolehan perlu menulisnya sebelum anda boleh menghantar pendaftaran. Maklumkan kepada pejabat perolehan.")),
-  TEXT_STALE: () => w("The wording has been changed since you opened this page. Reload the page and read it again.", "Perkataan telah diubah sejak anda membuka halaman ini. Muat semula halaman dan bacanya semula."),
+  TEXT_STALE: (d) => (s(d, "ticked")
+    ? w("The authorisation wording has changed since you ticked the box. Read it again and tick the box again.", "Perkataan kebenaran telah berubah sejak anda menandakan kotak. Bacanya semula dan tandakan kotak sekali lagi.")
+    : w("The wording has been changed since you opened this page. Reload the page and read it again.", "Perkataan telah diubah sejak anda membuka halaman ini. Muat semula halaman dan bacanya semula.")),
   SIGNATORY_NAME_REQUIRED: () => w("Give the name of the person who signs.", "Berikan nama orang yang menandatangani."),
   SIGNATORY_DESIGNATION_REQUIRED: () => w("Give the position of the person who signs.", "Berikan jawatan orang yang menandatangani."),
   NOT_CONFIRMED: (d) => (s(d, "kind") === "FALSE_DECLARATION" ? w("Tick the box to confirm the declaration.", "Tandakan kotak untuk mengesahkan perakuan.") : w("Tick the box to confirm the authorisation.", "Tandakan kotak untuk mengesahkan kebenaran.")),

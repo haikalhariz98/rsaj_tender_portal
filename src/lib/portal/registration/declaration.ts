@@ -26,10 +26,10 @@ export interface StoredDeclarationText {
 
 /// The text in force for a kind on a day: issued on or before the day, not retired on or before it, and of those the highest version. Null while there is none (the step is closed and names
 /// the text), and always null while the day is not known.
-export function currentDeclarationText(texts: readonly StoredDeclarationText[], kind: DeclarationKind, today: string | null): DeclarationTextConfig | null {
+export function currentDeclarationText(texts: readonly StoredDeclarationText[], kind: DeclarationKind, today: string | null, organisationName: string): DeclarationTextConfig | null {
   if (today == null) return null;
   const inForce = texts.filter((t) => t.kind === kind && t.issuedOn <= today && (t.retiredOn == null || t.retiredOn > today)).sort((a, b) => b.version - a.version)[0];
-  return inForce ? { id: inForce.id, version: inForce.version, bodyEn: inForce.bodyEn, bodyMs: inForce.bodyMs } : null;
+  return inForce ? { id: inForce.id, version: inForce.version, bodyEn: inForce.bodyEn, bodyMs: inForce.bodyMs, sha256: frozenWording(inForce, organisationName).sha256 } : null;
 }
 
 /// The placeholder a declaration's wording names the organisation by.
@@ -50,7 +50,7 @@ export function frozenWording(text: Pick<DeclarationTextConfig, "bodyEn" | "body
 const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, " ").toLowerCase() === b.trim().replace(/\s+/g, " ").toLowerCase();
 
 /// Step 4's part: the GIRO authorisation. Blocks Next while its text is unset, and until it is signed for by name and ticked.
-export function giroFaults(draft: Pick<Draft, "signatoryName" | "signatoryDesignation" | "giroConfirmed">, ctx: RegistrationContext): StepFault[] {
+export function giroFaults(draft: Pick<Draft, "signatoryName" | "signatoryDesignation" | "giroConfirmed" | "giroTextSha256">, ctx: RegistrationContext): StepFault[] {
   const out: StepFault[] = [];
   const add = (f: Omit<StepFault, "step">) => out.push({ step: "epayment", ...f });
   if (!ctx.texts.GIRO_AUTHORISATION) {
@@ -59,9 +59,24 @@ export function giroFaults(draft: Pick<Draft, "signatoryName" | "signatoryDesign
   }
   if (isBlank(draft.signatoryName)) add({ code: "SIGNATORY_NAME_REQUIRED", level: "block", field: "giro.signatoryName" });
   if (isBlank(draft.signatoryDesignation)) add({ code: "SIGNATORY_DESIGNATION_REQUIRED", level: "block", field: "giro.signatoryDesignation" });
-  if (!draft.giroConfirmed) add({ code: "NOT_CONFIRMED", level: "block", field: "giro.confirmed", data: { kind: "GIRO_AUTHORISATION" } });
-  if (!isBlank(draft.signatoryName) && !sameName(draft.signatoryName, ctx.supplier.contactName)) add({ code: "SIGNATORY_DIFFERS", level: "warn", field: "giro.signatoryName" });
+  const tick = giroTick(draft, ctx);
+  if (tick === "VOID") add({ code: "TEXT_STALE", level: "block", field: "giro.confirmed", data: { kind: "GIRO_AUTHORISATION", ticked: 1 } });
+  else if (tick === "NONE") add({ code: "NOT_CONFIRMED", level: "block", field: "giro.confirmed", data: { kind: "GIRO_AUTHORISATION" } });
+  if (signatoryDiffers(draft.signatoryName, ctx.supplier.contactName)) add({ code: "SIGNATORY_DIFFERS", level: "warn", field: "giro.signatoryName" });
   return out;
+}
+
+/// Whether the person who signs is someone other than the account's contact (flagged to the office, never refused). Blank names are not compared.
+export function signatoryDiffers(signatoryName: string, contactName: string): boolean {
+  return !isBlank(signatoryName) && !sameName(signatoryName, contactName);
+}
+
+/// The GIRO tick against the wording in force: "OK" when it was made on that very wording, "VOID" when it was made on other wording (or on none that can be told), "NONE" when not made.
+/// The tick is about a wording, not about the box: wording changed since is wording not read.
+export function giroTick(draft: Pick<Draft, "giroConfirmed" | "giroTextSha256">, ctx: Pick<RegistrationContext, "texts">): "OK" | "VOID" | "NONE" {
+  if (!draft.giroConfirmed) return "NONE";
+  const current = ctx.texts.GIRO_AUTHORISATION;
+  return current && draft.giroTextSha256 != null && draft.giroTextSha256 === current.sha256 ? "OK" : "VOID";
 }
 
 /// Step 5's part: the notice the applicant reads, and the false-declaration text. Blocks Submit while either is unset.
@@ -91,10 +106,19 @@ export function declarationFaults(inputs: readonly DeclarationInput[], ctx: Regi
       continue;
     }
     const i = given[0]!;
-    if (i.textVersionId !== text.id) add({ code: "TEXT_STALE", level: "block", field, data: { kind } });
+    if (i.textVersionId !== text.id || i.textSha256 !== text.sha256) add({ code: "TEXT_STALE", level: "block", field, data: { kind } });
     if (isBlank(i.signatoryName)) add({ code: "SIGNATORY_NAME_REQUIRED", level: "block", field: `${field}.signatoryName` });
     if (isBlank(i.signatoryDesignation)) add({ code: "SIGNATORY_DESIGNATION_REQUIRED", level: "block", field: `${field}.signatoryDesignation` });
     if (!i.confirmed) add({ code: "NOT_CONFIRMED", level: "block", field: `${field}.confirmed`, data: { kind } });
   }
   return out;
+}
+
+/**
+ * The declarations as they will be signed: the request says which wording it was shown (id and hash) and whether the false declaration was ticked, and everything else is the draft's. The
+ * signatory is the one the supplier gave on step 4 and the GIRO tick is the one stored with the hash of the wording it was made on, so nothing the request says of either is stored: a crafted
+ * request cannot sign under another name or claim a tick that was not made on the wording in force. Pure.
+ */
+export function declarationsAsSigned(inputs: readonly DeclarationInput[], draft: Pick<Draft, "signatoryName" | "signatoryDesignation" | "giroConfirmed">): DeclarationInput[] {
+  return inputs.map((i) => ({ ...i, signatoryName: draft.signatoryName, signatoryDesignation: draft.signatoryDesignation, confirmed: i.kind === "GIRO_AUTHORISATION" ? draft.giroConfirmed : i.confirmed }));
 }

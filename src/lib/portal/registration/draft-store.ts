@@ -14,6 +14,7 @@ import { wizardState, type WizardState } from "./state";
 export { draftOf, emptyDraftView, type DraftDocumentView, type DraftView, type FileView } from "./draft-view";
 import type { CreditorInput, RegistrationContext, RegistrationStep, StepFault } from "./types";
 import { CREDITOR_FIELDS, EMPTY_CREDITOR } from "./types";
+import { creditorTrailChanges } from "./creditor";
 
 /**
  * A signed-in supplier's registration draft, read and saved (Phase 4b, steps 2 to 5). The supplier is the SESSION's (`actor.supplierId`), never anything a request names, and every
@@ -61,6 +62,7 @@ export async function loadDraftView(client: Tx, actor: Pick<SupplierActor, "orga
     signatoryName: row?.signatoryName ?? "",
     signatoryDesignation: row?.signatoryDesignation ?? "",
     giroConfirmed: row?.giroConfirmed ?? false,
+    giroTextSha256: row?.giroTextSha256 ?? null,
     documents: (row?.documents ?? []).map((d) => ({
       id: d.id,
       typeId: d.typeId,
@@ -238,12 +240,21 @@ export async function saveSection(actor: SupplierActor, req: { version: number }
         for (const k of CREDITOR_FIELDS) if (s.creditor[k] != null) data[k] = s.creditor[k]!.trim();
         const before = profile.row;
         if (Object.keys(data).length) await tx.creditorProfile.update({ where: { id: before.id, organisationId: actor.organisationId }, data });
-        // The values are SULIT and go to the trail under their registered names, which every reader of the trail withholds from whoever may not read them.
-        await audit("CreditorProfile", before.id, "Creditor's profile", diffFields(before as unknown as Record<string, unknown>, data));
+        // The values are SULIT personal data and the trail can never be erased: it records which fields changed, never what they held (`creditorTrailChanges`).
+        await audit("CreditorProfile", before.id, "Creditor's profile", creditorTrailChanges(before as unknown as Partial<Record<keyof CreditorInput, string>>, data as Partial<Record<keyof CreditorInput, string>>));
         const draftData: Prisma.RegistrationDraftUncheckedUpdateInput = {};
         if (s.signatoryName != null) draftData.signatoryName = s.signatoryName.trim();
         if (s.signatoryDesignation != null) draftData.signatoryDesignation = s.signatoryDesignation.trim();
-        if (s.giroConfirmed != null) draftData.giroConfirmed = s.giroConfirmed;
+        if (s.giroConfirmed != null) {
+          if (s.giroConfirmed) {
+            // A tick is about the wording it was made on: refused unless the page showed the wording now in force.
+            const now = (await ctxFor(tx, [])).texts.GIRO_AUTHORISATION;
+            if (!now) throw new DraftRefused("INVALID", [{ step: "epayment", code: "TEXT_NOT_SET", level: "block", field: "giro", data: { kind: "GIRO_AUTHORISATION" } }]);
+            if (s.giroTextSha256 !== now.sha256) throw new DraftRefused("INVALID", [{ step: "epayment", code: "TEXT_STALE", level: "block", field: "giro.confirmed", data: { kind: "GIRO_AUTHORISATION" } }]);
+          }
+          draftData.giroConfirmed = s.giroConfirmed;
+          draftData.giroTextSha256 = s.giroConfirmed ? s.giroTextSha256! : null;
+        }
         if (Object.keys(draftData).length) {
           const prior = await tx.registrationDraft.findUniqueOrThrow({ where: { id: locked.draft.id }, select: { signatoryName: true, signatoryDesignation: true, giroConfirmed: true } });
           await audit("RegistrationDraft", locked.draft.id, "Registration draft", diffFields({ signatoryNamed: prior.signatoryName ? "yes" : "no", signatoryDesignation: prior.signatoryDesignation, giroAuthorisationTicked: prior.giroConfirmed }, { signatoryNamed: (draftData.signatoryName ?? prior.signatoryName) ? "yes" : "no", signatoryDesignation: draftData.signatoryDesignation ?? prior.signatoryDesignation, giroAuthorisationTicked: draftData.giroConfirmed ?? prior.giroConfirmed }));

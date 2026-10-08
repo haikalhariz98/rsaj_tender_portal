@@ -119,7 +119,7 @@ export async function loadRegistrationContext(client: Tx, actor: Pick<SupplierAc
     available: available.map((a) => ({ bodyId: a.bodyId, kind: a.kind as RegistrationValueKind })),
     banks: entries("BANK"),
     accountTypes: entries("ACCOUNT_TYPE"),
-    texts: { GIRO_AUTHORISATION: currentDeclarationText(stored, "GIRO_AUTHORISATION", today), FALSE_DECLARATION: currentDeclarationText(stored, "FALSE_DECLARATION", today) },
+    texts: { GIRO_AUTHORISATION: currentDeclarationText(stored, "GIRO_AUTHORISATION", today, settings.org.name), FALSE_DECLARATION: currentDeclarationText(stored, "FALSE_DECLARATION", today, settings.org.name) },
     noticeEn: noticeEn && noticeEn.trim() ? noticeEn : null,
     accountNoPattern: formats.find((f) => f.key === BANK_ACCOUNT_NO_FORMAT_KEY)?.pattern ?? null,
     swiftPattern: formats.find((f) => f.key === SWIFT_FORMAT_KEY)?.pattern ?? null,

@@ -7974,6 +7974,8 @@ model RegistrationDraft {
   signatoryName        String  @default("")
   signatoryDesignation String  @default("")
   giroConfirmed        Boolean @default(false)
+  /// The SHA-256 of the exact wording (organisation name filled in) that was on the page when the GIRO box was ticked. A tick counts only while the wording in force still hashes to this. Null while unticked.
+  giroTextSha256       String? @db.Char(64)
 
   lastSavedBySupplierAccountId String
   lastSavedBy                  SupplierAccount @relation("DraftLastSavedBy", fields: [lastSavedBySupplierAccountId], references: [id], onDelete: Restrict)
