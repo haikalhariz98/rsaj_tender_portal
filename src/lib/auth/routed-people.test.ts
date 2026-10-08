@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import type { Holders } from "@/lib/requisition/holders";
@@ -116,5 +119,16 @@ describe("what the routes name opens an exercise, and the evaluation is not wide
     expect(namedAsWords("COMMITTEE_MEMBER").en).toBe("a member of the committee it is tabled to");
     expect(grantedWords("NAMED_ON_RECORD", ["STEP_HOLDER", "COMMITTEE_MEMBER"]).en).toBe("Shown because you are someone who holds a step on its route and a member of the committee it is tabled to.");
     for (const n of ["STEP_HOLDER", "STEP_DECIDER", "COMMITTEE_MEMBER"] as const) expect(namedAsWords(n).en).not.toMatch(/[A-Z]_[A-Z]/);
+  });
+});
+
+describe("the contract's History reads a matter's routed value by the matter's own gate for the people who decide its route (the amendment of the ruling on log line 1526)", () => {
+  const page = readFileSync(path.join(process.cwd(), "src", "app", "projects", "[id]", "page.tsx"), "utf8");
+  it("asks the matter's gate only for the rows that carry the routed value, and uses it only where the contract's own answer is withheld", () => {
+    expect(page).toMatch(/e\.entity === "ContractMatter" && e\.changes\.some\(\(ch\) => ch\.field === ROUTED_MATTER_VALUE_FIELD\)/);
+    expect(page).toMatch(/entity: "ContractMatter", id, label: "A contract matter" \}\)\), \[ROUTED_MATTER_VALUE_FIELD\]\)/);
+    expect(page).toMatch(/const viaMatter = sulit\.state === "WITHHELD" && field === ROUTED_MATTER_VALUE_FIELD && entityId \? matterGates\.get\(entityId\) : undefined;/);
+    // The contract's own answer is still asked in the one form the siblings' scans hold every History to.
+    expect(page).toMatch(/sulitHistoryValue\(field, "contract", sulit, read\(field, value, entity\)\)/);
   });
 });

@@ -110,6 +110,14 @@ describe("a restricted exercise names what its routes and sittings say", () => {
     expect(await hiddenExerciseIds(db, reader(p.holder))).not.toContain(exerciseId);
   });
 
+  it("reads but does not name: a holder, a decider or a committee member opens the exercise to read, and may not name others on it (naming adds to the stored list, which outlasts a step)", async () => {
+    const { namingRefusal } = await import("@/lib/auth/sulit-store");
+    const staffOf = (personId: string) => ({ kind: "STAFF" as const, accountId: "a", sessionId: "s", personId, personName: "R", jobTitle: null, isAdministrator: false, organisationId, organisationCode: `RN_${run}`, organisationTimeZone: "Asia/Kuala_Lumpur", offices: [], permissions: new Set<never>(), stepUpAt: null, sessionCreatedAt: new Date(), sourceAddress: null, mustChangePassword: false });
+    // The decider and the committee's ex officio member read the exercise (above); the participant is named on its stored list.
+    for (const who of [p.decider, p.exOfficio]) expect(await namingRefusal(db, staffOf(who), exerciseId, [p.outsider]), who).toMatch(/only someone already named on it may name others/);
+    expect(await namingRefusal(db, staffOf(p.participant), exerciseId, [p.outsider])).toBeNull();
+  });
+
   it("names a committee's roster on the sitting's date, so a seat that ended before it names nobody", async () => {
     await db.committeeMember.updateMany({ where: { personId: p.member }, data: { effectiveTo: day("2026-09-01") } });
     expect((await named()).committeeMemberIds).toEqual([p.exOfficio]);

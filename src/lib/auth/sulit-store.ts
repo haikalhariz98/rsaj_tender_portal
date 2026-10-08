@@ -185,7 +185,10 @@ export async function namingRefusal(client: Tx, actor: StaffActor, exerciseId: s
   const sulitActor = sulitActorOf(actor);
   if (sulitActor.system) return null;
   const facts = (await exerciseAccessFacts(client, actor.organisationId, [exerciseId])).get(exerciseId);
-  const actorNamed = !!facts && namedOn("exercise", facts.named, sulitActor.personId).length > 0;
+  // Naming adds to the STORED list, which outlasts a step and a sitting. So only a person the exercise names by that list (a participant, the person in charge, the proposal's reviewer, the
+  // evaluation team, the opening panel) may name others: the names worked out from the routes and the sittings (ruling of 2026-10-08 on log line 1711) open the exercise to read, and a
+  // passing holder of a step could otherwise name themselves into it for good.
+  const actorNamed = !!facts && namedOn("exercise", { ...facts.named, stepHolderIds: [], stepDeciderIds: [], committeeMemberIds: [] }, sulitActor.personId).length > 0;
   const holdsPermission = actor.permissions.has("sourcing.participants.manage");
   const fault = namingFault({ actor: sulitActor, actorNamed, holdsPermission, targets, selfAllowed: opts.selfAllowed });
   if (!fault) return null;

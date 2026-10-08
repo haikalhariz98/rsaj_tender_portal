@@ -34,8 +34,8 @@ import { dayOf, storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 import { formatMoney, parseSen, senFromDecimal } from "@/lib/money";
-import { fieldsOfScope } from "@/lib/sulit-fields";
-import { sulitGate } from "@/app/_auth/sulit";
+import { fieldsOfScope, ROUTED_MATTER_VALUE_FIELD } from "@/lib/sulit-fields";
+import { sulitGate, sulitGates } from "@/app/_auth/sulit";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
 import { through, type Sulit } from "@/lib/auth/sulit-access";
 
@@ -84,6 +84,10 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
     // 6.13 Part A: the contract's supervision, read once for the Overview, Team and Site tabs.
     supervisionView(l, today),
   ]);
+  // The people who decide a contract matter's route read that matter's amount, and nothing else of the contract (ruling of 2026-10-08, the amendment of the ruling on log line 1526): the
+  // trail's rows of a matter that name its routed value are judged by the matter's own gate where the contract's is withheld. Asked (and logged) only where a row carries one.
+  const matterIds = [...new Set(history.entries.filter((e) => e.entity === "ContractMatter" && e.changes.some((ch) => ch.field === ROUTED_MATTER_VALUE_FIELD)).map((e) => e.entityId))];
+  const matterGates = matterIds.length ? await sulitGates(actor, matterIds.map((id) => ({ scope: "contract" as const, entity: "ContractMatter", id, label: "A contract matter" })), [ROUTED_MATTER_VALUE_FIELD]) : new Map<string, Sulit<true>>();
   // 6.13 Part A step 3: interim payment and the damages chain, for the Overview and the Payments tab.
   // Step 4: variations and the adjustments of the contract sum, for the Overview and the Variations tab.
   const [payments, variations] = await Promise.all([paymentView(l, today), variationView(l, today)]);
@@ -144,7 +148,7 @@ export default async function ContractPage(props: PageProps<"/projects/[id]">) {
     { id: "securities", label: "Securities", icon: <ShieldIcon size={15} />, count: c.securities.length + c.policies.length, panel: <SecuritiesPanel l={l} people={peopleOptions} today={today} /> },
     // 6.14 increment 1 (plan §5): every certificate of the contract, by kind and status.
     { id: "documents", label: "Documents", icon: <FilesIcon size={15} />, count: certificates, lazy: true, panel: tab === "documents" ? <DocumentsPanel contractId={c.id} page={pageNo} /> : null },
-    { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel sulit={sulit} entries={history.entries} total={history.total} timeZone={l.org.timeZone} /> },
+    { id: "history", label: "History", icon: <ClockIcon size={15} />, count: history.total, panel: <HistoryPanel sulit={sulit} matterGates={matterGates} entries={history.entries} total={history.total} timeZone={l.org.timeZone} /> },
   ];
 
   return (
@@ -370,12 +374,14 @@ const ENTITY_LABEL: Record<string, string> = {
   // 6.13 Part A step 4: variations, the matters tabled from them, and the adjustment of the contract sum.
   ...Object.fromEntries(VARIATION_ENTITIES.map((e) => [e, RECORD_TYPE_WORDS[e].en])),
 };
-function HistoryPanel({ sulit, entries, total, timeZone }: { sulit: Sulit<true>; entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null }) {
+function HistoryPanel({ sulit, matterGates, entries, total, timeZone }: { sulit: Sulit<true>; matterGates: ReadonlyMap<string, Sulit<true>>; entries: Awaited<ReturnType<typeof contractHistory>>["entries"]; total: number; timeZone: string | null }) {
   // Known codes in words; real values (LHDN, PS) as they are; a code without words never shown.
   const read = (field: string, value: string | null, entity: string): string => historyValue(field, value, formatDate, entity);
   // A registered SULIT field's value is shown or withheld as the contract's one answer says, as on the sibling History panels.
-  const chipped = (field: string, value: string | null, entity: string): ReactNode => {
-    const held = value ? sulitHistoryValue(field, "contract", sulit, read(field, value, entity)) : null;
+  const chipped = (field: string, value: string | null, entity: string, entityId?: string): ReactNode => {
+    // A matter's routed value is also read by the people who decide the matter's route (its own gate), where the contract's answer is withheld.
+    const viaMatter = sulit.state === "WITHHELD" && field === ROUTED_MATTER_VALUE_FIELD && entityId ? matterGates.get(entityId) : undefined;
+    const held = value ? (viaMatter?.state === "GRANTED" ? sulitHistoryValue(field, "contract", viaMatter, read(field, value, entity)) : sulitHistoryValue(field, "contract", sulit, read(field, value, entity))) : null;
     return held ? <SulitValue of={held} /> : read(field, value, entity);
   };
   return (
@@ -398,8 +404,8 @@ function HistoryPanel({ sulit, entries, total, timeZone }: { sulit: Sulit<true>;
                 <ul className="text-[12.5px] break-words text-ink-3">
                   {e.changes.filter((ch) => !/(Code|Key|Id)$/.test(ch.field)).map((ch) => (
                     <li key={ch.field}>
-                      {historyFieldLabel(ch.field, e.entity)}: {(e.action === "UPDATE" || ch.before != null) && <>{chipped(ch.field, ch.before, e.entity)} → </>}
-                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entity)}</span>
+                      {historyFieldLabel(ch.field, e.entity)}: {(e.action === "UPDATE" || ch.before != null) && <>{chipped(ch.field, ch.before, e.entity, e.entityId)} → </>}
+                      <span className="text-ink-2">{chipped(ch.field, e.action === "DELETE" ? ch.before : ch.after, e.entity, e.entityId)}</span>
                     </li>
                   ))}
                 </ul>

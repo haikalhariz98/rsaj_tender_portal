@@ -358,6 +358,6 @@ export async function contractHistory(l: LoadedContract) {
   const [rows, total] = await Promise.all([db.auditEntry.findMany({ where, orderBy: { at: "desc" }, take: CONTRACT_HISTORY_PAGE }), db.auditEntry.count({ where })]);
   return {
     total,
-    entries: rows.map((e) => ({ id: e.id, entity: e.entity, entityLabel: e.entityLabel, action: e.action, at: e.at, reason: e.reason, changes: (e.changes ?? []) as unknown as { field: string; before: string | null; after: string | null }[] })),
+    entries: rows.map((e) => ({ id: e.id, entity: e.entity, entityId: e.entityId, entityLabel: e.entityLabel, action: e.action, at: e.at, reason: e.reason, changes: (e.changes ?? []) as unknown as { field: string; before: string | null; after: string | null }[] })),
   };
 }

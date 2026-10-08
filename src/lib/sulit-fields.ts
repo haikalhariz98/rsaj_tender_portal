@@ -125,6 +125,10 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "icNumber", scope: "exercise", alsoIn: ["contract"], contextual: true, what: "the identity card number of a contractor's signatory (FR-AWD-008, 6.11)" },
 ];
 
+/// The one field of a CONTRACT that is a matter's own routed amount (a contract matter's routed value): the trail rows that carry it are also judged by the matter's own gate, for the people who
+/// decide the matter's route. Read from the registry so that the field is named once, there.
+export const ROUTED_MATTER_VALUE_FIELD: string = SULIT_FIELDS.find((f) => f.routedAmount && f.scope === "contract")!.field;
+
 /// The registered fields a kind of record carries: its own, and those it also carries. What a screen that shows several of them asks the rule about at once.
 export const fieldsOfScope = (scope: SulitScope): string[] => SULIT_FIELDS.filter((f) => !f.contextual && (f.scope === scope || f.alsoIn?.includes(scope))).map((f) => f.field);
 
