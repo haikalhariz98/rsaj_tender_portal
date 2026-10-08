@@ -252,7 +252,7 @@ async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<Escalat
       const superiors = superiorsNote(lines, holders.holderIds, on, (id) => people.get(id)?.name ?? "A person no longer on record");
       const toHolders = today ? (supplierId || permissionId ? supplierHolders(verdict.toRoleCode, roster, delegations, today) : holdersFor(verdict.toRoleCode, unitPath, roster, delegations, today)) : null;
       const told = toHolders ? [...toHolders.holderIds, ...toHolders.delegates.map((d) => d.personId)].filter((id) => people.get(id)?.isActive) : [];
-      const ref = { label: matter, href: "/approvals", exerciseId: behind ?? null };
+      const ref = { label: matter, href: "/approvals?tab=mine", exerciseId: behind ?? null };
       const by = actor.system ? null : actor.personId;
       await writeNotices(
         tx,

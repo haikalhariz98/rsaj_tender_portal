@@ -44,6 +44,7 @@ const ROUTES = [
   "/awards",
   "/awards/new",
   "/approvals",
+  "/inbox",
   "/securities",
   "/committees",
   "/configuration/requisitions",
@@ -51,7 +52,7 @@ const ROUTES = [
   "/configuration/scope",
   "/configuration/audit",
   "/configuration/accounts",
-  ...["people", "roles", "permissions", "delegation"].map((t) => `/configuration/users?tab=${t}`),
+  ...["people", "roles", "permissions", "delegation", "lines"].map((t) => `/configuration/users?tab=${t}`),
   ...["codes", "periods", "allocations", "availability", "controls", "finance"].map(
     (t) => `/configuration/budget?tab=${t}`,
   ),

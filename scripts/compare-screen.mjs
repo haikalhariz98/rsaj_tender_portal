@@ -296,6 +296,20 @@ const ALLOWED_EXTRA = [
   /^Awaiting decision$/,
   /^Escalate$/,
   /^Choose where it goes$/,
+  // Phase 3c (FR-APR-018, 010, 011, 012, 017; FR-CTE-009): the personal queue ("My steps" beside "By office") and its sweep after an absence, the staff inbox (notices
+  // shown in the portal, since email is not connected), the reporting lines that decide where a step moves and who may be delegated to, and the originator's recall of
+  // a name's or an award's route. The prototype has none of them: it has no sign-in, no queue and no notification.
+  /^My steps\d*$/,
+  /^By office\d*$/,
+  /^Waiting for you$/,
+  /^Move steps held by people who are away$/,
+  /^Inbox$/,
+  /^Notices$/,
+  /^Mark all as read$/,
+  /^Open my steps$/,
+  /^Reporting lines\d*$/,
+  /^Record reporting line$/,
+  /^Recall( name approval)?$/,
   // FR-REQ-012: the committee gate between approval and the first exercise.
   /^Check committee gates$/,
   /^Cite the decision$/,

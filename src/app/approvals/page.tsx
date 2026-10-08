@@ -73,7 +73,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         kind: "chips",
         items: [
           ...(i.escalation ? [{ text: ESCALATION_KIND_LABEL[i.escalation], tone: "warn" as const, nowrap: true }] : []),
-          ...(i.noneAvailable ? [{ text: "Nobody able to act", tone: "err" as const, nowrap: true }] : []),
+          ...(i.noneAvailable ? [{ text: "Nobody able to act — escalate", tone: "err" as const, nowrap: true }] : []),
           // The step stays where it is until the reporting line says who is above the holders, or an officer escalates it: said, not hidden.
           ...(i.noneAvailable && !w?.linesRecorded ? [{ text: `${REPORTING_LINE_NOT_SET}: the step stays put`, tone: "warn" as const, nowrap: true }] : []),
           ...(!i.escalation && !i.noneAvailable ? [{ text: i.committee ? "With the committee" : "With the office", tone: "brand" as const }] : []),
