@@ -55,6 +55,8 @@ export function recommendationStanding(f: RecommendationFacts): RecommendationSt
 export interface DelegationTerms {
   /// The grantor: the absent holder whose recommendation the text records.
   fromPersonId: string;
+  /// The jobholder whose authority is delegated (log line 1773): a later change of who it is changes whose absence the text records. Null on a delegation recorded before the rule.
+  jobholderPersonId?: string | null;
   /// The office delegated from.
   roleCode: string;
   toPersonId: string;
@@ -64,7 +66,7 @@ export interface DelegationTerms {
   capabilityCodes: readonly string[];
 }
 
-export type LegacyEnd = "END_MOVED_LATER" | "END_OPENED" | "START_MOVED_EARLIER" | "GRANTOR_CHANGED" | "OFFICE_CHANGED" | "DELEGATE_CHANGED" | "CAPABILITIES_WIDENED";
+export type LegacyEnd = "END_MOVED_LATER" | "END_OPENED" | "START_MOVED_EARLIER" | "GRANTOR_CHANGED" | "JOBHOLDER_CHANGED" | "OFFICE_CHANGED" | "DELEGATE_CHANGED" | "CAPABILITIES_WIDENED";
 
 /**
  * Which of the ruled changes an edit makes. Moving the end earlier, closing an open end,
@@ -77,6 +79,7 @@ export function legacyEndedBy(before: DelegationTerms, after: DelegationTerms): 
   if (before.effectiveTo != null && after.effectiveTo != null && after.effectiveTo.getTime() > before.effectiveTo.getTime()) out.push("END_MOVED_LATER");
   if (after.effectiveFrom.getTime() < before.effectiveFrom.getTime()) out.push("START_MOVED_EARLIER");
   if (after.fromPersonId !== before.fromPersonId) out.push("GRANTOR_CHANGED");
+  if ((after.jobholderPersonId ?? null) !== (before.jobholderPersonId ?? null)) out.push("JOBHOLDER_CHANGED");
   if (after.roleCode !== before.roleCode) out.push("OFFICE_CHANGED");
   if (after.toPersonId !== before.toPersonId) out.push("DELEGATE_CHANGED");
   const wasWhole = before.capabilityCodes.length === 0;

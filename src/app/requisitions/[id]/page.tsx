@@ -1,3 +1,4 @@
+import { holderOf } from "@/lib/people/delegation";
 import type { ReactNode } from "react";
 import { hiddenExercises, sulitExerciseValues, sulitGate } from "@/app/_auth/sulit";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
@@ -373,7 +374,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
         value: parseSen(r.estimatedValue.toString()),
       }).faults;
       const via = h.holderIds.includes(pid) ? null : h.delegates.find((d) => d.personId === pid);
-      const role = via ? `delegate of ${personName(via.delegation.fromPersonId) ?? "a holder no longer on record"}` : "holds the office";
+      const role = via ? `delegate of ${personName(holderOf(via.delegation)) ?? "a holder no longer on record"}` : "holds the office";
       const why = faults.map((f) => BARRED_WHY[f]).filter(Boolean);
       if (why.length === 0) {
         eligibleIds.push(pid);

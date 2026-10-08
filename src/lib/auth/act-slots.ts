@@ -385,6 +385,7 @@ export const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "AuthorityMatrixMaker.person": "The maker record itself: written for the signed-in actor by the draft's own edit.",
   "MeetingAttendance.person": "The attendee: the subject of a recorded fact (who was present), not the author of an act.",
   "Delegation.toPerson": "The delegate: who receives the authority, not who granted it. The act is the grant, whose slot is `Delegation.fromPerson`.",
+  "Delegation.jobholder": "The jobholder whose authority is delegated (ruling of 2026-10-08, log line 1773): the person the grant is about, not who grants it. The act is the grant, whose slot is `Delegation.fromPerson`, and the audit row names the jobholder.",
   "SoDelegation.delegatePerson": "The delegate: who receives the authority, not who granted it. The act is the grant, whose slot is `SoDelegation.grantorPerson`.",
   "ExerciseParticipant.person": ROSTER,
   "OpeningPanelMember.person": ROSTER,

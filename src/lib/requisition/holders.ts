@@ -11,7 +11,7 @@
 
 import { inForceOn } from "@/lib/effective";
 import { parseSen, type Sen } from "@/lib/money";
-import type { Delegation } from "@/lib/people/delegation";
+import { holderOf, type Delegation } from "@/lib/people/delegation";
 import type { Roster } from "@/lib/people/roster";
 
 const dayDate = (d: string) => new Date(`${d}T00:00:00.000Z`);
@@ -52,7 +52,8 @@ export function holdersFor(
   // A delegation carries an approval act only when it hands over the whole office: a
   // listed subset of capabilities does not (see people/delegation.ts).
   const delegates = delegations
-    .filter((d) => d.roleCode === roleCode && holderIds.includes(d.fromPersonId) && d.capabilityCodes.length === 0 && inForceOn(d, on))
+    // The authority is the JOBHOLDER's where the delegation records one (ruling of 2026-10-08, log line 1773), the grantor's on a delegation recorded before the rule (`holderOf`).
+    .filter((d) => d.roleCode === roleCode && holderIds.includes(holderOf(d)) && d.capabilityCodes.length === 0 && inForceOn(d, on))
     .map((d) => ({ personId: d.toPersonId, delegation: d }));
   return { scope, holderIds, delegates };
 }

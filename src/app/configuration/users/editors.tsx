@@ -26,7 +26,7 @@ import { Switch } from "@/components/ui/field";
 import { RecordEditor, type Field, type SaveAction } from "@/components/record-editor";
 import { actorField } from "@/lib/auth/actor-field";
 import type { Capability } from "@/lib/people/capabilities";
-import { statusOf, type Delegation } from "@/lib/people/delegation";
+import { holderOf, statusOf, type Delegation } from "@/lib/people/delegation";
 import type { Assignment, Office, Person } from "@/lib/people/types";
 
 import { NO_SUPERIOR_CHOICE } from "@/lib/people/reporting-lines";
@@ -236,7 +236,7 @@ export function EditPerson({
                 {delegations.map((d) => {
                   const status = statusOf(d, on);
                   const { label, tone } = DELEGATION_STATUS[status];
-                  const parties = `${nameOf(d.fromPersonId)} → ${nameOf(d.toPersonId)}`;
+                  const parties = `${nameOf(holderOf(d))} → ${nameOf(d.toPersonId)}`;
                   return (
                     <li
                       key={d.id}
@@ -515,6 +515,8 @@ function delegationFields(
   upload: UploadView,
   status?: string,
   attachedNote?: string | null,
+  /// An existing delegation recorded before the superior rule: it has no jobholder and may keep none (the grantor is taken as the holder), so the field is not required.
+  beforeSuperiorRule = false,
 ): Field[] {
   const persons = people
     .filter((p) => p.isActive)
@@ -523,6 +525,16 @@ function delegationFields(
   return [
     // The grantor is the signed-in person, or another whose delegation is recorded from their letter (the paper's reference or the reason is then asked).
     actorField("Delegation.fromPerson", { name: "fromPersonId", people: persons, named: {} }),
+    // FR-APR-011 (ruling of 2026-10-08, log line 1773): whose authority is delegated, apart from who grants it.
+    {
+      kind: "select",
+      name: "jobholderPersonId",
+      label: "Jobholder (whose authority this is)",
+      required: !beforeSuperiorRule,
+      placeholder: beforeSuperiorRule ? "Not recorded: before the superior rule" : "Choose",
+      hint: "The person who holds the role. Not the grantor: nobody delegates their own authority, so the grantor is the jobholder's immediate superior and the delegate reports directly to the jobholder. Those two are checked against the reporting lines once they are recorded.",
+      options: persons,
+    },
     {
       kind: "select",
       name: "toPersonId",
@@ -610,10 +622,11 @@ function useDelegationSave(people: Person[]): SaveAction {
       let staged = false;
       const file = data.get("file");
       if (file instanceof File && file.name) {
-        const from = people.find((p) => p.id === String(data.get("fromPersonId") ?? ""));
+        // The absent holder is the jobholder where the delegation records one, the grantor on a delegation recorded before the rule.
+        const holder = people.find((p) => p.id === String(data.get("jobholderPersonId") || data.get("fromPersonId") || ""));
         const up = new FormData();
         for (const k of ["file", "documentClassId"]) up.set(k, data.get(k) ?? "");
-        up.set("title", `Signed recommendation of ${from?.name ?? "the absent holder"}`);
+        up.set("title", `Signed recommendation of ${holder?.name ?? "the absent holder"}`);
         const s = await stage(up, stagedRef, { stagedFor: STAGED_FOR_DELEGATION });
         if (!s.ok) return s.state;
         next.set("recommendationVersionId", s.versionId);
@@ -685,7 +698,7 @@ export function EditDelegation({
       icon={<SwapIcon size={18} />}
       fields={[
         { kind: "hidden", name: "id" },
-        ...delegationFields(people, offices, capabilities, upload, status, recommendationNote(delegation)),
+        ...delegationFields(people, offices, capabilities, upload, status, recommendationNote(delegation), delegation.jobholderPersonId == null),
       ]}
       columns={2}
       sections={DELEGATION_NOTE}
@@ -695,6 +708,7 @@ export function EditDelegation({
       values={{
         id: delegation.id,
         fromPersonId: delegation.fromPersonId,
+        jobholderPersonId: delegation.jobholderPersonId ?? null,
         toPersonId: delegation.toPersonId,
         effectiveFrom: day(delegation.effectiveFrom),
         effectiveTo: day(delegation.effectiveTo),

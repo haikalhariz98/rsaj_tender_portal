@@ -32,7 +32,7 @@ import {
   type Capability,
   type Grant,
 } from "@/lib/people/capabilities";
-import { delegationNotes, statusOf, type Delegation } from "@/lib/people/delegation";
+import { BEFORE_SUPERIOR_RULE, BEFORE_SUPERIOR_RULE_SHORT, delegationNotes, holderOf, statusOf, type Delegation } from "@/lib/people/delegation";
 import { REPORTING_LINE_NOT_SET, REPORTING_LINE_NOT_SET_WHY } from "@/lib/people/reporting-lines";
 import type { Assignment, Office, Person, RosterFault } from "@/lib/people/types";
 
@@ -615,11 +615,13 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload, l
     return {
       id: d.id,
       views: [status.toLowerCase().replace("_", "")],
-      search: [nameOf(d.fromPersonId), nameOf(d.toPersonId), officeName(d.roleCode), d.reason].join(
+      note: d.jobholderPersonId ? undefined : BEFORE_SUPERIOR_RULE,
+      search: [nameOf(d.fromPersonId), d.jobholderPersonId ? nameOf(d.jobholderPersonId) : "", nameOf(d.toPersonId), officeName(d.roleCode), d.reason].join(
         " ",
       ),
       cells: {
-        from: { kind: "person", name: nameOf(d.fromPersonId), sub: officeName(d.roleCode) },
+        // The grantor, and under it whose authority it is: the jobholder, or on a delegation recorded before the superior rule the words that say so (log line 1773).
+        from: { kind: "person", name: nameOf(d.fromPersonId), sub: d.jobholderPersonId ? `${officeName(d.roleCode)} · authority of ${nameOf(d.jobholderPersonId)}` : `${officeName(d.roleCode)} · ${BEFORE_SUPERIOR_RULE_SHORT}` },
         to: { kind: "person", name: nameOf(d.toPersonId) },
         what:
           d.capabilityCodes.length === 0
@@ -725,7 +727,7 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload, l
           <ul className="divide-y divide-line/70 px-5 pb-2 sm:px-6">
             {away.map((p) => {
               const cover = delegations.find(
-                (d) => d.fromPersonId === p.id && statusOf(d, on) === "IN_FORCE",
+                (d) => holderOf(d) === p.id && statusOf(d, on) === "IN_FORCE",
               );
               return (
                 <li key={p.id} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 py-2.5">

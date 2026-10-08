@@ -73,13 +73,13 @@ export async function routePeopleOf(client: Tx, organisationId: string, where: P
       const on = dayToDate(today);
       const [assignments, delegationRows, units, people] = await Promise.all([
         client.roleAssignment.findMany({ where: { person: { organisationId } }, select: { id: true, personId: true, roleCode: true, scope: true, effectiveFrom: true, effectiveTo: true } }),
-        client.delegation.findMany({ where: { organisationId }, select: { id: true, fromPersonId: true, toPersonId: true, roleCode: true, capabilityCodes: true, valueCeiling: true, noSubDelegation: true, effectiveFrom: true, effectiveTo: true } }),
+        client.delegation.findMany({ where: { organisationId }, select: { id: true, fromPersonId: true, jobholderPersonId: true, toPersonId: true, roleCode: true, capabilityCodes: true, valueCeiling: true, noSubDelegation: true, effectiveFrom: true, effectiveTo: true } }),
         client.orgUnit.findMany({ where: { organisationId } }),
         client.person.findMany({ where: { organisationId }, select: { id: true, isActive: true } }),
       ]);
       // Holders are found by `holdersFor`, which reads only the assignments in force and the delegations: the rest of a roster is not needed.
       const roster = { people: [], offices: [], assignments } as unknown as Roster;
-      const delegations: Delegation[] = delegationRows.map((d) => ({ id: d.id, fromPersonId: d.fromPersonId, toPersonId: d.toPersonId, roleCode: d.roleCode, capabilityCodes: d.capabilityCodes, valueCeiling: d.valueCeiling?.toString() ?? null, reason: "", reasonMs: "", noSubDelegation: d.noSubDelegation, effectiveFrom: d.effectiveFrom, effectiveTo: d.effectiveTo }));
+      const delegations: Delegation[] = delegationRows.map((d) => ({ id: d.id, fromPersonId: d.fromPersonId, jobholderPersonId: d.jobholderPersonId, toPersonId: d.toPersonId, roleCode: d.roleCode, capabilityCodes: d.capabilityCodes, valueCeiling: d.valueCeiling?.toString() ?? null, reason: "", reasonMs: "", noSubDelegation: d.noSubDelegation, effectiveFrom: d.effectiveFrom, effectiveTo: d.effectiveTo }));
       const active = new Set(people.filter((p) => p.isActive).map((p) => p.id));
       isActive = (id) => active.has(id);
       holdersAt = (officeCode, unit, supplier) => {

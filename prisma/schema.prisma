@@ -501,6 +501,8 @@ model Person {
   codesIssued       OneTimeCode[] @relation("CodeIssuedBy")
   delegationsGiven  Delegation[] @relation("DelegationFrom")
   delegationsTaken  Delegation[] @relation("DelegationTo")
+  /// Delegations of this person's authority granted by someone else (FR-APR-011, product owner 2026-10-08, log line 1773).
+  delegationsOfAuthority Delegation[] @relation("DelegationJobholder")
   mattersTabled     CommitteeDecision[] @relation("TabledBy")
   recusals          DecisionRecusal[]
   requisitionsRaised    Requisition[]            @relation("RequestedBy")
@@ -1562,6 +1564,13 @@ model Delegation {
   toPersonId   String
   toPerson     Person @relation("DelegationTo", fields: [toPersonId], references: [id], onDelete: Restrict)
 
+  /// FR-APR-011 (product owner, 2026-10-08, decisions log line 1773): the JOBHOLDER whose authority is delegated, apart from the grantor. The grantor is the jobholder's superior and
+  /// the delegate a direct line subordinate of the jobholder (checked once reporting lines are recorded), and the grantor is never the jobholder (a CHECK: no delegation of one's own
+  /// authority). The office-holding check and the engine's reading of the delegated authority follow the jobholder. Null on a delegation recorded before the rule: it keeps today's reading,
+  /// where the grantor is the holder, and reads "recorded before the superior rule". No backfill: nothing already in force stops conferring authority.
+  jobholderPersonId String?
+  jobholder         Person? @relation("DelegationJobholder", fields: [jobholderPersonId], references: [id], onDelete: Restrict)
+
   /// The office the authority is being delegated out of.
   roleCode String
 
@@ -1607,6 +1616,7 @@ model Delegation {
   @@index([organisationId, effectiveFrom])
   @@index([fromPersonId])
   @@index([toPersonId])
+  @@index([jobholderPersonId])
 }
 
 /// What changed, when, and — once there is anybody to name — who changed it.

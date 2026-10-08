@@ -39,6 +39,26 @@ describe("who holds the office for the requesting unit", () => {
   });
 });
 
+describe("the engine takes a delegation's authority from the jobholder's holding (ruling of 2026-10-08 on log line 1773)", () => {
+  it("a delegation that records a jobholder carries the JOBHOLDER's office, whoever the grantor is, and the grantor need hold none", () => {
+    // "div" holds DIV_HEAD for OPS; the grantor is "hodOrg" (another officer who does not hold DIV_HEAD), the jobholder "div".
+    const viaJobholder = delegation({ id: "j1", roleCode: "DIV_HEAD", fromPersonId: "hodOrg", jobholderPersonId: "div", toPersonId: "deputy", effectiveFrom: d("2026-09-01"), effectiveTo: d("2026-10-31") });
+    expect(holdersFor("DIV_HEAD", PATH, ROSTER, [viaJobholder], "2026-09-30").delegates.map((x) => x.personId)).toEqual(["deputy"]);
+  });
+
+  it("a delegation whose jobholder does not hold the office on the day carries nothing, even where its grantor does", () => {
+    const wrongJobholder = delegation({ id: "j2", roleCode: "DIV_HEAD", fromPersonId: "div", jobholderPersonId: "hodOrg", toPersonId: "deputy", effectiveFrom: d("2026-09-01"), effectiveTo: d("2026-10-31") });
+    expect(holdersFor("DIV_HEAD", PATH, ROSTER, [wrongJobholder], "2026-09-30").delegates).toEqual([]);
+  });
+
+  it("a delegation recorded before the rule (no jobholder) is read as it always was: the grantor is the holder", () => {
+    const legacy = delegation({ id: "old", roleCode: "DIV_HEAD", fromPersonId: "div", jobholderPersonId: null, toPersonId: "deputy", effectiveFrom: d("2026-09-01"), effectiveTo: d("2026-10-31") });
+    expect(holdersFor("DIV_HEAD", PATH, ROSTER, [legacy], "2026-09-30").delegates.map((x) => x.personId)).toEqual(["deputy"]);
+    const notHolder = delegation({ id: "old2", roleCode: "DIV_HEAD", fromPersonId: "hodOrg", toPersonId: "deputy", effectiveFrom: d("2026-09-01"), effectiveTo: d("2026-10-31") });
+    expect(holdersFor("DIV_HEAD", PATH, ROSTER, [notHolder], "2026-09-30").delegates).toEqual([]);
+  });
+});
+
 describe("the sender of a name or an appointment route may not decide it (ruling of 2026-10-08 on log line 1789)", () => {
   const step = { committeeCode: null, nonDelegable: false, decision: "PENDING" };
   const ctx = (over: Partial<DeciderContext> = {}): DeciderContext => ({

@@ -338,11 +338,32 @@ const DELEGATION_FAULTS: Record<DelegationFault, { field: string; message: strin
   },
   DELEGATE_NOT_SUBORDINATE: {
     field: "toPersonId",
-    message: "The delegate must be a direct line subordinate of the grantor, and the reporting line does not say so. Check the reporting lines, or choose someone who reports directly to the grantor.",
+    message: "The delegate must be a direct line subordinate of the jobholder, the person whose authority is delegated, and the reporting line does not say so. Check the reporting lines, or choose someone who reports directly to the jobholder.",
   },
   DELEGATE_LINE_NOT_SET: {
     field: "toPersonId",
-    message: "Reporting line not set for the delegate, so they cannot be shown to be a direct line subordinate of the grantor. Record their reporting line first.",
+    message: "Reporting line not set for the delegate, so they cannot be shown to be a direct line subordinate of the jobholder. Record their reporting line first.",
+  },
+  // FR-APR-011 (ruling of 2026-10-08, log line 1773): the jobholder whose authority is delegated is not the grantor.
+  GRANTOR_IS_JOBHOLDER: {
+    field: "jobholderPersonId",
+    message: "Nobody delegates their own authority. A delegation is granted by the jobholder's superior, so the grantor and the jobholder are two people.",
+  },
+  DELEGATE_IS_JOBHOLDER: {
+    field: "toPersonId",
+    message: "The jobholder cannot also be the delegate: they would receive their own authority.",
+  },
+  JOBHOLDER_DOES_NOT_HOLD: {
+    field: "jobholderPersonId",
+    message: "The jobholder does not hold this role over that whole period, so their authority cannot be delegated.",
+  },
+  GRANTOR_NOT_SUPERIOR: {
+    field: "fromPersonId",
+    message: "The grantor must be the jobholder's immediate superior, and the reporting line does not say so. Check the reporting lines, or let the jobholder's superior grant it.",
+  },
+  JOBHOLDER_LINE_NOT_SET: {
+    field: "jobholderPersonId",
+    message: "Reporting line not set for the jobholder, so the grantor cannot be shown to be their immediate superior. Record the jobholder's reporting line first.",
   },
   UNBOUNDED: {
     field: "effectiveTo",
@@ -374,6 +395,7 @@ const DELEGATION_FAULTS: Record<DelegationFault, { field: string; message: strin
 function asDelegation(row: {
   id: string;
   fromPersonId: string;
+  jobholderPersonId: string | null;
   toPersonId: string;
   roleCode: string;
   capabilityCodes: string[];
@@ -387,6 +409,7 @@ function asDelegation(row: {
   return {
     id: row.id,
     fromPersonId: row.fromPersonId,
+    jobholderPersonId: row.jobholderPersonId,
     toPersonId: row.toPersonId,
     roleCode: row.roleCode,
     capabilityCodes: row.capabilityCodes,
@@ -424,6 +447,10 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
 
   const fromPersonId = r.text("fromPersonId", "From", { required: true });
   const toPersonId = r.text("toPersonId", "To", { required: true });
+  // FR-APR-011 (ruling of 2026-10-08, log line 1773): the jobholder whose authority is delegated. A new delegation always names one. An edit of a delegation recorded before the rule may
+  // leave it empty (it keeps the earlier reading, where the grantor is the holder), and is asked for one once it has one.
+  const jobholderPersonId = r.optionalText("jobholderPersonId");
+  if (!id && !jobholderPersonId) r.reject("jobholderPersonId", "Choose the jobholder whose authority is delegated. It is not the grantor: nobody delegates their own authority.");
   const roleCode = r.text("roleCode", "Delegating from", { required: true });
   const effectiveFrom = r.date("effectiveFrom", "From", { required: true });
   const effectiveTo = r.date("effectiveTo", END_DAY_LABEL);
@@ -431,6 +458,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
 
   const v = {
     fromPersonId,
+    jobholderPersonId,
     toPersonId,
     roleCode,
     capabilityCodes,
@@ -484,10 +512,16 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
       const stored = id ? await lockDelegation(tx, id, orgId) : null;
       if (id && !stored) throw new DelegationRefused({ ok: false, message: "That delegation no longer exists." });
 
+      if (id && stored!.jobholderPersonId && !jobholderPersonId) throw new DelegationRefused({ ok: false, errors: { jobholderPersonId: "This delegation records the jobholder whose authority it delegates. Choose them again to save it." } });
+      if (jobholderPersonId && !(await tx.person.findFirst({ where: { id: jobholderPersonId, organisationId: orgId }, select: { id: true } }))) throw new DelegationRefused({ ok: false, errors: { jobholderPersonId: "That person is not on record." } });
+
       const existing = await tx.delegation.findMany({ where: { organisationId: orgId, ...(id ? { NOT: { id } } : {}) } });
       const held = await tx.capability.findMany({ where: { organisationId: orgId, roles: { some: { roleCode } } }, select: { code: true } });
+      // The authority delegated is the jobholder's, where one is recorded: the jobholder holds the office (the grantor, being the superior, need not), and an absent HOLDER is the jobholder.
+      // A delegation recorded before the rule keeps the earlier reading, where the grantor is the holder.
+      const holderPersonId = jobholderPersonId ?? fromPersonId;
       const grantorSpells = await tx.roleAssignment.findMany({
-        where: { personId: fromPersonId, roleCode, person: { organisationId: orgId } },
+        where: { personId: holderPersonId, roleCode, person: { organisationId: orgId } },
         select: { effectiveFrom: true, effectiveTo: true },
       });
       // Any rule in force that gives this office a mandatory act, as approver or as a
@@ -501,7 +535,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
           ],
         },
       });
-      const grantor = await tx.person.findFirst({ where: { id: fromPersonId, organisationId: orgId }, select: { isAvailable: true } });
+      const grantor = await tx.person.findFirst({ where: { id: holderPersonId, organisationId: orgId }, select: { isAvailable: true } });
 
       // Holds the office across the whole delegation: some assignment begins by its start
       // and runs at least to its end.
@@ -522,7 +556,9 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
         held.map((c) => c.code),
         {
           recorderId: act.recorderId,
+          // Judged on the jobholder where one is recorded, on the grantor otherwise (`faultsIn`).
           grantorHoldsOffice,
+          jobholderHoldsOffice: grantorHoldsOffice,
           officeHasMandatoryActs: mandatory > 0,
           grantorUnavailable: grantor ? !grantor.isAvailable : false,
           holderRecommendation: v.holderRecommendation,
@@ -536,7 +572,8 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
         const errors: Record<string, string> = {};
         for (const fault of faults) {
           const { field, message } = DELEGATION_FAULTS[fault];
-          errors[field] = message;
+          // Two faults can land on one field (the jobholder does not hold the office, and has no reporting line): both are said, not the last.
+          errors[field] = errors[field] ? `${errors[field]} ${message}` : message;
         }
         throw new DelegationRefused({ ok: false, errors });
       }
@@ -570,7 +607,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
       if (recommendationVersionId) await attachRecommendation(tx, toAuditActor(actor), orgId, delegationId, recommendationVersionId);
       // FR-APR-011: the delegate is told in the portal, once for these terms (a delegation changed to other terms is told again).
       const [parties, office, caps] = await Promise.all([
-        tx.person.findMany({ where: { organisationId: orgId, id: { in: [fromPersonId, toPersonId] } }, select: { id: true, name: true } }),
+        tx.person.findMany({ where: { organisationId: orgId, id: { in: [fromPersonId, toPersonId, ...(jobholderPersonId ? [jobholderPersonId] : [])] } }, select: { id: true, name: true } }),
         tx.authorityRole.findFirst({ where: { organisationId: orgId, code: roleCode }, select: { nameEn: true } }),
         capabilityCodes.length > 0 ? tx.capability.findMany({ where: { organisationId: orgId, code: { in: capabilityCodes } }, select: { nameEn: true } }) : Promise.resolve([]),
       ]);
@@ -582,7 +619,7 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
           delegationId,
           termsKey: [toPersonId, roleCode, [...capabilityCodes].sort().join(","), v.effectiveFrom.toISOString(), v.effectiveTo?.toISOString() ?? ""].join("|"),
           toPersonId,
-          fromName: parties.find((p) => p.id === fromPersonId)?.name ?? "A colleague",
+          fromName: `${parties.find((p) => p.id === fromPersonId)?.name ?? "A colleague"}${jobholderPersonId ? ` (the authority of ${parties.find((p) => p.id === jobholderPersonId)?.name ?? "the jobholder"})` : ""}`,
           officeLabel: office?.nameEn ?? "an office no longer configured",
           periodWords: delegationPeriodText(proposed).replace(/^./, (c) => c.toLowerCase()),
           whatWords: capabilityCodes.length === 0 ? "the whole office" : `these capabilities: ${caps.map((c) => c.nameEn).join(", ")}`,

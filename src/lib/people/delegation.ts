@@ -14,7 +14,11 @@ import { anyLineRecorded, lineOf, REPORTING_LINE_NOT_SET, type ReportingLine } f
 
 export interface Delegation extends Effective {
   id: string;
+  /// The grantor: who gives the delegation. On a delegation recorded from FR-APR-011's rule on, the jobholder's superior; on an earlier one, the holder of the office.
   fromPersonId: string;
+  /// The jobholder whose authority is delegated (product owner, 2026-10-08, decisions log line 1773). Null on a delegation recorded before the superior rule: it keeps the reading
+  /// where the grantor is the holder (`holderOf`), is labelled so, and is never backfilled.
+  jobholderPersonId?: string | null;
   toPersonId: string;
   roleCode: string;
   /// Empty means the whole office, which is a larger act than a listed subset.
@@ -36,6 +40,10 @@ export interface Delegation extends Effective {
   /// The migration's mark: recorded as text before attachments existed. Read, never written.
   recommendationTextOnlyAtLanding?: boolean;
 }
+
+/// Whose holding of the office a delegation carries: the jobholder's, or on a delegation recorded before the superior rule the grantor's. The engine takes the delegated authority from this
+/// person's holding, and one delegate-at-a-time and the loop check are judged on it.
+export const holderOf = (d: Pick<Delegation, "fromPersonId" | "jobholderPersonId">): string => d.jobholderPersonId ?? d.fromPersonId;
 
 export type DelegationStatus = "IN_FORCE" | "SCHEDULED" | "ENDED";
 
@@ -63,7 +71,7 @@ export function coverFor(
   personId: string,
   on: Date,
 ): Delegation | null {
-  return inForce(delegations, on).find((d) => d.fromPersonId === personId) ?? null;
+  return inForce(delegations, on).find((d) => holderOf(d) === personId) ?? null;
 }
 
 /**
@@ -90,6 +98,17 @@ export type DelegationFault =
   | "ENDS_BEFORE_IT_STARTS"
   | "UNBOUNDED"
   | "GRANTOR_DOES_NOT_HOLD"
+  /// FR-APR-011 (ruling of 2026-10-08, log line 1773), on a delegation that records a jobholder: the jobholder does not hold the office over the whole period. The grantor, being the
+  /// superior, need hold no such office.
+  | "JOBHOLDER_DOES_NOT_HOLD"
+  /// The grantor is the jobholder: nobody delegates their own authority (the requirement's acceptance test), whether or not any line is recorded.
+  | "GRANTOR_IS_JOBHOLDER"
+  /// The delegate is the jobholder: they would receive their own authority.
+  | "DELEGATE_IS_JOBHOLDER"
+  /// Once reporting lines are recorded: the grantor is not the jobholder's immediate superior.
+  | "GRANTOR_NOT_SUPERIOR"
+  /// Once reporting lines are recorded: the jobholder has no line recorded, so the grantor cannot be shown to be their superior.
+  | "JOBHOLDER_LINE_NOT_SET"
   | "MANDATORY_ACT"
   | "ABSENT_GRANTOR_NO_RECOMMENDATION"
   | "ABSENT_GRANTOR_RECOMMENDATION_NOT_ATTACHED";
@@ -102,11 +121,13 @@ export interface DelegationContext {
   /// The signed-in officer, where the delegation is recorded for another grantor from their letter (`PreparedAct.recorderId`). Null where the grantor signs in
   /// their own session. The grantor may not be the only check: the officer who keys it may not be its delegate either.
   recorderId?: string | null;
-  /// Whether the person delegating holds the office over the whole period.
+  /// Whether the person delegating holds the office over the whole period. Judged on the grantor, for a delegation that records no jobholder (the reading before the superior rule).
   grantorHoldsOffice?: boolean;
+  /// Whether the JOBHOLDER holds the office over the whole period (ruling of 2026-10-08, log line 1773): judged for a delegation that records one, in place of the grantor.
+  jobholderHoldsOffice?: boolean;
   /// Whether an approval rule gives the office a mandatory act (MR, MJR, MA).
   officeHasMandatoryActs?: boolean;
-  /// Whether the grantor is away (`Person.isAvailable` false). Authority has then
+  /// Whether the holder is away (`Person.isAvailable` false): the jobholder where the delegation records one, else the grantor. Authority has then
   /// reverted upward, and passes down again only on the absent holder's recommendation.
   grantorUnavailable?: boolean;
   /// The absent holder's recommendation to re-delegate, as recorded (FR-APR-012).
@@ -126,25 +147,29 @@ export interface DelegationContext {
 
 /// Said about a delegation that was accepted, where a rule it is owed was not applied. Words for the screen, never a refusal.
 export interface DelegationNote {
-  code: "REPORTING_LINES_NOT_SET" | "GRANTOR_SUPERIORITY_NOT_CHECKED";
+  code: "REPORTING_LINES_NOT_SET" | "RULES_CHECKED";
   en: string;
 }
 
 /**
- * What the delegation's acceptance did not check, said in words (FR-APR-011, "faultsIn applies the superior and subordinate rules when lines are set, and says so otherwise").
+ * What the delegation rules check, and do not, said in words (FR-APR-011, product owner 2026-10-08, decisions log line 1773).
  *
- * - No reporting line is recorded: the direct-line-subordinate rule is not applied, and the screen says "Reporting line not set".
- * - Lines are recorded: the subordinate rule is applied. The other half of the rule, that the grant is made by the jobholder's superior rather than by the
- *   jobholder, is NOT: a delegation records one grantor, who holds the office, and has no separate jobholder to compare with (an open item for the product owner).
- *   The screen says that too, so a rule that is not enforced is never taken for one that is.
+ * - Always: the grantor is not the jobholder (no delegation of one's own authority), the jobholder holds the office, and nobody delegates to themselves.
+ * - No reporting line is recorded: the rules that the grantor is the jobholder's immediate superior and that the delegate is the jobholder's direct line subordinate are NOT applied, and
+ *   the screen says "Reporting line not set". They are applied, on the first day and on every day a line changes within the period, as soon as lines are recorded.
+ * - A delegation recorded before the superior rule has no jobholder recorded and keeps the earlier reading, where the grantor is the holder: it is labelled so on the list.
  */
 export function delegationNotes(context: Pick<DelegationContext, "reportingLines">): DelegationNote[] {
   if (context.reportingLines === undefined) return [];
   if (!anyLineRecorded(context.reportingLines)) {
-    return [{ code: "REPORTING_LINES_NOT_SET", en: `${REPORTING_LINE_NOT_SET}: the rule that the delegate is a direct line subordinate of the grantor is not checked. It is applied as soon as reporting lines are recorded.` }];
+    return [{ code: "REPORTING_LINES_NOT_SET", en: `${REPORTING_LINE_NOT_SET}: the rules that the grantor is the jobholder's immediate superior and that the delegate is the jobholder's direct line subordinate are not checked. They are applied as soon as reporting lines are recorded. What is checked now: the grantor is never the jobholder, and the jobholder holds the office.` }];
   }
-  return [{ code: "GRANTOR_SUPERIORITY_NOT_CHECKED", en: "The delegate is checked against the reporting lines. The rule that the grant is made by the jobholder's superior, not by the jobholder, is not checked: a delegation records its grantor, who holds the office, and no separate jobholder." }];
+  return [{ code: "RULES_CHECKED", en: "The grantor is checked against the jobholder's reporting line (the jobholder's immediate superior), and the delegate against it too (a direct line subordinate of the jobholder), on the first day and on every day a line changes within the period." }];
 }
+
+/// How a delegation recorded before the superior rule reads on a list: it has no jobholder, and the grantor is taken as the holder.
+export const BEFORE_SUPERIOR_RULE_SHORT = "recorded before the superior rule";
+export const BEFORE_SUPERIOR_RULE = "Recorded before the superior rule: the grantor is taken as the holder of the office.";
 
 /**
  * Who may record a delegation for a grantor other than themselves (F8, FR-APR-011: "granted by", not "received by").
@@ -171,26 +196,35 @@ export function closesLoop(proposed: Delegation, existing: readonly Delegation[]
   const stack = [proposed.toPersonId];
   while (stack.length > 0) {
     const at = stack.pop()!;
-    if (at === proposed.fromPersonId) return true;
+    // The authority runs from the holder (the jobholder, or the grantor on a delegation recorded before the rule) to the delegate.
+    if (at === holderOf(proposed)) return true;
     if (seen.has(at)) continue;
     seen.add(at);
-    for (const e of edges) if (e.fromPersonId === at) stack.push(e.toPersonId);
+    for (const e of edges) if (holderOf(e) === at) stack.push(e.toPersonId);
   }
   return false;
 }
 
 /// The days on which a delegate's line can differ over the period: its first day, and the first day of any of their lines that begins inside it.
 function lineCheckDays(proposed: Delegation, lines: readonly ReportingLine[]): Date[] {
-  const inside = lines.filter((l) => l.personId === proposed.toPersonId && l.effectiveFrom > proposed.effectiveFrom && (proposed.effectiveTo == null || l.effectiveFrom < proposed.effectiveTo)).map((l) => l.effectiveFrom);
-  return [proposed.effectiveFrom, ...inside];
+  // The delegate's line, and the jobholder's where one is recorded (the grantor must be the jobholder's superior on those days too).
+  const who = [proposed.toPersonId, ...(proposed.jobholderPersonId ? [proposed.jobholderPersonId] : [])];
+  const inside = lines.filter((l) => who.includes(l.personId) && l.effectiveFrom > proposed.effectiveFrom && (proposed.effectiveTo == null || l.effectiveFrom < proposed.effectiveTo)).map((l) => l.effectiveFrom);
+  return [...new Map([proposed.effectiveFrom, ...inside].map((d) => [d.getTime(), d])).values()];
 }
 
 /**
- * FR-APR-011, as far as the data allows. The grantor is the signed-in person (or the person the act is recorded for, both stored: Phase 2b), and the
- * delegate is checked against the organisation's reporting lines WHEN THEY ARE RECORDED (`context.reportingLines`): a delegate must be a direct line
- * subordinate of the grantor, on the first day and on any day their line changes in the period. With none recorded the rule is not applied and
- * `delegationNotes` says so; nothing is assumed. That the grant is made by the jobholder's superior is not checked (see `delegationNotes`).
- * A loop is refused whatever the lines say (F8).
+ * FR-APR-011 (product owner, 2026-10-08, decisions log line 1773). A delegation records the JOBHOLDER whose authority is delegated, apart from the GRANTOR:
+ *
+ * - on a delegation that records a jobholder, the grantor is never the jobholder (refused whether or not any line is recorded: the requirement's acceptance test is that a user
+ *   cannot delegate their own authority), the JOBHOLDER must hold the office over the whole period (the grantor, being the superior, need hold none), and the engine takes the
+ *   delegated authority from the jobholder's holding;
+ * - WHEN REPORTING LINES ARE RECORDED (`context.reportingLines`), the grantor must be the jobholder's immediate superior and the delegate a direct line subordinate of the jobholder
+ *   (not of the grantor), on the first day and on every day either line changes in the period. With none recorded these two rules are not applied and `delegationNotes` says so;
+ *   nothing is assumed;
+ * - a delegation with no jobholder (recorded before the rule) is judged as it always was: the grantor is the holder, and the delegate a subordinate of the grantor.
+ *
+ * The grantor is the signed-in person, or the person the act is recorded for (both stored: Phase 2b). A loop is refused whatever the lines say (F8).
  */
 export function faultsIn(
   proposed: Delegation,
@@ -210,7 +244,12 @@ export function faultsIn(
     faults.push("UNBOUNDED");
   }
 
-  if (context.grantorHoldsOffice === false) faults.push("GRANTOR_DOES_NOT_HOLD");
+  const jobholder = proposed.jobholderPersonId ?? null;
+  if (jobholder) {
+    if (jobholder === proposed.fromPersonId) faults.push("GRANTOR_IS_JOBHOLDER");
+    if (jobholder === proposed.toPersonId && jobholder !== proposed.fromPersonId) faults.push("DELEGATE_IS_JOBHOLDER");
+    if (context.jobholderHoldsOffice === false) faults.push("JOBHOLDER_DOES_NOT_HOLD");
+  } else if (context.grantorHoldsOffice === false) faults.push("GRANTOR_DOES_NOT_HOLD");
 
   // FR-APR-012, DAL p.42: on a holder's absence authority reverts upward; it is passed
   // down again only where the absent holder has recommended it — the summary as text,
@@ -231,16 +270,25 @@ export function faultsIn(
   }
 
   // F8: a loop for the same office is refused, whether or not the office allows onward delegation: no one would hold the authority.
-  if (proposed.fromPersonId !== proposed.toPersonId && closesLoop(proposed, existing)) faults.push("DELEGATION_CYCLE");
+  if (holderOf(proposed) !== proposed.toPersonId && closesLoop(proposed, existing)) faults.push("DELEGATION_CYCLE");
 
-  // FR-APR-011, once lines are recorded: the delegate reports directly to the grantor. Not applied while none are recorded (`delegationNotes`).
+  // FR-APR-011, once lines are recorded: the delegate reports directly to the jobholder (to the grantor, on a delegation recorded before the rule), and the grantor is the jobholder's
+  // immediate superior. Not applied while none are recorded (`delegationNotes`).
   if (context.reportingLines && anyLineRecorded(context.reportingLines) && proposed.fromPersonId !== proposed.toPersonId) {
     for (const day of lineCheckDays(proposed, context.reportingLines)) {
       const line = lineOf(context.reportingLines, proposed.toPersonId, day);
       if (line.kind === "NOT_SET") {
         if (!faults.includes("DELEGATE_LINE_NOT_SET")) faults.push("DELEGATE_LINE_NOT_SET");
-      } else if (line.kind === "TOP" || line.superiorPersonId !== proposed.fromPersonId) {
+      } else if (line.kind === "TOP" || line.superiorPersonId !== holderOf(proposed)) {
         if (!faults.includes("DELEGATE_NOT_SUBORDINATE")) faults.push("DELEGATE_NOT_SUBORDINATE");
+      }
+      if (jobholder && jobholder !== proposed.fromPersonId) {
+        const above = lineOf(context.reportingLines, jobholder, day);
+        if (above.kind === "NOT_SET") {
+          if (!faults.includes("JOBHOLDER_LINE_NOT_SET")) faults.push("JOBHOLDER_LINE_NOT_SET");
+        } else if (above.kind === "TOP" || above.superiorPersonId !== proposed.fromPersonId) {
+          if (!faults.includes("GRANTOR_NOT_SUPERIOR")) faults.push("GRANTOR_NOT_SUPERIOR");
+        }
       }
     }
   }
@@ -251,7 +299,7 @@ export function faultsIn(
     (d) =>
       d.id !== proposed.id &&
       d.roleCode === proposed.roleCode &&
-      d.fromPersonId === proposed.fromPersonId &&
+      holderOf(d) === holderOf(proposed) &&
       periodsOverlap(d, proposed),
   );
   if (clash) faults.push("OVERLAPS_EXISTING");
@@ -270,7 +318,7 @@ export function faultsIn(
   const upstream = existing.find(
     (d) =>
       d.id !== proposed.id &&
-      d.toPersonId === proposed.fromPersonId &&
+      d.toPersonId === holderOf(proposed) &&
       d.roleCode === proposed.roleCode &&
       periodsOverlap(d, proposed),
   );

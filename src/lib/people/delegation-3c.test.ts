@@ -84,10 +84,83 @@ describe("the line-management rule of FR-APR-011, when reporting lines are recor
     expect(faultsIn(proposal, [], held, { reportingLines: lines })).toContain("DELEGATE_NOT_SUBORDINATE");
   });
 
-  it("states what it does not check: that the grant is made by the jobholder's superior", () => {
+  // Changed for the product owner's ruling of 2026-10-08 on log line 1773. This test used to say that the grant being made by the jobholder's superior is NOT checked, because a
+  // delegation had no jobholder to compare with. It records one now, so with lines recorded the note says both rules are checked (the superior of the jobholder, the subordinate of the
+  // jobholder), and the rules themselves are proved below.
+  it("says, once lines are recorded, that the grantor and the delegate are both checked against the jobholder's line", () => {
     const notes = delegationNotes({ reportingLines: [line("1", "clerk", "boss")] });
-    expect(notes).toEqual([expect.objectContaining({ code: "GRANTOR_SUPERIORITY_NOT_CHECKED" })]);
-    expect(notes[0]!.en).toMatch(/not checked/);
+    expect(notes).toEqual([expect.objectContaining({ code: "RULES_CHECKED" })]);
+    expect(notes[0]!.en).toMatch(/jobholder's immediate superior/);
+    expect(notes[0]!.en).toMatch(/direct line subordinate of the jobholder/);
+  });
+});
+
+describe("a delegation records the jobholder whose authority is delegated, apart from the grantor (FR-APR-011, ruling of 2026-10-08 on log line 1773)", () => {
+  const held = ["run_sourcing"];
+  const line = (id: string, personId: string, superiorPersonId: string | null, from = "2026-01-01", to: string | null = null): ReportingLine => ({ id, personId, superiorPersonId, effectiveFrom: new Date(from), effectiveTo: to ? new Date(to) : null });
+  /// The grantor is the superior "boss", the jobholder "head" holds the office, the delegate "clerk" reports to the jobholder.
+  const proposal = d({ id: "new", fromPersonId: "boss", jobholderPersonId: "head", toPersonId: "clerk", capabilityCodes: ["run_sourcing"] });
+  const lines = [line("1", "head", "boss"), line("2", "clerk", "head")];
+
+  it("refuses a delegation of one's own authority, with no line recorded and with lines recorded", () => {
+    const own = d({ id: "new", fromPersonId: "head", jobholderPersonId: "head", toPersonId: "clerk", capabilityCodes: ["run_sourcing"] });
+    expect(faultsIn(own, [], held, {})).toContain("GRANTOR_IS_JOBHOLDER");
+    expect(faultsIn(own, [], held, { reportingLines: [] })).toContain("GRANTOR_IS_JOBHOLDER");
+    expect(faultsIn(own, [], held, { reportingLines: lines })).toContain("GRANTOR_IS_JOBHOLDER");
+  });
+
+  it("refuses the jobholder as the delegate: they would receive their own authority", () => {
+    expect(faultsIn({ ...proposal, toPersonId: "head" }, [], held, {})).toContain("DELEGATE_IS_JOBHOLDER");
+  });
+
+  it("asks the JOBHOLDER to hold the office, and not the grantor, who being the superior need hold none", () => {
+    expect(faultsIn(proposal, [], held, { grantorHoldsOffice: false, jobholderHoldsOffice: true })).toEqual([]);
+    expect(faultsIn(proposal, [], held, { grantorHoldsOffice: true, jobholderHoldsOffice: false })).toEqual(["JOBHOLDER_DOES_NOT_HOLD"]);
+  });
+
+  it("a delegation recorded before the rule is still judged on the grantor, as it always was", () => {
+    const legacy = d({ id: "old", fromPersonId: "holder", toPersonId: "clerk", capabilityCodes: ["run_sourcing"] });
+    expect(faultsIn(legacy, [], held, { grantorHoldsOffice: false })).toEqual(["GRANTOR_DOES_NOT_HOLD"]);
+    expect(faultsIn(legacy, [], held, { grantorHoldsOffice: true })).toEqual([]);
+    expect(faultsIn(legacy, [], held, { reportingLines: [line("1", "clerk", "holder")] })).toEqual([]);
+    expect(faultsIn(legacy, [], held, { reportingLines: [line("1", "clerk", "other")] })).toContain("DELEGATE_NOT_SUBORDINATE");
+  });
+
+  it("applies no line rule while none is recorded, but still the two that need none", () => {
+    expect(faultsIn(proposal, [], held, { reportingLines: [], jobholderHoldsOffice: true })).toEqual([]);
+    expect(delegationNotes({ reportingLines: [] })[0]!.en).toMatch(/not checked/);
+    expect(delegationNotes({ reportingLines: [] })[0]!.en).toMatch(/grantor is never the jobholder/);
+  });
+
+  it("with lines recorded, accepts the jobholder's immediate superior as grantor and a direct subordinate of the jobholder as delegate", () => {
+    expect(faultsIn(proposal, [], held, { reportingLines: lines })).toEqual([]);
+  });
+
+  it("refuses a grantor who is not the jobholder's immediate superior, and one the jobholder has no line for", () => {
+    expect(faultsIn({ ...proposal, fromPersonId: "stranger" }, [], held, { reportingLines: lines })).toContain("GRANTOR_NOT_SUPERIOR");
+    expect(faultsIn(proposal, [], held, { reportingLines: [line("2", "clerk", "head")] })).toContain("JOBHOLDER_LINE_NOT_SET");
+    expect(faultsIn(proposal, [], held, { reportingLines: [line("1", "head", null), line("2", "clerk", "head")] })).toContain("GRANTOR_NOT_SUPERIOR");
+  });
+
+  it("refuses a delegate who reports to the GRANTOR but not to the jobholder: the subordinate is the jobholder's", () => {
+    const f = faultsIn(proposal, [], held, { reportingLines: [line("1", "head", "boss"), line("2", "clerk", "boss")] });
+    expect(f).toContain("DELEGATE_NOT_SUBORDINATE");
+    expect(f).not.toContain("GRANTOR_NOT_SUPERIOR");
+  });
+
+  it("checks both lines on every day a line changes inside the period, the jobholder's too", () => {
+    const changing = [line("1", "head", "boss", "2026-01-01", "2026-08-10"), line("2", "head", "other", "2026-08-10"), line("3", "clerk", "head")];
+    expect(faultsIn(proposal, [], held, { reportingLines: changing })).toContain("GRANTOR_NOT_SUPERIOR");
+    const delegateMoves = [line("1", "head", "boss"), line("2", "clerk", "head", "2026-01-01", "2026-08-10"), line("3", "clerk", "other", "2026-08-10")];
+    expect(faultsIn(proposal, [], held, { reportingLines: delegateMoves })).toContain("DELEGATE_NOT_SUBORDINATE");
+  });
+
+  it("judges one delegate at a time, and a loop, on the jobholder's authority", () => {
+    const first = d({ id: "first", fromPersonId: "boss", jobholderPersonId: "head", toPersonId: "clerk", capabilityCodes: ["run_sourcing"] });
+    // Another grantor over the same jobholder's authority in the same period is the same office twice.
+    expect(faultsIn({ ...proposal, id: "second", fromPersonId: "boss2", toPersonId: "clerk2" }, [first], held, {})).toContain("OVERLAPS_EXISTING");
+    // The delegate's authority passed back to the jobholder would close a loop.
+    expect(closesLoop(d({ id: "back", fromPersonId: "boss", jobholderPersonId: "clerk", toPersonId: "head", capabilityCodes: [], noSubDelegation: false }), [{ ...first, noSubDelegation: false }])).toBe(true);
   });
 });
 

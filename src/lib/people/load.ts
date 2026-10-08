@@ -140,6 +140,8 @@ export async function loadGrants(organisationCode: string): Promise<GrantsData> 
 export interface StoredDelegation {
   id: string;
   fromPersonId: string;
+  /// The jobholder whose authority is delegated; null on a delegation recorded before the superior rule (log line 1773).
+  jobholderPersonId: string | null;
   toPersonId: string;
   roleCode: string;
   capabilityCodes: string[];
@@ -176,6 +178,7 @@ export async function loadDelegations(organisationCode: string, client: Tx = db)
   return rows.map((d) => ({
     id: d.id,
     fromPersonId: d.fromPersonId,
+    jobholderPersonId: d.jobholderPersonId,
     toPersonId: d.toPersonId,
     roleCode: d.roleCode,
     capabilityCodes: d.capabilityCodes,

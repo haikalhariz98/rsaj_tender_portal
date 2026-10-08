@@ -17,6 +17,7 @@ export const LOCKED_DELEGATION_SELECT = {
   id: true,
   organisationId: true,
   fromPersonId: true,
+  jobholderPersonId: true,
   roleCode: true,
   toPersonId: true,
   effectiveFrom: true,
@@ -32,6 +33,7 @@ export const LOCKED_DELEGATION_SELECT = {
 export interface LockedDelegation extends RecommendationFacts, DelegationTerms {
   id: string;
   organisationId: string;
+  jobholderPersonId: string | null;
   effectiveTo: Date | null;
   capabilityCodes: string[];
   fromPerson: { name: string };
