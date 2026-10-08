@@ -19,3 +19,10 @@ export const DEMO_DIAL_CODES: Record<string, string> = { demo_home: "+999" };
 
 /// The role the demonstration grants the permission to manage supplier accounts (ASSUMED): the office that approves a supplier's registration in the demo's matrix (Head of Contract & Procurement). The organisation decides this for itself.
 export const DEMO_ACCOUNT_MANAGER_ROLE = "HOD_CP";
+
+/// CPD's two further registration documents (addendum of 2026-10-07: FR-VND-002's LHDN tax clearance and the Surat Akuan Tidak Disenaraihitam, missing from the mock-up). Invented
+/// wording and ASSUMED, neither mandatory: a customer sets its own. Document types are configuration, so a customer adds the real ones under Supplier register, with no code change.
+export const STEP_TWO_TYPES = [
+  { id: `${P}sdt9`, code: "demo_lhdn_clearance", nameEn: "LHDN tax clearance", nameMs: "Pelepasan cukai LHDN", bodyId: null, expires: true, mandatoryAtRegistration: false, notApplicableAllowed: true },
+  { id: `${P}sdt10`, code: "demo_non_blacklisting", nameEn: "Declaration of non-blacklisting (Surat Akuan Tidak Disenaraihitam)", nameMs: "Surat Akuan Tidak Disenaraihitam", bodyId: null, expires: false, mandatoryAtRegistration: false, notApplicableAllowed: true },
+];

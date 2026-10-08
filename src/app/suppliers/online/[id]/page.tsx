@@ -127,7 +127,7 @@ export default async function OnlineApplicationPage(props: PageProps<"/suppliers
       )}
       {erased ? (
         <Card>
-          <CardHeader title="What is kept" subtitle="The applicant's own words are erased once an application is decided: nothing is kept twice." />
+          <CardHeader title="What is kept" subtitle="The applicant's own words are not kept on an application that was set aside, or recorded before they were kept." />
           <CardBody>
             <KeyValues
               columns={2}

@@ -30,7 +30,7 @@ import { ORGANISATION_CODE } from "../src/lib/org";
 import { calendarOf } from "./demo-window";
 import { DEMO_ACTOR } from "./demo-actor";
 import { demoOrgId } from "./demo-org";
-import { DEMO_DIAL_CODES, STEP_ONE_LISTS } from "./demo-step-one";
+import { DEMO_DIAL_CODES, STEP_ONE_LISTS, STEP_TWO_TYPES } from "./demo-step-one";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -84,6 +84,8 @@ const TYPES = [
   { id: `${P}sdt6`, code: "demo_sales_tax", nameEn: "Sales tax registration", nameMs: "Pendaftaran cukai jualan", bodyId: null, valueKinds: [], expires: false, mandatoryAtRegistration: false, notApplicableAllowed: true },
   { id: `${P}sdt7`, code: "demo_bank_reference", nameEn: "Bank reference letter", nameMs: "Surat rujukan bank", bodyId: null, valueKinds: [], expires: true, mandatoryAtRegistration: false, notApplicableAllowed: false },
   { id: `${P}sdt8`, code: "demo_broker_licence", nameEn: "Insurance broker licence", nameMs: "Lesen broker insurans", bodyId: null, valueKinds: [], expires: null, mandatoryAtRegistration: false, notApplicableAllowed: true },
+  // CPD's two extra documents (the addendum of 2026-10-07: FR-VND-002 lists them and the mock-up left them out). Document types are DATA: they need no code, and a customer configures its own.
+  ...STEP_TWO_TYPES.map((t) => ({ ...t, valueKinds: [] as string[] })),
 ];
 
 const triWords = (v: boolean | null, yes: string, no: string) => (v == null ? "Not set" : v ? yes : no);

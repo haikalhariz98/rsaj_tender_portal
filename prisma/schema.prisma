@@ -7716,8 +7716,9 @@ enum PortalApplicationStatus {
 /// An application sent through the public form, before an officer has looked at it. It is not a supplier:
 /// it holds no registration number's place on the register, spends no supplier reference and fails no
 /// one else's application. An officer checks it against the certificate and records the supplier from
-/// it (the register's own duplicate check applies then), or discards it. The applicant's own words are
-/// erased once it is decided: what remains is the reference, the days and the outcome.
+/// it (the register's own duplicate check applies then), or sets it aside. The applicant's own words are
+/// KEPT when the supplier is recorded from it (Phase 4a: the officer's page shows them beside the register's entry, with every difference listed), and ERASED
+/// when it is set aside: what then remains is the reference, the days, who and why. An application recorded before Phase 4a was erased when it was recorded.
 model PortalApplication {
   id             String       @id @default(cuid())
   organisationId String

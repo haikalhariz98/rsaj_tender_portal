@@ -33,7 +33,7 @@ import type { AuditActor, SecurityPolicyValues } from "../src/lib/auth/types";
 import { db } from "../src/lib/db";
 import { ORGANISATION_CODE } from "../src/lib/org";
 import { DEMO_PREFIX, demoIsLoaded } from "../prisma/demo-sign-in";
-import { DEMO_ACCOUNT_MANAGER_ROLE, DEMO_DIAL_CODES, STEP_ONE_LISTS } from "../prisma/demo-step-one";
+import { DEMO_ACCOUNT_MANAGER_ROLE, DEMO_DIAL_CODES, STEP_ONE_LISTS, STEP_TWO_TYPES } from "../prisma/demo-step-one";
 
 /// SAMPLE values for a demonstration. Nothing in the product defaults to them: a customer's own are chosen, never inherited from here.
 const DEMO_POLICY: Partial<SecurityPolicyValues> = {
@@ -166,6 +166,15 @@ async function main() {
     });
     supplierNotes.push(`${l.list === "STATE" ? "state" : "Bumiputera status"} "${l.nameEn}"`);
   }
+  // CPD's two further documents, as document types (data, not code), where the demonstration was loaded before they existed.
+  for (const t of STEP_TWO_TYPES) {
+    if (await db.supplierDocumentType.findFirst({ where: { organisationId: org.id, code: t.code }, select: { id: true } })) continue;
+    await db.$transaction(async (tx) => {
+      const row = await tx.supplierDocumentType.create({ data: { ...t, valueKinds: [] as never, organisationId: org.id, governingSource: "Demo supplier register guide (invented)", provenance: "ASSUMED", sortOrder: 9 }, select: { id: true } });
+      await writeAudit(tx, { organisationId: org.id, entity: "SupplierDocumentType", entityId: row.id, entityLabel: `Supplier document type · ${t.nameEn}`, reason: "A demonstration document type, made by the demo accounts command", actor: ACTOR }, "CREATE", diffFields(null, { name: t.nameEn, nameInMalay: t.nameMs, whereItComesFrom: "Assumed" }));
+    });
+    supplierNotes.push(`document type "${t.nameEn}"`);
+  }
   for (const [code, callingCode] of Object.entries(DEMO_DIAL_CODES)) {
     const country = await db.supplierListValue.findFirst({ where: { organisationId: org.id, list: "COUNTRY", code, callingCode: null }, select: { id: true, nameEn: true } });
     if (!country) continue;
@@ -216,7 +225,7 @@ async function main() {
   }
   if (supplierNotes.length > 0) console.log(`\nSupplier register, for the portal: ${supplierNotes.join("; ")}.`);
   if (supplierMade.length > 0) {
-    console.log(`\nMade ${supplierMade.length} supplier portal account${supplierMade.length === 1 ? "" : "s"} (same password). Suppliers sign in on the PUBLIC copy only: start a second server with PORTAL_SURFACE=public on another port, and use a separate browser profile (the cookie names are host-wide, not port-wide):`);
+    console.log(`\nMade ${supplierMade.length} supplier portal account${supplierMade.length === 1 ? "" : "s"} (same password). Suppliers sign in on the PUBLIC copy only: stop the server and start it again with PORTAL_SURFACE=public (npm run dev allows one server per folder), and open it in a private window or another browser profile (the cookie names are host-wide, and a staff cookie is refused on the public copy):`);
     for (const line of supplierMade) console.log(`  ${line}`);
   }
 }

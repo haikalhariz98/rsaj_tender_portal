@@ -1,7 +1,7 @@
 /**
  * The staff side of online applications: the ones waiting, and one in full. Read for an officer only
  * (the public copy has no route to either); the applicant's own words are in these rows until the
- * application is decided.
+ * application is set aside (Phase 4a: recording the supplier from it keeps them; an application recorded before that was erased when it was recorded).
  */
 
 import { storedDay } from "@/lib/dates";
