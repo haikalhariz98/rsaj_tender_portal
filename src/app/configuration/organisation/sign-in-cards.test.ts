@@ -5,11 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("./actions", () => ({ removeLogo: async () => ({ ok: true }), uploadLogo: async () => ({ ok: true }) }));
-const uploads = vi.hoisted(() => ({ calls: 0 }));
+const uploads = vi.hoisted(() => ({ calls: 0, answer: { ok: true } as { ok: boolean; errors?: Record<string, string> } }));
 vi.mock("./sign-in-actions", () => {
   const act = async () => {
     uploads.calls += 1;
-    return { ok: true };
+    return uploads.answer;
   };
   return { removeDarkLogo: act, removeSignInImage: act, saveSignInPage: act, uploadDarkLogo: act, uploadSignInImage: act };
 });
@@ -100,5 +100,28 @@ describe("the upload cards (one shared piece for the logo, the picture and the l
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(host.textContent).not.toContain("The limit is");
+  });
+});
+
+describe("the file field after an answer", () => {
+  it("is empty again after a refused upload, so no file name sits beside 'Choose a file'", async () => {
+    uploads.calls = 0;
+    uploads.answer = { ok: false, errors: { darkLogo: "The file is not a picture." } };
+    const host = draw({ image: null, darkLogo: null, settings: NO_SETTINGS });
+    const input = host.querySelector<HTMLInputElement>("input[type=file]")!;
+    const small = new File([new Uint8Array(1024)], "mark.png", { type: "image/png" });
+    await act(async () => {
+      Object.defineProperty(input, "files", { value: [small], configurable: true });
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(host.textContent).toContain("mark.png");
+    await act(async () => {
+      host.querySelector<HTMLFormElement>("form")!.requestSubmit();
+    });
+    expect(uploads.calls).toBe(1);
+    expect(host.textContent).toContain("The file is not a picture.");
+    expect(host.textContent).not.toContain("mark.png");
+    expect(host.textContent).toContain("No file chosen");
+    uploads.answer = { ok: true };
   });
 });

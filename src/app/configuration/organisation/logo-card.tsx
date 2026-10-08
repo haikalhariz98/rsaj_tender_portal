@@ -50,7 +50,8 @@ export function ImageUploadCard({
   action: (prev: FormState, data: FormData) => Promise<FormState>;
   submitLabel: string;
 }) {
-  const [state, run, pending] = useActionState(action, { ok: false });
+  // Each answer is numbered, so the file field below can be started afresh after every one, whatever the answer said.
+  const [state, run, pending] = useActionState(async (prev: FormState & { n: number }, data: FormData) => ({ ...(await action(prev, data)), n: prev.n + 1 }), { ok: false, n: 0 });
   const form = useRef<HTMLFormElement>(null);
   const [problem, setProblem] = useState<{ for: string; text: string } | null>(null);
   const checked = problem?.for === field.name ? problem.text : null;
@@ -83,7 +84,7 @@ export function ImageUploadCard({
         >
           <Field label={field.label} htmlFor={field.name} error={error} hint={field.hint}>
             {/* Keyed by the last answer: React empties the file input after an upload, and the pill's name must go with it. */}
-            <FileInput key={state.message ?? String(state.ok)} id={field.name} name={field.name} accept="image/png,image/jpeg,image/webp" aria-invalid={!!error} onChange={(e) => choose(e.currentTarget.files?.[0])} />
+            <FileInput key={state.n} id={field.name} name={field.name} accept="image/png,image/jpeg,image/webp" aria-invalid={!!error} onChange={(e) => choose(e.currentTarget.files?.[0])} />
           </Field>
           <div>
             <Button type="submit" variant="primary" size="sm" aria-disabled={pending || undefined} aria-busy={pending || undefined} className="aria-disabled:opacity-100!">
