@@ -50,8 +50,8 @@ const form = (fields: Record<string, string>) => {
 
 let organisationId = "";
 let supplierId = "";
-let applicationId = "";
 let accountId = "";
+let giroTextId = "";
 const p = { holder: "", finance: "", admin: "", recorder: "" };
 let counter = 0;
 
@@ -78,9 +78,15 @@ const staff = (personId: string, o: { admin?: boolean; permissions?: string[]; o
 /// A sent profile of the supplier, optionally with a live bank statement.
 async function profile(o: { statement?: boolean; sent?: boolean } = {}) {
   const version = ++counter;
+  // A profile is named by the registration route of the application it was sent with (the application of its GIRO authorisation), so each is sent with an application of its own, whose route has one
+  // pending step held by the office the holder holds. (One application of a supplier is open at a time: the earlier ones are decided.)
+  const app = await db.supplierApplication.create({ data: { organisationId, supplierId, kind: "NEW", status: "REJECTED", receivedOn: day("2026-10-01"), channel: "COUNTER", recordedByPersonId: p.recorder, recordedAt: new Date("2026-10-01T02:00:00Z") } });
+  const route = await db.approvalInstance.create({ data: { organisationId, matterKind: "SUPPLIER", supplierApplicationId: app.id, domain: "supplier_registration", openedAt: new Date("2026-10-03T02:00:00Z") } });
+  await db.approvalStep.create({ data: { instanceId: route.id, sequence: 1, roleCode: OFFICE, roleLabel: "Approve", act: "A" } });
   const row = await db.creditorProfile.create({
     data: { organisationId, supplierId, version, beneficiaryName: "Beneficiary", bankCode: "b", bankAccountNo: "1234567890", bankAccountTypeCode: "c", enteredBySupplierAccountId: accountId, submittedAt: o.sent === false ? null : new Date("2026-10-05T02:00:00Z") },
   });
+  await db.registrationDeclaration.create({ data: { organisationId, applicationId: app.id, creditorProfileId: row.id, kind: "GIRO_AUTHORISATION", textId: giroTextId, textVersion: 1, textSha256: "0".repeat(64), frozenTextEn: "x", signatoryName: "S", signatoryDesignation: "D", signedOn: day("2026-10-05"), signedAt: new Date("2026-10-05T02:00:00Z"), signedBySupplierAccountId: accountId } });
   if (o.statement !== false) {
     const bytes = new TextEncoder().encode(`%PDF-1.4 statement ${run} ${version}`);
     const sha = createHash("sha256").update(bytes).digest("hex");
@@ -105,13 +111,9 @@ beforeAll(async () => {
   await db.roleAssignment.create({ data: { personId: p.holder, roleCode: OFFICE, effectiveFrom: day("2020-01-01") } });
   const s = await db.supplier.create({ data: { organisationId, reference: `CA/${run}`, registeredName: "Supplier CA", registrationNo: `CA-${run}`, registrationNoKey: `CA-${run}`.toUpperCase(), entityTypeCode: "x", countryCode: "x", registeredAddress: "Somewhere", companyEmail: "ca@x.invalid" } });
   supplierId = s.id;
-  const app = await db.supplierApplication.create({ data: { organisationId, supplierId, kind: "NEW", receivedOn: day("2026-10-01"), channel: "COUNTER", recordedByPersonId: p.recorder, recordedAt: new Date("2026-10-01T02:00:00Z") } });
-  applicationId = app.id;
   const c = await db.supplierContact.create({ data: { organisationId, supplierId, name: "Contact", isPrimary: true } });
   accountId = (await db.supplierAccount.create({ data: { organisationId, contactId: c.id, supplierId, loginName: `ca.${run}`, loginKey: `ca.${run}`, passwordHash: "x", passwordChangedAt: new Date(), status: "ACTIVE" } })).id;
-  // The registration's route: one pending step, held by the office the holder holds.
-  const route = await db.approvalInstance.create({ data: { organisationId, matterKind: "SUPPLIER", supplierApplicationId: applicationId, domain: "supplier_registration", openedAt: new Date("2026-10-03T02:00:00Z") } });
-  await db.approvalStep.create({ data: { instanceId: route.id, sequence: 1, roleCode: OFFICE, roleLabel: "Approve", act: "A" } });
+  giroTextId = (await db.declarationText.create({ data: { organisationId, kind: "GIRO_AUTHORISATION", version: 1, bodyEn: "x", provenance: "ASSUMED", issuedOn: day("2026-01-01") } })).id;
 });
 
 beforeEach(() => {
