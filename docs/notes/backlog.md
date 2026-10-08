@@ -37,3 +37,10 @@ Founder, 2026-10-04 (chat): "let skip part b acceptance and bundle and 6.16 and 
 | Item | Why it is here | Record |
 | --- | --- | --- |
 | Supplier portal: an edge rate limit or challenge, and a retention period for undecided online applications | Product owner (for the founder), 2026-10-06, ruling 3. A CAPTCHA (needs a third-party service), a signed form token (needs a server-secret decision), a per-address limit (only the edge in front of the public copy can say who an address is) and a purge of online applications nobody decided (no scheduler, and the retention period is customer policy, unset) are not built. The public copy is not exposed to the open internet until an edge rate limit or challenge exists and the customer has decided that retention period. | decisions log, 2026-10-06 ruling 3 and the "Not built, on purpose" entry |
+| Sealed company estimate: the database wall (threat model finding F10) | Product owner (for the founder), 2026-10-08, ruling on log lines 1754, 1804(1), 1814(2) and 1817(4). A go-live condition, not a blocker for internal acceptance runs (the threat model ranks it Medium). It is a step of its own in Phase 5, done before the first real tender is opened: a REVOKE of the sealed columns' SELECT from the application role, a logged SECURITY DEFINER read with a new access basis, `db:roles` and the runtime-role check changed together, and backups. Section E's line for it in the threat model stays NOT MET until it is built. | decisions log, 2026-10-08 rulings on 1754 and 1814 |
+
+## Not wanted now
+
+| Item | Why it is here | Record |
+| --- | --- | --- |
+| An audited "download this view" of a list that carries SULIT columns, for entitled readers | Product owner (for the founder), 2026-10-08, ruling on log line 1755: not wanted now. The files built on the server already cover the entitled exports. Picked up only if a customer asks. | decisions log, 2026-10-08 ruling on 1755 |
