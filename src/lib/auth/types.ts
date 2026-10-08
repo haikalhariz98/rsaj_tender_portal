@@ -17,6 +17,7 @@ export type PermissionKey =
   | "audit.read"
   | "supplierAccounts.manage"
   | "sulit.read.organisation"
+  | "sulit.read.creditorProfile"
   | "acts.recordOnBehalf"
   | "sourcing.participants.manage";
 

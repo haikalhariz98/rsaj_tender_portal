@@ -31,6 +31,7 @@ import {
   SCAN_LABEL,
   shortFingerprint,
   STATUS_LABEL,
+  SUPPLIER_UPLOADER_WORDS,
 } from "./labels";
 import type { documentDrawer, ownerPanel, uploadContext } from "./read";
 import type { AttachmentPurpose, ScanState, SecurityClass } from "./types";
@@ -214,7 +215,7 @@ export function itemView(i: Item, timeZone: string | null, acted: AttributionInd
     versionNo: v.versionNo,
     newerVersionNo: i.newerVersion?.versionNo ?? null,
     receivedOn: v.receivedOn ? formatDate(v.receivedOn) : null,
-    recordedBy: acted.read({ entity: "DocumentVersion", id: v.id, slot: "recordedBy" }, v.recordedBy.name).en,
+    recordedBy: v.recordedBy ? acted.read({ entity: "DocumentVersion", id: v.id, slot: "recordedBy" }, v.recordedBy.name).en : SUPPLIER_UPLOADER_WORDS,
     size: formatBytes(v.byteSize),
     fingerprint: v.sha256,
     fingerprintShort: shortFingerprint(v.sha256),
@@ -332,7 +333,7 @@ export function drawerView(d: Drawer, timeZone: string | null, acted: Attributio
       fingerprint: v.sha256,
       receivedOn: v.receivedOn ? formatDate(v.receivedOn) : null,
       storedOn: formatOrgDateTime(v.storedAt, timeZone),
-      recordedBy: acted.read({ entity: "DocumentVersion", id: v.id, slot: "recordedBy" }, v.recordedBy.name).en,
+      recordedBy: v.recordedBy ? acted.read({ entity: "DocumentVersion", id: v.id, slot: "recordedBy" }, v.recordedBy.name).en : SUPPLIER_UPLOADER_WORDS,
       note: v.note || null,
       scan: { text: SCAN_LABEL[v.scanState], tone: scanTone(v.scanState) },
       withdrawn: v.withdrawnAt ? { on: formatOrgDay(v.withdrawnAt, timeZone), reason: v.withdrawnReason ?? "" } : null,

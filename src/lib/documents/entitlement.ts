@@ -1,4 +1,5 @@
 import type { Tx } from "@/lib/audit/record";
+import { creditorDecision, creditorNamedFacts, creditorPermissionState } from "@/lib/auth/creditor-access-store";
 import { evaluationOfficeBases } from "@/lib/auth/evaluation-readers-store";
 import { refusalWords, type SulitDecision } from "@/lib/auth/sulit-access";
 import {
@@ -61,6 +62,8 @@ const ENTITY_OF: Readonly<Record<OwnerKind, string>> = {
   standingEvent: "StandingEvent",
   delayNotice: "DelayNotice",
   eotClaim: "EotClaim",
+  registrationDraftDocument: "RegistrationDraftDocument",
+  creditorProfile: "CreditorProfile",
 };
 
 /// The record an owner of documents is judged as (read without a lock).
@@ -116,10 +119,26 @@ export async function documentBytesAccess(client: Tx, actor: SulitReader, docume
   const exerciseFacts = await exerciseAccessFacts(client, actor.organisationId, subjects.flatMap((s) => (s.exerciseId ? [s.exerciseId] : [])));
   // The Secretariat and Internal Audit read what hangs on an evaluation (ruling of 2026-10-08 on log line 1735).
   const offices = actor.system ? new Map() : await evaluationOfficeBases(client, actor, subjects.flatMap((s) => (s.exerciseId && s.scope === "evaluation" ? [s.exerciseId] : [])));
+  // A supplier's bank statement (Phase 4b) is judged by who is named on the profile's route, and by the grant of reading creditor profiles, not by the organisation-wide permission.
+  const creditors = subjects.filter((s) => s.scope === "creditorProfile");
+  const creditorFacts = creditors.length ? await creditorNamedFacts(client, actor.organisationId, await client.creditorProfile.findMany({ where: { id: { in: creditors.map((s) => s.id) }, organisationId: actor.organisationId }, select: { id: true, supplierId: true, verifiedByPersonId: true } })) : new Map();
+  const creditorPermission = creditors.length ? await creditorPermissionState(client, actor) : null;
   const rows: SulitEventRow[] = [];
   let first: SulitDecision | null = null;
   let granted: SulitDecision | null = null;
   for (const s of subjects) {
+    if (s.scope === "creditorProfile") {
+      const facts = creditorFacts.get(s.id);
+      // A profile that is not the organisation's is not one the actor can be named on.
+      const decision: SulitDecision = facts ? creditorDecision(actor, facts, creditorPermission!, ["documentBytes"]) : { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" };
+      rows.push({ scope: s.scope, entity: s.entity, entityId: s.id, entityLabel: s.label, fields: ["documentBytes"], decision });
+      first ??= decision;
+      if (decision.state === "GRANTED") {
+        granted = decision;
+        break;
+      }
+      continue;
+    }
     const f = s.exerciseId ? exerciseFacts.get(s.exerciseId) : null;
     // A record that is not the organisation’s is not one the actor can be named on.
     const decision: SulitDecision = s.exerciseId && !f ? { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" } : decisionForFields(actor, s.scope, ["documentBytes"], { restricted: f?.restricted ?? false, named: f?.named ?? null, evaluationOffice: s.exerciseId ? (offices.get(s.exerciseId) ?? null) : null }, permission).decision;
@@ -154,6 +173,12 @@ export async function sulitAttachRefused(client: Tx, actor: SulitReader, documen
 /// Whether the actor may open the SULIT bytes of documents attached to this owner: the owner's own record judges (a panel lists many documents of one owner). Nothing is logged: showing a link is not opening a file.
 export async function ownerBytesEntitled(client: Tx, actor: SulitReader, kind: OwnerKind, id: string): Promise<boolean> {
   const s = await subjectOfOwner(client, kind, id);
+  if (s.scope === "creditorProfile") {
+    const profile = await client.creditorProfile.findFirst({ where: { id, organisationId: actor.organisationId }, select: { id: true, supplierId: true, verifiedByPersonId: true } });
+    if (!profile) return false;
+    const facts = (await creditorNamedFacts(client, actor.organisationId, [profile])).get(profile.id);
+    return creditorDecision(actor, facts, await creditorPermissionState(client, actor), ["documentBytes"]).state === "GRANTED";
+  }
   const permission = await organisationPermissionState(client, actor);
   const f = s.exerciseId ? (await exerciseAccessFacts(client, actor.organisationId, [s.exerciseId])).get(s.exerciseId) : null;
   if (s.exerciseId && !f) return false;

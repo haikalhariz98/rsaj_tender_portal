@@ -74,11 +74,25 @@ describe("every application names its recorder (ruling 5b)", () => {
     for (const f of ["src/app/suppliers/actions.ts", "src/lib/suppliers/application-acts.ts", "prisma/demo-suppliers.ts"]) expect(names).toContain(f);
   });
 
-  it("every create of an application writes a person's id as its recorder", () => {
-    const creates = files.flatMap(({ file, src }) => calls(src, "supplierApplication", CREATES).map((c) => ({ file, ...c, value: recorderValue(c.arg) })));
-    // The officer's paper application and a further application (actions.ts), and the demo's two (demo-suppliers.ts).
-    expect(creates.length).toBeGreaterThanOrEqual(4);
-    expect(creates.filter((c) => !namesAPerson(c.value)).map((c) => `${c.file} · ${c.method} · ${c.value ?? "no recorder"}`)).toEqual([]);
+  // Changed for Phase 4b, for a ruled decision (the CPD registration rulings of 2026-10-07, B3 of the specification): a registration the SUPPLIER sends from the signed-in wizard is an application with no
+  // officer behind it. It names its sender instead (`submittedBySupplierAccountId`), the database holds that pair (CHECKs SupplierApplication_submitted_pair and _submitted_portal_only), and it is
+  // written in exactly one place in the product, and in one demonstration loader that writes the same shape for a registration the demo shows as sent (prisma/demo-registration.ts, which judges the
+  // draft by the product's own rule before it writes the send). Every other application still names an officer.
+  const SENT_BY_SUPPLIER = ["src/lib/portal/registration/submit-store.ts", "prisma/demo-registration.ts"];
+
+  it("every create of an application writes a person's id as its recorder, except the one a supplier sends, which names the supplier's account", () => {
+    const creates = files.flatMap(({ file, src }) => calls(src, "supplierApplication", CREATES).map((c) => ({ file, ...c, value: recorderValue(c.arg), bySupplier: /\bsubmittedBySupplierAccountId:/.test(c.arg) })));
+    // The officer's paper application and a further application (actions.ts), the demo's two (demo-suppliers.ts), and the supplier's own send.
+    expect(creates.length).toBeGreaterThanOrEqual(5);
+    expect(creates.filter((c) => !c.bySupplier && !namesAPerson(c.value)).map((c) => `${c.file} · ${c.method} · ${c.value ?? "no recorder"}`)).toEqual([]);
+    const sent = creates.filter((c) => c.bySupplier);
+    expect(sent.map((c) => c.file).sort()).toEqual([...SENT_BY_SUPPLIER].sort());
+    // And that one writes no officer, on the portal channel, with the time it was sent.
+    for (const c of sent) {
+      expect(c.value, c.file).toBe("null");
+      expect(c.arg, c.file).toMatch(/channel:\s*"PORTAL"/);
+      expect(c.arg, c.file).toMatch(/submittedAt:/);
+    }
   });
 
   it("nothing changes or clears the recorder once recorded", () => {

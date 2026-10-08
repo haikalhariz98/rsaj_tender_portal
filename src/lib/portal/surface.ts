@@ -1,4 +1,4 @@
-import { isSignInPath, SUPPLIER_AUTH_PAGES, SUPPLIER_POST_PATHS } from "@/lib/auth/routes";
+import { isSignInPath, SUPPLIER_AUTH_PAGES, SUPPLIER_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_POST_PATHS } from "@/lib/auth/routes";
 
 /**
  * Which door a running copy of the product is the front of.
@@ -24,7 +24,8 @@ export function surfaceOf(value: string | undefined | null): Surface {
 }
 
 /// The public routes. One literal path each, or one id segment: nothing is matched by prefix.
-const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier/results", "/supplier/register", "/supplier/bids", "/supplier/company", "/supplier/projects", ...SUPPLIER_AUTH_PAGES]);
+// Phase 4b: the registration wizard's page and its two reads (a code search and a file), served on the public copy and answering a supplier only (each asks who is signed in).
+const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier/results", "/supplier/register", "/supplier/bids", "/supplier/company", "/supplier/projects", ...SUPPLIER_AUTH_PAGES, ...SUPPLIER_REGISTRATION_GET_PATHS]);
 const OPPORTUNITY = /^\/supplier\/opportunities\/[A-Za-z0-9_-]+$/;
 /// The organisation's logo, addressed by its own fingerprint.
 const LOGO = /^\/organisation\/logo\/[A-Za-z0-9_-]+$/;
@@ -38,7 +39,7 @@ export const SUBMIT_PATH = "/supplier/register/submit";
 /// Every write the public copy takes, each at one literal path (Phase 4a): the registration post, and the supplier portal's sign-in, sign-out, activation, reset and account posts.
 /// A stranger can reach the sign-in ones (they are how a supplier becomes signed in); each is a route handler that passes the Origin guard and a form token, and the ones
 /// behind an account then ask who is signed in. No other path takes a write, and the public copy refuses every server action.
-const POST_PATHS: ReadonlySet<string> = new Set([SUBMIT_PATH, ...SUPPLIER_POST_PATHS]);
+const POST_PATHS: ReadonlySet<string> = new Set([SUBMIT_PATH, ...SUPPLIER_POST_PATHS, ...SUPPLIER_REGISTRATION_POST_PATHS]);
 
 export interface PublicRequest {
   method: string;

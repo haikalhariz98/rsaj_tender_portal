@@ -69,6 +69,13 @@ export const PERMISSIONS: Readonly<Record<PermissionKey, PermissionInfo>> = {
     label: { en: "Read SULIT values across the organisation", ms: "Baca nilai SULIT merentas organisasi" },
     lets: { en: "See SULIT values on records the person is not named on. It never opens a restricted exercise.", ms: "Lihat nilai SULIT pada rekod yang tidak menamakan orang itu. Ia tidak pernah membuka eksesais terhad." },
   },
+  // Phase 4b (ruling 6 of the CPD registration rulings, 2026-10-07): a supplier's bank details are read by the officers who hold a step on its registration's route, and by staff the
+  // organisation grants this to (finance). Undecided until the organisation decides: refused, and shown as undecided. It never reads a restricted exercise's figures.
+  "sulit.read.creditorProfile": {
+    source: "GRANT_ONLY",
+    label: { en: "Read suppliers' creditor profiles", ms: "Baca profil pemiutang pembekal" },
+    lets: { en: "See a supplier's bank and beneficiary details and the bank statement, and check them, without holding a step on its registration route. It opens no other SULIT value.", ms: "Lihat butiran bank dan benefisiari pembekal serta penyata bank, dan menyemaknya, tanpa memegang langkah pada laluan pendaftarannya. Ia tidak membuka nilai SULIT yang lain." },
+  },
   "acts.recordOnBehalf": {
     source: "GRANT_ONLY",
     label: { en: "Record a signature-class act on someone's behalf from paper", ms: "Rekod tindakan kelas tandatangan bagi pihak seseorang daripada kertas" },

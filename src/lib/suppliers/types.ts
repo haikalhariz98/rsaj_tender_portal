@@ -53,8 +53,11 @@ export type VerificationState = "NOT_CHECKED" | "VERIFIED" | "NOT_IN_ORDER";
 export const VERIFICATION_STATES: readonly VerificationState[] = ["NOT_CHECKED", "VERIFIED", "NOT_IN_ORDER"];
 
 /// The register's own configured lists (step 0: not classification taxonomies).
-export type SupplierListKind = "ENTITY_TYPE" | "COUNTRY" | "BUMIPUTERA_STATUS" | "STATE";
-export const SUPPLIER_LIST_KINDS: readonly SupplierListKind[] = ["ENTITY_TYPE", "COUNTRY", "STATE", "BUMIPUTERA_STATUS"];
+export type SupplierListKind = "ENTITY_TYPE" | "COUNTRY" | "BUMIPUTERA_STATUS" | "STATE" | "BANK" | "ACCOUNT_TYPE";
+export const SUPPLIER_LIST_KINDS: readonly SupplierListKind[] = ["ENTITY_TYPE", "COUNTRY", "STATE", "BUMIPUTERA_STATUS", "BANK", "ACCOUNT_TYPE"];
+/// The lists that do NOT close the officer's recording or the public form while empty: the declared Bumiputera status is simply not asked, and the banks and account types (Phase 4b) close the bank-details
+/// step of the signed-in registration instead, naming the list.
+export const OPTIONAL_LIST_KINDS: readonly SupplierListKind[] = ["BUMIPUTERA_STATUS", "BANK", "ACCOUNT_TYPE"];
 
 /// The engine's route domain for a registration decision (OD-2 A). Rows ship empty.
 export const SUPPLIER_REGISTRATION_DOMAIN = "supplier_registration";

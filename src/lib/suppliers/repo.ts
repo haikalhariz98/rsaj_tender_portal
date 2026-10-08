@@ -84,6 +84,8 @@ const supplierInclude = {
     include: { account: { select: { id: true, loginName: true, status: true, failedAttempts: true, lockedUntil: true, lastSignInAt: true } } },
   },
   accounts: { select: { id: true } },
+  // Phase 4b: the online application the supplier was accepted from, if any (the header says it is waiting for the applicant to complete the registration).
+  portalApplications: { select: { id: true, reference: true } },
   applications: {
     orderBy: [{ receivedOn: "desc" as const }, { createdAt: "desc" as const }],
     include: {
@@ -104,7 +106,7 @@ const supplierInclude = {
       recordedBy: { select: { id: true, name: true } },
       verifiedBy: { select: { id: true, name: true } },
       renewedBy: { select: { id: true } },
-      attachments: { select: { id: true, purpose: true, detachedAt: true, version: { select: { withdrawnAt: true } } } },
+      attachments: { select: { id: true, purpose: true, detachedAt: true, version: { select: { withdrawnAt: true, scanState: true } } } },
     },
   },
   // a2: standing (recorded acts and requests with their routes), and what is linked to the supplier.

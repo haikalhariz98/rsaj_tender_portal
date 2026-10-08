@@ -165,6 +165,42 @@ export function resultsAnnouncement(count: number): string {
   return count === 0 ? "No matches" : count === 1 ? "1 option" : `${count} options`;
 }
 
+// ---- server-side search (Phase 4b): the choices are not all on the page --------------------------
+
+/// A list too long to send (a registry's thousands of codes) is searched on the server. These are the pure parts of that: the address asked, the words said while it is asked, and the
+/// label of a value the page holds. The component fetches and renders; it decides none of this.
+export type RemoteStatus = "idle" | "loading" | "error" | "ready";
+
+/// The address of one page of results for what was typed. The base may carry a query already.
+export function remoteSearchUrl(base: string, query: string): string {
+  const q = query.trim();
+  if (!q) return base;
+  return `${base}${base.includes("?") ? "&" : "?"}q=${encodeURIComponent(q)}`;
+}
+
+/// What the list says in place of rows, or under them: it is searching, it failed, it wants more typing, nothing matched, or only the first page is shown. Null when the rows say it all.
+export function remoteNote({ status, count, more, minChars, query }: { status: RemoteStatus; count: number; more: boolean; minChars: number; query: string }): string | null {
+  const q = query.trim();
+  if (q.length < minChars) return minChars === 1 ? "Type to search" : `Type at least ${minChars} characters to search`;
+  if (status === "loading") return count === 0 ? "Searching…" : null;
+  if (status === "error") return "The list could not be loaded. Close it and open it again to try once more.";
+  if (status === "idle") return null;
+  if (count === 0) return q ? `Nothing matches “${q}”` : "Nothing to choose yet";
+  return more ? `Showing the first ${count}. Type to narrow the list.` : null;
+}
+
+/// What a chosen value is called when its option is not on the page: a label the page was given, one a search returned, else words that never show the stored value.
+export const UNKNOWN_CHOICE_LABEL = "A choice no longer listed";
+
+export function labelOfChoice(value: string, ...sources: readonly (Readonly<Record<string, string>> | ReadonlyMap<string, string> | undefined)[]): string {
+  for (const s of sources) {
+    if (!s) continue;
+    const found = s instanceof Map ? s.get(value) : (s as Readonly<Record<string, string>>)[value];
+    if (found) return found;
+  }
+  return UNKNOWN_CHOICE_LABEL;
+}
+
 /// Whether a chosen value's option was offered and has just been taken away, so the choice should
 /// be cleared rather than shown as its raw value. A value with no option before either (a saved
 /// code since retired) is not "dropped": it keeps showing as it always did.

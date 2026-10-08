@@ -188,7 +188,15 @@ export function lodgeFaults(i: LodgeInput, ctx: { today: string | null; type: Do
 
 // ------------------------------------------------------------------ verification (FR-VND-004)
 
-export type VerifyFault = "TIME_ZONE_UNSET" | "ALREADY_CHECKED" | "STATE_REQUIRED" | "PERSON_REQUIRED" | "DAY_REQUIRED" | "IN_FUTURE" | "BEFORE_LODGED" | "NOTE_REQUIRED" | "SCAN_REQUIRED";
+export type VerifyFault = "TIME_ZONE_UNSET" | "ALREADY_CHECKED" | "STATE_REQUIRED" | "PERSON_REQUIRED" | "DAY_REQUIRED" | "IN_FUTURE" | "BEFORE_LODGED" | "NOTE_REQUIRED" | "SCAN_REQUIRED" | "EXPIRY_NOT_A_DAY" | "EXPIRY_REASON_REQUIRED";
+
+/// The expiry date as the officer confirms it against the certificate (Phase 4b): `from` is what the document holds, `to` what the officer says it is. A different `to` corrects the date, which is a recorded change with its reason.
+export interface ExpiryConfirmation {
+  from: string | null;
+  to: string | null;
+}
+
+export const expiryCorrected = (e: ExpiryConfirmation | null | undefined): boolean => !!e && (e.to ?? "") !== (e.from ?? "");
 
 /**
  * An officer's check of one lodged document: verified, or not in order (with why), by a named active
@@ -197,7 +205,7 @@ export type VerifyFault = "TIME_ZONE_UNSET" | "ALREADY_CHECKED" | "STATE_REQUIRE
  * was verified on attached (the store keeps it: a verified document stands on it); a document lodged
  * as not applicable has nothing to scan.
  */
-export function verifyFaults(i: { state: VerificationState | null; personActive: boolean; verifiedOn: string | null; note: string }, doc: Pick<DocumentFacts, "verification" | "lodgedOn" | "notApplicable"> & { scanned: boolean }, today: string | null): Finding<VerifyFault>[] {
+export function verifyFaults(i: { state: VerificationState | null; personActive: boolean; verifiedOn: string | null; note: string; expiry?: ExpiryConfirmation | null }, doc: Pick<DocumentFacts, "verification" | "lodgedOn" | "notApplicable"> & { scanned: boolean }, today: string | null): Finding<VerifyFault>[] {
   if (today == null) return [{ code: "TIME_ZONE_UNSET", level: "block" }];
   const out: Finding<VerifyFault>[] = [];
   if (doc.verification !== "NOT_CHECKED") out.push({ code: "ALREADY_CHECKED", level: "block" });
@@ -208,6 +216,11 @@ export function verifyFaults(i: { state: VerificationState | null; personActive:
   else if (i.verifiedOn < doc.lodgedOn) out.push({ code: "BEFORE_LODGED", level: "block", data: { lodgedOn: doc.lodgedOn } });
   if (i.state === "NOT_IN_ORDER" && !i.note.trim()) out.push({ code: "NOTE_REQUIRED", level: "block" });
   if (i.state === "VERIFIED" && !doc.notApplicable && !doc.scanned) out.push({ code: "SCAN_REQUIRED", level: "block" });
+  // Confirming the expiry against the certificate: a different date is a correction, and a correction says why (the note is the reason), and is a real day.
+  if (expiryCorrected(i.expiry)) {
+    if (i.expiry!.to && !isDay(i.expiry!.to)) out.push({ code: "EXPIRY_NOT_A_DAY", level: "block" });
+    else if (!i.note.trim()) out.push({ code: "EXPIRY_REASON_REQUIRED", level: "block" });
+  }
   return out;
 }
 

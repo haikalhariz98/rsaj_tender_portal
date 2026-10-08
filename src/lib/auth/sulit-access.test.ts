@@ -323,13 +323,24 @@ describe("the access log's CHECKs are held to the code's lists", () => {
     .filter((t) => t.includes('ADD CONSTRAINT "SulitAccessEvent_basis_matches_outcome" CHECK'))
     .at(-1)!;
   const listAfter = (re: RegExp, from: string = sql) => [...(re.exec(from)?.[1] ?? "").matchAll(/'(\w+)'/g)].map((m) => m[1]);
+  // Changed for Phase 4b (a creditor profile has its own scope, 'creditorProfile'): the scope CHECK is rebuilt by migration 20261013100000, so, as the bases are, its list is read from the LAST
+  // migration that writes it, the one the database ends with.
+  const lastScopeCheck = readdirSync(join(process.cwd(), "prisma/migrations"))
+    .sort()
+    .map((d) => join(process.cwd(), "prisma/migrations", d, "migration.sql"))
+    .filter((f) => existsSync(f))
+    .map((f) => readFileSync(f, "utf8"))
+    .filter((t) => t.includes('ADD CONSTRAINT "SulitAccessEvent_scope_known" CHECK'))
+    .at(-1)!;
   it("the scope list is the registry's", () => {
-    expect(listAfter(/"scope" IN \(([^)]*)\)/)).toEqual([...SULIT_SCOPES]);
+    expect(listAfter(/"scope" IN \(([^)]*)\)/, lastScopeCheck)).toEqual([...SULIT_SCOPES]);
   });
   it("the granted and withheld bases are the code's, and NOT_LOGGED is never stored", () => {
     expect(listAfter(/"outcome" = 'GRANTED' AND "basis" IN \(([^)]*)\)/, lastBasisCheck)).toEqual([...SULIT_GRANT_BASES]);
     expect(listAfter(/"outcome" = 'WITHHELD' AND "basis" IN \(([^)]*)\)/, lastBasisCheck)).toEqual(SULIT_REFUSAL_BASES.filter((b) => b !== "NOT_LOGGED"));
-    expect(lastBasisCheck).toMatch(/IS TRUE\);\s*$/);
+    // Changed for Phase 4b: migration 20261013100000 also holds triggers after its CHECKs, so the file no longer ENDS with the basis CHECK. What this asserted is that the CHECK refuses an
+    // unknown value (it is written `IS TRUE`), and that is asserted of the statement itself, which is stricter than the end of a file.
+    expect(lastBasisCheck).toMatch(/ADD CONSTRAINT "SulitAccessEvent_basis_matches_outcome" CHECK \(.*\) IS TRUE\);/);
   });
   it("every CHECK is written so that an unknown refuses", () => {
     const checks = sql.match(/ADD CONSTRAINT "\w+" CHECK \(.*\);/g) ?? [];

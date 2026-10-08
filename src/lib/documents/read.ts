@@ -123,6 +123,10 @@ export async function readOwner(organisationId: string, ref: OwnerRef): Promise<
       const c = await db.eotClaim.findFirst({ where: { id: ref.id, organisationId: org.id }, select: EOT_CLAIM_FACTS_SELECT });
       return c ? { facts: eotClaimFacts(c), label: eotClaimLabel(c) } : null;
     }
+    // Phase 4b: the supplier's own uploads are not attached to from the staff's shared panel.
+    case "registrationDraftDocument":
+    case "creditorProfile":
+      return null;
   }
 }
 
@@ -469,6 +473,10 @@ export async function attachTargetsOf(organisationId: string, kind: OwnerRef["ki
       ]);
       return { records: attachTargets(rows.map((c) => ({ id: c.id, label: eotClaimLabel(c), href: ownerHref("eotClaim", c.id, c.contractId), facts: eotClaimFacts(c) }))), total };
     }
+    // Phase 4b: nothing is attached to the supplier's own uploads from the staff's shared choice.
+    case "registrationDraftDocument":
+    case "creditorProfile":
+      return { records: [], total: 0 };
   }
 }
 

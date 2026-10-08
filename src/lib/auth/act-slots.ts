@@ -246,6 +246,9 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   paper("ApplicationDecision", "decidedBy", "Decided by"),
   slot("SupplierDocument", "recordedBy", "Recorded by"),
   slot("SupplierDocument", "verifiedBy", "Verified by"),
+  // Phase 4b (FR-VND-005, CPD 2026-10-07): ONE officer checks a supplier's bank details, signing with their password, with their name and the day. Not paper-capable: the check is of the
+  // statement the officer has open, and a changed profile is checked again by one officer (no second-officer step).
+  slot("CreditorProfile", "verifiedBy", "Verified by", { signatureClass: true, holder: "SIGNATURE", entryPoints: ["src/app/suppliers/creditor-actions.ts#verifyCreditorProfile"] }),
   slot("StandingRequest", "requestedBy", "Requested by"),
   slot("StandingRequest", "withdrawnBy", "Withdrawn by"),
   slot("StandingEvent", "recordedBy", "Recorded by"),
@@ -397,7 +400,21 @@ export const NOT_AN_ACT: Readonly<Record<string, string>> = {
 
 export const slotKey = (entity: string, field: string): string => `${entity}.${field}`;
 
-export const slotOf = (entity: string, field: string): ActSlot | undefined => ACT_SLOTS.find((s) => s.entity === entity && s.field === field);
+/**
+ * The slots whose actor is a SUPPLIER's account, not a Person (Phase 4b, B0 of the CPD registration spec). The schema scan that holds `ACT_SLOTS` to the Person relations does not see these,
+ * because their actor is a `SupplierAccount`: `supplier-act-slots.test.ts` holds them to the schema's SupplierAccount relations instead. Both are written by `attributeSupplierAct`.
+ *
+ * Sending a registration is ONE signature: the supplier gives their password once, and that entry signs the submission, which names the application as the exact document signed. Each
+ * declaration is then a SIGNED row of its own, naming the declaration it signed, but is not itself password-bearing: one password entry signs one act (`@@unique([sessionId, stepUpAt])`),
+ * so two signature-class rows from one entry would be refused. The submission's row is the proof the password was asked, and the declarations' rows say so in their reason.
+ */
+export const SUPPLIER_ACT_SLOTS: readonly ActSlot[] = [
+  slot("SupplierApplication", "submittedBySupplierAccount", "Submitted by", { signatureClass: true }),
+  slot("RegistrationDeclaration", "signedBy", "Signed by"),
+];
+
+export const slotOf = (entity: string, field: string): ActSlot | undefined =>
+  ACT_SLOTS.find((s) => s.entity === entity && s.field === field) ?? SUPPLIER_ACT_SLOTS.find((s) => s.entity === entity && s.field === field);
 
 /// The signature-class slots: approve, sign or unseal.
 export const SIGNATURE_SLOTS: readonly ActSlot[] = ACT_SLOTS.filter((s) => s.signatureClass);

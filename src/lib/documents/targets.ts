@@ -40,6 +40,8 @@ export const OWNER_KIND_LABEL: Readonly<Record<OwnerKind, string>> = {
   standingEvent: "Supplier's registration cancelled",
   delayNotice: "Delay notice",
   eotClaim: "Extension-of-time claim",
+  registrationDraftDocument: "Certificate in a supplier's registration",
+  creditorProfile: "Supplier's creditor profile",
 };
 
 /// Where an owner's own screen is, for a link from a document to the record it is on.
@@ -93,6 +95,11 @@ export function ownerHref(kind: OwnerKind, id: string, exerciseId?: string): str
     case "delayNotice":
     case "eotClaim":
       return exerciseId ? `/projects/${exerciseId}?tab=time` : "/projects";
+    // 6.15 Phase 4b: a certificate in a supplier's registration is on its supplier's Documents tab, and the creditor profile on its own tab; the third argument is the supplier's id.
+    case "registrationDraftDocument":
+      return exerciseId ? `/suppliers/${exerciseId}?tab=documents` : "/suppliers";
+    case "creditorProfile":
+      return exerciseId ? `/suppliers/${exerciseId}?tab=creditor` : "/suppliers";
   }
 }
 

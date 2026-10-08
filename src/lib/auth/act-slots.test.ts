@@ -94,7 +94,8 @@ describe("every Person relation is an act slot or is accounted for", () => {
   it("every signature-class slot a person signs may also be recorded from paper, except the two configuration ones, the opening authorisation, the conflict declaration and the panel verification, which are not", () => {
     // FR-APR-009 and FR-EST-005 (Phase 3d, "conflict declarations are signed" and "panel verifications are signed"): the declaration and the verification are the signer's own sign-in,
     // never recorded for them from paper (the signed paper form of the panel stays attached and required; an open item for the product owner).
-    const NOT_FROM_PAPER = ["ApprovalStep.declaredBy", "AuthorityMatrix.issuedByPerson", "ConfigurationChange.decidedBy", "OpeningAuthorisation.person", "SpecPanelVerification.person"];
+    // Phase 4b (CPD, 2026-10-07): the check of a supplier's bank details joins them. It is the officer's own sign-in, with the statement open in front of them, and is not recorded for them from paper.
+    const NOT_FROM_PAPER = ["ApprovalStep.declaredBy", "AuthorityMatrix.issuedByPerson", "ConfigurationChange.decidedBy", "CreditorProfile.verifiedBy", "OpeningAuthorisation.person", "SpecPanelVerification.person"];
     for (const s of SIGNATURE_SLOTS) {
       const key = slotKey(s.entity, s.field);
       expect(s.onBehalf, key).toBe(!NOT_FROM_PAPER.includes(key));
@@ -159,6 +160,8 @@ describe("the signature-class acts", () => {
         "CertificateSignature.person",
         "ConfigurationChange.decidedBy",
         "ContractSignature.person",
+        // Phase 4b: one officer's signed check of a supplier's bank details (FR-VND-005).
+        "CreditorProfile.verifiedBy",
         "DiaryEndorsement.person",
         "EotClaim.determinedBy",
         "NonCompletion.person",

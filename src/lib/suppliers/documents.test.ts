@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { chainOrder, documentInForce, documentState, documentStates, lodgeFaults, stands, verifyFaults, type LodgeInput } from "./documents";
+import { chainOrder, documentInForce, documentState, documentStates, expiryCorrected, lodgeFaults, stands, verifyFaults, type LodgeInput } from "./documents";
 import { doc, TYPES } from "./fixture";
 
 const codes = (fs: { code: string }[]) => fs.map((f) => f.code);
@@ -152,5 +152,20 @@ describe("an officer's check of a document (FR-VND-004)", () => {
 
   it("a checked document is not checked again", () => {
     expect(codes(verifyFaults(ok, { ...lodged, verification: "VERIFIED" }, "2026-10-01"))).toEqual(["ALREADY_CHECKED"]);
+  });
+
+  it("confirming the expiry against the certificate: the same date is no correction, a different one needs the reason, a mistyped one is not a day (Phase 4b)", () => {
+    const same = { from: "2027-03-31", to: "2027-03-31" };
+    expect(expiryCorrected(same)).toBe(false);
+    expect(expiryCorrected(null)).toBe(false);
+    expect(expiryCorrected({ from: null, to: null })).toBe(false);
+    expect(expiryCorrected({ from: "2027-03-31", to: "2027-04-30" })).toBe(true);
+    expect(expiryCorrected({ from: "2027-03-31", to: null })).toBe(true);
+    expect(verifyFaults({ ...ok, expiry: same }, lodged, "2026-10-01")).toEqual([]);
+    expect(codes(verifyFaults({ ...ok, expiry: { from: "2027-03-31", to: "2027-04-30" } }, lodged, "2026-10-01"))).toEqual(["EXPIRY_REASON_REQUIRED"]);
+    expect(verifyFaults({ ...ok, note: "The certificate reads 30 April.", expiry: { from: "2027-03-31", to: "2027-04-30" } }, lodged, "2026-10-01")).toEqual([]);
+    expect(codes(verifyFaults({ ...ok, note: "Typo", expiry: { from: "2027-03-31", to: "31/03/2027" } }, lodged, "2026-10-01"))).toEqual(["EXPIRY_NOT_A_DAY"]);
+    // A form that did not ask for the expiry (an older drawer) is not held to it.
+    expect(verifyFaults(ok, lodged, "2026-10-01")).toEqual([]);
   });
 });

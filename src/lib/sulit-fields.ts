@@ -20,7 +20,7 @@ export const SULIT_COLUMN_WORDS = "SULIT. Shown to the people entitled to it and
 /// - `evaluation`: an exercise's evaluation (scores, evaluated prices, who is recommended);
 /// - `requisition`, `contract`, `supplier`: records that keep no list of who is named on them, so only the organisation-wide
 ///   permission opens them.
-export const SULIT_SCOPES = ["exercise", "requisition", "contract", "supplier", "evaluation"] as const;
+export const SULIT_SCOPES = ["exercise", "requisition", "contract", "supplier", "evaluation", "creditorProfile"] as const;
 export type SulitScope = (typeof SULIT_SCOPES)[number];
 
 export interface SulitField {
@@ -120,9 +120,25 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "matterAmount", scope: "requisition", alsoIn: ["contract"], contextual: true, routedAmount: true, what: "a committee matter's amount, where its kind is SULIT or not decided (Phase 3b)" },
   // Phase 3b (OD-2, doc store): the bytes of a document classified SULIT. Every kind of record can hold one (an exercise's tender papers, a requisition's, a contract's statutory
   // declaration, a supplier's scan), so the field belongs to whichever record the document hangs on: it is read by the people that record's scope names.
-  { field: "documentBytes", scope: "exercise", alsoIn: ["evaluation", "requisition", "contract", "supplier"], contextual: true, what: "the bytes of a document classified SULIT, downloaded from the record it hangs on (OD-2)" },
+  { field: "documentBytes", scope: "exercise", alsoIn: ["evaluation", "requisition", "contract", "supplier", "creditorProfile"], contextual: true, what: "the bytes of a document classified SULIT, downloaded from the record it hangs on (OD-2)" },
   // Phase 3b (FR-AWD-008, 6.11 ruling; 6.11 R20): the identity card number of the contractor's signatory, on the award's return and on the contract's signature.
   { field: "icNumber", scope: "exercise", alsoIn: ["contract"], contextual: true, what: "the identity card number of a contractor's signatory (FR-AWD-008, 6.11)" },
+  // Phase 4b (FR-VND-005, ruling 2 of the CPD registration rulings): a supplier's creditor profile. Judged by its own scope: the officers who hold a step on the registration's route, the officer
+  // who checked the profile, and staff granted `sulit.read.creditorProfile`; the supplier reads its own. The names are specific on purpose (the scan matches whole words): a supplier's contact
+  // fields keep their own scope and rule (`supplier`).
+  { field: "beneficiaryName", scope: "creditorProfile", what: "the name of the beneficiary of a supplier's creditor profile (FR-VND-005)" },
+  { field: "beneficiaryAddress", scope: "creditorProfile", what: "the address of the beneficiary of a creditor profile (FR-VND-005)" },
+  { field: "beneficiaryIdentityNo", scope: "creditorProfile", what: "the identity card or company number of the beneficiary of a creditor profile (FR-VND-005)" },
+  { field: "beneficiaryContactPerson", scope: "creditorProfile", what: "the contact person of a creditor profile (FR-VND-005)" },
+  { field: "beneficiaryTelephone", scope: "creditorProfile", what: "the telephone number of a creditor profile (FR-VND-005)" },
+  { field: "beneficiaryFax", scope: "creditorProfile", what: "the fax number of a creditor profile (FR-VND-005)" },
+  { field: "beneficiaryTaxRegistrationNo", scope: "creditorProfile", what: "the tax registration number of a creditor profile (FR-VND-005)" },
+  { field: "beneficiaryEmail", scope: "creditorProfile", what: "the email address of a creditor profile (FR-VND-005)" },
+  { field: "bankCode", scope: "creditorProfile", what: "the bank of a creditor profile (FR-VND-005)" },
+  { field: "bankAccountNo", scope: "creditorProfile", what: "the bank account number of a creditor profile (FR-VND-005)" },
+  { field: "bankAccountTypeCode", scope: "creditorProfile", what: "the kind of bank account of a creditor profile (FR-VND-005)" },
+  { field: "bankSwiftCode", scope: "creditorProfile", what: "the SWIFT code of a creditor profile (FR-VND-005)" },
+  { field: "bankAddress", scope: "creditorProfile", what: "the bank's address in a creditor profile (FR-VND-005)" },
 ];
 
 /// The one field of a CONTRACT that is a matter's own routed amount (a contract matter's routed value): the trail rows that carry it are also judged by the matter's own gate, for the people who

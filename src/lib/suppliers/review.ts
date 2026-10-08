@@ -15,7 +15,7 @@ import { isDay } from "@/lib/dates";
 import { addDays } from "@/lib/securities/period";
 
 import { documentState, stands, type DocumentState } from "./documents";
-import type { ApplicationKind, ApplicationOutcome, ApplicationStatus, DocumentFacts, DocumentTypeFacts, Finding, SupplierStatus } from "./types";
+import type { ApplicationChannel, ApplicationKind, ApplicationOutcome, ApplicationStatus, DocumentFacts, DocumentTypeFacts, Finding, SupplierStatus } from "./types";
 
 /// Whether an application is still open: received or awaiting a resubmission, and no lapse recorded.
 export const isOpen = (a: { status: ApplicationStatus; lapsedRecordedAt: unknown }) => (a.status === "RECEIVED" || a.status === "RESUBMISSION_REQUESTED") && a.lapsedRecordedAt == null;
@@ -37,6 +37,8 @@ export type ReviewFault =
   | "ROUTE_PENDING"
   | "DECLARATION_DAY_REQUIRED"
   | "DECLARATION_SCAN_REQUIRED"
+  | "ONLINE_DECLARATION_SWITCH_NOT_SET"
+  | "CREDITOR_NOT_VERIFIED"
   | "TYPES_NOT_SET"
   | "DOCUMENT_NOT_STANDING"
   | "MANDATORY_NOT_SET"
@@ -108,6 +110,14 @@ export interface FileFacts {
   kind: ApplicationKind;
   supplierStatus: SupplierStatus;
   cancellation: CancellationInEffect | null;
+  /// Phase 4b (FR-VND-006): how the application reached the office, and the declaration a supplier signed online when it sent the registration (the false-declaration
+  /// acknowledgement), by the server's time. Absent: a paper application, as before.
+  channel?: ApplicationChannel;
+  onlineDeclaration?: { signedAt: string } | null;
+  /// `SupplierPolicy.onlineDeclarationReplacesPaper`: whether a PORTAL application's online declaration stands in for the paper day and scan. Null or absent: not set, and the paper is still required.
+  onlineDeclarationReplacesPaper?: boolean | null;
+  /// Phase 4b (FR-VND-005): whether the supplier's latest sent creditor profile has been checked. NOT_ENTERED: none was sent (a paper application, whose bank details are not captured).
+  creditorProfile?: "VERIFIED" | "NOT_VERIFIED" | "NOT_ENTERED";
 }
 
 /**
@@ -126,8 +136,17 @@ export function approveFaults(f: Omit<FileFacts, "routePending">, today: string 
   // cancellation took effect (standing's rule: registeredOn after effectiveOn), so it is not approved on that very day.
   out.push(...applicationKindFaults(f.kind, f.supplierStatus, f.cancellation));
   if (f.kind === "NEW" && f.supplierStatus === "REGISTERED" && f.cancellation && today <= f.cancellation.effectiveOn) out.push({ code: "CANCELLED_APPROVE_FROM", level: "block", data: { ...cancellationData(f.cancellation), from: addDays(f.cancellation.effectiveOn, 1) } });
-  if (!f.declarationSignedOn) out.push({ code: "DECLARATION_DAY_REQUIRED", level: "block" });
-  if (!f.declarationScanned) out.push({ code: "DECLARATION_SCAN_REQUIRED", level: "block" });
+  // The declaration (FR-VND-006): the paper's day and its scan, or, for an application that came through the portal, the declaration its supplier signed online, where the organisation has
+  // said that stands in for the paper. Nothing else satisfies it: with the switch unset or false, or on any other channel, the paper is still required.
+  const paperDeclared = !!f.declarationSignedOn && f.declarationScanned;
+  const onlineDeclared = f.channel === "PORTAL" && !!f.onlineDeclaration && f.onlineDeclarationReplacesPaper === true;
+  if (!paperDeclared && !onlineDeclared) {
+    if (!f.declarationSignedOn) out.push({ code: "DECLARATION_DAY_REQUIRED", level: "block" });
+    if (!f.declarationScanned) out.push({ code: "DECLARATION_SCAN_REQUIRED", level: "block" });
+  }
+  if (!paperDeclared && f.channel === "PORTAL" && f.onlineDeclaration && f.onlineDeclarationReplacesPaper == null) out.push({ code: "ONLINE_DECLARATION_SWITCH_NOT_SET", level: "block" });
+  // A warning, never a block (no ruling adds one): the bank details count for payment only once an officer has checked them.
+  if (f.creditorProfile === "NOT_VERIFIED") out.push({ code: "CREDITOR_NOT_VERIFIED", level: "warn" });
   if (f.typesConfigured === 0) out.push({ code: "TYPES_NOT_SET", level: "block" });
   for (const t of f.mandatoryNotSet) out.push({ code: "MANDATORY_NOT_SET", level: "block", data: { type: t } });
   for (const m of f.mandatory) if (!stands(m.state)) out.push({ code: "DOCUMENT_NOT_STANDING", level: "block", data: { type: m.label, state: m.state } });
@@ -212,7 +231,7 @@ export function openApplicationFaults(kind: ApplicationKind | null, supplierStat
  * mandatory type's state from the supplier's documents. A retired type is neither required nor asked.
  */
 export function fileFacts(
-  app: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy" | "routePending" | "declarationSignedOn" | "declarationScanned" | "blacklist" | "kind" | "supplierStatus" | "cancellation">,
+  app: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy" | "routePending" | "declarationSignedOn" | "declarationScanned" | "blacklist" | "kind" | "supplierStatus" | "cancellation" | "channel" | "onlineDeclaration" | "onlineDeclarationReplacesPaper" | "creditorProfile">,
   types: readonly DocumentTypeFacts[],
   docs: readonly DocumentFacts[],
   today: string,

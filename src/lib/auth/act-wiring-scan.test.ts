@@ -248,7 +248,8 @@ describe("a signature-class act asks the password where it is signed", () => {
 
   /// The signature-class acts whose record is the document they decide (the decision is made on it: an award issued, a programme decided, a claim determined, a variation
   /// decided, a non-completion decided, an approval matrix issued, a two-person change decided: Phase 2c), so naming it is naming the document. Every other signature creates a row that only records the signing, and names what it signs.
-  const DECIDES_ITS_OWN_RECORD = new Set(["Award", "NonCompletion", "WorkProgramme", "EotClaim", "Variation", "AuthorityMatrix", "ConfigurationChange"]);
+  // Phase 4b: a creditor profile's check is the decision made on it (checked and in order, or not in order), by one officer, so the record it names is the profile itself.
+  const DECIDES_ITS_OWN_RECORD = new Set(["Award", "NonCompletion", "WorkProgramme", "EotClaim", "Variation", "AuthorityMatrix", "ConfigurationChange", "CreditorProfile"]);
 
   it("no signature names itself as the document it signs: the document is the record that was signed, not the attribution's own row", () => {
     // `document: { entity: "DiaryEndorsement", id: row.id }` on a `DiaryEndorsement.person` act is the signature naming the signature (review of Phase 2b).

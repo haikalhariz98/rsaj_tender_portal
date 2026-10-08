@@ -63,7 +63,9 @@ export type AttachmentPurpose =
   | "REGISTRATION_CANCELLATION_NOTICE"
   | "DELAY_NOTICE"
   | "METEOROLOGICAL_RECORD"
-  | "EOT_CALCULATION";
+  | "EOT_CALCULATION"
+  | "SUPPLIER_DRAFT_DOCUMENT"
+  | "SUPPLIER_BANK_STATEMENT";
 
 export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "SIGNED_MINUTES",
@@ -109,12 +111,14 @@ export const ATTACHMENT_PURPOSES: readonly AttachmentPurpose[] = [
   "DELAY_NOTICE",
   "METEOROLOGICAL_RECORD",
   "EOT_CALCULATION",
+  "SUPPLIER_DRAFT_DOCUMENT",
+  "SUPPLIER_BANK_STATEMENT",
 ];
 
 /// The owners a document can be attached to. New owners arrive by migration with their
 /// module (MatterKind precedent); each is a typed key on DocumentAttachment.
-export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening" | "evaluation" | "evaluationMeeting" | "evaluationBidder" | "supplierDocument" | "supplierApplication" | "contract" | "variationInstruction" | "standingEvent" | "delayNotice" | "eotClaim";
-export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction", "standingEvent", "delayNotice", "eotClaim"];
+export type OwnerKind = "meeting" | "exercise" | "award" | "delegation" | "specificationPanel" | "bqVersion" | "tenderPackPart" | "addendum" | "bidWithdrawal" | "validityExtension" | "opening" | "evaluation" | "evaluationMeeting" | "evaluationBidder" | "supplierDocument" | "supplierApplication" | "contract" | "variationInstruction" | "standingEvent" | "delayNotice" | "eotClaim" | "registrationDraftDocument" | "creditorProfile";
+export const OWNER_KINDS: readonly OwnerKind[] = ["meeting", "exercise", "award", "delegation", "specificationPanel", "bqVersion", "tenderPackPart", "addendum", "bidWithdrawal", "validityExtension", "opening", "evaluation", "evaluationMeeting", "evaluationBidder", "supplierDocument", "supplierApplication", "contract", "variationInstruction", "standingEvent", "delayNotice", "eotClaim", "registrationDraftDocument", "creditorProfile"];
 
 /// Which owner each purpose belongs to. The migration's CHECK says the same.
 export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
@@ -169,10 +173,13 @@ export const PURPOSE_OWNER: Readonly<Record<AttachmentPurpose, OwnerKind>> = {
   DELAY_NOTICE: "delayNotice",
   METEOROLOGICAL_RECORD: "eotClaim",
   EOT_CALCULATION: "eotClaim",
+  // 6.15 Phase 4b: a certificate a signed-in supplier uploaded to its registration draft, and the bank statement of its creditor profile.
+  SUPPLIER_DRAFT_DOCUMENT: "registrationDraftDocument",
+  SUPPLIER_BANK_STATEMENT: "creditorProfile",
 };
 
 /// The column on DocumentAttachment that names each owner.
-export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId" | "evaluationId" | "evaluationMeetingId" | "evaluationBidderId" | "supplierDocumentId" | "supplierApplicationId" | "contractId" | "variationInstructionId" | "standingEventId" | "delayNoticeId" | "eotClaimId";
+export type OwnerColumn = "meetingId" | "exerciseId" | "awardId" | "delegationId" | "specificationPanelId" | "bqVersionId" | "tenderPackPartId" | "addendumId" | "bidWithdrawalId" | "validityExtensionId" | "openingId" | "evaluationId" | "evaluationMeetingId" | "evaluationBidderId" | "supplierDocumentId" | "supplierApplicationId" | "contractId" | "variationInstructionId" | "standingEventId" | "delayNoticeId" | "eotClaimId" | "registrationDraftDocumentId" | "creditorProfileId";
 export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   meeting: "meetingId",
   exercise: "exerciseId",
@@ -195,12 +202,15 @@ export const OWNER_COLUMN: Readonly<Record<OwnerKind, OwnerColumn>> = {
   standingEvent: "standingEventId",
   delayNotice: "delayNoticeId",
   eotClaim: "eotClaimId",
+  registrationDraftDocument: "registrationDraftDocumentId",
+  creditorProfile: "creditorProfileId",
 };
 
 /// Purposes attached only by their owner's own act, never from the shared attach choice: a
 /// bill's imported CSV is attached by the import that reads it, in the same transaction (6.2
 /// Q-3), so the file on a bill is always the one its lines came from.
-export const OWNER_ACT_PURPOSES: readonly AttachmentPurpose[] = ["BQ_IMPORT_SOURCE"];
+// Phase 4b: the supplier's own uploads are attached by the upload route in the same transaction as the file, never from the staff's shared choice.
+export const OWNER_ACT_PURPOSES: readonly AttachmentPurpose[] = ["BQ_IMPORT_SOURCE", "SUPPLIER_DRAFT_DOCUMENT", "SUPPLIER_BANK_STATEMENT"];
 
 /// The classification a purpose's document must carry to be attached (6.2 Q-1: the signed
 /// specification panel form is SULIT). A purpose not listed takes any classification.
@@ -220,6 +230,8 @@ export const PURPOSE_CLASSIFICATION: Readonly<Partial<Record<AttachmentPurpose, 
   SIGNED_PROPOSAL_PAPER: "SULIT",
   // 6.15 OD-3 B: the paper E-Payment form carries bank details; SULIT at upload, never downloadable before sign-in.
   SUPPLIER_EPAYMENT_FORM: "SULIT",
+  // 6.15 Phase 4b (FR-VND-005): the bank statement carries the account's number and the holder's name, SULIT from upload.
+  SUPPLIER_BANK_STATEMENT: "SULIT",
 };
 
 /// The types the product can tell from a file's own bytes. Office files and ZIP are not

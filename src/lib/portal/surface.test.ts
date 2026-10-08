@@ -127,3 +127,34 @@ describe("the route boundary with sign-in (Phase 1b)", () => {
     expect(ask({ surface: "public", pathname: "/sign-in", method: "POST", hasServerAction: true })).toBe("notFound");
   });
 });
+
+describe("the registration wizard (Phase 4b)", () => {
+  const GETS = ["/supplier/registration", "/supplier/registration/values", "/supplier/registration/file"];
+  const POSTS = ["/supplier/registration/save", "/supplier/registration/upload", "/supplier/registration/withdraw-file", "/supplier/registration/submit"];
+
+  it("serves its page and its two reads on the public copy, each at one literal path", () => {
+    for (const p of GETS) expect(get(p), p).toBe(true);
+    for (const p of [...GETS.map((g) => `${g}/x`), "/supplier/registration/", "/supplier/Registration", "/supplier/registrations", "/supplier/registration/save/x", "/supplier/registration//file", "/supplier/registration/../account"]) {
+      expect(get(p), p).toBe(p === "/supplier/registration/");
+    }
+  });
+
+  it("takes its four writes at their literal paths, as route handlers only, and no other method", () => {
+    for (const p of POSTS) {
+      expect(publicAllows({ method: "POST", pathname: p, hasServerAction: false }), p).toBe(true);
+      expect(publicAllows({ method: "POST", pathname: p, hasServerAction: true }), `${p} as an action`).toBe(false);
+      for (const m of ["PUT", "PATCH", "DELETE", "OPTIONS"]) expect(publicAllows({ method: m, pathname: p, hasServerAction: false }), `${m} ${p}`).toBe(false);
+      expect(get(p), `GET ${p}`).toBe(false);
+    }
+    // The reads take no write, and the page takes none.
+    for (const p of GETS) expect(publicAllows({ method: "POST", pathname: p, hasServerAction: false }), `POST ${p}`).toBe(false);
+  });
+
+  it("is a supplier's alone: the staff copy has no such page for a supplier's cookie, and a staff cookie is not found on the public copy", () => {
+    for (const pathname of [...GETS, ...POSTS]) {
+      expect(ask({ pathname, supplierCookie: true }), `staff copy ${pathname}`).toBe("notFound");
+      expect(ask({ surface: "public", pathname, staffCookie: true }), `public copy, staff cookie ${pathname}`).toBe("notFound");
+      expect(ask({ surface: "public", pathname, supplierCookie: true, method: POSTS.includes(pathname) ? "POST" : "GET" }), `public copy ${pathname}`).toBe("next");
+    }
+  });
+});

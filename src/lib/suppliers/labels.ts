@@ -149,12 +149,16 @@ export const LIST_KIND_LABEL: Readonly<Record<SupplierListKind, Words>> = {
   COUNTRY: w("Countries", "Negara"),
   STATE: w("States", "Negeri"),
   BUMIPUTERA_STATUS: w("Bumiputera statuses (as declared)", "Status Bumiputera (diisytiharkan)"),
+  BANK: w("Banks", "Bank"),
+  ACCOUNT_TYPE: w("Bank account types", "Jenis akaun bank"),
 };
 export const LIST_KIND_SINGULAR: Readonly<Record<SupplierListKind, Words>> = {
   ENTITY_TYPE: w("Entity type", "Jenis entiti"),
   COUNTRY: w("Country", "Negara"),
   STATE: w("State", "Negeri"),
   BUMIPUTERA_STATUS: w("Bumiputera status", "Status Bumiputera"),
+  BANK: w("Bank", "Bank"),
+  ACCOUNT_TYPE: w("Bank account type", "Jenis akaun bank"),
 };
 
 /// Condition (2), as Phase 3b closes it: a supplier's contacts and the scans of its papers are SULIT. A supplier keeps no list of who is named on it, so they are read by the
@@ -263,6 +267,8 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   ROUTE_PENDING: () => w("It is with approval: wait for the route's decision.", "Ia dalam kelulusan: tunggu keputusan laluan."),
   DECLARATION_DAY_REQUIRED: () => w("Record the day the paper declaration was signed.", "Rekodkan tarikh akuan bertulis ditandatangani."),
   DECLARATION_SCAN_REQUIRED: () => w("Attach the signed declaration's scan on the application.", "Lampirkan imbasan akuan yang ditandatangani pada permohonan."),
+  ONLINE_DECLARATION_SWITCH_NOT_SET: () => w("The supplier signed the declaration online, but the organisation has not said whether that stands in for the paper declaration (Configuration, Supplier register, Policy). Until it does, the paper declaration's day and scan are still required.", "Pembekal menandatangani akuan secara dalam talian, tetapi organisasi belum menyatakan sama ada ia menggantikan akuan bertulis (Konfigurasi, Daftar pembekal, Dasar). Selagi belum, tarikh dan imbasan akuan bertulis masih diperlukan."),
+  CREDITOR_NOT_VERIFIED: () => w("The supplier's bank details have not been checked. Payments to this supplier will be refused until an officer checks them.", "Butiran bank pembekal belum disemak. Bayaran kepada pembekal ini akan ditolak sehingga seorang pegawai menyemaknya."),
   TYPES_NOT_SET: () => w(`No document types are configured, so the file cannot be judged complete. Set them under ${SETTINGS.en}, Document types.`, `Tiada jenis dokumen dikonfigurasi. Tetapkan di ${SETTINGS.ms}, Jenis dokumen.`),
   DOCUMENT_NOT_STANDING: (d) => w(`${d.type} is mandatory and reads “${TYPE_STATE(d.state).en.toLowerCase()}”: it must be verified and in force.`, `${d.type} wajib dan berstatus “${TYPE_STATE(d.state).ms.toLowerCase()}”: ia mesti disahkan dan berkuat kuasa.`),
   MANDATORY_NOT_SET: (d) => w(`Whether ${d.type} is mandatory is not set, so the file cannot be judged complete. Set it under ${SETTINGS.en}, Document types.`, `Sama ada ${d.type} wajib belum ditetapkan. Tetapkan di ${SETTINGS.ms}, Jenis dokumen.`),
@@ -270,6 +276,8 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   ITEM_REMARKS_REQUIRED: () => w("Every item needs its remarks, as they are to be given to the supplier.", "Setiap perkara memerlukan catatan, seperti yang akan diberikan kepada pembekal."),
   ITEM_NAMES_NOTHING: () => w("Every item names a document on file or a configured document type.", "Setiap perkara menamakan dokumen dalam fail atau jenis dokumen yang dikonfigurasi."),
   SCAN_REQUIRED: () => w("Attach the document's scan first: it is verified on its scan.", "Lampirkan imbasan dokumen dahulu: ia disahkan berdasarkan imbasannya."),
+  EXPIRY_NOT_A_DAY: () => w("The expiry date is not a date.", "Tarikh tamat tempoh bukan tarikh yang sah."),
+  EXPIRY_REASON_REQUIRED: () => w("You changed the expiry date. Say why in the note: the change is recorded with the date before and after.", "Anda mengubah tarikh tamat tempoh. Nyatakan sebabnya dalam nota: perubahan direkodkan dengan tarikh sebelum dan selepas."),
   ITEM_NOT_ON_FILE: () => w("An item names a document not on this supplier's file.", "Satu perkara menamakan dokumen yang tiada dalam fail pembekal ini."),
   DEADLINE_REQUIRED: () => w("Give the resubmission deadline.", "Nyatakan tarikh akhir penghantaran semula."),
   DEADLINE_NOT_AFTER_TODAY: () => w("The deadline must be after today.", "Tarikh akhir mestilah selepas hari ini."),

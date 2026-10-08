@@ -16,7 +16,7 @@ export const APP_ROLE_DEFAULT = "perolehan_app";
  * `20261007130200_act_attribution_append_only`. SulitAccessEvent arrives in Phase 3a: listed now so it is revoked the
  * first time this runs after it exists. SignInEventDetail is here per ruling O-1: the operator's purge runs as the owner, never the app.
  */
-export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent"] as const;
+export const APPEND_ONLY_TABLES = ["AuditEntry", "SignInEvent", "SignInEventDetail", "ActAttribution", "SulitAccessEvent", "DocumentAccessEvent", "RegistrationDeclaration"] as const;
 
 /**
  * Stored document bytes (OD-9). A trigger refuses UPDATE and TRUNCATE for every login (migration `20261007120000_blob_content_kept`);

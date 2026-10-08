@@ -30,7 +30,8 @@ import type { Words } from "./words";
 
 /// Why a value was shown. Stored on the access event, so it is a closed list the table's CHECK holds (`SULIT_GRANT_BASES`).
 /// SECRETARIAT_OFFICE and INTERNAL_AUDIT_OFFICE (ruling of 2026-10-08 on log lines 1735 and 1736): the reader holds the office the organisation names as the Secretariat, or as Internal Audit, for evaluations.
-export const SULIT_GRANT_BASES = ["NAMED_ON_RECORD", "ORGANISATION_PERMISSION", "IN_CUSTODY", "SECRETARIAT_OFFICE", "INTERNAL_AUDIT_OFFICE"] as const;
+/// CREDITOR_PROFILE_PERMISSION (Phase 4b): the reader holds `sulit.read.creditorProfile`, which opens a supplier's bank details and nothing else. OWN_RECORD: a signed-in supplier reading its own profile.
+export const SULIT_GRANT_BASES = ["NAMED_ON_RECORD", "ORGANISATION_PERMISSION", "IN_CUSTODY", "SECRETARIAT_OFFICE", "INTERNAL_AUDIT_OFFICE", "CREDITOR_PROFILE_PERMISSION", "OWN_RECORD"] as const;
 export type SulitGrantBasis = (typeof SULIT_GRANT_BASES)[number];
 
 /// Why a value was withheld.
@@ -98,13 +99,18 @@ export interface RoutedNamedFacts {
   requesterId: string | null;
   stepHolderIds: readonly string[];
   stepDeciderIds: readonly string[];
+  /// A supplier's creditor profile only (Phase 4b): the officer who checked this version of it.
+  verifierId?: string | null;
+  /// A supplier's creditor profile only: whether an approval route has been started for the supplier's registration (an officer has sent it for decision). Without one nobody is named
+  /// by a route, and the words say so.
+  routeStarted?: boolean;
 }
 
 /// The fields of a CONTRACT matter's route that its deciders read: the amount of the matter they decide, and nothing else of the contract (its priced working, variance, estimate rates and
 /// identity-card number stay with the permission). `matterAmountScope` says which matters carry such an amount.
 export const ROUTED_CONTRACT_FIELDS: readonly string[] = SULIT_FIELDS.filter((f) => f.routedAmount).map((f) => f.field);
 
-export type NamedAs = "PARTICIPANT" | "PERSON_IN_CHARGE" | "PROPOSAL_REVIEWER" | "EVALUATION_TEAM" | "OPENING_PANEL" | "STEP_HOLDER" | "STEP_DECIDER" | "COMMITTEE_MEMBER" | "REQUESTER";
+export type NamedAs = "PARTICIPANT" | "PERSON_IN_CHARGE" | "PROPOSAL_REVIEWER" | "EVALUATION_TEAM" | "OPENING_PANEL" | "STEP_HOLDER" | "STEP_DECIDER" | "COMMITTEE_MEMBER" | "REQUESTER" | "VERIFIER";
 
 const NAMED_AS_WORDS: Readonly<Record<NamedAs, Words>> = {
   PARTICIPANT: { en: "a named participant", ms: "peserta yang dinamakan" },
@@ -117,6 +123,7 @@ const NAMED_AS_WORDS: Readonly<Record<NamedAs, Words>> = {
   STEP_DECIDER: { en: `someone who ${ROUTED_NAMED_WORDS.STEP_DECIDER.en}`, ms: `seseorang yang ${ROUTED_NAMED_WORDS.STEP_DECIDER.ms}` },
   COMMITTEE_MEMBER: { en: `a ${ROUTED_NAMED_WORDS.COMMITTEE_MEMBER.en}`, ms: `seorang ${ROUTED_NAMED_WORDS.COMMITTEE_MEMBER.ms}` },
   REQUESTER: { en: "the officer it was raised for", ms: "pegawai yang untuknya ia dibangkitkan" },
+  VERIFIER: { en: "the officer who checked it", ms: "pegawai yang menyemaknya" },
 };
 export const namedAsWords = (n: NamedAs): Words => NAMED_AS_WORDS[n];
 
@@ -189,12 +196,23 @@ export function namedOnRouted(f: RoutedNamedFacts, personId: string): NamedAs[] 
   return out;
 }
 
+/// The resolver for a supplier's creditor profile (Phase 4b, ruling 6): whoever is able to decide a pending step of the supplier's registration route, whoever decided one, and the
+/// officer who checked this version of the profile. Worked out when read, as the routes' names are; the supplier itself is not a person and reads its own through its own session.
+export function namedOnCreditorProfile(f: RoutedNamedFacts, personId: string): NamedAs[] {
+  const out: NamedAs[] = [];
+  if (f.stepHolderIds.includes(personId)) out.push("STEP_HOLDER");
+  if (f.stepDeciderIds.includes(personId)) out.push("STEP_DECIDER");
+  if (f.verifierId === personId) out.push("VERIFIER");
+  return out;
+}
+
 /// The resolver for a scope. An exercise and its evaluation list who is named. A requisition names its requester and the people of its route; a contract names NOBODY as a whole (who else
 /// is named on a contract is open under ADR 0034 OQ-2), but the people who decide a matter's route read that matter's amount and nothing else of the contract (`ROUTED_CONTRACT_FIELDS`),
 /// so for a contract-scope matter `routed` counts only where every field asked is one of them. The supplier scope names nobody: only the organisation-wide permission opens it.
 export function namedOn(scope: SulitScope, f: ExerciseNamedFacts | null, personId: string | null, routed: RoutedNamedFacts | null = null, fields: readonly string[] = []): NamedAs[] {
   if (!personId) return [];
   if (scope === "exercise") return f ? namedOnExercise(f, personId) : [];
+  if (scope === "creditorProfile") return routed ? namedOnCreditorProfile(routed, personId) : [];
   if (scope === "evaluation") return f ? namedOnEvaluation(f, personId) : [];
   if (scope === "requisition") return routed ? namedOnRouted(routed, personId) : [];
   if (scope === "contract") return routed && fields.length > 0 && fields.every((x) => ROUTED_CONTRACT_FIELDS.includes(x)) ? namedOnRouted(routed, personId) : [];
@@ -254,7 +272,8 @@ export function decide(actor: SulitActor, ctx: SulitContext): SulitDecision {
   if (ctx.named) return { state: "GRANTED", basis: "NAMED_ON_RECORD" };
   if (ctx.restricted) return { state: "WITHHELD", basis: "RESTRICTED_NOT_NAMED" };
   if (ctx.scope === "evaluation" && ctx.evaluationOffice) return { state: "GRANTED", basis: ctx.evaluationOffice };
-  if (holds(ctx.organisationPermission)) return { state: "GRANTED", basis: "ORGANISATION_PERMISSION" };
+  // For a creditor profile the permission asked is `sulit.read.creditorProfile` (the store passes its state in the same field), and it has its own basis.
+  if (holds(ctx.organisationPermission)) return { state: "GRANTED", basis: ctx.scope === "creditorProfile" ? "CREDITOR_PROFILE_PERMISSION" : "ORGANISATION_PERMISSION" };
   switch (ctx.organisationPermission.state) {
     case "UNDECIDED":
       return { state: "WITHHELD", basis: "NOT_NAMED_PERMISSION_UNDECIDED" };
@@ -305,7 +324,8 @@ const NOT_NAMED_EXERCISE: Words = { en: "You are not named on this exercise", ms
 
 /// What a withheld value says, in a sentence a person can act on. `scope` names the kind of record, so that "nobody is named on it" is
 /// said of the three scopes that keep no list, and "you are not named" of the others.
-export function refusalWords(basis: SulitRefusalBasis, scope: SulitScope | "estimate"): Words {
+export function refusalWords(basis: SulitRefusalBasis, scope: SulitScope | "estimate", options: { routeStarted?: boolean } = {}): Words {
+  if (scope === "creditorProfile") return creditorRefusalWords(basis, options.routeStarted ?? true);
   const noList = scope === "contract" || scope === "supplier";
   const why = scope === "requisition" ? { ...NOT_NAMED_REQUISITION } : noList ? { en: "No list names who may read this", ms: "Tiada senarai yang menamakan siapa boleh membacanya" } : { ...NOT_NAMED_EXERCISE };
   switch (basis) {
@@ -350,7 +370,35 @@ export function refusalWords(basis: SulitRefusalBasis, scope: SulitScope | "esti
   }
 }
 
+/// What a withheld creditor profile says (Phase 4b). The reader is told what would open it: a step on the registration's route, or the grant of reading creditor profiles, and,
+/// where no route has been started, that nobody is named by a route yet.
+function creditorRefusalWords(basis: SulitRefusalBasis, routeStarted: boolean): Words {
+  const why: Words = routeStarted
+    ? { en: "You hold no step on this registration's approval route and did not check this profile", ms: "Anda tidak memegang langkah pada laluan kelulusan pendaftaran ini dan tidak menyemak profil ini" }
+    : { en: "No approval route has been started for this registration (an officer sends it for decision, on the route configured for supplier registration), so nobody is named on it yet", ms: "Tiada laluan kelulusan telah dimulakan bagi pendaftaran ini (seorang pegawai menghantarnya untuk keputusan, pada laluan yang dikonfigurasi bagi pendaftaran pembekal), jadi tiada sesiapa dinamakan padanya lagi" };
+  switch (basis) {
+    case "ADMINISTRATOR":
+      return { en: "An administrator account never reads SULIT values: administration is kept apart from transactions.", ms: "Akaun pentadbir tidak pernah membaca nilai SULIT: pentadbiran diasingkan daripada urus niaga." };
+    case "NOT_A_PERSON":
+      return { en: "Only a signed-in person reads SULIT values.", ms: "Hanya orang yang log masuk membaca nilai SULIT." };
+    case "NOT_NAMED_PERMISSION_UNDECIDED":
+      return { en: `${why.en}, and the organisation has not yet decided which roles may read creditor profiles.`, ms: `${why.ms}, dan organisasi belum memutuskan peranan mana boleh membaca profil pemiutang.` };
+    case "NOT_NAMED_PERMISSION_WITHHELD":
+      return { en: `${why.en}, and the organisation has withheld the right to read creditor profiles from a role you hold.`, ms: `${why.ms}, dan organisasi telah menahan hak membaca profil pemiutang daripada peranan yang anda pegang.` };
+    case "NOT_NAMED_PERMISSION_SCOPED":
+      return { en: `${why.en}. The right to read creditor profiles is granted to a role you hold only for a department, and it is the organisation's.`, ms: `${why.ms}. Hak membaca profil pemiutang diberikan kepada peranan yang anda pegang bagi sesuatu jabatan sahaja, dan hak itu milik organisasi.` };
+    case "NOT_NAMED_PERMISSION_NOT_HELD":
+      return { en: `${why.en}, and you hold no role the right to read creditor profiles is granted to.`, ms: `${why.ms}, dan anda tidak memegang peranan yang diberikan hak membaca profil pemiutang.` };
+    case "NOT_LOGGED":
+      return { en: "The access could not be recorded, so the value is not shown.", ms: "Capaian tidak dapat direkodkan, jadi nilai tidak dipaparkan." };
+    default:
+      return { en: "This value is not shown here.", ms: "Nilai ini tidak dipaparkan di sini." };
+  }
+}
+
 export const grantedWords = (basis: SulitGrantBasis, namedAs: readonly NamedAs[] = []): Words => {
+  if (basis === "CREDITOR_PROFILE_PERMISSION") return { en: "Shown because your role may read suppliers' creditor profiles.", ms: "Dipaparkan kerana peranan anda boleh membaca profil pemiutang pembekal." };
+  if (basis === "OWN_RECORD") return { en: "Shown because it is your own company's profile.", ms: "Dipaparkan kerana ia profil syarikat anda sendiri." };
   if (basis === "NAMED_ON_RECORD" && namedAs.length > 0) {
     return { en: `Shown because you are ${namedAs.map((n) => NAMED_AS_WORDS[n].en).join(" and ")}.`, ms: `Dipaparkan kerana anda ${namedAs.map((n) => NAMED_AS_WORDS[n].ms).join(" dan ")}.` };
   }
@@ -365,11 +413,11 @@ export const grantedWords = (basis: SulitGrantBasis, namedAs: readonly NamedAs[]
 
 export const sulitGranted = <T>(value: T, basis: SulitGrantBasis): Sulit<T> => ({ state: "GRANTED", value, basis });
 
-export const sulitWithheld = <T = never>(basis: SulitRefusalBasis, scope: SulitScope | "estimate"): Sulit<T> => ({ state: "WITHHELD", basis, scope, words: refusalWords(basis, scope) });
+export const sulitWithheld = <T = never>(basis: SulitRefusalBasis, scope: SulitScope | "estimate", options: { routeStarted?: boolean } = {}): Sulit<T> => ({ state: "WITHHELD", basis, scope, words: refusalWords(basis, scope, options) });
 
 /// A loader's answer from the rule's decision and the value, which is read only when granted (pass a thunk where reading costs).
-export function applyDecision<T>(decision: SulitDecision, scope: SulitScope | "estimate", value: T | (() => T)): Sulit<T> {
-  if (decision.state === "WITHHELD") return sulitWithheld<T>(decision.basis, scope);
+export function applyDecision<T>(decision: SulitDecision, scope: SulitScope | "estimate", value: T | (() => T), options: { routeStarted?: boolean } = {}): Sulit<T> {
+  if (decision.state === "WITHHELD") return sulitWithheld<T>(decision.basis, scope, options);
   return sulitGranted(typeof value === "function" ? (value as () => T)() : value, decision.basis);
 }
 

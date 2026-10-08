@@ -22,6 +22,22 @@ export const SUPPLIER_AUTH_POSTS = {
 } as const;
 export const SUPPLIER_POST_PATHS: readonly string[] = Object.values(SUPPLIER_AUTH_POSTS);
 
+/// The signed-in supplier's registration wizard (Phase 4b): its one page, and the route handlers it calls, each at a literal path. A supplier must be signed in to every one (the page
+/// redirects to the sign-in, a handler answers 401), and no id of a supplier is read from any of them: the supplier is the session's.
+export const SUPPLIER_REGISTRATION_PAGE = "/supplier/registration";
+export const SUPPLIER_REGISTRATION_POSTS = {
+  save: "/supplier/registration/save",
+  upload: "/supplier/registration/upload",
+  withdrawFile: "/supplier/registration/withdraw-file",
+  submit: "/supplier/registration/submit",
+} as const;
+export const SUPPLIER_REGISTRATION_GETS = {
+  values: "/supplier/registration/values",
+  file: "/supplier/registration/file",
+} as const;
+export const SUPPLIER_REGISTRATION_POST_PATHS: readonly string[] = Object.values(SUPPLIER_REGISTRATION_POSTS);
+export const SUPPLIER_REGISTRATION_GET_PATHS: readonly string[] = [SUPPLIER_REGISTRATION_PAGE, ...Object.values(SUPPLIER_REGISTRATION_GETS)];
+
 /// The two session cookies (ADR 0034 D4). Names only, so the proxy can know them without importing anything that touches the database or `next/headers`.
 /// `__Host-` ties each to one exact host with no Domain. A staff cookie means nothing to the public copy, and a supplier cookie nothing to the staff copy.
 export const STAFF_COOKIE = "__Host-perolehan-staff";

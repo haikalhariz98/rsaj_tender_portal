@@ -15,8 +15,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 export const FORM_TOKEN_FIELD = "formToken";
 
 /// The forms that carry a token. A token for one is no good for another.
-export type FormPurpose = "register" | "sign-in" | "activate" | "reset" | "account";
-export const FORM_PURPOSES: readonly FormPurpose[] = ["register", "sign-in", "activate", "reset", "account"];
+/// "registration" (Phase 4b): the signed-in supplier's registration wizard, one token for its saves, uploads, searches, downloads and the final send.
+export type FormPurpose = "register" | "sign-in" | "activate" | "reset" | "account" | "registration";
+export const FORM_PURPOSES: readonly FormPurpose[] = ["register", "sign-in", "activate", "reset", "account", "registration"];
 
 /// How long a token is good for. A technical bound, not a customer's policy: a form left open for longer than a working day is simply rendered again. Logged as an
 /// assumption in the decisions log.

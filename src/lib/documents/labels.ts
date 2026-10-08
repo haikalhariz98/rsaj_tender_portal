@@ -65,6 +65,9 @@ export function withdrawnLine(on: string, reason: string, canStillDownload: bool
   return `Withdrawn on ${on}${why}${canStillDownload ? " It can still be downloaded." : ""}`;
 }
 
+/// Who recorded a version or a document that no officer did: a signed-in supplier uploaded it (Phase 4b). The account is not named here, and never a person's name.
+export const SUPPLIER_UPLOADER_WORDS = "The supplier's own portal account";
+
 export const STATUS_LABEL: Readonly<Record<DocumentStatus, string>> = { STAGED: "Received, not filed", FILED: "Filed" };
 
 export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
@@ -106,6 +109,8 @@ export const PURPOSE_LABEL: Readonly<Record<AttachmentPurpose, string>> = {
   DELAY_NOTICE: "Notice of delay (or the S.O.'s direction)",
   METEOROLOGICAL_RECORD: "Meteorological records",
   EOT_CALCULATION: "How the proposed period was calculated",
+  SUPPLIER_DRAFT_DOCUMENT: "Certificate uploaded by the supplier",
+  SUPPLIER_BANK_STATEMENT: "Bank statement uploaded by the supplier",
   HOLDER_RECOMMENDATION: "Absent holder's signed recommendation",
   SIGNED_LETTER: "Signed letter of acceptance",
   DECLARATION: "Signed successful bidder declaration",

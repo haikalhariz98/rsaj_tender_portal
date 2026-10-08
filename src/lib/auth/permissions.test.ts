@@ -12,7 +12,9 @@ const grant = (permissionKey: string, roleCode: string, decision: "GRANTED" | "W
 
 const ADMIN_ONLY: PermissionKey[] = ["accounts.manage", "security.policy", "permissions.grant"];
 const ADMIN_OR_GRANT: PermissionKey[] = ["configuration.draft", "configuration.issue", "audit.read"];
-const GRANT_ONLY: PermissionKey[] = ["supplierAccounts.manage", "sulit.read.organisation", "acts.recordOnBehalf", "sourcing.participants.manage"];
+// Changed for the CPD registration rulings (Phase 4b, 2026-10-07, ruling 6): "sulit.read.creditorProfile", granted only and undecided until the organisation decides, opens a supplier's
+// bank details and nothing else. Nothing else in this list moved.
+const GRANT_ONLY: PermissionKey[] = ["supplierAccounts.manage", "sulit.read.organisation", "sulit.read.creditorProfile", "acts.recordOnBehalf", "sourcing.participants.manage"];
 
 describe("the closed list of product permissions (ADR 0034 D8)", () => {
   // Phase 3a review: a tenth key, "sourcing.participants.manage" (granted only, like the other transactional ones). Being named on an exercise is what opens its

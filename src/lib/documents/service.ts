@@ -23,6 +23,7 @@ import { documentBytesAccess } from "./entitlement";
 import { hiddenExerciseIds, refuseHiddenExercise, restrictedExerciseIds, type Reader, type SulitReader } from "@/lib/auth/sulit-store";
 
 import { hiddenExerciseOfDocument } from "./hidden";
+import { SUPPLIER_UPLOADER_WORDS } from "./labels";
 
 export interface DocumentOrg {
   id: string;
@@ -44,8 +45,18 @@ export async function loadStorePolicy(organisationId: string, client: Tx = db): 
   return { id: p.id, allowedMediaTypes: p.allowedMediaTypes, maxBytes: p.maxBytes, provenance: p.provenance, notes: p.notes };
 }
 
-/// Who asked, for an access event: a signed-in person with their session and address, or a loader run by its label (Phase 3b).
-export type AccessActor = Pick<StaffActor, "organisationId" | "personId" | "sessionId" | "sourceAddress"> & { system?: { label: string } };
+/// A signed-in supplier opening or being refused its own registration's file (Phase 4b): the actor is the supplier's account, never a person.
+export interface SupplierAccessActor {
+  organisationId: string;
+  supplierAccountId: string;
+  sessionId: string;
+  sourceAddress: string | null;
+}
+
+/// Who asked, for an access event: a signed-in person with their session and address, a loader run by its label (Phase 3b), or a signed-in supplier (Phase 4b).
+export type AccessActor = (Pick<StaffActor, "organisationId" | "personId" | "sessionId" | "sourceAddress"> & { system?: { label: string } }) | SupplierAccessActor;
+
+const isSupplierActor = (a: AccessActor): a is SupplierAccessActor => "supplierAccountId" in a;
 
 /// Append one access event. Refusals and downloads are logged even where nothing else is written. `actor` names who asked; none for an act nobody was signed in to ask.
 export async function logAccess(
@@ -53,14 +64,17 @@ export async function logAccess(
   client: Tx = db,
 ): Promise<void> {
   const who = e.actor ?? null;
+  const supplier = who && isSupplierActor(who) ? who : null;
+  const staff = who && !isSupplierActor(who) ? who : null;
   await client.documentAccessEvent.create({
     data: {
       organisationId: e.organisationId,
       kind: e.kind,
       reasonCode: e.reasonCode ?? "",
-      actorPersonId: who && !who.system ? who.personId : null,
-      actorSystemLabel: who?.system ? who.system.label : null,
-      actorSessionId: who && !who.system ? who.sessionId || null : null,
+      actorPersonId: staff && !staff.system ? staff.personId : null,
+      actorSystemLabel: staff?.system ? staff.system.label : null,
+      actorSupplierAccountId: supplier ? supplier.supplierAccountId : null,
+      actorSessionId: supplier ? supplier.sessionId || null : staff && !staff.system ? staff.sessionId || null : null,
       sourceAddress: who?.sourceAddress ?? null,
       versionId: e.versionId ?? null,
       // A log field, so cut (by code point, never through a surrogate pair), unlike a stored name.
@@ -89,7 +103,15 @@ export interface UploadInput {
   documentClassId: string | null;
   /// Set to add a version to an existing document instead of creating one.
   documentId: string | null;
-  recordedByPersonId: string;
+  /// Who recorded it: an officer (a Person, recorded on their behalf, not signed), or a signed-in supplier's own account (Phase 4b). Exactly one.
+  recordedByPersonId: string | null;
+  recordedBySupplierAccountId?: string | null;
+  /// Work done in the upload's own transaction, around the store's own writes (Phase 4b: the supplier's draft is locked before anything is read, the quota is judged on the locked
+  /// rows, and the new version is attached to its owner before the transaction ends). A refusal thrown from a hook rolls the whole upload back.
+  hooks?: {
+    before?: (tx: Tx) => Promise<void>;
+    after?: (tx: Tx, created: { documentId: string; versionId: string; versionNo: number }) => Promise<void>;
+  };
   /// Whoever is uploading, for a version added to an existing document: a document hanging on an exercise restricted to its named people reads as one that does
   /// not exist to anyone not named on it (FR-MTD-007). A loader that stores directly has none and is hidden from nothing.
   reader?: SulitReader;
@@ -144,8 +166,13 @@ export async function storeUpload(actor: AuditActor, i: UploadInput): Promise<Up
   }
   return db.$transaction(
     async (tx) => {
-      const person = await tx.person.findFirst({ where: { id: i.recordedByPersonId, organisationId: i.org.id, isActive: true }, select: { id: true, name: true } });
-      if (!person) throw new UploadRefusal({ code: "PERSON_UNKNOWN", level: "block" });
+      // The recorder: an active Person of the organisation, or a supplier's account of it. Never both, never neither (the database holds that too).
+      const person = i.recordedByPersonId ? await tx.person.findFirst({ where: { id: i.recordedByPersonId, organisationId: i.org.id, isActive: true }, select: { id: true, name: true } }) : null;
+      const account = !i.recordedByPersonId && i.recordedBySupplierAccountId ? await tx.supplierAccount.findFirst({ where: { id: i.recordedBySupplierAccountId, organisationId: i.org.id }, select: { id: true } }) : null;
+      if (!person && !account) throw new UploadRefusal({ code: "PERSON_UNKNOWN", level: "block" });
+      // The trail names an officer by name, and a supplier's account never by anyone's name (Phase 4a, decision 10).
+      const recorderName = person ? person.name : SUPPLIER_UPLOADER_WORDS;
+      await i.hooks?.before?.(tx);
 
       let documentId: string;
       let versionNo: number;
@@ -213,7 +240,8 @@ export async function storeUpload(actor: AuditActor, i: UploadInput): Promise<Up
           mediaType: i.mediaType,
           originalFilename: i.originalFilename,
           receivedOn: i.receivedOn ? dayToDate(i.receivedOn) : null,
-          recordedByPersonId: person.id,
+          recordedByPersonId: person?.id ?? null,
+          recordedBySupplierAccountId: account?.id ?? null,
           note: i.note,
         },
       });
@@ -222,9 +250,10 @@ export async function storeUpload(actor: AuditActor, i: UploadInput): Promise<Up
         tx,
         { actor, organisationId: i.org.id, entity: "DocumentVersion", entityId: version.id, entityLabel: `Document · ${title} · version ${versionNo}` },
         "CREATE",
-        versionCreated({ versionNo, sha256: i.sha256, byteSize: version.byteSize, mediaType: i.mediaType, originalFilename: version.originalFilename, receivedOn: i.receivedOn, recordedBy: person.name, note: i.note }),
+        versionCreated({ versionNo, sha256: i.sha256, byteSize: version.byteSize, mediaType: i.mediaType, originalFilename: version.originalFilename, receivedOn: i.receivedOn, recordedBy: recorderName, note: i.note }),
       );
       await i.act?.write(tx, version.id);
+      await i.hooks?.after?.(tx, { documentId, versionId: version.id, versionNo });
       return { documentId, versionId: version.id, versionNo, sha256: i.sha256, byteSize: version.byteSize.toString(), mediaType: i.mediaType, status, warnings };
     },
     { timeout: 60_000, maxWait: 10_000 },

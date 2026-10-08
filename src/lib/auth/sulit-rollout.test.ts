@@ -253,6 +253,10 @@ describe("a document is attached only by someone who may already open it (OD-2, 
         "src/app/documents/actions.ts",
         "src/app/sourcing/[id]/documents/actions.ts",
         "src/app/sourcing/[id]/scope/actions.ts",
+        // Changed for Phase 4b: a signed-in supplier attaches the file its own upload just stored (to its draft, or as its bank statement) in the upload's transaction, and sending the registration moves
+        // those same versions onto the supplier's documents. Both are the supplier's own files: no officer attaches, and the documents' bytes are judged by the records they then hang on.
+        "src/lib/portal/registration/submit-store.ts",
+        "src/lib/portal/registration/upload-store.ts",
       ].sort(),
     );
   });
@@ -270,6 +274,9 @@ describe("a page that shows a record's figures names them, and a field read on o
     const users = SRC.filter((f) => /fieldsOfScope\(/.test(read(f)) && !f.endsWith("sulit-fields.ts")).sort();
     expect(users).toEqual(
       [
+        // Changed for Phase 4b: a supplier's creditor profile has its own scope, and the creditor tab shows the whole of it at once, so it asks for the scope's whole list through the one
+        // module that judges it (`creditor-access-store.ts`), like the other pages that show a record's figures.
+        "src/lib/auth/creditor-access-store.ts",
         "src/app/projects/[id]/certificates/[certId]/page.tsx",
         "src/app/projects/[id]/page.tsx",
         "src/app/requisitions/[id]/edit/page.tsx",
