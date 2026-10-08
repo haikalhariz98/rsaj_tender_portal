@@ -3,7 +3,7 @@ import { buttonClass } from "@/components/ui/button";
 import { REGISTRATION_VALUE_KINDS } from "@/lib/suppliers/types";
 import { VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
 
-import { saveDocumentType, saveListValue, savePortalIntake, saveRegistrationValue, saveStandingReason, saveStandingRules, saveSupplierPolicy, setDocumentTypeRetired, setListValueRetired, setRegistrationValueRetired, setStandingReasonRetired } from "./actions";
+import { saveDeclarationText, saveDocumentType, saveListValue, savePortalIntake, saveRegistrationSettings, saveRegistrationValue, saveStandingReason, saveStandingRules, saveSupplierPolicy, setDeclarationTextRetired, setDocumentTypeRetired, setListValueRetired, setRegistrationValueRetired, setStandingReasonRetired } from "./actions";
 
 /**
  * Configuration › Supplier register drawers. No field carries a default: a switch left not set blocks
@@ -79,6 +79,10 @@ export function DocumentTypeDrawer({ bodies, type }: { bodies: Option[]; type?: 
         { kind: "select", name: "expires", label: "Whether it expires", placeholder: "Not set", options: three("Carries an expiry", "Does not expire", "Not set: none can be lodged") },
         { kind: "select", name: "mandatoryAtRegistration", label: "Mandatory for every registration", placeholder: "Not set", options: three("Mandatory", "Not mandatory", "Not set: no application can be decided") },
         { kind: "select", name: "notApplicableAllowed", label: "May be recorded as not applicable", placeholder: "Not set", options: three("Yes", "No", "Not set: none is recorded so") },
+        { kind: "text", name: "hintEn", label: "What the applicant is told it is", hint: "Shown beside the upload on the supplier's registration, for example the form's name. Blank: nothing is said." },
+        { kind: "text", name: "hintMs", label: "What the applicant is told it is (Malay)" },
+        { kind: "select", name: "recordsRate", label: "Whether it records a rate", placeholder: "Not set", options: three("Records a rate (such as a tax rate)", "Records no rate", "Not set: no rate is asked") },
+        { kind: "select", name: "repeatable", label: "Whether several may be lodged", placeholder: "Not set", options: three("Several, each with a title", "One only", "Not set: one only") },
         { kind: "text", name: "governingSource", label: "Source" },
         provenance("provenance", "Where it comes from", true),
         { kind: "number", name: "sortOrder", label: "Order", min: 0 },
@@ -156,6 +160,67 @@ export function EditSupplierPolicy({ values }: { values: Record<string, string> 
       trigger={{ label: "Edit the policy", className: buttonClass("primary", "sm") }}
     />
   );
+}
+
+type ClassOption = { value: string; label: string };
+
+export function EditRegistrationSettings({ values, classes }: { values: Record<string, string>; classes: { upload: ClassOption[]; statement: ClassOption[] } }) {
+  return (
+    <RecordEditor
+      title="Edit registration online"
+      description="What a supplier's own registration is judged by. Each setting may be left not set: what it governs then stays closed and the supplier's screen names it. A setting made says where it comes from."
+      columns={2}
+      fields={[
+        { kind: "text", name: "helpEmail", label: "Help email", hint: "Shown on the supplier's registration. Blank: no line is shown." },
+        { kind: "text", name: "helpPhone", label: "Help telephone" },
+        provenance("helpProvenance", "Where the help contact comes from"),
+        { kind: "number", name: "maxFiles", label: "Files one registration may hold", min: 1, hint: "Every version uploaded counts, a withdrawn one too: bytes are never deleted. Set both limits, or neither." },
+        { kind: "number", name: "maxMegabytes", label: "Megabytes one registration may hold", min: 1 },
+        provenance("uploadLimitProvenance", "Where the limits come from"),
+        { kind: "select", name: "uploadClassId", label: "Document class of a supplier's uploads", placeholder: "Not set: uploads are closed", options: classes.upload, hint: "A supplier cannot choose a class. Classes are configured under Documents." },
+        { kind: "select", name: "statementClassId", label: "Document class of a bank statement", placeholder: "Not set: the statement cannot be uploaded", options: classes.statement, hint: "Only a class classified SULIT is offered: the statement is restricted data." },
+        provenance("uploadClassProvenance", "Where the classes come from"),
+        { kind: "select", name: "onlineDeclarationReplacesPaper", label: "The declaration signed online", placeholder: "Not set: the paper is still required", options: three("Replaces the paper declaration", "Does not replace it: the paper is still required", "Not set: the paper is still required") },
+        provenance("onlineDeclarationProvenance", "Where that ruling comes from"),
+      ]}
+      values={values}
+      reason={{ label: "Why this changes" }}
+      action={saveRegistrationSettings}
+      trigger={{ label: "Edit registration online", className: buttonClass("secondary", "sm") }}
+      size="lg"
+    />
+  );
+}
+
+const DECLARATION_OPTIONS: Option[] = [
+  { value: "GIRO_AUTHORISATION", label: "GIRO authorisation" },
+  { value: "FALSE_DECLARATION", label: "False-declaration acknowledgement" },
+];
+
+export function DeclarationTextDrawer({ text }: { text?: { id: string; name: string; values: Record<string, string> } }) {
+  return (
+    <RecordEditor
+      title={text ? `Edit ${text.name}` : "Add a declaration wording"}
+      description={text ? "A wording nobody has signed may be corrected. One that has been signed is never changed: add a new version instead." : "A new wording is a new version, in force from today and replacing the one before it. A supplier part-way through is asked to read it again. Write {organisation} where the wording names the organisation."}
+      fields={[
+        hidden("id"),
+        ...(text ? [hidden("kind")] : [{ kind: "select", name: "kind", label: "Which declaration", required: true, placeholder: "Choose", options: DECLARATION_OPTIONS } as Field]),
+        { kind: "textarea", name: "bodyEn", label: "Wording", required: true },
+        { kind: "textarea", name: "bodyMs", label: "Wording (Malay)" },
+        { kind: "text", name: "governingSource", label: "Source", hint: "The document the wording is taken from." },
+        provenance("provenance", "Where it comes from", true),
+      ]}
+      values={text?.values ?? {}}
+      reason={{ label: text ? "Why the wording changes" : "Why a new version is issued" }}
+      action={saveDeclarationText}
+      trigger={text ? { label: "Edit", className: ghost, ariaLabel: `Edit ${text.name}` } : { label: "Add a wording" }}
+      size="lg"
+    />
+  );
+}
+
+export function RetireDeclarationTextDrawer({ id, name, retired }: { id: string; name: string; retired: boolean }) {
+  return <Retire id={id} name={name} retired={retired} action={setDeclarationTextRetired} what="wording" />;
 }
 
 export function EditPortalIntake({ values }: { values: Record<string, string> }) {

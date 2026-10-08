@@ -29,7 +29,7 @@ import { ableToAct, deciderFaults } from "@/lib/requisition/holders";
 import { earlierRecordersOf } from "@/lib/requisition/earlier-recorders";
 import { appInclude, recordOutcome, rejectApplicant, setAsideOnlineApplication } from "@/lib/suppliers/application-acts";
 import { SUPPLIER_ENTITY } from "@/lib/suppliers/audit-view";
-import { lodgeFaults, verifyFaults } from "@/lib/suppliers/documents";
+import { expiryCorrected, lodgeFaults, verifyFaults } from "@/lib/suppliers/documents";
 import { applicationFaults, contactFaults, normaliseRegistrationNo, receiptFaults } from "@/lib/suppliers/identity";
 import type { DocumentState } from "@/lib/suppliers/documents";
 import { APPLICATION_KIND_LABEL, approvedWords, CHANNEL_LABEL, DOCUMENT_STATE_LABEL, OUTCOME_LABEL, REGISTRATION_MATTER, REGISTRATION_REFUSED_DECIDED_BY, SUPPLIER_DECIDER_TEXT, SUPPLIER_STATUS_LABEL, supplierFaultText, VERIFICATION_LABEL } from "@/lib/suppliers/labels";
@@ -38,8 +38,9 @@ import { documentFacts, loadSupplierConfig, supplierOrg, typeFacts } from "@/lib
 import { approveFaults, decisionSnapshot, fileFacts, isOpen, lapseFaults, openApplicationFaults, submitFaults, type FileFacts } from "@/lib/suppliers/review";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 import { standingOf } from "@/lib/suppliers/standing-repo";
+import { reviewFacts } from "@/lib/portal/registration/review-facts";
 import { composeAddress, stepOneFaults, typedDay } from "@/lib/suppliers/step-one";
-import { PAPER_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_SERIES_KEY, VERIFICATION_STATES, type ApplicationKind, type Finding, type RegistrationValueKind, type SupplierStatus } from "@/lib/suppliers/types";
+import { PAPER_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, SUPPLIER_SERIES_KEY, VERIFICATION_STATES, type ApplicationChannel, type ApplicationKind, type Finding, type RegistrationValueKind, type SupplierStatus } from "@/lib/suppliers/types";
 import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 
@@ -191,8 +192,9 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
   const accountLoginName = openAccount ? r.text("accountLoginName", "Sign-in name", { max: 64 }) : "";
   const identityCheck = openAccount ? r.text("identityCheck", "How the caller's identity was checked", { max: 1000 }) : "";
   if (r.failed) return { ok: false, errors: r.errors };
-  // The application is recorded by the signed-in officer (Phase 2b).
-  const begun = await beginAct(actor, data, "SupplierApplication.recordedBy", { personField: "recordedByPersonId" });
+  // The application is recorded by the signed-in officer (Phase 2b). Accepting an online application (Phase 4b) records no application at all: the supplier sends its own when it has
+  // completed its registration in the wizard, so what the officer attributes here is the acceptance itself, the decision on the online application.
+  const begun = await beginAct(actor, data, portalApplicationId ? "PortalApplication.decidedBy" : "SupplierApplication.recordedBy", { personField: "recordedByPersonId" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
   // A hash is slow, so the password nobody knows that an account waits with is made before the transaction, and only when an account is asked for.
@@ -267,30 +269,37 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
         },
       });
       const c = await tx.supplierContact.create({ data: { organisationId: org.id, supplierId: supplier.id, name: contact.name, designation: contact.designation, email: contact.email, phone: contact.phone, isPrimary: true } });
-      const app = await tx.supplierApplication.create({
-        data: {
-          organisationId: org.id,
-          supplierId: supplier.id,
-          kind: "NEW",
-          receivedOn: dayToDate(v.receivedOn!),
-          channel: v.channel!,
-          recordedByPersonId: person!.id,
-          recordedAt: now,
-          declarationSignedOn: v.declarationSignedOn ? dayToDate(v.declarationSignedOn) : null,
-          epaymentFormReceivedOn: v.epaymentFormReceivedOn ? dayToDate(v.epaymentFormReceivedOn) : null,
-        },
-        include: { supplier: { select: { reference: true } } },
-      });
+      // Phase 4b (CPD registration spec B2.3): accepting an ONLINE application creates no application. The applicant has only given the company's details so far; its documents, codes, bank details and
+      // declarations come from the wizard, and the application is created when the supplier sends them. Until then nothing sits in the office's queue, and a paper approval cannot reach it. An
+      // officer can still record a paper application for the supplier through the paper path. A paper application is recorded with its application, as before.
+      const app = portal
+        ? null
+        : await tx.supplierApplication.create({
+            data: {
+              organisationId: org.id,
+              supplierId: supplier.id,
+              kind: "NEW",
+              receivedOn: dayToDate(v.receivedOn!),
+              channel: v.channel!,
+              recordedByPersonId: person!.id,
+              recordedAt: now,
+              declarationSignedOn: v.declarationSignedOn ? dayToDate(v.declarationSignedOn) : null,
+              epaymentFormReceivedOn: v.epaymentFormReceivedOn ? dayToDate(v.epaymentFormReceivedOn) : null,
+            },
+            include: { supplier: { select: { reference: true } } },
+          });
       await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.supplier, supplier.id, label(supplier, supplier.registeredName), "CREATE",
         diffFields(null, { reference, registeredName: supplier.registeredName, registrationNo: supplier.registrationNo, formatChecked: fs.some((f) => f.code === "FORMAT_NOT_CHECKED") ? "Not checked: no format is set" : "Matches the configured format", entityType: listWords(cfg, "ENTITY_TYPE", supplier.entityTypeCode), country: listWords(cfg, "COUNTRY", supplier.countryCode), registeredAddress: supplier.registeredAddress, state: stateName, dateIncorporated: day(supplier.incorporatedOn), bumiputeraDeclared: stepOne.bumiputeraClaimCode ? (cfg.listName("BUMIPUTERA_STATUS", stepOne.bumiputeraClaimCode) ?? "A status no longer listed") : "No claim made", companyEmail: supplier.companyEmail, status: "Applicant" }));
       await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.contact, c.id, label(supplier, "Primary contact"), "CREATE", diffFields(null, { contactName: c.name, contactDesignation: c.designation || null, contactEmail: c.email || null, contactPhone: c.phone || null, primary: true }));
-      await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.application, app.id, supplierApplicationLabel(app), "CREATE",
-        diffFields(null, { kind: APPLICATION_KIND_LABEL.NEW.en, receivedOn: v.receivedOn, channel: CHANNEL_LABEL[v.channel!].en, recordedBy: person!.name, declarationSignedOn: v.declarationSignedOn, epaymentFormReceivedOn: v.epaymentFormReceivedOn, ...(portal ? { onlineApplication: portal.reference } : {}) }));
-      await act.write(tx, app.id);
+      if (app) {
+        await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.application, app.id, supplierApplicationLabel(app), "CREATE",
+          diffFields(null, { kind: APPLICATION_KIND_LABEL.NEW.en, receivedOn: v.receivedOn, channel: CHANNEL_LABEL[v.channel!].en, recordedBy: person!.name, declarationSignedOn: v.declarationSignedOn, epaymentFormReceivedOn: v.epaymentFormReceivedOn }));
+        await act.write(tx, app.id);
+      }
       if (portal) {
         // Phase 4a: the applicant's words are KEPT (CPD's registration, ruling 6): the online page shows them beside the register's entry and lists every difference. They are erased only if the application is set aside.
         await tx.portalApplication.update({ where: { id: portal.id, organisationId: actor.organisationId }, data: { status: "RECORDED", acceptedSupplierId: supplier.id, decidedAt: now, decidedByPersonId: person!.id } });
-        await act.writeAlso(tx, "PortalApplication.decidedBy", portal.id);
+        await act.write(tx, portal.id);
         await audit(tx, toAuditActor(actor), org.id, SUPPLIER_ENTITY.onlineApplication, portal.id, label({ reference: portal.reference }, "Online application"), "UPDATE",
           diffFields({ status: "Received" }, { status: "Recorded as a supplier", supplier: supplier.reference, decidedBy: person!.name }));
       }
@@ -570,6 +579,9 @@ export async function verifyDocument(_prev: FormState, data: FormData): Promise<
   const state = r.choice("verification", "Outcome of the check", VERIFICATION_STATES.filter((s) => s !== "NOT_CHECKED"));
   const verifiedOn = r.optionalText("verifiedOn");
   const note = r.text("verificationNote", "Why", { max: 2000 });
+  // Phase 4b: the expiry date as the officer confirms it against the certificate. Absent from the form: not asked (an older drawer); present and different: a correction.
+  const expiryAsked = data.has("expiresOn");
+  const expiryTyped = expiryAsked ? r.optionalText("expiresOn") : null;
   if (r.failed) return { ok: false, errors: r.errors };
   const begun = await beginAct(actor, data, "SupplierDocument.verifiedBy", { personField: "personId" });
   if (!begun.ok) return begun.state;
@@ -582,19 +594,23 @@ export async function verifyDocument(_prev: FormState, data: FormData): Promise<
     const d = await tx.supplierDocument.findFirst({ where: { id: documentId, supplierId, organisationId: actor.organisationId }, include: { supplier: { select: { reference: true } }, attachments: { where: { purpose: "SUPPLIER_DOCUMENT" }, select: { detachedAt: true, version: { select: { withdrawnAt: true } } } } } });
     if (!d) return GONE;
     const person = await activePerson(tx, l.org.id, personId);
-    const fs = verifyFaults({ state, personActive: !!person, verifiedOn, note }, { verification: d.verification, lodgedOn: storedDay(d.lodgedOn), notApplicable: d.notApplicable, scanned: d.attachments.some(isLive) }, l.org.today);
+    const expiry = expiryAsked ? { from: day(d.expiresOn), to: expiryTyped } : null;
+    const fs = verifyFaults({ state, personActive: !!person, verifiedOn, note, expiry }, { verification: d.verification, lodgedOn: storedDay(d.lodgedOn), notApplicable: d.notApplicable, scanned: d.attachments.some(isLive) }, l.org.today);
     if (blocking(fs).length) {
       const errors: Record<string, string> = {};
       const rest: string[] = [];
       for (const f of blocking(fs)) {
-        const field = f.code === "PERSON_REQUIRED" ? "personId" : f.code === "DAY_REQUIRED" || f.code === "IN_FUTURE" || f.code === "BEFORE_LODGED" ? "verifiedOn" : f.code === "NOTE_REQUIRED" ? "verificationNote" : f.code === "STATE_REQUIRED" ? "verification" : null;
+        const field = f.code === "PERSON_REQUIRED" ? "personId" : f.code === "DAY_REQUIRED" || f.code === "IN_FUTURE" || f.code === "BEFORE_LODGED" ? "verifiedOn" : f.code === "NOTE_REQUIRED" || f.code === "EXPIRY_REASON_REQUIRED" ? "verificationNote" : f.code === "EXPIRY_NOT_A_DAY" ? "expiresOn" : f.code === "STATE_REQUIRED" ? "verification" : null;
         if (field) errors[field] = supplierFaultText(f);
         else rest.push(supplierFaultText(f));
       }
       return { ok: false, errors, ...(rest.length ? { message: `Nothing was saved: ${rest.join(" ")}` } : {}) };
     }
-    const moved = await tx.supplierDocument.updateMany({ where: { id: d.id, verification: "NOT_CHECKED" }, data: { verification: state!, verifiedByPersonId: person!.id, verifiedOn: dayToDate(verifiedOn!), verifiedAt: now, verificationNote: note } });
+    const corrected = expiryCorrected(expiry);
+    const moved = await tx.supplierDocument.updateMany({ where: { id: d.id, verification: "NOT_CHECKED" }, data: { verification: state!, verifiedByPersonId: person!.id, verifiedOn: dayToDate(verifiedOn!), verifiedAt: now, verificationNote: note, ...(corrected ? { expiresOn: expiry!.to ? dayToDate(expiry!.to) : null } : {}) } });
     if (moved.count !== 1) throw new Refusal(CHANGED);
+    // A correction of the expiry is a recorded change of its own: the date before and after, and the reason, in the trail (Phase 4b).
+    if (corrected) await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.document, d.id, supplierDocumentLabel(d), "UPDATE", diffFields({ expiresOn: day(d.expiresOn) }, { expiresOn: expiry!.to }), `Expiry date corrected when the document was checked: ${note}`);
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.document, d.id, supplierDocumentLabel(d), "UPDATE",
       diffFields({ verification: VERIFICATION_LABEL.NOT_CHECKED.en }, { verification: VERIFICATION_LABEL[state!].en, verifiedBy: person!.name, verifiedOn, verificationNote: note || null }), note);
     await act.write(tx, d.id);
@@ -605,15 +621,17 @@ export async function verifyDocument(_prev: FormState, data: FormData): Promise<
 // ------------------------------------------------------------------ the decision (FR-VND-007, OD-2 A)
 
 /// The application's file as approval judges it, read under the supplier's lock.
-async function fileOf(tx: Tx, l: LockedSupplier, a: { kind: string; status: FileFacts["status"]; lapsedRecordedAt: Date | null; resubmitBy: Date | null; declarationSignedOn: Date | null; routes: { status: string }[]; attachments: { purpose: string; detachedAt: Date | null; version: { withdrawnAt: Date | null } }[] }) {
-  const [types, docs, st] = await Promise.all([
+async function fileOf(tx: Tx, l: LockedSupplier, a: { id: string; channel: ApplicationChannel; kind: string; status: FileFacts["status"]; lapsedRecordedAt: Date | null; resubmitBy: Date | null; declarationSignedOn: Date | null; routes: { status: string }[]; attachments: { purpose: string; detachedAt: Date | null; version: { withdrawnAt: Date | null } }[] }) {
+  const [types, docs, st, extras] = await Promise.all([
     tx.supplierDocumentType.findMany({ where: { organisationId: l.org.id } }),
     tx.supplierDocument.findMany({ where: { supplierId: l.supplier.id } }),
     // FR-TRM-017 (fix S-2): a blacklisting in effect stops the approval, on the locked rows.
     l.org.today ? standingOf(l.supplier.id, l.org.id, l.org.today, tx) : Promise.resolve(null),
+    // Phase 4b (FR-VND-006, BD-613-44): how it came in, the declaration its supplier signed online and whether that stands in for the paper, and whether its bank details were checked.
+    reviewFacts(tx, l.org.id, l.supplier.id, a),
   ]);
   const f = fileFacts(
-    { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((x) => x.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist: st?.reading.blacklist ?? null, kind: a.kind as ApplicationKind, supplierStatus: l.supplier.status as SupplierStatus, cancellation: st?.reading.cancellation ?? null },
+    { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((x) => x.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist: st?.reading.blacklist ?? null, kind: a.kind as ApplicationKind, supplierStatus: l.supplier.status as SupplierStatus, cancellation: st?.reading.cancellation ?? null, ...extras },
     types.map(typeFacts),
     docs.map(documentFacts),
     l.org.today ?? "0000-01-01",

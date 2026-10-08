@@ -17,6 +17,7 @@ import {
   formatBytes,
   mediaLabel,
   RETENTION_TRIGGER_LABEL,
+  SUPPLIER_UPLOADER_WORDS,
 } from "@/lib/documents/labels";
 import { attentionText, classReadiness } from "@/lib/documents/readiness";
 import { attachableVersion, attachRefusal } from "@/lib/documents/targets";
@@ -257,7 +258,7 @@ export default async function DocumentsConfigPage() {
                     <Td label="Document"><CellStack title={d.title} sub={v?.originalFilename} /></Td>
                     <Td label="Class" className="text-ink-2">{d.documentClass.nameEn}</Td>
                     <Td label="Classification"><Badge tone={classificationTone(d.classificationSnapshot)}>{classificationBadge(d.classificationSnapshot)}</Badge></Td>
-                    <Td label="Received"><CellStack title={formatOrgDay(d.createdAt, tz)} sub={v ? <ActedBy entity="DocumentVersion" id={v.id} slot="recordedBy" name={v.recordedBy.name} /> : undefined} /></Td>
+                    <Td label="Received"><CellStack title={formatOrgDay(d.createdAt, tz)} sub={v ? v.recordedBy ? <ActedBy entity="DocumentVersion" id={v.id} slot="recordedBy" name={v.recordedBy.name} /> : SUPPLIER_UPLOADER_WORDS : undefined} /></Td>
                     <Td>
                       <RowActions>
                         {attachBlocked ? (

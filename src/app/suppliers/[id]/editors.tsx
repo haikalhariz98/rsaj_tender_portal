@@ -3,6 +3,7 @@ import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 
 import { decideApplication, decideRegistrationStep, lodgeDocument, openApplication, recordApplicationPaper, recordLapse, saveContact, setErpVendorCode, submitForDecision, verifyDocument } from "../actions";
+import { verifyCreditorProfile } from "../creditor-actions";
 
 /**
  * The supplier record's drawers (6.15a). No field carries a default but the day, where an act is
@@ -87,7 +88,7 @@ export function LodgeDocumentDrawer({ supplierId, types, values, people, renews,
   );
 }
 
-export function VerifyDocumentDrawer({ documentId, label, people, today, blocker }: { documentId: string; label: string; people: Option[]; today: string | null; blocker: string | null }) {
+export function VerifyDocumentDrawer({ documentId, label, people, today, blocker, expiresOn, asksExpiry }: { documentId: string; label: string; people: Option[]; today: string | null; blocker: string | null; /** The expiry date the document holds now (YYYY-MM-DD), to be confirmed against the certificate. */ expiresOn?: string | null; /** Whether this kind of document has an expiry to confirm. */ asksExpiry?: boolean }) {
   return (
     <RecordEditor
       title={`Record the check of ${label}`}
@@ -97,13 +98,39 @@ export function VerifyDocumentDrawer({ documentId, label, people, today, blocker
         { kind: "select", name: "verification", label: "Outcome", required: true, placeholder: "Choose", options: [{ value: "VERIFIED", label: "Verified" }, { value: "NOT_IN_ORDER", label: "Not in order" }] },
         actorField("SupplierDocument.verifiedBy", { name: "personId", people }),
         { kind: "date", name: "verifiedOn", label: "Checked on", required: true, hint: "Not after today, nor before it was lodged." },
-        { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required where it is not in order." },
+        ...(asksExpiry ? [{ kind: "date", name: "expiresOn", label: "Expiry date on the certificate", hint: "Confirm it against the certificate. If you change it, the note below must say why: the date before and after is recorded." } satisfies Field] : []),
+        { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required where it is not in order, or where you changed the expiry date." },
       ]}
-      values={{ documentId, verifiedOn: today }}
+      values={{ documentId, verifiedOn: today, ...(asksExpiry ? { expiresOn: expiresOn ?? "" } : {}) }}
       action={verifyDocument}
       submitLabel="Record the check"
       submitBlock={blocker}
       trigger={{ label: "Record the check", className: secondary, ariaLabel: `Record the check of ${label}` }}
+    />
+  );
+}
+
+/**
+ * The check of a supplier's bank details (Phase 4b, FR-VND-005): ONE officer, signed with their own password, against the statement the supplier uploaded. Found not in order, it says why; a
+ * later change by the supplier is a new version, checked on its own. `blocker` says why the check cannot be made, beside the button.
+ */
+export function VerifyCreditorDrawer({ profileId, version, today, blocker }: { profileId: string; version: number; today: string | null; blocker: string | null }) {
+  return (
+    <RecordEditor
+      title={`Check the bank details, version ${version}`}
+      description="Check the beneficiary and the bank against the statement the supplier uploaded. You sign with your own password. Payments to this supplier go to these details only once you have checked them."
+      fields={[
+        hidden("profileId"),
+        { kind: "select", name: "verification", label: "Outcome", required: true, placeholder: "Choose", options: [{ value: "VERIFIED", label: "In order" }, { value: "NOT_IN_ORDER", label: "Not in order" }] },
+        actorField("CreditorProfile.verifiedBy", { name: "personId", dated: true }),
+        { kind: "date", name: "verifiedOn", label: "Checked on", required: true, hint: "Not after today, nor before the supplier sent them." },
+        { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required where they are not in order: the supplier is told on its account page." },
+      ]}
+      values={{ profileId, verifiedOn: today }}
+      action={verifyCreditorProfile}
+      submitLabel="Record the check"
+      submitBlock={blocker}
+      trigger={{ label: "Check the bank details", className: primary, ariaLabel: `Check the bank details, version ${version}` }}
     />
   );
 }

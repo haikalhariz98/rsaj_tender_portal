@@ -14,6 +14,7 @@ import { documentTypeFaults, listValueFaults, valueFaults } from "@/lib/supplier
 import { bandPolicyFaults } from "@/lib/suppliers/expiry";
 import { asHeading, LIST_KIND_SINGULAR, supplierFaultText, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
 import { REGISTRATION_VALUE_KINDS, SUPPLIER_LIST_KINDS, type Finding, type RegistrationValueKind, type SupplierListKind } from "@/lib/suppliers/types";
+import { bytesOfMegabytes, DECLARATION_KIND_WORDS, DECLARATION_KINDS, declarationTextErrors, megabytesOfBytes, registrationSettingErrors, type DeclarationKindName } from "@/lib/suppliers/registration-settings";
 import { splitValues } from "@/lib/ui/select-logic";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor } from "@/app/_auth/actor";
@@ -129,7 +130,7 @@ export async function setRegistrationValueRetired(_prev: FormState, data: FormDa
 
 // ------------------------------------------------------------------ document types (FR-VND-002)
 
-const typeWords = (t: { nameEn: string; nameMs: string | null; valueKinds: string[]; expires: boolean | null; mandatoryAtRegistration: boolean | null; notApplicableAllowed: boolean | null; governingSource: string; provenance: string; retiredOn?: Date | null }, bodyName: string | null) => ({
+const typeWords = (t: { nameEn: string; nameMs: string | null; valueKinds: string[]; expires: boolean | null; mandatoryAtRegistration: boolean | null; notApplicableAllowed: boolean | null; hintEn: string | null; hintMs: string | null; recordsRate: boolean | null; repeatable: boolean | null; governingSource: string; provenance: string; retiredOn?: Date | null }, bodyName: string | null) => ({
   name: t.nameEn,
   nameInMalay: t.nameMs,
   registrationBody: bodyName,
@@ -137,6 +138,10 @@ const typeWords = (t: { nameEn: string; nameMs: string | null; valueKinds: strin
   expires: triWords(t.expires, "Carries an expiry", "Does not expire"),
   mandatoryAtRegistration: triWords(t.mandatoryAtRegistration, "Mandatory for every registration", "Not mandatory"),
   notApplicableAllowed: triWords(t.notApplicableAllowed, "May be recorded as not applicable", "May not be recorded as not applicable"),
+  whatTheApplicantIsTold: t.hintEn,
+  whatTheApplicantIsToldInMalay: t.hintMs,
+  recordsARate: triWords(t.recordsRate, "Records a rate", "Records no rate"),
+  severalMayBeLodged: triWords(t.repeatable, "Several, each with a title", "One"),
   governingSource: t.governingSource || null,
   whereItComesFrom: prov(t.provenance),
   retiredOn: t.retiredOn ? retiredWords(t.retiredOn) : null,
@@ -160,6 +165,11 @@ export async function saveDocumentType(_prev: FormState, data: FormData): Promis
     governingSource: r.text("governingSource", "Source", { max: 240 }),
     provenance: r.choice("provenance", "Where it comes from", PROVENANCE),
     sortOrder: r.int("sortOrder", "Order", { min: 0 }) ?? 0,
+    // Phase 4b: what the applicant is told the document is, whether it carries a rate, whether several may be lodged.
+    hintEn: r.optionalText("hintEn"),
+    hintMs: r.optionalText("hintMs"),
+    recordsRate: tri(r.choice("recordsRate", "Whether it records a rate", TRI)),
+    repeatable: tri(r.choice("repeatable", "Whether several may be lodged", TRI)),
   };
   // The shared multi-select posts its choices as one newline-joined field (splitValues).
   const posted = splitValues(data.get("valueKinds"));
@@ -176,10 +186,10 @@ export async function saveDocumentType(_prev: FormState, data: FormData): Promis
     const fs = documentTypeFaults({ ...v, code, valueKinds }, { codeTaken: !before && !!(await tx.supplierDocumentType.findFirst({ where: { organisationId: org.id, code }, select: { id: true } })), bodyExists: !!body });
     if (fs.length) return refusal(fs);
     // A switch judged on documents already on file changes only with the reason.
-    if (before && !reason && (before.expires !== v.expires || before.mandatoryAtRegistration !== v.mandatoryAtRegistration || before.notApplicableAllowed !== v.notApplicableAllowed || before.bodyId !== v.bodyId) && (await tx.supplierDocument.count({ where: { typeId: before.id } })) > 0) {
+    if (before && !reason && (before.expires !== v.expires || before.mandatoryAtRegistration !== v.mandatoryAtRegistration || before.notApplicableAllowed !== v.notApplicableAllowed || before.bodyId !== v.bodyId || before.recordsRate !== v.recordsRate || before.repeatable !== v.repeatable) && (await tx.supplierDocument.count({ where: { typeId: before.id } })) > 0) {
       return { ok: false, errors: { reason: "Documents of this type are on file: say why its setting changes." } };
     }
-    const row = { nameEn: v.nameEn, nameMs: v.nameMs, bodyId: v.bodyId, valueKinds, expires: v.expires, mandatoryAtRegistration: v.mandatoryAtRegistration, notApplicableAllowed: v.notApplicableAllowed, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder };
+    const row = { nameEn: v.nameEn, nameMs: v.nameMs, bodyId: v.bodyId, valueKinds, expires: v.expires, mandatoryAtRegistration: v.mandatoryAtRegistration, notApplicableAllowed: v.notApplicableAllowed, hintEn: v.hintEn, hintMs: v.hintMs, recordsRate: v.recordsRate, repeatable: v.repeatable, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder };
     const bodyName = async (bid: string | null) => (bid ? ((await tx.registrationBody.findFirst({ where: { id: bid, organisationId: actor.organisationId } }))?.labelEn ?? "A body no longer configured") : null);
     if (!before) {
       const created = await tx.supplierDocumentType.create({ data: { organisationId: org.id, code, ...row } });
@@ -335,6 +345,139 @@ export async function savePortalIntake(_prev: FormState, data: FormData): Promis
       await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", before.id, "Supplier register · online applications", "UPDATE", diffFields(words(before), words(v)!), String(data.get("reason") ?? ""));
     }
     return done();
+  });
+}
+
+// ------------------------------------------------------------------ registration online (Phase 4b)
+
+/**
+ * The settings the supplier's own registration is judged by: who to write to for help, how many files and bytes it may hold, the classes its uploads and bank statement take, and whether the
+ * signed online declaration stands in for the paper. Every one may be left not set; each unset one closes what it governs and the supplier's screen names it. Each set one says where it comes from.
+ */
+export async function saveRegistrationSettings(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const org = await organisation(actor);
+  if (!org) return NO_ORG;
+  const r = new FormReader(data);
+  const v = {
+    helpEmail: r.optionalText("helpEmail"),
+    helpPhone: r.optionalText("helpPhone"),
+    helpProvenance: r.choice("helpProvenance", "Where the help contact comes from", PROVENANCE),
+    maxFiles: r.int("maxFiles", "Files one registration may hold", { min: 1 }),
+    maxMegabytes: r.int("maxMegabytes", "Megabytes one registration may hold", { min: 1 }),
+    uploadLimitProvenance: r.choice("uploadLimitProvenance", "Where the limits come from", PROVENANCE),
+    uploadClassId: r.optionalText("uploadClassId"),
+    statementClassId: r.optionalText("statementClassId"),
+    uploadClassProvenance: r.choice("uploadClassProvenance", "Where the classes come from", PROVENANCE),
+    onlineDeclarationReplacesPaper: tri(r.choice("onlineDeclarationReplacesPaper", "Whether the online declaration replaces the paper", TRI)),
+    onlineDeclarationProvenance: r.choice("onlineDeclarationProvenance", "Where that ruling comes from", PROVENANCE),
+  };
+  if (r.failed) return { ok: false, errors: r.errors };
+  const classes = await db.documentClass.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true, classification: true } });
+  const errors = registrationSettingErrors(v, { classes });
+  if (errors.length) return { ok: false, errors: Object.fromEntries(errors.map((e) => [e.field, e.message])) };
+  const maxBytes = bytesOfMegabytes(v.maxMegabytes);
+  const row = {
+    helpEmail: v.helpEmail,
+    helpPhone: v.helpPhone,
+    helpProvenance: v.helpEmail || v.helpPhone ? v.helpProvenance : null,
+    uploadMaxFilesPerApplication: v.maxFiles,
+    uploadMaxBytesPerApplication: maxBytes,
+    uploadLimitProvenance: v.maxFiles != null ? v.uploadLimitProvenance : null,
+    supplierUploadClassId: v.uploadClassId,
+    supplierBankStatementClassId: v.statementClassId,
+    uploadClassProvenance: v.uploadClassId || v.statementClassId ? v.uploadClassProvenance : null,
+    onlineDeclarationReplacesPaper: v.onlineDeclarationReplacesPaper,
+    onlineDeclarationProvenance: v.onlineDeclarationReplacesPaper != null ? v.onlineDeclarationProvenance : null,
+  };
+  const className = (id: string | null) => (id ? (classes.find((c) => c.id === id)?.nameEn ?? "A class no longer configured") : "Not set");
+  const words = (p: { helpEmail: string | null; helpPhone: string | null; helpProvenance: string | null; uploadMaxFilesPerApplication: number | null; uploadMaxBytesPerApplication: bigint | null; uploadLimitProvenance: string | null; supplierUploadClassId: string | null; supplierBankStatementClassId: string | null; uploadClassProvenance: string | null; onlineDeclarationReplacesPaper: boolean | null; onlineDeclarationProvenance: string | null } | null) =>
+    p
+      ? {
+          helpEmail: p.helpEmail ?? "Not set",
+          helpPhone: p.helpPhone ?? "Not set",
+          helpFrom: prov(p.helpProvenance),
+          filesPerRegistration: p.uploadMaxFilesPerApplication ?? "Not set",
+          megabytesPerRegistration: p.uploadMaxBytesPerApplication == null ? "Not set" : megabytesOfBytes(p.uploadMaxBytesPerApplication),
+          limitsFrom: prov(p.uploadLimitProvenance),
+          classOfUploads: className(p.supplierUploadClassId),
+          classOfBankStatement: className(p.supplierBankStatementClassId),
+          classesFrom: prov(p.uploadClassProvenance),
+          onlineDeclarationReplacesPaper: triWords(p.onlineDeclarationReplacesPaper, "Replaces the paper declaration", "The paper declaration is still required"),
+          rulingFrom: prov(p.onlineDeclarationProvenance),
+        }
+      : null;
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await lockOrganisation(tx, org.id);
+    const before = await tx.supplierPolicy.findUnique({ where: { organisationId: org.id } });
+    const reason = String(data.get("reason") ?? "");
+    if (!before) {
+      const created = await tx.supplierPolicy.create({ data: { organisationId: org.id, ...row } });
+      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", created.id, "Supplier register · registration online", "CREATE", diffFields(null, words(row)!), reason);
+    } else {
+      await tx.supplierPolicy.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row });
+      await audit(tx, toAuditActor(actor), org.id, "SupplierPolicy", before.id, "Supplier register · registration online", "UPDATE", diffFields(words(before), words(row)!), reason);
+    }
+    return done();
+  });
+}
+
+/**
+ * A declaration's wording (FR-VND-005, FR-VND-006): the customer's, in English and Malay, versioned. A new wording is a new version, in force from the organisation's day it is saved and
+ * superseding the one before it; a supplier mid-way is asked to read the new one again, because a signature names the wording it was shown. A version some supplier has signed is never edited in
+ * place: its wording is what they signed. A version nobody has signed may be corrected, with the reason.
+ */
+export async function saveDeclarationText(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const org = await organisation(actor);
+  if (!org) return NO_ORG;
+  const id = String(data.get("id") ?? "").trim() || null;
+  const r = new FormReader(data);
+  const v = {
+    kind: r.choice("kind", "Which declaration", DECLARATION_KINDS),
+    bodyEn: r.text("bodyEn", "Wording", { required: true, max: 8000 }),
+    bodyMs: r.optionalText("bodyMs"),
+    provenance: r.choice("provenance", "Where the wording comes from", PROVENANCE),
+    governingSource: r.text("governingSource", "Source", { max: 240 }),
+  };
+  const reason = String(data.get("reason") ?? "").trim();
+  if (r.failed) return { ok: false, errors: r.errors };
+  const errors = declarationTextErrors(v, DECLARATION_KINDS);
+  if (errors.length) return { ok: false, errors: Object.fromEntries(errors.map((e) => [e.field, e.message])) };
+  const today = todayIn(new Date(), org.timeZone);
+  if (!today) return NO_ZONE;
+  const words = (t: { kind: string; version: number; bodyEn: string; bodyMs: string | null; provenance: string; governingSource: string }) => ({
+    declaration: DECLARATION_KIND_WORDS[t.kind as DeclarationKindName] ?? t.kind,
+    version: t.version,
+    wording: t.bodyEn,
+    wordingInMalay: t.bodyMs ?? "Not set",
+    whereItComesFrom: prov(t.provenance),
+    governingSource: t.governingSource || null,
+  });
+  return db.$transaction(async (tx): Promise<FormState> => {
+    await lockOrganisation(tx, org.id);
+    const before = id ? await tx.declarationText.findFirst({ where: { id, organisationId: org.id }, include: { _count: { select: { signed: true } } } }) : null;
+    if (id && !before) return GONE;
+    if (before) {
+      if (before._count.signed > 0) return { ok: false, message: `Version ${before.version} has been signed by ${before._count.signed} ${before._count.signed === 1 ? "supplier" : "suppliers"}, so its wording cannot change. Add a new version instead.` };
+      if (!reason) return { ok: false, errors: { reason: "Say why the wording changes." } };
+      const after = await tx.declarationText.update({ where: { id: before.id, organisationId: org.id }, data: { bodyEn: v.bodyEn, bodyMs: v.bodyMs, provenance: v.provenance!, governingSource: v.governingSource } });
+      await audit(tx, toAuditActor(actor), org.id, "DeclarationText", before.id, `${DECLARATION_KIND_WORDS[before.kind as DeclarationKindName]} · version ${before.version}`, "UPDATE", diffFields(words(before), words(after)), reason);
+      return done();
+    }
+    const latest = await tx.declarationText.aggregate({ where: { organisationId: org.id, kind: v.kind! }, _max: { version: true } });
+    const created = await tx.declarationText.create({ data: { organisationId: org.id, kind: v.kind!, version: (latest._max.version ?? 0) + 1, bodyEn: v.bodyEn, bodyMs: v.bodyMs, provenance: v.provenance!, governingSource: v.governingSource, issuedOn: dayToDate(today) } });
+    await audit(tx, toAuditActor(actor), org.id, "DeclarationText", created.id, `${DECLARATION_KIND_WORDS[v.kind!]} · version ${created.version}`, "CREATE", diffFields(null, { ...words(created), inForceFrom: formatDate(today) }), reason);
+    return done();
+  });
+}
+
+/// Withdraw a declaration's wording, or bring it back. A kind with no wording in force closes its step of the registration and names the missing text.
+export async function setDeclarationTextRetired(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  return setRetired(actor, toAuditActor(actor), data, "DeclarationText", async (tx, id, orgId) => {
+    const t = await tx.declarationText.findFirst({ where: { id, organisationId: orgId } });
+    return t ? { label: `${DECLARATION_KIND_WORDS[t.kind as DeclarationKindName]} · version ${t.version}`, retiredOn: t.retiredOn, apply: (d: Date | null) => tx.declarationText.update({ where: { id, organisationId: actor.organisationId }, data: { retiredOn: d } }) } : null;
   });
 }
 

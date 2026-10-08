@@ -259,11 +259,17 @@ describe("recording the supplier from an online application", () => {
   };
   const record = (o: Record<string, string> = {}) => recordApplication({ ok: false }, form({ ...FIELDS, portalApplicationId: "pa1", ...o }));
 
-  it("takes the channel and the day from the online application, never from the form", async () => {
+  // CHANGED in Phase 4b, for a ruled decision (the CPD registration spec, B2.3: "From 4b on, no SupplierApplication is created at acceptance for PORTAL. It is created at Submit"). This test
+  // asserted that accepting an online application recorded a PORTAL application with the officer as its recorder, the online application's day, and nothing taken from the form. Accepting
+  // now records the supplier, its contact and the decision on the online application, and NO application: the supplier sends its own when it has completed its registration, so an
+  // incomplete applicant is out of the office's queue and out of reach of a paper approval. Nothing the form says about a channel or a day is written anywhere.
+  it("records no application when it accepts an online application, and takes nothing about the channel or the day from the form", async () => {
     await expect(record({ channel: "COUNTER", receivedOn: "2020-01-01", declarationSignedOn: "2026-10-01", epaymentFormReceivedOn: "2026-10-01" })).rejects.toThrow(/REDIRECT \/suppliers\/s1/);
-    const app = h.created.find((c) => c.model === "supplierApplication")!.data;
-    expect(app).toMatchObject({ channel: "PORTAL", recordedByPersonId: "p1", declarationSignedOn: null, epaymentFormReceivedOn: null });
-    expect((app.receivedOn as Date).toISOString()).toBe("2026-10-05T00:00:00.000Z");
+    expect(h.created.find((c) => c.model === "supplierApplication")).toBeUndefined();
+    expect(h.created.find((c) => c.model === "supplier")).toBeDefined();
+    expect(h.created.find((c) => c.model === "supplierContact")).toBeDefined();
+    expect(JSON.stringify(h.created)).not.toContain("2020-01-01");
+    expect(JSON.stringify(h.audits.filter((a) => a.entity === "SupplierApplication"))).toBe("[]");
   });
 
   // CHANGED in Phase 4a (log: "Acceptance no longer erases the applicant's words"). This test asserted that recording the supplier ERASED every word the applicant typed; the
@@ -303,10 +309,11 @@ describe("recording the supplier from an online application", () => {
     expect(h.updates).toEqual([]);
   });
 
-  it("attributes both slots the one act fills to the signed-in officer: the application's recorder and the online application's decider", async () => {
+  // CHANGED in Phase 4b with the test above: the act fills ONE slot now, the online application's decider (there is no application whose recorder to attribute).
+  it("attributes the acceptance to the signed-in officer as the online application's decider, and writes no application's recorder", async () => {
     h.attributed.length = 0;
     await expect(record()).rejects.toThrow(/REDIRECT/);
-    expect(h.attributed.map((a) => `${a.entity}.${a.slot}`).sort()).toEqual(["PortalApplication.decidedBy", "SupplierApplication.recordedBy"]);
+    expect(h.attributed.map((a) => `${a.entity}.${a.slot}`)).toEqual(["PortalApplication.decidedBy"]);
     expect(h.attributed.every((a) => a.subjectPersonId === "person_test" && a.mode === "SIGNED")).toBe(true);
   });
 

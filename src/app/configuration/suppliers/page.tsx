@@ -13,10 +13,12 @@ import { storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
 import { asHeading, LIST_KIND_LABEL, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
+import { db } from "@/lib/db";
+import { DECLARATION_KIND_WORDS, DECLARATION_KINDS, megabytesOfBytes, type DeclarationKindName } from "@/lib/suppliers/registration-settings";
 import { loadSupplierConfig, supplierOrg } from "@/lib/suppliers/repo";
-import { SUPPLIER_LIST_KINDS, type RegistrationValueKind } from "@/lib/suppliers/types";
+import { OPTIONAL_LIST_KINDS, SUPPLIER_LIST_KINDS, type RegistrationValueKind } from "@/lib/suppliers/types";
 
-import { DocumentTypeDrawer, EditPortalIntake, EditStandingRules, EditSupplierPolicy, ListValueDrawer, RetireListValueDrawer, RetireStandingReasonDrawer, RetireTypeDrawer, RetireValueDrawer, StandingReasonDrawer, ValueDrawer } from "./editors";
+import { DeclarationTextDrawer, DocumentTypeDrawer, EditPortalIntake, EditRegistrationSettings, RetireDeclarationTextDrawer, EditStandingRules, EditSupplierPolicy, ListValueDrawer, RetireListValueDrawer, RetireStandingReasonDrawer, RetireTypeDrawer, RetireValueDrawer, StandingReasonDrawer, ValueDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
@@ -61,15 +63,23 @@ export default async function SupplierRegisterConfigPage() {
     );
   }
   const cfg = await loadSupplierConfig(org.id);
+  // Phase 4b: the classes a supplier's uploads may take, and the wordings of the two declarations with how many suppliers have signed each.
+  const [docClasses, declTexts] = await Promise.all([
+    db.documentClass.findMany({ where: { organisationId: org.id }, select: { id: true, nameEn: true, classification: true }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }] }),
+    db.declarationText.findMany({ where: { organisationId: org.id }, orderBy: [{ kind: "asc" }, { version: "desc" }], include: { _count: { select: { signed: true } } } }),
+  ]);
   const live = (d: Date | null) => d == null || (org.today != null && storedDay(d) > org.today);
   const retiredText = (d: Date | null) => (d && !live(d) ? `Retired ${formatDate(storedDay(d))}` : null);
   const bodyOptions = cfg.bodies.filter((b) => live(b.retiredOn)).map((b) => ({ value: b.id, label: asHeading(b.labelEn) }));
   const switchesNotSet = cfg.types.filter((t) => live(t.retiredOn)).reduce((n, t) => n + [t.expires, t.mandatoryAtRegistration, t.notApplicableAllowed].filter((x) => x == null).length, 0);
   // The Bumiputera statuses are optional: an empty list means the claim is simply not asked, and blocks nothing. The others close recording (and the public form) while empty.
-  const listsEmpty = SUPPLIER_LIST_KINDS.filter((k) => k !== "BUMIPUTERA_STATUS" && cfg.liveCodes(k, org.today).length === 0);
+  const listsEmpty = SUPPLIER_LIST_KINDS.filter((k) => !OPTIONAL_LIST_KINDS.includes(k) && cfg.liveCodes(k, org.today).length === 0);
   const p = cfg.policy;
   // a2: the standing rules, each "Not set" until decided (OD-4..OD-7, condition 4).
   const rulesNotSet = [p?.criticalDays, p?.expiryOnClosingDayCounts, p?.autoSuspendOnLapse, p?.blacklistFirstOffenceMonths, p?.registerRequiredForSale, p?.restrictionEvidenceTypeId, p?.ineligibleBidConsequence, p?.personalDataNoticeEn, p?.personalDataNoticeMs, p?.portalDailyLimit, p?.portalDailyLimitPerNumber].filter((x) => x == null).length;
+  const declarationsMissing = DECLARATION_KINDS.filter((k) => !declTexts.some((t) => t.kind === k && live(t.retiredOn)));
+  const registrationNotSet = [p?.helpEmail || p?.helpPhone || null, p?.uploadMaxFilesPerApplication, p?.supplierUploadClassId, p?.supplierBankStatementClassId, p?.onlineDeclarationReplacesPaper].filter((x) => x == null).length + declarationsMissing.length;
+  const className = (id: string | null | undefined) => docClasses.find((c) => c.id === id)?.nameEn ?? "A class no longer configured";
   const reasonName = (id: string | null | undefined) => cfg.reasons.find((x) => x.id === id)?.nameEn ?? null;
   const typeName = (id: string | null | undefined) => cfg.types.find((x) => x.id === id)?.nameEn ?? null;
   const rule = (set: boolean, value: React.ReactNode, from: string | null | undefined, unset: string) =>
@@ -79,7 +89,7 @@ export default async function SupplierRegisterConfigPage() {
     <>
       <PageHeader
         title="Supplier register"
-        badge={switchesNotSet + listsEmpty.length + rulesNotSet > 0 ? <Badge tone="warn" dot>{switchesNotSet + listsEmpty.length + rulesNotSet} not set</Badge> : <Badge tone="ok" dot>Set</Badge>}
+        badge={switchesNotSet + listsEmpty.length + rulesNotSet + registrationNotSet > 0 ? <Badge tone="warn" dot>{switchesNotSet + listsEmpty.length + rulesNotSet + registrationNotSet} not set</Badge> : <Badge tone="ok" dot>Set</Badge>}
         subtitle="Registration values, statutory document types, the register's lists and its notice."
         actions={
           <>
@@ -134,6 +144,90 @@ export default async function SupplierRegisterConfigPage() {
               ]}
             />
           </CardBody>
+        </Card>
+
+        <Card id="registration-online" className="scroll-mt-24">
+          <CardHeader
+            icon={<SlidersIcon size={17} />}
+            title="Registration online"
+            subtitle="What a supplier's own registration (documents, work codes, bank details, declarations) is judged by. Each setting not set keeps what it governs closed, and the supplier's screen says which."
+            actions={
+              <span className="flex flex-wrap items-center gap-2">
+                {p && <HistoryButton entity="SupplierPolicy" entityId={p.id} label="registration online" />}
+                <EditRegistrationSettings
+                  values={{ helpEmail: p?.helpEmail ?? "", helpPhone: p?.helpPhone ?? "", helpProvenance: p?.helpProvenance ?? "", maxFiles: p?.uploadMaxFilesPerApplication?.toString() ?? "", maxMegabytes: megabytesOfBytes(p?.uploadMaxBytesPerApplication ?? null)?.toString() ?? "", uploadLimitProvenance: p?.uploadLimitProvenance ?? "", uploadClassId: p?.supplierUploadClassId ?? "", statementClassId: p?.supplierBankStatementClassId ?? "", uploadClassProvenance: p?.uploadClassProvenance ?? "", onlineDeclarationReplacesPaper: tri(p?.onlineDeclarationReplacesPaper ?? null), onlineDeclarationProvenance: p?.onlineDeclarationProvenance ?? "" }}
+                  classes={{ upload: docClasses.map((c) => ({ value: c.id, label: c.nameEn })), statement: docClasses.filter((c) => c.classification === "SULIT").map((c) => ({ value: c.id, label: c.nameEn })) }}
+                />
+              </span>
+            }
+          />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={[
+                { label: "Help contact", value: rule(!!(p?.helpEmail || p?.helpPhone), [p?.helpEmail, p?.helpPhone].filter(Boolean).join(" · "), p?.helpProvenance, "The supplier's registration shows no line saying who to ask.") },
+                { label: "What one registration may hold", value: rule(p?.uploadMaxFilesPerApplication != null && p?.uploadMaxBytesPerApplication != null, `${p?.uploadMaxFilesPerApplication} files, ${megabytesOfBytes(p?.uploadMaxBytesPerApplication ?? null)} MB in all`, p?.uploadLimitProvenance, "A supplier cannot upload a file.") },
+                { label: "Class of a supplier's uploads", value: rule(p?.supplierUploadClassId != null, className(p?.supplierUploadClassId), p?.uploadClassProvenance, "A supplier cannot upload a file.") },
+                { label: "Class of a bank statement", value: rule(p?.supplierBankStatementClassId != null, className(p?.supplierBankStatementClassId), p?.uploadClassProvenance, "A supplier cannot upload its bank statement.") },
+                { label: "The declaration signed online", value: rule(p?.onlineDeclarationReplacesPaper != null, p?.onlineDeclarationReplacesPaper ? "Replaces the paper declaration" : "The paper declaration is still required", p?.onlineDeclarationProvenance, "The paper declaration is still required, and an application cannot be approved on the online one alone.") },
+              ]}
+            />
+          </CardBody>
+        </Card>
+
+        <Card id="declarations" className="scroll-mt-24 overflow-hidden">
+          <CardHeader
+            icon={<FileIcon size={17} />}
+            title={<span className="inline-flex items-center gap-2">Declarations{declTexts.length > 0 && <Badge outline>{declTexts.length}</Badge>}</span>}
+            subtitle="The wording a supplier reads and signs: the GIRO authorisation and the false-declaration acknowledgement. Versioned: the one in force is the highest version not withdrawn. None ships."
+            actions={<DeclarationTextDrawer />}
+            divided={declTexts.length === 0}
+          />
+          {declarationsMissing.map((k) => (
+            <p key={k} className="border-b border-line/70 px-5 py-3 text-[13px] text-ink-2 sm:px-6">
+              <Badge tone="warn">Not set</Badge> <span className="ml-1">{DECLARATION_KIND_WORDS[k]}: it has no wording in force, so that step of a supplier&apos;s registration stays closed.</span>
+            </p>
+          ))}
+          {declTexts.length === 0 ? (
+            <EmptyState title="None configured">Add the wording of both declarations before a supplier can finish its registration.</EmptyState>
+          ) : (
+            <Table minWidth={760}>
+              <colgroup>
+                <col />
+                <col style={{ width: 150 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 110 }} />
+                <ActionsCol icons={1} labelled={2} />
+              </colgroup>
+              <THead>
+                <Th>Wording</Th>
+                <Th>In force from</Th>
+                <Th>Signed by</Th>
+                <Th>Source</Th>
+                <Th className="text-right">Actions</Th>
+              </THead>
+              <tbody>
+                {declTexts.map((t) => {
+                  const name = `${DECLARATION_KIND_WORDS[t.kind as DeclarationKindName]} · version ${t.version}`;
+                  return (
+                    <Tr key={t.id}>
+                      <Td label="Wording"><CellStack title={name} sub={[t.bodyEn.length > 140 ? `${t.bodyEn.slice(0, 140)}…` : t.bodyEn, t.bodyMs ? "Malay wording set" : "No Malay wording", retiredText(t.retiredOn)].filter(Boolean).join(" · ")} /></Td>
+                      <Td label="In force from">{formatDate(storedDay(t.issuedOn))}</Td>
+                      <Td label="Signed by">{t._count.signed === 0 ? <span className="text-ink-4">No one</span> : `${t._count.signed} ${t._count.signed === 1 ? "supplier" : "suppliers"}`}</Td>
+                      <Td label="Source"><ProvenanceBadge value={t.provenance} /></Td>
+                      <Td>
+                        <RowActions>
+                          <HistoryButton iconOnly entity="DeclarationText" entityId={t.id} label={name} />
+                          {t._count.signed === 0 && <DeclarationTextDrawer text={{ id: t.id, name, values: { id: t.id, kind: t.kind, bodyEn: t.bodyEn, bodyMs: t.bodyMs ?? "", governingSource: t.governingSource, provenance: t.provenance } }} />}
+                          <RetireDeclarationTextDrawer id={t.id} name={name} retired={!live(t.retiredOn)} />
+                        </RowActions>
+                      </Td>
+                    </Tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          )}
         </Card>
 
         <Card id="standing" className="scroll-mt-24">
@@ -256,7 +350,7 @@ export default async function SupplierRegisterConfigPage() {
                       <Td>
                         <RowActions>
                           <HistoryButton iconOnly entity="SupplierDocumentType" entityId={t.id} label={t.nameEn} />
-                          <DocumentTypeDrawer bodies={bodyOptions} type={{ id: t.id, name: t.nameEn, values: { id: t.id, code: t.code, nameEn: t.nameEn, nameMs: t.nameMs ?? "", bodyId: t.bodyId ?? "", valueKinds: t.valueKinds.join("\n"), expires: tri(t.expires), mandatoryAtRegistration: tri(t.mandatoryAtRegistration), notApplicableAllowed: tri(t.notApplicableAllowed), governingSource: t.governingSource, provenance: t.provenance, sortOrder: String(t.sortOrder) } }} />
+                          <DocumentTypeDrawer bodies={bodyOptions} type={{ id: t.id, name: t.nameEn, values: { id: t.id, code: t.code, nameEn: t.nameEn, nameMs: t.nameMs ?? "", bodyId: t.bodyId ?? "", valueKinds: t.valueKinds.join("\n"), expires: tri(t.expires), mandatoryAtRegistration: tri(t.mandatoryAtRegistration), notApplicableAllowed: tri(t.notApplicableAllowed), hintEn: t.hintEn ?? "", hintMs: t.hintMs ?? "", recordsRate: tri(t.recordsRate), repeatable: tri(t.repeatable), governingSource: t.governingSource, provenance: t.provenance, sortOrder: String(t.sortOrder) } }} />
                           <RetireTypeDrawer id={t.id} name={t.nameEn} retired={!live(t.retiredOn)} />
                         </RowActions>
                       </Td>
@@ -341,7 +435,7 @@ export default async function SupplierRegisterConfigPage() {
                     <ListValueDrawer list={k} listName={LIST_KIND_LABEL[k].en} />
                   </div>
                   {rows.length === 0 ? (
-                    <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">{k === "BUMIPUTERA_STATUS" ? "Not set: the declared Bumiputera status is not asked on the form. List only statuses that are a claim: a value on this list is read as a claim and expects an evidence document, and a blank answer is how no claim is made." : "Not set: no supplier can be recorded until it has an entry."}</p>
+                    <p className="px-5 pb-4 text-[13px] text-ink-3 sm:px-6">{k === "BUMIPUTERA_STATUS" ? "Not set: the declared Bumiputera status is not asked on the form. List only statuses that are a claim: a value on this list is read as a claim and expects an evidence document, and a blank answer is how no claim is made." : k === "BANK" || k === "ACCOUNT_TYPE" ? "Not set: a signed-in supplier cannot finish the bank-details step of its registration until this list has an entry. Recording a supplier is not held up by it." : "Not set: no supplier can be recorded until it has an entry."}</p>
                   ) : (
                     <Table minWidth={560}>
                       <colgroup>

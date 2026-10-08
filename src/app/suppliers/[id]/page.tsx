@@ -12,7 +12,7 @@ import { notFound } from "next/navigation";
 import { EscalateDrawer } from "@/app/approvals/editors";
 import { RouteSteps } from "@/app/sourcing/[id]/route-steps";
 import { OwnerAttachments } from "@/components/attachments/owner-attachments";
-import { BuildingIcon, ClipboardIcon, ClockIcon, FileIcon, LinkIcon, RouteIcon, ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
+import { BuildingIcon, ClipboardIcon, ClockIcon, FileIcon, LinkIcon, LockIcon, RouteIcon, ScaleIcon, ShieldIcon, UsersIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
 import { Tabs } from "@/components/tabs";
 import { isMandatoryAct } from "@/components/ui/act";
@@ -75,6 +75,10 @@ import { OpenPortalAccount, IssueSupplierCode, RetireContact, UnlockSupplierAcco
 import { EligibilityPanel, ParticipationPanel, StandingPanel } from "./standing-panels";
 import { ContactDrawer, DecideStepDrawer, LodgeDocumentDrawer, OpenApplicationDrawer, PaperDaysDrawer, RecordLapseDrawer, RejectApplicationDrawer, ResubmissionDrawer, SubmitApplicationDrawer, VendorCodeDrawer, VerifyDocumentDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
+import type { StaffActor } from "@/lib/auth/types";
+import { reviewFacts } from "@/lib/portal/registration/review-facts";
+import { ApplicationSummary } from "./application-summary";
+import { CreditorPanel } from "./creditor-panel";
 import { loadAttributions } from "@/lib/auth/attribution-read";
 
 export const dynamic = "force-dynamic";
@@ -91,7 +95,7 @@ const first = (fs: readonly Finding[]) => (blocking(fs).length ? supplierFaultTe
  */
 export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) {
   const actor = await requireStaff();
-  const [{ id }, { tab, exercise, fromAward }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; exercise?: string; fromAward?: string }>]);
+  const [{ id }, { tab, exercise, fromAward, version }] = await Promise.all([props.params, props.searchParams as Promise<{ tab?: string; exercise?: string; fromAward?: string; version?: string }>]);
   const l = await loadSupplier(actor.organisationId, id, await hiddenExercises(actor));
   if (!l) notFound();
   const { supplier: s, org } = l;
@@ -108,11 +112,19 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
   // a2: where it stands, derived on the organisation's day (OD-7 A), never stored.
   const reading = today ? standing({ status, registeredOn: day(s.registeredOn) }, s.standingEvents.map(standingEventFacts), states.filter((x) => x.mandatory).map((x) => ({ typeLabel: x.type.label, state: x.state })), { autoSuspendOnLapse: cfg.policy?.autoSuspendOnLapse ?? null }, today) : null;
   const linkedCount = s.parties.length + s.awards.filter((a) => !a.awardeePartyId).length;
+  // Phase 4b: how many versions of its bank details the supplier has sent (a count, never a value), and where its registration stands, for the header.
+  const [creditorCount, sentOnline] = await Promise.all([
+    db.creditorProfile.count({ where: { supplierId: s.id, organisationId: org.id, submittedAt: { not: null } } }),
+    db.supplierApplication.findFirst({ where: { supplierId: s.id, organisationId: org.id, channel: "PORTAL", submittedAt: { not: null } }, orderBy: { submittedAt: "asc" }, select: { receivedOn: true } }),
+  ]);
+  const waitingForApplicant = status === "APPLICANT" && s.applications.length === 0 && s.portalApplications.length > 0;
 
   const tabs = [
     { id: "profile", label: "Profile", icon: <BuildingIcon size={15} />, panel: <ProfilePanel sulit={sulit} l={l} cfg={cfg} canManageAccounts={actor.permissions.has("supplierAccounts.manage")} /> },
     { id: "documents", label: "Documents", icon: <FileIcon size={15} />, count: s.documents.length, panel: <DocumentsPanel l={l} cfg={cfg} people={peopleOptions} /> },
-    { id: "applications", label: "Applications", icon: <ClipboardIcon size={15} />, count: s.applications.length, panel: <ApplicationsPanel l={l} cfg={cfg} people={peopleOptions} blacklist={reading?.blacklist ?? null} cancellation={reading?.cancellation ?? null} /> },
+    { id: "applications", label: "Applications", icon: <ClipboardIcon size={15} />, count: s.applications.length, panel: <ApplicationsPanel actor={actor} l={l} cfg={cfg} people={peopleOptions} blacklist={reading?.blacklist ?? null} cancellation={reading?.cancellation ?? null} sulit={sulit} waitingForApplicant={waitingForApplicant} summaryOpen={tab === "applications"} /> },
+    // Phase 4b: the supplier's bank details, SULIT. Read only while this tab is the one open (it reads the details, and the reading is logged).
+    { id: "creditor", label: "Creditor profile", icon: <LockIcon size={15} />, count: creditorCount, lazy: true, panel: tab === "creditor" ? <CreditorPanel actor={actor} l={l} version={version ?? null} /> : null },
     { id: "standing", label: "Standing", icon: <ShieldIcon size={15} />, count: s.standingEvents.length, panel: <StandingPanel l={l} cfg={cfg} reading={reading} people={peopleOptions} fromAward={fromAward ?? null} /> },
     { id: "eligibility", label: "Eligibility", icon: <ScaleIcon size={15} />, panel: <EligibilityPanel l={l} exerciseId={exercise ?? null} /> },
     { id: "participation", label: "Participation", icon: <LinkIcon size={15} />, count: linkedCount, panel: <ParticipationPanel l={l} people={peopleOptions} /> },
@@ -132,7 +144,8 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
           <span key="ref" className="font-mono text-[12.5px]">{s.reference}</span>,
           cfg.listName("ENTITY_TYPE", s.entityTypeCode) ?? "An entity type no longer listed",
           cfg.listName("COUNTRY", s.countryCode) ?? "A country no longer listed",
-          open ? `${APPLICATION_KIND_LABEL[open.kind as ApplicationKind].en}: ${QUEUE_STATE_LABEL[queueState({ ...open, resubmitBy: day(open.resubmitBy) }, today)].en.toLowerCase()}` : "No application open",
+          open ? `${APPLICATION_KIND_LABEL[open.kind as ApplicationKind].en}: ${QUEUE_STATE_LABEL[queueState({ ...open, resubmitBy: day(open.resubmitBy) }, today)].en.toLowerCase()}` : waitingForApplicant ? "Waiting for the applicant to complete registration online" : "No application open",
+          sentOnline ? `Registration sent ${formatDate(day(sentOnline.receivedOn))}` : null,
           status === "REGISTERED" ? (s.erpVendorCode ? `Vendor code ${s.erpVendorCode}` : ERP_NOT_SYNCED.en) : null,
         ]}
       />
@@ -321,6 +334,7 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
               return (
                 <section key={st.type.id} className="flex flex-col gap-3 px-5 py-4 sm:px-6">
                   <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-col gap-0.5">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <span className="text-[14.5px] font-semibold text-ink">{st.type.label}</span>
                       {st.mandatory && <Badge outline>Mandatory</Badge>}
@@ -328,6 +342,8 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
                       {st.pending && st.effective && <Chip tone="warn">Renewal lodged, not verified yet</Chip>}
                       {st.upcoming && <Chip tone="info">{renewalUpcomingWords(st.upcoming.validFrom)}</Chip>}
                       {today && st.effective?.expiresOn && st.state === "VALID" && (() => { const b = expiryBand(st.effective.expiresOn, today, { criticalDays: cfg.policy?.criticalDays ?? null, warningDays: cfg.policy?.warningDays ?? null, upcomingDays: cfg.policy?.upcomingDays ?? null }); return b.band === "NONE" ? null : <Chip tone={EXPIRY_BAND_TONE[b.band] === "neutral" ? undefined : EXPIRY_BAND_TONE[b.band]}>{`Expiry: ${EXPIRY_BAND_LABEL[b.band].en.toLowerCase()}${b.daysLeft != null ? `, ${b.daysLeft} days left` : ""}`}</Chip>; })()}
+                    </div>
+                    {typeRow.hintEn && <p className="text-[12.5px] text-ink-3">{typeRow.hintEn}</p>}
                     </div>
                     {st.state === "MISSING" && <LodgeDocumentDrawer supplierId={s.id} types={[{ value: st.type.id, label: st.type.label }]} values={values(typeRow.bodyId)} people={people} blocker={lodgeBlocker === null || lodgeBlocker.startsWith("Every") ? null : lodgeBlocker} trigger="Lodge" />}
                   </div>
@@ -345,12 +361,13 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
                           <li key={d.id} className="border-t border-line/60 pt-3 first:border-t-0 first:pt-0">
                             <div className="flex flex-wrap items-start justify-between gap-2">
                               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                <span className="text-[13.5px] font-semibold text-ink">{d.notApplicable ? "Recorded as not applicable" : d.supersedesId ? "Renewal" : "Lodged"}{row.reference ? ` · ${row.reference}` : ""}</span>
+                                <span className="text-[13.5px] font-semibold text-ink">{d.notApplicable ? "Recorded as not applicable" : d.supersedesId ? "Renewal" : "Lodged"}{row.title ? ` · ${row.title}` : ""}{row.reference ? ` · ${row.reference}` : ""}</span>
                                 <Badge tone={VERIFICATION_TONE[d.verification]}>{VERIFICATION_LABEL[d.verification].en}</Badge>
+                                {scanned && row.attachments.some((a) => a.purpose === "SUPPLIER_DOCUMENT" && isLive(a) && a.version.scanState === "NOT_SCANNED") && <Chip tone="warn">Not scanned</Chip>}
                                 {!head && <Chip>Renewed since</Chip>}
                               </div>
                               <span className="flex flex-wrap items-center gap-2">
-                                {d.verification === "NOT_CHECKED" && <VerifyDocumentDrawer documentId={d.id} label={`${st.type.label}${row.reference ? ` ${row.reference}` : ""}`} people={people} today={today} blocker={verifyBlocker} />}
+                                {d.verification === "NOT_CHECKED" && <VerifyDocumentDrawer documentId={d.id} label={`${st.type.label}${row.reference ? ` ${row.reference}` : ""}`} people={people} today={today} blocker={verifyBlocker} expiresOn={d.expiresOn} asksExpiry={typeRow.expires !== false && !d.notApplicable} />}
                                 {head && !d.notApplicable && <LodgeDocumentDrawer supplierId={s.id} types={[]} values={values(typeRow.bodyId)} people={people} renews={{ id: d.id, typeId: d.typeId, label: `${st.type.label}${row.reference ? ` ${row.reference}` : ""}` }} blocker={renewBlocker} />}
                               </span>
                             </div>
@@ -361,8 +378,9 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
                                 { label: "Issuing authority", value: row.issuingAuthority || "—" },
                                 { label: "Issued on", value: d.issuedOn ? formatDate(d.issuedOn) : "—" },
                                 { label: "Valid", value: d.notApplicable ? "—" : `${d.validFrom ? `from ${formatDate(d.validFrom)}` : "from issue"}${d.expiresOn ? ` to ${formatDate(d.expiresOn)}` : typeRow.expires === false ? ", no expiry" : ""}` },
-                                { label: "Values", value: row.values.length ? row.values.map((v) => v.labelSnapshot).join(", ") : "—" },
-                                { label: "Lodged", value: <>{formatDate(d.lodgedOn)} · <ActedBy entity="SupplierDocument" id={row.id} slot="recordedBy" name={row.recordedBy.name} /></> },
+                                { label: "Codes", value: row.values.length ? row.values.map((v) => `${v.codeSnapshot} — ${v.labelSnapshot}`).join("; ") : "—" },
+                                ...(row.ratePercent != null ? [{ label: "Rate", value: `${row.ratePercent.toString()}%` }] : []),
+                                { label: "Lodged", value: <>{formatDate(d.lodgedOn)} · {row.recordedBy ? <ActedBy entity="SupplierDocument" id={row.id} slot="recordedBy" name={row.recordedBy.name} /> : "the supplier's own portal account"}</> },
                                 { label: "Checked", value: d.verification === "NOT_CHECKED" ? "Not yet" : <>{formatDate(d.verifiedOn)} · {row.verifiedBy ? <ActedBy entity="SupplierDocument" id={row.id} slot="verifiedBy" name={row.verifiedBy.name} /> : "Not recorded"}{row.verificationNote ? ` · “${row.verificationNote}”` : ""}</> },
                               ]}
                             />
@@ -388,11 +406,13 @@ function DocumentsPanel({ l, cfg, people }: { l: LoadedSupplier; cfg: SupplierCo
 
 // ------------------------------------------------------------------ applications
 
-async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { l: LoadedSupplier; cfg: SupplierConfig; people: Option[]; blacklist: BlacklistInEffect | null; cancellation: CancellationInEffect | null }) {
+async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellation, sulit, waitingForApplicant, summaryOpen }: { actor: StaffActor; l: LoadedSupplier; cfg: SupplierConfig; people: Option[]; blacklist: BlacklistInEffect | null; cancellation: CancellationInEffect | null; sulit: Sulit<true>; waitingForApplicant: boolean; summaryOpen: boolean }) {
   const s = l.supplier;
   const today = l.org.today;
   // Who decided each outcome, signed or recorded from paper, is read from its attribution (Phase 2b).
   const decided = await loadAttributions(db, l.org.id, [{ entity: "ApplicationDecision", slot: "decidedBy", ids: s.applications.flatMap((a) => a.decisions.map((d) => d.id)) }]);
+  // Phase 4b (FR-VND-006, BD-613-44): how each came in, the declaration its supplier signed online and whether that stands in for the paper, and whether its bank details were checked.
+  const extras = new Map(await Promise.all(s.applications.map(async (a) => [a.id, await reviewFacts(db, l.org.id, s.id, a)] as const)));
   const anyOpen = s.applications.some(isOpen);
   // M-1: the kinds this supplier may open, by the act's own rule: a cancelled registration opens only a new one (the way back).
   const kinds = APPLICATION_KINDS.filter((k) => applicationKindFaults(k, s.status as SupplierStatus, cancellation).length === 0).map((k) => ({ value: k, label: APPLICATION_KIND_LABEL[k].en }));
@@ -416,13 +436,19 @@ async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { 
       </div>
       {s.applications.length === 0 && (
         <Card>
-          <EmptyState title="No application recorded">A supplier is recorded with its first application.</EmptyState>
+          {waitingForApplicant ? (
+            <EmptyState title="Waiting for the applicant to complete registration online">
+              The supplier was accepted from online application {s.portalApplications[0]?.reference ? <Link href={`/suppliers/online/${s.portalApplications[0].id}`}>{s.portalApplications[0].reference}</Link> : "one"} and has not yet sent its documents, work codes, bank details and declarations. Its application appears here, in the queue, when it sends them. Until then nothing can be approved. To record a paper application for it instead, use &ldquo;Record a further application&rdquo; above.
+            </EmptyState>
+          ) : (
+            <EmptyState title="No application recorded">A supplier is recorded with its first application.</EmptyState>
+          )}
         </Card>
       )}
       {s.applications.map((a) => {
         const st = queueState({ ...a, resubmitBy: day(a.resubmitBy) }, today);
         const isOpenNow = isOpen(a);
-        const f = today ? fileFacts({ status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((r) => r.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist, kind: a.kind as ApplicationKind, supplierStatus: s.status as SupplierStatus, cancellation }, cfg.typeFacts, docs, today) : null;
+        const f = today ? fileFacts({ status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((r) => r.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist, kind: a.kind as ApplicationKind, supplierStatus: s.status as SupplierStatus, cancellation, ...extras.get(a.id)! }, cfg.typeFacts, docs, today) : null;
         const preview = issue && isOpenNow ? supplierRoute(issue.matrix, SUPPLIER_REGISTRATION_DOMAIN, a.kind, { id: "", holds: () => false, ableToAct: () => ({ holderIds: ["someone"], delegateIds: [] }) }, REGISTRATION_MATTER) : null;
         const submitBlocker = !today ? supplierFaultText({ code: "TIME_ZONE_UNSET", level: "block" }) : first(submitFaults(f!, today)) ?? (!issue ? "No approval matrix is in force. Issue one under Configuration › Approval matrix." : preview?.refusal?.en ?? null);
         const decideBlocker = (outcome: "RESUBMIT" | "REJECT") => first(decisionFaults({ outcome, remarks: "x", resubmitBy: null, items: [{ documentId: null, typeId: null, remarks: "x" }], personActive: true }, { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((r) => r.status === "PENDING") }, { today, documentIds: [], typeIds: [] }).filter((x) => ["TIME_ZONE_UNSET", "DECIDED", "LAPSE_UNRECORDED", "ROUTE_PENDING"].includes(x.code)));
@@ -439,10 +465,11 @@ async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { 
               actions={<Badge tone={QUEUE_STATE_TONE[st]} dot>{QUEUE_STATE_LABEL[st].en}</Badge>}
             />
             <CardBody className="flex flex-col gap-4">
+              {a.submittedAt && <Callout tone="info" title="Sent by the supplier itself">The supplier completed and sent this registration from the portal on {formatOrgDateTime(a.submittedAt, l.org.timeZone)}. Its declaration is signed online. {extras.get(a.id)?.onlineDeclarationReplacesPaper === true ? "The organisation has said that stands in for the paper declaration." : extras.get(a.id)?.onlineDeclarationReplacesPaper === false ? "The organisation has said the paper declaration is still required." : "The organisation has not said whether that stands in for the paper declaration (Configuration, Supplier register, Policy), so the paper is still required until it does."}</Callout>}
               <KeyValues
                 columns={3}
                 items={[
-                  { label: "Declaration signed on", value: a.declarationSignedOn ? formatDate(day(a.declarationSignedOn)) : notSet("Not recorded") },
+                  { label: "Declaration signed on", value: a.declarationSignedOn ? formatDate(day(a.declarationSignedOn)) : a.submittedAt ? <span>Online, {formatOrgDay(a.submittedAt, l.org.timeZone)}</span> : notSet("Not recorded") },
                   { label: "E-Payment form received on", value: a.epaymentFormReceivedOn ? formatDate(day(a.epaymentFormReceivedOn)) : notSet("Not recorded") },
                   { label: "Resubmit by", value: a.resubmitBy && a.status === "RESUBMISSION_REQUESTED" ? formatDate(day(a.resubmitBy)) : "—" },
                 ]}
@@ -514,6 +541,12 @@ async function ApplicationsPanel({ l, cfg, people, blacklist, cancellation }: { 
                 />
               </div>
             ))}
+            {summaryOpen && a.submittedAt && (
+              <div className="border-t border-line p-4 sm:p-5">
+                <h3 className="mb-3 text-[14.5px] font-bold text-ink">Application summary</h3>
+                <ApplicationSummary actor={actor} l={l} applicationId={a.id} contactsGate={sulit} />
+              </div>
+            )}
             <div className="border-t border-line p-4 sm:p-5">
               <OwnerAttachments
                 owner={{ kind: "supplierApplication", id: a.id }}

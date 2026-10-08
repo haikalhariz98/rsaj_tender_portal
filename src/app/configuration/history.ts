@@ -96,6 +96,8 @@ const ENTITIES = new Set([
   "RateSchedule",
   "RegistrationBody",
   "RegistrationValue",
+  // Phase 4b: the wording of the registration's two declarations, version by version.
+  "DeclarationText",
   "StandingReason",
   "SupplierDocumentType",
   "SupplierListValue",
