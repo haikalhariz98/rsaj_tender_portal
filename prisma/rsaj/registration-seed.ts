@@ -11,7 +11,8 @@
  *   registration-values.json   [{ bodyCode, kind, code, nameEn, nameMs?, parentCode?, rank?, valueCeiling?, ceilingProvenance?, governingSource, provenance: "STATED" }]
  *   lists.json                 [{ list: "BANK" | "ACCOUNT_TYPE", code, nameEn, nameMs?, governingSource, provenance: "STATED" }]
  * `bodyCode` is the code of a registration body already configured under Tender documents. Every row is STATED and names its source (spec B8): a row that is an assumption or an observed
- * habit, or that names no source, refuses the file, and is entered under Configuration instead, where it shows as what it is.
+ * habit, or that names no source, refuses the file, and is entered under Configuration instead, where it shows as what it is. A work code keeps its source on the row (`governingSource`); a bank
+ * or an account type has no such column, so its source is written to the audit row of its load, which is where it is kept.
  *
  * What this loader covers, and what it does not (a decided difference from spec B8, which lists more): the registry's work codes, the banks and the account types, the lists that run to
  * hundreds or thousands of rows. The rest of what B8 names (document types with their hints, rates and switches, the entity, country, Bumiputera and state lists, the SSM, account-number and SWIFT
@@ -94,7 +95,7 @@ async function main() {
       }
       for (const l of judgedLists?.rows ?? []) {
         const row = await tx.supplierListValue.create({ data: { organisationId: org.id, list: l.list, code: l.code, nameEn: l.nameEn, nameMs: l.nameMs, provenance: l.provenance, sortOrder: ++order }, select: { id: true } });
-        await writeAudit(tx, { actor: ACTOR, organisationId: org.id, entity: "SupplierListValue", entityId: row.id, entityLabel: `${l.list === "BANK" ? "Bank" : "Account type"} · ${l.nameEn}`, reason: "Loaded from the customer's file" }, "CREATE", diffFields(null, { name: l.nameEn, nameInMalay: l.nameMs, whereItComesFrom: WORDS[l.provenance] }));
+        await writeAudit(tx, { actor: ACTOR, organisationId: org.id, entity: "SupplierListValue", entityId: row.id, entityLabel: `${l.list === "BANK" ? "Bank" : "Account type"} · ${l.nameEn}`, reason: "Loaded from the customer's file" }, "CREATE", diffFields(null, { name: l.nameEn, nameInMalay: l.nameMs, governingSource: l.governingSource, whereItComesFrom: WORDS[l.provenance] }));
       }
     },
     { timeout: 300_000, maxWait: 10_000 },
