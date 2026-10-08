@@ -26,7 +26,7 @@ import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, exerciseIdOf } from "../window/shared";
 import { evLabel, GONE_BIDDER, inEvaluation, notes, picks, refuse, signedMoney, stampNow } from "./shared";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 
 /**
@@ -49,7 +49,9 @@ import { beginAct } from "@/app/_auth/act";
  * both sides; the score places frozen; the exercise Under evaluation.
  */
 export async function startEvaluation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const appointed = r.date("appointedOn", "Appointed on", { required: true });
@@ -116,7 +118,9 @@ export async function startEvaluation(_prev: FormState, data: FormData): Promise
 
 /// Appoint a further team member, on one side, while the version is open (FR-EVL-001).
 export async function appointTeamMember(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const personId = r.text("personId", "Member", { required: true });
@@ -150,7 +154,9 @@ export async function appointTeamMember(_prev: FormState, data: FormData): Promi
  * running, or from someone not appointed to the stage's side.
  */
 export async function recordScore(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
@@ -196,7 +202,9 @@ export async function recordScore(_prev: FormState, data: FormData): Promise<For
  * is submitted, and for a bid excluded or out of the running at that stage (BD-68-11).
  */
 export async function recordInputs(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
@@ -251,7 +259,9 @@ export async function recordInputs(_prev: FormState, data: FormData): Promise<Fo
  * again on the corrected price, the exclusion recorded or cleared.
  */
 export async function correctPrice(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
@@ -291,7 +301,9 @@ export async function correctPrice(_prev: FormState, data: FormData): Promise<Fo
  * computed, a note for each value no band holds (OD-5 A). Its results are frozen with it.
  */
 export async function submitStage(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const stageCode = String(data.get("stageCode") ?? "");
   const notesMap = new Map<string, string>();
@@ -326,7 +338,9 @@ export async function submitStage(_prev: FormState, data: FormData): Promise<For
  * stage's submission and its results are this act's.
  */
 export async function recordShortlist(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const stageCode = String(data.get("stageCode") ?? "");
   const chosen = picks(data, "chosen");
@@ -368,7 +382,9 @@ export async function recordShortlist(_prev: FormState, data: FormData): Promise
 
 /// One aspect's verdict and narrative on one bidder (FR-EVL-003): append-only, a reassessment supersedes.
 export async function assessAspect(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
@@ -410,7 +426,9 @@ export async function assessAspect(_prev: FormState, data: FormData): Promise<Fo
 
 /// A written communication with a tenderer (FR-EVL-013): recorded, never sent (INT-09 not built).
 export async function logCommunication(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Tenderer", { required: true });

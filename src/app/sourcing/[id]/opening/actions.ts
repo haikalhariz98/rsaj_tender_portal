@@ -48,7 +48,7 @@ import { eligibilityAtOpening } from "@/lib/suppliers/standing-repo";
 import { findingFaults, matchFaults, openFault } from "@/lib/opening/withdrawals";
 
 import { activePerson, audit, exerciseIdOf, inWindow, label, Refusal, type LockedWindow } from "../window/shared";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct, type PreparedAct } from "@/app/_auth/act";
 import { loadRecorders, recorderKey } from "@/lib/auth/attribution-recorders";
 import type { StaffActor } from "@/lib/auth/types";
@@ -125,7 +125,9 @@ async function pickedPeople(tx: Tx, orgId: string, picks: readonly { personId: s
  * override, which writes LATE_OVERRIDE), and the checklist and rules frozen.
  */
 export async function startOpening(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const overrideAuthority = r.text("panelOverrideAuthority", "Authority", { max: 300 });
@@ -244,7 +246,9 @@ export async function startOpening(_prev: FormState, data: FormData): Promise<Fo
  * main opening is finalised; the same panel rules; its checklist and rules are the main opening's.
  */
 export async function startSupplementaryOpening(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const decisionId = r.text("decisionId", "Admission", { required: true });
@@ -360,13 +364,17 @@ export async function recordAuthorisation(_prev: FormState, data: FormData): Pro
 
 /// FR-OPN-011, C-2: adjourn, with the reason; an unpaired authorisation of the sitting lapses (kept).
 export async function adjournOpening(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   return sittingAct(actor, data, false);
 }
 
 /// Resume an adjourned opening: a new sitting, which needs two fresh authorisations.
 export async function resumeOpening(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   return sittingAct(actor, data, true);
 }
 
@@ -407,7 +415,9 @@ async function sittingAct(scope: StaffActor, data: FormData, resume: boolean): P
 
 /// OD-4, C-3: register an envelope found in the box, after it is opened and before any is opened; in time by the lock.
 export async function registerBoxEnvelope(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const openingId = r.text("openingId", "Opening", { required: true });
@@ -437,7 +447,9 @@ export async function registerBoxEnvelope(_prev: FormState, data: FormData): Pro
 
 /// X-11: match a withdrawal to the envelope in the box it withdraws; the envelope is then never opened.
 export async function matchWithdrawal(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const openingId = String(data.get("openingId") ?? "");
   const withdrawalId = String(data.get("withdrawalId") ?? "");
@@ -463,7 +475,9 @@ export async function matchWithdrawal(_prev: FormState, data: FormData): Promise
 
 /// X-11: what the panel found of a withdrawal no envelope in the box matched.
 export async function recordWithdrawalFinding(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const openingId = r.text("openingId", "Opening", { required: true });
@@ -506,7 +520,9 @@ const periodOf = (p: { value: number | null; unit: PeriodUnit | null }) => (p.va
  * FR-DOC-009), the envelope OPENED.
  */
 export async function openEnvelope(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const openingId = r.text("openingId", "Opening", { required: true });
@@ -576,7 +592,9 @@ export async function openEnvelope(_prev: FormState, data: FormData): Promise<Fo
 
 /// FR-BID-006: an alternative offer found inside an envelope already opened at this opening.
 export async function recordAlternative(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const mainBidId = r.text("openedBidId", "Offer", { required: true });
@@ -613,7 +631,9 @@ export async function recordAlternative(_prev: FormState, data: FormData): Promi
 
 /// FR-OPN-006: a present member's initial on an offer as read (after its last correction).
 export async function recordInitial(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const bidId = String(data.get("openedBidId") ?? "");
   // The panel member initials the offer themselves, or a paper initial is recorded for them (Phase 2b).
@@ -645,7 +665,9 @@ export async function recordInitial(_prev: FormState, data: FormData): Promise<F
 
 /// FR-OPN-008: one checklist item for one offer. A changed answer clears the offer's verdict, which is recorded again.
 export async function recordChecklistAnswer(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const bidId = r.text("openedBidId", "Offer", { required: true });
@@ -679,7 +701,9 @@ const liveUnpurchased = (c: OpeningContext): LiveUnpurchased => ({ consequence: 
 
 /// FR-OPN-008, 009, R12, OD-4: the verdict on one offer, on the grounds the rules make eliminatory only.
 export async function recordVerdict(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const bidId = r.text("openedBidId", "Offer", { required: true });
@@ -717,7 +741,9 @@ export async function recordVerdict(_prev: FormState, data: FormData): Promise<F
 
 /// OD-10: correct a keying slip in what was read, before finalising, with the reason, audited before and after. Initials are taken again.
 export async function correctAsRead(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const bidId = r.text("openedBidId", "Offer", { required: true });
@@ -776,7 +802,9 @@ export async function recordSignature(_prev: FormState, data: FormData): Promise
 
 /// FR-OPN-005 (OD-9): the signed schedule's pages, and the minutes.
 export async function recordScheduleDetails(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const openingId = r.text("openingId", "Opening", { required: true });
@@ -803,7 +831,9 @@ export async function recordScheduleDetails(_prev: FormState, data: FormData): P
  * figure was typed from the paper: the figure is parsed only after every check passed.
  */
 export async function finaliseOpening(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const openingId = String(data.get("openingId") ?? "");
   // Finalised by the signed-in officer: the person the disclosure of the estimate and a new evaluation version are attributed to (Phase 2b).
@@ -928,7 +958,9 @@ export async function finaliseOpening(_prev: FormState, data: FormData): Promise
 
 /// C-1: the explanation of a MISMATCH or NOT_IN_BOX copy finding, once, never edited.
 export async function recordCopyExplanation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const openingId = r.text("openingId", "Opening", { required: true });

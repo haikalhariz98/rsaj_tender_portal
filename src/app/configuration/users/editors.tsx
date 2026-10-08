@@ -4,6 +4,7 @@ import { useCallback } from "react";
 
 import { EMPTY_FORM_STATE } from "@/components/record-editor";
 import { stage, STORED_NOT_FILED, useStagedRef } from "@/components/attachments/upload-actions";
+import { STAGED_FOR_DELEGATION } from "@/lib/documents/staged-for";
 import type { UploadView } from "@/lib/documents/views";
 import { END_DAY_LABEL, periodText } from "@/lib/effective-text";
 import { RECOMMENDATION_HINT, recommendationNote } from "@/lib/people/labels";
@@ -603,7 +604,7 @@ function useDelegationSave(people: Person[]): SaveAction {
         const up = new FormData();
         for (const k of ["file", "documentClassId"]) up.set(k, data.get(k) ?? "");
         up.set("title", `Signed recommendation of ${from?.name ?? "the absent holder"}`);
-        const s = await stage(up, stagedRef, {});
+        const s = await stage(up, stagedRef, { stagedFor: STAGED_FOR_DELEGATION });
         if (!s.ok) return s.state;
         next.set("recommendationVersionId", s.versionId);
         staged = true;

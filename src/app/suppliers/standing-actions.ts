@@ -22,7 +22,7 @@ import { FormReader } from "@/lib/validate";
 
 import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor, StaffActor } from "@/lib/auth/types";
 import { routeRequesterId } from "@/lib/approvals/requester";
@@ -64,7 +64,9 @@ const standingLabel = (l: LockedSupplier, what: string) => label(l.supplier, wha
 
 /// Suspend a registered supplier (FR-VND-010): a reason from the list, the day, the documents it is for, an officer.
 export async function suspendSupplier(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
@@ -96,7 +98,9 @@ export async function suspendSupplier(_prev: FormState, data: FormData): Promise
 
 /// Reinstate a suspended supplier: each flagged document's type standing again, none lapsed, the checklist answered, a note.
 export async function reinstateSupplier(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
@@ -137,7 +141,9 @@ export async function reinstateSupplier(_prev: FormState, data: FormData): Promi
 
 /// Ask for a blacklisting: a reason from the list, an officer, and (from a cancelled award) the award. Opens its route.
 export async function requestBlacklisting(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
@@ -172,7 +178,9 @@ export async function requestBlacklisting(_prev: FormState, data: FormData): Pro
 
 /// Ask for a blacklisting in effect to be lifted, saying why. Opens its route.
 export async function requestBlacklistLift(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
@@ -276,13 +284,17 @@ async function recordFromRequest(scope: StaffActor, actor: AuditActor, data: For
 
 /// Record a blacklisting its route approved (FR-TRM-017): the period from the policy now, frozen on the event.
 export async function recordBlacklisting(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   return recordFromRequest(actor, toAuditActor(actor), data, "BLACKLIST");
 }
 
 /// Record the lifting of a blacklisting its route approved.
 export async function liftBlacklisting(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   return recordFromRequest(actor, toAuditActor(actor), data, "BLACKLIST_LIFT");
 }
 
@@ -292,7 +304,9 @@ export async function liftBlacklisting(_prev: FormState, data: FormData): Promis
  * holds the supplier open, so another may be asked for. Audited; recorded on the officer's behalf, not signed.
  */
 export async function withdrawStandingRequest(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const requestId = String(data.get("requestId") ?? "");
   const r = new FormReader(data);
@@ -334,7 +348,9 @@ export async function withdrawStandingRequest(_prev: FormState, data: FormData):
  * REGISTRATION_CANCELLED (cancellation-scan.test.ts). The body's notice is attached on the record afterwards.
  */
 export async function recordRegistrationCancelled(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
@@ -377,7 +393,9 @@ async function openingsJudged(client: Tx, supplierId: string, hidden: readonly s
  * withdrawn: the supplier registers again.
  */
 export async function withdrawRegistrationCancelled(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const eventId = String(data.get("eventId") ?? "");
   const r = new FormReader(data);

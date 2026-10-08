@@ -18,7 +18,7 @@ import { chooseCertificateRejection, decideCertificateStep } from "@/lib/certifi
 import { recordFinancePayment } from "@/lib/payment/finance-write";
 import { submitForApproval } from "@/lib/payment/route-open";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct, type PreparedAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -71,13 +71,17 @@ async function inCertificate(scope: OrgScope, actor: AuditActor, certId: string,
 const certOf = (data: FormData) => String(data.get("certId") ?? "");
 
 export async function sendCertificateForRouting(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => sendForRouting(c));
 }
 
 export async function recordCertificateReceived(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const received = r.date("receivedOn", "Received on", { required: true });
@@ -86,7 +90,9 @@ export async function recordCertificateReceived(_prev: FormState, data: FormData
 }
 
 export async function recordCertificateCheck(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const defOrder = r.int("defOrder", "Check", { min: 1, required: true });
@@ -99,7 +105,9 @@ export async function recordCertificateCheck(_prev: FormState, data: FormData): 
 }
 
 export async function sendCertificateToSigning(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) => proceedToSigning(c));
 }
@@ -136,7 +144,9 @@ export async function recordCertificateSignature(_prev: FormState, data: FormDat
 }
 
 export async function overrideCertificateFigure(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const fieldKey = r.text("fieldKey", "Figure", { required: true, max: 120 });
@@ -149,7 +159,9 @@ export async function overrideCertificateFigure(_prev: FormState, data: FormData
 }
 
 export async function correctCertificateDay(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const proposed = r.date("correctedDay", "Corrected day", { required: true });
@@ -159,7 +171,9 @@ export async function correctCertificateDay(_prev: FormState, data: FormData): P
 }
 
 export async function despatchCertificateCopy(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const copyId = r.text("copyId", "Copy", { required: true });
@@ -170,7 +184,9 @@ export async function despatchCertificateCopy(_prev: FormState, data: FormData):
 }
 
 export async function acknowledgeCertificateCopy(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const copyId = r.text("copyId", "Copy", { required: true });
@@ -180,7 +196,9 @@ export async function acknowledgeCertificateCopy(_prev: FormState, data: FormDat
 }
 
 export async function voidCertificateAct(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const reason = String(data.get("reason") ?? "").slice(0, 2000);
   return inCertificate(actor, toAuditActor(actor), certOf(data), now, "VOID", (c) => voidCertificate(c, reason));
@@ -190,7 +208,9 @@ export async function voidCertificateAct(_prev: FormState, data: FormData): Prom
 
 /// Send a certificate raised by a post-award module for approval: its route resolved on the matrix (FR-PAY-016).
 export async function sendCertificateForApproval(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   if (r.failed) return { ok: false, errors: r.errors };
@@ -219,7 +239,9 @@ export async function decideCertificateRouteStep(_prev: FormState, data: FormDat
 
 /// Where a refused route goes, where its refusal decided nothing (CO-5): the signed-in officer's own choice.
 export async function chooseCertificateRouteRejection(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const kind = r.choice("goesTo", "Where it goes", REJECTION_KINDS);
@@ -233,7 +255,9 @@ export async function chooseCertificateRouteRejection(_prev: FormState, data: Fo
 
 /// Finance's payment of an issued payment certificate (FR-PAY-019, INT-07's manual adapter).
 export async function recordCertificatePayment(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const batchNo = r.text("batchNo", "Batch number", { required: true, max: 60 });

@@ -19,7 +19,7 @@ import { permitLabel, permitSaveFaults } from "@/lib/tender-docs/permit";
 import { loadClauses, loadConfirmations, loadOverrides, loadPacks, loadPermitList, loadRegistrationBodies, loadRequirements, loadTenderPolicy, partFactsOf, type PackRow } from "@/lib/tender-docs/repo";
 import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 
@@ -80,7 +80,9 @@ const frozen = (l: Locked): FormState | null => (eligibilityEditFault(l.ex.statu
 
 /// Add a registration the bidders must hold, from a configured body.
 export async function addRequirement(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const bodyCode = r.text("bodyCode", "Registration body", { required: true, max: 80 });
@@ -110,7 +112,9 @@ export async function addRequirement(_prev: FormState, data: FormData): Promise<
 
 /// Remove a registration requirement, with the reason.
 export async function removeRequirement(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -134,7 +138,9 @@ const tri = (v: (typeof TRI)[number] | null): boolean | null => (v === "yes" ? t
 
 /// Answer whether the tender is restricted, in the customer's configured words. Unset may be chosen again: it is honest.
 export async function saveRestriction(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const answer = r.choice("restrictedTender", "Restricted", TRI, { required: true });
@@ -153,7 +159,9 @@ export async function saveRestriction(_prev: FormState, data: FormData): Promise
 
 /// Answer whether the works need the regulator's permit, and which type from the configured list.
 export async function savePermit(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const answer = r.choice("regulatedActivity", "Needs the regulator's permit", TRI, { required: true });
@@ -182,7 +190,9 @@ export async function savePermit(_prev: FormState, data: FormData): Promise<Form
 
 /// Record a confirmation on the draft: the signed-in person and the day (Phase 2b: FR-DOC-014 asks the person confirming to be the one signed in).
 export async function recordAssurance(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const kind = r.choice("kind", "Confirmation", ASSURANCE_KINDS, { required: true });
@@ -213,7 +223,9 @@ export async function recordAssurance(_prev: FormState, data: FormData): Promise
 
 /// Take a confirmation off the draft (recorded in error, or the documents changed since), with the reason.
 export async function removeAssurance(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
@@ -234,7 +246,9 @@ export async function removeAssurance(_prev: FormState, data: FormData): Promise
 
 /// Record a legal endorsement letting this version go without a mandatory clause: the signed-in person and the reason (Phase 2b: FR-DOC-011).
 export async function recordClauseOverride(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const clauseCode = r.text("clauseCode", "Clause", { required: true, max: 80 });
@@ -266,7 +280,9 @@ export async function recordClauseOverride(_prev: FormState, data: FormData): Pr
 
 /// Withdraw an override on the draft, with the reason: the clause is required again.
 export async function removeClauseOverride(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);

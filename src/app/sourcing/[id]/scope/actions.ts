@@ -43,7 +43,7 @@ import { transactionTimedOut } from "@/lib/scope/tx-timeout";
 import { FormReader } from "@/lib/validate";
 import { bidFindingText } from "@/lib/bids/labels";
 import { recordEstimateLodgement } from "@/lib/bids/lodgement";
-import { requireStaff, staffForAct, toAuditActor } from "@/app/_auth/actor";
+import { staffForAct, toAuditActor } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 
@@ -120,7 +120,9 @@ const exerciseIdOf = (data: FormData) => String(data.get("exerciseId") ?? "");
 
 /// Start the exercise's first bill, optionally from a configured template's section headings.
 export async function startBq(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const templateCode = String(data.get("templateCode") ?? "").trim() || null;
   return inExercise(actor, exerciseId, async (tx, l) => {
@@ -154,7 +156,9 @@ const triState = (v: string | null): boolean | null => (v === "yes" ? true : v =
 
 /// The draft's header: who scoped it, the scope statement, the standard, the preparer, and OD-7.
 export async function saveBqHeader(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
@@ -179,7 +183,9 @@ export async function saveBqHeader(_prev: FormState, data: FormData): Promise<Fo
 
 /// Add or edit a section of the draft.
 export async function saveBqSection(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
@@ -209,7 +215,9 @@ function fromText(x: { scheduleLabelSnapshot: string | null; scheduleIssueSnapsh
 
 /// Remove a section of the draft, with its lines. A finalised version is never changed.
 export async function removeBqSection(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
   const sectionId = String(data.get("sectionId") ?? "");
@@ -229,7 +237,9 @@ export async function removeBqSection(_prev: FormState, data: FormData): Promise
 
 /// Add or edit a line of the draft. Its amount is worked out here, from the quantity and the rate, never typed.
 export async function saveBqItem(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
@@ -292,7 +302,9 @@ export async function saveBqItem(_prev: FormState, data: FormData): Promise<Form
 }
 
 export async function removeBqItem(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
   const itemId = String(data.get("itemId") ?? "");
@@ -313,7 +325,9 @@ export async function removeBqItem(_prev: FormState, data: FormData): Promise<Fo
  * version it revises is superseded in the same act.
  */
 export async function finaliseBq(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
   return inExercise(actor, exerciseId, async (tx, l) => {
@@ -349,7 +363,9 @@ export async function finaliseBq(_prev: FormState, data: FormData): Promise<Form
 
 /// Start a revision: a new draft copied from the latest finalised version, with the reason.
 export async function startBqRevision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const reason = String(data.get("reason") ?? "").trim();
   return inExercise(actor, exerciseId, async (tx, l) => {
@@ -393,7 +409,9 @@ export async function startBqRevision(_prev: FormState, data: FormData): Promise
  * returns it to a draft: they attested facts that have changed.
  */
 export async function savePanel(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const exerciseId = exerciseIdOf(data);
   const contractKindCode = r.optionalText("contractKindCode");
@@ -500,7 +518,9 @@ export async function recordPanelVerification(_prev: FormState, data: FormData):
  * signed form, all read in the transaction; frozen with what it was verified on.
  */
 export async function markPanelVerified(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   return inExercise(actor, exerciseId, async (tx, l) => {
     const existing = await tx.specificationPanel.findUnique({ where: { exerciseId }, select: { id: true } });
@@ -565,7 +585,9 @@ const preparedOnOf = (l: LockedExercise) => {
  * behind it. The closing is the locked exercise's (X-1): none until tendering is approved.
  */
 export async function prepareEstimate(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const value = readValue(data);
   // The preparer is the signed-in officer (Phase 2b).
@@ -611,7 +633,9 @@ async function lockedEstimate(tx: Tx, l: LockedExercise, estimateId: string) {
  * sealed with the figure: stored by the store, never in the audit row's reason.
  */
 export async function amendEstimate(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const estimateId = String(data.get("estimateId") ?? "");
   const reason = String(data.get("reason") ?? "");
@@ -643,7 +667,9 @@ export async function amendEstimate(_prev: FormState, data: FormData): Promise<F
 
 /// Lodge the current version into the sealed set (FR-EST-010): copy 1, with who lodged it.
 export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const estimateId = String(data.get("estimateId") ?? "");
   const capacity = String(data.get("capacity") ?? "").trim().slice(0, 200);
@@ -671,7 +697,9 @@ export async function lodgeEstimate(_prev: FormState, data: FormData): Promise<F
 
 /// Record the second copy, retained, and where it is kept (FR-EST-007).
 export async function recordRetainedCopy(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const estimateId = String(data.get("estimateId") ?? "");
   const capacity = String(data.get("capacity") ?? "").trim().slice(0, 200);
@@ -699,7 +727,9 @@ export async function recordRetainedCopy(_prev: FormState, data: FormData): Prom
  * why, audited; it carries no figure. The versions are kept; a new officer prepares afresh.
  */
 export async function voidEstimate(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const estimateId = String(data.get("estimateId") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
@@ -737,7 +767,9 @@ export async function voidEstimate(_prev: FormState, data: FormData): Promise<Fo
  * from that decision (`scopeApproval`), never stored beside it.
  */
 export async function tableScope(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const exerciseId = exerciseIdOf(data);
   const versionId = String(data.get("versionId") ?? "");
@@ -808,7 +840,9 @@ export async function tableScope(_prev: FormState, data: FormData): Promise<Form
  * line audited. A refused import leaves the file in Received, not filed.
  */
 export async function importBqCsv(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const bqVersionId = String(data.get("bqVersionId") ?? "");
   const documentVersionId = String(data.get("versionId") ?? "");
@@ -915,7 +949,9 @@ export interface BqExportResult {
  * back to the browser to save, as the audit trail's export does.
  */
 export async function exportBqCsv(_prev: BqExportResult, data: FormData): Promise<BqExportResult> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return { ok: false, message: txGuard.state.message };
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const bqVersionId = String(data.get("bqVersionId") ?? "");
   const priced = data.get("priced") === "yes";

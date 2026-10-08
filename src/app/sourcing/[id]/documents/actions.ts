@@ -48,7 +48,7 @@ import { appendixFactsOf, loadClauses, loadConditions, loadConfiguredParts, load
 import { approvalDatesFault, estimateLeadWarning, frozenWindowFault, RETURN_DECIDED_BY, returnOutcome, TENDERING_DOMAIN, tenderingRejectionSnapshot, tenderingRouteForRequester } from "@/lib/tender-docs/tendering";
 import type { Finding } from "@/lib/tender-docs/types";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import { routeRequesterId } from "@/lib/approvals/requester";
@@ -156,7 +156,9 @@ const partAuditFacts = (p: { printedNumber: string; labelSnapshot: string; role:
  * returned version stays as it was frozen.
  */
 export async function startPack(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   return inPacks(actor, exerciseId, async (tx, l, packs) => {
     if (!l.org.today) return NO_ZONE;
@@ -263,7 +265,9 @@ function lockedPart(l: LockedExercise, packs: readonly PackRow[], partId: string
 
 /// Mark a part ready: its content as its source needs it (FR-DOC-003).
 export async function markPartReady(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
   return inPacks(actor, exerciseId, async (tx, l, packs) => {
@@ -287,7 +291,9 @@ export async function markPartReady(_prev: FormState, data: FormData): Promise<F
  * The officer confirms the list the drawer showed; a different list now is refused (64-C2).
  */
 export async function refreshPartFlags(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const confirmed = data.get("confirmedChanges");
   return inPacks(actor, exerciseId, async (tx, l, packs) => {
@@ -318,7 +324,9 @@ export async function refreshPartFlags(_prev: FormState, data: FormData): Promis
 
 /// Omit a part that is not mandatory, with the reason.
 export async function omitPart(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
   const reason = String(data.get("reason") ?? "").trim().slice(0, 2000);
@@ -334,7 +342,9 @@ export async function omitPart(_prev: FormState, data: FormData): Promise<FormSt
 
 /// Take a part back to not ready (to rework it, or to include a part that was omitted).
 export async function reopenPart(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
   return inPacks(actor, exerciseId, async (tx, l, packs) => {
@@ -348,7 +358,9 @@ export async function reopenPart(_prev: FormState, data: FormData): Promise<Form
 
 /// Choose the library template a part draws (FR-DOC-003). A ready part goes back to not ready: its content changed.
 export async function pickPartTemplate(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const partId = String(data.get("partId") ?? "");
   const templateId = String(data.get("templateId") ?? "");
@@ -398,7 +410,9 @@ async function appendixChanged(tx: Tx, by: AuditActor, l: LockedExercise, pack: 
  * the kind changes (an amount LAD holds no percentage, Q-6).
  */
 export async function saveAppendix(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const office = (name: string) => r.optionalText(name);
@@ -464,7 +478,9 @@ export async function saveAppendix(_prev: FormState, data: FormData): Promise<Fo
 
 /// Add or change a variation limit: an office or a committee, and its limit (null: not set).
 export async function saveVariationLimit(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const id = r.optionalText("id");
@@ -488,7 +504,9 @@ export async function saveVariationLimit(_prev: FormState, data: FormData): Prom
 }
 
 export async function removeVariationLimit(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
   return inPacks(actor, exerciseId, async (tx, l, packs) => {
@@ -502,7 +520,9 @@ export async function removeVariationLimit(_prev: FormState, data: FormData): Pr
 
 /// Add or change a section for sectional completion, with its LAD (amount or percentage, Q-6).
 export async function saveAppendixSection(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const id = r.optionalText("id");
@@ -526,7 +546,9 @@ export async function saveAppendixSection(_prev: FormState, data: FormData): Pro
 }
 
 export async function removeAppendixSection(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const id = String(data.get("id") ?? "");
   return inPacks(actor, exerciseId, async (tx, l, packs) => {
@@ -550,7 +572,9 @@ export async function removeAppendixSection(_prev: FormState, data: FormData): P
  * moved to Pending approval for tendering by the submission (`moveExercise`).
  */
 export async function submitPack(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const startOn = String(data.get("startOn") ?? "").trim() || null;
   const closingDay = String(data.get("closingDay") ?? "").trim() || null;

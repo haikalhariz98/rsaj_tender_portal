@@ -32,7 +32,7 @@ import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, Refusal } from "../window/shared";
 import { evLabel, GONE_BIDDER, inEvaluation, notes, refuse, stampNow } from "./shared";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import { routeRequesterId } from "@/lib/approvals/requester";
 
@@ -49,7 +49,9 @@ const NO_ISSUE: FormState = { ok: false, message: "No approval matrix is in forc
 
 /// Record that a clarification or negotiation meeting was held with a bidder.
 export async function openMeeting(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Tenderer", { required: true });
@@ -99,7 +101,9 @@ export async function openMeeting(_prev: FormState, data: FormData): Promise<For
  * the price before and after. Closed, it is frozen (FR-EVL-015, 016).
  */
 export async function closeMeeting(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const meetingId = r.text("meetingId", "Meeting", { required: true });
@@ -141,7 +145,9 @@ export async function closeMeeting(_prev: FormState, data: FormData): Promise<Fo
  * a committee step: refused, naming the Approval matrix.
  */
 export async function requestNegotiation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Tenderer", { required: true });

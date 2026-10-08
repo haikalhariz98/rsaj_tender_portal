@@ -59,7 +59,7 @@ import { gatesForRequisition } from "@/lib/requisition/repo";
 import { FormReader } from "@/lib/validate";
 import { nameListFault } from "@/lib/window/invitees";
 import { audit, CHANGED, citeNameStep, labelOf, nameLabel, nameSupports, Refusal, refuse, sendNameRejected } from "@/lib/method/name-route-write";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
 import { committeeStandingOf, noticeRecall } from "@/lib/approvals/recall-store";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
@@ -293,7 +293,9 @@ async function writeChildren(tx: Tx, actor: AuditActor, orgId: string, ex: { id:
  * from the `exercise` series in the same transaction as the row and its audit.
  */
 export async function createExercise(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const requisitionId = String(data.get("requisitionId") ?? "");
   const r = new FormReader(data);
   const v = readForm(r, data, null);
@@ -370,7 +372,9 @@ export async function createExercise(_prev: FormState, data: FormData): Promise<
  * decision BD-5). A change of method re-opens the proposal; answers are kept.
  */
 export async function updateExercise(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const v = readForm(r, data, id);
@@ -438,7 +442,9 @@ export async function updateExercise(_prev: FormState, data: FormData): Promise<
 
 /// Resolve an ambiguous classification with the officer's pick, stored as chosen.
 export async function chooseTaxonomyValue(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const taxonomyCode = r.text("taxonomyCode", "Classification", { required: true });
@@ -469,7 +475,9 @@ export async function chooseTaxonomyValue(_prev: FormState, data: FormData): Pro
 
 /// The answers to the method's proposal items, while the proposal is being prepared.
 export async function saveProposalAnswers(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
@@ -494,7 +502,9 @@ export async function saveProposalAnswers(_prev: FormState, data: FormData): Pro
 }
 
 export async function submitProposal(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
@@ -514,7 +524,9 @@ export async function submitProposal(_prev: FormState, data: FormData): Promise<
 
 /// C&P's review: reviewed, or returned for amendment. The reviewer is the signed-in officer (Phase 2b).
 export async function reviewProposal(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const outcome = r.choice("outcome", "Outcome", ["REVIEWED", "DRAFT"] as const, { required: true });
@@ -557,7 +569,9 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
  * to be cited.
  */
 export async function requestNameApproval(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   // The person who sends it is its originator (FR-APR-017): the only one who can recall it before a decision. Always the signed-in officer's own act.
   const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId", onBehalf: false });
@@ -659,7 +673,9 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
  * name can be sent again. The people the waiting step was waiting on are told in the portal.
  */
 export async function recallNameApproval(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
@@ -762,7 +778,9 @@ export async function recordNameDecision(_prev: FormState, data: FormData): Prom
  * (FR-APR-016, ruling CO-5): recorded as the signed-in officer's own choice (Phase 2b).
  */
 export async function chooseNameRejection(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
@@ -825,7 +843,9 @@ export async function citeNameDecision(_prev: FormState, data: FormData): Promis
  * first time.
  */
 export async function moveToPreparation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   try {
     return await inExercise(actor, id, async (tx, l) => {
@@ -904,7 +924,9 @@ export async function moveToPreparation(_prev: FormState, data: FormData): Promi
 /// Cancel an exercise, with a reason. An assumption: §7.3.2 gives it no SOP path. An
 /// open name-approval route is withdrawn with it.
 export async function cancelExercise(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   return inExercise(actor, id, async (tx, l) => {
@@ -935,7 +957,9 @@ export async function cancelExercise(_prev: FormState, data: FormData): Promise<
 /// unset. A person named must be on record in this organisation and active, except the one
 /// already named, who is kept as they are when only the work code changes.
 export async function saveExerciseDetails(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const personId = r.optionalText("personInChargeId");
@@ -976,7 +1000,9 @@ export async function saveExerciseDetails(_prev: FormState, data: FormData): Pro
 
 /// A named participant of a restricted exercise (FR-MTD-007): the people who may see it. Enforced since Phase 3a.
 export async function addParticipant(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const personId = r.text("personId", "Person", { required: true });
@@ -998,7 +1024,9 @@ export async function addParticipant(_prev: FormState, data: FormData): Promise<
 }
 
 export async function removeParticipant(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const participantId = String(data.get("participantId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();

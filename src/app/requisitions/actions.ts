@@ -86,7 +86,7 @@ import {
 } from "@/lib/requisition/approval-write";
 import { ACT_LABEL } from "@/lib/labels";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -249,7 +249,9 @@ const safeLines = (lines: DraftLine[]) =>
  * saved half-written; what it does give must be real. Redirects to the new record.
  */
 export async function createRequisition(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const org = await requisitionOrg(actor.organisationId);
   if (!org) return NO_ORG;
   if (!org.today) return NO_ZONE;
@@ -307,7 +309,9 @@ export async function createRequisition(_prev: FormState, data: FormData): Promi
  * edit withdraws them, in the same transaction and on the record (a build decision).
  */
 export async function editDraft(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const draft = readDraft(r, data);
@@ -356,7 +360,9 @@ const unitOf = (req: RequisitionRow) => req.sectionUnitCode || req.requestingUni
 
 /// Record one tier's endorsement (FR-REQ-003) on a draft.
 export async function recordEndorsement(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const tier = r.choice("tier", "Tier", TIERS, { required: true });
@@ -437,7 +443,9 @@ async function checkAutomatically(tx: Tx, actor: AuditActor, l: LoadedRequisitio
 
 /// Draft to Endorsed: complete, and every tier endorsed by its head.
 export async function markEndorsed(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const ctx = await leaveDraftContext(tx, l);
@@ -458,7 +466,9 @@ export async function markEndorsed(_prev: FormState, data: FormData): Promise<Fo
 
 /// Endorsed to Returned: the completeness return (FR-REQ-010), with reason, recipient and date.
 export async function returnRequisition(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const reason = r.text("reason", "Reason", { max: 2000 });
@@ -492,7 +502,9 @@ export async function returnRequisition(_prev: FormState, data: FormData): Promi
 /// Returned or recalled, back to Draft. A rejected one goes where its rejection says
 /// (FR-APR-016): `chooseWhereItGoes`, recorded as the officer's choice.
 export async function reopenDraft(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
@@ -508,7 +520,9 @@ export async function reopenDraft(_prev: FormState, data: FormData): Promise<For
 
 /// Withdrawn before approval (§7.3.1). Reason mandatory.
 export async function cancelRequisition(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
@@ -529,7 +543,9 @@ export async function cancelRequisition(_prev: FormState, data: FormData): Promi
  * approval is open (recall it first). The route's posture is re-read and stored.
  */
 export async function changeFunding(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const code = r.text("fundingRouteCode", "Funding route", { required: true });
@@ -562,7 +578,9 @@ export async function changeFunding(_prev: FormState, data: FormData): Promise<F
 
 /// Record the external body's authority where the funding route requires one (FR-REQ-005).
 export async function recordExternalAuthority(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const ref = r.text("externalAuthorityRef", "Reference", { required: true, max: 200 });
@@ -590,7 +608,9 @@ const SOURCE_NOT_SET =
  * figures typed from the finance system and stored as typed. Unset runs nothing.
  */
 export async function checkBudget(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const typed = {
@@ -643,7 +663,9 @@ export async function checkBudget(_prev: FormState, data: FormData): Promise<For
  * it is computed on the locked row first and written only if nothing refuses.
  */
 export async function submitRequisition(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const invoked = data.get("invokeOverBudget") != null;
   // The person who sends it is recorded as its sender, always the signed-in officer's own act: with the officer who raised the request, they are who can recall it before a
@@ -843,7 +865,9 @@ const GATE_RULE_MISSING =
 
 /// Determine the gates of a requisition approved before gates existed, or while the route's setting was unset.
 export async function checkCommitteeGates(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     if (!["APPROVED", "SOURCING"].includes(l.req.status)) return { ok: false, message: "Committee gates are checked once the requisition is approved." };
@@ -905,7 +929,9 @@ export async function citeGateDecision(_prev: FormState, data: FormData): Promis
  * it stays on the ledger, marked released. Any other abandonment stays with RSAJ.
  */
 export async function closeWithoutSourcing(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
@@ -1051,7 +1077,9 @@ export async function citeCommitteeDecision(_prev: FormState, data: FormData): P
  * destinations existed.
  */
 export async function chooseWhereItGoes(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
@@ -1087,7 +1115,9 @@ export async function chooseWhereItGoes(_prev: FormState, data: FormData): Promi
 
 /// Pending approval to Recalled, before the first decision (FR-APR-017).
 export async function recallRequisition(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };

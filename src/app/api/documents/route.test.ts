@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { documentOrg, logAccess, storeUpload, guard } = vi.hoisted(() => ({
   // What the shared route guard answers (Phase 1b): null lets the request through as a signed-in officer; a code refuses it as the guard would. The guard has its own tests, src/app/_auth/route.test.ts.
-  guard: { refuse: null as null | { code: string; status: number } },
+  guard: { refuse: null as null | { code: string; status: number }, actor: null as null | Record<string, unknown> },
   documentOrg: vi.fn(async () => ({ id: "org1", timeZone: "Asia/Kuala_Lumpur", today: "2026-10-01" })),
   logAccess: vi.fn(async (...args: unknown[]) => void args),
   storeUpload: vi.fn(async (...args: unknown[]) => ({ documentId: "d1", versionId: "v1", versionNo: 1, sha256: "x", byteSize: "0", mediaType: "application/pdf", status: "STAGED", warnings: [], args })),
@@ -14,7 +14,7 @@ vi.mock("@/app/_auth/act", async () => (await import("@/lib/test-support/staff")
 vi.mock("@/app/_auth/route", async () => {
   const support = await import("@/lib/test-support/staff");
   const real = support.routeModule();
-  return { ...real, staffRoute: async () => (guard.refuse ? { ok: false as const, response: Response.json({ ok: false, code: guard.refuse.code }, { status: guard.refuse.status }) } : { ok: true as const, actor: support.STAFF_FIXTURE }) };
+  return { ...real, staffRoute: async () => (guard.refuse ? { ok: false as const, response: Response.json({ ok: false, code: guard.refuse.code }, { status: guard.refuse.status }) } : { ok: true as const, actor: (guard.actor ?? support.STAFF_FIXTURE) as typeof support.STAFF_FIXTURE }) };
 });
 vi.mock("@/lib/documents/service", () => ({
   documentOrg,
@@ -42,8 +42,9 @@ const PDF = (n: number) => {
   b.set(new TextEncoder().encode("%PDF-1.4"));
   return b;
 };
-function formRequest(file: Uint8Array, name: string, headers: Record<string, string> = SAME_SITE) {
+function formRequest(file: Uint8Array, name: string, headers: Record<string, string> = SAME_SITE, extra: Record<string, string> = {}) {
   const form = new FormData();
+  for (const [k, v] of Object.entries(extra)) form.set(k, v);
   form.set("file", new File([file as Uint8Array<ArrayBuffer>], name, { type: "application/pdf" }));
   form.set("title", " A title ");
   form.set("documentClassId", "c1");
@@ -54,6 +55,7 @@ const refused = () => logAccess.mock.calls.map((c) => c[0] as { kind: string; re
 
 beforeEach(() => {
   guard.refuse = null;
+  guard.actor = null;
   documentOrg.mockClear();
   logAccess.mockClear();
   storeUpload.mockClear();
@@ -139,5 +141,43 @@ describe("POST /api/documents", () => {
     storeUpload.mockRejectedValueOnce(new Error("database down"));
     await expect(POST(formRequest(PDF(500), "a.pdf") as never)).rejects.toThrow("database down");
     expect(uploadLimiter().active()).toBe(0);
+  });
+});
+
+// NFR-SEC-004 (the sweep): an administrator account does no transactional act, and uploading a document is one. The scan of a delegation's signed recommendation is the exception, because the
+// delegation is the administrator's own configuration act and a delegation for an absent grantor cannot be recorded without it (FR-APR-012).
+describe("an administrator account uploading", () => {
+  const admin = (permissions: string[] = []) => ({ ...STAFF_FIXTURE_COPY(), isAdministrator: true, permissions: new Set(permissions) });
+  const STAFF_FIXTURE_COPY = () => ({ kind: "STAFF", accountId: "a", sessionId: "s", personId: "person_admin", personName: "Admin", jobTitle: null, isAdministrator: false, organisationId: "org_test", organisationCode: "ORG", organisationTimeZone: "Asia/Kuala_Lumpur", offices: [], permissions: new Set<string>(), stepUpAt: null, sessionCreatedAt: new Date("2026-10-06T00:00:00Z"), sourceAddress: null, mustChangePassword: false });
+
+  it("is refused an ordinary upload, in words, and nothing is stored", async () => {
+    guard.actor = admin(["configuration.draft"]);
+    const res = await POST(formRequest(PDF(500), "a.pdf") as never);
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toMatch(/kept apart from transactions/);
+    expect(storeUpload).not.toHaveBeenCalled();
+  });
+
+  it("may stage the scan of a delegation's signed recommendation, when it may draft configuration", async () => {
+    guard.actor = admin(["configuration.draft"]);
+    const res = await POST(formRequest(PDF(500), "a.pdf", SAME_SITE, { stagedFor: "delegation-recommendation" }) as never);
+    expect(res.status).toBe(201);
+    expect(storeUpload).toHaveBeenCalledTimes(1);
+    expect(storeUpload.mock.calls[0][0]).toMatchObject({ personId: "person_admin" });
+  });
+
+  it("is refused that too without the permission to draft configuration, which saving the delegation asks", async () => {
+    guard.actor = admin([]);
+    const res = await POST(formRequest(PDF(500), "a.pdf", SAME_SITE, { stagedFor: "delegation-recommendation" }) as never);
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toMatch(/draft configuration/);
+    expect(storeUpload).not.toHaveBeenCalled();
+  });
+
+  it("gets nothing from naming some other purpose", async () => {
+    guard.actor = admin(["configuration.draft"]);
+    const res = await POST(formRequest(PDF(500), "a.pdf", SAME_SITE, { stagedFor: "anything-else" }) as never);
+    expect(res.status).toBe(403);
+    expect(storeUpload).not.toHaveBeenCalled();
   });
 });

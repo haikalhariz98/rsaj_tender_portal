@@ -66,7 +66,7 @@ import { contractCancellable } from "@/lib/contract/status";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { afterStep, audit, CHANGED, citeAppointmentStep, labelOf, mustMove, NO_ZONE, Refusal, routeLabel, sendAwardRejected } from "@/lib/award/route-write";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
 import { committeeStandingOf, noticeRecall } from "@/lib/approvals/recall-store";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
@@ -195,7 +195,9 @@ function recordedReasons(e: EvaluationGate, value: Sen, period: AwardFigures["pe
  * `award` series in the same transaction. At most one live award per exercise.
  */
 export async function createAward(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = String(data.get("exerciseId") ?? "");
   const r = new FormReader(data);
   const v = {
@@ -311,7 +313,9 @@ export async function createAward(_prev: FormState, data: FormData): Promise<For
 /// The awardee, value and period: only while the award is a draft, because they are
 /// what the appointment approves.
 export async function updateAwardDetails(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const v = {
@@ -372,7 +376,9 @@ export async function updateAwardDetails(_prev: FormState, data: FormData): Prom
 /// The letter's terms, the bond decision and the start date: until issue, each with its
 /// provenance. None is defaulted (D4, B3, B8).
 export async function updateAwardTerms(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const bondRequired = triState(r, "bondRequired", "Performance bond required");
@@ -445,7 +451,9 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
  * classification is locked from here (FR-MTD-011).
  */
 export async function submitAward(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   // The person who sends it is its originator (FR-APR-017): the only one who can recall it before a decision. Always the signed-in officer's own act.
   const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId", onBehalf: false });
@@ -539,7 +547,9 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
  * refuse, in words. The people the waiting step was waiting on are told in the portal.
  */
 export async function recallAward(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
@@ -569,7 +579,9 @@ export async function recallAward(_prev: FormState, data: FormData): Promise<For
  * nothing (FR-APR-016, ruling CO-5): recorded as the signed-in officer's own choice (Phase 2b).
  */
 export async function chooseAwardRejection(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const kind = r.choice("kind", "Where it goes", REJECTION_KINDS);
@@ -693,7 +705,9 @@ export async function citeAppointmentDecision(_prev: FormState, data: FormData):
  * or a purchase order after. Consumed, never minted; checked against its format.
  */
 export async function recordCommitment(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const number = r.text("erpCommitmentNo", "Number", { required: true, max: 60 });
@@ -843,7 +857,9 @@ const issueFaultsOf = (ev: ReturnType<typeof evaluateAward>) => ev.issueFaults.l
 
 /// One copy's despatch and acknowledgement (FR-AWD-004/005).
 export async function recordDespatch(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const rowId = String(data.get("distributionId") ?? "");
   const r = new FormReader(data);
@@ -879,7 +895,9 @@ export async function recordDespatch(_prev: FormState, data: FormData): Promise<
  * return that completes the instrument moves the award to Accepted, in the same act.
  */
 export async function recordReturn(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const d = (n: string, label: string) => r.date(n, label);
@@ -963,7 +981,9 @@ export async function recordReturn(_prev: FormState, data: FormData): Promise<Fo
 
 /// The day work commenced (FR-AWD-009).
 export async function recordCommencement(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const on = r.date("commencedOn", "Commenced on", { required: true });
@@ -988,7 +1008,9 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
  * vendor master that would act on it is 6.15.
  */
 export async function cancelAward(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   return inAward(actor, id, async (tx, l) => {
@@ -1023,7 +1045,9 @@ export async function cancelAward(_prev: FormState, data: FormData): Promise<For
 // ---------------------------------------------------------------- conditions
 
 export async function addCondition(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const kindId = r.text("kindId", "Condition", { required: true });
@@ -1042,7 +1066,9 @@ export async function addCondition(_prev: FormState, data: FormData): Promise<Fo
 }
 
 export async function satisfyCondition(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const conditionId = String(data.get("conditionId") ?? "");
   const r = new FormReader(data);
@@ -1077,7 +1103,9 @@ function registerRefusal(l: LoadedAward): string | null {
 
 /// Lodge a bond or guarantee on the award's contract (FR-AWD-012). Verified separately.
 export async function lodgeSecurity(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const v = {
@@ -1109,7 +1137,9 @@ export async function lodgeSecurity(_prev: FormState, data: FormData): Promise<F
 
 /// Verify or reject a lodged security. Verification snapshots what it was judged against.
 export async function reviewSecurity(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const securityId = String(data.get("securityId") ?? "");
   const r = new FormReader(data);
@@ -1156,7 +1186,9 @@ export async function reviewSecurity(_prev: FormState, data: FormData): Promise<
 
 /// Lodge an insurance policy on the award's contract (FR-AWD-013).
 export async function lodgePolicy(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const r = new FormReader(data);
   const KINDS = ["WORKS", "PUBLIC_LIABILITY", "WORKMENS_COMPENSATION", "CAR", "EAR"] as const;
@@ -1199,7 +1231,9 @@ export async function lodgePolicy(_prev: FormState, data: FormData): Promise<For
 
 /// Verify or reject a lodged policy against its requirement, the bands and the period.
 export async function reviewPolicy(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
   const policyId = String(data.get("policyId") ?? "");
   const r = new FormReader(data);

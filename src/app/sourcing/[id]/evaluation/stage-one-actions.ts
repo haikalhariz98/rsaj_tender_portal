@@ -21,7 +21,7 @@ import { FormReader } from "@/lib/validate";
 
 import { audit, exerciseIdOf, inWindow } from "../window/shared";
 import { evLabel, GONE_BIDDER, refuse } from "./shared";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 
 /**
@@ -32,7 +32,9 @@ import { beginAct } from "@/app/_auth/act";
  * matter carries no amount. Tabled by the Secretariat's holder, signed in (FR-CTE-006, Phase 2b).
  */
 export async function tableStageOneMatter(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Bid", { required: true });
   const meetingId = r.text("meetingId", "Sitting", { required: true });

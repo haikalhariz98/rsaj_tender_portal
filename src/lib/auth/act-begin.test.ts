@@ -325,6 +325,18 @@ describe("an administrator account does no transactional act (NFR-SEC-004)", () 
     }
   });
 
+  it("may do a step of one of those acts when the caller says whose exemption it borrows, and only that step (the delegation's scan, FR-APR-012)", async () => {
+    const { module: m } = actModule();
+    const upload = "DocumentVersion.recordedBy";
+    expect((await m.beginAct(admin(), form({}), upload, OPTS)).ok).toBe(false);
+    expect((await m.beginAct(admin(), form({}), upload, { ...OPTS, administratorMayAs: "Delegation.fromPerson" })).ok).toBe(true);
+    // Borrowing from a slot that carries no exemption borrows nothing, and the form cannot name the slot: it is an option the code gives.
+    expect((await m.beginAct(admin(), form({ administratorMayAs: "Delegation.fromPerson" }), upload, { ...OPTS, administratorMayAs: OWN })).ok).toBe(false);
+    expect((await m.beginAct(admin(), form({ administratorMayAs: "Delegation.fromPerson" }), upload, OPTS)).ok).toBe(false);
+    // A slot that is not in the registry is a mistake in the code, said loudly.
+    await expect(m.beginAct(admin(), form({}), upload, { ...OPTS, administratorMayAs: "Nothing.here" })).rejects.toThrow(/not an act slot/);
+  });
+
   it("is not refused to a person who is not an administrator, and a loader run is not an account", async () => {
     const { module: m } = actModule();
     expect((await m.beginAct(actor(), form({}), OWN, OPTS)).ok).toBe(true);

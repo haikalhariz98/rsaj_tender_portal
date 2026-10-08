@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { StaffActor } from "@/lib/auth/types";
@@ -109,6 +111,37 @@ describe("a grantor other than the signed-in officer (F8)", () => {
     const told = await db.staffNotice.findMany({ where: { organisationId, recipientPersonId: c, kind: "DELEGATION_RECEIVED" } });
     expect(told.length).toBeGreaterThanOrEqual(1);
     expect(told[0]!.body).toContain("the whole office");
+  });
+});
+
+// NFR-SEC-004 (the sweep) keeps an administrator account from uploading a document, but not from recording a delegation, which is their own configuration act. A delegation for an absent
+// grantor cannot be recorded without the signed recommendation attached (FR-APR-012), so the administrator must be able to stage that scan (the upload route lets it through when it is
+// staged for a delegation: `src/app/api/documents/route.test.ts`) and to save the delegation with it attached.
+describe("an administrator records a delegation for an absent grantor, with the signed recommendation attached (FR-APR-012)", () => {
+  it("is refused without the scan, and accepted with it, the version filed on the delegation", async () => {
+    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const role = `ABS_${run}`;
+    const grantor = (await makePerson(organisationId, `Away ${run}`)).id;
+    const delegate = (await makePerson(organisationId, `Cover ${run}`)).id;
+    await db.person.update({ where: { id: grantor }, data: { isAvailable: false } });
+    await db.roleAssignment.create({ data: { personId: grantor, roleCode: role, effectiveFrom: day("2020-01-01") } });
+    const cls = await db.documentClass.create({ data: { organisationId, code: `REC_${run}`, nameEn: "Recommendation scan", classification: "INTERNAL" } });
+    const doc = await db.document.create({ data: { organisationId, title: "Signed recommendation", documentClassId: cls.id, classificationSnapshot: "INTERNAL", retentionSnapshot: {} } });
+    const sha256 = randomBytes(32).toString("hex");
+    await db.blobContent.create({ data: { organisationId, sha256, byteSize: BigInt(4), bytes: new Uint8Array([1, 2, 3, 4]) } });
+    const v = await db.documentVersion.create({ data: { organisationId, documentId: doc.id, versionNo: 1, sha256, byteSize: BigInt(4), mediaType: "application/pdf", originalFilename: "r.pdf", recordedByPersonId: clerk } });
+    const away = { roleCode: role, "fromPersonId:paperReference": "Letter of the absent holder", holderRecommendation: "Recommend cover while away", holderRecommendedOn: "2026-09-30" };
+    const admin = { personId: clerk, personName: "Clerk", isAdministrator: true };
+    const without = await as(admin, () => saveDelegation({ ok: false }, delegation(grantor, delegate, away)));
+    expect(without).toMatchObject({ ok: false, errors: { file: expect.stringMatching(/signed recommendation/) } });
+    expect(await db.delegation.count({ where: { organisationId, roleCode: role } })).toBe(0);
+    const withScan = await as(admin, () => saveDelegation({ ok: false }, delegation(grantor, delegate, { ...away, recommendationVersionId: v.id })));
+    expect(withScan).toEqual({ ok: true });
+    const row = await db.delegation.findFirstOrThrow({ where: { organisationId, roleCode: role } });
+    expect(await db.documentAttachment.count({ where: { delegationId: row.id, purpose: "HOLDER_RECOMMENDATION", versionId: v.id, detachedAt: null } })).toBe(1);
+    const att = await db.actAttribution.findFirstOrThrow({ where: { entity: "Delegation", entityId: row.id, slot: "fromPerson" } });
+    expect(att.subjectPersonId).toBe(grantor);
+    expect(att.recordedByPersonId).toBe(clerk);
   });
 });
 

@@ -36,7 +36,7 @@ import { delegationFactsOf, loadSupervision, soOfficeOn } from "@/lib/supervisio
 import { supervisionRefusal } from "@/lib/supervision/labels";
 import { formatDate } from "@/lib/format";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -161,7 +161,9 @@ async function openValuationOf(c: Ctx, valuationId: string) {
 
 /// The day of the month agreed with the contractor as the site valuation day. A change says why.
 export async function recordValuationCalendar(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const dayOfMonth = r.int("dayOfMonth", "Day of the month", { required: true, min: 1 });
@@ -192,7 +194,9 @@ export async function recordValuationCalendar(_prev: FormState, data: FormData):
 
 /// Open a valuation: on the agreed day, or on a contractor's claim. One at a time.
 export async function openInterimValuation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const trigger = r.choice("trigger", "What started it", VALUATION_TRIGGERS, { required: true });
@@ -219,7 +223,9 @@ export async function openInterimValuation(_prev: FormState, data: FormData): Pr
 
 /// The main contractor's work executed, valued to date.
 export async function recordMainWorks(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -237,7 +243,9 @@ export async function recordMainWorks(_prev: FormState, data: FormData): Promise
 
 /// The joint valuation: who valued it, how, and the contractor's agreement or dissent (FR-PAY-006).
 export async function recordJointValuation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -259,7 +267,9 @@ export async function recordJointValuation(_prev: FormState, data: FormData): Pr
 
 /// A line of the contractor's materials-on-site list, with the three answers (FR-PAY-005, 007).
 export async function addMaterialLine(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -285,7 +295,9 @@ export async function addMaterialLine(_prev: FormState, data: FormData): Promise
 
 /// Take a material line off a valuation still being valued, with the reason.
 export async function removeMaterialLine(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -304,7 +316,9 @@ export async function removeMaterialLine(_prev: FormState, data: FormData): Prom
 
 /// A nominated party's or an assignee's totals on the valuation (B1: totals only, FR-PAY-010).
 export async function recordPartyLine(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -334,7 +348,9 @@ export async function recordPartyLine(_prev: FormState, data: FormData): Promise
 /// A deduction keyed on the valuation (FR-PAY-011): premiums and social security, wages, non-compliance, up to three
 /// others, the damages line's signed rounding.
 export async function addValuationDeduction(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -364,7 +380,9 @@ export async function addValuationDeduction(_prev: FormState, data: FormData): P
 
 /// Take a keyed deduction off a valuation still being valued, with the reason.
 export async function removeValuationDeduction(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -397,7 +415,9 @@ function formFor(cfg: PaymentConfig, kind: string, sheetRequired = false) {
  * frozen with everything they rest on; the employer's premiums deducted are tied to it.
  */
 export async function raiseInterimCertificate(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -422,7 +442,9 @@ export async function raiseInterimCertificate(_prev: FormState, data: FormData):
 
 /// Hold a valuation below its minimum to the next cycle (FR-PAY-013, B4's exit), with the reason.
 export async function holdValuation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -433,7 +455,9 @@ export async function holdValuation(_prev: FormState, data: FormData): Promise<F
 
 /// Withdraw a valuation still being valued, with the reason (its lines are kept with it).
 export async function withdrawValuation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const valuationId = r.text("valuationId", "Valuation", { required: true });
@@ -460,7 +484,9 @@ async function closeValuation(c: Ctx, valuationId: string, to: "HELD" | "WITHDRA
 
 /// Release retention: the first share on the as-built drawings, or the balance on the Certificate of Making Good Defects.
 export async function releaseRetention(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const release = r.choice("release", "Which release", RETENTION_RELEASES, { required: true });
@@ -498,7 +524,9 @@ export async function releaseRetention(_prev: FormState, data: FormData): Promis
  * certificate (its reference) or assumed (the reason). The payment module reads it as the latest issued interim.
  */
 export async function recordOpeningPosition(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const lastCertificateNumber = r.text("lastCertificateNumber", "The last interim certificate's number", { max: 120 });
@@ -593,7 +621,9 @@ function readSchedule(r: FormReader, raw: string, field = "schedule"): { sequenc
 
 /// Apply for an advance payment (a mechanism only, B2): its amount, guarantee and recoupment schedule; its certificate opened.
 export async function applyAdvancePayment(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const party = r.choice("advanceFor", "For", ADVANCE_PARTIES, { required: true });
@@ -652,7 +682,9 @@ export async function applyAdvancePayment(_prev: FormState, data: FormData): Pro
 
 /// Raise the warning letter of the intention to impose damages (FR-LAD-003).
 export async function raiseLadWarning(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const eotClause = r.text("eotClause", "Extension-of-time clause", { required: true, max: 240 });
@@ -697,7 +729,9 @@ export async function raiseLadWarning(_prev: FormState, data: FormData): Promise
 
 /// Its registered post: the consignment reference and the day posted (the response window runs from it).
 export async function recordWarningPost(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const warningId = r.text("warningId", "Warning letter", { required: true });
@@ -855,7 +889,9 @@ export async function recordNonCompletion(_prev: FormState, data: FormData): Pro
 
 /// Close the damages window at completion (the first day not charged), with the reason; once.
 export async function closeLadWindow(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const decisionId = r.text("decisionId", "Decision", { required: true });

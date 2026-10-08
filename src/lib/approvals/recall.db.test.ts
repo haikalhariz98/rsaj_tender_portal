@@ -14,7 +14,8 @@ const who = vi.hoisted(() => ({ actor: null as StaffActor | null }));
 
 vi.mock("@/app/_auth/actor", async () => {
   const { actorModule } = await import("@/lib/test-support/staff");
-  return { ...actorModule(), requireStaff: async () => who.actor };
+  // The transactional actions ask `staffForAct("TRANSACTION")` first (NFR-SEC-004, the sweep): the signed-in officer here is not an administrator, so it hands the actor back.
+  return { ...actorModule(), requireStaff: async () => who.actor, staffForAct: async () => ({ ok: true as const, actor: who.actor }) };
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 vi.mock("next/navigation", () => ({ redirect: () => undefined, notFound: () => undefined }));

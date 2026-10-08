@@ -41,7 +41,7 @@ import { FormReader } from "@/lib/validate";
 
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { activePerson, audit, CHANGED, GONE, inSupplier, label, lockOrganisation, NO_ORG, refuse, Refusal, stampNow, type LockedSupplier } from "./shared";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { routeRequesterId } from "@/lib/approvals/requester";
 
 /**
@@ -116,7 +116,9 @@ function readContact(r: FormReader) {
  * reference is issued from the `supplier` series; unset, nothing is recorded and the setting is named.
  */
 export async function recordApplication(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   // Recorded from an online application: the portal fixes the channel and the day it came in, and the
@@ -232,7 +234,9 @@ export async function recordApplication(_prev: FormState, data: FormData): Promi
 
 /// Set an online application aside, with a reason (the core, with what it erases and audits, is `setAsideOnlineApplication`).
 export async function discardPortalApplication(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const id = String(data.get("portalApplicationId") ?? "").trim();
   const r = new FormReader(data);
@@ -265,7 +269,9 @@ export async function discardPortalApplication(_prev: FormState, data: FormData)
 
 /// Open a further application for a supplier on the register: a first registration again after a rejection, or a renewal or upgrade.
 export async function openApplication(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);
@@ -308,7 +314,9 @@ export async function openApplication(_prev: FormState, data: FormData): Promise
 
 /// Record the paper's days on an open application: when its declaration was signed, when the E-Payment form was received (OD-3 B: no bank field).
 export async function recordApplicationPaper(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const applicationId = String(data.get("applicationId") ?? "");
   const r = new FormReader(data);
   const declarationSignedOn = r.optionalText("declarationSignedOn");
@@ -334,7 +342,9 @@ export async function recordApplicationPaper(_prev: FormState, data: FormData): 
 
 /// Add or change a contact (not a Person: ADR 0019). Marking one primary unmarks the other.
 export async function saveContact(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const supplierId = String(data.get("supplierId") ?? "");
   const contactId = String(data.get("contactId") ?? "").trim() || null;
   const r = new FormReader(data);
@@ -380,7 +390,9 @@ export async function saveContact(_prev: FormState, data: FormData): Promise<For
  * its body's values and the day are judged under the supplier's lock.
  */
 export async function lodgeDocument(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const renewsId = String(data.get("renewsId") ?? "").trim() || null;
@@ -461,7 +473,9 @@ export async function lodgeDocument(_prev: FormState, data: FormData): Promise<F
 
 /// An officer's check of a lodged document (FR-VND-004): verified (on its scan) or not in order (with why), by a named Person on a day.
 export async function verifyDocument(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const documentId = String(data.get("documentId") ?? "");
   const r = new FormReader(data);
@@ -528,7 +542,9 @@ async function fileOf(tx: Tx, l: LockedSupplier, a: { kind: string; status: File
  * with its steps. No rule: refused, naming the Approval matrix.
  */
 export async function submitForDecision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const applicationId = String(data.get("applicationId") ?? "");
   const r = new FormReader(data);
@@ -713,7 +729,9 @@ export async function decideRegistrationStep(_prev: FormState, data: FormData): 
  * Items come from the form as `item:<documentId>` or `type:<typeId>` remarks; an empty one is not asked.
  */
 export async function decideApplication(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const applicationId = String(data.get("applicationId") ?? "");
   const r = new FormReader(data);
@@ -744,7 +762,9 @@ export async function decideApplication(_prev: FormState, data: FormData): Promi
  * once, with nobody's name: it is the deadline's outcome, not a decision. The notice is shown, not sent.
  */
 export async function recordLapse(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const applicationId = String(data.get("applicationId") ?? "");
   const supplierId = await supplierOfApplication(applicationId);
@@ -771,7 +791,9 @@ export async function recordLapse(_prev: FormState, data: FormData): Promise<For
 
 /// Record the finance system's vendor code (manual adapter). A changed code needs the reason.
 export async function setErpVendorCode(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const supplierId = String(data.get("supplierId") ?? "");
   const r = new FormReader(data);

@@ -29,7 +29,7 @@ import { saleSupplier } from "@/lib/suppliers/sale";
 import { registerAtSale } from "@/lib/suppliers/sale-hook";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, notes, refuse, Refusal, type LockedWindow } from "./shared";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 
@@ -88,7 +88,9 @@ function readParty(r: FormReader) {
  * for a sale, which refuses it.
  */
 export async function recordSale(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const party = readParty(r);
@@ -219,7 +221,9 @@ export async function recordSale(_prev: FormState, data: FormData): Promise<Form
 
 /// Void a sale recorded in error, with a reason; refused once the window has closed (X-11), and for a party holding a bid envelope (65-C2).
 export async function voidSale(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const saleId = String(data.get("saleId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -242,7 +246,9 @@ export async function voidSale(_prev: FormState, data: FormData): Promise<FormSt
 
 /// Record the finance receipt number of a sale that has none yet (OD-11: consumed, unique, never minted).
 export async function recordReceipt(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const saleId = String(data.get("saleId") ?? "");
   const r = new FormReader(data);
@@ -270,7 +276,9 @@ export async function recordReceipt(_prev: FormState, data: FormData): Promise<F
  * time and place together; mandatory only where the policy permits it (OD-8), and then answered.
  */
 export async function scheduleEvent(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const kind = r.choice("kind", "Event", SITE_EVENT_KINDS, { required: true }) as SiteEventKind | null;
@@ -298,7 +306,9 @@ export async function scheduleEvent(_prev: FormState, data: FormData): Promise<F
 
 /// Answer whether attendance at an event is mandatory, while the window is prepared (OD-8).
 export async function setEventMandatory(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const eventId = String(data.get("eventId") ?? "");
   const r = new FormReader(data);
@@ -322,7 +332,9 @@ export async function setEventMandatory(_prev: FormState, data: FormData): Promi
  * notice stated it, so the purchasers are told by an addendum (the screen says so).
  */
 export async function cancelEvent(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const eventId = String(data.get("eventId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -341,7 +353,9 @@ export async function cancelEvent(_prev: FormState, data: FormData): Promise<For
 
 /// Record an event held, on a day not before its start and not after today.
 export async function markEventHeld(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const eventId = String(data.get("eventId") ?? "");
   const r = new FormReader(data);
@@ -361,7 +375,9 @@ export async function markEventHeld(_prev: FormState, data: FormData): Promise<F
 
 /// Record a contractor's attendance at a held event, by the signed-in officer (Phase 2b).
 export async function recordAttendance(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const eventId = String(data.get("eventId") ?? "");
   const r = new FormReader(data);
@@ -400,7 +416,9 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
 
 /// Draft an addendum during the window: its title and what it changes; the signed copy is attached to it.
 export async function saveAddendum(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const addendumId = String(data.get("addendumId") ?? "") || null;
   const r = new FormReader(data);
@@ -430,7 +448,9 @@ export async function saveAddendum(_prev: FormState, data: FormData): Promise<Fo
 
 /// Void a draft addendum, with a reason. It never took a number.
 export async function voidAddendum(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const addendumId = String(data.get("addendumId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -454,7 +474,9 @@ export async function voidAddendum(_prev: FormState, data: FormData): Promise<Fo
  * stands (FR-ADV-012). Delivery is then recorded per recipient; nothing is sent.
  */
 export async function issueAddendum(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const addendumId = String(data.get("addendumId") ?? "");
   return inWindow(actor, exerciseId, async (tx, l, d) => {
@@ -486,7 +508,9 @@ export async function issueAddendum(_prev: FormState, data: FormData): Promise<F
 
 /// How a copy of an addendum went: recorded, never sent.
 export async function recordAddendumDelivery(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const recipientId = String(data.get("recipientId") ?? "");
   const r = new FormReader(data);

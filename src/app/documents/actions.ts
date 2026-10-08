@@ -24,7 +24,7 @@ import { loadAttributions } from "@/lib/auth/attribution-read";
 import { drawerAttributionQueries, drawerView, panelAttributionQueries, panelView, type DrawerView, type PanelOptions, type PanelView } from "@/lib/documents/views";
 import { db } from "@/lib/db";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState } from "@/app/_auth/act";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
@@ -109,7 +109,9 @@ async function attachmentOwner(scope: OrgScope, attachmentId: string): Promise<O
  * (`afterChange`), all in one act.
  */
 export async function attachDocument(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const kind = r.choice("ownerKind", "Record", OWNER_KINDS, { required: true });
   const ownerId = r.text("ownerId", "Record", { required: true });
@@ -147,7 +149,9 @@ export async function attachDocument(_prev: FormState, data: FormData): Promise<
 
 /// Take an attachment off its owner, with the reason; never one a judged record stands on.
 export async function detachDocument(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const attachmentId = String(data.get("attachmentId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   if (!reason) return { ok: false, errors: { reason: "Give the reason it is taken off." } };
@@ -175,7 +179,9 @@ export async function detachDocument(_prev: FormState, data: FormData): Promise<
  * the owner is frozen; judged records keep their own snapshots.
  */
 export async function attachNewVersion(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const attachmentId = String(data.get("attachmentId") ?? "");
   const versionId = String(data.get("versionId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -210,7 +216,9 @@ export async function attachNewVersion(_prev: FormState, data: FormData): Promis
 /// Withdraw a version, once, with its reason. Never refused because something relied on
 /// it: a judged record that pinned it learns at its next act (an award's issue refuses).
 export async function withdrawVersion(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const versionId = String(data.get("versionId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   const org = await documentOrg(actor.organisationId);
@@ -233,7 +241,9 @@ export async function withdrawVersion(_prev: FormState, data: FormData): Promise
 /// unset, and an unset one never set below its class's classification as it stands now
 /// (BD-DS-11 as ruled, security audit C-4).
 export async function reclassifyDocument(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const documentId = String(data.get("documentId") ?? "");
   const r = new FormReader(data);
   const next = r.choice("classification", "Classification", SECURITY_CLASSES, { required: true });
@@ -256,7 +266,9 @@ export async function reclassifyDocument(_prev: FormState, data: FormData): Prom
 
 /// Place a legal hold, by the signed-in officer, with the reason (NFR-RET-002).
 export async function placeLegalHold(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const begun = await beginAct(actor, data, "LegalHold.placedBy", { personField: "personId" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
@@ -278,7 +290,9 @@ export async function placeLegalHold(_prev: FormState, data: FormData): Promise<
 
 /// Release a standing legal hold, by the signed-in officer, with the reason.
 export async function releaseLegalHold(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const begun = await beginAct(actor, data, "LegalHold.releasedBy", { personField: "personId" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
@@ -309,7 +323,9 @@ export async function releaseLegalHold(_prev: FormState, data: FormData): Promis
  * VERIFIED or INTEGRITY_FAILED.
  */
 export async function verifyVersion(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const versionId = String(data.get("versionId") ?? "");
   const org = await documentOrg(actor.organisationId);
   if (!org) return refuse([{ code: "NO_ORGANISATION", level: "block" }]);

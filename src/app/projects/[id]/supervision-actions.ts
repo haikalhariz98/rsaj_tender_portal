@@ -32,7 +32,7 @@ import { earlyActionFaults, handoverFaults, meetingFaults, onSiteFaults, partyFa
 import { resolveActFaults, resolveSo, soFaults } from "@/lib/supervision/so";
 import { COMPLIANCE_AREAS, CONTRACT_PARTY_KINDS, DELEGATE_KINDS, DIARY_ENDORSERS, DIRECTION_CAUSES, EARLY_ACTION_BRANCHES, PROGRAMME_DECISIONS, PROGRAMME_KINDS, SITE_RECORDS_SETS, SUPERVISION_ACTS, type DelegationVariant, type Finding } from "@/lib/supervision/types";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -146,7 +146,9 @@ function latestValues(c: Ctx) {
  * office the matrix in force today gives at the contract's value and regime, effective from today.
  */
 export async function resolveSuperintendingOfficer(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const reason = r.text("reason", "Why it is recorded now", { required: true, max: 2000 });
@@ -185,7 +187,9 @@ const formsFor = (p: Awaited<ReturnType<typeof loadPostAwardPolicy>>, v: Delegat
  * DELEGATION_NOTICE) through the 6.14 core in this transaction. The delegation holds from the letter's date.
  */
 export async function recordDelegation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const kind = r.choice("kind", "Type of representative", DELEGATE_KINDS, { required: true });
@@ -224,7 +228,9 @@ export async function recordDelegation(_prev: FormState, data: FormData): Promis
 
 /// Revoke a delegation from a day, with the reason. Its letters stay as they were.
 export async function revokeDelegation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const delegationId = r.text("delegationId", "Delegation", { required: true });
@@ -256,7 +262,9 @@ export async function revokeDelegation(_prev: FormState, data: FormData): Promis
  * contract to ACTIVE: the only act that does.
  */
 export async function recordPossession(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const on = r.date("possessionOn", "Date of possession", { required: true });
@@ -328,7 +336,9 @@ function readPoints(r: FormReader, raw: string): PointIn[] {
 
 /// The contractor submits a revision of its programme (or service schedule), with its planned progress.
 export async function submitProgramme(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const kind = r.choice("kind", "What it is", PROGRAMME_KINDS, { required: true });
@@ -363,7 +373,9 @@ async function lockedRevision(c: Ctx, programmeId: string) {
 
 /// The S.O. Representative's scrutiny: whether it reflects a reasonable and realistic sequence.
 export async function scrutiniseProgramme(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const programmeId = r.text("programmeId", "Programme", { required: true });
@@ -422,7 +434,9 @@ export async function decideProgramme(_prev: FormState, data: FormData): Promise
 
 /// Actual physical progress on a day.
 export async function recordProgress(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const on = r.date("day", "Day", { required: true });
@@ -458,7 +472,9 @@ export async function recordProgress(_prev: FormState, data: FormData): Promise<
 
 /// A day's diary entry, kept by the responsible officer (the S.O. or a representative with the diary in scope).
 export async function recordDiaryEntry(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const on = r.date("day", "Day", { required: true });
@@ -492,7 +508,9 @@ async function lockedEntry(c: Ctx, entryId: string) {
 
 /// An attestation at the end of the day: the responsible officer's, or the contractor's agent's (by name).
 export async function attestDiary(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const entryId = r.text("entryId", "Entry", { required: true });
@@ -513,7 +531,9 @@ export async function attestDiary(_prev: FormState, data: FormData): Promise<For
 
 /// A disagreement between the two is recorded on the entry and escalated to the S.O. (ASSUMED path).
 export async function disputeDiary(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const entryId = r.text("entryId", "Entry", { required: true });
@@ -573,7 +593,9 @@ export async function endorseDiary(_prev: FormState, data: FormData): Promise<Fo
 
 /// A special meeting chaired by the S.O. after an In Delay classification, with its minutes and the reading that called it.
 export async function recordSiteMeeting(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const heldOn = r.date("heldOn", "Held on", { required: true });
@@ -601,7 +623,9 @@ export async function recordSiteMeeting(_prev: FormState, data: FormData): Promi
 
 /// A compliance observation (FR-SUP-014).
 export async function recordObservation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const area = r.choice("area", "About", COMPLIANCE_AREAS, { required: true });
@@ -626,7 +650,9 @@ export async function recordObservation(_prev: FormState, data: FormData): Promi
 
 /// A direction to review the completion date and submit a revised programme (FR-SUP-012). A variation's is raised by the variation itself.
 export async function recordDirection(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const cause = r.choice("cause", "Called for by", DIRECTION_CAUSES.filter((x) => x !== "VARIATION"), { required: true });
@@ -653,7 +679,9 @@ export async function recordDirection(_prev: FormState, data: FormData): Promise
 
 /// The S.O.'s self-help on insurance: the premium the employer paid becomes a deduction waiting for the next interim.
 export async function recordSelfHelp(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const policyId = r.text("policyId", "Policy", { required: true });
@@ -681,7 +709,9 @@ export async function recordSelfHelp(_prev: FormState, data: FormData): Promise<
 
 /// The S.O.'s early-action decision: one or more branches, each opening its module.
 export async function recordEarlyAction(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const branches = linesOf(String(data.get("branches") ?? "")).filter((x): x is (typeof EARLY_ACTION_BRANCHES)[number] => (EARLY_ACTION_BRANCHES as readonly string[]).includes(x));
@@ -708,7 +738,9 @@ export async function recordEarlyAction(_prev: FormState, data: FormData): Promi
 
 /// A nominated sub-contractor, nominated supplier or approved assignee paid through the contract's certificates.
 export async function recordParty(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const kind = r.choice("kind", "Party", CONTRACT_PARTY_KINDS, { required: true });
@@ -731,7 +763,9 @@ export async function recordParty(_prev: FormState, data: FormData): Promise<For
 
 /// Retire a party, with the reason: it is never deleted, so a certificate that carried it still reads it.
 export async function retireParty(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const partyId = r.text("partyId", "Party", { required: true });
@@ -754,7 +788,9 @@ export async function retireParty(_prev: FormState, data: FormData): Promise<For
 
 /// Hand a set of site records to the Implementing Department, the versions live now pinned.
 export async function handOverRecords(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const set = r.choice("recordsSet", "Records", SITE_RECORDS_SETS, { required: true });

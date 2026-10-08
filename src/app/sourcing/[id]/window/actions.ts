@@ -25,7 +25,7 @@ import { FormReader } from "@/lib/validate";
 import { chooseFaults } from "@/lib/evaluation/pin";
 
 import { activePerson, audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, notes } from "./shared";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 
@@ -45,7 +45,9 @@ import type { AuditActor } from "@/lib/auth/types";
  * closing change.
  */
 export async function saveWindow(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const inspectionPlace = r.text("inspectionPlace", "Where the documents are inspected", { max: 400 });
@@ -82,7 +84,9 @@ export async function saveWindow(_prev: FormState, data: FormData): Promise<Form
 
 /// Add or change a line of the fee's cost basis. The amount is the lib's (`lineAmount`), never the form's.
 export async function saveFeeLine(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const lineId = String(data.get("lineId") ?? "") || null;
   const r = new FormReader(data);
@@ -113,7 +117,9 @@ export async function saveFeeLine(_prev: FormState, data: FormData): Promise<For
 }
 
 export async function removeFeeLine(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const lineId = String(data.get("lineId") ?? "");
   return inWindow(actor, exerciseId, async (tx, l, d) => {
@@ -142,7 +148,9 @@ async function withdrawNameRoutes(tx: Parameters<Parameters<typeof inWindow>[2]>
 
 /// Propose a contractor for invitation. A change of the list withdraws the name route.
 export async function proposeInvitee(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const name = r.text("name", "Contractor", { required: true, max: 240 });
@@ -167,7 +175,9 @@ export async function proposeInvitee(_prev: FormState, data: FormData): Promise<
 
 /// Take a proposed contractor off the list, with a reason. Not once invited; not one with records.
 export async function removeInvitee(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const partyId = String(data.get("partyId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -192,7 +202,9 @@ export async function removeInvitee(_prev: FormState, data: FormData): Promise<F
 
 /// Record an advertised exercise's publication on a channel, by the signed-in officer (Phase 2b).
 export async function recordPublication(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const channelId = r.text("channelId", "Channel", { required: true });
@@ -228,7 +240,9 @@ export async function recordPublication(_prev: FormState, data: FormData): Promi
 
 /// Remove a publication recorded in error, with a reason, before the exercise is published.
 export async function removePublication(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const publicationId = String(data.get("publicationId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
@@ -253,7 +267,9 @@ export async function removePublication(_prev: FormState, data: FormData): Promi
  * the exercise moved by its one act (`via: PUBLICATION`). Warnings are said, never refused.
  */
 export async function publishWindow(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   return inWindow(actor, exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
@@ -323,7 +339,9 @@ export async function publishWindow(_prev: FormState, data: FormData): Promise<F
  * against the basis's is judged with the publication, so the card and the act give the same reason.
  */
 export async function chooseEvaluationModel(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const modelId = r.text("evaluationModelId", "Evaluation model", { required: true });
@@ -342,7 +360,9 @@ export async function chooseEvaluationModel(_prev: FormState, data: FormData): P
 
 /// How a letter of invitation went: recorded, never sent (INT-09 is not built).
 export async function recordLetterDelivery(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const letterId = String(data.get("letterId") ?? "");
   const r = new FormReader(data);

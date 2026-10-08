@@ -39,7 +39,7 @@ import { CLOSING_CHANGE_KINDS, DELIVERY_METHODS, type ClosingChangeKind, type De
 import { FormReader } from "@/lib/validate";
 
 import { audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, type LockedWindow } from "./shared";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import { routeRequesterId } from "@/lib/approvals/requester";
@@ -130,7 +130,9 @@ function changeRules(l: LockedWindow, d: WindowData) {
  * asked for. The original and the revised are both kept (append-only).
  */
 export async function requestClosingChange(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const kind = r.choice("kind", "Change", CLOSING_CHANGE_KINDS, { required: true }) as ClosingChangeKind | null;
@@ -183,7 +185,9 @@ export async function requestClosingChange(_prev: FormState, data: FormData): Pr
  * replacement is a new exercise linked to this one.
  */
 export async function requestCancellation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const r = new FormReader(data);
   const reason = r.text("reason", "Reason", { max: 2000 });
@@ -381,7 +385,9 @@ export async function recordWindowChangeDecision(_prev: FormState, data: FormDat
 
 /// How a purchaser was told of an applied change or of the cancellation: recorded, never sent.
 export async function recordNoticeDelivery(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const exerciseId = exerciseIdOf(data);
   const noticeId = String(data.get("noticeId") ?? "");
   const r = new FormReader(data);

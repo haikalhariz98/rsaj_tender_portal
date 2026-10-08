@@ -10,6 +10,7 @@ import { RETRY_AFTER_SECONDS, uploadLimiter } from "@/lib/documents/concurrency"
 import { documentFaultText } from "@/lib/documents/labels";
 import { effectiveCap, readLimit, requestLengthFault, sizeFault } from "@/lib/documents/limits";
 import { mediaFault, sniffMediaType, SNIFF_BYTES } from "@/lib/documents/media";
+import { STAGED_FOR_DELEGATION } from "@/lib/documents/staged-for";
 import { documentOrg, loadStorePolicy, logAccess, storeUpload, UploadRefusal } from "@/lib/documents/service";
 import { blobStore, deploymentCeiling, sha256Hex } from "@/lib/documents/store";
 import type { Finding } from "@/lib/documents/types";
@@ -19,7 +20,7 @@ import type { Finding } from "@/lib/documents/types";
  * a new version of an existing document (`documentId`). Attaching it to a record is the
  * owner's act, which takes the returned `versionId`.
  *
- * Multipart form fields: `file`, `title`, `documentClassId`, `recordedByPersonId`,
+ * Multipart form fields: `file`, `title`, `documentClassId`, `recordedByPersonId`, `stagedFor` (only `delegation-recommendation`),
  * optional `receivedOn` (YYYY-MM-DD), `note`, `documentId`.
  *
  * Refused before anything else, and never logged: a request from nobody signed in, one that is not same-origin
@@ -105,7 +106,15 @@ async function upload(scope: StaffActor, req: NextRequest, actor: AuditActor) {
   const media = mediaFault(sniffed, { filename: fileName, contentType: file.type }, policy);
   if (media) return refuse(415, media, at);
   // The upload is recorded by the signed-in officer (Phase 2b): the person is the session's, never a field of the form.
-  const begun = await beginAct(scope, form, "DocumentVersion.recordedBy", { personField: "recordedByPersonId" });
+  // An administrator account does no transactional act (NFR-SEC-004), and uploading a document is one, except for the scan of a delegation's signed recommendation: the delegation
+  // is the administrator's own configuration act (`Delegation.fromPerson`) and a delegation for an absent grantor cannot be recorded without it (FR-APR-012). The form says
+  // what the file is staged for, and that borrows the delegation's exemption only for an account that may draft configuration (what `saveDelegation` asks); the file is
+  // stored unattached, and attaching it anywhere is an act that is refused to an administrator, so the exemption reaches no further than a delegation's attach.
+  const forDelegation = form.get("stagedFor") === STAGED_FOR_DELEGATION;
+  if (forDelegation && scope.isAdministrator && !scope.permissions.has("configuration.draft")) {
+    return Response.json({ ok: false, code: "ACT_REFUSED", message: "You do not hold the permission to draft configuration, so you cannot attach a delegation's signed recommendation." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  }
+  const begun = await beginAct(scope, form, "DocumentVersion.recordedBy", { personField: "recordedByPersonId", ...(forDelegation ? { administratorMayAs: "Delegation.fromPerson" } : {}) });
   if (!begun.ok) return Response.json({ ok: false, code: "ACT_REFUSED", message: begun.state.message ?? Object.values(begun.state.errors ?? {}).join(" ") }, { status: 403, headers: { "Cache-Control": "no-store" } });
   const act = begun.act;
   // The one copy of the file this route makes; the parsed form is let go with it.

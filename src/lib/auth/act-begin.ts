@@ -45,6 +45,11 @@ export interface BeginActOptions {
   /// The form names whom the act is about in the person field itself (a grantor of a delegation, a requesting officer): it is the subject, and is the actor's
   /// own when it is the signed-in person and recorded on their behalf when it is anyone else, so the switch is not asked for. The paper or the reason still is.
   namesSubject?: boolean;
+  /// The act is a step of a configuration act an administrator may do, and borrows that slot's exemption from the administrator sweep (`administratorMay`, with its
+  /// reason): the key of that slot. It frees an administrator account from the refusal for this one act and nothing else, so it is named by the caller in code and never read
+  /// from a form. The delegation's signed recommendation is the example: it is staged by the upload route, whose own slot (`DocumentVersion.recordedBy`) an administrator is refused,
+  /// and a delegation for an absent grantor cannot be recorded without it (FR-APR-012). A slot that carries no exemption borrows nothing.
+  administratorMayAs?: string;
 }
 
 export interface WriteExtra {
@@ -139,7 +144,8 @@ export async function beginActFromWith(deps: ActDeps, actor: StaffActor, form: A
   // administrator account does no act that attributes a person, but the few that are an administrator's own configuration acts (`administratorMay`). A loader
   // run is not an account, and is never refused here. This is the second line behind the entry points that ask first (`staffForAct`): nothing reaches a write by
   // way of a slot without passing it.
-  if (!actor.system && !slot.administratorMay) {
+  const exempt = slot.administratorMay ?? (opts.administratorMayAs ? parseSlotKey(opts.administratorMayAs).slot.administratorMay : undefined);
+  if (!actor.system && !exempt) {
     const refused = administrationConflict({ kind: "ACT", act: "TRANSACTION", actorIsAdministrator: actor.isAdministrator });
     if (refused) return { ok: false, state: { ok: false, message: refused.en } };
   }

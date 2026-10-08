@@ -25,7 +25,7 @@ import { FormReader } from "@/lib/validate";
 import { approvedOnOf, decideSupplierStep, openSupplierRoute } from "./routes";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { activePerson, audit, CHANGED, notes, NO_ORG, refuse, Refusal, stampNow } from "./shared";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { routeRequesterId } from "@/lib/approvals/requester";
 
 /**
@@ -76,7 +76,9 @@ const supplierWords = (s: { reference: string; registeredName: string }) => `${s
 
 /// Link an exercise's party to the register's supplier. Its awards with that party follow, in the same transaction.
 export async function linkPartyToSupplier(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const partyId = r.text("partyId", "Party", { required: true });
   const supplierId = r.text("supplierId", "Supplier", { required: true });
@@ -114,7 +116,9 @@ export async function linkPartyToSupplier(_prev: FormState, data: FormData): Pro
 
 /// Link an award with no awardee party (Phase 1's awards) to the register's supplier.
 export async function linkAwardToSupplier(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const awardId = r.text("awardId", "Award", { required: true });
   const supplierId = r.text("supplierId", "Supplier", { required: true });
@@ -155,7 +159,9 @@ function refuseLink(fs: readonly Finding[]): FormState {
  * day given; with one, it waits for its route on `special_permission`.
  */
 export async function recordSpecialPermission(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const partyId = r.text("partyId", "Party", { required: true });
@@ -248,7 +254,9 @@ export async function decidePermissionStep(_prev: FormState, data: FormData): Pr
 
 /// Grant a special permission its internal route approved, on the day given.
 export async function grantSpecialPermission(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const permissionId = r.text("permissionId", "Permission", { required: true });

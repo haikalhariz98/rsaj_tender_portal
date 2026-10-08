@@ -21,7 +21,7 @@ import { timeRefusal } from "@/lib/time/labels";
 import { eotCondOf } from "@/lib/time/route";
 import { BEST_ENDEAVOURS, CONCURRENCIES, DELAY_NOTICE_PATHS, ENTITLEMENTS, EOT_PACK_ITEMS, FINANCIAL_IMPACTS, type EotInstrumentKind, type Finding, type PackAnswer } from "@/lib/time/types";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -82,7 +82,9 @@ const claimLabel = (c: ActCtx, m: { kind: string; reference: string | null }) =>
 // ------------------------------------------------------------------ FR-EOT-001: the delay notice
 
 export async function recordDelayNotice(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const path = r.choice("path", "How it came", DELAY_NOTICE_PATHS, { required: true });
@@ -108,7 +110,9 @@ export async function recordDelayNotice(_prev: FormState, data: FormData): Promi
 // ------------------------------------------------------------------ FR-EOT-002–006: the claim
 
 export async function openEotClaim(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const noticeIds = data.getAll("noticeId").map(String).filter(Boolean);
@@ -160,7 +164,9 @@ function readPack(data: FormData): PackAnswer[] {
 }
 
 export async function answerEotClaim(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const claimId = r.text("claimId", "Claim", { required: true });
@@ -204,7 +210,9 @@ export async function answerEotClaim(_prev: FormState, data: FormData): Promise<
 }
 
 export async function addEotReason(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const claimId = r.text("claimId", "Claim", { required: true });
@@ -227,7 +235,9 @@ export async function addEotReason(_prev: FormState, data: FormData): Promise<Fo
 }
 
 export async function removeEotReason(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const reasonId = r.text("reasonId", "Reason", { required: true });
@@ -296,7 +306,9 @@ export async function determineEotClaim(_prev: FormState, data: FormData): Promi
 
 /// FR-EOT-007: send an entitled claim for approval, routed on the cause of its financial impact.
 export async function sendEotClaim(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const claimId = r.text("claimId", "Claim", { required: true });

@@ -43,7 +43,7 @@ import { applicationPercents, orderBands } from "@/lib/variation/route";
 import { applicationFormNow, chooseVariationRejection, citeVariationDecision, decideVariationStep, matrixToday, sendVariationRoute, VariationRefusal, variationLabel, type VariationCtx } from "@/lib/variation/route-write";
 import { ADJUSTMENT_DIRECTIONS, ADJUSTMENT_TRIGGERS, RATE_SOURCES, SO_DECISIONS, VARIATION_EVENTS, VARIATION_EXEMPTIONS, VARIATION_ORIGINS, type AdjustmentTrigger, type Finding, type VariationEvent, type VariationExemption } from "@/lib/variation/types";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct, type PreparedAct } from "@/app/_auth/act";
 import type { StaffActor } from "@/lib/auth/types";
 import type { AuditActor } from "@/lib/auth/types";
@@ -285,7 +285,9 @@ async function beginOrigination(actor: StaffActor, data: FormData, more: ReturnT
 
 /// Record a variation as a draft (FR-VAR-001): its path, its originator, what it is and why, its estimate.
 export async function recordVariation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const { origin, fields, more } = readFields(r);
@@ -311,7 +313,9 @@ export async function recordVariation(_prev: FormState, data: FormData): Promise
 
 /// Change a draft (before it is submitted), every answer audited before and after.
 export async function editVariation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -361,7 +365,9 @@ async function readingNow(c: Ctx, all: readonly VariationRow[], v: VariationRow,
  * and its percentage's basis and base must be set (OD-A2: unset refuses submission, naming the setting).
  */
 export async function submitVariation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -472,7 +478,9 @@ export async function decideVariation(_prev: FormState, data: FormData): Promise
  * the revised sum waits for an adjustment in progress.
  */
 export async function sendVariationForApproval(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -568,7 +576,9 @@ export async function citeVariationCommittee(_prev: FormState, data: FormData): 
 
 /// Where a refused route goes, chosen by the officer where nothing was configured (FR-APR-016, CO-5).
 export async function chooseVariationRefusal(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -593,7 +603,9 @@ export async function chooseVariationRefusal(_prev: FormState, data: FormData): 
  * committee's Secretariat office on the tabling day tables it: the signed-in person, judged as the actor (FR-CTE-006, Phase 3d).
  */
 export async function tableVariationMatter(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -656,7 +668,9 @@ export async function tableVariationMatter(_prev: FormState, data: FormData): Pr
 
 /// Work commenced pending approval, on the support of the S.O. or a representative in force (FR-VAR-014).
 export async function recordCommencement(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -687,7 +701,9 @@ export async function recordCommencement(_prev: FormState, data: FormData): Prom
 
 /// Close a variation not yet approved (withdrawn, or ended), with the reason.
 export async function closeVariation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -718,7 +734,9 @@ export async function closeVariation(_prev: FormState, data: FormData): Promise<
  * it was first given orally, the confirmation clock is frozen from the oral day now (FR-VAR-016).
  */
 export async function raiseInstruction(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -764,7 +782,9 @@ export async function raiseInstruction(_prev: FormState, data: FormData): Promis
 
 /// The oral loop (FR-VAR-016): the contractor's written confirmation and whether it matches; an objection where not.
 export async function recordOralLoop(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -792,7 +812,9 @@ export async function recordOralLoop(_prev: FormState, data: FormData): Promise<
 
 /// Measure one item under the instruction (FR-VAR-017, 018): its amount worked out, rounded once.
 export async function addMeasurement(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -848,7 +870,9 @@ export async function addMeasurement(_prev: FormState, data: FormData): Promise<
 
 /// Remove a measured item while no order is raised from the instruction, with the reason (kept, marked removed).
 export async function removeMeasurement(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -870,7 +894,9 @@ export async function removeMeasurement(_prev: FormState, data: FormData): Promi
 
 /// A daywork record (FR-VAR-019): the day worked, its agreement with the contractor, its substantiation (its clock frozen now).
 export async function recordDaywork(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -915,7 +941,9 @@ export async function recordDaywork(_prev: FormState, data: FormData): Promise<F
  * re-measurement each sent from here first where it needs one).
  */
 export async function raiseVariationOrder(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const variationId = r.text("variationId", "Variation", { required: true });
@@ -978,7 +1006,9 @@ const OTHER_LINES = 3;
  * it. One in progress at a time. It routes on the configured gap rule from its own page (FR-PAD-006).
  */
 export async function raiseSumAdjustment(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   // The tokens field rides out as one newline-joined value (the shared Select).

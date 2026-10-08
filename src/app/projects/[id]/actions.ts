@@ -39,7 +39,7 @@ import { loadRoster } from "@/lib/people/load";
 import { officesHeldBy } from "@/lib/people/roster";
 import { amountOf, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -139,7 +139,9 @@ const idOf = (data: FormData) => String(data.get("id") ?? "");
  * document parts into the assembly, open the basis's checks, and build the baseline's draft.
  */
 export async function startPreparation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   return inContract(actor, toAuditActor(actor), idOf(data), now, "FORMATION", async (c) => {
     const { l, tx } = c;
@@ -184,7 +186,9 @@ export async function startPreparation(_prev: FormState, data: FormData): Promis
 
 /// Mark a part cancelled by an accepted alternative proposal (stating what it cancels), or restore it.
 export async function setAssemblyPart(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const partId = r.text("partId", "Part", { required: true });
@@ -206,7 +210,9 @@ export async function setAssemblyPart(_prev: FormState, data: FormData): Promise
 // ------------------------------------------------------------------ reconciliation
 
 export async function recordReconciliation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const comparison = r.choice("comparison", "Comparison", ["TENDER_DOCUMENT", "TENDER_TABLE_DOCUMENT", "DRAWINGS"] as const, { required: true });
@@ -293,7 +299,9 @@ function openCheck(c: Ctx, checkId: string) {
 
 /// An arithmetical correction line (item, tendered, corrected, reason).
 export async function addCorrection(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const checkId = r.text("checkId", "Check", { required: true });
@@ -319,7 +327,9 @@ export async function addCorrection(_prev: FormState, data: FormData): Promise<F
 
 /// A tendered rate set against the estimate's (FR-CON-005 b). The estimate rate is SULIT.
 export async function addRate(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const checkId = r.text("checkId", "Check", { required: true });
@@ -345,7 +355,9 @@ export async function addRate(_prev: FormState, data: FormData): Promise<FormSta
 
 /// Take a line off a check not yet complete (a mistake), with a reason; the trail keeps it.
 export async function removeCheckLine(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const checkId = r.text("checkId", "Check", { required: true });
@@ -373,7 +385,9 @@ export async function removeCheckLine(_prev: FormState, data: FormData): Promise
 }
 
 export async function completeCheck(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const checkId = r.text("checkId", "Check", { required: true });
@@ -407,7 +421,9 @@ export async function completeCheck(_prev: FormState, data: FormData): Promise<F
 
 /// Send the contract to the legal office: a new iteration pinning the documents live to send.
 export async function submitLegal(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   if (r.failed) return { ok: false, errors: r.errors };
@@ -437,7 +453,9 @@ export async function submitLegal(_prev: FormState, data: FormData): Promise<For
 
 /// The legal office's decision on the open iteration: endorsed, or returned with comments.
 export async function decideLegal(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const decision = r.choice("decision", "Decision", ["ENDORSED", "RETURNED"] as const, { required: true });
@@ -474,7 +492,9 @@ export async function decideLegal(_prev: FormState, data: FormData): Promise<For
 
 /// The recorded check of uncovered wages on a verified WC policy. Recorded, not judged (D4).
 export async function recordWcCheck(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const NOT_AFTER_TODAY: FormState = { ok: false, errors: { checkedOn: "Not after today." } };
   const NOT_BEFORE_VERIFIED: FormState = { ok: false, errors: { checkedOn: "Not before the policy was verified." } };
   const WHO: FormState = { ok: false, errors: { personId: "Choose someone on record and active." } };
@@ -515,7 +535,9 @@ export async function recordWcCheck(_prev: FormState, data: FormData): Promise<F
 
 /// The contractor's signature and its witness (FR-CON-007): the contractor's own people, named and not signed in the portal (they have no account here).
 export async function recordContractorSignature(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const name = r.text("name", "Signatory's full name", { required: true, max: 240 });
@@ -620,7 +642,9 @@ async function writeVersion(c: Ctx, v: BaselineValues, reason: "CONFIRMED" | "EX
 
 /// Correct the Contract Date to an earlier day (OD-1 A): audited, with a reason; a CORRECTION version carries it.
 export async function correctContractDate(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const proposed = r.date("contractDate", "Contract Date", { required: true });
@@ -676,7 +700,9 @@ export async function correctContractDate(_prev: FormState, data: FormData): Pro
 
 /// Stamping at LHDN (FR-CON-011): "fully executed" only with the day and the reference.
 export async function recordStamping(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const stampedOn = r.date("stampedOn", "Stamped on", { required: true });
@@ -694,7 +720,9 @@ export async function recordStamping(_prev: FormState, data: FormData): Promise<
 
 /// The Integrity Pact Stage Three briefing (FR-CON-010).
 export async function recordBriefing(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const heldOn = r.date("heldOn", "Held on", { required: true });
@@ -716,7 +744,9 @@ export async function recordBriefing(_prev: FormState, data: FormData): Promise<
 // ------------------------------------------------------------------ controlled copies
 
 export async function answerConsultingEngineer(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const v = r.choice("consultingEngineer", "Consulting engineer", ["yes", "no"] as const, { required: true });
@@ -749,7 +779,9 @@ async function issue(c: Ctx, recipientId: string, addressedTo: string, method: (
 }
 
 export async function issueCopy(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const recipientId = r.text("recipientId", "Recipient", { required: true });
@@ -773,7 +805,9 @@ async function onCopy(c: Ctx, copyId: string) {
 }
 
 export async function despatchCopy(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const copyId = r.text("copyId", "Copy", { required: true });
@@ -791,7 +825,9 @@ export async function despatchCopy(_prev: FormState, data: FormData): Promise<Fo
 }
 
 export async function acknowledgeCopy(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const copyId = r.text("copyId", "Copy", { required: true });
@@ -808,7 +844,9 @@ export async function acknowledgeCopy(_prev: FormState, data: FormData): Promise
 }
 
 export async function recallCopy(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const copyId = r.text("copyId", "Copy", { required: true });
@@ -827,7 +865,9 @@ export async function recallCopy(_prev: FormState, data: FormData): Promise<Form
 
 /// Reissue a recalled copy: the next number, linked to the one it replaces.
 export async function reissueCopy(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const copyId = r.text("copyId", "Copy", { required: true });
@@ -849,7 +889,9 @@ export async function reissueCopy(_prev: FormState, data: FormData): Promise<For
 // ------------------------------------------------------------------ custody
 
 export async function registerOriginal(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   // The drawer offers each original as "KIND:id" (the contract's own as "CONTRACT:").
@@ -876,7 +918,9 @@ export async function registerOriginal(_prev: FormState, data: FormData): Promis
 }
 
 export async function moveOriginal(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const itemId = r.text("itemId", "Original", { required: true });
@@ -982,7 +1026,9 @@ const enteredJson = (e: unknown) => JSON.parse(JSON.stringify(e, (_, v) => (type
 
 /// Key one group on the draft, where nothing else states it (OD-5 A), with the provenance the officer chose.
 export async function saveBaselineEntry(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const group = r.choice("group", "Value", ENTERED_GROUPS, { required: true });
@@ -1017,7 +1063,9 @@ export async function saveBaselineEntry(_prev: FormState, data: FormData): Promi
 
 /// Confirm the baseline before the first valuation (OD-2 A): version 1, CONFIRMED.
 export async function confirmBaseline(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   return inContract(actor, toAuditActor(actor), idOf(data), now, "BASELINE", async (c) => {
     const k = c.l.contract;
@@ -1033,7 +1081,9 @@ export async function confirmBaseline(_prev: FormState, data: FormData): Promise
 
 /// Correct a versioned baseline: a CORRECTION version with the group keyed, a reason and its provenance.
 export async function correctBaseline(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const group = r.choice("group", "Value", ENTERED_GROUPS, { required: true });
@@ -1075,7 +1125,9 @@ export async function correctBaseline(_prev: FormState, data: FormData): Promise
  * variation, not this.
  */
 export async function correctAwardTerm(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const term = r.choice("term", "Term", AWARD_TERMS, { required: true });

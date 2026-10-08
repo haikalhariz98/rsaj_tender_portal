@@ -23,7 +23,7 @@ import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, exerciseIdOf, Refusal } from "../window/shared";
 import { evLabel, GONE_BIDDER, inEvaluation, refuse, stampNow } from "./shared";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 
 /**
@@ -44,7 +44,9 @@ const CHANGED_EVALUATION = { ok: false, message: "The evaluation changed while t
 
 /// Form the recommendation (FR-EVL-004, 018; OD-6 A): a bid in the running after every stage, justified where not top-ranked.
 export async function formRecommendation(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const bidderId = r.text("bidderId", "Recommended tenderer", { required: true });
@@ -79,7 +81,9 @@ export async function formRecommendation(_prev: FormState, data: FormData): Prom
  * from the series, the text from the template, annexes A–F frozen, and the exercise Evaluated.
  */
 export async function issueReport(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const begun = await beginAct(actor, data, "Evaluation.issuedBy", { personField: "personId" });
   if (!begun.ok) return begun.state;
@@ -152,7 +156,9 @@ export async function issueReport(_prev: FormState, data: FormData): Promise<For
 
 /// Produce the Kertas Cadangan from the issued report, through the configured template, frozen (FR-CTE-013).
 export async function renderProposalPaper(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const begun = await beginAct(actor, data, "ProposalPaper.renderedBy", { personField: "personId" });
   if (!begun.ok) return begun.state;
@@ -185,7 +191,9 @@ export async function renderProposalPaper(_prev: FormState, data: FormData): Pro
 
 /// The checking or the recommending officer of the Kertas Cadangan: the office's holder on the day, never the other one.
 export async function recordProposalSigner(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const role = r.choice("role", "Role", ["CHECKER", "RECOMMENDER"] as const, { required: true });

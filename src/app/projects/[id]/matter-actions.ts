@@ -25,7 +25,7 @@ import { loadRoster } from "@/lib/people/load";
 import { timeRefusal } from "@/lib/time/labels";
 import type { Finding } from "@/lib/time/types";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -85,7 +85,9 @@ async function run(scope: OrgScope, by: AuditActor, data: FormData, matterId: st
 
 /// Table the matter's open route's committee step at a sitting (ADR 0029 §3: tabled from the matter, never at a sitting).
 export async function tableContractMatter(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const matterId = r.text("matterId", "Matter", { required: true });
@@ -166,7 +168,9 @@ export async function decideContractMatterStep(_prev: FormState, data: FormData)
 
 /// Where a refused route goes, chosen by the officer where nothing was configured (FR-APR-016, CO-5).
 export async function chooseContractMatterRejection(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const matterId = r.text("matterId", "Matter", { required: true });

@@ -31,7 +31,7 @@ import { loadRoster } from "@/lib/people/load";
 import { FormReader } from "@/lib/validate";
 
 import { activePerson, audit, exerciseIdOf, inWindow, label, type LockedWindow } from "../window/shared";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { beginAct, type PreparedAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 
@@ -118,7 +118,9 @@ async function receive(scope: Reader, actor: AuditActor, act: PreparedAct, exerc
 
 /// FR-BID-002: record an envelope received now. The server stamps it; there is no time on this form.
 export async function recordReceiptNow(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const v = readReceipt(r);
@@ -130,7 +132,9 @@ export async function recordReceiptNow(_prev: FormState, data: FormData): Promis
 
 /// OD-3 amended: a receipt recorded after the event. The server still stamps it and the stamp decides; the officer's stated time and reason are kept beside it, shown.
 export async function recordReceiptAfterTheFact(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const v = readReceipt(r);
@@ -154,7 +158,9 @@ export async function recordReceiptAfterTheFact(_prev: FormState, data: FormData
  * the box is matched at opening. The letter is attached to the withdrawal (SULIT) from its row.
  */
 export async function recordWithdrawal(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const envelopeId = r.optionalText("envelopeId");
@@ -186,7 +192,9 @@ export async function recordWithdrawal(_prev: FormState, data: FormData): Promis
 
 /// Record that a withdrawn envelope was handed back unopened, on a day.
 export async function recordReturnedUnopened(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const envelopeId = r.text("envelopeId", "Envelope", { required: true });
   const day = r.text("returnedOn", "Handed back on", { required: true, max: 10 });
@@ -208,7 +216,9 @@ export async function recordReturnedUnopened(_prev: FormState, data: FormData): 
 
 /// FR-BID-005: a clerical correction of the markings, the channel or the receiving officer, before the closing, with a reason.
 export async function correctEnvelope(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const envelopeId = r.text("envelopeId", "Envelope", { required: true });
@@ -239,7 +249,9 @@ export async function correctEnvelope(_prev: FormState, data: FormData): Promise
 
 /// Record the box locked at the closing, by a named officer, stamped now. Refused before the closing.
 export async function lockBox(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = stampNow();
   const r = new FormReader(data);
   const note = r.text("note", "Note", { max: 1000 });
@@ -270,7 +282,9 @@ export async function lockBox(_prev: FormState, data: FormData): Promise<FormSta
  * admission: CARRIED admits, NOT_CARRIED does not; it is decided at the sitting like any matter.
  */
 export async function tableLateMatter(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const envelopeId = r.text("envelopeId", "Envelope", { required: true });
   const meetingId = r.text("meetingId", "Sitting", { required: true });
@@ -321,7 +335,9 @@ export async function tableLateMatter(_prev: FormState, data: FormData): Promise
  * (named by the officer and attested until 6.8; OD-7). It is applied once the consent is attached.
  */
 export async function recordValidityExtension(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const toExpiry = r.text("toExpiry", "New expiry", { required: true, max: 10 });
   const reason = r.text("reason", "Reason", { required: true, max: 1000 });
@@ -369,7 +385,9 @@ export async function recordValidityExtension(_prev: FormState, data: FormData):
 
 /// Apply a recorded extension, once its consent is attached and it is still later than the expiry that stands.
 export async function applyValidityExtension(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const extensionId = String(data.get("extensionId") ?? "");
   return inWindow(actor, exerciseIdOf(data), async (tx, l) => {
     const reg = await locked(tx, l);
@@ -396,7 +414,9 @@ export async function applyValidityExtension(_prev: FormState, data: FormData): 
  * published, only an unset validity may be recorded, once, with a reason (`bidFieldsFaults`).
  */
 export async function saveBidAnswers(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const r = new FormReader(data);
   const days = r.int("bidValidityDays", "Bids valid for (days)", { min: 1 });
   const provenance = r.choice("bidValidityProvenance", "Where the days came from", PROVENANCES);

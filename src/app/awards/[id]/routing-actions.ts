@@ -10,7 +10,7 @@ import { recordAwardCheck, recordAwardReceived, startAwardSheet } from "@/lib/ce
 import { CertificateRefusal } from "@/lib/certificate/write";
 import { dayOf, storedDay } from "@/lib/dates";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { toAuditActor, staffForAct } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 
 /**
@@ -45,7 +45,9 @@ async function inAwardSheet(scope: Reader, awardId: string, now: Date, fn: (tx: 
 const idOf = (data: FormData) => String(data.get("id") ?? "");
 
 export async function startAwardRoutingSheet(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const typeId = r.text("typeId", "Routing sheet", { required: true });
@@ -54,7 +56,9 @@ export async function startAwardRoutingSheet(_prev: FormState, data: FormData): 
 }
 
 export async function recordAwardRoutingReceived(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const received = r.date("receivedOn", "Received on", { required: true });
@@ -63,7 +67,9 @@ export async function recordAwardRoutingReceived(_prev: FormState, data: FormDat
 }
 
 export async function recordAwardRoutingCheck(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const txGuard = await staffForAct("TRANSACTION");
+  if (!txGuard.ok) return txGuard.state;
+  const actor = txGuard.actor;
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const defOrder = r.int("defOrder", "Check", { min: 1, required: true });
