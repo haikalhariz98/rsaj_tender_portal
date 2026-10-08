@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { judgeListFile, judgeValueFile } from "./seed-files";
 
 const ctx = { bodyCodes: ["cidb"], existing: [{ bodyCode: "cidb", kind: "GRADE", code: "G1", rank: 1 }] };
-const row = (over: Record<string, unknown> = {}) => ({ bodyCode: "cidb", kind: "GRADE", code: "G2", nameEn: "Grade G2", rank: 2, provenance: "STATED", ...over });
+// A loaded row is STATED with its source named (spec B8). These fixtures say so; the refusals below hold it.
+const row = (over: Record<string, unknown> = {}) => ({ bodyCode: "cidb", kind: "GRADE", code: "G2", nameEn: "Grade G2", rank: 2, provenance: "STATED", governingSource: "The board's published register of grades", ...over });
 
 describe("judging a customer's values file", () => {
   it("accepts a clean row and carries it as it was written", () => {
@@ -19,6 +20,14 @@ describe("judging a customer's values file", () => {
   });
   it("refuses a row that does not say where it comes from", () => {
     expect(judgeValueFile([row({ provenance: undefined })], ctx).errors[0]).toMatch(/PROVENANCE_REQUIRED/);
+  });
+  it("refuses a row that is not STATED, and one that names no source: an assumed or observed list is entered under Configuration, with its reason", () => {
+    for (const provenance of ["ASSUMED", "OBSERVED"]) {
+      const j = judgeValueFile([row({ provenance })], ctx);
+      expect(j.rows).toEqual([]);
+      expect(j.errors[0]).toMatch(/Row 1 \(G2\): it is not STATED/);
+    }
+    for (const governingSource of [undefined, "", "   "]) expect(judgeValueFile([row({ governingSource })], ctx).errors[0]).toMatch(/Row 1 \(G2\): it names no source/);
   });
   it("refuses a body that is not configured, so a code is never loaded under a guess", () => {
     expect(judgeValueFile([row({ bodyCode: "mof" })], ctx).errors[0]).toMatch(/"mof" is not configured/);
@@ -52,16 +61,24 @@ describe("judging a customer's values file", () => {
 
 describe("judging a customer's lists file", () => {
   const lctx = { existing: [{ list: "BANK", code: "b1" }] };
+  const bank = { list: "BANK", code: "b2", nameEn: "A Bank", provenance: "STATED", governingSource: "The central bank's published list" };
   it("accepts banks and account types", () => {
-    const j = judgeListFile([{ list: "BANK", code: "b2", nameEn: "A Bank", provenance: "STATED" }, { list: "ACCOUNT_TYPE", code: "cur", nameEn: "Current", provenance: "OBSERVED" }], lctx);
+    const j = judgeListFile([{ ...bank, code: "b2", nameEn: "A Bank" }, { ...bank, list: "ACCOUNT_TYPE", code: "cur", nameEn: "Current" }], lctx);
     expect(j.errors).toEqual([]);
     expect(j.rows).toHaveLength(2);
   });
+  it("refuses an entry that is not STATED, and one that names no source", () => {
+    // (This was an OBSERVED account type that loaded; spec B8 says each item is STATED with its source named, so it no longer does.)
+    expect(judgeListFile([{ ...bank, code: "b2", provenance: "OBSERVED" }], lctx).errors[0]).toMatch(/it is not STATED/);
+    expect(judgeListFile([{ ...bank, code: "b2", provenance: "ASSUMED" }], lctx).rows).toEqual([]);
+    expect(judgeListFile([{ ...bank, code: "b2", governingSource: "" }], lctx).errors[0]).toMatch(/it names no source/);
+    expect(judgeListFile([{ list: "BANK", code: "b2", nameEn: "A Bank", provenance: "STATED" }], lctx).errors[0]).toMatch(/it names no source/);
+  });
   it("refuses an entry with no name, and any other list", () => {
-    expect(judgeListFile([{ list: "BANK", code: "b2", nameEn: "", provenance: "STATED" }], lctx).errors[0]).toMatch(/no name/);
-    expect(judgeListFile([{ list: "COUNTRY", code: "x", nameEn: "X", provenance: "STATED" }], lctx).errors[0]).toMatch(/BANK or ACCOUNT_TYPE/);
+    expect(judgeListFile([{ ...bank, nameEn: "" }], lctx).errors[0]).toMatch(/no name/);
+    expect(judgeListFile([{ ...bank, list: "COUNTRY", code: "x", nameEn: "X" }], lctx).errors[0]).toMatch(/BANK or ACCOUNT_TYPE/);
   });
   it("skips one already there", () => {
-    expect(judgeListFile([{ list: "BANK", code: "b1", nameEn: "Same", provenance: "STATED" }], lctx).skipped).toBe(1);
+    expect(judgeListFile([{ ...bank, code: "b1", nameEn: "Same" }], lctx).skipped).toBe(1);
   });
 });

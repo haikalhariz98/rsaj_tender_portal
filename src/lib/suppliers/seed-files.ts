@@ -3,7 +3,8 @@
  * account types. The product ships none of them (AGENTS.md rule 1); `prisma/rsaj/registration-seed.ts` reads the customer's own files and asks this what to make of each row.
  *
  * Everything is judged before anything is written, and one row refused refuses the whole file: a list loaded part-way is a list nobody can trust. A row with no name is refused (a code
- * with no name would be shown to a supplier as a bare key), and so is a row that does not say where it comes from. A code already on the register is skipped, never changed: an existing
+ * with no name would be shown to a supplier as a bare key), and so is a row that does not say where it comes from. A loaded row is STATED with its source named (spec B8: "each item is
+ * STATED with its source named"): a customer's list that is an assumption or an observed habit is entered under Configuration, one row at a time, with its reason, where it shows as such. A code already on the register is skipped, never changed: an existing
  * value may be in use, and changing it is an edit an officer makes, with a reason. Pure.
  */
 
@@ -49,6 +50,14 @@ const text = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 const optional = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
 const provenanceOf = (v: unknown): SeedProvenance | null => (typeof v === "string" && (PROVENANCES as readonly string[]).includes(v) ? (v as SeedProvenance) : null);
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/// Why a row is not loaded as it stands, when it is not a stated fact with a named source. Null: it is. Judged after the row's own faults, so a missing provenance is reported as that.
+const statedFault = (provenance: SeedProvenance | null, source: string): string | null =>
+  provenance !== "STATED"
+    ? "it is not STATED. The loader takes only what the customer's own publication states, with its source named; an assumed or observed value is entered under Configuration, with its reason."
+    : source === ""
+      ? "it names no source. Say which publication states it (governingSource)."
+      : null;
 
 /// The values file: an array of rows. `existing` is what the register already holds, by body, kind and code.
 export function judgeValueFile(raw: unknown, ctx: { bodyCodes: readonly string[]; existing: readonly { bodyCode: string; kind: string; code: string; rank: number | null }[] }): Judged<SeedValue> {
@@ -104,6 +113,11 @@ export function judgeValueFile(raw: unknown, ctx: { bodyCodes: readonly string[]
       out.errors.push(`${label}: ${faults.map((f) => f.code).join(", ")}.`);
       return;
     }
+    const unstated = statedFault(provenance, text(r.governingSource));
+    if (unstated) {
+      out.errors.push(`${label}: ${unstated}`);
+      return;
+    }
     if (rank != null) ranks.set(bodyCode, [...(ranks.get(bodyCode) ?? []), rank]);
     out.rows.push({ bodyCode, kind: kind!, code, nameEn, nameMs: optional(r.nameMs), parentCode: optional(r.parentCode), rank, valueCeiling, ceilingProvenance: provenanceOf(r.ceilingProvenance), governingSource: text(r.governingSource), provenance: provenance! });
   });
@@ -147,6 +161,11 @@ export function judgeListFile(raw: unknown, ctx: { existing: readonly { list: st
     const faults = listValueFaults({ code, nameEn, provenance }, { codeTaken: false, kindListed: true, list });
     if (faults.length) {
       out.errors.push(`${label}: ${faults.map((f) => f.code).join(", ")}.`);
+      return;
+    }
+    const unstated = statedFault(provenance, text(r.governingSource));
+    if (unstated) {
+      out.errors.push(`${label}: ${unstated}`);
       return;
     }
     out.rows.push({ list, code, nameEn, nameMs: optional(r.nameMs), governingSource: text(r.governingSource), provenance: provenance! });

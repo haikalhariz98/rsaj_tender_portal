@@ -8,9 +8,15 @@
  *   npx tsx prisma/rsaj/registration-seed.ts <directory> --apply    load them
  *
  * The directory may hold either file, or both:
- *   registration-values.json   [{ bodyCode, kind, code, nameEn, nameMs?, parentCode?, rank?, valueCeiling?, ceilingProvenance?, governingSource?, provenance }]
- *   lists.json                 [{ list: "BANK" | "ACCOUNT_TYPE", code, nameEn, nameMs?, governingSource?, provenance }]
- * `bodyCode` is the code of a registration body already configured under Tender documents. `provenance` is STATED, OBSERVED or ASSUMED, and every row must say.
+ *   registration-values.json   [{ bodyCode, kind, code, nameEn, nameMs?, parentCode?, rank?, valueCeiling?, ceilingProvenance?, governingSource, provenance: "STATED" }]
+ *   lists.json                 [{ list: "BANK" | "ACCOUNT_TYPE", code, nameEn, nameMs?, governingSource, provenance: "STATED" }]
+ * `bodyCode` is the code of a registration body already configured under Tender documents. Every row is STATED and names its source (spec B8): a row that is an assumption or an observed
+ * habit, or that names no source, refuses the file, and is entered under Configuration instead, where it shows as what it is.
+ *
+ * What this loader covers, and what it does not (a decided difference from spec B8, which lists more): the registry's work codes, the banks and the account types, the lists that run to
+ * hundreds or thousands of rows. The rest of what B8 names (document types with their hints, rates and switches, the entity, country, Bumiputera and state lists, the SSM, account-number and SWIFT
+ * formats, the two declaration texts, the notice, the help contact, the quotas and the contact switch) is a handful of rows or one value each, and has an audited editor with its own
+ * validation under Configuration; typing them there records who set each and why. A loader for them is a later step.
  *
  * A row with no name is refused, and one row refused refuses its whole file: nothing is written unless every row of every file is in order. A code already on the register is left as it
  * is. Each load is audited in the register's trail as the system ("RSAJ registration loader"), and runs in one transaction under the organisation's lock.
