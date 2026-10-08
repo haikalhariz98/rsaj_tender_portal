@@ -199,7 +199,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   const submitBlocker = status === "DRAFT" && submitBlocks.length ? "See what stops it, below." : null;
   // FR-APR-017: only the originator recalls, before any decision. The action asks the same rule again, and also whether the matter is on a committee's agenda.
   const openAppointment = award.approvalInstances.find((i) => i.status === "PENDING" && i.domain === "appointment") ?? null;
-  const recallStanding = openAppointment ? await committeeStandingOf(db, { exerciseId: award.exerciseId }, openAppointment.domain, openAppointment.createdAt) : null;
+  const recallStanding = openAppointment ? await committeeStandingOf(db, { exerciseId: award.exerciseId }, openAppointment.domain, openAppointment.openedAt) : null;
   const awardRecallRule = openAppointment ? recallFault({ routeStatus: openAppointment.status, steps: openAppointment.steps, tabledAwaitingDecision: recallStanding?.awaiting ?? 0, committeeDecided: recallStanding?.decided ?? 0, originatorIds: openAppointment.submittedByPersonId ? [openAppointment.submittedByPersonId] : [], actorPersonId: actor.personId, reason: "asked" }) : null;
   const issueReady = status === "APPROVED" && ev.issueFaults.length === 0 && ev.signatory?.ok;
   const canRecordCommitment = ["APPROVED", "ISSUED", "ACCEPTED"].includes(status) && !award.erpCommitmentNo;

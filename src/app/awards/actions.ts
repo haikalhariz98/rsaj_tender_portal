@@ -547,7 +547,7 @@ export async function recallAward(_prev: FormState, data: FormData): Promise<For
     const a = l.award;
     const inst = a.approvalInstances.find((i) => i.status === "PENDING" && i.domain === APPOINTMENT_DOMAIN);
     if (!inst) return { ok: false, message: RECALL_FAULT_TEXT.ROUTE_NOT_OPEN };
-    const standing = await committeeStandingOf(tx, { exerciseId: l.ex.id }, inst.domain, inst.createdAt);
+    const standing = await committeeStandingOf(tx, { exerciseId: l.ex.id }, inst.domain, inst.openedAt);
     const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: standing.awaiting, committeeDecided: standing.decided, originatorIds: inst.submittedByPersonId ? [inst.submittedByPersonId] : [], actorPersonId: actor.personId, reason });
     if (refused) return { ok: false, message: RECALL_FAULT_TEXT[refused] };
     const t = awardTransition(a.status as AwardStatus, "DRAFT", { today: l.org.today });

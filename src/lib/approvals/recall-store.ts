@@ -41,16 +41,19 @@ export async function deciderIdsOfStep(
 
 /**
  * What the committee has done with a route's matter (FR-APR-017), for `recallFault`: how many decisions on it are tabled and awaiting a vote, and how many have been decided
- * (carried or not carried, not withdrawn) since the route was opened. A vote can be recorded without discharging the route's step (an earlier person step may still be pending,
- * and the citation is made by hand later), so the steps alone do not say the committee has spoken. Decisions tabled before the route was created belong to an earlier round and do
- * not count; one with no tabling time recorded counts by the day it was decided.
+ * (carried or not carried, not withdrawn) since the day the route was opened. A vote can be recorded without discharging the route's step (an earlier person step may still be pending,
+ * and the citation is made by hand later), so the steps alone do not say the committee has spoken. Tabling is stored as the organisation's day (never a time of day), and so is the day a route
+ * opens, so the two are compared as days: a matter tabled on the day the route opened counts, and one tabled on an earlier day belongs to an earlier round and does not. (A matter
+ * of an earlier round that was tabled on the very day the new route opened is therefore counted: that refuses too much, never too little.) One with no tabling day recorded
+ * counts by the day it was decided.
  */
 export async function committeeStandingOf(
   client: Tx | typeof db,
   matter: { requisitionId: string } | { exerciseId: string },
   domain: string,
-  routeCreatedAt: Date,
+  routeOpenedOn: Date,
 ): Promise<{ awaiting: number; decided: number }> {
+  const since = dayToDate(routeOpenedOn.toISOString().slice(0, 10));
   const [awaiting, decided] = await Promise.all([
     client.committeeDecision.count({ where: { ...matter, domain, outcome: "PENDING", withdrawnAt: null } }),
     client.committeeDecision.count({
@@ -59,7 +62,7 @@ export async function committeeStandingOf(
         domain,
         outcome: { in: ["CARRIED", "NOT_CARRIED"] },
         withdrawnAt: null,
-        OR: [{ tabledAt: { gte: routeCreatedAt } }, { tabledAt: null, decisionDate: { gte: routeCreatedAt } }],
+        OR: [{ tabledAt: { gte: since } }, { tabledAt: null, decisionDate: { gte: since } }],
       },
     }),
   ]);

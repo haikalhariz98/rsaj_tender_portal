@@ -391,7 +391,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
 
   const recallBlock = r.status === "PENDING_APPROVAL" ? transitionFault(r.status, "RECALLED", { today, anyStepDone: open?.steps.some((s) => s.decision !== "PENDING") ?? false }) : null;
   // FR-APR-017: only the originator recalls. The action asks the same rule again, and also whether the matter is on a committee's agenda.
-  const requisitionStanding = r.status === "PENDING_APPROVAL" && open ? await committeeStandingOf(db, { requisitionId: r.id }, open.domain, open.createdAt) : null;
+  const requisitionStanding = r.status === "PENDING_APPROVAL" && open ? await committeeStandingOf(db, { requisitionId: r.id }, open.domain, open.openedAt) : null;
   const recallRule = r.status === "PENDING_APPROVAL" && open ? recallFault({ routeStatus: open.status, steps: open.steps, tabledAwaitingDecision: requisitionStanding?.awaiting ?? 0, committeeDecided: requisitionStanding?.decided ?? 0, originatorIds: [...new Set([r.requestingPersonId, open.submittedByPersonId].filter((x): x is string => !!x))], actorPersonId: actor.personId, reason: "asked" }) : null;
   const locked = !["DRAFT"].includes(r.status);
   const sentBack = sentBackBy(r.status, r.approvalInstances, r.returnedOn);

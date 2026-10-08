@@ -220,7 +220,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const openName = nameRoutes.find((i) => i.status === "PENDING") ?? null;
   const approvedName = nameRoutes.find((i) => i.status === "APPROVED") ?? null;
   // FR-APR-017: only the originator recalls, before any decision. The action asks the same rule again, and also whether the matter is on a committee's agenda.
-  const nameStanding = openName ? await committeeStandingOf(db, { exerciseId: ex.id }, openName.domain, openName.createdAt) : null;
+  const nameStanding = openName ? await committeeStandingOf(db, { exerciseId: ex.id }, openName.domain, openName.openedAt) : null;
   const nameRecallRule = openName ? recallFault({ routeStatus: openName.status, steps: openName.steps, tabledAwaitingDecision: nameStanding?.awaiting ?? 0, committeeDecided: nameStanding?.decided ?? 0, originatorIds: openName.submittedByPersonId ? [openName.submittedByPersonId] : [], actorPersonId: actor.personId, reason: "asked" }) : null;
   const live = ex.status !== "CANCELLED";
   // The route as the request would make it: with the requester's own offices escalated,

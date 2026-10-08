@@ -1093,7 +1093,7 @@ export async function recallRequisition(_prev: FormState, data: FormData): Promi
     const inst = openInstance(l);
     // FR-APR-017: only the originator (the officer who raised the request, or whoever sent it) recalls, before any decision, and not from under a committee's agenda.
     if (inst) {
-      const standing = await committeeStandingOf(tx, { requisitionId: id }, inst.domain, inst.createdAt);
+      const standing = await committeeStandingOf(tx, { requisitionId: id }, inst.domain, inst.openedAt);
       // The officer who raised the request, and whoever sent it (a requisition keyed from paper for a requester without an account is sent by the clerk).
       const originators = [...new Set([l.req.requestingPersonId, inst.submittedByPersonId].filter((x): x is string => !!x))];
       const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: standing.awaiting, committeeDecided: standing.decided, originatorIds: originators, actorPersonId: actor.personId, reason });

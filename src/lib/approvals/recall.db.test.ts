@@ -164,8 +164,9 @@ describe("a committee's answer cannot be recalled away (Phase 3c review)", () =>
       },
     });
   }
-  const ago = () => new Date(Date.now() - 3 * 86_400_000);
-  const soon = () => new Date(Date.now() + 60_000);
+  // Tabling is stored as a day (the organisation's), never a time: the route in these tests opens on 2026-10-03. A matter tabled the very day it opened is the common case.
+  const ago = () => day("2026-10-02");
+  const soon = () => day("2026-10-03");
 
   it("refuses the name's recall after a NOT_CARRIED vote while an earlier step is still pending, and the route stays open", async () => {
     const { recallNameApproval } = await import("@/app/sourcing/actions");

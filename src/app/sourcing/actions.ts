@@ -667,7 +667,7 @@ export async function recallNameApproval(_prev: FormState, data: FormData): Prom
     const ex = l.ex;
     const inst = nameRoutesOf(ex.approvalInstances).find((i) => i.status === "PENDING");
     if (!inst) return { ok: false, message: RECALL_FAULT_TEXT.ROUTE_NOT_OPEN };
-    const standing = await committeeStandingOf(tx, { exerciseId: ex.id }, inst.domain, inst.createdAt);
+    const standing = await committeeStandingOf(tx, { exerciseId: ex.id }, inst.domain, inst.openedAt);
     const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: standing.awaiting, committeeDecided: standing.decided, originatorIds: inst.submittedByPersonId ? [inst.submittedByPersonId] : [], actorPersonId: actor.personId, reason });
     if (refused) return { ok: false, message: RECALL_FAULT_TEXT[refused] };
     const warning = { code: "RECALLED_BY_ORIGINATOR", level: "info", messageEn: `Recalled by ${actor.personName} before any decision: ${reason}` };
