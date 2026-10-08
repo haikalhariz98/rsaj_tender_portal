@@ -280,8 +280,15 @@ export async function listExercises(organisationId: string, hidden: readonly str
 
 export const HISTORY_PAGE = 200;
 
-/// The audit trail of an exercise and everything under it, newest first.
-export async function exerciseHistory(l: LoadedExercise) {
+/**
+ * The audit trail of an exercise and everything under it, newest first.
+ *
+ * `withEntries` is false on every tab but History: the count is all the strip needs, and the rows (the opening's pairing of a listing number with a bidder's name and price, the
+ * evaluation's audit rows, every SULIT value) belong to the History tab alone. The page used to build the panel on every tab, so its rows rode in the response of the Evaluation tab
+ * of a team member read blind (product owner, 2026-10-08, ruling on log line 1751), and a workspace "reads one tab at a time". Off its own tab the entries are empty and nothing
+ * that is judged from them (the custody of the disclosed estimate, the trail's SULIT gates) is asked, so nothing is logged for a History nobody opened.
+ */
+export async function exerciseHistory(l: LoadedExercise, withEntries = true) {
   const ex = l.ex;
   const ids = [
     ex.id,
@@ -292,7 +299,7 @@ export async function exerciseHistory(l: LoadedExercise) {
     ...ex.approvalInstances.flatMap((i) => [i.id, ...i.steps.map((s) => s.id)]),
   ];
   const where = { organisationId: l.org.id, OR: [{ entityId: { in: ids } }, { entityLabel: { startsWith: `${ex.reference} ·` } }] };
-  const [rows, total] = await Promise.all([db.auditEntry.findMany({ where, orderBy: { at: "desc" }, take: HISTORY_PAGE }), db.auditEntry.count({ where })]);
+  const [rows, total] = await Promise.all([withEntries ? db.auditEntry.findMany({ where, orderBy: { at: "desc" }, take: HISTORY_PAGE }) : Promise.resolve([]), db.auditEntry.count({ where })]);
   return {
     total,
     entries: rows.map((e) => ({
@@ -307,6 +314,13 @@ export async function exerciseHistory(l: LoadedExercise) {
       changes: ((e.changes ?? []) as unknown as { field: string; before: string | null; after: string | null }[]).map((c) => historyChange(e.entity, c, versionInLabel(e.entityLabel))),
     })),
   };
+}
+
+/// The day an exercise was cancelled, from its own trail: the one fact of the History the Overview shows. A cancelled exercise is read for it directly, so the rows themselves stay on the History tab.
+export async function exerciseCancelledAt(l: LoadedExercise): Promise<Date | null> {
+  const rows = await db.auditEntry.findMany({ where: { organisationId: l.org.id, entity: "SourcingExercise", entityId: l.ex.id, action: "UPDATE" }, orderBy: { at: "desc" }, take: 50, select: { at: true, changes: true } });
+  const hit = rows.find((e) => ((e.changes ?? []) as unknown as { field: string; after: string | null }[]).some((c) => c.field === "status" && c.after === "CANCELLED"));
+  return hit?.at ?? null;
 }
 
 const versionInLabel = (label: string) => {

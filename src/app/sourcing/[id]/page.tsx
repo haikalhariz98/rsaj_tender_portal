@@ -59,7 +59,7 @@ import {
   TYPE_STATE_LABEL,
 } from "@/lib/method/labels";
 import { nameRequestProposalFault, proposalFaults, proposalView } from "@/lib/method/proposal";
-import { draftOf, evaluationContext, exerciseHistory, loadExercise, type LoadedExercise } from "@/lib/method/repo";
+import { draftOf, evaluationContext, exerciseCancelledAt, exerciseHistory, loadExercise, type LoadedExercise } from "@/lib/method/repo";
 import { determinationColumns, isBandSnapshot, isClassificationSnapshot } from "@/lib/method/snapshot";
 import type { DeliverableKind, Finding, Regime } from "@/lib/method/types";
 import { formatMoney, parseSen } from "@/lib/money";
@@ -157,7 +157,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
 
   const [{ issue, cfg, ctx }, history, people, roster, delegations, units, awards, awardPolicy] = await Promise.all([
     evaluationContext(org, req, ex),
-    exerciseHistory(l),
+    // The rows of the History tab are built only when that tab is the one looked at (the strip needs the count): they would otherwise ride in the response of every tab.
+    exerciseHistory(l, asked === "history"),
     db.person.findMany({ where: { organisationId: org.id }, orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true } }),
     loadRoster(actor.organisationCode),
     loadDelegations(actor.organisationCode),
@@ -395,7 +396,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const overview = tab === "overview" ? await loadOverviewReads(ex, ex.closingAt, org, { kind: overviewPack, noPack }) : null;
   const detailsRefused = detailsFault({ status: ex.status, awards });
   const tenderingRoute = latestFirst(tenderingRoutesOf(ex.approvalInstances))[0] ?? null;
-  const cancelledEntry = ex.status === "CANCELLED" ? history.entries.find((e) => e.entity === "SourcingExercise" && e.changes.some((c) => c.field === "status" && c.after === "CANCELLED")) : null;
+  const cancelledAt = ex.status === "CANCELLED" ? await exerciseCancelledAt(l) : null;
   const tabs = [
     {
       id: "overview",
@@ -422,7 +423,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                 closing: ex.closingAt ? formatOrgDateTime(ex.closingAt, org.timeZone) : null,
                 opened: overview.openedAt ? formatOrgDay(overview.openedAt, org.timeZone) : null,
                 reportIssued: overview.reportIssuedAt ? formatOrgDay(overview.reportIssuedAt, org.timeZone) : null,
-                cancelled: cancelledEntry ? formatOrgDay(cancelledEntry.at, org.timeZone) : null,
+                cancelled: cancelledAt ? formatOrgDay(cancelledAt, org.timeZone) : null,
               },
             })}
             tendering={tenderingRoute ? tenderingStepperSteps(tenderingRoute) : null}
@@ -608,7 +609,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       label: "Access",
       icon: <ShieldIcon size={15} />,
       count: ex.participants.length,
-      panel: (
+      // The people the routes and the sittings name are read only while this tab is the one looked at, so it is loaded by the server when selected.
+      lazy: true,
+      panel: tab !== "access" ? null : (
         <Card className="overflow-hidden">
           <CardHeader icon={<UsersIcon size={17} />} title="Named participants" subtitle={restricted ? "Restricted by its method: only the people named on it can see it." : "Not restricted by its method."} actions={ex.status !== "CANCELLED" && !namingBlock ? <AddParticipantDrawer id={ex.id} people={activePeople.filter((p) => !ex.participants.some((x) => x.personId === p.value))} /> : undefined} />
           <CardBody className="flex flex-col gap-4">
@@ -649,7 +652,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
       label: "History",
       icon: <ClockIcon size={15} />,
       count: history.total,
-      panel: (
+      // Built only while it is the tab looked at: its rows (the opening's names and prices, every SULIT value of the trail) are not sent with any other tab.
+      lazy: true,
+      panel: tab !== "history" ? null : (
         <HistoryPanel
           estimate={estimate}
           trailGates={trailGates}
