@@ -67,6 +67,8 @@ import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { afterStep, audit, CHANGED, citeAppointmentStep, labelOf, mustMove, NO_ZONE, Refusal, routeLabel, sendAwardRejected } from "@/lib/award/route-write";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
+import { noticeRecall } from "@/lib/approvals/recall-store";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 
 /**
@@ -444,6 +446,10 @@ export async function updateAwardTerms(_prev: FormState, data: FormData): Promis
 export async function submitAward(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
+  // The person who sends it is its originator (FR-APR-017): the only one who can recall it before a decision. Always the signed-in officer's own act.
+  const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inAward(actor, id, async (tx, l) => {
     const t = awardTransition(l.award.status as AwardStatus, "PENDING_APPROVAL", { today: l.org.today });
     if (t === "TIME_ZONE_UNSET") return NO_ZONE;
@@ -485,6 +491,7 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
         warnings: route.warnings as unknown as Prisma.InputJsonValue,
         status: "PENDING",
         openedAt: on,
+        submittedByPersonId: act.subjectPersonId,
         // Where a refusal would send it, as configured now (FR-APR-016, ruling CO-4).
         ...rejectionSnapshot(await loadDestinations(tx, l.org.id), APPOINTMENT_DOMAIN, on, new Date()),
         // The core routing behind the chain, as it stood (FR-APR-004, ruling C4).
@@ -503,6 +510,7 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
         },
       },
     });
+    await act.write(tx, instance.id);
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", instance.id, routeLabel(l.award), "CREATE",
       diffFields(null, { matrix: r.issue.label, rule: rule.labelEn, route: route.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: route.source === "OVERRIDE", escalated: route.warnings.some((w) => w.code === "ABSENCE" || w.code === "SELF_APPROVAL") ? "yes" : null }));
     // FR-MTD-009: a direct appointment is sent on the dossier evidence attached now, and
@@ -523,6 +531,37 @@ export async function submitAward(_prev: FormState, data: FormData): Promise<For
 
 
 
+
+/**
+ * Recall the award's route before anyone has decided (FR-APR-017). Only its originator (whoever sent it) can, with a reason. The route is kept as recalled and the
+ * award returns to draft, as a refusal returns it; a decision recorded, a matter on a committee's agenda, or a route sent before the sender was recorded all
+ * refuse, in words. The people the waiting step was waiting on are told in the portal.
+ */
+export async function recallAward(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
+  return inAward(actor, id, async (tx, l) => {
+    const a = l.award;
+    const inst = a.approvalInstances.find((i) => i.status === "PENDING" && i.domain === APPOINTMENT_DOMAIN);
+    if (!inst) return { ok: false, message: RECALL_FAULT_TEXT.ROUTE_NOT_OPEN };
+    const tabled = await tx.committeeDecision.count({ where: { exerciseId: l.ex.id, domain: inst.domain, outcome: "PENDING", withdrawnAt: null } });
+    const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: tabled, originatorIds: inst.submittedByPersonId ? [inst.submittedByPersonId] : [], actorPersonId: actor.personId, reason });
+    if (refused) return { ok: false, message: RECALL_FAULT_TEXT[refused] };
+    const t = awardTransition(a.status as AwardStatus, "DRAFT", { today: l.org.today });
+    if (t === "TIME_ZONE_UNSET") return NO_ZONE;
+    if (t) return { ok: false, message: "This award is not waiting for approval, so there is nothing to recall." };
+    const warning = { code: "RECALLED_BY_ORIGINATOR", level: "info", messageEn: `Recalled by ${actor.personName} before any decision: ${reason}` };
+    const moved = await tx.approvalInstance.updateMany({ where: { id: inst.id, organisationId: actor.organisationId, status: "PENDING" }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
+    if (moved.count !== 1) throw new Refusal(CHANGED);
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, routeLabel(a), "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), reason);
+    await mustMove(tx, l, "DRAFT");
+    await audit(tx, toAuditActor(actor), l.org.id, "Award", id, labelOf(a), "UPDATE", diffFields({ status: a.status }, { status: "DRAFT" }), reason);
+    await noticeRecall(tx, actor, { routeId: inst.id, steps: inst.steps, matter: { label: `${a.reference} · appointment`, href: `/awards/${id}`, exerciseId: l.ex.id }, unitCode: l.req.sectionUnitCode || l.req.requestingUnitCode, today: l.org.today, reason });
+    return { ok: true };
+  });
+}
 
 /**
  * Where a refused appointment goes, chosen by the officer where the refusal decided

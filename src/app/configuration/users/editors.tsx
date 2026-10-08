@@ -27,12 +27,15 @@ import type { Capability } from "@/lib/people/capabilities";
 import { statusOf, type Delegation } from "@/lib/people/delegation";
 import type { Assignment, Office, Person } from "@/lib/people/types";
 
+import { NO_SUPERIOR_CHOICE } from "@/lib/people/reporting-lines";
+
 import {
   endAssignment,
   saveAssignment,
   saveDelegation,
   saveOffice,
   savePerson,
+  saveReportingLine,
   setPersonActive,
 } from "./actions";
 
@@ -209,7 +212,7 @@ export function EditPerson({
           <hr className="border-line" />
           <DrawerSection
             label="Out of office"
-            tip="Marks them as away. Cover is a delegation, recorded separately."
+            tip="Marks them as away. Their pending steps move up to the office authority reverts to, where their reporting line is recorded. Marking them available again moves nothing back. Cover is a delegation, recorded separately."
           >
             <Switch name="isAway" label="Currently away" defaultChecked={!person.isAvailable} />
           </DrawerSection>
@@ -539,7 +542,7 @@ function delegationFields(
       name: "capabilityCodes",
       label: "What is delegated",
       placeholder: "Select…",
-      hint: "Leave it empty to hand over the whole role, which is a larger act.",
+      hint: "Leave it empty to hand over the whole role, which is a larger act. Naming capabilities limits the delegation to those tasks: it hands over those capabilities and does not carry an approval step.",
       options: capabilities.map((c) => ({ value: c.code, label: c.nameEn })),
     },
     { kind: "text", name: "reason", label: "Reason (EN)" },
@@ -713,6 +716,90 @@ export function EndAssignment({ id, label }: { id: string; label: string }) {
         className: buttonClass("destructive", "sm"),
       }}
       size="sm"
+    />
+  );
+}
+
+// ------------------------------------------------------------------ reporting lines
+
+/// One reporting line as the editor holds it.
+export interface ReportingLineRow {
+  id: string;
+  personId: string;
+  superiorPersonId: string | null;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+  provenance: "STATED" | "OBSERVED" | "ASSUMED";
+  note: string;
+}
+
+function reportingLineFields(people: Person[]): Field[] {
+  const persons = people.filter((p) => p.isActive).map((p) => ({ value: p.id, label: p.name }));
+  return [
+    { kind: "select", name: "personId", label: "Person", required: true, placeholder: "Choose", options: persons },
+    {
+      kind: "select",
+      name: "superiorPersonId",
+      label: "Reports to",
+      required: true,
+      placeholder: "Choose",
+      hint: "Their immediate superior. Choose the last option to record that nobody is above them: that is a recorded fact, not the same as no line.",
+      options: [...persons, { value: NO_SUPERIOR_CHOICE, label: "Nobody: the head of their line" }],
+    },
+    { kind: "date", name: "effectiveFrom", label: "From", required: true },
+    { kind: "date", name: "effectiveTo", label: END_DAY_LABEL, hint: "The first day it no longer applies. Leave empty while it still does." },
+    {
+      kind: "select",
+      name: "provenance",
+      label: "Where this came from",
+      required: true,
+      placeholder: "Choose",
+      options: [
+        { value: "STATED", label: "Stated: written in a governing document" },
+        { value: "OBSERVED", label: "Observed: seen in practice" },
+        { value: "ASSUMED", label: "Assumed: a working default, needs sign-off" },
+      ],
+    },
+    { kind: "text", name: "note", label: "Note", hint: "Where it is written, or who confirmed it." },
+  ];
+}
+
+export function AddReportingLine({ people }: { people: Person[] }) {
+  return (
+    <RecordEditor
+      title="Reporting line"
+      description="Who a person reports to, and from when"
+      icon={<UserIcon size={18} />}
+      fields={reportingLineFields(people)}
+      columns={2}
+      action={saveReportingLine}
+      submitLabel="Record"
+      trigger={{ label: "Record reporting line", icon: true }}
+      size="lg"
+    />
+  );
+}
+
+export function EditReportingLine({ line, people }: { line: ReportingLineRow; people: Person[] }) {
+  return (
+    <RecordEditor
+      title="Reporting line"
+      description="Who a person reports to, and from when"
+      icon={<UserIcon size={18} />}
+      fields={[{ kind: "hidden", name: "id" }, ...reportingLineFields(people)]}
+      columns={2}
+      action={saveReportingLine}
+      trigger={{ label: "Edit reporting line", iconOnly: <PencilIcon size={15} /> }}
+      size="lg"
+      values={{
+        id: line.id,
+        personId: line.personId,
+        superiorPersonId: line.superiorPersonId ?? NO_SUPERIOR_CHOICE,
+        effectiveFrom: day(line.effectiveFrom),
+        effectiveTo: day(line.effectiveTo),
+        provenance: line.provenance,
+        note: line.note,
+      }}
     />
   );
 }

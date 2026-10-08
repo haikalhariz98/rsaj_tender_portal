@@ -53,3 +53,17 @@ export async function lockDelegation(tx: Tx, id: string, organisationId: string)
     everAttachments: attachments.length,
   };
 }
+
+/**
+ * Serialise the writers of an organisation's delegations (F8). A loop is looked for among the delegations already stored, so two saves that would each close
+ * it with the other (A to B, B to A) would both pass if they ran side by side. The transaction-scoped advisory lock queues them: the second reads the first.
+ * Taken before any row lock, by every writer of a delegation, and released with the transaction.
+ */
+export async function lockDelegationsOf(tx: Tx, organisationId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`delegation:${organisationId}`}))`;
+}
+
+/// The same for reporting lines (a loop of superiors, or two lines for one person over one period): one writer at a time per organisation.
+export async function lockReportingLinesOf(tx: Tx, organisationId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`reporting_line:${organisationId}`}))`;
+}

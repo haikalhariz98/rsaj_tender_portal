@@ -1,11 +1,10 @@
 /**
- * The office worklist (FR-APR-010, ruling CO-7): every open route's next step, under
- * the office acting for it.
+ * The worklist (FR-APR-010, FR-APR-018, ruling CO-7): every open route's next step, under the office acting for it, and the part of it that is one person's.
  *
- * Partly met by design. Nobody signs in yet, so there is no personal queue and nobody
- * is notified: the list is the same for everyone, grouped by office, with how long each
- * step has waited and why it was escalated where it was. A step whose office has nobody
- * able to act is flagged, so it can be moved by escalation (FR-APR-012).
+ * Two views of one reading. By office: every open step, grouped by the office acting for it, with how long it has waited and why it was escalated where it was.
+ * A step whose office has nobody able to act is flagged, so it can be moved (FR-APR-012). My steps (`myStepsOf`): the steps a signed-in person can decide, as the
+ * holder of the office acting for the step or as the delegate of a holder. The shell's count is the length of the same list, so the page and the count
+ * cannot disagree. Nobody is told by email (INT-09); the staff inbox carries the notices.
  *
  * Pure.
  */
@@ -33,6 +32,8 @@ export interface QueueStep {
     escalationReason: string | null;
   }[];
   openedAt: Date;
+  /// People who may not decide this matter because they raised or sent it (FR-APR-008). Unknown: none named.
+  barredIds?: readonly string[];
 }
 
 export interface QueueItem {
@@ -55,6 +56,12 @@ export interface QueueItem {
   waitingDays: number | null;
   /// Nobody able to act holds the acting office: the step can only move by escalation.
   noneAvailable: boolean;
+  /// Who holds the acting office for this matter today, and who holds a delegation of the whole office from one of them (task-limited delegations carry no step).
+  /// Empty for a committee step, which is decided at a sitting, and where the day is not known.
+  holderIds: readonly string[];
+  delegateIds: readonly string[];
+  /// People barred from deciding it because they raised or sent it.
+  barredIds: readonly string[];
 }
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -103,6 +110,8 @@ export function officeQueue(
   today: string | null,
   /// Whether nobody able to act holds the office for this route's matter.
   noneAvailable: (routeId: string, officeCode: string | null, committee: boolean) => boolean,
+  /// Who holds the office for the route's matter, or a delegation of it. Not given: nobody is named, and no step is anybody's.
+  deciders: (routeId: string, officeCode: string | null, committee: boolean) => { holderIds: readonly string[]; delegateIds: readonly string[] } = () => ({ holderIds: [], delegateIds: [] }),
 ): { officeLabel: string; items: QueueItem[] }[] {
   const items: QueueItem[] = [];
   for (const r of routes) {
@@ -125,6 +134,8 @@ export function officeQueue(
       waitingSince: o.waitingSince,
       waitingDays: o.waitingDays,
       noneAvailable: noneAvailable(r.routeId, o.officeCode, !!s.committeeCode),
+      ...(({ holderIds, delegateIds }) => ({ holderIds, delegateIds }))(deciders(r.routeId, o.officeCode, !!s.committeeCode)),
+      barredIds: r.barredIds ?? [],
     });
   }
   const groups = new Map<string, QueueItem[]>();
@@ -133,3 +144,31 @@ export function officeQueue(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([officeLabel, xs]) => ({ officeLabel, items: xs.sort((a, b) => a.waitingSince.localeCompare(b.waitingSince) || a.matterLabel.localeCompare(b.matterLabel)) }));
 }
+
+/// One step in a person's own queue.
+export interface MyStep {
+  item: QueueItem;
+  /// How it is theirs: they hold the acting office, or hold a delegation of it.
+  via: "HOLDER" | "DELEGATE";
+  /// They may not decide it: they raised or sent the matter. It is listed so it is not lost, and not counted as waiting for them (FR-APR-008).
+  barred: boolean;
+}
+
+/**
+ * The steps a person can decide (FR-APR-018): those whose acting office they hold, or hold a whole-office delegation of, oldest wait first. A committee step is
+ * the committee's, decided at its sitting, and is nobody's personal step. Pure, and the one list the page and the shell's count both read.
+ */
+export function myStepsOf(groups: readonly { items: readonly QueueItem[] }[], personId: string): MyStep[] {
+  const out: MyStep[] = [];
+  for (const g of groups) {
+    for (const item of g.items) {
+      if (item.committee) continue;
+      const via = item.holderIds.includes(personId) ? "HOLDER" : item.delegateIds.includes(personId) ? "DELEGATE" : null;
+      if (via) out.push({ item, via, barred: item.barredIds.includes(personId) });
+    }
+  }
+  return out.sort((a, b) => a.item.waitingSince.localeCompare(b.item.waitingSince) || a.item.matterLabel.localeCompare(b.item.matterLabel));
+}
+
+/// What the shell counts: the steps waiting for the person to act, not those they are barred from deciding.
+export const waitingForCount = (mine: readonly MyStep[]): number => mine.filter((m) => !m.barred).length;

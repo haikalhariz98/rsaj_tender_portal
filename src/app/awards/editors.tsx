@@ -14,6 +14,7 @@ import {
   issueAward,
   lodgePolicy,
   lodgeSecurity,
+  recallAward,
   recordCommencement,
   recordCommitment,
   recordDespatch,
@@ -215,6 +216,23 @@ export function EditTermsDrawer({
       submitLabel="Save terms"
       trigger={{ label, className: buttonClass("secondary", "sm") }}
       size="lg"
+    />
+  );
+}
+
+export function RecallAwardDrawer({ id, blocker }: { id: string; blocker: string | null }) {
+  if (blocker) return <Blocked label="Recall" reason={blocker} noteId={AWARD_NOTE_ID} />;
+  return (
+    <RecordEditor
+      title="Recall the award"
+      description="Withdraws the award from approval before anyone has decided. The route is kept on record as recalled and the award returns to draft."
+      fields={[hidden("id")]}
+      values={{ id }}
+      action={recallAward}
+      submitLabel="Recall"
+      destructive={{ reasonLabel: "Why is it being recalled?" }}
+      trigger={{ label: "Recall", className: buttonClass("secondary", "sm") }}
+      size="sm"
     />
   );
 }

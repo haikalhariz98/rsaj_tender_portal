@@ -1,6 +1,6 @@
 "use server";
 
-import { exerciseIsHidden } from "@/app/_auth/sulit";
+import { exerciseIsHidden, hiddenExercises } from "@/app/_auth/sulit";
 import { actStatusFault, actStatusText, certificateAct } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import type { CertificateKind } from "@/lib/certificate/types";
@@ -25,7 +25,15 @@ import { MATTER_KIND_WORDS } from "@/lib/matter/write";
 import { holdersFor } from "@/lib/requisition/holders";
 import { supplierHolders } from "@/lib/suppliers/route";
 import { FormReader } from "@/lib/validate";
-import { toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { ACT_LABEL } from "@/lib/labels";
+import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import type { StaffActor } from "@/lib/auth/types";
+import { absenceVerdict, reportWords, stayText, type AbsenceReport } from "@/lib/approvals/absence-move";
+import { loadWorklist } from "@/lib/approvals/load";
+import { stepEscalatedNotices, stepMovedOnAbsenceNotices } from "@/lib/inbox/notices";
+import { writeNotices } from "@/lib/inbox/store";
+import { loadReportingLines } from "@/lib/people/reporting-line-store";
+import { superiorsNote } from "@/lib/people/reporting-lines";
 import { attributionRefusalState, beginAct, type PreparedAct } from "@/app/_auth/act";
 
 /**
@@ -59,7 +67,40 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
     act = begun.act;
   }
   const declarerId = act?.subjectPersonId ?? null;
+  return escalateOne(actor, { stepId, kind, reason, act, declarerId, mode: "OFFICER" });
+}
 
+/// What the escalation was asked for: the officer's own (a conflict declared, or nobody able to act), or the sweep that follows an absence being recorded.
+interface EscalateInput {
+  stepId: string;
+  kind: "NO_AVAILABLE_HOLDER" | "CONFLICT_DECLARED";
+  reason: string;
+  /// The declaration's attribution, for a conflict; null otherwise.
+  act: PreparedAct | null;
+  declarerId: string | null;
+  mode: "OFFICER" | "ABSENCE";
+  /// The people whose absence moved it, for the notice (mode ABSENCE).
+  absentNames?: string[];
+}
+
+/// Where the step went, for the sweep's report and the notices.
+interface EscalateInfo {
+  matter: string;
+  from: string;
+  to: string;
+}
+
+/// A form state that also says where the step went, for the sweep. Named, so that the function's return type holds no brace (the source scans find a function by its signature).
+interface EscalateOutcome extends FormState {
+  info?: EscalateInfo;
+}
+
+/**
+ * The escalation of one step, under the locks every write on its matter takes (the body escalateStep had, moved here unchanged in order so that the sweep after an absence
+ * (`moveStepsOfAbsentHolders`) takes the very same locks, checks and audit, and neither can drift from the other). Not exported: a server action file exports only actions.
+ */
+async function escalateOne(actor: StaffActor, i: EscalateInput): Promise<EscalateOutcome> {
+  const { stepId, kind, reason, act, declarerId } = i;
   const found = await db.approvalStep.findUnique({
     where: { id: stepId, instance: { organisationId: actor.organisationId } },
     select: { instance: { select: { id: true, requisitionId: true, exerciseId: true, awardId: true, exercise: { select: { requisitionId: true } }, supplierApplicationId: true, supplierApplication: { select: { supplierId: true } }, standingRequestId: true, standingRequest: { select: { supplierId: true } }, specialPermissionId: true, specialPermission: { select: { party: { select: { vendorId: true } } } }, certificateId: true, certificate: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } }, variationId: true, variation: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } }, contractMatterId: true, contractMatter: { select: { contractId: true, contract: { select: { awardId: true, award: { select: { exerciseId: true, exercise: { select: { requisitionId: true } } } } } } } } } } },
@@ -69,7 +110,9 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
   // FR-MTD-007: a step on the route of a restricted exercise (its name, its award, a special permission on it) reads as gone to anyone not named on the
   // exercise, and the attempt is logged. A route behind a contract is the contract's, which is not hidden.
   const behind = route.exerciseId ?? (route.specialPermissionId ? ((await db.specialPermission.findFirst({ where: { id: route.specialPermissionId, exercise: { organisationId: actor.organisationId } }, select: { exerciseId: true } }))?.exerciseId ?? null) : null);
-  if (behind && (await exerciseIsHidden(actor, behind))) return { ok: false, message: "That step no longer exists." };
+  // The sweep after an absence (mode ABSENCE) moves a step on a restricted exercise without showing it to whoever recorded the absence: it names nothing of it in its report, and the notices it raises are
+  // hidden from anyone not named on the exercise like every other record of it.
+  if (behind && i.mode !== "ABSENCE" && (await exerciseIsHidden(actor, behind))) return { ok: false, message: "That step no longer exists." };
   // 6.13 Part A step 3 (614-C4): a certificate's route locks its chain as every certificate act does: the requisition,
   // the exercise and the award behind its contract, then the contract, then the certificate.
   const cert = route.certificate?.contractId ? { id: route.certificateId!, contractId: route.certificate.contractId, awardId: route.certificate.contract.awardId, exerciseId: route.certificate.contract.award.exerciseId } : null;
@@ -89,10 +132,10 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
   const permissionId = route.specialPermissionId;
   if (!requisitionId && !supplierId && !permissionId) return { ok: false, message: "That step's matter cannot be found." };
 
-  let result: FormState & { paths?: string[] };
+  let result: FormState & { paths?: string[]; info?: EscalateInfo };
   try {
   result = await db.$transaction(
-    async (tx): Promise<FormState & { paths?: string[] }> => {
+    async (tx): Promise<FormState & { paths?: string[]; info?: EscalateInfo }> => {
       if (requisitionId) await tx.$queryRaw`SELECT id FROM "Requisition" WHERE id = ${requisitionId} FOR UPDATE`;
       if (exerciseId) await tx.$queryRaw`SELECT id FROM "SourcingExercise" WHERE id = ${exerciseId} FOR UPDATE`;
       if (awardId) await tx.$queryRaw`SELECT id FROM "Award" WHERE id = ${awardId} FOR UPDATE`;
@@ -203,8 +246,24 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
           },
         ));
       if (act) await act.write(tx, step.id);
+      // Phase 3c: the people the step now waits on are told, in the portal (the staff inbox), and the immediate superior on record is named where reporting lines
+      // are recorded; where they are not, the notice says "Reporting line not set". Written in this transaction with a key that a retry meets and skips.
+      const lines = await loadReportingLines(tx, req.organisationId);
+      const superiors = superiorsNote(lines, holders.holderIds, on, (id) => people.get(id)?.name ?? "A person no longer on record");
+      const toHolders = today ? (supplierId || permissionId ? supplierHolders(verdict.toRoleCode, roster, delegations, today) : holdersFor(verdict.toRoleCode, unitPath, roster, delegations, today)) : null;
+      const told = toHolders ? [...toHolders.holderIds, ...toHolders.delegates.map((d) => d.personId)].filter((id) => people.get(id)?.isActive) : [];
+      const ref = { label: matter, href: "/approvals", exerciseId: behind ?? null };
+      const by = actor.system ? null : actor.personId;
+      await writeNotices(
+        tx,
+        req.organisationId,
+        by,
+        i.mode === "ABSENCE"
+          ? stepMovedOnAbsenceNotices({ stepId: step.id, escalationCount: after.escalationCount, matter: ref, actLabel: ACT_LABEL[step.act]?.toLowerCase() ?? "decision", fromOffice: step.actingRoleLabel ?? step.roleLabel, toOffice: after.actingRoleLabel, absentName: (i.absentNames ?? []).join(", ") || "the holder", recipients: told, by, superiorNote: superiors.text })
+          : stepEscalatedNotices({ stepId: step.id, escalationCount: after.escalationCount, matter: ref, actLabel: ACT_LABEL[step.act]?.toLowerCase() ?? "decision", fromOffice: step.actingRoleLabel ?? step.roleLabel, toOffice: after.actingRoleLabel, whyLabel: ESCALATION_KIND_LABEL[kind], reason, recipients: told, by, superiorNote: superiors.text }),
+      );
       const paths = ["/approvals", ...(requisitionId ? [`/requisitions/${requisitionId}`] : []), ...(inst.exercise ? [`/sourcing/${inst.exercise.id}`] : []), ...(inst.award ? [`/awards/${inst.award.id}`] : []), ...(supplierId ? [`/suppliers/${supplierId}`] : []), ...(route.specialPermission?.party.vendorId ? [`/suppliers/${route.specialPermission.party.vendorId}`] : []), ...(cert ? [`/projects/${cert.contractId}`, `/projects/${cert.contractId}/certificates/${cert.id}`] : []), ...(variation ? [`/projects/${variation.contractId}`, `/projects/${variation.contractId}/variations/${variation.id}`] : []), ...(contractMatter ? [`/projects/${contractMatter.contractId}`] : [])];
-      return { ok: true, paths };
+      return { ok: true, paths, info: { matter, from: step.actingRoleLabel ?? step.roleLabel, to: after.actingRoleLabel } };
     },
     { timeout: 20_000, maxWait: 10_000 },
   );
@@ -214,5 +273,65 @@ export async function escalateStep(_prev: FormState, data: FormData): Promise<Fo
     throw e;
   }
   for (const p of result.paths ?? []) revalidatePath(p);
-  return { ok: result.ok, message: result.message, errors: result.errors };
+  return { ok: result.ok, message: result.message, errors: result.errors, info: result.info };
+}
+
+/// What the sweep after an absence did, for the caller to say in words.
+export interface AbsenceSweep {
+  /// What it did, as sentences (`reportWords`). A step on a record the reader may not see is counted and not named.
+  words: string[];
+  /// How many steps it moved, and how many stay where they are. Counts only: nothing here names a person or a restricted record.
+  moved: number;
+  stayed: number;
+}
+
+/**
+ * Move the pending steps whose office has nobody able to act, now that a holder is away (FR-APR-012). Called when someone is marked absent, and again from the
+ * worklist ("Move steps held by people who are away"): it can be run as often as wanted and does the same thing, because a step is moved only while its acting
+ * office has nobody able to act, and a retry writes no notice twice.
+ *
+ * It moves a step only where the reporting line says who is above the people who hold the office (`absenceVerdict`). Otherwise the step stays put and the report
+ * says why. It is `escalateOne`'s, so every check of an officer's escalation applies: never a committee's step, never a mandatory act for a vacancy, never down,
+ * never onto an office already on the route. The audit row is the signed-in person's who recorded the absence, with the reason "Moved automatically".
+ */
+export async function moveStepsOfAbsentHolders(onlyFor?: string): Promise<AbsenceSweep> {
+  const actor = await requireStaff();
+  const empty: AbsenceSweep = { words: [], moved: 0, stayed: 0 };
+  // Everything pending is looked at, so a step is not left because the person recording the absence cannot see its record; the report names only what they can see.
+  const [all, visible] = await Promise.all([loadWorklist(actor, []), loadWorklist(actor, await hiddenExercises(actor))]);
+  if (!all || !all.today) return empty;
+  const visibleSteps = new Set(visible?.groups.flatMap((g) => g.items.map((i) => i.stepId)) ?? []);
+  const [lines, roster] = await Promise.all([loadReportingLines(db, actor.organisationId), loadRoster(actor.organisationCode)]);
+  const nameOf = new Map(roster.people.map((p) => [p.id, p.name]));
+  const on = dayToDate(all.today);
+  const report: AbsenceReport = { moved: [], stayed: [] };
+  /// Whose steps they are, so the report can be limited to one absent person (the sweep itself looks at everything pending).
+  const holdersOf = new Map<string, readonly string[]>();
+  const items = all.groups.flatMap((g) => g.items).filter((i) => i.noneAvailable && !i.committee).sort((a, b) => a.stepId.localeCompare(b.stepId));
+  for (const item of items) {
+    const name = visibleSteps.has(item.stepId) ? item.matterLabel : null;
+    holdersOf.set(item.stepId, item.holderIds);
+    const verdict = absenceVerdict({ holderIds: item.holderIds, lines, on });
+    if (!verdict.move) {
+      report.stayed.push({ stepId: item.stepId, matter: name, why: stayText(verdict.why, verdict.holderIdsWithoutLine.map((id) => nameOf.get(id) ?? "A person no longer on record")) });
+      continue;
+    }
+    const away = item.holderIds.filter((id) => roster.people.some((p) => p.id === id && (!p.isAvailable || !p.isActive)));
+    const absentNames = away.map((id) => nameOf.get(id) ?? "A person no longer on record");
+    const moved = await escalateOne(actor, {
+      stepId: item.stepId,
+      kind: "NO_AVAILABLE_HOLDER",
+      reason: `Moved automatically: ${absentNames.join(", ") || "the holder"} ${absentNames.length === 1 ? "is" : "are"} marked absent, and nobody able to act holds the office.`,
+      act: null,
+      declarerId: null,
+      mode: "ABSENCE",
+      absentNames,
+    });
+    if (moved.ok && moved.info) report.moved.push({ stepId: item.stepId, matter: name, from: moved.info.from, to: moved.info.to });
+    else report.stayed.push({ stepId: item.stepId, matter: name, why: moved.message ?? Object.values(moved.errors ?? {})[0] ?? "It could not be moved." });
+  }
+  // Limited to one person's steps when the caller asks (the sweep after that person was marked away); otherwise everything it did.
+  const mine = (stepId: string) => !onlyFor || (holdersOf.get(stepId) ?? []).includes(onlyFor);
+  const scoped: AbsenceReport = { moved: report.moved.filter((m) => mine(m.stepId)), stayed: report.stayed.filter((s) => mine(s.stepId)) };
+  return { words: reportWords(scoped), moved: scoped.moved.length, stayed: scoped.stayed.length };
 }

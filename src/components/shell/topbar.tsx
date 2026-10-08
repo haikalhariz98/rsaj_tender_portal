@@ -46,6 +46,7 @@ const SEGMENT_LABEL: Record<string, string> = {
   awards: "Awards",
   securities: "Securities",
   approvals: "My approvals",
+  inbox: "Inbox",
   account: "Your account",
   welcome: "Welcome",
   "sign-in": "Sign in",
@@ -277,18 +278,16 @@ export function Topbar({
         <span className="flex-1 truncate text-left">Search</span>
       </button>
 
-      <button
-        type="button"
-        disabled
-        aria-label="Notifications"
-        title="Notifications are not built yet"
-        className={iconButtonClass()}
-      >
-        <BellIcon size={19} />
-        {hasAlerts && workspace !== "supplier" && (
-          <span className="absolute top-2 right-2.5 size-2 rounded-full bg-rose-500 ring-2 ring-canvas" />
-        )}
-      </button>
+      {workspace === "supplier" ? (
+        <button type="button" disabled aria-label="Notifications" title="Notices to suppliers are not built yet" className={iconButtonClass()}>
+          <BellIcon size={19} />
+        </button>
+      ) : (
+        <Link href="/inbox" aria-label={hasAlerts ? "Inbox, with unread notices" : "Inbox"} title={hasAlerts ? "You have unread notices" : "Your inbox"} className={iconButtonClass()}>
+          <BellIcon size={19} />
+          {hasAlerts && <span className="absolute top-2 right-2.5 size-2 rounded-full bg-rose-500 ring-2 ring-canvas" />}
+        </Link>
+      )}
       <button
         type="button"
         disabled

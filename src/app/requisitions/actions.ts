@@ -4,6 +4,8 @@ import { sulitWriteRefusal } from "@/lib/auth/sulit-store";
 import { autoCheck, budgetCheckRefusal } from "@/lib/requisition/auto-check";
 import { MISSING_BUDGET_CODE_TEXT, missingBudgetCode } from "@/lib/requisition/budget-code";
 import { routedValue } from "@/lib/approvals/routed-value";
+import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
+import { noticeRecall } from "@/lib/approvals/recall-store";
 import { routeCoreFields, stepOrigin } from "@/lib/authority/core-routing";
 import { revalidatePath } from "next/cache";
 
@@ -1081,11 +1083,19 @@ export async function recallRequisition(_prev: FormState, data: FormData): Promi
   if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
   return inRequisition(actor, id, async (tx, l): Promise<FormState> => {
     const inst = openInstance(l);
+    // FR-APR-017: only the originator (the officer who raised the request) recalls, before any decision, and not from under a committee's agenda.
+    if (inst) {
+      const tabled = await tx.committeeDecision.count({ where: { requisitionId: id, domain: inst.domain, outcome: "PENDING", withdrawnAt: null } });
+      const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: tabled, originatorIds: [l.req.requestingPersonId], actorPersonId: actor.personId, reason });
+      if (refused) return { ok: false, message: RECALL_FAULT_TEXT[refused] };
+    }
     const fault = transitionFault(l.req.status, "RECALLED", { today: l.org.today, anyStepDone: inst?.steps.some((s) => s.decision !== "PENDING") ?? false });
     if (fault) return { ok: false, message: transitionFaultText(fault) };
     if (inst) {
       await tx.approvalInstance.update({ where: { id: inst.id, organisationId: actor.organisationId }, data: { status: "RECALLED", closedAt: new Date() } });
       await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, `${l.req.reference} · approval route`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), reason);
+      // The people the waiting step was waiting on are told it is withdrawn, in the portal.
+      await noticeRecall(tx, actor, { routeId: inst.id, steps: inst.steps, matter: { label: `${l.req.reference} · ${l.req.title}`, href: `/requisitions/${id}`, exerciseId: null }, unitCode: l.req.sectionUnitCode || l.req.requestingUnitCode, today: l.org.today, reason });
     }
     const from = l.req.status;
     await mustMove(tx, l, "RECALLED", { today: l.org.today, anyStepDone: inst?.steps.some((s) => s.decision !== "PENDING") ?? false });

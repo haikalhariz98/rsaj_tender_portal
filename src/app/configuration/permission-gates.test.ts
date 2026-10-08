@@ -47,6 +47,8 @@ const GIVES_AUTHORITY: Record<string, [string, Key][]> = {
   users: [
     ["saveAssignment", "configuration.draft"],
     ["saveDelegation", "configuration.draft"],
+    // Phase 3c: a reporting line decides who may be delegated to and where a step moves when its holder is away, so it is gated by the key that gives a delegation.
+    ["saveReportingLine", "configuration.draft"],
     ["saveOffice", "configuration.draft"],
     // Ruled by the product owner (decisions log 2026-10-07): ending an office is gated by the key that gives one.
     ["endAssignment", "configuration.draft"],

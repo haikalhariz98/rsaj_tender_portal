@@ -50,6 +50,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   "src/app/configuration/users/actions.ts#fromPersonId": NAMED,
   "src/app/configuration/users/actions.ts#toPersonId": RECEIVES,
   "src/app/configuration/users/actions.ts#personId": CONFIGURATION,
+  "src/app/configuration/users/actions.ts#superiorPersonId": CONFIGURATION,
   "src/app/configuration/users/editors.tsx#fromPersonId": "The drawer reads the grantor it is about to save, to name the signed recommendation's file. It posts nothing as the actor.",
   "src/app/configuration/scope/actions.ts#personId": CONFIGURATION,
   "src/app/configuration/organisation/actions.ts#ownerPersonId": CONFIGURATION,

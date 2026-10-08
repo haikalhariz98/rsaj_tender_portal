@@ -52,6 +52,7 @@ import { hiddenExercises, sulitGate, sulitMatterAmounts } from "@/app/_auth/suli
 import { formatRM } from "@/lib/format";
 import { historyAmount } from "@/lib/committee/matter-history";
 import type { MatterKind } from "@/lib/committee/labels";
+import { memoWords } from "@/lib/committee/memo";
 import { through, type Sulit } from "@/lib/auth/sulit-access";
 import { tablePrefillFromQuery } from "@/lib/committee/table-prefill";
 import { tablingAmount } from "@/lib/committee/repo";
@@ -321,6 +322,16 @@ async function AgendaPanel({ s, prefill, notLinked, hiddenMatters, matterGates }
   const frozen = isFrozen(m.status);
   const voting = new Map(a.voting.map((v) => [v.seatId, v]));
 
+  // FR-CTE-009: how many people each not-approved memo was written to (the state itself is recorded on the decision).
+  const memoTold = new Map(
+    (
+      await db.staffNotice.groupBy({
+        by: ["subjectId"],
+        where: { organisationId: s.organisationId, subjectEntity: "CommitteeDecision", kind: "MATTER_NOT_CARRIED_MEMO", subjectId: { in: m.decisions.filter((d) => d.outcome === "NOT_CARRIED").map((d) => d.id) } },
+        _count: { _all: true },
+      })
+    ).map((g) => [g.subjectId, g._count._all] as const),
+  );
   const matters = m.decisions.map((d) => {
     // FR-MTD-007: a matter of an exercise restricted to its named people keeps its place and says only that. Nothing that names it, and no act on it.
     if (hiddenMatters.has(d.id)) {
@@ -414,6 +425,8 @@ async function AgendaPanel({ s, prefill, notLinked, hiddenMatters, matterGates }
             notApproved: d.notApprovedOutcomeNameEn
               ? `${d.notApprovedOutcomeNameEn}${d.notApprovedOutcomeKind ? ` (${NOT_APPROVED_KIND_LABEL[d.notApprovedOutcomeKind].toLowerCase()})` : ""}`
               : null,
+            // FR-CTE-009: what became of the memo when the matter was not carried, as recorded then; nothing for another outcome.
+            memo: d.outcome === "NOT_CARRIED" ? memoWords(d.memoState, memoTold.get(d.id) ?? 0) : null,
           };
 
     const matter: PanelMatter = {

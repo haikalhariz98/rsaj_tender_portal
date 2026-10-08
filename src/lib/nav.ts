@@ -29,9 +29,11 @@ export const STAFF_NAV: NavGroup[] = [
     label: "Overview",
     items: [
       { href: "/", label: "Dashboard", icon: "grid", built: true },
-      // Not in the prototype (close-out ruling CO-7): every open approval's next step, by
-      // the office deciding it. Shown to everyone until sign-in; nobody is notified.
-      { href: "/approvals", label: "My approvals", icon: "inbox", built: true },
+      // Not in the prototype (close-out ruling CO-7): the steps waiting for the person signed in, and every open approval's next step by the office
+      // deciding it. The count beside it is the steps waiting for them (FR-APR-018).
+      { href: "/approvals", label: "My approvals", icon: "clock", built: true },
+      // The staff inbox (Phase 3c): notices shown in the portal, since email is not connected (INT-09). The count is the unread ones.
+      { href: "/inbox", label: "Inbox", icon: "inbox", built: true },
     ],
   },
   {

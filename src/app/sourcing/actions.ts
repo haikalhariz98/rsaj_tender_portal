@@ -60,6 +60,8 @@ import { FormReader } from "@/lib/validate";
 import { nameListFault } from "@/lib/window/invitees";
 import { audit, CHANGED, citeNameStep, labelOf, nameLabel, nameSupports, Refusal, refuse, sendNameRejected } from "@/lib/method/name-route-write";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
+import { noticeRecall } from "@/lib/approvals/recall-store";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 
@@ -556,6 +558,10 @@ export async function reviewProposal(_prev: FormState, data: FormData): Promise<
 export async function requestNameApproval(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();
   const id = String(data.get("id") ?? "");
+  // The person who sends it is its originator (FR-APR-017): the only one who can recall it before a decision. Always the signed-in officer's own act.
+  const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inExercise(actor, id, async (tx, l) => {
     const ex = l.ex;
     const { issue, ctx, cfg } = await evaluationContext(l.org, l.req, ex, tx);
@@ -615,6 +621,7 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
         warnings: res.warnings as unknown as Prisma.InputJsonValue,
         status: "PENDING",
         openedAt: on,
+        submittedByPersonId: act.subjectPersonId,
         // Where a refusal would send it, as configured now (FR-APR-016, ruling CO-4).
         ...rejectionSnapshot(await loadDestinations(tx, l.org.id), NAME_APPROVAL_DOMAIN, on, new Date()),
         // The core routing behind the chain, as it stood (FR-APR-004, ruling C4).
@@ -635,11 +642,38 @@ export async function requestNameApproval(_prev: FormState, data: FormData): Pro
     });
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", instance.id, nameLabel(ex), "CREATE",
       diffFields(null, { matrix: issue.label, rule: rule.labelEn, route: res.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: res.source === "OVERRIDE", invitees: proposed.length }));
+    await act.write(tx, instance.id);
     // The invitee list, frozen on the route it is approved by (written once, never edited).
     for (const [i, p] of proposed.entries()) {
       const row = await tx.nameRouteInvitee.create({ data: { organisationId: l.org.id, approvalInstanceId: instance.id, name: p.name, registrationNo: p.registrationNo, sortOrder: i } });
       await audit(tx, toAuditActor(actor), l.org.id, "NameRouteInvitee", row.id, `${nameLabel(ex)} · ${p.name}`, "CREATE", diffFields(null, { invitee: p.name, registrationNo: p.registrationNo }));
     }
+    return { ok: true };
+  });
+}
+
+/**
+ * Recall the name's route before anyone has decided (FR-APR-017). Only its originator (whoever sent it) can, with a reason; a decision recorded, a matter on a
+ * committee's agenda, or a route sent before the sender was recorded all refuse, in words. The route is kept as recalled, the exercise is as it was, and the
+ * name can be sent again. The people the waiting step was waiting on are told in the portal.
+ */
+export async function recallNameApproval(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "A reason is required." } };
+  return inExercise(actor, id, async (tx, l) => {
+    const ex = l.ex;
+    const inst = nameRoutesOf(ex.approvalInstances).find((i) => i.status === "PENDING");
+    if (!inst) return { ok: false, message: RECALL_FAULT_TEXT.ROUTE_NOT_OPEN };
+    const tabled = await tx.committeeDecision.count({ where: { exerciseId: ex.id, domain: inst.domain, outcome: "PENDING", withdrawnAt: null } });
+    const refused = recallFault({ routeStatus: inst.status, steps: inst.steps, tabledAwaitingDecision: tabled, originatorIds: inst.submittedByPersonId ? [inst.submittedByPersonId] : [], actorPersonId: actor.personId, reason });
+    if (refused) return { ok: false, message: RECALL_FAULT_TEXT[refused] };
+    const warning = { code: "RECALLED_BY_ORIGINATOR", level: "info", messageEn: `Recalled by ${actor.personName} before any decision: ${reason}` };
+    const moved = await tx.approvalInstance.updateMany({ where: { id: inst.id, organisationId: actor.organisationId, status: "PENDING" }, data: { status: "RECALLED", closedAt: new Date(), warnings: [...((inst.warnings as object[]) ?? []), warning] as unknown as Prisma.InputJsonValue } });
+    if (moved.count !== 1) throw new Refusal(CHANGED);
+    await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", inst.id, `${ex.reference} · name approval`, "UPDATE", diffFields({ status: inst.status }, { status: "RECALLED" }), reason);
+    await noticeRecall(tx, actor, { routeId: inst.id, steps: inst.steps, matter: { label: `${ex.reference} · name approval`, href: `/sourcing/${ex.id}?tab=name`, exerciseId: ex.id }, unitCode: l.req.sectionUnitCode || l.req.requestingUnitCode, today: l.org.today, reason });
     return { ok: true };
   });
 }

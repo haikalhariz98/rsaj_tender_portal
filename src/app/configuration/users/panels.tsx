@@ -32,7 +32,8 @@ import {
   type Capability,
   type Grant,
 } from "@/lib/people/capabilities";
-import { statusOf, type Delegation } from "@/lib/people/delegation";
+import { delegationNotes, statusOf, type Delegation } from "@/lib/people/delegation";
+import { REPORTING_LINE_NOT_SET, REPORTING_LINE_NOT_SET_WHY } from "@/lib/people/reporting-lines";
 import type { Assignment, Office, Person, RosterFault } from "@/lib/people/types";
 
 import { setGrant } from "./actions";
@@ -44,7 +45,10 @@ import {
   AddDelegation,
   AddOffice,
   AddPerson,
+  AddReportingLine,
   EditDelegation,
+  EditReportingLine,
+  type ReportingLineRow,
   EditOffice,
   EditPerson,
   LeaverToggle,
@@ -82,6 +86,10 @@ export interface UsersData {
   units: { code: string; nameEn: string }[];
   /// The product's own permissions and the organisation's decisions about them (Phase 2c).
   product: ProductPermissions;
+  /// Reporting lines (FR-APR-010/011): empty as shipped, which the tab says in words.
+  lines: ReportingLineRow[];
+  /// Steps waiting on an office with nobody able to act because its holders are away, and why each stays (the sweep's reasons).
+  stuck: { stepId: string; matter: string; office: string; why: string }[];
 }
 
 export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }) {
@@ -93,6 +101,7 @@ export function UsersTabs({ initial, ...data }: UsersData & { initial?: string }
         { id: "roles", label: "Roles", panel: <RolesPanel {...data} /> },
         { id: "permissions", label: "Permissions", panel: <PermissionsPanel {...data} /> },
         { id: "delegation", label: "Delegation", panel: <DelegationPanel {...data} /> },
+        { id: "lines", label: "Reporting lines", count: data.lines.length, panel: <ReportingLinesPanel {...data} /> },
       ]}
     />
   );
@@ -590,8 +599,10 @@ function GroupRows({
 
 // -------------------------------------------------------------------- Delegation
 
-function DelegationPanel({ people, offices, delegations, capabilities, upload }: UsersData) {
+function DelegationPanel({ people, offices, delegations, capabilities, upload, lines }: UsersData) {
   const on = new Date();
+  // FR-APR-011: what the rule checks is said, and what it does not: with no line recorded the subordinate rule is not applied and the screen says so.
+  const notes = delegationNotes({ reportingLines: lines.map((l) => ({ ...l, superiorPersonId: l.superiorPersonId })) });
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? "Not on record";
   const officeName = (code: string) => offices.find((o) => o.code === code)?.nameEn ?? code;
 
@@ -638,6 +649,11 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload }:
 
   return (
     <div className="flex flex-col gap-5">
+      {notes.map((n) => (
+        <Callout key={n.code} tone="info" title={n.code === "REPORTING_LINES_NOT_SET" ? REPORTING_LINE_NOT_SET : "What the delegation rules check"}>
+          {n.en}
+        </Callout>
+      ))}
       <Card className="overflow-hidden">
         <CardHeader
           icon={<SwapIcon size={17} />}
@@ -731,6 +747,91 @@ function DelegationPanel({ people, offices, delegations, capabilities, upload }:
           </ul>
         )}
       </Card>
+    </div>
+  );
+}
+
+// --------------------------------------------------------------- Reporting lines
+
+function ReportingLinesPanel({ people, lines, stuck }: UsersData) {
+  const on = new Date();
+  const nameOf = (id: string | null) => (id ? (people.find((p) => p.id === id)?.name ?? "Not on record") : "Nobody (head of the line)");
+  const state = (l: ReportingLineRow) => (l.effectiveFrom > on ? "scheduled" : l.effectiveTo && l.effectiveTo <= on ? "ended" : "inforce");
+
+  const rows: Row[] = lines.map((l) => ({
+    id: l.id,
+    views: [state(l)],
+    search: [nameOf(l.personId), nameOf(l.superiorPersonId), l.note].join(" "),
+    cells: {
+      person: { kind: "person", name: nameOf(l.personId) },
+      superior: l.superiorPersonId ? { kind: "person", name: nameOf(l.superiorPersonId) } : { kind: "text", text: "Nobody: head of the line", dim: true },
+      period: { kind: "text", text: periodText(l) },
+      source: { kind: "chip", text: l.provenance === "STATED" ? "Stated" : l.provenance === "OBSERVED" ? "Observed" : "Assumed", tone: l.provenance === "STATED" ? "ok" : l.provenance === "OBSERVED" ? "info" : "warn" },
+      status: state(l) === "inforce" ? { kind: "chip", text: "In force", tone: "ok" } : state(l) === "scheduled" ? { kind: "chip", text: "Scheduled", tone: "info" } : { kind: "chip", text: "Ended" },
+    },
+  }));
+  const withoutLine = people.filter((p) => p.isActive && !lines.some((l) => l.personId === p.id && l.effectiveFrom <= on && (!l.effectiveTo || l.effectiveTo > on)));
+
+  return (
+    <div className="flex flex-col gap-5">
+      {lines.length === 0 && (
+        <Callout tone="warn" title={REPORTING_LINE_NOT_SET}>
+          {REPORTING_LINE_NOT_SET_WHY} Until they are recorded: a delegation is not checked to be to a direct subordinate, a pending step is not moved on an absence, and a step escalated by an officer names no immediate superior.
+        </Callout>
+      )}
+      {stuck.length > 0 && (
+        <Callout tone="warn" title={`${stuck.length} ${stuck.length === 1 ? "step is" : "steps are"} waiting on an office whose holders are away`}>
+          <ul className="mt-1 flex list-disc flex-col gap-1 pl-5">
+            {stuck.map((s) => (
+              <li key={s.stepId}>
+                {s.matter}, waiting on {s.office}. {s.why}
+              </li>
+            ))}
+          </ul>
+        </Callout>
+      )}
+      <Card className="overflow-hidden">
+        <CardHeader
+          icon={<UserIcon size={17} />}
+          title="Reporting lines"
+          subtitle="Who each person reports to. Left unset until the organisation records them: nothing is derived from a unit's head."
+          actions={<AddReportingLine people={people} />}
+          divided={false}
+        />
+        <DataList
+          stackBelow="xl"
+          flat
+          selectable={false}
+          exportName="reporting-lines"
+          searchPlaceholder="Search reporting lines"
+          emptyTitle="Reporting line not set"
+          emptyBody="No reporting line is recorded for anyone."
+          views={[
+            { id: "inforce", label: "In force" },
+            { id: "scheduled", label: "Scheduled" },
+            { id: "ended", label: "Ended" },
+          ]}
+          columns={[
+            { key: "person", label: "Person", width: "180px", sortable: true, mobile: "primary" },
+            { key: "superior", label: "Reports to", width: "180px", sortable: true, mobile: "meta" },
+            { key: "period", label: "Period", mobile: "meta" },
+            { key: "source", label: "Source", width: "112px", mobile: "meta" },
+            { key: "status", label: "Status", width: "112px", mobile: "meta" },
+          ]}
+          actionsWidth={64}
+          rows={rows}
+          rowOpens
+          actions={(id) => {
+            const line = lines.find((l) => l.id === id);
+            return line ? <EditReportingLine line={line} people={people} /> : null;
+          }}
+        />
+      </Card>
+      {lines.length > 0 && withoutLine.length > 0 && (
+        <Callout tone="info" title={`${withoutLine.length} ${withoutLine.length === 1 ? "person has" : "people have"} no reporting line in force`}>
+          {withoutLine.map((p) => p.name).join(", ")}. {REPORTING_LINE_NOT_SET} for them: a step held by them is not moved on their absence, and a delegation to them is not accepted until their line is recorded.
+        </Callout>
+      )}
     </div>
   );
 }

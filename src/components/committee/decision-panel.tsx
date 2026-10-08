@@ -93,6 +93,8 @@ export interface PanelMatter {
     rule: string;
     note: string;
     notApproved: string | null;
+    /// What became of the not-approved memo when the matter was decided (FR-CTE-009), in words; null for an outcome that has none.
+    memo: { short: string; text: string; tone: "ok" | "warn" | "neutral" } | null;
   } | null;
 }
 
@@ -245,10 +247,19 @@ export function DecisionPanel({
             ...(matter.decided.notApproved
               ? [
                   { label: "Next step", value: matter.decided.notApproved },
-                  {
-                    label: "Not-approved memo",
-                    value: <Badge tone="warn">Memo not issued: notifications not built</Badge>,
-                  },
+                  ...(matter.decided.memo
+                    ? [
+                        {
+                          label: "Not-approved memo",
+                          value: (
+                            <span className="flex flex-col items-start gap-1">
+                              <Badge tone={matter.decided.memo.tone}>{matter.decided.memo.short}</Badge>
+                              <span className="text-[12.5px] text-ink-3">{matter.decided.memo.text}</span>
+                            </span>
+                          ),
+                        },
+                      ]
+                    : []),
                 ]
               : []),
             ...(matter.decided.note ? [{ label: "Note", value: matter.decided.note }] : []),

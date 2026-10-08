@@ -10,6 +10,11 @@ import { loadGrants as loadProductGrants } from "@/lib/auth/permission-store";
 import { UsersTabs } from "./panels";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireStaff } from "@/app/_auth/actor";
+import { hiddenExercises } from "@/app/_auth/sulit";
+import { loadWorklist } from "@/lib/approvals/load";
+import { absenceVerdict, stayText } from "@/lib/approvals/absence-move";
+import { loadReportingLines } from "@/lib/people/reporting-line-store";
+import { dayToDate } from "@/lib/dates";
 
 const EMPTY_UPLOAD = { classes: [], people: [], allowedMediaTypes: [], maxBytes: null, ceiling: null, cap: null, refusals: [], timeZoneSet: false, statement: "" };
 
@@ -31,7 +36,7 @@ export default async function UsersPage({
   const actor = await requireStaff();
   const on = new Date();
   const { tab } = await searchParams;
-  const [roster, grants, delegations, upload, units, productDecisions, productPending] = await Promise.all([
+  const [roster, grants, delegations, upload, units, productDecisions, productPending, lines, worklist] = await Promise.all([
     loadRoster(actor.organisationCode),
     loadGrants(actor.organisationCode),
     loadDelegations(actor.organisationCode),
@@ -43,6 +48,9 @@ export default async function UsersPage({
       .then((us) => us.sort((a, b) => a.nameEn.localeCompare(b.nameEn))),
     loadProductGrants(db, actor.organisationId),
     db.configurationChange.findMany({ where: { organisationId: actor.organisationId, kind: "PERMISSION_GRANT", status: "PROPOSED" }, select: { payload: true } }),
+    loadReportingLines(db, actor.organisationId),
+    // The steps waiting on an office nobody is able to act in: the page says why each stays (the sweep's own reasons), and the matter is named only where the reader may see it.
+    hiddenExercises(actor).then((hidden) => loadWorklist(actor, hidden)),
   ]);
 
   const holdings = holdingsOn(roster, on).map((h) => ({
@@ -55,6 +63,15 @@ export default async function UsersPage({
   // the organisation's decision.
   const assignments = roster.assignments.filter((a) => a.effectiveTo == null || a.effectiveTo > on);
   const faults = rosterFaults(roster, on, roster.routedToCodes);
+
+  const nameOf = new Map(roster.people.map((p) => [p.id, p.name]));
+  const lineDay = worklist?.today ? dayToDate(worklist.today) : on;
+  const stuck = (worklist?.groups.flatMap((g) => g.items) ?? [])
+    .filter((i) => i.noneAvailable && !i.committee)
+    .map((i) => {
+      const verdict = absenceVerdict({ holderIds: i.holderIds, lines, on: lineDay });
+      return { stepId: i.stepId, matter: i.matterLabel, office: i.officeLabel, why: verdict.move ? "It can be moved: use Move steps held by people who are away on the worklist." : stayText(verdict.why, verdict.holderIdsWithoutLine.map((id) => nameOf.get(id) ?? "A person no longer on record")) };
+    });
 
   return (
     <>
@@ -78,6 +95,8 @@ export default async function UsersPage({
         capabilities={grants.capabilities}
         grants={grants.grants}
         delegations={delegations}
+        lines={lines.map((l) => ({ id: l.id, personId: l.personId, superiorPersonId: l.superiorPersonId, effectiveFrom: l.effectiveFrom, effectiveTo: l.effectiveTo, provenance: l.provenance, note: l.note }))}
+        stuck={stuck}
         upload={uploadView(upload ?? EMPTY_UPLOAD)}
         units={units}
         product={{

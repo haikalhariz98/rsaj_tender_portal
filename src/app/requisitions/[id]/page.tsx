@@ -26,6 +26,7 @@ import { KeyValues, Stat } from "@/components/ui/stat";
 import { Stepper } from "@/components/ui/stepper";
 import { Accordion } from "@/components/accordion";
 import { routeSteps } from "@/lib/approvals/route-steps";
+import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
 import { CellStack, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { fieldLabel } from "@/lib/audit/diff";
 import { routeTone, stepTone } from "@/lib/ui/status-tone";
@@ -387,6 +388,8 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
   };
 
   const recallBlock = r.status === "PENDING_APPROVAL" ? transitionFault(r.status, "RECALLED", { today, anyStepDone: open?.steps.some((s) => s.decision !== "PENDING") ?? false }) : null;
+  // FR-APR-017: only the originator recalls. The action asks the same rule again, and also whether the matter is on a committee's agenda.
+  const recallRule = r.status === "PENDING_APPROVAL" && open ? recallFault({ routeStatus: open.status, steps: open.steps, tabledAwaitingDecision: 0, originatorIds: [r.requestingPersonId], actorPersonId: actor.personId, reason: "asked" }) : null;
   const locked = !["DRAFT"].includes(r.status);
   const sentBack = sentBackBy(r.status, r.approvalInstances, r.returnedOn);
   const erpFirst = r.erpRequisitionNo ? `${r.erpRequisitionNo} · ${r.reference}` : r.reference;
@@ -433,7 +436,7 @@ export default async function RequisitionPage(props: PageProps<"/requisitions/[i
           <SubmitDrawer id={r.id} blocker={submitBlocker} overBudget={overBudget} />
         </>
       )}
-      {r.status === "PENDING_APPROVAL" && <RecallDrawer id={r.id} blocker={recallBlock ? transitionFaultText(recallBlock) : null} />}
+      {r.status === "PENDING_APPROVAL" && <RecallDrawer id={r.id} blocker={recallBlock ? transitionFaultText(recallBlock) : recallRule ? RECALL_FAULT_TEXT[recallRule] : null} />}
       {["RETURNED", "RECALLED"].includes(r.status) && <ReopenDrawer id={r.id} />}
       {awaitingChoice && (
         <WhereItGoesDrawer

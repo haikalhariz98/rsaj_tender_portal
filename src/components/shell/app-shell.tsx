@@ -43,7 +43,8 @@ export function AppShell({
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const hasAlerts = Object.values(counts).some((n) => n > 0);
+  // The bell is the inbox: its dot says there is an unread notice, not that some count somewhere is above nought.
+  const hasAlerts = (counts["/inbox"] ?? 0) > 0;
 
   // The sign-in screens are for someone who is not in yet: no navigation, no counts, nothing of the staff side to see. They draw their own whole
   // page (`SignInScreen`: the organisation's picture and words beside the card), so the frame adds nothing around them.

@@ -69,6 +69,7 @@ import { formatPct } from "@/lib/tender-docs/percent";
 import { mergeFieldLabel } from "@/lib/award/fields";
 import { conditionsOutstanding, readinessGate } from "@/lib/award/readiness";
 import { loadOpeningGate } from "@/lib/opening/gate-read";
+import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
 import { awardFacts, awardHistory, exerciseMatters, latestRoute, loadAward, matterRecord, type LoadedAward } from "@/lib/award/repo";
 import { acceptancePageFaults, instrumentReturned, RETURN_SCANS, returnState, scansAwaitingPaper, scansMissing, scansRequired, type ReturnRecord } from "@/lib/award/stage-two";
 import { isLive } from "@/lib/documents/evidence";
@@ -117,6 +118,7 @@ import {
   ReturnDrawer,
   ReviewDrawer,
   SatisfyConditionDrawer,
+  RecallAwardDrawer,
   SubmitAwardDrawer,
 } from "../editors";
 import { requireStaff } from "@/app/_auth/actor";
@@ -194,6 +196,9 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
   // ------------------------------------------------------------------- actions
   const submitBlocks = ev.submitFaults.filter((x) => x.level === "block");
   const submitBlocker = status === "DRAFT" && submitBlocks.length ? "See what stops it, below." : null;
+  // FR-APR-017: only the originator recalls, before any decision. The action asks the same rule again, and also whether the matter is on a committee's agenda.
+  const openAppointment = award.approvalInstances.find((i) => i.status === "PENDING" && i.domain === "appointment") ?? null;
+  const awardRecallRule = openAppointment ? recallFault({ routeStatus: openAppointment.status, steps: openAppointment.steps, tabledAwaitingDecision: 0, originatorIds: openAppointment.submittedByPersonId ? [openAppointment.submittedByPersonId] : [], actorPersonId: actor.personId, reason: "asked" }) : null;
   const issueReady = status === "APPROVED" && ev.issueFaults.length === 0 && ev.signatory?.ok;
   const canRecordCommitment = ["APPROVED", "ISSUED", "ACCEPTED"].includes(status) && !award.erpCommitmentNo;
   const canCancel = cancellable(status, { returned: instrumentReturned(kind, award.awardReturn), commenced: !!award.commencedOn });
@@ -269,6 +274,7 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
       )}
       {edits.terms && <EditTermsDrawer id={award.id} values={termsValues} regulatedLabel={policy.regulatedActivityLabel} asked={{ retention: ev.terms?.retentionAsked ?? null, dlp: ev.terms?.dlpAsked ?? null }} tender={tenderTexts} insuranceMinimums={insuranceMinimums} />}
       {status === "DRAFT" && <SubmitAwardDrawer id={award.id} blocker={submitBlocker} route={routePreview} />}
+      {status === "PENDING_APPROVAL" && openAppointment && <RecallAwardDrawer id={award.id} blocker={awardRecallRule ? RECALL_FAULT_TEXT[awardRecallRule] : null} />}
       {canRecordCommitment && <RecordCommitmentDrawer id={award.id} indent={!loa} example={f.config.indentFormat?.example || null} today={today} />}
       {status === "APPROVED" && !(issueReady && ev.signatory?.ok) && (
         <Button size="sm" variant="primary" disabled aria-describedby={AWARD_NOTE_ID}>

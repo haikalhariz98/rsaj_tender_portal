@@ -14,6 +14,8 @@ import type { OrgScope } from "@/lib/org-scope";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
 import { loadDelegations, loadRoster } from "@/lib/people/load";
+import { loadReportingLines } from "@/lib/people/reporting-line-store";
+import { anyLineRecorded } from "@/lib/people/reporting-lines";
 import { holdersFor } from "@/lib/requisition/holders";
 import { APPLICATION_KIND_LABEL, REQUEST_KIND_LABEL } from "@/lib/suppliers/labels";
 import { supplierHolders } from "@/lib/suppliers/route";
@@ -25,14 +27,14 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
   const org = await db.organisation.findUnique({ where: { id: scope.organisationId }, select: { id: true, timeZone: true } });
   if (!org) return null;
   const today = todayIn(new Date(), org.timeZone);
-  const [routes, units, roster, delegations] = await Promise.all([
+  const [routes, units, roster, delegations, lines] = await Promise.all([
     db.approvalInstance.findMany({
       where: { organisationId: org.id, status: "PENDING", ...approvalRouteNotHidden(hidden) },
       orderBy: [{ openedAt: "asc" }, { createdAt: "asc" }],
       include: {
         steps: { orderBy: { sequence: "asc" } },
-        requisition: { select: { id: true, reference: true, title: true, sectionUnitCode: true, requestingUnitCode: true } },
-        exercise: { select: { id: true, reference: true, title: true, requisition: { select: { sectionUnitCode: true, requestingUnitCode: true } } } },
+        requisition: { select: { id: true, reference: true, title: true, sectionUnitCode: true, requestingUnitCode: true, requestingPersonId: true } },
+        exercise: { select: { id: true, reference: true, title: true, requisition: { select: { sectionUnitCode: true, requestingUnitCode: true, requestingPersonId: true } } } },
         award: { select: { id: true, reference: true, awardeeName: true } },
         // 6.15 (OD-2 A): a supplier's registration, decided on its own route.
         supplierApplication: { select: { kind: true, supplier: { select: { id: true, reference: true, registeredName: true } } } },
@@ -40,24 +42,28 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
         standingRequest: { select: { kind: true, supplier: { select: { id: true, reference: true, registeredName: true } } } },
         specialPermission: { select: { exercise: { select: { id: true, reference: true } }, party: { select: { name: true, vendorId: true } } } },
         // 6.13 Part A step 3 (614-C4): a certificate's route, decided on the certificate's page.
-        certificate: { select: { id: true, kind: true, number: true, contract: { select: { id: true, number: true, award: { select: { awardeeName: true, exercise: { select: { requisition: { select: { sectionUnitCode: true, requestingUnitCode: true } } } } } } } } } },
+        certificate: { select: { id: true, kind: true, number: true, contract: { select: { id: true, number: true, award: { select: { awardeeName: true, exercise: { select: { requisition: { select: { sectionUnitCode: true, requestingUnitCode: true, requestingPersonId: true } } } } } } } } } },
         // 6.13 Part A step 4 (614-C4): a variation's route, decided on the variation's page.
-        variation: { select: { id: true, reference: true, contract: { select: { id: true, number: true, award: { select: { awardeeName: true, exercise: { select: { requisition: { select: { sectionUnitCode: true, requestingUnitCode: true } } } } } } } } } },
+        variation: { select: { id: true, reference: true, contract: { select: { id: true, number: true, award: { select: { awardeeName: true, exercise: { select: { requisition: { select: { sectionUnitCode: true, requestingUnitCode: true, requestingPersonId: true } } } } } } } } } },
         variationApproval: { select: { event: true } },
       },
     }),
     db.orgUnit.findMany({ where: { organisationId: org.id } }),
     loadRoster(scope.organisationCode),
     loadDelegations(scope.organisationCode),
+    loadReportingLines(db, org.id),
   ]);
   const on = today ? dayToDate(today) : new Date();
   const people = new Map(roster.people.map((p) => [p.id, p]));
   const available = (pid: string) => !!people.get(pid)?.isActive && !!people.get(pid)?.isAvailable;
   const unitOf = new Map<string, string>();
+  const barredOf = new Map<string, string[]>();
   const items: QueueStep[] = [];
   for (const r of routes) {
     const req = r.requisition ?? r.exercise?.requisition ?? r.certificate?.contract.award.exercise.requisition ?? r.variation?.contract.award.exercise.requisition ?? null;
     if (req) unitOf.set(r.id, req.sectionUnitCode || req.requestingUnitCode);
+    // Who may not decide it: the officer who raised the requisition behind it, and whoever sent the route (FR-APR-008).
+    barredOf.set(r.id, [...new Set([req?.requestingPersonId, r.submittedByPersonId].filter((x): x is string => !!x))]);
     const matter = r.variation?.id
       ? { label: `${r.variation.contract.number} · ${r.variation.contract.award.awardeeName} · Variation ${r.variation.reference ?? ""}`.trim(), kind: r.variationApproval ? EVENT_WORDS[r.variationApproval.event].en : "Variation", href: `/projects/${r.variation.contract.id}/variations/${r.variation.id}?tab=approval` }
       : r.certificate?.id
@@ -80,17 +86,31 @@ export async function loadWorklist(scope: OrgScope, hidden: readonly string[]) {
                   ? { label: `${r.specialPermission.exercise.reference} · ${r.specialPermission.party.name}`, kind: "Special permission", href: r.specialPermission.party.vendorId ? `/suppliers/${r.specialPermission.party.vendorId}?tab=participation` : `/sourcing/${r.specialPermission.exercise.id}` }
                   : null;
     if (!matter) continue;
-    items.push({ routeId: r.id, matterLabel: matter.label, matterKindLabel: matter.kind, href: matter.href, openedAt: r.openedAt, steps: r.steps });
+    items.push({ routeId: r.id, matterLabel: matter.label, matterKindLabel: matter.kind, href: matter.href, openedAt: r.openedAt, steps: r.steps, barredIds: barredOf.get(r.id) ?? [] });
   }
   // 6.15: a supplier matter has no unit; its offices are held organisation-wide (supplierHolders).
   const supplierRoutes = new Set(routes.filter((r) => r.supplierApplication || r.standingRequest || r.specialPermission).map((r) => r.id));
-  const groups = officeQueue(items, today, (routeId, office, committee) => {
-    if (committee || !office || !today) return false;
-    if (supplierRoutes.has(routeId)) return !someoneCanAct(supplierHolders(office, roster, delegations, today), available);
+  // Who holds the acting office for the route's matter today: the one reading both questions below ask, so "nobody able to act" and "whose step is it" cannot disagree.
+  const holdersOf = (routeId: string, office: string): ReturnType<typeof holdersFor> | null => {
+    if (!today) return null;
+    if (supplierRoutes.has(routeId)) return supplierHolders(office, roster, delegations, today);
     const unit = unitOf.get(routeId);
-    if (!unit) return false;
+    if (!unit) return null;
     const path = pathTo(units as unknown as OrgUnit[], unit, on).reverse().map((u) => u.code);
-    return !someoneCanAct(holdersFor(office, path, roster, delegations, today), available);
-  });
-  return { today, timeZone: org.timeZone, groups };
+    return holdersFor(office, path, roster, delegations, today);
+  };
+  const groups = officeQueue(
+    items,
+    today,
+    (routeId, office, committee) => {
+      if (committee || !office) return false;
+      const h = holdersOf(routeId, office);
+      return h ? !someoneCanAct(h, available) : false;
+    },
+    (routeId, office, committee) => {
+      const h = committee || !office ? null : holdersOf(routeId, office);
+      return h ? { holderIds: h.holderIds, delegateIds: h.delegates.map((d) => d.personId) } : { holderIds: [], delegateIds: [] };
+    },
+  );
+  return { today, timeZone: org.timeZone, groups, linesRecorded: anyLineRecorded(lines) };
 }

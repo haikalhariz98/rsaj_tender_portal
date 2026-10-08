@@ -25,7 +25,7 @@ export function EscalateDrawer({
   return (
     <RecordEditor
       title={`Escalate the ${office}'s step`}
-      description="The step goes one level up, to the office the acting office escalates to, and the reason goes on the trail. It never passes down. Nobody is notified: the step appears under the new office on My approvals."
+      description="The step goes one level up, to the office the acting office escalates to, and the reason goes on the trail. It never passes down. The people who hold the new office are told in the portal (email is not connected), and the step appears in their My steps. Where reporting lines are recorded, the notice names the immediate superior."
       fields={[
         { kind: "hidden", name: "stepId" },
         {

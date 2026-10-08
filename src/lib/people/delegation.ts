@@ -10,6 +10,8 @@
 
 import { inForceOn, periodsOverlap, type Effective } from "@/lib/effective";
 
+import { anyLineRecorded, lineOf, REPORTING_LINE_NOT_SET, type ReportingLine } from "./reporting-lines";
+
 export interface Delegation extends Effective {
   id: string;
   fromPersonId: string;
@@ -76,6 +78,12 @@ export type DelegationFault =
   /// The officer keying a delegation from the grantor's letter is the delegate (Phase 2b review): one person would grant the authority and receive it.
   | "RECORDER_IS_DELEGATE"
   | "OVERLAPS_EXISTING"
+  /// F8: the delegation would close a loop for the same office (A to B, B to C, C to A), directly or through delegations already in force.
+  | "DELEGATION_CYCLE"
+  /// FR-APR-011, once reporting lines are recorded: the delegate is not a direct line subordinate of the grantor.
+  | "DELEGATE_NOT_SUBORDINATE"
+  /// FR-APR-011, once reporting lines are recorded: the delegate has no line recorded, so they cannot be shown to be a subordinate.
+  | "DELEGATE_LINE_NOT_SET"
   | "SUB_DELEGATION_FORBIDDEN"
   | "CAPABILITY_NOT_HELD"
   | "OFFICE_UNDECIDED"
@@ -111,13 +119,78 @@ export interface DelegationContext {
   /// The caller decides it with `standsOnTextBeforeAttachments` (recommendation.ts), from
   /// the stored mark, never from the text.
   recordedBeforeAttachments?: boolean;
+  /// The organisation's recorded reporting lines (FR-APR-010/011). Not given: not looked at, as every other optional fact here. Given and EMPTY: the
+  /// organisation has not recorded any, and the line-management rules are not applied (`delegationNotes` says so). Given with lines: they are.
+  reportingLines?: readonly ReportingLine[];
+}
+
+/// Said about a delegation that was accepted, where a rule it is owed was not applied. Words for the screen, never a refusal.
+export interface DelegationNote {
+  code: "REPORTING_LINES_NOT_SET" | "GRANTOR_SUPERIORITY_NOT_CHECKED";
+  en: string;
 }
 
 /**
- * Not enforced here, because nothing on record can decide it: that the delegate is a
- * direct line subordinate, and that the grant is made by the jobholder's superior
- * (FR-APR-011). There are no reporting lines in the data and no sign-in to say who is
- * granting. Both arrive with authentication; until then they are a known gap.
+ * What the delegation's acceptance did not check, said in words (FR-APR-011, "faultsIn applies the superior and subordinate rules when lines are set, and says so otherwise").
+ *
+ * - No reporting line is recorded: the direct-line-subordinate rule is not applied, and the screen says "Reporting line not set".
+ * - Lines are recorded: the subordinate rule is applied. The other half of the rule, that the grant is made by the jobholder's superior rather than by the
+ *   jobholder, is NOT: a delegation records one grantor, who holds the office, and has no separate jobholder to compare with (an open item for the product owner).
+ *   The screen says that too, so a rule that is not enforced is never taken for one that is.
+ */
+export function delegationNotes(context: Pick<DelegationContext, "reportingLines">): DelegationNote[] {
+  if (context.reportingLines === undefined) return [];
+  if (!anyLineRecorded(context.reportingLines)) {
+    return [{ code: "REPORTING_LINES_NOT_SET", en: `${REPORTING_LINE_NOT_SET}: the rule that the delegate is a direct line subordinate of the grantor is not checked. It is applied as soon as reporting lines are recorded.` }];
+  }
+  return [{ code: "GRANTOR_SUPERIORITY_NOT_CHECKED", en: "The delegate is checked against the reporting lines. The rule that the grant is made by the jobholder's superior, not by the jobholder, is not checked: a delegation records its grantor, who holds the office, and no separate jobholder." }];
+}
+
+/**
+ * Who may record a delegation for a grantor other than themselves (F8, FR-APR-011: "granted by", not "received by").
+ *
+ * The grantor is the officer signed in. A delegation is recorded for someone else only from that person's own letter (the act's paper reference or reason is kept
+ * beside both people, `ActAttribution`), and only by an administrator, whose editor this is, or by an officer who holds the permission to record on someone's behalf.
+ * Any other officer is refused: they cannot hand a colleague's authority to a third person by naming the colleague. Pure.
+ */
+export function grantorFault(i: { recordedForAnother: boolean; actorIsAdministrator: boolean; actorMayRecordOnBehalf: boolean }): "NOT_THE_GRANTOR" | null {
+  if (!i.recordedForAnother) return null;
+  return i.actorIsAdministrator || i.actorMayRecordOnBehalf ? null : "NOT_THE_GRANTOR";
+}
+
+export const GRANTOR_FAULT_TEXT = "A delegation is granted by the officer signed in. You can record one for another grantor, from their letter, only as an administrator or with the permission to record on someone's behalf, and you hold neither.";
+
+/**
+ * Whether the proposed delegation would close a loop (F8). Delegations of the same office whose periods overlap the proposal's form a graph from grantor to
+ * delegate. Following it forward from the proposal's delegate, a path that arrives back at the grantor is a loop: the authority would circle with no one
+ * holding it. Looks at every such delegation, in force or scheduled, and never at another office's (two officers covering each other for different offices is cover, not a loop).
+ */
+export function closesLoop(proposed: Delegation, existing: readonly Delegation[]): boolean {
+  const edges = existing.filter((d) => d.id !== proposed.id && d.roleCode === proposed.roleCode && periodsOverlap(d, proposed));
+  const seen = new Set<string>();
+  const stack = [proposed.toPersonId];
+  while (stack.length > 0) {
+    const at = stack.pop()!;
+    if (at === proposed.fromPersonId) return true;
+    if (seen.has(at)) continue;
+    seen.add(at);
+    for (const e of edges) if (e.fromPersonId === at) stack.push(e.toPersonId);
+  }
+  return false;
+}
+
+/// The days on which a delegate's line can differ over the period: its first day, and the first day of any of their lines that begins inside it.
+function lineCheckDays(proposed: Delegation, lines: readonly ReportingLine[]): Date[] {
+  const inside = lines.filter((l) => l.personId === proposed.toPersonId && l.effectiveFrom > proposed.effectiveFrom && (proposed.effectiveTo == null || l.effectiveFrom < proposed.effectiveTo)).map((l) => l.effectiveFrom);
+  return [proposed.effectiveFrom, ...inside];
+}
+
+/**
+ * FR-APR-011, as far as the data allows. The grantor is the signed-in person (or the person the act is recorded for, both stored: Phase 2b), and the
+ * delegate is checked against the organisation's reporting lines WHEN THEY ARE RECORDED (`context.reportingLines`): a delegate must be a direct line
+ * subordinate of the grantor, on the first day and on any day their line changes in the period. With none recorded the rule is not applied and
+ * `delegationNotes` says so; nothing is assumed. That the grant is made by the jobholder's superior is not checked (see `delegationNotes`).
+ * A loop is refused whatever the lines say (F8).
  */
 export function faultsIn(
   proposed: Delegation,
@@ -155,6 +228,21 @@ export function faultsIn(
 
   if (proposed.effectiveTo && proposed.effectiveTo <= proposed.effectiveFrom) {
     faults.push("ENDS_BEFORE_IT_STARTS");
+  }
+
+  // F8: a loop for the same office is refused, whether or not the office allows onward delegation: no one would hold the authority.
+  if (proposed.fromPersonId !== proposed.toPersonId && closesLoop(proposed, existing)) faults.push("DELEGATION_CYCLE");
+
+  // FR-APR-011, once lines are recorded: the delegate reports directly to the grantor. Not applied while none are recorded (`delegationNotes`).
+  if (context.reportingLines && anyLineRecorded(context.reportingLines) && proposed.fromPersonId !== proposed.toPersonId) {
+    for (const day of lineCheckDays(proposed, context.reportingLines)) {
+      const line = lineOf(context.reportingLines, proposed.toPersonId, day);
+      if (line.kind === "NOT_SET") {
+        if (!faults.includes("DELEGATE_LINE_NOT_SET")) faults.push("DELEGATE_LINE_NOT_SET");
+      } else if (line.kind === "TOP" || line.superiorPersonId !== proposed.fromPersonId) {
+        if (!faults.includes("DELEGATE_NOT_SUBORDINATE")) faults.push("DELEGATE_NOT_SUBORDINATE");
+      }
+    }
   }
 
   // One office, one delegate at a time: two would make the same act resolvable to two

@@ -7,7 +7,7 @@ import { diffFields } from "@/lib/audit/diff";
 import { auditedCreate, auditedDelete, auditedUpdate, writeAudit, type Tx } from "@/lib/audit/record";
 import { attachFault } from "@/lib/documents/attach";
 import { delegationFacts } from "@/lib/documents/owner-facts";
-import { todayIn } from "@/lib/dates";
+import { dayToDate, todayIn } from "@/lib/dates";
 import { attached, filed } from "@/lib/documents/audit-view";
 import { documentFaultText, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { lockVersion } from "@/lib/documents/service";
@@ -15,13 +15,18 @@ import { hiddenExerciseOfDocument } from "@/lib/documents/hidden";
 import { sulitAttachRefused } from "@/lib/documents/entitlement";
 import { refuseHiddenExercise, restrictedExerciseIds } from "@/lib/auth/sulit-store";
 import { blocking } from "@/lib/documents/types";
-import { RECOMMENDATION_NOT_ATTACHED, RECOMMENDATION_ZONE_UNSET } from "@/lib/people/labels";
+import { delegationPeriodText, RECOMMENDATION_NOT_ATTACHED, RECOMMENDATION_ZONE_UNSET } from "@/lib/people/labels";
 import { endAssignment as endAssignmentDay } from "@/lib/people/end-assignment";
 import { db } from "@/lib/db";
 import { periodsOverlap } from "@/lib/effective";
 import { END_DAY_LABEL } from "@/lib/effective-text";
-import { faultsIn, type Delegation, type DelegationFault } from "@/lib/people/delegation";
-import { lockDelegation } from "@/lib/people/lock";
+import { faultsIn, GRANTOR_FAULT_TEXT, grantorFault, type Delegation, type DelegationFault } from "@/lib/people/delegation";
+import { lockDelegation, lockDelegationsOf, lockReportingLinesOf } from "@/lib/people/lock";
+import { loadReportingLines } from "@/lib/people/reporting-line-store";
+import { immediateSuperior, lineFaults, LINE_FAULT_TEXT, NO_SUPERIOR_CHOICE, type ReportingLine } from "@/lib/people/reporting-lines";
+import { moveStepsOfAbsentHolders } from "@/app/approvals/actions";
+import { holderMarkedAbsentNotices, delegationReceivedNotice } from "@/lib/inbox/notices";
+import { writeNotices } from "@/lib/inbox/store";
 import { standsOnTextBeforeAttachments } from "@/lib/people/recommendation";
 import { OPENING_CONFIG_FAULT_TEXT, personUnitFault } from "@/lib/opening/config";
 import { checkPeriod, FormReader } from "@/lib/validate";
@@ -129,10 +134,42 @@ export async function savePerson(_prev: FormState, data: FormData): Promise<Form
     await auditedUpdate({ ...ctx, entityId: id }, before, v, (tx) =>
       tx.person.update({ where: { id, organisationId: actor.organisationId }, data: v }),
     );
+    // FR-APR-012: marking a holder absent moves their pending steps up, where the reporting line says who is above them. Only the change from in to away does:
+    // marking them available again moves nothing back, and an edit that leaves them where they were runs nothing.
+    if (before.isAvailable && !v.isAvailable) await afterAbsence(actor, { id, name: before.name });
   }
 
   revalidatePath(PATH);
+  revalidatePath("/approvals");
   return { ok: true };
+}
+
+/**
+ * The sweep that follows someone being marked absent, and the notice to the people above them. The person is already saved as away: the sweep sees the office
+ * with nobody able to act and moves each pending step as an officer's escalation would (`moveStepsOfAbsentHolders`), or leaves it and says why. What it did is
+ * written beside the absence in the trail, so the audit reads "marked away" and then what became of their steps. The superiors are told once per absence.
+ * A failure of the sweep never undoes the absence: it is re-run from the worklist.
+ */
+async function afterAbsence(actor: StaffActor, person: { id: string; name: string }): Promise<void> {
+  let sweep: Awaited<ReturnType<typeof moveStepsOfAbsentHolders>> | null = null;
+  try {
+    sweep = await moveStepsOfAbsentHolders(person.id);
+  } catch (e) {
+    console.error("The sweep after an absence failed; the steps stay where they are and the worklist can run it again:", e);
+  }
+  const at = new Date();
+  const lines = await loadReportingLines(db, actor.organisationId);
+  const day = todayIn(at, actor.organisationTimeZone);
+  const superior = day ? immediateSuperior(lines, person.id, dayToDate(day)) : null;
+  await db.$transaction(async (tx) => {
+    if (sweep) {
+      const said = sweep.words.join(" ");
+      await writeAudit(tx, { actor: toAuditActor(actor), organisationId: actor.organisationId, entity: "Person", entityId: person.id, entityLabel: person.name, reason: `Marked away. ${said}` }, "UPDATE", diffFields({ pendingSteps: "waiting" }, { pendingSteps: `${sweep.moved} moved, ${sweep.stayed} stay` }));
+    }
+    if (superior) {
+      await writeNotices(tx, actor.organisationId, actor.system ? null : actor.personId, holderMarkedAbsentNotices({ personId: person.id, personName: person.name, at, moved: sweep?.moved ?? 0, stayed: sweep?.stayed ?? 0, superiors: [superior], by: actor.system ? null : actor.personId }));
+    }
+  });
 }
 
 /**
@@ -284,6 +321,18 @@ const DELEGATION_FAULTS: Record<DelegationFault, { field: string; message: strin
     message:
       "Nobody has decided what this role may do, so its capabilities cannot be delegated yet. Set them on the Permissions tab first.",
   },
+  DELEGATION_CYCLE: {
+    field: "toPersonId",
+    message: "That would close a loop: this role is already delegated, directly or through others, from the delegate back to the grantor, and no one would hold it.",
+  },
+  DELEGATE_NOT_SUBORDINATE: {
+    field: "toPersonId",
+    message: "The delegate must be a direct line subordinate of the grantor, and the reporting line does not say so. Check the reporting lines, or choose someone who reports directly to the grantor.",
+  },
+  DELEGATE_LINE_NOT_SET: {
+    field: "toPersonId",
+    message: "Reporting line not set for the delegate, so they cannot be shown to be a direct line subordinate of the grantor. Record their reporting line first.",
+  },
   UNBOUNDED: {
     field: "effectiveTo",
     message:
@@ -391,6 +440,8 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
   const begun = await beginAct(actor, data, "Delegation.fromPerson", { personField: "fromPersonId", namesSubject: true });
   if (!begun.ok) return begun.state;
   const act = begun.act;
+  // F8: a delegation recorded for a grantor other than the signed-in officer is refused unless the officer is an administrator or may record on someone's behalf.
+  if (grantorFault({ recordedForAnother: act.recorderId != null, actorIsAdministrator: actor.isAdministrator, actorMayRecordOnBehalf: actor.permissions.has("acts.recordOnBehalf") })) return { ok: false, errors: { fromPersonId: GRANTOR_FAULT_TEXT } };
 
   const recommendationVersionId = r.optionalText("recommendationVersionId");
   // OD-2 (review of Phase 3b): attaching a document puts it on the delegation, whose people then judge its bytes, so a SULIT or hidden one the signed-in officer may not already open reads
@@ -414,6 +465,9 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
 
   try {
     await db.$transaction(async (tx) => {
+      // F8: delegations of an organisation are written one at a time, so that two saves (A to B, B to A) cannot each pass the loop check alone and both stand.
+      // Taken before any row lock, and by every writer of a delegation.
+      await lockDelegationsOf(tx, orgId);
       // The delegation's row is locked first (on an edit), and every read that feeds the
       // decision is made after it, in this transaction (LESSONS: re-validate on locked rows).
       const stored = id ? await lockDelegation(tx, id, orgId) : null;
@@ -463,6 +517,8 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
           holderRecommendation: v.holderRecommendation,
           recommendationAttached: (stored?.liveAttachments ?? 0) > 0 || !!recommendationVersionId,
           recordedBeforeAttachments: standsOnTextBeforeAttachments(stored, v),
+          // FR-APR-011: the organisation's reporting lines, as recorded; none recorded is said in words (`delegationNotes`) and applies no rule.
+          reportingLines: await loadReportingLines(tx, orgId),
         },
       );
       if (faults.length) {
@@ -501,6 +557,27 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
       }
       await act.write(tx, delegationId);
       if (recommendationVersionId) await attachRecommendation(tx, toAuditActor(actor), orgId, delegationId, recommendationVersionId);
+      // FR-APR-011: the delegate is told in the portal, once for these terms (a delegation changed to other terms is told again).
+      const [parties, office, caps] = await Promise.all([
+        tx.person.findMany({ where: { organisationId: orgId, id: { in: [fromPersonId, toPersonId] } }, select: { id: true, name: true } }),
+        tx.authorityRole.findFirst({ where: { organisationId: orgId, code: roleCode }, select: { nameEn: true } }),
+        capabilityCodes.length > 0 ? tx.capability.findMany({ where: { organisationId: orgId, code: { in: capabilityCodes } }, select: { nameEn: true } }) : Promise.resolve([]),
+      ]);
+      await writeNotices(
+        tx,
+        orgId,
+        actor.system ? null : actor.personId,
+        delegationReceivedNotice({
+          delegationId,
+          termsKey: [toPersonId, roleCode, [...capabilityCodes].sort().join(","), v.effectiveFrom.toISOString(), v.effectiveTo?.toISOString() ?? ""].join("|"),
+          toPersonId,
+          fromName: parties.find((p) => p.id === fromPersonId)?.name ?? "A colleague",
+          officeLabel: office?.nameEn ?? "an office no longer configured",
+          periodWords: delegationPeriodText(proposed).replace(/^./, (c) => c.toLowerCase()),
+          whatWords: capabilityCodes.length === 0 ? "the whole office" : `these capabilities: ${caps.map((c) => c.nameEn).join(", ")}`,
+          by: actor.system ? null : actor.personId,
+        }),
+      );
     });
   } catch (e) {
     if (e instanceof DelegationRefused) return e.state;
@@ -511,6 +588,83 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
   }
 
   revalidatePath(PATH);
+  return { ok: true };
+}
+
+// ------------------------------------------------------------------ reporting lines
+
+
+/**
+ * Record who a person reports to, for a period (FR-APR-010, FR-APR-011). Configuration, audited with the signed-in actor, and it ships empty: nothing is derived from
+ * a unit's head, and a person with no line is "Reporting line not set". One writer at a time per organisation, so two edits cannot each pass the loop check alone;
+ * what it refuses is `lineFaults` (a person above themselves, a loop, two lines for one person over the same days).
+ */
+export async function saveReportingLine(_prev: FormState, data: FormData): Promise<FormState> {
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
+  const orgId = await organisationId(actor);
+  if (!orgId) return NO_ORG;
+
+  const id = String(data.get("id") ?? "");
+  const r = new FormReader(data);
+  const personId = r.text("personId", "Person", { required: true });
+  const chosen = r.text("superiorPersonId", "Reports to", { required: true });
+  const effectiveFrom = r.date("effectiveFrom", "From", { required: true });
+  const effectiveTo = r.date("effectiveTo", END_DAY_LABEL);
+  const v = {
+    personId,
+    superiorPersonId: chosen === NO_SUPERIOR_CHOICE ? null : chosen,
+    effectiveFrom: effectiveFrom!,
+    effectiveTo,
+    provenance: r.choice("provenance", "Where this came from", ["STATED", "OBSERVED", "ASSUMED"] as const, { required: true }),
+    note: r.optionalText("note") ?? "",
+  };
+  const parsed = r.finish(v);
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+
+  try {
+    await db.$transaction(async (tx) => {
+      await lockReportingLinesOf(tx, orgId);
+      const stored = id ? await tx.reportingLine.findFirst({ where: { id, organisationId: orgId } }) : null;
+      if (id && !stored) throw new DelegationRefused({ ok: false, message: "That reporting line no longer exists." });
+      const people = await tx.person.findMany({ where: { organisationId: orgId, id: { in: [v.personId, ...(v.superiorPersonId ? [v.superiorPersonId] : [])] } }, select: { id: true, name: true, isActive: true } });
+      const person = people.find((p) => p.id === v.personId);
+      const superior = v.superiorPersonId ? people.find((p) => p.id === v.superiorPersonId) : null;
+      if (!person) throw new DelegationRefused({ ok: false, errors: { personId: "That person is not on record." } });
+      if (v.superiorPersonId && !superior) throw new DelegationRefused({ ok: false, errors: { superiorPersonId: "That person is not on record." } });
+      if (superior && !superior.isActive) throw new DelegationRefused({ ok: false, errors: { superiorPersonId: "They have left. Choose someone who is still here." } });
+
+      const all = await loadReportingLines(tx, orgId);
+      const proposed: ReportingLine = { id: id || "proposed", personId: v.personId, superiorPersonId: v.superiorPersonId, effectiveFrom: v.effectiveFrom, effectiveTo: v.effectiveTo ?? null };
+      const faults = lineFaults(proposed, all);
+      if (faults.length > 0) {
+        const errors: Record<string, string> = {};
+        for (const f of faults) errors[f === "SELF" || f === "CYCLE" ? "superiorPersonId" : f === "ENDS_BEFORE_IT_STARTS" ? "effectiveTo" : "effectiveFrom"] = LINE_FAULT_TEXT[f];
+        throw new DelegationRefused({ ok: false, errors });
+      }
+
+      const label = `${person.name} reports to ${superior?.name ?? "nobody (head of the line)"}`;
+      const trail = { person: person.name, reportsTo: superior?.name ?? "Nobody (head of the line)", effectiveFrom: v.effectiveFrom, effectiveTo: v.effectiveTo ?? null, provenance: v.provenance, note: v.note };
+      const ctx = { actor: toAuditActor(actor), organisationId: orgId, entity: "ReportingLine", entityLabel: label, reason: String(data.get("reason") ?? "") };
+      const write = { personId: v.personId, superiorPersonId: v.superiorPersonId, effectiveFrom: v.effectiveFrom, effectiveTo: v.effectiveTo ?? null, provenance: v.provenance!, note: v.note };
+      if (!stored) {
+        const row = await tx.reportingLine.create({ data: { organisationId: orgId, ...write } });
+        await writeAudit(tx, { ...ctx, entityId: row.id }, "CREATE", diffFields(null, trail));
+      } else {
+        const beforeNames = await tx.person.findMany({ where: { organisationId: orgId, id: { in: [stored.personId, ...(stored.superiorPersonId ? [stored.superiorPersonId] : [])] } }, select: { id: true, name: true } });
+        const nameOf = (pid: string | null) => (pid ? (beforeNames.find((p) => p.id === pid)?.name ?? "A person no longer on record") : "Nobody (head of the line)");
+        await tx.reportingLine.update({ where: { id, organisationId: orgId }, data: write });
+        const changes = diffFields({ person: nameOf(stored.personId), reportsTo: nameOf(stored.superiorPersonId), effectiveFrom: stored.effectiveFrom, effectiveTo: stored.effectiveTo, provenance: stored.provenance, note: stored.note }, trail);
+        if (changes.length) await writeAudit(tx, { ...ctx, entityId: id }, "UPDATE", changes);
+      }
+    });
+  } catch (e) {
+    if (e instanceof DelegationRefused) return e.state;
+    throw e;
+  }
+  revalidatePath(PATH);
+  revalidatePath("/approvals");
   return { ok: true };
 }
 

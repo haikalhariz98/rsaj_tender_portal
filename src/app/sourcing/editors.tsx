@@ -12,6 +12,7 @@ import {
   moveToPreparation,
   recordNameDecision,
   removeParticipant,
+  recallNameApproval,
   requestNameApproval,
   reviewProposal,
   saveExerciseDetails,
@@ -157,6 +158,23 @@ export function RequestNameApprovalDrawer({ id, blocker }: { id: string; blocker
       action={requestNameApproval}
       submitLabel="Request approval"
       trigger={{ label: "Request name approval", className: buttonClass("secondary", "sm") }}
+      size="sm"
+    />
+  );
+}
+
+export function RecallNameDrawer({ id, blocker }: { id: string; blocker: string | null }) {
+  if (blocker) return <Blocked label="Recall" reason={blocker} noteId={EXERCISE_NOTE_ID} />;
+  return (
+    <RecordEditor
+      title="Recall the name approval"
+      description="Withdraws the name from approval before anyone has decided. The route is kept on record as recalled, the invitee list is unchanged, and the name can be sent again."
+      fields={[hidden("id")]}
+      values={{ id }}
+      action={recallNameApproval}
+      submitLabel="Recall"
+      destructive={{ reasonLabel: "Why is it being recalled?" }}
+      trigger={{ label: "Recall name approval", className: buttonClass("secondary", "sm") }}
       size="sm"
     />
   );
