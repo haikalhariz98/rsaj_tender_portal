@@ -860,7 +860,9 @@ export async function checkCommitteeGates(_prev: FormState, data: FormData): Pro
 
 /// Cite a committee's decision against one of the requisition's gates (FR-REQ-012).
 export async function citeGateDecision(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForAct("HOLDER_CHECKED");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const id = String(data.get("id") ?? "");
   const gateId = String(data.get("gateId") ?? "");
   const decisionId = String(data.get("committeeDecisionId") ?? "");

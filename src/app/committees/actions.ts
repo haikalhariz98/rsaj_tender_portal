@@ -83,7 +83,7 @@ import { patternFaults } from "@/lib/numbering/series";
 import { MATTER_REF_TEXT, resolveMatterRef } from "@/lib/requisition/matter-link";
 import { FormReader } from "@/lib/validate";
 import { issueNotCarriedMemo } from "@/lib/committee/memo-store";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { staffForAct, toAuditActor } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct, type PreparedAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -407,7 +407,9 @@ async function inContractMatterForOutcome(scope: OrgScope, actor: AuditActor, re
  * "Table a matter" locks none.
  */
 export async function scheduleSitting(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForAct("HOLDER_CHECKED");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = actor.organisationId;
 
   const W = SCHEDULE_WORDS;
@@ -525,7 +527,9 @@ async function tableWaiting(scope: Reader, tx: Tx, by: AuditActor, meetingId: st
 
 /// Edit a sitting's date and agenda. The date moves only before it starts.
 export async function editSitting(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForAct("HOLDER_CHECKED");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const meetingId = String(data.get("meetingId") ?? "");
   const r = new FormReader(data);
   const meetingDate = r.date("meetingDate", "Date", { required: true });
@@ -558,7 +562,9 @@ export async function editSitting(_prev: FormState, data: FormData): Promise<For
  * the sitting renders from what stood on the day, not from today's configuration.
  */
 export async function changeStatus(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForAct("HOLDER_CHECKED");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const meetingId = String(data.get("meetingId") ?? "");
   const to = String(data.get("to") ?? "") as MeetingStatus;
   const reason = String(data.get("reason") ?? "").trim();
@@ -621,7 +627,9 @@ export async function changeStatus(_prev: FormState, data: FormData): Promise<Fo
 }
 
 export async function saveMinutes(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForAct("HOLDER_CHECKED");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const meetingId = String(data.get("meetingId") ?? "");
   const r = new FormReader(data);
   const minutes = r.text("minutes", "Minutes", { required: true, max: 20000 });
@@ -649,7 +657,9 @@ export async function saveMinutes(_prev: FormState, data: FormData): Promise<For
  * the register.
  */
 export async function recordAttendance(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForAct("HOLDER_CHECKED");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const meetingId = String(data.get("meetingId") ?? "");
   const r = new FormReader(data);
   const personId = r.text("personId", "Person", { required: true });
@@ -723,7 +733,9 @@ export async function recordAttendance(_prev: FormState, data: FormData): Promis
  * signed-in person (Phase 2b). Under the sitting's lock, so a matter cannot be tabled onto a sitting being minuted.
  */
 export async function tableMatter(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForAct("HOLDER_CHECKED");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const meetingId = String(data.get("meetingId") ?? "");
   const r = new FormReader(data);
   const subject = r.text("subject", "Subject", { required: true, max: 400 });
@@ -862,7 +874,9 @@ async function tableInto(tx: Tx, by: AuditActor, s: LoadedSitting, r: FormReader
 
 /// Declare a recusal on one matter. The member leaves that matter's vote and quorum.
 export async function declareRecusal(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForAct("HOLDER_CHECKED");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const decisionId = String(data.get("decisionId") ?? "");
   const meetingId = await meetingOf(actor, decisionId);
   if (!meetingId) return { ok: false, message: "That matter no longer exists." };
@@ -936,7 +950,9 @@ export async function declareRecusal(_prev: FormState, data: FormData): Promise<
  * outcome's name and kind.
  */
 export async function recordOutcome(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForAct("HOLDER_CHECKED");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   // 6.8 fix R-9: the server's clock is read once, at the act's entry, truncated to the second (6.6 CR-3).
   const now = toSecond(new Date());
   const decisionId = String(data.get("decisionId") ?? "");
@@ -1066,7 +1082,9 @@ async function loopBack(tx: Tx, actor: AuditActor, s: LoadedSitting, exerciseId:
  * progress a pending matter is deferred instead, with a note.
  */
 export async function withdrawMatter(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForAct("HOLDER_CHECKED");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const decisionId = String(data.get("decisionId") ?? "");
   const reason = String(data.get("reason") ?? "").trim();
   const meetingId = await meetingOf(actor, decisionId);

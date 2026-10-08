@@ -263,3 +263,57 @@ describe("a signature recorded from paper writes its consequence too (review of 
     }
   });
 });
+
+// NFR-SEC-004, the product owner's sweep of 2026-10-07, applied in Phase 3d: administration is kept apart from every transactional, approval and certification
+// capability, so `beginAct` refuses an administrator account at every slot but the administrator's own configuration acts.
+describe("an administrator account does no transactional act (NFR-SEC-004)", () => {
+  const admin = () => actor({ isAdministrator: true });
+  const holderOfPermissions = () => actor({ isAdministrator: true, permissions: new Set<PermissionKey>(["acts.recordOnBehalf"]) });
+
+  it("is refused an ordinary act that attributes a person, in words, before anything is asked or written", async () => {
+    const { module: m, written } = actModule();
+    for (const key of [OWN, PAPER, "EvaluationScore.scoredBy", "CommitteeDecision.tabledBy", "BidEnvelope.receivedBy", "SpecPanelVerification.person", "PendingDeduction.person"]) {
+      const begun = await m.beginAct(admin(), form({ personId: ME }), key, OPTS);
+      expect(begun.ok, key).toBe(false);
+      expect(!begun.ok && begun.state.message, key).toMatch(/administrator/);
+      expect(!begun.ok && begun.state.message, key).toMatch(/kept apart from transactions/);
+    }
+    expect(written).toEqual([]);
+  });
+
+  it("is refused a signature, signed or recorded from paper, and the password is never asked of it", async () => {
+    const stepUps: string[] = [];
+    const { module: m } = actModule({
+      paperSignatureRecording: "ALLOWED",
+      stepUp: async (_a, password) => {
+        stepUps.push(password);
+        return { ok: true as const, at: new Date("2026-10-07T04:00:00Z") };
+      },
+    });
+    const signed = await m.beginAct(admin(), form({ personId: ME, password: "x" }), SIGNATURE, OPTS);
+    expect(signed.ok).toBe(false);
+    const paper = await m.beginAct(holderOfPermissions(), form({ personId: BOSS, "personId:onBehalf": "on", "personId:paperReference": "Minute 9" }), SIGNATURE, OPTS);
+    expect(paper.ok).toBe(false);
+    expect(stepUps).toEqual([]);
+  });
+
+  it("is refused on a JSON body too (the committee's vote route)", async () => {
+    const { module: m } = actModule();
+    const begun = await m.beginActFrom(admin(), actFormFromJson({}, { personKey: "onBehalfOf" }), "Vote.person", { personField: "onBehalfOf" });
+    expect(begun.ok).toBe(false);
+  });
+
+  it("may do the acts that are the administrator's own configuration acts, each named in the registry with its reason", async () => {
+    const { module: m } = actModule();
+    for (const key of ["ConfigurationChange.proposedBy", "Delegation.fromPerson"]) {
+      const begun = await m.beginAct(admin(), form({ personId: ME }), key, { ...OPTS, namesSubject: key === "Delegation.fromPerson" });
+      expect(begun.ok, key).toBe(true);
+    }
+  });
+
+  it("is not refused to a person who is not an administrator, and a loader run is not an account", async () => {
+    const { module: m } = actModule();
+    expect((await m.beginAct(actor(), form({}), OWN, OPTS)).ok).toBe(true);
+    expect((await m.beginAct(actor({ isAdministrator: true, system: { label: "demo loader" } }), form({ personId: BOSS }), OWN, OPTS)).ok).toBe(true);
+  });
+});

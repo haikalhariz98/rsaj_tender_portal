@@ -44,6 +44,10 @@ export interface ActSlot {
   /// grant, the issue of an approval matrix: both are administrator acts, ADR 0034 D8) or where it is not wired yet. Present only with `entryPoints`.
   holder?: AdministratorAct;
   entryPoints?: readonly string[];
+  /// Present only on an act that an administrator account may do, with the reason (NFR-SEC-004, the product owner's sweep, applied in Phase 3d): `beginAct` refuses an
+  /// administrator account at every other slot, because administration is kept apart from "every transactional, approval and certification capability". These are the
+  /// administrator's own configuration acts. `act-slots.test.ts` pins the list.
+  administratorMay?: string;
 }
 
 /// The Malay of every label a slot is read by. A slot whose label is not here fails `act-slots.test.ts`.
@@ -116,7 +120,7 @@ export const LABEL_MS: Readonly<Record<string, string>> = {
   "Answered by": "Dijawab oleh",
 };
 
-type SlotExtra = Partial<Pick<ActSlot, "signatureClass" | "onBehalf" | "paperGated" | "holder" | "entryPoints">>;
+type SlotExtra = Partial<Pick<ActSlot, "signatureClass" | "onBehalf" | "paperGated" | "holder" | "entryPoints" | "administratorMay">>;
 const slot = (entity: string, field: string, label: string, extra: SlotExtra = {}): ActSlot => ({
   entity,
   field,
@@ -148,7 +152,7 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   // The grantor is named in the form: the signed-in person, or another whose delegation is recorded from their letter.
   // Not gated: the configuration editor that records it is an administrator's, and an administrator account never holds `acts.recordOnBehalf` (it is grant-only), so gating
   // would end the editor's ordinary use. The check that matters is `faultsIn`'s: the officer keying it is never its delegate.
-  paper("Delegation", "fromPerson", "Granted by"),
+  paper("Delegation", "fromPerson", "Granted by", { administratorMay: "A delegation is recorded in Configuration, Users and roles, which an administrator keeps; it is recorded for the grantor from their letter, and an administrator is never the grantor (ADR 0034 D9). The product owner's sweep names it." }),
   paper("Requisition", "requestingPerson", "Requested by"),
   paper("RequisitionEndorsement", "person", "Endorsed by"),
   slot("RequisitionSplitCheck", "overriddenBy", "Split check overridden by"),
@@ -310,10 +314,13 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   // Issuing a matrix is signature-class (the password is asked), but it is an administrator act: `configuration.issue` is held through the administrator flag
   // (ADR 0034 D8), so it has no `holder`. An open item for the product owner (review of Phase 2a, in the decisions log): whether it is that, or an office
   // holder's signature, which would make `configuration.issue` grant-only.
-  slot("AuthorityMatrix", "issuedByPerson", "Issued by", { signatureClass: true }),
-  slot("ConfigurationChange", "proposedBy", "Proposed by"),
+  slot("AuthorityMatrix", "issuedByPerson", "Issued by", {
+    signatureClass: true,
+    administratorMay: "`configuration.issue` is held through the administrator flag (ADR 0034 D8), so refusing the act would refuse every administrator the permission they hold; it still needs the password and a second person (the product owner, 2026-10-07: issuing is an administrator's act).",
+  }),
+  slot("ConfigurationChange", "proposedBy", "Proposed by", { administratorMay: "A change to configuration is proposed by an administrator or an office holder, and decided by another person (ADR 0034 D15)." }),
   // The checker's decision. Made by an administrator for some kinds (an administrator grant), so it is never refused to one: no `holder`.
-  slot("ConfigurationChange", "decidedBy", "Decided by", { signatureClass: true }),
+  slot("ConfigurationChange", "decidedBy", "Decided by", { signatureClass: true, administratorMay: "The checker's decision on an administrator grant is made by an administrator (ADR 0034 D15)." }),
 ];
 
 /**
@@ -329,6 +336,18 @@ export const OTHER_HOLDER_ENTRY_POINTS: readonly { entry: string; holder: Admini
   { entry: "src/app/projects/[id]/matter-actions.ts#citeContractMatterDecision", holder: "HOLDER_CHECKED", why: "Discharges a committee step of a contract matter's route." },
   { entry: "src/app/projects/[id]/variation-actions.ts#citeVariationCommittee", holder: "HOLDER_CHECKED", why: "Discharges a committee step of a variation's route." },
   { entry: "src/app/approvals/actions.ts#moveStepsOfAbsentHolders", holder: "HOLDER_CHECKED", why: "Moves approval steps up one office (the same escalation as escalateStep) when a holder is away, from the worklist or after marking a person away." },
+  // The sitting's acts (the product owner's sweep for NFR-SEC-004, Phase 3d): the Secretariat's work of a committee, which an administrator account does not do.
+  // Those that attribute a person are also refused by `beginAct`; these write no slot of their own, or write it after other checks, so they ask first.
+  { entry: "src/app/requisitions/actions.ts#citeGateDecision", holder: "HOLDER_CHECKED", why: "Discharges a committee gate of a requisition from the committee's decision: the same kind of act as the cite actions above, and it writes no slot." },
+  { entry: "src/app/committees/actions.ts#scheduleSitting", holder: "HOLDER_CHECKED", why: "Fixes a sitting of a committee and its matters: the Secretariat's work." },
+  { entry: "src/app/committees/actions.ts#editSitting", holder: "HOLDER_CHECKED", why: "Changes the date, place or agenda of a sitting: the Secretariat's work." },
+  { entry: "src/app/committees/actions.ts#changeStatus", holder: "HOLDER_CHECKED", why: "Moves a sitting through its states (called, held, minuted, closed): the Secretariat's work, and it writes no slot." },
+  { entry: "src/app/committees/actions.ts#saveMinutes", holder: "HOLDER_CHECKED", why: "Records the minutes of a sitting: the Secretariat's work." },
+  { entry: "src/app/committees/actions.ts#recordAttendance", holder: "HOLDER_CHECKED", why: "Records who attended a sitting, which decides whether it is quorate: the Secretariat's work." },
+  { entry: "src/app/committees/actions.ts#tableMatter", holder: "HOLDER_CHECKED", why: "Tables a matter before a committee (FR-CTE-006): only the Secretariat does, so an administrator account is refused before any other check." },
+  { entry: "src/app/committees/actions.ts#declareRecusal", holder: "HOLDER_CHECKED", why: "A member's declaration that they take no part in a decision." },
+  { entry: "src/app/committees/actions.ts#recordOutcome", holder: "HOLDER_CHECKED", why: "Records what a committee decided on a matter, and moves the matter it is about." },
+  { entry: "src/app/committees/actions.ts#withdrawMatter", holder: "HOLDER_CHECKED", why: "Takes a matter off a sitting before it is decided: the Secretariat's work." },
 ];
 
 /**

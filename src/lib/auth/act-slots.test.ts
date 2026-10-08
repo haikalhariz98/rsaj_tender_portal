@@ -166,21 +166,21 @@ describe("the signature-class acts", () => {
     );
   });
 
-  /// The signature-class acts an administrator may do, each with the reason. Everything else that is signature-class is refused to an administrator account.
-  const ADMINISTRATOR_MAY: Record<string, string> = {
-    "ConfigurationChange.decidedBy": "The checker's decision on an administrator grant is made by an administrator (ADR 0034 D15).",
-    "AuthorityMatrix.issuedByPerson": "`configuration.issue` is held through the administrator flag (ADR 0034 D8): refusing the act here would refuse every administrator the permission they hold. An open item for the product owner.",
-  };
+  /// The acts an administrator may do, each with the reason in the registry (`administratorMay`). Everything else that attributes a person is refused to an administrator
+  /// account by `beginAct` (NFR-SEC-004, the product owner's sweep, Phase 3d), signature-class or not.
+  const ADMINISTRATOR_MAY = ["AuthorityMatrix.issuedByPerson", "ConfigurationChange.decidedBy", "ConfigurationChange.proposedBy", "Delegation.fromPerson"].sort();
 
-  it("each says which kind of act an administrator account is refused at, except the two an administrator makes", () => {
+  it("the acts an administrator account may do are exactly the four configuration acts the ruling names, each with its reason (the sweep of NFR-SEC-004)", () => {
+    const may = ACT_SLOTS.filter((s) => s.administratorMay);
+    expect(may.map((s) => slotKey(s.entity, s.field)).sort()).toEqual(ADMINISTRATOR_MAY);
+    for (const s of may) expect(s.administratorMay!.length, slotKey(s.entity, s.field)).toBeGreaterThan(40);
+  });
+
+  it("an act an administrator may do names no kind of act it refuses one at, and the others that are signature-class do", () => {
     for (const s of SIGNATURE_SLOTS) {
       const key = slotKey(s.entity, s.field);
-      if (key in ADMINISTRATOR_MAY) expect(s.holder, key).toBeUndefined();
+      if (s.administratorMay) expect(s.holder, key).toBeUndefined();
       else expect(s.holder, key).toBeDefined();
-    }
-    for (const [key, why] of Object.entries(ADMINISTRATOR_MAY)) {
-      expect(SIGNATURE_SLOTS.map((s) => slotKey(s.entity, s.field)), key).toContain(key);
-      expect(why.length, key).toBeGreaterThan(30);
     }
   });
 

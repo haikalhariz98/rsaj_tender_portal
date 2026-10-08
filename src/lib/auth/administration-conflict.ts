@@ -23,7 +23,10 @@ export interface Holdings {
 }
 
 export type HoldingKind = "OFFICE" | "SEAT" | "DELEGATION";
-export type AdministratorAct = "HOLDER_CHECKED" | "SIGNATURE" | "UNSEAL";
+/// `TRANSACTION` is any other act in a procurement matter that writes an attribution (a score, a receipt, a tabling, a payment, a record of the site):
+/// NFR-SEC-004 keeps an administrator apart from "every transactional, approval and certification capability", not only from the holder-checked ones
+/// (the product owner's sweep, 2026-10-07, applied in Phase 3d by `beginAct`).
+export type AdministratorAct = "HOLDER_CHECKED" | "SIGNATURE" | "UNSEAL" | "TRANSACTION";
 
 export type AdministrationQuestion =
   /// `holdings` counts what the Person holds that has not ended.
@@ -43,6 +46,7 @@ const ACT_WORDS: Record<AdministratorAct, { en: string; ms: string }> = {
   HOLDER_CHECKED: { en: "an act that only the holder of an office may do", ms: "tindakan yang hanya boleh dibuat pemegang jawatan" },
   SIGNATURE: { en: "a signature", ms: "tandatangan" },
   UNSEAL: { en: "an unsealing", ms: "pembukaan meterai" },
+  TRANSACTION: { en: "an act in a procurement matter", ms: "tindakan dalam urusan perolehan" },
 };
 
 /// What a Person holds, in words: "2 offices, 1 committee seat".

@@ -2,6 +2,7 @@ import type { FormState } from "@/components/record-editor";
 import type { Tx } from "@/lib/audit/record";
 import { todayIn } from "@/lib/dates";
 
+import { administrationConflict } from "./administration-conflict";
 import { actFieldNames } from "./act-field-names";
 import { actFaultErrors, interpretAct, type ActForm, type ActIntent } from "./act-input";
 import { slotOf, type ActSlot } from "./act-slots";
@@ -134,6 +135,14 @@ export async function beginActWith(deps: ActDeps, actor: StaffActor, data: FormD
 /// As `beginActWith`, for an act whose request is not a form (a route handler's JSON body): the caller has read who the request names into an `ActForm`.
 export async function beginActFromWith(deps: ActDeps, actor: StaffActor, form: ActForm, key: string, opts: BeginActOptions): Promise<BegunAct> {
   const { entity, field, slot } = parseSlotKey(key);
+  // NFR-SEC-004 (the product owner's sweep, Phase 3d): administration is kept apart from every transactional, approval and certification capability, so an
+  // administrator account does no act that attributes a person, but the few that are an administrator's own configuration acts (`administratorMay`). A loader
+  // run is not an account, and is never refused here. This is the second line behind the entry points that ask first (`staffForAct`): nothing reaches a write by
+  // way of a slot without passing it.
+  if (!actor.system && !slot.administratorMay) {
+    const refused = administrationConflict({ kind: "ACT", act: "TRANSACTION", actorIsAdministrator: actor.isAdministrator });
+    if (refused) return { ok: false, state: { ok: false, message: refused.en } };
+  }
   const today = todayIn(deps.now(), actor.organisationTimeZone);
   const read = interpretAct({
     slot: { signatureClass: slot.signatureClass, onBehalf: slot.onBehalf && opts.onBehalf !== false, paperGated: slot.paperGated },
