@@ -1,6 +1,7 @@
 import type { Tx } from "@/lib/audit/record";
-import { estimateFigureAccess, type SulitDecision } from "@/lib/auth/sulit-access";
-import { sulitActorOf, writeSulitEvents, type Reader } from "@/lib/auth/sulit-store";
+import { evaluationOfficeBases } from "@/lib/auth/evaluation-readers-store";
+import { estimateFigureAccess, namedOnEvaluation, type SulitDecision } from "@/lib/auth/sulit-access";
+import { exerciseAccessFacts, sulitActorOf, writeSulitEvents, type Reader } from "@/lib/auth/sulit-store";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
 import { pathTo } from "@/lib/organisation/structure";
 import type { OrgUnit } from "@/lib/organisation/types";
@@ -16,6 +17,11 @@ import { loadScopePolicy } from "./repo";
  * It decides; it never reads the figure. Before the opening discloses it, `viewFault` says SEALED to everyone and nobody is shown anything: the
  * sealed estimate stays sealed whoever is signed in. After, a reader is shown the figure if they are its preparer or hold the custodian or audit
  * office for the unit that asked for it. Either office unset, or no time zone to say which day's holders count, refuses and says which.
+ *
+ * Disclosed, the estimate is also evaluation information (FR-EVL-014), and the evaluators must read the comparison they report on (product owner, 2026-10-08, ruling on log
+ * line 1736). So a reader the exercise's EVALUATION is open to reads it as well, after the custody list has been asked: its evaluation team, the people named on the exercise
+ * (participants, the person in charge), and a holder of the Secretariat or Internal Audit office once the organisation has set it. The sealed-first order is unchanged,
+ * `sulit.read.organisation` still does not open it, and an administrator account is refused whatever else is true.
  */
 
 export interface EstimateAccess {
@@ -44,13 +50,22 @@ export async function estimateAccessFor(client: Tx, reader: Reader & { organisat
   const done = (decision: SulitDecision): EstimateAccess => ({ estimateId: est.id, reference: ex.reference, decision });
   // Sealed first: the answer does not depend on who is asking, and no custody is read for it.
   if (est.state !== "DISCLOSED") return done(estimateFigureAccess(actor, "SEALED"));
+  // A reader the evaluation is open to, asked once, for whichever way the custody list answers.
+  const evaluationReader = async (): Promise<"NAMED_ON_RECORD" | "SECRETARIAT_OFFICE" | "INTERNAL_AUDIT_OFFICE" | null> => {
+    if (!actor.personId || actor.isAdministrator || actor.system) return null;
+    const facts = (await exerciseAccessFacts(client, reader.organisationId, [exerciseId])).get(exerciseId);
+    if (facts && namedOnEvaluation(facts.named, actor.personId).length > 0) return "NAMED_ON_RECORD";
+    // The Secretariat and Internal Audit offices do not open a restricted exercise: its named list prevails (FR-MTD-007).
+    if (!facts || facts.restricted) return null;
+    return (await evaluationOfficeBases(client, { organisationId: reader.organisationId, personId: actor.personId, organisationTimeZone: reader.organisationTimeZone }, [exerciseId], now)).get(exerciseId) ?? null;
+  };
   const today = todayIn(now, reader.organisationTimeZone);
-  if (!today) return done(estimateFigureAccess(actor, "CUSTODY_DAY_UNKNOWN"));
+  if (!today) return done(estimateFigureAccess(actor, "CUSTODY_DAY_UNKNOWN", await evaluationReader()));
 
   const policy = await loadScopePolicy(reader.organisationId, client);
   const custodian = policy.estimateCustodianRoleCode;
   const audit = policy.estimateAuditRoleCode;
-  if (custodian == null || audit == null) return done(estimateFigureAccess(actor, "CUSTODY_NOT_SET"));
+  if (custodian == null || audit == null) return done(estimateFigureAccess(actor, "CUSTODY_NOT_SET", await evaluationReader()));
 
   const [assignments, units] = await Promise.all([
     client.roleAssignment.findMany({ where: { roleCode: { in: [custodian, audit] }, person: { organisationId: reader.organisationId } }, select: { personId: true, roleCode: true, scope: true, effectiveFrom: true, effectiveTo: true } }),
@@ -62,7 +77,7 @@ export async function estimateAccessFor(client: Tx, reader: Reader & { organisat
   const unitPath = pathTo(units as unknown as OrgUnit[], unit, dayToDate(today)).reverse().map((u) => u.code);
   const custody = custodyList({ estimateCustodianRoleCode: custodian, estimateAuditRoleCode: audit }, holders, est.preparerPersonId, today, unitPath);
   const fault = actor.personId ? viewFault(actor.personId, { state: est.state }, custody) : "NOT_IN_CUSTODY";
-  return done(estimateFigureAccess(actor, fault));
+  return done(estimateFigureAccess(actor, fault, fault ? await evaluationReader() : null));
 }
 
 /**

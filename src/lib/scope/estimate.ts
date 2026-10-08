@@ -250,6 +250,22 @@ export interface RoleHolding {
 }
 
 /**
+ * Who holds an office on a day for a unit: at the nearest unit on `unitPath` (the requesting unit up to the root) that has a holder, else its organisation-wide holders, so a holder of
+ * the office for some other department does not count. Left out, scope is not considered. The one rule for "an office held for a department counts for that department's records only",
+ * read by the estimate's custody and by the evaluation's Secretariat and Internal Audit offices.
+ */
+export function officeHoldersOn(holders: readonly RoleHolding[], roleCode: string, day: string, unitPath?: readonly string[]): string[] {
+  const inForce = (h: RoleHolding) => h.from <= day && (h.to == null || day <= h.to);
+  const here = holders.filter((h) => h.roleCode === roleCode && inForce(h));
+  if (unitPath === undefined) return here.map((h) => h.personId);
+  for (const unit of unitPath) {
+    const atUnit = here.filter((h) => h.scope === unit);
+    if (atUnit.length > 0) return atUnit.map((h) => h.personId);
+  }
+  return here.filter((h) => h.scope == null || h.scope === "").map((h) => h.personId);
+}
+
+/**
  * Who holds the estimate's copies on a day: its preparer, and the holders of the configured custodian and audit offices.
  * Either office unset says so: never read as "nobody" or "everybody".
  *
@@ -262,17 +278,7 @@ export interface RoleHolding {
 export function custodyList(policy: Pick<ScopePolicy, "estimateCustodianRoleCode" | "estimateAuditRoleCode">, holders: readonly RoleHolding[], preparerId: string, day: string, unitPath?: readonly string[]): { state: "SET"; personIds: string[] } | { state: "NOT_SET"; missing: ("CUSTODIAN" | "AUDIT")[] } {
   const missing = [...(policy.estimateCustodianRoleCode == null ? (["CUSTODIAN"] as const) : []), ...(policy.estimateAuditRoleCode == null ? (["AUDIT"] as const) : [])];
   if (missing.length) return { state: "NOT_SET", missing };
-  const inForce = (h: RoleHolding) => h.from <= day && (h.to == null || day <= h.to);
-  const holdersOf = (roleCode: string): string[] => {
-    const here = holders.filter((h) => h.roleCode === roleCode && inForce(h));
-    if (unitPath === undefined) return here.map((h) => h.personId);
-    for (const unit of unitPath) {
-      const atUnit = here.filter((h) => h.scope === unit);
-      if (atUnit.length > 0) return atUnit.map((h) => h.personId);
-    }
-    return here.filter((h) => h.scope == null || h.scope === "").map((h) => h.personId);
-  };
-  const on = [policy.estimateCustodianRoleCode, policy.estimateAuditRoleCode].flatMap((code) => holdersOf(code as string));
+  const on = [policy.estimateCustodianRoleCode, policy.estimateAuditRoleCode].flatMap((code) => officeHoldersOn(holders, code as string, day, unitPath));
   return { state: "SET", personIds: [...new Set([preparerId, ...on])] };
 }
 

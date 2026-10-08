@@ -6,11 +6,14 @@
  * thereby in the estimate's custody, so those parts are judged apart. The text is a rendered string with its figures already in it, and the figures are
  * formatted twice over (to two places in the text, to four in the structured copy), so no pattern can be trusted to find every one of them: where the
  * report states a saving, the text is withheld whole from a reader outside the estimate's custody rather than cut. Pure.
+ *
+ * Disclosed, the estimate is read by its custody list OR by whoever the exercise's evaluation is open to (its team, the people named on the exercise, and the Secretariat and
+ * Internal Audit offices once set): product owner, 2026-10-08, ruling on log line 1736. `estimateOpen` is that one answer (`estimateAccessFor`); the report template is not changed.
  */
 
 import type { ReportSnapshot } from "./report";
 
-export const ESTIMATE_WITHHELD_WORDS = "Worked out from the company estimate, which is read only by its preparer and the offices that hold its copies and audit it.";
+export const ESTIMATE_WITHHELD_WORDS = "Worked out from the company estimate, which, once the opening has disclosed it, is read only by its preparer, the offices that hold its copies and audit it, and the people the evaluation is open to.";
 
 export interface ReportForReader {
   report: ReportSnapshot;

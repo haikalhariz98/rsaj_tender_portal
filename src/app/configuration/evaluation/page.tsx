@@ -18,6 +18,7 @@ import { Section, Stat, Stats } from "../records-ui";
 import { AspectDrawer, BasisRouteDrawer, MethodModelDrawer, ModelDrawer, PolicyDrawer, RetireAspectDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 import { anonymisedScoringWords } from "@/lib/evaluation/anonymise";
+import { READER_OFFICE_LABEL, READER_OFFICE_UNSET, READER_OFFICES_ABOUT } from "@/lib/evaluation/readers";
 
 export const dynamic = "force-dynamic";
 
@@ -166,7 +167,7 @@ export default async function EvaluationConfigurationPage() {
             <>
               {p && <HistoryButton entity="EvaluationPolicy" entityId={p.id} label="the evaluation policy" />}
               <PolicyDrawer
-                values={{ reportSeriesKey: p?.reportSeriesKey ?? null, scoreDecimals: p?.scoreDecimals == null ? "" : String(p.scoreDecimals), scoreDecimalsProvenance: p?.scoreDecimalsProvenance ?? null, anonymisedScoring: p?.anonymisedScoring == null ? null : p.anonymisedScoring ? "ON" : "OFF", anonymisedScoringProvenance: p?.anonymisedScoringProvenance ?? null, checkerRoleCode: p?.checkerRoleCode ?? null, recommenderRoleCode: p?.recommenderRoleCode ?? null, reportTemplateId: p?.reportTemplateId ?? null, proposalTemplateId: p?.proposalTemplateId ?? null, governingSource: p?.governingSource ?? "", notes: p?.notes ?? "" }}
+                values={{ reportSeriesKey: p?.reportSeriesKey ?? null, scoreDecimals: p?.scoreDecimals == null ? "" : String(p.scoreDecimals), scoreDecimalsProvenance: p?.scoreDecimalsProvenance ?? null, anonymisedScoring: p?.anonymisedScoring == null ? null : p.anonymisedScoring ? "ON" : "OFF", anonymisedScoringProvenance: p?.anonymisedScoringProvenance ?? null, checkerRoleCode: p?.checkerRoleCode ?? null, recommenderRoleCode: p?.recommenderRoleCode ?? null, secretariatRoleCode: p?.secretariatRoleCode ?? null, secretariatRoleProvenance: p?.secretariatRoleProvenance ?? null, internalAuditRoleCode: p?.internalAuditRoleCode ?? null, internalAuditRoleProvenance: p?.internalAuditRoleProvenance ?? null, reportTemplateId: p?.reportTemplateId ?? null, proposalTemplateId: p?.proposalTemplateId ?? null, governingSource: p?.governingSource ?? "", notes: p?.notes ?? "" }}
                 series={c.series.map((s) => ({ value: s.key, label: s.nameEn }))}
                 offices={c.offices.map((o) => ({ value: o.code, label: o.nameEn }))}
                 templates={c.templates.map((t) => ({ value: t.id, label: t.nameEn }))}
@@ -183,11 +184,15 @@ export default async function EvaluationConfigurationPage() {
               { label: "Anonymised technical scoring", value: <Setting value={p?.anonymisedScoring != null ? <span className="flex flex-wrap items-center gap-2"><span>{anonymisedScoringWords(p.anonymisedScoring).en}</span>{p.anonymisedScoringProvenance && <ProvenanceBadge value={p.anonymisedScoringProvenance} />}</span> : null} unset={anonymisedScoringWords(null).en} /> },
               { label: "Office checking the Kertas Cadangan", value: <Setting value={office(p?.checkerRoleCode)} unset="The paper cannot be checked." /> },
               { label: "Office recommending it", value: <Setting value={office(p?.recommenderRoleCode)} unset="The paper cannot be recommended." /> },
+              // Customer policy with no default (ruling of 2026-10-08 on log line 1735): unset grants nothing, and the screen says so. Not counted among the settings that hold work back.
+              { label: READER_OFFICE_LABEL.secretariatRoleCode, value: <Setting value={p?.secretariatRoleCode ? <span className="flex flex-wrap items-center gap-2"><span>{office(p.secretariatRoleCode)}</span>{p.secretariatRoleProvenance && <ProvenanceBadge value={p.secretariatRoleProvenance} />}</span> : null} unset={READER_OFFICE_UNSET.secretariatRoleCode} /> },
+              { label: READER_OFFICE_LABEL.internalAuditRoleCode, value: <Setting value={p?.internalAuditRoleCode ? <span className="flex flex-wrap items-center gap-2"><span>{office(p.internalAuditRoleCode)}</span>{p.internalAuditRoleProvenance && <ProvenanceBadge value={p.internalAuditRoleProvenance} />}</span> : null} unset={READER_OFFICE_UNSET.internalAuditRoleCode} /> },
               { label: "Report template", value: <Setting value={p?.reportTemplate?.nameEn ?? null} unset="No report can be issued: it has no text." /> },
               { label: "Kertas Cadangan template", value: <Setting value={p?.proposalTemplate?.nameEn ?? null} unset="The paper cannot be produced: it has no text." /> },
               { label: "Annex labels", value: "The product's labels, A to F" },
             ]}
           />
+          <p className="mt-4 text-[12.5px] text-ink-3">{READER_OFFICES_ABOUT}</p>
         </CardBody>
       </Card>
 

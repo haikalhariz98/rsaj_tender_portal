@@ -29,7 +29,8 @@ import type { Words } from "./words";
 // ------------------------------------------------------------------ the decision
 
 /// Why a value was shown. Stored on the access event, so it is a closed list the table's CHECK holds (`SULIT_GRANT_BASES`).
-export const SULIT_GRANT_BASES = ["NAMED_ON_RECORD", "ORGANISATION_PERMISSION", "IN_CUSTODY"] as const;
+/// SECRETARIAT_OFFICE and INTERNAL_AUDIT_OFFICE (ruling of 2026-10-08 on log lines 1735 and 1736): the reader holds the office the organisation names as the Secretariat, or as Internal Audit, for evaluations.
+export const SULIT_GRANT_BASES = ["NAMED_ON_RECORD", "ORGANISATION_PERMISSION", "IN_CUSTODY", "SECRETARIAT_OFFICE", "INTERNAL_AUDIT_OFFICE"] as const;
 export type SulitGrantBasis = (typeof SULIT_GRANT_BASES)[number];
 
 /// Why a value was withheld.
@@ -101,7 +102,7 @@ export interface RoutedNamedFacts {
 
 /// The fields of a CONTRACT matter's route that its deciders read: the amount of the matter they decide, and nothing else of the contract (its priced working, variance, estimate rates and
 /// identity-card number stay with the permission). `matterAmountScope` says which matters carry such an amount.
-export const ROUTED_CONTRACT_FIELDS: readonly string[] = ["waitingValue", "matterAmount", "matterRoutedValue"];
+export const ROUTED_CONTRACT_FIELDS: readonly string[] = SULIT_FIELDS.filter((f) => f.routedAmount).map((f) => f.field);
 
 export type NamedAs = "PARTICIPANT" | "PERSON_IN_CHARGE" | "PROPOSAL_REVIEWER" | "EVALUATION_TEAM" | "OPENING_PANEL" | "STEP_HOLDER" | "STEP_DECIDER" | "COMMITTEE_MEMBER" | "REQUESTER";
 
@@ -218,7 +219,12 @@ export interface SulitContext {
   named: boolean;
   /// The state of `sulit.read.organisation` for the actor.
   organisationPermission: PermissionState;
+  /// The actor reads the EVALUATION as the Secretariat or as Internal Audit, by an office the organisation set (ruling of 2026-10-08 on log line 1735). Read only for the evaluation
+  /// scope, and never for a restricted exercise: FR-MTD-007's named list prevails there. Not given: no such office is held, or none is set.
+  evaluationOffice?: EvaluationOfficeBasis | null;
 }
+
+export type EvaluationOfficeBasis = Extract<SulitGrantBasis, "SECRETARIAT_OFFICE" | "INTERNAL_AUDIT_OFFICE">;
 
 const fieldOf = (name: string) => SULIT_FIELDS.find((f) => f.field === name);
 
@@ -247,6 +253,7 @@ export function decide(actor: SulitActor, ctx: SulitContext): SulitDecision {
   if (actor.isAdministrator) return { state: "WITHHELD", basis: "ADMINISTRATOR" };
   if (ctx.named) return { state: "GRANTED", basis: "NAMED_ON_RECORD" };
   if (ctx.restricted) return { state: "WITHHELD", basis: "RESTRICTED_NOT_NAMED" };
+  if (ctx.scope === "evaluation" && ctx.evaluationOffice) return { state: "GRANTED", basis: ctx.evaluationOffice };
   if (holds(ctx.organisationPermission)) return { state: "GRANTED", basis: "ORGANISATION_PERMISSION" };
   switch (ctx.organisationPermission.state) {
     case "UNDECIDED":
@@ -280,11 +287,15 @@ export type EstimateFigureFault = "SEALED" | "CUSTODY_NOT_SET" | "NOT_IN_CUSTODY
 
 /// The company estimate's figure, once disclosed, to those in its custody: its preparer and the holders of the custodian and audit
 /// offices (`custodyList`). Never before disclosure, and never to an administrator. `fault` is `viewFault`'s answer, from the caller.
-export function estimateFigureAccess(actor: SulitActor, fault: EstimateFigureFault | null): SulitDecision {
+export function estimateFigureAccess(actor: SulitActor, fault: EstimateFigureFault | null, evaluationReader: Extract<SulitGrantBasis, "NAMED_ON_RECORD" | "SECRETARIAT_OFFICE" | "INTERNAL_AUDIT_OFFICE"> | null = null): SulitDecision {
   if (actor.system || !actor.personId) return { state: "WITHHELD", basis: "NOT_A_PERSON" };
   if (actor.isAdministrator) return { state: "WITHHELD", basis: "ADMINISTRATOR" };
-  if (fault) return { state: "WITHHELD", basis: fault };
-  return { state: "GRANTED", basis: "IN_CUSTODY" };
+  if (!fault) return { state: "GRANTED", basis: "IN_CUSTODY" };
+  // Product owner, 2026-10-08, ruling on log line 1736: once the opening has disclosed it the estimate is still SULIT, but it is also evaluation information (FR-EVL-014), and the
+  // evaluators must read the comparison they report on. So, disclosed, a reader the evaluation is open to (its team, the people named on the exercise, the Secretariat and Internal
+  // Audit offices once set) reads it as well as the custody list. Sealed stays sealed to everyone, first: no reader of the evaluation is let past it.
+  if (fault !== "SEALED" && evaluationReader) return { state: "GRANTED", basis: evaluationReader };
+  return { state: "WITHHELD", basis: fault };
 }
 
 // ------------------------------------------------------------------ words
@@ -327,11 +338,11 @@ export function refusalWords(basis: SulitRefusalBasis, scope: SulitScope | "esti
       return { en: "The company estimate stays sealed until the opening discloses it. Nobody reads it before then.", ms: "Anggaran syarikat kekal dimeteraikan sehingga pembukaan mendedahkannya. Tiada sesiapa membacanya sebelum itu." };
     case "CUSTODY_NOT_SET":
       return {
-        en: "The estimate is disclosed, but the organisation has not set which offices hold its copies and audit it, so nobody is yet entitled to read it here.",
-        ms: "Anggaran telah didedahkan, tetapi organisasi belum menetapkan jawatan mana memegang salinannya dan mengauditnya, jadi belum ada yang berhak membacanya di sini.",
+        en: "The estimate is disclosed, but the organisation has not set which offices hold its copies and audit it, so only the people the evaluation is open to are yet entitled to read it here, and you are not among them.",
+        ms: "Anggaran telah didedahkan, tetapi organisasi belum menetapkan jawatan mana memegang salinannya dan mengauditnya, jadi hanya mereka yang terbuka kepada penilaian berhak membacanya di sini, dan anda bukan antaranya.",
       };
     case "NOT_IN_CUSTODY":
-      return { en: "The estimate is read only by its preparer and the offices that hold its copies and audit it, and you are not among them.", ms: "Anggaran hanya dibaca oleh penyediaannya dan jawatan yang memegang salinan dan mengauditnya, dan anda bukan antaranya." };
+      return { en: "The estimate is read only by its preparer, the offices that hold its copies and audit it, and the people the evaluation is open to, and you are not among them.", ms: "Anggaran hanya dibaca oleh penyediaannya, jawatan yang memegang salinan dan mengauditnya, dan mereka yang terbuka kepada penilaian, dan anda bukan antaranya." };
     case "CUSTODY_DAY_UNKNOWN":
       return { en: "The organisation's time zone is not set, so the offices in force today are not known and nobody can be shown to hold the estimate's copies.", ms: "Zon waktu organisasi belum ditetapkan, jadi jawatan yang berkuat kuasa hari ini tidak diketahui dan tiada sesiapa dapat ditunjukkan memegang salinan anggaran." };
     case "NOT_LOGGED":
@@ -345,6 +356,8 @@ export const grantedWords = (basis: SulitGrantBasis, namedAs: readonly NamedAs[]
   }
   if (basis === "NAMED_ON_RECORD") return { en: "Shown because you are named on this record.", ms: "Dipaparkan kerana anda dinamakan pada rekod ini." };
   if (basis === "ORGANISATION_PERMISSION") return { en: "Shown because your role may read SULIT values across the organisation.", ms: "Dipaparkan kerana peranan anda boleh membaca nilai SULIT di seluruh organisasi." };
+  if (basis === "SECRETARIAT_OFFICE") return { en: "Shown because you hold the office the organisation names as the Secretariat for evaluations.", ms: "Dipaparkan kerana anda memegang jawatan yang ditetapkan organisasi sebagai Sekretariat bagi penilaian." };
+  if (basis === "INTERNAL_AUDIT_OFFICE") return { en: "Shown because you hold the office the organisation names as Internal Audit for evaluations.", ms: "Dipaparkan kerana anda memegang jawatan yang ditetapkan organisasi sebagai Audit Dalam bagi penilaian." };
   return { en: "Shown because you hold the estimate's copy or audit it.", ms: "Dipaparkan kerana anda memegang salinan anggaran atau mengauditnya." };
 };
 

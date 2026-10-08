@@ -1,4 +1,5 @@
 import type { Tx } from "@/lib/audit/record";
+import { evaluationOfficeBases } from "@/lib/auth/evaluation-readers-store";
 import { refusalWords, type SulitDecision } from "@/lib/auth/sulit-access";
 import {
   decisionForFields,
@@ -113,13 +114,15 @@ export async function documentBytesAccess(client: Tx, actor: SulitReader, docume
   const subjects = await subjectsOfDocument(client, documentId);
   const permission = await organisationPermissionState(client, actor);
   const exerciseFacts = await exerciseAccessFacts(client, actor.organisationId, subjects.flatMap((s) => (s.exerciseId ? [s.exerciseId] : [])));
+  // The Secretariat and Internal Audit read what hangs on an evaluation (ruling of 2026-10-08 on log line 1735).
+  const offices = actor.system ? new Map() : await evaluationOfficeBases(client, actor, subjects.flatMap((s) => (s.exerciseId && s.scope === "evaluation" ? [s.exerciseId] : [])));
   const rows: SulitEventRow[] = [];
   let first: SulitDecision | null = null;
   let granted: SulitDecision | null = null;
   for (const s of subjects) {
     const f = s.exerciseId ? exerciseFacts.get(s.exerciseId) : null;
     // A record that is not the organisation’s is not one the actor can be named on.
-    const decision: SulitDecision = s.exerciseId && !f ? { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" } : decisionForFields(actor, s.scope, ["documentBytes"], { restricted: f?.restricted ?? false, named: f?.named ?? null }, permission).decision;
+    const decision: SulitDecision = s.exerciseId && !f ? { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" } : decisionForFields(actor, s.scope, ["documentBytes"], { restricted: f?.restricted ?? false, named: f?.named ?? null, evaluationOffice: s.exerciseId ? (offices.get(s.exerciseId) ?? null) : null }, permission).decision;
     rows.push({ scope: s.scope, entity: s.entity, entityId: s.id, entityLabel: s.label, fields: ["documentBytes"], decision });
     first ??= decision;
     if (decision.state === "GRANTED") {
@@ -154,5 +157,6 @@ export async function ownerBytesEntitled(client: Tx, actor: SulitReader, kind: O
   const permission = await organisationPermissionState(client, actor);
   const f = s.exerciseId ? (await exerciseAccessFacts(client, actor.organisationId, [s.exerciseId])).get(s.exerciseId) : null;
   if (s.exerciseId && !f) return false;
-  return decisionForFields(actor, s.scope, ["documentBytes"], { restricted: f?.restricted ?? false, named: f?.named ?? null }, permission).decision.state === "GRANTED";
+  const office = s.exerciseId && s.scope === "evaluation" && !actor.system ? ((await evaluationOfficeBases(client, actor, [s.exerciseId])).get(s.exerciseId) ?? null) : null;
+  return decisionForFields(actor, s.scope, ["documentBytes"], { restricted: f?.restricted ?? false, named: f?.named ?? null, evaluationOffice: office }, permission).decision.state === "GRANTED";
 }

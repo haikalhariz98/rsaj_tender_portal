@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -210,6 +210,54 @@ describe("Sulit<T>", () => {
   });
 });
 
+describe("the Secretariat and Internal Audit read the evaluation, and the estimate once disclosed (rulings of 2026-10-08 on log lines 1735 and 1736)", () => {
+  const person = { personId: "p", isAdministrator: false, system: false };
+  const ctx = (over: Partial<Parameters<typeof sulitAccess>[1]> = {}) => ({ scope: "evaluation" as const, restricted: false, named: false, organisationPermission: { state: "UNDECIDED" as const }, ...over });
+
+  it("a holder of the office reads the evaluation scope, told by which office, ahead of the permission", () => {
+    expect(sulitAccess(person, ctx({ evaluationOffice: "SECRETARIAT_OFFICE" }), "score")).toEqual({ state: "GRANTED", basis: "SECRETARIAT_OFFICE" });
+    expect(sulitAccess(person, ctx({ evaluationOffice: "INTERNAL_AUDIT_OFFICE" }), "totalScore")).toEqual({ state: "GRANTED", basis: "INTERNAL_AUDIT_OFFICE" });
+  });
+
+  it("nobody who holds no office (or whose office is unset) is let in on that account", () => {
+    expect(sulitAccess(person, ctx({ evaluationOffice: null }), "score")).toMatchObject({ state: "WITHHELD", basis: "NOT_NAMED_PERMISSION_UNDECIDED" });
+    expect(sulitAccess(person, ctx(), "score")).toMatchObject({ state: "WITHHELD" });
+  });
+
+  it("does not open a restricted exercise: the named list prevails", () => {
+    expect(sulitAccess(person, ctx({ evaluationOffice: "SECRETARIAT_OFFICE", restricted: true }), "score")).toEqual({ state: "WITHHELD", basis: "RESTRICTED_NOT_NAMED" });
+  });
+
+  it("opens only the evaluation scope, not what the exercise itself carries", () => {
+    expect(sulitAccess(person, ctx({ scope: "exercise", evaluationOffice: "SECRETARIAT_OFFICE" }), "openingPrice")).toMatchObject({ state: "WITHHELD" });
+    expect(sulitAccess(person, ctx({ scope: "exercise", evaluationOffice: "INTERNAL_AUDIT_OFFICE" }), "bqRate")).toMatchObject({ state: "WITHHELD" });
+  });
+
+  it("an administrator account is refused whatever office it holds", () => {
+    expect(sulitAccess({ ...person, isAdministrator: true }, ctx({ evaluationOffice: "SECRETARIAT_OFFICE" }), "score")).toEqual({ state: "WITHHELD", basis: "ADMINISTRATOR" });
+  });
+
+  it("says in words which office let the reader in, and has a basis the log may hold", () => {
+    expect(grantedWords("SECRETARIAT_OFFICE").en).toMatch(/Secretariat/);
+    expect(grantedWords("INTERNAL_AUDIT_OFFICE").en).toMatch(/Internal Audit/);
+    expect(SULIT_GRANT_BASES).toContain("SECRETARIAT_OFFICE");
+    expect(SULIT_GRANT_BASES).toContain("INTERNAL_AUDIT_OFFICE");
+  });
+
+  it("the estimate: sealed stays sealed to a reader of the evaluation, and disclosed it is read by a reader of the evaluation when the custody list refuses", () => {
+    for (const reader of ["NAMED_ON_RECORD", "SECRETARIAT_OFFICE", "INTERNAL_AUDIT_OFFICE"] as const) {
+      expect(estimateFigureAccess(person, "SEALED", reader)).toEqual({ state: "WITHHELD", basis: "SEALED" });
+      for (const fault of ["CUSTODY_NOT_SET", "NOT_IN_CUSTODY", "CUSTODY_DAY_UNKNOWN"] as const) expect(estimateFigureAccess(person, fault, reader), `${fault} ${reader}`).toEqual({ state: "GRANTED", basis: reader });
+    }
+    // The custody list keeps its own basis, and a reader of the evaluation is not asked when it grants.
+    expect(estimateFigureAccess(person, null, "SECRETARIAT_OFFICE")).toEqual({ state: "GRANTED", basis: "IN_CUSTODY" });
+    // Nobody else is let in, and an administrator or a loader run never is.
+    expect(estimateFigureAccess(person, "NOT_IN_CUSTODY", null)).toEqual({ state: "WITHHELD", basis: "NOT_IN_CUSTODY" });
+    expect(estimateFigureAccess({ ...person, isAdministrator: true }, "NOT_IN_CUSTODY", "NAMED_ON_RECORD")).toEqual({ state: "WITHHELD", basis: "ADMINISTRATOR" });
+    expect(estimateFigureAccess({ personId: null, isAdministrator: false, system: true }, "NOT_IN_CUSTODY", "NAMED_ON_RECORD")).toEqual({ state: "WITHHELD", basis: "NOT_A_PERSON" });
+  });
+});
+
 describe("a requisition and a contract matter are named by their route (ruling of 2026-10-08, the amendment of the ruling on log line 1526)", () => {
   const routed = { requesterId: "req", stepHolderIds: ["hold"], stepDeciderIds: ["dec"] };
 
@@ -265,13 +313,23 @@ describe("the words", () => {
 
 describe("the access log's CHECKs are held to the code's lists", () => {
   const sql = readFileSync(join(process.cwd(), "prisma/migrations/20261008110100_sulit_access_event/migration.sql"), "utf8");
-  const listAfter = (re: RegExp) => [...(re.exec(sql)?.[1] ?? "").matchAll(/'(\w+)'/g)].map((m) => m[1]);
+  // Changed for the rulings of 2026-10-08 on log lines 1735 and 1736 (two granting bases, SECRETARIAT_OFFICE and INTERNAL_AUDIT_OFFICE): the basis CHECK is rebuilt by a later migration,
+  // so the list is read from the LAST migration that writes it, the one the database ends with. The first migration's other CHECKs are read from the first.
+  const lastBasisCheck = readdirSync(join(process.cwd(), "prisma/migrations"))
+    .sort()
+    .map((d) => join(process.cwd(), "prisma/migrations", d, "migration.sql"))
+    .filter((f) => existsSync(f))
+    .map((f) => readFileSync(f, "utf8"))
+    .filter((t) => t.includes('ADD CONSTRAINT "SulitAccessEvent_basis_matches_outcome" CHECK'))
+    .at(-1)!;
+  const listAfter = (re: RegExp, from: string = sql) => [...(re.exec(from)?.[1] ?? "").matchAll(/'(\w+)'/g)].map((m) => m[1]);
   it("the scope list is the registry's", () => {
     expect(listAfter(/"scope" IN \(([^)]*)\)/)).toEqual([...SULIT_SCOPES]);
   });
   it("the granted and withheld bases are the code's, and NOT_LOGGED is never stored", () => {
-    expect(listAfter(/"outcome" = 'GRANTED' AND "basis" IN \(([^)]*)\)/)).toEqual([...SULIT_GRANT_BASES]);
-    expect(listAfter(/"outcome" = 'WITHHELD' AND "basis" IN \(([^)]*)\)/)).toEqual(SULIT_REFUSAL_BASES.filter((b) => b !== "NOT_LOGGED"));
+    expect(listAfter(/"outcome" = 'GRANTED' AND "basis" IN \(([^)]*)\)/, lastBasisCheck)).toEqual([...SULIT_GRANT_BASES]);
+    expect(listAfter(/"outcome" = 'WITHHELD' AND "basis" IN \(([^)]*)\)/, lastBasisCheck)).toEqual(SULIT_REFUSAL_BASES.filter((b) => b !== "NOT_LOGGED"));
+    expect(lastBasisCheck).toMatch(/IS TRUE\);\s*$/);
   });
   it("every CHECK is written so that an unknown refuses", () => {
     const checks = sql.match(/ADD CONSTRAINT "\w+" CHECK \(.*\);/g) ?? [];

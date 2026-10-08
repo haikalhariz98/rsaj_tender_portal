@@ -1,6 +1,7 @@
 import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import { READER_OFFICE_LABEL } from "@/lib/evaluation/readers";
 import { ASPECT_KIND_LABEL, CAPITAL_BASE_LABEL, INPUT_LABEL, OUTCOME_LABEL, ROUTE_LABEL, SCALE_LABEL, SHORTLIST_RULE_LABEL, SIDE_LABEL, STAGE_KIND_LABEL } from "@/lib/evaluation/labels";
 import { ASPECT_KINDS, BAND_OUTCOMES, CAPITAL_BASES, COMPUTED_INPUTS, CRITERION_SCALES, EVALUATION_ROUTES, SHORTLIST_RULES, SIDES, STAGE_KINDS } from "@/lib/evaluation/types";
 
@@ -363,6 +364,10 @@ export function PolicyDrawer({ values, series, offices, templates }: { values: V
         { kind: "select", name: "anonymisedScoringProvenance", label: "Where that choice came from", placeholder: "Not set", options: PROVENANCE },
         { kind: "select", name: "checkerRoleCode", label: "Office checking the Kertas Cadangan", placeholder: "Not set", options: offices },
         { kind: "select", name: "recommenderRoleCode", label: "Office recommending it", placeholder: "Not set", options: offices },
+        { kind: "select", name: "secretariatRoleCode", label: READER_OFFICE_LABEL.secretariatRoleCode, placeholder: "Not set", options: offices, hint: "Reads evaluations (FR-EVL-014), nothing more. Not the office that holds the estimate's copies." },
+        { kind: "select", name: "secretariatRoleProvenance", label: "Where that choice came from", placeholder: "Not set", options: PROVENANCE },
+        { kind: "select", name: "internalAuditRoleCode", label: READER_OFFICE_LABEL.internalAuditRoleCode, placeholder: "Not set", options: offices, hint: "Reads evaluations (FR-EVL-014), nothing more. Not the estimate-audit office, which means custody of the estimate." },
+        { kind: "select", name: "internalAuditRoleProvenance", label: "Where that choice came from", placeholder: "Not set", options: PROVENANCE },
         { kind: "select", name: "reportTemplateId", label: "Report template", placeholder: "Not set", options: templates },
         { kind: "select", name: "proposalTemplateId", label: "Kertas Cadangan template", placeholder: "Not set", options: templates },
         { kind: "text", name: "governingSource", label: "Source" },

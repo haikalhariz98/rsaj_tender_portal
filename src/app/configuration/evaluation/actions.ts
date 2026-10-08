@@ -616,6 +616,11 @@ export async function saveEvaluationPolicy(_prev: FormState, data: FormData): Pr
     anonymisedScoringProvenance: r.choice("anonymisedScoringProvenance", "Where this came from", PROVENANCE),
     checkerRoleCode: r.optionalText("checkerRoleCode"),
     recommenderRoleCode: r.optionalText("recommenderRoleCode"),
+    // FR-EVL-014 (ruling of 2026-10-08 on log line 1735): the offices that read the evaluation as the Secretariat and as Internal Audit. Nullable, never defaulted: unset grants nothing.
+    secretariatRoleCode: r.optionalText("secretariatRoleCode"),
+    secretariatRoleProvenance: r.choice("secretariatRoleProvenance", "Where this came from", PROVENANCE),
+    internalAuditRoleCode: r.optionalText("internalAuditRoleCode"),
+    internalAuditRoleProvenance: r.choice("internalAuditRoleProvenance", "Where this came from", PROVENANCE),
     reportTemplateId: r.optionalText("reportTemplateId"),
     proposalTemplateId: r.optionalText("proposalTemplateId"),
     governingSource: r.text("governingSource", "Source", { max: 400 }),
@@ -624,16 +629,18 @@ export async function saveEvaluationPolicy(_prev: FormState, data: FormData): Pr
   if (v.scoreDecimals != null && v.scoreDecimals > 4) r.reject("scoreDecimals", "At most four: scores are kept to four places.");
   if (v.scoreDecimals != null && !v.scoreDecimalsProvenance) r.reject("scoreDecimalsProvenance", CONFIG_TEXT.PROVENANCE_REQUIRED);
   if (v.anonymisedScoringChoice != null && !v.anonymisedScoringProvenance) r.reject("anonymisedScoringProvenance", CONFIG_TEXT.PROVENANCE_REQUIRED);
+  if (v.secretariatRoleCode && !v.secretariatRoleProvenance) r.reject("secretariatRoleProvenance", CONFIG_TEXT.PROVENANCE_REQUIRED);
+  if (v.internalAuditRoleCode && !v.internalAuditRoleProvenance) r.reject("internalAuditRoleProvenance", CONFIG_TEXT.PROVENANCE_REQUIRED);
   if (r.failed) return { ok: false, errors: r.errors };
   const { anonymisedScoringChoice, ...rest } = v;
-  const row = { ...rest, scoreDecimalsProvenance: v.scoreDecimals == null ? null : v.scoreDecimalsProvenance, anonymisedScoring: anonymisedScoringChoice == null ? null : anonymisedScoringChoice === "ON", anonymisedScoringProvenance: anonymisedScoringChoice == null ? null : v.anonymisedScoringProvenance };
+  const row = { ...rest, secretariatRoleProvenance: v.secretariatRoleCode ? v.secretariatRoleProvenance : null, internalAuditRoleProvenance: v.internalAuditRoleCode ? v.internalAuditRoleProvenance : null, scoreDecimalsProvenance: v.scoreDecimals == null ? null : v.scoreDecimalsProvenance, anonymisedScoring: anonymisedScoringChoice == null ? null : anonymisedScoringChoice === "ON", anonymisedScoringProvenance: anonymisedScoringChoice == null ? null : v.anonymisedScoringProvenance };
   const result = await db.$transaction(async (tx) => {
     await lockOrganisation(tx, orgId);
     const series = await tx.numberingSeries.findMany({ where: { organisationId: orgId }, select: { key: true, nameEn: true } });
     const offices = await tx.authorityRole.findMany({ where: { organisationId: orgId, isCommittee: false }, select: { code: true, nameEn: true } });
     const templates = await tx.documentTemplate.findMany({ where: { organisationId: orgId }, select: { id: true, nameEn: true } });
     if (row.reportSeriesKey && !series.some((s) => s.key === row.reportSeriesKey)) return reject("reportSeriesKey", "UNKNOWN_CHOICE");
-    for (const k of ["checkerRoleCode", "recommenderRoleCode"] as const) if (row[k] && !offices.some((o) => o.code === row[k])) return reject(k, "UNKNOWN_CHOICE");
+    for (const k of ["checkerRoleCode", "recommenderRoleCode", "secretariatRoleCode", "internalAuditRoleCode"] as const) if (row[k] && !offices.some((o) => o.code === row[k])) return reject(k, "UNKNOWN_CHOICE");
     for (const k of ["reportTemplateId", "proposalTemplateId"] as const) if (row[k] && !templates.some((t) => t.id === row[k])) return reject(k, "UNKNOWN_CHOICE");
     const before = await tx.evaluationPolicy.findUnique({ where: { organisationId: orgId } });
     const name = <T extends { nameEn: string }>(rows: T[], pick: (x: T) => boolean) => rows.find(pick)?.nameEn ?? null;
@@ -645,6 +652,10 @@ export async function saveEvaluationPolicy(_prev: FormState, data: FormData): Pr
       anonymisedScoringFrom: x.anonymisedScoringProvenance,
       checker: x.checkerRoleCode ? name(offices, (o) => o.code === x.checkerRoleCode) : null,
       recommender: x.recommenderRoleCode ? name(offices, (o) => o.code === x.recommenderRoleCode) : null,
+      secretariatOffice: x.secretariatRoleCode ? name(offices, (o) => o.code === x.secretariatRoleCode) : null,
+      secretariatOfficeFrom: x.secretariatRoleProvenance,
+      internalAuditOffice: x.internalAuditRoleCode ? name(offices, (o) => o.code === x.internalAuditRoleCode) : null,
+      internalAuditOfficeFrom: x.internalAuditRoleProvenance,
       reportTemplate: x.reportTemplateId ? name(templates, (t) => t.id === x.reportTemplateId) : null,
       proposalTemplate: x.proposalTemplateId ? name(templates, (t) => t.id === x.proposalTemplateId) : null,
       source: x.governingSource || null,

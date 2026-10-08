@@ -7010,6 +7010,14 @@ model EvaluationPolicy {
   /// decided, and scoring shows the names as it always has. Frozen onto a version when it starts (`Evaluation.policySnapshot`).
   anonymisedScoring           Boolean?
   anonymisedScoringProvenance Provenance?
+  /// FR-EVL-014 (product owner, 2026-10-08, log line 1735): the evaluation is open to the Secretariat and to Internal Audit. Each is an office the organisation names, with no default: unset
+  /// reads "not set" and grants nothing. A holder of the office on the day of reading, for the exercise's own unit, reads the evaluation's SULIT content (its scores, prices and who is
+  /// recommended) and the company estimate once it is disclosed, and nothing else: the setting grants reading only (every evaluation act keeps its own checks), and it does not open a
+  /// restricted exercise (FR-MTD-007's named list prevails). Not the estimate-audit office (`ScopePolicy.estimateAuditRoleCode`), which means custody of the estimate.
+  secretariatRoleCode             String?
+  secretariatRoleProvenance       Provenance?
+  internalAuditRoleCode           String?
+  internalAuditRoleProvenance     Provenance?
 
   governingSource String   @default("")
   notes           String   @default("")

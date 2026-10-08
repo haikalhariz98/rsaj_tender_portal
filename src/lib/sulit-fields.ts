@@ -37,12 +37,15 @@ export interface SulitField {
   /// identity-card number on the return). A page that shows a record's figures asks about the fields it shows (`fieldsOfScope`), not about these, which the path that reads
   /// them names itself: the access log must say what was read, not what could have been.
   contextual?: true;
+  /// The amount of a matter of a contract that those who decide its approval route read, and nothing else of the contract (product owner, 2026-10-08, the amendment of the ruling on log
+  /// line 1526). Kept here so that a field is named once, in the registry, and `ROUTED_CONTRACT_FIELDS` is read from it.
+  routedAmount?: true;
 }
 
 export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "estimatedValue", scope: "requisition", alsoIn: ["exercise"], what: "the department estimate on a requisition or a sourcing exercise" },
   // Founder, 2026-10-05: the value an open route was routed on, on the sittings page's "Waiting to be tabled" list.
-  { field: "waitingValue", scope: "requisition", alsoIn: ["exercise", "contract"], contextual: true, what: "the value a route waiting to be tabled was routed on (a requisition's is the department estimate)" },
+  { field: "waitingValue", scope: "requisition", alsoIn: ["exercise", "contract"], contextual: true, routedAmount: true, what: "the value a route waiting to be tabled was routed on (a requisition's is the department estimate)" },
   { field: "companyEstimate", scope: "exercise", what: "the sealed company estimate" },
   { field: "openingPrice", scope: "exercise", what: "a price read out at bid opening" },
   { field: "openingPrices", scope: "exercise", what: "prices read out at bid opening" },
@@ -97,7 +100,7 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "signatureSupportedUpTo", scope: "contract", what: "the amount a certificate's recommending block supported up to, in a signature's trail (6.14)" },
   // 6.13 Part B Run 1a fix round (review S4): a contract matter's amount and exact ratio, read SULIT wherever shown
   // (BD-613-73). Not "routedValue", the approval module's function and the variation order's figure.
-  { field: "matterRoutedValue", scope: "contract", what: "the value a contract matter's route is resolved on (6.13 Part B)" },
+  { field: "matterRoutedValue", scope: "contract", routedAmount: true, what: "the value a contract matter's route is resolved on (6.13 Part B)" },
   { field: "matterRatioNum", scope: "contract", what: "the numerator of the exact ratio a contract matter's route is resolved on, e.g. the damages waived (6.13 Part B)" },
   { field: "matterRatioDen", scope: "contract", what: "the denominator of the exact ratio a contract matter's route is resolved on, e.g. the damages amount (6.13 Part B)" },
   // Phase 3b (FR-EVL-020): a bidder's name on an anonymised technical scoring stage, revealed only for a criterion that needs the named contractor. Judged and logged as the evaluation is.
@@ -114,7 +117,7 @@ export const SULIT_FIELDS: readonly SulitField[] = [
   { field: "projectedBalance", scope: "requisition", what: "what a budget check's balance would be after the department estimate (6.3, Phase 3b)" },
   // Phase 3b: a committee matter's amount (`matter-amount.ts` says which kinds): a requisition's gate matter carries the department estimate, a contract matter its routed value,
   // and a manual matter or one not yet decided is read as SULIT. A record that keeps no list of who is named, so only the organisation-wide permission opens it.
-  { field: "matterAmount", scope: "requisition", alsoIn: ["contract"], contextual: true, what: "a committee matter's amount, where its kind is SULIT or not decided (Phase 3b)" },
+  { field: "matterAmount", scope: "requisition", alsoIn: ["contract"], contextual: true, routedAmount: true, what: "a committee matter's amount, where its kind is SULIT or not decided (Phase 3b)" },
   // Phase 3b (OD-2, doc store): the bytes of a document classified SULIT. Every kind of record can hold one (an exercise's tender papers, a requisition's, a contract's statutory
   // declaration, a supplier's scan), so the field belongs to whichever record the document hangs on: it is read by the people that record's scope names.
   { field: "documentBytes", scope: "exercise", alsoIn: ["evaluation", "requisition", "contract", "supplier"], contextual: true, what: "the bytes of a document classified SULIT, downloaded from the record it hangs on (OD-2)" },

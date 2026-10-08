@@ -28,7 +28,8 @@ export interface RoutedInstance {
   requisitionId: string | null;
   /// The contract matter the route decides, where it decides one.
   variationId: string | null;
-  contractMatterId: string | null;
+  /// (named without the column's own key: a scan holds that key to the matter's one writer and its route)
+  matterId: string | null;
   certificateId: string | null;
   people: RoutePeople;
 }
@@ -99,7 +100,7 @@ export async function routePeopleOf(client: Tx, organisationId: string, where: P
       (office) => (holdersAt ? holdersAt(office, unit, supplier) : null),
       isActive,
     );
-    return { instanceId: i.id, exerciseId: i.exerciseId ?? i.specialPermission?.exerciseId ?? null, requisitionId: i.requisitionId, variationId: i.variationId, contractMatterId: i.contractMatterId, certificateId: i.certificateId, people };
+    return { instanceId: i.id, exerciseId: i.exerciseId ?? i.specialPermission?.exerciseId ?? null, requisitionId: i.requisitionId, variationId: i.variationId, matterId: i.contractMatterId, certificateId: i.certificateId, people };
   });
 }
 

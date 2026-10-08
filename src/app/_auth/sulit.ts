@@ -3,7 +3,8 @@ import { cache } from "react";
 import { matterAmountScope } from "@/lib/committee/matter-amount";
 import type { MatterKind } from "@/lib/committee/labels";
 import { hiddenDecisionIds } from "@/lib/committee/hidden";
-import { applyDecision, sulitWithheld, type RoutedNamedFacts, type Sulit, type SulitDecision } from "@/lib/auth/sulit-access";
+import { evaluationOfficeBases } from "@/lib/auth/evaluation-readers-store";
+import { applyDecision, sulitWithheld, type EvaluationOfficeBasis, type RoutedNamedFacts, type Sulit, type SulitDecision } from "@/lib/auth/sulit-access";
 import {
   decisionFor,
   decisionForFields,
@@ -72,12 +73,14 @@ export async function sulitExerciseValues<T>(actor: StaffActor, exercises: reado
   const out = new Map<string, Sulit<T>>();
   if (exercises.length === 0) return out;
   const [facts, permission] = await Promise.all([exerciseAccessFacts(db, actor.organisationId, exercises.map((e) => e.id)), permissionOf(actor)]);
+  // The Secretariat and Internal Audit read the evaluation (ruling of 2026-10-08 on log line 1735): asked only for the evaluation scope, and for a person.
+  const offices = scope === "evaluation" && !actor.system ? await evaluationOfficeBases(db, actor, exercises.map((e) => e.id)) : new Map<string, EvaluationOfficeBasis | null>();
   const rows: SulitEventRow[] = [];
   const decided = new Map<string, SulitDecision>();
   for (const e of exercises) {
     const f = facts.get(e.id);
     // An exercise that is not the organisation's is not read at all; a restricted one is judged as restricted.
-    const decision: SulitDecision = f ? decisionFor(actor, scope, field, { restricted: f.restricted, named: f.named }, permission).decision : { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" };
+    const decision: SulitDecision = f ? decisionFor(actor, scope, field, { restricted: f.restricted, named: f.named, evaluationOffice: offices.get(e.id) ?? null }, permission).decision : { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" };
     decided.set(e.id, decision);
     if (f) rows.push({ scope, entity: "SourcingExercise", entityId: e.id, entityLabel: e.reference, fields: [field], decision });
   }
@@ -114,13 +117,15 @@ export async function sulitGates(actor: StaffActor, subjects: readonly GateSubje
   const exerciseIds = subjects.filter((x) => !("entity" in x)).map((x) => x.id);
   const fromOf = (x: GateSubject): RoutedFrom | null => ("entity" in x ? (x.routedFrom !== undefined ? x.routedFrom : routedFromEntity(x.entity, x.id)) : null);
   const froms = subjects.flatMap((x) => { const f = fromOf(x); return f ? [f] : []; });
-  const [facts, permission, routed] = await Promise.all([exerciseIds.length ? exerciseAccessFacts(db, actor.organisationId, exerciseIds) : Promise.resolve(new Map()), permissionOf(actor), froms.length ? routedNamedFacts(db, actor.organisationId, froms) : Promise.resolve(new Map<string, RoutedNamedFacts>())]);
+  const evaluationIds = subjects.filter((x) => !("entity" in x) && x.scope === "evaluation").map((x) => x.id);
+  const [offices, facts, permission, routed] = await Promise.all([
+    evaluationIds.length && !actor.system ? evaluationOfficeBases(db, actor, evaluationIds) : Promise.resolve(new Map<string, EvaluationOfficeBasis | null>()),exerciseIds.length ? exerciseAccessFacts(db, actor.organisationId, exerciseIds) : Promise.resolve(new Map()), permissionOf(actor), froms.length ? routedNamedFacts(db, actor.organisationId, froms) : Promise.resolve(new Map<string, RoutedNamedFacts>())]);
   const rows: SulitEventRow[] = [];
   const decided = new Map<string, SulitDecision>();
   for (const x of subjects) {
     if (!("entity" in x)) {
       const f = facts.get(x.id);
-      const decision: SulitDecision = f ? decisionForFields(actor, x.scope, fields, { restricted: f.restricted, named: f.named }, permission).decision : { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" };
+      const decision: SulitDecision = f ? decisionForFields(actor, x.scope, fields, { restricted: f.restricted, named: f.named, evaluationOffice: x.scope === "evaluation" ? (offices.get(x.id) ?? null) : null }, permission).decision : { state: "WITHHELD", basis: "FIELD_NOT_FOR_THIS_RECORD" };
       decided.set(x.id, decision);
       if (f) rows.push({ scope: x.scope, entity: "SourcingExercise", entityId: x.id, entityLabel: x.label, fields: [...fields], decision });
     } else {

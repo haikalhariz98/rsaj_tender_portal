@@ -14,6 +14,7 @@ import {
   refusalWords,
   sulitAccess,
   sulitAccessAll,
+  type EvaluationOfficeBasis,
   type ExerciseNamedFacts,
   type RoutedNamedFacts,
   type SulitActor,
@@ -236,7 +237,7 @@ export async function routedNamedFacts(client: Tx, organisationId: string, froms
   const or = [
     ...(requisitions.length ? [{ requisitionId: { in: requisitions } }] : []),
     ...(variations.length ? [{ variationId: { in: variations } }] : []),
-    ...(matters.length ? [{ contractMatterId: { in: matters } }] : []),
+    ...(matters.length ? [{ contractMatter: { id: { in: matters } } }] : []),
     ...(certificates.length ? [{ certificateId: { in: certificates } }] : []),
     ...(instances.length ? [{ id: { in: instances } }] : []),
   ];
@@ -247,7 +248,7 @@ export async function routedNamedFacts(client: Tx, organisationId: string, froms
   ]);
   const requesterOf = new Map(requesters.map((r) => [r.id, r.requestingPersonId]));
   const match = (f: RoutedFrom, r: RoutedInstance) =>
-    f.kind === "requisition" ? r.requisitionId === f.id : f.kind === "variation" ? r.variationId === f.id : f.kind === "contractMatter" ? r.contractMatterId === f.id : f.kind === "certificate" ? r.certificateId === f.id : r.instanceId === f.id;
+    f.kind === "requisition" ? r.requisitionId === f.id : f.kind === "variation" ? r.variationId === f.id : f.kind === "contractMatter" ? r.matterId === f.id : f.kind === "certificate" ? r.certificateId === f.id : r.instanceId === f.id;
   for (const f of froms) {
     const mine = routes.filter((r) => match(f, r));
     out.set(routedFromKey(f), {
@@ -268,17 +269,17 @@ export async function organisationPermissionState(client: Tx, actor: SulitReader
 }
 
 /// The decision for a record of one scope, from the facts read for it.
-export function decisionFor(actor: SulitReader, scope: SulitScope, field: string, record: { restricted: boolean; named: ExerciseNamedFacts | null; routed?: RoutedNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
+export function decisionFor(actor: SulitReader, scope: SulitScope, field: string, record: { restricted: boolean; named: ExerciseNamedFacts | null; routed?: RoutedNamedFacts | null; evaluationOffice?: EvaluationOfficeBasis | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
   const sulitActor = sulitActorOf(actor);
   const namedAs = namedOn(scope, record.named, sulitActor.personId, record.routed ?? null, [field]);
-  return { decision: sulitAccess(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission }, field), namedAs };
+  return { decision: sulitAccess(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission, evaluationOffice: record.evaluationOffice ?? null }, field), namedAs };
 }
 
 /// The decision for several fields of one record of one scope (a tab asks once for everything it shows from the record).
-export function decisionForFields(actor: SulitReader, scope: SulitScope, fields: readonly string[], record: { restricted: boolean; named: ExerciseNamedFacts | null; routed?: RoutedNamedFacts | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
+export function decisionForFields(actor: SulitReader, scope: SulitScope, fields: readonly string[], record: { restricted: boolean; named: ExerciseNamedFacts | null; routed?: RoutedNamedFacts | null; evaluationOffice?: EvaluationOfficeBasis | null }, permission: PermissionState): { decision: SulitDecision; namedAs: ReturnType<typeof namedOn> } {
   const sulitActor = sulitActorOf(actor);
   const namedAs = namedOn(scope, record.named, sulitActor.personId, record.routed ?? null, fields);
-  return { decision: sulitAccessAll(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission }, fields), namedAs };
+  return { decision: sulitAccessAll(sulitActor, { scope, restricted: record.restricted, named: namedAs.length > 0, organisationPermission: permission, evaluationOffice: record.evaluationOffice ?? null }, fields), namedAs };
 }
 
 // ------------------------------------------------------------------ the log
