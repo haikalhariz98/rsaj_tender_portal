@@ -34,6 +34,7 @@ import { db } from "../src/lib/db";
 import { ORGANISATION_CODE } from "../src/lib/org";
 import { DEMO_PREFIX, demoIsLoaded } from "../prisma/demo-sign-in";
 import { DEMO_ACCOUNT_MANAGER_ROLE, DEMO_DIAL_CODES, STEP_ONE_LISTS, STEP_TWO_TYPES } from "../prisma/demo-step-one";
+import { REGISTRATION_DEMO_ACCOUNTS } from "../prisma/demo-registration";
 
 /// SAMPLE values for a demonstration. Nothing in the product defaults to them: a customer's own are chosen, never inherited from here.
 const DEMO_POLICY: Partial<SecurityPolicyValues> = {
@@ -193,6 +194,14 @@ async function main() {
     });
     supplierNotes.push(`the permission to manage supplier accounts, granted (assumed) to the role ${officerRole}`);
   }
+  // Phase 4b: the same office may read a supplier's bank details (SULIT) and so check them. An ASSUMED grant: reading the creditor's profile is undecided by default, and the organisation decides who may.
+  if (officerRole && !(await db.rolePermission.findFirst({ where: { organisationId: org.id, permissionKey: "sulit.read.creditorProfile", roleCode: officerRole }, select: { id: true } }))) {
+    await db.$transaction(async (tx) => {
+      const row = await tx.rolePermission.create({ data: { organisationId: org.id, permissionKey: "sulit.read.creditorProfile", roleCode: officerRole, decision: "GRANTED" }, select: { id: true } });
+      await writeAudit(tx, { organisationId: org.id, entity: "RolePermission", entityId: row.id, entityLabel: `Permission to read a supplier's bank details · ${officerRole}`, reason: "A demonstration grant (assumed), made by the demo accounts command: the organisation decides this for itself", actor: ACTOR }, "CREATE", diffFields(null, { permission: "Read a supplier's bank details", role: officerRole, decision: "Granted" }));
+    });
+    supplierNotes.push(`the permission to read a supplier's bank details, granted (assumed) to the role ${officerRole}`);
+  }
   // A portal account for the primary contact of two demonstration suppliers, signing in with the same published password.
   const suppliers = [
     { id: `${DEMO_PREFIX}vnd1`, loginName: "demo.supplier1" },
@@ -212,6 +221,20 @@ async function main() {
       await recordSignInEvent(tx, { organisationId: org.id, supplierAccountId: account.id, kind: "ACCOUNT_CREATED", at: now });
     });
     supplierMade.push(`${sp.loginName.padEnd(36)} supplier        ${contact.supplier.reference}`);
+  }
+
+  // Phase 4b: the two suppliers the demonstration holds part-way through their own registration (one with a draft, one that has sent it). Their accounts were made waiting for activation, holding the hash of a secret nobody
+  // knows; this gives them the demonstration password, and nothing else of theirs is touched.
+  for (const sp of REGISTRATION_DEMO_ACCOUNTS) {
+    const waiting = await db.supplierAccount.findFirst({ where: { organisationId: org.id, loginKey: loginKeyOf(sp.loginName), status: AccountStatus.PENDING_ACTIVATION }, select: { id: true, supplier: { select: { reference: true } } } });
+    if (!waiting) continue;
+    const passwordHash = await hashPassword(password);
+    await db.$transaction(async (tx) => {
+      const now = new Date();
+      await tx.supplierAccount.update({ where: { id: waiting.id }, data: { passwordHash, passwordChangedAt: now, status: AccountStatus.ACTIVE } });
+      await writeAudit(tx, { organisationId: org.id, entity: "SupplierAccount", entityId: waiting.id, entityLabel: `${waiting.supplier.reference} · Portal account`, reason: "A demonstration portal account, given the demonstration password by the demo accounts command", actor: ACTOR }, "UPDATE", diffFields({ status: "Waiting for activation" }, { status: AccountStatus.ACTIVE }));
+    });
+    supplierMade.push(`${sp.loginName.padEnd(36)} supplier        ${waiting.supplier.reference} (registration part-way)`);
   }
 
   if (made.length === 0 && supplierNotes.length === 0 && supplierMade.length === 0) {

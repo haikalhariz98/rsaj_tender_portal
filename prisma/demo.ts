@@ -22,6 +22,7 @@ import { checkAppendixAward, loadAppendixAward } from "./demo-award-appendix";
 import { checkBidsDemo, configureBidsDemo, loadBidsDemo } from "./demo-bids";
 import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo } from "./demo-opening";
 import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo } from "./demo-evaluation";
+import { checkRegistrationDemo, configureRegistrationDemo, loadRegistrationDemo } from "./demo-registration";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { attributeSeededRows } from "./demo-attribution";
 import { inboxDemoLoaded, loadInboxDemo } from "./demo-inbox";
@@ -748,6 +749,10 @@ async function load() {
   await configureSuppliersDemo(db, organisationId);
   await loadSuppliersDemo(db, organisationId);
   await checkSuppliersDemo(db);
+  // Phase 4b: the supplier's own registration, its settings and declarations' wording, and three registrations at three stages (prisma/demo-registration.ts).
+  await configureRegistrationDemo(db, organisationId);
+  await loadRegistrationDemo(db, organisationId);
+  await checkRegistrationDemo(db);
   // 6.12: the three numbered contracts formed, each act judged by the product's own rules as it is
   // written, nothing dated after the load day (X-10); read back through the product's own readings.
   if (await configureContractsDemo(db, organisationId)) {

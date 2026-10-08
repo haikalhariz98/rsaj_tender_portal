@@ -98,7 +98,7 @@ export interface DemoDoc {
   classification: SecurityClass | null;
   createdAt: string;
   versions: DemoVersion[];
-  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string; tenderPackPartId?: string; addendumId?: string; bidWithdrawalId?: string; validityExtensionId?: string; openingId?: string; evaluationId?: string; evaluationMeetingId?: string; evaluationBidderId?: string; supplierDocumentId?: string; supplierApplicationId?: string; contractId?: string; variationInstructionId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
+  attachments: { id: string; purpose: AttachmentPurpose; owner: { meetingId?: string; exerciseId?: string; awardId?: string; delegationId?: string; specificationPanelId?: string; bqVersionId?: string; tenderPackPartId?: string; addendumId?: string; bidWithdrawalId?: string; validityExtensionId?: string; openingId?: string; evaluationId?: string; evaluationMeetingId?: string; evaluationBidderId?: string; supplierDocumentId?: string; supplierApplicationId?: string; registrationDraftDocumentId?: string; creditorProfileId?: string; contractId?: string; variationInstructionId?: string }; ownerLabel: string; versionId: string; at: string; detached?: { at: string; reason: string; replacedBy?: string } }[];
   hold?: { id: string; reason: string; at: string; personId: string; personName: string };
 }
 
@@ -202,7 +202,7 @@ export async function loadDocuments(db: Db, organisationId: string) {
  * trail its act writes. Audit rows are numbered `${auditPrefix}n`; `entry` adds more and
  * `flush` writes them. Shared with the 6.4 demo (tender pack parts' files).
  */
-export async function writeDemoDocs(db: Db, organisationId: string, docs: readonly DemoDoc[], auditPrefix: string, recorder: { id: string; name: string }) {
+export async function writeDemoDocs(db: Db, organisationId: string, docs: readonly DemoDoc[], auditPrefix: string, recorder: { id: string; name: string } | { supplierAccountId: string; name: string }) {
   const audit: { id: string; organisationId: string; entity: string; entityId: string; entityLabel: string; action: "CREATE" | "UPDATE"; at: Date; changes: object[]; reason: string; unattributed: boolean }[] = [];
   let n = 0;
   const entry = (entity: string, entityId: string, entityLabel: string, action: "CREATE" | "UPDATE", when: string, changes: object[], reason = "") =>
@@ -225,7 +225,7 @@ export async function writeDemoDocs(db: Db, organisationId: string, docs: readon
       await db.documentVersion.create({
         data: {
           id: v.id, organisationId, documentId: d.id, versionNo: v.n, sha256: sha(v.bytes), byteSize: BigInt(v.bytes.length), mediaType: v.mediaType, originalFilename: v.filename,
-          receivedOn: v.receivedOn ? day(v.receivedOn) : null, recordedByPersonId: recorder.id, storedAt: at(v.storedAt),
+          receivedOn: v.receivedOn ? day(v.receivedOn) : null, ...("supplierAccountId" in recorder ? { recordedBySupplierAccountId: recorder.supplierAccountId } : { recordedByPersonId: recorder.id }), storedAt: at(v.storedAt),
           ...(v.withdrawn ? { withdrawnAt: at(v.withdrawn.at), withdrawnReason: v.withdrawn.reason } : {}),
         },
       });
