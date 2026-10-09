@@ -67,7 +67,7 @@ describe("the act records it (source scan)", () => {
   it("the setting is a nullable column with no default, an unset one refuses nothing, and the editor offers only the organisation's offices", () => {
     const schema = readFileSync(path.join(root, "prisma", "schema.prisma"), "utf8");
     expect(schema).toMatch(/\n\s+employerSigningRoleCode\s+String\?\n/);
-    const actions = readFileSync(path.join(root, "src", "app", "configuration", "contracts", "actions.ts"), "utf8");
+    const actions = readFileSync(path.join(root, "src", "app", "configuration", "contracts", "core.ts"), "utf8");
     expect(actions).toMatch(/authorityRole\.findFirst\(\{ where: \{ organisationId: o\.id, code: v\.employerSigningRoleCode, isCommittee: false \}/);
     // Preparation does not start on it: the start's faults do not read it.
     expect(readFileSync(path.join(root, "src", "lib", "contract", "preparation.ts"), "utf8")).not.toMatch(/employerSigning/);

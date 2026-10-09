@@ -9,7 +9,8 @@ import type { FormState } from "@/components/record-editor";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { attachFault, detachFault, reliedOnAttachment, repinFault } from "@/lib/documents/attach";
 import { attached, detached, filed, holdPlaced, holdReleased, reclassified, repinAudit, replacedBecause, versionWithdrawn } from "@/lib/documents/audit-view";
-import { reclassifyFault, reclassifyKind } from "@/lib/documents/classification";
+import { currentAmbient } from "@/lib/ambient/ambient-tx";
+import { isLowering, reclassifyFault, reclassifyKind } from "@/lib/documents/classification";
 import { holdFaults, releaseFaults } from "@/lib/documents/hold";
 import { documentFaultText, FINGERPRINT_STATEMENT, PURPOSE_LABEL } from "@/lib/documents/labels";
 import { ownerOf, withLockedOwner, type LockedOwner } from "@/lib/documents/owners";
@@ -25,9 +26,10 @@ import { drawerAttributionQueries, drawerView, panelAttributionQueries, panelVie
 import { db } from "@/lib/db";
 import { FormReader } from "@/lib/validate";
 import { requireStaff, toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { stageRecordEdit } from "@/app/_auth/stage";
 import { attributionRefusalState } from "@/app/_auth/act";
 import { beginAct } from "@/app/_auth/act";
-import type { AuditActor } from "@/lib/auth/types";
+import type { AuditActor, StaffActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
 /**
@@ -237,13 +239,31 @@ export async function withdrawVersion(_prev: FormState, data: FormData): Promise
   });
 }
 
-/// Set an unset classification once, or raise one, with a reason. Never lowered, never
-/// unset, and an unset one never set below its class's classification as it stands now
-/// (BD-DS-11 as ruled, security audit C-4).
-export async function reclassifyDocument(_prev: FormState, data: FormData): Promise<FormState> {
+/**
+ * Set an unset classification once, or raise one, with a reason. Never unset, and an unset one never set below its class's classification as it stands now. A lowering is not done
+ * by one person (BD-DS-11, security audit C-4): asked of this action, it is proposed, with the reason, and a second person who holds the permission to decide corrections applies it
+ * (Phase 5a, ADR 0034 D15). The machinery that applies it, and that rehearses the proposal, runs this very action: `currentAmbient()` says so, and then the same rules are
+ * asked for the lowering a second person decides (`viaSecondPerson`). No one else reaches that: a post to this action is a proposal or a plain change, never a lowering made alone.
+ */
+export async function reclassifyDocument(prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
   if (!txGuard.ok) return txGuard.state;
   const actor = txGuard.actor;
+  const viaChange = currentAmbient() != null;
+  if (!viaChange) {
+    // Whether it is a lowering is read from the document as it stands, in the organisation of the signed-in officer; the editor judges it again under the lock.
+    const documentId = String(data.get("documentId") ?? "");
+    const next = String(data.get("classification") ?? "");
+    const stored = await db.document.findFirst({ where: { id: documentId, organisationId: actor.organisationId }, select: { classificationSnapshot: true, documentClass: { select: { classification: true } } } });
+    if (stored && (SECURITY_CLASSES as readonly string[]).includes(next) && isLowering(stored.classificationSnapshot, next as (typeof SECURITY_CLASSES)[number], stored.documentClass.classification)) {
+      const proposed = await stageRecordEdit("documents-records.reclassifyDocument", prev, data);
+      return proposed;
+    }
+  }
+  return reclassifyIn(actor, data, viaChange);
+}
+
+async function reclassifyIn(actor: StaffActor, data: FormData, viaSecondPerson: boolean): Promise<FormState> {
   const documentId = String(data.get("documentId") ?? "");
   const r = new FormReader(data);
   const next = r.choice("classification", "Classification", SECURITY_CLASSES, { required: true });
@@ -255,7 +275,7 @@ export async function reclassifyDocument(_prev: FormState, data: FormData): Prom
     const { documentClassId } = await tx.document.findUniqueOrThrow({ where: { id: documentId, organisationId: actor.organisationId }, select: { documentClassId: true } });
     await tx.$queryRaw`SELECT id FROM "DocumentClass" WHERE id = ${documentClassId} FOR SHARE`;
     const doc = await tx.document.findUniqueOrThrow({ where: { id: documentId, organisationId: actor.organisationId }, include: { documentClass: { select: { classification: true } } } });
-    const faults = reclassifyFault(doc.classificationSnapshot, next, reason, doc.documentClass.classification);
+    const faults = reclassifyFault(doc.classificationSnapshot, next, reason, doc.documentClass.classification, { viaSecondPerson });
     if (faults.length) return refuse(faults);
     await tx.document.update({ where: { id: doc.id, organisationId: actor.organisationId }, data: { classificationSnapshot: next } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: "Document", entityId: doc.id, entityLabel: docLabel(doc.title), reason: `${reclassifyKind(doc.classificationSnapshot, next!) === "SET" ? "Classification set" : reclassifyKind(doc.classificationSnapshot, next!) === "RAISED" ? "Classification raised" : "Classification lowered"}: ${reason}` }, "UPDATE",

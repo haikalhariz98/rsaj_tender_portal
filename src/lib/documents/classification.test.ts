@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classClassificationChoices, classClassificationFault, documentClassificationChoices, lowers, reclassifyFault } from "./classification";
+import { classClassificationChoices, classClassificationFault, documentClassificationChoices, isLowering, lowers, reclassifyFault } from "./classification";
 import { classificationChoiceText, documentFaultText, REUPLOAD_EXIT } from "./labels";
 import { SECURITY_CLASSES, type SecurityClass } from "./types";
 import { classificationForm } from "./views";
@@ -30,11 +30,11 @@ describe("a document's classification: every lowering is refused", () => {
       const t = documentFaultText(reclassifyFault(from, to, "x")[0]);
       expect(t).toContain(REUPLOAD_EXIT);
       expect(t).toMatch(/upload it again as a new document under the right class, then withdraw the old version/);
-      expect(t).toMatch(/second approver/);
+      expect(t).toMatch(/decided by a second person/);
       expect(t).not.toMatch(NO_CODE);
     }
     expect(documentFaultText(reclassifyFault("INTERNAL", "PUBLIC", "x")[0])).toBe(
-      `Lowering it from Internal to Public needs a second approver, which arrives with sign-in: no classification is lowered by one person. ${REUPLOAD_EXIT}`,
+      `Lowering it from Internal to Public is not done by one person: it is proposed with “Lower the classification” and decided by a second person. ${REUPLOAD_EXIT}`,
     );
   });
 
@@ -103,7 +103,7 @@ describe("a document class's classification (Configuration › Documents)", () =
     expect(codes(classClassificationFault("SULIT", "PUBLIC"))).toEqual(["CLASS_DOWNGRADE"]);
     expect(codes(classClassificationFault("INTERNAL", "PUBLIC"))).toEqual(["CLASS_DOWNGRADE"]);
     const t = documentFaultText(classClassificationFault("INTERNAL", "PUBLIC")[0]);
-    expect(t).toMatch(/^Lowering a class's classification from Internal to Public needs a second approver/);
+    expect(t).toMatch(/^Lowering a class's classification from Internal to Public is not done by one person/);
     expect(t).toMatch(/upload them again under it, then withdraw the old versions/);
     expect(t).not.toMatch(NO_CODE);
   });
@@ -152,7 +152,53 @@ describe("the screens offer only the allowed choices, the rest with the reason",
   it("a SULIT document can be changed no way at all: the action is disabled, saying why and the way out", () => {
     const f = classificationForm("SULIT", "SULIT");
     expect(f.classificationChoices.every((c) => c.disabled)).toBe(true);
-    expect(f.classificationLocked).toMatch(/^Lowering it from SULIT needs a second approver/);
+    expect(f.classificationLocked).toMatch(/^Lowering it from SULIT is not done by one person/);
     expect(f.classificationLocked).toContain(REUPLOAD_EXIT);
+  });
+});
+
+// Phase 5a (ADR 0034 D15, BD-DS-11): the lowering a second person decides. The same rules but for the refusal of a lowering, and only a lowering is judged this way.
+describe("a lowering that a second person decides", () => {
+  it("is allowed for every lowering, with a reason, and for nothing else", () => {
+    for (const from of ALL) {
+      for (const to of ALL) {
+        for (const cls of ALL) {
+          const faults = codes(reclassifyFault(from, to, "The owner released it", cls, { viaSecondPerson: true }));
+          if (to == null) expect(faults).toEqual(["CANNOT_UNSET"]);
+          else if (from === to) expect(faults).toEqual(["UNCHANGED"]);
+          else if (isLowering(from, to, cls)) expect(faults).toEqual([]);
+          else expect(faults).toEqual(["NOT_A_LOWERING"]);
+        }
+      }
+    }
+  });
+
+  it("needs its reason, like every classification change", () => {
+    expect(codes(reclassifyFault("SULIT", "INTERNAL", "", undefined, { viaSecondPerson: true }))).toEqual(["REASON_REQUIRED"]);
+    expect(codes(reclassifyFault("SULIT", "INTERNAL", "   ", undefined, { viaSecondPerson: true }))).toEqual(["REASON_REQUIRED"]);
+  });
+
+  it("reads an unset document set below its class's classification as a lowering, and never as one when it is set at or above it", () => {
+    expect(isLowering(null, "PUBLIC", "SULIT")).toBe(true);
+    expect(isLowering(null, "SULIT", "SULIT")).toBe(false);
+    expect(isLowering(null, "PUBLIC", null)).toBe(false);
+    expect(isLowering("INTERNAL", "SULIT", "SULIT")).toBe(false);
+    expect(codes(reclassifyFault(null, "PUBLIC", "x", "SULIT", { viaSecondPerson: true }))).toEqual([]);
+  });
+
+  it("is, for a class, only a set classification lowered to a lower one", () => {
+    for (const from of ALL) for (const to of ALL) expect(classClassificationFault(from, to, { viaSecondPerson: true }).length === 0).toBe(from != null && to != null && lowers(from, to));
+    expect(classClassificationFault("SULIT", "INTERNAL", { viaSecondPerson: true })).toEqual([]);
+    expect(codes(classClassificationFault("PUBLIC", "SULIT", { viaSecondPerson: true }))).toEqual(["NOT_A_LOWERING"]);
+  });
+
+  it("leaves the refusal for one person as it was", () => {
+    expect(codes(reclassifyFault("SULIT", "INTERNAL", "x"))).toEqual(["DOWNGRADE_FROM_SULIT"]);
+    expect(codes(classClassificationFault("SULIT", "INTERNAL"))).toEqual(["CLASS_DOWNGRADE"]);
+  });
+
+  it("says in words, never a code, what a form that lowers refuses", () => {
+    const t = documentFaultText(reclassifyFault("PUBLIC", "SULIT", "x", undefined, { viaSecondPerson: true })[0]);
+    expect(t).toBe("This form lowers a classification. To set or raise one, use the classification form.");
   });
 });

@@ -98,7 +98,7 @@ describe("retirement and the header count, on the organisation's day (carry b)",
     expect(config).toMatch(/todayIn\(new Date\(\), org\.timeZone\)/);
     expect(config).not.toMatch(/storedDay\(new Date\(\)\)/);
     expect(config).toMatch(/configHoldingWorkBack\(/);
-    const acts = readFileSync(join(process.cwd(), "src/app/configuration/tender-documents/actions.ts"), "utf8");
+    const acts = readFileSync(join(process.cwd(), "src/app/configuration/tender-documents/core.ts"), "utf8");
     const restore = acts.slice(acts.indexOf("export async function restoreTenderPart"), acts.indexOf("// ---", acts.indexOf("export async function restoreTenderPart")));
     expect(restore).toMatch(/if \(!today\) return RESTORE_NO_ZONE;/);
     expect(restore).not.toMatch(/storedDay\(new Date\(\)\)/);

@@ -42,38 +42,16 @@ const PROPOSALS: [string, Key][] = [
 ];
 const DECISIONS = ["applyChangeAction", "declineChangeAction", "withdrawChangeAction"];
 
-/// What gives authority in the other two: who holds an office, a delegation, a role's capabilities, a committee seat.
-const GIVES_AUTHORITY: Record<string, [string, Key][]> = {
-  users: [
-    ["saveAssignment", "configuration.draft"],
-    ["saveDelegation", "configuration.draft"],
-    // Phase 3c: a reporting line decides who may be delegated to and where a step moves when its holder is away, so it is gated by the key that gives a delegation.
-    ["saveReportingLine", "configuration.draft"],
-    ["saveOffice", "configuration.draft"],
-    // Ruled by the product owner (decisions log 2026-10-07): ending an office is gated by the key that gives one.
-    ["endAssignment", "configuration.draft"],
-    ["setGrant", "configuration.draft"],
-  ],
-  // Ruled by the product owner (decisions log 2026-10-07): vacating a seat is gated by the key that gives one.
-  committees: [
-    ["saveMember", "configuration.draft"],
-    ["vacateSeat", "configuration.draft"],
-  ],
+/// What gives authority: who holds an office, a delegation, a role's capabilities, a committee seat. Phase 5b (the plan's 5b line, rulings 1688 and 1689): each is a proposal now,
+/// made by a holder of `configuration.draft` (what `stageEdit` asks first, pinned in `registry-scan.test.ts`) and applied by a different holder of `configuration.issue`, so that
+/// one administrator can no longer give an office alone. Ruled earlier (decisions log 2026-10-07): ending an office or vacating a seat is gated by the key that gives one, and a
+/// reporting line (Phase 3c) decides who may be delegated to, so it is gated by the key that gives a delegation. The scan holds each to being a proposal of its own editor.
+const PROPOSES_AUTHORITY: Record<string, string[]> = {
+  users: ["saveAssignment", "saveDelegation", "saveReportingLine", "saveOffice", "endAssignment", "setGrant", "savePerson", "setPersonActive"],
+  committees: ["saveMember", "vacateSeat"],
 };
 
-/// What is left asking only who is signed in, with the reason it is not gated yet. An open item for the product owner: which permission governs it.
-const NOT_YET: Record<string, string> = {
-  // Ruling of 2026-10-08 (log line 1770): editing a person's own record (name, staff number) is still not an authority and asks only who is signed in, but the one change that is
-  // one, recording a person as away, asks `configuration.draft` inside the action (pinned by the test below).
-  "users.savePerson": "A person's own record (name, staff number): not an authority, except recording a person as away, which asks configuration.draft inside the action (ruling 1770).",
-  "users.setPersonActive": "Marks a person as having left or returned: it ends accounts, which `accounts.manage` governs elsewhere. The product owner's to say.",
-  "committees.saveCommittee": "A committee's own terms: not who sits on it. The product owner's to say.",
-  "committees.saveNotApprovedOutcome": "What a committee's not-approved outcome does: it routes, and gives no authority. The product owner's to say.",
-  "committees.retireNotApprovedOutcome": "As saveNotApprovedOutcome.",
-  "committees.saveCommitteePanel": "A committee's panel of its sitting. The product owner's to say.",
-};
-
-/// The other configuration editors, none of which asks for a permission yet (each asks only who is signed in). Named, so that a new editor is not silently one.
+/// The other configuration editors: each a proposal too (`registry-scan.test.ts` holds every one), named so that a new section is not silently one that is not.
 const OTHER_EDITORS = ["audit", "awards", "budget", "contracts", "documents", "evaluation", "invitation", "notifications", "numbering", "organisation", "post-award", "reference-data", "requisitions", "routing-sheets", "scope", "suppliers", "templates", "tender-documents"];
 
 describe("the approval route is changed only by someone who holds the permission", () => {
@@ -82,10 +60,7 @@ describe("the approval route is changed only by someone who holds the permission
     expect(MATRIX.filter(([, k]) => k === "configuration.issue").map(([f]) => f)).toEqual(["issueDraft"]);
   });
 
-  it.each([
-    ["approval-matrix", MATRIX],
-    ...Object.entries(GIVES_AUTHORITY),
-  ] as [string, [string, Key][]][])("%s: each named export asks staffForPermission with its key, first", (dir, named) => {
+  it.each([["approval-matrix", MATRIX]] as [string, [string, Key][]][])("%s: each named export asks staffForPermission with its key, first", (dir, named) => {
     const src = source(dir);
     const wrong = named.filter(([fn, key]) => !new RegExp(String.raw`^await\s+staffForPermission\(\s*"${key}"\s*\)`).test(firstAwait(src, fn) ?? "")).map(([fn, key]) => `${dir}/${fn}: not staffForPermission("${key}") first`);
     expect(wrong).toEqual([]);
@@ -107,31 +82,17 @@ describe("the approval route is changed only by someone who holds the permission
     expect(decisions).toEqual([]);
   });
 
-  it("savePerson asks configuration.draft for the change from available to away, and only for that (ruling on log line 1770)", () => {
-    const src = source("users");
-    const m = lex(src);
-    const span = spans(m).find((s) => s.name === "savePerson");
-    expect(span).toBeTruthy();
-    const body = src.slice(span!.from, span!.to);
-    // The gate is asked under the condition that this save marks the person away, before the update is written.
-    expect(body).toMatch(/if \(marksAway\(before\.isAvailable, v\.isAvailable\)\) \{\s*const gate = await permissionGate\(actor, "configuration\.draft"\);\s*if \(!gate\.ok\) return/);
-    expect(body.indexOf("permissionGate(")).toBeLessThan(body.indexOf("auditedUpdate("));
-    // The sweep button stays open to any signed-in officer who is not an administrator: moveStepsOfAbsentHolders asks no permission key.
-    expect(readFileSync(path.join(process.cwd(), "src", "app", "approvals", "actions.ts"), "utf8")).not.toMatch(/staffForPermission\(/);
+  it.each(Object.entries(PROPOSES_AUTHORITY))("%s: each export that gives or ends authority, or records a person, is a proposal of its own editor", (dir, names) => {
+    const src = source(dir);
+    expect([...names].sort()).toEqual(exportsOf(src).filter((fn) => dir !== "committees" || names.includes(fn)).sort().filter((fn) => names.includes(fn)));
+    const wrong = names.filter((fn) => !new RegExp(String.raw`^await\s+stageEdit\(\s*"${dir}\.${fn}"`).test(firstAwait(src, fn) ?? ""));
+    expect(wrong).toEqual([]);
   });
 
-  it("every export of the users and committees editors is gated or named, with its reason, as not gated yet", () => {
-    for (const dir of Object.keys(GIVES_AUTHORITY)) {
-      const gated = new Set(GIVES_AUTHORITY[dir].map(([f]) => f));
-      const rest = exportsOf(source(dir)).filter((f) => !gated.has(f));
-      expect(rest.filter((f) => !NOT_YET[`${dir}.${f}`]).map((f) => `${dir}.${f}`)).toEqual([]);
-    }
-    for (const [key, why] of Object.entries(NOT_YET)) {
-      const [dir, fn] = key.split(".");
-      expect(exportsOf(source(dir)), key).toContain(fn);
-      expect(GIVES_AUTHORITY[dir].map(([f]) => f), key).not.toContain(fn);
-      expect(why.length, key).toBeGreaterThan(15);
-    }
+  // Ruling of 2026-10-08 (log line 1770): recording a person as away changes who decides their steps, so it needs `configuration.draft`. Every save of a person is a proposal by a holder of
+  // that key now, and the sweep button stays open to any signed-in officer who is not an administrator: moveStepsOfAbsentHolders asks no permission key.
+  it("the sweep of an absent holder's steps asks no permission key, as before", () => {
+    expect(readFileSync(path.join(process.cwd(), "src", "app", "approvals", "actions.ts"), "utf8")).not.toMatch(/staffForPermission\(/);
   });
 
   // Review of Phase 2c: the queue was open to every signed-in member of staff, with the proposers' reasons (how a person's identity was checked) and the sign-in settings in it.
@@ -146,7 +107,7 @@ describe("the approval route is changed only by someone who holds the permission
 
   it("every other configuration editor is named, so a new one is not silently ungated", () => {
     const dirs = readdirSync(CONFIG, { withFileTypes: true }).filter((d) => d.isDirectory() && readdirSync(path.join(CONFIG, d.name)).includes("actions.ts")).map((d) => d.name);
-    const known = new Set(["approval-matrix", "accounts", "changes", ...Object.keys(GIVES_AUTHORITY), ...OTHER_EDITORS]);
+    const known = new Set(["approval-matrix", "accounts", "changes", ...Object.keys(PROPOSES_AUTHORITY), ...OTHER_EDITORS]);
     expect(dirs.filter((d) => !known.has(d))).toEqual([]);
     expect([...known].filter((d) => !dirs.includes(d))).toEqual([]);
   });

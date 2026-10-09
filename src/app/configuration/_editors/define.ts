@@ -1,5 +1,6 @@
 import type { FormState } from "@/components/record-editor";
 import type { EditKind } from "@/lib/auth/configuration-edit";
+import type { PermissionKey } from "@/lib/auth/types";
 
 /**
  * How an editor is made known to the two-person machinery (sign-in programme Phase 5). Each Configuration section lists its editors in its own `operations.ts`
@@ -16,6 +17,11 @@ export interface OperationDef {
   kind?: EditKind;
   /// Whether an administrator account may propose or decide it. Absent: yes. False for an editor that reaches what an administrator is kept from.
   administratorMay?: false;
+  /// Who proposes it: "EDITOR" for an act of the record (a correction of a contract) that anyone the editor itself lets do the act proposes, and the editor's own rule
+  /// is judged in the rehearsal; absent: a holder of `configuration.draft`.
+  propose?: "EDITOR";
+  /// The permission that decides it. Absent: `configuration.issue`, the checker of configuration.
+  decide?: PermissionKey;
   /// The editor itself, from the section's `core.ts`. Loaded when it runs, so the registry does not pull every section into every page.
   load: () => Promise<Runner>;
 }

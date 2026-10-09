@@ -9,7 +9,7 @@ import { lockDelegation, LOCKED_DELEGATION_SELECT } from "./lock";
 
 /**
  * BD-DS-16 as ruled (2026-10-01): both delegation attach paths — `saveDelegation`
- * (src/app/configuration/users/actions.ts) and the generic attach behind the shared panel
+ * (src/app/configuration/users/core.ts) and the generic attach behind the shared panel
  * (src/app/documents/actions.ts, through `withLockedOwner` in src/lib/documents/owners.ts)
  * — run `attachFault` on data read under the Delegation row lock. Proved two ways: the one
  * helper both use takes the lock before it reads (behaviour, on a recording client), and
@@ -117,7 +117,7 @@ describe("both delegation attach paths judge on what lockDelegation read (source
   });
 
   it("saveDelegation: lock first, every read in the transaction, faultsIn on the locked row", () => {
-    const actions = src("src/app/configuration/users/actions.ts");
+    const actions = src("src/app/configuration/users/core.ts");
     const save = body(actions, "export async function saveDelegation(");
     const tx = save.indexOf("db.$transaction(async (tx) => {");
     const lock = save.indexOf("lockDelegation(tx, id, orgId)");
@@ -132,7 +132,7 @@ describe("both delegation attach paths judge on what lockDelegation read (source
   });
 
   it("saveDelegation's attach: attachRecommendation reads the delegation through lockDelegation before attachFault", () => {
-    const attach = body(src("src/app/configuration/users/actions.ts"), "async function attachRecommendation(");
+    const attach = body(src("src/app/configuration/users/core.ts"), "async function attachRecommendation(");
     const lock = attach.indexOf("const d = await lockDelegation(tx, delegationId, orgId);");
     expect(lock).toBeGreaterThan(-1);
     expect(attach.indexOf("attachFault(")).toBeGreaterThan(lock);

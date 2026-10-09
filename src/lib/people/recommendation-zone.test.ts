@@ -10,7 +10,7 @@ import { RECOMMENDATION_ZONE_UNSET } from "./labels";
  * in the "time zone not set" wording used elsewhere (people/end-assignment.ts).
  */
 describe("attaching a delegation's recommendation with no time zone set (66-C1 b)", () => {
-  const src = readFileSync("src/app/configuration/users/actions.ts", "utf8");
+  const src = readFileSync("src/app/configuration/users/core.ts", "utf8");
   const body = src.slice(src.indexOf("async function attachRecommendation("));
   const fn = body.slice(0, body.indexOf("\n}\n") + 2);
 

@@ -138,7 +138,7 @@ async function decide(actor: StaffActor, data: FormData, decision: "APPLY" | "DE
   if (!begun.ok) return begun.state;
   const act = begun.act;
   // The office the signer held (NFR-SIG-001): the role they hold the kind's permission through, if any (an administrator holds it through the flag, which is no office).
-  const roleCode = await permissionHeldThrough(db, { organisationId: actor.organisationId, personId: actor.personId, isAdministrator: actor.isAdministrator, timeZone: actor.organisationTimeZone, now: new Date() }, editKind ? EDIT_DECIDE_PERMISSION : KIND_PERMISSION[row.kind as ChangeKind]);
+  const roleCode = await permissionHeldThrough(db, { organisationId: actor.organisationId, personId: actor.personId, isAdministrator: actor.isAdministrator, timeZone: actor.organisationTimeZone, now: new Date() }, editKind ? (editOp?.decidePermission ?? EDIT_DECIDE_PERMISSION) : KIND_PERMISSION[row.kind as ChangeKind]);
   try {
     if (editKind) {
       const edited = await decideEdit(actor, act, editRegistry, { changeId, decision, reason, roleCode });

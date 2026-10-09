@@ -44,6 +44,8 @@ export function PeriodsPanel({
 }) {
   const [pending, startTransition] = useTransition();
   const [problem, setProblem] = useState<string | null>(null);
+  // Phase 5b: a change here is a proposal until a second person decides it, and the screen says so.
+  const [proposed, setProposed] = useState<string | null>(null);
   const years = yearsIn(periods);
 
   if (years.length === 0) {
@@ -61,11 +63,13 @@ export function PeriodsPanel({
   const selected = year != null && years.includes(year) ? year : years[years.length - 1];
   const rollForward = rollForwardByYear[selected] ?? null;
 
-  const act = (run: () => Promise<{ ok: boolean; message?: string }>) => {
+  const act = (run: () => Promise<{ ok: boolean; message?: string; notice?: string }>) => {
     setProblem(null);
+    setProposed(null);
     startTransition(async () => {
       const result = await run();
       if (!result.ok) setProblem(result.message ?? "That change was not saved.");
+      else setProposed(result.notice ?? null);
     });
   };
 
@@ -160,6 +164,11 @@ export function PeriodsPanel({
         {problem && (
           <Callout tone="err" className="mx-5 mb-3 sm:mx-6">
             {problem}
+          </Callout>
+        )}
+        {proposed && (
+          <Callout tone="ok" className="mx-5 mb-3 sm:mx-6">
+            {proposed}
           </Callout>
         )}
         <DataList

@@ -22,7 +22,7 @@ describe("saving a template", () => {
     expect(templateFieldRefusals(["window.nonsense"], has, [])).toEqual(["window.nonsense"]);
   });
   it("the configuration action asks with the window's fields", () => {
-    const src = readFileSync(join(process.cwd(), "src/app/configuration/templates/actions.ts"), "utf8");
+    const src = readFileSync(join(process.cwd(), "src/app/configuration/templates/core.ts"), "utf8");
     expect(src).toMatch(/templateFieldRefusals\(fieldsNamed\(v\[k\]\), \(f\) => !awardUnknown\.has\(f\) \|\| WINDOW_FIELD_KEYS\.has\(f\), clauseCodes\)/);
   });
 });

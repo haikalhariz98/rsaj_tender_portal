@@ -20,7 +20,8 @@ export type PermissionKey =
   | "sulit.read.creditorProfile"
   | "acts.recordOnBehalf"
   | "sourcing.participants.manage"
-  | "announcements.publish";
+  | "announcements.publish"
+  | "corrections.decide";
 
 export interface Office {
   roleCode: string;

@@ -15,7 +15,8 @@ const ADMIN_OR_GRANT: PermissionKey[] = ["configuration.draft", "configuration.i
 // Changed for the CPD registration rulings (Phase 4b, 2026-10-07, ruling 6): "sulit.read.creditorProfile", granted only and undecided until the organisation decides, opens a supplier's
 // bank details and nothing else. Nothing else in this list moved.
 // Changed for Phase 4e (FR-VND-014): "announcements.publish", granted only and undecided until the organisation decides who publishes to the supplier board.
-const GRANT_ONLY: PermissionKey[] = ["supplierAccounts.manage", "sulit.read.organisation", "sulit.read.creditorProfile", "acts.recordOnBehalf", "sourcing.participants.manage", "announcements.publish"];
+// Changed for Phase 5a: "corrections.decide", granted only and undecided until the organisation decides who decides another officer's correction of a contract, an award or a classification.
+const GRANT_ONLY: PermissionKey[] = ["supplierAccounts.manage", "sulit.read.organisation", "sulit.read.creditorProfile", "acts.recordOnBehalf", "sourcing.participants.manage", "announcements.publish", "corrections.decide"];
 
 describe("the closed list of product permissions (ADR 0034 D8)", () => {
   // Phase 3a review: a tenth key, "sourcing.participants.manage" (granted only, like the other transactional ones). Being named on an exercise is what opens its

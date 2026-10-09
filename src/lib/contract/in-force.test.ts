@@ -98,7 +98,7 @@ describe("the legal office's row in force on the day (M-2)", () => {
   it("the configuration reads the units with their start, and the policy act judges them in force", () => {
     const read = (p: string) => readFileSync(path.join(__dirname, "../../..", p), "utf8");
     expect(read("src/lib/contract/load.ts")).toMatch(/orgUnit\.findMany\(\{ where: \{ organisationId \}, select: \{ code: true, nameEn: true, effectiveFrom: true, effectiveTo: true \}/);
-    expect(read("src/app/configuration/contracts/actions.ts")).toContain("unitInForce(v.legalOfficeCode");
+    expect(read("src/app/configuration/contracts/core.ts")).toContain("unitInForce(v.legalOfficeCode");
     expect(read("src/app/configuration/contracts/page.tsx")).not.toMatch(/effectiveTo == null/);
   });
 });

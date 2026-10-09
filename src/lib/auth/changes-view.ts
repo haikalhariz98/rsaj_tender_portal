@@ -5,7 +5,7 @@ import { CHANGE_KINDS, KIND_PERMISSION, KIND_WORDS, kindsReadBy, parseChange, ST
 import { describeChange, type ChangeLine } from "./configuration-change-words";
 import { describeEdit, editKindsReadBy, isEditKind, parseEditPayload, type EditKind } from "./configuration-edit";
 import { editDecisionFaults, type EditRegistry } from "./edit-store";
-import type { StaffActor } from "./types";
+import type { PermissionKey, StaffActor } from "./types";
 
 /**
  * What the two-person queue shows (Phase 2c): every change still waiting, and the latest that were decided, each in words. Read only; the acts are in `change-store.ts`.
@@ -83,8 +83,15 @@ export async function loadChangesView(actor: StaffActor, now: Date = new Date(),
     eligibleBy.set(kind, await eligibleFor(db, { organisationId, timeZone: actor.organisationTimeZone, now }, KIND_PERMISSION[kind]));
   }
 
-  // Who could decide an editor's save: the holders of the checker's permission, and not an administrator account where the editor is kept from one.
-  const editDeciders = open.some((o) => isEditKind(o.kind)) ? await eligibleFor(db, { organisationId, timeZone: actor.organisationTimeZone, now }, "configuration.issue") : [];
+  // Who could decide an editor's save: the holders of the checker's permission for that editor, and not an administrator account where the editor is kept from one.
+  const deciderPermissions = new Set<PermissionKey>();
+  for (const o of open) {
+    const parsed = isEditKind(o.kind) ? parseEditPayload(o.payload) : null;
+    const op = parsed?.ok ? (registry?.find(parsed.payload.operation) ?? null) : null;
+    if (op) deciderPermissions.add(op.decidePermission);
+  }
+  const editDeciders = new Map<PermissionKey, string[]>();
+  for (const k of deciderPermissions) editDeciders.set(k, await eligibleFor(db, { organisationId, timeZone: actor.organisationTimeZone, now }, k));
   const administrators = new Set((await db.staffAccount.findMany({ where: { organisationId, isAdministrator: true }, select: { personId: true } })).map((a) => a.personId));
 
   const toRow = (r: (typeof rows)[number]): ChangeRow => {
@@ -93,7 +100,7 @@ export async function loadChangesView(actor: StaffActor, now: Date = new Date(),
       const op = parsed.ok ? (registry?.find(parsed.payload.operation) ?? null) : null;
       const summary = describeEdit(r.kind, op?.label ?? null, r.before);
       const waiting = r.status === "PROPOSED";
-      const deciders = editDeciders.filter((id) => id !== r.proposedByPersonId && (op?.administratorMay !== false || !administrators.has(id)));
+      const deciders = (op ? (editDeciders.get(op.decidePermission) ?? []) : []).filter((id) => id !== r.proposedByPersonId && (op?.administratorMay !== false || !administrators.has(id)));
       return {
         id: r.id,
         kind: r.kind,

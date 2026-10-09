@@ -6,9 +6,10 @@
  * unset.
  *
  * BD-DS-11 as ruled (2026-10-01): every lowering — SULIT to Internal or Public, Internal
- * to Public — is refused until maker-checker arrives with sign-in: one person alone may
- * not release a document to a wider readership. The refusal names the way out: upload it
- * again under the right class, then withdraw the old version.
+ * to Public — is refused to one person: one person alone may not release a document to a
+ * wider readership. The refusal names the ways out: upload it again under the right class,
+ * then withdraw the old version; or (Phase 5a, ADR 0034 D15) propose the lowering, which a
+ * second person decides (`viaSecondPerson`: the same rules, but for the refusal of a lowering).
  *
  * Security audit C-4: a document filed while its class was unset (snapshot null) is not
  * set below its class's classification as it stands now, by the same rule and with the
@@ -26,7 +27,17 @@ const RANK: Readonly<Record<SecurityClass, number>> = { PUBLIC: 0, INTERNAL: 1, 
 /// Whether `next` is lower than `current`. Nothing is lower than an unset classification.
 export const lowers = (current: SecurityClass | null, next: SecurityClass) => current != null && RANK[next] < RANK[current];
 
+/// Whether a change of a document's classification is a lowering: from a set one to a lower, or, for a document with none, to below its class's.
+export const isLowering = (current: SecurityClass | null, next: SecurityClass | null, classClassification?: SecurityClass | null): boolean =>
+  next != null && ((current != null && lowers(current, next)) || (current == null && classClassification != null && lowers(classClassification, next)));
+
+export interface ReclassifyOptions {
+  /// The change is a lowering that a second person decides (Phase 5a): the refusal of one person's lowering is not asked, and only a lowering is judged here.
+  viaSecondPerson?: boolean;
+}
+
 export type ReclassifyFault =
+  | "NOT_A_LOWERING"
   | "UNCHANGED"
   | "REASON_REQUIRED"
   | "CANNOT_UNSET"
@@ -40,10 +51,15 @@ export type ReclassifyFault =
  * document's lock. Given, it bounds an unset document from below (C-4); not given, that
  * rule is not looked at — the action always gives it.
  */
-export function reclassifyFault(current: SecurityClass | null, next: SecurityClass | null, reason: string, classClassification?: SecurityClass | null): Finding<ReclassifyFault>[] {
+export function reclassifyFault(current: SecurityClass | null, next: SecurityClass | null, reason: string, classClassification?: SecurityClass | null, opts: ReclassifyOptions = {}): Finding<ReclassifyFault>[] {
   if (next == null) return [{ code: "CANNOT_UNSET", level: "block" }];
   if (current === next) return [{ code: "UNCHANGED", level: "block" }];
   const out: Finding<ReclassifyFault>[] = [];
+  if (opts.viaSecondPerson) {
+    if (!isLowering(current, next, classClassification)) out.push({ code: "NOT_A_LOWERING", level: "block" });
+    if (!reason.trim()) out.push({ code: "REASON_REQUIRED", level: "block" });
+    return out;
+  }
   if (current === "SULIT" && lowers(current, next)) out.push({ code: "DOWNGRADE_FROM_SULIT", level: "block", data: { from: current, to: next } });
   if (current === "INTERNAL" && lowers(current, next)) out.push({ code: "DOWNGRADE_FROM_INTERNAL", level: "block", data: { from: current, to: next } });
   if (current == null && classClassification != null && lowers(classClassification, next)) {
@@ -59,14 +75,16 @@ export function reclassifyKind(current: SecurityClass | null, next: SecurityClas
   return RANK[next] > RANK[current] ? "RAISED" : "LOWERED";
 }
 
-export type ClassClassificationFault = "CLASS_CLASSIFICATION_UNSET" | "CLASS_DOWNGRADE";
+export type ClassClassificationFault = "CLASS_CLASSIFICATION_UNSET" | "CLASS_DOWNGRADE" | "NOT_A_LOWERING";
 
 /**
  * Whether a document class's classification may change from `current` to `next`, on
  * an edit of the class. Unchanged is no change (the editor posts it back on every save).
  * A new class may start at anything, unset included.
  */
-export function classClassificationFault(current: SecurityClass | null, next: SecurityClass | null): Finding<ClassClassificationFault>[] {
+export function classClassificationFault(current: SecurityClass | null, next: SecurityClass | null, opts: ReclassifyOptions = {}): Finding<ClassClassificationFault>[] {
+  // A lowering that a second person decides (Phase 5a): only a set classification lowered to a lower one is judged this way.
+  if (opts.viaSecondPerson) return current != null && next != null && lowers(current, next) ? [] : [{ code: "NOT_A_LOWERING", level: "block" }];
   if (current == null || current === next) return [];
   if (next == null) return [{ code: "CLASS_CLASSIFICATION_UNSET", level: "block", data: { from: current } }];
   if (lowers(current, next)) return [{ code: "CLASS_DOWNGRADE", level: "block", data: { from: current, to: next } }];

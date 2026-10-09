@@ -31,10 +31,10 @@ const at = (min: number) => `2026-05-20T09:${String(min).padStart(2, "0")}`;
 const NOTE = "Invented for the demo (6.14 increment 2).";
 
 export async function configureFidelityDemo(db: Db) {
-  const forms = await import("../src/app/configuration/templates/form-actions");
-  const glossary = await import("../src/app/configuration/templates/glossary-actions");
-  const templates = await import("../src/app/configuration/templates/actions");
-  const sheets = await import("../src/app/configuration/routing-sheets/actions");
+  const forms = await import("../src/app/configuration/templates/form-core");
+  const glossary = await import("../src/app/configuration/templates/glossary-core");
+  const templates = await import("../src/app/configuration/templates/core");
+  const sheets = await import("../src/app/configuration/routing-sheets/core");
 
   // The term first: a template's text may cite only a term in the glossary.
   await act(WHEN, "add the term so", glossary.saveTerm, { code: "so", canonicalEn: "Superintending Officer", canonicalMs: "Pegawai Penguasa", aliases: "S.O.\nP.P.", provenance: "ASSUMED", notes: NOTE });

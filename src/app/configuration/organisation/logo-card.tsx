@@ -92,7 +92,8 @@ export function ImageUploadCard({
               {pending && <SpinnerIcon size={14} />}
             </Button>
           </div>
-          {state.ok && state.message && <Callout tone="ok">{state.message}</Callout>}
+          {state.ok && state.notice && <Callout tone="ok">{state.notice}</Callout>}
+          {state.ok && !state.notice && state.message && <Callout tone="ok">{state.message}</Callout>}
           {!state.ok && state.message && <Callout tone="err">{state.message}</Callout>}
         </form>
       </CardBody>

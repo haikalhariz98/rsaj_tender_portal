@@ -30,8 +30,8 @@ function walk(dir: string): string[] {
 
 const MODELS = ["formField", "textCorrection", "textCorrectionForm", "term", "termAlias"];
 const OPS = ["create", "createMany", "createManyAndReturn", "update", "updateMany", "updateManyAndReturn", "upsert", "delete", "deleteMany"];
-const FORM = "src/app/configuration/templates/form-actions.ts";
-const GLOSSARY = "src/app/configuration/templates/glossary-actions.ts";
+const FORM = "src/app/configuration/templates/form-core.ts";
+const GLOSSARY = "src/app/configuration/templates/glossary-core.ts";
 const ALLOW: Readonly<Record<string, readonly string[]>> = {
   [`${FORM} › savePrintedField`]: ["formField.update", "formField.create"],
   [`${FORM} › removePrintedField`]: ["formField.delete"],
@@ -142,7 +142,7 @@ describe("increment 2's lock order", () => {
     }
   });
   it("S-3: a template's save reads the terms its text cites under the organisation's lock, then locks the form", () => {
-    const save = body(read("src/app/configuration/templates/actions.ts"), "saveTemplate");
+    const save = body(read("src/app/configuration/templates/core.ts"), "saveTemplate");
     const org = save.search(/await tx\.\$queryRaw`SELECT id FROM "Organisation" WHERE id = \$\{orgId\} FOR UPDATE`/);
     const terms = save.indexOf("await tx.term.findMany(");
     const form = save.search(/await tx\.\$queryRaw`SELECT id FROM "DocumentTemplate" WHERE id = \$\{id\} FOR UPDATE`/);

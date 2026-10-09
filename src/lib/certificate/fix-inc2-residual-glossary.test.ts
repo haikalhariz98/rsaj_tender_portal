@@ -44,7 +44,7 @@ describe("S-2: promoting an alias to the term's wording", () => {
 
   it("the save caps its reason at 2,000 characters, as removing a term does", async () => {
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync("src/app/configuration/templates/glossary-actions.ts", "utf8");
+    const src = readFileSync("src/app/configuration/templates/glossary-core.ts", "utf8");
     const reasons = src.match(/const reason = String\(data\.get\("reason"\) \?\? ""\)\.trim\(\)(\.slice\(0, 2000\))?;/g) ?? [];
     expect(reasons.length).toBe(3);
     for (const r of reasons) expect(r).toMatch(/\.slice\(0, 2000\);$/);
@@ -75,6 +75,6 @@ describe("Consider: an alias still in issued text is found in the database by wh
     const src = readFileSync("src/lib/certificate/term-use.ts", "utf8");
     expect(src).toMatch(/SELECT x\."number", count\(\*\) OVER \(\)::int AS total FROM \(SELECT DISTINCT c\."id", c\."number" FROM/);
     expect(src).toMatch(/LIMIT \$\{ALIAS_USE_SHOWN\}/);
-    expect(readFileSync("src/app/configuration/templates/glossary-actions.ts", "utf8")).not.toMatch(/renderedText/);
+    expect(readFileSync("src/app/configuration/templates/glossary-core.ts", "utf8")).not.toMatch(/renderedText/);
   });
 });

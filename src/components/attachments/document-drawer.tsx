@@ -13,7 +13,7 @@ import { actorField } from "@/lib/auth/actor-field";
 import { DRAWER_SCRIM, DrawerHeader, drawerPanelClass } from "@/components/ui/drawer";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues } from "@/components/ui/stat";
-import { endSentence, plural, RECLASSIFY_NOTE, WITHDRAW_NOTE, withdrawnLine } from "@/lib/documents/labels";
+import { endSentence, LOWER_NOTE, plural, RECLASSIFY_NOTE, WITHDRAW_NOTE, withdrawnLine } from "@/lib/documents/labels";
 import type { AttachmentItemView, DrawerView, DrawerVersionView, UploadView } from "@/lib/documents/views";
 
 import { AttachToRecordButton } from "./attach-to-record";
@@ -238,7 +238,8 @@ function Summary({ d, onDone }: { d: DrawerView; onDone: (n: Notice) => void }) 
       fd.set("classification", String(data.get("classification") ?? ""));
       fd.set("reason", String(data.get("reason") ?? ""));
       const r = await reclassifyDocument(EMPTY_FORM_STATE, fd);
-      if (r.ok) onDone({ tone: "ok", text: "Classification recorded." });
+      // A lowering is proposed, not recorded (Phase 5a): the drawer says which, and does not close over it as if it were done.
+      if (r.ok && !r.notice) onDone({ tone: "ok", text: "Classification recorded." });
       return r;
     },
     [d.id, onDone],
@@ -286,6 +287,23 @@ function Summary({ d, onDone }: { d: DrawerView; onDone: (n: Notice) => void }) 
             trigger={{ label: d.classificationUnset ? "Set classification" : "Change classification", className: buttonClass("secondary", "sm") }}
             size="sm"
           />
+        )}
+        {d.lowerChoices.length > 0 && (
+          <div className="mt-2">
+            <RecordEditor
+              title={`Lower the classification of ${d.title}`}
+              description={`Now ${d.classification}.`}
+              fields={[
+                { kind: "note", text: LOWER_NOTE },
+                { kind: "select", name: "classification", label: "Lower it to", required: true, placeholder: "Choose", options: d.lowerChoices },
+              ]}
+              reason={{ label: "Why is it being lowered?" }}
+              action={reclassify}
+              submitLabel="Propose the lowering"
+              trigger={{ label: "Lower the classification", className: buttonClass("secondary", "sm") }}
+              size="sm"
+            />
+          </div>
         )}
       </div>
     </div>

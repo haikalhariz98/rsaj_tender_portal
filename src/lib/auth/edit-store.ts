@@ -14,9 +14,7 @@ import {
 } from "./configuration-change";
 import {
   describeEdit,
-  EDIT_DECIDE_PERMISSION,
   EDIT_KIND_WORDS,
-  EDIT_PROPOSE_PERMISSION,
   editIsStale,
   isEditKind,
   isStoredField,
@@ -32,7 +30,7 @@ import { loadCandidates } from "./eligibility-store";
 import { eligiblePersonIds } from "./eligibility";
 import { loadGrants } from "./permission-store";
 import { organisationDay } from "@/lib/dates";
-import type { Fault, StaffActor } from "./types";
+import type { Fault, PermissionKey, StaffActor } from "./types";
 
 /**
  * The life of an editor's save held for a second person (ADR 0034 D15, Phase 5). The rules of the editor are the editor's own and are not restated here: the
@@ -52,6 +50,10 @@ export interface EditOperation {
   /// Whether an administrator account may propose or decide it. False where the editor reaches what an administrator is kept from (NFR-SEC-004: SULIT values,
   /// the corrections of a contract, a rate schedule); the editor itself still refuses an administrator where it asks for one.
   administratorMay: boolean;
+  /// What the proposer must hold: `configuration.draft` for configuration; null for an act of the record, whose own rule (who may do the act) is judged in the rehearsal.
+  proposePermission: PermissionKey | null;
+  /// What the person who decides must hold: `configuration.issue` for configuration, `corrections.decide` for a correction of the record.
+  decidePermission: PermissionKey;
 }
 
 export interface EditRunResult {
@@ -124,13 +126,13 @@ export const appliedReason = (proposerName: string, reason: string): string => (
 async function deciders(client: Tx, actor: StaffActor, op: EditOperation, now: Date, exceptPersonId: string): Promise<string[]> {
   const [candidates, grants] = await Promise.all([loadCandidates(client, actor.organisationId), loadGrants(client, actor.organisationId)]);
   const usable = op.administratorMay ? candidates : candidates.filter((c) => !c.isAdministrator);
-  return eligiblePersonIds(EDIT_DECIDE_PERMISSION, usable, grants, organisationDay(now, actor.organisationTimeZone)).filter((p) => p !== exceptPersonId);
+  return eligiblePersonIds(op.decidePermission, usable, grants, organisationDay(now, actor.organisationTimeZone)).filter((p) => p !== exceptPersonId);
 }
 
 /// Who may propose it: a holder of the maker's permission, and not an administrator account where the editor is kept from one.
 export function editProposalFaults(op: EditOperation, proposer: { permissions: ReadonlySet<string>; isAdministrator: boolean }): Fault[] {
   const out: Fault[] = [];
-  if (!proposer.permissions.has(EDIT_PROPOSE_PERMISSION)) out.push(f("NOT_PERMITTED", "You do not hold the permission that proposes a change to configuration.", "Anda tidak memegang kebenaran yang mencadangkan perubahan konfigurasi."));
+  if (op.proposePermission && !proposer.permissions.has(op.proposePermission)) out.push(f("NOT_PERMITTED", "You do not hold the permission that proposes a change to configuration.", "Anda tidak memegang kebenaran yang mencadangkan perubahan konfigurasi."));
   if (!op.administratorMay && proposer.isAdministrator) out.push(ADMIN_REFUSED);
   return out;
 }
@@ -140,16 +142,24 @@ export function editDecisionFaults(op: EditOperation, change: { status: string; 
   const out: Fault[] = [];
   if (change.status !== "PROPOSED") out.push(f("NOT_PROPOSED", "This change has already been decided or withdrawn.", "Perubahan ini sudah diputuskan atau ditarik balik."));
   if (decider.personId === change.proposedByPersonId) out.push(f("PROPOSER_IS_DECIDER", "You proposed this change, so you cannot decide it. A second person decides it.", "Anda mencadangkan perubahan ini, jadi anda tidak boleh memutuskannya. Orang kedua memutuskannya."));
-  if (!decider.permissions.has(EDIT_DECIDE_PERMISSION)) out.push(f("NOT_PERMITTED", "You do not hold the permission that decides a change to configuration.", "Anda tidak memegang kebenaran yang memutuskan perubahan konfigurasi."));
+  if (!decider.permissions.has(op.decidePermission)) out.push(f("NOT_PERMITTED", "You do not hold the permission that decides this kind of change.", "Anda tidak memegang kebenaran yang memutuskan jenis perubahan ini."));
   if (!op.administratorMay && decider.isAdministrator) out.push(ADMIN_REFUSED);
   return out;
 }
 
-const SECOND_PERSON = f(
-  "SECOND_PERSON_NEEDED",
-  "A second person is needed. Nobody else can decide a change to configuration, and the person who proposes a change never decides it. Another holder of the permission to issue configuration must exist first (an administrator holds it, and so does a role the organisation grants it to).",
-  "Orang kedua diperlukan. Tiada orang lain boleh memutuskan perubahan konfigurasi, dan orang yang mencadangkan perubahan tidak pernah memutuskannya. Pemegang lain kebenaran mengeluarkan konfigurasi mesti wujud dahulu (pentadbir memegangnya, begitu juga peranan yang diberikannya oleh organisasi).",
-);
+/// The fault where nobody besides the proposer could decide it: the product never fakes a second approval, and says who must exist first.
+const secondPerson = (op: EditOperation) =>
+  op.decidePermission === "configuration.issue"
+    ? f(
+        "SECOND_PERSON_NEEDED",
+        "A second person is needed. Nobody else can decide a change to configuration, and the person who proposes a change never decides it. Another holder of the permission to issue configuration must exist first (an administrator holds it, and so does a role the organisation grants it to).",
+        "Orang kedua diperlukan. Tiada orang lain boleh memutuskan perubahan konfigurasi, dan orang yang mencadangkan perubahan tidak pernah memutuskannya. Pemegang lain kebenaran mengeluarkan konfigurasi mesti wujud dahulu (pentadbir memegangnya, begitu juga peranan yang diberikannya oleh organisasi).",
+      )
+    : f(
+        "SECOND_PERSON_NEEDED",
+        "A second person is needed. Nobody else can decide a correction of the record, and the person who proposes one never decides it. The organisation must first grant the permission to decide corrections to a role that someone else holds (Configuration, Users and roles), and an administrator account does not decide a correction.",
+        "Orang kedua diperlukan. Tiada orang lain boleh memutuskan pembetulan rekod, dan orang yang mencadangkannya tidak pernah memutuskannya. Organisasi mesti memberikan terlebih dahulu kebenaran memutuskan pembetulan kepada peranan yang dipegang oleh orang lain (Konfigurasi, Pengguna dan peranan), dan akaun pentadbir tidak memutuskan pembetulan.",
+      );
 
 // --------------------------------------------------------------------------------------------- proposing
 
@@ -188,7 +198,7 @@ export async function proposeEdit(
 
     // Nobody else could decide it: refused here, with the reason said, rather than left in a queue that no one can clear.
     const others = await deciders(tx, actor, op, now, actor.personId);
-    if (others.length === 0) return refuse([SECOND_PERSON]);
+    if (others.length === 0) return refuse([secondPerson(op)]);
 
     const before = rehearsalOf(run.captured);
     const row = await tx.configurationChange.create({

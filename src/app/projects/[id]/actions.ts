@@ -40,6 +40,8 @@ import { officesHeldBy } from "@/lib/people/roster";
 import { amountOf, parseSen, senFromDecimal, senToDecimalString } from "@/lib/money";
 import { FormReader } from "@/lib/validate";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { stageRecordEdit } from "@/app/_auth/stage";
+import { currentAmbient } from "@/lib/ambient/ambient-tx";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
@@ -641,10 +643,16 @@ async function writeVersion(c: Ctx, v: BaselineValues, reason: "CONFIRMED" | "EX
 }
 
 /// Correct the Contract Date to an earlier day (OD-1 A): audited, with a reason; a CORRECTION version carries it.
-export async function correctContractDate(_prev: FormState, data: FormData): Promise<FormState> {
+export async function correctContractDate(prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
   if (!txGuard.ok) return txGuard.state;
   const actor = txGuard.actor;
+  // Phase 5a (ADR 0034 D15): a correction is proposed by one officer and applied by a second person who holds the permission to decide corrections. Asked of by a person, this
+  // act proposes; the machinery that rehearses the proposal and applies it runs this very act (`currentAmbient()`), and then it corrects.
+  if (!currentAmbient()) {
+    const staged = await stageRecordEdit("projects.correctContractDate", prev, data);
+    return staged;
+  }
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const proposed = r.date("contractDate", "Contract Date", { required: true });
@@ -1080,10 +1088,16 @@ export async function confirmBaseline(_prev: FormState, data: FormData): Promise
 }
 
 /// Correct a versioned baseline: a CORRECTION version with the group keyed, a reason and its provenance.
-export async function correctBaseline(_prev: FormState, data: FormData): Promise<FormState> {
+export async function correctBaseline(prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
   if (!txGuard.ok) return txGuard.state;
   const actor = txGuard.actor;
+  // Phase 5a (ADR 0034 D15): a correction is proposed by one officer and applied by a second person who holds the permission to decide corrections. Asked of by a person, this
+  // act proposes; the machinery that rehearses the proposal and applies it runs this very act (`currentAmbient()`), and then it corrects.
+  if (!currentAmbient()) {
+    const staged = await stageRecordEdit("projects.correctBaseline", prev, data);
+    return staged;
+  }
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const group = r.choice("group", "Value", ENTERED_GROUPS, { required: true });
@@ -1121,13 +1135,19 @@ export async function correctBaseline(_prev: FormState, data: FormData): Promise
  * (612-C1, ADR 0021 Amendment 1): under the award's lock and then the contract's (Award → Contract), with a
  * reason; the award's term is corrected and a CORRECTION version written whose source stays the Letter of
  * Acceptance, shown "corrected from …". The issued letter, earlier versions and the certificates pinned to them
- * are never touched. No second approver (maker-checker waits for sign-in). A change to the terms themselves is a
+ * are never touched. A second person decides it (Phase 5a). A change to the terms themselves is a
  * variation, not this.
  */
-export async function correctAwardTerm(_prev: FormState, data: FormData): Promise<FormState> {
+export async function correctAwardTerm(prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
   if (!txGuard.ok) return txGuard.state;
   const actor = txGuard.actor;
+  // Phase 5a (ADR 0034 D15): a correction is proposed by one officer and applied by a second person who holds the permission to decide corrections. Asked of by a person, this
+  // act proposes; the machinery that rehearses the proposal and applies it runs this very act (`currentAmbient()`), and then it corrects.
+  if (!currentAmbient()) {
+    const staged = await stageRecordEdit("projects.correctAwardTerm", prev, data);
+    return staged;
+  }
   const now = toSecond(new Date());
   const r = new FormReader(data);
   const term = r.choice("term", "Term", AWARD_TERMS, { required: true });

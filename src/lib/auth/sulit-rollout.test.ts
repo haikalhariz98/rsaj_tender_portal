@@ -241,7 +241,7 @@ describe("a document is attached only by someone who may already open it (OD-2, 
     expect(attach.indexOf("sulitAttachRefused(tx, actor, doc.id)")).toBeGreaterThan(-1);
     expect(attach.indexOf("sulitAttachRefused(tx, actor, doc.id)")).toBeLessThan(attach.indexOf("documentAttachment.create"));
     expect(attach).toMatch(/hiddenExerciseOfDocument\(doc\.id/);
-    const users = read("src/app/configuration/users/actions.ts");
+    const users = read("src/app/configuration/users/core.ts");
     expect(users).toMatch(/recommendationRefused\(actor, recommendationVersionId\)/);
     expect(users).toMatch(/sulitAttachRefused\(db, actor, v\.documentId\)/);
   });
@@ -249,7 +249,7 @@ describe("a document is attached only by someone who may already open it (OD-2, 
     const creators = SRC.filter((f) => f.startsWith("src/") && /documentAttachment\.create\(/.test(read(f))).sort();
     expect(creators).toEqual(
       [
-        "src/app/configuration/users/actions.ts",
+        "src/app/configuration/users/core.ts",
         "src/app/documents/actions.ts",
         "src/app/sourcing/[id]/documents/actions.ts",
         "src/app/sourcing/[id]/scope/actions.ts",

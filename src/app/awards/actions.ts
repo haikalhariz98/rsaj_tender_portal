@@ -67,6 +67,9 @@ import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { afterStep, audit, CHANGED, citeAppointmentStep, labelOf, mustMove, NO_ZONE, Refusal, routeLabel, sendAwardRejected } from "@/lib/award/route-write";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
+import { stageRecordEdit } from "@/app/_auth/stage";
+import { db } from "@/lib/db";
+import { currentAmbient } from "@/lib/ambient/ambient-tx";
 import { recallFault, RECALL_FAULT_TEXT } from "@/lib/approvals/recall";
 import { committeeStandingOf, noticeRecall } from "@/lib/approvals/recall-store";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
@@ -894,13 +897,19 @@ export async function recordDespatch(_prev: FormState, data: FormData): Promise<
 /**
  * What came back (FR-AWD-003, FR-AWD-008). The day each document was received and who
  * received it; the acceptance page's fields. The IC number enters the trail masked. The
- * return that completes the instrument moves the award to Accepted, in the same act.
+ * return that completes the instrument moves the award to Accepted, in the same act. A correction of an accepted award's return (BD-24) is proposed here and applied by a second person.
  */
-export async function recordReturn(_prev: FormState, data: FormData): Promise<FormState> {
+export async function recordReturn(prev: FormState, data: FormData): Promise<FormState> {
   const txGuard = await staffForAct("TRANSACTION");
   if (!txGuard.ok) return txGuard.state;
   const actor = txGuard.actor;
   const id = String(data.get("id") ?? "");
+  // Phase 5a (BD-24, ADR 0034 D15): the return of an accepted award is corrected by a change a second person decides. Asked of by a person for an accepted award, this act proposes;
+  // the machinery that rehearses the proposal and applies it runs this very act (`currentAmbient()`), and then it corrects. The first recording of a return is the officer's own, as before.
+  if (!currentAmbient() && (await db.award.findFirst({ where: { id, organisationId: actor.organisationId }, select: { status: true } }))?.status === "ACCEPTED") {
+    const staged = await stageRecordEdit("awards-records.recordReturn", prev, data);
+    return staged;
+  }
   const r = new FormReader(data);
   const d = (n: string, label: string) => r.date(n, label);
   const yesNo = (n: string, label: string) => triState(r, n, label);

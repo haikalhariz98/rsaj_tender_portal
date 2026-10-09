@@ -35,6 +35,9 @@ export const isEditKind = (kind: string): kind is EditKind => (EDIT_KINDS as rea
 /// Who proposes an editor's save and who decides it: the maker's key and the checker's, as for the approval matrix (draft, then issue).
 export const EDIT_PROPOSE_PERMISSION: PermissionKey = "configuration.draft";
 export const EDIT_DECIDE_PERMISSION: PermissionKey = "configuration.issue";
+/// The checker of a correction of the record (a contract's baseline, an award's terms, the Contract Date, an accepted award's return, a lowered classification): granted to
+/// a role by the organisation, never held through the administrator flag, and undecided until the organisation decides.
+export const CORRECTIONS_DECIDE_PERMISSION: PermissionKey = "corrections.decide";
 
 /// What each edit kind is, for the queue's heading. The operation's own label says which editor.
 export const EDIT_KIND_WORDS: Record<EditKind, { en: string; ms: string }> = {
@@ -53,7 +56,7 @@ export const EDIT_KIND_WORDS: Record<EditKind, { en: string; ms: string }> = {
  * the audit trail. What an edit carries is what the trail would record of it (and a SULIT figure is not shown), which a maker or a checker must read to do their part.
  */
 export const editKindsReadBy = (permissions: ReadonlySet<PermissionKey>): EditKind[] =>
-  permissions.has("audit.read") || permissions.has(EDIT_PROPOSE_PERMISSION) || permissions.has(EDIT_DECIDE_PERMISSION) ? [...EDIT_KINDS] : [];
+  permissions.has("audit.read") || permissions.has(EDIT_PROPOSE_PERMISSION) || permissions.has(EDIT_DECIDE_PERMISSION) || permissions.has(CORRECTIONS_DECIDE_PERMISSION) ? [...EDIT_KINDS] : [];
 
 // --------------------------------------------------------------------------------------------- what is posted
 

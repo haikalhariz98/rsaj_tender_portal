@@ -11,7 +11,7 @@ import { formatDate, formatOrgDateTime, formatOrgDay } from "@/lib/format";
 import { trailEntry } from "./audit-view";
 import { type AttributionIndex, type SlotQuery } from "@/lib/auth/attribution-read";
 
-import { documentClassificationChoices } from "./classification";
+import { documentClassificationChoices, isLowering } from "./classification";
 import { attachableVersion } from "./targets";
 
 import {
@@ -20,6 +20,7 @@ import {
   classificationChoiceText,
   classChoiceText,
   classificationBadge,
+  classificationLabel,
   DISPOSAL_METHOD_LABEL,
   documentFaultText,
   formatBytes,
@@ -34,7 +35,7 @@ import {
   SUPPLIER_UPLOADER_WORDS,
 } from "./labels";
 import type { documentDrawer, ownerPanel, uploadContext } from "./read";
-import type { AttachmentPurpose, ScanState, SecurityClass } from "./types";
+import { SECURITY_CLASSES, type AttachmentPurpose, type ScanState, type SecurityClass } from "./types";
 
 type Tone = "ok" | "warn" | "err" | "info" | "neutral";
 
@@ -265,6 +266,8 @@ export interface DrawerView {
   classificationChoices: { value: string; label: string; disabled: boolean }[];
   /// Where no change can be made at all, why, in words; null where one can.
   classificationLocked: string | null;
+  /// Phase 5a (BD-DS-11): what the document may be lowered to, by a change a second person decides. Empty where nothing is lower than where it stands.
+  lowerChoices: { value: string; label: string }[];
   status: string;
   /// Received and not attached to any record yet.
   staged: boolean;
@@ -313,6 +316,7 @@ export function drawerView(d: Drawer, timeZone: string | null, acted: Attributio
     classificationTone: classificationTone(d.classification),
     classificationUnset: d.classification == null,
     ...classificationForm(d.classification, d.documentClass.classification),
+    lowerChoices: SECURITY_CLASSES.filter((c) => d.classification != null && isLowering(d.classification, c)).map((c) => ({ value: c, label: classificationLabel(c) })),
     status: STATUS_LABEL[d.status],
     staged: d.status === "STAGED",
     attachVersionId: d.status === "STAGED" ? attachableVersion(d.versions) : null,

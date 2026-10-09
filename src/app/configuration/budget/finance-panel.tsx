@@ -60,6 +60,9 @@ export function FinancePanel({
 }) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<FormState>({ ok: false });
+  // Phase 5b: what is proposed here waits for a second person; the screen says so beside what was done.
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
 
   const tolerance = finance.varianceTolerance ? parseSen(finance.varianceTolerance) : null;
@@ -82,6 +85,7 @@ export function FinancePanel({
     startTransition(async () => {
       const result = await run();
       setState(result);
+      setActionNotice(result.ok ? (result.notice ?? null) : null);
     });
   };
 
@@ -200,6 +204,7 @@ export function FinancePanel({
             <Stat tone="neutral" label="Duration" value={duration} variant="inset" size="sm" />
           </div>
 
+          {actionNotice && <Callout tone="ok">{actionNotice}</Callout>}
           {(state.message || lastRun?.problem) && (
             <Callout
               tone="warn"
@@ -274,6 +279,7 @@ export function FinancePanel({
           startTransition(async () => {
             const result = await saveFinanceSettings({ ok: false }, data);
             setState(result);
+            setSettingsNotice(result.ok ? (result.notice ?? null) : null);
             if (result.ok) setDirty(false);
           });
         }}
@@ -337,6 +343,7 @@ export function FinancePanel({
           </CardBody>
         </Card>
 
+        {settingsNotice && !dirty && <Callout tone="ok">{settingsNotice}</Callout>}
         {dirty && <SaveBar message="Leaving this screen will lose them." pending={pending} />}
       </form>
     </div>

@@ -88,6 +88,14 @@ export const PERMISSIONS: Readonly<Record<PermissionKey, PermissionInfo>> = {
     lets: { en: "Name participants, the person in charge, the proposal's reviewer and the evaluation team on an exercise one is not named on. It does not let a person add themselves as a participant, person in charge or evaluator, and a holder is named on an exercise only by recording its proposal review or by restricting a draft.", ms: "Namakan peserta, orang yang bertanggungjawab, penyemak cadangan dan pasukan penilaian pada eksesais yang orang itu tidak dinamakan padanya. Ia tidak membenarkan seseorang menambah dirinya sebagai peserta, orang yang bertanggungjawab atau penilai, dan pemegangnya dinamakan pada sesuatu eksesais hanya dengan merekodkan semakan cadangannya atau dengan menghadkan draf." },
   },
   // Phase 4e (FR-VND-014): "announcements are publishable by an authorised officer". Which officer is the organisation's to say: undecided until decided, refused, and shown as undecided.
+  // Phase 5a (ADR 0034 D15): the corrections of the record are decided by a second person, and who that is is the organisation's to say. Granted only, undecided until
+  // it decides: while it is, no correction can be applied, and the screen says so. Never held through the administrator flag (NFR-SEC-004: an administrator is kept from
+  // the corrections of a contract and an award).
+  "corrections.decide": {
+    source: "GRANT_ONLY",
+    label: { en: "Decide another officer's correction of the record", ms: "Putuskan pembetulan rekod oleh pegawai lain" },
+    lets: { en: "Apply or decline a correction another officer proposed: to a contract's baseline, an award's recorded terms, the Contract Date, an accepted award's return, or a lowered classification. It never lets a person decide their own.", ms: "Laksanakan atau tolak pembetulan yang dicadangkan oleh pegawai lain: pada garis dasar kontrak, terma anugerah yang direkodkan, Tarikh Kontrak, pulangan anugerah yang diterima, atau klasifikasi yang diturunkan. Ia tidak pernah membenarkan seseorang memutuskan pembetulannya sendiri." },
+  },
   "announcements.publish": {
     source: "GRANT_ONLY",
     label: { en: "Publish announcements to suppliers", ms: "Terbitkan pengumuman kepada pembekal" },

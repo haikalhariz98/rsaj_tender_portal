@@ -1,3 +1,5 @@
+// Phase 5b (the plan's 5b line, decisions log 2026-10-09): the editors of Configuration, Users and roles are proposals now (`actions.ts`), and run in `core.ts` when a second person applies the change.
+// This file tests the editors themselves, so it calls `core.ts`; `src/app/configuration/changes/stage.db.test.ts` and `src/lib/auth/edit.db.test.ts` hold the propose-then-apply path.
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { StaffActor } from "@/lib/auth/types";
@@ -212,7 +214,7 @@ describe("marking the holder absent, with the reporting line recorded", () => {
 
 describe("marking a person away on the People screen (savePerson)", () => {
   it("moves the pending step of the office they alone hold, writes the outcome beside the absence, and tells the superior; marking them back moves nothing back", async () => {
-    const { savePerson } = await import("@/app/configuration/users/actions");
+    const { savePerson } = await import("@/app/configuration/users/core");
     const A2 = `RA2_${run}`;
     const B2 = `RB2_${run}`;
     await db.authorityRole.createMany({
@@ -263,7 +265,7 @@ describe("marking a person away on the People screen (savePerson)", () => {
 
 describe("marking a person away needs the permission to draft configuration (ruling on log line 1770)", () => {
   it("refuses an officer who does not hold it, in words, and changes nothing; marking them available again is not gated", async () => {
-    const { savePerson } = await import("@/app/configuration/users/actions");
+    const { savePerson } = await import("@/app/configuration/users/core");
     const target = (await makePerson(organisationId, `Gated ${run}`)).id;
     const form = (isAway: boolean) => {
       const f = new FormData();
@@ -373,7 +375,7 @@ describe("who may move steps, and whose (Phase 3c review)", () => {
   });
 
   it("marking a person away looks only at that person's steps, and an administrator doing it leaves them for an officer and says so in the trail and to the superior", async () => {
-    const { savePerson } = await import("@/app/configuration/users/actions");
+    const { savePerson } = await import("@/app/configuration/users/core");
     const A3 = `RA3_${run}`;
     const B3 = `RB3_${run}`;
     await db.authorityRole.createMany({

@@ -3,15 +3,15 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import type { DocumentClass } from "@/lib/records/load";
 
 import { actorField } from "@/lib/auth/actor-field";
-import { classClassificationChoices } from "@/lib/documents/classification";
-import { CLASS_CLASSIFICATION_HINT, classificationChoiceText, DISPOSAL_METHOD_LABEL, MEDIA_LABEL, RETENTION_TRIGGER_LABEL } from "@/lib/documents/labels";
+import { classClassificationChoices, lowers } from "@/lib/documents/classification";
+import { CLASS_CLASSIFICATION_HINT, classificationChoiceText, classificationLabel, LOWER_NOTE, DISPOSAL_METHOD_LABEL, MEDIA_LABEL, RETENTION_TRIGGER_LABEL } from "@/lib/documents/labels";
 import { bytesToMegabytes } from "@/lib/documents/policy";
-import { DISPOSAL_METHODS, KNOWN_MEDIA_TYPES, RETENTION_TRIGGERS, type SecurityClass } from "@/lib/documents/types";
+import { DISPOSAL_METHODS, KNOWN_MEDIA_TYPES, RETENTION_TRIGGERS, SECURITY_CLASSES, type SecurityClass } from "@/lib/documents/types";
 import { buttonClass } from "@/components/ui/button";
 
 import { releaseLegalHold } from "@/app/documents/actions";
 
-import { saveDocumentClass, saveStorePolicy } from "./actions";
+import { lowerClassClassification, saveDocumentClass, saveStorePolicy } from "./actions";
 
 export type OfficeOption = { value: string; label: string };
 
@@ -108,6 +108,29 @@ export function AddDocumentClass({ offices }: { offices: OfficeOption[] }) {
       action={saveDocumentClass}
       submitLabel="Add class"
       trigger={{ label: "Add class", icon: true }}
+    />
+  );
+}
+
+/// BD-DS-11 (Phase 5a): a class's classification is lowered by its own act, proposed with a reason and decided by a second person. Offered only where one is set and something is lower.
+export function LowerClassClassification({ id, name, current }: { id: string; name: string; current: SecurityClass | null }) {
+  const lower = current == null ? [] : SECURITY_CLASSES.filter((c) => lowers(current, c));
+  if (lower.length === 0) return null;
+  return (
+    <RecordEditor
+      title={`Lower the classification of ${name}`}
+      description={`Now ${classificationLabel(current)}.`}
+      fields={[
+        { kind: "hidden", name: "id" },
+        { kind: "note", text: LOWER_NOTE },
+        { kind: "select", name: "classification", label: "Lower it to", required: true, placeholder: "Choose", options: lower.map((c) => ({ value: c, label: classificationLabel(c) })) },
+      ]}
+      values={{ id }}
+      reason={{ label: "Why is it being lowered?" }}
+      action={lowerClassClassification}
+      submitLabel="Propose the lowering"
+      trigger={{ label: "Lower classification", className: buttonClass("ghost", "sm"), ariaLabel: `Lower the classification of ${name}` }}
+      size="sm"
     />
   );
 }

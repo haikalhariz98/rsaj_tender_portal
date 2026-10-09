@@ -272,9 +272,13 @@ export const RECLASSIFY_NOTE =
 export const REUPLOAD_EXIT =
   "If it belongs at a lower classification, upload it again as a new document under the right class, then withdraw the old version, with the reason.";
 
+/// Said on the form that lowers a classification (Phase 5a, ADR 0034 D15): lowering is proposed by one person and decided by another.
+export const LOWER_NOTE =
+  "Lowering a classification can release a document to a wider readership, so it is not done by one person. It is proposed here, with your reason, and a second person who holds the permission to decide corrections applies it, under Configuration, Changes waiting. Nothing changes until then.";
+
 /// Said on a class's classification field once it is set.
 export const CLASS_CLASSIFICATION_HINT =
-  "Taken by each document when it is filed. SULIT and not set are listed but never opened in the portal. Once set, it is not taken away, and it is not lowered by one person: lowering needs a second approver, which arrives with sign-in.";
+  "Taken by each document when it is filed. SULIT and not set are listed but never opened in the portal. Once set, it is not taken away, and it is not lowered by one person: lowering is proposed on its own form and decided by a second person.";
 
 /// A classification choice as a form lists it: its label, and where it is not offered, why.
 export function classificationChoiceText(c: { value: SecurityClass | null; allowed: boolean; refusal: Finding | null }): string {
@@ -390,19 +394,21 @@ export function documentFaultText(f: Finding): string {
     case "ALREADY_PINNED":
       return "That version is the one already attached.";
     // classification.ts
+    case "NOT_A_LOWERING":
+      return "This form lowers a classification. To set or raise one, use the classification form.";
     case "UNCHANGED":
       return "That is already its classification.";
     case "CANNOT_UNSET":
       return "A classification, once set, is not taken away. Choose Public, Internal or SULIT.";
     case "DOWNGRADE_FROM_SULIT":
     case "DOWNGRADE_FROM_INTERNAL":
-      return `Lowering it${d.from ? ` from ${classificationLabel(d.from as SecurityClass)}` : ""}${d.to ? ` to ${classificationLabel(d.to as SecurityClass)}` : ""} needs a second approver, which arrives with sign-in: no classification is lowered by one person. ${REUPLOAD_EXIT}`;
+      return `Lowering it${d.from ? ` from ${classificationLabel(d.from as SecurityClass)}` : ""}${d.to ? ` to ${classificationLabel(d.to as SecurityClass)}` : ""} is not done by one person: it is proposed with “Lower the classification” and decided by a second person. ${REUPLOAD_EXIT}`;
     case "BELOW_CLASS_CLASSIFICATION":
-      return `Its class is now classified ${classificationLabel(d.classification as SecurityClass)}, so it is not set lower than that by one person: that needs a second approver, which arrives with sign-in. Set it to ${classificationLabel(d.classification as SecurityClass)} or higher. ${REUPLOAD_EXIT}`;
+      return `Its class is now classified ${classificationLabel(d.classification as SecurityClass)}, so it is not set lower than that by one person: that is proposed with “Lower the classification” and decided by a second person. Set it to ${classificationLabel(d.classification as SecurityClass)} or higher. ${REUPLOAD_EXIT}`;
     case "CLASS_CLASSIFICATION_UNSET":
       return `A class's classification, once set, is not taken away: documents filed under it took it. Keep it at ${classificationLabel(d.from as SecurityClass)}, or raise it.`;
     case "CLASS_DOWNGRADE":
-      return `Lowering a class's classification${d.from ? ` from ${classificationLabel(d.from as SecurityClass)}` : ""}${d.to ? ` to ${classificationLabel(d.to as SecurityClass)}` : ""} needs a second approver, which arrives with sign-in. To file documents at a lower classification, use or add a class classified that way, upload them again under it, then withdraw the old versions, with the reason.`;
+      return `Lowering a class's classification${d.from ? ` from ${classificationLabel(d.from as SecurityClass)}` : ""}${d.to ? ` to ${classificationLabel(d.to as SecurityClass)}` : ""} is not done by one person: it is proposed with “Lower the classification” and decided by a second person. To file documents at a lower classification, use or add a class classified that way, upload them again under it, then withdraw the old versions, with the reason.`;
     // hold.ts
     case "ALREADY_ON_HOLD":
       return "A legal hold already stands on this document. Release it first to record a different reason.";

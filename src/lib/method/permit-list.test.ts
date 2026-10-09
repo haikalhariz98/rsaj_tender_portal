@@ -139,7 +139,7 @@ describe("the acts read the permit list under the organisation's lock, in the tr
     return src.slice(i, next === -1 ? undefined : next);
   };
   it("saveTaxonomyMapping refuses before it creates, inside one transaction", () => {
-    const body = fn(read("src/app/configuration/reference-data/actions.ts"), "saveTaxonomyMapping");
+    const body = fn(read("src/app/configuration/reference-data/core.ts"), "saveTaxonomyMapping");
     const tx = body.slice(body.indexOf("db.$transaction"));
     expect(tx).toMatch(/FOR UPDATE[\s\S]*tenderDocumentPolicy\.findUnique[\s\S]*permitListMappingFaults\([\s\S]*taxonomyMapping\.create/);
     expect(body.slice(0, body.indexOf("db.$transaction"))).not.toMatch(/taxonomyMapping\.create|auditedCreate/);

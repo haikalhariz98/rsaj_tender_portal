@@ -1,5 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { PrismaClient } from "@/generated/prisma/client";
 import { ambientStore, nested, type Ambient, type SavepointSql } from "@/lib/ambient/ambient-tx";
 
 /// The columns sealed until disclosure (OD-1, ADR 0012), omitted from every query.
@@ -60,9 +60,23 @@ export const db: typeof client = new Proxy(client, {
   },
 });
 
-/// The statements of a savepoint, on a transaction client: for whoever sets an ambient transaction. The name is made from a counter (`ambient-tx.ts`) and never from input.
-export const savepointSql = (tx: Pick<typeof client, "$executeRaw">): SavepointSql => ({
-  savepoint: (name) => tx.$executeRaw`SAVEPOINT ${Prisma.raw(name)}`,
-  release: (name) => tx.$executeRaw`RELEASE SAVEPOINT ${Prisma.raw(name)}`,
-  rollbackTo: (name) => tx.$executeRaw`ROLLBACK TO SAVEPOINT ${Prisma.raw(name)}`,
+type SavepointClient = Pick<typeof client, "$executeRaw">;
+
+/// One set of statements a level, written out whole (`MAX_SAVEPOINT_DEPTH` levels): a savepoint's name is never assembled from pieces, so nothing a request says can reach the SQL.
+const SAVEPOINT_STATEMENTS: readonly (readonly [(tx: SavepointClient) => Promise<unknown>, (tx: SavepointClient) => Promise<unknown>, (tx: SavepointClient) => Promise<unknown>])[] = [
+  [(tx) => tx.$executeRaw`SAVEPOINT amb_1`, (tx) => tx.$executeRaw`RELEASE SAVEPOINT amb_1`, (tx) => tx.$executeRaw`ROLLBACK TO SAVEPOINT amb_1`],
+  [(tx) => tx.$executeRaw`SAVEPOINT amb_2`, (tx) => tx.$executeRaw`RELEASE SAVEPOINT amb_2`, (tx) => tx.$executeRaw`ROLLBACK TO SAVEPOINT amb_2`],
+  [(tx) => tx.$executeRaw`SAVEPOINT amb_3`, (tx) => tx.$executeRaw`RELEASE SAVEPOINT amb_3`, (tx) => tx.$executeRaw`ROLLBACK TO SAVEPOINT amb_3`],
+  [(tx) => tx.$executeRaw`SAVEPOINT amb_4`, (tx) => tx.$executeRaw`RELEASE SAVEPOINT amb_4`, (tx) => tx.$executeRaw`ROLLBACK TO SAVEPOINT amb_4`],
+  [(tx) => tx.$executeRaw`SAVEPOINT amb_5`, (tx) => tx.$executeRaw`RELEASE SAVEPOINT amb_5`, (tx) => tx.$executeRaw`ROLLBACK TO SAVEPOINT amb_5`],
+  [(tx) => tx.$executeRaw`SAVEPOINT amb_6`, (tx) => tx.$executeRaw`RELEASE SAVEPOINT amb_6`, (tx) => tx.$executeRaw`ROLLBACK TO SAVEPOINT amb_6`],
+  [(tx) => tx.$executeRaw`SAVEPOINT amb_7`, (tx) => tx.$executeRaw`RELEASE SAVEPOINT amb_7`, (tx) => tx.$executeRaw`ROLLBACK TO SAVEPOINT amb_7`],
+  [(tx) => tx.$executeRaw`SAVEPOINT amb_8`, (tx) => tx.$executeRaw`RELEASE SAVEPOINT amb_8`, (tx) => tx.$executeRaw`ROLLBACK TO SAVEPOINT amb_8`],
+];
+
+/// The statements of a savepoint, on a transaction client: for whoever sets an ambient transaction.
+export const savepointSql = (tx: SavepointClient): SavepointSql => ({
+  savepoint: (level) => SAVEPOINT_STATEMENTS[level - 1][0](tx),
+  release: (level) => SAVEPOINT_STATEMENTS[level - 1][1](tx),
+  rollbackTo: (level) => SAVEPOINT_STATEMENTS[level - 1][2](tx),
 });

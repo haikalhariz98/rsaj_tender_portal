@@ -39,8 +39,9 @@ const publicEntry = (file: string) => isPublicEntryFile(file);
 /// Phase 4a: `requireSupplier` (a supplier's page) and `supplierPost` (a handler behind a supplier's account) are the supplier store's `requireStaff` and `staffRoute`. They are asked first in the
 /// pages and handlers of `supplier/account`, which are no longer exempt as a whole folder; `supplier-reach.test.ts` holds what they promise.
 /// Phase 4b: `supplierUploadPost` (a multipart upload) and `supplierGet` (a read of codes or of the supplier's own file) are the same guard for the registration wizard's other handlers.
-/// Phase 5: `stageEdit` is a Configuration editor's exported action: it asks `staffForPermission("configuration.draft")` as its first awaited call (pinned in `registry-scan.test.ts`).
-const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct(", "staffForPermission(", "requireSupplier(", "supplierPost(", "supplierUploadPost(", "supplierGet(", "stageEdit("];
+/// Phase 5: `stageEdit` is a Configuration editor's exported action: it asks `staffForPermission("configuration.draft")` as its first awaited call, and `stageRecordEdit` (a correction of the
+/// record) asks `requireStaff()` (both pinned in `registry-scan.test.ts`).
+const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct(", "staffForPermission(", "requireSupplier(", "supplierPost(", "supplierUploadPost(", "supplierGet(", "stageEdit(", "stageRecordEdit("];
 
 interface Entry {
   file: string;

@@ -58,10 +58,10 @@ async function signedIn(opts: { admin?: boolean; org?: string } = {}) {
 const administrator = () => signedIn({ admin: true });
 
 /// An office holder who holds the given permissions through a role the organisation granted them to, as a real office holder does.
-async function officer(...keys: ("configuration.draft" | "configuration.issue")[]) {
+async function officer(...keys: ("configuration.draft" | "configuration.issue" | "corrections.decide")[]) {
   return officerIn(organisationId, ...keys);
 }
-async function officerIn(org: string, ...keys: ("configuration.draft" | "configuration.issue")[]) {
+async function officerIn(org: string, ...keys: ("configuration.draft" | "configuration.issue" | "corrections.decide")[]) {
   const roleCode = `ED_${randomId()}`;
   await db.authorityRole.create({ data: { organisationId: org, code: roleCode, nameEn: `Edit role ${roleCode}`, nameMs: "Peranan" } });
   for (const permissionKey of keys) await db.rolePermission.create({ data: { organisationId: org, permissionKey, roleCode, decision: "GRANTED" } });
@@ -88,7 +88,7 @@ let actorForRun: StaffActor;
 let calls: string[] = [];
 
 function editor(key: string, over: Partial<EditOperation>, run: (data: FormData, actor: StaffActor) => Promise<EditRunResult>) {
-  ops[key] = { key, kind: "CONFIGURATION_EDIT", label: `Test: ${key}`, administratorMay: true, ...over, run };
+  ops[key] = { key, kind: "CONFIGURATION_EDIT", label: `Test: ${key}`, administratorMay: true, proposePermission: "configuration.draft", decidePermission: "configuration.issue", ...over, run };
 }
 
 const seriesKey = (data: FormData) => String(data.get("key") ?? "");
@@ -157,6 +157,14 @@ editor("test.sulitReach", { administratorMay: false }, async (data, actor) => {
 });
 
 editor("test.nothing", {}, async () => ({ ok: true }));
+
+/// A correction of the record: anyone the editor lets do the act proposes it, and a holder of `corrections.decide` (granted by the organisation, never through the flag) decides it.
+editor("test.correction", { kind: "BASELINE_CORRECTION", administratorMay: false, proposePermission: null, decidePermission: "corrections.decide" }, async (data, actor) => {
+  const key = seriesKey(data);
+  const row = await db.numberingSeries.create({ data: { organisationId, key, nameEn: key, pattern: "corrected", padding: 3, resetOn: "NEVER" } });
+  await audit(actor, row.id, key, "CREATE", [{ field: "pattern", before: null, after: "corrected" }], "");
+  return { ok: true };
+});
 
 const registry: EditRegistry = {
   find: (key) => ops[key] ?? null,
@@ -447,6 +455,48 @@ describe("an administrator is kept from some editors", () => {
     expect(await propose(holder, "test.sulitReach", fields(key()))).toMatchObject({ ok: false, faults: [{ code: "SECOND_PERSON_NEEDED" }] });
     // The same editor that an administrator is not kept from is proposable, as the administrator would decide it.
     expect(await propose(holder, "test.saveSeries", fields(key()))).toMatchObject({ ok: true });
+  });
+});
+
+describe("a correction of the record has its own checker", () => {
+  it("is proposed by an officer who holds no configuration permission, and decided only by a holder of the permission to decide corrections", async () => {
+    const maker = await officer();
+    const checker = await officer("corrections.decide");
+    const holder = await officer("configuration.draft", "configuration.issue");
+    const a = await administrator();
+    const k = key();
+    const id = await proposed(maker, "test.correction", [["key", k]]);
+    expect(await rowOf(id)).toMatchObject({ kind: "BASELINE_CORRECTION", status: "PROPOSED" });
+    // Neither the permission to issue configuration, nor the administrator flag, decides a correction.
+    expect(await decide(holder, id, "APPLY")).toMatchObject({ ok: false, faults: [{ code: "NOT_PERMITTED" }] });
+    expect(await decide(a, id, "APPLY")).toMatchObject({ ok: false });
+    expect(await series(k)).toBeNull();
+    expect(await decide(checker, id, "APPLY")).toMatchObject({ ok: true });
+    expect(await series(k)).toMatchObject({ pattern: "corrected" });
+    const view = await loadChangesView(checker.actor, new Date(), registry);
+    expect(view.decided.find((r) => r.id === id)).toMatchObject({ kind: "BASELINE_CORRECTION", status: "APPLIED" });
+  });
+
+  it("says the organisation must grant the permission first where nobody else holds it, and is not proposed by an administrator account", async () => {
+    const org = await db.organisation.create({ data: { code: `ED_${randomId()}`, name: "No checker", timeZone: "Asia/Kuala_Lumpur" } });
+    await setPolicy(org.id, SETTINGS);
+    await signedIn({ admin: true, org: org.id });
+    const maker = await officerIn(org.id);
+    const out = await propose(maker, "test.correction", [["key", key()]]);
+    expect(out).toMatchObject({ ok: false, faults: [{ code: "SECOND_PERSON_NEEDED", en: expect.stringContaining("grant the permission to decide corrections") }] });
+    const a = await administrator();
+    expect(await propose(a, "test.correction", [["key", key()]])).toMatchObject({ ok: false, faults: [{ code: "ADMINISTRATOR_REFUSED" }] });
+  });
+
+  it("is read in the queue by the checker, and is waited for by the holders of the permission only", async () => {
+    const maker = await officer();
+    const checker = await officer("corrections.decide");
+    const bystander = await officer();
+    const id = await proposed(maker, "test.correction", [["key", key()]]);
+    const row = (await loadChangesView(checker.actor, new Date(), registry)).waiting.find((r) => r.id === id)!;
+    expect(row).toMatchObject({ canDecide: true, isYours: false });
+    expect(row.waitingFor).toContain(checker.person.name);
+    expect((await loadChangesView(bystander.actor, new Date(), registry)).waiting.find((r) => r.id === id)).toBeUndefined();
   });
 });
 

@@ -5,7 +5,7 @@ import { RecordCrumb } from "@/components/shell/record-crumb";
 import { CalendarIcon, RouteIcon, ScaleIcon, UsersIcon } from "@/components/icons";
 import { DataList, type Row } from "@/components/data-list";
 import { getCommittee, rulesRoutingTo } from "@/lib/committee/repo";
-import { AddMember, EditMember, EditOpeningPanel, VacateSeat } from "../editors";
+import { AddMember, EditMember, EditOpeningPanel, EditQuorum, VacateSeat } from "../editors";
 import { db } from "@/lib/db";
 import { OPENING_RULE_UNSET } from "@/lib/opening/config";
 import { assessQuorum, quorumFaults } from "@/lib/committee/quorum";
@@ -209,7 +209,12 @@ export default async function CommitteePage({
               icon={<ScaleIcon size={17} />}
               title="Quorum"
               subtitle="Required for a sitting to decide."
-              actions={<ProvenanceBadge value={committee.quorumProvenance} />}
+              actions={
+                <span className="flex items-center gap-2">
+                  <ProvenanceBadge value={committee.quorumProvenance} />
+                  <EditQuorum id={committee.id} name={committee.nameEn} quorum={committee.quorum} provenance={committee.quorumProvenance} />
+                </span>
+              }
             />
             <CardBody>
               <QuorumCard quorum={committee.quorum} seats={voting.length} />

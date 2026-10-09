@@ -119,7 +119,7 @@ describe("every attach path judges the version read after the document's lock (s
   });
 
   it("attachRecommendation (saveDelegation's attach) takes its version from lockVersion", () => {
-    const attach = body(src("src/app/configuration/users/actions.ts"), "async function attachRecommendation(");
+    const attach = body(src("src/app/configuration/users/core.ts"), "async function attachRecommendation(");
     const locked = attach.indexOf("const v = await lockVersion(tx, versionId, orgId);");
     expect(locked).toBeGreaterThan(-1);
     expect(attach.indexOf("attachFault(")).toBeGreaterThan(locked);

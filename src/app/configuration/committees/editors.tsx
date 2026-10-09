@@ -8,6 +8,7 @@ import {
   retireNotApprovedOutcome,
   saveCommittee,
   saveCommitteePanel,
+  saveCommitteeQuorum,
   saveMember,
   saveNotApprovedOutcome,
   vacateSeat,
@@ -72,20 +73,25 @@ function committeeFields(editing: boolean, offices: OfficeOption[]): Field[] {
       label: "Outside the organisation",
       hint: "An external body's decision is a precondition rather than an internal authority.",
     },
-    {
-      kind: "number",
-      name: "quorum",
-      label: "Quorum",
-      min: 1,
-      hint: "Leave empty where none is set. Empty is not zero — a sitting cannot be certified quorate under an unset quorum.",
-    },
-    {
-      kind: "select",
-      name: "quorumProvenance",
-      label: "Where the quorum came from",
-      placeholder: "Not set",
-      options: PROVENANCE_OPTIONS,
-    },
+    // Phase 5a (FR-CTE-003): set when the committee is made; changed afterwards only by its own act, which a second person decides (`EditQuorum`).
+    ...(editing
+      ? []
+      : ([
+          {
+            kind: "number",
+            name: "quorum",
+            label: "Quorum",
+            min: 1,
+            hint: "Leave empty where none is set. Empty is not zero — a sitting cannot be certified quorate under an unset quorum. It is changed afterwards on the committee's own page, by a change a second person decides.",
+          },
+          {
+            kind: "select",
+            name: "quorumProvenance",
+            label: "Where the quorum came from",
+            placeholder: "Not set",
+            options: PROVENANCE_OPTIONS,
+          },
+        ] as Field[])),
     {
       kind: "select",
       name: "votingRule",
@@ -540,6 +546,27 @@ export function RetireNotApprovedOutcome({ id, label }: { id: string; label: str
         className: buttonClass("destructive", "sm"),
       }}
       size="sm"
+    />
+  );
+}
+
+/// FR-CTE-003 (Phase 5a): the quorum has a drawer of its own. A change asks for a reason and is decided by a second person.
+export function EditQuorum({ id, name, quorum, provenance }: { id: string; name: string; quorum: number | null; provenance: string | null }) {
+  return (
+    <RecordEditor
+      title={`Quorum of ${name}`}
+      description="The number of members a sitting needs before it can decide. Empty is not zero: a sitting cannot be certified quorate under an unset quorum. A change to the quorum is proposed here and decided by a second person; the sittings that already ran keep the quorum they were certified against."
+      fields={[
+        { kind: "hidden", name: "id" },
+        { kind: "number", name: "quorum", label: "Quorum", min: 1, hint: "Leave empty to clear it." },
+        { kind: "select", name: "quorumProvenance", label: "Where the quorum came from", placeholder: "Not set", options: PROVENANCE_OPTIONS },
+      ]}
+      values={{ id, quorum: quorum == null ? null : String(quorum), quorumProvenance: provenance }}
+      reason={{ label: "Why the quorum is changed" }}
+      action={saveCommitteeQuorum}
+      submitLabel="Propose the change"
+      trigger={{ label: "Change", className: buttonClass("ghost", "sm"), ariaLabel: `Change the quorum of ${name}` }}
+      size="md"
     />
   );
 }

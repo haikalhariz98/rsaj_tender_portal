@@ -60,7 +60,7 @@ describe("ending a role assignment stores a day, not an instant", () => {
 });
 
 describe("the End action (source scan)", () => {
-  const src = readFileSync(join(__dirname, "..", "..", "app", "configuration", "users", "actions.ts"), "utf8");
+  const src = readFileSync(join(__dirname, "..", "..", "app", "configuration", "users", "core.ts"), "utf8");
   const body = src.slice(src.indexOf("export async function endAssignment"), src.indexOf("class RecommendationRefused"));
 
   it("never stores the current instant as the end", () => {

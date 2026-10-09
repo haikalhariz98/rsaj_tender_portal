@@ -379,6 +379,8 @@ function PermissionsPanel({ offices, capabilities, grants, product }: UsersData)
   const decided = decidedRoles(grants);
   const [pending, startTransition] = useTransition();
   const [problem, setProblem] = useState<string | null>(null);
+  // Phase 5b: a click on a cell is a proposal. The grid shows what is in force, so the click is dropped once it is accepted, and the screen says what happens next.
+  const [proposed, setProposed] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
   // Searching narrows the capabilities, not the roles. A group with nothing left in
@@ -413,11 +415,13 @@ function PermissionsPanel({ offices, capabilities, grants, product }: UsersData)
   const toggle = (roleCode: string, capabilityId: string, on: boolean) => {
     const k = key(roleCode, capabilityId);
     setProblem(null);
+    setProposed(null);
     setInFlight((m) => new Map(m).set(k, on));
     startTransition(async () => {
       const result = await setGrant(roleCode, capabilityId, on);
-      if (result.ok) return;
-      setProblem(result.message ?? "That change was not saved.");
+      if (result.ok && !result.notice) return;
+      if (result.ok) setProposed(result.notice ?? null);
+      else setProblem(result.message ?? "That change was not saved.");
       setInFlight((m) => {
         const next = new Map(m);
         next.delete(k);
@@ -457,6 +461,11 @@ function PermissionsPanel({ offices, capabilities, grants, product }: UsersData)
           </div>
         }
       />
+      {proposed && (
+        <Callout tone="ok" className="mx-5 mt-4 sm:mx-6">
+          {proposed}
+        </Callout>
+      )}
       {problem && (
         <Callout tone="err" className="mx-5 mt-4 sm:mx-6">
           {problem}

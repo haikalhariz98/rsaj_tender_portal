@@ -603,7 +603,7 @@ describe("the scan catches each evasion (self-tests)", () => {
 describe("configuration saves read under their lock (Phase 0, group E)", () => {
   const MATRIX = "src/app/configuration/approval-matrix/actions.ts";
   const LOCKS = "src/lib/authority/locks.ts";
-  const ORG = "src/app/configuration/organisation/actions.ts";
+  const ORG = "src/app/configuration/organisation/core.ts";
   // Phase 5b: the numbering editor now lives in core.ts (actions.ts only proposes it); the order the test pins is unchanged.
   const NUMBERING = "src/app/configuration/numbering/core.ts";
   const body = (file: string, name: string) => lex(actions(read(file)).get(name)!, { only: "comments" });

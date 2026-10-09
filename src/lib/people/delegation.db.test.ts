@@ -1,3 +1,5 @@
+// Phase 5b (the plan's 5b line, decisions log 2026-10-09): the editors of Configuration, Users and roles are proposals now (`actions.ts`), and run in `core.ts` when a second person applies the change.
+// This file tests the editors themselves, so it calls `core.ts`; `src/app/configuration/changes/stage.db.test.ts` and `src/lib/auth/edit.db.test.ts` hold the propose-then-apply path.
 import { randomBytes } from "node:crypto";
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -84,7 +86,7 @@ beforeAll(async () => {
 
 describe("a grantor other than the signed-in officer (F8)", () => {
   it("is refused to an officer who is neither an administrator nor may record on someone's behalf", async () => {
-    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const { saveDelegation } = await import("@/app/configuration/users/core");
     // The clerk keys A's delegation to C from A's letter.
     const r = await as({ personId: clerk, personName: "Clerk", isAdministrator: false, permissions: new Set(["configuration.draft"]) }, () =>
       saveDelegation({ ok: false }, delegation(a, c, { "fromPersonId:paperReference": "Letter of A" })),
@@ -94,7 +96,7 @@ describe("a grantor other than the signed-in officer (F8)", () => {
   });
 
   it("is accepted from an administrator, with both people kept: the grantor and the officer who recorded it", async () => {
-    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const { saveDelegation } = await import("@/app/configuration/users/core");
     const r = await as({ personId: clerk, personName: "Clerk", isAdministrator: true }, () =>
       saveDelegation({ ok: false }, delegation(a, c, { "fromPersonId:paperReference": "Letter of A", effectiveTo: "2026-10-31" })),
     );
@@ -106,7 +108,7 @@ describe("a grantor other than the signed-in officer (F8)", () => {
   });
 
   it("is accepted from an officer who holds the permission to record on someone's behalf", async () => {
-    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const { saveDelegation } = await import("@/app/configuration/users/core");
     const r = await as({ personId: clerk, personName: "Clerk", isAdministrator: false, permissions: new Set(["configuration.draft", "acts.recordOnBehalf"]) }, () =>
       saveDelegation({ ok: false }, delegation(b, c, { "fromPersonId:paperReference": "Letter of B", effectiveTo: "2026-10-31" })),
     );
@@ -125,7 +127,7 @@ describe("a grantor other than the signed-in officer (F8)", () => {
 // staged for a delegation: `src/app/api/documents/route.test.ts`) and to save the delegation with it attached.
 describe("an administrator records a delegation for an absent grantor, with the signed recommendation attached (FR-APR-012)", () => {
   it("is refused without the scan, and accepted with it, the version filed on the delegation", async () => {
-    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const { saveDelegation } = await import("@/app/configuration/users/core");
     const role = `ABS_${run}`;
     // The absent HOLDER is the jobholder (log line 1773): the grantor is their superior, whose letter the administrator records.
     const jobholder = (await makePerson(organisationId, `Away ${run}`)).id;
@@ -155,7 +157,7 @@ describe("an administrator records a delegation for an absent grantor, with the 
 
 describe("two delegations that would close a loop cannot both be saved, however they race (F8)", () => {
   it("a save waits for the one in progress, and then reads it", async () => {
-    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const { saveDelegation } = await import("@/app/configuration/users/core");
     const ROLE2 = `DEL2_${run}`;
     await db.roleAssignment.createMany({ data: [a, b].map((personId) => ({ personId, roleCode: ROLE2, effectiveFrom: day("2020-01-01") })) });
     let release!: () => void;
@@ -193,7 +195,7 @@ describe("a reporting line (FR-APR-010, FR-APR-011)", () => {
     form({ personId, superiorPersonId: superior, effectiveFrom: "2026-01-01", provenance: "ASSUMED", note: "Test", ...over });
 
   it("is recorded, audited with who recorded it, and a person with none is still 'not set'", async () => {
-    const { saveReportingLine } = await import("@/app/configuration/users/actions");
+    const { saveReportingLine } = await import("@/app/configuration/users/core");
     expect(await saveReportingLine({ ok: false }, line(clerk, a))).toEqual({ ok: true });
     const row = await db.reportingLine.findFirstOrThrow({ where: { organisationId, personId: clerk } });
     expect(row.superiorPersonId).toBe(a);
@@ -204,7 +206,7 @@ describe("a reporting line (FR-APR-010, FR-APR-011)", () => {
   });
 
   it("refuses a loop, and a second line for the same person over the same days", async () => {
-    const { saveReportingLine } = await import("@/app/configuration/users/actions");
+    const { saveReportingLine } = await import("@/app/configuration/users/core");
     // A under the clerk would make A above the clerk above A.
     const loop = await saveReportingLine({ ok: false }, line(a, clerk));
     expect(loop).toMatchObject({ ok: false, errors: { superiorPersonId: expect.stringMatching(/loop/) } });
@@ -214,7 +216,7 @@ describe("a reporting line (FR-APR-010, FR-APR-011)", () => {
   });
 
   it("records 'nobody above' as a line, and refuses oneself", async () => {
-    const { saveReportingLine } = await import("@/app/configuration/users/actions");
+    const { saveReportingLine } = await import("@/app/configuration/users/core");
     expect(await saveReportingLine({ ok: false }, line(b, "__none__"))).toEqual({ ok: true });
     expect((await db.reportingLine.findFirstOrThrow({ where: { organisationId, personId: b } })).superiorPersonId).toBeNull();
     const self = await saveReportingLine({ ok: false }, line(c, c));
@@ -222,7 +224,7 @@ describe("a reporting line (FR-APR-010, FR-APR-011)", () => {
   });
 
   it("is refused a superior who has left", async () => {
-    const { saveReportingLine } = await import("@/app/configuration/users/actions");
+    const { saveReportingLine } = await import("@/app/configuration/users/core");
     const gone = (await makePerson(organisationId, `Gone ${run}`)).id;
     await db.person.update({ where: { id: gone }, data: { isActive: false } });
     const r = await saveReportingLine({ ok: false }, line(c, gone));
@@ -236,7 +238,7 @@ describe("the grantor and the delegate against the reporting lines, once they ar
   const asB = <T,>(fn: () => Promise<T>) => as({ personId: b, personName: "B" }, fn);
 
   it("the jobholder holds the office and the grantor, being the superior, need not; a delegation of one's own authority is refused whatever the lines say", async () => {
-    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const { saveDelegation } = await import("@/app/configuration/users/core");
     // A holds the role; B (who holds nothing of it) is A's superior, once the line is recorded below. Lines are recorded already for the clerk (to A) by the tests above.
     await db.roleAssignment.create({ data: { personId: a, roleCode: ROLE3, effectiveFrom: day("2020-01-01") } });
     // The grantor is the jobholder: refused, and a new delegation with no jobholder at all is asked for one.
@@ -251,7 +253,7 @@ describe("the grantor and the delegate against the reporting lines, once they ar
   });
 
   it("refuses a grantor who is not the jobholder's immediate superior, a delegate who does not report to the JOBHOLDER, and one with no line", async () => {
-    const { saveDelegation, saveReportingLine } = await import("@/app/configuration/users/actions");
+    const { saveDelegation, saveReportingLine } = await import("@/app/configuration/users/core");
     // A reports to B.
     expect(await saveReportingLine({ ok: false }, form({ personId: a, superiorPersonId: b, effectiveFrom: "2026-01-01", provenance: "ASSUMED", note: "Test" }))).toEqual({ ok: true });
     // C grants A's authority, but C is not A's superior.
@@ -265,7 +267,7 @@ describe("the grantor and the delegate against the reporting lines, once they ar
   });
 
   it("accepts the jobholder's superior granting the jobholder's authority to a direct subordinate of the jobholder, and the row records the jobholder and not the grantor as the holder", async () => {
-    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const { saveDelegation } = await import("@/app/configuration/users/core");
     const accepted = await asB(() => saveDelegation({ ok: false }, delegation(b, clerk, { roleCode: ROLE3, jobholderPersonId: a })));
     expect(accepted).toEqual({ ok: true });
     const row = await db.delegation.findFirstOrThrow({ where: { organisationId, roleCode: ROLE3 } });
@@ -282,7 +284,7 @@ describe("the grantor and the delegate against the reporting lines, once they ar
   });
 
   it("a delegation recorded before the rule may be edited without a jobholder, and is read as it always was; one that records a jobholder may not drop it", async () => {
-    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const { saveDelegation } = await import("@/app/configuration/users/core");
     const legacy = await db.delegation.create({ data: { organisationId, fromPersonId: a, toPersonId: clerk, roleCode: `OLD_${run}`, capabilityCodes: [], effectiveFrom: day("2026-10-01"), effectiveTo: day("2026-12-31"), reason: "Before the rule" } });
     await db.roleAssignment.create({ data: { personId: a, roleCode: `OLD_${run}`, effectiveFrom: day("2020-01-01") } });
     const edited = await saveDelegation({ ok: false }, form({ id: legacy.id, fromPersonId: a, toPersonId: clerk, roleCode: `OLD_${run}`, effectiveFrom: "2026-10-01", effectiveTo: "2026-12-31", reason: "Still before the rule" }));

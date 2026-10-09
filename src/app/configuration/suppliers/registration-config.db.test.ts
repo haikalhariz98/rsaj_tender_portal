@@ -17,7 +17,9 @@ vi.mock("@/app/_auth/actor", async () => {
 });
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined, updateTag: () => undefined }));
 
-import { saveDeclarationText, saveDocumentType, saveRegistrationSettings, setDeclarationTextRetired } from "./actions";
+// Phase 5b (the plan's 5b line, ruling 1909(A)): these editors are proposals now; this file tests the editors themselves (the rules each holds), which run in `core.ts` when a second
+// person applies a change. `registration-value.db.test.ts` proposes and applies one through the screen's own action.
+import { saveDeclarationText, saveDocumentType, saveRegistrationSettings, setDeclarationTextRetired } from "./core";
 
 const run = randomId();
 const form = (fields: Record<string, string>) => {

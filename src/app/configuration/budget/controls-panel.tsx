@@ -50,6 +50,8 @@ export function ControlsPanel({
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<FormState>({ ok: false });
   const [saved, setSaved] = useState(false);
+  // Phase 5b: a save is a proposal until a second person decides it, and the screen says so.
+  const [notice, setNotice] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   // Clearing asks first, and afterwards the form is rebuilt from what is saved: its
@@ -64,10 +66,12 @@ export function ControlsPanel({
 
   const submit = (data: FormData) => {
     setSaved(false);
+    setNotice(null);
     startTransition(async () => {
       const result = await saveBudgetControls({ ok: false }, data);
       setState(result);
-      setSaved(result.ok);
+      setSaved(result.ok && !result.notice);
+      setNotice(result.ok ? (result.notice ?? null) : null);
       if (result.ok) setDirty(false);
     });
   };
@@ -78,6 +82,11 @@ export function ControlsPanel({
       setConfirming(false);
       if (!result.ok) {
         setState(result);
+        return;
+      }
+      // Proposed, not done: the controls stand as they are until a second person decides it, so the form is not emptied.
+      if (result.notice) {
+        setNotice(result.notice);
         return;
       }
       setCheck("");
@@ -345,6 +354,7 @@ export function ControlsPanel({
             }}
           />
         )}
+        {notice && !dirty && <Callout tone="ok">{notice}</Callout>}
         {saved && !dirty && (
           <span className="inline-flex items-center gap-1.5 text-[13px] text-ink-3" role="status">
             <CheckIcon size={14} className="text-emerald-600" />

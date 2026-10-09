@@ -20,7 +20,7 @@ describe("a form's version moves with its blocks and its list", () => {
     expect(nextFormVersion(0)).toBe(0);
   });
   it("every act that changes a block or a recipient bumps it, under the form's lock, and audits it", () => {
-    const src = read("src/app/configuration/templates/form-actions.ts");
+    const src = read("src/app/configuration/templates/form-core.ts");
     for (const name of ["saveSignatureBlock", "removeSignatureBlock", "saveDistributionRow", "removeDistributionRow"]) {
       const at = src.indexOf(`export async function ${name}(`);
       const body = src.slice(at, src.indexOf("\nexport async function ", at + 10) === -1 ? undefined : src.indexOf("\nexport async function ", at + 10));

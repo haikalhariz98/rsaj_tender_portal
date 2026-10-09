@@ -38,7 +38,7 @@ describe("(a) only a certificate form takes blocks and recipients", () => {
     expect(relations.filter((r) => !certificateOwn.includes(r)).sort()).toEqual(Object.keys(TEMPLATE_OTHER_USES).sort());
   });
   it("the acts refuse a block or a recipient on such a template, and never move its version", () => {
-    const src = read("src/app/configuration/templates/form-actions.ts");
+    const src = read("src/app/configuration/templates/form-core.ts");
     for (const name of ["saveSignatureBlock", "saveDistributionRow"]) {
       const at = src.indexOf(`export async function ${name}(`);
       const body = src.slice(at, src.indexOf("\nexport async function ", at + 10));
@@ -65,7 +65,7 @@ describe("(b) a provenance or a note alone does not move the version", () => {
     expect(rowPinChanged(r, { ...r, sortOrder: 9 })).toBe(true);
   });
   it("the acts bump only on such a change", () => {
-    const src = read("src/app/configuration/templates/form-actions.ts");
+    const src = read("src/app/configuration/templates/form-core.ts");
     expect(src).toMatch(/if \(blockPinChanged\(before \? blockOf\(before\) : null, v\)\) await bumpFormVersion/);
     expect(src).toMatch(/if \(rowPinChanged\(before \? rowOf\(before\) : null, row\)\) await bumpFormVersion/);
   });
@@ -78,7 +78,7 @@ describe("(c) the pin reads the form under a shared lock", () => {
     const share = body.indexOf(`$queryRaw\`SELECT id FROM "DocumentTemplate" WHERE id = \${cert.templateId} FOR SHARE\``);
     expect(share).toBeGreaterThan(-1);
     expect(share).toBeLessThan(body.indexOf("templateNow(cert.templateId, c.tx)"));
-    expect(read("src/app/configuration/templates/form-actions.ts")).toMatch(/SELECT id FROM "DocumentTemplate" WHERE id = \$\{templateId\} FOR UPDATE/);
-    expect(read("src/app/configuration/templates/actions.ts")).toMatch(/SELECT id FROM "DocumentTemplate" WHERE id = \$\{id\} FOR UPDATE/);
+    expect(read("src/app/configuration/templates/form-core.ts")).toMatch(/SELECT id FROM "DocumentTemplate" WHERE id = \$\{templateId\} FOR UPDATE/);
+    expect(read("src/app/configuration/templates/core.ts")).toMatch(/SELECT id FROM "DocumentTemplate" WHERE id = \$\{id\} FOR UPDATE/);
   });
 });

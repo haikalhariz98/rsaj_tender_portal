@@ -32,7 +32,7 @@ describe("carry 5: the restriction question is not stored as the audit reason", 
 
 describe("carry 6: saving the policy refuses a permit list that classifies contracts", () => {
   it("reads the taxonomy's uses inside the transaction, under the organisation's lock", () => {
-    const body = fn(read("src/app/configuration/tender-documents/actions.ts"), "saveTenderPolicy");
+    const body = fn(read("src/app/configuration/tender-documents/core.ts"), "saveTenderPolicy");
     const tx = body.slice(body.indexOf("db.$transaction"));
     expect(tx).toMatch(/lockOrganisation[\s\S]*conditionsPolicyFaults\([^\n]*loadTaxonomyUses\(org\.id, tx\)/);
   });

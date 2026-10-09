@@ -45,7 +45,7 @@ describe("ending a budget allocation stores the organisation's day (66-C1 a)", (
 });
 
 describe("the End action (source scan, 66-C1 a)", () => {
-  const src = readFileSync("src/app/configuration/budget/actions.ts", "utf8");
+  const src = readFileSync("src/app/configuration/budget/core.ts", "utf8");
   const body = src.slice(src.indexOf("export async function endAllocation"), src.indexOf("// ------------------------------------------------------------------ budget codes"));
 
   it("never stores the current instant as the end; the rule decides the day", () => {

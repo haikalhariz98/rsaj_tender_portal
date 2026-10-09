@@ -65,7 +65,7 @@ describe("E-8: the committee's bundle and the loop-back (6.10 tableMatter, recor
     expect(loop).toMatch(/if \(!ev\.bundle\.applies \|\| ev\.version == null\) return null;/);
   });
   it("a configured return names one of the evaluation's stages, or keeps a stage typed before as it was", () => {
-    const config = read("src", "app", "configuration", "committees", "actions.ts");
+    const config = read("src", "app", "configuration", "committees", "core.ts");
     expect(config).toMatch(/if \(returnsToStage && !isLoopKey\(returnsToStage\) && returnsToStage !== current\?\.returnsToStage\) r\.reject\("returnsToStage"/);
   });
 });
@@ -123,7 +123,7 @@ describe("E-10: the cancellation closes the evaluation in force (6.5 applyCancel
 
 describe("Configuration › Templates accepts the evaluation's merge fields (6.8 report, Kertas Cadangan)", () => {
   it("a body naming an evaluation field is saved; each instrument re-checks its own whitelist when frozen", () => {
-    const t = read("src", "app", "configuration", "templates", "actions.ts");
+    const t = read("src", "app", "configuration", "templates", "core.ts");
     expect(t).toMatch(/WINDOW_FIELD_KEYS\.has\(f\), clauseCodes\) : \[\]\)\.filter\(\(u\) => !EVALUATION_FIELD_KEYS\.has\(u\)\)/);
   });
 });

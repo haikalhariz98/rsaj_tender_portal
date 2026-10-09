@@ -28,7 +28,7 @@ import { formatOrgDay } from "@/lib/format";
 import { loadDocumentClasses } from "@/lib/records/load";
 
 import { ProvenanceChip, Section, Stat, Stats } from "../records-ui";
-import { AddDocumentClass, EditDocumentClass, EditStorePolicy, ReleaseHold } from "./editors";
+import { AddDocumentClass, EditDocumentClass, EditStorePolicy, LowerClassClassification, ReleaseHold } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
@@ -113,7 +113,7 @@ export default async function DocumentsConfigPage() {
             <col style={{ width: "17%" }} />
             <col style={{ width: "17%" }} />
             <col style={{ width: "9%" }} />
-            <ActionsCol icons={2} />
+            <ActionsCol icons={2} long={1} />
           </colgroup>
           <THead>
             <Th>Class</Th>
@@ -151,6 +151,7 @@ export default async function DocumentsConfigPage() {
                 <Td>
                   <RowActions>
                     <HistoryButton iconOnly entity="DocumentClass" entityId={c.id} label={c.nameEn} />
+                    <LowerClassClassification id={c.id} name={c.nameEn} current={c.classification} />
                     <EditDocumentClass row={c} offices={offices} />
                   </RowActions>
                 </Td>

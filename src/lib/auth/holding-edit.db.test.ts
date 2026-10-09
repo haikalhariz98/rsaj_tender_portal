@@ -1,3 +1,5 @@
+// Phase 5b (the plan's 5b line, decisions log 2026-10-09): the editors of Configuration, Users and roles are proposals now (`actions.ts`), and run in `core.ts` when a second person applies the change.
+// This file tests the editors themselves, so it calls `core.ts`; `src/app/configuration/changes/stage.db.test.ts` and `src/lib/auth/edit.db.test.ts` hold the propose-then-apply path.
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { StaffActor } from "@/lib/auth/types";
@@ -96,7 +98,7 @@ describe("a delegation of an administrator's Person", () => {
     form({ id: delegationId, fromPersonId: adminPersonId, "fromPersonId:paperReference": "Letter of the grantor", toPersonId: colleagueId, roleCode, effectiveFrom: "2026-01-01", effectiveTo, reason: "Edited by the test", ...over });
 
   it("is refused an edit that extends it, with the words that say why", async () => {
-    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const { saveDelegation } = await import("@/app/configuration/users/core");
     const r = await saveDelegation({ ok: false }, edit("2031-12-31"));
     expect(r).toMatchObject({ ok: false });
     expect(JSON.stringify(r)).toMatch(/administrator/);
@@ -104,7 +106,7 @@ describe("a delegation of an administrator's Person", () => {
   });
 
   it("can be ended, which is an edit that only shortens it", async () => {
-    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const { saveDelegation } = await import("@/app/configuration/users/core");
     const r = await saveDelegation({ ok: false }, edit("2026-10-06"));
     expect(r).toEqual({ ok: true });
     expect((await db.delegation.findUniqueOrThrow({ where: { id: delegationId } })).effectiveTo).toEqual(day("2026-10-06"));
@@ -124,7 +126,7 @@ describe("a delegation recorded from another grantor's letter (review of Phase 2
   };
 
   it("is refused to the officer it delegates to: one person would grant the authority and hold it", async () => {
-    const { saveDelegation } = await import("@/app/configuration/users/actions");
+    const { saveDelegation } = await import("@/app/configuration/users/core");
     const before = await db.delegation.findUniqueOrThrow({ where: { id: delegationId } });
     const r = await as({ personId: colleagueId, personName: "The delegate" }, () => saveDelegation({ ok: false }, edit()));
     expect(r).toMatchObject({ ok: false, errors: { toPersonId: expect.stringMatching(/to yourself/) } });
@@ -136,7 +138,7 @@ describe("an office of an administrator's Person", () => {
   const edit = (effectiveTo: string) => form({ id: assignmentId, personId: adminPersonId, roleCode, effectiveFrom: "2020-01-01", effectiveTo, reason: "Edited by the test" });
 
   it("can be shortened, is then refused an edit that opens its end again, and can still be ended", async () => {
-    const { saveAssignment } = await import("@/app/configuration/users/actions");
+    const { saveAssignment } = await import("@/app/configuration/users/core");
     expect(await saveAssignment({ ok: false }, edit("2027-12-31"))).toEqual({ ok: true });
     const reopened = await saveAssignment({ ok: false }, edit(""));
     expect(reopened).toMatchObject({ ok: false });
@@ -145,7 +147,7 @@ describe("an office of an administrator's Person", () => {
   });
 
   it("can be ended by an edit that sets its end", async () => {
-    const { saveAssignment } = await import("@/app/configuration/users/actions");
+    const { saveAssignment } = await import("@/app/configuration/users/core");
     const r = await saveAssignment({ ok: false }, edit("2026-10-06"));
     expect(r).toEqual({ ok: true });
     expect((await db.roleAssignment.findUniqueOrThrow({ where: { id: assignmentId } })).effectiveTo).toEqual(day("2026-10-06"));

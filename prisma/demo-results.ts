@@ -128,7 +128,7 @@ export async function loadResultsDemo(db: Db, organisationId: string, hooks: Res
   if (unset.some((c) => c.id !== `${P}cl2`)) fail(`a clause that is not the demo's has "every agreement carries it" unset (${unset.map((c) => c.titleEn).join(", ")}): set it under Configuration first`);
   const cl2 = unset.find((c) => c.id === `${P}cl2`);
   if (cl2) {
-    const { saveClause } = await import("../src/app/configuration/tender-documents/conditions-actions");
+    const { saveClause } = await import("../src/app/configuration/tender-documents/conditions-core");
     const nowKl = new Date(Date.now() + 8 * 3_600_000 - 60_000).toISOString().slice(0, 16);
     await act(nowKl, "the demo's valuation clause decided", saveClause, {
       id: cl2.id, code: cl2.code, titleEn: cl2.titleEn, titleMs: cl2.titleMs, bodyEn: cl2.bodyEn, bodyMs: cl2.bodyMs, mandatoryInAgreements: "no", sortOrder: String(cl2.sortOrder),

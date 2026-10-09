@@ -1,3 +1,5 @@
+// Phase 5b (the plan's 5b line, decisions log 2026-10-09): the editors of Configuration, Users and roles are proposals now (`actions.ts`), and run in `core.ts` when a second person applies the change.
+// This file tests the editors themselves, so it calls `core.ts`; `src/app/configuration/changes/stage.db.test.ts` and `src/lib/auth/edit.db.test.ts` hold the propose-then-apply path.
 import { createHash, randomBytes } from "node:crypto";
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -334,13 +336,13 @@ describe("organisation B's person, given organisation A's ids, is refused as if 
   });
 
   it("ends no office assignment of A's", async () => {
-    const { endAssignment } = await import("@/app/configuration/users/actions");
+    const { endAssignment } = await import("@/app/configuration/users/core");
     const r = await refusedAsIfMissing((id) => endAssignment({ ok: false }, form({ id, effectiveTo: "2026-10-06", reason: "Cross-organisation test." })), A.assignment);
     expect(r).toMatchObject({ message: "That assignment no longer exists." });
   });
 
   it("vacates no committee seat of A's", async () => {
-    const { vacateSeat } = await import("@/app/configuration/committees/actions");
+    const { vacateSeat } = await import("@/app/configuration/committees/core");
     const r = await refusedAsIfMissing((id) => vacateSeat({ ok: false }, form({ id, reason: "Cross-organisation test." })), A.member);
     expect(r).toMatchObject({ message: "That seat no longer exists." });
   });

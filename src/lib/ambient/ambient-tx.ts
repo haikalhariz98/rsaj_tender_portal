@@ -26,11 +26,14 @@ export interface CapturedAudit {
   changes: FieldChange[];
 }
 
-/// The statements of a savepoint, given by whoever holds the transaction client.
+/// How deep savepoints may nest. The statements are written out whole (`src/lib/db.ts`), one set per level, so that no SQL is assembled from pieces.
+export const MAX_SAVEPOINT_DEPTH = 8;
+
+/// The statements of a savepoint at a level (1 to `MAX_SAVEPOINT_DEPTH`), given by whoever holds the transaction client.
 export interface SavepointSql {
-  savepoint(name: string): Promise<unknown>;
-  release(name: string): Promise<unknown>;
-  rollbackTo(name: string): Promise<unknown>;
+  savepoint(level: number): Promise<unknown>;
+  release(level: number): Promise<unknown>;
+  rollbackTo(level: number): Promise<unknown>;
 }
 
 export interface Ambient {
@@ -42,7 +45,8 @@ export interface Ambient {
   sql: SavepointSql;
   /// Every audit row written while it is set, in order, with those of a rolled-back savepoint removed.
   captured: CapturedAudit[];
-  savepoints: number;
+  /// How many savepoints are open now.
+  depth: number;
 }
 
 const KEY = Symbol.for("perolehan.ambientTransaction");
@@ -51,33 +55,38 @@ export const ambientStore: AsyncLocalStorage<Ambient> = (g[KEY] ??= new AsyncLoc
 
 export const currentAmbient = (): Ambient | undefined => ambientStore.getStore();
 
-export const newAmbient = (tx: object, sql: SavepointSql, mode: Ambient["mode"]): Ambient => ({ mode, tx, sql, captured: [], savepoints: 0 });
+export const newAmbient = (tx: object, sql: SavepointSql, mode: Ambient["mode"]): Ambient => ({ mode, tx, sql, captured: [], depth: 0 });
 
 /// Called by `writeAudit`: when an ambient transaction is set the row is also kept, so a rehearsal and a decision can read what the editor recorded.
 export function captureAudit(row: CapturedAudit): void {
   ambientStore.getStore()?.captured.push(row);
 }
 
-/// A savepoint's name is made from a counter and never from input.
-const nameOf = (a: Ambient) => `amb_${++a.savepoints}`;
+/// Opens the next level: a savepoint's level is how many are open, never anything a request says.
+function open(a: Ambient): number {
+  if (a.depth >= MAX_SAVEPOINT_DEPTH) throw new Error(`Savepoints nest no deeper than ${MAX_SAVEPOINT_DEPTH}.`);
+  return ++a.depth;
+}
 
 /**
  * A nested `db.$transaction(fn)` while an ambient transaction is set: `fn` runs in a SAVEPOINT of the one transaction. If it throws, what it wrote is undone and the
  * error goes on. One that returns a refusal instead of throwing has written whatever it wrote before refusing, as it always did in its own transaction.
  */
 export async function nested<T>(a: Ambient, fn: (tx: object) => Promise<T>): Promise<T> {
-  const name = nameOf(a);
+  const level = open(a);
   const mark = a.captured.length;
-  await a.sql.savepoint(name);
   try {
+    await a.sql.savepoint(level);
     const result = await fn(a.tx);
-    await a.sql.release(name);
+    await a.sql.release(level);
     return result;
   } catch (e) {
     a.captured.length = mark;
-    await a.sql.rollbackTo(name);
-    await a.sql.release(name);
+    await a.sql.rollbackTo(level);
+    await a.sql.release(level);
     throw e;
+  } finally {
+    a.depth = level - 1;
   }
 }
 
@@ -95,25 +104,29 @@ export interface Attempt<T> {
  * Either way, what the editor recorded in the audit trail is handed back.
  */
 export async function attempt<T>(a: Ambient, fn: () => Promise<T>, keep: (result: T, captured: CapturedAudit[]) => boolean): Promise<Attempt<T>> {
-  const name = nameOf(a);
+  const level = open(a);
   const mark = a.captured.length;
-  await a.sql.savepoint(name);
-  let result: T;
   try {
-    result = await ambientStore.run(a, fn);
-  } catch (e) {
+    await a.sql.savepoint(level);
+    let result: T;
+    try {
+      result = await ambientStore.run(a, fn);
+    } catch (e) {
+      a.captured.length = mark;
+      await a.sql.rollbackTo(level);
+      await a.sql.release(level);
+      throw e;
+    }
+    const captured = a.captured.slice(mark);
+    if (keep(result, captured)) {
+      await a.sql.release(level);
+      return { result, captured, kept: true };
+    }
     a.captured.length = mark;
-    await a.sql.rollbackTo(name);
-    await a.sql.release(name);
-    throw e;
+    await a.sql.rollbackTo(level);
+    await a.sql.release(level);
+    return { result, captured, kept: false };
+  } finally {
+    a.depth = level - 1;
   }
-  const captured = a.captured.slice(mark);
-  if (keep(result, captured)) {
-    await a.sql.release(name);
-    return { result, captured, kept: true };
-  }
-  a.captured.length = mark;
-  await a.sql.rollbackTo(name);
-  await a.sql.release(name);
-  return { result, captured, kept: false };
 }
