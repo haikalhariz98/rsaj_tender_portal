@@ -2,6 +2,7 @@ import type { AccountStatus } from "@/generated/prisma/client";
 import { diffFields, type FieldChange } from "@/lib/audit/diff";
 
 import { lastAdministrator } from "./administration-rules";
+import { editKindsReadBy } from "./configuration-edit";
 import { administrationConflict, type Holdings } from "./administration-conflict";
 import { isGrantable, isPermissionKey } from "./permissions";
 import { rangeFaultWords, SETTING_LABELS, policyFaultWords } from "./policy";
@@ -89,7 +90,7 @@ export const KIND_PERMISSION: Record<ChangeKind, PermissionKey> = {
 export const kindsReadBy = (permissions: ReadonlySet<PermissionKey>): ChangeKind[] => CHANGE_KINDS.filter((k) => permissions.has("audit.read") || permissions.has(KIND_PERMISSION[k]));
 
 /// Whether a person may read the queue at all: they hold the permission of at least one kind.
-export const mayReadQueue = (permissions: ReadonlySet<PermissionKey>): boolean => kindsReadBy(permissions).length > 0;
+export const mayReadQueue = (permissions: ReadonlySet<PermissionKey>): boolean => kindsReadBy(permissions).length > 0 || editKindsReadBy(permissions).length > 0;
 
 // --------------------------------------------------------------------------------------------- parsing
 

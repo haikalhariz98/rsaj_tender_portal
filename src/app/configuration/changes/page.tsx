@@ -1,4 +1,5 @@
 import { requireStaff } from "@/app/_auth/actor";
+import { editRegistry } from "@/app/_auth/stage";
 import type { Row } from "@/components/data-list";
 import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
@@ -35,7 +36,7 @@ export default async function ChangesPage() {
   }
   const now = new Date();
   const zone = actor.organisationTimeZone;
-  const view = await loadChangesView(actor, now);
+  const view = await loadChangesView(actor, now, editRegistry);
 
   const since = (c: ChangeRow) => `${formatOrgDateTime(c.proposedAt, zone)}${c.waitingDays != null ? ` · ${c.waitingDays === 0 ? "today" : c.waitingDays === 1 ? "1 day" : `${c.waitingDays} days`}` : ""}`;
   const waiting: QueueRow[] = view.waiting.map((c) => {

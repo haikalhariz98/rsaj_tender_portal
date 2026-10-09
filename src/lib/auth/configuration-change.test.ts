@@ -190,7 +190,10 @@ describe("who reads the queue of changes (review of Phase 2c)", () => {
 
   it("a person reads the kinds whose permission they hold, and nobody who holds none reads the queue", () => {
     expect(mayReadQueue(held())).toBe(false);
-    expect(mayReadQueue(held("configuration.draft"))).toBe(false);
+    // Phase 5: a holder of the drafting permission makes an editor's save and reads it (and the issuing permission decides it), so the queue is theirs too.
+    expect(mayReadQueue(held("configuration.draft"))).toBe(true);
+    expect(mayReadQueue(held("configuration.issue"))).toBe(true);
+    expect(mayReadQueue(held("sulit.read.organisation", "acts.recordOnBehalf"))).toBe(false);
     expect(kindsReadBy(held("permissions.grant"))).toEqual(["PERMISSION_GRANT"]);
     expect(kindsReadBy(held("security.policy"))).toEqual(["SECURITY_POLICY"]);
     expect(kindsReadBy(held("accounts.manage"))).toEqual(["ADMINISTRATOR_GRANT", "ADMINISTRATOR_REVOKE", "ACCOUNT_CODE"]);

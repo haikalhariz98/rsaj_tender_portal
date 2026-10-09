@@ -21,7 +21,8 @@ import { lex } from "@/lib/scan/source";
 
 const ROOT = path.join(__dirname, "../../..");
 const ISSUER = "src/lib/numbering/issue.ts";
-const EDITOR = "src/app/configuration/numbering/actions.ts";
+// Phase 5b: the numbering editor moved from actions.ts (now only a proposal) to core.ts, which runs when a second person applies the change. The rule is unchanged: the same code, the same lock.
+const EDITOR = "src/app/configuration/numbering/core.ts";
 const ALLOWED = [ISSUER, EDITOR];
 
 const READS = "findUnique|findFirst|findMany|findUniqueOrThrow|findFirstOrThrow|count|aggregate|groupBy";

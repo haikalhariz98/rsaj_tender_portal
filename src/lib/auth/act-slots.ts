@@ -336,6 +336,11 @@ export const ACT_SLOTS: readonly ActSlot[] = [
     signatureClass: true,
     administratorMay: "`configuration.issue` is held through the administrator flag (ADR 0034 D8), so refusing the act would refuse every administrator the permission they hold; it still needs the password and a second person (the product owner, 2026-10-07: issuing is an administrator's act).",
   }),
+  // Issuing an evaluation model (Phase 5a) is the matrix's act again: signature-class, `configuration.issue` held through the administrator flag, and by someone who did not make the draft.
+  slot("EvaluationModel", "issuedBy", "Issued by", {
+    signatureClass: true,
+    administratorMay: "`configuration.issue` is held through the administrator flag (ADR 0034 D8), as for the approval matrix, so refusing the act would refuse every administrator the permission they hold; it still needs the password and a second person who did not make the draft (Phase 5a).",
+  }),
   slot("ConfigurationChange", "proposedBy", "Proposed by", { administratorMay: "A change to configuration is proposed by an administrator or an office holder, and decided by another person (ADR 0034 D15)." }),
   // The checker's decision. Made by an administrator for some kinds (an administrator grant), so it is never refused to one: no `holder`.
   slot("ConfigurationChange", "decidedBy", "Decided by", { signatureClass: true, administratorMay: "The checker's decision on an administrator grant is made by an administrator (ADR 0034 D15)." }),
@@ -397,6 +402,7 @@ export const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "BqVersion.preparer": "A designation: the officer a bill of quantities is prepared by, named in its header and checked against their qualification when the bill is finalised. Who edited the header is in the audit row, and the version's own acts (saving a line, finalising) are the editor's.",
   "ActAttribution.backdateAuthorisedByPerson": "The attribution itself: the officer a signed act's back-dating was authorised by (NFR-AUD-006), named by the actor and kept on the attribution row, which is append-only.",
   "AuthorityMatrixMaker.person": "The maker record itself: written for the signed-in actor by the draft's own edit.",
+  "ConfigurationDraftMaker.person": "The maker record itself (Phase 5a): written for the signed-in actor by the edit of an evaluation model's or a rate schedule's draft, as the matrix's is.",
   "MeetingAttendance.person": "The attendee: the subject of a recorded fact (who was present), not the author of an act.",
   "Delegation.toPerson": "The delegate: who receives the authority, not who granted it. The act is the grant, whose slot is `Delegation.fromPerson`.",
   "Delegation.jobholder": "The jobholder whose authority is delegated (ruling of 2026-10-08, log line 1773): the person the grant is about, not who grants it. The act is the grant, whose slot is `Delegation.fromPerson`, and the audit row names the jobholder.",

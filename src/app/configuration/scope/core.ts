@@ -1,5 +1,3 @@
-"use server";
-
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -16,8 +14,11 @@ import { activePerson, loadRateIssues } from "@/lib/scope/repo";
 import { dayToDate, todayIn } from "@/lib/dates";
 import { formatSen, parseSen, senToDecimalString } from "@/lib/money";
 import { FormReader } from "@/lib/validate";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
+import { requireStaff, staffForPermission, toAuditActor } from "@/app/_auth/actor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
+import { eligibleFor } from "@/lib/auth/eligibility-store";
+import { loadDraftMakers, noteDraftMaker } from "@/lib/auth/draft-makers";
+import { draftIssueFault } from "@/lib/auth/maker-checker";
 import type { AuditActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
@@ -28,6 +29,10 @@ import type { OrgScope } from "@/lib/org-scope";
  * company-estimate rule, a basis's bill rule; OD-6). Each write locks the row it edits
  * (`FOR UPDATE`), re-reads it, checks it, and writes it with its before/after audit row in
  * one transaction. Every value set says where it came from; nothing is shipped set.
+ *
+ * Phase 5a (ADR 0034 D15): a rate schedule's draft is drafted by the maker (`configuration.draft`; each accepted edit puts the signed-in person on record as a maker) and issued
+ * by someone who did not make it, who holds `configuration.issue` (held by the database as well: trigger `guard_draft_issue`). The rest of this file is proposed in `actions.ts`
+ * and runs here when a second person applies it.
  */
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
@@ -405,6 +410,7 @@ export async function startRateIssue(_prev: FormState, data: FormData): Promise<
     const from = issues.filter((i) => i.label === label).sort((a, b) => b.issueNo - a.issueNo)[0] ?? null;
     const row = await tx.rateSchedule.create({ data: { organisationId: orgId, label, issueNo, status: "DRAFT", provenance, governingSource, notes } });
     await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, row.id, issueLabel(label, issueNo), "CREATE", null, { schedule: label, issue: issueNo, status: RATE_SCHEDULE_STATUS_LABEL.DRAFT, provenance, governingSource, ...(from ? { copiedFrom: `issue ${from.issueNo}`, items: from.items.length } : {}) });
+    await noteDraftMaker(tx, { organisationId: orgId, entity: "RateSchedule", entityId: row.id, actor });
     for (const i of from?.items ?? []) {
       const item = await tx.rateScheduleItem.create({ data: { organisationId: orgId, scheduleId: row.id, code: i.code, descriptionEn: i.descriptionEn, descriptionMs: i.descriptionMs, unit: i.unit, rate: senToDecimalString(i.rate), sortOrder: i.sortOrder } });
       await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.item, item.id, `${issueLabel(label, issueNo)} · ${i.code}`, "CREATE", null, { code: i.code, description: i.descriptionEn, unit: i.unit, rate: formatSen(i.rate) });
@@ -452,6 +458,7 @@ export async function saveRateItem(_prev: FormState, data: FormData): Promise<Fo
     const saved = before ? await tx.rateScheduleItem.update({ where: { id: before.id, organisationId: actor.organisationId }, data: row }) : await tx.rateScheduleItem.create({ data: { organisationId: orgId, scheduleId, ...row } });
     await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.item, saved.id, `${issueLabel(l.issue.label, l.issue.issueNo)} · ${row.code}`, before ? "UPDATE" : "CREATE",
       before ? { code: before.code, description: before.descriptionEn, unit: before.unit, rate: formatSen(before.rate) } : null, { code: row.code, description: descriptionEn, unit, rate: formatSen(rate) });
+    await noteDraftMaker(tx, { organisationId: orgId, entity: "RateSchedule", entityId: scheduleId, actor });
     return done();
   });
 }
@@ -473,6 +480,7 @@ export async function removeRateItem(_prev: FormState, data: FormData): Promise<
     await tx.rateScheduleItem.delete({ where: { id: item.id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: RATE_ENTITY.item, entityId: item.id, entityLabel: `${issueLabel(l.issue.label, l.issue.issueNo)} · ${item.code}` }, "DELETE",
       diffFields({ code: item.code, description: item.descriptionEn, unit: item.unit, rate: formatSen(item.rate) }, {}));
+    await noteDraftMaker(tx, { organisationId: orgId, entity: "RateSchedule", entityId: scheduleId, actor });
     return done();
   });
 }
@@ -482,13 +490,24 @@ export async function removeRateItem(_prev: FormState, data: FormData): Promise<
  * superseded in the same act; lines already priced from it keep what it said.
  */
 export async function issueRateSchedule(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.issue");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
   const orgId = await organisationId(actor);
   if (!orgId) return NO_ORG;
+  if (actor.system) return { ok: false, message: "A loader run is not a person, so it cannot issue a schedule of rates: a person issues it." };
   const scheduleId = String(data.get("scheduleId") ?? "");
   const r = new FormReader(data);
   const effectiveFrom = r.date("effectiveFrom", "Takes effect from", { required: true });
   if (r.failed) return { ok: false, errors: r.errors };
+  // Phase 5a: the issuer is never one of the makers of the draft. Said before the password is asked (a maker spends nothing); judged again below under the draft's lock.
+  const makersNow = await loadDraftMakers(db, "RateSchedule", scheduleId);
+  const beforePassword = draftIssueFault({
+    makerPersonIds: makersNow.personIds,
+    issuerPersonId: actor.personId,
+    eligiblePersonIds: await eligibleFor(db, { organisationId: orgId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
+  });
+  if (beforePassword) return { ok: false, message: beforePassword.en };
   const begun = await beginAct(actor, data, "RateSchedule.issuedBy", { personField: "issuedByPersonId" });
   if (!begun.ok) return begun.state;
   const act = begun.act;
@@ -498,6 +517,13 @@ export async function issueRateSchedule(_prev: FormState, data: FormData): Promi
     const today = org.timeZone ? todayIn(new Date(), org.timeZone) : null;
     const l = await lockedIssue(tx, orgId, scheduleId);
     if (!l) return GONE;
+    const makers = await loadDraftMakers(tx, "RateSchedule", scheduleId);
+    const makerFault = draftIssueFault({
+      makerPersonIds: makers.personIds,
+      issuerPersonId: actor.personId,
+      eligiblePersonIds: await eligibleFor(tx, { organisationId: orgId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
+    });
+    if (makerFault) return { ok: false, message: makerFault.en };
     const issuer = await activePerson(orgId, act.subjectPersonId, tx);
     if (!issuer) return { ok: false, errors: { issuedByPersonId: scopeFaultText("PERSON_UNKNOWN") } };
     const effective = effectiveFrom ? storedDay(effectiveFrom) : null;
@@ -512,7 +538,7 @@ export async function issueRateSchedule(_prev: FormState, data: FormData): Promi
       await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, supersedes.id, issueLabel(supersedes.label, supersedes.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED }, { status: RATE_SCHEDULE_STATUS_LABEL.SUPERSEDED, supersededBy: `issue ${l.issue.issueNo}`, supersededOn: today });
     }
     await tx.rateSchedule.update({ where: { id: l.issue.id, organisationId: actor.organisationId }, data: { status: "ISSUED", effectiveFrom: dayToDate(effective!), issuedOn: dayToDate(today!), issuedByPersonId: issuer!.id } });
-    await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, l.issue.id, issueLabel(l.issue.label, l.issue.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED, effectiveFrom: effective, issuedOn: today, issuedBy: issuer!.name, items: l.issue.items.length });
+    await audit(tx, toAuditActor(actor), orgId, RATE_ENTITY.schedule, l.issue.id, issueLabel(l.issue.label, l.issue.issueNo), "UPDATE", { status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, { status: RATE_SCHEDULE_STATUS_LABEL.ISSUED, effectiveFrom: effective, issuedOn: today, issuedBy: issuer!.name, madeBy: makers.names.join(", "), items: l.issue.items.length });
     await act.write(tx, l.issue.id);
     revalidatePath("/sourcing", "layout");
     return done();
@@ -539,8 +565,33 @@ export async function discardRateIssue(_prev: FormState, data: FormData): Promis
       await tx.rateScheduleItem.delete({ where: { id: i.id, organisationId: actor.organisationId } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: RATE_ENTITY.item, entityId: i.id, entityLabel: `${issueLabel(l.issue.label, l.issue.issueNo)} · ${i.code}` }, "DELETE", diffFields({ code: i.code, description: i.descriptionEn, unit: i.unit, rate: formatSen(i.rate) }, {}));
     }
+    await tx.configurationDraftMaker.deleteMany({ where: { organisationId: orgId, entity: "RateSchedule", entityId: l.issue.id } });
     await tx.rateSchedule.delete({ where: { id: l.issue.id, organisationId: actor.organisationId } });
     await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: RATE_ENTITY.schedule, entityId: l.issue.id, entityLabel: issueLabel(l.issue.label, l.issue.issueNo) }, "DELETE", diffFields({ schedule: l.issue.label, issue: l.issue.issueNo, status: RATE_SCHEDULE_STATUS_LABEL.DRAFT }, {}));
+    return done();
+  });
+}
+
+/// Take over a draft issue nobody is on record as having made (one that existed when this rule landed), so that a different person issues it.
+export async function adoptRateDraft(_prev: FormState, data: FormData): Promise<FormState> {
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
+  if (actor.system) return { ok: false, message: "A loader run is not a person, so it cannot adopt a draft." };
+  const orgId = await organisationId(actor);
+  if (!orgId) return NO_ORG;
+  const scheduleId = String(data.get("scheduleId") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "Say why you are adopting it." } };
+  return db.$transaction(async (tx) => {
+    const l = await lockedIssue(tx, orgId, scheduleId);
+    if (!l) return GONE;
+    const fault = scheduleEditFault(l.issue);
+    if (fault) return scheduleRefusal([fault]);
+    const makers = await loadDraftMakers(tx, "RateSchedule", scheduleId);
+    if (makers.personIds.length > 0) return { ok: false, message: `This draft already has ${makers.personIds.length === 1 ? "a maker" : "makers"} on record (${makers.names.join(", ")}), so it needs no adopting.` };
+    await noteDraftMaker(tx, { organisationId: orgId, entity: "RateSchedule", entityId: scheduleId, actor });
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: orgId, entity: RATE_ENTITY.schedule, entityId: scheduleId, entityLabel: issueLabel(l.issue.label, l.issue.issueNo), reason: `Adopted: ${reason}` }, "UPDATE", [{ field: "madeBy", before: null, after: actor.personName }]);
     return done();
   });
 }

@@ -124,6 +124,9 @@ export interface FormState {
   /// Where the form goes once saved, for a form that navigates itself rather than
   /// relying on a server-side redirect from an action awaited in a transition.
   href?: string;
+  /// Said once the save was accepted but is not done: a change to configuration waits for a second person (sign-in programme Phase 5). The form stays open
+  /// and says so in place of its fields, so nobody leaves believing the value was saved.
+  notice?: string;
 }
 
 export const EMPTY_FORM_STATE: FormState = { ok: false };
@@ -254,13 +257,15 @@ export function RecordEditor({
       const result = await action(EMPTY_FORM_STATE, data);
       setState(result);
       setReview(null);
-      if (result.ok) {
+      if (result.ok && !result.notice) {
         setOpen(false);
         setReason("");
         opener.current?.focus();
       }
     });
   };
+  // The save was accepted as a proposal: the drawer says what happens next and offers nothing else but to close.
+  const proposed = state.ok && state.notice ? state.notice : null;
 
   useEffect(() => {
     if (!open) return;
@@ -351,7 +356,12 @@ export function RecordEditor({
 
               {/* A confirmation shows its body only when there is something to say (a refusal);
                   its hidden inputs still submit while the body is hidden. */}
-              <div className={confirmOnly && !state.message && unplaced.length === 0 && !identity && !review ? "hidden" : "min-h-0 flex-1 overflow-y-auto px-6 py-5"}>
+              <div className={confirmOnly && !state.message && unplaced.length === 0 && !identity && !review && !proposed ? "hidden" : "min-h-0 flex-1 overflow-y-auto px-6 py-5"}>
+                {proposed && (
+                  <div className="mb-4">
+                    <Callout tone="ok">{proposed}</Callout>
+                  </div>
+                )}
                 {review && confirm && (
                   <div className="flex flex-col gap-4" role="group" aria-label={confirm.heading}>
                     <p className="text-[15px] font-bold text-ink">{confirm.heading}</p>
@@ -366,7 +376,7 @@ export function RecordEditor({
                     <p className="text-[13px] text-ink-2">{confirm.note}</p>
                   </div>
                 )}
-                <div className={review ? "hidden" : "flex flex-col gap-5"}>
+                <div className={review || proposed ? "hidden" : "flex flex-col gap-5"}>
                   {state.message && <Callout tone="err">{state.message}</Callout>}
                   {/* A refusal on a field this form does not show is still shown: never
                       a save that fails with nothing said (6.3 re-review). */}
@@ -448,10 +458,22 @@ export function RecordEditor({
                     {submitBlock}
                   </p>
                 )}
-                <button type="button" className={buttonClass("ghost", "md")} onClick={() => (review ? setReview(null) : setOpen(false))}>
-                  {review ? "Change it" : cancelLabel}
+                <button
+                  type="button"
+                  className={buttonClass(proposed ? "primary" : "ghost", "md")}
+                  onClick={() => {
+                    if (review) return setReview(null);
+                    setOpen(false);
+                    if (proposed) {
+                      setReason("");
+                      opener.current?.focus();
+                    }
+                  }}
+                >
+                  {review ? "Change it" : proposed ? "Close" : cancelLabel}
                 </button>
                 <button
+                  hidden={proposed != null}
                   type="submit"
                   className={buttonClass(destructive || danger ? "danger" : "primary", "md")}
                   disabled={pending || blocked || !!submitBlock}

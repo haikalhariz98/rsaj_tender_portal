@@ -6,8 +6,11 @@ import type { FormState } from "@/components/record-editor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { requireStaff, staffForPermission } from "@/app/_auth/actor";
 import { currentRequestFacts, refuseForeignPost } from "@/app/_auth/cookies";
+import { editRegistry } from "@/app/_auth/stage";
 import { decideChange, proposeChange, type ChangeFaults } from "@/lib/auth/change-store";
 import { decisionFaults, KIND_PERMISSION, type ChangeKind } from "@/lib/auth/configuration-change";
+import { EDIT_DECIDE_PERMISSION, isEditKind, parseEditPayload } from "@/lib/auth/configuration-edit";
+import { decideEdit, editDecisionFaults } from "@/lib/auth/edit-store";
 import { permissionHeldThrough } from "@/lib/auth/permission-store";
 import { SETTING_LABELS } from "@/lib/auth/policy";
 import type { SecurityPolicyKey, StaffActor } from "@/lib/auth/types";
@@ -28,6 +31,8 @@ function refresh() {
   revalidatePath("/configuration/security");
   revalidatePath("/configuration/accounts");
   revalidatePath("/configuration/users");
+  // An editor's save changes the section it belongs to, whichever it is: the layout's count of changes waiting is read on every page of Configuration.
+  revalidatePath("/configuration", "layout");
 }
 
 /// What a refused act says to the form: the field-level faults beside their fields, the rest in one message.
@@ -110,13 +115,21 @@ async function decide(actor: StaffActor, data: FormData, decision: "APPLY" | "DE
   if (decision === "DECLINE" && !reason.trim()) return { ok: false, errors: { reason: "Say why it is declined." } };
 
   // Said before the password is asked, so someone who cannot decide it is told so and spends nothing; judged again under the locks.
-  const row = await db.configurationChange.findFirst({ where: { id: changeId, organisationId: actor.organisationId }, select: { kind: true, status: true, proposedByPersonId: true } });
+  const row = await db.configurationChange.findFirst({ where: { id: changeId, organisationId: actor.organisationId }, select: { kind: true, status: true, proposedByPersonId: true, payload: true } });
   if (!row) return { ok: false, message: "That change no longer exists." };
+  // An editor's save (Phase 5) is decided by the rule of its editor; the other kinds each have their own.
+  const editKind = isEditKind(row.kind) ? row.kind : null;
+  const parsedEdit = editKind ? parseEditPayload(row.payload) : null;
+  const editOp = parsedEdit?.ok ? editRegistry.find(parsedEdit.payload.operation) : null;
   if (decision === "WITHDRAW") {
     if (row.status !== "PROPOSED") return { ok: false, message: "This change has already been decided or withdrawn." };
     if (row.proposedByPersonId !== actor.personId) return { ok: false, message: "Only the person who proposed a change withdraws it." };
+  } else if (editKind) {
+    if (!editOp) return { ok: false, message: "This change's editor is no longer one a change can carry, so it cannot be applied. Decline it, and propose it again." };
+    const faults = editDecisionFaults(editOp, row, actor);
+    if (faults.length > 0) return { ok: false, message: faults.map((x) => x.en).join(" ") };
   } else {
-    const faults = decisionFaults(row, { personId: actor.personId, permissions: actor.permissions });
+    const faults = decisionFaults({ kind: row.kind as ChangeKind, status: row.status, proposedByPersonId: row.proposedByPersonId }, { personId: actor.personId, permissions: actor.permissions });
     if (faults.length > 0) return { ok: false, message: faults.map((x) => x.en).join(" ") };
   }
 
@@ -125,8 +138,24 @@ async function decide(actor: StaffActor, data: FormData, decision: "APPLY" | "DE
   if (!begun.ok) return begun.state;
   const act = begun.act;
   // The office the signer held (NFR-SIG-001): the role they hold the kind's permission through, if any (an administrator holds it through the flag, which is no office).
-  const roleCode = await permissionHeldThrough(db, { organisationId: actor.organisationId, personId: actor.personId, isAdministrator: actor.isAdministrator, timeZone: actor.organisationTimeZone, now: new Date() }, KIND_PERMISSION[row.kind]);
+  const roleCode = await permissionHeldThrough(db, { organisationId: actor.organisationId, personId: actor.personId, isAdministrator: actor.isAdministrator, timeZone: actor.organisationTimeZone, now: new Date() }, editKind ? EDIT_DECIDE_PERMISSION : KIND_PERMISSION[row.kind as ChangeKind]);
   try {
+    if (editKind) {
+      const edited = await decideEdit(actor, act, editRegistry, { changeId, decision, reason, roleCode });
+      if (!edited.ok) {
+        // A stale change is written, so the queue changes.
+        if (edited.kind === "STALE") {
+          refresh();
+          return { ok: false, message: edited.message };
+        }
+        // The editor refused the change as it now stands. It is left proposed (the cause can be put right, or it can be declined), and the reasons are said here:
+        // the decision's form has none of the editor's fields to put them beside.
+        if (edited.kind === "EDITOR") return { ok: false, message: [edited.result.message, ...Object.values(edited.result.errors ?? {})].filter(Boolean).join(" ") || "The editor refused this change." };
+        return stateOf(edited);
+      }
+      refresh();
+      return { ok: true };
+    }
     const outcome = await decideChange(actor, act, { changeId, decision, reason, roleCode }, await currentRequestFacts());
     if (!outcome.ok) {
       // A stale change is written, so the queue changes.

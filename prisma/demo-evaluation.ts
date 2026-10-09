@@ -205,7 +205,10 @@ export async function configureEvaluationDemo(db: Db, organisationId: string) {
   // ---- the models, drafted row by row, then issued
   for (const [mi, m] of MODELS.entries()) {
     const when = later(10 + mi * 10);
-    await db.evaluationModel.create({ data: { id: m.id, organisationId, code: m.code, version: 1, nameEn: m.nameEn, route: "TRADITIONAL", provenance: "ASSUMED", governingSource: SOURCE, notes: "Invented for the demo: every weight, pass mark, factor and band is ASSUMED." } });
+    // Phase 5a: a draft is put into force only by a person who did not make it (trigger `guard_draft_issue`), and a loader is neither. The demo's models are written as they
+    // stood before sign-in: already in force, with no issuer on record, as the migration leaves a model issued then. Their frozen content is filled in below.
+    const issuedAt = new Date(when.getTime() + 5 * 60_000);
+    await db.evaluationModel.create({ data: { id: m.id, organisationId, code: m.code, version: 1, nameEn: m.nameEn, route: "TRADITIONAL", provenance: "ASSUMED", governingSource: SOURCE, notes: "Invented for the demo: every weight, pass mark, factor and band is ASSUMED.", status: "ISSUED", issuedAt, contentSnapshot: {} } });
     entry("EvaluationModel", m.id, `Evaluation model ${m.nameEn}, version 1`, "CREATE", when, diffFields(null, { name: m.nameEn, route: ROUTE_LABEL.TRADITIONAL, provenance: "ASSUMED", source: SOURCE, version: 1, status: "Draft" }));
     for (const [si, s] of m.bandSets.entries()) {
       const sid = `${m.id}_bs${si + 1}`;
@@ -234,13 +237,12 @@ export async function configureEvaluationDemo(db: Db, organisationId: string) {
       entry("EvaluationModel", m.id, `Evaluation model ${m.nameEn}, version 1 · ${s.labelEn}`, "CREATE", when, diffFields(null, { stage: s.labelEn, order: s.order, maxMarks: s.maxMarks ?? null, passMark: s.passMark ?? null, weight: s.compositeWeight ?? null, criteria: (s.criteria ?? []).map((c) => c.labelEn).join("; ") || null, factors: (s.factors ?? []).map((f) => `${f.labelEn} ${f.factorPct}%`).join("; ") || null, provenance: "ASSUMED" }));
     }
     // Issue, as issueModel does: checked, then frozen.
-    const issuedAt = new Date(when.getTime() + 5 * 60_000);
     const row = (await loadModel(organisationId, m.id, db as never))!;
     const aspects = aspectConfigOf(await db.evaluationAspect.findMany({ where: { organisationId } }), issuedAt);
     const content = contentOf(row);
     refuse(`issuing ${m.nameEn}`, modelFaults(content, aspects));
     const snapshot = modelSnapshot(m.id, content, aspects, issuedAt);
-    await db.evaluationModel.update({ where: { id: m.id }, data: { status: "ISSUED", issuedAt, contentSnapshot: snapshot as object } });
+    await db.evaluationModel.update({ where: { id: m.id }, data: { contentSnapshot: snapshot as object } });
     entry("EvaluationModel", m.id, `Evaluation model ${m.nameEn}, version 1`, "UPDATE", issuedAt, diffFields({ status: "Draft" }, { status: "Issued", stages: content.stages.length, bandSets: content.bandSets.length, aspects: snapshot.aspects.length }));
   }
 

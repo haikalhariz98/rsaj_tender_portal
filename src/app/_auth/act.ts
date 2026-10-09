@@ -3,6 +3,7 @@ import type { ActForm } from "@/lib/auth/act-input";
 import { attributeAct } from "@/lib/auth/attribution-store";
 import { loadSecurityPolicy } from "@/lib/auth/policy-store";
 import type { StaffActor } from "@/lib/auth/types";
+import { currentAmbient } from "@/lib/ambient/ambient-tx";
 import { db } from "@/lib/db";
 
 import { stepUp } from "./actor";
@@ -38,7 +39,13 @@ const deps: ActDeps = {
   attribute: attributeAct,
 };
 
-export const beginAct = (actor: StaffActor, data: FormData, key: string, opts: BeginActOptions): Promise<BegunAct> => beginActWith(deps, actor, data, key, opts);
+/**
+ * While a second person applies an editor's save (`src/lib/ambient/ambient-tx.ts`), an act the editor begins is the applier's own: the person who is signed in
+ * is the one who does it, and the person a form names (a delegation's grantor) is data of the record and not an attestation, which only the proposer could have
+ * made and did, in the proposal. So the form is not read as "recorded on behalf" then. A proposal's rehearsal reads the form as it always was.
+ */
+export const beginAct = (actor: StaffActor, data: FormData, key: string, opts: BeginActOptions): Promise<BegunAct> =>
+  beginActWith(deps, actor, data, key, currentAmbient()?.mode === "APPLY" ? { ...opts, namesSubject: false } : opts);
 
 /// As `beginAct`, for an act whose request is not a form (a route handler's JSON body): the caller has read who the request names into an `ActForm`.
 export const beginActFrom = (actor: StaffActor, form: ActForm, key: string, opts: BeginActOptions): Promise<BegunAct> => beginActFromWith(deps, actor, form, key, opts);

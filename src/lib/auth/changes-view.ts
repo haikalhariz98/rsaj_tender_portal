@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { eligibleFor } from "./eligibility-store";
 import { CHANGE_KINDS, KIND_PERMISSION, KIND_WORDS, kindsReadBy, parseChange, STATUS_WORDS, type ChangeKind, type ChangeStatus } from "./configuration-change";
 import { describeChange, type ChangeLine } from "./configuration-change-words";
+import { describeEdit, editKindsReadBy, isEditKind, parseEditPayload, type EditKind } from "./configuration-edit";
+import { editDecisionFaults, type EditRegistry } from "./edit-store";
 import type { StaffActor } from "./types";
 
 /**
@@ -13,7 +15,7 @@ import type { StaffActor } from "./types";
 
 export interface ChangeRow {
   id: string;
-  kind: ChangeKind;
+  kind: ChangeKind | EditKind;
   title: string;
   status: ChangeStatus;
   statusWords: string;
@@ -48,10 +50,10 @@ const DECIDED_SHOWN = 50;
 /// Whole days a change has waited, on the clock it is handed (never the system's).
 export const waitedDays = (since: Date, now: Date): number => Math.max(0, Math.floor((now.getTime() - since.getTime()) / 86_400_000));
 
-export async function loadChangesView(actor: StaffActor, now: Date = new Date()): Promise<ChangesView> {
+export async function loadChangesView(actor: StaffActor, now: Date = new Date(), registry: EditRegistry | null = null): Promise<ChangesView> {
   const organisationId = actor.organisationId;
   // Only the kinds the viewer decides, and what they proposed themselves: the rows are cut here, so what the screen lists and exports is cut with them.
-  const readable = { OR: [{ kind: { in: kindsReadBy(actor.permissions) } }, { proposedByPersonId: actor.personId }] };
+  const readable = { OR: [{ kind: { in: [...kindsReadBy(actor.permissions), ...editKindsReadBy(actor.permissions)] } }, { proposedByPersonId: actor.personId }] };
   const [open, closed] = await Promise.all([
     db.configurationChange.findMany({ where: { organisationId, status: "PROPOSED", ...readable }, orderBy: { proposedAt: "asc" }, include: { proposedBy: { select: { name: true } }, decidedBy: { select: { name: true } } } }),
     db.configurationChange.findMany({ where: { organisationId, status: { not: "PROPOSED" }, ...readable }, orderBy: { decidedAt: "desc" }, take: DECIDED_SHOWN, include: { proposedBy: { select: { name: true } }, decidedBy: { select: { name: true } } } }),
@@ -81,7 +83,39 @@ export async function loadChangesView(actor: StaffActor, now: Date = new Date())
     eligibleBy.set(kind, await eligibleFor(db, { organisationId, timeZone: actor.organisationTimeZone, now }, KIND_PERMISSION[kind]));
   }
 
+  // Who could decide an editor's save: the holders of the checker's permission, and not an administrator account where the editor is kept from one.
+  const editDeciders = open.some((o) => isEditKind(o.kind)) ? await eligibleFor(db, { organisationId, timeZone: actor.organisationTimeZone, now }, "configuration.issue") : [];
+  const administrators = new Set((await db.staffAccount.findMany({ where: { organisationId, isAdministrator: true }, select: { personId: true } })).map((a) => a.personId));
+
   const toRow = (r: (typeof rows)[number]): ChangeRow => {
+    if (isEditKind(r.kind)) {
+      const parsed = parseEditPayload(r.payload);
+      const op = parsed.ok ? (registry?.find(parsed.payload.operation) ?? null) : null;
+      const summary = describeEdit(r.kind, op?.label ?? null, r.before);
+      const waiting = r.status === "PROPOSED";
+      const deciders = editDeciders.filter((id) => id !== r.proposedByPersonId && (op?.administratorMay !== false || !administrators.has(id)));
+      return {
+        id: r.id,
+        kind: r.kind,
+        title: summary.title,
+        status: r.status,
+        statusWords: STATUS_WORDS[r.status].en,
+        subject: summary.subject,
+        lines: summary.lines,
+        reason: r.reason,
+        proposedBy: r.proposedBy.name,
+        proposedAt: r.proposedAt,
+        waitingDays: waiting ? waitedDays(r.proposedAt, now) : null,
+        decidedBy: r.decidedBy?.name ?? null,
+        decidedAt: r.decidedAt,
+        decisionReason: r.decisionReason,
+        isYours: r.proposedByPersonId === actor.personId,
+        // Judged as the decision is: by the rule, against the editor the registry names. An editor the registry no longer knows cannot be applied, only declined.
+        canDecide: waiting && op != null && editDecisionFaults(op, r, actor).length === 0,
+        waitingFor: waiting ? deciders.map((id) => personName.get(id) ?? "A person on file") : [],
+        makesCode: false,
+      };
+    }
     const p = r.payload as Record<string, unknown>;
     const account = typeof p.accountId === "string" ? accountPerson.get(p.accountId) : undefined;
     const summary = describeChange(r.kind, r.payload, r.before as Record<string, unknown>, {

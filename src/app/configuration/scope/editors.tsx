@@ -2,7 +2,7 @@ import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
 
-import { discardRateIssue, issueRateSchedule, removeRateItem, saveBasisBqRule, saveBqTemplate, saveBqTemplateSection, saveMethodEstimateRule, saveMethodScopeRule, savePersonQualification, saveQualification, saveRateItem, saveScopePolicy, saveSpecPanelColumn, startRateIssue } from "./actions";
+import { adoptRateDraft, discardRateIssue, issueRateSchedule, removeRateItem, saveBasisBqRule, saveBqTemplate, saveBqTemplateSection, saveMethodEstimateRule, saveMethodScopeRule, savePersonQualification, saveQualification, saveRateItem, saveScopePolicy, saveSpecPanelColumn, startRateIssue } from "./actions";
 
 /**
  * Configuration › Scope and estimate drawers. No field carries a default: an unset value
@@ -307,7 +307,8 @@ export function RemoveRateItemDrawer({ scheduleId, item }: { scheduleId: string;
   );
 }
 
-export function IssueRateScheduleDrawer({ scheduleId, title, today }: { scheduleId: string; title: string; today: string | null }) {
+/// `blocked`: why the person looking may not issue it (they made it, or nobody is on record as having), in words; null where they may.
+export function IssueRateScheduleDrawer({ scheduleId, title, today, blocked }: { scheduleId: string; title: string; today: string | null; blocked: string | null }) {
   return (
     <RecordEditor
       title={`Issue ${title}`}
@@ -321,8 +322,26 @@ export function IssueRateScheduleDrawer({ scheduleId, title, today }: { schedule
       values={{ scheduleId }}
       action={issueRateSchedule}
       submitLabel="Issue it"
+      submitBlock={blocked}
       trigger={{ label: "Issue", className: buttonClass("primary", "sm"), ariaLabel: `Issue ${title}` }}
       size="md"
+    />
+  );
+}
+
+/// Take over a draft issue nobody is on record as having made, so that a different person issues it.
+export function AdoptRateDraftDrawer({ scheduleId, title }: { scheduleId: string; title: string }) {
+  return (
+    <RecordEditor
+      title={`Adopt ${title}`}
+      description="Nobody is on record as having made this draft. Adopting it makes you its maker, so that a different person issues it. You cannot issue a draft you adopted."
+      fields={[hidden("scheduleId")]}
+      values={{ scheduleId }}
+      action={adoptRateDraft}
+      submitLabel="Adopt draft"
+      reason={{ label: "Why are you adopting it?" }}
+      trigger={{ label: "Adopt draft", className: buttonClass("secondary", "sm"), ariaLabel: `Adopt ${title}` }}
+      size="sm"
     />
   );
 }

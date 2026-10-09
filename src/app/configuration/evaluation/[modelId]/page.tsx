@@ -16,8 +16,12 @@ import { CAPITAL_BASE_LABEL, INPUT_LABEL, MODEL_STATUS_LABEL, MODEL_STATUS_TONE,
 import { formatOrgDay } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
 
-import { BandDrawer, BandSetDrawer, CriterionDrawer, DiscardDraftDrawer, FactorDrawer, IssueModelDrawer, ModelDrawer, NewVersionDrawer, RemoveBandDrawer, RemoveBandSetDrawer, RemoveCriterionDrawer, RemoveFactorDrawer, RemoveStageDrawer, RetireModelDrawer, StageDrawer } from "../editors";
+import { AdoptModelDraftDrawer, BandDrawer, BandSetDrawer, CriterionDrawer, DiscardDraftDrawer, FactorDrawer, IssueModelDrawer, ModelDrawer, NewVersionDrawer, RemoveBandDrawer, RemoveBandSetDrawer, RemoveCriterionDrawer, RemoveFactorDrawer, RemoveStageDrawer, RetireModelDrawer, StageDrawer } from "../editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { db } from "@/lib/db";
+import { eligibleFor } from "@/lib/auth/eligibility-store";
+import { loadDraftMakers } from "@/lib/auth/draft-makers";
+import { draftIssueFault } from "@/lib/auth/maker-checker";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +52,12 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
   const bandSetName = (code: string | null) => (code ? (m.bandSets.find((b) => b.code === code)?.nameEn ?? "A band set not in this model") : null);
   const bandSetOptions = m.bandSets.map((b) => ({ value: b.code, label: b.nameEn }));
   const label = `${m.nameEn}, version ${m.version}`;
+  // Phase 5a (ADR 0034 D15): who made this draft, and whether the person looking may issue it. The issue is never the maker's.
+  const makers = draft ? await loadDraftMakers(db, "EvaluationModel", m.id) : null;
+  const issuance = draft
+    ? draftIssueFault({ makerPersonIds: makers!.personIds, issuerPersonId: actor.personId, eligiblePersonIds: await eligibleFor(db, { organisationId: actor.organisationId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue") })
+    : null;
+  const needsAdopting = draft && makers!.personIds.length === 0;
 
   return (
     <>
@@ -62,7 +72,8 @@ export default async function EvaluationModelPage(props: PageProps<"/configurati
             <HistoryButton entity="EvaluationModel" entityId={m.id} label={label} />
             {draft && <ModelDrawer model={{ id: m.id, label, values: { nameEn: m.nameEn, nameMs: m.nameMs, route: m.route, provenance: m.provenance, governingSource: m.governingSource, notes: m.notes } }} />}
             {draft && <DiscardDraftDrawer id={m.id} label={label} />}
-            {draft && <IssueModelDrawer id={m.id} label={label} blocks={blocks} warnings={warnings} />}
+            {needsAdopting && <AdoptModelDraftDrawer id={m.id} label={label} />}
+            {draft && <IssueModelDrawer id={m.id} label={label} blocks={blocks} warnings={warnings} blocked={issuance?.en ?? null} />}
             {m.status === "ISSUED" && <RetireModelDrawer id={m.id} label={label} />}
             {!draft && <NewVersionDrawer id={m.id} label={label} />}
           </>

@@ -156,7 +156,8 @@ describe("each table a two-person change writes has one writer", () => {
   });
 
   it("a change is written only by the store that proposes and decides it", () => {
-    expect(writersOf(/\bconfigurationChange\.(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\(/g)).toEqual([STORE]);
+    // Phase 5: an editor's save is a change too, proposed and decided by `edit-store.ts`, which is the only other writer.
+    expect(writersOf(/\bconfigurationChange\.(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\(/g)).toEqual([STORE, "src/lib/auth/edit-store.ts"].sort());
   });
 
   it("a maker is written only by noteMaker", () => {

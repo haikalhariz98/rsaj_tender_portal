@@ -1,5 +1,3 @@
-"use server";
-
 import { revalidatePath } from "next/cache";
 
 import type { FormState } from "@/components/record-editor";
@@ -14,8 +12,13 @@ import { modelSnapshot } from "@/lib/evaluation/model";
 import { ASPECT_KINDS, BAND_OUTCOMES, CAPITAL_BASES, COMPUTED_INPUTS, CRITERION_SCALES, EVALUATION_ROUTES, SHORTLIST_RULES, SIDES, STAGE_KINDS, type Finding } from "@/lib/evaluation/types";
 import { FormReader } from "@/lib/validate";
 import { Prisma } from "@/generated/prisma/client";
-import { requireStaff, toAuditActor } from "@/app/_auth/actor";
-import type { AuditActor } from "@/lib/auth/types";
+import { requireStaff, staffForPermission, toAuditActor } from "@/app/_auth/actor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
+import { eligibleFor } from "@/lib/auth/eligibility-store";
+import { loadDraftMakers, noteDraftMaker } from "@/lib/auth/draft-makers";
+import { draftIssueFault } from "@/lib/auth/maker-checker";
+import { permissionHeldThrough } from "@/lib/auth/permission-store";
+import type { AuditActor, StaffActor } from "@/lib/auth/types";
 import type { OrgScope } from "@/lib/org-scope";
 
 /**
@@ -25,7 +28,10 @@ import type { OrgScope } from "@/lib/org-scope";
  * from it. Aspects, the evaluation policy, each contract basis's route and each method's suggested model
  * are set here too. Every write locks what it edits, re-reads it, checks it and writes it with its
  * before/after audit row in one transaction; every value says where it came from; nothing is shipped.
- * Issuing is where the second person's check will attach once sign-in exists (maker-checker deferred).
+ *
+ * Phase 5a (ADR 0034 D15): a draft's edits are the maker's (`configuration.draft`; each puts the signed-in person on record as a maker), and the issue is a
+ * signature by a holder of `configuration.issue` who is not one of the makers, held by the database as well (trigger `guard_draft_issue`). The rest of this file
+ * (retiring a version, the aspects, the policy, the routes and the suggested models) is proposed in `actions.ts` and runs here when a second person applies it.
  */
 
 const PROVENANCE = ["STATED", "OBSERVED", "ASSUMED"] as const;
@@ -74,7 +80,7 @@ const reject = (field: string, fault: ConfigFault): FormState => ({ ok: false, e
  * Run a draft edit: the organisation, then the model's row locked and re-read; refused unless a draft.
  * The audit rows of every part of a model are written against the model, so its History holds them all.
  */
-async function inDraft(scope: OrgScope, modelId: string, fn: (tx: Tx, orgId: string, m: ModelRow) => Promise<FormState>): Promise<FormState> {
+async function inDraft(scope: StaffActor, modelId: string, fn: (tx: Tx, orgId: string, m: ModelRow) => Promise<FormState>, opts: { makes?: boolean } = {}): Promise<FormState> {
   const orgId = await organisationId(scope);
   if (!orgId) return NO_ORG;
   const result = await db.$transaction(async (tx) => {
@@ -83,7 +89,10 @@ async function inDraft(scope: OrgScope, modelId: string, fn: (tx: Tx, orgId: str
     if (!m) return GONE;
     const f = draftFault(m.status);
     if (f) return { ok: false, message: CONFIG_TEXT[f] };
-    return fn(tx, orgId, m);
+    const out = await fn(tx, orgId, m);
+    // An accepted edit of the draft puts the signed-in person on record as a maker; a refused one does not. The issue (`makes: false`) is not an edit.
+    if (out.ok && opts.makes !== false) await noteDraftMaker(tx, { organisationId: orgId, entity: "EvaluationModel", entityId: modelId, actor: scope });
+    return out;
   });
   if (result.ok) done(modelId);
   return result;
@@ -123,26 +132,90 @@ export async function saveModel(_prev: FormState, data: FormData): Promise<FormS
     if (await tx.evaluationModel.findFirst({ where: { organisationId: orgId, code }, select: { id: true } })) return reject("code", "CODE_TAKEN");
     const row = await tx.evaluationModel.create({ data: { organisationId: orgId, code, version: 1, ...v, route: v.route!, provenance: v.provenance! } });
     await audit(tx, toAuditActor(actor), orgId, MODEL_ENTITY, row.id, modelLabel(row), "CREATE", diffFields(null, { ...fields(v), version: 1, status: "Draft" }));
+    await noteDraftMaker(tx, { organisationId: orgId, entity: "EvaluationModel", entityId: row.id, actor });
     return done(row.id);
   });
 }
 
-/// Check the draft and issue it: its content is frozen on the version, and it is offered on the Window card.
+/// Check the draft and issue it: its content is frozen on the version, and it is offered on the Window card. Issuing is a signature by someone who did not make the draft.
 export async function issueModel(_prev: FormState, data: FormData): Promise<FormState> {
-  const actor = await requireStaff();
+  const guard = await staffForPermission("configuration.issue");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
+  if (actor.system) return { ok: false, message: "A loader run is not a person, so it cannot issue an evaluation model: a person issues it, with their password." };
   const id = String(data.get("id") ?? "");
   const now = toSecond(new Date());
-  return inDraft(actor, id, async (tx, org, m) => {
-    const { content, aspects, findings } = await draftFindings(org, m, now, tx);
-    const blocks = findings.filter((f) => f.level === "block");
-    if (blocks.length) return { ok: false, message: `Not issued: ${said(blocks)}` };
-    const snapshot = modelSnapshot(m.id, content, aspects, now);
-    const moved = await tx.evaluationModel.updateMany({ where: { id, status: "DRAFT" }, data: { status: "ISSUED", issuedAt: now, contentSnapshot: snapshot as unknown as Prisma.InputJsonValue } });
-    if (moved.count !== 1) return GONE;
-    const warned = findings.filter((f) => f.level !== "block");
-    await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, id, modelLabel(m), "UPDATE", diffFields({ status: "Draft" }, { status: "Issued", stages: content.stages.length, bandSets: content.bandSets.length, aspects: snapshot.aspects.length, issuedWith: warned.length ? said(warned) : null }));
-    return { ok: true, message: warned.length ? `Issued. ${said(warned)}` : "Issued." };
+
+  // The issuer is never one of the makers. Said before the password is asked, so a maker is told so and spends nothing; judged again below under the draft's lock.
+  const early = await db.evaluationModel.findFirst({ where: { id, organisationId: actor.organisationId }, select: { id: true } });
+  if (!early) return GONE;
+  const makersNow = await loadDraftMakers(db, "EvaluationModel", id);
+  const beforePassword = draftIssueFault({
+    makerPersonIds: makersNow.personIds,
+    issuerPersonId: actor.personId,
+    eligiblePersonIds: await eligibleFor(db, { organisationId: actor.organisationId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
   });
+  if (beforePassword) return { ok: false, message: beforePassword.en };
+
+  // Issuing is a signature: the password is asked again, every time, before the transaction (a wrong one counts towards the lockout).
+  const begun = await beginAct(actor, data, "EvaluationModel.issuedBy", { personField: "personId", document: { entity: "EvaluationModel", id } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  const heldThrough = await permissionHeldThrough(db, { organisationId: actor.organisationId, personId: actor.personId, isAdministrator: actor.isAdministrator, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue");
+
+  try {
+    return await inDraft(
+      actor,
+      id,
+      async (tx, org, m) => {
+        const makers = await loadDraftMakers(tx, "EvaluationModel", id);
+        const makerFault = draftIssueFault({
+          makerPersonIds: makers.personIds,
+          issuerPersonId: actor.personId,
+          eligiblePersonIds: await eligibleFor(tx, { organisationId: org, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue"),
+        });
+        if (makerFault) return { ok: false, message: makerFault.en };
+        const { content, aspects, findings } = await draftFindings(org, m, now, tx);
+        const blocks = findings.filter((f) => f.level === "block");
+        if (blocks.length) return { ok: false, message: `Not issued: ${said(blocks)}` };
+        const snapshot = modelSnapshot(m.id, content, aspects, now);
+        const moved = await tx.evaluationModel.updateMany({ where: { id, status: "DRAFT" }, data: { status: "ISSUED", issuedAt: now, issuedByPersonId: actor.personId, contentSnapshot: snapshot as unknown as Prisma.InputJsonValue } });
+        if (moved.count !== 1) return GONE;
+        const warned = findings.filter((f) => f.level !== "block");
+        await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, id, modelLabel(m), "UPDATE", diffFields({ status: "Draft" }, { status: "Issued", issuedBy: actor.personName, madeBy: makers.names.join(", "), stages: content.stages.length, bandSets: content.bandSets.length, aspects: snapshot.aspects.length, issuedWith: warned.length ? said(warned) : null }));
+        await act.write(tx, id, { document: { entity: "EvaluationModel", id }, roleCode: heldThrough });
+        return { ok: true, message: warned.length ? `Issued. ${said(warned)}` : "Issued." };
+      },
+      { makes: false },
+    );
+  } catch (e) {
+    const refused = attributionRefusalState(e);
+    if (refused) return refused;
+    throw e;
+  }
+}
+
+/// Take over a draft nobody is on record as having made (a draft that existed when this rule landed, or one a loader made), so that a different person issues it.
+export async function adoptModelDraft(_prev: FormState, data: FormData): Promise<FormState> {
+  const guard = await staffForPermission("configuration.draft");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
+  if (actor.system) return { ok: false, message: "A loader run is not a person, so it cannot adopt a draft." };
+  const id = String(data.get("id") ?? "");
+  const reason = String(data.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, errors: { reason: "Say why you are adopting it." } };
+  return inDraft(
+    actor,
+    id,
+    async (tx, org, m) => {
+      const makers = await loadDraftMakers(tx, "EvaluationModel", id);
+      if (makers.personIds.length > 0) return { ok: false, message: `This draft already has ${makers.personIds.length === 1 ? "a maker" : "makers"} on record (${makers.names.join(", ")}), so it needs no adopting.` };
+      await noteDraftMaker(tx, { organisationId: org, entity: "EvaluationModel", entityId: id, actor });
+      await audit(tx, toAuditActor(actor), org, MODEL_ENTITY, id, modelLabel(m), "UPDATE", [{ field: "madeBy", before: null, after: actor.personName }], `Adopted: ${reason}`);
+      return { ok: true };
+    },
+    { makes: false },
+  );
 }
 
 /// Retire an issued version: no longer offered; exercises that pinned it keep their snapshot.
@@ -180,6 +253,7 @@ export async function discardDraft(_prev: FormState, data: FormData): Promise<Fo
     if (!m) return GONE;
     const f = draftFault(m.status);
     if (f) return { ok: false, message: CONFIG_TEXT[f] };
+    await tx.configurationDraftMaker.deleteMany({ where: { organisationId: orgId, entity: MODEL_ENTITY, entityId: id } });
     await tx.evaluationModel.delete({ where: { id, organisationId: actor.organisationId } });
     await audit(tx, toAuditActor(actor), orgId, MODEL_ENTITY, id, modelLabel(m), "DELETE", snapshotFields({ name: m.nameEn, version: m.version, status: "Draft" }), reason);
     return { ok: true };
@@ -223,6 +297,7 @@ export async function newModelVersion(_prev: FormState, data: FormData): Promise
       for (const x of factorOptions) await tx.evaluationFactorOption.create({ data: { organisationId: orgId, stageId: s.id, code: x.code, labelEn: x.labelEn, labelMs: x.labelMs, factorPct: x.factorPct, provenance: x.provenance, governingSource: x.governingSource } });
     }
     await audit(tx, toAuditActor(actor), orgId, MODEL_ENTITY, next.id, modelLabel(next), "CREATE", diffFields(null, { name: next.nameEn, version, status: "Draft", copiedFrom: `Version ${from.version}` }));
+    await noteDraftMaker(tx, { organisationId: orgId, entity: "EvaluationModel", entityId: next.id, actor });
     createdId = next.id;
     return { ok: true };
   });

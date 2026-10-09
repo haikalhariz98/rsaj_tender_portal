@@ -18,8 +18,11 @@ import { NOT_SET } from "@/lib/scope/labels";
 import { scopeConfiguration } from "@/lib/scope/read";
 
 import { Section } from "../records-ui";
-import { ColumnDrawer, DiscardRateIssueDrawer, EditBasisRule, EditMethodRule, EditMethodScopeRule, EditScopePolicy, HoldingDrawer, IssueRateScheduleDrawer, QualificationDrawer, RateItemDrawer, RemoveRateItemDrawer, StartRateIssueDrawer, TemplateDrawer, TemplateSectionDrawer } from "./editors";
+import { AdoptRateDraftDrawer, ColumnDrawer, DiscardRateIssueDrawer, EditBasisRule, EditMethodRule, EditMethodScopeRule, EditScopePolicy, HoldingDrawer, IssueRateScheduleDrawer, QualificationDrawer, RateItemDrawer, RemoveRateItemDrawer, StartRateIssueDrawer, TemplateDrawer, TemplateSectionDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { eligibleFor } from "@/lib/auth/eligibility-store";
+import { loadDraftMakers } from "@/lib/auth/draft-makers";
+import { draftIssueFault } from "@/lib/auth/maker-checker";
 
 export const dynamic = "force-dynamic";
 
@@ -123,6 +126,12 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
       ),
     };
   };
+
+  // Phase 5a (ADR 0034 D15): who made each draft of a schedule, and whether the person looking may issue it. The issue is never the maker's.
+  const draftIds = c.schedules.flatMap((sch) => sch.issues.filter((i) => i.draft).map((i) => i.id));
+  const eligible = draftIds.length ? await eligibleFor(db, { organisationId: actor.organisationId, timeZone: actor.organisationTimeZone, now: new Date() }, "configuration.issue") : [];
+  const makersOf = new Map(await Promise.all(draftIds.map(async (id) => [id, await loadDraftMakers(db, "RateSchedule", id)] as const)));
+  const issuance = (id: string) => draftIssueFault({ makerPersonIds: makersOf.get(id)?.personIds ?? [], issuerPersonId: actor.personId, eligiblePersonIds: eligible })?.en ?? null;
 
   return (
     <>
@@ -451,7 +460,8 @@ export default async function ScopeConfigurationPage({ searchParams }: { searchP
                           <>
                             <RateItemDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} />
                             <DiscardRateIssueDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} />
-                            <IssueRateScheduleDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} today={c.today} />
+                            {(makersOf.get(i.id)?.personIds.length ?? 0) === 0 && <AdoptRateDraftDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} />}
+                            <IssueRateScheduleDrawer scheduleId={i.id} title={`${sch.label}, ${i.title}`} today={c.today} blocked={issuance(i.id)} />
                           </>
                         )}
                       </span>

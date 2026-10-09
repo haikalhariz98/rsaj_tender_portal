@@ -52,3 +52,19 @@ export function secondPersonAvailable(makerPersonIds: readonly string[], eligibl
   const makers = new Set(makerPersonIds);
   return eligiblePersonIds.some((p) => !makers.has(p));
 }
+
+/**
+ * Maker-checker at issue for the drafts that have no adopt act of their own (Phase 5a: an evaluation model's, a rate schedule's). The rule is the matrix's: the
+ * issuer is never one of the makers, and with nobody on record there is no one to keep the issuer apart from. Where the matrix is adopted by an act, these are
+ * adopted by editing: any save of the draft by a holder of the drafting permission puts the person on record, and a different person issues it.
+ */
+export function draftIssueFault(i: { makerPersonIds: readonly string[]; issuerPersonId: string; eligiblePersonIds?: readonly string[] }): Fault | null {
+  if (new Set(i.makerPersonIds).size === 0) {
+    return {
+      code: "NO_MAKER_ON_RECORD",
+      en: "Nobody is recorded as having made this draft, so there is no one to keep the issuer apart from. Someone must edit it first (a save puts them on record as its maker), and then a different person issues it.",
+      ms: "Tiada sesiapa direkodkan sebagai pembuat draf ini, jadi tiada sesiapa untuk diasingkan daripada pengeluar. Seseorang mesti menyuntingnya dahulu (simpanan merekodkannya sebagai pembuat), kemudian orang lain mengeluarkannya.",
+    };
+  }
+  return makerCheckerFault({ ...i, makersUnknownAtLanding: false });
+}

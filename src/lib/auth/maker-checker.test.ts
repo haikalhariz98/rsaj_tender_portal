@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { makerCheckerFault, secondPersonAvailable } from "./maker-checker";
+import { draftIssueFault, makerCheckerFault, secondPersonAvailable } from "./maker-checker";
 
 describe("who may issue a draft of the approval matrix (ADR 0034 D15)", () => {
   it("is anyone who did not make it", () => {
@@ -47,6 +47,27 @@ describe("a second person is needed (Phase 2c)", () => {
   it("never lets the maker through, whoever else is eligible: the eligible list only changes what is said", () => {
     for (const eligible of [[], ["p1"], ["p1", "p2"], undefined]) {
       expect(makerCheckerFault({ makerPersonIds: ["p1"], makersUnknownAtLanding: true, issuerPersonId: "p1", eligiblePersonIds: eligible })).not.toBeNull();
+    }
+  });
+});
+
+describe("who may issue a draft that has no adopt act of its own (Phase 5a: an evaluation model's, a rate schedule's)", () => {
+  it("is anyone who did not make it", () => {
+    expect(draftIssueFault({ makerPersonIds: ["p1", "p2"], issuerPersonId: "p3" })).toBeNull();
+  });
+
+  it("is never a maker, by Person, and says a second person is needed where nobody else could issue", () => {
+    expect(draftIssueFault({ makerPersonIds: ["p1"], issuerPersonId: "p1", eligiblePersonIds: ["p1", "p2"] })?.code).toBe("ISSUER_IS_MAKER");
+    expect(draftIssueFault({ makerPersonIds: ["p1"], issuerPersonId: "p1", eligiblePersonIds: ["p1"] })?.code).toBe("SECOND_PERSON_NEEDED");
+    expect(draftIssueFault({ makerPersonIds: ["p1"], issuerPersonId: "p1" })).not.toBeNull();
+  });
+
+  it("is nobody while nobody is on record as having made it, whoever asks: a save puts the first person on record, and a different person issues it", () => {
+    for (const issuer of ["p1", "p2"]) {
+      const fault = draftIssueFault({ makerPersonIds: [], issuerPersonId: issuer, eligiblePersonIds: ["p1", "p2"] });
+      expect(fault?.code).toBe("NO_MAKER_ON_RECORD");
+      expect(fault?.en).toMatch(/edit it first/);
+      expect(fault?.ms.length).toBeGreaterThan(20);
     }
   });
 });

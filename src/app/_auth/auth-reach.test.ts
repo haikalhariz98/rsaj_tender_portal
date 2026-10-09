@@ -39,7 +39,8 @@ const publicEntry = (file: string) => isPublicEntryFile(file);
 /// Phase 4a: `requireSupplier` (a supplier's page) and `supplierPost` (a handler behind a supplier's account) are the supplier store's `requireStaff` and `staffRoute`. They are asked first in the
 /// pages and handlers of `supplier/account`, which are no longer exempt as a whole folder; `supplier-reach.test.ts` holds what they promise.
 /// Phase 4b: `supplierUploadPost` (a multipart upload) and `supplierGet` (a read of codes or of the supplier's own file) are the same guard for the registration wizard's other handlers.
-const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct(", "staffForPermission(", "requireSupplier(", "supplierPost(", "supplierUploadPost(", "supplierGet("];
+/// Phase 5: `stageEdit` is a Configuration editor's exported action: it asks `staffForPermission("configuration.draft")` as its first awaited call (pinned in `registry-scan.test.ts`).
+const GUARDS = ["requireStaff(", "staffOrSignIn(", "staffRoute(", "staffForAct(", "staffForPermission(", "requireSupplier(", "supplierPost(", "supplierUploadPost(", "supplierGet(", "stageEdit("];
 
 interface Entry {
   file: string;
@@ -135,11 +136,16 @@ describe("every page asks who is signed in first", () => {
 
   it("a layout that loads anything does so only for someone signed in", () => {
     // The root layout renders for everyone (the sign-in screens sit in it), so it loads no counts for nobody; every other layout loads nothing at all.
+    // Phase 5b: but Configuration's, which says how many saves wait for a second person, and asks who is signed in before it reads anything (`requireStaff`, redirecting nobody to sign in).
     const loaders = LAYOUT_FILES.filter((f) => /from "@\/lib\//.test(f.src));
-    expect(loaders.map((f) => f.file)).toEqual(["layout.tsx"]);
-    expect(loaders[0].src).toMatch(/const actor = await currentStaffOrNull\(\);/);
+    expect(loaders.map((f) => f.file).sort()).toEqual(["configuration/layout.tsx", "layout.tsx"]);
+    const root = loaders.find((f) => f.file === "layout.tsx")!;
+    expect(root.src).toMatch(/const actor = await currentStaffOrNull\(\);/);
     // Phase 1c (ADR 0034 D10): the shell is now told whose organisation to name; the counts are still loaded only for someone signed in.
-    expect(loaders[0].src).toMatch(/loadShell\(\{ organisationId, counts: actor != null && !portalOnly \}\)/);
+    expect(root.src).toMatch(/loadShell\(\{ organisationId, counts: actor != null && !portalOnly \}\)/);
+    const configuration = loaders.find((f) => f.file === "configuration/layout.tsx")!;
+    expect(configuration.src.indexOf("await requireStaff()")).toBeGreaterThan(-1);
+    expect(configuration.src.indexOf("await requireStaff()")).toBeLessThan(configuration.src.indexOf("db.configurationChange.count"));
   });
 });
 

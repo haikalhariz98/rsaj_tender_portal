@@ -145,7 +145,7 @@ describe("the acts read the permit list under the organisation's lock, in the tr
     expect(body.slice(0, body.indexOf("db.$transaction"))).not.toMatch(/taxonomyMapping\.create|auditedCreate/);
   });
   it("saveScopePolicy passes the permit list read under its lock to the policy check", () => {
-    const body = fn(read("src/app/configuration/scope/actions.ts"), "saveScopePolicy");
+    const body = fn(read("src/app/configuration/scope/core.ts"), "saveScopePolicy");
     const tx = body.slice(body.indexOf("db.$transaction"));
     expect(tx).toMatch(/lockOrganisation[\s\S]*tenderDocumentPolicy\.findUnique[\s\S]*scopePolicyFaults\([^\n]*permitList \}\)[\s\S]*scopePolicy\.upsert/);
   });

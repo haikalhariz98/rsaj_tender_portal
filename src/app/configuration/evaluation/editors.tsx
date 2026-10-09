@@ -1,5 +1,6 @@
 import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
+import { actorField } from "@/lib/auth/actor-field";
 import { buttonClass } from "@/components/ui/button";
 import { READER_OFFICE_LABEL } from "@/lib/evaluation/readers";
 import { ASPECT_KIND_LABEL, CAPITAL_BASE_LABEL, INPUT_LABEL, OUTCOME_LABEL, ROUTE_LABEL, SCALE_LABEL, SHORTLIST_RULE_LABEL, SIDE_LABEL, STAGE_KIND_LABEL } from "@/lib/evaluation/labels";
@@ -7,6 +8,7 @@ import { ASPECT_KINDS, BAND_OUTCOMES, CAPITAL_BASES, COMPUTED_INPUTS, CRITERION_
 
 import {
   discardDraft,
+  adoptModelDraft,
   issueModel,
   newModelVersion,
   removeBand,
@@ -83,18 +85,41 @@ export function ModelDrawer({ model }: { model?: { id: string; values: Values; l
   );
 }
 
-export function IssueModelDrawer({ id, label, blocks, warnings }: { id: string; label: string; blocks: string[]; warnings: string[] }) {
+/// Why the person looking may not issue it, in words (they made it, or nobody is on record as having), and the draft's makers. Null where they may.
+export function IssueModelDrawer({ id, label, blocks, warnings, blocked }: { id: string; label: string; blocks: string[]; warnings: string[]; blocked: string | null }) {
   return (
     <RecordEditor
       title={`Issue ${label}`}
       description="Its stages, criteria, factors, band sets and the aspects in force are frozen on this version, and it is offered on an exercise's Window card. An issued version never changes: a change is a new version. Exercises pin it when they are published."
-      fields={[hidden("id"), ...(warnings.length ? [{ kind: "note", text: `It may be issued with: ${warnings.join(" ")}` } as Field] : [])]}
+      fields={[
+        hidden("id"),
+        ...(warnings.length ? [{ kind: "note", text: `It may be issued with: ${warnings.join(" ")}` } as Field] : []),
+        // Issuing is signed: the password is asked again, every time. The issuer is never one of the people who made the draft.
+        actorField("EvaluationModel.issuedBy", { name: "personId" }),
+      ]}
       values={{ id }}
       action={issueModel}
       submitLabel="Issue"
-      submitBlock={blocks.length ? blocks.join(" ") : undefined}
+      submitBlock={blocked ?? (blocks.length ? blocks.join(" ") : undefined)}
       trigger={{ label: "Issue", className: buttonClass("primary", "sm") }}
       size="md"
+    />
+  );
+}
+
+/// Take over a draft nobody is on record as having made, so that a different person issues it.
+export function AdoptModelDraftDrawer({ id, label }: { id: string; label: string }) {
+  return (
+    <RecordEditor
+      title={`Adopt ${label}`}
+      description="Nobody is on record as having made this draft. Adopting it makes you its maker, so that a different person issues it. You cannot issue a draft you adopted."
+      fields={[hidden("id")]}
+      values={{ id }}
+      action={adoptModelDraft}
+      submitLabel="Adopt draft"
+      reason={{ label: "Why are you adopting it?" }}
+      trigger={{ label: "Adopt draft", className: buttonClass("secondary", "sm") }}
+      size="sm"
     />
   );
 }

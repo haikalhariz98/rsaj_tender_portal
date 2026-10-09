@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
  * the transaction boundary; fails if a lock is removed or moved after its check.
  */
 
-const ACTIONS = readFileSync(join(process.cwd(), "src/app/configuration/scope/actions.ts"), "utf8");
+const ACTIONS = readFileSync(join(process.cwd(), "src/app/configuration/scope/core.ts"), "utf8");
 
 /// The body of one exported action, up to the next export.
 function body(name: string): string {

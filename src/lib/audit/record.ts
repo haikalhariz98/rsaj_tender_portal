@@ -1,6 +1,7 @@
 import type { ITXClientDenyList } from "@prisma/client/runtime/client";
 
 import type { Prisma } from "@/generated/prisma/client";
+import { captureAudit } from "@/lib/ambient/ambient-tx";
 import { db } from "@/lib/db";
 
 import type { AuditActor } from "@/lib/auth/types";
@@ -39,6 +40,8 @@ export async function writeAudit(
   action: "CREATE" | "UPDATE" | "DELETE",
   changes: FieldChange[],
 ): Promise<void> {
+  // While a two-person change is being rehearsed or applied (src/lib/ambient/ambient-tx.ts) the row is also kept, to be shown to the person who decides.
+  captureAudit({ entity: ctx.entity, entityId: ctx.entityId, entityLabel: ctx.entityLabel, action, reason: ctx.reason ?? "", changes });
   await tx.auditEntry.create({
     data: {
       organisationId: ctx.organisationId,

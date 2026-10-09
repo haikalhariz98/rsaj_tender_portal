@@ -1,0 +1,309 @@
+import { newAmbient, attempt } from "@/lib/ambient/ambient-tx";
+import { writeAudit, type Tx } from "@/lib/audit/record";
+import { db, savepointSql } from "@/lib/db";
+
+import { auditActorOfStaff } from "./audit-actor";
+import type { ChangeAct, ChangeFaults } from "./change-store";
+import {
+  CHANGE_MACHINE,
+  nextStatus,
+  STALE_WORDS,
+  STATUS_WORDS,
+  type ChangeDecision,
+  type ChangeStatus,
+} from "./configuration-change";
+import {
+  describeEdit,
+  EDIT_DECIDE_PERMISSION,
+  EDIT_KIND_WORDS,
+  EDIT_PROPOSE_PERMISSION,
+  editIsStale,
+  isEditKind,
+  isStoredField,
+  parseEditPayload,
+  readRehearsal,
+  rehearsalOf,
+  samePayload,
+  type EditKind,
+  type EditPayload,
+  type StagedValue,
+} from "./configuration-edit";
+import { loadCandidates } from "./eligibility-store";
+import { eligiblePersonIds } from "./eligibility";
+import { loadGrants } from "./permission-store";
+import { organisationDay } from "@/lib/dates";
+import type { Fault, StaffActor } from "./types";
+
+/**
+ * The life of an editor's save held for a second person (ADR 0034 D15, Phase 5). The rules of the editor are the editor's own and are not restated here: the
+ * registry runs it. This file proposes (a rehearsal: the editor runs, its audit rows are kept, everything is undone), decides (the editor runs again, for
+ * real, inside the decision's transaction, and the change is STALE if it would now change something other than it was rehearsed to change), and withdraws.
+ *
+ * Lock order: the change's own row, and then whatever the editor locks, in the editor's own order. The organisation's row is not taken first, because an editor
+ * that locks another row before it would then be ordered against every other path that does (see `lock-order.test.ts`).
+ */
+
+/// What the registry knows of an editor.
+export interface EditOperation {
+  key: string;
+  kind: EditKind;
+  /// The editor in words, for the queue: "Numbering: save a series".
+  label: string;
+  /// Whether an administrator account may propose or decide it. False where the editor reaches what an administrator is kept from (NFR-SEC-004: SULIT values,
+  /// the corrections of a contract, a rate schedule); the editor itself still refuses an administrator where it asks for one.
+  administratorMay: boolean;
+}
+
+export interface EditRunResult {
+  ok: boolean;
+  errors?: Record<string, string>;
+  message?: string;
+}
+
+/// The editors, from the app layer (they live under `src/app`, which this library does not import).
+export interface EditRegistry {
+  find(key: string): EditOperation | null;
+  /// Run the editor with `data` as its posted form, as the signed-in person of the request.
+  run(key: string, data: FormData): Promise<EditRunResult>;
+}
+
+export type EditRefusal = { ok: false; kind: "EDITOR"; result: EditRunResult } | ChangeFaults;
+export type ProposeEditOutcome = { ok: true; changeId: string } | EditRefusal;
+
+const f = (code: string, en: string, ms: string): Fault => ({ code, en, ms });
+const refuse = (faults: Fault[]): ChangeFaults => ({ ok: false, kind: "FAULTS", faults });
+
+const LOADER = f("LOADER_RUN", "A loader run is not a person, so it cannot propose or decide a change.", "Larian pemuat bukan seorang manusia, jadi ia tidak boleh mencadangkan atau memutuskan perubahan.");
+const NO_SUCH_CHANGE = f("NO_SUCH_CHANGE", "That change no longer exists.", "Perubahan itu tidak lagi wujud.");
+const UNKNOWN_EDITOR = f("UNKNOWN_EDITOR", "That is not an editor a change can carry.", "Itu bukan penyunting yang boleh dibawa oleh perubahan.");
+const NO_CHANGE = f("NO_CHANGE", "Nothing would change: the values posted are the ones already stored.", "Tiada apa yang berubah: nilai yang dihantar sama dengan yang telah disimpan.");
+const TX_OPTIONS = { timeout: 30_000, maxWait: 10_000 } as const;
+
+const ADMIN_REFUSED = f(
+  "ADMINISTRATOR_REFUSED",
+  "An administrator account does not propose or decide this change: it reaches what administration is kept apart from (SULIT values or the contract's corrections).",
+  "Akaun pentadbir tidak mencadangkan atau memutuskan perubahan ini: ia menjangkau perkara yang dipisahkan daripada pentadbiran (nilai SULIT atau pembetulan kontrak).",
+);
+
+/// The posted form, put back as the editor reads it. The reason is the change's own, not a posted field.
+export function formOf(payload: EditPayload, reason: string): FormData {
+  const data = new FormData();
+  for (const [name, value] of payload.fields) {
+    if (name === "reason") continue;
+    if (typeof value === "string") data.append(name, value);
+    else data.append(name, new File([Buffer.from(value.file.base64, "base64")], value.file.name, { type: value.file.type }));
+  }
+  data.set("reason", reason);
+  return data;
+}
+
+/// A posted form with the change's reason in place of whatever it posted.
+function withReason(data: FormData, reason: string): FormData {
+  const out = new FormData();
+  for (const [name, value] of data.entries()) if (name !== "reason") out.append(name, value);
+  out.set("reason", reason);
+  return out;
+}
+
+/// A posted form, as a change holds it. Files above the size a change holds are refused later, by `parseEditPayload`, with the field named.
+export async function stagedFields(data: FormData): Promise<[string, StagedValue][]> {
+  const out: [string, StagedValue][] = [];
+  for (const [name, value] of data.entries()) {
+    // The reason is the change's own; a password and an act's attribution fields are the acting person's, read from their own request, and are never stored.
+    if (name === "reason" || !isStoredField(name)) continue;
+    if (typeof value === "string") out.push([name, value]);
+    else out.push([name, { file: { name: value.name, type: value.type, size: value.size, base64: value.size > 1_500_000 ? "" : Buffer.from(await value.arrayBuffer()).toString("base64") } }]);
+  }
+  return out;
+}
+
+/// The proposer's reason with who proposed it, as the editor records it when the second person applies it.
+export const appliedReason = (proposerName: string, reason: string): string => (reason ? `${reason} (proposed by ${proposerName}, applied by a second person)` : `Proposed by ${proposerName}, applied by a second person`);
+
+/// Who could decide an editor's save, besides `exceptPersonId`: holders of the deciding permission, and not an administrator account where the editor is kept from one.
+async function deciders(client: Tx, actor: StaffActor, op: EditOperation, now: Date, exceptPersonId: string): Promise<string[]> {
+  const [candidates, grants] = await Promise.all([loadCandidates(client, actor.organisationId), loadGrants(client, actor.organisationId)]);
+  const usable = op.administratorMay ? candidates : candidates.filter((c) => !c.isAdministrator);
+  return eligiblePersonIds(EDIT_DECIDE_PERMISSION, usable, grants, organisationDay(now, actor.organisationTimeZone)).filter((p) => p !== exceptPersonId);
+}
+
+/// Who may propose it: a holder of the maker's permission, and not an administrator account where the editor is kept from one.
+export function editProposalFaults(op: EditOperation, proposer: { permissions: ReadonlySet<string>; isAdministrator: boolean }): Fault[] {
+  const out: Fault[] = [];
+  if (!proposer.permissions.has(EDIT_PROPOSE_PERMISSION)) out.push(f("NOT_PERMITTED", "You do not hold the permission that proposes a change to configuration.", "Anda tidak memegang kebenaran yang mencadangkan perubahan konfigurasi."));
+  if (!op.administratorMay && proposer.isAdministrator) out.push(ADMIN_REFUSED);
+  return out;
+}
+
+/// Who may decide it: a different Person from the proposer, holding the checker's permission, while it is proposed, and not an administrator account where the editor is kept from one.
+export function editDecisionFaults(op: EditOperation, change: { status: string; proposedByPersonId: string }, decider: { personId: string; permissions: ReadonlySet<string>; isAdministrator: boolean }): Fault[] {
+  const out: Fault[] = [];
+  if (change.status !== "PROPOSED") out.push(f("NOT_PROPOSED", "This change has already been decided or withdrawn.", "Perubahan ini sudah diputuskan atau ditarik balik."));
+  if (decider.personId === change.proposedByPersonId) out.push(f("PROPOSER_IS_DECIDER", "You proposed this change, so you cannot decide it. A second person decides it.", "Anda mencadangkan perubahan ini, jadi anda tidak boleh memutuskannya. Orang kedua memutuskannya."));
+  if (!decider.permissions.has(EDIT_DECIDE_PERMISSION)) out.push(f("NOT_PERMITTED", "You do not hold the permission that decides a change to configuration.", "Anda tidak memegang kebenaran yang memutuskan perubahan konfigurasi."));
+  if (!op.administratorMay && decider.isAdministrator) out.push(ADMIN_REFUSED);
+  return out;
+}
+
+const SECOND_PERSON = f(
+  "SECOND_PERSON_NEEDED",
+  "A second person is needed. Nobody else can decide a change to configuration, and the person who proposes a change never decides it. Another holder of the permission to issue configuration must exist first (an administrator holds it, and so does a role the organisation grants it to).",
+  "Orang kedua diperlukan. Tiada orang lain boleh memutuskan perubahan konfigurasi, dan orang yang mencadangkan perubahan tidak pernah memutuskannya. Pemegang lain kebenaran mengeluarkan konfigurasi mesti wujud dahulu (pentadbir memegangnya, begitu juga peranan yang diberikannya oleh organisasi).",
+);
+
+// --------------------------------------------------------------------------------------------- proposing
+
+export async function proposeEdit(
+  actor: StaffActor,
+  act: ChangeAct,
+  registry: EditRegistry,
+  input: { operation: string; fields: [string, StagedValue][]; reason: string; /// The form as posted, for the rehearsal.
+    posted?: FormData },
+  now: Date = new Date(),
+): Promise<ProposeEditOutcome> {
+  if (actor.system) return refuse([LOADER]);
+  const op = registry.find(input.operation);
+  if (!op) return refuse([UNKNOWN_EDITOR]);
+  const unpermitted = editProposalFaults(op, actor);
+  if (unpermitted.length > 0) return refuse(unpermitted);
+  const parsed = parseEditPayload({ operation: input.operation, fields: input.fields });
+  if (!parsed.ok) return refuse(parsed.faults.map((x) => f(x.code, `${x.field === "*" ? "" : `${x.field}: `}${x.en}`, x.ms)));
+  const payload = parsed.payload;
+  const reason = input.reason.trim();
+
+  return db.$transaction(async (tx): Promise<ProposeEditOutcome> => {
+    // The same proposer's same proposal, waiting: said, not stacked.
+    const waiting = await tx.configurationChange.findMany({ where: { organisationId: actor.organisationId, kind: op.kind, status: "PROPOSED", proposedByPersonId: actor.personId }, select: { payload: true } });
+    for (const w of waiting) {
+      const p = parseEditPayload(w.payload);
+      if (p.ok && samePayload(p.payload, payload)) return refuse([f("ALREADY_PROPOSED", "You have already proposed exactly this. It is waiting for a second person.", "Anda telah mencadangkan perkara yang sama. Ia menunggu orang kedua.")]);
+    }
+    // The rehearsal: the editor runs against the live values, as the proposer, and everything it wrote is undone. What it refuses is told to the proposer in its own words.
+    const ambient = newAmbient(tx, savepointSql(tx), "REHEARSAL");
+    // The editor is rehearsed on the form as it was posted where the caller has it (an act's own fields, a paper reference, are judged for the proposer as they always were), else on what is kept.
+    const rehearsed = input.posted ? withReason(input.posted, reason) : formOf(payload, reason);
+    const run = await attempt(ambient, () => registry.run(op.key, rehearsed), () => false);
+    if (!run.result.ok) return { ok: false, kind: "EDITOR", result: run.result };
+    if (run.captured.length === 0) return refuse([NO_CHANGE]);
+
+    // Nobody else could decide it: refused here, with the reason said, rather than left in a queue that no one can clear.
+    const others = await deciders(tx, actor, op, now, actor.personId);
+    if (others.length === 0) return refuse([SECOND_PERSON]);
+
+    const before = rehearsalOf(run.captured);
+    const row = await tx.configurationChange.create({
+      data: { organisationId: actor.organisationId, kind: op.kind, payload: payload as unknown as object, before: before as unknown as object, reason, proposedByPersonId: actor.personId, proposedAt: now },
+      select: { id: true },
+    });
+    const summary = describeEdit(op.kind, op.label, before);
+    await writeAudit(
+      tx,
+      { organisationId: actor.organisationId, entity: "ConfigurationChange", entityId: row.id, entityLabel: op.label, reason, actor: auditActorOfStaff(actor) },
+      "CREATE",
+      [
+        { field: "Change", before: null, after: summary.title },
+        ...(summary.subject ? [{ field: "About", before: null, after: summary.subject }] : []),
+        ...summary.lines.map((l) => ({ field: l.label, before: l.before, after: l.after })),
+        { field: "Standing", before: null, after: STATUS_WORDS.PROPOSED.en },
+      ],
+    );
+    await act.write(tx, row.id);
+    return { ok: true, changeId: row.id };
+  }, TX_OPTIONS);
+}
+
+// --------------------------------------------------------------------------------------------- deciding
+
+export type DecideEditOutcome =
+  | { ok: true; status: "APPLIED" | "DECLINED" | "WITHDRAWN" }
+  | { ok: false; kind: "STALE"; message: string }
+  | EditRefusal;
+
+interface EditDecision {
+  decision: Extract<ChangeDecision, "APPLY" | "DECLINE" | "WITHDRAW">;
+  reason: string;
+  roleCode?: string | null;
+}
+
+const DECISION_AUDIT_REASON: Record<EditDecision["decision"], string> = { APPLY: "Applied by a second person", DECLINE: "Declined by a second person", WITHDRAW: "Withdrawn by its proposer" };
+
+export async function decideEdit(
+  actor: StaffActor,
+  act: ChangeAct,
+  registry: EditRegistry,
+  input: { changeId: string } & EditDecision,
+  now: Date = new Date(),
+): Promise<DecideEditOutcome> {
+  if (actor.system) return refuse([LOADER]);
+  const reason = input.reason.trim();
+  if (input.decision === "DECLINE" && !reason) return refuse([f("REASON_REQUIRED", "A reason is required.", "Sebab diperlukan.")]);
+
+  return db.$transaction(async (tx): Promise<DecideEditOutcome> => {
+    await tx.$queryRaw`SELECT id FROM "ConfigurationChange" WHERE id = ${input.changeId} AND "organisationId" = ${actor.organisationId} FOR UPDATE`;
+    const row = await tx.configurationChange.findFirst({ where: { id: input.changeId, organisationId: actor.organisationId }, include: { proposedBy: { select: { name: true } } } });
+    if (!row || !isEditKind(row.kind)) return refuse([NO_SUCH_CHANGE]);
+    const parsed = parseEditPayload(row.payload);
+    const op = parsed.ok ? registry.find(parsed.payload.operation) : null;
+    if (!parsed.ok || !op) return refuse([f("UNREADABLE", "This change no longer fits what a change of its kind carries, or its editor is gone, so it cannot be applied. Decline it, and propose it again.", "Perubahan ini tidak lagi sepadan dengan apa yang dibawa oleh perubahan sejenisnya, atau penyuntingnya telah tiada, jadi ia tidak boleh dilaksanakan. Tolaknya, dan cadangkan semula.")]);
+
+    if (input.decision === "WITHDRAW") {
+      if (row.status !== "PROPOSED") return refuse([f("NOT_PROPOSED", "This change has already been decided or withdrawn.", "Perubahan ini sudah diputuskan atau ditarik balik.")]);
+      if (row.proposedByPersonId !== actor.personId) return refuse([f("NOT_THE_PROPOSER", "Only the person who proposed a change withdraws it.", "Hanya orang yang mencadangkan perubahan menariknya balik.")]);
+    } else {
+      const faults = editDecisionFaults(op, row, actor);
+      if (faults.length > 0) return refuse(faults);
+    }
+
+    const label = op.label;
+    const decidedBy = { decidedByPersonId: actor.personId, decidedAt: now };
+    const trail = (status: ChangeStatus, why: string, decisionReason: string) =>
+      writeAudit(
+        tx,
+        { organisationId: actor.organisationId, entity: "ConfigurationChange", entityId: row.id, entityLabel: label, reason: decisionReason ? `${why}: ${decisionReason}` : why, actor: auditActorOfStaff(actor) },
+        "UPDATE",
+        [
+          { field: "Standing", before: STATUS_WORDS.PROPOSED.en, after: STATUS_WORDS[status].en },
+          { field: "Decided by", before: null, after: actor.personName },
+        ],
+      );
+    const conclude = async (status: ChangeStatus, why: string, decisionReason: string) => {
+      await tx.configurationChange.update({ where: { id: row.id }, data: { status, ...decidedBy, decisionReason } });
+      await trail(status, why, decisionReason);
+      await act.write(tx, row.id, { document: { entity: "ConfigurationChange", id: row.id }, roleCode: input.roleCode ?? null });
+    };
+
+    if (input.decision === "WITHDRAW" || input.decision === "DECLINE") {
+      const status = nextStatus("PROPOSED", input.decision)!;
+      await conclude(status, DECISION_AUDIT_REASON[input.decision], reason);
+      return { ok: true, status: status as "DECLINED" | "WITHDRAWN" };
+    }
+
+    // APPLY. The editor runs, for real, in this transaction. It is kept only if it did not refuse and wrote what it was rehearsed to write: otherwise every
+    // write it made is undone, and the change is either left proposed (the editor refused: the cause can be put right, or the change declined) or STALE.
+    const rehearsed = readRehearsal(row.before);
+    const ambient = newAmbient(tx, savepointSql(tx), "APPLY");
+    let stale = false;
+    const run = await attempt(
+      ambient,
+      () => registry.run(op.key, formOf(parsed.payload, appliedReason(row.proposedBy.name, row.reason))),
+      (result, captured) => {
+        if (!result.ok) return false;
+        stale = !rehearsed || editIsStale(rehearsed, captured);
+        return !stale;
+      },
+    );
+    if (!run.result.ok) return { ok: false, kind: "EDITOR", result: run.result };
+    if (stale) {
+      const status = nextStatus("PROPOSED", "STALE")!;
+      await conclude(status, "Out of date when it was decided", STALE_WORDS.en);
+      return { ok: false, kind: "STALE", message: STALE_WORDS.en };
+    }
+    await conclude(nextStatus("PROPOSED", "APPLY")!, DECISION_AUDIT_REASON.APPLY, reason);
+    return { ok: true, status: "APPLIED" };
+  }, TX_OPTIONS);
+}
+
+/// What the machine allows from a state (the same machine as the other kinds).
+export const editDecisionsFrom = (status: ChangeStatus): ChangeDecision[] => Object.keys(CHANGE_MACHINE[status]) as ChangeDecision[];
+
+export { EDIT_KIND_WORDS };

@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@/generated/prisma/client";
+import { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { ambientStore, nested, type Ambient, type SavepointSql } from "@/lib/ambient/ambient-tx";
 
 /// The columns sealed until disclosure (OD-1, ADR 0012), omitted from every query.
 export const SEALED_OMIT = { companyEstimateVersion: { value: true, reason: true } } as const;
@@ -28,8 +29,40 @@ function createClient() {
   });
 }
 
-export const db = globalForPrisma.prisma ?? createClient();
+const client = globalForPrisma.prisma ?? createClient();
 
 if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = db;
+  globalForPrisma.prisma = client;
 }
+
+/**
+ * The application client. While an ambient transaction is set (`src/lib/ambient/ambient-tx.ts`: a two-person change being applied, or rehearsed) it stands for that
+ * transaction, and a `$transaction` on it is a savepoint of it. Everywhere else it is the client, unchanged.
+ */
+export const db: typeof client = new Proxy(client, {
+  get(target, prop) {
+    const ambient: Ambient | undefined = ambientStore.getStore();
+    if (ambient && typeof prop === "string" && prop !== "$connect" && prop !== "$disconnect" && prop !== "$on" && prop !== "$extends") {
+      if (prop === "$transaction") {
+        return async (arg: unknown) => {
+          if (typeof arg === "function") return nested(ambient, arg as (tx: object) => Promise<unknown>);
+          // The array form: the queries were made on this client, so they already belong to the ambient transaction. Awaited in order.
+          const out: unknown[] = [];
+          for (const query of arg as PromiseLike<unknown>[]) out.push(await query);
+          return out;
+        };
+      }
+      const held = (ambient.tx as Record<string, unknown>)[prop];
+      if (held !== undefined) return typeof held === "function" ? (held as (...a: unknown[]) => unknown).bind(ambient.tx) : held;
+    }
+    const value = Reflect.get(target, prop, target);
+    return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+  },
+});
+
+/// The statements of a savepoint, on a transaction client: for whoever sets an ambient transaction. The name is made from a counter (`ambient-tx.ts`) and never from input.
+export const savepointSql = (tx: Pick<typeof client, "$executeRaw">): SavepointSql => ({
+  savepoint: (name) => tx.$executeRaw`SAVEPOINT ${Prisma.raw(name)}`,
+  release: (name) => tx.$executeRaw`RELEASE SAVEPOINT ${Prisma.raw(name)}`,
+  rollbackTo: (name) => tx.$executeRaw`ROLLBACK TO SAVEPOINT ${Prisma.raw(name)}`,
+});

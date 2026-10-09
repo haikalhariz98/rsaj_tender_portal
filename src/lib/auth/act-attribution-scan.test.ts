@@ -54,7 +54,7 @@ const ALLOWED: Readonly<Record<string, string>> = {
   "src/app/configuration/users/actions.ts#superiorPersonId": CONFIGURATION,
   "src/app/configuration/users/editors.tsx#jobholderPersonId": "The drawer reads the jobholder it is about to save, to name the signed recommendation's file after the absent holder. It posts nothing as the actor.",
   "src/app/configuration/users/editors.tsx#fromPersonId": "The drawer reads the grantor it is about to save, to name the signed recommendation's file. It posts nothing as the actor.",
-  "src/app/configuration/scope/actions.ts#personId": CONFIGURATION,
+  "src/app/configuration/scope/core.ts#personId": CONFIGURATION,
   "src/app/configuration/organisation/actions.ts#ownerPersonId": CONFIGURATION,
   "src/app/configuration/organisation/actions.ts#headPersonId": CONFIGURATION,
   "src/app/configuration/committees/actions.ts#personId": CONFIGURATION,

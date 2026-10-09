@@ -32,6 +32,7 @@ import {
   type PermissionChoice,
 } from "./configuration-change";
 import { describeChange, type ChangeLine, type ChangeNames } from "./configuration-change-words";
+import { isEditKind } from "./configuration-edit";
 import { eligibleFor } from "./eligibility-store";
 import { recordSignInEvent } from "./events";
 import { lockAccount } from "./identity";
@@ -263,7 +264,10 @@ export async function decideChange(
     await tx.$queryRaw`SELECT id FROM "ConfigurationChange" WHERE id = ${input.changeId} AND "organisationId" = ${actor.organisationId} FOR UPDATE`;
     const row = await tx.configurationChange.findFirst({ where: { id: input.changeId, organisationId: actor.organisationId } });
     if (!row) return refuse([NO_SUCH_CHANGE]);
-    const parsed = parseChange(row.kind, row.payload);
+    // An editor's save is decided in `edit-store.ts` (Phase 5), which runs the editor: this path is for the kinds that have a rule of their own.
+    if (isEditKind(row.kind)) return refuse([f("WRONG_PATH", "This change is decided as a change to configuration.", "Perubahan ini diputuskan sebagai perubahan konfigurasi.")]);
+    const rowKind = row.kind;
+    const parsed = parseChange(rowKind, row.payload);
     if (!parsed.ok) return refuse([f("UNREADABLE", "This change no longer fits what a change of its kind carries, so it cannot be decided. Decline it, and propose it again.", "Perubahan ini tidak lagi sepadan dengan apa yang dibawa oleh perubahan sejenisnya, jadi ia tidak boleh diputuskan. Tolaknya, dan cadangkan semula.")]);
     const change = parsed.change;
     const target = await targetOf(tx, actor.organisationId, change);
@@ -286,7 +290,7 @@ export async function decideChange(
     const trail = (status: ChangeStatus, why: string, decisionReason: string) =>
       writeAudit(
         tx,
-        { organisationId: actor.organisationId, entity: "ConfigurationChange", entityId: row.id, entityLabel: KIND_WORDS[row.kind].en, reason: decisionReason ? `${why}: ${decisionReason}` : why, actor: auditActorOfStaff(actor) },
+        { organisationId: actor.organisationId, entity: "ConfigurationChange", entityId: row.id, entityLabel: KIND_WORDS[rowKind].en, reason: decisionReason ? `${why}: ${decisionReason}` : why, actor: auditActorOfStaff(actor) },
         "UPDATE",
         [
           { field: "Standing", before: STATUS_WORDS.PROPOSED.en, after: STATUS_WORDS[status].en },
