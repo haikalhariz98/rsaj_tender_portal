@@ -26,6 +26,7 @@ const ROUTES = [
   "/supplier/opportunities",
   "/supplier/bids",
   "/supplier/projects",
+  "/supplier/announcements",
   "/supplier/company",
   "/configuration",
   "/configuration/organisation",

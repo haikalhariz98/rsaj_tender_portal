@@ -1,4 +1,4 @@
-import { isSignInPath, SUPPLIER_AUTH_PAGES, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_POST_PATHS } from "@/lib/auth/routes";
+import { isSignInPath, SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AUTH_PAGES, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_POST_PATHS, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_POST_PATHS } from "@/lib/auth/routes";
 
 /**
  * Which door a running copy of the product is the front of.
@@ -25,12 +25,14 @@ export function surfaceOf(value: string | undefined | null): Surface {
 
 /// The public routes. One literal path each, or one id segment: nothing is matched by prefix.
 // Phase 4b: the registration wizard's page and its two reads (a code search and a file), served on the public copy and answering a supplier only (each asks who is signed in).
-const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier/results", "/supplier/register", "/supplier/bids", "/supplier/company", "/supplier/projects", ...SUPPLIER_AUTH_PAGES, ...SUPPLIER_REGISTRATION_GET_PATHS]);
+const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier/results", "/supplier/register", "/supplier/bids", "/supplier/company", "/supplier/projects", SUPPLIER_ANNOUNCEMENTS_PAGE, ...SUPPLIER_AUTH_PAGES, ...SUPPLIER_REGISTRATION_GET_PATHS]);
 const OPPORTUNITY = /^\/supplier\/opportunities\/[A-Za-z0-9_-]+$/;
 /// Phase 4d: one exercise in My Bids, and the two pages that open its tender documents. One id segment each; the posts are literal paths (`SUPPLIER_BIDS_POST_PATHS`), so a post to a path like these is refused.
 const BID_PAGE = /^\/supplier\/bids\/[A-Za-z0-9_-]+(?:\/(?:table-document|documents))?$/;
 /// The two of those that write the inspection log on every render. A page that is only asked about (HEAD) is not opened, so it is not served: a HEAD would otherwise log an opening nobody made.
 const INSPECTION_PAGE = /^\/supplier\/bids\/[A-Za-z0-9_-]+\/(?:table-document|documents)$/;
+/// Phase 4e: one contract in My Projects. One id segment; the posts are literal paths (`SUPPLIER_PROJECTS_POST_PATHS`).
+const PROJECT_PAGE = /^\/supplier\/projects\/[A-Za-z0-9_-]+$/;
 /// The organisation's logo, addressed by its own fingerprint.
 const LOGO = /^\/organisation\/logo\/[A-Za-z0-9_-]+$/;
 /// The platform's own files: scripts, styles and fonts, and nothing else under /_next. The image optimiser
@@ -43,7 +45,7 @@ export const SUBMIT_PATH = "/supplier/register/submit";
 /// Every write the public copy takes, each at one literal path (Phase 4a): the registration post, and the supplier portal's sign-in, sign-out, activation, reset and account posts.
 /// A stranger can reach the sign-in ones (they are how a supplier becomes signed in); each is a route handler that passes the Origin guard and a form token, and the ones
 /// behind an account then ask who is signed in. No other path takes a write, and the public copy refuses every server action.
-const POST_PATHS: ReadonlySet<string> = new Set([SUBMIT_PATH, ...SUPPLIER_POST_PATHS, ...SUPPLIER_REGISTRATION_POST_PATHS, ...SUPPLIER_COMPANY_POST_PATHS, ...SUPPLIER_BIDS_POST_PATHS]);
+const POST_PATHS: ReadonlySet<string> = new Set([SUBMIT_PATH, ...SUPPLIER_POST_PATHS, ...SUPPLIER_REGISTRATION_POST_PATHS, ...SUPPLIER_COMPANY_POST_PATHS, ...SUPPLIER_BIDS_POST_PATHS, ...SUPPLIER_PROJECTS_POST_PATHS]);
 
 export interface PublicRequest {
   method: string;
@@ -61,7 +63,7 @@ export function publicAllows({ method, pathname, hasServerAction }: PublicReques
   if (m === "POST") return POST_PATHS.has(path);
   if (m !== "GET" && m !== "HEAD") return false;
   if (m === "HEAD" && INSPECTION_PAGE.test(path)) return false;
-  return PUBLIC_PAGES.has(path) || OPPORTUNITY.test(path) || BID_PAGE.test(path) || LOGO.test(path) || PLATFORM.test(path) || path === ICON;
+  return PUBLIC_PAGES.has(path) || OPPORTUNITY.test(path) || BID_PAGE.test(path) || PROJECT_PAGE.test(path) || LOGO.test(path) || PLATFORM.test(path) || path === ICON;
 }
 
 /**

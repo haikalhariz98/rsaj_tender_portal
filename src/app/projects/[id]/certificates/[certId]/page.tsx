@@ -441,7 +441,7 @@ async function SignaturesPanel({ l, blocks, pinned, formName, pinBlocker, people
                   {s ? (
                     <span className="block text-[12.5px] break-words text-ink-3">
                       {[
-                        s.refused ? `Refused to sign: ${s.refusalNote}` : `${s.personId ? signedBy.read({ entity: "CertificateSignature", id: s.id, slot: "person" }, s.name).en : `${s.name} (named by the officer: they do not sign in)`}${s.officeLabel ? `, ${s.officeLabel}` : ""}`,
+                        s.refused ? `Refused to sign${s.signedBySupplierAccountId ? " from the supplier portal" : ""}: ${s.refusalNote}` : `${s.personId ? signedBy.read({ entity: "CertificateSignature", id: s.id, slot: "person" }, s.name).en : s.signedBySupplierAccountId ? `${s.name} (signed from the supplier portal, with the password)` : `${s.name} (named by the officer: they do not sign in)`}${s.officeLabel ? `, ${s.officeLabel}` : ""}`,
                         s.delegationId ? "under delegation" : null,
                         s.decision ? `${DECISION_WORDS[s.decision].en}${s.decisionCap ? ` up to ${formatMoney(parseSen(s.decisionCap.toString()))}` : ""}` : null,
                         s.icMasked ? `IC ${s.icMasked}` : null,

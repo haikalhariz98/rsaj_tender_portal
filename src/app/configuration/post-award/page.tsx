@@ -19,7 +19,10 @@ import { loadPostAwardPolicy } from "@/lib/supervision/load";
 import { BASE_WORDS, BASIS_WORDS, SCHEDULE_FORM_WORDS } from "@/lib/variation/labels";
 import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/variation/types";
 
-import { EditClockRule, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditVariationPolicy } from "./editors";
+import { SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
+import { SUBMISSION_KINDS } from "@/lib/portal/projects/types";
+
+import { EditClockRule, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditSubmissionServiceLevel, EditVariationPolicy } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
 /// The certificates the payment and damages chain raises, each on its configured form (the acts' own list).
@@ -72,11 +75,12 @@ export default async function PostAwardControlsPage() {
       </>
     );
   }
-  const [p, templates, kinds, clocks, sheets, committees] = await Promise.all([
+  const [p, templates, kinds, clocks, serviceLevels, sheets, committees] = await Promise.all([
     loadPostAwardPolicy(org.id),
     db.documentTemplate.findMany({ where: { organisationId: org.id }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { id: true, nameEn: true, formCode: true } }),
     db.certificateKindSetting.findMany({ where: { organisationId: org.id }, include: { routingType: { select: { labelEn: true, retiredOn: true } } } }),
     db.contractClockRule.findMany({ where: { organisationId: org.id } }),
+    db.contractorSubmissionSetting.findMany({ where: { organisationId: org.id } }),
     db.routingSheetType.findMany({ where: { organisationId: org.id, subject: "CERTIFICATE", retiredOn: null }, orderBy: [{ sortOrder: "asc" }, { labelEn: "asc" }], select: { id: true, labelEn: true, certificateKind: true } }),
     db.committee.findMany({ where: { organisationId: org.id, retiredOn: null }, orderBy: { nameEn: "asc" }, select: { id: true, nameEn: true } }),
   ]);
@@ -201,6 +205,26 @@ export default async function PostAwardControlsPage() {
                     </span>
                   ),
                   value: <Setting value={x?.templateId ? `${formName(x.templateId)} · ${sheet}` : null} provenance={x?.provenance} unset="It cannot be raised: the refusal names this setting." />,
+                };
+              })}
+            />
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader icon={<ClockIcon size={17} />} title="Contractor submissions" subtitle="The service level a submission sent from the contractor's portal account is answered against, by kind, in calendar days from the day it is sent (assumed calendar; a question to the customer). Read when the submission is sent and frozen on it." />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={SUBMISSION_KINDS.map((k) => {
+                const x = serviceLevels.find((s) => s.kind === k) ?? null;
+                return {
+                  label: (
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                      <span>{SUBMISSION_KIND_WORDS[k].en}</span>
+                      <EditSubmissionServiceLevel kind={k} label={SUBMISSION_KIND_WORDS[k].en} values={{ serviceLevelDays: x?.serviceLevelDays == null ? null : String(x.serviceLevelDays), provenance: x?.provenance ?? null, notes: x?.notes ?? "" }} />
+                    </span>
+                  ),
+                  value: <Setting value={x?.serviceLevelDays == null ? null : `${x.serviceLevelDays} calendar days`} provenance={x?.provenance} unset="A submission of this kind shows no due day and is never judged overdue; the review queue says so." />,
                 };
               })}
             />

@@ -89,7 +89,8 @@ describe("the scan finds what it should", () => {
     // Phase 4b adds the registration wizard's six: save, upload, withdraw-file, submit, values and file.
     // Phase 4c adds the Company workspace's two uploads: a document (a replacement, a renewal, an answer to the office's request) and a change of bank details.
     // Changed for Phase 4d: My Bids adds three route handlers (event, acknowledge, request), so 30. The count is of files, and each is held below.
-    expect(ROUTE_FILES.length).toBe(30);
+    // Changed for Phase 4e: My Projects adds three (submit, diary, certificate), so 33.
+    expect(ROUTE_FILES.length).toBe(33);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });
@@ -194,7 +195,8 @@ describe("every route handler asks who is signed in first, and every one that ch
       // holds what each promises, and that no other handler accepts a multipart body.
       // Phase 4c: the Company workspace's two POSTs are multipart uploads and ask `supplierUploadPost` first, held by the same section of `supplier-reach.test.ts`.
       // Phase 4d: My Bids' three POSTs are JSON and ask `supplierPost` first, with a small bound (`BIDS_BODY_LIMIT`).
-      if (!types && /^supplier\/(?:registration|company|bids)\//.test(e.file)) {
+      // Phase 4e: My Projects' three POSTs likewise (`PROJECTS_BODY_LIMIT`, room for a materials list).
+      if (!types && /^supplier\/(?:registration|company|bids|projects)\//.test(e.file)) {
         expect(e.body, `${e.file}: ${e.name}`).toMatch(/^\{\s*const guard = await (?:supplierPost\(request, "[^"]*"(?:, \{ maxBytes: \w+ \})?\)|supplierUploadPost\(request, "[^"]*"\));/);
         continue;
       }
@@ -212,9 +214,9 @@ describe("every route handler asks who is signed in first, and every one that ch
       "supplier/activate",
       // Changed for Phase 4c: "supplier/company" is no longer public. The Company workspace is built: its page asks `requireSupplier` and its handlers `supplierUploadPost`.
       // Changed for Phase 4d: "supplier/bids" is no longer public. My Bids is built: its pages ask `requireSupplier` and its handlers `supplierPost`.
+      // Changed for Phase 4e: "supplier/projects" is no longer public. My Projects is built: its pages ask `requireSupplier` and its handlers `supplierPost`; `supplier/announcements` asks `requireSupplier`.
       "supplier/opportunities",
       "supplier/page.tsx",
-      "supplier/projects",
       "supplier/register",
       "supplier/reset",
       "supplier/results",

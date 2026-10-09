@@ -163,6 +163,8 @@ const EXCEPTIONS: Readonly<Record<string, string>> = {
   "src/app/awards/actions.ts#cancelAward": "The award's cancellation cancels its contract before execution (6.11 BD-17): an act on the award judged by contractCancellable, not an act on the contract (EDGE_EXCEPTIONS' AWARD_CANCELS).",
   "src/lib/certificate/repo.ts#withLockedCertificate": "The certificate's lock itself: its one caller, the certificate actions' inCertificate, asks the table for the certificate's kind and phase.",
   "src/lib/documents/owners.ts#withLockedOwner": "The document store's owner path for a contract and a variation's instruction: attachFault, detachFault and repinFault judge it through ownerState, which reads the owning family's ACT_STATUS row first (BD-613-115, contractTableState).",
+  // Phase 4e: the contractor's lock wrapper (the contract as the session's supplier holds it); each act that takes it (sendSubmission, attestDiaryAsAgent, disputeDiaryAsAgent) asks SUPERVISION's row first, in its own body.
+  "src/lib/portal/projects/submission-store.ts#inHeldContract": "My Projects' lock wrapper: it only takes the contract's lock as this supplier holds it and reads the day; every act inside it (sendSubmission, and the diary store's two) asks actStatusFault for SUPERVISION's row before writing.",
 };
 
 const SCHEMA = readFileSync("prisma/schema.prisma", "utf8");

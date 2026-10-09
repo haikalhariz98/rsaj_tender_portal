@@ -19,6 +19,7 @@ export const PORTAL_PATH = {
   bids: "/supplier/bids",
   projects: "/supplier/projects",
   company: "/supplier/company",
+  announcements: "/supplier/announcements",
 } as const;
 
 export const HOME_TITLE = w("Supplier portal", "Portal pembekal");
@@ -115,10 +116,17 @@ export const SIGN_IN_SUBTITLE = w(
   "Bahagian ini perlu tahu siapa anda, jadi ia menunggu log masuk.",
 );
 
-export const SIGN_IN_ITEMS: readonly { href: string; title: Words; text: Words }[] = [
-  // My Bids is built (Phase 4d) and is no longer listed as arriving with sign-in: it is under "With sign-in" in the navigation, built.
-  { href: PORTAL_PATH.projects, title: w("My Projects", "Projek saya"), text: w("The contracts you hold.", "Kontrak yang anda pegang.") },
-  // Company is built (Phase 4c) and is no longer listed as arriving with sign-in: it is under "With sign-in" in the navigation, built.
+// Phase 4e: My Projects and the announcements board are built, so nothing is left arriving with sign-in. The list stays (empty) so the home page and the navigation test keep one source.
+export const SIGN_IN_ITEMS: readonly { href: string; title: Words; text: Words }[] = [];
+
+/// The parts of the portal a supplier signs in for, each built: the home page lists them, and each sends a visitor who is not signed in to the sign-in page.
+export const SIGNED_IN_TITLE = w("With sign-in", "Dengan log masuk");
+export const SIGNED_IN_SUBTITLE = w("Sign in with your company's account to reach these.", "Log masuk dengan akaun syarikat anda untuk mencapai bahagian ini.");
+export const SIGNED_IN_LINKS: readonly { key: "bids" | "projects" | "company" | "announcements"; href: string; title: Words; text: Words }[] = [
+  { key: "bids", href: PORTAL_PATH.bids, title: w("My Bids", "Bida saya"), text: w("The exercises you take part in, and the notices issued to you.", "Pelawaan yang anda sertai, dan notis yang dikeluarkan kepada anda.") },
+  { key: "projects", href: PORTAL_PATH.projects, title: w("My Projects", "Projek saya"), text: w("The contracts you hold: the site diary, your claims, the certificates and your submissions.", "Kontrak yang anda pegang: diari tapak, tuntutan anda, perakuan dan penyerahan anda.") },
+  { key: "company", href: PORTAL_PATH.company, title: w("Company", "Syarikat"), text: w("Your registration, documents, bank details and eligibility.", "Pendaftaran, dokumen, butiran bank dan kelayakan anda.") },
+  { key: "announcements", href: PORTAL_PATH.announcements, title: w("Announcements", "Pengumuman"), text: w("What the procurement office has published for its suppliers.", "Apa yang diterbitkan pejabat perolehan untuk pembekalnya.") },
 ];
 
 export const SIGN_IN_REASON = w(

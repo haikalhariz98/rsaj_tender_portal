@@ -47,6 +47,7 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "DocumentRequest.requestedBy": "Who asked for the tender documents (Phase 4d): the column is the record, and the request starts no sale and signs nothing.",
   "DocumentRequest.endedBy": "Who withdrew the request (Phase 4d): paired with `endedAt` by CHECK, and audited with the account.",
   "TenderInspectionEvent.viewedBy": "Who opened the tender documents (Phase 4d): the inspection log itself, append-only for every login, written before the content is shown.",
+  "SiteDiaryEntry.disputedBy": "Who recorded a disagreement on a diary entry from the portal (Phase 4e): the column is the record, audited with the account. A disagreement is words, not a signature; the entry is then the S.O.'s.",
 };
 
 describe("the schema scan finds what it should", () => {
@@ -87,7 +88,9 @@ describe("every SupplierAccount relation is a supplier act slot or is accounted 
   it("the submission and the bank change are the two signatures, with the password; each declaration is a signed row that rests on the same entry", () => {
     // Changed for Phase 4c: a registered supplier's change of its bank details is the second act a supplier signs with the password (the first profile is sent with the registration, and signed with it).
     // `CreditorProfile.enteredBy` was listed as not an act while a profile was only ever filled in; a version sent after registration is signed by the account that entered it.
-    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount", "CreditorProfile.enteredBy"]);
+    // Changed for Phase 4e: the contractor's three signatures from the portal, each with the password: a statutory declaration (the one submission kind the store attributes on `ContractorSubmission.submittedBy`),
+    // the agent's attestation of a diary entry (FR-SUP-007) and the contractor's block on a certificate (FR-VAR-022).
+    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount", "CreditorProfile.enteredBy", "ContractorSubmission.submittedBy", "SiteDiaryEntry.agentAttestedBy", "CertificateSignature.signedBySupplierAccount"]);
     expect(slotOf("RegistrationDeclaration", "signedBy")!.signatureClass).toBe(false);
   });
 

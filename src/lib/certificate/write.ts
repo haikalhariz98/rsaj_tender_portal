@@ -270,6 +270,8 @@ export interface SignatureInput extends SignInput {
   personId: string | null;
   /// How the block's person signed (Phase 2b): the signed-in holder with the password, or the paper recorded for them. Absent for a block that is not a person's.
   act: ActWriter | null;
+  /// Phase 4e: the contractor's block signed (or its refusal recorded) from the supplier's own portal account, with the password asked again (the caller attributes it). Absent: recorded by an officer from the paper.
+  signedBySupplierAccountId?: string | null;
 }
 
 /**
@@ -324,6 +326,7 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
       refusalNote: input.refused ? input.refusalNote.trim() : "",
       signedOn: dayToDate(r.signedOn!),
       recordedAt: c.now,
+      signedBySupplierAccountId: personBlock ? null : (input.signedBySupplierAccountId ?? null),
     },
   });
   // FR-CRT-005: the dating block's act dates the certificate. Written here and by its correction only.
@@ -348,7 +351,7 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
     formPinned: pinning ? `${rev.nameEn}${rev.formCode ? ` (${rev.formCode})` : ""}, form version ${rev.bodyVersion}` : null,
     // BD-614-26 as ruled: the pin records which typing corrections it froze with the form.
     typingCorrectionsPinned: pinning && rev.corrections?.length ? correctionsWords(rev.corrections).en : null,
-    recordedOnBehalf: personBlock && input.act?.intent.mode === "SIGNED" ? null : ON_BEHALF,
+    recordedOnBehalf: personBlock && input.act?.intent.mode === "SIGNED" ? null : input.signedBySupplierAccountId ? "signed from the supplier's own portal account, with the password" : ON_BEHALF,
   }));
   // NFR-SIG-001: a person's block names the certificate it signs and the office the signer held.
   if (personBlock && input.act) await input.act.write(c.tx, sig.id, { document: { entity: "Certificate", id: cert.id }, roleCode: block!.officeCode });
@@ -356,6 +359,7 @@ export async function recordSignature(c: CertCtx, input: SignatureInput) {
   // M-1: issued with the certificate's date as read under the lock (carrying any correction made while it was
   // being signed), or this act's day where this act is the dating block's.
   if (allSigned(rev.blocks, after)) await issue(c, rev, dateAtIssue(dates ? r.signedOn! : null, day(cert.certificateDate)));
+  return { signatureId: sig.id };
 }
 
 /// The last signature: number, sequence, frozen text, copies and the issue snapshot, under the contract's lock.

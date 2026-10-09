@@ -471,7 +471,7 @@ function DiarySection({ l, v, people, today, page, hidden }: { l: LoadedContract
                       <Badge tone={ENTRY_STATE_TONE[st] === "neutral" ? undefined : ENTRY_STATE_TONE[st]}>{ENTRY_STATE_WORDS[st].en}</Badge>
                       {e.backdatedReason && <Chip tone="warn">{`Written ${formatDate(day(e.recordedOn))}`}</Chip>}
                     </span>
-                    <span className={sub}>{[e.officer.name, e.weather || null, e.agentName ? `agent ${e.agentName}` : null].filter(Boolean).join(" · ")}</span>
+                    <span className={sub}>{[e.officer.name, e.weather || null, e.agentName ? `agent ${e.agentName}${e.agentAttestedBySupplierAccountId ? " (signed from the supplier portal)" : e.agentAttestedOn ? " (recorded from paper, not signed)" : ""}` : null].filter(Boolean).join(" · ")}</span>
                     <span className="block text-[13px] break-words whitespace-pre-line text-ink-2">{e.entry}</span>
                     {e.backdatedReason && <span className={sub}>{`Not written on the day: ${e.backdatedReason}`}</span>}
                     {e.disagreement && <span className={sub}>{`Disagreement, escalated ${formatDate(day(e.escalatedOn))}: ${e.disagreement}`}</span>}

@@ -3,7 +3,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
-import { saveClockRule, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveVariationPolicy } from "./actions";
+import { saveClockRule, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveSubmissionServiceLevel, saveVariationPolicy } from "./actions";
 
 /**
  * The Post-award controls drawer. No field carries a default: an unset field is not set, and the screen says
@@ -116,6 +116,28 @@ export function EditClockRule({ clock, label, values }: { clock: string; label: 
       ]}
       values={{ ...values, clock }}
       action={saveClockRule}
+      reason={{ label: "Why it is changed" }}
+      submitLabel="Save"
+      trigger={{ label: "Edit", className: buttonClass("ghost", "sm") }}
+    />
+  );
+}
+
+/// Phase 4e: the service level a contractor's submission of a kind is answered against (calendar days, assumed). Ships unset.
+export function EditSubmissionServiceLevel({ kind, label, values }: { kind: string; label: string; values: Record<string, string | null> }) {
+  return (
+    <RecordEditor
+      title={label}
+      description="How many calendar days the office has to answer a submission of this kind, counted from the day it is sent. Leave it empty to remove it: the queue then shows no due day for this kind and says the service level is not set."
+      columns={2}
+      fields={[
+        { kind: "hidden", name: "kind" },
+        { kind: "number", name: "serviceLevelDays", label: "Calendar days", min: 1 },
+        provenance("provenance", "Where it came from"),
+        { kind: "textarea", name: "notes", label: "Notes" },
+      ]}
+      values={{ ...values, kind }}
+      action={saveSubmissionServiceLevel}
       reason={{ label: "Why it is changed" }}
       submitLabel="Save"
       trigger={{ label: "Edit", className: buttonClass("ghost", "sm") }}

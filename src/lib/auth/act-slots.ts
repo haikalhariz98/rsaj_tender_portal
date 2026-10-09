@@ -118,6 +118,8 @@ export const LABEL_MS: Readonly<Record<string, string>> = {
   "Authorised by": "Dibenarkan oleh",
   "Assessed by": "Dinilai oleh",
   "Answered by": "Dijawab oleh",
+  "Published by": "Diterbitkan oleh",
+  "Attested by": "Disahkan oleh",
 };
 
 type SlotExtra = Partial<Pick<ActSlot, "signatureClass" | "onBehalf" | "paperGated" | "holder" | "entryPoints" | "administratorMay">>;
@@ -201,6 +203,13 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("DocumentSale", "issuedBy", "Issued by"),
   // Phase 4d (FR-AWD-010): the officer who issued an unsuccessful tenderer's notice of the outcome.
   slot("NonAwardNotice", "issuedBy", "Issued by"),
+  // Phase 4e (6.14 OD-6, BD-614-31): the officer who answered a contractor's submission, the signed-in officer's own act, judged by the contract's supervision (the S.O., or a
+  // representative whose letter lists contractor communication). An administrator is refused (NFR-SEC-004).
+  slot("ContractorSubmission", "decidedBy", "Answered by", { holder: "TRANSACTION", entryPoints: ["src/app/documents/review-actions.ts#answerContractorSubmission"] }),
+  // Phase 4e (FR-VND-014): the officer who published an announcement to the supplier board, and the one who withdrew it. Each is the signed-in holder's own act, gated by
+  // `announcements.publish`; an administrator is refused as at every act outside configuration (taken in the refusing direction; an open item for the product owner).
+  slot("Announcement", "publishedBy", "Published by", { holder: "TRANSACTION", entryPoints: ["src/app/suppliers/announcement-actions.ts#publishAnnouncement"] }),
+  slot("Announcement", "withdrawnBy", "Withdrawn by", { holder: "TRANSACTION", entryPoints: ["src/app/suppliers/announcement-actions.ts#withdrawAnnouncement"] }),
   slot("SiteEventAttendance", "recordedBy", "Recorded by"),
 
   // ---- bids and opening
@@ -415,6 +424,12 @@ export const SUPPLIER_ACT_SLOTS: readonly ActSlot[] = [
   slot("RegistrationDeclaration", "signedBy", "Signed by"),
   // Phase 4c: a registered supplier changes its bank details, signed with the password asked again; the profile it sends is the exact document signed, and the account that enters it is the account that sends it.
   slot("CreditorProfile", "enteredBy", "Sent by", { signatureClass: true }),
+  // Phase 4e: the contractor's acts from its portal account. A submission is sent by the account (the column is the record, audited); only the STATUTORY DECLARATION is signed, with the
+  // password asked again, and that is the one kind the store attributes on this slot, naming the submission as the exact document signed. The agent's attestation of a diary entry
+  // (FR-SUP-007) and the contractor's block on a certificate (FR-VAR-022) are signatures, each with the password, each naming the entry or the certificate signed.
+  slot("ContractorSubmission", "submittedBy", "Signed by", { signatureClass: true }),
+  slot("SiteDiaryEntry", "agentAttestedBy", "Attested by", { signatureClass: true }),
+  slot("CertificateSignature", "signedBySupplierAccount", "Signed by", { signatureClass: true }),
 ];
 
 export const slotOf = (entity: string, field: string): ActSlot | undefined =>

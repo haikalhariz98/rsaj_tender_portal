@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_BIDS_PAGE, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_BIDS_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
+import { SUPPLIER_ANNOUNCEMENTS_PAGE, SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_BIDS_PAGE, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_BIDS_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_POST_PATHS, SUPPLIER_PROJECTS_PAGE, SUPPLIER_PROJECTS_POST_PATHS, SUPPLIER_PROJECTS_POSTS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
 import { lex } from "@/lib/scan/source";
 
 /**
@@ -31,9 +31,12 @@ const PORTAL = walk(path.join(SRC, "app", "supplier")).map((f) => ({ file: rel(f
 // Phase 4b: the registration wizard's handlers are held by the section below (`app/supplier/registration/`): six, of which two are reads and one is a multipart upload.
 // Phase 4c: the Company workspace's two uploads are held by the section below (`app/supplier/company/`).
 // Phase 4d: My Bids' three JSON posts are held by the section further down (`app/supplier/bids/`), as the registration's and the Company workspace's are: this first section is for the doors a stranger reaches.
-const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/") && !f.file.startsWith("app/supplier/company/") && !f.file.startsWith("app/supplier/bids/"));
+// Phase 4e: My Projects' three JSON posts are held by their own section (`app/supplier/projects/`).
+const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/") && !f.file.startsWith("app/supplier/company/") && !f.file.startsWith("app/supplier/bids/") && !f.file.startsWith("app/supplier/projects/"));
 const BIDS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/bids/"));
 const BIDS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && f.file.startsWith("app/supplier/bids"));
+const PROJECTS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/projects/"));
+const PROJECTS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && (f.file.startsWith("app/supplier/projects") || f.file.startsWith("app/supplier/announcements")));
 const COMPANY_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/company/"));
 const REGISTRATION_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/registration/"));
 const PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file));
@@ -344,6 +347,107 @@ describe("My Bids' handlers and pages (Phase 4d)", () => {
     expect(guard).toBeLessThan(src.indexOf("loadBidContext(db, actor"));
     for (const page of ["app/supplier/bids/[id]/table-document/page.tsx", "app/supplier/bids/[id]/documents/page.tsx"]) {
       expect(lex(read(page), { only: "comments" }), page).toMatch(/secFetchSite:\s*\(await headers\(\)\)\.get\("sec-fetch-site"\)/);
+    }
+  });
+});
+
+describe("My Projects' handlers and pages (Phase 4e)", () => {
+  const FILE = (f: { file: string }) => `/${f.file.replace(/^app\//, "").replace(/\/route\.ts$/, "")}`;
+  const HTTP = /export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g;
+  const methods = (src: string) => [...src.matchAll(HTTP)].map((m) => m[1]);
+  const STORES = ["lib/portal/projects/submission-store.ts", "lib/portal/projects/diary-store.ts", "lib/portal/projects/certificate-store.ts", "lib/portal/projects/list-store.ts", "lib/portal/projects/workspace-store.ts", "lib/portal/projects/context-store.ts", "lib/portal/projects/api.ts"];
+
+  it("are exactly the three literal paths the public copy lists, and the list page and the board are there", () => {
+    expect(PROJECTS_HANDLERS.map(FILE).sort()).toEqual([...SUPPLIER_PROJECTS_POST_PATHS].sort());
+    expect(Object.values(SUPPLIER_PROJECTS_POSTS)).toHaveLength(3);
+    const pages = PORTAL.map((f) => `/${f.file.replace(/^app\//, "").replace(/\/page\.tsx$/, "")}`);
+    expect(pages).toContain(SUPPLIER_PROJECTS_PAGE);
+    expect(pages).toContain(SUPPLIER_ANNOUNCEMENTS_PAGE);
+  });
+
+  it("each answers a POST and nothing else, and asks the portal's guard before anything else is awaited, returning its refusal as it is", () => {
+    for (const f of PROJECTS_HANDLERS) {
+      expect(methods(f.src), f.file).toEqual(["POST"]);
+      const body = postBody(f.src);
+      expect(body.slice(body.search(/\bawait\b/)).startsWith("await supplierPost(request, "), f.file).toBe(true);
+      expect(f.src, f.file).toMatch(/await supplierPost\(request, "projects", \{ maxBytes: PROJECTS_BODY_LIMIT \}\)/);
+      expect(body, f.file).toMatch(/^\{\s*const guard =/);
+      expect(body, f.file).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+      expect(body.indexOf("post.fields"), f.file).toBeGreaterThan(body.indexOf("guard.ok"));
+    }
+  });
+
+  it("a signature asks the password after the body is parsed and before the store is asked, and the password is handed only to confirmSupplierPassword", () => {
+    for (const [file, store] of [["app/supplier/projects/submit/route.ts", "sendSubmission("], ["app/supplier/projects/diary/route.ts", "attestDiaryAsAgent("], ["app/supplier/projects/certificate/route.ts", "signContractorBlock("]] as const) {
+      const src = lex(read(file));
+      const ask = src.indexOf("confirmSupplierPassword(");
+      expect(ask, file).toBeGreaterThan(src.indexOf("parse"));
+      expect(ask, file).toBeLessThan(src.indexOf(store));
+    }
+    // The password is handed to no store: no store names it in code (strings and comments blanked: a store may say in its reason that one was asked). The body parser reads it only to hand it to the handler.
+    for (const file of STORES.filter((f) => !f.endsWith("/api.ts"))) expect(lex(read(file)), file).not.toMatch(/\bpassword\b/i);
+  });
+
+  it("no handler, page or store reads a supplier, an organisation, an account, a day or a time from the request", () => {
+    const stores = STORES.map((file) => ({ file, src: read(file) }));
+    for (const f of [...PROJECTS_HANDLERS, ...PROJECTS_PAGES, ...stores]) {
+      const code = lex(f.src, { only: "comments" });
+      expect(code, f.file).not.toMatch(/\.get\(\s*["'](?:supplierId|organisationId|accountId|supplierAccountId|actorId|signedOn|signedAt|submittedOn|submittedAt|agentAttestedOn|decidedOn)["']\s*\)/);
+      expect(code, f.file).not.toMatch(/(?:fields|body|post\.fields|params|searchParams)\??\.\s*(?:supplierId|organisationId|accountId|supplierAccountId|signedOn|signedAt|submittedOn|submittedAt|agentAttestedOn|decidedOn)\b/);
+    }
+    expect(lex(read("lib/portal/projects/api.ts"), { only: "comments" })).not.toMatch(/\b(?:b|body)\.(?:supplierId|organisationId|accountId|supplierAccountId|submittedOn|submittedAt|signedOn)\b/);
+  });
+
+  it("hold no server action", () => {
+    for (const f of [...PROJECTS_HANDLERS, ...PROJECTS_PAGES]) expect(f.src, f.file).not.toMatch(/^\s*["']use server["']/m);
+  });
+
+  it("every page asks who is signed in first, and reads its supplier from the actor", () => {
+    expect(PROJECTS_PAGES.length).toBe(3);
+    for (const f of PROJECTS_PAGES) {
+      expect(f.src, f.file).toMatch(/const actor = await requireSupplier\(\);/);
+      expect(f.src, f.file).not.toMatch(/params\.supplierId|searchParams\.supplierId|\{\s*supplierId\s*\}\s*=/);
+    }
+  });
+
+  it("the stores take the supplier and the organisation from the actor, hold the contract through its award's supplier, and lock in the canonical order (withLockedContract, withLockedCertificate)", () => {
+    for (const file of ["lib/portal/projects/submission-store.ts", "lib/portal/projects/certificate-store.ts"]) {
+      const src = read(file);
+      expect(src, file).toMatch(/SupplierActor/);
+      expect(src, file).toMatch(/actor\.supplierId/);
+      expect(src, file).toMatch(/actor\.organisationId/);
+      expect(src, file).toMatch(/supplierHoldsContract\(/);
+      expect(src, file).toMatch(/withLocked(?:Contract|Certificate)\(/);
+      expect(lex(src), file).not.toMatch(/lockSupplierRow|FROM "Supplier"/);
+    }
+    // The diary store reaches the contract only through the submission store's wrapper, which holds it for the actor's supplier.
+    const diaryStore = read("lib/portal/projects/diary-store.ts");
+    expect(diaryStore).toMatch(/SupplierActor/);
+    expect(diaryStore).toMatch(/inHeldContract\(actor, /);
+    expect(diaryStore).toMatch(/actor\.organisationId/);
+    expect(lex(diaryStore)).not.toMatch(/lockSupplierRow|FROM "Supplier"|withLockedContract\(/);
+    // The one way a contract is a supplier's: its award names the supplier on the register and stands.
+    const vis = read("lib/portal/projects/visibility.ts");
+    expect(vis).toMatch(/awardVendorId != null && f\.awardVendorId === f\.supplierId/);
+    const ctx = read("lib/portal/projects/context-store.ts");
+    expect(ctx).toMatch(/supplierHoldsContract\(\{ awardVendorId: c\.award\.vendorId/);
+  });
+
+  it("the Overview reads its own few counts and loads nothing of a sibling tab", () => {
+    const src = lex(read("lib/portal/projects/workspace-store.ts"));
+    const overview = src.slice(src.indexOf("export async function overviewTab"), src.indexOf("export async function programmeTab"));
+    expect(overview.length).toBeGreaterThan(100);
+    for (const sibling of ["programmeTab(", "diaryTab(", "paymentsTab(", "certificatesTab(", "submissionsTab(", "loadSupervision(", "loadPayment("]) expect(overview, sibling).not.toContain(sibling);
+  });
+
+  it("the announcements board is read for the actor's organisation, and the staff side gates publishing on the permission", () => {
+    expect(read("app/supplier/announcements/page.tsx")).toMatch(/loadBoard\(db, actor\.organisationId/);
+    const actions = lex(read("app/suppliers/announcement-actions.ts"));
+    for (const fn of ["publishAnnouncement", "pinAnnouncement", "withdrawAnnouncement"]) {
+      const body = actions.slice(actions.indexOf(`export async function ${fn}`));
+      expect(body.indexOf("staffForAct("), fn).toBeGreaterThan(-1);
+      expect(body.indexOf("permissionGate(actor,"), fn).toBeGreaterThan(body.indexOf("staffForAct("));
+      expect(body.indexOf("permissionGate(actor,"), fn).toBeLessThan(body.indexOf("$transaction("));
     }
   });
 });

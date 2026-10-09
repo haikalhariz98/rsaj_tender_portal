@@ -87,6 +87,12 @@ export const PERMISSIONS: Readonly<Record<PermissionKey, PermissionInfo>> = {
     label: { en: "Name the people on a sourcing exercise", ms: "Namakan orang pada eksesais sumber" },
     lets: { en: "Name participants, the person in charge, the proposal's reviewer and the evaluation team on an exercise one is not named on. It does not let a person add themselves as a participant, person in charge or evaluator, and a holder is named on an exercise only by recording its proposal review or by restricting a draft.", ms: "Namakan peserta, orang yang bertanggungjawab, penyemak cadangan dan pasukan penilaian pada eksesais yang orang itu tidak dinamakan padanya. Ia tidak membenarkan seseorang menambah dirinya sebagai peserta, orang yang bertanggungjawab atau penilai, dan pemegangnya dinamakan pada sesuatu eksesais hanya dengan merekodkan semakan cadangannya atau dengan menghadkan draf." },
   },
+  // Phase 4e (FR-VND-014): "announcements are publishable by an authorised officer". Which officer is the organisation's to say: undecided until decided, refused, and shown as undecided.
+  "announcements.publish": {
+    source: "GRANT_ONLY",
+    label: { en: "Publish announcements to suppliers", ms: "Terbitkan pengumuman kepada pembekal" },
+    lets: { en: "Publish, pin and withdraw announcements on the supplier portal's board, which every signed-in supplier reads.", ms: "Terbitkan, sematkan dan tarik balik pengumuman di papan portal pembekal, yang dibaca oleh setiap pembekal yang log masuk." },
+  },
 };
 
 export const PERMISSION_KEYS = Object.keys(PERMISSIONS) as readonly PermissionKey[];

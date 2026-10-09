@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { DataList } from "@/components/data-list";
+import { Badge, Chip } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/feedback";
 import { ClockIcon, FilesIcon, InboxIcon, RouteIcon } from "@/components/icons";
 import { Tabs } from "@/components/tabs";
 import { ButtonLink, Button } from "@/components/ui/button";
@@ -17,6 +19,10 @@ import { verdictText } from "@/lib/certificate/sheet-words";
 import { dayOf } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
+import { OUTCOME_TONE, OUTCOME_WORDS, ROUTING_STATEMENT, SERVICE_NOT_SET, serviceWords, SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
+import { loadReviewQueue } from "@/lib/portal/projects/review-store";
+
+import { AnswerDrawer } from "./review-editors";
 import { requireStaff } from "@/app/_auth/actor";
 import { hiddenExercises } from "@/app/_auth/sulit";
 
@@ -29,8 +35,8 @@ const lang = (ls: readonly ("EN" | "MS")[]) => [...new Set(ls)].sort((a, b) => (
 /**
  * The documents register (6.14 increment 2, plan §5, OD-6 A): the Library of generated documents, the copies still
  * outstanding, and the routing sheets still open. Every count above a list is the whole register's, and every list
- * pages in the database. The review queue of contractors' submissions needs the contractor to sign in: it arrives
- * with the vendor portal, and the tab says so (the rulings' condition) rather than promising it here.
+ * pages in the database. The review queue (Phase 4e, 6.14 OD-6, BD-614-31): the submissions contractors send from their
+ * portal accounts, each routed to the contract's S.O. office against the service level set for its kind, answered here.
  */
 export default async function DocumentsPage(props: PageProps<"/documents">) {
   const actor = await requireStaff();
@@ -61,6 +67,8 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
     tab === "library" ? whole.then((t) => libraryPage(org.id, query, sp.page, org.timeZone, hidden, t)) : Promise.resolve(null),
     tab === "distribution" ? distributionPage(org.id, sp.page) : Promise.resolve(null),
   ]);
+  // Phase 4e: the review queue reads only when it is the tab asked for.
+  const review = tab === "review" ? await loadReviewQueue(db, org.id, today) : null;
   const sheets = tab === "routing" && judged ? routingSheetsPage(judged, sp.page) : null;
   const searching = tab === "library" && !!library && query.trim() !== "";
   const pager = (t: string, page: number, total: number, size: number, extra = "") => {
@@ -197,11 +205,86 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
     </Card>
   );
 
-  const reviewPanel = (
-    <Callout tone="info" title={W.reviewTitle.en}>
-      {`${W.reviewBody.en} `}
-      <Link href="/configuration/documents" className="font-semibold">Configuration › Documents</Link>.
-    </Callout>
+  const reviewPanel = review && (
+    <div className="flex flex-col gap-6">
+      {review.unsetKinds.length > 0 && (
+        <Callout tone="warn" title={`${SERVICE_NOT_SET.en} for ${review.unsetKinds.length === 6 ? "every kind" : review.unsetKinds.map((k) => SUBMISSION_KIND_WORDS[k].en.toLowerCase()).join(", ")}`}>
+          {"A submission of a kind with no service level shows no due day and is never judged overdue. Set each under "}
+          <Link href="/configuration/post-award" className="font-semibold">Configuration › Post-award controls</Link>.
+        </Callout>
+      )}
+      <Card className="overflow-hidden">
+        <CardHeader icon={<ClockIcon size={17} />} title={W.review.en} subtitle={`Submissions contractors sent from their portal accounts, waiting for an answer, the longest waiting first. ${ROUTING_STATEMENT} The S.O. office's holders, or a representative whose letter lists contractor communication, answer each.`} divided={review.waiting > 0} />
+        {review.waiting === 0 ? (
+          <EmptyState size="sm" title="Nothing waits for an answer">A contractor&apos;s programme, claim, materials list, delay notice, defects report or statutory declaration appears here when it is sent.</EmptyState>
+        ) : (
+          <ul className="divide-y divide-line/70">
+            {review.rows.filter((r) => r.outcome == null).map((r) => {
+              const sv = serviceWords(r.service);
+              return (
+                <li key={r.id} className="flex flex-col gap-2 px-5 py-4 sm:px-6">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2 text-[14.5px] font-semibold text-ink">
+                        <Link href={`/projects/${r.contractId}`} className="hover:underline">{`Contract ${r.contractNumber}`}</Link>
+                        <Chip tone="brand">{SUBMISSION_KIND_WORDS[r.kind].en}</Chip>
+                        {r.signed && <Chip tone="ok">Signed with the contractor&apos;s password</Chip>}
+                      </span>
+                      <span className="block text-[13.5px] text-ink">{r.title}</span>
+                      <span className="block text-[12.5px] text-ink-3">{[r.contractor, `sent ${r.sentOn}`, r.amount ? `claimed ${r.amount}` : null, r.aboutDay ? `day ${r.aboutDay}` : null, r.routedTo ? `routed to ${r.routedTo}` : "routed to nobody: no Superintending Officer was assigned"].filter(Boolean).join(" · ")}</span>
+                    </span>
+                    <span className="flex shrink-0 flex-wrap items-center gap-2">
+                      <Badge tone={sv.tone === "neutral" ? undefined : sv.tone}>{sv.text}</Badge>
+                      <AnswerDrawer id={r.id} label={`${SUBMISSION_KIND_WORDS[r.kind].en}: ${r.title}`} contractor={r.contractor} />
+                    </span>
+                  </div>
+                  <p className="text-[13.5px] break-words whitespace-pre-line text-ink-2">{r.body}</p>
+                  {r.lines.length > 0 && (
+                    <ul className="list-disc pl-5 text-[13px] text-ink-2">
+                      {r.lines.map((l, n) => (
+                        <li key={n}>{`${l.description} · ${l.quantity} · ${l.location} · ${l.value}`}</li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+      <Card className="overflow-hidden">
+        <CardHeader icon={<InboxIcon size={17} />} title="Answered" subtitle="Every submission answered, with who answered it and whether it was answered by its due day." divided={false} />
+        <DataList
+          flat
+          selectable={false}
+          searchable
+          exportName="contractor-submissions-answered"
+          searchPlaceholder="Search by contract, contractor or title"
+          emptyTitle="Nothing answered yet"
+          emptyBody="An answered submission is listed here."
+          stackBelow="xl"
+          columns={[
+            { key: "submission", label: "Submission", mobile: "primary", minWidth: "260px" },
+            { key: "contract", label: "Contract", width: "220px", mobile: "meta" },
+            { key: "answer", label: "Answer", width: "170px", mobile: "meta" },
+            { key: "service", label: "Against the service level", width: "260px", mobile: "meta" },
+            { key: "by", label: "Answered by", width: "200px", mobile: "meta" },
+          ]}
+          rows={review.rows.filter((r) => r.outcome != null).map((r) => ({
+            id: r.id,
+            search: `${r.contractNumber} ${r.contractor} ${r.title} ${SUBMISSION_KIND_WORDS[r.kind].en}`,
+            sortKeys: { submission: r.sentDay },
+            cells: {
+              submission: { kind: "stack", title: r.title, sub: `${SUBMISSION_KIND_WORDS[r.kind].en} · sent ${r.sentOn}` },
+              contract: { kind: "link", text: `Contract ${r.contractNumber}`, href: `/projects/${r.contractId}`, sub: r.contractor },
+              answer: { kind: "badge", text: `${OUTCOME_WORDS[r.outcome!].en}${r.decidedOn ? ` ${r.decidedOn}` : ""}`, tone: OUTCOME_TONE[r.outcome!] },
+              service: { kind: "text", text: serviceWords(r.service).text },
+              by: { kind: "text", text: r.decidedBy ?? "" },
+            },
+          }))}
+        />
+      </Card>
+    </div>
   );
 
   return (
@@ -230,7 +313,7 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
           { id: "library", label: W.library.en, icon: <FilesIcon size={15} />, count: searching ? library!.total : libraryTotal, panel: libraryPanel, lazy: true },
           { id: "distribution", label: W.distribution.en, icon: <InboxIcon size={15} />, count: dist.total, panel: distributionPanel, lazy: true },
           { id: "routing", label: W.sheets.en, icon: <RouteIcon size={15} />, count: judged?.counts.open ?? sheetCount.open, panel: routingPanel, lazy: true },
-          { id: "review", label: W.review.en, icon: <ClockIcon size={15} />, panel: tab === "review" ? reviewPanel : null, lazy: true },
+          { id: "review", label: W.review.en, icon: <ClockIcon size={15} />, count: review?.waiting, panel: tab === "review" ? reviewPanel : null, lazy: true },
         ]}
       />
     </>

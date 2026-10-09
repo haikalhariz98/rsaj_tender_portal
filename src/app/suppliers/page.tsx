@@ -1,5 +1,7 @@
 import { DataList, type Row } from "@/components/data-list";
-import { BuildingIcon, ClipboardIcon, ClockIcon, GlobeIcon, ShieldIcon } from "@/components/icons";
+import { BellIcon, BuildingIcon, ClipboardIcon, ClockIcon, GlobeIcon, ShieldIcon } from "@/components/icons";
+import { Badge, Chip } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/feedback";
 import { Tabs } from "@/components/tabs";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
@@ -22,7 +24,11 @@ import { queueState, type QueueState } from "@/lib/suppliers/review";
 import { standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 import type { ApplicationKind, SupplierStatus } from "@/lib/suppliers/types";
-import { requireStaff } from "@/app/_auth/actor";
+import { permissionGate, requireStaff } from "@/app/_auth/actor";
+import { loadBoard } from "@/lib/portal/projects/announcement-store";
+import { CATEGORY_TONE, CATEGORY_WORDS } from "@/lib/portal/projects/announcements";
+
+import { PinDrawer, PublishDrawer, WithdrawDrawer } from "./announcement-editors";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +62,9 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   }
   const { suppliers, expiring, standing: standingSuppliers, queue: openApplications } = data;
   const [online, intake] = await Promise.all([loadPortalQueue(org0.id), loadRegistrationForm()]);
+  // Phase 4e (FR-VND-014): the announcements board, read only on its tab; whether the signed-in officer may publish is the organisation's grant, said in words where it is not.
+  const board = tab === "announcements" ? await loadBoard(db, org0.id, org0.timeZone, { withdrawn: true }) : null;
+  const mayPublish = tab === "announcements" ? await permissionGate(actor, "announcements.publish") : null;
   // Phase 4c: which requests the supplier answered online in time, so a passed deadline reads "answered online" and not "lapsed".
   const answered = await answeredOnTimeIds(db, org0.id, [...openApplications.map((a) => a.id), ...suppliers.flatMap((s) => s.applications.map((a) => a.id))]);
   const pages = Math.max(1, Math.ceil(data.total / SUPPLIERS_PAGE));
@@ -399,6 +408,55 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
           {data.standingTotal > standingSuppliers.length && <CardFooter className="text-[12.5px] text-ink-3">{`Showing ${standingSuppliers.length} of ${data.standingTotal} suppliers barred, with a blacklisting asked for, or with the lapse rule not set; each group by name, up to ${SUPPLIERS_PAGE}.`}</CardFooter>}
         </Card>
       ),
+    },
+    {
+      id: "announcements",
+      label: "Announcements",
+      icon: <BellIcon size={15} />,
+      lazy: true,
+      panel:
+        board && mayPublish ? (
+          <Card className="overflow-hidden">
+            <CardHeader
+              icon={<BellIcon size={17} />}
+              title="Announcements to suppliers"
+              subtitle="Published to every signed-in supplier on the portal's Announcements page, pinned ones first; shown there and not sent by email. Withdrawn ones are kept here with their reason."
+              actions={mayPublish.ok ? <PublishDrawer /> : undefined}
+              divided={board.length > 0}
+            />
+            {!mayPublish.ok && (
+              <div className="px-5 pt-4 sm:px-6">
+                <Callout tone="neutral" title="You cannot publish">{mayPublish.message}</Callout>
+              </div>
+            )}
+            {board.length === 0 ? (
+              <EmptyState size="sm" title="Nothing published yet">An announcement marked Important, Policy or Notice appears on the supplier portal once published.</EmptyState>
+            ) : (
+              <ul className="divide-y divide-line/70">
+                {board.map((a) => (
+                  <li key={a.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <Badge tone={CATEGORY_TONE[a.category] === "neutral" ? undefined : CATEGORY_TONE[a.category]}>{CATEGORY_WORDS[a.category].en}</Badge>
+                        {a.pinned && <Chip tone="brand">Pinned</Chip>}
+                        {a.withdrawnAt && <Chip tone="warn">{`Withdrawn ${a.withdrawnText}`}</Chip>}
+                      </span>
+                      <span className="block text-[14.5px] font-semibold text-ink">{a.title}</span>
+                      <span className="block text-[12.5px] text-ink-3">{`Published ${a.publishedText} by ${a.publishedBy}${a.withdrawReason ? ` · withdrawn: ${a.withdrawReason}` : ""}`}</span>
+                      <span className="mt-1 block text-[13.5px] break-words whitespace-pre-line text-ink-2">{a.body}</span>
+                    </span>
+                    {mayPublish.ok && !a.withdrawnAt && (
+                      <span className="flex shrink-0 flex-wrap items-center gap-2">
+                        <PinDrawer id={a.id} title={a.title} pinned={a.pinned} />
+                        <WithdrawDrawer id={a.id} title={a.title} />
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        ) : null,
     },
   ];
 

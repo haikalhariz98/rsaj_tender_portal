@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { ArrowRight, BuildingIcon, GlobeIcon, AwardIcon, ToolsIcon, UserIcon } from "@/components/icons";
+import { ArrowRight, BellIcon, BuildingIcon, GlobeIcon, AwardIcon, InboxIcon, ToolsIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -11,10 +11,9 @@ import {
   HOME_TITLE,
   OPEN_ACCESS_NOTE,
   PORTAL_PATH,
-  SIGN_IN_BADGE,
-  SIGN_IN_ITEMS,
-  SIGN_IN_SUBTITLE,
-  SIGN_IN_TITLE,
+  SIGNED_IN_LINKS,
+  SIGNED_IN_SUBTITLE,
+  SIGNED_IN_TITLE,
   TAKE_PART_STEPS,
   TAKE_PART_SUBTITLE,
   TAKE_PART_TITLE,
@@ -23,7 +22,8 @@ import {
 import { loadPublicShell } from "@/lib/portal/deployment";
 
 const LINK_ICON = { opportunities: GlobeIcon, results: AwardIcon, register: BuildingIcon } as const;
-const SIGN_IN_ICON = [ToolsIcon, UserIcon] as const;
+// Phase 4e: every signed-in part is built; the home page lists them, and each asks the visitor to sign in.
+const SIGNED_IN_ICON = { bids: InboxIcon, projects: ToolsIcon, company: BuildingIcon, announcements: BellIcon } as const;
 
 export default async function SupplierHomePage() {
   const { organisation } = await loadPublicShell();
@@ -90,11 +90,11 @@ export default async function SupplierHomePage() {
         </Card>
 
         <Card>
-          <CardHeader title={SIGN_IN_TITLE.en} subtitle={SIGN_IN_SUBTITLE.en} />
+          <CardHeader title={SIGNED_IN_TITLE.en} subtitle={SIGNED_IN_SUBTITLE.en} />
           <CardBody>
             <ul className="flex flex-col gap-1">
-              {SIGN_IN_ITEMS.map((item, i) => {
-                const Ico = SIGN_IN_ICON[i];
+              {SIGNED_IN_LINKS.map((item) => {
+                const Ico = SIGNED_IN_ICON[item.key];
                 return (
                   <li key={item.href}>
                     <Link
@@ -108,7 +108,7 @@ export default async function SupplierHomePage() {
                         <span className="block text-[14px] font-semibold text-ink">{item.title.en}</span>
                         <span className="block text-[13px] text-ink-3">{item.text.en}</span>
                       </span>
-                      <Badge tone="warn">{SIGN_IN_BADGE.en}</Badge>
+                      <Badge>Sign in</Badge>
                     </Link>
                   </li>
                 );

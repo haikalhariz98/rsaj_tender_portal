@@ -18,8 +18,8 @@ export const FORM_TOKEN_FIELD = "formToken";
 /// "registration" (Phase 4b): the signed-in supplier's registration wizard, one token for its saves, uploads, searches, downloads and the final send.
 /// "company" (Phase 4c): the signed-in supplier's Company workspace, one token for its two uploads (a replacement document, a change of bank details).
 /// "bids" (Phase 4d): the signed-in supplier's My Bids workspace, one token for its sign-ups, acknowledgements and requests.
-export type FormPurpose = "register" | "sign-in" | "activate" | "reset" | "account" | "registration" | "company" | "bids";
-export const FORM_PURPOSES: readonly FormPurpose[] = ["register", "sign-in", "activate", "reset", "account", "registration", "company", "bids"];
+export type FormPurpose = "register" | "sign-in" | "activate" | "reset" | "account" | "registration" | "company" | "bids" | "projects";
+export const FORM_PURPOSES: readonly FormPurpose[] = ["register", "sign-in", "activate", "reset", "account", "registration", "company", "bids", "projects"];
 
 /// How long a token is good for. A technical bound, not a customer's policy: a form left open for longer than a working day is simply rendered again. Logged as an
 /// assumption in the decisions log.

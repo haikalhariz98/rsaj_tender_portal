@@ -58,6 +58,8 @@ const SEGMENT_LABEL: Record<string, string> = {
   opportunities: "Opportunities",
   bids: "My Bids",
   company: "Company",
+  // Phase 4e (FR-VND-014): the supplier portal's announcements board.
+  announcements: "Announcements",
   // Phase 4d: the Tender Table Document a supplier inspects, under one exercise of My Bids.
   "table-document": "Tender Table Document",
 };

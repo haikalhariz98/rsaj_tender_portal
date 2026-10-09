@@ -99,9 +99,12 @@ export const SUPPLIER_NAV: NavGroup[] = [
     items: [
       // Phase 4d: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
       { href: "/supplier/bids", label: "My Bids", icon: "inbox", built: true },
-      { href: "/supplier/projects", label: "My Projects", icon: "tools" },
+      // Phase 4e: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
+      { href: "/supplier/projects", label: "My Projects", icon: "tools", built: true },
       // Phase 4c: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
       { href: "/supplier/company", label: "Company", icon: "building", built: true },
+      // Phase 4e (FR-VND-014): the announcements board, read by every signed-in supplier.
+      { href: "/supplier/announcements", label: "Announcements", icon: "bell", built: true },
     ],
   },
 ];
