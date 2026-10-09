@@ -39,7 +39,6 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "SulitAccessEvent.actorSupplierAccount": "The SULIT access log itself (Phase 4b): it records a supplier reading its own profile, and is append-only.",
   "DocumentAccessEvent.actorSupplierAccount": "The document access log itself (Phase 4b): it records a supplier opening its own file, and is append-only for the app login.",
   "RegistrationDraft.lastSavedBy": "A state of the draft: who saved it last. The draft is the supplier's own working copy; each save is audited with the account that made it.",
-  "CreditorProfile.enteredBy": "The supplier's account that filled the profile in: the profile is the supplier's own record, audited with the account on every save, and what it signs is the declaration sent with it.",
   "SupplierDocument.recordedBySupplierAccount": "Who lodged a document: the column is the record (exactly one recorder, by CHECK), and the supplier's signature is the submission it was sent with.",
   "DocumentVersion.recordedBySupplierAccount": "Who uploaded a version: the column is the record (exactly one recorder, by CHECK), and the upload is audited with the account.",
 };
@@ -79,8 +78,10 @@ describe("every SupplierAccount relation is a supplier act slot or is accounted 
     }
   });
 
-  it("the submission is the one signature, with the password; each declaration is a signed row that rests on the same entry", () => {
-    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount"]);
+  it("the submission and the bank change are the two signatures, with the password; each declaration is a signed row that rests on the same entry", () => {
+    // Changed for Phase 4c: a registered supplier's change of its bank details is the second act a supplier signs with the password (the first profile is sent with the registration, and signed with it).
+    // `CreditorProfile.enteredBy` was listed as not an act while a profile was only ever filled in; a version sent after registration is signed by the account that entered it.
+    expect(SUPPLIER_ACT_SLOTS.filter((s) => s.signatureClass).map((s) => slotKey(s.entity, s.field))).toEqual(["SupplierApplication.submittedBySupplierAccount", "CreditorProfile.enteredBy"]);
     expect(slotOf("RegistrationDeclaration", "signedBy")!.signatureClass).toBe(false);
   });
 

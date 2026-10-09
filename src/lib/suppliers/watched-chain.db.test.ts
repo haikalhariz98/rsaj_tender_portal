@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
 import { makeSupplierAccount, randomId, testOrganisation } from "@/lib/test-db/auth-fixtures";
@@ -21,13 +21,18 @@ beforeAll(async () => {
   organisationId = (await testOrganisation()).id;
   const t = await db.supplierDocumentType.upsert({
     where: { organisationId_code: { organisationId, code: "c7_type" } },
-    update: { mandatoryAtRegistration: true, expires: true },
+    update: { mandatoryAtRegistration: true, expires: true, retiredOn: null },
     create: { organisationId, code: "c7_type", nameEn: "A certificate", provenance: "ASSUMED", expires: true, mandatoryAtRegistration: true, notApplicableAllowed: false },
   });
   typeId = t.id;
   const s = await makeSupplierAccount(organisationId);
   accountId = s.account!.id;
   supplierId = s.supplier.id;
+});
+
+// The scratch organisation is shared: this type is mandatory for the lapse tests, and is retired when they are done so no other file's registration is asked for it.
+afterAll(async () => {
+  await db.supplierDocumentType.updateMany({ where: { organisationId, code: "c7_type" }, data: { retiredOn: D("2000-01-01") } });
 });
 
 async function lodge(o: { supersedesId?: string | null; verification: "VERIFIED" | "NOT_CHECKED" | "NOT_IN_ORDER"; expiresOn: string; validFrom?: string | null }) {

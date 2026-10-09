@@ -7904,6 +7904,8 @@ model ResubmissionItem {
   /// What it is about, as it read when asked.
   labelSnapshot      String
   remarks            String
+  /// Phase 4c (FR-VND-007): the documents the supplier lodged online in answer to this item. Whether an item is answered is derived from these, never stored.
+  answers            SupplierDocument[] @relation("ResubmissionAnswers")
 
   @@index([decisionId])
 }
@@ -7947,6 +7949,10 @@ model SupplierDocument {
   recordedBySupplierAccountId String?
   recordedBySupplierAccount   SupplierAccount? @relation("SupplierDocumentRecordedBySupplier", fields: [recordedBySupplierAccountId], references: [id], onDelete: Restrict)
 
+  /// Phase 4c (FR-VND-007): the item of an officer's resubmission request this document was lodged online in answer to. Null: lodged otherwise.
+  answersItemId      String?
+  answersItem        ResubmissionItem? @relation("ResubmissionAnswers", fields: [answersItemId], references: [id], onDelete: Restrict)
+
   verification       VerificationState @default(NOT_CHECKED)
   verifiedByPersonId String?
   verifiedBy         Person?           @relation("SupplierDocumentVerifiedBy", fields: [verifiedByPersonId], references: [id], onDelete: Restrict)
@@ -7960,6 +7966,7 @@ model SupplierDocument {
   resubmissionItems ResubmissionItem[]
 
   @@index([supplierId])
+  @@index([answersItemId])
 }
 
 /// A registration value recorded on a document, with its code and name as they stood.
@@ -8130,8 +8137,9 @@ model RegistrationDeclaration {
   id             String       @id @default(cuid())
   organisationId String
   organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
-  applicationId  String
-  application    SupplierApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  /// Null on the GIRO authorisation signed to change the bank details after registration (Phase 4c): that has no application, only the profile it authorises (CHECK RegistrationDeclaration_has_subject).
+  applicationId  String?
+  application    SupplierApplication? @relation(fields: [applicationId], references: [id], onDelete: Restrict)
   /// The GIRO authorisation belongs to the creditor profile it authorises.
   creditorProfileId String?
   creditorProfile   CreditorProfile? @relation(fields: [creditorProfileId], references: [id], onDelete: Restrict)

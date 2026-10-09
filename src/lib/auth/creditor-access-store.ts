@@ -3,6 +3,7 @@ import type { Tx } from "@/lib/audit/record";
 import { explainRefusal } from "./permission-store";
 import type { PermissionState } from "./permissions";
 import { routePeopleOf } from "./routed-people-store";
+import { lineageApplication } from "./creditor-lineage";
 import { sulitAccessAll, type RoutedNamedFacts, type SulitDecision } from "./sulit-access";
 import { decisionForFields, type SulitEventRow, type SulitReader } from "./sulit-store";
 import type { SupplierActor } from "./types";
@@ -19,7 +20,7 @@ import { fieldsOfScope } from "@/lib/sulit-fields";
  * An administrator account is never entitled, and neither is a loader run. The supplier reads its own profile through its own session, never through this: `ownCreditorRow`.
  */
 
-/// The names a creditor profile has, for each of these profiles: the holders and deciders of the registration route of the application it was sent with, the verifier, and whether that route has been started.
+/// The names a creditor profile has, for each of these profiles: the holders and deciders of the registration route of the application it is named by, the verifier, and whether that route has been started.
 export async function creditorNamedFacts(
   client: Tx,
   organisationId: string,
@@ -29,13 +30,9 @@ export async function creditorNamedFacts(
   if (asked.length === 0) return out;
   // Whose profile it is, and who checked it, are read from the profile itself, in this organisation: a caller's pairing of a profile with a supplier is never trusted, and a profile that is
   // not this organisation's has no names at all (and so is withheld from everyone).
-  const profiles = await client.creditorProfile.findMany({ where: { organisationId, id: { in: asked.map((p) => p.id) } }, select: { id: true, supplierId: true, verifiedByPersonId: true } });
+  const profiles = await client.creditorProfile.findMany({ where: { organisationId, id: { in: asked.map((p) => p.id) } }, select: { id: true, supplierId: true, verifiedByPersonId: true, supersedesId: true } });
   if (profiles.length === 0) return out;
-  // The application a profile was sent with: the application of its GIRO authorisation (the authorisation belongs to the profile it authorises). The route that names its readers is THAT
-  // application's registration route. A supplier's other applications (an earlier one that was rejected, a renewal, an upgrade) have routes of their own, and whoever holds or decided a step
-  // there is not named on this profile: a profile no application carries (none yet) is named by nobody.
-  const sentWith = await client.registrationDeclaration.findMany({ where: { organisationId, kind: "GIRO_AUTHORISATION", creditorProfileId: { in: profiles.map((p) => p.id) } }, select: { creditorProfileId: true, applicationId: true } });
-  const applicationOf = new Map(sentWith.flatMap((d) => (d.creditorProfileId ? [[d.creditorProfileId, d.applicationId] as const] : [])));
+  const applicationOf = await applicationsNaming(client, organisationId, profiles);
   const applicationIds = [...new Set(applicationOf.values())];
   const routes = applicationIds.length ? await routePeopleOf(client, organisationId, { domain: "supplier_registration", supplierApplicationId: { in: applicationIds } }) : [];
   for (const p of profiles) {
@@ -48,6 +45,51 @@ export async function creditorNamedFacts(
       verifierId: p.verifiedByPersonId,
       routeStarted: mine.length > 0,
     });
+  }
+  return out;
+}
+
+/**
+ * The application whose registration route names each profile (Phase 4b, then 4c). The application a profile was SENT WITH is the application of its own GIRO authorisation (the
+ * authorisation belongs to the profile it authorises); a supplier's other applications (an earlier one that was rejected, a renewal, an upgrade) have routes of their own, and
+ * whoever holds or decided a step there is not named on this profile. A version the supplier sent later, to change its bank details after registration, has no application: it is
+ * named by the application of the nearest earlier version that has one (the registration the supplier's bank details were first checked under), and a first profile sent after the
+ * supplier was registered on paper by the supplier's latest application that has a registration route. A profile none of these reaches is named by nobody. (4c: the default taken,
+ * logged for the product owner; the grant `sulit.read.creditorProfile` reads every profile whatever names it.)
+ */
+async function applicationsNaming(client: Tx, organisationId: string, profiles: readonly { id: string; supplierId: string; supersedesId: string | null }[]): Promise<Map<string, string>> {
+  const own = async (ids: readonly string[]) =>
+    new Map((await client.registrationDeclaration.findMany({ where: { organisationId, kind: "GIRO_AUTHORISATION", creditorProfileId: { in: [...ids] }, applicationId: { not: null } }, select: { creditorProfileId: true, applicationId: true } })).flatMap((d) => (d.creditorProfileId && d.applicationId ? [[d.creditorProfileId, d.applicationId] as const] : [])));
+  const found = await own(profiles.map((p) => p.id));
+  // The earlier versions of a profile that no application carries, walked back one version at a time (a chain is short; the bound keeps a corrupt cycle from looping).
+  const pending = profiles.filter((p) => !found.has(p.id));
+  const parentOf = new Map<string, string | null>(profiles.map((p) => [p.id, p.supersedesId]));
+  const seen = new Set(profiles.map((p) => p.id));
+  let frontier = [...new Set(pending.flatMap((p) => (p.supersedesId && !seen.has(p.supersedesId) ? [p.supersedesId] : [])))];
+  for (let depth = 0; depth < 50 && frontier.length > 0; depth++) {
+    frontier.forEach((id) => seen.add(id));
+    const ancestors = await client.creditorProfile.findMany({ where: { organisationId, id: { in: frontier } }, select: { id: true, supersedesId: true } });
+    ancestors.forEach((a) => parentOf.set(a.id, a.supersedesId));
+    for (const [k, v] of await own(frontier)) found.set(k, v);
+    frontier = [...new Set(ancestors.flatMap((a) => (a.supersedesId && !seen.has(a.supersedesId) && !found.has(a.id) ? [a.supersedesId] : [])))];
+  }
+  const out = new Map<string, string>();
+  const unresolved: typeof profiles[number][] = [];
+  for (const p of profiles) {
+    const app = lineageApplication(p.id, parentOf, found);
+    if (app) out.set(p.id, app);
+    else unresolved.push(p);
+  }
+  if (unresolved.length > 0) {
+    const bySupplier = await client.supplierApplication.findMany({
+      where: { organisationId, supplierId: { in: [...new Set(unresolved.map((p) => p.supplierId))] }, routes: { some: { domain: "supplier_registration" } } },
+      orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }],
+      select: { id: true, supplierId: true },
+    });
+    for (const p of unresolved) {
+      const latest = bySupplier.find((a) => a.supplierId === p.supplierId);
+      if (latest) out.set(p.id, latest.id);
+    }
   }
   return out;
 }

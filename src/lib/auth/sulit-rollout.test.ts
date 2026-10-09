@@ -257,6 +257,10 @@ describe("a document is attached only by someone who may already open it (OD-2, 
         // those same versions onto the supplier's documents. Both are the supplier's own files: no officer attaches, and the documents' bytes are judged by the records they then hang on.
         "src/lib/portal/registration/submit-store.ts",
         "src/lib/portal/registration/upload-store.ts",
+        // Changed for Phase 4c: a registered supplier attaches the file its own upload just stored, in that upload's transaction: a replacement document to the document it lodges
+        // (`replace-store.ts`), and a bank statement to the new version of its bank details (`bank-store.ts`). Both are the supplier's own files, as above.
+        "src/lib/portal/company/bank-store.ts",
+        "src/lib/portal/company/replace-store.ts",
       ].sort(),
     );
   });

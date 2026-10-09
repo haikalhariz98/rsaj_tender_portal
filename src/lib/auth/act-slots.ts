@@ -411,6 +411,8 @@ export const slotKey = (entity: string, field: string): string => `${entity}.${f
 export const SUPPLIER_ACT_SLOTS: readonly ActSlot[] = [
   slot("SupplierApplication", "submittedBySupplierAccount", "Submitted by", { signatureClass: true }),
   slot("RegistrationDeclaration", "signedBy", "Signed by"),
+  // Phase 4c: a registered supplier changes its bank details, signed with the password asked again; the profile it sends is the exact document signed, and the account that enters it is the account that sends it.
+  slot("CreditorProfile", "enteredBy", "Sent by", { signatureClass: true }),
 ];
 
 export const slotOf = (entity: string, field: string): ActSlot | undefined =>

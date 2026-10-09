@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
 import { eligibilityOf } from "@/lib/suppliers/standing-repo";
@@ -57,6 +57,11 @@ beforeAll(async () => {
     },
   });
   void doc;
+});
+
+// The scratch organisation is shared: the type made above is mandatory, and is retired when these tests are done so no other file's registration is asked for it.
+afterAll(async () => {
+  await db.supplierDocumentType.update({ where: { id: typeId }, data: { retiredOn: D("2000-01-01") } });
 });
 
 const org = () => ({ id: organisationId, timeZone: "Asia/Kuala_Lumpur", today: "2026-10-09" });
