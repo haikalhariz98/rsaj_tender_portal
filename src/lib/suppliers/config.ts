@@ -21,6 +21,7 @@ export type ConfigFault =
   | "RANK_ONLY_FOR_GRADE"
   | "RANK_NOT_VALID"
   | "RANK_TAKEN"
+  | "RANK_HELD"
   | "CEILING_ONLY_FOR_GRADE"
   | "CEILING_NOT_VALID"
   | "CEILING_PROVENANCE_REQUIRED"
@@ -49,7 +50,18 @@ export interface ValueInput {
  * A registration value under a body (FR-VND-003): a kind; a parent category only for a
  * specialisation; a rank and a ceiling only for a grade, the rank unique among the body's grades.
  */
-export function valueFaults(v: ValueInput, ctx: { bodyExists: boolean; codeTaken: boolean; categoryCodes: readonly string[]; gradeRanks: readonly number[] }): Finding<ConfigFault>[] {
+export function valueFaults(
+  v: ValueInput,
+  ctx: {
+    bodyExists: boolean;
+    codeTaken: boolean;
+    categoryCodes: readonly string[];
+    gradeRanks: readonly number[];
+    /// A grade being changed: the rank it has now, and the references of the exercises whose requirements ask for a grade of this body and are frozen while bids are still to be judged against them (615-C1).
+    /// A rank is what those requirements are compared by, so it does not move while any such exercise stands (any grade of the body can be the one a bidder holds).
+    rankHeld?: { was: number | null; byExercises: readonly string[] };
+  },
+): Finding<ConfigFault>[] {
   const out: Finding<ConfigFault>[] = [];
   const add = (code: ConfigFault, data?: Finding["data"]) => out.push({ code, level: "block", ...(data ? { data } : {}) });
   if (!ctx.bodyExists) return [{ code: "BODY_NOT_CONFIGURED", level: "block" }];
@@ -62,6 +74,7 @@ export function valueFaults(v: ValueInput, ctx: { bodyExists: boolean; codeTaken
     if (v.kind !== "SPECIALISATION") add("PARENT_ONLY_FOR_SPECIALISATION");
     else if (!ctx.categoryCodes.includes(v.parentCode)) add("PARENT_NOT_CATEGORY");
   }
+  if (ctx.rankHeld && v.kind === "GRADE" && v.rank !== ctx.rankHeld.was && ctx.rankHeld.byExercises.length > 0) add("RANK_HELD", { exercises: ctx.rankHeld.byExercises.join(", ") });
   if (v.rank != null) {
     if (v.kind !== "GRADE") add("RANK_ONLY_FOR_GRADE");
     else if (!Number.isInteger(v.rank) || v.rank < 1) add("RANK_NOT_VALID");

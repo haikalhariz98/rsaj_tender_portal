@@ -14,6 +14,7 @@ import { BANK_READING_WORDS, bankReading } from "@/lib/portal/company/bank";
 import { loadBankTab, loadDocumentsTab, loadOverviewTab } from "@/lib/portal/company/company-store";
 import { DOCUMENT_STATE_WORDS, ITEM_STATE_WORDS, type DocumentRow } from "@/lib/portal/company/documents";
 import { companyFaultText } from "@/lib/portal/company/words";
+import { requestWords } from "@/lib/portal/registration-status";
 import { loadRegistrationContext, loadRegistrationSettings } from "@/lib/portal/registration/context-store";
 import { fillText } from "@/lib/portal/registration/declaration";
 import type { CreditorInput } from "@/lib/portal/registration/types";
@@ -44,6 +45,8 @@ export async function OverviewPanel({ actor }: { actor: SupplierActor }) {
   const reading = bankReading(o.bank);
   const bankWords = BANK_READING_WORDS[reading];
   const registered = o.supplier.status === "REGISTERED";
+  // Said by one rule, the account page's: answered only when every item has an answer, and the date having passed is said as such.
+  const requestText = o.request ? requestWords(o.request.reading, o.request.resubmitBy, formatDate) : null;
   return (
     <Section>
       {o.supplier.status === "REJECTED" && (
@@ -59,19 +62,17 @@ export async function OverviewPanel({ actor }: { actor: SupplierActor }) {
           The procurement office did not accept your application. The reasons it gave are on your account page, and you can apply again.
         </Callout>
       )}
-      {o.request && (
+      {o.request && requestText && (
         <Callout
-          tone={o.attention.waitingForYou === 0 ? "info" : "warn"}
-          title={o.attention.waitingForYou === 0 ? "You have answered the procurement office" : "The procurement office has asked for more"}
+          tone={requestText.tone === "warn" ? "warn" : "info"}
+          title={requestText.title.en}
           action={
             <ButtonLink href="/supplier/company?tab=documents" variant="secondary" size="sm">
-              {o.attention.waitingForYou === 0 ? "See what you sent" : "Open the request"}
+              {o.request.reading.kind === "WAITING" ? "Open the request" : "See what you sent"}
             </ButtonLink>
           }
         >
-          {o.attention.waitingForYou === 0
-            ? "You sent a document for everything the office asked for. The office is checking them and decides what happens next. You do not need to do anything more unless it asks again."
-            : `${o.request.resubmitBy ? `Answer by ${formatDate(o.request.resubmitBy)}; after that day the application is rejected.` : "Answer it below."} ${o.attention.waitingForYou} ${o.attention.waitingForYou === 1 ? "thing is" : "things are"} waiting for you.`}
+          {requestText.detail.en}
         </Callout>
       )}
       {(o.attention.expired > 0 || o.attention.critical > 0) && (

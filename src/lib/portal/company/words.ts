@@ -24,6 +24,7 @@ const OWN: Readonly<Partial<Record<CompanyFault, (d: Data) => Words>>> = {
   ALREADY_LODGED: (d) => w(`You already have a ${s(d, "type")}. Renew that one instead.`, `Anda sudah mempunyai ${s(d, "type")}. Perbaharui yang itu.`),
   RENEWS_NOTHING: () => w("That document is not on your record.", "Dokumen itu tiada dalam rekod anda."),
   RENEWS_SUPERSEDED: (d) => w(`The ${s(d, "type")} has been renewed since you opened this page. Reload the page to see the latest.`, `${s(d, "type")} telah diperbaharui sejak anda membuka halaman ini. Muat semula halaman.`),
+  RENEWS_WAITING: (d) => w(`The ${s(d, "type")} you sent is waiting for the office to check it. You can send a new copy when it has been checked.`, `${s(d, "type")} yang anda hantar sedang menunggu semakan pejabat. Anda boleh menghantar salinan baharu setelah ia disemak.`),
   RENEWAL_NOT_LATER: (d) => w(`The new ${s(d, "type")} must expire after the one it replaces, which expires on ${s(d, "expiresOn") ? formatDate(s(d, "expiresOn")) : "a later date"}.`, `${s(d, "type")} baharu mesti tamat tempoh selepas yang digantikannya, yang tamat pada ${s(d, "expiresOn") ? formatDate(s(d, "expiresOn")) : "tarikh yang lebih lewat"}.`),
   REQUEST_NOT_OPEN: () => w("The procurement office has no open request for more documents.", "Pejabat perolehan tiada permintaan terbuka untuk dokumen tambahan."),
   REQUEST_LAPSED: () => w("The date to answer the procurement office has passed, so the request is closed.", "Tarikh untuk menjawab pejabat perolehan telah berlalu, jadi permintaan ditutup."),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { requirementFaults } from "./eligibility";
-import { composeQualifiers, needFaults, needLabel, type NeedValue } from "./requirement-needs";
+import { composeQualifiers, needFaults, needLabel, requirementAuditWords, type NeedValue } from "./requirement-needs";
 import { conditionsFaultText } from "./conditions-labels";
 
 const BODY: { code: string; qualifierLabelEn: string | null } = { code: "board", qualifierLabelEn: "grade and category" };
@@ -64,5 +64,13 @@ describe("a body that takes a qualifier is satisfied by needs without typed word
   it("refuses empty words unless needs are chosen", () => {
     expect(requirementFaults({ bodyCode: "board", qualifiers: "", alternativeGroup: 1 }, bodies, "2026-10-09").map((f) => f.code)).toEqual(["QUALIFIERS_REQUIRED"]);
     expect(requirementFaults({ bodyCode: "board", qualifiers: "", alternativeGroup: 1, hasNeeds: true }, bodies, "2026-10-09")).toEqual([]);
+  });
+});
+
+describe("what the trail says of a requirement (review fix: a removal keeps what it asked for)", () => {
+  it("says the grade and codes compared, the same words when added and when removed", () => {
+    const words = requirementAuditWords({ bodyLabel: "the works board", qualifiers: "own words beside it", needLabels: ["G5 — Grade five", "B — Buildings"], alternativeGroup: 2 });
+    expect(words).toEqual({ registrationBody: "the works board", requiredWithIt: "own words beside it", compared: "G5 — Grade five; B — Buildings", alternativeGroup: "Group 2" });
+    expect(requirementAuditWords({ bodyLabel: "x", qualifiers: "", needLabels: [], alternativeGroup: 1 })).toMatchObject({ requiredWithIt: null, compared: null });
   });
 });

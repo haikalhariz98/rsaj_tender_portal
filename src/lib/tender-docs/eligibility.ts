@@ -95,6 +95,10 @@ export function eligibilityEditFault(exerciseStatus: ExerciseStatus): Finding<"C
   return exerciseStatus === "DRAFT" || exerciseStatus === "DOCUMENTS_IN_PREPARATION" ? null : { code: "CONDITIONS_FROZEN", level: "block" };
 }
 
+/// The exercises whose bidders are still to be compared by a grade's rank: their requirements are frozen (the pack has gone for approval) and the envelopes are not all opened. A grade's rank
+/// of the requirement's body does not change while one stands (615-C1: the rank is read live, so a change here would change who qualifies on a requirement that cannot be edited).
+export const RANK_HELD_STATUSES = ["PENDING_APPROVAL_FOR_TENDERING", "APPROVED_FOR_TENDERING", "ADVERTISED", "INVITED", "OPENING_IN_PROGRESS"] as const satisfies readonly ExerciseStatus[];
+
 const JOIN = { EN: { and: "; and ", or: " or " }, MS: { and: "; dan ", or: " atau " } } as const;
 
 /// The groups in order, each's requirements in order.

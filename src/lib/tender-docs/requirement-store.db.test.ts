@@ -5,7 +5,7 @@ import { eligibilityOf } from "@/lib/suppliers/standing-repo";
 import { makePerson, makeSupplierAccount, randomId, testOrganisation } from "@/lib/test-db/auth-fixtures";
 
 import { needFaults } from "./requirement-needs";
-import { createRequirement, deleteRequirement, loadNeedValues } from "./requirement-store";
+import { createRequirement, deleteRequirement, exercisesHoldingRank, loadNeedValues } from "./requirement-store";
 
 /**
  * 615-C1 against a real database: needs are written with their requirement and deleted with it; the database itself refuses two grades and an unknown kind; and eligibility reads the
@@ -117,6 +117,36 @@ describe("eligibility reads the stored needs (615-C1)", () => {
     } finally {
       await db.registrationValue.update({ where: { id: g7 }, data: { rank: 7 } });
       await db.$transaction((tx) => deleteRequirement(tx, organisationId, made.id));
+    }
+  });
+});
+
+describe("a grade's rank is held while a frozen requirement is compared by it (615-C1, review fix)", () => {
+  it("names the exercises that ask for a grade of the body once their conditions are frozen, and stops naming them once they are opened or cancelled", async () => {
+    const values = await loadNeedValues(organisationId);
+    const body = await db.registrationBody.findFirstOrThrow({ where: { organisationId, code: bodyCode } });
+    const made = await db.$transaction((tx) => createRequirement(tx, { organisationId, exerciseId, body: { code: bodyCode, labelEn: "the works board", qualifierLabelEn: "grade and category" }, qualifiers: "", alternativeGroup: 1, sortOrder: 0, choices: [{ kind: "GRADE", valueId: g5 }], values }));
+    const reference = (await db.sourcingExercise.findUniqueOrThrow({ where: { id: exerciseId }, select: { reference: true } })).reference;
+    const holding = () => db.$transaction((tx) => exercisesHoldingRank(tx, organisationId, body.id));
+    try {
+      // Still editable: nothing is frozen, so the rank may be corrected.
+      expect(await holding()).toEqual([]);
+      for (const status of ["PENDING_APPROVAL_FOR_TENDERING", "ADVERTISED", "OPENING_IN_PROGRESS"] as const) {
+        await db.sourcingExercise.update({ where: { id: exerciseId }, data: { status } });
+        expect(await holding(), status).toEqual([reference]);
+      }
+      for (const status of ["OPENED", "CANCELLED"] as const) {
+        await db.sourcingExercise.update({ where: { id: exerciseId }, data: { status } });
+        expect(await holding(), status).toEqual([]);
+      }
+      // Removing the requirement releases the ranks.
+      await db.sourcingExercise.update({ where: { id: exerciseId }, data: { status: "ADVERTISED" } });
+      await db.$transaction((tx) => deleteRequirement(tx, organisationId, made.id));
+      expect(await holding()).toEqual([]);
+    } finally {
+      await db.sourcingExercise.update({ where: { id: exerciseId }, data: { status: "DRAFT" } });
+      await db.exerciseRequirementNeed.deleteMany({ where: { requirementId: made.id } });
+      await db.exerciseRegistrationRequirement.deleteMany({ where: { id: made.id } });
     }
   });
 });

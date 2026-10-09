@@ -6,8 +6,9 @@
  *               password. It answers the two items from Company > Documents.
  *   demo_ctr13  the contractor of demo_con13 (made by prisma/demo-contractor.ts, bank details checked) gains two certificates in force that are near their expiry, so the bands and the
  *               reminders show (FR-VND-008), and a version 2 of its bank details that an officer found not in order, with the reason, so the screen shows version 1 still in force.
- *   demo_sx18   its contractor requirement, entered in words ("grade D2, category painting works"), is also entered as a grade and a category of the Contractors Board (615-C1), so the
- *               supplier's own eligibility view compares it. The words are the composed reading of the needs.
+ *   demo_sx3    a DRAFT exercise (its conditions can still be edited) gains a requirement of the Contractors Board entered as a grade and a category (615-C1): the officer's Conditions tab
+ *               shows it compared, with its words composed from the needs. It is not on the supplier's Eligibility tab, which lists only exercises the public may read; that tab shows a
+ *               compared requirement once an officer has taken an exercise like this one as far as advertising. No requirement of an issued exercise is touched: its conditions are frozen.
  *
  * Applied alone to a database the demonstration is already loaded in by `npm run demo:company`, and at the end of a full load. Nothing is deleted or replaced: a second run adds nothing.
  */
@@ -156,26 +157,37 @@ export async function loadCompanyDemo(db: Db, organisationId: string): Promise<{
     }
   } else notes.push("demo_ctr13 is not in this database, so its certificates and bank change were not added");
 
-  // ---- demo_sx18: its contractor requirement, also entered as a grade and a category (615-C1).
-  const req = await db.exerciseRegistrationRequirement.findUnique({ where: { id: `${P}sx18_rq2` }, include: { needs: true } });
-  const grade = await db.registrationValue.findUnique({ where: { id: `${P}rgv2` } });
+  // ---- demo_sx3 (a draft): a contractor requirement entered as a grade and a category (615-C1). Only an exercise whose conditions can still be edited is given one.
+  const sx3 = await db.sourcingExercise.findUnique({ where: { id: `${P}sx3` }, select: { id: true, reference: true, status: true } });
+  const grade = await db.registrationValue.findUnique({ where: { id: `${P}rgv2` }, include: { body: true } });
   const category = await db.registrationValue.findUnique({ where: { id: `${P}rgv6` } });
-  if (req && grade && category && req.needs.length === 0) {
-    const words = composeQualifiers([
-      { kind: "GRADE", label: `${grade.code} — ${grade.nameEn}` },
-      { kind: "CATEGORY", label: `${category.code} — ${category.nameEn}` },
-    ]);
-    await db.exerciseRequirementNeed.createMany({
-      data: [
-        { id: `${P}rqn1`, organisationId, requirementId: req.id, registrationValueId: grade.id, kind: "GRADE", codeSnapshot: grade.code, labelSnapshot: `${grade.code} — ${grade.nameEn}` },
-        { id: `${P}rqn2`, organisationId, requirementId: req.id, registrationValueId: category.id, kind: "CATEGORY", codeSnapshot: category.code, labelSnapshot: `${category.code} — ${category.nameEn}` },
-      ],
-    });
-    await db.exerciseRegistrationRequirement.update({ where: { id: req.id }, data: { qualifiers: words, qualifiersFromNeeds: true } });
-    const ex = await db.sourcingExercise.findUniqueOrThrow({ where: { id: req.exerciseId }, select: { reference: true } });
-    entry("ExerciseRegistrationRequirement", req.id, `${ex.reference} · Registration required · ${req.bodyLabelSnapshot}`, "UPDATE", T(D(-3), "09:00"), diffFields({ requiredWithIt: req.qualifiers, compared: null }, { requiredWithIt: words, compared: `${grade.code} — ${grade.nameEn}; ${category.code} — ${category.nameEn}` }), "Demonstration: the requirement entered in words is also entered as a grade and a category, so it can be compared");
-    await flush();
-    notes.push("demo_sx18's contractor requirement, entered as a grade and a category");
+  if (sx3 && (sx3.status === "DRAFT" || sx3.status === "DOCUMENTS_IN_PREPARATION") && grade && category && grade.bodyId === category.bodyId) {
+    const taken = await db.exerciseRegistrationRequirement.count({ where: { exerciseId: sx3.id, bodyCode: grade.body.code, alternativeGroup: 1 } });
+    if (taken === 0) {
+      const needs = [
+        { kind: "GRADE" as const, value: grade },
+        { kind: "CATEGORY" as const, value: category },
+      ].map((n) => ({ kind: n.kind, valueId: n.value.id, label: `${n.value.code} — ${n.value.nameEn}`, code: n.value.code }));
+      const words = composeQualifiers(needs);
+      const row = await db.exerciseRegistrationRequirement.create({
+        data: {
+          id: `${P}sx3_rq1`,
+          organisationId,
+          exerciseId: sx3.id,
+          bodyCode: grade.body.code,
+          bodyLabelSnapshot: grade.body.labelEn,
+          qualifierLabelSnapshot: grade.body.qualifierLabelEn,
+          qualifiers: words,
+          qualifiersFromNeeds: true,
+          alternativeGroup: 1,
+          sortOrder: 0,
+          needs: { create: needs.map((n, i) => ({ id: `${P}rqn${i + 1}`, organisationId, registrationValueId: n.valueId, kind: n.kind, codeSnapshot: n.code, labelSnapshot: n.label })) },
+        },
+      });
+      entry("ExerciseRegistrationRequirement", row.id, `${sx3.reference} · Registration required · ${grade.body.labelEn}`, "CREATE", T(D(-3), "09:00"), diffFields(null, { registrationBody: grade.body.labelEn, requiredWithIt: words, compared: needs.map((n) => n.label).join("; "), alternativeGroup: "Group 1" }));
+      await flush();
+      notes.push("demo_sx3's contractor requirement, entered as a grade and a category");
+    }
   }
   return { loaded: notes.length > 0, notes };
 }

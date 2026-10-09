@@ -8,6 +8,7 @@
  */
 
 import { isDay } from "@/lib/dates";
+import { readRequest, type RequestReading } from "@/lib/portal/request-reading";
 import { parseRate } from "@/lib/portal/registration/documents";
 import type { DocumentTypeConfig, RegistrationValueConfig } from "@/lib/portal/registration/types";
 import { documentState, type DocumentState } from "@/lib/suppliers/documents";
@@ -45,6 +46,8 @@ export interface RequestView {
   lapse: LapseState;
   /// Whether answers are taken: the deadline has not passed.
   open: boolean;
+  /// Where the request stands for the supplier, read from the items' answers and not from whether it can still answer: a request nobody answered is not "answered" once its date has passed.
+  reading: RequestReading;
   items: ItemView[];
 }
 
@@ -58,7 +61,8 @@ export function requestView(request: OpenRequestFacts, docs: readonly CompanyDoc
     const state: ItemState = !latest ? "WAITING_FOR_YOU" : latest.verification === "VERIFIED" ? "ACCEPTED" : latest.verification === "NOT_IN_ORDER" ? "NOT_ACCEPTED" : "SENT";
     return { ...item, state, answers, canAnswer: open && (state === "WAITING_FOR_YOU" || state === "NOT_ACCEPTED") };
   });
-  return { applicationId: request.applicationId, remarks: request.remarks, resubmitBy: request.resubmitBy, decidedOn: request.decidedOn, lapse, open, items };
+  const reading = readRequest(items.map((i) => ({ id: i.id, answers: i.answers })), request.resubmitBy, today);
+  return { applicationId: request.applicationId, remarks: request.remarks, resubmitBy: request.resubmitBy, decidedOn: request.decidedOn, lapse, open, reading, items };
 }
 
 export const ITEM_STATE_WORDS: Readonly<Record<ItemState, { text: string; tone: "ok" | "warn" | "info" | "neutral" }>> = {
@@ -127,14 +131,27 @@ export interface RowInput {
  */
 export function documentRows(i: RowInput): DocumentRow[] {
   const rows: DocumentRow[] = [];
-  const requestedFor = (typeId: string, chain: readonly CompanyDocument[]) => (i.request?.items ?? []).filter((it) => (it.documentId && chain.some((d) => d.id === it.documentId)) || (!it.documentId && it.typeId === typeId));
+  const items = i.request?.items ?? [];
   for (const t of i.types) {
     const ofType = i.docs.filter((d) => d.typeId === t.id);
+    const repeatable = t.repeatable === true;
+    // An item the supplier already answered with a document is shown on the row of that document. One that is about a document is shown on that document's row. One that asks for a kind of
+    // document is shown on the kind's row, and for a kind that may be lodged several times on a row of its own for a new title: it asks for one more, not for a renewal of any one title.
+    const answeredHere = (it: ItemView) => ofType.some((d) => d.answersItemId === it.id);
+    const typeLevel = (it: ItemView) => !it.documentId && it.typeId === t.id;
+    const requestedFor = (chain: readonly CompanyDocument[]) =>
+      items.filter((it) => (it.documentId != null && chain.some((d) => d.id === it.documentId)) || chain.some((d) => d.answersItemId === it.id) || (typeLevel(it) && !repeatable));
     // A type that may be lodged several times is read a title at a time.
-    const groups: { title: string; chain: CompanyDocument[] }[] = t.repeatable === true ? groupByTitle(ofType) : [{ title: "", chain: ofType }];
-    const needed = (t.mandatoryAtRegistration === true && !t.retired) || requestedFor(t.id, []).length > 0;
+    const groups: { title: string; chain: CompanyDocument[]; requested: ItemView[] }[] = repeatable
+      ? groupByTitle(ofType).map((g) => ({ ...g, requested: requestedFor(g.chain) }))
+      : [{ title: "", chain: ofType, requested: requestedFor(ofType) }];
+    if (repeatable) {
+      const asking = items.filter((it) => typeLevel(it) && !answeredHere(it));
+      if (asking.length > 0) groups.push({ title: "", chain: [], requested: asking });
+    }
+    const needed = t.mandatoryAtRegistration === true && !t.retired;
     for (const g of groups) {
-      if (g.chain.length === 0 && !needed) continue;
+      if (g.chain.length === 0 && !needed && g.requested.length === 0) continue;
       if (t.retired && g.chain.length === 0) continue;
       const st = documentState(g.chain, i.today);
       // documentState hands back the register's facts; the screen wants the whole document it was read from.
@@ -155,8 +172,8 @@ export function documentRows(i: RowInput): DocumentRow[] {
         head,
         band,
         reminder,
-        requested: requestedFor(t.id, g.chain),
-        replace: replaceAllowed(t, head, g.chain, i),
+        requested: g.requested,
+        replace: replaceAllowed(t, head, g.requested, i),
       });
     }
   }
@@ -175,14 +192,15 @@ function groupByTitle(docs: readonly CompanyDocument[]): { title: string; chain:
 }
 
 /// Whether a replacement may be lodged for this row, and why not in words. A supplier on the register renews its own documents; one that is not yet registered answers the office's open request, and nothing else here.
-function replaceAllowed(t: DocumentTypeConfig, head: CompanyDocument | null, chain: readonly CompanyDocument[], i: RowInput): { allowed: boolean; reason: string | null } {
+/// A document waiting for the office's check is not renewed again (the chain would hold two unchecked links), except where the office's own request is about that very document.
+function replaceAllowed(t: DocumentTypeConfig, head: CompanyDocument | null, requested: readonly ItemView[], i: RowInput): { allowed: boolean; reason: string | null } {
   if (t.retired) return { allowed: false, reason: "The procurement office no longer asks for this document." };
   if (i.supplierStatus === "REJECTED") return { allowed: false, reason: "Your registration was not accepted, so documents cannot be sent here." };
   if (i.uploadClosed) return { allowed: false, reason: i.uploadClosed };
-  const asked = (i.request?.items ?? []).some((it) => it.canAnswer && ((it.documentId && chain.some((d) => d.id === it.documentId)) || (!it.documentId && it.typeId === t.id)));
+  const asked = requested.some((it) => it.canAnswer);
   if (i.supplierStatus !== "REGISTERED" && !asked) return { allowed: false, reason: "Your registration is with the procurement office. You can send a document when the office asks for one." };
-  if (head && head.verification === "NOT_CHECKED") return { allowed: false, reason: "A document you sent is waiting for the office to check it. You can send another when it has been checked." };
-  if (i.request && !i.request.open && (i.request.items ?? []).some((it) => (it.documentId && chain.some((d) => d.id === it.documentId)) || (!it.documentId && it.typeId === t.id)) && i.supplierStatus !== "REGISTERED") return { allowed: false, reason: "The date to answer the office has passed." };
+  if (head && head.verification === "NOT_CHECKED" && !requested.some((it) => it.canAnswer && it.documentId === head.id)) return { allowed: false, reason: "A document you sent is waiting for the office to check it. You can send another when it has been checked." };
+  if (i.request && !i.request.open && requested.length > 0 && i.supplierStatus !== "REGISTERED") return { allowed: false, reason: "The date to answer the office has passed." };
   return { allowed: true, reason: null };
 }
 
@@ -215,14 +233,15 @@ export interface ReplacementContext {
   supplierStatus: SupplierStatus;
   /// Null: the type is not configured.
   type: DocumentTypeConfig | null;
-  /// The documents of the chain being renewed, or of the type for a first one.
+  /// The documents of the chain being renewed (for a type that may be lodged several times, those of the one title), or of the type for a first one.
   chain: readonly CompanyDocument[];
   /// The document being renewed, where one is: it must be the newest of its chain.
   renews: CompanyDocument | null;
   /// The titles already held, for a type that may be lodged several times.
   heldTitles: readonly string[];
   /// Set when the replacement answers an item of the office's open request.
-  answering: { open: boolean; itemFound: boolean; itemWaiting: boolean } | null;
+  /// `renewsIsAsked`: the document being renewed is the very one the item is about, so it may be renewed even while it waits for its first check (the office asked about it).
+  answering: { open: boolean; itemFound: boolean; itemWaiting: boolean; renewsIsAsked?: boolean } | null;
   /// The codes chosen, loaded: the values of the supplier's organisation, with the body they belong to.
   values: readonly RegistrationValueConfig[];
   /// How many files came with the request.
@@ -253,7 +272,10 @@ export function replacementFaults(i: ReplacementInput, c: ReplacementContext): C
   if (t.retired) add({ code: "TYPE_RETIRED", level: "block", data: { type: name } });
   if (c.renews) {
     if (c.chain.some((d) => d.supersedesId === c.renews!.id)) add({ code: "RENEWS_SUPERSEDED", level: "block", data: { type: name } });
-  } else if (c.chain.length > 0) add({ code: "ALREADY_LODGED", level: "block", data: { type: name } });
+    // A document nobody has checked is not renewed over: two unchecked links in a chain leave the officer nothing to check against (615-C7). The office's own request about that document is the exception.
+    else if (c.renews.verification === "NOT_CHECKED" && c.answering?.renewsIsAsked !== true) add({ code: "RENEWS_WAITING", level: "block", data: { type: name } });
+    // A kind that may be lodged several times takes another under a new title: what stops a repeat is the title (below), not the kind.
+  } else if (c.chain.length > 0 && t.repeatable !== true) add({ code: "ALREADY_LODGED", level: "block", data: { type: name } });
   if (c.files < 1) add({ code: "FILE_REQUIRED", level: "block", field: "file", data: { type: name } });
 
   if (blank(i.reference)) add({ code: "REFERENCE_REQUIRED", level: "block", field: "reference", data: { type: name } });
@@ -271,7 +293,12 @@ export function replacementFaults(i: ReplacementInput, c: ReplacementContext): C
     else add({ code: "EXPIRES_NOT_SET", level: "warn", field: "expiresOn", data: { type: name } });
   } else if (!isDay(i.expiresOn)) add({ code: "EXPIRY_NOT_A_DAY", level: "block", field: "expiresOn", data: { type: name } });
   else if (i.expiresOn <= c.today) add({ code: "ALREADY_EXPIRED", level: "block", field: "expiresOn", data: { type: name, expiresOn: i.expiresOn } });
-  else if (c.renews && c.renews.verification === "VERIFIED" && c.renews.expiresOn && i.expiresOn <= c.renews.expiresOn) add({ code: "RENEWAL_NOT_LATER", level: "block", field: "expiresOn", data: { type: name, expiresOn: c.renews.expiresOn } });
+  else {
+    // Later than what is in force: the document being renewed once it was checked, and the one the chain has in force (a correction of a link found not in order is judged against the link before it).
+    const inForce = documentState(c.chain, c.today).effective;
+    const held = [c.renews && c.renews.verification === "VERIFIED" ? c.renews.expiresOn : null, inForce?.expiresOn ?? null].filter((x): x is string => !!x).sort().pop();
+    if (c.renews && held && i.expiresOn <= held) add({ code: "RENEWAL_NOT_LATER", level: "block", field: "expiresOn", data: { type: name, expiresOn: held } });
+  }
 
   if (t.recordsRate === true && parseRate(i.ratePercent) == null) add({ code: "RATE_INVALID", level: "block", field: "ratePercent", data: { type: name } });
 

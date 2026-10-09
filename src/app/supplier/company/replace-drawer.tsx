@@ -154,7 +154,7 @@ export function ReplaceDrawer(p: ReplaceDrawerProps) {
                     </Callout>
                   )}
                   {p.renewal && <p className="text-[13px] text-ink-3">This is a renewal. It does not replace the one now in force until an officer has checked it.</p>}
-                  {p.type.repeatable && p.target.kind === "new" && (
+                  {p.type.repeatable && !p.renewal && (
                     <Field label="Title" htmlFor={id("title")} required hint="So it can be told from the others" error={at(faults, "title")}>
                       <Input id={id("title")} value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} />
                     </Field>

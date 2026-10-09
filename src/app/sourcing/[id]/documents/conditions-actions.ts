@@ -16,7 +16,7 @@ import { eligibilityEditFault, requirementFaults } from "@/lib/tender-docs/eligi
 import { NOT_SET, yesNoNotSet } from "@/lib/tender-docs/labels";
 import { lockPackRows } from "@/lib/tender-docs/owner";
 import { permitLabel, permitSaveFaults } from "@/lib/tender-docs/permit";
-import { NEED_FIELD, NEED_KINDS, needFaultField, needFaults, type NeedChoice, type NeedFault } from "@/lib/tender-docs/requirement-needs";
+import { NEED_FIELD, NEED_KINDS, needFaultField, needFaults, requirementAuditWords, type NeedChoice, type NeedFault } from "@/lib/tender-docs/requirement-needs";
 import { createRequirement, deleteRequirement, loadNeedValues } from "@/lib/tender-docs/requirement-store";
 import { loadClauses, loadConfirmations, loadOverrides, loadPacks, loadPermitList, loadRegistrationBodies, loadRequirements, loadTenderPolicy, partFactsOf, type PackRow } from "@/lib/tender-docs/repo";
 import type { Finding } from "@/lib/tender-docs/types";
@@ -116,7 +116,7 @@ export async function addRequirement(_prev: FormState, data: FormData): Promise<
     const body = bodies.find((b) => b.code === bodyCode)!;
     const sortOrder = existing.filter((x) => x.alternativeGroup === alternativeGroup).reduce((m, x) => Math.max(m, x.sortOrder + 1), 0);
     const row = await createRequirement(tx, { organisationId: l.org.id, exerciseId, body, qualifiers, alternativeGroup, sortOrder, choices, values: needValues });
-    await audit(tx, toAuditActor(actor), l.org.id, "ExerciseRegistrationRequirement", row.id, label(l, `Registration required · ${body.labelEn}`), "CREATE", diffFields(null, { registrationBody: body.labelEn, requiredWithIt: row.qualifiers || null, compared: row.needs.length ? row.needs.map((n) => n.label).join("; ") : null, alternativeGroup: `Group ${alternativeGroup}` }));
+    await audit(tx, toAuditActor(actor), l.org.id, "ExerciseRegistrationRequirement", row.id, label(l, `Registration required · ${body.labelEn}`), "CREATE", diffFields(null, requirementAuditWords({ bodyLabel: body.labelEn, qualifiers: row.qualifiers, needLabels: row.needs.map((n) => n.label), alternativeGroup })));
     return { ok: true };
   });
 }
@@ -136,8 +136,10 @@ export async function removeRequirement(_prev: FormState, data: FormData): Promi
     if (stop) return stop;
     const row = await tx.exerciseRegistrationRequirement.findFirst({ where: { id, exerciseId, organisationId: actor.organisationId } });
     if (!row) return { ok: false, message: "That requirement is no longer on the exercise." };
+    // What it asked for as a grade and codes is part of what is removed, so the trail keeps it (the same words the CREATE recorded).
+    const needs = await tx.exerciseRequirementNeed.findMany({ where: { requirementId: id, organisationId: actor.organisationId }, orderBy: { id: "asc" }, select: { labelSnapshot: true } });
     await deleteRequirement(tx, actor.organisationId, id);
-    await audit(tx, toAuditActor(actor), l.org.id, "ExerciseRegistrationRequirement", id, label(l, `Registration required · ${row.bodyLabelSnapshot}`), "DELETE", snapshotFields({ registrationBody: row.bodyLabelSnapshot, requiredWithIt: row.qualifiers || null, alternativeGroup: `Group ${row.alternativeGroup}` }), reason);
+    await audit(tx, toAuditActor(actor), l.org.id, "ExerciseRegistrationRequirement", id, label(l, `Registration required · ${row.bodyLabelSnapshot}`), "DELETE", snapshotFields(Object.fromEntries(Object.entries(requirementAuditWords({ bodyLabel: row.bodyLabelSnapshot, qualifiers: row.qualifiers, needLabels: needs.map((n) => n.labelSnapshot), alternativeGroup: row.alternativeGroup })).filter(([k, v]) => k !== "compared" || v != null))), reason);
     return { ok: true };
   });
 }

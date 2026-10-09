@@ -65,3 +65,22 @@ describe("the register's lists", () => {
     expect(supplierFaultText({ code: "CALLING_CODE_NOT_VALID", level: "block" }, "ms")).toMatch(/Kod dailan/);
   });
 });
+
+describe("a grade's rank does not move while a frozen requirement is compared by it (615-C1, review fix)", () => {
+  const grade = { kind: "GRADE" as const, code: "G4", nameEn: "Grade four", parentCode: null, rank: 5, valueCeiling: null, ceilingProvenance: null, provenance: "ASSUMED" };
+  const ctx = { bodyExists: true, codeTaken: false, categoryCodes: [], gradeRanks: [] as number[] };
+  it("refuses a change of rank, and the clearing of one, naming the exercises", () => {
+    const held = { was: 4, byExercises: ["DEMO/SX/0018/2026", "DEMO/SX/0020/2026"] };
+    const fs = valueFaults(grade, { ...ctx, rankHeld: held });
+    expect(codes(fs)).toEqual(["RANK_HELD"]);
+    expect(supplierFaultText(fs[0]!)).toContain("DEMO/SX/0018/2026, DEMO/SX/0020/2026");
+    expect(supplierFaultText(fs[0]!, "ms")).toContain("DEMO/SX/0018/2026");
+    expect(codes(valueFaults({ ...grade, rank: null }, { ...ctx, rankHeld: held }))).toEqual(["RANK_HELD"]);
+    expect(codes(valueFaults({ ...grade, rank: 4 }, { ...ctx, rankHeld: { ...held, was: null } }))).toEqual(["RANK_HELD"]);
+  });
+  it("lets the rank stand as it is, and any other change, and a rank when nothing is held", () => {
+    expect(valueFaults(grade, { ...ctx, rankHeld: { was: 5, byExercises: ["X"] } })).toEqual([]);
+    expect(valueFaults(grade, { ...ctx, rankHeld: { was: 4, byExercises: [] } })).toEqual([]);
+    expect(valueFaults(grade, ctx)).toEqual([]);
+  });
+});

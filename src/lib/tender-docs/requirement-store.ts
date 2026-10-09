@@ -2,6 +2,7 @@ import type { Tx } from "@/lib/audit/record";
 import { storedDay } from "@/lib/dates";
 import { db } from "@/lib/db";
 
+import { RANK_HELD_STATUSES } from "./eligibility";
 import { composeQualifiers, needLabel, type NeedChoice, type NeedValue } from "./requirement-needs";
 
 /**
@@ -62,4 +63,13 @@ export async function createRequirement(tx: Tx, i: NewRequirement): Promise<{ id
 export async function deleteRequirement(tx: Tx, organisationId: string, requirementId: string): Promise<void> {
   await tx.exerciseRequirementNeed.deleteMany({ where: { requirementId, organisationId } });
   await tx.exerciseRegistrationRequirement.delete({ where: { id: requirementId, organisationId } });
+}
+
+/// The references of the exercises whose requirements ask for a grade of this body and whose bidders are still to be compared by its ranks (frozen, not yet opened): while any stands, no rank of the body moves.
+export async function exercisesHoldingRank(tx: Tx, organisationId: string, bodyId: string): Promise<string[]> {
+  const rows = await tx.exerciseRequirementNeed.findMany({
+    where: { organisationId, kind: "GRADE", registrationValue: { bodyId }, requirement: { exercise: { status: { in: [...RANK_HELD_STATUSES] } } } },
+    select: { requirement: { select: { exercise: { select: { reference: true } } } } },
+  });
+  return [...new Set(rows.map((r) => r.requirement.exercise.reference))].sort();
 }

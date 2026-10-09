@@ -74,19 +74,21 @@ describe("the deadline of a request answered in time", () => {
   });
 });
 
+// The input changed from a yes-or-no `answered` to the request's reading (`readRequest`), so that a request nobody answered is not told as answered once its date has passed, and an answer found
+// not in order is not told as done while the date is still running. The expectations are unchanged.
 describe("what the supplier is told once it has answered", () => {
   const day = (d: string) => d;
   it("the application says it answered, and does not repeat that anything is still wanted or that it will be rejected", () => {
-    const words = applicationStatusWords({ status: "RESUBMISSION_REQUESTED", resubmitBy: D, answered: true }, day);
+    const words = applicationStatusWords({ status: "RESUBMISSION_REQUESTED", resubmitBy: D, reading: { kind: "ANSWERED" } }, day);
     expect(words.title.en).toBe("You have answered the office");
     expect(words.detail.en).not.toMatch(/rejected|Give the office what it asks/);
     expect(words.tone).toBe("info");
-    expect(applicationStatusWords({ status: "RESUBMISSION_REQUESTED", resubmitBy: D, answered: false }, day).title.en).toBe("The office has asked for more");
+    expect(applicationStatusWords({ status: "RESUBMISSION_REQUESTED", resubmitBy: D, reading: { kind: "WAITING", needing: 1 } }, day).title.en).toBe("The office has asked for more");
     expect(applicationStatusWords({ status: "RESUBMISSION_REQUESTED", resubmitBy: D }, day).title.en).toBe("The office has asked for more");
   });
   it("the supplier's standing line is with the office, not waiting for the supplier", () => {
     const s = { status: "APPLICANT" as const, registeredOn: null };
-    expect(supplierStatusWords(s, { status: "RESUBMISSION_REQUESTED", answered: true }, day).title.en).toBe("With the procurement office");
-    expect(supplierStatusWords(s, { status: "RESUBMISSION_REQUESTED", answered: false }, day).title.en).toBe("Waiting for you");
+    expect(supplierStatusWords(s, { status: "RESUBMISSION_REQUESTED", reading: { kind: "ANSWERED" } }, day).title.en).toBe("With the procurement office");
+    expect(supplierStatusWords(s, { status: "RESUBMISSION_REQUESTED", reading: { kind: "WAITING", needing: 1 } }, day).title.en).toBe("Waiting for you");
   });
 });

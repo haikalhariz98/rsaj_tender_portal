@@ -72,6 +72,14 @@ export function needFaults(choices: readonly NeedChoice[], values: readonly Need
  * The words a notice prints for the needs, in English: "minimum grade G5 — Grade five; category B — Buildings or CE — Civil; field codes 12 — Water, 13 — Pumps". The order is fixed
  * (grade, categories, specialisations, field codes, permit types) so the same needs always read the same.
  */
+/// What the trail says of a requirement, in words: the same fields when it is added and when it is removed, so a removal keeps the grade and codes it asked for (every mutation audits its before-state).
+export const requirementAuditWords = (r: { bodyLabel: string; qualifiers: string; needLabels: readonly string[]; alternativeGroup: number }) => ({
+  registrationBody: r.bodyLabel,
+  requiredWithIt: r.qualifiers || null,
+  compared: r.needLabels.length ? r.needLabels.join("; ") : null,
+  alternativeGroup: `Group ${r.alternativeGroup}`,
+});
+
 export function composeQualifiers(needs: readonly { kind: NeedKind; label: string }[]): string {
   const of = (k: NeedKind) => needs.filter((n) => n.kind === k).map((n) => n.label);
   const parts: string[] = [];

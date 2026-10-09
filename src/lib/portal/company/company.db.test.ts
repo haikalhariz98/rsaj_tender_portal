@@ -138,6 +138,14 @@ const refusedWith = async (p: Promise<unknown>, code: string) => {
   expect((e as CompanyRefused).faults.map((f) => f.code), code).toContain(code);
 };
 
+// The fault set is asserted exactly (review fix): `refusedWith` only checks that a code is among them, which let a second document of a repeatable type be refused with an extra
+// "you already have one" that no test saw.
+const faultCodes = async (p: Promise<unknown>) => {
+  const e = await p.then(() => null, (x) => x);
+  expect(e).toBeInstanceOf(CompanyRefused);
+  return (e as CompanyRefused).faults.map((f) => f.code);
+};
+
 /// A resubmission request on an application of the supplier: one item about a document, one about a type not given.
 async function request(s: { supplierId: string }, o: { resubmitBy?: string; documentId?: string | null; typeId?: string | null } = {}) {
   const app = await db.supplierApplication.create({ data: { organisationId, supplierId: s.supplierId, kind: "NEW", receivedOn: D("2026-10-01"), channel: "COUNTER", recordedByPersonId: (await makePerson(organisationId)).id, recordedAt: new Date(), status: "RESUBMISSION_REQUESTED", resubmitBy: D(o.resubmitBy ?? "2099-01-01") } });
@@ -217,11 +225,48 @@ describe("a renewal by a registered supplier (FR-VND-008)", () => {
     await refusedWith(replace(s.actor, { kind: "renew", documentId: reg.id }, details({ valueIds: [gradeId] })), "VALUE_NOT_FOR_DOCUMENT");
   });
 
-  it("a type lodged several times is given a title, and a title already held is refused", async () => {
+  it("a type lodged several times is given a title, a different title is a second document, and a title already held is refused", async () => {
     const s = await supplier();
     await replace(s.actor, { kind: "new", typeId: typeOther }, details({ title: "Safety" }));
-    await refusedWith(replace(s.actor, { kind: "new", typeId: typeOther }, details({ title: "safety" })), "TITLE_DUPLICATE");
-    await refusedWith(replace(s.actor, { kind: "new", typeId: typeOther }, details({ title: "" })), "TITLE_REQUIRED");
+    const second = await replace(s.actor, { kind: "new", typeId: typeOther }, details({ title: "Insurance" }));
+    expect(await db.supplierDocument.findUniqueOrThrow({ where: { id: second.documentId } })).toMatchObject({ title: "Insurance", supersedesId: null, typeId: typeOther });
+    expect(await faultCodes(replace(s.actor, { kind: "new", typeId: typeOther }, details({ title: "safety" })))).toEqual(["TITLE_DUPLICATE"]);
+    expect(await faultCodes(replace(s.actor, { kind: "new", typeId: typeOther }, details({ title: "" })))).toEqual(["TITLE_REQUIRED"]);
+    expect(await db.supplierDocument.count({ where: { supplierId: s.supplierId, typeId: typeOther } })).toBe(2);
+  });
+
+  it("a kind lodged once is still not lodged a second time", async () => {
+    const s = await supplier();
+    await held(s, typeReg);
+    expect(await faultCodes(replace(s.actor, { kind: "new", typeId: typeReg }))).toEqual(["ALREADY_LODGED"]);
+  });
+
+  it("renews one title of a repeatable kind without touching another, and judges its expiry against its own title only", async () => {
+    const s = await supplier();
+    const safety = await held(s, typeOther, { title: "Safety", expiresOn: "2027-01-01" });
+    await held(s, typeOther, { title: "Quality", expiresOn: "2030-01-01" });
+    // 2028 is later than Safety's 2027 but earlier than Quality's 2030: only its own title counts.
+    const done = await replace(s.actor, { kind: "renew", documentId: safety.id }, details({ expiresOn: "2028-06-30" }));
+    expect(await db.supplierDocument.findUniqueOrThrow({ where: { id: done.documentId } })).toMatchObject({ title: "Safety", supersedesId: safety.id });
+  });
+
+  it("a document still waiting for its check is not renewed over, by name or through the office's request", async () => {
+    const s = await supplier();
+    const a = await held(s, typeReg, { expiresOn: "2027-01-01" });
+    const waiting = await held(s, typeReg, { verification: "NOT_CHECKED", supersedesId: a.id, expiresOn: "2028-01-01" });
+    expect(await faultCodes(replace(s.actor, { kind: "renew", documentId: waiting.id }, details({ expiresOn: "2030-01-01" })))).toEqual(["RENEWS_WAITING"]);
+    // The office asks about the document in force, while a renewal the supplier sent earlier still waits: the answer would sit on top of an unchecked link.
+    const r = await request(s, { documentId: a.id });
+    expect(await faultCodes(replace(s.actor, { kind: "item", itemId: r.itemId }, details({ expiresOn: "2030-01-01" })))).toEqual(["RENEWS_WAITING"]);
+    expect(await db.supplierDocument.count({ where: { supplierId: s.supplierId } })).toBe(2);
+  });
+
+  it("a renewal is later than the document the chain has in force, not only than the link found not in order", async () => {
+    const s = await supplier();
+    const a = await held(s, typeReg, { expiresOn: "2027-06-01" });
+    const bad = await held(s, typeReg, { verification: "NOT_IN_ORDER", supersedesId: a.id, expiresOn: "2030-01-01" });
+    expect(await faultCodes(replace(s.actor, { kind: "renew", documentId: bad.id }, details({ expiresOn: "2027-06-01" })))).toEqual(["RENEWAL_NOT_LATER"]);
+    await expect(replace(s.actor, { kind: "renew", documentId: bad.id }, details({ expiresOn: "2027-06-02" }))).resolves.toBeTruthy();
   });
 
   it("an applicant, with no request open, lodges nothing here", async () => {
@@ -247,6 +292,35 @@ describe("answering the office's request online (FR-VND-007)", () => {
     await db.supplierDocument.update({ where: { id: done.documentId }, data: { verification: "NOT_IN_ORDER", verifiedOn: D("2026-10-06"), verifiedAt: new Date(), verificationNote: "Still not legible." } });
     const again = await replace(s.actor, { kind: "item", itemId: r.itemId }, details({ reference: "R-AGAIN" }));
     expect((await db.supplierDocument.findUniqueOrThrow({ where: { id: again.documentId } })).supersedesId).toBe(done.documentId);
+  });
+
+  it("a document the office asked about is answered even while it still waits for its first check (the registration's own documents wait the same way)", async () => {
+    const s = await supplier("APPLICANT");
+    const wizard = await held(s, typeReg, { verification: "NOT_CHECKED" });
+    const r = await request(s, { documentId: wizard.id });
+    const done = await replace(s.actor, { kind: "item", itemId: r.itemId }, details());
+    expect(await db.supplierDocument.findUniqueOrThrow({ where: { id: done.documentId } })).toMatchObject({ supersedesId: wizard.id, answersItemId: r.itemId });
+  });
+
+  it("a request for a kind that may be lodged several times, with another title already held, asks for a new title and renews none of those held", async () => {
+    const s = await supplier("APPLICANT");
+    const safety = await held(s, typeOther, { title: "Safety" });
+    const r = await request(s, { typeId: typeOther });
+    const done = await replace(s.actor, { kind: "item", itemId: r.itemId }, details({ title: "Insurance" }));
+    expect(await db.supplierDocument.findUniqueOrThrow({ where: { id: done.documentId } })).toMatchObject({ title: "Insurance", supersedesId: null, answersItemId: r.itemId });
+    expect(await db.supplierDocument.count({ where: { supersedesId: safety.id } })).toBe(0);
+    // Found not in order, the answer is corrected as a renewal of itself (not as a second title).
+    await db.supplierDocument.update({ where: { id: done.documentId }, data: { verification: "NOT_IN_ORDER", verifiedOn: D("2026-10-06"), verifiedAt: new Date() } });
+    const again = await replace(s.actor, { kind: "item", itemId: r.itemId }, details({ reference: "R-AGAIN" }));
+    expect(await db.supplierDocument.findUniqueOrThrow({ where: { id: again.documentId } })).toMatchObject({ title: "Insurance", supersedesId: done.documentId });
+  });
+
+  it("with nothing of a repeatable kind held, the request is answered with a title of the supplier's choosing", async () => {
+    const s = await supplier("APPLICANT");
+    const r = await request(s, { typeId: typeOther });
+    expect(await faultCodes(replace(s.actor, { kind: "item", itemId: r.itemId }, details({ title: "" })))).toEqual(["TITLE_REQUIRED"]);
+    const done = await replace(s.actor, { kind: "item", itemId: r.itemId }, details({ title: "Safety" }));
+    expect(await db.supplierDocument.findUniqueOrThrow({ where: { id: done.documentId } })).toMatchObject({ title: "Safety", supersedesId: null, answersItemId: r.itemId });
   });
 
   it("a type the office asked for and the supplier had not given is lodged as a first document", async () => {
@@ -313,6 +387,28 @@ describe("a request answered on the deadline day is not a lapse the day after (F
   });
 });
 
+describe("what the supplier's own pages say of the request (review fix: not 'answered' when nothing was)", () => {
+  it("a request whose date has passed with nothing sent reads as the date having passed on the account page and the Overview, and a corrected answer found not in order reads as waiting", async () => {
+    const { loadRegistrationStatus } = await import("@/lib/portal/registration-status-repo");
+    const { loadOverviewTab } = await import("./company-store");
+    const late = await supplier("APPLICANT");
+    await request(late, { typeId: typeReg, resubmitBy: "2020-01-01" });
+    const status = await loadRegistrationStatus(late.actor);
+    expect(status!.applications[0]!.reading).toEqual({ kind: "DATE_PASSED", unanswered: 1 });
+    const overview = await loadOverviewTab(db, late.actor, (d) => d);
+    expect(overview!.request!.reading).toEqual({ kind: "DATE_PASSED", unanswered: 1 });
+
+    const open = await supplier("APPLICANT");
+    const r = await request(open, { typeId: typeReg });
+    expect((await loadRegistrationStatus(open.actor))!.applications[0]!.reading).toEqual({ kind: "WAITING", needing: 1 });
+    const sent = await replace(open.actor, { kind: "item", itemId: r.itemId }, details());
+    expect((await loadRegistrationStatus(open.actor))!.applications[0]!.reading).toEqual({ kind: "ANSWERED" });
+    await db.supplierDocument.update({ where: { id: sent.documentId }, data: { verification: "NOT_IN_ORDER", verifiedOn: D("2026-10-06"), verifiedAt: new Date() } });
+    expect((await loadRegistrationStatus(open.actor))!.applications[0]!.reading).toEqual({ kind: "WAITING", needing: 1 });
+    expect((await loadOverviewTab(db, open.actor, (d) => d))!.request!.reading).toEqual({ kind: "WAITING", needing: 1 });
+  });
+});
+
 describe("what is waiting bounds what may be sent (the quota)", () => {
   it("counts the files of documents nobody has checked, and frees them as the office checks", async () => {
     const s = await supplier();
@@ -321,6 +417,23 @@ describe("what is waiting bounds what may be sent (the quota)", () => {
     expect((await waitingUsage(db, organisationId, s.supplierId)).files).toBe(1);
     await db.supplierDocument.update({ where: { id: a.documentId }, data: { verification: "VERIFIED", verifiedOn: D("2026-10-06"), verifiedAt: new Date() } });
     expect((await waitingUsage(db, organisationId, s.supplierId)).files).toBe(0);
+  });
+
+  it("an answer to the office's request is not stopped by what the registration left waiting: the quota is full of unchecked documents, one is asked for, and the answer is taken", async () => {
+    const s = await supplier();
+    const old = await held(s, typeReg);
+    // Quota of one file; the supplier already has one document waiting for an officer, as the registration's documents do until they are checked.
+    await replace(s.actor, { kind: "renew", documentId: old.id }, details(), 1, { maxFiles: 1 });
+    expect((await waitingUsage(db, organisationId, s.supplierId)).files).toBe(1);
+    const full = await replace(s.actor, { kind: "new", typeId: typeOther }, details({ title: "Safety" }), 2, { maxFiles: 1 }).then(() => null, (x) => x);
+    expect((full as UploadRefusal).finding.code).toBe("QUOTA_FILES");
+    const r = await request(s, { typeId: typeOther });
+    await expect(replace(s.actor, { kind: "item", itemId: r.itemId }, details({ title: "Safety" }), 3, { maxFiles: 1 })).resolves.toBeTruthy();
+    // The size of a file still counts.
+    const s2 = await supplier("APPLICANT");
+    const r2 = await request(s2, { typeId: typeReg });
+    const e = await replace(s2.actor, { kind: "item", itemId: r2.itemId }, details(), 4, { maxBytes: 5n }).then(() => null, (x) => x);
+    expect((e as UploadRefusal).finding.code).toBe("QUOTA_BYTES");
   });
 
   it("refuses a file beyond the quota, and an unset quota or class refuses and names itself", async () => {

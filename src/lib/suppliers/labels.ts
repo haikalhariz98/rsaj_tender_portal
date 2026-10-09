@@ -301,6 +301,7 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   RANK_ONLY_FOR_GRADE: () => w("Only a grade takes a rank.", "Hanya gred mempunyai kedudukan."),
   RANK_NOT_VALID: () => w("A rank is a whole number from 1.", "Kedudukan ialah nombor bulat dari 1."),
   RANK_TAKEN: (d) => w(`Another of the body's grades has rank ${d.rank}.`, `Gred lain badan itu mempunyai kedudukan ${d.rank}.`),
+  RANK_HELD: (d) => w(`This grade's rank cannot change now: ${d.exercises} ask for a grade of this body and have gone for approval or are open, so bidders are being compared by these ranks. It can change when they are opened or cancelled.`, `Kedudukan gred ini tidak boleh diubah sekarang: ${d.exercises} meminta gred badan ini dan telah dihantar untuk kelulusan atau sedang dibuka, jadi pembida dibandingkan mengikut kedudukan ini. Ia boleh diubah apabila ia dibuka atau dibatalkan.`),
   CEILING_ONLY_FOR_GRADE: () => w("Only a grade carries a value ceiling.", "Hanya gred membawa had nilai."),
   CEILING_NOT_VALID: () => w("The ceiling is an amount above nothing, at most two decimal places.", "Had ialah amaun melebihi sifar, paling banyak dua tempat perpuluhan."),
   CEILING_PROVENANCE_REQUIRED: () => w("Say where the ceiling comes from.", "Nyatakan sumber had itu."),

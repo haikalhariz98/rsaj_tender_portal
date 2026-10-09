@@ -115,7 +115,7 @@ export async function storeReplacement(actor: SupplierActor, i: ReplacementUploa
           let applicationId: string | null = null;
           let itemId: string | null = null;
           let itemLabel: string | null = null;
-          let answering: { open: boolean; itemFound: boolean; itemWaiting: boolean } | null = null;
+          let answering: { open: boolean; itemFound: boolean; itemWaiting: boolean; renewsIsAsked?: boolean } | null = null;
           const loadDoc = async (id: string) => {
             const row = await tx.supplierDocument.findFirst({ where: { id, supplierId: actor.supplierId, organisationId: actor.organisationId }, include: DOCUMENT_INCLUDE });
             return row ? companyDocument(row) : null;
@@ -158,20 +158,26 @@ export async function storeReplacement(actor: SupplierActor, i: ReplacementUploa
 
           const typeRow = typeId ? await tx.supplierDocumentType.findFirst({ where: { id: typeId, organisationId: actor.organisationId } }) : null;
           const type = typeRow ? typeConfig(typeRow, today) : null;
+          const repeatable = type?.repeatable === true;
           const ofType = typeId ? (await tx.supplierDocument.findMany({ where: { supplierId: actor.supplierId, organisationId: actor.organisationId, typeId }, include: DOCUMENT_INCLUDE })).map(companyDocument) : [];
           // A request for a type the supplier holds already (an officer asked for a fresh copy) renews the newest document of it; the chain it belongs to is the one read.
           const head = ofType.find((d) => !ofType.some((x) => x.supersedesId === d.id)) ?? null;
           if (t.kind === "item") {
-            // Follow the chain from the document the item is about (or, for a type, take the newest) to its newest link.
-            let at: CompanyDocument | null = askedAbout ?? (ofType.length === 1 ? ofType[0]! : null);
+            // Follow the chain from the document the item is about, or from the newest answer already sent to it (one found not in order), to its newest link.
+            const earlier = [...ofType].filter((d) => d.answersItemId === itemId).sort((a, b) => b.lodgedOn.localeCompare(a.lodgedOn) || b.id.localeCompare(a.id))[0] ?? null;
+            let at: CompanyDocument | null = askedAbout ?? earlier ?? (!repeatable && ofType.length === 1 ? ofType[0]! : null);
             for (let guard = 0; at && guard < 100; guard++) {
               const next: CompanyDocument | undefined = ofType.find((x) => x.supersedesId === at!.id);
               if (!next) break;
               at = next;
             }
-            renews = at ?? head;
+            // A request for a kind that may be lodged several times, about no document, asks for one more under a title of its own: it renews none of those held.
+            renews = at ?? (repeatable ? null : head);
+            if (renews && answering) answering.renewsIsAsked = askedAbout != null && renews.id === askedAbout.id;
           }
-          const chain = renews ? ofType : t.kind === "new" ? ofType : [];
+          // The chain judged is the renewed document's own: for a kind lodged several times, the documents of its title.
+          const sameTitle = (d: CompanyDocument, title: string) => d.title.trim().toLowerCase() === title.trim().toLowerCase();
+          const chain = renews ? (repeatable ? ofType.filter((d) => sameTitle(d, renews!.title)) : ofType) : t.kind === "new" ? ofType : [];
           const heldTitles = ofType.map((d) => d.title);
 
           const valueRows = i.details.valueIds.length ? await tx.registrationValue.findMany({ where: { organisationId: actor.organisationId, id: { in: [...i.details.valueIds] } }, select: { id: true, bodyId: true, kind: true, code: true, nameEn: true, retiredOn: true } }) : [];
@@ -181,7 +187,9 @@ export async function storeReplacement(actor: SupplierActor, i: ReplacementUploa
           // The quota, on the locked rows: the only judgement that counts. Faults of the document come first, so a supplier is told what to put right before what the office's limits are.
           const blocking = faults.filter((f) => f.level === "block");
           if (blocking.length > 0) throw new CompanyRefused(faults);
-          const usage = await waitingUsage(tx, actor.organisationId, actor.supplierId);
+          // An answer to the office's own request is not held against what is waiting for the office already (the documents sent with the registration, the bank details): the office's unfinished
+          // checking cannot be what stops an applicant answering the office by its date. It is bounded by the items asked for, each of which takes one answer at a time. The file's size and type still count.
+          const usage = answering ? { files: 0, bytes: 0n } : await waitingUsage(tx, actor.organisationId, actor.supplierId);
           const refused = uploadFault(sniffed, i.storeSettings, i.policy, usage, "document");
           if (refused) throw new UploadRefusal(refused as unknown as StoreFinding, refused.code === "TOO_LARGE" ? 413 : 422);
 

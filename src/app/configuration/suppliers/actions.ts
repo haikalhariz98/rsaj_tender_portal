@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/format";
 import { formatMoney, parseSen } from "@/lib/money";
 import { validLimit } from "@/lib/portal/apply";
 import { documentTypeFaults, listValueFaults, valueFaults } from "@/lib/suppliers/config";
+import { exercisesHoldingRank } from "@/lib/tender-docs/requirement-store";
 import { bandPolicyFaults } from "@/lib/suppliers/expiry";
 import { asHeading, LIST_KIND_SINGULAR, supplierFaultText, VALUE_KIND_LABEL } from "@/lib/suppliers/labels";
 import { REGISTRATION_VALUE_KINDS, SUPPLIER_LIST_KINDS, type Finding, type RegistrationValueKind, type SupplierListKind } from "@/lib/suppliers/types";
@@ -101,9 +102,18 @@ export async function saveRegistrationValue(_prev: FormState, data: FormData): P
     const code = before?.code ?? v.code;
     const body = await tx.registrationBody.findFirst({ where: { id: bodyId, organisationId: org.id } });
     const siblings = await tx.registrationValue.findMany({ where: { bodyId, NOT: id ? { id } : undefined }, select: { kind: true, code: true, rank: true } });
+    // 615-C1: a requirement that asks for a grade is compared by the ranks of its body's grades, read live, and cannot be edited once its pack has gone for approval. While such an exercise
+    // stands (until its envelopes are opened) no rank of that body moves: any grade of it may be the one a bidder holds, so a change to any would change who qualifies.
+    const holding = before && kind === "GRADE" && before.rank !== v.rank ? await exercisesHoldingRank(tx, org.id, bodyId) : [];
     const fs = valueFaults(
       { ...v, kind, code },
-      { bodyExists: !!body, codeTaken: !before && siblings.some((x) => x.kind === kind && x.code === code), categoryCodes: siblings.filter((x) => x.kind === "CATEGORY").map((x) => x.code), gradeRanks: siblings.filter((x) => x.rank != null).map((x) => x.rank!) },
+      {
+        bodyExists: !!body,
+        codeTaken: !before && siblings.some((x) => x.kind === kind && x.code === code),
+        categoryCodes: siblings.filter((x) => x.kind === "CATEGORY").map((x) => x.code),
+        gradeRanks: siblings.filter((x) => x.rank != null).map((x) => x.rank!),
+        rankHeld: before ? { was: before.rank, byExercises: holding } : undefined,
+      },
     );
     if (fs.length) return refusal(fs);
     const row = { nameEn: v.nameEn, nameMs: v.nameMs, parentCode: v.parentCode, rank: v.rank, valueCeiling: v.valueCeiling, ceilingProvenance: v.valueCeiling ? v.ceilingProvenance : null, governingSource: v.governingSource, provenance: v.provenance!, sortOrder: v.sortOrder };

@@ -143,6 +143,49 @@ describe("the office's request and the supplier's answers (FR-VND-007)", () => {
     expect(late.lapse).toBe("LAPSED");
     expect(late.items.every((i) => !i.canAnswer)).toBe(true);
   });
+  it("a request nobody answered is not read as answered once its date has passed (it was, because nothing could be answered any more)", () => {
+    const late = requestView(request, [], "2026-10-21");
+    expect(late.items.every((i) => !i.canAnswer)).toBe(true);
+    expect(attentionCount(rowsOf([], { request: late, supplierStatus: "APPLICANT" })).waitingForYou).toBe(0);
+    expect(late.reading).toEqual({ kind: "DATE_PASSED", unanswered: 2 });
+    expect(requestView(request, [], TODAY).reading).toEqual({ kind: "WAITING", needing: 2 });
+  });
+  it("an answer found not in order is still waiting for the supplier while the date runs", () => {
+    const sent = doc({ id: "n1", typeId: "t-works", supersedesId: "w", verification: "NOT_IN_ORDER", answersItemId: "i1", lodgedOn: "2026-10-06" });
+    const other = doc({ id: "n2", typeId: "t-reg", verification: "NOT_CHECKED", verifiedOn: null, answersItemId: "i2", lodgedOn: "2026-10-06" });
+    expect(requestView(request, [works, sent, other], TODAY).reading).toEqual({ kind: "WAITING", needing: 1 });
+    expect(requestView(request, [works, { ...sent, verification: "NOT_CHECKED" }, other], TODAY).reading).toEqual({ kind: "ANSWERED" });
+  });
+  it("a request for a type that may be lodged several times, which nothing is held of, has a row of its own to answer on", () => {
+    const asked: OpenRequestFacts = { ...request, items: [{ id: "i9", label: "Other", remarks: "Send your safety plan.", documentId: null, typeId: "t-other" }] };
+    const view = requestView(asked, [], TODAY);
+    const rows = rowsOf([], { request: view, supplierStatus: "APPLICANT" });
+    const row = rows.find((r) => r.typeId === "t-other");
+    expect(row).toMatchObject({ name: "Other", head: null, replace: { allowed: true } });
+    expect(row!.requested.map((i) => i.id)).toEqual(["i9"]);
+    expect(attentionCount(rows).waitingForYou).toBe(1);
+  });
+  it("once a titled document answers it, the item shows on that document's row and the new-title row goes", () => {
+    const asked: OpenRequestFacts = { ...request, items: [{ id: "i9", label: "Other", remarks: "Send your safety plan.", documentId: null, typeId: "t-other" }] };
+    const sent = doc({ id: "o1", typeId: "t-other", title: "Safety", verification: "NOT_IN_ORDER", answersItemId: "i9", lodgedOn: "2026-10-06" });
+    const rows = rowsOf([sent], { request: requestView(asked, [sent], TODAY), supplierStatus: "APPLICANT" }).filter((r) => r.typeId === "t-other");
+    expect(rows.map((r) => [r.name, r.requested.map((i) => i.id)])).toEqual([["Other · Safety", ["i9"]]]);
+    expect(rows[0]!.replace.allowed).toBe(true);
+  });
+  it("a type-level request is not shown on the rows of the titles already held", () => {
+    const asked: OpenRequestFacts = { ...request, items: [{ id: "i9", label: "Other", remarks: "Send one more.", documentId: null, typeId: "t-other" }] };
+    const held = doc({ id: "o1", typeId: "t-other", title: "Safety" });
+    const rows = rowsOf([held], { request: requestView(asked, [held], TODAY) }).filter((r) => r.typeId === "t-other");
+    expect(rows.map((r) => [r.name, r.requested.length]).sort()).toEqual([["Other · Safety", 0], ["Other", 1]]);
+  });
+  it("a document the office asked about may be answered while it still waits for its first check, and another waiting document may not be renewed over", () => {
+    const wizard = doc({ id: "w", typeId: "t-works", verification: "NOT_CHECKED", verifiedOn: null });
+    const only = { ...request, items: [request.items[0]!] };
+    expect(rowsOf([wizard], { request: requestView(only, [wizard], TODAY), supplierStatus: "APPLICANT" }).find((r) => r.typeId === "t-works")!.replace.allowed).toBe(true);
+    const pending = doc({ id: "p", typeId: "t-works", supersedesId: "w", verification: "NOT_CHECKED", verifiedOn: null, lodgedOn: "2026-10-05" });
+    const row = rowsOf([wizard, pending], { request: requestView(only, [wizard, pending], TODAY), supplierStatus: "APPLICANT" }).find((r) => r.typeId === "t-works")!;
+    expect(row.replace).toMatchObject({ allowed: false, reason: expect.stringMatching(/waiting for the office to check it/) });
+  });
   it("the request's items appear on their document's row and on the type's row", () => {
     const view = requestView(request, [works], TODAY);
     const rows = rowsOf([works], { request: view, supplierStatus: "APPLICANT" });
@@ -199,6 +242,29 @@ describe("lodging a replacement", () => {
     expect(codes(input(), context({ chain: [old, newer] }))).toContain("RENEWS_SUPERSEDED");
     expect(codes(input(), context({ renews: null }))).toContain("ALREADY_LODGED");
     expect(codes(input(), context({ renews: null, chain: [] }))).toEqual([]);
+  });
+  it("a type lodged several times takes a second document under a different title (the title, not the type, stops a repeat)", () => {
+    const safety = doc({ id: "s", typeId: "t-other", title: "Safety" });
+    const t = { ...T_OTHER };
+    // The chain holds a real document of another title, as the store gives it.
+    expect(replacementFaults(input({ title: "Insurance" }), context({ type: t, renews: null, chain: [safety], heldTitles: ["Safety"] }))).toEqual([]);
+    expect(replacementFaults(input({ title: "safety " }), context({ type: t, renews: null, chain: [safety], heldTitles: ["Safety"] })).map((f) => f.code)).toEqual(["TITLE_DUPLICATE"]);
+    // A kind that may be lodged once still refuses a second.
+    expect(codes(input(), context({ renews: null, chain: [old] }))).toEqual(["ALREADY_LODGED"]);
+  });
+  it("a document still waiting for its first check is not renewed over, unless the office's request is about that very document", () => {
+    const waiting = doc({ id: "w", typeId: "t-reg", verification: "NOT_CHECKED", verifiedOn: null });
+    expect(codes(input(), context({ renews: waiting, chain: [waiting] }))).toEqual(["RENEWS_WAITING"]);
+    const open = { open: true, itemFound: true, itemWaiting: false };
+    expect(codes(input(), context({ supplierStatus: "APPLICANT", renews: waiting, chain: [waiting], answering: open }))).toEqual(["RENEWS_WAITING"]);
+    expect(codes(input(), context({ supplierStatus: "APPLICANT", renews: waiting, chain: [waiting], answering: { ...open, renewsIsAsked: true } }))).toEqual([]);
+  });
+  it("a renewal is later than the document the chain has in force, not only than the one it renews", () => {
+    const inForce = doc({ id: "a", typeId: "t-reg", expiresOn: "2027-06-01" });
+    const bad = doc({ id: "b", typeId: "t-reg", supersedesId: "a", expiresOn: "2030-01-01", verification: "NOT_IN_ORDER", lodgedOn: "2026-09-01" });
+    const c = (expiresOn: string) => codes(input({ expiresOn }), context({ renews: bad, chain: [inForce, bad] }));
+    expect(c("2027-06-01")).toContain("RENEWAL_NOT_LATER");
+    expect(c("2027-06-02")).toEqual([]);
   });
   it("a type lodged several times needs a title that is not one already held", () => {
     const t = { ...T_OTHER };
