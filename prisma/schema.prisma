@@ -316,6 +316,10 @@ model Organisation {
   documentRequests           DocumentRequest[]
   tenderInspectionEvents     TenderInspectionEvent[]
   nonAwardNotices            NonAwardNotice[]
+  /// Phase 4e: the contractor's submissions and their service levels, and the announcements board.
+  contractorSubmissions       ContractorSubmission[]
+  contractorSubmissionSettings ContractorSubmissionSetting[]
+  announcements               Announcement[]
   bidEnvelopes          BidEnvelope[]
   bidWithdrawals        BidWithdrawal[]
   boxEvents             BoxEvent[]
@@ -550,6 +554,10 @@ model Person {
   documentSalesIssued      DocumentSale[]           @relation("SaleIssuedBy")
   attendanceRecorded       SiteEventAttendance[]    @relation("AttendanceRecordedBy")
   nonAwardNoticesIssued    NonAwardNotice[]         @relation("NonAwardIssuedBy")
+  /// Phase 4e: the officer's answer to a contractor's submission, and the announcements board.
+  contractorSubmissionsDecided ContractorSubmission[]  @relation("ContractorSubmissionDecidedBy")
+  announcementsPublished   Announcement[]           @relation("AnnouncementPublishedBy")
+  announcementsWithdrawn   Announcement[]           @relation("AnnouncementWithdrawnBy")
   envelopesReceived        BidEnvelope[]            @relation("EnvelopeReceivedBy")
   withdrawalsReceived      BidWithdrawal[]          @relation("WithdrawalReceivedBy")
   boxEventsRecorded        BoxEvent[]               @relation("BoxEventBy")
@@ -3981,6 +3989,8 @@ model Contract {
   progressRecords        ProgressRecord[]
   siteDiaryEntries       SiteDiaryEntry[]
   diaryEndorsements      DiaryEndorsement[]
+  /// Phase 4e: what the contractor sent from its portal account.
+  contractorSubmissions  ContractorSubmission[]
   siteMeetings           SiteMeeting[]
   complianceObservations ComplianceObservation[]
   programmeDirections    ProgrammeDirection[]
@@ -7888,6 +7898,7 @@ model Supplier {
   addendumAcknowledgements AddendumAcknowledgement[]
   documentRequests         DocumentRequest[]
   tenderInspections        TenderInspectionEvent[]
+  contractorSubmissions    ContractorSubmission[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, registrationNoKey])
@@ -9293,6 +9304,9 @@ model CertificateSignature {
   refusalNote String            @default("")
   signedOn    DateTime
   recordedAt  DateTime
+  /// Phase 4e: the contractor's block signed (or its refusal recorded) from the supplier's own portal account, with the password asked again. Null: recorded by an officer from the paper.
+  signedBySupplierAccountId String?
+  signedBySupplierAccount   SupplierAccount? @relation("CertificateSignedBySupplier", fields: [signedBySupplierAccountId], references: [id], onDelete: Restrict)
 
   @@unique([certificateId, blockOrder])
 }
@@ -10049,6 +10063,13 @@ model SiteDiaryEntry {
   backdatedReason   String       @default("")
   recordedAt        DateTime
   recordedOn        DateTime
+  /// Phase 4e (FR-SUP-007): the contractor's agent's attestation signed from the supplier's own portal account (with the password asked again), and a
+  /// disagreement the contractor recorded from it. Null: the officer recorded the agent's attestation from paper (not signed), or the officer recorded the disagreement.
+  agentAttestedBySupplierAccountId String?
+  agentAttestedBy   SupplierAccount? @relation("DiaryAgentAttestedBy", fields: [agentAttestedBySupplierAccountId], references: [id], onDelete: Restrict)
+  agentAttestedAt   DateTime?
+  disputedBySupplierAccountId String?
+  disputedBy        SupplierAccount? @relation("DiaryDisputedBy", fields: [disputedBySupplierAccountId], references: [id], onDelete: Restrict)
 
   @@unique([contractId, day])
 }
@@ -11539,6 +11560,11 @@ model SupplierAccount {
   documentRequestsMade     DocumentRequest[]         @relation("DocumentRequestedBySupplier")
   documentRequestsEnded    DocumentRequest[]         @relation("DocumentRequestEndedBySupplier")
   tenderInspections        TenderInspectionEvent[]   @relation("TenderInspectedBySupplier")
+  /// Phase 4e: what this account sent, signed and disputed as the contractor.
+  contractorSubmissionsSent ContractorSubmission[]   @relation("ContractorSubmissionSentBy")
+  diaryEntriesAttested     SiteDiaryEntry[]          @relation("DiaryAgentAttestedBy")
+  diaryEntriesDisputed     SiteDiaryEntry[]          @relation("DiaryDisputedBy")
+  certificateBlocksSigned  CertificateSignature[]    @relation("CertificateSignedBySupplier")
 
   @@index([organisationId])
   @@index([supplierId])
@@ -11928,4 +11954,130 @@ model StaffNotice {
   @@unique([organisationId, recipientPersonId, kind, subjectEntity, subjectId, occurrence])
   @@index([recipientPersonId, readAt, raisedAt])
   @@index([organisationId, subjectEntity, subjectId])
+}
+
+// ------------------------------------------------------------------ Phase 4e: My Projects (the contractor's acts from the portal) and announcements
+
+/// What a contractor sends from its portal account on a contract it holds (spec section 5.3, the appointed contractor): each is a submission routed to the
+/// contract's Superintending Officer against a service level, answered by an officer. The product ships no other kinds.
+enum ContractorSubmissionKind {
+  WORK_PROGRAMME
+  INTERIM_CLAIM
+  MATERIALS_ON_SITE
+  DELAY_NOTICE
+  DEFECTS_RECTIFIED
+  STATUTORY_DECLARATION
+}
+
+/// The officer's answer: taken up (recorded on the contract through the act it calls for) or returned to the contractor with the reason.
+enum ContractorSubmissionOutcome {
+  TAKEN_UP
+  RETURNED
+}
+
+/// The vendor announcements board's categories (FR-VND-014): a closed list the requirement names.
+enum AnnouncementCategory {
+  IMPORTANT
+  POLICY
+  NOTICE
+}
+
+/// The service level a contractor's submission of a kind is answered against (6.14 OD-6, BD-614-31): calendar days from the day it was sent (assumed calendar; a
+/// question to the customer). One per kind per organisation; the product ships none. Unset: the queue shows no due day and says the service level is not set.
+model ContractorSubmissionSetting {
+  id               String                   @id @default(cuid())
+  organisationId   String
+  organisation     Organisation             @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  kind             ContractorSubmissionKind
+  serviceLevelDays Int?
+  provenance       Provenance?
+  notes            String                   @default("")
+
+  @@unique([organisationId, kind])
+}
+
+/// A contractor's submission (Phase 4e): sent from the supplier's own portal account on a contract its award names it on, frozen as sent, routed to the
+/// S.O. office in force that day (its label kept, never the code on screen) with the due day worked out from the kind's service level as it stood, and answered
+/// once by an officer the contract's supervision names. A statutory declaration is signed with the password asked again. Money is Decimal; the lines are a
+/// materials-on-site list. Nothing here is a record on the contract: the officer records the programme, the valuation or the delay notice through its own act.
+model ContractorSubmission {
+  id             String                   @id @default(cuid())
+  organisationId String
+  organisation   Organisation             @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  contractId     String
+  contract       Contract                 @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier                 @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  kind     ContractorSubmissionKind
+  title    String
+  body     String                   @db.Text
+  /// INTERIM_CLAIM: the amount claimed. Null for the other kinds.
+  amount   Decimal?                 @db.Decimal(18, 2)
+  /// INTERIM_CLAIM and MATERIALS_ON_SITE: the day the claim or list is made up to. DELAY_NOTICE: the day the cause of delay arose.
+  aboutDay DateTime?
+
+  submittedBySupplierAccountId String
+  submittedBy   SupplierAccount @relation("ContractorSubmissionSentBy", fields: [submittedBySupplierAccountId], references: [id], onDelete: Restrict)
+  submittedAt   DateTime
+  /// The organisation's day it was sent, from the server's clock.
+  submittedOn   DateTime
+  /// STATUTORY_DECLARATION: when the password was asked again for it (the attribution carries the signature).
+  signedAt      DateTime?
+
+  /// Where it was routed: the S.O. office in force on the contract that day, by label, and the people told. Null: no S.O. was assigned, and the submission says so.
+  routedToRoleCode  String?
+  routedToRoleLabel String?
+  /// The service level as it stood when sent (calendar days) and the due day it gives. Null: not set, and the queue says so.
+  serviceLevelDays  Int?
+  dueOn             DateTime?
+
+  outcome           ContractorSubmissionOutcome?
+  outcomeNote       String   @default("")
+  decidedByPersonId String?
+  decidedBy         Person?  @relation("ContractorSubmissionDecidedBy", fields: [decidedByPersonId], references: [id], onDelete: Restrict)
+  decidedOn         DateTime?
+  decidedAt         DateTime?
+
+  lines ContractorSubmissionLine[]
+
+  @@index([contractId, submittedAt])
+  @@index([supplierId])
+  @@index([organisationId, outcome, submittedAt])
+}
+
+/// One line of a materials-on-site list (FR-PAY-005, 007), as the contractor sent it.
+model ContractorSubmissionLine {
+  id           String               @id @default(cuid())
+  submissionId String
+  submission   ContractorSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  sortOrder    Int
+  description  String
+  quantity     String
+  location     String
+  value        Decimal              @db.Decimal(18, 2)
+
+  @@unique([submissionId, sortOrder])
+}
+
+/// The vendor announcements board (FR-VND-014): published by an officer the organisation has granted `announcements.publish`, shown to every signed-in supplier,
+/// pinned where the officer says so. Never edited: a correction is a withdrawal (with the reason, kept) and a new announcement.
+model Announcement {
+  id             String               @id @default(cuid())
+  organisationId String
+  organisation   Organisation         @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  category       AnnouncementCategory
+  title          String
+  body           String               @db.Text
+  pinned         Boolean              @default(false)
+  publishedOn    DateTime
+  publishedAt    DateTime
+  publishedByPersonId String
+  publishedBy    Person               @relation("AnnouncementPublishedBy", fields: [publishedByPersonId], references: [id], onDelete: Restrict)
+  withdrawnAt    DateTime?
+  withdrawnByPersonId String?
+  withdrawnBy    Person?              @relation("AnnouncementWithdrawnBy", fields: [withdrawnByPersonId], references: [id], onDelete: Restrict)
+  withdrawReason String               @default("")
+
+  @@index([organisationId, withdrawnAt, pinned, publishedAt])
 }
