@@ -263,8 +263,11 @@ describe("marking a person away on the People screen (savePerson)", () => {
   });
 });
 
-describe("marking a person away needs the permission to draft configuration (ruling on log line 1770)", () => {
-  it("refuses an officer who does not hold it, in words, and changes nothing; marking them available again is not gated", async () => {
+describe("marking a person away needs the permission to draft configuration (ruling on log line 1770; Phase 5b)", () => {
+  it("is refused at the proposal to an officer who does not hold it, in words, and changes nothing; the applied edit itself no longer judges the permission", async () => {
+    // Since Phase 5b the gate is the proposal's: a save of a person is proposed by a holder of `configuration.draft` (stageEdit) and applied by a second person, so the editor in core.ts is
+    // not asked again. The refusal that used to be tested on the editor is tested on the proposal, and the editor is shown to leave the permission to it.
+    const { savePerson: propose } = await import("@/app/configuration/users/actions");
     const { savePerson } = await import("@/app/configuration/users/core");
     const target = (await makePerson(organisationId, `Gated ${run}`)).id;
     const form = (isAway: boolean) => {
@@ -278,24 +281,17 @@ describe("marking a person away needs the permission to draft configuration (rul
     const saved = who.actor;
     who.actor = { ...saved!, permissions: new Set() };
     try {
-      const refused = await savePerson({ ok: false }, form(true));
+      const refused = await propose({ ok: false }, form(true));
       expect(refused.ok).toBe(false);
-      expect(refused.message).toMatch(/configuration\.draft/);
+      expect(refused.message).toMatch(/Not permitted/);
       expect((await db.person.findUniqueOrThrow({ where: { id: target } })).isAvailable).toBe(true);
       expect(await db.auditEntry.count({ where: { entity: "Person", entityId: target } })).toBe(0);
-      // An edit that leaves them in is not the act.
-      expect(await savePerson({ ok: false }, form(false))).toEqual({ ok: true });
     } finally {
       who.actor = saved;
     }
-    // With the permission it is saved, and once away, an officer without it may mark them available again.
+    // Applied by the machinery the editor saves, and once away they are marked available again by the same editor.
     expect(await savePerson({ ok: false }, form(true))).toEqual({ ok: true });
-    who.actor = { ...saved!, permissions: new Set() };
-    try {
-      expect(await savePerson({ ok: false }, form(false))).toEqual({ ok: true });
-    } finally {
-      who.actor = saved;
-    }
+    expect(await savePerson({ ok: false }, form(false))).toEqual({ ok: true });
     expect((await db.person.findUniqueOrThrow({ where: { id: target } })).isAvailable).toBe(true);
   });
 });

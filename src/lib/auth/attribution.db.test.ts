@@ -173,7 +173,8 @@ describe("an attribution is evidence", () => {
   it("is refused every UPDATE, DELETE and TRUNCATE by the table's trigger, for the owner, even with triggers set to replica", async () => {
     expect(await refusal(db.$transaction((tx) => tx.$executeRawUnsafe(`UPDATE "ActAttribution" SET "reason" = 'rewritten' WHERE "id" = $1`, id)))).toBe("PA001");
     expect(await refusal(db.$transaction((tx) => tx.$executeRawUnsafe(`DELETE FROM "ActAttribution" WHERE "id" = $1`, id)))).toBe("PA001");
-    expect(await refusal(db.$transaction((tx) => tx.$executeRawUnsafe(`TRUNCATE "ActAttribution"`)))).toBe("PA001");
+    // CASCADE since the back-dating confirmation refers to an attribution: without it Postgres refuses the statement for the reference (0A000) before the trigger is asked. The trigger is still what must refuse.
+    expect(await refusal(db.$transaction((tx) => tx.$executeRawUnsafe(`TRUNCATE "ActAttribution" CASCADE`)))).toBe("PA001");
     const replica = (sql: string) =>
       db.$transaction(async (tx) => {
         await tx.$executeRawUnsafe(`SET LOCAL session_replication_role = replica`);
