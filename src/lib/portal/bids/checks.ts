@@ -125,6 +125,9 @@ export function preSaleChecks(i: PreSaleInput): PreSaleCheck[] {
   return out;
 }
 
+/// What the checks say when the organisation's day cannot be read (its time zone is not set): the sale cannot be dated, so nothing is judged, and the supplier is told who can put that right.
+export const undatedChecks = (phase: WindowPhase): PreSaleCheck[] => [onSale(phase === "OPEN_FOR_PURCHASE" || phase === "PUBLISHED" || phase === "CLOSED_FOR_PURCHASE" ? "UNKNOWN" : phase)];
+
 export const blockingChecks = (cs: readonly PreSaleCheck[]) => cs.filter((c) => c.state === "BLOCK");
 
 export const COLLECTOR_MAX = 240;
@@ -151,6 +154,8 @@ export function judgeRequest(i: RequestInput): RequestJudgement {
   else if (collector.length > COLLECTOR_MAX) faults.push({ code: "COLLECTOR_TOO_LONG", level: "block" });
   if (i.standing) faults.push({ code: "REQUEST_STANDS", level: "block" });
   if (i.alreadyBought) faults.push({ code: "ALREADY_BOUGHT", level: "block" });
+  // No checks at all is no clearance: a request is judged on checks that were made, never on the absence of any.
+  if (i.checks.length === 0) faults.push({ code: "WINDOW_NOT_DATED", level: "block" });
   if (faults.length > 0) return { outcome: "FAULTS", faults };
   return blockingChecks(i.checks).length > 0 ? { outcome: "REFUSED" } : { outcome: "MAKE" };
 }

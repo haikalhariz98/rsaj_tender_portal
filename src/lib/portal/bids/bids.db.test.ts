@@ -333,6 +333,20 @@ describe("asking for the documents", () => {
     expect(JSON.stringify(first)).not.toMatch(/SALE_NOT_REGISTERED/);
   });
 
+  it("the refusal is told only while it is the last thing that happened: a request made and withdrawn since leaves no refusal to read", async () => {
+    const s = await supplier("APPLICANT");
+    const ctx = async () => (await loadBidContext(db, s.actor, open.exerciseId))!;
+    await requestDocuments(s.actor, { exerciseId: open.exerciseId, collectorName: "Lim Wei" });
+    expect((await documentsTab(db, s.actor, await ctx())).refused?.reasons.join(" ")).toContain("not on the supplier register");
+    await db.supplier.update({ where: { id: s.supplierId }, data: { status: "REGISTERED", registeredOn: D(at(-100)) } });
+    expect((await requestDocuments(s.actor, { exerciseId: open.exerciseId, collectorName: "Lim Wei" })).outcome).toBe("MADE");
+    expect((await documentsTab(db, s.actor, await ctx())).refused).toBeNull();
+    await withdrawRequest(s.actor, { exerciseId: open.exerciseId });
+    const after = await documentsTab(db, s.actor, await ctx());
+    expect(after.refused).toBeNull();
+    expect(after.request).toBeNull();
+  });
+
   it("a name is required before anything is judged or recorded", async () => {
     const s = await supplier("APPLICANT");
     await refusedWith(requestDocuments(s.actor, { exerciseId: open.exerciseId, collectorName: " " }), "COLLECTOR_REQUIRED");
@@ -346,6 +360,22 @@ describe("asking for the documents", () => {
     const r = await requestDocuments(s.actor, { exerciseId: closed.exerciseId, collectorName: "Lim Wei" });
     expect(r).toMatchObject({ outcome: "REFUSED", recorded: false });
     expect(await db.documentRequest.count({ where: { supplierId: s.supplierId } })).toBe(0);
+  });
+
+  it("with the organisation's time zone unset nothing is judged, recorded or left to fail twice: the request is refused in words, however often it is made", async () => {
+    // The pre-sale checks need the organisation's day. A fresh installation has no time zone, and the handler is the authority, not the button that hides.
+    const s = await supplier();
+    await db.organisation.update({ where: { id: organisationId }, data: { timeZone: null } });
+    try {
+      await refusedWith(requestDocuments(s.actor, { exerciseId: open.exerciseId, collectorName: "Lim Wei" }), "WINDOW_NOT_DATED");
+      await refusedWith(requestDocuments(s.actor, { exerciseId: open.exerciseId, collectorName: "Lim Wei" }), "WINDOW_NOT_DATED");
+      expect(await db.documentRequest.count({ where: { supplierId: s.supplierId } })).toBe(0);
+      const view = await documentsTab(db, s.actor, (await loadBidContext(db, s.actor, open.exerciseId))!);
+      expect(view.canRequest).toBe(false);
+      expect(view.checks.map((c) => c.state)).toContain("BLOCK");
+    } finally {
+      await db.organisation.update({ where: { id: organisationId }, data: { timeZone: "Asia/Kuala_Lumpur" } });
+    }
   });
 
   it("only one request stands per supplier and window, held by the database as well as the rules", async () => {

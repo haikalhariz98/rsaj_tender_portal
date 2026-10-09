@@ -36,6 +36,8 @@ export async function requestDocuments(actor: SupplierActor, i: { exerciseId: st
       if (!(await lockExerciseSide(tx, actor.organisationId, i.exerciseId))) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
       const ctx = await loadBidContext(tx, actor, i.exerciseId, now);
       if (!ctx || !ctx.ex.window) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
+      // The pre-sale checks are judged on the organisation's day. Where its time zone is not set there is none, so nothing is judged and nothing is kept (an unset value refuses and says what is unset).
+      if (!ctx.org.today) return refuse([{ code: "WINDOW_NOT_DATED", level: "block" }]);
       const facts = await loadSaleFacts(tx, actor, ctx);
       const judged = judgeRequest({ checks: facts.checks, collectorName: i.collectorName, standing: facts.standing != null, alreadyBought: facts.sale != null });
       if (judged.outcome === "FAULTS") return refuse(judged.faults);

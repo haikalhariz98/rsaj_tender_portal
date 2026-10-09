@@ -7,7 +7,7 @@ import type { WindowPhase } from "@/lib/window/phase";
 import { WINDOW_PHASES } from "@/lib/window/phase";
 
 import { acknowledgeFaults } from "./acknowledge";
-import { blockingChecks, judgeRequest, preSaleChecks, requestState, type PreSaleInput } from "./checks";
+import { blockingChecks, judgeRequest, preSaleChecks, requestState, undatedChecks, type PreSaleInput } from "./checks";
 import { inspectionReading } from "./documents";
 import { REASON_MAX, awardStands, carriesReason, hasNonAwardFaultText, issueFaults, nonAwardFaultText, nonAwardSetting, nonAwardSettingWords, outcomeText, policySnapshot, reasonToFreeze, unsuccessfulPartyIds } from "./non-award";
 import { NOTICE_KIND_WORDS, sortNotices, unacknowledged, type PortalNotice } from "./notices";
@@ -196,6 +196,20 @@ describe("the pre-sale checks (FR-ADV-010)", () => {
       expect(a.outcome === "FAULTS" && codes(a.faults)).toEqual(["REQUEST_STANDS"]);
       const b = judgeRequest({ checks: passing, collectorName: "Lim Wei", standing: false, alreadyBought: true });
       expect(b.outcome === "FAULTS" && codes(b.faults)).toEqual(["ALREADY_BOUGHT"]);
+    });
+    it("is never made on no checks at all: an empty list is no clearance", () => {
+      const j = judgeRequest({ checks: [], collectorName: "Lim Wei", standing: false, alreadyBought: false });
+      expect(j.outcome === "FAULTS" && codes(j.faults)).toEqual(["WINDOW_NOT_DATED"]);
+    });
+    it("where the organisation's day cannot be read, the one check blocks and says so, whatever the phase said", () => {
+      for (const phase of ["OPEN_FOR_PURCHASE", "PUBLISHED", "CLOSED_FOR_PURCHASE", "UNKNOWN"] as const) {
+        const cs = undatedChecks(phase);
+        expect(cs).toHaveLength(1);
+        expect(cs[0]).toMatchObject({ key: "ON_SALE", state: "BLOCK" });
+        expect(cs[0]!.detail).toContain("dates of the sale are not complete");
+      }
+      // A cancelled exercise still says it was cancelled.
+      expect(undatedChecks("CANCELLED")[0]!.detail).toContain("cancelled");
     });
     it("reads its state: refused, withdrawn, bought, waiting", () => {
       expect(requestState({ refusedAt: NOW, endedAt: null }, false)).toBe("REFUSED");
