@@ -51,12 +51,21 @@ export const EDIT_KIND_WORDS: Record<EditKind, { en: string; ms: string }> = {
   AWARD_RETURN_CORRECTION: { en: "Correct an accepted award's return", ms: "Betulkan pulangan anugerah yang diterima" },
 };
 
+/// The kinds that are an act of the record, not of configuration: what they carry names a document, an award or a contract, which may sit in an exercise restricted from the reader.
+export const RECORD_EDIT_KINDS: readonly EditKind[] = ["CLASSIFICATION_DOWNGRADE", "BASELINE_CORRECTION", "AWARD_TERM_CORRECTION", "CONTRACT_DATE_CORRECTION", "AWARD_RETURN_CORRECTION"];
+
 /**
- * The kinds of edit a person reads in the queue: all of them to a holder of either permission that makes or decides one, and to a holder of the permission to read
- * the audit trail. What an edit carries is what the trail would record of it (and a SULIT figure is not shown), which a maker or a checker must read to do their part.
+ * The kinds of edit a person reads in the queue. An editor's save of configuration: to a holder of either permission that makes or decides one, and to a holder of the permission to
+ * read the audit trail (what it carries is what the trail would record of it, and a SULIT figure is not shown). A correction of the record (its subject is a document, an award or a
+ * contract, perhaps in an exercise restricted from the reader): only to the holder of the permission that decides it. The one who proposed it reads their own, whatever they hold
+ * (`changes-view.ts`).
  */
-export const editKindsReadBy = (permissions: ReadonlySet<PermissionKey>): EditKind[] =>
-  permissions.has("audit.read") || permissions.has(EDIT_PROPOSE_PERMISSION) || permissions.has(EDIT_DECIDE_PERMISSION) || permissions.has(CORRECTIONS_DECIDE_PERMISSION) ? [...EDIT_KINDS] : [];
+export const editKindsReadBy = (permissions: ReadonlySet<PermissionKey>): EditKind[] => {
+  const ofConfiguration = permissions.has("audit.read") || permissions.has(EDIT_PROPOSE_PERMISSION) || permissions.has(EDIT_DECIDE_PERMISSION) || permissions.has(CORRECTIONS_DECIDE_PERMISSION);
+  const kinds = EDIT_KINDS.filter((k) => !RECORD_EDIT_KINDS.includes(k));
+  if (permissions.has(CORRECTIONS_DECIDE_PERMISSION)) return [...EDIT_KINDS];
+  return ofConfiguration ? kinds : [];
+};
 
 // --------------------------------------------------------------------------------------------- what is posted
 

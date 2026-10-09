@@ -1,3 +1,4 @@
+import { deferPastRollback } from "@/lib/ambient/ambient-tx";
 import type { Tx } from "@/lib/audit/record";
 import { todayIn } from "@/lib/dates";
 import type { OrgScope } from "@/lib/org-scope";
@@ -310,22 +311,24 @@ export async function writeSulitEvents(client: Tx, actor: Reader, rows: readonly
     if (r.fields.length === 0) throw new Error("A SULIT access event names the fields it was for.");
     if (r.decision.state === "WITHHELD" && NEVER_STORED_BASES.includes(r.decision.basis)) throw new Error(`The basis ${r.decision.basis} is never stored.`);
   }
-  await client.sulitAccessEvent.createMany({
-    data: rows.map((r) => ({
-      organisationId: actor.organisationId,
-      actorPersonId: actor.system ? null : actor.personId,
-      actorSystemLabel: actor.system ? actor.system.label : null,
-      actorSessionId: actor.system ? null : actor.sessionId || null,
-      sourceAddress: actor.sourceAddress,
-      scope: r.scope,
-      entity: r.entity,
-      entityId: r.entityId,
-      entityLabel: r.entityLabel,
-      fields: r.fields,
-      outcome: r.decision.state,
-      basis: r.decision.basis,
-    })),
-  });
+  const data = rows.map((r) => ({
+    organisationId: actor.organisationId,
+    actorPersonId: actor.system ? null : actor.personId,
+    actorSystemLabel: actor.system ? actor.system.label : null,
+    actorSessionId: actor.system ? null : actor.sessionId || null,
+    sourceAddress: actor.sourceAddress,
+    scope: r.scope,
+    entity: r.entity,
+    entityId: r.entityId,
+    entityLabel: r.entityLabel,
+    fields: r.fields,
+    outcome: r.decision.state,
+    basis: r.decision.basis,
+  }));
+  const write = (c: object) => (c as Tx).sulitAccessEvent.createMany({ data }).then(() => undefined);
+  // Inside an editor that is being rehearsed or applied, the row is written after its savepoint settles (`deferPastRollback`), so a refusal is never undone with the editor's writes.
+  if (deferPastRollback(write)) return;
+  await write(client);
 }
 
 /**

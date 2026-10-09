@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { ButtonLink } from "@/components/ui/button";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { slotOf } from "@/lib/auth/act-slots";
 import { storedDay, todayIn } from "@/lib/dates";
@@ -19,8 +20,12 @@ export const dynamic = "force-dynamic";
  * its before and after in the same transaction, and no screen or action edits or
  * deletes an entry. The export is what an outside auditor takes away.
  */
-export default async function AuditTrailPage() {
+const BACKDATED_PAGE = 50;
+
+export default async function AuditTrailPage({ searchParams }: { searchParams: Promise<{ backdated?: string }> }) {
   const actor = await requireStaff();
+  const requested = Number((await searchParams).backdated ?? "0");
+  const offset = Number.isInteger(requested) && requested > 0 ? requested : 0;
   const org = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true, timeZone: true } });
   if (!org) {
     return (
@@ -37,12 +42,17 @@ export default async function AuditTrailPage() {
   // NFR-AUD-006 (Phase 5a): a signature dated earlier than the day it was recorded is a recorded exception, and it reads as the signer's claim until the person named confirms it. Shown
   // to those who may read the trail, because it names people and their reasons.
   const exception = { organisationId: org.id, effectiveOn: { not: null } } as const;
-  const [backdated, unconfirmed] = exportGate.ok
-    ? await Promise.all([
-        db.actAttribution.findMany({ where: exception, orderBy: { at: "desc" }, take: 50, include: { subjectPerson: { select: { name: true } }, backdateAuthorisedByPerson: { select: { name: true } }, confirmation: { select: { confirmedAt: true } } } }),
-        db.actAttribution.count({ where: { ...exception, confirmation: null } }),
-      ])
-    : [[], 0];
+  const include = { subjectPerson: { select: { name: true } }, backdateAuthorisedByPerson: { select: { name: true } }, confirmation: { select: { confirmedAt: true } } } as const;
+  // Those not yet confirmed come first, newest first, then the confirmed: the exceptions the card exists to surface are never behind the page's edge, and the page says how many there are.
+  const [backdated, unconfirmed, backdatedTotal] = exportGate.ok
+    ? await (async () => {
+        const [open, all] = await Promise.all([db.actAttribution.count({ where: { ...exception, confirmation: null } }), db.actAttribution.count({ where: exception })]);
+        const first = offset < open ? await db.actAttribution.findMany({ where: { ...exception, confirmation: null }, orderBy: [{ at: "desc" }, { id: "desc" }], skip: offset, take: BACKDATED_PAGE, include }) : [];
+        const room = BACKDATED_PAGE - first.length;
+        const rest = room > 0 ? await db.actAttribution.findMany({ where: { ...exception, confirmation: { isNot: null } }, orderBy: [{ at: "desc" }, { id: "desc" }], skip: Math.max(0, offset - open), take: room, include }) : [];
+        return [[...first, ...rest], open, all] as const;
+      })()
+    : ([[], 0, 0] as const);
   const [count, first, exports] = await Promise.all([
     db.auditEntry.count({ where: { organisationId: org.id } }),
     db.auditEntry.findFirst({ where: { organisationId: org.id }, orderBy: { at: "asc" }, select: { at: true } }),
@@ -150,6 +160,25 @@ export default async function AuditTrailPage() {
                   ))}
                 </tbody>
               </Table>
+            )}
+            {backdatedTotal > BACKDATED_PAGE && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
+                <span className="text-[13px] text-ink-2">
+                  Showing {offset + 1} to {offset + backdated.length} of {backdatedTotal}, the not confirmed first
+                </span>
+                <span className="flex gap-2">
+                  {offset > 0 && (
+                    <ButtonLink href={offset - BACKDATED_PAGE > 0 ? `/configuration/audit?backdated=${offset - BACKDATED_PAGE}` : "/configuration/audit"} size="sm" variant="secondary">
+                      Newer
+                    </ButtonLink>
+                  )}
+                  {offset + backdated.length < backdatedTotal && (
+                    <ButtonLink href={`/configuration/audit?backdated=${offset + BACKDATED_PAGE}`} size="sm" variant="secondary">
+                      Older
+                    </ButtonLink>
+                  )}
+                </span>
+              </div>
             )}
           </Card>
         )}

@@ -1,5 +1,5 @@
 import { writeAudit, type Tx } from "@/lib/audit/record";
-import { storedDay } from "@/lib/dates";
+import { dayIn, storedDay } from "@/lib/dates";
 
 import { slotOf } from "./act-slots";
 import { auditActorOfStaff } from "./audit-actor";
@@ -36,9 +36,9 @@ export async function loadBackdateToConfirm(client: Pick<Tx, "actAttribution">, 
     alreadyConfirmed: row.confirmation != null,
     signerName: row.subjectPerson?.name ?? "A person no longer on record",
     whatWords: slot?.label ?? "A signature",
-    recordedOn: row.at.toISOString().slice(0, 10),
+    recordedOn: dayIn(row.at, actor.organisationTimeZone),
     reason: row.backdateReason,
-    confirmedOn: row.confirmation ? row.confirmation.confirmedAt.toISOString().slice(0, 10) : null,
+    confirmedOn: row.confirmation ? dayIn(row.confirmation.confirmedAt, actor.organisationTimeZone) : null,
   };
 }
 

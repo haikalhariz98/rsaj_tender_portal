@@ -2,7 +2,7 @@ import { requireStaff } from "@/app/_auth/actor";
 import { ButtonLink } from "@/components/ui/button";
 import { Callout } from "@/components/ui/feedback";
 import { mayReadQueue } from "@/lib/auth/configuration-change";
-import { EDIT_KINDS, editKindsReadBy } from "@/lib/auth/configuration-edit";
+import { editKindsReadBy } from "@/lib/auth/configuration-edit";
 import { db } from "@/lib/db";
 
 /**
@@ -16,7 +16,8 @@ import { db } from "@/lib/db";
 export default async function ConfigurationLayout({ children }: LayoutProps<"/configuration">) {
   const actor = await requireStaff();
   // Read only by those who read the queue (a maker, a checker, a reader of the audit trail): the number of saves waiting for a second person.
-  const waiting = editKindsReadBy(actor.permissions).length > 0 ? await db.configurationChange.count({ where: { organisationId: actor.organisationId, status: "PROPOSED", kind: { in: [...EDIT_KINDS] } } }) : 0;
+  const readable = editKindsReadBy(actor.permissions);
+  const waiting = readable.length > 0 ? await db.configurationChange.count({ where: { organisationId: actor.organisationId, status: "PROPOSED", kind: { in: readable } } }) : 0;
   return (
     <div className="min-w-0">
       {waiting > 0 && (

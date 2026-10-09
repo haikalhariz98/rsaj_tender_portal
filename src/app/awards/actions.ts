@@ -940,6 +940,9 @@ export async function recordReturn(prev: FormState, data: FormData): Promise<For
   return inAward(actor, id, async (tx, l) => {
     const a = l.award;
     if (!l.org.today) return NO_ZONE;
+    // The decision to propose was made above on an unlocked read. Under the lock the award may have been accepted meanwhile (by this officer's own completing return, or another's):
+    // a correction is then never made by the one who posted it. Refused before anything is read or written; the machinery that applies a decided change runs with the ambient.
+    if (a.status === "ACCEPTED" && !currentAmbient()) return { ok: false, message: "This award was accepted meanwhile, so the return is corrected by a change a second person decides. Reload the award and propose the correction." };
     // Phase 3b (FR-AWD-008): the return holds the contractor's identity-card number, which is SULIT. Recording or correcting it writes the number, and an edit that left it out would erase
     // it, so it is done by someone the number is open to, and the access is logged in this transaction.
     const closed = await sulitWriteRefusal(tx, actor, { scope: "exercise", exerciseId: a.exerciseId }, ["icNumber"]);

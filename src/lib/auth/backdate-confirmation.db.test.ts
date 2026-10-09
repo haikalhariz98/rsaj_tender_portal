@@ -160,6 +160,17 @@ describe("confirming", () => {
     expect(await db.backdateConfirmation.count({ where: { attributionId: row.id } })).toBe(1);
   });
 
+  it("confirmed twice at the same moment is one confirmation, and the other is told in words, not an error", async () => {
+    const signer = await signedIn();
+    const boss = await signedIn();
+    const { row } = await aBackdatedSignature(signer, boss);
+    as(boss);
+    const results = await Promise.all([confirmBackdatingAction(state, form({ attributionId: row.id }, boss.password)), confirmBackdatingAction(state, form({ attributionId: row.id }, boss.password))]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.find((r) => !r.ok)?.message).toBeTruthy();
+    expect(await db.backdateConfirmation.count({ where: { attributionId: row.id } })).toBe(1);
+  });
+
   it("reads an act of another organisation as not there", async () => {
     const other = await db.organisation.create({ data: { code: `BD_${randomId()}`, name: "Another", timeZone: "Asia/Kuala_Lumpur" } });
     await setPolicy(other.id, SETTINGS);

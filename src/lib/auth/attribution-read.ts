@@ -1,5 +1,5 @@
 import type { Tx } from "@/lib/audit/record";
-import { storedDay } from "@/lib/dates";
+import { dayIn, storedDay } from "@/lib/dates";
 
 import { slotOf } from "./act-slots";
 import { attributionLabel, latestAttribution, type AttributionRead } from "./attribution";
@@ -56,7 +56,7 @@ interface Row {
 
 /// The index from the rows read and the entities whose trail has any attributed row (an actor named: a person, or the system by its label), with no database: the
 /// pure half, held by tests.
-export function buildIndex(rows: readonly Row[], attributedTrail: ReadonlySet<string>): AttributionIndex {
+export function buildIndex(rows: readonly Row[], attributedTrail: ReadonlySet<string>, timeZone: string | null = null): AttributionIndex {
   const latest = new Map<string, Row>();
   const grouped = new Map<string, Row[]>();
   for (const r of rows) {
@@ -75,7 +75,7 @@ export function buildIndex(rows: readonly Row[], attributedTrail: ReadonlySet<st
               recordedBySystemLabel: row.recordedBySystemLabel,
               effectiveOn: row.effectiveOn ? storedDay(row.effectiveOn) : null,
               backdateAuthorisedByName: row.backdateAuthorisedByPerson?.name ?? null,
-              backdateConfirmedOn: row.confirmation ? row.confirmation.confirmedAt.toISOString().slice(0, 10) : null,
+              backdateConfirmedOn: row.confirmation ? dayIn(row.confirmation.confirmedAt, timeZone) : null, // the organisation's day, as the audit page shows it
             }
           : null,
         subjectName: subjectName ?? "a person no longer on record",
@@ -105,6 +105,9 @@ export async function loadAttributions(client: Pick<Tx, "actAttribution" | "audi
       confirmation: { select: { confirmedAt: true } },
     },
   })) as Row[];
+  // "Confirmed on" is the organisation's day, not the UTC date (an act confirmed at 07:30 in Kuala Lumpur is the 9th there and the 8th in UTC). Read only when a confirmation is shown.
+  const zoneReader = (client as Partial<Pick<Tx, "organisation">>).organisation;
+  const timeZone = rows.some((r) => r.confirmation) && zoneReader ? ((await zoneReader.findUnique({ where: { id: organisationId }, select: { timeZone: true } }))?.timeZone ?? null) : null;
   // An act with no attribution reads as before sign-in when no audit row of its record names anybody, and as missing when any does.
   const have = new Set(rows.map((r) => `${r.entity}\u0000${r.slot}\u0000${r.entityId}`));
   const lacking = wanted.map((q) => ({ entity: q.entity, ids: [...new Set(q.ids)].filter((id) => !have.has(`${q.entity}\u0000${q.slot}\u0000${id}`)) })).filter((q) => q.ids.length > 0);
@@ -117,7 +120,7 @@ export async function loadAttributions(client: Pick<Tx, "actAttribution" | "audi
     });
     for (const t of trail) attributedTrail.add(`${t.entity}\u0000${t.entityId}`);
   }
-  return buildIndex(rows, attributedTrail);
+  return buildIndex(rows, attributedTrail, timeZone);
 }
 
 /// Who decided each of these approval steps, in words, for a screen that draws a route (the route card, the step lists): the one reading of `ApprovalStep.decidedBy`.

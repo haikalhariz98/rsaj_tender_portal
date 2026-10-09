@@ -1,5 +1,6 @@
 import type { Tx } from "@/lib/audit/record";
 
+import { dayIn } from "@/lib/dates";
 import { uniqueViolationIndex } from "@/lib/scope/unique-violation";
 
 import { slotOf } from "./act-slots";
@@ -101,7 +102,7 @@ export async function attributeAct(tx: Tx, input: AttributeActInput) {
           signerName: input.actor.personName,
           whatWords: slot?.label ?? "A signature",
           effectiveOn: request.effectiveOn,
-          recordedOn: written.at.toISOString().slice(0, 10),
+          recordedOn: dayIn(written.at, input.actor.organisationTimeZone),
           reason: request.backdate.reason,
           by: input.actor.personId,
         });

@@ -6,6 +6,7 @@ import type { FormState } from "@/components/record-editor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { confirmBackdating, loadBackdateToConfirm } from "@/lib/auth/backdate-store";
 import { confirmationFaults } from "@/lib/auth/backdate-confirmation";
+import { uniqueViolationIndex } from "@/lib/scope/unique-violation";
 
 import { hiddenExercises } from "@/app/_auth/sulit";
 import { requireStaff, staffForAct } from "@/app/_auth/actor";
@@ -56,6 +57,8 @@ export async function confirmBackdatingAction(_prev: FormState, data: FormData):
   } catch (e) {
     const refusedAttribution = attributionRefusalState(e);
     if (refusedAttribution) return refusedAttribution;
+    // A second request that passed the same checks while the first was writing (a double click, two tabs): the unique index holds the rule, and it is said in words.
+    if (uniqueViolationIndex(e) === "BackdateConfirmation_attributionId_key") return { ok: false, message: "You have already confirmed this back-dating." };
     throw e;
   }
   revalidatePath("/inbox");

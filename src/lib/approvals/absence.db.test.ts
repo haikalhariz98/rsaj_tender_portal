@@ -283,11 +283,25 @@ describe("marking a person away needs the permission to draft configuration (rul
     try {
       const refused = await propose({ ok: false }, form(true));
       expect(refused.ok).toBe(false);
-      expect(refused.message).toMatch(/Not permitted/);
+      expect(refused.message).toMatch(/configuration\.draft/);
       expect((await db.person.findUniqueOrThrow({ where: { id: target } })).isAvailable).toBe(true);
       expect(await db.auditEntry.count({ where: { entity: "Person", entityId: target } })).toBe(0);
     } finally {
       who.actor = saved;
+    }
+    // The Phase 3 ruling (log line 1858) let anyone who can edit a person mark them available again, ungated. Since Phase 5b every save of a person is a proposal that asks
+    // `configuration.draft` and a second person, so that is no longer so. The reversal is not ruled: it is logged as OPEN for the product owner (decisions log, 2026-10-09, review of
+    // Phase 5), and this test pins what is true now so that whichever way it is ruled, the test changes with it.
+    await db.person.update({ where: { id: target }, data: { isAvailable: false } });
+    who.actor = { ...saved!, permissions: new Set() };
+    try {
+      const again = await propose({ ok: false }, form(false));
+      expect(again.ok).toBe(false);
+      expect(again.message).toMatch(/configuration\.draft/);
+      expect((await db.person.findUniqueOrThrow({ where: { id: target } })).isAvailable).toBe(false);
+    } finally {
+      who.actor = saved;
+      await db.person.update({ where: { id: target }, data: { isAvailable: true } });
     }
     // Applied by the machinery the editor saves, and once away they are marked available again by the same editor.
     expect(await savePerson({ ok: false }, form(true))).toEqual({ ok: true });

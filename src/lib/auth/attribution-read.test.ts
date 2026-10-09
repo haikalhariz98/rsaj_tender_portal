@@ -45,6 +45,13 @@ describe("how a screen reads who did an act", () => {
     expect(read.en).toBe("Signed by Aini, dated 2026-09-30 (back-dated; the signer names Boss as authorising it, not confirmed)");
   });
 
+  it("names the day a back-dating was confirmed in the organisation's zone, not in UTC", () => {
+    // 23:30 UTC on the 8th is 07:30 on the 9th in Kuala Lumpur.
+    const r = row({ effectiveOn: new Date("2026-09-30"), backdateAuthorisedByPerson: { name: "Boss" }, confirmation: { confirmedAt: new Date("2026-10-08T23:30:00Z") } });
+    expect(buildIndex([r], new Set(), "Asia/Kuala_Lumpur").read(ref, "Aini").en).toContain("Boss confirmed it on 2026-10-09");
+    expect(buildIndex([r], new Set(), "UTC").read(ref, "Aini").en).toContain("Boss confirmed it on 2026-10-08");
+  });
+
   it("reads an act with no attribution as before sign-in where nothing in the trail names who, and as missing where it does", () => {
     expect(buildIndex([], new Set()).read(ref, "Aini")).toMatchObject({ state: "LEGACY", en: "Recorded on behalf of Aini, not signed (before sign-in)" });
     expect(buildIndex([], new Set(["ApprovalStep\u0000s1"])).read(ref, "Aini")).toMatchObject({ state: "MISSING", en: "Attribution missing" });

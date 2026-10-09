@@ -47,6 +47,10 @@ export interface Ambient {
   captured: CapturedAudit[];
   /// How many savepoints are open now.
   depth: number;
+  /// Security-log writes (the SULIT access log) made while it is set. They are not written when asked: a rehearsal, or an editor that refused, rolls its savepoint back and
+  /// would erase the record that someone asked for a SULIT field and was told no (NFR-AUD-004). `attempt` writes them in the transaction itself, after the savepoint is
+  /// settled, so they stay whatever became of the editor's own writes.
+  survivors: Array<(client: object) => Promise<void>>;
 }
 
 const KEY = Symbol.for("perolehan.ambientTransaction");
@@ -55,11 +59,24 @@ export const ambientStore: AsyncLocalStorage<Ambient> = (g[KEY] ??= new AsyncLoc
 
 export const currentAmbient = (): Ambient | undefined => ambientStore.getStore();
 
-export const newAmbient = (tx: object, sql: SavepointSql, mode: Ambient["mode"]): Ambient => ({ mode, tx, sql, captured: [], depth: 0 });
+export const newAmbient = (tx: object, sql: SavepointSql, mode: Ambient["mode"]): Ambient => ({ mode, tx, sql, captured: [], depth: 0, survivors: [] });
 
 /// Called by `writeAudit`: when an ambient transaction is set the row is also kept, so a rehearsal and a decision can read what the editor recorded.
 export function captureAudit(row: CapturedAudit): void {
   ambientStore.getStore()?.captured.push(row);
+}
+
+/// Called by a security-log write: when an ambient transaction is set the write is held to be made after the savepoint settles, and true is returned; otherwise false and the caller writes now.
+export function deferPastRollback(write: (client: object) => Promise<void>): boolean {
+  const a = ambientStore.getStore();
+  if (!a) return false;
+  a.survivors.push(write);
+  return true;
+}
+
+/// Writes the security-log rows held since `from`, in the ambient transaction itself, outside the savepoint just settled.
+async function writeSurvivors(a: Ambient, from: number): Promise<void> {
+  for (const write of a.survivors.splice(from)) await write(a.tx);
 }
 
 /// Opens the next level: a savepoint's level is how many are open, never anything a request says.
@@ -106,6 +123,7 @@ export interface Attempt<T> {
 export async function attempt<T>(a: Ambient, fn: () => Promise<T>, keep: (result: T, captured: CapturedAudit[]) => boolean): Promise<Attempt<T>> {
   const level = open(a);
   const mark = a.captured.length;
+  const held = a.survivors.length;
   try {
     await a.sql.savepoint(level);
     let result: T;
@@ -115,16 +133,19 @@ export async function attempt<T>(a: Ambient, fn: () => Promise<T>, keep: (result
       a.captured.length = mark;
       await a.sql.rollbackTo(level);
       await a.sql.release(level);
+      await writeSurvivors(a, held);
       throw e;
     }
     const captured = a.captured.slice(mark);
     if (keep(result, captured)) {
       await a.sql.release(level);
+      await writeSurvivors(a, held);
       return { result, captured, kept: true };
     }
     a.captured.length = mark;
     await a.sql.rollbackTo(level);
     await a.sql.release(level);
+    await writeSurvivors(a, held);
     return { result, captured, kept: false };
   } finally {
     a.depth = level - 1;

@@ -10,6 +10,7 @@ import {
   EDIT_PROPOSE_PERMISSION,
   editIsStale,
   editKindsReadBy,
+  RECORD_EDIT_KINDS,
   isEditKind,
   isStoredField,
   MAX_FILE_BYTES,
@@ -51,10 +52,13 @@ describe("the kinds of an editor's save", () => {
 
   it("are read in the queue by a maker, a checker and a reader of the audit trail, and by nobody else", () => {
     const has = (...k: PermissionKey[]) => new Set<PermissionKey>(k);
+    // A correction of the record names a document, an award or a contract, perhaps in a restricted exercise: it is read by the one who decides corrections (and its proposer), not by the
+    // makers and readers of configuration.
     for (const k of ["configuration.draft", "configuration.issue", "audit.read"] as const) {
-      expect(editKindsReadBy(has(k))).toEqual([...EDIT_KINDS]);
+      expect(editKindsReadBy(has(k))).toEqual(EDIT_KINDS.filter((x) => !RECORD_EDIT_KINDS.includes(x)));
       expect(mayReadQueue(has(k))).toBe(true);
     }
+    expect(editKindsReadBy(has("corrections.decide"))).toEqual([...EDIT_KINDS]);
     expect(editKindsReadBy(has("accounts.manage", "acts.recordOnBehalf"))).toEqual([]);
     expect(mayReadQueue(has("sulit.read.organisation"))).toBe(false);
   });

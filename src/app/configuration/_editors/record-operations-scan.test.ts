@@ -59,6 +59,20 @@ describe("the acts of the record that a second person decides", () => {
     expect(lexed.slice(0, at), key).not.toMatch(/\.(?:create|update|updateMany|delete|deleteMany|upsert)\s*\(/);
   });
 
+  it("awards-records.recordReturn: decides to propose on an unlocked read, so it asks the ambient again under the award's lock before it corrects", () => {
+    const raw = readFileSync(path.join(ROOT, "src/app/awards/actions.ts"), "utf8");
+    const m = lex(raw);
+    const span = spans(m).find((s) => s.name === "recordReturn")!;
+    const lexed = m.slice(span.from, span.to);
+    const lock = lexed.indexOf("inAward(");
+    expect(lock).toBeGreaterThan(-1);
+    const inside = lexed.slice(lock);
+    const refusal = inside.search(/a\.status === "[^"]*" && !currentAmbient\(\)/);
+    expect(refusal, "the in-lock refusal of a correction made without the machinery").toBeGreaterThan(-1);
+    // Before the first write, the access log and the correcting branch.
+    expect(refusal).toBeLessThan(inside.search(/sulitWriteRefusal|\.(?:create|update|updateMany|delete|deleteMany|upsert)\s*\(/));
+  });
+
   it("the registry loads the module and the export where the act is", () => {
     const src = readFileSync(path.join(ROOT, "src", "app", "configuration", "_editors", "record-operations.ts"), "utf8");
     for (const [key, where] of Object.entries(WHERE)) {
