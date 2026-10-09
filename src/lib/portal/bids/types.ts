@@ -43,7 +43,9 @@ export type BidFault =
   | "REQUEST_STANDS"
   | "NO_REQUEST"
   | "ALREADY_BOUGHT"
-  | "REQUEST_REFUSED";
+  | "REQUEST_REFUSED"
+  // The supplier's standing bars the act (ruling on 1875(3)); the words are in the finding's data.
+  | "SUPPLIER_STANDING_BARS";
 
 export type BidFinding = Finding<BidFault>;
 

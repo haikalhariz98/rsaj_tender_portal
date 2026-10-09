@@ -1,4 +1,6 @@
 import { diffFields } from "@/lib/audit/diff";
+import { standingBarFinding } from "@/lib/portal/standing-gate";
+import { portalStandingBarOf } from "@/lib/portal/standing-gate-store";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import type { SupplierActor } from "@/lib/auth/types";
 import { dayToDate, storedDay } from "@/lib/dates";
@@ -102,6 +104,9 @@ export async function storeReplacement(actor: SupplierActor, i: ReplacementUploa
         before: async (tx) => {
           // The supplier row first, as every supplier-only write takes it: two replacements that arrive together are judged one after the other on what the first left.
           if (!(await lockSupplierRow(tx, actor.supplierId))) throw new CompanyRefused([{ code: "SUPPLIER_CLOSED", level: "block" }]);
+          // Decisions log, 2026-10-09, ruling on 1875(3): keeping the registration current is refused to a rejected, blacklisted or cancelled supplier; a suspended one may still send the renewal that lifts it.
+          const bar = await portalStandingBarOf(tx, actor, "COMPANY_RECORD");
+          if (bar) throw new CompanyRefused([standingBarFinding(bar)]);
           const settings = await loadRegistrationSettings(tx, actor.organisationId);
           const today = settings?.org.today ?? null;
           const supplier = await tx.supplier.findFirst({ where: { id: actor.supplierId, organisationId: actor.organisationId }, select: { status: true } });

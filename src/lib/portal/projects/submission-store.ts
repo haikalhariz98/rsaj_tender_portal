@@ -1,4 +1,6 @@
 import { diffFields } from "@/lib/audit/diff";
+import { standingBarFinding } from "@/lib/portal/standing-gate";
+import { portalStandingBarOf } from "@/lib/portal/standing-gate-store";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { attributeSupplierAct } from "@/lib/auth/supplier-attribution-store";
 import type { AuditActor, SupplierActor } from "@/lib/auth/types";
@@ -10,10 +12,10 @@ import { formatDate } from "@/lib/format";
 import { contractorSubmissionNotices } from "@/lib/inbox/notices";
 import { writeNotices } from "@/lib/inbox/store";
 import { formatMoney, senToDecimalString } from "@/lib/money";
-import { loadPostAwardPolicy, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
+import { loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
 import { SUBMISSION_KIND_WORDS } from "./labels";
-import { portalSigningFault } from "./certificates";
+import { contractorSigningFaultOf } from "./signing-store";
 import { amountSen, dueDayOf, KIND_SHAPE, SUBMISSION_WINDOW_MINUTES, submissionFaults, submissionFloodFault, type LineInput } from "./submission";
 import { ProjectRefused, type ProjectFinding, type SubmissionKind } from "./types";
 import { supplierHoldsContract } from "./visibility";
@@ -55,6 +57,9 @@ export interface SendSubmissionInput {
 export async function inHeldContract<T>(actor: SupplierActor, contractId: string, fn: (tx: Tx, l: LoadedContract, today: string) => Promise<T>): Promise<T> {
   const result = await withLockedContract(actor.organisationId, contractId, async (tx, l) => {
     if (!supplierHoldsContract({ awardVendorId: l.award.vendorId, awardStatus: l.award.status, supplierId: actor.supplierId })) return NOT_FOUND();
+    // Decisions log, 2026-10-09, ruling on 1875(3): a supplier whose standing bars it may read its contract and does nothing else here; paper remains a lawful channel for what has a time limit.
+    const bar = await portalStandingBarOf(tx, actor, "TRANSACT");
+    if (bar) return refuse([standingBarFinding(bar)]);
     const today = dayOf(new Date(), l.org.timeZone);
     if (!today) return refuse([{ code: "DAY_NOT_KNOWN", level: "block" }]);
     return fn(tx, l, today);
@@ -71,7 +76,7 @@ export async function sendSubmission(actor: SupplierActor, i: SendSubmissionInpu
     if (faults.some((f) => f.level === "block")) return refuse(faults);
     // 4e review fix: a statutory declaration binds the company, and whether a contractor signs from its portal account at all is the organisation's policy (unset refuses, said).
     if (KIND_SHAPE[i.kind].signed) {
-      const signing = portalSigningFault((await loadPostAwardPolicy(actor.organisationId, tx))?.contractorPortalSigning);
+      const signing = await contractorSigningFaultOf(tx, actor);
       if (signing) return refuse([{ code: signing, level: "block" }]);
     }
     // 4e review fix: a bound on how many submissions one account sends in a window, counted from the table itself (so every instance shares the count). A technical
@@ -111,7 +116,7 @@ export async function sendSubmission(actor: SupplierActor, i: SendSubmissionInpu
       select: { id: true },
     });
     if (i.kind === "STATUTORY_DECLARATION") {
-      await attributeSupplierAct(tx, { actor, entity: "ContractorSubmission", entityId: row.id, slot: "submittedBy", stepUpAt: i.stepUpAt, document: { entity: "ContractorSubmission", id: row.id }, reason: `Signed with the password entered when the declaration was sent, by ${actor.displayName} (${await signatoryDesignation(tx, actor)})` });
+      await attributeSupplierAct(tx, { actor, entity: "ContractorSubmission", entityId: row.id, slot: "submittedBy", stepUpAt: i.stepUpAt, document: { entity: "ContractorSubmission", id: row.id }, reason: `Signed with the password entered when the notice that the statutory declaration is lodged was sent, by ${actor.displayName} (${await signatoryDesignation(tx, actor)})` });
     }
     const label = contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } });
     await writeAudit(

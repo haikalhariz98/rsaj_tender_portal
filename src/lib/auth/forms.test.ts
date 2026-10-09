@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseAccountAct, parseChangePassword, parseCodeForm, parseCreateAccount, parseIssueCode, parseNoFields, parseSignIn, type Entries } from "./forms";
+import { parseAccountAct, parseChangePassword, parseCodeForm, parseCreateAccount, parseIssueCode, parseNoFields, parseSetContractorSigner, parseSignIn, type Entries } from "./forms";
 
 const form = (o: Record<string, string>): Entries => Object.entries(o);
 
@@ -91,5 +91,20 @@ describe("the account administration forms (Phase 1b)", () => {
   it("refuses a field sent twice, and a file where text is taken", () => {
     expect(parseAccountAct([["accountId", "a1"], ["accountId", "a2"], ["reason", "x"]])).toMatchObject({ ok: false, errors: { accountId: "This field was sent more than once." } });
     expect(parseAccountAct([["accountId", new File(["x"], "f.txt")], ["reason", "x"]])).toMatchObject({ ok: false, errors: { accountId: "This field takes text." } });
+  });
+});
+
+// Decisions log, 2026-10-09, ruling on 1928(3): an officer marks who may sign for the contractor's company.
+describe("parseSetContractorSigner", () => {
+  const base = { supplierId: "s1", contactId: "c1", reason: "Named by the board" };
+  it("reads yes, no and not decided, and always needs the reason", () => {
+    expect(parseSetContractorSigner(form({ ...base, mark: "yes" }))).toEqual({ ok: true, value: { supplierId: "s1", contactId: "c1", mark: true, reason: "Named by the board" } });
+    expect(parseSetContractorSigner(form({ ...base, mark: "no" }))).toMatchObject({ ok: true, value: { mark: false } });
+    expect(parseSetContractorSigner(form({ ...base, mark: "unset" }))).toMatchObject({ ok: true, value: { mark: null } });
+    expect(parseSetContractorSigner(form({ supplierId: "s1", contactId: "c1", mark: "yes" }))).toMatchObject({ ok: false, errors: { reason: expect.any(String) } });
+  });
+  it("refuses any other answer, and a person field (the officer is the session's, never a field)", () => {
+    expect(parseSetContractorSigner(form({ ...base, mark: "maybe" }))).toMatchObject({ ok: false, errors: { mark: expect.any(String) } });
+    expect(parseSetContractorSigner(form({ ...base, mark: "yes", actorPersonId: "p9" }))).toMatchObject({ ok: false, errors: { actorPersonId: expect.any(String) } });
   });
 });

@@ -201,3 +201,23 @@ export function parseRetireContact(entries: Entries): Parsed<RetireContactForm> 
   const reason = text(values, errors, "reason", "The reason", { max: REASON_MAX, trim: true });
   return done(errors, { supplierId, contactId, reason });
 }
+
+/**
+ * An officer marks whether a supplier's contact may sign for the contractor's company from the portal (decisions log, 2026-10-09, ruling on 1928(3)): yes, no, or back to not decided.
+ * The reason is always asked: who may bind a company is an authority, and the change is audited with it.
+ */
+export interface SetContractorSignerForm {
+  supplierId: string;
+  contactId: string;
+  mark: boolean | null;
+  reason: string;
+}
+export function parseSetContractorSigner(entries: Entries): Parsed<SetContractorSignerForm> {
+  const { values, errors } = collect(entries, ["supplierId", "contactId", "mark", "reason"]);
+  const supplierId = text(values, errors, "supplierId", "The supplier", { max: ID_MAX, trim: true });
+  const contactId = text(values, errors, "contactId", "The contact", { max: ID_MAX, trim: true });
+  const raw = text(values, errors, "mark", "The answer", { max: 8, trim: true });
+  if (raw && raw !== "yes" && raw !== "no" && raw !== "unset") errors.mark ??= "Choose yes, no, or not decided.";
+  const reason = text(values, errors, "reason", "The reason", { max: REASON_MAX, trim: true });
+  return done(errors, { supplierId, contactId, mark: raw === "yes" ? true : raw === "no" ? false : null, reason });
+}

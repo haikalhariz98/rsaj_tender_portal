@@ -34,7 +34,7 @@ const OWN: Readonly<Record<ProjectFault, (d: Data) => Words>> = {
   LINE_INCOMPLETE: (d) => w(`Item ${n(d, "line")} needs a description, a quantity and where it is.`, `Item ${n(d, "line")} memerlukan perihalan, kuantiti dan lokasi.`),
   LINE_VALUE_FORMAT: (d) => w(`Item ${n(d, "line")}'s value must be a figure in ringgit and sen.`, `Nilai item ${n(d, "line")} mestilah angka dalam ringgit dan sen.`),
   TOO_MANY_LINES: (d) => w(`A list holds at most ${n(d, "max")} items. Send the rest as another list.`, `Senarai memuatkan paling banyak ${n(d, "max")} item.`),
-  PASSWORD_REQUIRED: () => w("Enter your password to sign the declaration.", "Masukkan kata laluan anda untuk menandatangani akuan."),
+  PASSWORD_REQUIRED: () => w("Enter your password to sign the notice.", "Masukkan kata laluan anda untuk menandatangani notis."),
   TOO_MANY_SUBMISSIONS: (d) => w(`This account has sent ${n(d, "max")} submissions in the last ${n(d, "minutes")} minutes, the most it may send in that time. Wait a while and send again, or call the office if something is urgent.`, `Akaun ini telah menghantar ${n(d, "max")} penyerahan dalam ${n(d, "minutes")} minit yang lalu, had maksimum bagi tempoh itu. Tunggu sebentar dan hantar semula, atau hubungi pejabat jika ada perkara mendesak.`),
   PORTAL_SIGNING_NOT_SET: () =>
     w(
@@ -45,6 +45,18 @@ const OWN: Readonly<Record<ProjectFault, (d: Data) => Words>> = {
     w(
       "The procurement office takes a contractor's signature on paper only, so this cannot be signed here. Sign it on paper and the office records it.",
       "Pejabat perolehan menerima tandatangan kontraktor di atas kertas sahaja, jadi ini tidak boleh ditandatangani di sini. Tandatangani di atas kertas dan pejabat akan merekodkannya.",
+    ),
+  // Ruling on 1875(3): the supplier's standing bars the act, in its own words (src/lib/portal/standing-gate.ts).
+  SUPPLIER_STANDING_BARS: (d) => w(n(d, "en"), n(d, "ms")),
+  SIGNER_NOT_AUTHORISED_NOT_SET: () =>
+    w(
+      "The procurement office has not recorded that you may sign for your company, so this cannot be signed here. Ask the office to record who may sign for the company, or sign it on paper and the office records it.",
+      "Pejabat perolehan belum merekodkan bahawa anda boleh menandatangani bagi pihak syarikat anda, jadi ini tidak boleh ditandatangani di sini. Minta pejabat merekodkan siapa yang boleh menandatangani bagi syarikat, atau tandatangani di atas kertas dan pejabat akan merekodkannya.",
+    ),
+  SIGNER_NOT_AUTHORISED: () =>
+    w(
+      "The procurement office has recorded that you do not sign for your company, so this cannot be signed here. The person who signs for the company can sign it, or it can be signed on paper and the office records it.",
+      "Pejabat perolehan telah merekodkan bahawa anda tidak menandatangani bagi pihak syarikat anda, jadi ini tidak boleh ditandatangani di sini. Orang yang menandatangani bagi syarikat boleh menandatanganinya, atau ia boleh ditandatangani di atas kertas dan pejabat akan merekodkannya.",
     ),
   ALREADY_ANSWERED: () => w("This submission has already been answered.", "Penyerahan ini telah dijawab."),
   NOTE_REQUIRED: () => w("Say why it is returned, for the contractor to read.", "Nyatakan sebab ia dipulangkan, untuk dibaca oleh kontraktor."),

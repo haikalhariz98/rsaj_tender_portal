@@ -11,7 +11,7 @@ import { Callout } from "@/components/ui/feedback";
 import { Field, Input } from "@/components/ui/field";
 import { formDataOf } from "@/components/ui/form-submit";
 
-import { issueSupplierCodeAction, openSupplierAccountAction, retireContactAction, unlockSupplierAccountAction, type SupplierCodeState } from "../account-actions";
+import { issueSupplierCodeAction, openSupplierAccountAction, retireContactAction, setContractorSignerAction, unlockSupplierAccountAction, type SupplierCodeState } from "../account-actions";
 
 /**
  * The drawers of a supplier's portal account on the supplier's page (Phase 4a, ADR 0034 D6): open it for a contact, issue the one-time code that activates it or resets its
@@ -162,6 +162,27 @@ export function RetireContact({ supplierId, contactId, name }: { supplierId: str
       submitLabel="Retire"
       reason={{ label: "Why is this contact being retired?" }}
       trigger={{ label: "Retire", className: buttonClass("ghost", "sm"), ariaLabel: `Retire ${name}` }}
+      size="sm"
+    />
+  );
+}
+
+/// Whether this contact may sign for the contractor's company from the portal (decisions log, 2026-10-09, ruling on 1928(3)). An officer sets it, with a reason; it is audited. Not decided refuses.
+export function SetContractorSigner({ supplierId, contactId, name, mark }: { supplierId: string; contactId: string; name: string; mark: boolean | null }) {
+  return (
+    <RecordEditor
+      title={`Who signs for the contractor: ${name}`}
+      description="When this supplier is the contractor on a contract, the portal lets only a contact marked here sign its block on a variation or adjustment certificate, and its notice that the statutory declaration is lodged. Until it is decided the portal refuses, and tells the contact why. The organisation's setting in Configuration, Post-award controls must also allow the portal to sign."
+      fields={[
+        { kind: "hidden", name: "supplierId" },
+        { kind: "hidden", name: "contactId" },
+        { kind: "select", name: "mark", label: "May sign for the contractor's company", options: [{ value: "yes", label: "Yes: authorised to sign for the company" }, { value: "no", label: "No: does not sign for the company" }, { value: "unset", label: "Not decided" }], required: true },
+      ]}
+      values={{ supplierId, contactId, mark: mark == null ? "unset" : mark ? "yes" : "no" }}
+      action={setContractorSignerAction}
+      submitLabel="Save"
+      reason={{ label: "Why is this being recorded?" }}
+      trigger={{ label: "Who signs", className: buttonClass("ghost", "sm"), ariaLabel: `Who signs for the contractor: ${name}` }}
       size="sm"
     />
   );

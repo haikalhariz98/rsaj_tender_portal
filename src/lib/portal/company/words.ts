@@ -34,6 +34,8 @@ const OWN: Readonly<Partial<Record<CompanyFault, (d: Data) => Words>>> = {
   REFERENCE_REQUIRED: (d) => w(`Give the reference number of the ${s(d, "type")}.`, `Berikan nombor rujukan ${s(d, "type")}.`),
   AUTHORITY_REQUIRED: (d) => w(`Say who issued the ${s(d, "type")}.`, `Nyatakan siapa yang mengeluarkan ${s(d, "type")}.`),
   CHANGE_WAITING: () => w("A change to your bank details is waiting for the procurement office to check it. You can send another when it has been checked.", "Perubahan butiran bank anda sedang menunggu semakan pejabat perolehan. Anda boleh menghantar satu lagi setelah ia disemak."),
+  // Ruling on 1875(3): the supplier's standing bars the act, in its own words (src/lib/portal/standing-gate.ts).
+  SUPPLIER_STANDING_BARS: (d) => w(s(d, "en"), s(d, "ms")),
   NOT_REGISTERED_FOR_CHANGE: () => w("Your bank details are sent with your registration. You can change them here once you are on the supplier register.", "Butiran bank anda dihantar bersama pendaftaran anda. Anda boleh mengubahnya di sini setelah berada dalam daftar pembekal."),
   PASSWORD_REQUIRED: () => w("Enter your password to send the change. It is signed with it.", "Masukkan kata laluan anda untuk menghantar perubahan. Ia ditandatangani dengannya."),
   UPLOADS_CLOSED: () => w("Uploads are closed. Tell the procurement office.", "Muat naik ditutup. Maklumkan kepada pejabat perolehan."),

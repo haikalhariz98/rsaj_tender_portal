@@ -31,6 +31,8 @@ export type CompanyFault =
   | "AUTHORITY_REQUIRED"
   | "CHANGE_WAITING"
   | "NOT_REGISTERED_FOR_CHANGE"
+  // The supplier's standing bars the act (ruling on 1875(3)); the words are in the finding's data.
+  | "SUPPLIER_STANDING_BARS"
   | "PASSWORD_REQUIRED"
   | "UPLOADS_CLOSED";
 

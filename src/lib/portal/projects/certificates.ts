@@ -64,6 +64,21 @@ export function portalSigningFault(setting: boolean | null | undefined): "PORTAL
   return setting ? null : "PORTAL_SIGNING_OFF";
 }
 
+/**
+ * Who in the contractor's company may sign (decisions log, 2026-10-09, ruling on 1928(3)). The organisation's switch says the portal may sign at all; this says whether THIS contact may bind the
+ * company, as an officer has marked it (`SupplierContact.authorisedToSignForContractor`). Not marked: refused and said, as the switch is. Marked no: refused. A wrong signer on a certificate is a
+ * correctness failure, and the switch alone would let any contact sign.
+ */
+export function signerAuthorisationFault(mark: boolean | null | undefined): "SIGNER_NOT_AUTHORISED_NOT_SET" | "SIGNER_NOT_AUTHORISED" | null {
+  if (mark == null) return "SIGNER_NOT_AUTHORISED_NOT_SET";
+  return mark ? null : "SIGNER_NOT_AUTHORISED";
+}
+
+/// Why this contact may not sign from the portal, or null: the organisation's switch first (nobody may), then the contact's own mark.
+export function contractorSigningFault(setting: boolean | null | undefined, mark: boolean | null | undefined): ReturnType<typeof portalSigningFault> | ReturnType<typeof signerAuthorisationFault> {
+  return portalSigningFault(setting) ?? signerAuthorisationFault(mark);
+}
+
 export interface BlockFacts {
   blockOrder: number;
   blockKind: string;

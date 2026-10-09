@@ -329,12 +329,12 @@ export async function SubmissionsPanel({ actor, ctx, token }: Props) {
           icon={<InboxIcon size={17} />}
           title="Submissions"
           subtitle={`Everything your company has sent on this contract, newest first, and the office's answer. ${ROUTING_STATEMENT}${s.total > s.rows.length ? ` The newest ${s.rows.length} of ${s.total} are shown: ask the office for an older one.` : ""}`}
-          actions={<SubmitControl contractId={ctx.contract.id} token={token} kinds={NOTICE_KINDS} why={s.closed} label="Send a notice or declaration" />}
+          actions={<SubmitControl contractId={ctx.contract.id} token={token} kinds={NOTICE_KINDS} why={s.closed} label="Send a notice" />}
           divided={s.rows.length > 0}
         />
         {s.signing && (
           <CardBody pad="tight">
-            <p className="text-[12.5px] text-amber-800">{`The statutory declaration cannot be signed here. ${s.signing}`}</p>
+            <p className="text-[12.5px] text-amber-800">{`The notice that the statutory declaration is lodged cannot be signed here. ${s.signing}`}</p>
           </CardBody>
         )}
         {unset > 0 && (
@@ -343,7 +343,7 @@ export async function SubmissionsPanel({ actor, ctx, token }: Props) {
           </CardBody>
         )}
         {s.rows.length === 0 ? (
-          <EmptyState title="Nothing sent yet" size="sm">A programme, a claim, a materials list, a notice of delay, a defects report or the statutory declaration appears here once sent.</EmptyState>
+          <EmptyState title="Nothing sent yet" size="sm">A programme, a claim, a materials list, a notice of delay, a defects report or the notice that the statutory declaration is lodged appears here once sent.</EmptyState>
         ) : (
           <ul className="divide-y divide-line/70">
             {s.rows.map((r) => {

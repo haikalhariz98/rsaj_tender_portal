@@ -1,4 +1,6 @@
 import { diffFields } from "@/lib/audit/diff";
+import { portalStandingBarOf } from "@/lib/portal/standing-gate-store";
+import { standingBarFinding } from "@/lib/portal/standing-gate";
 import { writeAudit } from "@/lib/audit/record";
 import type { Prisma } from "@/generated/prisma/client";
 import type { SupplierActor } from "@/lib/auth/types";
@@ -36,6 +38,7 @@ export async function requestDocuments(actor: SupplierActor, i: { exerciseId: st
       if (!(await lockExerciseSide(tx, actor.organisationId, i.exerciseId))) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
       const ctx = await loadBidContext(tx, actor, i.exerciseId, now);
       if (!ctx || !ctx.ex.window) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
+      // Ruling on 1875(3): no standing gate here. A request is judged by the pre-sale checks, which read the register's standing and keep a refused attempt with its reason (FR-ADV-010).
       // The pre-sale checks are judged on the organisation's day. Where its time zone is not set there is none, so nothing is judged and nothing is kept (an unset value refuses and says what is unset).
       if (!ctx.org.today) return refuse([{ code: "WINDOW_NOT_DATED", level: "block" }]);
       const facts = await loadSaleFacts(tx, actor, ctx);
@@ -72,6 +75,9 @@ export async function withdrawRequest(actor: SupplierActor, i: { exerciseId: str
       if (!(await lockExerciseSide(tx, actor.organisationId, i.exerciseId))) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
       const ctx = await loadBidContext(tx, actor, i.exerciseId, now);
       if (!ctx || !ctx.ex.window) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
+      // Ruling on 1875(3): a supplier whose standing bars it may read, and does nothing else here.
+      const bar = await portalStandingBarOf(tx, actor, "TRANSACT", now);
+      if (bar) return refuse([standingBarFinding(bar)]);
       const standing = await tx.documentRequest.findFirst({ where: { windowId: ctx.ex.window.id, organisationId: actor.organisationId, supplierId: actor.supplierId, refusedAt: null, endedAt: null }, select: { id: true } });
       if (!standing) return refuse([{ code: "NO_REQUEST", level: "block" }]);
       await tx.documentRequest.update({ where: { id: standing.id, organisationId: actor.organisationId }, data: { endedAt: now, endedBySupplierAccountId: actor.accountId } });

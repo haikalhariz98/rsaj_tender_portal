@@ -13,11 +13,12 @@ import { PAID_FIGURE } from "@/lib/payment/finance";
 import { inDelay, type DelayReading } from "@/lib/supervision/delay";
 import { entryState, type EntryState } from "@/lib/supervision/diary";
 import { loadPostAwardPolicy, loadSupervision, revisionsOf } from "@/lib/supervision/load";
+import { contractorSigningFaultOf } from "./signing-store";
 import { plannedOn, programmeInForce } from "@/lib/supervision/programme";
 import { soOn } from "@/lib/supervision/so";
 import type { ProgrammeDecision } from "@/lib/supervision/types";
 
-import { certifiedAgainstPaid, CONTRACTOR_READS_ISSUED_KINDS, CONTRACTOR_SIGNS_KINDS, contractorBlock, portalSigningFault, type CertifiedRow, type CertifiedSummary, type ContractorBlock } from "./certificates";
+import { certifiedAgainstPaid, CONTRACTOR_READS_ISSUED_KINDS, CONTRACTOR_SIGNS_KINDS, contractorBlock, type CertifiedRow, type CertifiedSummary, type ContractorBlock } from "./certificates";
 import type { ProjectContext } from "./context-store";
 import { blocksOf } from "./list-store";
 import { serviceState, type ServiceState } from "./submission";
@@ -30,7 +31,7 @@ import { projectFaultText } from "./words";
  * contractor's own certificates' and claims'; the sums are worked out here, never in a component.
  */
 
-type Who = Pick<SupplierActor, "supplierId" | "organisationId">;
+type Who = Pick<SupplierActor, "supplierId" | "organisationId" | "contactId">;
 const day = (d: Date | null | undefined) => (d ? storedDay(d) : null);
 const dayText = (d: Date | null | undefined) => (d ? formatDate(storedDay(d)) : null);
 
@@ -272,8 +273,9 @@ const readable = (contractId: string, organisationId: string) => ({
 });
 
 /// Why the contractor cannot sign from its portal account, in words, or null where it may (4e review fix: the organisation's switch, unset refuses).
-async function signingClosed(client: Tx, organisationId: string): Promise<string | null> {
-  const f = portalSigningFault((await loadPostAwardPolicy(organisationId, client))?.contractorPortalSigning);
+async function signingClosed(client: Tx, who: Who): Promise<string | null> {
+  // The organisation's switch, then this contact's own mark (ruling on 1928(3)): the screen says which of the two is missing.
+  const f = await contractorSigningFaultOf(client, who);
   return f ? projectFaultText({ code: f }).en : null;
 }
 
@@ -281,7 +283,7 @@ export async function certificatesTab(client: Tx, actor: Who, ctx: ProjectContex
   const where = readable(ctx.contract.id, actor.organisationId);
   const [total, signing, certs] = await Promise.all([
     client.certificate.count({ where }),
-    signingClosed(client, actor.organisationId),
+    signingClosed(client, actor),
     client.certificate.findMany({
       where,
       orderBy: [{ openedAt: "desc" }, { id: "asc" }],
@@ -336,7 +338,7 @@ export async function submissionsTab(client: Tx, actor: Who, ctx: ProjectContext
   const where = { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId };
   const [total, signing, rows, settings] = await Promise.all([
     client.contractorSubmission.count({ where }),
-    signingClosed(client, actor.organisationId),
+    signingClosed(client, actor),
     client.contractorSubmission.findMany({ where, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], take: SUBMISSIONS_SHOWN, include: { lines: { orderBy: { sortOrder: "asc" } } } }),
     client.contractorSubmissionSetting.findMany({ where: { organisationId: actor.organisationId }, select: { kind: true, serviceLevelDays: true } }),
   ]);

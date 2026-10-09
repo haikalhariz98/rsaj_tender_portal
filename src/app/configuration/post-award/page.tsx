@@ -20,6 +20,7 @@ import { BASE_WORDS, BASIS_WORDS, SCHEDULE_FORM_WORDS } from "@/lib/variation/la
 import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/variation/types";
 
 import { SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
+import { SERVICE_UNIT_ASSUMED, SERVICE_UNIT_ASSUMED_NOTE } from "@/lib/portal/projects/labels";
 import { SUBMISSION_KINDS } from "@/lib/portal/projects/types";
 
 import { EditClockRule, EditContractorPortalSigning, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditSubmissionServiceLevel, EditVariationPolicy } from "./editors";
@@ -211,7 +212,7 @@ export default async function PostAwardControlsPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="Contractor submissions" subtitle="Whether a contractor signs from its own portal account, and the service level a submission sent from the contractor's portal account is answered against, by kind, in calendar days from the day it is sent (assumed calendar; a question to the customer). Read when the submission is sent and frozen on it." />
+          <CardHeader icon={<ClockIcon size={17} />} title="Contractor submissions" subtitle={`Whether a contractor signs from its own portal account, and the service level a submission sent from the contractor's portal account is answered against, by kind, counted from the day it is sent. ${SERVICE_UNIT_ASSUMED_NOTE.en} Read when the submission is sent and frozen on it.`} />
           <CardBody>
             <KeyValues
               columns={2}
@@ -225,9 +226,9 @@ export default async function PostAwardControlsPage() {
                   ),
                   value: (
                     <Setting
-                      value={p?.contractorPortalSigning == null ? null : p.contractorPortalSigning ? "Yes: its account signs its block on a variation or adjustment certificate, and its statutory declaration" : "No: on paper only, recorded by an officer"}
+                      value={p?.contractorPortalSigning == null ? null : p.contractorPortalSigning ? "Yes: the account of a contact marked as authorised to sign for the company signs its block on a variation or adjustment certificate, and its notice that the statutory declaration is lodged" : "No: on paper only, recorded by an officer"}
                       provenance={p?.contractorPortalSigningProvenance}
-                      unset="The portal refuses the contractor's block and its statutory declaration, saying so; the contractor signs on paper."
+                      unset="The portal refuses the contractor's block and its notice that the statutory declaration is lodged, saying so; the contractor signs on paper."
                     />
                   ),
                 },
@@ -246,7 +247,7 @@ export default async function PostAwardControlsPage() {
                       <EditSubmissionServiceLevel kind={k} label={SUBMISSION_KIND_WORDS[k].en} values={{ serviceLevelDays: x?.serviceLevelDays == null ? null : String(x.serviceLevelDays), provenance: x?.provenance ?? null, notes: x?.notes ?? "" }} />
                     </span>
                   ),
-                  value: <Setting value={x?.serviceLevelDays == null ? null : `${x.serviceLevelDays} calendar days`} provenance={x?.provenance} unset="A submission of this kind shows no due day and is never judged overdue; the review queue says so." />,
+                  value: <Setting value={x?.serviceLevelDays == null ? null : `${x.serviceLevelDays} ${SERVICE_UNIT_ASSUMED.en.toLowerCase()}`} provenance={x?.provenance} unset="A submission of this kind shows no due day and is never judged overdue; the review queue says so." />,
                 };
               })}
             />

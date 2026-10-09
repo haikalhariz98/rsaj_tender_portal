@@ -19,6 +19,7 @@ import { loadReviewQueue, reviewCounts } from "./review-store";
 import { SUBMISSIONS_PER_WINDOW } from "./submission";
 import { sendSubmission } from "./submission-store";
 import { ProjectRefused } from "./types";
+import { projectFaultText } from "./words";
 import { certificatesTab, diaryTab, overviewTab, submissionsTab } from "./workspace-store";
 
 /**
@@ -49,6 +50,9 @@ interface Holder {
 async function supplier(): Promise<Holder> {
   const s = await makeSupplierAccount(organisationId);
   await db.supplier.update({ where: { id: s.supplier.id }, data: { status: "REGISTERED", registeredOn: D(at(-100)) } });
+  // Decisions log, 2026-10-09, ruling on 1928(3): a contact signs for the company only once an officer has marked it so. The signed acts below are the authorised signatory's; the case that
+  // follows ("who signs for the company") clears the mark and is refused. Updated to match the ruled decision, not weakened: the organisation's switch is still asked first.
+  if (s.account) await db.supplierContact.update({ where: { id: s.account.contactId }, data: { authorisedToSignForContractor: true } });
   const signedIn = await authenticateSupplier({ loginName: s.loginName, password: s.password }, facts(), null);
   if (!signedIn.ok) throw new Error("sign-in failed");
   const read = await readSupplierSession(signedIn.token, { sourceAddress: "203.0.113.9" });
@@ -105,6 +109,8 @@ const portalSigning = (v: boolean | null) =>
   db.postAwardPolicy.upsert({ where: { organisationId }, update: { contractorPortalSigning: v, contractorPortalSigningProvenance: v == null ? null : "ASSUMED" }, create: { organisationId, contractorPortalSigning: v, contractorPortalSigningProvenance: v == null ? null : "ASSUMED" } });
 
 afterAll(async () => {
+  // The board test assumes the organisation holds fewer announcements than a page; the scratch organisation is shared across runs, so each run clears what it made.
+  await db.announcement.deleteMany({ where: { organisationId } });
   await db.contractorSubmissionSetting.deleteMany({ where: { organisationId } });
   await portalSigning(null);
 });
@@ -410,6 +416,63 @@ describe("who may bind the contractor from the portal (4e review fix)", () => {
     const sent = await sendSubmission(h.actor, { ...declaration, stepUpAt: await stepUp(h) });
     const attribution = await db.actAttribution.findFirstOrThrow({ where: { entity: "ContractorSubmission", entityId: sent.submissionId, slot: "submittedBy" } });
     expect(attribution.reason).toContain(`by ${h.actor.displayName} (Director)`);
+  });
+});
+
+describe("who signs for the company (ruling on 1928(3))", () => {
+  it("a contact an officer has not marked, or marked no, is refused the declaration notice, naming why; marked yes, it is sent", async () => {
+    const h = await supplier();
+    const c = await contract({ vendorId: h.supplierId });
+    const notice = { contractId: c.id, kind: "STATUTORY_DECLARATION" as const, title: "Notice", body: "The declaration is lodged.", amount: "", aboutDay: "", lines: [] };
+    await db.supplierContact.update({ where: { id: h.actor.contactId }, data: { authorisedToSignForContractor: null } });
+    await refusedWith(sendSubmission(h.actor, { ...notice, stepUpAt: await stepUp(h) }), "SIGNER_NOT_AUTHORISED_NOT_SET");
+    await db.supplierContact.update({ where: { id: h.actor.contactId }, data: { authorisedToSignForContractor: false } });
+    await refusedWith(sendSubmission(h.actor, { ...notice, stepUpAt: await stepUp(h) }), "SIGNER_NOT_AUTHORISED");
+    expect(await db.contractorSubmission.count({ where: { supplierId: h.supplierId } })).toBe(0);
+    const tab = await submissionsTab(db, h.actor, (await loadProjectContext(db, h.actor, c.id))!);
+    expect(tab.signing).toMatch(/do not sign for your company/);
+    // A submission that signs nothing is not touched by the mark.
+    await sendSubmission(h.actor, { contractId: c.id, kind: "WORK_PROGRAMME", title: "Revision 3", body: "Resequenced.", amount: "", aboutDay: "", lines: [], stepUpAt: null });
+    await db.supplierContact.update({ where: { id: h.actor.contactId }, data: { authorisedToSignForContractor: true } });
+    await sendSubmission(h.actor, { ...notice, stepUpAt: await stepUp(h) });
+    expect(await db.contractorSubmission.count({ where: { supplierId: h.supplierId, kind: "STATUTORY_DECLARATION" } })).toBe(1);
+  });
+
+  it("the organisation's switch is asked first: off, a marked contact is still refused for the switch", async () => {
+    const h = await supplier();
+    const c = await contract({ vendorId: h.supplierId });
+    try {
+      await portalSigning(false);
+      await refusedWith(sendSubmission(h.actor, { contractId: c.id, kind: "STATUTORY_DECLARATION", title: "Notice", body: "Lodged.", amount: "", aboutDay: "", lines: [], stepUpAt: await stepUp(h) }), "PORTAL_SIGNING_OFF");
+    } finally {
+      await portalSigning(true);
+    }
+  });
+});
+
+describe("a supplier whose standing bars it may read and do nothing else (ruling on 1875(3))", () => {
+  const programme = (contractId: string) => ({ contractId, kind: "WORK_PROGRAMME" as const, title: "Revision 4", body: "Resequenced.", amount: "", aboutDay: "", lines: [], stepUpAt: null });
+
+  it("a rejected supplier is refused a submission, in words, with nothing written, and still reads its contract", async () => {
+    const h = await supplier();
+    const c = await contract({ vendorId: h.supplierId });
+    await db.supplier.update({ where: { id: h.supplierId }, data: { status: "REJECTED" } });
+    await refusedWith(sendSubmission(h.actor, programme(c.id)), "SUPPLIER_STANDING_BARS");
+    expect(await db.contractorSubmission.count({ where: { supplierId: h.supplierId } })).toBe(0);
+    expect(await loadMyContracts(db, h.actor)).toBeDefined();
+  });
+
+  it("a supplier suspended by hand is refused the same, saying it is suspended; lifted, it is not", async () => {
+    const h = await supplier();
+    const c = await contract({ vendorId: h.supplierId });
+    const reason = await db.standingReason.create({ data: { organisationId, code: `T_${randomId()}`, nameEn: "A test reason", appliesTo: "SUSPEND" } });
+    const event = await db.standingEvent.create({ data: { organisationId, supplierId: h.supplierId, kind: "SUSPEND", reasonId: reason.id, reasonSnapshot: "Test", effectiveOn: D(at(-1)), flaggedDocumentIds: [], recordedByPersonId: officerId, recordedAt: new Date() } });
+    const e = await sendSubmission(h.actor, programme(c.id)).then(() => null, (x) => x);
+    expect(e).toBeInstanceOf(ProjectRefused);
+    expect(projectFaultText((e as ProjectRefused).faults[0]).en).toMatch(/suspended/);
+    await db.standingEvent.create({ data: { organisationId, supplierId: h.supplierId, kind: "REINSTATE", reasonSnapshot: "Test", effectiveOn: D(at(0)), flaggedDocumentIds: [], reinstatesEventId: event.id, recordedByPersonId: officerId, recordedAt: new Date() } });
+    await sendSubmission(h.actor, programme(c.id));
+    expect(await db.contractorSubmission.count({ where: { supplierId: h.supplierId } })).toBe(1);
   });
 });
 

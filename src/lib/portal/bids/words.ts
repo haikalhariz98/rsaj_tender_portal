@@ -40,6 +40,8 @@ const OWN: Readonly<Record<BidFault, (d: Data) => Words>> = {
   REQUEST_STANDS: () => w("You have already asked for the documents. The office is waiting to sell them to you.", "Anda telah meminta dokumen. Pejabat sedang menunggu untuk menjualnya kepada anda."),
   NO_REQUEST: () => w("You have no request for the documents to withdraw.", "Anda tiada permintaan dokumen untuk ditarik balik."),
   ALREADY_BOUGHT: () => w("The documents have already been sold to your company.", "Dokumen telah dijual kepada syarikat anda."),
+  // Decisions log, 2026-10-09, ruling on 1875(3): the supplier's standing bars this act, in its own words (src/lib/portal/standing-gate.ts).
+  SUPPLIER_STANDING_BARS: (d) => w(String(d.en ?? ""), String(d.ms ?? "")),
   REQUEST_REFUSED: () => w("The documents cannot be sold to your company at the moment. The reasons are listed above.", "Dokumen tidak boleh dijual kepada syarikat anda buat masa ini. Sebabnya disenaraikan di atas."),
 };
 

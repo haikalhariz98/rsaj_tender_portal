@@ -71,7 +71,7 @@ import { accountStateWords } from "@/lib/auth/supplier-administration-rules";
 import { bumiputeraNeedsAttention, bumiputeraReading, bumiputeraWords } from "@/lib/suppliers/bumiputera";
 import { composeAddress } from "@/lib/suppliers/step-one";
 
-import { OpenPortalAccount, IssueSupplierCode, RetireContact, UnlockSupplierAccount } from "./account-editors";
+import { OpenPortalAccount, IssueSupplierCode, RetireContact, SetContractorSigner, UnlockSupplierAccount } from "./account-editors";
 import { EligibilityPanel, ParticipationPanel, StandingPanel } from "./standing-panels";
 import { ContactDrawer, DecideStepDrawer, LodgeDocumentDrawer, OpenApplicationDrawer, PaperDaysDrawer, RecordLapseDrawer, RejectApplicationDrawer, ResubmissionDrawer, SubmitApplicationDrawer, VendorCodeDrawer, VerifyDocumentDrawer } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
@@ -188,6 +188,12 @@ function AccountCell({ account, timeZone }: { account: { loginName: string; stat
   );
 }
 
+/// Whether the contact may sign for the contractor's company from the portal (ruling on 1928(3)): an officer's mark, and not decided until set, which refuses.
+function SignerCell({ mark }: { mark: boolean | null }) {
+  if (mark == null) return <CellStack title="Not decided" sub="The portal refuses their signature" />;
+  return mark ? <CellStack title="Authorised" sub="May sign for the company" /> : <CellStack title="Not authorised" sub="The portal refuses their signature" />;
+}
+
 /// What an officer who holds the permission may do to a contact's account, from its state: open it, issue the code it waits for or a reset, unlock it.
 function AccountActions({ supplierId, contact }: { supplierId: string; contact: { id: string; name: string; email: string; account: { id: string; status: AccountStatus; failedAttempts: number; locked: boolean } | null } }) {
   const a = contact.account;
@@ -246,12 +252,13 @@ function ProfilePanel({ sulit, l, cfg, canManageAccounts }: { sulit: Sulit<true>
         {contacts.length === 0 ? (
           <EmptyState size="sm" title="No contact recorded">Add the primary contact named on the application.</EmptyState>
         ) : (
-          <Table minWidth={640}>
+          <Table minWidth={820}>
             <colgroup>
               <col />
-              <col style={{ width: 240 }} />
+              <col style={{ width: 170 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 170 }} />
               <col style={{ width: 150 }} />
-              <col style={{ width: 210 }} />
               <ActionsCol icons={0} labelled={2} />
             </colgroup>
             <THead>
@@ -259,6 +266,7 @@ function ProfilePanel({ sulit, l, cfg, canManageAccounts }: { sulit: Sulit<true>
               <Th>Email</Th>
               <Th>Telephone</Th>
               <Th>Portal account</Th>
+              <Th>Signs for the contractor</Th>
               <Th className="text-right">Actions</Th>
             </THead>
             <tbody>
@@ -268,6 +276,16 @@ function ProfilePanel({ sulit, l, cfg, canManageAccounts }: { sulit: Sulit<true>
                   <Td label="Email">{sulit.state === "GRANTED" ? <span className="break-all">{c.email || "—"}</span> : <SulitValue of={sulit} />}</Td>
                   <Td label="Telephone">{sulit.state === "GRANTED" ? c.phone || "—" : <SulitValue of={sulit} />}</Td>
                   <Td label="Portal account">{sulit.state === "GRANTED" ? <AccountCell account={c.account} timeZone={l.org.timeZone} /> : <SulitValue of={sulit} />}</Td>
+                  <Td label="Signs for the contractor">
+                    {sulit.state === "GRANTED" ? (
+                      <span className="flex flex-col items-start gap-1">
+                        <SignerCell mark={c.authorisedToSignForContractor} />
+                        {canManageAccounts && <SetContractorSigner supplierId={s.id} contactId={c.id} name={c.name} mark={c.authorisedToSignForContractor} />}
+                      </span>
+                    ) : (
+                      <SulitValue of={sulit} />
+                    )}
+                  </Td>
                   <Td>
                     <RowActions>
                       {sulit.state === "GRANTED" && canManageAccounts && <AccountActions supplierId={s.id} contact={c} />}

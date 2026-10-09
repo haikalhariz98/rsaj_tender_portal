@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const { contractId, kind, title, body, amount, aboutDay, lines, password } = parsed.value;
   let stepUpAt: Date | null = null;
   if (KIND_SHAPE[kind].signed) {
-    if (password.length === 0) return reply({ ok: false, code: "VALIDATION", message: "Enter your password to sign the declaration." }, 422);
+    if (password.length === 0) return reply({ ok: false, code: "VALIDATION", message: "Enter your password to sign the notice." }, 422);
     const asked = await confirmSupplierPassword(actor, password, post.facts);
     const refused = passwordReply(asked);
     if (refused) return refused;

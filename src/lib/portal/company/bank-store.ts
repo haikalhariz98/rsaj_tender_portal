@@ -1,4 +1,6 @@
 import { diffFields } from "@/lib/audit/diff";
+import { standingBarFinding } from "@/lib/portal/standing-gate";
+import { portalStandingBarOf } from "@/lib/portal/standing-gate-store";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import { attributeSupplierAct } from "@/lib/auth/supplier-attribution-store";
 import type { SupplierActor } from "@/lib/auth/types";
@@ -78,6 +80,9 @@ export async function sendBankChange(actor: SupplierActor, i: BankChangeUpload, 
       hooks: {
         before: async (tx) => {
           if (!(await lockSupplierRow(tx, actor.supplierId))) throw new CompanyRefused([{ code: "NOT_REGISTERED_FOR_CHANGE", level: "block" }]);
+          // Decisions log, 2026-10-09, ruling on 1875(3): keeping the registration current is refused to a rejected, blacklisted or cancelled supplier; a suspended one may still send the renewal that lifts it.
+          const bar = await portalStandingBarOf(tx, actor, "COMPANY_RECORD");
+          if (bar) throw new CompanyRefused([standingBarFinding(bar)]);
           // The class a statement takes must be SULIT now, on the row: it may have been changed since the settings were read.
           const cls = i.policy.classId ? await tx.documentClass.findFirst({ where: { id: i.policy.classId, organisationId: actor.organisationId }, select: { classification: true } }) : null;
           const unset = uploadSettingFault(i.storeSettings, { ...i.policy, classIsSulit: cls?.classification === "SULIT" }, "statement");

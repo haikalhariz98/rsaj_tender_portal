@@ -216,7 +216,7 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
       <Card className="overflow-hidden">
         <CardHeader icon={<ClockIcon size={17} />} title={W.review.en} subtitle={`Submissions contractors sent from their portal accounts, waiting for an answer, the longest waiting first${review.overdue ? `, ${review.overdue} of them past the due day` : ""}. ${ROUTING_STATEMENT} The S.O. office's holders, or a representative whose letter lists contractor communication, answer each.`} divided={review.waiting.total > 0} />
         {review.waiting.total === 0 ? (
-          <EmptyState size="sm" title="Nothing waits for an answer">A contractor&apos;s programme, claim, materials list, delay notice, defects report or statutory declaration appears here when it is sent.</EmptyState>
+          <EmptyState size="sm" title="Nothing waits for an answer">A contractor&apos;s programme, claim, materials list, delay notice, defects report or notice that the statutory declaration is lodged appears here when it is sent.</EmptyState>
         ) : (
           <ul className="divide-y divide-line/70">
             {review.waiting.rows.map((r) => {

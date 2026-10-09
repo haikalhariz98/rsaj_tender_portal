@@ -1,4 +1,6 @@
 import { diffFields } from "@/lib/audit/diff";
+import { portalStandingBarOf } from "@/lib/portal/standing-gate-store";
+import { standingBarFinding } from "@/lib/portal/standing-gate";
 import { writeAudit } from "@/lib/audit/record";
 import type { SupplierActor } from "@/lib/auth/types";
 import { dayToDate, storedDay, todayIn } from "@/lib/dates";
@@ -26,6 +28,9 @@ export async function acknowledgeAddendum(actor: SupplierActor, i: { exerciseId:
       if (!(await lockExerciseSide(tx, actor.organisationId, i.exerciseId))) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
       const ctx = await loadBidContext(tx, actor, i.exerciseId, now);
       if (!ctx || !ctx.ex.window) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
+      // Ruling on 1875(3): a supplier whose standing bars it may read, and does nothing else here.
+      const bar = await portalStandingBarOf(tx, actor, "TRANSACT", now);
+      if (bar) return refuse([standingBarFinding(bar)]);
       const addendum = await tx.addendum.findFirst({ where: { id: i.addendumId, organisationId: actor.organisationId, windowId: ctx.ex.window.id }, select: { id: true, number: true, title: true, status: true } });
       if (!addendum) return refuse([{ code: "ADDENDUM_NOT_FOUND", level: "block" }], 404);
       const [copy, already] = await Promise.all([

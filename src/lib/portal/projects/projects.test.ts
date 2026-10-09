@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseCertificateBody, parseDiaryBody, parseSubmitBody } from "./api";
 import { boardOrder, publishFaults, withdrawFaults } from "./announcements";
-import { certifiedAgainstPaid, contractorBlock, contractorReadsCertificate, portalSigningFault, signBlockFaults } from "./certificates";
+import { certifiedAgainstPaid, contractorBlock, contractorReadsCertificate, contractorSigningFault, portalSigningFault, signBlockFaults, signerAuthorisationFault } from "./certificates";
 import { SERVICE_NOT_SET, serviceWords, SUBMISSION_KIND_WORDS, OUTCOME_WORDS } from "./labels";
 import { answerFaults, disagreementFaults, dueDayOf, serviceState, submissionFaults, submissionFloodFault, SUBMISSIONS_PER_WINDOW, KIND_SHAPE, type SubmissionInput } from "./submission";
 import { SUBMISSION_KINDS, SUBMISSION_OUTCOMES } from "./types";
@@ -202,6 +202,19 @@ describe("who may bind the contractor, and how many it sends (4e review fix)", (
     expect(portalSigningFault(true)).toBeNull();
     expect(projectFaultText({ code: "PORTAL_SIGNING_NOT_SET" }).en).toMatch(/not yet decided/);
     expect(projectFaultText({ code: "PORTAL_SIGNING_OFF" }).en).toMatch(/on paper only/);
+  });
+  it("then the contact: an officer's mark is needed on top of the switch (ruling on 1928(3)), unmarked and marked no each refused in their own words, the switch asked first", () => {
+    expect(signerAuthorisationFault(null)).toBe("SIGNER_NOT_AUTHORISED_NOT_SET");
+    expect(signerAuthorisationFault(undefined)).toBe("SIGNER_NOT_AUTHORISED_NOT_SET");
+    expect(signerAuthorisationFault(false)).toBe("SIGNER_NOT_AUTHORISED");
+    expect(signerAuthorisationFault(true)).toBeNull();
+    expect(contractorSigningFault(true, true)).toBeNull();
+    expect(contractorSigningFault(true, null)).toBe("SIGNER_NOT_AUTHORISED_NOT_SET");
+    expect(contractorSigningFault(true, false)).toBe("SIGNER_NOT_AUTHORISED");
+    expect(contractorSigningFault(null, true)).toBe("PORTAL_SIGNING_NOT_SET");
+    expect(contractorSigningFault(false, true)).toBe("PORTAL_SIGNING_OFF");
+    expect(projectFaultText({ code: "SIGNER_NOT_AUTHORISED_NOT_SET" }).en).toMatch(/has not recorded that you may sign for your company/);
+    expect(projectFaultText({ code: "SIGNER_NOT_AUTHORISED" }).en).toMatch(/do not sign for your company/);
   });
   it("an account sends at most the bound in the window, and the refusal says the bound and the window", () => {
     expect(submissionFloodFault(SUBMISSIONS_PER_WINDOW - 1)).toBeNull();

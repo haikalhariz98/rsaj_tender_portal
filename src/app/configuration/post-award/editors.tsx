@@ -3,6 +3,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
+import { SERVICE_UNIT_ASSUMED, SERVICE_UNIT_ASSUMED_NOTE } from "@/lib/portal/projects/labels";
 import { saveClockRule, saveContractorPortalSigning, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveSubmissionServiceLevel, saveVariationPolicy } from "./actions";
 
 /**
@@ -128,11 +129,11 @@ export function EditSubmissionServiceLevel({ kind, label, values }: { kind: stri
   return (
     <RecordEditor
       title={label}
-      description="How many calendar days the office has to answer a submission of this kind, counted from the day it is sent. Leave it empty to remove it: the queue then shows no due day for this kind and says the service level is not set."
+      description={`How many days the office has to answer a submission of this kind, counted from the day it is sent. ${SERVICE_UNIT_ASSUMED_NOTE.en} Leave it empty to remove it: the queue then shows no due day for this kind and says the service level is not set.`}
       columns={2}
       fields={[
         { kind: "hidden", name: "kind" },
-        { kind: "number", name: "serviceLevelDays", label: "Calendar days", min: 1 },
+        { kind: "number", name: "serviceLevelDays", label: SERVICE_UNIT_ASSUMED.en, min: 1 },
         provenance("provenance", "Where it came from"),
         { kind: "textarea", name: "notes", label: "Notes" },
       ]}
@@ -150,7 +151,7 @@ export function EditContractorPortalSigning({ values }: { values: Record<string,
   return (
     <RecordEditor
       title="A contractor signs from its portal account"
-      description="Whether a contractor's own portal account may sign its block on a Variation Order Certificate or a Certificate of Adjustment of Contract Sum, and its statutory declaration. Who may bind a contractor's company is your policy. Leave it undecided and the portal refuses both, saying so; the contractor then signs on paper and an officer records it."
+      description="Whether a contractor's own portal account may sign its block on a Variation Order Certificate or a Certificate of Adjustment of Contract Sum, and its notice that the statutory declaration is lodged. Who may bind a contractor's company is your policy. Leave it undecided and the portal refuses both, saying so; the contractor then signs on paper and an officer records it. Even when the answer is yes, only a contact an officer has marked as authorised to sign for the company can sign: that mark is set on the supplier's contacts."
       columns={2}
       fields={[
         { kind: "select", name: "contractorPortalSigning", label: "A contractor's portal account signs for it", placeholder: "Not decided", options: [{ value: "yes", label: "Yes: its account signs, with its password" }, { value: "no", label: "No: on paper only" }] },

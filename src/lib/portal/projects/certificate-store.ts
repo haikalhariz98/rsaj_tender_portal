@@ -1,4 +1,6 @@
 import { attributeSupplierAct } from "@/lib/auth/supplier-attribution-store";
+import { standingBarFinding } from "@/lib/portal/standing-gate";
+import { portalStandingBarOf } from "@/lib/portal/standing-gate-store";
 import type { SupplierActor } from "@/lib/auth/types";
 import { withLockedCertificate } from "@/lib/certificate/repo";
 import type { CertificateKind } from "@/lib/certificate/types";
@@ -7,9 +9,9 @@ import { actStatusFault, certificateAct } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf } from "@/lib/dates";
 
-import { loadPostAwardPolicy } from "@/lib/supervision/load";
 
-import { portalSigningFault, signBlockFaults } from "./certificates";
+import { signBlockFaults } from "./certificates";
+import { contractorSigningFaultOf } from "./signing-store";
 import { blocksOf } from "./list-store";
 import { signatoryDesignation, supplierAuditActor } from "./submission-store";
 import { ProjectRefused, type ProjectFinding } from "./types";
@@ -31,6 +33,9 @@ const refuse = (fs: readonly ProjectFinding[], status: 404 | 409 | 422 = 422): n
 export async function signContractorBlock(actor: SupplierActor, i: { contractId: string; certificateId: string; action: "sign" | "dispute"; note: string; stepUpAt: Date | null }, now: Date = new Date()): Promise<{ certificateId: string; blockOrder: number }> {
   const result = await withLockedCertificate(actor.organisationId, i.certificateId, async (tx, l) => {
     if (l.contract.id !== i.contractId || !supplierHoldsContract({ awardVendorId: l.award.vendorId, awardStatus: l.award.status, supplierId: actor.supplierId })) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
+    // Decisions log, 2026-10-09, ruling on 1875(3): a supplier whose standing bars it signs nothing here; the certificate is signed on paper and the office records it.
+    const bar = await portalStandingBarOf(tx, actor, "TRANSACT", now);
+    if (bar) return refuse([standingBarFinding(bar)]);
     const cert = l.cert;
     // The act x status table, by the certificate's kind before its issue (BD-613-114).
     if (actStatusFault(certificateAct(cert.kind as CertificateKind, "PRE_ISSUE"), l.contract.status as ContractStatus)) return refuse([{ code: "CONTRACT_NOT_ACTIVE", level: "block" }]);
@@ -39,8 +44,9 @@ export async function signContractorBlock(actor: SupplierActor, i: { contractId:
     const blocks = blocksOf(cert.templateRevision);
     const faults = signBlockFaults({ kind: cert.kind, status: cert.status, blocks, signedOrders: cert.signatures.map((s) => s.blockOrder), action: i.action, note: i.note });
     if (faults.length) return refuse(faults);
-    // 4e review fix: whether a contractor signs from its portal account at all is the organisation's policy, read in the act's transaction; unset refuses, said.
-    const signing = portalSigningFault((await loadPostAwardPolicy(actor.organisationId, tx))?.contractorPortalSigning);
+    // 4e review fix: whether a contractor signs from its portal account at all is the organisation's policy, read in the act's transaction; unset refuses, said. And (ruling on 1928(3)) whether THIS
+    // contact is the one an officer has marked as authorised to sign for the company.
+    const signing = await contractorSigningFaultOf(tx, actor);
     if (signing) return refuse([{ code: signing, level: "block" }]);
     const designation = await signatoryDesignation(tx, actor);
     const block = blocks!.find((b) => b.blockKind === "CONTRACTOR")!;

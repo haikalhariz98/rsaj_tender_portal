@@ -2,7 +2,7 @@
 
 import type { FormState } from "@/components/record-editor";
 import { diffFields } from "@/lib/audit/diff";
-import { parseIssueSupplierCode, parseOpenSupplierAccount, parseRetireContact, parseUnlockSupplierAccount } from "@/lib/auth/forms";
+import { parseIssueSupplierCode, parseOpenSupplierAccount, parseRetireContact, parseSetContractorSigner, parseUnlockSupplierAccount } from "@/lib/auth/forms";
 import { settingLabels, unsetSettings } from "@/lib/auth/policy";
 import { loadSecurityPolicy } from "@/lib/auth/policy-store";
 import { disableAccountOfRetiredContact, issueSupplierCode, LoginNameTaken, openSupplierAccount, unlockSupplierAccount, unusableSupplierPasswordHash } from "@/lib/auth/supplier-administration";
@@ -185,6 +185,33 @@ export async function retireContactAction(_prev: FormState, data: FormData): Pro
     await tx.supplierContact.update({ where: { id: contact.id, organisationId: actor.organisationId }, data: { retiredOn: dayToDate(l.org.today) } });
     await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.contact, contact.id, label(l.supplier, "Contact"), "UPDATE", diffFields({ retiredOn: null }, { retiredOn: l.org.today, retiredBecause: parsed.value.reason }), parsed.value.reason);
     await disableAccountOfRetiredContact(tx, { actor, supplier: { id: l.supplier.id, reference: l.supplier.reference }, contactId: contact.id, reason: `The contact was retired: ${parsed.value.reason}`, request, now });
+    return { ok: true };
+  });
+}
+
+/**
+ * Mark whether a contact may sign for the contractor's company from the portal (decisions log, 2026-10-09, ruling on 1928(3)). An officer's act under the supplier's lock, audited with its
+ * before and after and the reason. It is the one place the mark is written; a contact's own session never writes it. Needs the same permission as the contact's portal account
+ * (`supplierAccounts.manage`) and the right to read the contact, since whom a company is bound by is judged on who the contact is. Not decided is the default: it refuses the portal's signature, saying so.
+ */
+export async function setContractorSignerAction(_prev: FormState, data: FormData): Promise<FormState> {
+  const guard = await staffForAct("TRANSACTION");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
+  const gate = await permissionGate(actor, "supplierAccounts.manage");
+  if (!gate.ok) return { ok: false, message: gate.message };
+  if (await refuseForeignPost()) return wrongOrigin();
+  const parsed = parseSetContractorSigner(data.entries());
+  if (!parsed.ok) return { ok: false, errors: parsed.errors };
+  return inSupplier(actor, parsed.value.supplierId, async (tx, l) => {
+    const closed = await contactsClosed(tx, actor, l.supplier);
+    if (closed) return closed;
+    const contact = await tx.supplierContact.findFirst({ where: { id: parsed.value.contactId, supplierId: l.supplier.id, retiredOn: null, organisationId: actor.organisationId } });
+    if (!contact) return GONE;
+    if (contact.authorisedToSignForContractor === parsed.value.mark) return { ok: false, message: "Nothing was changed: that is already how it is recorded." };
+    const words = (v: boolean | null) => (v == null ? "not decided" : v ? "authorised to sign for the contractor" : "not authorised to sign for the contractor");
+    await tx.supplierContact.update({ where: { id: contact.id, organisationId: actor.organisationId }, data: { authorisedToSignForContractor: parsed.value.mark } });
+    await audit(tx, toAuditActor(actor), l.org.id, SUPPLIER_ENTITY.contact, contact.id, label(l.supplier, "Contact"), "UPDATE", diffFields({ signsForTheContractor: words(contact.authorisedToSignForContractor) }, { signsForTheContractor: words(parsed.value.mark) }), parsed.value.reason);
     return { ok: true };
   });
 }

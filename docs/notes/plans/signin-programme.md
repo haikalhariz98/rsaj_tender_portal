@@ -576,6 +576,7 @@ Existing screens stay unguarded in 1a.
 - **5b:** every remaining Configuration section moves onto `ConfigurationChange`, people and assignments included: audit, awards, budget, committees, contracts, documents, invitation, notifications, numbering, organisation, post-award, reference data, requisitions, routing sheets, scope, suppliers, tender documents, users.
   - The reason prompt in `configuration/users` (`actions.ts:132`, `editors.tsx:133,276,297`) becomes the proposal reason.
   - Transactional acts (window extensions, bid handling) stay signed, with no second person.
+- **Registration values (added 2026-10-09, product owner ruling on log line 1909(A), after Phase 4):** `saveRegistrationValue` and `setRegistrationValueRetired` (`src/app/configuration/suppliers/actions.ts`: the lists a supplier's registration offers, rank corrections included) are on 5b's list under suppliers, as configuration editors are gated in this phase and not singly beforehand (ruling 1666). Their proposal carries the reason the audited direct save asks for today; the narrow guard that refuses a rank correction once a value is frozen on a registration stays.
 - **Scan:** no configuration editor writes a configuration table except through the issue path or the `ConfigurationChange` applier.
 
 ---

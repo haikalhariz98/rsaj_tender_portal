@@ -7922,6 +7922,10 @@ model SupplierContact {
   retiredOn   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  /// Decisions log 2026-10-09 (ruling on 1928(3)): whether this person may sign FOR THE CONTRACTOR'S COMPANY from its portal account (its block on a variation or adjustment certificate, and its notice that the
+  /// statutory declaration is lodged). Set by an officer, audited with its before and after. Null is not decided and refuses, saying so; false refuses too. This is on top of the organisation's switch
+  /// (`PostAwardPolicy.contractorPortalSigning`): the switch says the portal may sign at all, this says who. No default: nobody is presumed to bind a company.
+  authorisedToSignForContractor Boolean?
 
   /// The contact's way into the supplier portal, where one has been opened (ADR 0034 D2). Retiring the contact disables it in the same transaction.
   account SupplierAccount?

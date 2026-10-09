@@ -175,7 +175,7 @@ export function SubmitControl({ contractId, token, kinds, why, label = "Send a s
                   </fieldset>
                 )}
                 {shape.signed && (
-                  <Field label="Your password" htmlFor={`${f}-pw`} required hint="The declaration is signed with it. A wrong password counts towards locking your account.">
+                  <Field label="Your password" htmlFor={`${f}-pw`} required hint="The notice is signed with it. A wrong password counts towards locking your account.">
                     <Input id={`${f}-pw`} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
                   </Field>
                 )}

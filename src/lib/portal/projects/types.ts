@@ -45,6 +45,11 @@ export type ProjectFault =
   // Who may bind the contractor (4e review fix): the organisation has not decided whether a contractor signs from its portal account, or has decided it signs on paper only.
   | "PORTAL_SIGNING_NOT_SET"
   | "PORTAL_SIGNING_OFF"
+  // Who in the company may sign (ruling on 1928(3)): this contact is not marked by an officer as authorised to sign for the contractor.
+  | "SIGNER_NOT_AUTHORISED_NOT_SET"
+  | "SIGNER_NOT_AUTHORISED"
+  // The supplier's standing bars the act (ruling on 1875(3)); the words are in the finding's data.
+  | "SUPPLIER_STANDING_BARS"
   // The officer's answer.
   | "ALREADY_ANSWERED"
   | "NOTE_REQUIRED"

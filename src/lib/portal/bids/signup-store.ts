@@ -1,4 +1,6 @@
 import { diffFields } from "@/lib/audit/diff";
+import { portalStandingBarOf } from "@/lib/portal/standing-gate-store";
+import { standingBarFinding } from "@/lib/portal/standing-gate";
 import { writeAudit, type Tx } from "@/lib/audit/record";
 import type { AuditActor, SupplierActor } from "@/lib/auth/types";
 import { formatOrgDateTime } from "@/lib/format";
@@ -37,6 +39,9 @@ export async function signUp(actor: SupplierActor, i: { exerciseId: string; even
     if (!(await lockExerciseSide(tx, actor.organisationId, i.exerciseId))) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
     const ctx = await loadBidContext(tx, actor, i.exerciseId, now);
     if (!ctx) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
+    // Ruling on 1875(3): a supplier whose standing bars it may read, and does nothing else here.
+    const bar = await portalStandingBarOf(tx, actor, "TRANSACT", now);
+    if (bar) return refuse([standingBarFinding(bar)]);
     const event = await eventOf(tx, actor, ctx, i.eventId);
     const existing = await tx.siteEventRegistration.findUnique({ where: { eventId_supplierId: { eventId: event.id, supplierId: actor.supplierId } } });
     const faults = signUpFaults({
@@ -71,6 +76,9 @@ export async function withdrawSignUp(actor: SupplierActor, i: { exerciseId: stri
     if (!(await lockExerciseSide(tx, actor.organisationId, i.exerciseId))) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
     const ctx = await loadBidContext(tx, actor, i.exerciseId, now);
     if (!ctx) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);
+    // Ruling on 1875(3): a supplier whose standing bars it may read, and does nothing else here.
+    const bar = await portalStandingBarOf(tx, actor, "TRANSACT", now);
+    if (bar) return refuse([standingBarFinding(bar)]);
     const event = await eventOf(tx, actor, ctx, i.eventId);
     const existing = await tx.siteEventRegistration.findUnique({ where: { eventId_supplierId: { eventId: event.id, supplierId: actor.supplierId } } });
     const faults = withdrawFaults({ event: { startsAt: event.startsAt, cancelled: event.cancelledAt != null, heldOn: event.heldOn ? storedDay(event.heldOn) : null }, phase: ctx.phase, existing: existing ? { endedAt: existing.endedAt } : null, now });
