@@ -233,7 +233,7 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
           icon={<EyeIcon size={17} />}
           title="Inspect the Tender Table Document"
           subtitle="Open to every supplier from publication to the closing. Each time you open it, it is logged against your company."
-          actions={d.table.open ? <ButtonLink href={`${base}/table-document`} variant="secondary" size="sm">Open it</ButtonLink> : undefined}
+          actions={d.table.open ? <ButtonLink href={`${base}/table-document`} variant="secondary" size="sm" prefetch={false}>Open it</ButtonLink> : undefined}
         />
         <CardBody>
           {d.table.open ? (
@@ -249,7 +249,7 @@ export async function DocumentsPanel({ actor, ctx, token }: Props) {
           icon={<FileIcon size={17} />}
           title="Your copy of the documents online"
           subtitle="Released only when the organisation has chosen to, after an officer records your payment."
-          actions={d.release.state === "READY" ? <ButtonLink href={`${base}/documents`} variant="primary" size="sm">Open the documents</ButtonLink> : undefined}
+          actions={d.release.state === "READY" ? <ButtonLink href={`${base}/documents`} variant="primary" size="sm" prefetch={false}>Open the documents</ButtonLink> : undefined}
         />
         <CardBody>
           <Callout tone={d.release.state === "READY" ? "ok" : "neutral"} title={d.release.short}>{d.release.detail}</Callout>

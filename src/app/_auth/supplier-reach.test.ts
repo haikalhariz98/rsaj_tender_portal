@@ -317,6 +317,16 @@ describe("My Bids' handlers and pages (Phase 4d)", () => {
     expect(lock.indexOf('FROM "ExerciseWindow"')).toBeGreaterThan(lock.indexOf('FROM "SourcingExercise"'));
   });
 
+  it("the Overview reads its own few counts and loads nothing of a sibling tab, and the links that write the inspection log are never prefetched", () => {
+    const src = lex(read("lib/portal/bids/workspace-store.ts"));
+    const overview = src.slice(src.indexOf("export async function overviewTab"));
+    expect(overview.length).toBeGreaterThan(100);
+    for (const sibling of ["briefingsTab(", "addendaTab(", "documentsTab(", "loadMyNotices(", "loadSaleFacts(", "readRegister("]) expect(overview, sibling).not.toContain(sibling);
+    // A render of either page writes a log row, so a prefetch of it would log an opening nobody made.
+    const panels = read("app/supplier/bids/[id]/panels.tsx");
+    for (const target of ["/table-document", "/documents"]) expect(panels, target).toMatch(new RegExp(String.raw`href=\{\`\$\{base\}${target}\`\}[^>]*prefetch=\{false\}`));
+  });
+
   it("the inspection log is written before the documents are returned, and only the approved version is shown", () => {
     const src = lex(read("lib/portal/bids/inspection-store.ts"));
     expect(src.indexOf("tenderInspectionEvent.create(")).toBeGreaterThan(src.indexOf("view.watermark != null"));

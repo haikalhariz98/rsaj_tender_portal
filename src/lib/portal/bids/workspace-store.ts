@@ -20,7 +20,7 @@ import { awardStands } from "./non-award";
 import { sortNotices, type PortalNotice } from "./notices";
 import { releaseWords, type ReleaseState } from "./release";
 import { loadSaleFacts } from "./sale-facts";
-import { signUpFaults, signUpState, withdrawFaults, type SignUpState } from "./signup";
+import { signUpFaults, signUpState, windowFault, withdrawFaults, type SignUpState } from "./signup";
 import { bidStanding, type BidStanding } from "./standing";
 import { bidFaultText } from "./words";
 
@@ -220,33 +220,54 @@ export async function outcomeTab(client: Tx, actor: Who, ctx: BidContext): Promi
 export interface OverviewView {
   facts: { closing: string | null; saleFrom: string | null; saleUntil: string | null; submissionPlace: string; via: "PUBLIC" | "LINKED"; parties: string[] };
   standing: BidStanding;
-  /// What waits for the supplier, in words, most pressing first.
+  /// What the supplier has done and what comes next, in words, most pressing first.
   todo: string[];
 }
 
+/**
+ * The Overview reads a few counts of its own and nothing of a sibling tab: not the notices across every exercise, not the register's reading of the supplier. It says where the supplier is, and sends it to the
+ * tab that holds the rest (the pre-sale checks, for one, are judged on the Documents tab and again when a request is made).
+ */
 export async function overviewTab(client: Tx, actor: Who, ctx: BidContext): Promise<OverviewView> {
-  const [briefings, addenda, documents, outcome] = await Promise.all([briefingsTab(client, actor, ctx), addendaTab(client, actor, ctx), documentsTab(client, actor, ctx), outcomeTab(client, actor, ctx)]);
+  const window = ctx.ex.window;
+  const partyIds = ctx.parties.map((p) => p.id);
+  const standing = await outcomeTab(client, actor, ctx);
+  const [events, registrations, copies, acks, sale, requests] = window
+    ? await Promise.all([
+        client.siteEvent.findMany({ where: { windowId: window.id, organisationId: actor.organisationId }, select: { id: true, kind: true, startsAt: true, heldOn: true, cancelledAt: true } }),
+        client.siteEventRegistration.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, event: { windowId: window.id } }, select: { eventId: true, endedAt: true } }),
+        partyIds.length ? client.addendumRecipient.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds }, addendum: { windowId: window.id, status: "ISSUED" } }, select: { addendumId: true } }) : Promise.resolve([]),
+        client.addendumAcknowledgement.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, addendum: { windowId: window.id } }, select: { addendumId: true } }),
+        partyIds.length ? client.documentSale.findFirst({ where: { windowId: window.id, organisationId: actor.organisationId, partyId: { in: partyIds }, voidedAt: null }, select: { financeReceiptNo: true } }) : Promise.resolve(null),
+        client.documentRequest.findMany({ where: { windowId: window.id, organisationId: actor.organisationId, supplierId: actor.supplierId }, orderBy: { requestedAt: "desc" }, take: 1, select: { refusedAt: true, endedAt: true } }),
+      ])
+    : [[], [], [], [], null, []];
+
   const todo: string[] = [];
-  const toAck = addenda.addenda.filter((a) => a.canAcknowledge).length;
+  const open = windowFault(ctx.phase) == null;
+  const acked = new Set(acks.map((a) => a.addendumId));
+  const toAck = open ? new Set(copies.map((c) => c.addendumId).filter((id) => !acked.has(id))).size : 0;
   if (toAck > 0) todo.push(toAck === 1 ? "Acknowledge the addendum that came with your documents." : `Acknowledge ${toAck} addenda.`);
-  if (documents.bought) todo.push(documents.release.state === "READY" ? "The documents are released to you here." : documents.bought.receiptRecorded ? "Your documents were sold and the payment is recorded." : "Your documents were sold; the payment receipt is not recorded yet.");
-  else if (documents.request) todo.push("Your request for the documents is waiting for the procurement office.");
-  else if (documents.canRequest) todo.push("Ask for the documents when you are ready to collect them.");
-  else if (documents.refused) todo.push("Your last request for the documents was refused. The reasons are under Documents.");
-  const upcoming = briefings.rows.filter((r) => r.canSignUp && !r.cancelled);
-  if (upcoming.length > 0) todo.push(upcoming.length === 1 ? `Sign up for the ${upcoming[0]!.kindLabel.toLowerCase()} on ${upcoming[0]!.when}.` : `Sign up for the ${upcoming.length} briefings and site visits ahead.`);
-  if (outcome.notice) todo.push("A notice of the outcome has been issued to you. Read it under Outcome.");
-  const w = ctx.ex.window;
+  if (sale) todo.push(sale.financeReceiptNo && sale.financeReceiptNo.trim() ? "The documents were sold to your company and the payment is recorded." : "The documents were sold to your company; the payment receipt is not recorded yet.");
+  else if (requests[0] && requests[0].refusedAt == null && requests[0].endedAt == null) todo.push("Your request for the documents is waiting for the procurement office.");
+  else if (requests[0]?.refusedAt) todo.push("Your last request for the documents was refused. The reasons are under Documents.");
+  else if (ctx.phase === "OPEN_FOR_PURCHASE") todo.push("The documents are on sale. Under Documents you can see the checks and ask for them.");
+  const upcoming = events.filter((e) => {
+    const reg = registrations.find((r) => r.eventId === e.id) ?? null;
+    return signUpFaults({ event: { startsAt: e.startsAt, cancelled: e.cancelledAt != null, heldOn: e.heldOn ? storedDay(e.heldOn) : null }, phase: ctx.phase, path: ctx.path, invited: isInvited(ctx), representative: "-", existing: reg ? { endedAt: reg.endedAt } : null, now: ctx.now }).length === 0;
+  });
+  if (upcoming.length > 0) todo.push(upcoming.length === 1 ? `Sign up for the ${SITE_EVENT_KIND_LABEL[upcoming[0]!.kind].toLowerCase()} on ${upcoming[0]!.startsAt ? instantText(upcoming[0]!.startsAt, ctx.org.timeZone) : "a day to be set"}.` : `Sign up for the ${upcoming.length} briefings and site visits ahead.`);
+  if (standing.notice) todo.push("A notice of the outcome has been issued to you. Read it under Outcome.");
   return {
     facts: {
       closing: ctx.ex.closingAt && ctx.ex.status !== "CANCELLED" ? instantText(ctx.ex.closingAt, ctx.org.timeZone) : null,
-      saleFrom: dayText(w?.purchaseFromDay ?? null),
-      saleUntil: dayText(w?.purchaseCloseDay ?? null),
-      submissionPlace: w?.submissionPlace ?? "",
+      saleFrom: dayText(window?.purchaseFromDay ?? null),
+      saleUntil: dayText(window?.purchaseCloseDay ?? null),
+      submissionPlace: window?.submissionPlace ?? "",
       via: ctx.seen.via,
       parties: ctx.parties.map((p) => p.name),
     },
-    standing: outcome.standing,
+    standing: standing.standing,
     todo,
   };
 }

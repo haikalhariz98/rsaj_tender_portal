@@ -14,7 +14,7 @@ import { requestDocuments, withdrawRequest } from "./request-store";
 import { signUp, withdrawSignUp } from "./signup-store";
 import { acknowledgementsByAddendum, inspectionLogOf, requestsOfWindow, signUpsByEvent } from "./staff-read";
 import { loadReleaseFacts, openForInspection } from "./inspection-store";
-import { addendaTab, briefingsTab, documentsTab, outcomeTab } from "./workspace-store";
+import { addendaTab, briefingsTab, documentsTab, outcomeTab, overviewTab } from "./workspace-store";
 import { BidRefused } from "./types";
 
 /**
@@ -274,6 +274,20 @@ describe("acknowledging an addendum", () => {
     expect(await loadMyNotices(db, b.actor)).toEqual([]);
     const ctx = (await loadBidContext(db, a.actor, open.exerciseId))!;
     expect((await addendaTab(db, a.actor, ctx)).addenda.find((x) => x.id === open.addendumId)).toMatchObject({ holdsCopy: true, canAcknowledge: false });
+  });
+});
+
+describe("the overview", () => {
+  it("says where the supplier is from a few counts: an addendum to acknowledge, what became of the documents, an event to sign up for", async () => {
+    const s = await supplier();
+    await link(open, s.supplierId, { copy: true, sale: true, receipt: "R-OV" });
+    const ctx = (await loadBidContext(db, s.actor, open.exerciseId))!;
+    const o = await overviewTab(db, s.actor, ctx);
+    expect(o.todo).toEqual(expect.arrayContaining(["Acknowledge the addendum that came with your documents.", "The documents were sold to your company and the payment is recorded."]));
+    expect(o.todo.some((t) => t.startsWith("Sign up for the"))).toBe(true);
+    expect(o.facts.parties.length).toBe(1);
+    await acknowledgeAddendum(s.actor, { exerciseId: open.exerciseId, addendumId: open.addendumId });
+    expect((await overviewTab(db, s.actor, ctx)).todo.some((t) => t.startsWith("Acknowledge"))).toBe(false);
   });
 });
 
