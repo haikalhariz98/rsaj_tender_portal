@@ -39,7 +39,7 @@ import {
 } from "@/lib/method/labels";
 import { behaviourProfile, type BehaviourValue } from "@/lib/method/profile";
 import type { evaluationContext, LoadedExercise } from "@/lib/method/repo";
-import { profileRows, type BandSnapshot, type ClassificationSnapshot, type RouteSnap } from "@/lib/method/snapshot";
+import { isCoreNotCheckedNotice, profileRows, type BandSnapshot, type ClassificationSnapshot, type RouteSnap } from "@/lib/method/snapshot";
 import { ignoredMappingsText, ignoredPermitListMappings } from "@/lib/method/taxonomy";
 import type { DeliverableKind, Finding } from "@/lib/method/types";
 import { formatMoney, parseSen } from "@/lib/money";
@@ -74,7 +74,7 @@ const behaviourText = (v: BehaviourValue, officeName: (c: string) => string, key
   return key === "claimsApprovalCommitteeCode" ? officeName(v) : v;
 };
 
-function RouteList({ route }: { route: RouteSnap }) {
+function RouteList({ route, hideCoreNotice = false }: { route: RouteSnap; hideCoreNotice?: boolean }) {
   return (
     <div className="flex flex-col gap-2">
       {route.chain.length > 0 ? (
@@ -91,7 +91,7 @@ function RouteList({ route }: { route: RouteSnap }) {
         <p className="text-[13.5px] text-ink-2">{APPOINTMENT_STATE_TEXT[route.state as keyof typeof APPOINTMENT_STATE_TEXT] ?? "Not resolved"}</p>
       )}
       {route.ruleLabel && <p className="text-[12.5px] break-words text-ink-3">{`${route.ruleLabel}${route.clause ? ` · ${route.clause}` : ""}${route.overrideLabel ? ` · funder's rule set “${route.overrideLabel}”` : ""}`}</p>}
-      {route.warnings.map((w) => (
+      {route.warnings.filter((w) => !(hideCoreNotice && isCoreNotCheckedNotice(w))).map((w) => (
         <Callout key={w.text} tone={tone(w.level)}>
           {w.text}
         </Callout>
@@ -115,9 +115,8 @@ export interface OverviewProps {
   l: LoadedExercise;
   /// The department estimate as this reader may see it: the figure, or "SULIT · withheld" with the reason (Phase 3a).
   estimate: Sulit<string>;
-  /// The process flow and, where the exercise has a route for tendering, its steps (read-only here).
+  /// The one process flow. The approval track for tendering lives on the Tender documents tab (SR-03).
   flow: StepperStep[];
-  tendering: StepperStep[] | null;
   decided: ClassificationSnapshot | null;
   bands: BandSnapshot | null;
   /// What a draft is judged to be now, where it is a draft; null once decided.
@@ -147,7 +146,6 @@ export interface OverviewProps {
 }
 
 export function OverviewPanel(p: OverviewProps) {
-  const ex = p.l.ex;
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -156,24 +154,6 @@ export function OverviewPanel(p: OverviewProps) {
           <Stepper label="Process flow" steps={p.flow} />
         </CardBody>
       </Card>
-
-      {p.tendering && (
-        <Card>
-          <CardHeader
-            icon={<RouteIcon size={17} />}
-            title="Approval for tendering"
-            subtitle="Decided on the Tender documents tab."
-            actions={
-              <ButtonLink href={`/sourcing/${ex.id}?tab=documents`} variant="secondary" size="sm">
-                Open in Tender documents
-              </ButtonLink>
-            }
-          />
-          <CardBody>
-            <Stepper label="Approval for tendering" steps={p.tendering} />
-          </CardBody>
-        </Card>
-      )}
 
       <ContractCard p={p} />
       <DetailsCard p={p} />
@@ -294,7 +274,7 @@ function ContractCard({ p }: { p: OverviewProps }) {
 
         <div className="border-t border-line pt-4">
           <p className="mb-2 text-[12px] font-semibold text-ink-3">Who approves the appointment</p>
-          {p.bands ? <RouteList route={p.bands.appointment} /> : <p className="text-[13.5px] text-ink-2">Not determined: the bands are determined when the exercise is saved under an issue of the limits in force.</p>}
+          {p.bands ? <RouteList route={p.bands.appointment} hideCoreNotice /> : <p className="text-[13.5px] text-ink-2">Not determined: the bands are determined when the exercise is saved under an issue of the limits in force.</p>}
         </div>
 
         {/* FR-MTD-003: a value exactly on a boundary is said on the card itself, with where the ruling comes from. */}

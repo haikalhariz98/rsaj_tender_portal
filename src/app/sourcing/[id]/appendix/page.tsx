@@ -84,24 +84,8 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
       })}
 
       <div className="flex flex-col gap-6">
-        {a.findings.length > 0 ? (
-          <Card id="still-to-enter" className="scroll-mt-24">
-            <CardHeader icon={<ShieldIcon size={17} />} title={copy.findingsTitle} subtitle={copy.findingsSubtitle} />
-            <CardBody>
-              <ul className="flex flex-col gap-2">
-                {a.findings.map((f, i) => (
-                  <li key={i}>
-                    <Callout tone={f.level === "block" ? "err" : f.level === "info" ? "info" : "warn"} action={f.card ? <a href={`#${f.card}`} className="text-[13px] font-semibold">Go to it</a> : undefined}>
-                      {f.text}
-                    </Callout>
-                  </li>
-                ))}
-              </ul>
-            </CardBody>
-          </Card>
-        ) : (
-          <Callout tone="ok" title={copy.completeTitle}>{copy.completeBody}</Callout>
-        )}
+        {/* SR-12: no "Still to enter" list. Each card shows its fields entered or Not set, and Save names any required field left empty. */}
+        {complete && <Callout tone="ok" title={copy.completeTitle}>{copy.completeBody}</Callout>}
 
         <Card id={APPENDIX_CARD.officers} className="scroll-mt-24">
           <CardHeader icon={<FileIcon size={17} />} title="Officers empowered" subtitle="Who the contract names to act for the employer." actions={drawer("officers", "Edit the officers empowered")} />

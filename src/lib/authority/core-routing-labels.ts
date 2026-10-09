@@ -78,9 +78,12 @@ export function coreFaultWarning(fault: CoreChainFault, rule: Words, office: Wor
   }
 }
 
+/// The words every "not decided" notice opens with: kept so a route stored before warnings carried a code can still be told apart (SR-04).
+export const NOT_DECIDED_PREFIX_EN = "Chain as entered, not checked against core routing";
+
 export function notDecidedWarning(rule: Words): Words {
   return {
-    en: `Chain as entered, not checked against core routing: nobody has decided whether “${rule.en}” takes its chain from the core routing. Decide it on the rule in the approval matrix.`,
+    en: `${NOT_DECIDED_PREFIX_EN}: nobody has decided whether “${rule.en}” takes its chain from the core routing. Decide it on the rule in the approval matrix.`,
     ms: `Rantaian seperti yang dimasukkan, tidak disemak terhadap laluan teras: belum diputuskan sama ada “${rule.ms}” mengambil rantaiannya daripada laluan teras. Putuskan pada peraturan dalam matriks kelulusan.`,
   };
 }

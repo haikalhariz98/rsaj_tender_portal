@@ -280,24 +280,18 @@ export function appendixCopy(state: AppendixState, version: number) {
     case "EDITING":
       return {
         subtitle: `Version ${version} of the tender documents. Each field is entered or reads Not set.`,
-        findingsTitle: "Still to enter",
-        findingsSubtitle: "The tender documents cannot be submitted for approval until each is entered.",
         completeTitle: "The Appendix is complete",
         completeBody: "Every field is entered. It is frozen with the tender documents when they are submitted.",
       };
     case "FROZEN":
       return {
         subtitle: `Frozen with version ${version} of the tender documents.`,
-        findingsTitle: "Not entered when it was frozen",
-        findingsSubtitle: "These stand as they were. They are put right on the next version, once the documents are returned for amendment.",
         completeTitle: "The Appendix was complete when it was frozen",
         completeBody: "Every field was entered. It is changed on the next version, once the documents are returned for amendment.",
       };
     case "NOT_IN_PREPARATION":
       return {
         subtitle: `Version ${version} of the tender documents. Move the exercise into preparation first, then enter the Appendix.`,
-        findingsTitle: "Still to enter",
-        findingsSubtitle: "Move the exercise into preparation first. The Appendix is entered there.",
         completeTitle: "The Appendix is complete",
         completeBody: "Every field is entered.",
       };

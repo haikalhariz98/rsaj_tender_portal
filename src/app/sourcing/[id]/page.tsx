@@ -95,7 +95,6 @@ import { nameListTab } from "@/lib/window/read";
 import { exerciseMatters } from "@/lib/award/repo";
 import { RouteSteps } from "./route-steps";
 import { tenderingRouteLabel, trailLabel } from "@/lib/tender-docs/labels";
-import { tenderingStepperSteps } from "@/lib/tender-docs/route-flow";
 import { DETAILS_LOCKED_TEXT, detailsFault } from "@/lib/method/details";
 import { exerciseFlow, flowShape } from "@/lib/method/lifecycle";
 import { loadOverviewReads } from "@/lib/method/overview-read";
@@ -402,7 +401,6 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const scopeSection = scopeSectionOf(section, scopeSections);
   const overview = tab === "overview" ? await loadOverviewReads(ex, ex.closingAt, org, { kind: overviewPack, noPack }) : null;
   const detailsRefused = detailsFault({ status: ex.status, awards });
-  const tenderingRoute = latestFirst(tenderingRoutesOf(ex.approvalInstances))[0] ?? null;
   const cancelledAt = ex.status === "CANCELLED" ? await exerciseCancelledAt(l) : null;
   const tabs = [
     {
@@ -433,7 +431,6 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
                 cancelled: cancelledAt ? formatOrgDay(cancelledAt, org.timeZone) : null,
               },
             })}
-            tendering={tenderingRoute ? tenderingStepperSteps(tenderingRoute) : null}
             decided={decided}
             bands={bands}
             live={ev ? { derivation: ev.derivation, type: ev.type, taxonomies: ev.taxonomies } : null}

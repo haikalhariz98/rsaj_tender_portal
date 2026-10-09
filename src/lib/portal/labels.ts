@@ -362,7 +362,10 @@ export const APPLY = {
   choose: w("Choose", "Pilih"),
   reachHint: w("Give an email or a telephone number, or both.", "Berikan e-mel atau nombor telefon, atau kedua-duanya."),
   numberFormatHint: (example: string): Words => w(`For example ${example}.`, `Contohnya ${example}.`),
-  submit: w("Send application", "Hantar permohonan"),
+  // SR-01 (R1): step 1 of five is sent for checking; the other four open once the office has checked the company.
+  submit: w("Send for checking", "Hantar untuk semakan"),
+  laterSteps: (organisation: string): Words => w(`Steps 2 to 5 open after ${organisation} has checked the company.`, `Langkah 2 hingga 5 dibuka selepas ${organisation} menyemak syarikat.`),
+  stepsLabel: w("Registration steps", "Langkah pendaftaran"),
   sending: w("Sending…", "Menghantar…"),
   cantAccept: w("Something in this application could not be accepted, so nothing was sent. Check each field and send it again, or contact the procurement office.", "Sesuatu dalam permohonan ini tidak dapat diterima, jadi tiada apa dihantar. Semak setiap ruangan dan hantar semula, atau hubungi pejabat perolehan."),
   nothingSent: w("Nothing was sent. Check the fields marked below and send it again.", "Tiada apa dihantar. Semak ruangan yang ditanda di bawah dan hantar semula."),

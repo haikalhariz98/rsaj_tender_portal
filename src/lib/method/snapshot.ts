@@ -9,6 +9,7 @@
  * its provenance, the basis and the taxonomy outcomes.
  */
 
+import { NOT_DECIDED_PREFIX_EN } from "@/lib/authority/core-routing-labels";
 import type { BandDetermination } from "./bands";
 import type { Evaluation } from "./evaluate";
 import type { BehaviourKey, BehaviourValue } from "./profile";
@@ -33,8 +34,12 @@ export interface RouteSnap {
   boundaryOperator?: BoundaryOperator | null;
   /// The funder's rule set that routed it, where one did.
   overrideLabel: string | null;
-  warnings: { level: string; text: string }[];
+  /// `code` is absent on a route stored before warnings carried one.
+  warnings: { level: string; text: string; code?: string }[];
 }
+
+/// The yellow "chain not checked against core routing" notice. The Overview's Contract card leaves it out (SR-04); it stays where the route is submitted or decided.
+export const isCoreNotCheckedNotice = (w: { text: string; code?: string }) => (w.code ? w.code === "CORE_NOT_CHECKED" : w.text.startsWith(NOT_DECIDED_PREFIX_EN));
 
 export interface BandSnapshot {
   v: 1;
@@ -72,7 +77,7 @@ export function bandSnapshot(
     chain: a.chain.map((s) => ({ role: ctx.name(s.roleCode), act: s.act, committee: !!s.committeeCode })),
     boundaryOperator: a.boundaryOperator,
     overrideLabel: a.overrideIssue?.label ?? null,
-    warnings: a.warnings.map((w) => ({ level: w.level, text: w.messageEn })),
+    warnings: a.warnings.map((w) => ({ level: w.level, text: w.messageEn, code: w.code })),
   });
   return {
     v: 1,

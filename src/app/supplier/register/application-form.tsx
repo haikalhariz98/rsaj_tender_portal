@@ -41,6 +41,7 @@ export function ApplicationForm({
   formatExample,
   notice,
   personalDataNotice,
+  organisationName,
 }: {
   /// Signed by the server when the page was rendered; the route refuses a post without a good one.
   formToken: string;
@@ -54,6 +55,7 @@ export function ApplicationForm({
   formatExample: string | null;
   notice: string | null;
   personalDataNotice: { en: string; ms: string };
+  organisationName: string;
 }) {
   const [state, setState] = useState<ApplyState>({ ok: false });
   const [pending, startTransition] = useTransition();
@@ -183,6 +185,7 @@ export function ApplicationForm({
           {pending ? APPLY.sending.en : APPLY.submit.en}
         </Button>
       </div>
+      <p className="text-right text-[13px] text-ink-3">{APPLY.laterSteps(organisationName).en}</p>
     </form>
   );
 }

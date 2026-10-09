@@ -71,7 +71,7 @@ export default async function SupplierAccountPage() {
     <>
       <PageHeader title="Your account" subtitle={`${actor.supplierName}. Where your registration stands, and your sign-in.`} meta={[actor.displayName, actor.loginName]} />
 
-      <div className="flex max-w-4xl flex-col gap-5">
+      <div className="flex flex-col gap-5">
         {actor.mustChangePassword && (
           <Callout tone="warn" title={AUTH_WORDS.mustChangeTitle.en}>
             {AUTH_WORDS.mustChangeBody.en}

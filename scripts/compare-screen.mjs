@@ -341,6 +341,17 @@ const DECIDED_ABSENT = [
     match: /splitting window/i,
     why: "the window was a guessed 30 on the approval matrix; it is no longer read, edited or shown there, and lives only in Requisition controls, unset until the customer sets it (B7)",
   },
+  // Sourcing Requirements v2, wave 1 (founder, 2026-10-09). Neither is in the sample; listed so the removal stays visible.
+  {
+    screen: /^\/sourcing\/[^/]+$/,
+    match: /^Approval for tendering$/,
+    why: "SR-03: the Overview keeps one Process flow; the approval-for-tendering track is shown on the Tender documents tab only",
+  },
+  {
+    screen: /^\/sourcing\/[^/]+\/appendix$/,
+    match: /^Still to enter$/,
+    why: "SR-12: the Appendix opens without a list of what is left; Save names each required field left empty, and submission still refuses an incomplete Appendix",
+  },
   // 6.15a (plan §5, OD-1..OD-10): the staff-side supplier register, on the supplier screens only.
   {
     screen: /^\/suppliers/,

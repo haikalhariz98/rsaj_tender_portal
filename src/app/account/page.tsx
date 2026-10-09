@@ -49,7 +49,7 @@ export default async function AccountPage() {
         meta={[actor.personName, view.loginName]}
       />
 
-      <div className="flex max-w-4xl flex-col gap-5">
+      <div className="flex flex-col gap-5">
         {view.mustChangePassword && (
           <Callout tone="warn" title={AUTH_WORDS.mustChangeTitle.en}>
             {AUTH_WORDS.mustChangeBody.en}

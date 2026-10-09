@@ -1,6 +1,7 @@
 import { Blocked } from "@/app/requisitions/editors";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
+import type { AppendixGroup } from "@/lib/tender-docs/appendix";
 import { PCT_COLUMN, pctHint } from "@/lib/tender-docs/percent";
 
 import { removeAppendixSection, removeVariationLimit, saveAppendix, saveAppendixSection, saveVariationLimit } from "../documents/actions";
@@ -21,7 +22,7 @@ const LAD_KINDS: Option[] = [
 ];
 const OFFICER_FIELDS = ["ladOfficerRoleCode", "eotOfficerRoleCode", "terminationOfficerRoleCode", "warRiskOfficerRoleCode", "arbitrationOfficerRoleCode"] as const;
 
-export type Group = "all" | "officers" | "pc" | "insurance" | "lad" | "sectional" | "dlp" | "interim";
+export type Group = AppendixGroup;
 
 /// The fields of each card, in order. Every one is also carried hidden when its card is not the one being edited.
 function fieldsOf(offices: Option[], officerLabels: Record<string, string>): Record<Exclude<Group, "all">, Field[]> {
@@ -94,10 +95,10 @@ export function AppendixDrawer({
   return (
     <RecordEditor
       title={title}
-      description="Each field is entered or left not set; nothing is assumed. The Appendix is complete when none is left."
+      description="Every field here is required: Save asks for any left empty and saves nothing until each is entered."
       columns={group === "all" ? 2 : 1}
-      fields={[hidden("exerciseId"), ...shown, ...carried]}
-      values={{ ...values, exerciseId }}
+      fields={[hidden("exerciseId"), hidden("group"), ...shown, ...carried]}
+      values={{ ...values, exerciseId, group }}
       showWhen={Object.fromEntries(Object.entries(SHOW_WHEN).filter(([k]) => shownNames.has(k)))}
       action={saveAppendix}
       submitLabel="Save"

@@ -2,10 +2,12 @@ import { BuildingIcon, InfoIcon } from "@/components/icons";
 import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { Stepper } from "@/components/ui/stepper";
 import { issueFormToken } from "@/lib/auth/form-secret";
 import { loadRegistrationForm } from "@/lib/portal/apply-repo";
 import { APPLY } from "@/lib/portal/labels";
 import { loadPublicShell } from "@/lib/portal/deployment";
+import { STEP_INFO } from "@/lib/portal/registration/view";
 
 import { ApplicationForm } from "./application-form";
 
@@ -36,6 +38,8 @@ export default async function SupplierRegisterPage() {
         </Card>
       ) : (
         <div className="flex flex-col gap-6">
+          {/* SR-01: the five steps, step 1 current. Steps 2 to 5 are signed in, after the office has checked the company (the 2026-10-07 two-stage ruling). */}
+          <Stepper label={APPLY.stepsLabel.en} steps={STEP_INFO.map((s, i) => ({ key: s.key, label: s.label, sub: s.sub, state: i === 0 ? "current" : "waiting" }))} />
           <Callout tone="info" icon={<InfoIcon size={16} />} title={APPLY.beforeTitle.en}>
             <ul className="mt-1 list-disc pl-5">
               {APPLY.beforeItems.map((item) => (
@@ -53,6 +57,7 @@ export default async function SupplierRegisterPage() {
             formatExample={form.formatExample}
             notice={form.notice}
             personalDataNotice={form.personalDataNotice!}
+            organisationName={organisation.name}
           />
         </div>
       )}

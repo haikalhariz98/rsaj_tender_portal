@@ -7,7 +7,7 @@ import { formatSen, parseSen } from "@/lib/money";
 import { bqTotals } from "@/lib/scope/bq";
 import type { BqLine } from "@/lib/scope/types";
 
-import { appendixComplete, appendixFaults, awardTermsFrom, EMPTY_APPENDIX, firstInterimMinimum, insurancePeriodEnd, ladDaily, ladSuggestion, worksInsuredSum, type AppendixFacts } from "./appendix";
+import { APPENDIX_GROUP_FIELDS, appendixComplete, appendixFieldErrors, appendixFaults, appendixGroupFields, awardTermsFrom, EMPTY_APPENDIX, firstInterimMinimum, insurancePeriodEnd, ladDaily, ladSuggestion, worksInsuredSum, type AppendixFacts } from "./appendix";
 import { formatPct, parsePct, pctOf } from "./percent";
 
 const sen = parseSen;
@@ -220,5 +220,26 @@ describe("percentages to six places, exactly", () => {
     expect(formatPct("10")).toBe("10%");
     expect(() => parsePct("-1")).toThrow();
     expect(() => parsePct("0.0000001")).toThrow();
+  });
+});
+
+// SR-12: Save names each required field left empty, and asks for a conditional one only under its answer.
+describe("appendixFieldErrors (SR-12)", () => {
+  it("names every empty field of a card, one message each", () => {
+    const e = appendixFieldErrors(EMPTY_APPENDIX, appendixGroupFields("officers"));
+    expect(Object.keys(e).sort()).toEqual([...APPENDIX_GROUP_FIELDS.officers].sort());
+  });
+  it("asks for the amount only when the uplift is an amount, and the percentage only when it is a percentage", () => {
+    const base = { ...EMPTY_APPENDIX, tplMinimum: 1n as never, wcMinimum: 1n as never, insuranceExcess: 1n as never };
+    expect(Object.keys(appendixFieldErrors({ ...base, worksInsuranceUpliftKind: "AMOUNT" }, appendixGroupFields("insurance")))).toEqual(["worksInsuranceUpliftAmount"]);
+    expect(Object.keys(appendixFieldErrors({ ...base, worksInsuranceUpliftKind: "PERCENT" }, appendixGroupFields("insurance")))).toEqual(["worksInsuranceUpliftPct"]);
+  });
+  it("asks for months only when a defects liability period applies, and the work only when prime cost sums apply", () => {
+    expect(Object.keys(appendixFieldErrors({ ...EMPTY_APPENDIX, dlpApplies: false }, appendixGroupFields("dlp")))).toEqual([]);
+    expect(Object.keys(appendixFieldErrors({ ...EMPTY_APPENDIX, dlpApplies: true }, appendixGroupFields("dlp")))).toEqual(["dlpMonths"]);
+    expect(Object.keys(appendixFieldErrors({ ...EMPTY_APPENDIX, pcSumWorksApply: true }, appendixGroupFields("pc")))).toEqual(["pcSumWorksText"]);
+  });
+  it("only asks about the fields it is given", () => {
+    expect(appendixFieldErrors(EMPTY_APPENDIX, [])).toEqual({});
   });
 });

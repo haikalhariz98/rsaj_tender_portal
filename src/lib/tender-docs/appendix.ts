@@ -181,6 +181,47 @@ export function appendixFaults(a: AppendixFacts): Finding<AppendixFault>[] {
   return out;
 }
 
+/// The Appendix's cards, each the fields one drawer edits. "all" is the whole form (SR-12).
+export const APPENDIX_GROUP_FIELDS = {
+  officers: ["ladOfficerRoleCode", "eotOfficerRoleCode", "terminationOfficerRoleCode", "warRiskOfficerRoleCode", "arbitrationOfficerRoleCode"],
+  pc: ["pcSumWorksApply", "pcSumWorksText"],
+  insurance: ["tplMinimum", "wcMinimum", "worksInsuranceUpliftKind", "worksInsuranceUpliftAmount", "worksInsuranceUpliftPct", "insuranceExcess"],
+  lad: ["ladKind", "ladAmount", "ladPct"],
+  sectional: ["sectionalCompletion"],
+  dlp: ["dlpApplies", "dlpMonths"],
+  interim: ["firstInterimMinimum", "subsequentInterimMinimum", "honourCertificateDays"],
+} as const satisfies Record<string, readonly AppendixField[]>;
+export type AppendixGroup = keyof typeof APPENDIX_GROUP_FIELDS | "all";
+
+/// The fields a drawer saves: one card's, or every card's.
+export const appendixGroupFields = (g: AppendixGroup): readonly AppendixField[] => (g === "all" ? Object.values(APPENDIX_GROUP_FIELDS).flat() : APPENDIX_GROUP_FIELDS[g]);
+
+const CHOOSE_FIELDS: ReadonlySet<AppendixField> = new Set(["ladOfficerRoleCode", "eotOfficerRoleCode", "terminationOfficerRoleCode", "warRiskOfficerRoleCode", "arbitrationOfficerRoleCode", "pcSumWorksApply", "worksInsuranceUpliftKind", "ladKind", "sectionalCompletion", "dlpApplies"]);
+
+/**
+ * SR-12: what a Save of these fields must refuse, one message per field. A field is required
+ * when the Appendix needs it to be complete (the same rule `appendixFaults` applies at
+ * submission), so a value that only applies under another answer is asked for only then.
+ * Pure; the variation limits and sections have their own drawers and are not asked here.
+ */
+export function appendixFieldErrors(a: { [K in Exclude<AppendixField, "variationLimits" | "sections">]: unknown } & { pcSumWorksText: string }, names: readonly AppendixField[]): Partial<Record<AppendixField, string>> {
+  const missing = (f: AppendixField): boolean => {
+    switch (f) {
+      case "pcSumWorksText": return a.pcSumWorksApply === true && !a.pcSumWorksText.trim();
+      case "worksInsuranceUpliftAmount": return a.worksInsuranceUpliftKind === "AMOUNT" && a.worksInsuranceUpliftAmount == null;
+      case "worksInsuranceUpliftPct": return a.worksInsuranceUpliftKind === "PERCENT" && a.worksInsuranceUpliftPct == null;
+      case "ladAmount": return a.ladKind === "AMOUNT_PER_DAY" && a.ladAmount == null;
+      case "ladPct": return a.ladKind === "PERCENT_OF_SUM_PER_DAY" && a.ladPct == null;
+      case "dlpMonths": return a.dlpApplies === true && a.dlpMonths == null;
+      case "variationLimits": case "sections": return false;
+      default: return a[f] == null;
+    }
+  };
+  const out: Partial<Record<AppendixField, string>> = {};
+  for (const f of names) if (missing(f)) out[f] = CHOOSE_FIELDS.has(f) ? "Required. Choose an answer." : "Required. Enter a value.";
+  return out;
+}
+
 /// Complete: nothing blocks. The status column follows this on every save.
 export const appendixComplete = (a: AppendixFacts) => appendixFaults(a).length === 0;
 

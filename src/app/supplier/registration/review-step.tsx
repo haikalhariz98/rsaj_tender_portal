@@ -150,11 +150,11 @@ export function ReviewStep({
         </ButtonLink>
         <span className="ml-auto flex flex-col items-end gap-1.5">
           {reasons.length > 0 || !falseText || !notice ? (
-            <Blocked label="Send registration" primary reason={reasons.length ? "Finish what is listed above." : !notice ? "The notice you read before sending is not set." : "The false-declaration text is not set."} />
+            <Blocked label="Submit registration" primary reason={reasons.length ? "Finish what is listed above." : !notice ? "The notice you read before sending is not set." : "The false-declaration text is not set."} />
           ) : (
             <>
               <Button type="button" variant="primary" disabled={busy || !!missing} aria-busy={busy || undefined} onClick={send} title={missing ?? undefined}>
-                Send registration
+                Submit registration
               </Button>
               {missing && <span className="text-[12px] text-ink-3">{missing}</span>}
             </>

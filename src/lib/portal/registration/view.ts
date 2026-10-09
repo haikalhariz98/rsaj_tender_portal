@@ -27,11 +27,11 @@ export interface StepInfo {
 }
 
 export const STEP_INFO: readonly StepInfo[] = [
-  { key: "company", label: "Company", sub: "As the office accepted it" },
-  { key: "documents", label: "Documents", sub: "Certificates and their dates" },
-  { key: "codes", label: "Work codes", sub: "Grades, categories, fields" },
-  { key: "epayment", label: "Bank details", sub: "E-payment and GIRO" },
-  { key: "review", label: "Review and send", sub: "Sign and send" },
+  { key: "company", label: "Company Information", sub: "As the office accepted it" },
+  { key: "documents", label: "Compliance Documents", sub: "Certificates and their dates" },
+  { key: "codes", label: "Work Codes", sub: "Grades, categories, fields" },
+  { key: "epayment", label: "e-Payment Details", sub: "E-payment and GIRO" },
+  { key: "review", label: "Review & Submit", sub: "Sign and send" },
 ];
 
 export const stepTitle = (s: RegistrationStep): string => STEP_INFO.find((x) => x.key === s)!.label;

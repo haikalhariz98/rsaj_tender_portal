@@ -31,12 +31,12 @@ import { deciderFaultText } from "@/lib/requisition/labels";
 import { lockBqRows, lockLiveEstimateRows, lockPanelRow } from "@/lib/scope/lock";
 import { loadScopePolicy } from "@/lib/scope/repo";
 import { transactionTimedOut } from "@/lib/scope/tx-timeout";
-import { appendixComplete, appendixFaults, type AppendixFacts } from "@/lib/tender-docs/appendix";
+import { APPENDIX_GROUP_FIELDS, appendixComplete, appendixFieldErrors, appendixFaults, appendixGroupFields, type AppendixFacts, type AppendixGroup } from "@/lib/tender-docs/appendix";
 import { appendixAudit, ENTITY, packCreatedAudit, packStatusAudit, partAudit, type PartAuditFacts } from "@/lib/tender-docs/audit-view";
 import { formLabel, resolveComposition } from "@/lib/tender-docs/composition";
 import { packFieldValues } from "@/lib/tender-docs/fields";
 import { appendixText, freezePack } from "@/lib/tender-docs/freeze";
-import { appendixFaultText, datesFaultText, PACK_KIND_LABEL, partFaultText, startFaultText, submitFindingTexts } from "@/lib/tender-docs/labels";
+import { datesFaultText, PACK_KIND_LABEL, partFaultText, startFaultText, submitFindingTexts } from "@/lib/tender-docs/labels";
 import { lockPackRows } from "@/lib/tender-docs/owner";
 import { allOf, blockingOf, markReadyFaults, nextPack, omitFaults, packEditFault, pickTemplateFaults, startPackFaults, submitFaults } from "@/lib/tender-docs/pack";
 import { CONFIG_STILL_UNSET, confirmedChangesFault, flagChanges } from "@/lib/tender-docs/refresh";
@@ -400,8 +400,8 @@ async function appendixChanged(tx: Tx, by: AuditActor, l: LockedExercise, pack: 
   if (after.status !== status) await tx.conditionsAppendix.update({ where: { id: after.id, organisationId: l.org.id }, data: { status } });
   const names = await officeNames(tx, l.org.id);
   await audit(tx, by, l.org.id, ENTITY.appendix, after.id, label(l, `Tender documents v${pack.versionNo} · Appendix`), "UPDATE", appendixAudit(before, { ...facts, status }, names.name), reason);
-  const blocks = appendixFaults(facts);
-  return { ok: true as const, message: blocks.length ? `Saved. Still to enter: ${blocks.length === 1 ? appendixFaultText(blocks[0]) : `${blocks.length} items, listed on the page.`}` : "Saved. The Appendix is complete." };
+  // SR-12: no list of what is left; the page shows each field as entered or Not set, and the submit gate still refuses an incomplete Appendix.
+  return { ok: true as const, message: appendixFaults(facts).length ? "Saved." : "Saved. The Appendix is complete." };
 }
 
 /**
@@ -447,6 +447,11 @@ export async function saveAppendix(_prev: FormState, data: FormData): Promise<Fo
     honourCertificateDays: r.int("honourCertificateDays", "Days to honour a certificate", { min: 1 }),
   };
   if (r.failed) return { ok: false, errors: r.errors };
+  // SR-12: a Save of a card (or of the whole form) with a required field empty writes nothing and says which, field by field.
+  const groupName = String(data.get("group") ?? "all");
+  const group: AppendixGroup = groupName === "all" || groupName in APPENDIX_GROUP_FIELDS ? (groupName as AppendixGroup) : "all";
+  const missing = appendixFieldErrors(v, appendixGroupFields(group));
+  if (Object.keys(missing).length) return { ok: false, errors: missing, message: `Nothing was saved. ${Object.keys(missing).length === 1 ? "One field needs" : `${Object.keys(missing).length} fields need`} an answer.` };
   return inPacks(actor, exerciseId, async (tx, l, packs) => {
     const { pack, appendix } = lockedAppendix(l, packs);
     const names = await officeNames(tx, l.org.id);
