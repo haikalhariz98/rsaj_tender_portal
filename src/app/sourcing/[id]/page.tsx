@@ -131,7 +131,7 @@ import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseValue, sulitExerciseGate } from "@/app/_auth/sulit";
 import { fieldIsFor, sulitWithheld, type Sulit } from "@/lib/auth/sulit-access";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
-import { maskRowsForBlindReader } from "@/lib/evaluation/blind-audit";
+import { isBlindMasked, maskAllRows } from "@/lib/evaluation/blind-audit";
 import { blindScopesFor } from "@/lib/evaluation/blind-audit-store";
 import { estimateCustodyForHistory } from "@/lib/opening/read";
 import { namingOthersRefusal } from "@/lib/auth/sulit-store";
@@ -171,7 +171,8 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   // FR-EVL-020 (decisions log, 2026-10-09, ruling on 1867(3)): a reader on the evaluation team of a version that still holds identities back is shown the opening's rows and the
   // evaluation's rows without a bidder's name or price. Asked only for the History tab, which is the only one that carries the rows.
   const blindScopes = asked === "history" ? await blindScopesFor(org.id, actor.personId, ex.id) : [];
-  const history = blindScopes.length ? { ...historyRead, entries: maskRowsForBlindReader(historyRead.entries, blindScopes) } : historyRead;
+  // Every row of this History is this exercise's, so every row is masked (a route's or a step's row is found by its id and its label may not carry the reference).
+  const history = blindScopes.length ? { ...historyRead, entries: maskAllRows(historyRead.entries, blindScopes[0]) } : historyRead;
   // FR-EST-008: finalising an opening writes the disclosed company estimate (and the paper copy's figure) into the trail, under this exercise's reference, so
   // they are in this History. They are judged by the estimate's custody exactly as the opening's schedule judges them, and the access is logged; nothing is asked
   // (and nothing logged) where no row carries one. An estimate that is void, or none, is not in anyone's custody.
@@ -179,7 +180,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const custody: Sulit<string> | null = custodyRows ? await estimateCustodyForHistory(actor, ex.id) : null;
   // Any other registered SULIT field in the trail (a price as read, a score, a bill's rate) is judged by the record it belongs to: the exercise's own answer for what an exercise
   // carries, the evaluation's for what an evaluation carries; asked (and logged) only where a row carries one, and withheld for any other kind of record.
-  const present = new Set(history.entries.flatMap((e) => e.changes.filter((c) => (c.before || c.after) && sulitFieldOf(e.entity, c.field) && !CUSTODY_FIELDS.has(c.field) && c.field !== "estimatedValue").map((c) => sulitFieldOf(e.entity, c.field)!)));
+  const present = new Set(history.entries.flatMap((e) => e.changes.filter((c) => (c.before || c.after) && !isBlindMasked(c.before) && !isBlindMasked(c.after) && sulitFieldOf(e.entity, c.field) && !CUSTODY_FIELDS.has(c.field) && c.field !== "estimatedValue").map((c) => sulitFieldOf(e.entity, c.field)!)));
   const ofScope = (scope: "exercise" | "evaluation") => [...present].filter((f) => fieldIsFor(f, scope));
   const trailGates: TrailGates = {
     exercise: ofScope("exercise").length ? await sulitExerciseGate(actor, ex.id, "exercise", ofScope("exercise")) : null,
@@ -1183,6 +1184,8 @@ function HistoryPanel({
     // A scope part's amount is a share of the estimate and the parts add up to it exactly: it is judged as the estimate is.
     const isEstimate = field === "estimatedValue" || (field === "amount" && entity === "ExerciseScopePart");
     const registered = sulitFieldOf(entity, field);
+    // A value a blind reader was shown in place of a name or a price is that text, not a figure read: nothing is asked of the gate for it, so nothing is logged as read.
+    if (isBlindMasked(value)) return value;
     if ((!registered && !isEstimate) || !value) return read(field, value, entityId, entity);
     // The disclosed company estimate and the paper copy's figure are judged by custody, never by the exercise's own access.
     if (CUSTODY_FIELDS.has(field)) return custody && custody.state === "GRANTED" ? <SulitValue of={{ ...custody, value: read(field, value, entityId, entity) }} /> : <SulitValue of={(custody ?? sulitWithheld<ReactNode>("NOT_IN_CUSTODY", "exercise")) as Sulit<ReactNode>} />;

@@ -20,6 +20,8 @@ export interface ExportResult {
   fileName?: string;
   sha256?: string;
   rowCount?: number;
+  /// How many entries had a bidder's name or price held back, because the person exporting is read blind to that evaluation (FR-EVL-020). Absent where none.
+  masked?: number;
 }
 
 const DAY_MS = 86_400_000;
@@ -71,7 +73,7 @@ export async function exportAuditTrail(_prev: ExportResult, data: FormData): Pro
       const row = await tx.auditExport.create({ data: { organisationId: org.id, fromDay: dayToDate(fromDay!), toDay: dayToDate(toDay!), rowCount: picked.length, sha256, fileName } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "AuditExport", entityId: row.id, entityLabel: `Audit trail export ${fromDay} to ${toDay}` }, "CREATE",
         diffFields(null, { fromDay: dayToDate(fromDay!), toDay: dayToDate(toDay!), rowCount: picked.length, sha256, fileName, ...(masked ? { rowsWithBidderNamesAndPricesHeldBack: masked } : {}) }));
-      return { file, sha256, fileName, rowCount: picked.length };
+      return { file, sha256, fileName, rowCount: picked.length, ...(masked ? { masked } : {}) };
     },
     { timeout: 30_000, maxWait: 10_000 },
   );

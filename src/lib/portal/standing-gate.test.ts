@@ -31,11 +31,12 @@ describe("what a standing lets a supplier do in the portal", () => {
     }
   });
 
-  it("keeps the way back open: a suspended supplier may still send the renewal that lifts the suspension, a blacklisted or cancelled one may not", () => {
-    expect(portalStandingBar({ status: "REGISTERED", standing: "SUSPENDED", kind: "COMPANY_RECORD" })).toBeNull();
-    expect(portalStandingBar({ status: "REGISTERED", standing: "SUSPENDED_ON_LAPSE", kind: "COMPANY_RECORD" })).toBeNull();
-    expect(portalStandingBar({ status: "REGISTERED", standing: "BLACKLISTED", kind: "COMPANY_RECORD" })).not.toBeNull();
-    expect(portalStandingBar({ status: "REGISTERED", standing: "CANCELLED", kind: "COMPANY_RECORD" })).not.toBeNull();
+  it("refuses keeping the registration current to every standing that bars, a suspended supplier included (the ruling: every act but reading); its renewal is then given on paper", () => {
+    for (const standing of ["SUSPENDED", "SUSPENDED_ON_LAPSE", "BLACKLISTED", "CANCELLED"] as const) {
+      const bar = portalStandingBar({ status: "REGISTERED", standing, kind: "COMPANY_RECORD" });
+      expect(bar, standing).not.toBeNull();
+      expect(bar?.en).toMatch(/on paper/);
+    }
   });
 
   it("an applicant that is not registered yet is not barred by standing: it is mid-application", () => {

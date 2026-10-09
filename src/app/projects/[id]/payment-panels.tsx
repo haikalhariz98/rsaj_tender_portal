@@ -400,7 +400,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
           })}
         </ul>
       )}
-      <CardHeader title="Nominated parties and assignees" subtitle={`Totals only: the payment annexes A1 to A3 are not available (B1). A nominated party's value to date is part of the gross; what is due to each is what the waterfall pays. ${PAYEE_BANK_UNCHECKED.direct.en}`} divided className="border-t border-line/70" />
+      <CardHeader title="Nominated parties and assignees" subtitle={`Totals only: the payment annexes A1 to A3 are not available (B1). A nominated party's value to date is part of the gross; what is due to each is what the waterfall pays.${parties.some((pt) => pt.directPayment) ? ` ${PAYEE_BANK_UNCHECKED.direct.en}` : ""}`} divided className="border-t border-line/70" />
       {parties.length === 0 ? (
         <EmptyState size="sm" title="None on this contract">Nominated parties and assignees are recorded on the Team tab.</EmptyState>
       ) : (

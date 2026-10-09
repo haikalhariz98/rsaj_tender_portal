@@ -152,3 +152,12 @@ export function maskRowsForBlindReader<R extends Row & { entityId?: string }>(ro
 export function rowsMasked<R extends Row>(before: readonly R[], after: readonly R[]): number {
   return after.filter((r, i) => r !== before[i]).length;
 }
+
+/// Whether a value in the trail is what stands where a blind reader's name or price was taken out. Such a value is not a SULIT figure read: the gate is not asked for it and no read is logged.
+export const isBlindMasked = (v: string | null | undefined): boolean => v === BLIND_FIGURE || v === BLIND_NAME;
+
+/// Every row of one exercise, as a blind reader is shown it. The History of an exercise holds only that exercise's rows (found by label or by the ids of its routes and parts), so none is left unmasked
+/// for want of the reference in its label.
+export function maskAllRows<R extends Row>(rows: readonly R[], scope: Pick<BlindScope, "bids">): R[] {
+  return rows.map((r) => maskRow(r, scope.bids));
+}

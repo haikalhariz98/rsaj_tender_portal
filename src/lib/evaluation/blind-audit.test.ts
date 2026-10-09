@@ -5,7 +5,7 @@ import { formatMoney, type Sen } from "@/lib/money";
 import { asReadFields, openedBidFields } from "@/lib/opening/audit-view";
 
 import { BLIND_FIGURE } from "./blind";
-import { BLIND_NAME, BLIND_NAME_FIELDS, BLIND_PRICE_FIELDS, maskChange, maskRow, maskRowsForBlindReader, maskText, rowsMasked, type BlindBid, type BlindScope } from "./blind-audit";
+import { BLIND_NAME, BLIND_NAME_FIELDS, BLIND_PRICE_FIELDS, isBlindMasked, maskAllRows, maskChange, maskRow, maskRowsForBlindReader, maskText, rowsMasked, type BlindBid, type BlindScope } from "./blind-audit";
 
 // Decisions log, 2026-10-09, ruling on 1867(3) and 1869: a reader on the evaluation team of a version that holds identities back is shown the trail without them.
 
@@ -99,5 +99,20 @@ describe("the field sets keep up with the registry", () => {
   });
   it("keeps names and prices apart", () => {
     for (const f of BLIND_NAME_FIELDS) expect(BLIND_PRICE_FIELDS.has(f), f).toBe(false);
+  });
+});
+
+describe("a whole exercise's History", () => {
+  it("masks a row found by its id whose label does not carry the reference, as the History of one exercise holds such rows", () => {
+    const step = { id: "s", entityId: "route-step-1", entityLabel: "Approval of the name · Maju Jaya Sdn. Bhd.", reason: "", changes: [{ field: "decision", before: null, after: "Done for Maju Jaya" }] };
+    expect(maskRowsForBlindReader([step], [scope])[0]).toBe(step);
+    const out = maskAllRows([step], scope)[0];
+    expect(JSON.stringify(out)).not.toMatch(/Maju Jaya/i);
+  });
+  it("knows a value it put in place of a name or a price, so that nothing is asked of the SULIT gate for it", () => {
+    expect(isBlindMasked(BLIND_FIGURE)).toBe(true);
+    expect(isBlindMasked(BLIND_NAME)).toBe(true);
+    expect(isBlindMasked("RM268,400.00")).toBe(false);
+    expect(isBlindMasked(null)).toBe(false);
   });
 });

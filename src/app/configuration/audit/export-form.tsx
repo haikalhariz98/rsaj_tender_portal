@@ -46,6 +46,11 @@ export function AuditExportForm({ today }: { today: string | null }) {
         {!today && <span className="text-[12.5px] text-ink-3">Set the organisation&apos;s time zone first.</span>}
       </div>
       {state.message && !state.ok && <Callout tone="err">{state.message}</Callout>}
+      {state.ok && state.masked ? (
+        <Callout tone="warn" title="Not the whole trail">
+          {state.masked} {state.masked === 1 ? "entry has" : "entries have"} bidder names and prices held back, because you are on the evaluation team of a tender that is still scored without them. Someone who is not on that team exports the whole trail.
+        </Callout>
+      ) : null}
       {state.ok && state.sha256 && (
         <Callout tone="ok" title={saved ? `Saved ${saved}` : "Exported"}>
           {state.rowCount} {state.rowCount === 1 ? "entry" : "entries"}. SHA-256 of the file:{" "}

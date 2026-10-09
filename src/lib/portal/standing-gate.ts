@@ -5,9 +5,9 @@
  *
  *   TRANSACT        an act towards the organisation: a request for tender documents, a sign-up to a briefing, an addendum acknowledged, a notice, a claim, a diary entry, a signature on a certificate.
  *                   Refused to a rejected supplier and to any standing that bars a sale, a bid or an award (`barred`).
- *   COMPANY_RECORD  keeping its own registration current: a document sent, a change of bank details. Refused to a rejected supplier, a blacklisted one and one whose registration is cancelled. NOT refused
- *                   to a suspended one: the way back from a suspension, above all one on lapse, is to send the renewal, and refusing that would keep the supplier suspended by the rule that suspended it.
- *                   (An open item for the product owner, logged with this change.)
+ *   COMPANY_RECORD  keeping its own registration current: a document sent, a change of bank details. The ruling says every act but reading, so the same standings bar it as bar a transaction: a suspended
+ *                   supplier included, though the way back from a suspension on lapse is a renewal. That renewal is then given on paper and recorded by an officer; whether the portal should take it is an open
+ *                   item for the product owner (decisions log, 2026-10-09). The two kinds are kept apart so that the answer, if it differs, is one line here.
  *
  * Reading, and the supplier's own account (its password, its sessions), are never asked. Pure.
  */
@@ -22,8 +22,6 @@ export interface StandingBar {
   ms: string;
 }
 
-const REFUSED_FOR_COMPANY_RECORD: readonly Standing[] = ["BLACKLISTED", "CANCELLED"];
-
 /// Why this supplier may not do this kind of act in the portal, in words, or null where it may.
 export function portalStandingBar(i: { status: string; standing: Standing; kind: PortalActKind }): StandingBar | null {
   if (i.status === "REJECTED") {
@@ -32,8 +30,8 @@ export function portalStandingBar(i: { status: string; standing: Standing; kind:
       ms: "Pendaftaran anda tidak diterima, jadi ini tidak boleh dilakukan dari portal. Anda masih boleh log masuk dan membaca status anda.",
     };
   }
-  const stops = i.kind === "TRANSACT" ? barred(i.standing) : REFUSED_FOR_COMPANY_RECORD.includes(i.standing);
-  if (!stops) return null;
+  // Both kinds are barred by the same standings today (the ruling: every act but reading).
+  if (!barred(i.standing)) return null;
   const label = STANDING_LABEL[i.standing];
   return {
     en: `Your company is ${label.en.toLowerCase()} on the supplier register, so this cannot be done from the portal. You can still sign in and read your status and why. Ask the procurement office; anything with a time limit can still be given on paper.`,
