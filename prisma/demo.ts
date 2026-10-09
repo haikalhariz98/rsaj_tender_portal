@@ -24,6 +24,7 @@ import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo } from "./demo-
 import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo } from "./demo-evaluation";
 import { loadCompanyDemo } from "./demo-company";
 import { loadMyBidsDemo } from "./demo-my-bids";
+import { loadMyProjectsDemo } from "./demo-my-projects";
 import { checkRegistrationDemo, configureRegistrationDemo, loadRegistrationDemo } from "./demo-registration";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { attributeSeededRows } from "./demo-attribution";
@@ -795,6 +796,8 @@ async function load() {
   await loadCompanyDemo(db, organisationId);
   // Phase 4d: the supplier's My Bids workspace (prisma/demo-my-bids.ts).
   await loadMyBidsDemo(db, organisationId);
+  // Phase 4e: the contractor's My Projects workspace and the announcements board (prisma/demo-my-projects.ts).
+  await loadMyProjectsDemo(db, organisationId);
   // Ruling 4 (2026-10-06): one advertised quotation taken to an issued award, so the public Results page has a row;
   // last, on everything above (prisma/demo-results.ts). `npm run demo:results` applies it alone to a loaded database.
   await loadResultsDemo(db, organisationId, { determine: determineExercises });
@@ -2146,18 +2149,32 @@ async function myBids() {
   console.log(made.notes.length ? `Added: ${made.notes.join("; ")}.` : "The My Bids demonstration is already there: nothing was written.");
 }
 
+/**
+ * Phase 4e: the contractor's My Projects demonstration and the announcements board (prisma/demo-my-projects.ts), added to a database the demo is already loaded in. Nothing where it stands; it sets no policy.
+ */
+async function myProjects() {
+  const org = await organisation();
+  if (!(await demoIsLoaded(db))) {
+    console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
+    return;
+  }
+  const made = await loadMyProjectsDemo(db, org.id);
+  await attributeSeededRows(db, org.id);
+  console.log(made.notes.length ? `Added: ${made.notes.join("; ")}.` : "The My Projects demonstration is already there: nothing was written.");
+}
+
 const mode = process.argv[2];
 
 if (mode === "wipe") {
   console.error(DEMO_WIPE_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids") {
-  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids>");
+if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);

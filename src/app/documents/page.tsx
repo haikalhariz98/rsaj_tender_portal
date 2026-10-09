@@ -264,11 +264,11 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
           emptyBody="An answered submission is listed here."
           stackBelow="xl"
           columns={[
-            { key: "submission", label: "Submission", mobile: "primary", minWidth: "260px" },
-            { key: "contract", label: "Contract", width: "220px", mobile: "meta" },
-            { key: "answer", label: "Answer", width: "170px", mobile: "meta" },
-            { key: "service", label: "Against the service level", width: "260px", mobile: "meta" },
-            { key: "by", label: "Answered by", width: "200px", mobile: "meta" },
+            { key: "submission", label: "Submission", mobile: "primary", minWidth: "240px" },
+            { key: "contract", label: "Contract", width: "200px", mobile: "meta" },
+            { key: "answer", label: "Answer", width: "150px", mobile: "meta" },
+            { key: "service", label: "Against the service level", width: "210px", mobile: "meta" },
+            { key: "by", label: "Answered by", width: "160px", mobile: "meta", hideBelow: "2xl" },
           ]}
           rows={review.rows.filter((r) => r.outcome != null).map((r) => ({
             id: r.id,

@@ -36,6 +36,7 @@
     "demo:inbox": "tsx prisma/demo.ts inbox",
     "demo:company": "tsx prisma/demo.ts company",
     "demo:my-bids": "tsx prisma/demo.ts my-bids",
+    "demo:my-projects": "tsx prisma/demo.ts my-projects",
     "compare": "node scripts/compare-screen.mjs",
     "compare:drawer": "node scripts/compare-drawer.mjs"
   },

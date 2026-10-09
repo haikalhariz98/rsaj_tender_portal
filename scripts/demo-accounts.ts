@@ -196,6 +196,14 @@ async function main() {
     });
     supplierNotes.push(`the permission to manage supplier accounts, granted (assumed) to the role ${officerRole}`);
   }
+  // Phase 4e (FR-VND-014): the same office may publish announcements to the supplier board. An ASSUMED grant: who publishes is undecided by default, and the organisation decides.
+  if (officerRole && !(await db.rolePermission.findFirst({ where: { organisationId: org.id, permissionKey: "announcements.publish", roleCode: officerRole }, select: { id: true } }))) {
+    await db.$transaction(async (tx) => {
+      const row = await tx.rolePermission.create({ data: { organisationId: org.id, permissionKey: "announcements.publish", roleCode: officerRole, decision: "GRANTED" }, select: { id: true } });
+      await writeAudit(tx, { organisationId: org.id, entity: "RolePermission", entityId: row.id, entityLabel: `Permission to publish announcements · ${officerRole}`, reason: "A demonstration grant (assumed), made by the demo accounts command: the organisation decides this for itself", actor: ACTOR }, "CREATE", diffFields(null, { permission: "Publish announcements to suppliers", role: officerRole, decision: "Granted" }));
+    });
+    supplierNotes.push(`the permission to publish announcements, granted (assumed) to the role ${officerRole}`);
+  }
   // Phase 4b: the same office may read a supplier's bank details (SULIT) and so check them. An ASSUMED grant: reading the creditor's profile is undecided by default, and the organisation decides who may.
   if (officerRole && !(await db.rolePermission.findFirst({ where: { organisationId: org.id, permissionKey: "sulit.read.creditorProfile", roleCode: officerRole }, select: { id: true } }))) {
     await db.$transaction(async (tx) => {

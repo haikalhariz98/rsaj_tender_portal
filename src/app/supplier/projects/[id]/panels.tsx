@@ -4,6 +4,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import type { SupplierActor } from "@/lib/auth/types";
+import { formatDate } from "@/lib/format";
 import { STATUS_WORDS as CERTIFICATE_STATUS_WORDS } from "@/lib/certificate/labels";
 import { db } from "@/lib/db";
 import type { ProjectContext } from "@/lib/portal/projects/context-store";
@@ -98,8 +99,8 @@ export async function ProgrammePanel({ actor, ctx, token }: Props) {
               columns={2}
               items={[
                 { label: "Revision", value: `${p.inForce.revision}, approved ${p.inForce.approvedOn ?? "on a day not recorded"}` },
-                { label: "Planned progress", value: p.inForce.points.map((x) => `${x.day}: ${x.plannedPct}%`).join(" · ") },
-                { label: "Latest progress recorded", value: p.latest ? `${p.latest.actualPct}% on ${p.latest.day}${p.latest.plannedPct ? ` (planned ${p.latest.plannedPct}%)` : ""}` : "None yet" },
+                { label: "Planned progress", value: p.inForce.points.map((x) => `${formatDate(x.day)}: ${x.plannedPct}%`).join(" · ") },
+                { label: "Latest progress recorded", value: p.latest ? `${p.latest.actualPct}% on ${formatDate(p.latest.day)}${p.latest.plannedPct ? ` (planned ${p.latest.plannedPct}%)` : ""}` : "None yet" },
                 {
                   label: "Reading",
                   value: delay ? (
