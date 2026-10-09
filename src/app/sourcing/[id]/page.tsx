@@ -96,13 +96,14 @@ import { exerciseMatters } from "@/lib/award/repo";
 import { RouteSteps } from "./route-steps";
 import { tenderingRouteLabel, trailLabel } from "@/lib/tender-docs/labels";
 import { DETAILS_LOCKED_TEXT, detailsFault } from "@/lib/method/details";
-import { exerciseFlow, flowShape } from "@/lib/method/lifecycle";
+import { sourcingFlow } from "@/lib/method/flow";
+import { flowShape } from "@/lib/method/lifecycle";
 import { loadOverviewReads } from "@/lib/method/overview-read";
 import { activeTabOf } from "@/lib/method/overview-tab";
 import { windowPathOf } from "@/lib/window/publish";
 import type { PackKind } from "@/lib/tender-docs/types";
 import type { AwardStatus, InstrumentKind } from "@/lib/award/types";
-import { DECISION_LABEL, DECIDER_FAULT_TEXT, OPERATOR_LABEL } from "@/lib/requisition/labels";
+import { DECISION_LABEL, DECIDER_FAULT_TEXT, OPERATOR_LABEL, STATUS_LABEL } from "@/lib/requisition/labels";
 
 import {
   AddParticipantDrawer,
@@ -414,7 +415,9 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
           <OverviewPanel
             l={l}
             estimate={estimate}
-            flow={exerciseFlow({
+            flow={sourcingFlow({
+              // Ruling 7 (F1): the Overview flow follows section 3 of Sourcing Requirements v2, from the requisition on.
+              requisition: { status: req.status, reference: req.reference, statusLabel: STATUS_LABEL[req.status] },
               status: ex.status,
               packKind: overviewPack,
               path: overview.windowPath ?? windowPathOf(method),
