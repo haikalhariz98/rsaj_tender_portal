@@ -29,8 +29,10 @@ export interface PortalNotice {
   on: string;
   title: string;
   body: string;
-  /// For an addendum: its id, whether the supplier has acknowledged it and on what day.
-  addendum?: { id: string; acknowledgedOn: string | null };
+  /// For an addendum: its id, whether the supplier has acknowledged it and on what day, and whether it still can be (not after the closing, nor once the exercise is cancelled).
+  addendum?: { id: string; acknowledgedOn: string | null; canAcknowledge: boolean };
+  /// A notice of the outcome issued under an award that was cancelled since: kept on record, and no longer applies.
+  superseded?: boolean;
 }
 
 /// Newest first; on the same day the later kind in this order first, then by key, so the order never depends on the database's.
@@ -39,7 +41,7 @@ export function sortNotices(ns: readonly PortalNotice[]): PortalNotice[] {
   return [...ns].sort((a, b) => b.on.localeCompare(a.on) || KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.key.localeCompare(b.key));
 }
 
-/// How many addenda this supplier holds and has not acknowledged.
-export const unacknowledged = (ns: readonly PortalNotice[]): number => ns.filter((n) => n.kind === "ADDENDUM" && n.addendum && n.addendum.acknowledgedOn == null).length;
+/// How many addenda this supplier holds and still has to acknowledge: not one whose time has passed, which is no longer a thing to do.
+export const unacknowledged = (ns: readonly PortalNotice[]): number => ns.filter((n) => n.kind === "ADDENDUM" && n.addendum && n.addendum.acknowledgedOn == null && n.addendum.canAcknowledge).length;
 
 export { NOTICE_DELIVERY_STATEMENT };

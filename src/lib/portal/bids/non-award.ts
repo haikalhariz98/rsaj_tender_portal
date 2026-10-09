@@ -32,6 +32,12 @@ export const carriesReason = (p: NonAwardPolicy): boolean => p.debriefIncludesRe
 /// Award statuses from which the award stands as issued.
 export const awardStands = (status: string): boolean => status === "ISSUED" || status === "ACCEPTED";
 
+/// A notice of non-award stands only while the award it was issued under does. An award that was cancelled and made again leaves the first award's notices on record (the table is append-only), read as superseded.
+export const noticeStands = (awardStatus: string): boolean => awardStands(awardStatus);
+
+/// What a supplier is told of a notice issued under an award that no longer stands: it is not repeated, because it no longer applies.
+export const SUPERSEDED_NOTICE_WORDS = "A notice of the outcome was issued to your company under an award that was later cancelled. It no longer applies.";
+
 /// The parties named on an opened bid, other than the awardee. An award whose awardee is not a party names none.
 export function unsuccessfulPartyIds(bids: readonly { partyId: string }[], awardeePartyId: string | null): string[] {
   if (!awardeePartyId) return [];
@@ -55,6 +61,7 @@ export function issueFaults(i: IssueInput): NonAwardFinding[] {
   if (!awardStands(i.award.status)) out.push({ code: "AWARD_NOT_ISSUED", level: "block" });
   else if (!i.award.awardeePartyId) out.push({ code: "AWARDEE_NOT_NAMED", level: "block" });
   else if (!i.unsuccessful.includes(i.partyId)) out.push({ code: "NOT_UNSUCCESSFUL", level: "block" });
+  // `alreadyIssued` is of THIS award: a notice under an award that was cancelled does not stop one under the award that replaced it.
   if (i.alreadyIssued) out.push({ code: "ALREADY_ISSUED", level: "block" });
   if (carriesReason(i.policy)) {
     const reason = i.reason.trim();

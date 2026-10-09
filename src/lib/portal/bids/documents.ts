@@ -7,6 +7,16 @@
 
 import type { TableAvailability } from "@/lib/window/phase";
 
+/**
+ * How often one supplier's opening of the same document, in the same version, is written to the inspection log. The log can never be corrected or emptied, so a page that is refreshed, or fetched in a loop, must not be
+ * able to fill it: a second opening of the same version by the same supplier within this many seconds is the same sitting and adds no row. It is a limit on the log's growth, not a policy about who may inspect:
+ * every opening is still shown, and the first of a sitting is always logged.
+ */
+export const INSPECTION_REPEAT_SECONDS = 60;
+
+/// Whether this opening repeats the supplier's last opening of the same version closely enough that the log already says it. `last` is the viewedAt of that last opening, or null where there is none.
+export const isRepeatInspection = (last: Date | null, now: Date): boolean => last != null && now.getTime() - last.getTime() < INSPECTION_REPEAT_SECONDS * 1000;
+
 export type InspectionReading = { open: true } | { open: false; headline: string; detail: string };
 
 export function inspectionReading(availability: TableAvailability, version: { approved: boolean } | null): InspectionReading {

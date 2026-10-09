@@ -8,7 +8,7 @@ import { WINDOW_PHASES } from "@/lib/window/phase";
 
 import { acknowledgeFaults } from "./acknowledge";
 import { blockingChecks, judgeRequest, preSaleChecks, requestState, undatedChecks, type PreSaleInput } from "./checks";
-import { inspectionReading } from "./documents";
+import { INSPECTION_REPEAT_SECONDS, inspectionReading, isRepeatInspection } from "./documents";
 import { REASON_MAX, awardStands, carriesReason, hasNonAwardFaultText, issueFaults, nonAwardFaultText, nonAwardSetting, nonAwardSettingWords, outcomeText, policySnapshot, reasonToFreeze, unsuccessfulPartyIds } from "./non-award";
 import { NOTICE_KIND_WORDS, sortNotices, unacknowledged, type PortalNotice } from "./notices";
 import { releaseState, releaseWords } from "./release";
@@ -253,8 +253,23 @@ describe("inspecting the Tender Table Document (FR-DOC-010)", () => {
   });
 });
 
+describe("how often an opening is written to the inspection log (Phase 4d review)", () => {
+  const t0 = new Date("2026-11-02T09:00:00.000Z");
+  const after = (s: number) => new Date(t0.getTime() + s * 1000);
+  it("the first opening of a version is always logged", () => expect(isRepeatInspection(null, t0)).toBe(false));
+  it("the same supplier opening the same version again inside the interval adds no row", () => {
+    expect(isRepeatInspection(t0, after(0))).toBe(true);
+    expect(isRepeatInspection(t0, after(INSPECTION_REPEAT_SECONDS - 1))).toBe(true);
+  });
+  it("an opening at or after the interval is a new sitting and is logged", () => {
+    expect(isRepeatInspection(t0, after(INSPECTION_REPEAT_SECONDS))).toBe(false);
+    expect(isRepeatInspection(t0, after(3600))).toBe(false);
+  });
+});
+
 describe("where a supplier's own bid stands", () => {
-  const base = { status: "OPENED" as const, closed: true, opened: true, award: null };
+  // `inResults` is new in the Phase 4d review (the award is published under Results): these cases are of a public exercise, as they always were.
+  const base = { status: "OPENED" as const, closed: true, opened: true, award: null, inResults: true };
   it("before the closing the portal says bids are on paper and shows nothing of a bid", () => {
     const s = bidStanding({ ...base, status: "ADVERTISED", closed: false, opened: false });
     expect(s.stage).toBe("NOT_CLOSED");
@@ -279,6 +294,15 @@ describe("where a supplier's own bid stands", () => {
     expect(bidStanding({ ...base, award: { issued: true, awardeeIsYou: true } }).stage).toBe("AWARDED_TO_YOU");
     expect(bidStanding({ ...base, award: { issued: true, awardeeIsYou: false } }).stage).toBe("AWARDED_ELSEWHERE");
     expect(bidStanding({ ...base, status: "EVALUATED", award: { issued: false, awardeeIsYou: true } }).stage).toBe("EVALUATED");
+  });
+  it("on an invited or confidential exercise a bidder is not told it lost, and nothing points to Results, where the award is not", () => {
+    const s = bidStanding({ ...base, inResults: false, award: { issued: true, awardeeIsYou: false } });
+    expect(s.stage).toBe("AWARD_ISSUED");
+    expect(`${s.headline} ${s.detail}`).not.toMatch(/another company|Results|not successful|lost|eliminat|reject/i);
+    // The awardee is told it won, public or not.
+    expect(bidStanding({ ...base, inResults: false, award: { issued: true, awardeeIsYou: true } }).stage).toBe("AWARDED_TO_YOU");
+    // A public exercise says where the award is published.
+    expect(bidStanding({ ...base, award: { issued: true, awardeeIsYou: false } }).detail).toContain("Results");
   });
   it("a cancelled exercise reads as cancelled whatever else is true", () => expect(bidStanding({ ...base, status: "CANCELLED", award: { issued: true, awardeeIsYou: true } }).stage).toBe("CANCELLED"));
 });
@@ -352,7 +376,11 @@ describe("the notices a supplier is shown", () => {
     expect(sortNotices([d, c, b, a]).map((x) => x.key)).toEqual(["d", "c", "b", "a"]);
   });
   it("counts the addenda not yet acknowledged, and only addenda", () => {
-    const list = [n({ key: "1", addendum: { id: "x", acknowledgedOn: null } }), n({ key: "2", addendum: { id: "y", acknowledgedOn: "2026-11-02" } }), n({ key: "3", kind: "CLOSING_CHANGED" })];
+    const list = [n({ key: "1", addendum: { id: "x", acknowledgedOn: null, canAcknowledge: true } }), n({ key: "2", addendum: { id: "y", acknowledgedOn: "2026-11-02", canAcknowledge: true } }), n({ key: "3", kind: "CLOSING_CHANGED" })];
+    expect(unacknowledged(list)).toBe(1);
+  });
+  it("does not count an addendum whose time has passed: after the closing it is no longer a thing to do (Phase 4d review)", () => {
+    const list = [n({ key: "1", addendum: { id: "x", acknowledgedOn: null, canAcknowledge: false } }), n({ key: "2", addendum: { id: "y", acknowledgedOn: null, canAcknowledge: true } })];
     expect(unacknowledged(list)).toBe(1);
   });
   it("has a label for every kind", () => expect(Object.keys(NOTICE_KIND_WORDS).sort()).toEqual(["ADDENDUM", "CLOSING_CHANGED", "EXERCISE_CANCELLED", "NON_AWARD"]));

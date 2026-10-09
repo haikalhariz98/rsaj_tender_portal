@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -10,6 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { openForInspection } from "@/lib/portal/bids/inspection-store";
 
 import { requireSupplier } from "../../../../_auth/supplier";
+import { CrossSiteRefusal } from "../cross-site-refusal";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +23,12 @@ export default async function ReleasedDocumentsPage({ params }: { params: Promis
   const actor = await requireSupplier();
   const { id } = await params;
   const back = `/supplier/bids/${id}?tab=documents`;
-  const r = await openForInspection(actor, { exerciseId: id, kind: "PACK" });
-  if (!r.open && !r.ctx) notFound();
+  // What started this request, as the browser says it (a page elsewhere cannot set it): another site's request is refused before anything is logged.
+  const r = await openForInspection(actor, { exerciseId: id, kind: "PACK", secFetchSite: (await headers()).get("sec-fetch-site") });
+  if (!r.open && !r.ctx) {
+    if (r.crossSite) return <CrossSiteRefusal headline={r.headline} detail={r.detail} />;
+    notFound();
+  }
   if (!r.open) {
     return (
       <>

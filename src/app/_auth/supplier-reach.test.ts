@@ -329,9 +329,22 @@ describe("My Bids' handlers and pages (Phase 4d)", () => {
 
   it("the inspection log is written before the documents are returned, and only the approved version is shown", () => {
     const src = lex(read("lib/portal/bids/inspection-store.ts"));
-    expect(src.indexOf("tenderInspectionEvent.create(")).toBeGreaterThan(src.indexOf("view.watermark != null"));
-    // Nothing returns the view before the log row: the only `open: true` return follows the create.
-    expect(src.indexOf("return { open: true")).toBeGreaterThan(src.indexOf("tenderInspectionEvent.create("));
+    // The write is `recordInspection` (it owns the create and the repeat rule since the Phase 4d review); the call is what must come after the approved-version check and before the view is returned.
+    const call = src.indexOf("await recordInspection(db");
+    expect(call).toBeGreaterThan(src.indexOf("view.watermark != null"));
+    // Nothing returns the view before the log row: the only `open: true` return follows the write.
+    expect(src.indexOf("return { open: true")).toBeGreaterThan(call);
+    expect(src.indexOf("tenderInspectionEvent.create(")).toBeGreaterThan(-1);
+  });
+
+  it("a request another site started reads nothing and logs nothing: the store asks first, and both pages hand it Sec-Fetch-Site (Phase 4d review)", () => {
+    const src = lex(read("lib/portal/bids/inspection-store.ts"));
+    const guard = src.indexOf("downloadRequestFault(i.secFetchSite");
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(src.indexOf("loadBidContext(db, actor"));
+    for (const page of ["app/supplier/bids/[id]/table-document/page.tsx", "app/supplier/bids/[id]/documents/page.tsx"]) {
+      expect(lex(read(page), { only: "comments" }), page).toMatch(/secFetchSite:\s*\(await headers\(\)\)\.get\("sec-fetch-site"\)/);
+    }
   });
 });
 

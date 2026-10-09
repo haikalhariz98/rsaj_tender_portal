@@ -29,6 +29,8 @@ const PUBLIC_PAGES = new Set(["/supplier", "/supplier/opportunities", "/supplier
 const OPPORTUNITY = /^\/supplier\/opportunities\/[A-Za-z0-9_-]+$/;
 /// Phase 4d: one exercise in My Bids, and the two pages that open its tender documents. One id segment each; the posts are literal paths (`SUPPLIER_BIDS_POST_PATHS`), so a post to a path like these is refused.
 const BID_PAGE = /^\/supplier\/bids\/[A-Za-z0-9_-]+(?:\/(?:table-document|documents))?$/;
+/// The two of those that write the inspection log on every render. A page that is only asked about (HEAD) is not opened, so it is not served: a HEAD would otherwise log an opening nobody made.
+const INSPECTION_PAGE = /^\/supplier\/bids\/[A-Za-z0-9_-]+\/(?:table-document|documents)$/;
 /// The organisation's logo, addressed by its own fingerprint.
 const LOGO = /^\/organisation\/logo\/[A-Za-z0-9_-]+$/;
 /// The platform's own files: scripts, styles and fonts, and nothing else under /_next. The image optimiser
@@ -58,6 +60,7 @@ export function publicAllows({ method, pathname, hasServerAction }: PublicReques
   const m = method.toUpperCase();
   if (m === "POST") return POST_PATHS.has(path);
   if (m !== "GET" && m !== "HEAD") return false;
+  if (m === "HEAD" && INSPECTION_PAGE.test(path)) return false;
   return PUBLIC_PAGES.has(path) || OPPORTUNITY.test(path) || BID_PAGE.test(path) || LOGO.test(path) || PLATFORM.test(path) || path === ICON;
 }
 

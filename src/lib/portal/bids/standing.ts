@@ -4,7 +4,8 @@
  * A bid is a sealed paper envelope, and the portal does not take bids: electronic submission waits on decision D6 and an outside review (6.15c). An envelope names no bidder until the opening (6.6 OD-2: a
  * register names no bidder before it), so the portal can say nothing about a bid before that. After the opening it can say how far the exercise has got, and whether the award went to this supplier. It says nothing
  * else: no price as read, no score, no rank, and no verdict of the opening or the evaluation. Telling a bidder it was eliminated is in effect the notice of non-award, which the organisation's policy D7 governs and
- * which is shown as that notice, not here. A bid is linked to a supplier only when an officer has linked the bidder's party to the supplier's register entry, so a bid that is not linked cannot be shown, and the screen says so.
+ * which is shown as that notice, not here. So "awarded to another company" is said only where the award is public anyway (it is in Results, for anyone to read). On an invited or confidential exercise a bidder is told only that
+ * an award has been issued, until the office issues it a notice: policy D7 unset means no notice, and no verdict by the back door. A bid is linked to a supplier only when an officer has linked the bidder's party to the supplier's register entry, so a bid that is not linked cannot be shown, and the screen says so.
  */
 
 import type { ExerciseStatus } from "@/lib/method/types";
@@ -19,6 +20,8 @@ export type BidStage =
   | "EVALUATED"
   | "AWARDED_TO_YOU"
   | "AWARDED_ELSEWHERE"
+  /// An award was issued and it is not published, so a bidder is not told whether it was its own unless it was.
+  | "AWARD_ISSUED"
   | "CANCELLED";
 
 export interface BidStandingInput {
@@ -29,6 +32,8 @@ export interface BidStandingInput {
   opened: boolean;
   /// The award, once issued (an award not yet issued is not shown).
   award: { issued: boolean; awardeeIsYou: boolean } | null;
+  /// The award is published under Results: the exercise is a public opportunity, as `toPublicResult` reads it. False for an invited or confidential exercise.
+  inResults: boolean;
 }
 
 export interface BidStanding {
@@ -44,7 +49,9 @@ export function bidStanding(i: BidStandingInput): BidStanding {
     if (i.award?.issued) {
       return i.award.awardeeIsYou
         ? { stage: "AWARDED_TO_YOU", headline: "Awarded to your company", detail: "The award of this exercise has been issued to your company.", tone: "ok" }
-        : { stage: "AWARDED_ELSEWHERE", headline: "Awarded to another company", detail: "The award of this exercise has been issued to another company. The award is published under Results.", tone: "neutral" };
+        : i.inResults
+          ? { stage: "AWARDED_ELSEWHERE", headline: "Awarded to another company", detail: "The award of this exercise has been issued to another company. The award is published under Results.", tone: "neutral" }
+          : { stage: "AWARD_ISSUED", headline: "The award has been issued", detail: "The procurement office tells each tenderer the outcome of its bid. Nothing about how any bid fared is shown here.", tone: "info" };
     }
     if (i.status === "EVALUATED") return { stage: "EVALUATED", headline: "The evaluation is finished, the award not yet issued", detail: "Your bid was opened. Nothing about how any bid fared is shown here, and the award has not been issued yet.", tone: "info" };
     if (i.status === "UNDER_EVALUATION") return { stage: "UNDER_EVALUATION", headline: "The exercise is under evaluation", detail: "Your bid was opened. Evaluation is confidential: nothing about how any bid fares is shown here.", tone: "info" };

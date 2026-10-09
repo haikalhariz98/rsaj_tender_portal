@@ -66,6 +66,8 @@ export const REQUEST_STATE_WORDS: Record<RequestState, string> = {
 
 export interface RequestRow {
   id: string;
+  /// When it was asked, as an instant, for sorting.
+  sort: string;
   supplier: string;
   /// The supplier's register id, so the sale form can name it (an officer chooses the supplier there).
   supplierId: string;
@@ -92,6 +94,7 @@ export async function requestsOfWindow(client: Tx, organisationId: string, windo
     supplierId: r.supplierId,
     collector: r.collectorName,
     at: formatOrgDateTime(r.requestedAt, timeZone),
+    sort: r.requestedAt.toISOString(),
     state: requestState(r, bought.has(r.supplierId)),
     reasons: r.refusedAt ? ((r.checks as unknown as { state: string; detail: string }[]) ?? []).filter((c) => c.state === "BLOCK").map((c) => c.detail) : [],
   }));
@@ -100,19 +103,20 @@ export async function requestsOfWindow(client: Tx, organisationId: string, windo
 export interface InspectionLog {
   total: number;
   suppliers: number;
-  rows: { supplier: string; kind: string; version: number; at: string }[];
+  /// Every opening, newest first. The list pages and searches them; nothing is cut off at a count.
+  rows: { id: string; supplier: string; kind: string; version: number; at: string; sort: string }[];
 }
 
-export async function inspectionLogOf(client: Tx, organisationId: string, windowId: string, timeZone: string | null, take = 25): Promise<InspectionLog> {
+export async function inspectionLogOf(client: Tx, organisationId: string, windowId: string, timeZone: string | null): Promise<InspectionLog> {
   const where = { organisationId, windowId };
   const [total, bySupplier, rows] = await Promise.all([
     client.tenderInspectionEvent.count({ where }),
     client.tenderInspectionEvent.groupBy({ by: ["supplierId"], where }),
-    client.tenderInspectionEvent.findMany({ where, orderBy: [{ viewedAt: "desc" }, { id: "desc" }], take, select: { kind: true, documentVersion: true, viewedAt: true, supplier: { select: { reference: true, registeredName: true } } } }),
+    client.tenderInspectionEvent.findMany({ where, orderBy: [{ viewedAt: "desc" }, { id: "desc" }], select: { id: true, kind: true, documentVersion: true, viewedAt: true, supplier: { select: { reference: true, registeredName: true } } } }),
   ]);
   return {
     total,
     suppliers: bySupplier.length,
-    rows: rows.map((r) => ({ supplier: who(r.supplier), kind: r.kind === "PACK" ? "The released documents" : "The Tender Table Document", version: r.documentVersion, at: formatOrgDateTime(r.viewedAt, timeZone) })),
+    rows: rows.map((r) => ({ id: r.id, supplier: who(r.supplier), kind: r.kind === "PACK" ? "The released documents" : "The Tender Table Document", version: r.documentVersion, at: formatOrgDateTime(r.viewedAt, timeZone), sort: r.viewedAt.toISOString() })),
   };
 }

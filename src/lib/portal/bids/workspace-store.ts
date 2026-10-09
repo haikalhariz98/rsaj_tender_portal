@@ -4,7 +4,7 @@ import { dayIn, storedDay } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
 import type { ExerciseStatus } from "@/lib/method/types";
 import { formatMoney, senFromDecimal } from "@/lib/money";
-import { instantText, isIssuedAward } from "@/lib/portal/public";
+import { instantText, isIssuedAward, isPublicOpportunity } from "@/lib/portal/public";
 import { isMandatory, mandatoryPermittedFor } from "@/lib/window/events";
 import { SITE_EVENT_KIND_LABEL } from "@/lib/window/labels";
 import { tableDocumentAvailability } from "@/lib/window/phase";
@@ -16,7 +16,7 @@ import { isInvited, type BidContext } from "./context-store";
 import { inspectionReading, type InspectionReading } from "./documents";
 import { loadReleaseFacts } from "./inspection-store";
 import { loadMyNotices } from "./list-store";
-import { awardStands } from "./non-award";
+import { awardStands, noticeStands } from "./non-award";
 import { sortNotices, type PortalNotice } from "./notices";
 import { releaseWords, type ReleaseState } from "./release";
 import { loadSaleFacts } from "./sale-facts";
@@ -123,7 +123,7 @@ export async function addendaTab(client: Tx, actor: Who, ctx: BidContext): Promi
       select: { id: true, number: true, title: true, whatChanged: true, status: true, issuedOn: true, closingChange: { select: { toClosingAt: true, appliedAt: true } }, recipients: { where: { partyId: { in: partyIds } }, select: { withDocuments: true } } },
     }),
     client.addendumAcknowledgement.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, addendum: { windowId: window.id } }, select: { addendumId: true, acknowledgedOn: true } }),
-    loadMyNotices(client, actor),
+    loadMyNotices(client, actor, ctx.now),
   ]);
   const rows: AddendumRow[] = addenda.map((a) => {
     const ack = acks.find((x) => x.addendumId === a.id) ?? null;
@@ -191,28 +191,44 @@ export async function documentsTab(client: Tx, actor: Who, ctx: BidContext): Pro
 
 export interface OutcomeView {
   standing: BidStanding;
-  /// The notice of the outcome issued to this supplier, if one was.
+  /// The notice of the outcome issued to this supplier under an award that stands, if one was.
   notice: { on: string; outcomeText: string; reasonText: string } | null;
+  /// A notice was issued under an award that was cancelled since, and none stands: said, not repeated.
+  supersededNotice: { on: string } | null;
   /// An award was issued and none went to this supplier, so the supplier is told whether a notice was issued to it.
   awardIssuedElsewhere: boolean;
+  /// The award is published under Results, so the screen may point there.
+  inResults: boolean;
 }
 
 export async function outcomeTab(client: Tx, actor: Who, ctx: BidContext): Promise<OutcomeView> {
   const partyIds = ctx.parties.map((p) => p.id);
-  const [opened, awards, notice] = await Promise.all([
+  const [opened, awards, notices] = await Promise.all([
     partyIds.length ? client.openedBid.count({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, partyId: { in: partyIds } } }) : Promise.resolve(0),
     client.award.findMany({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId }, select: { status: true, awardeePartyId: true } }),
-    partyIds.length ? client.nonAwardNotice.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { issuedOn: true, outcomeText: true, reasonText: true } }) : Promise.resolve(null),
+    partyIds.length ? client.nonAwardNotice.findMany({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, partyId: { in: partyIds } }, orderBy: [{ issuedAt: "desc" }, { id: "desc" }], select: { issuedOn: true, outcomeText: true, reasonText: true, award: { select: { status: true } } } }) : Promise.resolve([]),
   ]);
   const issued = awards.find((a) => isIssuedAward(a.status));
   const closed = ctx.ex.closingAt != null && ctx.now.getTime() >= ctx.ex.closingAt.getTime();
+  // The same test `toPublicResult` applies, so the screen points to Results only where the award really is there.
+  const inResults = isPublicOpportunity({ status: ctx.ex.status as ExerciseStatus, restricted: ctx.ex.restricted, closingAt: ctx.ex.closingAt, window: ctx.ex.window ? { path: ctx.ex.window.path, publishedAt: ctx.ex.window.publishedAt } : null });
   const standing = bidStanding({
     status: ctx.ex.status as ExerciseStatus,
     closed,
     opened: opened > 0,
     award: issued ? { issued: awardStands(issued.status), awardeeIsYou: issued.awardeePartyId != null && partyIds.includes(issued.awardeePartyId) } : null,
+    inResults,
   });
-  return { standing, notice: notice ? { on: formatDate(storedDay(notice.issuedOn)), outcomeText: notice.outcomeText, reasonText: notice.reasonText } : null, awardIssuedElsewhere: issued != null && !(issued.awardeePartyId != null && partyIds.includes(issued.awardeePartyId)) };
+  // A notice stands with its award: the latest one under an award that still stands is the notice; one under an award since cancelled is superseded.
+  const current = notices.find((n) => noticeStands(n.award.status)) ?? null;
+  const old = current ? null : (notices[0] ?? null);
+  return {
+    standing,
+    notice: current ? { on: formatDate(storedDay(current.issuedOn)), outcomeText: current.outcomeText, reasonText: current.reasonText } : null,
+    supersededNotice: old ? { on: formatDate(storedDay(old.issuedOn)) } : null,
+    awardIssuedElsewhere: issued != null && !(issued.awardeePartyId != null && partyIds.includes(issued.awardeePartyId)),
+    inResults,
+  };
 }
 
 // ------------------------------------------------------------------ the overview

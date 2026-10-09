@@ -13,7 +13,10 @@ import { loadMyExercises, loadMyNotices } from "./list-store";
 import { requestDocuments, withdrawRequest } from "./request-store";
 import { signUp, withdrawSignUp } from "./signup-store";
 import { acknowledgementsByAddendum, inspectionLogOf, requestsOfWindow, signUpsByEvent } from "./staff-read";
-import { loadReleaseFacts, openForInspection } from "./inspection-store";
+import { loadReleaseFacts, openForInspection, recordInspection } from "./inspection-store";
+import { loadNonAwardPanel } from "./non-award-store";
+import { SUPERSEDED_NOTICE_WORDS } from "./non-award";
+import { INSPECTION_REPEAT_SECONDS } from "./documents";
 import { addendaTab, briefingsTab, documentsTab, outcomeTab, overviewTab } from "./workspace-store";
 import { BidRefused } from "./types";
 
@@ -433,6 +436,38 @@ describe("the tender documents", () => {
     expect(gone).toMatchObject({ open: false, ctx: null });
   });
 
+  it("a request another site started is refused before anything is read or logged, in its own words", async () => {
+    const s = await supplier();
+    for (const kind of ["TABLE_DOCUMENT", "PACK"] as const) {
+      const r = await openForInspection(s.actor, { exerciseId: open.exerciseId, kind, secFetchSite: "cross-site" });
+      expect(r).toMatchObject({ open: false, ctx: null, crossSite: true, headline: "Open this from your own list" });
+      expect(r.open === false && r.detail).toContain("another site");
+    }
+    expect(await db.tenderInspectionEvent.count({ where: { supplierId: s.supplierId } })).toBe(0);
+    // Same-origin, same-site, a typed address and a client that sends nothing are not cross-site: they go on to the rules below (here refused for want of approved documents, not for where they came from).
+    for (const site of ["same-origin", "same-site", "none", null]) {
+      const r = await openForInspection(s.actor, { exerciseId: open.exerciseId, kind: "TABLE_DOCUMENT", secFetchSite: site });
+      expect(r.open === false && r.crossSite, String(site)).toBeUndefined();
+    }
+  });
+
+  it("a supplier opening the same version again inside a minute adds no row, a later sitting does, and another supplier's opening never counts as its own", async () => {
+    const a = await supplier();
+    const b = await supplier();
+    const w = { windowId: open.windowId, kind: "TABLE_DOCUMENT" as const, documentVersion: 7 };
+    const t0 = new Date("2026-11-02T09:00:00.000Z");
+    const rows = (x: { supplierId: string }) => db.tenderInspectionEvent.count({ where: { supplierId: x.supplierId, windowId: open.windowId, documentVersion: 7 } });
+    expect(await recordInspection(db, a.actor, w, t0)).toEqual({ written: true });
+    expect(await recordInspection(db, a.actor, w, new Date(t0.getTime() + 1000))).toEqual({ written: false });
+    expect(await recordInspection(db, a.actor, w, new Date(t0.getTime() + (INSPECTION_REPEAT_SECONDS - 1) * 1000))).toEqual({ written: false });
+    expect(await rows(a)).toBe(1);
+    expect(await recordInspection(db, b.actor, w, new Date(t0.getTime() + 1000))).toEqual({ written: true });
+    expect(await recordInspection(db, a.actor, { ...w, documentVersion: 8 }, new Date(t0.getTime() + 1000))).toEqual({ written: true });
+    expect(await recordInspection(db, a.actor, w, new Date(t0.getTime() + INSPECTION_REPEAT_SECONDS * 1000))).toEqual({ written: true });
+    expect(await rows(a)).toBe(2);
+    expect(await rows(b)).toBe(1);
+  });
+
   it("the inspection log refuses a change or a removal by any login, and the staff read it back", async () => {
     const s = await supplier();
     const row = await db.tenderInspectionEvent.create({ data: { organisationId, windowId: open.windowId, supplierId: s.supplierId, kind: "TABLE_DOCUMENT", documentVersion: 1, viewedBySupplierAccountId: s.accountId, viewedAt: new Date() } });
@@ -513,7 +548,8 @@ describe("where a supplier's own bid stands", () => {
 });
 
 describe("the notice of non-award", () => {
-  it("is append-only, one per tenderer and exercise, and shows to the tenderer's supplier and to nobody else", async () => {
+  // Phase 4d review: the key is the AWARD and the tenderer (it was the exercise and the tenderer), so a notice under an award that was cancelled does not stop the next award issuing its own. Still one per tenderer under each award.
+  it("is append-only, one per tenderer and award, and shows to the tenderer's supplier and to nobody else", async () => {
     const a = await supplier();
     const b = await supplier();
     const ex = await exercise({});
@@ -527,14 +563,133 @@ describe("the notice of non-award", () => {
       data: { organisationId, exerciseId: ex.exerciseId, awardId: award.id, partyId: party.id, outcomeText: "Your bid was not successful.", reasonText: "Above the estimate.", policySnapshot: { nonAwardNotices: true }, issuedOn: D(new Date()), issuedAt: new Date(), issuedByPersonId: officerId },
     });
     await expect(db.nonAwardNotice.create({ data: { organisationId, exerciseId: ex.exerciseId, awardId: award.id, partyId: party.id, outcomeText: "again", policySnapshot: {}, issuedOn: D(new Date()), issuedAt: new Date(), issuedByPersonId: officerId } })).rejects.toThrow();
+    // Under another award of the same exercise the same tenderer can be given its own.
+    const second = await db.award.create({ data: { organisationId, reference: `AW/${randomId()}`, exerciseId: ex.exerciseId, status: "ISSUED", instrumentKind: "LETTER_OF_ACCEPTANCE", awardeeName: "Winner", awardedValue: "1000.00", completionPeriod: 3, completionUnit: "MONTHS" } });
+    await expect(db.nonAwardNotice.create({ data: { organisationId, exerciseId: ex.exerciseId, awardId: second.id, partyId: party.id, outcomeText: "under the second award", policySnapshot: {}, issuedOn: D(new Date()), issuedAt: new Date(Date.now() + 1000), issuedByPersonId: officerId } })).resolves.toBeDefined();
     await expect(db.nonAwardNotice.update({ where: { id: notice.id }, data: { reasonText: "Changed" } })).rejects.toThrow();
     await expect(db.nonAwardNotice.delete({ where: { id: notice.id } })).rejects.toThrow();
     const ctxA = (await loadBidContext(db, a.actor, ex.exerciseId))!;
-    expect((await outcomeTab(db, a.actor, ctxA)).notice).toMatchObject({ outcomeText: "Your bid was not successful.", reasonText: "Above the estimate." });
-    expect((await loadMyNotices(db, a.actor)).find((n) => n.kind === "NON_AWARD")?.body).toContain("Reason given: Above the estimate.");
+    // The latest standing notice is the one the Outcome tab shows: here the second award's, which carries no reason. The list shows both.
+    expect((await outcomeTab(db, a.actor, ctxA)).notice).toMatchObject({ outcomeText: "under the second award" });
+    expect((await loadMyNotices(db, a.actor)).filter((n) => n.kind === "NON_AWARD").map((n) => n.body).join(" ")).toContain("Reason given: Above the estimate.");
     const ctxB = (await loadBidContext(db, b.actor, ex.exerciseId))!;
     expect((await outcomeTab(db, b.actor, ctxB)).notice).toBeNull();
     expect((await loadMyNotices(db, b.actor)).filter((n) => n.kind === "NON_AWARD")).toEqual([]);
+  });
+});
+
+/// A closed exercise with a bid opened for each of the two suppliers' parties (linked, with the documents bought).
+async function closedWithBids(parties: { a: { supplierId: string }; b: { supplierId: string } }, o: { restricted?: boolean; path?: "ADVERTISED" | "INVITED"; status?: "ADVERTISED" | "INVITED"; invitee?: boolean } = {}) {
+  const ex = await exercise({ restricted: o.restricted, path: o.path, status: o.status });
+  await db.sourcingExercise.update({ where: { id: ex.exerciseId }, data: { closingAt: at(-3), status: "UNDER_EVALUATION" } });
+  const committee = await db.committee.create({ data: { organisationId, code: `BID_C_${randomId()}`, nameEn: "Opening committee", mandate: "Opens bids", governingSource: "A test" } });
+  const opening = await db.opening.create({ data: { organisationId, exerciseId: ex.exerciseId, kind: "MAIN", sequenceNo: 1, committeeId: committee.id, committeeNameSnapshot: "Opening committee", startedAt: at(-3), startedByPersonId: officerId, checklistSnapshot: [], policySnapshot: {} } });
+  const how = o.invitee ? { source: "PROPOSED_INVITEE" as const, letter: true } : { sale: true, receipt: "R-X" };
+  const pa = await link(ex, parties.a.supplierId, how);
+  const pb = await link(ex, parties.b.supplierId, how);
+  let n = 0;
+  for (const party of [pa, pb]) {
+    n += 1;
+    const env = await db.bidEnvelope.create({ data: { organisationId, exerciseId: ex.exerciseId, sequence: n, kind: "BID", channel: "COUNTER", receivedAt: at(-4), receivedSource: "SERVER", receivedByPersonId: officerId, markings: "Sealed", partyId: party.id, late: false, closingAtJudged: at(-3), recordedAfterClosing: false } });
+    await db.openedBid.create({ data: { organisationId, exerciseId: ex.exerciseId, openingId: opening.id, envelopeId: env.id, listingNo: n, partyId: party.id, openedAt: at(-3), bidderNameAsRead: party.name, priceAsRead: "100.00", saleFinding: "LIVE_SALE", restrictionFinding: "NOT_RESTRICTED", verdict: null, verdictReason: "" } });
+  }
+  return { ex, pa, pb };
+}
+
+describe("an award cancelled and made again (Phase 4d review)", () => {
+  it("a notice under the cancelled award is superseded everywhere the supplier reads it, and the next award can issue its own", async () => {
+    const a = await supplier();
+    const b = await supplier();
+    const { ex, pa, pb } = await closedWithBids({ a, b });
+    const award = (status: "ISSUED" | "CANCELLED") => db.award.create({ data: { organisationId, reference: `AW/${randomId()}`, exerciseId: ex.exerciseId, status, instrumentKind: "LETTER_OF_ACCEPTANCE", awardeeName: "Winner", awardeePartyId: pa.id, awardedValue: "1000.00", completionPeriod: 3, completionUnit: "MONTHS" } });
+    const first = await award("ISSUED");
+    const issue = (awardId: string) => db.nonAwardNotice.create({ data: { organisationId, exerciseId: ex.exerciseId, awardId, partyId: pb.id, outcomeText: "Your bid was not successful.", reasonText: "Above the estimate.", policySnapshot: {}, issuedOn: D(new Date()), issuedAt: new Date(), issuedByPersonId: officerId } });
+    await issue(first.id);
+    const ctxB = async () => (await loadBidContext(db, b.actor, ex.exerciseId))!;
+    const chips = async () => (await loadMyExercises(db, b.actor)).find((r) => r.id === ex.exerciseId)!.chips.map((c) => c.text);
+    expect((await outcomeTab(db, b.actor, await ctxB())).notice).not.toBeNull();
+    expect(await chips()).toContain("Notice of the outcome");
+
+    // The first award is cancelled and the same bidder is awarded again.
+    await db.award.update({ where: { id: first.id }, data: { status: "CANCELLED" } });
+    const second = await award("ISSUED");
+    const o = await outcomeTab(db, b.actor, await ctxB());
+    expect(o.notice).toBeNull();
+    expect(o.supersededNotice).not.toBeNull();
+    expect(JSON.stringify(o)).not.toContain("Above the estimate");
+    const mine = (await loadMyNotices(db, b.actor)).filter((x) => x.kind === "NON_AWARD");
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ superseded: true, body: SUPERSEDED_NOTICE_WORDS, title: "Notice of the outcome (superseded)" });
+    expect(await chips()).not.toContain("Notice of the outcome");
+
+    // The officers' panel for the new award does not read the old award's notice as issued, and the new award can issue its own.
+    const panelOf = () => loadNonAwardPanel(db, organisationId, { id: second.id, exerciseId: ex.exerciseId, status: second.status, awardeePartyId: pa.id });
+    expect((await panelOf()).rows.find((r) => r.partyId === pb.id)?.notice).toBeNull();
+    await issue(second.id);
+    const again = await outcomeTab(db, b.actor, await ctxB());
+    expect(again.notice).not.toBeNull();
+    expect(again.supersededNotice).toBeNull();
+    expect((await panelOf()).rows.find((r) => r.partyId === pb.id)?.notice).not.toBeNull();
+  });
+});
+
+describe("a bidder on an invited exercise is not told it lost (Phase 4d review)", () => {
+  it("the award is said to be issued, with no verdict and no pointer to Results, until a notice is issued", async () => {
+    const a = await supplier();
+    const b = await supplier();
+    const { ex, pa } = await closedWithBids({ a, b }, { restricted: true, path: "INVITED", status: "INVITED", invitee: true });
+    await db.award.create({ data: { organisationId, reference: `AW/${randomId()}`, exerciseId: ex.exerciseId, status: "ISSUED", instrumentKind: "LETTER_OF_ACCEPTANCE", awardeeName: "Winner", awardeePartyId: pa.id, awardedValue: "1000.00", completionPeriod: 3, completionUnit: "MONTHS" } });
+    const loser = await outcomeTab(db, b.actor, (await loadBidContext(db, b.actor, ex.exerciseId))!);
+    expect(loser.standing.stage).toBe("AWARD_ISSUED");
+    expect(loser.inResults).toBe(false);
+    expect(JSON.stringify(loser.standing)).not.toMatch(/another company|Results/);
+    expect((await outcomeTab(db, a.actor, (await loadBidContext(db, a.actor, ex.exerciseId))!)).standing.stage).toBe("AWARDED_TO_YOU");
+    // A public exercise says where the award is published.
+    const c = await supplier();
+    const d = await supplier();
+    const pub = await closedWithBids({ a: c, b: d });
+    await db.award.create({ data: { organisationId, reference: `AW/${randomId()}`, exerciseId: pub.ex.exerciseId, status: "ISSUED", instrumentKind: "LETTER_OF_ACCEPTANCE", awardeeName: "Winner", awardeePartyId: pub.pa.id, awardedValue: "1000.00", completionPeriod: 3, completionUnit: "MONTHS" } });
+    const seen = await outcomeTab(db, d.actor, (await loadBidContext(db, d.actor, pub.ex.exerciseId))!);
+    expect(seen.inResults).toBe(true);
+    expect(seen.standing.stage).toBe("AWARDED_ELSEWHERE");
+  });
+});
+
+describe("what a purchaser is told of a change (Phase 4d review)", () => {
+  it("never reads out the officers' own reason, for a closing change or a cancellation", async () => {
+    const s = await supplier();
+    const ex = await exercise({});
+    await link(ex, s.supplierId, { sale: true, receipt: "R-RS" });
+    const secret = "All bids exceed the department estimate of RM 4.2m";
+    await db.closingChange.create({ data: { organisationId, windowId: ex.windowId, kind: "EXTENSION", fromClosingAt: at(30), toClosingAt: at(40), reason: secret, requestedOn: D(new Date()), appliedAt: new Date() } });
+    await db.windowCancellation.create({ data: { organisationId, windowId: ex.windowId, reason: secret, feeRefund: true, requestedOn: D(new Date()), appliedAt: new Date() } });
+    const notices = (await loadMyNotices(db, s.actor)).filter((x) => x.exerciseId === ex.exerciseId);
+    expect(notices.map((x) => x.kind).sort()).toEqual(expect.arrayContaining(["CLOSING_CHANGED", "EXERCISE_CANCELLED"]));
+    const shown = JSON.stringify(notices);
+    expect(shown).not.toContain("department estimate");
+    expect(shown).not.toContain("4.2m");
+    expect(notices.find((x) => x.kind === "EXERCISE_CANCELLED")!.body).toBe("This exercise was cancelled. The document fee is refunded.");
+    expect(notices.find((x) => x.kind === "CLOSING_CHANGED")!.body).toMatch(/^The closing moved from .+ to .+\.$/);
+    // The Addenda tab reads the same notices.
+    const tab = await addendaTab(db, s.actor, (await loadBidContext(db, s.actor, ex.exerciseId))!);
+    expect(JSON.stringify(tab)).not.toContain("department estimate");
+  });
+});
+
+describe("an addendum after the closing (Phase 4d review)", () => {
+  it("is no longer a thing to acknowledge, in the list, in the notices or in the exercise", async () => {
+    const s = await supplier();
+    const ex = await exercise({});
+    await link(ex, s.supplierId, { copy: true, sale: true, receipt: "R-AC" });
+    const chips = async () => (await loadMyExercises(db, s.actor)).find((r) => r.id === ex.exerciseId)!.chips.map((c) => c.text);
+    expect(await chips()).toContain("1 addendum to acknowledge");
+    expect((await loadMyNotices(db, s.actor)).find((x) => x.kind === "ADDENDUM")!.addendum).toMatchObject({ acknowledgedOn: null, canAcknowledge: true });
+    await db.sourcingExercise.update({ where: { id: ex.exerciseId }, data: { closingAt: at(-1), status: "OPENED" } });
+    expect((await chips()).join(" ")).not.toMatch(/to acknowledge/);
+    const notice = (await loadMyNotices(db, s.actor)).find((x) => x.kind === "ADDENDUM")!;
+    expect(notice.addendum).toMatchObject({ acknowledgedOn: null, canAcknowledge: false });
+    const tab = (await addendaTab(db, s.actor, (await loadBidContext(db, s.actor, ex.exerciseId))!)).addenda[0]!;
+    expect(tab).toMatchObject({ holdsCopy: true, canAcknowledge: false });
   });
 });
 

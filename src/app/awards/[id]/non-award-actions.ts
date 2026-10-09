@@ -65,7 +65,7 @@ export async function issueNonAwardNotice(_prev: FormState, data: FormData): Pro
     const policy = await loadNonAwardPolicy(tx, actor.organisationId);
     const [bids, existing, party] = await Promise.all([
       tx.openedBid.findMany({ where: { exerciseId: a.exerciseId, organisationId: actor.organisationId }, select: { partyId: true } }),
-      tx.nonAwardNotice.findUnique({ where: { exerciseId_partyId: { exerciseId: a.exerciseId, partyId } }, select: { id: true } }),
+      tx.nonAwardNotice.findUnique({ where: { awardId_partyId: { awardId: a.id, partyId } }, select: { id: true } }),
       tx.exerciseParty.findFirst({ where: { id: partyId, exerciseId: a.exerciseId, organisationId: actor.organisationId }, select: { id: true, name: true } }),
     ]);
     if (!party) return { ok: false, message: "That tenderer is not on this exercise." };

@@ -43,7 +43,7 @@ export async function loadNonAwardPanel(client: Tx, organisationId: string, awar
   if (ids.length === 0) return { ...base, rows: [] };
   const [parties, notices] = await Promise.all([
     client.exerciseParty.findMany({ where: { id: { in: ids }, organisationId }, select: { id: true, name: true, vendor: { select: { reference: true, registeredName: true } } }, orderBy: { name: "asc" } }),
-    client.nonAwardNotice.findMany({ where: { exerciseId: award.exerciseId, organisationId, partyId: { in: ids } }, select: { id: true, partyId: true, issuedOn: true, reasonText: true, issuedBy: { select: { name: true } } } }),
+    client.nonAwardNotice.findMany({ where: { awardId: award.id, exerciseId: award.exerciseId, organisationId, partyId: { in: ids } }, select: { id: true, partyId: true, issuedOn: true, reasonText: true, issuedBy: { select: { name: true } } } }),
   ]);
   return {
     ...base,

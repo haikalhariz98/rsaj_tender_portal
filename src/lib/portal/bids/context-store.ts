@@ -63,6 +63,12 @@ export interface BidContext {
   now: Date;
 }
 
+/// The window's phase as the rules read it, derived from the stored instants and the organisation's zone, never stored. The context, the list and the notices all read it here, so they cannot disagree about whether a window can still be acted on.
+export function exercisePhase(ex: { status: string; closingAt: Date | null; window: { purchaseFromDay: Date | null; purchaseCloseDay: Date | null } | null }, now: Date, timeZone: string | null): WindowPhase {
+  if (!ex.window) return "NOT_PUBLISHED";
+  return windowPhase({ status: ex.status as ExerciseStatus, purchaseFromDay: ex.window.purchaseFromDay, purchaseCloseDay: ex.window.purchaseCloseDay, closingAt: ex.closingAt }, now, timeZone).phase;
+}
+
 export async function loadBidContext(client: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, exerciseId: string, now: Date = new Date()): Promise<BidContext | null> {
   const org = await exerciseOrg(actor.organisationId, client);
   if (!org) return null;
@@ -80,7 +86,7 @@ export async function loadBidContext(client: Tx, actor: Pick<SupplierActor, "sup
     linkedParty: rows.length > 0,
   });
   if (!seen.seen) return null;
-  const phase = ex.window ? windowPhase({ status, purchaseFromDay: ex.window.purchaseFromDay, purchaseCloseDay: ex.window.purchaseCloseDay, closingAt: ex.closingAt }, now, org.timeZone).phase : "NOT_PUBLISHED";
+  const phase = exercisePhase(ex, now, org.timeZone);
   return {
     org: { id: org.id, timeZone: org.timeZone, today: org.today, name: org.name },
     ex,

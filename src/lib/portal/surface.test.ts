@@ -49,6 +49,15 @@ describe("the public copy", () => {
     for (const m of ["PUT", "PATCH", "DELETE", "OPTIONS"]) expect(publicAllows({ method: m, pathname: "/supplier/register/submit", hasServerAction: false })).toBe(false);
   });
 
+  it("serves the two pages that log an inspection to a GET and never to a HEAD, which would log an opening nobody made (Phase 4d review)", () => {
+    for (const p of ["/supplier/bids/ex1/table-document", "/supplier/bids/ex1/documents"]) {
+      expect(get(p), p).toBe(true);
+      expect(publicAllows({ method: "HEAD", pathname: p, hasServerAction: false }), p).toBe(false);
+    }
+    // The other pages of the workspace answer a HEAD as any page does.
+    expect(publicAllows({ method: "HEAD", pathname: "/supplier/bids/ex1", hasServerAction: false })).toBe(true);
+  });
+
   it("serves the supplier portal's sign-in, activation, reset and account pages, each at its one literal path (Phase 4a)", () => {
     for (const p of ["/supplier/sign-in", "/supplier/activate", "/supplier/reset", "/supplier/account", "/supplier/account/"]) expect(get(p), p).toBe(true);
     for (const p of ["/supplier/sign-in/submit", "/supplier/account/password", "/supplier/sign-in/", "/supplier/accounts", "/supplier/account/x", "/supplier/sign-in/x", "/supplier/Activate"]) expect(get(p), p).toBe(p === "/supplier/sign-in/");

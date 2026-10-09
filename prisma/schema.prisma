@@ -6358,7 +6358,9 @@ model NonAwardNotice {
   issuedByPersonId String
   issuedBy       Person           @relation("NonAwardIssuedBy", fields: [issuedByPersonId], references: [id], onDelete: Restrict)
 
-  @@unique([exerciseId, partyId])
+  /// One notice per tenderer under each award. An award that is cancelled and made again starts the tenderers' notices afresh, so the key is the award, not the exercise: a notice under a cancelled award stays on record, superseded, and never blocks the next one.
+  @@unique([awardId, partyId])
+  @@index([exerciseId, partyId])
   @@index([awardId])
 }
 

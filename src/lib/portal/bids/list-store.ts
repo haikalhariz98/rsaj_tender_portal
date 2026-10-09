@@ -4,9 +4,11 @@ import { dayIn, storedDay } from "@/lib/dates";
 import { exerciseOrg } from "@/lib/method/repo";
 import type { ExerciseStatus } from "@/lib/method/types";
 import { instantText, isIssuedAward, isPublicOpportunity, opportunityState, type OpportunityState } from "@/lib/portal/public";
-import { noticeBody } from "./non-award";
+import { exercisePhase } from "./context-store";
+import { noticeBody, noticeStands, SUPERSEDED_NOTICE_WORDS } from "./non-award";
 import { partChips, type PartChip, type PartFacts } from "./part";
 import { sortNotices, type PortalNotice } from "./notices";
+import { windowFault } from "./signup";
 import { supplierSees } from "./visibility";
 
 /**
@@ -47,12 +49,12 @@ export async function loadMyExercises(client: Tx, actor: Pick<SupplierActor, "su
   const [exercises, sales, recipients, opened, notices] = await Promise.all([
     client.sourcingExercise.findMany({
       where: { organisationId: actor.organisationId, id: { in: [...ids] }, status: { in: [...ROW_STATUSES] } },
-      select: { id: true, reference: true, title: true, status: true, restricted: true, closingAt: true, awards: { select: { status: true } }, window: { select: { path: true, publishedAt: true } } },
+      select: { id: true, reference: true, title: true, status: true, restricted: true, closingAt: true, awards: { select: { status: true } }, window: { select: { path: true, publishedAt: true, purchaseFromDay: true, purchaseCloseDay: true } } },
     }),
     partyIds.length ? client.documentSale.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds }, voidedAt: null }, select: { window: { select: { exerciseId: true } } } }) : Promise.resolve([]),
     partyIds.length ? client.addendumRecipient.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds }, addendum: { status: "ISSUED" } }, select: { addendumId: true, addendum: { select: { window: { select: { exerciseId: true } } } } } }) : Promise.resolve([]),
     partyIds.length ? client.openedBid.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { exerciseId: true }, distinct: ["exerciseId"] }) : Promise.resolve([]),
-    partyIds.length ? client.nonAwardNotice.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { exerciseId: true } }) : Promise.resolve([]),
+    partyIds.length ? client.nonAwardNotice.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { exerciseId: true, award: { select: { status: true } } } }) : Promise.resolve([]),
   ]);
 
   const count = <T>(xs: readonly T[], of: (x: T) => string, id: string) => xs.filter((x) => of(x) === id).length;
@@ -71,9 +73,11 @@ export async function loadMyExercises(client: Tx, actor: Pick<SupplierActor, "su
       bought: count(sales, (s) => s.window.exerciseId, e.id) > 0,
       requested: requests.some((r) => r.window.exerciseId === e.id && r.refusedAt == null && r.endedAt == null),
       signUps: signUps.filter((s) => s.event.window.exerciseId === e.id && s.endedAt == null && s.event.cancelledAt == null).length,
-      toAcknowledge: recipients.filter((r) => r.addendum.window.exerciseId === e.id && !acked.has(r.addendumId)).length,
+      // Waiting only while it can still be acknowledged: after the closing, or once the exercise is cancelled, an addendum not acknowledged is no longer a thing to do.
+      toAcknowledge: windowFault(exercisePhase(e, now, org.timeZone)) == null ? recipients.filter((r) => r.addendum.window.exerciseId === e.id && !acked.has(r.addendumId)).length : 0,
       opened: count(opened, (o) => o.exerciseId, e.id) > 0,
-      outcomeNotice: count(notices, (n) => n.exerciseId, e.id) > 0,
+      // A notice counts while the award it was issued under stands.
+      outcomeNotice: notices.some((n) => n.exerciseId === e.id && noticeStands(n.award.status)),
       inspected: count(inspections, (i) => i.window.exerciseId, e.id) > 0,
     };
     out.push({
@@ -96,10 +100,10 @@ export async function loadMyExercises(client: Tx, actor: Pick<SupplierActor, "su
  * "with the documents"), and a party that bought the documents or was invited, for a closing change that was applied and a cancellation that was applied. A notice of non-award is the one issued to the supplier's party.
  * Shown in the portal, not sent (INT-09). Reading one sets nothing the officers record.
  */
-export async function loadMyNotices(client: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">): Promise<PortalNotice[]> {
+export async function loadMyNotices(client: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, now: Date = new Date()): Promise<PortalNotice[]> {
   const parties = await client.exerciseParty.findMany({
     where: { organisationId: actor.organisationId, vendorId: actor.supplierId },
-    select: { id: true, exerciseId: true, exercise: { select: { reference: true, title: true, restricted: true, window: { select: { publishedAt: true } } } }, letters: { select: { id: true } }, sales: { where: { voidedAt: null }, select: { id: true } } },
+    select: { id: true, exerciseId: true, exercise: { select: { reference: true, title: true, restricted: true, status: true, closingAt: true, window: { select: { publishedAt: true, purchaseFromDay: true, purchaseCloseDay: true } } } }, letters: { select: { id: true } }, sales: { where: { voidedAt: null }, select: { id: true } } },
   });
   // A party sees nothing of an exercise whose window was not published (a proposed invitee on a name route is not yet invited).
   const mine = parties.filter((p) => p.exercise.window?.publishedAt != null);
@@ -114,9 +118,9 @@ export async function loadMyNotices(client: Tx, actor: Pick<SupplierActor, "supp
       select: { addendumId: true, addendum: { select: { number: true, title: true, whatChanged: true, issuedOn: true, window: { select: { exerciseId: true } } } } },
     }),
     client.addendumAcknowledgement.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId }, select: { addendumId: true, acknowledgedOn: true } }),
-    notified.length ? client.closingChange.findMany({ where: { organisationId: actor.organisationId, appliedAt: { not: null }, window: { exerciseId: { in: notified } } }, select: { id: true, kind: true, fromClosingAt: true, toClosingAt: true, reason: true, appliedAt: true, window: { select: { exerciseId: true, exercise: { select: { id: true } } } } } }) : Promise.resolve([]),
-    notified.length ? client.windowCancellation.findMany({ where: { organisationId: actor.organisationId, appliedAt: { not: null }, window: { exerciseId: { in: notified } } }, select: { id: true, reason: true, feeRefund: true, appliedAt: true, window: { select: { exerciseId: true } } } }) : Promise.resolve([]),
-    client.nonAwardNotice.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { id: true, exerciseId: true, outcomeText: true, reasonText: true, issuedOn: true } }),
+    notified.length ? client.closingChange.findMany({ where: { organisationId: actor.organisationId, appliedAt: { not: null }, window: { exerciseId: { in: notified } } }, select: { id: true, kind: true, fromClosingAt: true, toClosingAt: true, appliedAt: true, window: { select: { exerciseId: true, exercise: { select: { id: true } } } } } }) : Promise.resolve([]),
+    notified.length ? client.windowCancellation.findMany({ where: { organisationId: actor.organisationId, appliedAt: { not: null }, window: { exerciseId: { in: notified } } }, select: { id: true, feeRefund: true, appliedAt: true, window: { select: { exerciseId: true } } } }) : Promise.resolve([]),
+    client.nonAwardNotice.findMany({ where: { organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { id: true, exerciseId: true, outcomeText: true, reasonText: true, issuedOn: true, award: { select: { status: true } } } }),
   ]);
   const org = await exerciseOrg(actor.organisationId, client);
   const tz = org?.timeZone ?? null;
@@ -130,7 +134,9 @@ export async function loadMyNotices(client: Tx, actor: Pick<SupplierActor, "supp
     const exId = r.addendum.window.exerciseId;
     const e = byExercise.get(exId);
     if (!e || !r.addendum.issuedOn) continue;
-    out.push({ key: `addendum:${r.addendumId}`, kind: "ADDENDUM", exerciseId: exId, exerciseReference: e.reference, exerciseTitle: e.title, on: storedDay(r.addendum.issuedOn), title: `Addendum ${r.addendum.number ?? ""}: ${r.addendum.title}`.replace("Addendum :", "Addendum:"), body: r.addendum.whatChanged, addendum: { id: r.addendumId, acknowledgedOn: ackOn.get(r.addendumId) ?? null } });
+    // Whether it can still be acknowledged is the window's phase, as the act reads it.
+    const canAcknowledge = windowFault(exercisePhase(e, now, tz)) == null;
+    out.push({ key: `addendum:${r.addendumId}`, kind: "ADDENDUM", exerciseId: exId, exerciseReference: e.reference, exerciseTitle: e.title, on: storedDay(r.addendum.issuedOn), title: `Addendum ${r.addendum.number ?? ""}: ${r.addendum.title}`.replace("Addendum :", "Addendum:"), body: r.addendum.whatChanged, addendum: { id: r.addendumId, acknowledgedOn: ackOn.get(r.addendumId) ?? null, canAcknowledge } });
   }
   for (const c of changes) {
     const exId = c.window.exerciseId;
@@ -143,7 +149,8 @@ export async function loadMyNotices(client: Tx, actor: Pick<SupplierActor, "supp
       exerciseTitle: ex(exId).title,
       on: dayIn(c.appliedAt, tz),
       title: c.kind === "EXTENSION" ? "The closing was extended" : "The closing was corrected",
-      body: `The closing moved from ${instantText(c.fromClosingAt, tz)} to ${instantText(c.toClosingAt, tz)}.${c.reason.trim() ? ` Reason: ${c.reason.trim()}` : ""}`,
+      // The officers' own reason is written for the approvers, not for tenderers, and is never shown here.
+      body: `The closing moved from ${instantText(c.fromClosingAt, tz)} to ${instantText(c.toClosingAt, tz)}.`,
     });
   }
   for (const c of cancellations) {
@@ -157,12 +164,15 @@ export async function loadMyNotices(client: Tx, actor: Pick<SupplierActor, "supp
       exerciseTitle: ex(exId).title,
       on: dayIn(c.appliedAt, tz),
       title: "The exercise was cancelled",
-      body: `${c.reason.trim() ? `${c.reason.trim()} ` : ""}${c.feeRefund ? "The document fee is refunded." : "The document fee is not refunded."}`,
+      // The officers' own reason is written for the approvers, not for tenderers, and is never shown here.
+      body: `This exercise was cancelled. ${c.feeRefund ? "The document fee is refunded." : "The document fee is not refunded."}`,
     });
   }
   for (const n of nonAward) {
     if (!byExercise.has(n.exerciseId)) continue;
-    out.push({ key: `outcome:${n.id}`, kind: "NON_AWARD", exerciseId: n.exerciseId, exerciseReference: ex(n.exerciseId).reference, exerciseTitle: ex(n.exerciseId).title, on: storedDay(n.issuedOn), title: "Notice of the outcome", body: noticeBody(n.outcomeText, n.reasonText) });
+    // A notice stands with the award it was issued under: under one that was cancelled it is shown as superseded, in other words, and its own text is not repeated.
+    const stands = noticeStands(n.award.status);
+    out.push({ key: `outcome:${n.id}`, kind: "NON_AWARD", exerciseId: n.exerciseId, exerciseReference: ex(n.exerciseId).reference, exerciseTitle: ex(n.exerciseId).title, on: storedDay(n.issuedOn), title: stands ? "Notice of the outcome" : "Notice of the outcome (superseded)", body: stands ? noticeBody(n.outcomeText, n.reasonText) : SUPERSEDED_NOTICE_WORDS, ...(stands ? {} : { superseded: true }) });
   }
   return sortNotices(out);
 }

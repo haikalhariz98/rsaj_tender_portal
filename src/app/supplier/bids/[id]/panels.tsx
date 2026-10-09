@@ -9,6 +9,7 @@ import { KeyValues } from "@/components/ui/stat";
 import type { SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 import type { BidContext } from "@/lib/portal/bids/context-store";
+import { SUPERSEDED_NOTICE_WORDS } from "@/lib/portal/bids/non-award";
 import { NOTICE_DELIVERY_STATEMENT } from "@/lib/portal/bids/notices";
 import { addendaTab, briefingsTab, documentsTab, outcomeTab, overviewTab } from "@/lib/portal/bids/workspace-store";
 
@@ -130,7 +131,7 @@ export async function AddendaPanel({ actor, ctx, token }: Props) {
                     <p className="text-[12.5px] text-ink-3">{x.issuedOn ? `Issued ${x.issuedOn}` : "Not dated"}{x.newClosing ? ` · New closing ${x.newClosing}` : ""}</p>
                     <p className="mt-1.5 text-[13.5px] whitespace-pre-line text-ink-2">{x.whatChanged}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {x.acknowledgedOn ? <Badge tone="ok" dot>You acknowledged it on {x.acknowledgedOn}</Badge> : x.holdsCopy ? <Badge tone="warn">Waiting for you to acknowledge it</Badge> : <Badge>Sent to the companies that bought the documents</Badge>}
+                      {x.acknowledgedOn ? <Badge tone="ok" dot>You acknowledged it on {x.acknowledgedOn}</Badge> : x.holdsCopy ? (x.canAcknowledge ? <Badge tone="warn">Waiting for you to acknowledge it</Badge> : <Badge>You did not acknowledge it</Badge>) : <Badge>Sent to the companies that bought the documents</Badge>}
                       {x.withDocuments && <Badge>It came with your documents</Badge>}
                     </div>
                   </div>
@@ -281,8 +282,12 @@ export async function OutcomePanel({ actor, ctx }: Omit<Props, "token">) {
               <p className="text-[14px] text-ink">{o.notice.outcomeText}</p>
               {o.notice.reasonText && <p className="text-[14px] whitespace-pre-line text-ink-2"><span className="font-semibold">Reason given: </span>{o.notice.reasonText}</p>}
             </div>
-          ) : o.awardIssuedElsewhere ? (
+          ) : o.supersededNotice ? (
+            <p className="text-[14px] text-ink-2">{SUPERSEDED_NOTICE_WORDS} It was issued {o.supersededNotice.on}.</p>
+          ) : o.awardIssuedElsewhere && o.inResults ? (
             <p className="text-[14px] text-ink-2">The procurement office has not issued your company a notice of the outcome. The award is published under <Link href="/supplier/results">Results</Link>.</p>
+          ) : o.awardIssuedElsewhere ? (
+            <p className="text-[14px] text-ink-2">The procurement office has not issued your company a notice of the outcome.</p>
           ) : (
             <p className="text-[14px] text-ink-2">No notice of the outcome has been issued. One is only issued to a company whose bid did not win, after the award.</p>
           )}

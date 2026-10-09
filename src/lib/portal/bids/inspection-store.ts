@@ -6,7 +6,9 @@ import { instantText } from "@/lib/portal/public";
 import { sinceApprovedLines, tableDocumentAvailability } from "@/lib/window/phase";
 
 import { loadBidContext, type BidContext } from "./context-store";
-import { inspectionReading } from "./documents";
+import { downloadRequestFault } from "@/lib/documents/request-guard";
+
+import { inspectionReading, isRepeatInspection } from "./documents";
 import { releaseState, releaseWords, type ReleaseState } from "./release";
 
 /**
@@ -24,7 +26,8 @@ export type PrintedView = Exclude<NonNullable<Awaited<ReturnType<typeof printVie
 export type OpenResult =
   /// `since`: what has changed since the documents were approved (the closing, the addenda), said beside them: the text shown is as approved.
   | { open: true; ctx: BidContext; view: PrintedView; since: string[] }
-  | { open: false; ctx: BidContext | null; headline: string; detail: string };
+  /// `crossSite`: the request was started by another site, so nothing was read or logged.
+  | { open: false; ctx: BidContext | null; headline: string; detail: string; crossSite?: true };
 
 /// The supplier's sale that stands on this window, and the organisation's release setting, read together.
 export async function loadReleaseFacts(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, ctx: BidContext): Promise<{ state: ReleaseState; setting: boolean | null; sale: { id: string; soldOn: Date; financeReceiptNo: string | null } | null }> {
@@ -38,7 +41,26 @@ export async function loadReleaseFacts(tx: Tx, actor: Pick<SupplierActor, "suppl
   return { state: releaseState({ setting, sale: sale ? { voidedAt: sale.voidedAt, financeReceiptNo: sale.financeReceiptNo } : null, phase: ctx.phase }), setting, sale: sale ? { id: sale.id, soldOn: sale.soldOn, financeReceiptNo: sale.financeReceiptNo } : null };
 }
 
-export async function openForInspection(actor: SupplierActor, i: { exerciseId: string; kind: "TABLE_DOCUMENT" | "PACK" }, now: Date = new Date()): Promise<OpenResult> {
+/**
+ * Writes the opening to the log, unless the supplier's last opening of the same version is so recent that the log already says it (`isRepeatInspection`). The log cannot be corrected or emptied, so its growth is bounded
+ * by the sitting, not by how often a page is fetched. Where the row cannot be written, the error propagates.
+ */
+export async function recordInspection(client: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId" | "accountId">, w: { windowId: string; kind: "TABLE_DOCUMENT" | "PACK"; documentVersion: number }, now: Date): Promise<{ written: boolean }> {
+  const last = await client.tenderInspectionEvent.findFirst({
+    where: { organisationId: actor.organisationId, windowId: w.windowId, supplierId: actor.supplierId, kind: w.kind, documentVersion: w.documentVersion },
+    orderBy: { viewedAt: "desc" },
+    select: { viewedAt: true },
+  });
+  if (isRepeatInspection(last?.viewedAt ?? null, now)) return { written: false };
+  await client.tenderInspectionEvent.create({
+    data: { organisationId: actor.organisationId, windowId: w.windowId, supplierId: actor.supplierId, kind: w.kind, documentVersion: w.documentVersion, viewedBySupplierAccountId: actor.accountId, viewedAt: now },
+  });
+  return { written: true };
+}
+
+export async function openForInspection(actor: SupplierActor, i: { exerciseId: string; kind: "TABLE_DOCUMENT" | "PACK"; secFetchSite?: string | null }, now: Date = new Date()): Promise<OpenResult> {
+  // A page on another site can send a signed-in supplier's browser here, and each opening is a permanent row against that supplier. A request another site started reads nothing and logs nothing.
+  if (downloadRequestFault(i.secFetchSite ?? null)) return { open: false, ctx: null, crossSite: true, headline: "Open this from your own list", detail: "This page was reached from another site, so it was not opened and nothing was logged. Open the exercise from My Bids and choose the documents there." };
   const ctx = await loadBidContext(db, actor, i.exerciseId, now);
   if (!ctx || !ctx.ex.window) return { open: false, ctx: null, headline: "Not found", detail: "That exercise is not one you can open." };
 
@@ -59,9 +81,7 @@ export async function openForInspection(actor: SupplierActor, i: { exerciseId: s
   }
 
   // The log first: where it cannot be written, this throws and nothing below runs.
-  await db.tenderInspectionEvent.create({
-    data: { organisationId: actor.organisationId, windowId: ctx.ex.window.id, supplierId: actor.supplierId, kind: i.kind, documentVersion: view.version, viewedBySupplierAccountId: actor.accountId, viewedAt: now },
-  });
+  await recordInspection(db, actor, { windowId: ctx.ex.window.id, kind: i.kind, documentVersion: view.version }, now);
   const [closingChanges, addendaIssued] = await Promise.all([
     db.closingChange.count({ where: { windowId: ctx.ex.window.id, organisationId: actor.organisationId, appliedAt: { not: null } } }),
     db.addendum.count({ where: { windowId: ctx.ex.window.id, organisationId: actor.organisationId, status: "ISSUED" } }),

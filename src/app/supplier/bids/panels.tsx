@@ -77,9 +77,9 @@ export async function NoticesPanel({ actor }: { actor: SupplierActor }) {
     id: n.key,
     cells: {
       notice: { kind: "link", text: n.title, href: `/supplier/bids/${n.exerciseId}?tab=${n.kind === "ADDENDUM" ? "addenda" : n.kind === "NON_AWARD" ? "outcome" : "addenda"}`, sub: `${n.exerciseReference} · ${n.exerciseTitle}` },
-      kind: { kind: "badge", text: NOTICE_KIND_WORDS[n.kind], tone: n.kind === "EXERCISE_CANCELLED" ? "warn" : n.kind === "NON_AWARD" ? "info" : undefined },
+      kind: { kind: "badge", text: NOTICE_KIND_WORDS[n.kind], tone: n.kind === "EXERCISE_CANCELLED" ? "warn" : n.kind === "NON_AWARD" && !n.superseded ? "info" : undefined },
       on: { kind: "text", text: formatDate(n.on) },
-      state: n.addendum ? (n.addendum.acknowledgedOn ? { kind: "chip", text: "Acknowledged", tone: "ok" } : { kind: "chip", text: "To acknowledge", tone: "warn" }) : { kind: "text", text: "", dim: true },
+      state: n.addendum ? (n.addendum.acknowledgedOn ? { kind: "chip", text: "Acknowledged", tone: "ok" } : n.addendum.canAcknowledge ? { kind: "chip", text: "To acknowledge", tone: "warn" } : { kind: "chip", text: "Not acknowledged" }) : { kind: "text", text: "", dim: true },
     },
     sortKeys: { on: n.on },
     search: `${n.title} ${n.exerciseReference} ${n.exerciseTitle} ${NOTICE_KIND_WORDS[n.kind]} ${n.body}`,
