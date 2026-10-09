@@ -212,6 +212,7 @@ model Organisation {
   rolePermissions RolePermission[]
   actAttributions ActAttribution[]
   configurationChanges ConfigurationChange[]
+  draftMakers          ConfigurationDraftMaker[]
   costCentres     CostCentre[]
   accountCodes    AccountCode[]
   sites             Site[]
@@ -675,6 +676,8 @@ model Person {
   actsAttributedAsRecorder   ActAttribution[]        @relation("ActRecordedBy")
   actsBackdateAuthorised     ActAttribution[]        @relation("ActBackdateAuthorisedBy")
   matrixMaking               AuthorityMatrixMaker[]
+  draftMaking                ConfigurationDraftMaker[]
+  evaluationModelsIssued     EvaluationModel[] @relation("EvaluationModelIssuedBy")
   matricesIssued             AuthorityMatrix[]       @relation("MatrixIssuedBy")
   configurationChangesProposed ConfigurationChange[] @relation("ChangeProposedBy")
   configurationChangesDecided  ConfigurationChange[] @relation("ChangeDecidedBy")
@@ -7049,6 +7052,9 @@ model EvaluationModel {
   route   EvaluationRoute
   status  EvaluationModelStatus @default(DRAFT)
   issuedAt  DateTime?
+  /// Who issued it (Phase 5a): a person who did not make the draft. Null on a model issued before sign-in.
+  issuedByPersonId String?
+  issuedBy         Person?  @relation("EvaluationModelIssuedBy", fields: [issuedByPersonId], references: [id], onDelete: Restrict)
   retiredAt DateTime?
   /// Stages, criteria, factor options, band sets and the aspects in force, as issued.
   contentSnapshot Json?
@@ -11715,6 +11721,26 @@ model AuthorityMatrixMaker {
   @@index([personId])
 }
 
+/// Who has edited a draft that is issued in turn, one row per person and draft (ADR 0034 D15, Phase 5a): an evaluation model's draft and a rate schedule's.
+/// The issuer of the draft is never one of these (migration 20261018100000, trigger `guard_draft_issue`). The matrix has its own table (`AuthorityMatrixMaker`).
+model ConfigurationDraftMaker {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  /// "EvaluationModel" or "RateSchedule": the model the draft is a row of. Text, a closed list in code.
+  entity         String
+  entityId       String
+  personId       String
+  person         Person       @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  /// The first edit of this draft by this person.
+  firstAt DateTime @default(now())
+
+  @@unique([entity, entityId, personId])
+  @@index([organisationId, entity, entityId])
+  @@index([personId])
+}
+
 /// Which roles hold which product permission (ADR 0034 D8). The key is product vocabulary (a closed list in code), the role is the
 /// customer's, and the decision is the customer's: no row is UNDECIDED, which is refused but shown as undecided, never as withheld.
 /// A key is text, not an enum: the list of keys is code, and a new key must not need a migration. The role is a code, as a rule's is
@@ -11844,6 +11870,20 @@ enum ConfigurationChangeKind {
   ADMINISTRATOR_GRANT
   ADMINISTRATOR_REVOKE
   ACCOUNT_CODE
+  /// Phase 5b: any other configuration editor's save, carried as the editor it is (the payload names it). Proposed by a holder of
+  /// `configuration.draft`, decided by a different holder of `configuration.issue`.
+  CONFIGURATION_EDIT
+  /// Phase 5a: a committee's quorum (FR-CTE-003).
+  QUORUM_CHANGE
+  /// Phase 5a: the number of people who open the bids.
+  OPENING_PANEL_SIZE
+  /// Phase 5a: a document's or a document class's classification lowered (BD-DS-11).
+  CLASSIFICATION_DOWNGRADE
+  /// Phase 5a: the 6.12 corrections of a contract's baseline, of an award's term and of the Contract Date, and the BD-24 correction of an accepted award's return.
+  BASELINE_CORRECTION
+  AWARD_TERM_CORRECTION
+  CONTRACT_DATE_CORRECTION
+  AWARD_RETURN_CORRECTION
 }
 
 enum ConfigurationChangeStatus {
