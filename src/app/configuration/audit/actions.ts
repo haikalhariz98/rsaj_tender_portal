@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { diffFields } from "@/lib/audit/diff";
 import { actorDisplayName } from "@/lib/audit/actor";
+import { maskRowsForBlindReader, rowsMasked } from "@/lib/evaluation/blind-audit";
+import { blindScopesFor } from "@/lib/evaluation/blind-audit-store";
 import { auditCsv, entriesOnDays, EXPORT_FAULT_TEXT, exportFault, exportFileName, sha256Hex } from "@/lib/audit/export";
 import { writeAudit } from "@/lib/audit/record";
 import { dayToDate, todayIn } from "@/lib/dates";
@@ -48,6 +50,8 @@ export async function exportAuditTrail(_prev: ExportResult, data: FormData): Pro
         : { ok: false, message: EXPORT_FAULT_TEXT[fault] };
   }
   const zone = org.timeZone!;
+  // FR-EVL-020 (decisions log, 2026-10-09, ruling on 1867(3)): the exercises whose evaluation the exporter is read blind to. Their rows leave without a bidder's name or price.
+  const blindScopes = await blindScopesFor(org.id, actor.personId);
   const result = await db.$transaction(
     async (tx) => {
       // A day either side in UTC, then judged on the organisation's day.
@@ -55,7 +59,9 @@ export async function exportAuditTrail(_prev: ExportResult, data: FormData): Pro
         where: { organisationId: org.id, at: { gte: new Date(dayToDate(fromDay!).getTime() - DAY_MS), lt: new Date(dayToDate(toDay!).getTime() + 2 * DAY_MS) } },
         include: { actorPerson: { select: { name: true } } },
       });
-      const picked = entriesOnDays(rows, fromDay!, toDay!, zone);
+      const days = entriesOnDays(rows, fromDay!, toDay!, zone);
+      const picked = maskRowsForBlindReader(days, blindScopes);
+      const masked = rowsMasked(days, picked);
       const file = auditCsv(
         picked.map((r) => ({ ...r, actorName: actorDisplayName(r) })),
         zone,
@@ -64,7 +70,7 @@ export async function exportAuditTrail(_prev: ExportResult, data: FormData): Pro
       const fileName = exportFileName(fromDay!, toDay!);
       const row = await tx.auditExport.create({ data: { organisationId: org.id, fromDay: dayToDate(fromDay!), toDay: dayToDate(toDay!), rowCount: picked.length, sha256, fileName } });
       await writeAudit(tx, { actor: toAuditActor(actor), organisationId: org.id, entity: "AuditExport", entityId: row.id, entityLabel: `Audit trail export ${fromDay} to ${toDay}` }, "CREATE",
-        diffFields(null, { fromDay: dayToDate(fromDay!), toDay: dayToDate(toDay!), rowCount: picked.length, sha256, fileName }));
+        diffFields(null, { fromDay: dayToDate(fromDay!), toDay: dayToDate(toDay!), rowCount: picked.length, sha256, fileName, ...(masked ? { rowsWithBidderNamesAndPricesHeldBack: masked } : {}) }));
       return { file, sha256, fileName, rowCount: picked.length };
     },
     { timeout: 30_000, maxWait: 10_000 },

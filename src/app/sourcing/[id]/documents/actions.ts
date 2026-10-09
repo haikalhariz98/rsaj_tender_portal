@@ -579,6 +579,10 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
   const startOn = String(data.get("startOn") ?? "").trim() || null;
   const closingDay = String(data.get("closingDay") ?? "").trim() || null;
   const closingTime = String(data.get("closingTime") ?? "").trim() || null;
+  // The person who sends it is the route's sender (decisions log, 2026-10-09, ruling on 1860): barred from deciding it, as the name's sender is. Always the signed-in officer's own act.
+  const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inPacks(actor, exerciseId, async (tx, l, packs) => {
     if (!l.org.today) return NO_ZONE;
     const pack = draftOf(packs);
@@ -699,6 +703,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
         warnings: res.warnings as unknown as Prisma.InputJsonValue,
         status: "PENDING",
         openedAt: on,
+        submittedByPersonId: act.subjectPersonId,
         // Q-3: a rejection returns the documents for amendment, as §7.3.2 states it.
         ...tenderingRejectionSnapshot(now),
         ...routeCoreFields(res.core, now),
@@ -719,6 +724,7 @@ export async function submitPack(_prev: FormState, data: FormData): Promise<Form
     const routeLabel = label(l, exerciseRouteMatter(TENDERING_DOMAIN).auditNoun);
     await audit(tx, toAuditActor(actor), l.org.id, "ApprovalInstance", instance.id, routeLabel, "CREATE",
       diffFields(null, { matrix: issue!.label, rule: rule.labelEn, route: res.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: res.source === "OVERRIDE", ifRejected: "Returned for amendment" }));
+    await act.write(tx, instance.id);
     // ---- the pack, frozen
     const warns = allOf(findings).filter((f) => f.level !== "block");
     await tx.tenderPack.update({

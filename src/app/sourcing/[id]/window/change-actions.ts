@@ -40,7 +40,7 @@ import { FormReader } from "@/lib/validate";
 
 import { audit, CHANGED, exerciseIdOf, inWindow, label, NO_WINDOW, NO_ZONE, refuse, Refusal, type LockedWindow } from "./shared";
 import { toAuditActor, staffForAct } from "@/app/_auth/actor";
-import { beginAct } from "@/app/_auth/act";
+import { beginAct, type PreparedAct } from "@/app/_auth/act";
 import type { AuditActor } from "@/lib/auth/types";
 import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester";
 
@@ -59,7 +59,7 @@ import { routeRequesterId, routeSenderBarredId } from "@/lib/approvals/requester
 const NO_ISSUE: FormState = { ok: false, message: "No approval matrix is in force, so nobody can be shown as approving a change. Issue one under Configuration, Approval matrix." };
 
 /// The change's route, resolved now with the requester in mind, and opened with its steps (audited).
-async function openChangeRoute(tx: Tx, actor: AuditActor, l: LockedWindow, cond: WindowChangeCond, what: string): Promise<{ id: string } | FormState> {
+async function openChangeRoute(tx: Tx, actor: AuditActor, l: LockedWindow, cond: WindowChangeCond, what: string, act: PreparedAct): Promise<{ id: string } | FormState> {
   const { issue, ctx, cfg } = await evaluationContext(l.org, l.req, l.ex, tx);
   if (!issue || !ctx) return NO_ISSUE;
   const method = cfg.config.methods.find((m) => m.code === l.ex.sourcingMethodCode) ?? null;
@@ -103,6 +103,8 @@ async function openChangeRoute(tx: Tx, actor: AuditActor, l: LockedWindow, cond:
       warnings: res.warnings as unknown as Prisma.InputJsonValue,
       status: "PENDING",
       openedAt: dayToDate(l.org.today!),
+      // The sender (decisions log, 2026-10-09, ruling on 1860): barred from deciding the route. Always the signed-in officer's own act.
+      submittedByPersonId: act.subjectPersonId,
       ...windowChangeRejectionSnapshot(now),
       ...routeCoreFields(res.core, now),
       steps: {
@@ -112,6 +114,7 @@ async function openChangeRoute(tx: Tx, actor: AuditActor, l: LockedWindow, cond:
   });
   await audit(tx, actor, l.org.id, "ApprovalInstance", instance.id, label(l, exerciseRouteMatter(WINDOW_CHANGE_DOMAIN).auditNoun), "CREATE",
     diffFields(null, { matter: what, matrix: issue.label, rule: rule.labelEn, route: res.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), fundingOverrideApplied: res.source === "OVERRIDE", ifRefused: "not made; may be asked again" }));
+  await act.write(tx, instance.id);
   return { id: instance.id };
 }
 
@@ -141,6 +144,9 @@ export async function requestClosingChange(_prev: FormState, data: FormData): Pr
   const purchaseClose = r.date("purchaseCloseDay", "New last day of sale");
   const reason = r.text("reason", "Reason", { required: true, max: 2000 });
   if (r.failed || !kind || !day) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inWindow(actor, exerciseId, async (tx, l, d) => {
     if (!l.org.today) return NO_ZONE;
     const w = d.window;
@@ -161,7 +167,7 @@ export async function requestClosingChange(_prev: FormState, data: FormData): Pr
     });
     if (fs.some((f) => f.level === "block")) return refuse(fs, "Not asked:");
     const what = `${kind === "EXTENSION" ? "Extension" : "Correction"} of the closing to ${formatOrgDateTime(toClosingAt!, l.org.timeZone)}`;
-    const route = await openChangeRoute(tx, toAuditActor(actor), l, kind, what);
+    const route = await openChangeRoute(tx, toAuditActor(actor), l, kind, what, act);
     if (!("id" in route)) return route;
     const row = {
       kind,
@@ -193,6 +199,9 @@ export async function requestCancellation(_prev: FormState, data: FormData): Pro
   const reason = r.text("reason", "Reason", { max: 2000 });
   const refund = r.choice("feeRefund", "Fees refunded", ["yes", "no"] as const);
   if (r.failed) return { ok: false, errors: r.errors };
+  const begun = await beginAct(actor, data, "ApprovalInstance.submittedBy", { personField: "personId", onBehalf: false });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
   return inWindow(actor, exerciseId, async (tx, l, d) => {
     const w = d.window;
     if (!w) return NO_WINDOW;
@@ -204,7 +213,7 @@ export async function requestCancellation(_prev: FormState, data: FormData): Pro
       const field = fs.length === 1 && fs[0].code === "REASON_REQUIRED" ? "reason" : fs.length === 1 && fs[0].code === "REFUND_NOT_ANSWERED" ? "feeRefund" : null;
       return field ? { ok: false, errors: { [field]: windowFindingText(fs[0]) } } : refuse(fs, "Not asked:");
     }
-    const route = await openChangeRoute(tx, toAuditActor(actor), l, "CANCELLATION", "Cancellation of the published exercise");
+    const route = await openChangeRoute(tx, toAuditActor(actor), l, "CANCELLATION", "Cancellation of the published exercise", act);
     if (!("id" in route)) return route;
     const c = await tx.windowCancellation.create({ data: { organisationId: l.org.id, windowId: w.id, reason, feeRefund: refund === "yes", approvalInstanceId: route.id, requestedOn: dayToDate(l.org.today!) } });
     await audit(tx, toAuditActor(actor), l.org.id, ENTITY.cancellation, c.id, label(l, "Cancellation"), "CREATE", diffFields(null, { reason, feesRefunded: refund === "yes" ? "Yes" : "No" }), reason);

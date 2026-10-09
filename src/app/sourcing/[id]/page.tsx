@@ -131,6 +131,8 @@ import { requireStaff } from "@/app/_auth/actor";
 import { exerciseIsHidden, sulitExerciseValue, sulitExerciseGate } from "@/app/_auth/sulit";
 import { fieldIsFor, sulitWithheld, type Sulit } from "@/lib/auth/sulit-access";
 import { sulitHistoryValue } from "@/lib/auth/sulit-history";
+import { maskRowsForBlindReader } from "@/lib/evaluation/blind-audit";
+import { blindScopesFor } from "@/lib/evaluation/blind-audit-store";
 import { estimateCustodyForHistory } from "@/lib/opening/read";
 import { namingOthersRefusal } from "@/lib/auth/sulit-store";
 
@@ -155,7 +157,7 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
   const on = today ? dayToDate(today) : new Date();
   const draft = ex.status === "DRAFT";
 
-  const [{ issue, cfg, ctx }, history, people, roster, delegations, units, awards, awardPolicy] = await Promise.all([
+  const [{ issue, cfg, ctx }, historyRead, people, roster, delegations, units, awards, awardPolicy] = await Promise.all([
     evaluationContext(org, req, ex),
     // The rows of the History tab are built only when that tab is the one looked at (the strip needs the count): they would otherwise ride in the response of every tab.
     exerciseHistory(l, asked === "history"),
@@ -166,6 +168,10 @@ export default async function ExercisePage(props: PageProps<"/sourcing/[id]">) {
     db.award.findMany({ where: { exerciseId: ex.id }, orderBy: { createdAt: "desc" }, select: { id: true, reference: true, awardeeName: true, awardedValue: true, status: true, instrumentKind: true, cancelReason: true, contract: { select: { number: true } } } }),
     loadAwardPolicy(org.id),
   ]);
+  // FR-EVL-020 (decisions log, 2026-10-09, ruling on 1867(3)): a reader on the evaluation team of a version that still holds identities back is shown the opening's rows and the
+  // evaluation's rows without a bidder's name or price. Asked only for the History tab, which is the only one that carries the rows.
+  const blindScopes = asked === "history" ? await blindScopesFor(org.id, actor.personId, ex.id) : [];
+  const history = blindScopes.length ? { ...historyRead, entries: maskRowsForBlindReader(historyRead.entries, blindScopes) } : historyRead;
   // FR-EST-008: finalising an opening writes the disclosed company estimate (and the paper copy's figure) into the trail, under this exercise's reference, so
   // they are in this History. They are judged by the estimate's custody exactly as the opening's schedule judges them, and the access is logged; nothing is asked
   // (and nothing logged) where no row carries one. An estimate that is void, or none, is not in anyone's custody.

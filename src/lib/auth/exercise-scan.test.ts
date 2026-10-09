@@ -61,6 +61,9 @@ export const READ_AFTER_A_GUARD: Readonly<Record<string, string>> = {
   // Changed for the ruling of 2026-10-08 on log line 1736: `src/lib/scope/estimate-access.ts` now asks `exerciseAccessFacts` itself (who the evaluation is open to), so it has a guard of its own and is
   // no longer named here. The Secretariat and Internal Audit reader (ruling on line 1735) reads each exercise's unit to tell which department's holder reads it.
   "src/lib/auth/evaluation-readers-store.ts": "reads only the unit of exercises whose ids the caller already judged (`sulitGates`, `estimateAccessFor` and the document gates ask `exerciseAccessFacts` for the same ids), to tell which department's holder of an office reads them, and returns no exercise",
+  // Decisions log, 2026-10-09, ruling on 1867(3): reads only the exercises where the person sits on the evaluation team, to find the bidder names and prices to take OUT of the rows they are shown. It returns those
+  // strings and shows nothing of an exercise, so it can reveal nothing a hidden exercise would hide.
+  "src/lib/evaluation/blind-audit-store.ts": "reads only exercises the person sits on the evaluation team of, and returns the names and figures to withhold from them, never an exercise's content",
   "src/lib/suppliers/standing-repo.ts": "judges one supplier's standing for an exercise chosen from a list the guard already filtered, or inside an exercise lock",
   "src/lib/tender-docs/read-conditions.ts": "a tab's reader, called by the exercise page after its guard",
   "src/lib/tender-docs/read.ts": "a tab's reader, called by the exercise page after its guard",

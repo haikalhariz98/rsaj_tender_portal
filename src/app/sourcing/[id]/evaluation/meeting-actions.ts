@@ -220,6 +220,8 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
         warnings: res!.warnings as unknown as Prisma.InputJsonValue,
         status: "PENDING",
         openedAt: dayToDate(l.org.today!),
+        // The sender (decisions log, 2026-10-09, ruling on 1860): barred from deciding the route. The negotiation's own slot is never recorded from paper, so this is always the signed-in officer.
+        submittedByPersonId: person!.id,
         // A refusal returns nothing: the negotiation is not held, and may be asked for again.
         ...windowChangeRejectionSnapshot(now),
         ...routeCoreFields(res!.core, now),
@@ -232,6 +234,7 @@ export async function requestNegotiation(_prev: FormState, data: FormData): Prom
       diffFields(null, { matter: `Negotiation with bid No. ${b.listingNo}`, matrix: issue.label, rule: rule.labelEn, route: res!.chain.map((s) => `${roleLabel(s.roleCode)} (${ACT_LABEL[s.act]?.toLowerCase() ?? "acts"})`).join(" → "), ifRefused: "not held; may be asked again" }));
     await audit(tx, toAuditActor(actor), l.org.id, EVALUATION_ENTITY.negotiation, n.id, label, "CREATE", diffFields(null, { negotiationWith: `Bid No. ${b.listingNo}`, why: reason, askedBy: person!.name }), reason);
     await act.write(tx, n.id);
+    await act.writeAlso(tx, "ApprovalInstance.submittedBy", instance.id);
     return { ok: true, message: "Asked for. The negotiation is held once its approval is recorded." };
   });
 }
