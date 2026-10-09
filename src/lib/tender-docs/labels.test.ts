@@ -10,7 +10,7 @@ import { EXERCISE_STATUS_LABEL } from "@/lib/method/labels";
 import { ASSURANCE_KIND_LABEL, clauseConfigFaultText, conditionsFaultText, confirmFaultText, overrideFaultText, restrictionQuestion } from "./conditions-labels";
 import { ASSURANCE_KINDS } from "./assurance";
 
-import { appendixCardOf, appendixFaultText, appendixHref, findingHref, findingsSummary, IF_REFUSED_TEXT, TENDERING_STATE_LABEL, tenderingStepLabel, tenderingRouteTone, tenderingStepTone, behaviourFaultText, datesFaultText, PACK_KIND_LABEL, PACK_STATUS_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, PART_STATE_LABEL, partFaultText, periodText, trailLabel, routeFaultText, startFaultText, tenderingRouteLabel } from "./labels";
+import { appendixCardOf, appendixHintsByCard, appendixFaultText, appendixHref, findingHref, findingsSummary, IF_REFUSED_TEXT, TENDERING_STATE_LABEL, tenderingStepLabel, tenderingRouteTone, tenderingStepTone, behaviourFaultText, datesFaultText, PACK_KIND_LABEL, PACK_STATUS_LABEL, PART_CONTENT_LABEL, PART_ROLE_LABEL, PART_SOURCE_LABEL, PART_STATE_LABEL, partFaultText, periodText, trailLabel, routeFaultText, startFaultText, tenderingRouteLabel } from "./labels";
 import { APPENDIX_FIELD_LABEL } from "./appendix";
 import { PACK_KINDS, PACK_PART_STATES, PART_CONTENTS, PART_ROLES, PART_SOURCES, TENDER_PACK_STATUSES } from "./types";
 
@@ -164,6 +164,20 @@ describe("a finding links to where it is put right (UX 3, 9)", () => {
     expect(findingHref("e1", "appendix", fin("VARIATION_LIMIT_NOT_SET", { holder: "H" }))).toBe("/sourcing/e1/appendix#variation-limits");
     expect(appendixCardOf(fin("FIELD_NOT_SET", { field: "A field nobody named" }))).toBeNull();
     expect(appendixHref("e1", fin("FIELD_NOT_SET", { field: "A field nobody named" }))).toBe("/sourcing/e1/appendix");
+  });
+  it("SR-12: findings Save does not check become hints on their own card; an empty field is not one", () => {
+    const hints = appendixHintsByCard([
+      fin("SECTIONS_NOT_EXPECTED"),
+      fin("SECTION_LAD_NOT_SET", { section: "Block A" }),
+      fin("VARIATION_LIMIT_NOT_SET", { holder: "H" }),
+      fin("DLP_MONTHS_NOT_EXPECTED"),
+      fin("FIELD_NOT_VALID", { field: "Liquidated damages a day" }),
+      fin("FIELD_NOT_SET", { field: "Liquidated damages a day" }),
+    ]);
+    expect(Object.keys(hints).sort()).toEqual(["defects-liability", "liquidated-damages", "sectional-completion", "variation-limits"]);
+    expect(hints["sectional-completion"]).toHaveLength(2);
+    expect(hints["liquidated-damages"]).toHaveLength(1);
+    expect(appendixHintsByCard([fin("FIELD_NOT_SET", { field: "Liquidated damages a day" })])).toEqual({});
   });
   it("every field of the Appendix has a card", () => {
     for (const label of Object.values(APPENDIX_FIELD_LABEL)) expect(appendixCardOf(fin("FIELD_NOT_SET", { field: label })), label).not.toBeNull();

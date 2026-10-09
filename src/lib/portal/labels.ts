@@ -366,6 +366,9 @@ export const APPLY = {
   submit: w("Send for checking", "Hantar untuk semakan"),
   laterSteps: (organisation: string): Words => w(`Steps 2 to 5 open after ${organisation} has checked the company.`, `Langkah 2 hingga 5 dibuka selepas ${organisation} menyemak syarikat.`),
   stepsLabel: w("Registration steps", "Langkah pendaftaran"),
+  /// Under the steps on the public form, where nothing has been accepted yet: step 1 is what is being sent, the rest wait on the office's check.
+  stepSubFirst: w("Sent for checking", "Dihantar untuk semakan"),
+  stepSubLater: w("After the company is checked", "Selepas syarikat disemak"),
   sending: w("Sending…", "Menghantar…"),
   cantAccept: w("Something in this application could not be accepted, so nothing was sent. Check each field and send it again, or contact the procurement office.", "Sesuatu dalam permohonan ini tidak dapat diterima, jadi tiada apa dihantar. Semak setiap ruangan dan hantar semula, atau hubungi pejabat perolehan."),
   nothingSent: w("Nothing was sent. Check the fields marked below and send it again.", "Tiada apa dihantar. Semak ruangan yang ditanda di bawah dan hantar semula."),

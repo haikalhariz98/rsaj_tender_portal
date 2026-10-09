@@ -72,6 +72,8 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
   const drawer = (group: Parameters<typeof AppendixDrawer>[0]["group"], title: string) => <AppendixDrawer exerciseId={id} group={group} allowed={allowed} values={rawValues} offices={a.offices} officerLabels={officerLabels} title={title} />;
   const complete = a.status === "Complete";
   const copy = appendixCopy(a.state, a.version);
+  // SR-12: how the answers fit together, said on the card it is about.
+  const hint = (card: keyof typeof a.hints) => (a.hints[card] ?? []).map((t) => <Callout key={t} tone="warn">{t}</Callout>);
 
   return (
     <>
@@ -96,6 +98,7 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
 
         <Card id={APPENDIX_CARD.variationLimits} className="scroll-mt-24 overflow-hidden">
           <CardHeader icon={<ScaleIcon size={17} />} title="Variation limits" subtitle="How much of a variation each office or committee may approve." actions={<LimitDrawer exerciseId={id} holders={a.holders} allowed={allowed} />} divided={a.variationLimits.length === 0} />
+          {(a.hints[APPENDIX_CARD.variationLimits] ?? []).length > 0 && <div className="flex flex-col gap-2 px-5 pb-3 sm:px-6">{hint(APPENDIX_CARD.variationLimits)}</div>}
           {a.variationLimits.length === 0 ? (
             <EmptyState size="sm" title="No limits entered">Add the offices and committees that may approve a variation, with the most each may approve.</EmptyState>
           ) : (
@@ -135,6 +138,7 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
                 { label: "Permitted excess", value: val(a.insurance.excess) },
               ]}
             />
+            {hint(APPENDIX_CARD.insurance)}
             <p className="border-t border-line pt-3 text-[12.5px] text-ink-3">{a.insurance.tail}</p>
           </CardBody>
         </Card>
@@ -144,6 +148,7 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
           <CardBody className="flex flex-col gap-4">
             <KeyValues columns={2} items={[{ label: "Stated as", value: val(a.lad.kind) }, { label: "Rate", value: val(a.lad.value) }]} />
             {a.lad.helper && <Callout tone="info">{a.lad.helper} It is never worked out against the exercise&apos;s value or an estimate.</Callout>}
+            {hint(APPENDIX_CARD.lad)}
             {a.lad.suggestion && <p className="text-[12.5px] text-ink-3">{a.lad.suggestion}</p>}
           </CardBody>
         </Card>
@@ -153,6 +158,7 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
           <CardBody>
             <KeyValues columns={1} items={[{ label: "Sectional completion", value: val(a.sectional.value === "Yes" ? "Applies" : a.sectional.value === "No" ? "Does not apply" : a.sectional.value) }]} />
           </CardBody>
+          {(a.hints[APPENDIX_CARD.sectional] ?? []).length > 0 && <div className="flex flex-col gap-2 px-5 pb-3 sm:px-6">{hint(APPENDIX_CARD.sectional)}</div>}
           {a.sectional.value === "Yes" && a.sectional.sections.length === 0 && (
             <EmptyState size="sm" title="No sections entered">Sectional completion applies, so each section is entered with its liquidated damages. Use Add a section above.</EmptyState>
           )}
@@ -183,6 +189,7 @@ export default async function AppendixPage(props: PageProps<"/sourcing/[id]/appe
               <div className="flex flex-col gap-3">
                 <KeyValues columns={1} items={[{ label: "Defects liability period", value: val(a.dlp.value) }]} />
                 {a.dlp.typeNotSet && <Callout tone="warn">{a.dlp.typeNotSet}</Callout>}
+                {hint(APPENDIX_CARD.dlp)}
               </div>
             )}
           </CardBody>

@@ -31,7 +31,7 @@ export const STEP_INFO: readonly StepInfo[] = [
   { key: "documents", label: "Compliance Documents", sub: "Certificates and their dates" },
   { key: "codes", label: "Work Codes", sub: "Grades, categories, fields" },
   { key: "epayment", label: "e-Payment Details", sub: "E-payment and GIRO" },
-  { key: "review", label: "Review & Submit", sub: "Sign and send" },
+  { key: "review", label: "Review & Submit", sub: "Check and submit" },
 ];
 
 export const stepTitle = (s: RegistrationStep): string => STEP_INFO.find((x) => x.key === s)!.label;

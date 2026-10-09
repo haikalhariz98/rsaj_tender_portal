@@ -359,6 +359,22 @@ export function appendixCardOf(f: Finding): AppendixCard | null {
   return key ? FIELD_CARD[key] : null;
 }
 
+/// Findings Save does not check (`appendixFieldErrors` asks only for fields left empty): they are about how the
+/// answers fit together, or a stored value outside its column. SR-12: each is said on its own card, as a hint.
+/// SECTIONS_REQUIRED is left out: the sectional card already says no sections are entered.
+const APPENDIX_HINT_CODES: ReadonlySet<string> = new Set(["SECTIONS_NOT_EXPECTED", "SECTION_LAD_NOT_SET", "VARIATION_LIMIT_NOT_SET", "DLP_MONTHS_NOT_EXPECTED", "FIELD_NOT_VALID"]);
+
+/// The hints to show on each card of the Appendix, in words. A field simply left empty is not one: its card shows it Not set.
+export function appendixHintsByCard(findings: readonly Finding[]): Partial<Record<AppendixCard, string[]>> {
+  const out: Partial<Record<AppendixCard, string[]>> = {};
+  for (const f of findings) {
+    if (!APPENDIX_HINT_CODES.has(f.code)) continue;
+    const card = appendixCardOf(f);
+    if (card) (out[card] ??= []).push(appendixFaultText(f));
+  }
+  return out;
+}
+
 /// The Appendix page, at the card a finding is about (or the page, where it names none).
 export const appendixHref = (exerciseId: string, f: Finding) => {
   const card = appendixCardOf(f);

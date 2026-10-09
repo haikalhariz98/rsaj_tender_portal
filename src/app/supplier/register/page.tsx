@@ -39,7 +39,7 @@ export default async function SupplierRegisterPage() {
       ) : (
         <div className="flex flex-col gap-6">
           {/* SR-01: the five steps, step 1 current. Steps 2 to 5 are signed in, after the office has checked the company (the 2026-10-07 two-stage ruling). */}
-          <Stepper label={APPLY.stepsLabel.en} steps={STEP_INFO.map((s, i) => ({ key: s.key, label: s.label, sub: s.sub, state: i === 0 ? "current" : "waiting" }))} />
+          <Stepper label={APPLY.stepsLabel.en} steps={STEP_INFO.map((s, i) => ({ key: s.key, label: s.label, sub: (i === 0 ? APPLY.stepSubFirst : APPLY.stepSubLater).en, state: i === 0 ? "current" : "waiting" }))} />
           <Callout tone="info" icon={<InfoIcon size={16} />} title={APPLY.beforeTitle.en}>
             <ul className="mt-1 list-disc pl-5">
               {APPLY.beforeItems.map((item) => (

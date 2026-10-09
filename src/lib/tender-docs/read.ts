@@ -32,8 +32,7 @@ import { packFieldValues, WINDOW_FIELD } from "./fields";
 const WINDOW_PLACEHOLDER = "[the start and closing days proposed at submission]";
 import { appendixText, packManifest, unpricedBqText } from "./freeze";
 import {
-  appendixCardOf,
-  appendixFaultText,
+  appendixHintsByCard,
   BEHAVIOUR_AFTER_AWARD_WHERE,
   behaviourFaultText,
   findingHref,
@@ -382,7 +381,8 @@ export async function appendixPage(organisationId: string, exerciseId: string) {
       /// The policy's rule in words, with its provenance: computed against the awarded value, never the department's bill (SULIT).
       suggestion: p.firstCertificateFloor != null && p.firstCertificatePct != null ? `The policy's first-certificate minimum is the lesser of ${formatSen(p.firstCertificateFloor)} and ${formatPct(p.firstCertificatePct)} of the builders' works value (${provenance(p.firstCertificateProvenance).toLowerCase()}).` : null,
     },
-    findings: appendixFaults(a).map((f) => ({ level: f.level, text: appendixFaultText(f), card: appendixCardOf(f) })),
+    /// SR-12: the findings Save does not check, said on their own cards.
+    hints: appendixHintsByCard(appendixFaults(a)),
     raw: {
       tplMinimum: a.tplMinimum == null ? "" : senToDecimalString(a.tplMinimum),
       wcMinimum: a.wcMinimum == null ? "" : senToDecimalString(a.wcMinimum),
