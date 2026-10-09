@@ -26,7 +26,7 @@ export async function NonAwardPanel({ actor, award }: { actor: Pick<StaffActor, 
           actions={p.setting === "ON" ? <Badge tone="ok">Issued on request</Badge> : p.setting === "OFF" ? <Badge>Decided against</Badge> : <Badge tone="warn">Not decided</Badge>}
         />
         <CardBody className="flex flex-col gap-3">
-          <p className="text-[14px] text-ink-2">{p.words}</p>
+          {p.setting !== "NOT_SET" && <p className="text-[14px] text-ink-2">{p.words}</p>}
           {p.provenance && p.setting !== "NOT_SET" && <ProvenanceBadge value={p.provenance} />}
           {p.setting === "NOT_SET" && <Callout tone="warn">Whether tenderers are told the outcome is a policy of the organisation (D7). Until it is set under Configuration, Awards, nothing is issued and the portal shows tenderers no notice.</Callout>}
         </CardBody>

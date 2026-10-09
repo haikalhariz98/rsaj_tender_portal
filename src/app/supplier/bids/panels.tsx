@@ -5,6 +5,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
 import type { SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
+import { formatDate } from "@/lib/format";
 import { loadMyExercises, loadMyNotices } from "@/lib/portal/bids/list-store";
 import { NOTICE_DELIVERY_STATEMENT, NOTICE_KIND_WORDS, unacknowledged } from "@/lib/portal/bids/notices";
 import { NO_PART_YET } from "@/lib/portal/bids/part";
@@ -77,7 +78,7 @@ export async function NoticesPanel({ actor }: { actor: SupplierActor }) {
     cells: {
       notice: { kind: "link", text: n.title, href: `/supplier/bids/${n.exerciseId}?tab=${n.kind === "ADDENDUM" ? "addenda" : n.kind === "NON_AWARD" ? "outcome" : "addenda"}`, sub: `${n.exerciseReference} · ${n.exerciseTitle}` },
       kind: { kind: "badge", text: NOTICE_KIND_WORDS[n.kind], tone: n.kind === "EXERCISE_CANCELLED" ? "warn" : n.kind === "NON_AWARD" ? "info" : undefined },
-      on: { kind: "text", text: n.on },
+      on: { kind: "text", text: formatDate(n.on) },
       state: n.addendum ? (n.addendum.acknowledgedOn ? { kind: "chip", text: "Acknowledged", tone: "ok" } : { kind: "chip", text: "To acknowledge", tone: "warn" }) : { kind: "text", text: "", dim: true },
     },
     sortKeys: { on: n.on },

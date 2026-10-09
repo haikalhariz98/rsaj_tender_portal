@@ -2,7 +2,8 @@ import type { Tx } from "@/lib/audit/record";
 import type { SupplierActor } from "@/lib/auth/types";
 import { db } from "@/lib/db";
 import { printView } from "@/lib/tender-docs/read";
-import { tableDocumentAvailability } from "@/lib/window/phase";
+import { instantText } from "@/lib/portal/public";
+import { sinceApprovedLines, tableDocumentAvailability } from "@/lib/window/phase";
 
 import { loadBidContext, type BidContext } from "./context-store";
 import { inspectionReading } from "./documents";
@@ -21,7 +22,8 @@ import { releaseState, releaseWords, type ReleaseState } from "./release";
 export type PrintedView = Exclude<NonNullable<Awaited<ReturnType<typeof printView>>>, { none: true }>;
 
 export type OpenResult =
-  | { open: true; ctx: BidContext; view: PrintedView }
+  /// `since`: what has changed since the documents were approved (the closing, the addenda), said beside them: the text shown is as approved.
+  | { open: true; ctx: BidContext; view: PrintedView; since: string[] }
   | { open: false; ctx: BidContext | null; headline: string; detail: string };
 
 /// The supplier's sale that stands on this window, and the organisation's release setting, read together.
@@ -60,5 +62,9 @@ export async function openForInspection(actor: SupplierActor, i: { exerciseId: s
   await db.tenderInspectionEvent.create({
     data: { organisationId: actor.organisationId, windowId: ctx.ex.window.id, supplierId: actor.supplierId, kind: i.kind, documentVersion: view.version, viewedBySupplierAccountId: actor.accountId, viewedAt: now },
   });
-  return { open: true, ctx, view };
+  const [closingChanges, addendaIssued] = await Promise.all([
+    db.closingChange.count({ where: { windowId: ctx.ex.window.id, organisationId: actor.organisationId, appliedAt: { not: null } } }),
+    db.addendum.count({ where: { windowId: ctx.ex.window.id, organisationId: actor.organisationId, status: "ISSUED" } }),
+  ]);
+  return { open: true, ctx, view, since: sinceApprovedLines({ closing: ctx.ex.closingAt ? instantText(ctx.ex.closingAt, ctx.org.timeZone) : null, closingChanges, addendaIssued }) };
 }

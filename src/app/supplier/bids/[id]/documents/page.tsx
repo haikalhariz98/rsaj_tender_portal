@@ -40,7 +40,12 @@ export default async function ReleasedDocumentsPage({ params }: { params: Promis
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Link href={back}>Back to the documents</Link>
       </div>
-      <TenderDocumentArticle v={r.view} table={false} footer="The text frozen when the documents were approved for tendering. Addenda issued since are under Addenda. Files are bound in separately." />
+      <TenderDocumentArticle
+        v={r.view}
+        table={false}
+        notes={<div className="mb-6 flex flex-col gap-1 text-[13.5px] font-semibold text-ink-2">{r.since.map((l) => <p key={l}>{l}</p>)}</div>}
+        footer="The text frozen when the documents were approved for tendering. Addenda issued since are under Addenda. Files are bound in separately."
+      />
     </>
   );
 }

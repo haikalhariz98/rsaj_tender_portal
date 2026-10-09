@@ -33,15 +33,15 @@ export async function OverviewPanel({ actor, ctx }: Omit<Props, "token">) {
       </Callout>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card>
-          <CardHeader icon={<ClipboardIcon size={17} />} title="What waits for you" subtitle="In the order that matters." />
+          <CardHeader icon={<ClipboardIcon size={17} />} title="Where you are" subtitle="What you have done on this exercise, and what comes next." />
           <CardBody>
             {o.todo.length === 0 ? (
-              <p className="text-[14px] text-ink-2">Nothing waits for you on this exercise at the moment.</p>
+              <p className="text-[14px] text-ink-2">You have done nothing on this exercise yet, and nothing waits for you.</p>
             ) : (
               <ul className="flex flex-col gap-2.5">
                 {o.todo.map((t) => (
                   <li key={t} className="flex items-start gap-2.5 text-[14px] text-ink">
-                    <span className="mt-0.5 text-brand-600"><CheckIcon size={16} /></span>
+                    <span aria-hidden="true" className="mt-[7px] size-1.5 shrink-0 rounded-full bg-brand-600" />
                     {t}
                   </li>
                 ))}
