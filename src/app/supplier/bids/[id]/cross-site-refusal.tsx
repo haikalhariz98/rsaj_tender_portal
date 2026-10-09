@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 export function CrossSiteRefusal({ headline, detail }: { headline: string; detail: string }) {
   return (
     <>
-      <PageHeader title="Tender documents" subtitle="Opened from My Bids" />
+      <PageHeader title="Tender documents" subtitle="Open it from My Bids" />
       <Card>
         <EmptyState title={headline} action={<ButtonLink href="/supplier/bids" variant="secondary" size="sm">Go to My Bids</ButtonLink>}>{detail}</EmptyState>
       </Card>
