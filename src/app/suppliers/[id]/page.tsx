@@ -507,9 +507,22 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
                         {d.remarks && <p className="break-words whitespace-pre-line text-ink-2">“{d.remarks}”</p>}
                         {d.items.length > 0 && (
                           <ul className="list-disc pl-5 text-ink-2">
-                            {d.items.map((i) => (
-                              <li key={i.id}><span className="font-medium">{i.labelSnapshot}</span>: “{i.remarks}”</li>
-                            ))}
+                            {d.items.map((i) => {
+                              // Phase 4c (FR-VND-007): what the supplier sent online in answer to this item, newest first, with the officer's check of it.
+                              const answered = s.documents.filter((x) => x.answersItemId === i.id).sort((x, y) => y.recordedAt.getTime() - x.recordedAt.getTime());
+                              const latest = answered[0];
+                              return (
+                                <li key={i.id}>
+                                  <span className="font-medium">{i.labelSnapshot}</span>: “{i.remarks}”
+                                  {latest && (
+                                    <span className="ml-2 inline-flex flex-wrap items-center gap-1.5 align-middle">
+                                      <Chip tone="info">Answered online {formatDate(day(latest.lodgedOn))}</Chip>
+                                      <Badge tone={VERIFICATION_TONE[latest.verification]}>{VERIFICATION_LABEL[latest.verification].en}</Badge>
+                                    </span>
+                                  )}
+                                </li>
+                              );
+                            })}
                           </ul>
                         )}
                         {d.resubmitBy && <p className="text-ink-3">Resubmit by {formatDate(day(d.resubmitBy))}. The notice to the supplier is shown here, not sent.</p>}

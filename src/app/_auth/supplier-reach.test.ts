@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
+import { SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
 import { lex } from "@/lib/scan/source";
 
 /**
@@ -29,7 +29,9 @@ const read = (f: string) => readFileSync(path.join(SRC, f), "utf8");
 
 const PORTAL = walk(path.join(SRC, "app", "supplier")).map((f) => ({ file: rel(f), src: readFileSync(f, "utf8") }));
 // Phase 4b: the registration wizard's handlers are held by the section below (`app/supplier/registration/`): six, of which two are reads and one is a multipart upload.
-const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/"));
+// Phase 4c: the Company workspace's two uploads are held by the section below (`app/supplier/company/`).
+const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/") && !f.file.startsWith("app/supplier/company/"));
+const COMPANY_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/company/"));
 const REGISTRATION_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/registration/"));
 const PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file));
 
@@ -181,11 +183,77 @@ describe("the registration wizard's handlers (Phase 4b)", () => {
   });
 });
 
+describe("the Company workspace's handlers (Phase 4c)", () => {
+  const FILE = (f: { file: string }) => `/${f.file.replace(/^app\//, "").replace(/\/route\.ts$/, "")}`;
+  const HTTP = /export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g;
+  const methods = (src: string) => [...src.matchAll(HTTP)].map((m) => m[1]);
+  const postBodyOf = (src: string): string => postBody(src);
+
+  it("are exactly the two literal paths the public copy lists, and the page is there", () => {
+    expect(COMPANY_HANDLERS.map(FILE).sort()).toEqual([...SUPPLIER_COMPANY_POST_PATHS].sort());
+    expect(Object.values(SUPPLIER_COMPANY_POSTS)).toHaveLength(2);
+    expect(PAGES.map((f) => `/${f.file.replace(/^app\//, "").replace(/\/page\.tsx$/, "")}`)).toContain(SUPPLIER_COMPANY_PAGE);
+  });
+
+  it("each answers a POST and nothing else, and asks the upload guard before anything else is awaited, returning its refusal as it is", () => {
+    for (const f of COMPANY_HANDLERS) {
+      expect(methods(f.src), f.file).toEqual(["POST"]);
+      const body = postBodyOf(f.src);
+      const first = body.slice(body.search(/\bawait\b/));
+      expect(first.startsWith("await supplierUploadPost(request, "), f.file).toBe(true);
+      // (strings are blanked by the lexer, so the purpose is held by the source itself)
+      expect(f.src, f.file).toMatch(/await supplierUploadPost\(request, "company"\)/);
+      expect(body, f.file).toMatch(/^\{\s*const guard =/);
+      expect(body, f.file).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+    }
+  });
+
+  it("read the file only after the settings, the length and the limit (readUpload), and ask the password only after the details are judged", () => {
+    const upload = lex(read("app/supplier/company/upload-request.ts"));
+    const at = (needle: string) => upload.indexOf(needle);
+    expect(at("uploadSettingFault(")).toBeGreaterThan(at("documentOrg("));
+    expect(at("requestLengthFault(")).toBeGreaterThan(at("uploadSettingFault("));
+    expect(at("limitBody(")).toBeGreaterThan(at("requestLengthFault("));
+    expect(at("formData()")).toBeGreaterThan(at("limitBody("));
+    expect(at("sniffMediaType(")).toBeGreaterThan(at("formData()"));
+    for (const f of COMPANY_HANDLERS) expect(f.src, f.file).toContain("readUpload(");
+    const bank = lex(COMPANY_HANDLERS.find((f) => f.file.endsWith("/bank/route.ts"))!.src);
+    expect(bank.indexOf("confirmSupplierPassword(")).toBeGreaterThan(bank.indexOf("judge("));
+    expect(bank.indexOf("sendBankChange(")).toBeGreaterThan(bank.indexOf("confirmSupplierPassword("));
+  });
+
+  it("no handler reads a supplier, an organisation, an account, a day or a time from the request", () => {
+    for (const f of [...COMPANY_HANDLERS, { file: "app/supplier/company/upload-request.ts", src: read("app/supplier/company/upload-request.ts") }]) {
+      const code = lex(f.src, { only: "comments" });
+      expect(code, f.file).not.toMatch(/\.get\(\s*["'](?:supplierId|organisationId|accountId|supplierAccountId|actorId|signedOn|signedAt|receivedOn|lodgedOn)["']\s*\)/);
+      expect(code, f.file).not.toMatch(/text\(\s*["'](?:supplierId|organisationId|accountId|supplierAccountId|actorId|signedOn|signedAt|receivedOn|lodgedOn)["']\s*\)/);
+    }
+  });
+
+  it("hold no server action, and the stores take the supplier from the actor", () => {
+    for (const f of COMPANY_HANDLERS) expect(f.src, f.file).not.toMatch(/^\s*["']use server["']/m);
+    for (const file of ["lib/portal/company/replace-store.ts", "lib/portal/company/bank-store.ts", "lib/portal/company/company-store.ts"]) {
+      const src = read(file);
+      expect(src, file).toMatch(/SupplierActor/);
+      expect(lex(src, { only: "comments" }), file).not.toMatch(/(?:fields|body|params|searchParams|form)\??\.\s*supplierId\b/);
+      // Every read and write names the actor's supplier and organisation.
+      expect(src, file).toMatch(/actor\.supplierId/);
+      expect(src, file).toMatch(/actor\.organisationId/);
+    }
+  });
+
+  it("the page asks who is signed in first and reads its supplier from the actor", () => {
+    const page = read("app/supplier/company/page.tsx");
+    expect(page).toMatch(/const actor = await requireSupplier\(\);/);
+    expect(page).not.toMatch(/props\.params|params\.supplierId|searchParams\.supplierId/);
+  });
+});
+
 describe("the supplier is the session's", () => {
   /// The files that act for a signed-in supplier: the portal's pages and handlers, the portal's guard and its loaders.
   const ACTING = [
     ...PORTAL.filter((f) => !f.file.startsWith("app/supplier/register/")),
-    ...["app/_auth/supplier.ts", "lib/portal/registration-status-repo.ts", "lib/auth/supplier-session-store.ts", "lib/portal/registration/draft-store.ts", "lib/portal/registration/upload-store.ts", "lib/portal/registration/submit-store.ts", "lib/portal/registration/own-file-store.ts"].map((file) => ({ file, src: read(file) })),
+    ...["app/_auth/supplier.ts", "lib/portal/registration-status-repo.ts", "lib/auth/supplier-session-store.ts", "lib/portal/registration/draft-store.ts", "lib/portal/registration/upload-store.ts", "lib/portal/registration/submit-store.ts", "lib/portal/registration/own-file-store.ts", "lib/portal/company/replace-store.ts", "lib/portal/company/bank-store.ts", "lib/portal/company/company-store.ts"].map((file) => ({ file, src: read(file) })),
   ];
 
   /// Where a supplier id is read from something the request says: a path or query parameter, a form field or a body, by name or by index.

@@ -87,7 +87,8 @@ describe("the scan finds what it should", () => {
     expect(PAGE_FILES.length).toBeGreaterThan(55);
     // 12 before Phase 4a, and the supplier portal's seven handlers since: sign-in, sign-out, activate, reset, and the account's password, sign-out-everywhere and acknowledge.
     // Phase 4b adds the registration wizard's six: save, upload, withdraw-file, submit, values and file.
-    expect(ROUTE_FILES.length).toBe(25);
+    // Phase 4c adds the Company workspace's two uploads: a document (a replacement, a renewal, an answer to the office's request) and a change of bank details.
+    expect(ROUTE_FILES.length).toBe(27);
     expect(LAYOUT_FILES.length).toBeGreaterThanOrEqual(2);
     expect(ACTION_FILES.flatMap((f) => exportsOf(f.file, f.src)).length).toBeGreaterThan(450);
   });
@@ -190,7 +191,8 @@ describe("every route handler asks who is signed in first, and every one that ch
       }
       // Phase 4b: the registration wizard's POSTs ask `supplierPost` (JSON; with a larger bound for a save) or `supplierUploadPost` (multipart, the upload only), first; `supplier-reach.test.ts`
       // holds what each promises, and that no other handler accepts a multipart body.
-      if (!types && /^supplier\/registration\//.test(e.file)) {
+      // Phase 4c: the Company workspace's two POSTs are multipart uploads and ask `supplierUploadPost` first, held by the same section of `supplier-reach.test.ts`.
+      if (!types && /^supplier\/(?:registration|company)\//.test(e.file)) {
         expect(e.body, `${e.file}: ${e.name}`).toMatch(/^\{\s*const guard = await (?:supplierPost\(request, "[^"]*"(?:, \{ maxBytes: \w+ \})?\)|supplierUploadPost\(request, "[^"]*"\));/);
         continue;
       }
@@ -206,8 +208,8 @@ describe("every route handler asks who is signed in first, and every one that ch
       "organisation/logo/[sha]/route.ts",
       "sign-in",
       "supplier/activate",
+      // Changed for Phase 4c: "supplier/company" is no longer public. The Company workspace is built: its page asks `requireSupplier` and its handlers `supplierUploadPost`.
       "supplier/bids",
-      "supplier/company",
       "supplier/opportunities",
       "supplier/page.tsx",
       "supplier/projects",

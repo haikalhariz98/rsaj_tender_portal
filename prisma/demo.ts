@@ -22,6 +22,7 @@ import { checkAppendixAward, loadAppendixAward } from "./demo-award-appendix";
 import { checkBidsDemo, configureBidsDemo, loadBidsDemo } from "./demo-bids";
 import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo } from "./demo-opening";
 import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo } from "./demo-evaluation";
+import { loadCompanyDemo } from "./demo-company";
 import { checkRegistrationDemo, configureRegistrationDemo, loadRegistrationDemo } from "./demo-registration";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
 import { attributeSeededRows } from "./demo-attribution";
@@ -789,6 +790,8 @@ async function load() {
   }
   // Phase 3c: a few reporting lines and the memo rule, set only for the demonstration (the product ships both empty). `npm run demo:inbox` applies them alone.
   await loadInboxDemo(db, organisationId);
+  // Phase 4c: the supplier's own Company workspace (an applicant asked to resubmit, certificates near their expiry, a change of bank details found not in order, a requirement entered as a grade and a category). `npm run demo:company` applies it alone.
+  await loadCompanyDemo(db, organisationId);
   // Ruling 4 (2026-10-06): one advertised quotation taken to an issued award, so the public Results page has a row;
   // last, on everything above (prisma/demo-results.ts). `npm run demo:results` applies it alone to a loaded database.
   await loadResultsDemo(db, organisationId, { determine: determineExercises });
@@ -2112,18 +2115,32 @@ async function inbox() {
   console.log(`${made.lines} reporting lines added${made.rule ? ", and the notification rule for a matter not carried" : ""}.`);
 }
 
+/**
+ * Phase 4c: the supplier's Company workspace demonstration (prisma/demo-company.ts), added to a database the demo is already loaded in. Nothing where it stands; its rows are attributed to the demo loader.
+ */
+async function company() {
+  const org = await organisation();
+  if (!(await demoIsLoaded(db))) {
+    console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
+    return;
+  }
+  const made = await loadCompanyDemo(db, org.id);
+  await attributeSeededRows(db, org.id);
+  console.log(made.notes.length ? `Added: ${made.notes.join("; ")}.` : "The Company demonstration is already there: nothing was written.");
+}
+
 const mode = process.argv[2];
 
 if (mode === "wipe") {
   console.error(DEMO_WIPE_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox") {
-  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox>");
+if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);

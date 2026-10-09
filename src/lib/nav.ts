@@ -99,7 +99,8 @@ export const SUPPLIER_NAV: NavGroup[] = [
     items: [
       { href: "/supplier/bids", label: "My Bids", icon: "inbox" },
       { href: "/supplier/projects", label: "My Projects", icon: "tools" },
-      { href: "/supplier/company", label: "Company", icon: "building" },
+      // Phase 4c: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
+      { href: "/supplier/company", label: "Company", icon: "building", built: true },
     ],
   },
 ];

@@ -38,6 +38,15 @@ export const SUPPLIER_REGISTRATION_GETS = {
 export const SUPPLIER_REGISTRATION_POST_PATHS: readonly string[] = Object.values(SUPPLIER_REGISTRATION_POSTS);
 export const SUPPLIER_REGISTRATION_GET_PATHS: readonly string[] = [SUPPLIER_REGISTRATION_PAGE, ...Object.values(SUPPLIER_REGISTRATION_GETS)];
 
+/// The signed-in supplier's Company workspace (Phase 4c): its page (already public), and the two uploads it makes, each a multipart route handler at a literal path. A supplier must be signed in to
+/// each (a handler answers 401), and no id of a supplier is read from either: the supplier is the session's.
+export const SUPPLIER_COMPANY_PAGE = "/supplier/company";
+export const SUPPLIER_COMPANY_POSTS = {
+  document: "/supplier/company/document",
+  bank: "/supplier/company/bank",
+} as const;
+export const SUPPLIER_COMPANY_POST_PATHS: readonly string[] = Object.values(SUPPLIER_COMPANY_POSTS);
+
 /// The two session cookies (ADR 0034 D4). Names only, so the proxy can know them without importing anything that touches the database or `next/headers`.
 /// `__Host-` ties each to one exact host with no Domain. A staff cookie means nothing to the public copy, and a supplier cookie nothing to the staff copy.
 export const STAFF_COOKIE = "__Host-perolehan-staff";
@@ -74,7 +83,7 @@ export const PUBLIC_ENTRY_POINTS: readonly PublicEntry[] = [
     reason: "The public registration form and its one POST: served to people with no account, because applying is how a company gets one. The POST passes the Origin guard and a signed form token, and the public copy takes no other write from a stranger but the sign-in posts below.",
   },
   { under: "supplier/bids", reason: "A placeholder page that says My Bids needs sign-in and holds no data. It is guarded when it is built (Phase 4c)." },
-  { under: "supplier/company", reason: "A placeholder page that says Company needs sign-in and holds no data. It is guarded when it is built (Phase 4b)." },
+  // Phase 4c: `supplier/company` is built, so it is no longer a public entry. Its page asks `requireSupplier` and its two handlers ask `supplierUploadPost`, first (held by `supplier-reach.test.ts`).
   { under: "supplier/projects", reason: "A placeholder page that says My Projects needs sign-in and holds no data. It is guarded when it is built (Phase 4d)." },
   {
     under: "supplier/sign-in",
