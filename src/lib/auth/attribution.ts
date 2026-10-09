@@ -251,6 +251,8 @@ export interface AttributionFacts {
     /// Set where the act was back-dated: the day it is dated, and who authorised it.
     effectiveOn?: string | null;
     backdateAuthorisedByName?: string | null;
+    /// The day the person named confirmed the back-dating in a signature of their own (Phase 5a, ruling item 9); null until they do.
+    backdateConfirmedOn?: string | null;
   } | null;
   /// The name of the person the act is attributed to (the slot's own value).
   subjectName: string;
@@ -265,8 +267,15 @@ export interface AttributionFacts {
 export function attributionLabel(f: AttributionFacts): AttributionRead {
   if (f.row) {
     if (f.row.mode === "SIGNED") {
-      // The authoriser is named by the recorder and has not confirmed it (their own confirmation is the two-person queue of 2c): so it is read as the recorder's claim and never as fact.
-      const back = f.row.effectiveOn ? { en: `, dated ${f.row.effectiveOn} (back-dated${f.row.backdateAuthorisedByName ? `; the signer names ${f.row.backdateAuthorisedByName} as authorising it, not confirmed` : ""})`, ms: `, bertarikh ${f.row.effectiveOn} (bertarikh lalu${f.row.backdateAuthorisedByName ? `; penandatangan menamakan ${f.row.backdateAuthorisedByName} sebagai pemberi kuasa, belum disahkan` : ""})` } : { en: "", ms: "" };
+      // The authoriser is named by the recorder, and until that person confirms it in a signature of their own (Phase 5a) it is read as the recorder's claim and never as fact.
+      const who = f.row.backdateAuthorisedByName;
+      const confirmed = f.row.backdateConfirmedOn;
+      const back = f.row.effectiveOn
+        ? {
+            en: `, dated ${f.row.effectiveOn} (back-dated${who ? (confirmed ? `; ${who} confirmed it on ${confirmed}` : `; the signer names ${who} as authorising it, not confirmed`) : ""})`,
+            ms: `, bertarikh ${f.row.effectiveOn} (bertarikh lalu${who ? (confirmed ? `; ${who} mengesahkannya pada ${confirmed}` : `; penandatangan menamakan ${who} sebagai pemberi kuasa, belum disahkan`) : ""})`,
+          }
+        : { en: "", ms: "" };
       if (f.slot && !f.slot.signatureClass) return { state: "SIGNED", en: `${f.slot.label} ${f.subjectName}${back.en}`, ms: `${f.slot.ms} ${f.subjectName}${back.ms}` };
       return { state: "SIGNED", en: `Signed by ${f.subjectName}${back.en}`, ms: `Ditandatangani oleh ${f.subjectName}${back.ms}` };
     }

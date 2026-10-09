@@ -55,6 +55,7 @@ export const LABEL_MS: Readonly<Record<string, string>> = {
   "Recorded by": "Direkodkan oleh",
   "Decided by": "Diputuskan oleh",
   "Verified by": "Disahkan oleh",
+  "Confirmed by": "Disahkan oleh",
   "Signed by": "Ditandatangani oleh",
   "Requested by": "Dimohon oleh",
   "Granted by": "Diberi oleh",
@@ -110,7 +111,6 @@ export const LABEL_MS: Readonly<Record<string, string>> = {
   "Corrected by": "Dibetulkan oleh",
   "Contract type overridden by": "Jenis kontrak diatasi oleh",
   "Conflict declared by": "Konflik diisytiharkan oleh",
-  "Confirmed by": "Disahkan oleh",
   "Completed by": "Dilengkapkan oleh",
   "Commencement supported by": "Permulaan disokong oleh",
   "Chaired by": "Dipengerusikan oleh",
@@ -341,6 +341,9 @@ export const ACT_SLOTS: readonly ActSlot[] = [
     signatureClass: true,
     administratorMay: "`configuration.issue` is held through the administrator flag (ADR 0034 D8), as for the approval matrix, so refusing the act would refuse every administrator the permission they hold; it still needs the password and a second person who did not make the draft (Phase 5a).",
   }),
+  // NFR-AUD-006, ruling item 9 (Phase 5a): the person a back-dated signature names as authorising it confirms it, as a signature of their own. The password is asked; it is never recorded
+  // from paper; an administrator account is refused as at every act outside configuration (the person named authorises a transaction, which an administrator is kept apart from).
+  slot("BackdateConfirmation", "confirmedBy", "Confirmed by", { signatureClass: true, holder: "SIGNATURE", entryPoints: ["src/app/inbox/actions.ts#confirmBackdatingAction"] }),
   slot("ConfigurationChange", "proposedBy", "Proposed by", { administratorMay: "A change to configuration is proposed by an administrator or an office holder, and decided by another person (ADR 0034 D15)." }),
   // The checker's decision. Made by an administrator for some kinds (an administrator grant), so it is never refused to one: no `holder`.
   slot("ConfigurationChange", "decidedBy", "Decided by", { signatureClass: true, administratorMay: "The checker's decision on an administrator grant is made by an administrator (ADR 0034 D15)." }),

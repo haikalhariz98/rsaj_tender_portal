@@ -1,10 +1,11 @@
-import { ClockIcon, FileIcon } from "@/components/icons";
+import { ClockIcon, FileIcon, ShieldIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Table, Td, Th, THead, Tr } from "@/components/ui/table";
-import { todayIn } from "@/lib/dates";
+import { slotOf } from "@/lib/auth/act-slots";
+import { storedDay, todayIn } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate, formatOrgDay } from "@/lib/format";
 
@@ -33,6 +34,15 @@ export default async function AuditTrailPage() {
   }
   const today = todayIn(new Date(), org.timeZone);
   const exportGate = await permissionGate(actor, "audit.read");
+  // NFR-AUD-006 (Phase 5a): a signature dated earlier than the day it was recorded is a recorded exception, and it reads as the signer's claim until the person named confirms it. Shown
+  // to those who may read the trail, because it names people and their reasons.
+  const exception = { organisationId: org.id, effectiveOn: { not: null } } as const;
+  const [backdated, unconfirmed] = exportGate.ok
+    ? await Promise.all([
+        db.actAttribution.findMany({ where: exception, orderBy: { at: "desc" }, take: 50, include: { subjectPerson: { select: { name: true } }, backdateAuthorisedByPerson: { select: { name: true } }, confirmation: { select: { confirmedAt: true } } } }),
+        db.actAttribution.count({ where: { ...exception, confirmation: null } }),
+      ])
+    : [[], 0];
   const [count, first, exports] = await Promise.all([
     db.auditEntry.count({ where: { organisationId: org.id } }),
     db.auditEntry.findFirst({ where: { organisationId: org.id }, orderBy: { at: "asc" }, select: { at: true } }),
@@ -97,6 +107,52 @@ export default async function AuditTrailPage() {
             </Table>
           )}
         </Card>
+        {exportGate.ok && (
+          <Card className="overflow-hidden">
+            <CardHeader
+              icon={<ShieldIcon size={17} />}
+              title="Back-dated signatures"
+              subtitle="A signature dated earlier than the day it was recorded is a recorded exception. The signer names who authorised it; it reads as the signer's claim until that person confirms it, in a signature of their own."
+              actions={<Badge tone={unconfirmed > 0 ? "warn" : "ok"} outline>{unconfirmed} not confirmed</Badge>}
+            />
+            {backdated.length === 0 ? (
+              <EmptyState size="sm" title="No signature has been back-dated">Nothing is dated earlier than the day it was recorded.</EmptyState>
+            ) : (
+              <Table minWidth={820}>
+                <colgroup>
+                  <col style={{ width: "20%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "13%" }} />
+                  <col style={{ width: "13%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col />
+                </colgroup>
+                <THead>
+                  <Th>Signed by</Th>
+                  <Th>What</Th>
+                  <Th>Dated</Th>
+                  <Th>Recorded</Th>
+                  <Th>Named as authorising it</Th>
+                  <Th>Standing</Th>
+                </THead>
+                <tbody>
+                  {backdated.map((a) => (
+                    <Tr key={a.id}>
+                      <Td label="Signed by">{a.subjectPerson?.name ?? "A person no longer on record"}</Td>
+                      <Td label="What" className="text-ink-2">{slotOf(a.entity, a.slot)?.label ?? "A signature"}</Td>
+                      <Td label="Dated" className="text-ink-2">{a.effectiveOn ? formatDate(storedDay(a.effectiveOn)) : ""}</Td>
+                      <Td label="Recorded" className="text-ink-2">{formatOrgDay(a.at, org.timeZone)}</Td>
+                      <Td label="Named as authorising it" className="text-ink-2">{a.backdateAuthorisedByPerson?.name ?? "No one"}</Td>
+                      <Td label="Standing">
+                        {a.confirmation ? <Badge tone="ok">Confirmed {formatOrgDay(a.confirmation.confirmedAt, org.timeZone)}</Badge> : <Badge tone="warn">Not confirmed</Badge>}
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+        )}
       </div>
     </>
   );

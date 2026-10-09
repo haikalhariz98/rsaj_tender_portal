@@ -3,6 +3,7 @@ import type { Tx } from "@/lib/audit/record";
 import { uniqueViolationIndex } from "@/lib/scope/unique-violation";
 
 import { slotOf } from "./act-slots";
+import { backdateToConfirmNotice } from "./backdate-confirmation";
 import { attributionFaults, attributionRow, needsStepUp, stepUpFault, type ActModeName, type ActRecorder, type ActSubject } from "./attribution";
 import { loadSecurityPolicy } from "./policy-store";
 import type { Fault, StaffActor } from "./types";
@@ -88,7 +89,25 @@ export async function attributeAct(tx: Tx, input: AttributeActInput) {
   // Written again, a slot is a new occurrence: the earlier ones are evidence and stay, and the highest is the one in force (`latestAttribution`).
   const last = await tx.actAttribution.aggregate({ where: { entity: input.entity, entityId: input.entityId, slot: input.slot }, _max: { occurrence: true } });
   try {
-    return await tx.actAttribution.create({ data: { organisationId: input.actor.organisationId, ...attributionRow(request), occurrence: (last._max.occurrence ?? 0) + 1 } });
+    const written = await tx.actAttribution.create({ data: { organisationId: input.actor.organisationId, ...attributionRow(request), occurrence: (last._max.occurrence ?? 0) + 1 } });
+    // NFR-AUD-006 (ruling item 9, Phase 5a): the person named as authorising a back-dated signature is told, in the same transaction, once (a retry writes nothing new), and
+    // confirms it as a signature of their own. The signature is recorded meanwhile and reads as not confirmed.
+    if (request.backdate && request.effectiveOn && !input.actor.system) {
+      const slot = slotOf(input.entity, input.slot);
+      // The authoriser is a person of the organisation (checked above), so the notice is written here directly: this module stays free of the inbox's store, which reads the database's client.
+      const drafts = backdateToConfirmNotice({
+          attributionId: written.id,
+          authorisedByPersonId: request.backdate.authorisedByPersonId,
+          signerName: input.actor.personName,
+          whatWords: slot?.label ?? "A signature",
+          effectiveOn: request.effectiveOn,
+          recordedOn: written.at.toISOString().slice(0, 10),
+          reason: request.backdate.reason,
+          by: input.actor.personId,
+        });
+      if (drafts.length > 0) await tx.staffNotice.createMany({ data: drafts.map((d) => ({ organisationId: input.actor.organisationId, raisedByPersonId: input.actor.personId, ...d })), skipDuplicates: true });
+    }
+    return written;
   } catch (e) {
     // Two people acted on the same record at the same moment: the second finds the first's row and is refused, the whole act with it.
     const index = uniqueViolationIndex(e);

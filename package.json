@@ -11,6 +11,7 @@
     "check": "npm run typecheck && npm run lint",
     "test": "vitest run",
     "auth:bootstrap": "tsx scripts/bootstrap-administrator.ts",
+    "auth:purge-sign-in-detail": "tsx scripts/purge-sign-in-detail.ts",
     "auth:holdings": "tsx scripts/check-administrator-holdings.ts",
     "auth:attribution": "tsx scripts/check-attribution-coverage.ts",
     "demo:accounts": "tsx scripts/demo-accounts.ts",

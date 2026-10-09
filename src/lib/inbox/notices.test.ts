@@ -56,7 +56,8 @@ describe("the closed list of kinds", () => {
   it("has a label for every kind, and the database CHECK names exactly these kinds", () => {
     for (const k of STAFF_NOTICE_KINDS) expect(STAFF_NOTICE_KIND_LABEL[k], k).toBeTruthy();
     // Changed for Phase 4e: the CHECK was replaced whole by the My Projects migration, which adds CONTRACTOR_SUBMISSION; the latest definition is the one held to the list.
-    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261017090000_my_projects_announcements/migration.sql"), "utf8");
+    // Changed for Phase 5a (ruling item 9): replaced whole again by the back-dating confirmation's migration, which adds BACKDATE_TO_CONFIRM.
+    const sql = readFileSync(path.join(process.cwd(), "prisma/migrations/20261018110000_backdate_confirmation/migration.sql"), "utf8");
     const check = /StaffNotice_kind_known" CHECK \(\("kind" IN \(([^)]*)\)\)/.exec(sql);
     expect(check, "the CHECK is in the migration").toBeTruthy();
     const named = [...check![1]!.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);

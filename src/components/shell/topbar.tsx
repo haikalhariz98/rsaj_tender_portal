@@ -84,6 +84,8 @@ const RECORD_LABEL: Record<string, string> = {
   // Phase 4d: one exercise in My Bids; the page names it by its reference (RecordCrumb).
   bids: "Exercise",
   online: "Online application",
+  // Phase 5a (ruling item 9): an item of the inbox that asks for a signature, a back-dated signature to confirm.
+  inbox: "Back-dated signature",
   evaluation: "Evaluation model",
   label: "Sale label",
 };

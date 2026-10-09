@@ -213,6 +213,7 @@ model Organisation {
   actAttributions ActAttribution[]
   configurationChanges ConfigurationChange[]
   draftMakers          ConfigurationDraftMaker[]
+  backdateConfirmations BackdateConfirmation[]
   costCentres     CostCentre[]
   accountCodes    AccountCode[]
   sites             Site[]
@@ -677,6 +678,7 @@ model Person {
   actsBackdateAuthorised     ActAttribution[]        @relation("ActBackdateAuthorisedBy")
   matrixMaking               AuthorityMatrixMaker[]
   draftMaking                ConfigurationDraftMaker[]
+  backdatesConfirmed         BackdateConfirmation[] @relation("BackdateConfirmedBy")
   evaluationModelsIssued     EvaluationModel[] @relation("EvaluationModelIssuedBy")
   matricesIssued             AuthorityMatrix[]       @relation("MatrixIssuedBy")
   configurationChangesProposed ConfigurationChange[] @relation("ChangeProposedBy")
@@ -11809,6 +11811,8 @@ model ActAttribution {
   backdateReason               String    @default("")
   backdateAuthorisedByPersonId String?
   backdateAuthorisedByPerson   Person?   @relation("ActBackdateAuthorisedBy", fields: [backdateAuthorisedByPersonId], references: [id], onDelete: Restrict)
+  /// The named authoriser's own confirmation, a signed act of theirs (Phase 5a, ruling item 9): absent until they give it.
+  confirmation                 BackdateConfirmation?
 
   at DateTime @default(now())
 
@@ -11819,6 +11823,26 @@ model ActAttribution {
   @@index([organisationId, at])
   @@index([subjectPersonId])
   @@index([recordedByPersonId])
+}
+
+/// The named authoriser's confirmation of a back-dated signature (NFR-AUD-006, ruling item 9 of the Phase 2 rulings, Phase 5a). The signer names the person who authorised dating
+/// the act earlier, and that is only a claim until the person confirms it, as a signed act of their own in their own session (`BackdateConfirmation.confirmedBy`, with the password).
+/// One confirmation at most for an attribution; nothing is ever changed or deleted, and the database refuses a confirmation by anyone but the person named
+/// (migration 20261018110000, SQLSTATE PA006).
+model BackdateConfirmation {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  attributionId String         @unique
+  attribution   ActAttribution @relation(fields: [attributionId], references: [id], onDelete: Restrict)
+
+  confirmedByPersonId String
+  confirmedBy         Person   @relation("BackdateConfirmedBy", fields: [confirmedByPersonId], references: [id], onDelete: Restrict)
+  confirmedAt         DateTime @default(now())
+
+  @@index([confirmedByPersonId])
+  @@index([organisationId, confirmedAt])
 }
 
 /// A change to high-risk configuration that a second person decides (ADR 0034 D15, Phase 2c). The payload is what is proposed,

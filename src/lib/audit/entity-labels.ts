@@ -22,6 +22,7 @@ import { DOCUMENT_STATE_LABEL } from "@/lib/suppliers/labels";
 /// carries a mapped part, and every 6.13 entity, is registered here (the scan checks 6.13's are).
 export const RECORD_TYPE_WORDS: Readonly<Record<string, Words>> = {
   ContractReconciliation: w("Reconciliation", "Penyelarasan"),
+  BackdateConfirmation: w("Back-dating confirmed", "Pentarikhan lalu disahkan"),
   FormationCheck: w("Formation check", "Semakan pembentukan"),
   CustodyItem: w("Original in custody", "Dokumen asal dalam simpanan"),
   SecurityInstrument: w("Security", "Jaminan"),

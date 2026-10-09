@@ -51,6 +51,7 @@ interface Row {
   effectiveOn: Date | null;
   recordedByPerson: { name: string } | null;
   backdateAuthorisedByPerson: { name: string } | null;
+  confirmation?: { confirmedAt: Date } | null;
 }
 
 /// The index from the rows read and the entities whose trail has any attributed row (an actor named: a person, or the system by its label), with no database: the
@@ -74,6 +75,7 @@ export function buildIndex(rows: readonly Row[], attributedTrail: ReadonlySet<st
               recordedBySystemLabel: row.recordedBySystemLabel,
               effectiveOn: row.effectiveOn ? storedDay(row.effectiveOn) : null,
               backdateAuthorisedByName: row.backdateAuthorisedByPerson?.name ?? null,
+              backdateConfirmedOn: row.confirmation ? row.confirmation.confirmedAt.toISOString().slice(0, 10) : null,
             }
           : null,
         subjectName: subjectName ?? "a person no longer on record",
@@ -100,6 +102,7 @@ export async function loadAttributions(client: Pick<Tx, "actAttribution" | "audi
       effectiveOn: true,
       recordedByPerson: { select: { name: true } },
       backdateAuthorisedByPerson: { select: { name: true } },
+      confirmation: { select: { confirmedAt: true } },
     },
   })) as Row[];
   // An act with no attribution reads as before sign-in when no audit row of its record names anybody, and as missing when any does.

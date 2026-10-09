@@ -2,8 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 
+import type { FormState } from "@/components/record-editor";
+import { attributionRefusalState, beginAct } from "@/app/_auth/act";
+import { confirmBackdating, loadBackdateToConfirm } from "@/lib/auth/backdate-store";
+import { confirmationFaults } from "@/lib/auth/backdate-confirmation";
+
 import { hiddenExercises } from "@/app/_auth/sulit";
-import { requireStaff } from "@/app/_auth/actor";
+import { requireStaff, staffForAct } from "@/app/_auth/actor";
 import { markUpTo } from "@/lib/inbox/paging";
 import { markAllRead } from "@/lib/inbox/store";
 import { db } from "@/lib/db";
@@ -22,4 +27,39 @@ export async function markNoticesRead(data: FormData): Promise<void> {
   await markAllRead(db, { organisationId: actor.organisationId, personId: actor.personId }, await hiddenExercises(actor), now, upTo);
   revalidatePath("/inbox");
   revalidatePath("/", "layout");
+}
+
+/**
+ * Confirm a back-dated signature that names you as authorising it (NFR-AUD-006, ruling item 9, Phase 5a). A signature of your own: the password is asked again, every time,
+ * before the transaction. Said first, so that nobody types a password to be told no: only the person named confirms, once, and an administrator account does not (a signed
+ * act outside configuration is refused to one, as everywhere). The confirmation, its audit row and its attribution are one transaction.
+ */
+export async function confirmBackdatingAction(_prev: FormState, data: FormData): Promise<FormState> {
+  const guard = await staffForAct("SIGNATURE");
+  if (!guard.ok) return guard.state;
+  const actor = guard.actor;
+  const attributionId = String(data.get("attributionId") ?? "");
+  const early = await loadBackdateToConfirm(db, actor, attributionId);
+  const refused = confirmationFaults(early, actor.personId);
+  if (refused.length > 0) return { ok: false, message: refused.map((f) => f.en).join(" ") };
+  const begun = await beginAct(actor, data, "BackdateConfirmation.confirmedBy", { personField: "personId", document: { entity: "ActAttribution", id: attributionId } });
+  if (!begun.ok) return begun.state;
+  const act = begun.act;
+  try {
+    const outcome = await db.$transaction(async (tx) => {
+      const done = await confirmBackdating(tx, actor, attributionId, new Date());
+      // The office the signer held (NFR-SIG-001): the one they hold, where they hold exactly one; with several, which of them they confirm in is not asked, and none is recorded.
+      if (done.ok) await act.write(tx, done.confirmationId, { document: { entity: "ActAttribution", id: attributionId }, roleCode: actor.offices.length === 1 ? actor.offices[0].roleCode : null });
+      return done;
+    });
+    if (!outcome.ok) return { ok: false, message: outcome.faults.map((f) => f.en).join(" ") };
+  } catch (e) {
+    const refusedAttribution = attributionRefusalState(e);
+    if (refusedAttribution) return refusedAttribution;
+    throw e;
+  }
+  revalidatePath("/inbox");
+  revalidatePath(`/inbox/${attributionId}`);
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Confirmed. The back-dating now reads as confirmed by you." };
 }

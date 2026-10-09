@@ -27,6 +27,8 @@ const KEPT_CONTENT = ["BlobContent"];
 const ALLOWED_VERBS = "create|createMany|createManyAndReturn|findUnique|findFirst|findMany|findUniqueOrThrow|findFirstOrThrow|count|aggregate|groupBy|fields";
 /// The withdrawal (OD-9): sets withdrawnAt and withdrawnReason once, which the trigger allows.
 const VERSION_WITHDRAWAL = "src/app/documents/actions.ts";
+/// Ruling O-1 (Phase 5): the operator's purge of sign-in addresses past their retention period is the one delete of a `SignInEventDetail` row, and the table's own trigger refuses any other.
+const SIGN_IN_PURGE = "src/lib/auth/purge.ts";
 
 export function trailWrites(src: string): string[] {
   const text = lex(src, { only: "comments" });
@@ -55,7 +57,7 @@ describe("nothing tries to change or remove the trail (Phase 1d)", () => {
   it("no file in src, prisma or scripts updates, deletes, upserts or truncates an append-only table, or a document version except by withdrawing it, or rewrites stored bytes", () => {
     const offenders: string[] = [];
     for (const f of [...files("src"), ...files("prisma"), ...files("scripts")]) {
-      const writes = trailWrites(readFileSync(path.join(ROOT, f), "utf8")).filter((w) => !(f === VERSION_WITHDRAWAL && w === "documentVersion.update"));
+      const writes = trailWrites(readFileSync(path.join(ROOT, f), "utf8")).filter((w) => !(f === VERSION_WITHDRAWAL && w === "documentVersion.update") && !(f === SIGN_IN_PURGE && w === "signInEventDetail.deleteMany"));
       if (writes.length > 0) offenders.push(`${f}: ${writes.join(", ")}`);
     }
     expect(offenders).toEqual([]);
