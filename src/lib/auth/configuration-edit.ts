@@ -90,15 +90,18 @@ export const MAX_FILE_BYTES = 1_500_000;
 export const MAX_PAYLOAD_CHARS = 2_500_000;
 
 /**
- * Whether a posted field is stored with the change. Not stored: a password (`<person>:password`), the fields of an act's attribution (who it is on behalf of, the
- * paper's reference, back-dating), and the form's token. The second person's own are read from their own request when the editor runs.
+ * Whether a posted field is stored with the change. Not stored: a password (`<person>:password`), the fields of an act's attribution that say who it is on behalf of or
+ * back-date it, and the form's token. The second person's own are read from their own request when the editor runs. Stored, since ruling 1982(h)(1): the paper's reference and
+ * the act's reason, which the person who proposed an act that names its subject recorded, and which the apply attributes it through.
  */
 export function isStoredField(name: string): boolean {
   if (name === "formToken" || name.startsWith("$ACTION") || name.startsWith("__")) return false;
   const colon = name.indexOf(":");
   if (colon >= 0) {
     const act = name.slice(colon + 1);
-    if (["password", "onBehalf", "paperReference", "reason", "backdate", "backdateReason", "backdateAuthorisedBy"].includes(act)) return false;
+    // The paper's reference and the act's reason ARE kept (ruling 1982(h)(1), log line 2036): an act that names its subject in its form (a delegation's grantor, recorded from a
+    // letter) is attributed at the apply to the person the proposer recorded it for, and its paper must reach the second person's apply. Never the password.
+    if (["password", "onBehalf", "backdate", "backdateReason", "backdateAuthorisedBy"].includes(act)) return false;
   }
   return !/^(current|new|confirm)?password$/i.test(name);
 }

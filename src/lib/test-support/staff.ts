@@ -1,4 +1,4 @@
-import { actFormFromJson, attributionRefusalState, beginActFromWith, beginActWith, parseSlotKey, readActForm, type ActDeps } from "@/lib/auth/act-begin";
+import { actFormFromJson, attributionRefusalState, beginActAmbientWith, beginActFromWith, parseSlotKey, readActForm, type ActDeps } from "@/lib/auth/act-begin";
 import { ACT_FIELDS, actFieldNames } from "@/lib/auth/act-field-names";
 import { administrationConflict, type AdministratorAct } from "@/lib/auth/administration-conflict";
 import { auditActorOfStaff } from "@/lib/auth/audit-actor";
@@ -87,6 +87,8 @@ export interface WrittenAttribution {
   reason: string | undefined;
   roleCode: string | null | undefined;
   document: { entity: string; id: string } | null | undefined;
+  /// Set where a second person applied the act for the person who proposed it (ruling 1982(h)(1)).
+  proposerPersonId?: string;
 }
 
 /**
@@ -115,11 +117,12 @@ export function actModule(opts: { now?: Date; paperSignatureRecording?: "ALLOWED
         reason: i.reason,
         roleCode: i.roleCode,
         document: i.document,
+        ...(i.proposal ? { proposerPersonId: i.proposal.proposerPersonId } : {}),
       });
     },
   };
   const actMod = {
-    beginAct: (actor: StaffActor, data: FormData, key: string, o: Parameters<typeof beginActWith>[4]) => beginActWith(deps, actor, data, key, o),
+    beginAct: (actor: StaffActor, data: FormData, key: string, o: Parameters<typeof beginActAmbientWith>[4]) => beginActAmbientWith(deps, actor, data, key, o),
     beginActFrom: (actor: StaffActor, form: Parameters<typeof beginActFromWith>[2], key: string, o: Parameters<typeof beginActFromWith>[4]) => beginActFromWith(deps, actor, form, key, o),
     actFormFromJson,
     attributionRefusalState,

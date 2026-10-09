@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { attributionLabel } from "./attribution";
-import { backdateToConfirmNotice, confirmationFaults, type BackdatedAttribution } from "./backdate-confirmation";
+import { backdateToConfirmNotice, confirmationFaults, confirmRefusal, type BackdatedAttribution } from "./backdate-confirmation";
 
 /**
  * The named authoriser's confirmation of a back-dated signature (NFR-AUD-006, ruling item 9 of the Phase 2 rulings, Phase 5a). Pure.
@@ -28,6 +28,26 @@ describe("who may confirm a back-dating", () => {
       expect(f.en.length).toBeGreaterThan(20);
       expect(f.ms.length).toBeGreaterThan(20);
     }
+  });
+});
+
+describe("confirmRefusal: the one check the confirm page and the action both ask (ruling on log line 2027(1))", () => {
+  const refusal = (who: string, isAdministrator = false, a: BackdatedAttribution | null = attribution()) => confirmRefusal(a, { personId: who, isAdministrator });
+
+  it("refuses the signer, another officer and an administrator account, in words, and nobody else", () => {
+    expect(refusal("signer")).toMatch(/Only the person the signer named/);
+    expect(refusal("another")).toMatch(/Only the person the signer named/);
+    expect(refusal("boss", true)).toMatch(/administration is kept apart/);
+    expect(refusal("boss")).toBeNull();
+  });
+
+  it("refuses an administrator account even when it is the person named, so the page shows no password field to it", () => {
+    expect(refusal("boss", true)).not.toBeNull();
+  });
+
+  it("refuses a back-dating already confirmed, and one that is not there", () => {
+    expect(refusal("boss", false, attribution({ alreadyConfirmed: true }))).toMatch(/already confirmed/);
+    expect(refusal("boss", false, null)).toMatch(/nothing to confirm/);
   });
 });
 

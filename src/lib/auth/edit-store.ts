@@ -291,7 +291,7 @@ export async function decideEdit(
     // APPLY. The editor runs, for real, in this transaction. It is kept only if it did not refuse and wrote what it was rehearsed to write: otherwise every
     // write it made is undone, and the change is either left proposed (the editor refused: the cause can be put right, or the change declined) or STALE.
     const rehearsed = readRehearsal(row.before);
-    const ambient = newAmbient(tx, savepointSql(tx), "APPLY");
+    const ambient = newAmbient(tx, savepointSql(tx), "APPLY", { personId: row.proposedByPersonId, name: row.proposedBy.name });
     let stale = false;
     const run = await attempt(
       ambient,

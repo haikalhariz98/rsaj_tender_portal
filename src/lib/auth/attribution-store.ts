@@ -5,7 +5,7 @@ import { uniqueViolationIndex } from "@/lib/scope/unique-violation";
 
 import { slotOf } from "./act-slots";
 import { backdateToConfirmNotice } from "./backdate-confirmation";
-import { attributionFaults, attributionRow, needsStepUp, stepUpFault, type ActModeName, type ActRecorder, type ActSubject } from "./attribution";
+import { appliedAttributionFaults, attributionFaults, attributionRow, needsStepUp, stepUpFault, type ActModeName, type ActRecorder, type ActSubject } from "./attribution";
 import { loadSecurityPolicy } from "./policy-store";
 import type { Fault, StaffActor } from "./types";
 
@@ -43,6 +43,9 @@ export interface AttributeActInput {
   /// NFR-AUD-006: the day the act is dated and, where that is earlier than the day it is recorded, why and who authorised it.
   effectiveOn?: string | null;
   backdate?: { reason: string; authorisedByPersonId: string } | null;
+  /// Set by `beginActAmbientWith` only, from the change's own row and never from a form (ruling 1982(h)(1)): the act is the PROPOSER's, made at the proposal and applied by the
+  /// signed-in second person. The recorder is then the proposer (who read the paper, or who is the subject), not the applier, whose own act is the change's decision.
+  proposal?: { proposerPersonId: string };
 }
 
 export const recorderOf = (actor: StaffActor): ActRecorder => (actor.system ? { kind: "SYSTEM", label: actor.system.label } : { kind: "PERSON", personId: actor.personId, sessionId: actor.sessionId });
@@ -54,7 +57,7 @@ export async function attributeAct(tx: Tx, input: AttributeActInput) {
     entityId: input.entityId,
     slot: input.slot,
     subject: input.subject,
-    recorder: recorderOf(input.actor),
+    recorder: input.proposal ? ({ kind: "PERSON", personId: input.proposal.proposerPersonId, sessionId: null } as const) : recorderOf(input.actor),
     mode: input.mode,
     stepUpAt: input.stepUpAt ?? null,
     paperReference: input.paperReference,
@@ -66,7 +69,7 @@ export async function attributeAct(tx: Tx, input: AttributeActInput) {
     recorderPermissions: input.actor.permissions,
     paperSignatureRecording: policy?.paperSignatureRecording ?? null,
   };
-  const faults = attributionFaults(request);
+  const faults = input.proposal ? appliedAttributionFaults(request) : attributionFaults(request);
   if (faults.length > 0) throw new AttributionRefused(faults);
   // The password really asked again for this act (review of Phase 2a): the stamp is the one the session carries now, and it signs one act only.
   // The caller's own claim is never the proof; `@@unique([sessionId, stepUpAt])` holds the single use against two acts racing on one stamp.

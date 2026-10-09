@@ -1,12 +1,13 @@
 import type { FormState } from "@/components/record-editor";
 import type { Tx } from "@/lib/audit/record";
+import { currentAmbient } from "@/lib/ambient/ambient-tx";
 import { todayIn } from "@/lib/dates";
 
 import { administrationConflict } from "./administration-conflict";
 import { actFieldNames } from "./act-field-names";
 import { actFaultErrors, interpretAct, type ActForm, type ActIntent } from "./act-input";
 import { slotOf, type ActSlot } from "./act-slots";
-import { attributionFaults, type ActModeName } from "./attribution";
+import { appliedAttributionFaults, attributionFaults, type ActModeName } from "./attribution";
 import { AttributionRefused, recorderOf, type AttributeActInput } from "./attribution-store";
 import type { StaffActor } from "./types";
 
@@ -71,6 +72,9 @@ export interface PreparedAct {
   /// The day the act is dated (YYYY-MM-DD): today, the back-dated day, or the paper's day. Null where the act has no date.
   day: string | null;
   stepUpAt: Date | null;
+  /// True where the act is the PROPOSER's, made at the proposal and applied by a second person (`beginActAppliedWith`, ruling 1982(h)(1)). The recorder's standing (the permission
+  /// to record from paper) was judged at the proposal, so a caller does not judge the signed-in applier's against it.
+  appliedFromProposal?: true;
   /// Written in the act's own transaction, with its audit row.
   write(tx: Tx, entityId: string, extra?: WriteExtra): Promise<void>;
   /// The same act also fills another person slot (a shortlist is a stage's submission and each bid's shortlisting): the same person, the same way. Only a slot
@@ -251,6 +255,104 @@ export async function beginActFromWith(deps: ActDeps, actor: StaffActor, form: A
     },
   };
   return { ok: true, act };
+}
+
+/**
+ * The act of a person named in the form, applied by a second person (ruling 1982(h)(1), log line 2036). A delegation's grantor is named by the form, and the act of granting is
+ * made by whoever PROPOSED it: the signed-in person at the apply is the second person, whose own act is the change's decision, and is never the grantor of anything they did not grant.
+ *
+ *   - the form names the proposer: the proposer's own act, made at the proposal (SIGNED by them, no password: the slot is not a signature);
+ *   - the form names another person: recorded on that person's behalf by the proposer, from the paper reference and reason the proposal kept (RECORDED_ON_BEHALF, not signed).
+ *
+ * The recorder is the proposer in both, from the change's own row (`proposer`), never from the form. What the proposer was asked at the proposal (the permission to record from
+ * paper, the rule on who may be recorded for) was judged there by the rehearsal, which ran this same form; the rest of the rule is read again here (`appliedAttributionFaults`).
+ */
+export async function beginActAppliedWith(deps: ActDeps, actor: StaffActor, data: FormData, key: string, opts: BeginActOptions, proposer: { personId: string; name: string }): Promise<BegunAct> {
+  const { entity, field, slot } = parseSlotKey(key);
+  const form = readActForm(data, opts);
+  const names = actFieldNames(opts.personField);
+  if (!form.attestedPersonId) return { ok: false, state: { ok: false, errors: { [opts.personField]: "Name the person the act is recorded for." } } };
+  const own = form.attestedPersonId === proposer.personId;
+  // The act as its proposer made it: read by the same rule, as them. Nothing is typed by the applier here, and the applier's password is not a signature of this act.
+  const read = interpretAct({
+    slot: { signatureClass: slot.signatureClass, onBehalf: slot.onBehalf && opts.onBehalf !== false, paperGated: slot.paperGated },
+    actorPersonId: proposer.personId,
+    systemLabel: null,
+    today: todayIn(deps.now(), actor.organisationTimeZone),
+    dated: opts.dateField != null,
+    form: { ...form, onBehalf: !own, password: "", backdate: false, backdateReason: "", backdateAuthorisedByPersonId: null },
+  });
+  if (!read.ok) {
+    const shown = actFaultErrors(read.faults, { person: opts.personField, date: opts.dateField });
+    return { ok: false, state: { ok: false, errors: shown.errors, message: shown.message } };
+  }
+  const intent = read.intent;
+  const preflight = appliedAttributionFaults({
+    entity,
+    entityId: "pending",
+    slot: field,
+    subject: { kind: "PERSON", personId: intent.subjectPersonId },
+    recorder: { kind: "PERSON", personId: proposer.personId, sessionId: null },
+    mode: intent.mode,
+    stepUpAt: null,
+    paperReference: intent.paperReference,
+    reason: intent.reason,
+    document: opts.document ?? { entity: "pending", id: "pending" },
+    effectiveOn: intent.effectiveOn,
+    backdate: null,
+  });
+  if (preflight.length > 0) return { ok: false, state: { ok: false, errors: { [names.paperReference]: preflight.map((f) => f.en).join(" ") } } };
+
+  const recorderId = own ? null : proposer.personId;
+  const people = [...new Set([intent.subjectPersonId, ...(recorderId ? [recorderId] : [])])];
+  const request = (entityName: string, entityId: string, slotField: string, extra?: WriteExtra): AttributeActInput => ({
+    actor,
+    entity: entityName,
+    entityId,
+    slot: slotField,
+    subject: { kind: "PERSON", personId: intent.subjectPersonId },
+    mode: intent.mode as ActModeName,
+    stepUpAt: null,
+    paperReference: intent.paperReference,
+    reason: intent.reason,
+    document: extra?.document ?? opts.document ?? null,
+    roleCode: extra?.roleCode ?? null,
+    effectiveOn: intent.effectiveOn,
+    backdate: null,
+    proposal: { proposerPersonId: proposer.personId },
+  });
+  const act: PreparedAct = {
+    slot,
+    actor,
+    intent,
+    subjectPersonId: intent.subjectPersonId,
+    recorderId,
+    people,
+    day: intent.day,
+    stepUpAt: null,
+    appliedFromProposal: true,
+    async write(tx, entityId, extra) {
+      await deps.attribute(tx, request(entity, entityId, field, extra));
+    },
+    async writeAlso(tx, slotKey, entityId, extra) {
+      const also = parseSlotKey(slotKey);
+      if (also.slot.signatureClass) throw new Error(`"${slotKey}" is a signature: it asks its own password and is begun with its own beginAct.`);
+      await deps.attribute(tx, request(also.entity, entityId, also.field, extra));
+    },
+  };
+  return { ok: true, act };
+}
+
+/**
+ * `beginActWith` for an act an editor begins from inside a two-person change (`src/lib/ambient/ambient-tx.ts`). A proposal's rehearsal reads the form as it always was. While a
+ * second person APPLIES the change, an act the editor begins is that person's own, but for one that names its subject in its form: that is the proposer's act, and goes to
+ * `beginActAppliedWith`. A signature-class act, and an act that does not name its subject, stay the applier's own (their password, their session).
+ */
+export function beginActAmbientWith(deps: ActDeps, actor: StaffActor, data: FormData, key: string, opts: BeginActOptions): Promise<BegunAct> {
+  const ambient = currentAmbient();
+  if (ambient?.mode !== "APPLY") return beginActWith(deps, actor, data, key, opts);
+  if (opts.namesSubject && ambient.proposer && !actor.system && !parseSlotKey(key).slot.signatureClass) return beginActAppliedWith(deps, actor, data, key, opts, ambient.proposer);
+  return beginActWith(deps, actor, data, key, { ...opts, namesSubject: false });
 }
 
 /// An act whose attribution was refused in its own transaction (a race the pre-flight could not see: the password stamp spent, a person gone), as the form's state.

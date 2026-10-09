@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { actingPeople, attributionFaults, attributionLabel, attributionRow, latestAttribution, needsStepUp, NOT_SIGNED_WORDS, ON_BEHALF_PHRASE, ON_BEHALF_SENTENCE, stepUpFault, type AttributionRequest } from "./attribution";
+import { actingPeople, appliedAttributionFaults, attributionFaults, attributionLabel, attributionRow, latestAttribution, needsStepUp, NOT_SIGNED_WORDS, ON_BEHALF_PHRASE, ON_BEHALF_SENTENCE, stepUpFault, type AttributionRequest } from "./attribution";
 import type { PermissionKey } from "./types";
 
 const person = (personId: string, sessionId: string | null = "s1") => ({ kind: "PERSON", personId, sessionId }) as const;
@@ -122,6 +122,33 @@ describe("an act recorded on someone's behalf", () => {
   it("lets the system record a signature-class act for a person, with a reason, and no permission or switch of a person", () => {
     expect(codes(onBehalf({ recorder: { kind: "SYSTEM", label: "demo loader" }, recorderPermissions: undefined, paperSignatureRecording: null, paperReference: "", reason: "history made by the demo loader" }))).toEqual([]);
     expect(codes(onBehalf({ recorder: { kind: "SYSTEM", label: " " }, paperReference: "x" }))).toEqual(["SYSTEM_UNLABELLED"]);
+  });
+});
+
+describe("an act a second person applies for the person who proposed it (ruling 1982(h)(1))", () => {
+  // Delegation.fromPerson is not a signature. SoDelegation.grantorPerson moves authority and is paper-gated: recorded for another it asks the recorder's permission and a paper reference.
+  const grant = { entity: "SoDelegation", entityId: "d1", slot: "grantorPerson" } as const;
+  const forAnother = { ...grant, subject: { kind: "PERSON", personId: "grantor" }, recorder: person("proposer", null), mode: "RECORDED_ON_BEHALF", paperReference: "Letter 17/2026" } as const;
+  const faultCodes = (r: AttributionRequest) => appliedAttributionFaults(r).map((f) => f.code);
+
+  it("does not ask the recorder's permission again: it was judged at the proposal, and the applier's is not the recorder's", () => {
+    expect(codes(forAnother)).toEqual(["NOT_PERMITTED_TO_RECORD"]);
+    expect(faultCodes(forAnother)).toEqual([]);
+  });
+
+  it("still needs the paper, and still refuses a recorder who is the subject", () => {
+    expect(faultCodes({ ...forAnother, paperReference: "" })).toEqual(["PAPER_OR_REASON_REQUIRED", "PAPER_REFERENCE_REQUIRED"]);
+    expect(faultCodes({ entity: "Delegation", entityId: "d1", slot: "fromPerson", subject: { kind: "PERSON", personId: "grantor" }, recorder: person("proposer", null), mode: "RECORDED_ON_BEHALF" })).toEqual(["PAPER_OR_REASON_REQUIRED"]);
+    expect(faultCodes({ ...forAnother, subject: { kind: "PERSON", personId: "proposer" } })).toContain("ON_BEHALF_OF_SELF");
+  });
+
+  it("is the proposer's own act when the proposer is the grantor", () => {
+    expect(faultCodes({ ...grant, subject: { kind: "PERSON", personId: "proposer" }, recorder: person("proposer", null), mode: "SIGNED" })).toEqual([]);
+  });
+
+  it("never applies a signature: it is made by the person signing, in their own session", () => {
+    expect(faultCodes(onBehalf())).toEqual(["SIGNATURE_NOT_APPLIED"]);
+    expect(faultCodes(signed())).toEqual(["SIGNATURE_NOT_APPLIED"]);
   });
 });
 

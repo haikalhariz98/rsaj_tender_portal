@@ -290,8 +290,8 @@ describe("marking a person away needs the permission to draft configuration (rul
       who.actor = saved;
     }
     // The Phase 3 ruling (log line 1858) let anyone who can edit a person mark them available again, ungated. Since Phase 5b every save of a person is a proposal that asks
-    // `configuration.draft` and a second person, so that is no longer so. The reversal is not ruled: it is logged as OPEN for the product owner (decisions log, 2026-10-09, review of
-    // Phase 5), and this test pins what is true now so that whichever way it is ruled, the test changes with it.
+    // `configuration.draft` and a second person. The product owner ruled this on 2026-10-09 (log line 2046, ruling 2028): marking a person available again is a proposal for a second
+    // person, and this supersedes the clause of ruling 1840 that left it ungated. This test pins that ruling.
     await db.person.update({ where: { id: target }, data: { isAvailable: false } });
     who.actor = { ...saved!, permissions: new Set() };
     try {

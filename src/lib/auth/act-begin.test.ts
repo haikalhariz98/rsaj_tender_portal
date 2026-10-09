@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { ambientStore, newAmbient } from "@/lib/ambient/ambient-tx";
+
 import { STAFF_FIXTURE, actModule } from "@/lib/test-support/staff";
 
 import { actFormFromJson } from "./act-begin";
@@ -398,5 +400,54 @@ describe("a panel verification and a conflict declaration are signed (FR-EST-005
       expect(begun.ok, key).toBe(false);
       expect(asked, key).toEqual([]);
     }
+  });
+});
+
+describe("an act a second person applies for the person who proposed it (ruling 1982(h)(1), log line 2036)", () => {
+  const GRANT = "Delegation.fromPerson";
+  const PROPOSER = { personId: "person_proposer", name: "The Proposer" };
+  const APPLIER = actor({ personId: "person_applier", personName: "The Applier" });
+  const applying = <T,>(run: () => Promise<T>) => ambientStore.run(newAmbient({}, {} as never, "APPLY", PROPOSER), run);
+  const opts = { personField: "fromPersonId", namesSubject: true };
+
+  it("names the grantor the form names, recorded by the proposer from the paper the proposal kept, and never the applier", async () => {
+    const { module: m, written } = actModule();
+    const begun = await applying(() => m.beginAct(APPLIER, form({ fromPersonId: BOSS, "fromPersonId:paperReference": "Letter 17/2026" }), GRANT, opts));
+    if (!begun.ok) throw new Error(JSON.stringify(begun.state));
+    expect(begun.act).toMatchObject({ subjectPersonId: BOSS, recorderId: PROPOSER.personId, appliedFromProposal: true });
+    expect(begun.act.people).toEqual([BOSS, PROPOSER.personId]);
+    expect(begun.act.intent).toMatchObject({ mode: "RECORDED_ON_BEHALF", paperReference: "Letter 17/2026", passwordRequired: false });
+    await begun.act.write(tx, "d1");
+    expect(written).toEqual([expect.objectContaining({ slot: "fromPerson", subjectPersonId: BOSS, mode: "RECORDED_ON_BEHALF", paperReference: "Letter 17/2026", proposerPersonId: PROPOSER.personId })]);
+  });
+
+  it("is the proposer's own act when the form names the proposer, with no password", async () => {
+    const { module: m } = actModule();
+    const begun = await applying(() => m.beginAct(APPLIER, form({ fromPersonId: PROPOSER.personId }), GRANT, opts));
+    if (!begun.ok) throw new Error(JSON.stringify(begun.state));
+    expect(begun.act).toMatchObject({ subjectPersonId: PROPOSER.personId, recorderId: null });
+    expect(begun.act.intent).toMatchObject({ mode: "SIGNED", passwordRequired: false });
+  });
+
+  it("is refused, with the paper named, when the proposal kept neither a paper reference nor a reason", async () => {
+    const { module: m } = actModule();
+    const begun = await applying(() => m.beginAct(APPLIER, form({ fromPersonId: BOSS }), GRANT, opts));
+    expect(begun.ok).toBe(false);
+  });
+
+  it("leaves every other act the applier's own: a signature with their password, an act that names no subject as theirs", async () => {
+    const { module: m } = actModule();
+    const named = await applying(() => m.beginAct(APPLIER, form({ personId: BOSS }), OWN, OPTS));
+    expect(named.ok && named.act.subjectPersonId).toBe(APPLIER.personId);
+    const signed = await applying(() => m.beginAct(APPLIER, form({ "personId:password": "pw" }), SIGNATURE, { ...OPTS, document: { entity: "ApprovalInstance", id: "i1" } }));
+    expect(signed.ok && signed.act.subjectPersonId).toBe(APPLIER.personId);
+    expect(signed.ok && signed.act.appliedFromProposal).toBeUndefined();
+  });
+
+  it("reads the form as it always did outside an apply: a rehearsal, or a request", async () => {
+    const { module: m } = actModule();
+    const rehearsal = await ambientStore.run(newAmbient({}, {} as never, "REHEARSAL"), () => m.beginAct(actor(), form({ fromPersonId: BOSS, "fromPersonId:paperReference": "Letter 1" }), GRANT, opts));
+    expect(rehearsal.ok && rehearsal.act).toMatchObject({ subjectPersonId: BOSS, recorderId: ME });
+    expect(rehearsal.ok && rehearsal.act.appliedFromProposal).toBeUndefined();
   });
 });

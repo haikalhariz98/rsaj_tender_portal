@@ -199,6 +199,22 @@ export function attributionFaults(req: AttributionRequest): Fault[] {
   return out;
 }
 
+/**
+ * What is judged at the PROPOSAL and not again at the apply (ruling 1982(h)(1), log line 2036). An act that names its subject in a form (a delegation's grantor) is made by the
+ * person who proposes the change: at the proposal they are asked for the permission to record from paper, and the rehearsal refuses without it. When a second person applies the
+ * change, the recorder of the attribution is still the proposer, and their permission is not the applier's to judge: the applier's own is the change's decision. So the faults of
+ * the recorder's standing are not asked again here; every other fault (the paper or the reason, a recorder who is the subject, a person gone) still is.
+ */
+export const JUDGED_AT_PROPOSAL: readonly string[] = ["NOT_PERMITTED_TO_RECORD", "PAPER_SWITCH_NOT_SET", "PAPER_REFUSED"];
+
+/// The faults of an attribution a second person applies for the person who proposed it. A signature cannot be applied: it is made by the person signing, in their own session.
+export function appliedAttributionFaults(req: AttributionRequest): Fault[] {
+  if (slotOf(req.entity, req.slot)?.signatureClass) {
+    return [fault("SIGNATURE_NOT_APPLIED", "A signature is made by the person signing it, in their own session, so it cannot be applied from a proposal.", "Tandatangan dibuat oleh orang yang menandatangani, dalam sesinya sendiri, jadi ia tidak boleh dilaksanakan daripada cadangan.")];
+  }
+  return attributionFaults(req).filter((f) => !JUDGED_AT_PROPOSAL.includes(f.code));
+}
+
 /// The columns of the `ActAttribution` row for a request that has no faults. `organisationId` is added by the writer.
 export function attributionRow(req: AttributionRequest) {
   return {

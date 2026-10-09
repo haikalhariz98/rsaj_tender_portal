@@ -1,5 +1,6 @@
 import type { NoticeDraft } from "@/lib/inbox/notices";
 
+import { administrationConflict } from "./administration-conflict";
 import type { Fault } from "./types";
 
 /**
@@ -28,6 +29,18 @@ export function confirmationFaults(a: BackdatedAttribution | null, actorPersonId
   }
   if (a.alreadyConfirmed) return [{ code: "ALREADY_CONFIRMED", en: "You have already confirmed this back-dating.", ms: "Anda telah mengesahkan pentarikhan lalu ini." }];
   return [];
+}
+
+/**
+ * Why this account may not confirm, in words, or null where it may (product owner, 2026-10-09, ruling on log line 2027(1)): the one check the confirm page and the action both ask, as
+ * `attachRefusal` is for the Documents button, so the page shows the control disabled with the reason instead of a button that then fails, and the two never differ. An administrator
+ * account does not sign (a signature is outside configuration, NFR-SEC-004), and the person named alone confirms, once: the signer and every other officer are refused in `confirmationFaults`' words.
+ */
+export function confirmRefusal(a: BackdatedAttribution | null, actor: { personId: string; isAdministrator: boolean }): string | null {
+  const admin = administrationConflict({ kind: "ACT", act: "SIGNATURE", actorIsAdministrator: actor.isAdministrator });
+  if (admin) return admin.en;
+  const faults = confirmationFaults(a, actor.personId);
+  return faults.length > 0 ? faults.map((f) => f.en).join(" ") : null;
 }
 
 /// The notice that asks the named person to confirm. It carries the signer, what was signed, the two days and the signer's reason, and never a figure.

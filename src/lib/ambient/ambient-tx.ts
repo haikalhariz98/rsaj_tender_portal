@@ -38,8 +38,11 @@ export interface SavepointSql {
 
 export interface Ambient {
   /// Whether the editor is being rehearsed (a proposal: everything is undone) or applied (a second person's decision: it stays). An act an editor begins while it is
-  /// applied is attributed to the person applying it, and what its form names is data, not an attestation (`src/app/_auth/act.ts`).
+  /// applied is the applier's own, except an act that names its subject in its form (a delegation's grantor): that is the proposer's, made at the proposal, and is
+  /// attributed to the person the form names (`beginActAmbientWith`, ruling 1982(h)(1)).
   mode: "REHEARSAL" | "APPLY";
+  /// Under APPLY, who proposed the change, from the change's own row and never from a form: the person whose act a named subject is attributed through.
+  proposer?: { personId: string; name: string };
   /// The transaction client that `db` stands for while this is set.
   tx: object;
   sql: SavepointSql;
@@ -59,7 +62,7 @@ export const ambientStore: AsyncLocalStorage<Ambient> = (g[KEY] ??= new AsyncLoc
 
 export const currentAmbient = (): Ambient | undefined => ambientStore.getStore();
 
-export const newAmbient = (tx: object, sql: SavepointSql, mode: Ambient["mode"]): Ambient => ({ mode, tx, sql, captured: [], depth: 0, survivors: [] });
+export const newAmbient = (tx: object, sql: SavepointSql, mode: Ambient["mode"], proposer?: Ambient["proposer"]): Ambient => ({ mode, ...(proposer ? { proposer } : {}), tx, sql, captured: [], depth: 0, survivors: [] });
 
 /// Called by `writeAudit`: when an ambient transaction is set the row is also kept, so a rehearsal and a decision can read what the editor recorded.
 export function captureAudit(row: CapturedAudit): void {

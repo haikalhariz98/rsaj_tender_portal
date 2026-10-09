@@ -66,9 +66,11 @@ describe("the kinds of an editor's save", () => {
 
 describe("what is stored of a posted form", () => {
   it("never stores a password, an act's attribution fields or the form's token", () => {
-    for (const name of ["personId:password", "issuedByPersonId:password", "personId:onBehalf", "personId:paperReference", "personId:reason", "personId:backdate", "personId:backdateReason", "personId:backdateAuthorisedBy", "formToken", "password", "currentPassword", "newPassword", "confirmPassword", "$ACTION_ID_1", "__proto__"]) {
+    for (const name of ["personId:password", "issuedByPersonId:password", "personId:onBehalf", "personId:backdate", "personId:backdateReason", "personId:backdateAuthorisedBy", "formToken", "password", "currentPassword", "newPassword", "confirmPassword", "$ACTION_ID_1", "__proto__"]) {
       expect(isStoredField(name), name).toBe(false);
     }
+    // Ruling 1982(h)(1) (log line 2036): the paper's reference and the act's reason are stored, so the apply can attribute a named subject's act through the proposer. The password never is.
+    for (const name of ["fromPersonId:paperReference", "fromPersonId:reason"]) expect(isStoredField(name), name).toBe(true);
     for (const name of ["nameEn", "pattern", "id", "personId", "roleCode", "a:b", "reasonCode"]) expect(isStoredField(name), name).toBe(true);
   });
 

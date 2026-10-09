@@ -470,7 +470,8 @@ export async function saveDelegation(_prev: FormState, data: FormData): Promise<
   if (!begun.ok) return begun.state;
   const act = begun.act;
   // F8: a delegation recorded for a grantor other than the signed-in officer is refused unless the officer is an administrator or may record on someone's behalf.
-  if (grantorFault({ recordedForAnother: act.recorderId != null, actorIsAdministrator: actor.isAdministrator, actorMayRecordOnBehalf: actor.permissions.has("acts.recordOnBehalf") })) return { ok: false, errors: { fromPersonId: GRANTOR_FAULT_TEXT } };
+  // Applied from a proposal, the grantor was judged at the proposal, by the rehearsal, against the proposer who recorded it (ruling 1982(h)(1)): the applier does not record it.
+  if (!act.appliedFromProposal && grantorFault({ recordedForAnother: act.recorderId != null, actorIsAdministrator: actor.isAdministrator, actorMayRecordOnBehalf: actor.permissions.has("acts.recordOnBehalf") })) return { ok: false, errors: { fromPersonId: GRANTOR_FAULT_TEXT } };
 
   const recommendationVersionId = r.optionalText("recommendationVersionId");
   // OD-2 (review of Phase 3b): attaching a document puts it on the delegation, whose people then judge its bytes, so a SULIT or hidden one the signed-in officer may not already open reads

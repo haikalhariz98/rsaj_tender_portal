@@ -6,6 +6,8 @@ import { Callout } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { KeyValues } from "@/components/ui/stat";
 import { ButtonLink } from "@/components/ui/button";
+import { Blocked } from "@/components/ui/blocked";
+import { confirmRefusal } from "@/lib/auth/backdate-confirmation";
 import { loadBackdateToConfirm } from "@/lib/auth/backdate-store";
 import { db } from "@/lib/db";
 
@@ -23,6 +25,8 @@ export default async function ConfirmBackdatingPage(props: PageProps<"/inbox/[id
   const { id } = await props.params;
   const a = await loadBackdateToConfirm(db, actor, id);
   if (!a || a.effectiveOn == null || a.authorisedByPersonId !== actor.personId) notFound();
+  // An administrator account is refused the confirmation (ruling on log line 2027(1)): the control is shown disabled with the act's own reason, and no password field.
+  const refusal = confirmRefusal(a, actor);
   return (
     <>
       <PageHeader title="Confirm a back-dated signature" subtitle="A signature dated earlier than recorded names you as authorising it." meta={[a.signerName]} actions={<ButtonLink href="/inbox" size="sm" variant="secondary">Back to the inbox</ButtonLink>} />
@@ -46,7 +50,7 @@ export default async function ConfirmBackdatingPage(props: PageProps<"/inbox/[id
           You confirmed this back-dating on {a.confirmedOn}. It reads as confirmed by you wherever the signature is shown.
         </Callout>
       ) : (
-        <Callout tone="warn" title="Not confirmed yet" action={<ConfirmBackdating attributionId={a.id} signerName={a.signerName} whatWords={a.whatWords} effectiveOn={a.effectiveOn} />}>
+        <Callout tone="warn" title="Not confirmed yet" action={refusal ? <Blocked label="Confirm the back-dating" reason={refusal} primary /> : <ConfirmBackdating attributionId={a.id} signerName={a.signerName} whatWords={a.whatWords} effectiveOn={a.effectiveOn} />}>
           Until you confirm it, the signature reads &ldquo;back-dated; {a.signerName} names {actor.personName} as authorising it, not confirmed&rdquo;. Confirm it only if you did authorise the earlier date.
         </Callout>
       )}

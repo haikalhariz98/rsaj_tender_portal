@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/record-editor";
 import { attributionRefusalState, beginAct } from "@/app/_auth/act";
 import { confirmBackdating, loadBackdateToConfirm } from "@/lib/auth/backdate-store";
-import { confirmationFaults } from "@/lib/auth/backdate-confirmation";
+import { confirmRefusal } from "@/lib/auth/backdate-confirmation";
 import { uniqueViolationIndex } from "@/lib/scope/unique-violation";
 
 import { hiddenExercises } from "@/app/_auth/sulit";
@@ -41,8 +41,9 @@ export async function confirmBackdatingAction(_prev: FormState, data: FormData):
   const actor = guard.actor;
   const attributionId = String(data.get("attributionId") ?? "");
   const early = await loadBackdateToConfirm(db, actor, attributionId);
-  const refused = confirmationFaults(early, actor.personId);
-  if (refused.length > 0) return { ok: false, message: refused.map((f) => f.en).join(" ") };
+  // The same check the page asks before it draws the button (`confirmRefusal`).
+  const refused = confirmRefusal(early, actor);
+  if (refused) return { ok: false, message: refused };
   const begun = await beginAct(actor, data, "BackdateConfirmation.confirmedBy", { personField: "personId", document: { entity: "ActAttribution", id: attributionId } });
   if (!begun.ok) return begun.state;
   const act = begun.act;
