@@ -25,7 +25,7 @@ import { standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
 import type { ApplicationKind, SupplierStatus } from "@/lib/suppliers/types";
 import { permissionGate, requireStaff } from "@/app/_auth/actor";
-import { loadBoard } from "@/lib/portal/projects/announcement-store";
+import { BOARD_PAGE, loadBoard } from "@/lib/portal/projects/announcement-store";
 import { CATEGORY_TONE, CATEGORY_WORDS } from "@/lib/portal/projects/announcements";
 
 import { PinDrawer, PublishDrawer, WithdrawDrawer } from "./announcement-editors";
@@ -42,9 +42,9 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * waits for sign-in (6.15b); performance waits for 6.16 — each said in its own words, never shown as
  * if it were here (condition 3).
  */
-export default async function SuppliersPage(props: { searchParams: Promise<{ tab?: string; page?: string }> }) {
+export default async function SuppliersPage(props: { searchParams: Promise<{ tab?: string; page?: string; apage?: string }> }) {
   const actor = await requireStaff();
-  const { tab, page: raw } = await props.searchParams;
+  const { tab, page: raw, apage } = await props.searchParams;
   const requested = Math.max(0, Number.parseInt(raw ?? "0", 10) || 0);
   const org0 = await supplierOrg(actor.organisationId);
   if (!org0) {
@@ -63,7 +63,8 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   const { suppliers, expiring, standing: standingSuppliers, queue: openApplications } = data;
   const [online, intake] = await Promise.all([loadPortalQueue(org0.id), loadRegistrationForm()]);
   // Phase 4e (FR-VND-014): the announcements board, read only on its tab; whether the signed-in officer may publish is the organisation's grant, said in words where it is not.
-  const board = tab === "announcements" ? await loadBoard(db, org0.id, org0.timeZone, { withdrawn: true }) : null;
+  // 4e review fix: the register pages in the database (its own `apage`, so the supplier register's page is not moved).
+  const board = tab === "announcements" ? await loadBoard(db, org0.id, org0.timeZone, { withdrawn: true, page: apage }) : null;
   const mayPublish = tab === "announcements" ? await permissionGate(actor, "announcements.publish") : null;
   // Phase 4c: which requests the supplier answered online in time, so a passed deadline reads "answered online" and not "lapsed".
   const answered = await answeredOnTimeIds(db, org0.id, [...openApplications.map((a) => a.id), ...suppliers.flatMap((s) => s.applications.map((a) => a.id))]);
@@ -422,18 +423,18 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
               title="Announcements to suppliers"
               subtitle="Published to every signed-in supplier on the portal's Announcements page, pinned ones first; shown there and not sent by email. Withdrawn ones are kept here with their reason."
               actions={mayPublish.ok ? <PublishDrawer /> : undefined}
-              divided={board.length > 0}
+              divided={board.total > 0}
             />
             {!mayPublish.ok && (
               <div className="px-5 pt-4 sm:px-6">
                 <Callout tone="neutral" title="You cannot publish">{mayPublish.message}</Callout>
               </div>
             )}
-            {board.length === 0 ? (
+            {board.total === 0 ? (
               <EmptyState size="sm" title="Nothing published yet">An announcement marked Important, Policy or Notice appears on the supplier portal once published.</EmptyState>
             ) : (
               <ul className="divide-y divide-line/70">
-                {board.map((a) => (
+                {board.items.map((a) => (
                   <li key={a.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-2">
@@ -454,6 +455,15 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
                   </li>
                 ))}
               </ul>
+            )}
+            {board.total > BOARD_PAGE && (
+              <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
+                <span>{`${board.page * BOARD_PAGE + 1}–${Math.min(board.total, (board.page + 1) * BOARD_PAGE)} of ${board.total}, pinned first, then newest first.`}</span>
+                <span className="flex gap-2">
+                  {board.page > 0 && <ButtonLink href={`/suppliers?tab=announcements&apage=${board.page}`} size="sm" variant="ghost">Previous</ButtonLink>}
+                  {(board.page + 1) * BOARD_PAGE < board.total && <ButtonLink href={`/suppliers?tab=announcements&apage=${board.page + 2}`} size="sm" variant="ghost">Next</ButtonLink>}
+                </span>
+              </CardFooter>
             )}
           </Card>
         ) : null,

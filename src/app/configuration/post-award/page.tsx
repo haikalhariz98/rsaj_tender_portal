@@ -22,7 +22,7 @@ import { SCHEDULE_FORMS, VARIATION_BASES, VARIATION_PCT_BASES } from "@/lib/vari
 import { SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
 import { SUBMISSION_KINDS } from "@/lib/portal/projects/types";
 
-import { EditClockRule, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditSubmissionServiceLevel, EditVariationPolicy } from "./editors";
+import { EditClockRule, EditContractorPortalSigning, EditKindSetting, EditPaymentPolicy, EditPostAwardPolicy, EditSubmissionServiceLevel, EditVariationPolicy } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
 /// The certificates the payment and damages chain raises, each on its configured form (the acts' own list).
@@ -103,7 +103,7 @@ export default async function PostAwardControlsPage() {
   const clockOf = (k: string) => clocks.find((x) => x.clock === k) ?? null;
   const unset =
     [pct, p?.soReResolve ?? null, p?.delegationLetterConventionalId, p?.delegationNoticeConventionalId, p?.delegationLetterDesignBuildId, p?.delegationNoticeDesignBuildId, materials, firstRelease, p?.paymentRouteFigure, p?.waterfallRemainder, p?.preExecutionInterimLimit].filter((x) => x == null).length +
-    [p?.variationPctBasis, p?.variationBase, p?.scheduleFormAgreedRate, p?.scheduleFormNoAgreedRate, p?.funderConsentCommitteeId].filter((x) => x == null).length +
+    [p?.variationPctBasis, p?.variationBase, p?.scheduleFormAgreedRate, p?.scheduleFormNoAgreedRate, p?.funderConsentCommitteeId, p?.contractorPortalSigning].filter((x) => x == null).length +
     [...PAYMENT_KINDS, ...VARIATION_KINDS].filter((k) => !kindOf(k)?.templateId).length +
     CONTRACT_CLOCKS.filter((k) => !clockOf(k)).length;
   const paymentValues = {
@@ -211,7 +211,29 @@ export default async function PostAwardControlsPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader icon={<ClockIcon size={17} />} title="Contractor submissions" subtitle="The service level a submission sent from the contractor's portal account is answered against, by kind, in calendar days from the day it is sent (assumed calendar; a question to the customer). Read when the submission is sent and frozen on it." />
+          <CardHeader icon={<ClockIcon size={17} />} title="Contractor submissions" subtitle="Whether a contractor signs from its own portal account, and the service level a submission sent from the contractor's portal account is answered against, by kind, in calendar days from the day it is sent (assumed calendar; a question to the customer). Read when the submission is sent and frozen on it." />
+          <CardBody>
+            <KeyValues
+              columns={2}
+              items={[
+                {
+                  label: (
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                      <span>A contractor signs from its portal account</span>
+                      <EditContractorPortalSigning values={{ contractorPortalSigning: p?.contractorPortalSigning == null ? null : p.contractorPortalSigning ? "yes" : "no", contractorPortalSigningProvenance: p?.contractorPortalSigningProvenance ?? null }} />
+                    </span>
+                  ),
+                  value: (
+                    <Setting
+                      value={p?.contractorPortalSigning == null ? null : p.contractorPortalSigning ? "Yes: its account signs its block on a variation or adjustment certificate, and its statutory declaration" : "No: on paper only, recorded by an officer"}
+                      provenance={p?.contractorPortalSigningProvenance}
+                      unset="The portal refuses the contractor's block and its statutory declaration, saying so; the contractor signs on paper."
+                    />
+                  ),
+                },
+              ]}
+            />
+          </CardBody>
           <CardBody>
             <KeyValues
               columns={2}

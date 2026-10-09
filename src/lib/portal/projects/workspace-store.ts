@@ -1,6 +1,7 @@
 import type { Tx } from "@/lib/audit/record";
 import type { SupplierActor } from "@/lib/auth/types";
 import { KIND_WORDS } from "@/lib/certificate/labels";
+import { pageOf } from "@/lib/certificate/library";
 import type { CertificateKind, CertificateStatus } from "@/lib/certificate/types";
 import { actStatusFault, actStatusText } from "@/lib/contract/act-status";
 import { baselineFor } from "@/lib/contract/baseline";
@@ -16,11 +17,12 @@ import { plannedOn, programmeInForce } from "@/lib/supervision/programme";
 import { soOn } from "@/lib/supervision/so";
 import type { ProgrammeDecision } from "@/lib/supervision/types";
 
-import { certifiedAgainstPaid, contractorBlock, type CertifiedRow, type CertifiedSummary, type ContractorBlock } from "./certificates";
+import { certifiedAgainstPaid, CONTRACTOR_READS_ISSUED_KINDS, CONTRACTOR_SIGNS_KINDS, contractorBlock, portalSigningFault, type CertifiedRow, type CertifiedSummary, type ContractorBlock } from "./certificates";
 import type { ProjectContext } from "./context-store";
 import { blocksOf } from "./list-store";
 import { serviceState, type ServiceState } from "./submission";
 import type { SubmissionKind, SubmissionOutcome } from "./types";
+import { projectFaultText } from "./words";
 
 /**
  * What each tab of one contract's My Projects workspace reads (Phase 4e). One loader per tab, so a tab loads only its own slice and never a sibling's. Reads only, in the caller's client. Each
@@ -159,10 +161,17 @@ export interface DiaryRow {
   attestWhy: string | null;
 }
 
-export async function diaryTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<{ rows: DiaryRow[]; closed: string | null; possessionOn: string | null }> {
+/// How many diary entries a page of the tab shows: two months of daily entries.
+export const DIARY_PAGE = 60;
+
+/// One page of the diary, newest first, paged in the database (4e review fix: a contract passes 200 daily entries in about seven months, and the tab was one capped read).
+export async function diaryTab(client: Tx, actor: Who, ctx: ProjectContext, askedPage?: string): Promise<{ rows: DiaryRow[]; total: number; page: number; closed: string | null; possessionOn: string | null }> {
   const today = ctx.org.today;
+  const where = { contractId: ctx.contract.id, organisationId: actor.organisationId };
+  const total = await client.siteDiaryEntry.count({ where });
+  const page = pageOf(askedPage, total, DIARY_PAGE);
   const [entries, possession] = await Promise.all([
-    client.siteDiaryEntry.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId }, orderBy: { day: "desc" }, take: 200, include: { officer: { select: { name: true } } } }),
+    client.siteDiaryEntry.findMany({ where, orderBy: [{ day: "desc" }, { id: "asc" }], skip: page * DIARY_PAGE, take: DIARY_PAGE, include: { officer: { select: { name: true } } } }),
     client.possession.findUnique({ where: { contractId: ctx.contract.id }, select: { possessionOn: true } }),
   ]);
   const closed = actGate("SUPERVISION", ctx.contract.status);
@@ -189,14 +198,14 @@ export async function diaryTab(client: Tx, actor: Who, ctx: ProjectContext): Pro
       attestWhy: e.agentAttestedOn != null ? null : closed ?? (today == null ? "The organisation's day is not known." : future ? "This entry's day has not come yet." : null),
     };
   });
-  return { rows, closed, possessionOn: dayText(possession?.possessionOn) };
+  return { rows, total, page, closed, possessionOn: dayText(possession?.possessionOn) };
 }
 
 // ------------------------------------------------------------------ payments: certified against paid
 
 export interface PaymentsView {
   rows: (CertifiedRow & { kind: CertificateKind; kindLabel: string; recommendedText: string | null; paidText: string | null })[];
-  summary: CertifiedSummary & { certifiedText: string; paidText: string; outstandingText: string };
+  summary: CertifiedSummary & { certifiedText: string; paidText: string; outstandingText: string; paidUnfiguredText: string };
   claims: { id: string; title: string; amount: string | null; upTo: string | null; sentOn: string; outcome: SubmissionOutcome | null; kind: SubmissionKind }[];
 }
 
@@ -218,7 +227,7 @@ export async function paymentsTab(client: Tx, actor: Who, ctx: ProjectContext): 
   const summary = certifiedAgainstPaid(rows);
   return {
     rows,
-    summary: { ...summary, certifiedText: formatMoney(summary.certified), paidText: formatMoney(summary.paid), outstandingText: formatMoney(summary.outstanding) },
+    summary: { ...summary, certifiedText: formatMoney(summary.certified), paidText: formatMoney(summary.paid), outstandingText: formatMoney(summary.outstanding), paidUnfiguredText: formatMoney(summary.paidUnfigured) },
     claims: claims.map((c) => ({ id: c.id, title: c.title, amount: c.amount == null ? null : formatMoney(senFromDecimal(c.amount)), upTo: dayText(c.aboutDay), sentOn: formatDate(storedDay(c.submittedOn)), outcome: c.outcome as SubmissionOutcome | null, kind: c.kind as SubmissionKind })),
   };
 }
@@ -247,13 +256,39 @@ export interface CertificateRow {
   closed: string | null;
 }
 
-export async function certificatesTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<{ rows: CertificateRow[] }> {
-  const certs = await client.certificate.findMany({
-    where: { contractId: ctx.contract.id, organisationId: actor.organisationId, status: { not: "DRAFT" } },
-    orderBy: [{ openedAt: "desc" }, { id: "asc" }],
-    take: 200,
-    select: { id: true, kind: true, number: true, status: true, openedOn: true, certificateDate: true, templateRevision: true, signatures: { select: { blockOrder: true, blockKind: true, name: true, signedOn: true, refused: true, refusalNote: true, signedBySupplierAccountId: true } } },
-  });
+/// How many certificates the tab lists at most, newest first; past it the tab says how many there are in all.
+export const CERTIFICATES_SHOWN = 200;
+
+/// The certificates the contractor reads (`contractorReadsCertificate`, as a query): issued and addressed to it, being signed and one of the two kinds it signs, or void after
+/// it recorded its block. Never another certificate in routing or being signed: that is the office's own deliberation (4e review fix).
+const readable = (contractId: string, organisationId: string) => ({
+  contractId,
+  organisationId,
+  OR: [
+    { status: "ISSUED" as const, kind: { in: [...CONTRACTOR_READS_ISSUED_KINDS] } },
+    { status: "SIGNING" as const, kind: { in: [...CONTRACTOR_SIGNS_KINDS] } },
+    { status: "VOID" as const, kind: { in: [...CONTRACTOR_SIGNS_KINDS] }, signatures: { some: { blockKind: "CONTRACTOR" as const } } },
+  ],
+});
+
+/// Why the contractor cannot sign from its portal account, in words, or null where it may (4e review fix: the organisation's switch, unset refuses).
+async function signingClosed(client: Tx, organisationId: string): Promise<string | null> {
+  const f = portalSigningFault((await loadPostAwardPolicy(organisationId, client))?.contractorPortalSigning);
+  return f ? projectFaultText({ code: f }).en : null;
+}
+
+export async function certificatesTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<{ rows: CertificateRow[]; total: number; signing: string | null }> {
+  const where = readable(ctx.contract.id, actor.organisationId);
+  const [total, signing, certs] = await Promise.all([
+    client.certificate.count({ where }),
+    signingClosed(client, actor.organisationId),
+    client.certificate.findMany({
+      where,
+      orderBy: [{ openedAt: "desc" }, { id: "asc" }],
+      take: CERTIFICATES_SHOWN,
+      select: { id: true, kind: true, number: true, status: true, openedOn: true, certificateDate: true, templateRevision: true, signatures: { select: { blockOrder: true, blockKind: true, name: true, signedOn: true, refused: true, refusalNote: true, signedBySupplierAccountId: true } } },
+    }),
+  ]);
   const rows: CertificateRow[] = certs.map((c) => {
     const block = contractorBlock({ kind: c.kind, status: c.status, blocks: blocksOf(c.templateRevision), signedOrders: c.signatures.map((s) => s.blockOrder) });
     const sig = c.signatures.find((s) => s.blockKind === "CONTRACTOR") ?? null;
@@ -271,7 +306,7 @@ export async function certificatesTab(client: Tx, actor: Who, ctx: ProjectContex
       closed: f ? actStatusText(f) : null,
     };
   });
-  return { rows };
+  return { rows, total, signing };
 }
 
 // ------------------------------------------------------------------ submissions
@@ -293,13 +328,21 @@ export interface SubmissionRow {
   lines: { description: string; quantity: string; location: string; value: string }[];
 }
 
-export async function submissionsTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<{ rows: SubmissionRow[]; closed: string | null; serviceLevels: Record<string, number | null> }> {
+/// How many submissions the tab lists at most, newest first; past it the tab says how many there are in all.
+export const SUBMISSIONS_SHOWN = 200;
+
+export async function submissionsTab(client: Tx, actor: Who, ctx: ProjectContext): Promise<{ rows: SubmissionRow[]; total: number; closed: string | null; signing: string | null; serviceLevels: Record<string, number | null> }> {
   const today = ctx.org.today;
-  const [rows, settings] = await Promise.all([
-    client.contractorSubmission.findMany({ where: { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId }, orderBy: { submittedAt: "desc" }, take: 200, include: { lines: { orderBy: { sortOrder: "asc" } } } }),
+  const where = { contractId: ctx.contract.id, supplierId: actor.supplierId, organisationId: actor.organisationId };
+  const [total, signing, rows, settings] = await Promise.all([
+    client.contractorSubmission.count({ where }),
+    signingClosed(client, actor.organisationId),
+    client.contractorSubmission.findMany({ where, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], take: SUBMISSIONS_SHOWN, include: { lines: { orderBy: { sortOrder: "asc" } } } }),
     client.contractorSubmissionSetting.findMany({ where: { organisationId: actor.organisationId }, select: { kind: true, serviceLevelDays: true } }),
   ]);
   return {
+    total,
+    signing,
     rows: rows.map((r) => ({
       id: r.id,
       kind: r.kind as SubmissionKind,

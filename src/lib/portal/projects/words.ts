@@ -28,12 +28,24 @@ const OWN: Readonly<Record<ProjectFault, (d: Data) => Words>> = {
   DAY_REQUIRED: () => w("Give the day.", "Berikan tarikh."),
   DAY_FORMAT: () => w("The day is not a date.", "Tarikh tidak sah."),
   DAY_IN_FUTURE: (d) => w(`The day cannot be after today (${formatDate(n(d, "day"))}).`, `Tarikh tidak boleh selepas hari ini (${formatDate(n(d, "day"))}).`),
+  DAY_NOT_ON_KIND: () => w("Only an interim claim, a materials-on-site list and a notice of a cause of delay carry a day.", "Hanya tuntutan interim, senarai bahan di tapak dan notis sebab kelewatan mempunyai tarikh."),
   LINES_REQUIRED: () => w("List at least one item of materials.", "Senaraikan sekurang-kurangnya satu item bahan."),
   LINES_NOT_ON_KIND: () => w("Only a materials-on-site list carries items.", "Hanya senarai bahan di tapak mempunyai item."),
   LINE_INCOMPLETE: (d) => w(`Item ${n(d, "line")} needs a description, a quantity and where it is.`, `Item ${n(d, "line")} memerlukan perihalan, kuantiti dan lokasi.`),
   LINE_VALUE_FORMAT: (d) => w(`Item ${n(d, "line")}'s value must be a figure in ringgit and sen.`, `Nilai item ${n(d, "line")} mestilah angka dalam ringgit dan sen.`),
   TOO_MANY_LINES: (d) => w(`A list holds at most ${n(d, "max")} items. Send the rest as another list.`, `Senarai memuatkan paling banyak ${n(d, "max")} item.`),
   PASSWORD_REQUIRED: () => w("Enter your password to sign the declaration.", "Masukkan kata laluan anda untuk menandatangani akuan."),
+  TOO_MANY_SUBMISSIONS: (d) => w(`This account has sent ${n(d, "max")} submissions in the last ${n(d, "minutes")} minutes, the most it may send in that time. Wait a while and send again, or call the office if something is urgent.`, `Akaun ini telah menghantar ${n(d, "max")} penyerahan dalam ${n(d, "minutes")} minit yang lalu, had maksimum bagi tempoh itu. Tunggu sebentar dan hantar semula, atau hubungi pejabat jika ada perkara mendesak.`),
+  PORTAL_SIGNING_NOT_SET: () =>
+    w(
+      "The procurement office has not yet decided whether a contractor may sign from the supplier portal, so this cannot be signed here. Sign it on paper and the office records it, or ask the office to decide (Configuration, Post-award controls).",
+      "Pejabat perolehan belum memutuskan sama ada kontraktor boleh menandatangani dari portal pembekal, jadi ini tidak boleh ditandatangani di sini. Tandatangani di atas kertas dan pejabat akan merekodkannya, atau minta pejabat membuat keputusan.",
+    ),
+  PORTAL_SIGNING_OFF: () =>
+    w(
+      "The procurement office takes a contractor's signature on paper only, so this cannot be signed here. Sign it on paper and the office records it.",
+      "Pejabat perolehan menerima tandatangan kontraktor di atas kertas sahaja, jadi ini tidak boleh ditandatangani di sini. Tandatangani di atas kertas dan pejabat akan merekodkannya.",
+    ),
   ALREADY_ANSWERED: () => w("This submission has already been answered.", "Penyerahan ini telah dijawab."),
   NOTE_REQUIRED: () => w("Say why it is returned, for the contractor to read.", "Nyatakan sebab ia dipulangkan, untuk dibaca oleh kontraktor."),
   NOTE_TOO_LONG: (d) => w(`The note is longer than ${n(d, "max")} characters.`, `Nota melebihi ${n(d, "max")} aksara.`),
@@ -48,6 +60,11 @@ const OWN: Readonly<Record<ProjectFault, (d: Data) => Words>> = {
   NO_CONTRACTOR_BLOCK: () => w("This certificate has no block for the contractor to sign here.", "Perakuan ini tiada blok untuk ditandatangani kontraktor di sini."),
   BLOCK_NOT_NEXT: (d) => w(`The certificate is signed in order: "${n(d, "first")}" comes before the contractor's block.`, `Perakuan ditandatangani mengikut urutan: "${n(d, "first")}" mendahului blok kontraktor.`),
   BLOCK_SIGNED: () => w("The contractor's block on this certificate is already recorded.", "Blok kontraktor pada perakuan ini telah direkodkan."),
+  BLOCK_IS_LAST: () =>
+    w(
+      "Your block is the last on this form, and recording it issues the certificate. For now a certificate is not issued from the supplier portal: sign or dispute it on paper, and the office records it.",
+      "Blok anda adalah yang terakhir pada borang ini, dan merekodkannya akan mengeluarkan perakuan. Buat masa ini perakuan tidak dikeluarkan dari portal pembekal: tandatangani atau pertikaikannya di atas kertas, dan pejabat akan merekodkannya.",
+    ),
   REFUSAL_NOT_ALLOWED: () => w("This form does not provide for the contractor to refuse to sign. Raise your dispute with the Superintending Officer in writing.", "Borang ini tidak memperuntukkan kontraktor enggan menandatangani. Kemukakan pertikaian anda kepada Pegawai Penguasa secara bertulis."),
   REFUSAL_NOTE_REQUIRED: () => w("Say what you dispute.", "Nyatakan apa yang anda pertikaikan."),
   REFUSAL_NOTE_TOO_LONG: (d) => w(`The dispute is longer than ${n(d, "max")} characters.`, `Pertikaian melebihi ${n(d, "max")} aksara.`),

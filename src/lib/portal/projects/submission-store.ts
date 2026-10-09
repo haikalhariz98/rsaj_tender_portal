@@ -10,10 +10,11 @@ import { formatDate } from "@/lib/format";
 import { contractorSubmissionNotices } from "@/lib/inbox/notices";
 import { writeNotices } from "@/lib/inbox/store";
 import { formatMoney, senToDecimalString } from "@/lib/money";
-import { loadSupervision, soOfficeOn } from "@/lib/supervision/load";
+import { loadPostAwardPolicy, loadSupervision, soOfficeOn } from "@/lib/supervision/load";
 
 import { SUBMISSION_KIND_WORDS } from "./labels";
-import { amountSen, dueDayOf, submissionFaults, type LineInput } from "./submission";
+import { portalSigningFault } from "./certificates";
+import { amountSen, dueDayOf, KIND_SHAPE, SUBMISSION_WINDOW_MINUTES, submissionFaults, submissionFloodFault, type LineInput } from "./submission";
 import { ProjectRefused, type ProjectFinding, type SubmissionKind } from "./types";
 import { supplierHoldsContract } from "./visibility";
 
@@ -27,7 +28,13 @@ import { supplierHoldsContract } from "./visibility";
 
 export const supplierAuditActor = (a: SupplierActor): AuditActor => ({ kind: "SUPPLIER", supplierAccountId: a.accountId, sessionId: a.sessionId, sourceAddress: a.sourceAddress });
 
-const refuse = (fs: readonly ProjectFinding[], status: 404 | 409 | 422 = 422): never => {
+/// The signing contact's designation as the supplier gave it, for the record of a signature (4e review fix: the paper path records the signatory, and the portal path now says who in the company signed).
+export async function signatoryDesignation(tx: Tx, actor: SupplierActor): Promise<string> {
+  const c = await tx.supplierContact.findFirst({ where: { id: actor.contactId, supplierId: actor.supplierId, organisationId: actor.organisationId }, select: { designation: true } });
+  return c?.designation.trim() || "designation not given";
+}
+
+const refuse = (fs: readonly ProjectFinding[], status: 404 | 409 | 422 | 429 = 422): never => {
   throw new ProjectRefused(fs, status);
 };
 const NOT_FOUND = () => refuse([{ code: "NOT_FOUND", level: "block" }], 404);
@@ -62,6 +69,16 @@ export async function sendSubmission(actor: SupplierActor, i: SendSubmissionInpu
     if (actStatusFault("SUPERVISION", l.contract.status as ContractStatus)) return refuse([{ code: "CONTRACT_NOT_ACTIVE", level: "block" }]);
     const faults = submissionFaults({ kind: i.kind, title: i.title, body: i.body, amount: i.amount, aboutDay: i.aboutDay, lines: i.lines, signed: i.stepUpAt != null, today });
     if (faults.some((f) => f.level === "block")) return refuse(faults);
+    // 4e review fix: a statutory declaration binds the company, and whether a contractor signs from its portal account at all is the organisation's policy (unset refuses, said).
+    if (KIND_SHAPE[i.kind].signed) {
+      const signing = portalSigningFault((await loadPostAwardPolicy(actor.organisationId, tx))?.contractorPortalSigning);
+      if (signing) return refuse([{ code: signing, level: "block" }]);
+    }
+    // 4e review fix: a bound on how many submissions one account sends in a window, counted from the table itself (so every instance shares the count). A technical
+    // bound, not policy (open for the product owner): it stops a flood of rows and of the staff notices each one writes, which can never be deleted.
+    const recent = await tx.contractorSubmission.count({ where: { submittedBySupplierAccountId: actor.accountId, submittedAt: { gte: new Date(now.getTime() - SUBMISSION_WINDOW_MINUTES * 60_000) } } });
+    const flood = submissionFloodFault(recent);
+    if (flood) return refuse([flood], 429);
 
     const [setting, s] = await Promise.all([
       tx.contractorSubmissionSetting.findUnique({ where: { organisationId_kind: { organisationId: actor.organisationId, kind: i.kind } }, select: { serviceLevelDays: true } }),
@@ -94,7 +111,7 @@ export async function sendSubmission(actor: SupplierActor, i: SendSubmissionInpu
       select: { id: true },
     });
     if (i.kind === "STATUTORY_DECLARATION") {
-      await attributeSupplierAct(tx, { actor, entity: "ContractorSubmission", entityId: row.id, slot: "submittedBy", stepUpAt: i.stepUpAt, document: { entity: "ContractorSubmission", id: row.id }, reason: "Signed with the password entered when the declaration was sent" });
+      await attributeSupplierAct(tx, { actor, entity: "ContractorSubmission", entityId: row.id, slot: "submittedBy", stepUpAt: i.stepUpAt, document: { entity: "ContractorSubmission", id: row.id }, reason: `Signed with the password entered when the declaration was sent, by ${actor.displayName} (${await signatoryDesignation(tx, actor)})` });
     }
     const label = contractLabel({ number: l.contract.number, award: { awardeeName: l.award.awardeeName } });
     await writeAudit(

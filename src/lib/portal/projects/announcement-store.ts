@@ -1,4 +1,5 @@
 import type { Tx } from "@/lib/audit/record";
+import { pageOf } from "@/lib/certificate/library";
 import { formatOrgDateTime } from "@/lib/format";
 
 import { boardOrder, type AnnouncementCategory } from "./announcements";
@@ -22,11 +23,20 @@ export interface BoardAnnouncement {
   publishedBy: string;
 }
 
-export async function loadBoard(client: Tx, organisationId: string, timeZone: string | null, opts: { withdrawn?: boolean } = {}): Promise<BoardAnnouncement[]> {
+/// How many announcements a page of the board, or of the officers' register, shows.
+export const BOARD_PAGE = 50;
+
+/// One page of the board (or of the register, with `withdrawn`), in the board's order, paged in the database (4e review fix: it was one read capped at 500 with no word of the cap).
+/// The database orders as `boardOrder` does (pinned first, then newest first), so a page is the board's own slice; `boardOrder` still drops a withdrawn one on the supplier's side.
+export async function loadBoard(client: Tx, organisationId: string, timeZone: string | null, opts: { withdrawn?: boolean; page?: string } = {}): Promise<{ items: BoardAnnouncement[]; total: number; page: number }> {
+  const where = { organisationId, ...(opts.withdrawn ? {} : { withdrawnAt: null }) };
+  const total = await client.announcement.count({ where });
+  const page = pageOf(opts.page, total, BOARD_PAGE);
   const rows = await client.announcement.findMany({
-    where: { organisationId, ...(opts.withdrawn ? {} : { withdrawnAt: null }) },
-    orderBy: [{ pinned: "desc" }, { publishedAt: "desc" }],
-    take: 500,
+    where,
+    orderBy: [{ pinned: "desc" }, { publishedAt: "desc" }, { id: "asc" }],
+    skip: page * BOARD_PAGE,
+    take: BOARD_PAGE,
     include: { publishedBy: { select: { name: true } } },
   });
   const items = rows.map((r) => ({
@@ -42,5 +52,5 @@ export async function loadBoard(client: Tx, organisationId: string, timeZone: st
     withdrawReason: r.withdrawReason,
     publishedBy: r.publishedBy.name,
   }));
-  return opts.withdrawn ? items : boardOrder(items);
+  return { items: opts.withdrawn ? items : boardOrder(items), total, page };
 }

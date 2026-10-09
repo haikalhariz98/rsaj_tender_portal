@@ -1,6 +1,7 @@
 import { CalendarIcon, CheckIcon, ClipboardIcon, FileIcon, InboxIcon, WalletIcon } from "@/components/icons";
 import { Badge, Chip } from "@/components/ui/badge";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { ButtonLink } from "@/components/ui/button";
+import { Card, CardBody, CardFooter, CardHeader } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
 import { KeyValues, Stat } from "@/components/ui/stat";
 import type { SupplierActor } from "@/lib/auth/types";
@@ -10,7 +11,7 @@ import { db } from "@/lib/db";
 import type { ProjectContext } from "@/lib/portal/projects/context-store";
 import { OUTCOME_TONE, OUTCOME_WORDS, ROUTING_STATEMENT, SERVICE_NOT_SET, serviceWords, SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
 import type { SubmissionKind } from "@/lib/portal/projects/types";
-import { certificatesTab, diaryTab, overviewTab, paymentsTab, programmeTab, submissionsTab } from "@/lib/portal/projects/workspace-store";
+import { certificatesTab, DIARY_PAGE, diaryTab, overviewTab, paymentsTab, programmeTab, submissionsTab } from "@/lib/portal/projects/workspace-store";
 import { delayWords, ENTRY_STATE_TONE, ENTRY_STATE_WORDS, PROGRAMME_DECISION_WORDS } from "@/lib/supervision/labels";
 
 import { AttestControl, DisputeDiaryControl, SignCertificateControl, SubmitControl } from "./controls";
@@ -142,8 +143,9 @@ export async function ProgrammePanel({ actor, ctx, token }: Props) {
   );
 }
 
-export async function DiaryPanel({ actor, ctx, token }: Props) {
-  const d = await diaryTab(db, actor, ctx);
+export async function DiaryPanel({ actor, ctx, token, page }: Props & { page?: string }) {
+  const d = await diaryTab(db, actor, ctx, page);
+  const pages = Math.ceil(d.total / DIARY_PAGE);
   return (
     <Card className="overflow-hidden">
       <CardHeader icon={<FileIcon size={17} />} title="Site diary" subtitle={`One entry a day by the responsible officer, attested by your agent at the end of the day. Newest first.${d.possessionOn ? ` The diary runs from ${d.possessionOn}.` : ""}`} divided={d.rows.length > 0} />
@@ -176,6 +178,15 @@ export async function DiaryPanel({ actor, ctx, token }: Props) {
           ))}
         </ul>
       )}
+      {pages > 1 && (
+        <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
+          <span>{`Entries ${d.page * DIARY_PAGE + 1}–${Math.min(d.total, (d.page + 1) * DIARY_PAGE)} of ${d.total}, newest first.`}</span>
+          <span className="flex gap-2">
+            {d.page > 0 && <ButtonLink href={`/supplier/projects/${ctx.contract.id}?tab=diary&page=${d.page}`} size="sm" variant="ghost">Newer</ButtonLink>}
+            {d.page + 1 < pages && <ButtonLink href={`/supplier/projects/${ctx.contract.id}?tab=diary&page=${d.page + 2}`} size="sm" variant="ghost">Older</ButtonLink>}
+          </span>
+        </CardFooter>
+      )}
     </Card>
   );
 }
@@ -190,6 +201,11 @@ export async function PaymentsPanel({ actor, ctx, token }: Props) {
         <Stat label="Paid by Finance" value={p.summary.paidText} hint={p.summary.awaitingPayment ? `${p.summary.awaitingPayment} certificate${p.summary.awaitingPayment === 1 ? "" : "s"} not yet recorded as paid` : "Every certificate is recorded as paid"} tone="brand" />
         <Stat label="Certified, not yet paid" value={p.summary.outstandingText} tone={p.summary.outstanding > 0n ? "warn" : "brand"} />
       </div>
+      {p.summary.paidUnfigured > 0n && (
+        <Callout tone="warn" title={`${p.summary.paidUnfiguredText} paid on certificates without a figure on record`}>
+          Finance recorded a payment on a certificate whose certified figure is not on record, so that payment is shown here on its own and is not set against the sum certified. Ask the office for the certificate&apos;s figure.
+        </Callout>
+      )}
       <Card className="overflow-hidden">
         <CardHeader icon={<WalletIcon size={17} />} title="Payment certificates" subtitle="Each interim or advance payment certificate issued on this contract, the payment it recommended and what Finance paid on it." divided={p.rows.length > 0} />
         {p.rows.length === 0 ? (
@@ -236,6 +252,7 @@ export async function PaymentsPanel({ actor, ctx, token }: Props) {
 export async function CertificatesPanel({ actor, ctx, token }: Props) {
   const c = await certificatesTab(db, actor, ctx);
   const ready = c.rows.filter((r) => r.block.state === "READY");
+  // 4e review fix: the organisation decides whether a contractor signs from its portal account; where it has not, or has said paper only, the block is not offered here and the reason is said.
   return (
     <div className="flex flex-col gap-6">
       <Card className="overflow-hidden">
@@ -249,9 +266,9 @@ export async function CertificatesPanel({ actor, ctx, token }: Props) {
                 <div className="min-w-0">
                   <p className="text-[14.5px] font-semibold text-ink">{`${r.kindLabel}${r.number ? ` ${r.number}` : ""}`}</p>
                   <p className="text-[12.5px] text-ink-3">{`Opened ${r.openedOn}${r.block.state === "READY" ? ` · block: ${r.block.block.labelEn}` : ""}`}</p>
-                  {r.closed && <p className="text-[12.5px] text-amber-800">{r.closed}</p>}
+                  {(r.closed ?? c.signing) && <p className="text-[12.5px] text-amber-800">{r.closed ?? c.signing}</p>}
                 </div>
-                {!r.closed && r.block.state === "READY" && (
+                {!r.closed && !c.signing && r.block.state === "READY" && (
                   <div className="flex shrink-0 flex-wrap items-start gap-2">
                     <SignCertificateControl contractId={ctx.contract.id} certificateId={r.id} token={token} label={`${r.kindLabel}${r.number ? ` ${r.number}` : ""}`} mode="sign" refusalAllowed={r.block.block.refusalAllowed} />
                     <SignCertificateControl contractId={ctx.contract.id} certificateId={r.id} token={token} label={`${r.kindLabel}${r.number ? ` ${r.number}` : ""}`} mode="dispute" refusalAllowed={r.block.block.refusalAllowed} />
@@ -263,7 +280,12 @@ export async function CertificatesPanel({ actor, ctx, token }: Props) {
         )}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<FileIcon size={17} />} title="Every certificate" subtitle="Every certificate opened on this contract, newest first, and where the contractor's block stands on each." divided={c.rows.length > 0} />
+        <CardHeader
+          icon={<FileIcon size={17} />}
+          title="Your certificates"
+          subtitle={`The certificates issued to you on this contract, and the variation and adjustment certificates while they are being signed, newest first, with where your block stands on each. A certificate the office is still preparing is not shown.${c.total > c.rows.length ? ` The newest ${c.rows.length} of ${c.total} are shown: ask the office for an older one.` : ""}`}
+          divided={c.rows.length > 0}
+        />
         {c.rows.length === 0 ? (
           <EmptyState title="No certificate yet" size="sm">Certificates are raised by the office as the contract runs.</EmptyState>
         ) : (
@@ -282,6 +304,8 @@ export async function CertificatesPanel({ actor, ctx, token }: Props) {
                     <Chip>{`Waits for "${r.block.first}" first`}</Chip>
                   ) : r.block.state === "READY" ? (
                     <Chip tone="warn">Waits for your signature</Chip>
+                  ) : r.block.state === "NOT_OFFERED" && r.block.why === "LAST" ? (
+                    <Chip tone="warn">Your block is the last: sign or dispute it on paper</Chip>
                   ) : r.block.state === "NOT_OFFERED" && r.block.why === "KIND" ? (
                     <Chip>Signed at the office, if at all</Chip>
                   ) : null}
@@ -304,10 +328,15 @@ export async function SubmissionsPanel({ actor, ctx, token }: Props) {
         <CardHeader
           icon={<InboxIcon size={17} />}
           title="Submissions"
-          subtitle={`Everything your company has sent on this contract, newest first, and the office's answer. ${ROUTING_STATEMENT}`}
+          subtitle={`Everything your company has sent on this contract, newest first, and the office's answer. ${ROUTING_STATEMENT}${s.total > s.rows.length ? ` The newest ${s.rows.length} of ${s.total} are shown: ask the office for an older one.` : ""}`}
           actions={<SubmitControl contractId={ctx.contract.id} token={token} kinds={NOTICE_KINDS} why={s.closed} label="Send a notice or declaration" />}
           divided={s.rows.length > 0}
         />
+        {s.signing && (
+          <CardBody pad="tight">
+            <p className="text-[12.5px] text-amber-800">{`The statutory declaration cannot be signed here. ${s.signing}`}</p>
+          </CardBody>
+        )}
         {unset > 0 && (
           <CardBody pad="tight">
             <p className="text-[12.5px] text-ink-3">{`${SERVICE_NOT_SET.en} for ${unset === 6 ? "any kind" : `${unset} kind${unset === 1 ? "" : "s"}`} of submission: those show no due day. The office sets the service levels.`}</p>

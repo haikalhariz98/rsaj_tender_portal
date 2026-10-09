@@ -9819,6 +9819,12 @@ model PostAwardPolicy {
   finalPreviousBasis          FinalPreviousBasis?
   finalAccountProvenance      Provenance?
 
+  /// Phase 4e review fix: whether a contractor's own portal account may sign for it (its block on a Variation Order Certificate or a
+  /// Certificate of Adjustment of Contract Sum, and the statutory declaration). Who in a contractor's company may bind it is the
+  /// customer's policy. Null: not decided, and the portal refuses both, saying so. False: the contractor signs on paper only.
+  contractorPortalSigning           Boolean?
+  contractorPortalSigningProvenance Provenance?
+
   notes String @default("")
 }
 

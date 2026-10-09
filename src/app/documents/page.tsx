@@ -20,7 +20,7 @@ import { dayOf } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { OUTCOME_TONE, OUTCOME_WORDS, ROUTING_STATEMENT, SERVICE_NOT_SET, serviceWords, SUBMISSION_KIND_WORDS } from "@/lib/portal/projects/labels";
-import { loadReviewQueue } from "@/lib/portal/projects/review-store";
+import { loadReviewQueue, REVIEW_PAGE, reviewCounts } from "@/lib/portal/projects/review-store";
 
 import { AnswerDrawer } from "./review-editors";
 import { requireStaff } from "@/app/_auth/actor";
@@ -40,7 +40,7 @@ const lang = (ls: readonly ("EN" | "MS")[]) => [...new Set(ls)].sort((a, b) => (
  */
 export default async function DocumentsPage(props: PageProps<"/documents">) {
   const actor = await requireStaff();
-  const sp = (await props.searchParams) as { tab?: string; q?: string; page?: string };
+  const sp = (await props.searchParams) as { tab?: string; q?: string; page?: string; answered?: string };
   const tab = TAB_IDS.find((t) => t === sp.tab) ?? "library";
   const query = (sp.q ?? "").slice(0, 200);
   const org = await db.organisation.findUnique({ where: { code: actor.organisationCode }, select: { id: true, timeZone: true } });
@@ -67,19 +67,19 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
     tab === "library" ? whole.then((t) => libraryPage(org.id, query, sp.page, org.timeZone, hidden, t)) : Promise.resolve(null),
     tab === "distribution" ? distributionPage(org.id, sp.page) : Promise.resolve(null),
   ]);
-  // Phase 4e: the review queue reads only when it is the tab asked for.
-  const review = tab === "review" ? await loadReviewQueue(db, org.id, today) : null;
+  // Phase 4e: the review queue's lists read only when it is the tab asked for, each paged in the database; the strip's count is a count query on every tab (4e review fix).
+  const [review, reviewCount] = await Promise.all([tab === "review" ? loadReviewQueue(db, org.id, today, { waiting: sp.page, answered: sp.answered }) : Promise.resolve(null), reviewCounts(db, org.id, today)]);
   const sheets = tab === "routing" && judged ? routingSheetsPage(judged, sp.page) : null;
   const searching = tab === "library" && !!library && query.trim() !== "";
-  const pager = (t: string, page: number, total: number, size: number, extra = "") => {
+  const pager = (t: string, page: number, total: number, size: number, extra = "", param = "page", note = "") => {
     const pages = Math.ceil(total / size);
     if (pages <= 1) return null;
     return (
       <CardFooter className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-ink-3">
-        <span>{`${page * size + 1}–${Math.min(total, (page + 1) * size)} of ${total}.`}</span>
+        <span>{`${page * size + 1}–${Math.min(total, (page + 1) * size)} of ${total}.${note}`}</span>
         <span className="flex gap-2">
-          {page > 0 && <ButtonLink href={`/documents?tab=${t}${extra}&page=${page}`} size="sm" variant="ghost">Previous</ButtonLink>}
-          {page + 1 < pages && <ButtonLink href={`/documents?tab=${t}${extra}&page=${page + 2}`} size="sm" variant="ghost">Next</ButtonLink>}
+          {page > 0 && <ButtonLink href={`/documents?tab=${t}${extra}&${param}=${page}`} size="sm" variant="ghost">Previous</ButtonLink>}
+          {page + 1 < pages && <ButtonLink href={`/documents?tab=${t}${extra}&${param}=${page + 2}`} size="sm" variant="ghost">Next</ButtonLink>}
         </span>
       </CardFooter>
     );
@@ -214,12 +214,12 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
         </Callout>
       )}
       <Card className="overflow-hidden">
-        <CardHeader icon={<ClockIcon size={17} />} title={W.review.en} subtitle={`Submissions contractors sent from their portal accounts, waiting for an answer, the longest waiting first. ${ROUTING_STATEMENT} The S.O. office's holders, or a representative whose letter lists contractor communication, answer each.`} divided={review.waiting > 0} />
-        {review.waiting === 0 ? (
+        <CardHeader icon={<ClockIcon size={17} />} title={W.review.en} subtitle={`Submissions contractors sent from their portal accounts, waiting for an answer, the longest waiting first${review.overdue ? `, ${review.overdue} of them past the due day` : ""}. ${ROUTING_STATEMENT} The S.O. office's holders, or a representative whose letter lists contractor communication, answer each.`} divided={review.waiting.total > 0} />
+        {review.waiting.total === 0 ? (
           <EmptyState size="sm" title="Nothing waits for an answer">A contractor&apos;s programme, claim, materials list, delay notice, defects report or statutory declaration appears here when it is sent.</EmptyState>
         ) : (
           <ul className="divide-y divide-line/70">
-            {review.rows.filter((r) => r.outcome == null).map((r) => {
+            {review.waiting.rows.map((r) => {
               const sv = serviceWords(r.service);
               return (
                 <li key={r.id} className="flex flex-col gap-2 px-5 py-4 sm:px-6">
@@ -251,9 +251,10 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
             })}
           </ul>
         )}
+        {pager("review", review.waiting.page, review.waiting.total, REVIEW_PAGE, review.answered.page ? `&answered=${review.answered.page + 1}` : "")}
       </Card>
       <Card className="overflow-hidden">
-        <CardHeader icon={<InboxIcon size={17} />} title="Answered" subtitle="Every submission answered, with who answered it and whether it was answered by its due day." divided={false} />
+        <CardHeader icon={<InboxIcon size={17} />} title="Answered" subtitle="Every submission answered, the latest sent first, with who answered it and whether it was answered by its due day." divided={false} />
         <DataList
           flat
           selectable={false}
@@ -270,7 +271,7 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
             { key: "service", label: "Against the service level", width: "210px", mobile: "meta" },
             { key: "by", label: "Answered by", width: "160px", mobile: "meta", hideBelow: "2xl" },
           ]}
-          rows={review.rows.filter((r) => r.outcome != null).map((r) => ({
+          rows={review.answered.rows.map((r) => ({
             id: r.id,
             search: `${r.contractNumber} ${r.contractor} ${r.title} ${SUBMISSION_KIND_WORDS[r.kind].en}`,
             sortKeys: { submission: r.sentDay },
@@ -283,6 +284,7 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
             },
           }))}
         />
+        {pager("review", review.answered.page, review.answered.total, REVIEW_PAGE, review.waiting.page ? `&page=${review.waiting.page + 1}` : "", "answered", " Search and sort look within this page.")}
       </Card>
     </div>
   );
@@ -313,7 +315,7 @@ export default async function DocumentsPage(props: PageProps<"/documents">) {
           { id: "library", label: W.library.en, icon: <FilesIcon size={15} />, count: searching ? library!.total : libraryTotal, panel: libraryPanel, lazy: true },
           { id: "distribution", label: W.distribution.en, icon: <InboxIcon size={15} />, count: dist.total, panel: distributionPanel, lazy: true },
           { id: "routing", label: W.sheets.en, icon: <RouteIcon size={15} />, count: judged?.counts.open ?? sheetCount.open, panel: routingPanel, lazy: true },
-          { id: "review", label: W.review.en, icon: <ClockIcon size={15} />, count: review?.waiting, panel: tab === "review" ? reviewPanel : null, lazy: true },
+          { id: "review", label: W.review.en, icon: <ClockIcon size={15} />, count: reviewCount.waiting, panel: tab === "review" ? reviewPanel : null, lazy: true },
         ]}
       />
     </>

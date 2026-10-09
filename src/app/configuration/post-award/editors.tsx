@@ -3,7 +3,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
-import { saveClockRule, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveSubmissionServiceLevel, saveVariationPolicy } from "./actions";
+import { saveClockRule, saveContractorPortalSigning, saveKindSetting, savePaymentPolicy, savePostAwardPolicy, saveSubmissionServiceLevel, saveVariationPolicy } from "./actions";
 
 /**
  * The Post-award controls drawer. No field carries a default: an unset field is not set, and the screen says
@@ -138,6 +138,26 @@ export function EditSubmissionServiceLevel({ kind, label, values }: { kind: stri
       ]}
       values={{ ...values, kind }}
       action={saveSubmissionServiceLevel}
+      reason={{ label: "Why it is changed" }}
+      submitLabel="Save"
+      trigger={{ label: "Edit", className: buttonClass("ghost", "sm") }}
+    />
+  );
+}
+
+/// Phase 4e review fix: whether a contractor's own portal account signs for it. Ships unset.
+export function EditContractorPortalSigning({ values }: { values: Record<string, string | null> }) {
+  return (
+    <RecordEditor
+      title="A contractor signs from its portal account"
+      description="Whether a contractor's own portal account may sign its block on a Variation Order Certificate or a Certificate of Adjustment of Contract Sum, and its statutory declaration. Who may bind a contractor's company is your policy. Leave it undecided and the portal refuses both, saying so; the contractor then signs on paper and an officer records it."
+      columns={2}
+      fields={[
+        { kind: "select", name: "contractorPortalSigning", label: "A contractor's portal account signs for it", placeholder: "Not decided", options: [{ value: "yes", label: "Yes: its account signs, with its password" }, { value: "no", label: "No: on paper only" }] },
+        provenance("contractorPortalSigningProvenance", "Where that came from"),
+      ]}
+      values={values}
+      action={saveContractorPortalSigning}
       reason={{ label: "Why it is changed" }}
       submitLabel="Save"
       trigger={{ label: "Edit", className: buttonClass("ghost", "sm") }}

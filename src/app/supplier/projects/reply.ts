@@ -16,7 +16,7 @@ export function refusalReply(e: unknown): Response | null {
     const faults = projectFaultViews(e.faults);
     const message = faults.find((f) => f.level === "block")?.message ?? "That cannot be done.";
     if (e.status === 404) return reply({ ok: false, code: "NOT_FOUND", message: "That is not something you can open." }, 404);
-    return reply({ ok: false, code: e.status === 409 ? "CHANGED" : "VALIDATION", message, faults }, e.status);
+    return reply({ ok: false, code: e.status === 409 ? "CHANGED" : e.status === 429 ? "THROTTLED" : "VALIDATION", message, faults }, e.status);
   }
   if (e instanceof CertificateRefusal) return reply({ ok: false, code: "VALIDATION", message: e.message }, 422);
   if (e instanceof AttributionRefused) return reply({ ok: false, code: "SIGNATURE_REFUSED", message: e.faults.map((f) => f.en).join(" ") }, 403);

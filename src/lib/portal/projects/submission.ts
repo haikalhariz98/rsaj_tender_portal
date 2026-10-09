@@ -67,7 +67,7 @@ export function submissionFaults(i: SubmissionInput): ProjectFinding[] {
     if (!i.aboutDay.trim()) f("DAY_REQUIRED");
     else if (!isDay(i.aboutDay.trim())) f("DAY_FORMAT");
     else if (i.aboutDay.trim() > i.today) f("DAY_IN_FUTURE", { day: i.today });
-  }
+  } else if (i.aboutDay.trim()) f("DAY_NOT_ON_KIND");
   if (shape.lines) {
     if (i.lines.length === 0) f("LINES_REQUIRED");
     else if (i.lines.length > LINES_MAX) f("TOO_MANY_LINES", { max: LINES_MAX });
@@ -80,6 +80,18 @@ export function submissionFaults(i: SubmissionInput): ProjectFinding[] {
   } else if (i.lines.length > 0) f("LINES_NOT_ON_KIND");
   if (shape.signed && !i.signed) f("PASSWORD_REQUIRED");
   return out;
+}
+
+/**
+ * How many submissions one portal account may send in a window (4e review fix). A technical bound, not the customer's policy (logged OPEN for the product owner, as the inspection
+ * log's one-minute repeat rule was): far above any contractor's working pace, and low enough that a script under one session cannot flood the table and the S.O.'s inbox, whose
+ * notices can never be deleted. Counted by the store from the submissions themselves.
+ */
+export const SUBMISSION_WINDOW_MINUTES = 60;
+export const SUBMISSIONS_PER_WINDOW = 30;
+
+export function submissionFloodFault(sentInWindow: number): ProjectFinding | null {
+  return sentInWindow >= SUBMISSIONS_PER_WINDOW ? { code: "TOO_MANY_SUBMISSIONS", level: "block", data: { max: SUBMISSIONS_PER_WINDOW, minutes: SUBMISSION_WINDOW_MINUTES } } : null;
 }
 
 /// The amount as sen, for a claim whose fields passed.

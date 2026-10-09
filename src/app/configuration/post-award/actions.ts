@@ -255,6 +255,38 @@ export async function saveSubmissionServiceLevel(_prev: FormState, data: FormDat
   });
 }
 
+/**
+ * Phase 4e review fix: whether a contractor's own portal account may sign for it (its block on a Variation Order Certificate or a Certificate of Adjustment of Contract Sum, and
+ * the statutory declaration). Who may bind a contractor's company is the customer's policy: shipped unset, and unset refuses both in the portal, saying so. Clearing it asks why.
+ */
+export async function saveContractorPortalSigning(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const o = await exerciseOrg(actor.organisationId);
+  if (!o) return NO_ORG;
+  const r = new FormReader(data);
+  const choice = r.choice("contractorPortalSigning", "Whether a contractor signs from its portal account", ["yes", "no"] as const);
+  const provenance = r.choice("contractorPortalSigningProvenance", "Where that came from", PROVENANCE);
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (choice != null && !provenance) r.reject("contractorPortalSigningProvenance", "Say where the decision came from: there is no default.");
+  if (r.failed) return { ok: false, errors: r.errors };
+  const v = { contractorPortalSigning: choice == null ? null : choice === "yes", contractorPortalSigningProvenance: choice == null ? null : provenance };
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
+    const before = await tx.postAwardPolicy.findUnique({ where: { organisationId: o.id } });
+    const words = (x: { contractorPortalSigning: boolean | null; contractorPortalSigningProvenance: string | null } | null) => ({
+      contractorSignsFromThePortal: x?.contractorPortalSigning == null ? null : x.contractorPortalSigning ? "yes: its account signs for it" : "no: on paper only",
+      provenance: x?.contractorPortalSigningProvenance ?? null,
+    });
+    const changes = diffFields(before ? words(before) : null, words(v));
+    if (before && !changes.length) return { ok: true };
+    if (before?.contractorPortalSigning != null && v.contractorPortalSigning == null && !reason.trim()) return { ok: false, errors: { reason: "Say why the decision is removed." } } as FormState;
+    const row = await tx.postAwardPolicy.upsert({ where: { organisationId: o.id }, update: v, create: { organisationId: o.id, ...v } });
+    await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "PostAwardPolicy", entityId: row.id, entityLabel: "Post-award controls · a contractor signs from its portal account", reason }, before ? "UPDATE" : "CREATE", changes);
+    revalidatePath(PATH);
+    return { ok: true };
+  });
+}
+
 // ------------------------------------------------------------------ 6.13 Part A step 4: variations
 
 /**

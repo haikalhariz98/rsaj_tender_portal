@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import { parseCertificateBody, parseDiaryBody, parseSubmitBody } from "./api";
 import { boardOrder, publishFaults, withdrawFaults } from "./announcements";
-import { certifiedAgainstPaid, contractorBlock, signBlockFaults } from "./certificates";
+import { certifiedAgainstPaid, contractorBlock, contractorReadsCertificate, portalSigningFault, signBlockFaults } from "./certificates";
 import { SERVICE_NOT_SET, serviceWords, SUBMISSION_KIND_WORDS, OUTCOME_WORDS } from "./labels";
-import { answerFaults, disagreementFaults, dueDayOf, serviceState, submissionFaults, KIND_SHAPE, type SubmissionInput } from "./submission";
+import { answerFaults, disagreementFaults, dueDayOf, serviceState, submissionFaults, submissionFloodFault, SUBMISSIONS_PER_WINDOW, KIND_SHAPE, type SubmissionInput } from "./submission";
 import { SUBMISSION_KINDS, SUBMISSION_OUTCOMES } from "./types";
 import { supplierHoldsContract } from "./visibility";
 import { hasProjectFaultText, projectFaultText } from "./words";
@@ -57,6 +57,13 @@ describe("a submission's fields", () => {
     expect(codes(submissionFaults({ ...base, title: "x".repeat(201) }))).toEqual(["TITLE_TOO_LONG"]);
     expect(codes(submissionFaults({ ...base, amount: "1.00" }))).toEqual(["AMOUNT_NOT_ON_KIND"]);
     expect(codes(submissionFaults({ ...base, lines: [{ description: "a", quantity: "1", location: "x", value: "1.00" }] }))).toEqual(["LINES_NOT_ON_KIND"]);
+  });
+  it("a day is refused on a kind that carries none, as an amount and items are (4e review fix: a crafted request reached the database)", () => {
+    for (const kind of ["WORK_PROGRAMME", "DEFECTS_RECTIFIED", "STATUTORY_DECLARATION"] as const) {
+      expect(codes(submissionFaults({ ...base, kind, signed: true, aboutDay: "zzzz" })), kind).toEqual(["DAY_NOT_ON_KIND"]);
+      expect(codes(submissionFaults({ ...base, kind, signed: true, aboutDay: "2026-10-01" })), kind).toEqual(["DAY_NOT_ON_KIND"]);
+    }
+    expect(submissionFaults({ ...base, aboutDay: "  " })).toEqual([]);
   });
   it("an interim claim: the amount in ringgit and sen, and the day it is made up to, not in the future", () => {
     const claim: SubmissionInput = { ...base, kind: "INTERIM_CLAIM", amount: "12500.00", aboutDay: "2026-09-30" };
@@ -148,6 +155,12 @@ describe("the contractor's block on a certificate", () => {
     expect(contractorBlock({ kind: "VARIATION", status: "SIGNING", blocks: blocks.filter((b) => b.blockKind !== "CONTRACTOR"), signedOrders: [1, 2] })).toEqual({ state: "NOT_OFFERED", why: "NO_BLOCK" });
     expect(contractorBlock({ kind: "VARIATION", status: "SIGNING", blocks: null, signedOrders: [] })).toEqual({ state: "NOT_OFFERED", why: "NO_BLOCK" });
   });
+  it("is not offered where it is the last block still to record, signed or refused, because recording it would issue the certificate from the portal (4e review fix, OPEN I)", () => {
+    expect(contractorBlock({ kind: "VARIATION", status: "SIGNING", blocks, signedOrders: [1, 2, 4] })).toEqual({ state: "NOT_OFFERED", why: "LAST" });
+    const lastOnForm = blocks.filter((b) => b.blockKind !== "WITNESS");
+    expect(contractorBlock({ kind: "SUM_ADJUSTMENT", status: "SIGNING", blocks: lastOnForm, signedOrders: [1, 2] })).toEqual({ state: "NOT_OFFERED", why: "LAST" });
+    for (const action of ["sign", "dispute"] as const) expect(codes(signBlockFaults({ kind: "VARIATION", status: "SIGNING", blocks: lastOnForm, signedOrders: [1, 2], action, note: "Overstated." }))).toEqual(["BLOCK_IS_LAST"]);
+  });
   it("a dispute is the refusal the form allows, with the reason; signing asks nothing more", () => {
     const ready = { kind: "VARIATION", status: "SIGNING", blocks, signedOrders: [1, 2] };
     expect(signBlockFaults({ ...ready, action: "sign", note: "" })).toEqual([]);
@@ -169,7 +182,48 @@ describe("certified against paid", () => {
       { certificateId: "b", sequence: 2, number: "IC/2", issuedOn: "2026-08-31", recommended: 250_500_50n, paid: null },
       { certificateId: "c", sequence: 3, number: null, issuedOn: null, recommended: null, paid: null },
     ]);
-    expect(s).toEqual({ certified: 350_500_50n, paid: 100_000_00n, outstanding: 250_500_50n, unfigured: 1, awaitingPayment: 2 });
+    // 4e review fix: the summary gained `paidUnfigured` (nothing was paid on the unfigured certificate here, so it is zero); every other figure is as before.
+    expect(s).toEqual({ certified: 350_500_50n, paid: 100_000_00n, outstanding: 250_500_50n, paidUnfigured: 0n, unfigured: 1, awaitingPayment: 2 });
+  });
+  it("a payment on a certificate with no figure is its own figure, never set against the certified sum (4e review fix: it read as a negative outstanding)", () => {
+    const s = certifiedAgainstPaid([
+      { certificateId: "a", sequence: 1, number: "IC/1", issuedOn: "2026-07-31", recommended: 50_000_00n, paid: { on: "2026-08-10", amount: 50_000_00n, batchNo: "PV/1" } },
+      { certificateId: "b", sequence: 2, number: "IC/2", issuedOn: "2026-08-31", recommended: null, paid: { on: "2026-09-10", amount: 10_000_00n, batchNo: "PV/2" } },
+    ]);
+    expect(s).toEqual({ certified: 50_000_00n, paid: 50_000_00n, outstanding: 0n, paidUnfigured: 10_000_00n, unfigured: 1, awaitingPayment: 0 });
+  });
+});
+
+describe("who may bind the contractor, and how many it sends (4e review fix)", () => {
+  it("the portal signs for a contractor only where the organisation decided it does: not decided and decided no are each refused, in their own words", () => {
+    expect(portalSigningFault(null)).toBe("PORTAL_SIGNING_NOT_SET");
+    expect(portalSigningFault(undefined)).toBe("PORTAL_SIGNING_NOT_SET");
+    expect(portalSigningFault(false)).toBe("PORTAL_SIGNING_OFF");
+    expect(portalSigningFault(true)).toBeNull();
+    expect(projectFaultText({ code: "PORTAL_SIGNING_NOT_SET" }).en).toMatch(/not yet decided/);
+    expect(projectFaultText({ code: "PORTAL_SIGNING_OFF" }).en).toMatch(/on paper only/);
+  });
+  it("an account sends at most the bound in the window, and the refusal says the bound and the window", () => {
+    expect(submissionFloodFault(SUBMISSIONS_PER_WINDOW - 1)).toBeNull();
+    const f = submissionFloodFault(SUBMISSIONS_PER_WINDOW);
+    expect(f?.code).toBe("TOO_MANY_SUBMISSIONS");
+    expect(projectFaultText(f!).en).toContain(`${SUBMISSIONS_PER_WINDOW} submissions in the last 60 minutes`);
+  });
+});
+
+describe("which certificates the contractor reads (4e review fix)", () => {
+  it("an issued certificate addressed to it, the two kinds it signs while being signed, and a void one only where it recorded its block", () => {
+    expect(contractorReadsCertificate({ kind: "INTERIM_PAYMENT", status: "ISSUED", contractorRecorded: false })).toBe(true);
+    expect(contractorReadsCertificate({ kind: "TERMINATION_INTENT", status: "ISSUED", contractorRecorded: false })).toBe(true);
+    expect(contractorReadsCertificate({ kind: "VARIATION", status: "SIGNING", contractorRecorded: false })).toBe(true);
+    expect(contractorReadsCertificate({ kind: "SUM_ADJUSTMENT", status: "VOID", contractorRecorded: true })).toBe(true);
+  });
+  it("never the office's deliberation: another kind in routing or being signed, a draft, an internal letter, or a void certificate it never signed", () => {
+    for (const status of ["DRAFT", "IN_ROUTING", "SIGNING"]) for (const kind of ["TERMINATION_INTENT", "NON_COMPLETION", "LAD_WARNING", "SO_INSTRUCTION", "VARIATION_APPLICATION", "DELEGATION_LETTER", "DELEGATION_NOTICE", "INTERIM_PAYMENT"]) expect(contractorReadsCertificate({ kind, status, contractorRecorded: false }), `${kind} ${status}`).toBe(false);
+    expect(contractorReadsCertificate({ kind: "VARIATION", status: "DRAFT", contractorRecorded: false })).toBe(false);
+    for (const kind of ["DELEGATION_LETTER", "VARIATION_APPLICATION", "NOMINATION_LETTER"]) expect(contractorReadsCertificate({ kind, status: "ISSUED", contractorRecorded: false }), kind).toBe(false);
+    expect(contractorReadsCertificate({ kind: "VARIATION", status: "VOID", contractorRecorded: false })).toBe(false);
+    expect(contractorReadsCertificate({ kind: "TERMINATION_INTENT", status: "VOID", contractorRecorded: true })).toBe(false);
   });
 });
 

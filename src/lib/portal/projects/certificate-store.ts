@@ -7,9 +7,11 @@ import { actStatusFault, certificateAct } from "@/lib/contract/act-status";
 import type { ContractStatus } from "@/lib/contract/types";
 import { dayOf } from "@/lib/dates";
 
-import { signBlockFaults } from "./certificates";
+import { loadPostAwardPolicy } from "@/lib/supervision/load";
+
+import { portalSigningFault, signBlockFaults } from "./certificates";
 import { blocksOf } from "./list-store";
-import { supplierAuditActor } from "./submission-store";
+import { signatoryDesignation, supplierAuditActor } from "./submission-store";
 import { ProjectRefused, type ProjectFinding } from "./types";
 import { supplierHoldsContract } from "./visibility";
 
@@ -37,9 +39,13 @@ export async function signContractorBlock(actor: SupplierActor, i: { contractId:
     const blocks = blocksOf(cert.templateRevision);
     const faults = signBlockFaults({ kind: cert.kind, status: cert.status, blocks, signedOrders: cert.signatures.map((s) => s.blockOrder), action: i.action, note: i.note });
     if (faults.length) return refuse(faults);
+    // 4e review fix: whether a contractor signs from its portal account at all is the organisation's policy, read in the act's transaction; unset refuses, said.
+    const signing = portalSigningFault((await loadPostAwardPolicy(actor.organisationId, tx))?.contractorPortalSigning);
+    if (signing) return refuse([{ code: signing, level: "block" }]);
+    const designation = await signatoryDesignation(tx, actor);
     const block = blocks!.find((b) => b.blockKind === "CONTRACTOR")!;
     const sig = await recordSignature({ tx, actor: supplierAuditActor(actor), l, now, today }, { blockOrder: block.blockOrder, personId: null, act: null, name: actor.displayName, icNumber: "", signedOn: today, refused: i.action === "dispute", refusalNote: i.note, decision: null, decisionCap: null, signedBySupplierAccountId: actor.accountId });
-    await attributeSupplierAct(tx, { actor, entity: "CertificateSignature", entityId: sig.signatureId, slot: "signedBySupplierAccount", stepUpAt: i.stepUpAt, document: { entity: "Certificate", id: cert.id }, reason: i.action === "dispute" ? "The contractor refused to sign, with its reason, from its own portal account" : "Signed with the password entered when the block was signed" });
+    await attributeSupplierAct(tx, { actor, entity: "CertificateSignature", entityId: sig.signatureId, slot: "signedBySupplierAccount", stepUpAt: i.stepUpAt, document: { entity: "Certificate", id: cert.id }, reason: `${i.action === "dispute" ? "The contractor refused to sign, with its reason, from its own portal account" : "Signed with the password entered when the block was signed"}, by ${actor.displayName} (${designation})` });
     return { certificateId: cert.id, blockOrder: block.blockOrder };
   });
   if (result === null) return refuse([{ code: "NOT_FOUND", level: "block" }], 404);

@@ -34,12 +34,17 @@ export type ProjectFault =
   | "DAY_REQUIRED"
   | "DAY_FORMAT"
   | "DAY_IN_FUTURE"
+  | "DAY_NOT_ON_KIND"
   | "LINES_REQUIRED"
   | "LINES_NOT_ON_KIND"
   | "LINE_INCOMPLETE"
   | "LINE_VALUE_FORMAT"
   | "TOO_MANY_LINES"
   | "PASSWORD_REQUIRED"
+  | "TOO_MANY_SUBMISSIONS"
+  // Who may bind the contractor (4e review fix): the organisation has not decided whether a contractor signs from its portal account, or has decided it signs on paper only.
+  | "PORTAL_SIGNING_NOT_SET"
+  | "PORTAL_SIGNING_OFF"
   // The officer's answer.
   | "ALREADY_ANSWERED"
   | "NOTE_REQUIRED"
@@ -57,17 +62,19 @@ export type ProjectFault =
   | "NO_CONTRACTOR_BLOCK"
   | "BLOCK_NOT_NEXT"
   | "BLOCK_SIGNED"
+  | "BLOCK_IS_LAST"
   | "REFUSAL_NOT_ALLOWED"
   | "REFUSAL_NOTE_REQUIRED"
   | "REFUSAL_NOTE_TOO_LONG";
 
 export type ProjectFinding = Finding<ProjectFault>;
 
-/// Raised from inside an act's transaction so that nothing is written. `status` is what a handler answers with: 404 for something that is not the supplier's to see, 409 for a change that came first.
+/// Raised from inside an act's transaction so that nothing is written. `status` is what a handler answers with: 404 for something that is not the supplier's to see, 409 for a change that came first,
+/// 429 for one sent past the bound on how many an account sends in a window.
 export class ProjectRefused extends Error {
   constructor(
     readonly faults: readonly ProjectFinding[],
-    readonly status: 404 | 409 | 422 = 422,
+    readonly status: 404 | 409 | 422 | 429 = 422,
   ) {
     super(faults.map((f) => f.code).join(", "));
     this.name = "ProjectRefused";
