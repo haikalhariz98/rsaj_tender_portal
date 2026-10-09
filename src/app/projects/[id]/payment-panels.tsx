@@ -22,7 +22,9 @@ import { frozenRateWarnings, ladLine } from "@/lib/lad/charge";
 import { decisionFaults, replacementFaults, warningFaults } from "@/lib/lad/non-completion";
 import { formatMoney, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import { assembleInterim, chargedUntilOf, heldOnLatest, readJudgedUnder, type Assembled } from "@/lib/payment/assemble";
-import { OPENING_GROUP_WORDS, ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
+import { db } from "@/lib/db";
+import { creditorFactsOf } from "@/lib/payment/creditor-store";
+import { OPENING_GROUP_WORDS, ADVANCE_PARTY_WORDS, ANSWER_WORDS, DEDUCTION_WORDS, MATERIAL_VERDICT_WORDS, OUTCOME_WORDS, PACK_WORDS, PAYEE_BANK_UNCHECKED, REMAINDER_WORDS, paymentFaultText, RELEASE_WORDS, SCOPE_WORDS, TIER_WORDS, TRIGGER_WORDS, VALUATION_STATUS_WORDS } from "@/lib/payment/labels";
 import { assembleInputOf, baselineOn, decisionOf, inProgress, inProgressSequenceOf, issuedInterims, liveDecisionOf, baselineDamagesOf, kindSettingOf, uncoveredForeign, releaseStateOf, pendingAdvancesOf, openingOf, loadPayment, loadPaymentConfig, preExecutionFacts } from "@/lib/payment/load";
 import { materialVerdict } from "@/lib/payment/materials";
 import { firstReleaseShare, releaseOf, retentionReading } from "@/lib/payment/retention";
@@ -93,7 +95,9 @@ export async function paymentView(l: LoadedContract, today: string | null) {
   const adjustments = readIssuedAdjustments(p.sumAdjustments);
   const refused = adjustments.ok ? null : adjustments.refused;
   const facts = current?.status === "OPEN" && today && !refused ? await preExecutionFacts(l) : null;
-  const input = current?.status === "OPEN" && today && facts ? assembleInputOf(l, p, cfg, current, today, facts) : null;
+  // BD-613-44 (decisions log, 2026-10-09, ruling on 1897 R4): opening a valuation says whether the contractor's bank details are checked, as FR-PAY-014 says of the limit. Said, not refused: the refusal is the issue's.
+  const creditor = facts ? await creditorFactsOf(db, l.org.id, l.award.vendorId) : undefined;
+  const input = current?.status === "OPEN" && today && facts ? assembleInputOf(l, p, cfg, current, today, facts, creditor) : null;
   const assembled = input ? assembleInterim(input) : null;
   return { p, cfg, current, assembled, refused, issued: issuedInterims(p), baseline: today ? baselineOn(l, today) : null };
 }
@@ -396,7 +400,7 @@ function CurrentValuation({ l, v, today, formSet }: { l: LoadedContract; v: Paym
           })}
         </ul>
       )}
-      <CardHeader title="Nominated parties and assignees" subtitle="Totals only: the payment annexes A1 to A3 are not available (B1). A nominated party's value to date is part of the gross; what is due to each is what the waterfall pays." divided className="border-t border-line/70" />
+      <CardHeader title="Nominated parties and assignees" subtitle={`Totals only: the payment annexes A1 to A3 are not available (B1). A nominated party's value to date is part of the gross; what is due to each is what the waterfall pays. ${PAYEE_BANK_UNCHECKED.direct.en}`} divided className="border-t border-line/70" />
       {parties.length === 0 ? (
         <EmptyState size="sm" title="None on this contract">Nominated parties and assignees are recorded on the Team tab.</EmptyState>
       ) : (
@@ -600,6 +604,7 @@ function AdvanceSection({ l, v, people, hidden }: { l: LoadedContract; v: Paymen
                     </span>
                     <span className={sub}>{`Guarantee ${a.security.instrumentRef || "lodged"}; recouped ${formatMoney(recouped)}, ${formatMoney(senFromDecimal(a.amount) - recouped)} to recoup`}</span>
                     <span className={sub}>{a.schedule.map((r) => `certificate ${r.sequence}: ${formatMoney(senFromDecimal(r.amount))}`).join(" · ")}</span>
+                    {a.party !== "MAIN" && <span className={sub}>{PAYEE_BANK_UNCHECKED.advance.en}</span>}
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     <ButtonLink href={`/projects/${c.id}/certificates/${a.certificate.id}`} size="sm" variant="secondary">{KIND_WORDS.ADVANCE_PAYMENT.en}</ButtonLink>

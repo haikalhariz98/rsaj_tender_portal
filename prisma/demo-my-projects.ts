@@ -20,7 +20,7 @@ import { contractorSubmissionNotices } from "../src/lib/inbox/notices";
 import { officeHolders } from "../src/lib/certificate/repo";
 import { loadContract } from "../src/lib/contract/repo";
 import { DEMO_ACTOR } from "./demo-actor";
-import { createRegisteredContractor } from "./demo-contractor";
+import { linkDemoContractor } from "./demo-contractor";
 
 type Db = PrismaClient;
 const P = "demo_";
@@ -55,14 +55,12 @@ export async function loadMyProjectsDemo(db: Db, organisationId: string): Promis
   const label = `Contract ${contract.number} · ${contract.award.awardeeName}`;
 
   // ---- the contractor on the register, and the award linked to it (as the lifecycle demo does since Phase 4b; added here for a database loaded before).
-  let supplierId = contract.award.vendorId;
+  const linkedContractor = await linkDemoContractor(db, organisationId);
+  notes.push(...linkedContractor.notes);
+  const supplierId = linkedContractor.supplierId;
   if (!supplierId) {
-    const existing = await db.supplier.findUnique({ where: { id: `${P}ctr13` }, select: { id: true } });
-    supplierId = existing?.id ?? (await createRegisteredContractor(db, organisationId, { key: "ctr13", name: contract.award.awardeeName, registrationNo: contract.award.awardeeRegistrationNo || "DEMO-0013-X", address: contract.award.awardeeAddress || "13 Contoh Industrial Park, Demo North", registeredOn: "2026-04-15" }));
-    await db.award.update({ where: { id: contract.award.id }, data: { vendorId: supplierId } });
-    const supplier = await db.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { reference: true, registeredName: true } });
-    entry("Award", contract.award.id, `${contract.award.reference} · Awardee's supplier`, "UPDATE", T(D(-10), "10:00"), diffFields(null, { supplier: `${supplier.reference} · ${supplier.registeredName}`, linkedBy: "the demo loader, as an officer links an award with no party" }));
-    notes.push(`the contractor ${supplier.registeredName} on the register, linked to ${contract.award.reference} (its portal account demo.ctr13 waits for activation: npm run demo:accounts)`);
+    await flush();
+    return { loaded: notes.length > 0, notes };
   }
   const account = await db.supplierAccount.findFirst({ where: { supplierId, organisationId }, select: { id: true, contact: { select: { name: true } } } });
   if (!account) {

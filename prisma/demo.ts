@@ -24,6 +24,7 @@ import { checkOpeningDemo, configureOpeningDemo, loadOpeningDemo } from "./demo-
 import { checkEvaluationDemo, configureEvaluationDemo, loadEvaluationDemo } from "./demo-evaluation";
 import { loadCompanyDemo } from "./demo-company";
 import { loadMyBidsDemo } from "./demo-my-bids";
+import { linkDemoContractor } from "./demo-contractor";
 import { loadMyProjectsDemo } from "./demo-my-projects";
 import { checkRegistrationDemo, configureRegistrationDemo, loadRegistrationDemo } from "./demo-registration";
 import { checkSuppliersDemo, configureSuppliersDemo, loadSuppliersDemo } from "./demo-suppliers";
@@ -2163,18 +2164,33 @@ async function myProjects() {
   console.log(made.notes.length ? `Added: ${made.notes.join("; ")}.` : "The My Projects demonstration is already there: nothing was written.");
 }
 
+/**
+ * Decisions log, 2026-10-09, ruling on 1897 R2: demo_con13's contractor on the register with checked bank details, linked to its award (prisma/demo-contractor.ts), for a database loaded before it existed.
+ * Nothing where it stands; nothing is deleted.
+ */
+async function contractor() {
+  const org = await organisation();
+  if (!(await demoIsLoaded(db))) {
+    console.log("The demo is not loaded. Run npm run demo:load, which includes this step.");
+    return;
+  }
+  const made = await linkDemoContractor(db, org.id);
+  await attributeSeededRows(db, org.id);
+  console.log(made.notes.length ? `Added: ${made.notes.join("; ")}.` : "The contractor is already linked: nothing was written.");
+}
+
 const mode = process.argv[2];
 
 if (mode === "wipe") {
   console.error(DEMO_WIPE_RETIRED);
   process.exit(1);
 }
-if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects") {
-  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects>");
+if (mode !== "load" && mode !== "results" && mode !== "attribute" && mode !== "inbox" && mode !== "company" && mode !== "my-bids" && mode !== "my-projects" && mode !== "contractor") {
+  console.error("usage: tsx prisma/demo.ts <load|results|attribute|inbox|company|my-bids|my-projects|contractor>");
   process.exit(2);
 }
 
-(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : results())
+(mode === "load" ? load() : mode === "attribute" ? attribute() : mode === "inbox" ? inbox() : mode === "company" ? company() : mode === "my-bids" ? myBids() : mode === "my-projects" ? myProjects() : mode === "contractor" ? contractor() : results())
   .catch((error) => {
     console.error(error);
     process.exit(1);

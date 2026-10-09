@@ -269,9 +269,11 @@ export function paymentFaultWords(f: Finding): Words {
     // ------------------------------------------------ bank details (BD-613-44)
     case "CREDITOR_NOT_VERIFIED": {
       const standing = creditorStandingWords({ state: "NONE", reason: d.reason === "AWAITING_CHECK" || d.reason === "NOT_IN_ORDER" ? d.reason : "NOT_ENTERED" });
+      if (f.level === "warn") return w(`The contractor's bank details are not checked. ${standing.en} The certificate will be refused at issue until an officer has checked them: have the contractor enter its bank details in its registration, and an officer check them.`, `Butiran bank kontraktor belum disemak. ${standing.ms} Perakuan akan ditolak semasa dikeluarkan sehingga pegawai menyemaknya.`);
       return w(`${standing.en} Have the contractor enter its bank details in its registration, and an officer check them, then issue the certificate again.`, `${standing.ms} Minta kontraktor memasukkan butiran banknya dalam pendaftarannya, dan seorang pegawai menyemaknya, kemudian keluarkan perakuan sekali lagi.`);
     }
     case "CONTRACTOR_NOT_ON_REGISTER":
+      if (f.level === "warn") return w("The contractor is not linked to the supplier register, so there are no checked bank details to pay to, and the certificate will be refused at issue. Link the award to its supplier on the award's page.", "Kontraktor tidak dipautkan kepada daftar pembekal, jadi tiada butiran bank yang telah disemak, dan perakuan akan ditolak semasa dikeluarkan. Pautkan anugerah kepada pembekalnya pada halaman anugerah.");
       return w("The contractor is not linked to the supplier register, so there are no checked bank details to pay to. Link the award to its supplier on the award's page, then issue the certificate again.", "Kontraktor tidak dipautkan kepada daftar pembekal, jadi tiada butiran bank yang telah disemak untuk dibayar. Pautkan anugerah kepada pembekalnya pada halaman anugerah, kemudian keluarkan perakuan sekali lagi.");
     case "PRE_EXECUTION_GATE": {
       const g = GATE[String(d.item)] ?? GATE.RETURNED;
@@ -467,3 +469,19 @@ export function paymentFaultWords(f: Finding): Words {
 
 export const paymentFaultText = (f: Finding) => paymentFaultWords(f).en;
 export const paymentRefusal = (lead: string, fs: readonly Finding[]) => `${lead} ${fs.map(paymentFaultText).join(" ")}`.trim();
+
+/**
+ * Whose bank details are not checked (decisions log, 2026-10-09, ruling on 1897 R3). Only the main contractor's creditor profile is judged (BD-613-44): it is the award's supplier, which the
+ * register links. A nominated sub-contractor, a nominated supplier or an assignee is a contract party, which names no supplier of the register, so nobody has checked where a payment to it
+ * would go. Said in words where such a payment is made, so that the screen does not look as if it were judged.
+ */
+export const PAYEE_BANK_UNCHECKED = {
+  advance: {
+    en: "The bank details of a nominated sub-contractor are not checked. A contract party is not linked to the supplier register, so only an advance to the main contractor is judged for checked bank details.",
+    ms: "Butiran bank subkontraktor yang dinamakan tidak disemak. Pihak kontrak tidak dipautkan kepada daftar pembekal, jadi hanya pendahuluan kepada kontraktor utama dinilai untuk butiran bank yang telah disemak.",
+  },
+  direct: {
+    en: "The bank details of a nominated party or an assignee paid direct are not checked. A contract party is not linked to the supplier register, so only the main contractor's bank details are judged when the certificate is issued.",
+    ms: "Butiran bank pihak yang dinamakan atau penerima serah hak yang dibayar terus tidak disemak. Pihak kontrak tidak dipautkan kepada daftar pembekal, jadi hanya butiran bank kontraktor utama dinilai semasa perakuan dikeluarkan.",
+  },
+} as const;

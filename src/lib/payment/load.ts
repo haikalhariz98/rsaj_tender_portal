@@ -28,7 +28,7 @@ import { formatSen, parseSen, senFromDecimal, type Sen } from "@/lib/money";
 import type { ContractPartyKind } from "@/lib/supervision/types";
 
 import { readJudgedUnder, type AssembleInput, type DamagesIn, type IssuedInterim, type ValuationIn } from "./assemble";
-import { EXECUTED_STATUSES } from "./eligibility";
+import { EXECUTED_STATUSES, type CreditorFacts } from "./eligibility";
 import { OPENING_GROUP_WORDS } from "./labels";
 import { assumedGroups, openingAsIssued, openingReconciles, openingReleaseRow, releaseState, type OpeningProvenance } from "./opening";
 import type { Finding, KeyedDeductionKind, PackItem, Provenance, ValuationTrigger, WaterfallRemainder } from "./types";
@@ -208,7 +208,7 @@ export function valuationIn(v: PaymentRows["interimValuations"][number]): Valuat
 }
 
 /// Everything `assembleInterim` reads for a valuation, from the contract's rows and settings, on a day.
-export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentConfig, v: PaymentRows["interimValuations"][number], today: string, preExecution: Awaited<ReturnType<typeof preExecutionFacts>>): AssembleInput | null {
+export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentConfig, v: PaymentRows["interimValuations"][number], today: string, preExecution: Awaited<ReturnType<typeof preExecutionFacts>>, creditor?: CreditorFacts): AssembleInput | null {
   const baseline = baselineOn(l, today);
   if (!baseline) return null;
   const pol = cfg.policy;
@@ -240,6 +240,7 @@ export function assembleInputOf(l: LoadedContract, p: PaymentRows, cfg: PaymentC
     baselineDamages: baselineDamagesOf(p, baseline),
     pending: freePending(p),
     preExecution,
+    ...(creditor ? { creditor } : {}),
   };
 }
 

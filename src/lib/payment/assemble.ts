@@ -26,7 +26,7 @@ import { formatMoney, parseSen, senToDecimalString, type Sen } from "@/lib/money
 import type { ContractPartyKind } from "@/lib/supervision/types";
 
 import { recoupments, type LiveAdvance } from "./advance";
-import { preExecutionFaults, type PreExecutionFacts } from "./eligibility";
+import { creditorFaults, preExecutionFaults, type CreditorFacts, type PreExecutionFacts } from "./eligibility";
 import { interimCertificate, type InterimResult, type ScopeFigure } from "./interim";
 import { afterCutOff, materialsAllowance, materialsPct, type MaterialLine, type MaterialsPct } from "./materials";
 import { paymentFaultWords } from "./labels";
@@ -115,6 +115,8 @@ export interface AssembleInput {
   pending: readonly { id: string; amount: Sen; paidOn: Day }[];
   /// FR-PAY-014's facts as they stand (for the warning at open; the refusal is the issue's).
   preExecution: Omit<PreExecutionFacts, "limit">;
+  /// BD-613-44: the main contractor's bank details as they stand, for the warning at open (decisions log, 2026-10-09, ruling on 1897 R4). The refusal is the issue's. Absent: not said.
+  creditor?: CreditorFacts;
 }
 
 /// 6.13 Part B run 1b: what the damages lines are assembled from (payment/load.ts `damagesOf`).
@@ -285,7 +287,7 @@ export function assembleInterim(i: AssembleInput): Assembled {
   const revised = i.baselineDamages ? frozenRateWarnings(i.decision, i.baselineDamages) : [];
   if (i.openingAssumed?.length) revised.push({ code: "OPENING_ASSUMED", level: "warn", data: { groups: i.openingAssumed.join(", ") } });
   if (i.openingUnreconciled) revised.push(i.openingUnreconciled);
-  const warnings = [...preExecutionFaults(sequence, { ...i.preExecution, limit: i.policy.preExecutionLimit }, "warn"), ...revised, ...(i.damages?.warnings ?? [])];
+  const warnings = [...preExecutionFaults(sequence, { ...i.preExecution, limit: i.policy.preExecutionLimit }, "warn"), ...(i.creditor ? creditorFaults(i.creditor, "warn") : []), ...revised, ...(i.damages?.warnings ?? [])];
   // FR-PAY-008: work done on a variation commenced pending approval is not valued until it is approved (said, not refused:
   // the main contractor's works are one figure to date, BD-613-33, so what it holds is the valuer's to keep out).
   if (i.commencedPending?.length) warnings.push({ code: "VARIATION_PENDING_NOT_VALUABLE", level: "warn", data: { variations: i.commencedPending.map((x) => `${x.reference} (estimated ${formatMoney(x.estimate)})`).join("; ") } });

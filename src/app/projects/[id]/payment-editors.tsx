@@ -3,6 +3,7 @@
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 import { actorField } from "@/lib/auth/actor-field";
+import { PAYEE_BANK_UNCHECKED } from "@/lib/payment/labels";
 
 import {
   addMaterialLine,
@@ -268,7 +269,7 @@ export function AdvanceDrawer({ id, people, parties, guarantees, parts, blocker 
   return (
     <RecordEditor
       title="Apply for an advance payment"
-      description="No documented procedure states who may have an advance, how much, or how it is recouped (B2): eligibility and the percentage are not checked. It rests on an Advance Payment Guarantee verified in the register, and on the recoupment schedule entered here, which must recoup the whole advance. Its certificate opens as a draft and goes for approval on the approval matrix."
+      description={`No documented procedure states who may have an advance, how much, or how it is recouped (B2): eligibility and the percentage are not checked. It rests on an Advance Payment Guarantee verified in the register, and on the recoupment schedule entered here, which must recoup the whole advance. Its certificate opens as a draft and goes for approval on the approval matrix. ${PAYEE_BANK_UNCHECKED.advance.en}`}
       size="lg"
       columns={2}
       fields={[hidden("id"), choose("advanceFor", "For", parts), { kind: "select", name: "partyId", label: "The nominated sub-contractor", placeholder: parties.length ? "Choose" : "None recorded on Team", options: parties }, { kind: "money", name: "amount", label: "Amount", required: true }, choose("securityId", "Advance Payment Guarantee", guarantees), { kind: "textarea", name: "schedule", label: "Recoupment schedule", required: true, hint: "One line per interim certificate: \"certificate number | amount\"." }, by("AdvancePayment.person", "personId", people), { kind: "textarea", name: "note", label: "Note" }]}
