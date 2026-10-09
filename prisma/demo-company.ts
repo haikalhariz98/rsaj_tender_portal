@@ -6,8 +6,8 @@
  *               password. It answers the two items from Company > Documents.
  *   demo_ctr13  the contractor of demo_con13 (made by prisma/demo-contractor.ts, bank details checked) gains two certificates in force that are near their expiry, so the bands and the
  *               reminders show (FR-VND-008), and a version 2 of its bank details that an officer found not in order, with the reason, so the screen shows version 1 still in force.
- *   demo_sx3    a DRAFT exercise (its conditions can still be edited) gains a requirement of the Contractors Board entered as a grade and a category (615-C1): the officer's Conditions tab
- *               shows it compared, with its words composed from the needs. It is not on the supplier's Eligibility tab, which lists only exercises the public may read; that tab shows a
+ *   demo_sx3    a DRAFT exercise (its conditions can still be edited) gains a requirement of the Contractors Board entered as a grade and a category (615-C1): the officer's Overview, under
+ *               "Registrations bidders must hold", shows it compared, with its words composed from the needs. It is not on the supplier's Eligibility tab, which lists only exercises the public may read; that tab shows a
  *               compared requirement once an officer has taken an exercise like this one as far as advertising. No requirement of an issued exercise is touched: its conditions are frozen.
  *
  * Applied alone to a database the demonstration is already loaded in by `npm run demo:company`, and at the end of a full load. Nothing is deleted or replaced: a second run adds nothing.
