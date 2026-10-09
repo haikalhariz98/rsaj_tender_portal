@@ -181,7 +181,7 @@ export async function loadCompanyDemo(db: Db, organisationId: string): Promise<{
           qualifiersFromNeeds: true,
           alternativeGroup: 1,
           sortOrder: 0,
-          needs: { create: needs.map((n, i) => ({ id: `${P}rqn${i + 1}`, organisationId, registrationValueId: n.valueId, kind: n.kind, codeSnapshot: n.code, labelSnapshot: n.label })) },
+          needs: { create: needs.map((n, i) => ({ id: `${P}sx3_rqn${i + 1}`, organisationId, registrationValueId: n.valueId, kind: n.kind, codeSnapshot: n.code, labelSnapshot: n.label })) },
         },
       });
       entry("ExerciseRegistrationRequirement", row.id, `${sx3.reference} · Registration required · ${grade.body.labelEn}`, "CREATE", T(D(-3), "09:00"), diffFields(null, { registrationBody: grade.body.labelEn, requiredWithIt: words, compared: needs.map((n) => n.label).join("; "), alternativeGroup: "Group 1" }));

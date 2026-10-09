@@ -186,6 +186,10 @@ describe("the office's request and the supplier's answers (FR-VND-007)", () => {
     const row = rowsOf([wizard, pending], { request: requestView(only, [wizard, pending], TODAY), supplierStatus: "APPLICANT" }).find((r) => r.typeId === "t-works")!;
     expect(row.replace).toMatchObject({ allowed: false, reason: expect.stringMatching(/waiting for the office to check it/) });
   });
+  it("an applicant whose date has passed is told so, and not that it must wait to be asked", () => {
+    const rows = rowsOf([works], { request: requestView(request, [works], "2026-10-21"), supplierStatus: "APPLICANT" });
+    expect(rows.find((r) => r.typeId === "t-works")!.replace).toEqual({ allowed: false, reason: "The date to answer the office has passed." });
+  });
   it("the request's items appear on their document's row and on the type's row", () => {
     const view = requestView(request, [works], TODAY);
     const rows = rowsOf([works], { request: view, supplierStatus: "APPLICANT" });

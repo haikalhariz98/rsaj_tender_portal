@@ -68,7 +68,7 @@ export async function OverviewPanel({ actor }: { actor: SupplierActor }) {
           title={requestText.title.en}
           action={
             <ButtonLink href="/supplier/company?tab=documents" variant="secondary" size="sm">
-              {o.request.reading.kind === "WAITING" ? "Open the request" : "See what you sent"}
+              {o.request.reading.kind === "WAITING" ? "Open the request" : o.request.reading.kind === "DATE_PASSED" ? "See the request" : "See what you sent"}
             </ButtonLink>
           }
         >
@@ -256,7 +256,7 @@ export async function DocumentsPanel({ actor, token, searchToken }: { actor: Sup
               const words = DOCUMENT_STATE_WORDS[row.state];
               const doc = eff ?? row.head;
               return (
-                <section key={`${row.typeId}-${row.name}`} className="flex flex-col gap-3 px-5 py-4 sm:px-6">
+                <section key={`${row.typeId}-${row.name}-${row.head?.id ?? "new"}`} className="flex flex-col gap-3 px-5 py-4 sm:px-6">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex min-w-0 flex-col gap-1">
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
