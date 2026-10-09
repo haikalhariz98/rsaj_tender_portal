@@ -41,6 +41,12 @@ const NOT_AN_ACT: Readonly<Record<string, string>> = {
   "RegistrationDraft.lastSavedBy": "A state of the draft: who saved it last. The draft is the supplier's own working copy; each save is audited with the account that made it.",
   "SupplierDocument.recordedBySupplierAccount": "Who lodged a document: the column is the record (exactly one recorder, by CHECK), and the supplier's signature is the submission it was sent with.",
   "DocumentVersion.recordedBySupplierAccount": "Who uploaded a version: the column is the record (exactly one recorder, by CHECK), and the upload is audited with the account.",
+  "SiteEventRegistration.registeredBy": "Who signed the supplier up for a briefing or visit (Phase 4d): the column is the record, stamped by the server, and the sign-up is audited with the account. It is not attendance and signs nothing.",
+  "SiteEventRegistration.endedBy": "Who withdrew the sign-up (Phase 4d): paired with `endedAt` by CHECK, and audited with the account.",
+  "AddendumAcknowledgement.acknowledgedBy": "Who acknowledged an addendum (Phase 4d): the column is the record, the row is append-only, and it is not delivery. It signs nothing.",
+  "DocumentRequest.requestedBy": "Who asked for the tender documents (Phase 4d): the column is the record, and the request starts no sale and signs nothing.",
+  "DocumentRequest.endedBy": "Who withdrew the request (Phase 4d): paired with `endedAt` by CHECK, and audited with the account.",
+  "TenderInspectionEvent.viewedBy": "Who opened the tender documents (Phase 4d): the inspection log itself, append-only for every login, written before the content is shown.",
 };
 
 describe("the schema scan finds what it should", () => {

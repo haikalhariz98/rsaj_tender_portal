@@ -27,11 +27,29 @@ export async function registerAtSale(tx: Tx, org: { id: string; timeZone: string
   await lockSupplierRow(tx, vendorId);
   const e = await eligibilityOf(vendorId, exerciseId, org, tx);
   const s = await tx.supplier.findUniqueOrThrow({ where: { id: vendorId }, select: { status: true } });
+  return registerFrom(e, s.status, policy);
+}
+
+type Eligibility = Awaited<ReturnType<typeof eligibilityOf>>;
+
+/// The register's reading as a sale judges it, from the supplier's eligibility and status: the one place both the sale (under the lock) and a supplier's own look at its standing (without) build it.
+function registerFrom(e: Eligibility, status: string, policy: { registerRequiredForSale: boolean | null }): RegisterAtSale {
   const standingRow = e?.eligibility.rows.find((r) => r.kind === "STANDING");
   // Run 0 fix round (consider): the registration check reads the cancellation itself, also under a blacklisting.
   // Run 1a (Should 1, flagged 6.15a): the facts from the reading through saleSupplierFacts, so a suspension beneath a
   // cancellation fails the suspension check. A supplier with no reading is judged not registered.
-  const facts = e ? saleSupplierFacts(s.status, e.reading, standingRow?.reason === "LAPSE_RULE_NOT_SET") : { status: s.status, standing: "NOT_REGISTERED" as const, lapseRuleNotSet: false, cancelled: false, barredOtherwise: false };
+  const facts = e ? saleSupplierFacts(status, e.reading, standingRow?.reason === "LAPSE_RULE_NOT_SET") : { status, standing: "NOT_REGISTERED" as const, lapseRuleNotSet: false, cancelled: false, barredOtherwise: false };
   const check = saleStandingCheck(facts, { registerRequiredForSale: policy.registerRequiredForSale });
   return { linked: true, check, snapshot: e ? { ...e.snapshot, check: { registration: check.registrationCheck, suspension: check.suspensionCheck } } : null };
+}
+
+/**
+ * The same reading with no lock taken (Phase 4d): what a signed-in supplier is shown of its own standing before it asks for the documents (FR-VND-012, FR-ADV-010). It is a reading, not a sale:
+ * the officer's `registerAtSale` judges it again, under the lock, when the sale is recorded. `sale-hook.test.ts` pins that the sale's own path still locks first.
+ */
+export async function readRegister(tx: Tx, org: { id: string; timeZone: string | null; today: string }, vendorId: string, exerciseId: string): Promise<RegisterAtSale> {
+  const policy = await supplierPolicyOf(org.id, tx);
+  const e = await eligibilityOf(vendorId, exerciseId, org, tx);
+  const s = await tx.supplier.findUniqueOrThrow({ where: { id: vendorId, organisationId: org.id }, select: { status: true } });
+  return registerFrom(e, s.status, policy);
 }

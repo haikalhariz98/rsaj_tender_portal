@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { ArrowRight, BuildingIcon, GlobeIcon, AwardIcon, InboxIcon, ToolsIcon, UserIcon } from "@/components/icons";
+import { ArrowRight, BuildingIcon, GlobeIcon, AwardIcon, ToolsIcon, UserIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -23,7 +23,7 @@ import {
 import { loadPublicShell } from "@/lib/portal/deployment";
 
 const LINK_ICON = { opportunities: GlobeIcon, results: AwardIcon, register: BuildingIcon } as const;
-const SIGN_IN_ICON = [InboxIcon, ToolsIcon, UserIcon] as const;
+const SIGN_IN_ICON = [ToolsIcon, UserIcon] as const;
 
 export default async function SupplierHomePage() {
   const { organisation } = await loadPublicShell();

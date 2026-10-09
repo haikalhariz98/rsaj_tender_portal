@@ -116,7 +116,7 @@ export const SIGN_IN_SUBTITLE = w(
 );
 
 export const SIGN_IN_ITEMS: readonly { href: string; title: Words; text: Words }[] = [
-  { href: PORTAL_PATH.bids, title: w("My Bids", "Bida saya"), text: w("Your bids and the outcome of each.", "Bida anda dan keputusan setiap satu.") },
+  // My Bids is built (Phase 4d) and is no longer listed as arriving with sign-in: it is under "With sign-in" in the navigation, built.
   { href: PORTAL_PATH.projects, title: w("My Projects", "Projek saya"), text: w("The contracts you hold.", "Kontrak yang anda pegang.") },
   // Company is built (Phase 4c) and is no longer listed as arriving with sign-in: it is under "With sign-in" in the navigation, built.
 ];

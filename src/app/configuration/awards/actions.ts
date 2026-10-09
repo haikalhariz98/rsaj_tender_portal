@@ -88,6 +88,39 @@ export async function saveAwardPolicy(_prev: FormState, data: FormData): Promise
   });
 }
 
+const TRI = ["YES", "NO"] as const;
+const triOf = (c: (typeof TRI)[number] | null) => (c === "YES" ? true : c === "NO" ? false : null);
+const triWords = (b: boolean | null | undefined) => (b == null ? "Not decided" : b ? "Yes" : "No");
+
+/**
+ * Whether unsuccessful tenderers are sent a notice of the outcome, and whether it carries the reason (FR-AWD-010, policy D7, Phase 4d). Both ship unset: unset issues nothing, and the award page says so. The
+ * tenderer's own score is not part of any notice (an open question for the product owner), so there is no setting for it. Saving an empty field clears it back to unset, which is recorded with its reason.
+ */
+export async function saveNonAwardPolicy(_prev: FormState, data: FormData): Promise<FormState> {
+  const actor = await requireStaff();
+  const o = await org(actor);
+  if (!o) return NO_ORG;
+  const r = new FormReader(data);
+  const v = {
+    nonAwardNotices: triOf(r.choice("nonAwardNotices", "Send unsuccessful tenderers a notice of the outcome", TRI)),
+    debriefIncludesReason: triOf(r.choice("debriefIncludesReason", "The notice carries the reason", TRI)),
+    nonAwardProvenance: r.choice("nonAwardProvenance", "Where the decision came from", PROVENANCE),
+  };
+  const reason = r.text("reason", "Reason", { max: 2000 });
+  if (r.failed) return { ok: false, errors: r.errors };
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Organisation" WHERE id = ${o.id} FOR UPDATE`;
+    const before = await tx.awardPolicy.findUnique({ where: { organisationId: o.id } });
+    const row = await tx.awardPolicy.upsert({ where: { organisationId: o.id }, update: v, create: { organisationId: o.id, ...v } });
+    const changes = diffFields(
+      before ? { notices: triWords(before.nonAwardNotices), reason: triWords(before.debriefIncludesReason), source: before.nonAwardProvenance ?? "Not recorded" } : null,
+      { notices: triWords(v.nonAwardNotices), reason: triWords(v.debriefIncludesReason), source: v.nonAwardProvenance ?? "Not recorded" },
+    );
+    if (changes.length > 0) await writeAudit(tx, { actor: toAuditActor(actor), organisationId: o.id, entity: "AwardPolicy", entityId: row.id, entityLabel: "Award controls: notices to unsuccessful tenderers", reason }, before ? "UPDATE" : "CREATE", changes);
+    return done();
+  });
+}
+
 /// A recipient of an instrument's copies (FR-AWD-004).
 export async function saveRecipient(_prev: FormState, data: FormData): Promise<FormState> {
   const actor = await requireStaff();

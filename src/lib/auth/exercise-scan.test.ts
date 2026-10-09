@@ -65,6 +65,13 @@ export const READ_AFTER_A_GUARD: Readonly<Record<string, string>> = {
   "src/lib/tender-docs/read-conditions.ts": "a tab's reader, called by the exercise page after its guard",
   "src/lib/tender-docs/read.ts": "a tab's reader, called by the exercise page after its guard",
   "src/lib/window/read.ts": "a tab's reader, called by the exercise page after its guard (`windowTab` takes the hidden list for the exercises it links)",
+  // Phase 4d, My Bids: a SUPPLIER reads exercises, and a supplier is never named on one (the guards above ask about a staff reader). What it may see is decided by `supplierSees`, in `loadBidContext`: a public
+  // opportunity (`isPublicOpportunity` drops every restricted one) or an exercise the office linked a party of this supplier to, with its window published. Every other id reads as not found.
+  "src/lib/portal/bids/context-store.ts": "the one gate of My Bids: reads an exercise only as `supplierSees` allows (public, or linked to this supplier by the office), and answers null for a restricted one the supplier is not linked to",
+  "src/lib/portal/bids/inspection-store.ts": "opens the tender documents only after `loadBidContext` has admitted the exercise for this supplier",
+  "src/lib/portal/bids/list-store.ts": "lists only exercises `supplierSees` admits for this supplier, each judged by the same rule as the page of one exercise",
+  "src/lib/portal/bids/workspace-store.ts": "a tab's reader, called by the My Bids page of one exercise after `loadBidContext` has admitted it for this supplier",
+  "src/app/supplier/bids/[id]/panels.tsx": "renders the tabs of the My Bids page of one exercise, which is admitted by `loadBidContext` before any tab renders",
 };
 
 /// The source without its comments: block comments, and lines that are only a comment. The shared lexer is not used: it reads a `</span>` in a screen's markup

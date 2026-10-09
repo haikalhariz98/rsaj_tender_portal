@@ -2,7 +2,7 @@ import { PencilIcon } from "@/components/icons";
 import { RecordEditor, type Field } from "@/components/record-editor";
 import { buttonClass } from "@/components/ui/button";
 
-import { retireRow, saveAwardPolicy, saveBand, saveConditionKind, saveIssuer, saveRecipient, saveRequirement, saveVariant } from "./actions";
+import { retireRow, saveAwardPolicy, saveNonAwardPolicy, saveBand, saveConditionKind, saveIssuer, saveRecipient, saveRequirement, saveVariant } from "./actions";
 
 /**
  * The Award controls drawers. No field carries a default: an unset field is not set,
@@ -81,6 +81,31 @@ export function EditAwardPolicy({ values, templates, units, label = "Edit contro
       submitLabel="Save controls"
       trigger={{ label, className: buttonClass(quiet ? "secondary" : "primary", "sm") }}
       size="lg"
+    />
+  );
+}
+
+/// Notices to unsuccessful tenderers (FR-AWD-010, policy D7). Both questions ship unanswered; an unanswered one issues nothing.
+export function EditNonAwardPolicy({ values }: { values: Values }) {
+  const YES_NO: Option[] = [
+    { value: "YES", label: "Yes" },
+    { value: "NO", label: "No" },
+  ];
+  return (
+    <RecordEditor
+      title="Notices to unsuccessful tenderers"
+      description="Nothing in the organisation's documents tells an unsuccessful tenderer anything. Whether it is told is a policy decision, and it also decides whether a debrief opens the organisation to a challenge. Until both are answered, nothing is issued. The tenderer's own score is never part of a notice."
+      fields={[
+        { kind: "select", name: "nonAwardNotices", label: "Send unsuccessful tenderers a notice of the outcome", placeholder: "Not decided", options: YES_NO, hint: "A notice is shown in the supplier portal and is not sent: email is not connected." },
+        { kind: "select", name: "debriefIncludesReason", label: "The notice carries the reason for non-award", placeholder: "Not decided (it carries none)", options: YES_NO, hint: "The officer writes the reason for each tenderer when issuing the notice." },
+        { kind: "select", name: "nonAwardProvenance", label: "Where the decision came from", placeholder: "Not recorded", options: (PROVENANCE as Extract<Field, { kind: "select" }>).options },
+      ]}
+      values={values}
+      action={saveNonAwardPolicy}
+      reason={{ label: "Why this is changed" }}
+      submitLabel="Save"
+      trigger={{ label: "Edit", className: buttonClass("secondary", "sm") }}
+      size="md"
     />
   );
 }

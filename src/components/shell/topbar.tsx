@@ -58,6 +58,8 @@ const SEGMENT_LABEL: Record<string, string> = {
   opportunities: "Opportunities",
   bids: "My Bids",
   company: "Company",
+  // Phase 4d: the Tender Table Document a supplier inspects, under one exercise of My Bids.
+  "table-document": "Tender Table Document",
 };
 
 /// What a record under a section is called, for its breadcrumb.
@@ -77,6 +79,8 @@ const RECORD_LABEL: Record<string, string> = {
   sourcing: "Exercise",
   // The public portal: an advertised opportunity; the page names it by its reference (RecordCrumb).
   opportunities: "Opportunity",
+  // Phase 4d: one exercise in My Bids; the page names it by its reference (RecordCrumb).
+  bids: "Exercise",
   online: "Online application",
   evaluation: "Evaluation model",
   label: "Sale label",

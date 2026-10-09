@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { PrintButton } from "@/app/awards/[id]/print/[kind]/print-button";
 import { PrinterIcon } from "@/components/icons";
 import { RecordCrumb } from "@/components/shell/record-crumb";
+import { TenderDocumentArticle } from "@/components/tender-document";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Callout, EmptyState } from "@/components/ui/feedback";
@@ -85,62 +86,19 @@ export default async function PackPrintPage(props: PageProps<"/sourcing/[id]/doc
           As approved: the text frozen when the version was submitted. It is the portal&apos;s text of the documents, not the controlled printed forms.
         </Callout>
       )}
-      <article className="relative mx-auto max-w-[800px] overflow-hidden rounded-card border border-line bg-surface px-6 py-10 shadow-card sm:px-14 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
-        {v.watermark && (
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid place-items-center overflow-hidden select-none [container-type:size] print:fixed">
-            <span className="-rotate-30 text-center text-[5.4cqw] leading-none font-bold tracking-wider whitespace-nowrap text-ink/[0.09]">{v.watermark}</span>
-          </div>
-        )}
-        <h1 className={`${table ? "mb-2" : "mb-6"} text-[22px] leading-tight font-bold text-ink`}>{table ? `Tender Table Document: ${v.exercise.title}` : v.title}</h1>
-        {table && (
-          <div className="mb-6 flex flex-col gap-1 text-[13.5px] text-ink-2">
-            <p>Only the parts of this pack flagged for the Tender Table Document, in print order. The whole pack is the other link above.</p>
-            {tableNote && <p className="font-semibold">{tableNote.text}.</p>}
-            {tableNote?.sinceApproved.map((l) => <p key={l}>{l}</p>)}
-          </div>
-        )}
-        <header className="mb-8 flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-line pb-3 text-[11.5px] text-ink-3">
-          <span>{v.exercise.reference}</span>
-          <span>{v.document}</span>
-          <span>{v.form}</span>
-          <span>Version {v.version}</span>
-          {v.watermark && <span>{v.watermark}</span>}
-          {"approvedLine" in v && v.approvedLine && <span className="basis-full">{v.approvedLine}</span>}
-        </header>
-        {v.stamp && <p className="mb-8 border-2 border-ink px-4 py-2 text-center text-[15px] font-bold tracking-wide break-words text-ink">{v.stamp}</p>}
-        {v.parts.length === 0 && <p className="text-[13.5px] text-ink-3">{table ? "No part of this version is in the Tender Table Document." : "This version has no parts."}</p>}
-        <div className="relative flex flex-col gap-10">
-          {v.parts.map((p) => (
-            <section key={p.printedNumber} id={`part-${p.printedNumber}`} className="scroll-mt-24 break-inside-avoid-page">
-              <h2 className="mb-3 text-[17px] font-bold text-ink">
-                {p.printedNumber}. {p.label}
-              </h2>
-              {p.omitted && <p className="text-[13.5px] text-ink-3">{p.omitted}</p>}
-              {p.texts.map((t) => (
-                <div key={t.language} className="mb-4 flex flex-col gap-3 text-[14.5px] leading-relaxed break-words whitespace-pre-line text-ink">
-                  {p.texts.length > 1 && <p className="text-[12px] font-semibold text-ink-3">{t.language}</p>}
-                  {t.paragraphs.map((para, i) => (
-                    <p key={i}>{para}</p>
-                  ))}
-                  <p className="text-[11.5px] text-ink-3">{t.fidelity}</p>
-                </div>
-              ))}
-              {p.files.length > 0 && (
-                <ul className="text-[13px] text-ink-2">
-                  {p.files.map((f) => (
-                    <li key={f.title}>
-                      File bound in: {f.title}, version {f.versionNo}.
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {p.stampNote && <p className="mt-1 text-[13px] font-semibold text-ink-2">{p.stampNote}.</p>}
-              {p.texts.length === 0 && p.files.length === 0 && !p.omitted && <p className="text-[13.5px] text-ink-3">Nothing to print yet for this part.</p>}
-            </section>
-          ))}
-        </div>
-        <footer className="mt-10 border-t border-line pt-3 text-[11.5px] text-ink-3">{v.watermark ? `${v.watermark}. Not a controlled copy.` : "Printed from the text frozen at submission. Files are bound in separately; layout and paging are not reproduced."}</footer>
-      </article>
+      <TenderDocumentArticle
+        v={v}
+        table={table}
+        notes={
+          table && (
+            <div className="mb-6 flex flex-col gap-1 text-[13.5px] text-ink-2">
+              <p>Only the parts of this pack flagged for the Tender Table Document, in print order. The whole pack is the other link above.</p>
+              {tableNote && <p className="font-semibold">{tableNote.text}.</p>}
+              {tableNote?.sinceApproved.map((l) => <p key={l}>{l}</p>)}
+            </div>
+          )
+        }
+      />
     </>
   );
 }

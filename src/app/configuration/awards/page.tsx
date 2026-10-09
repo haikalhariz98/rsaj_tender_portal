@@ -15,6 +15,8 @@ import { KeyValues } from "@/components/ui/stat";
 import { ActionsCol, CellStack, RowActions, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { INSTRUMENT_LABEL, INSURANCE_KIND_LABEL, ISSUER_KIND_LABEL, NON_COMMENCEMENT_LABEL, QUOTATION_KEY_LABEL } from "@/lib/award/labels";
 import { loadAwardConfig } from "@/lib/award/repo";
+import { loadNonAwardPolicy } from "@/lib/portal/bids/non-award-store";
+import { nonAwardSetting, nonAwardSettingWords } from "@/lib/portal/bids/non-award";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { exerciseOrg } from "@/lib/method/repo";
@@ -22,7 +24,7 @@ import { formatMoney, parseSen } from "@/lib/money";
 import { bandSetFaults } from "@/lib/securities/liability";
 
 import { EditErpFormat } from "../requisitions/editors";
-import { AddBand, AddConditionKind, AddIssuer, AddRecipient, AddRequirement, AddVariant, EditAwardPolicy, EditBand, EditConditionKind, EditIssuer, EditRecipient, EditRequirement, EditVariant, RetireRow } from "./editors";
+import { AddBand, AddConditionKind, AddIssuer, AddRecipient, AddRequirement, AddVariant, EditAwardPolicy, EditBand, EditNonAwardPolicy, EditConditionKind, EditIssuer, EditRecipient, EditRequirement, EditVariant, RetireRow } from "./editors";
 import { requireStaff } from "@/app/_auth/actor";
 
 export const dynamic = "force-dynamic";
@@ -69,11 +71,12 @@ export default async function AwardControlsPage() {
       </>
     );
   }
-  const [c, units, types, terms] = await Promise.all([
+  const [c, units, types, terms, d7] = await Promise.all([
     loadAwardConfig(org.id),
     db.orgUnit.findMany({ where: { organisationId: org.id, effectiveTo: null }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true } }),
     db.contractType.findMany({ where: { organisationId: org.id, retiredOn: null }, orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }], select: { code: true, nameEn: true } }),
     db.termsBand.findMany({ where: { authorityMatrix: { organisationId: org.id, issuedAt: { not: null } } }, select: { bandKey: true, labelEn: true }, distinct: ["bandKey"] }),
+    loadNonAwardPolicy(db, org.id),
   ]);
   const p = c.policy;
   const templates = c.templateRows.map((t) => ({ value: t.id, label: t.nameEn }));
@@ -146,6 +149,16 @@ export default async function AwardControlsPage() {
                     <span className="flex flex-col items-start gap-1.5">
                       <Setting value={p.publishAwardedValue == null ? null : p.publishAwardedValue ? "Shown beside the winner" : "Not shown: the public sees the winner only"} unset="Not set, so the public Results page shows the winner but not the value." />
                       {p.publishAwardedValue != null && <ProvenanceBadge value={p.publishAwardedValueProvenance} />}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Notices to unsuccessful tenderers (policy D7)",
+                  value: (
+                    <span className="flex flex-col items-start gap-1.5">
+                      <Setting value={nonAwardSetting(d7) === "NOT_SET" ? null : nonAwardSettingWords(d7)} unset="Not decided. Nothing is issued, and the portal shows tenderers no notice." />
+                      {nonAwardSetting(d7) !== "NOT_SET" && <ProvenanceBadge value={d7.provenance} />}
+                      <EditNonAwardPolicy values={{ nonAwardNotices: d7.nonAwardNotices == null ? null : d7.nonAwardNotices ? "YES" : "NO", debriefIncludesReason: d7.debriefIncludesReason == null ? null : d7.debriefIncludesReason ? "YES" : "NO", nonAwardProvenance: d7.provenance }} />
                     </span>
                   ),
                 },

@@ -27,6 +27,11 @@ export const ENTITY = {
   change: "ClosingChange",
   cancellation: "WindowCancellation",
   notice: "WindowNotice",
+  // Phase 4d: what a supplier does from its own portal account, and the notice of non-award an officer issues.
+  signUp: "SiteEventRegistration",
+  acknowledgement: "AddendumAcknowledgement",
+  documentRequest: "DocumentRequest",
+  nonAwardNotice: "NonAwardNotice",
 } as const;
 
 /// Every window entity, for the History's and the demo wipe's lists.

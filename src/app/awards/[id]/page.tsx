@@ -124,6 +124,7 @@ import {
   SubmitAwardDrawer,
 } from "../editors";
 import { requireStaff } from "@/app/_auth/actor";
+import { NonAwardPanel } from "./non-award-panel";
 import { loadAttributions, routeActed } from "@/lib/auth/attribution-read";
 
 export const dynamic = "force-dynamic";
@@ -358,6 +359,8 @@ export default async function AwardPage(props: PageProps<"/awards/[id]">) {
       panel: <DistributionPanel l={l} ev={ev} />,
     },
     { id: "return", label: "Return", icon: <ClipboardIcon size={15} />, panel: <ReturnPanel sulit={sulit} l={l} ret={ret} people={people} /> },
+    // Phase 4d (FR-AWD-010, policy D7): the notices to the tenderers whose bid did not win. Read only while this tab is the one open.
+    { id: "notices", label: "Notices to tenderers", icon: <InboxIcon size={15} />, lazy: true, panel: tab === "notices" ? <NonAwardPanel actor={actor} award={{ id: award.id, exerciseId: award.exerciseId, status: award.status, awardeePartyId: award.awardeePartyId }} /> : null },
     {
       id: "conditions",
       label: "Conditions",

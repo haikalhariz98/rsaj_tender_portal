@@ -22,6 +22,7 @@ import { tableDocumentNote } from "@/lib/window/read";
 
 import { RouteSteps } from "../route-steps";
 import { ConditionsCards } from "./conditions";
+import { InspectionLogCard } from "./inspection-log";
 import { DecideDrawer, type FixedWindow, RefreshFlagsDrawer, StartPackDrawer, SubmitPackDrawer } from "./editors";
 import { PartsList, type PartRow } from "./parts-list";
 import { requireStaff } from "@/app/_auth/actor";
@@ -178,6 +179,8 @@ export async function DocumentsWorkspace({ exerciseId, today, routes }: { exerci
       </Card>
 
       {conditions && (d.pack || d.exercise.status === "Draft") && <ConditionsCards c={conditions} packless={!d.pack} />}
+
+      {d.pack && d.exercise.status !== "Draft" && <InspectionLogCard organisationId={scope.organisationId} exerciseId={exerciseId} />}
 
       {(d.pack || routes.length > 0) && <RouteCard versionLabel={(() => { const v = d.versions.find((x) => x.submittedOn); return v ? `Version ${v.versionNo}` : null; })()} exerciseId={exerciseId} routes={routes} decide={d.route?.decide ?? null} proposed={d.proposed} today={today} />}
 

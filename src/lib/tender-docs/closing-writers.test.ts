@@ -110,6 +110,10 @@ const CLOSING_KEY_READERS: Record<string, string> = {
   "src/lib/portal/select.ts": "selects the exercise's closing for the public opportunity pages; writes nothing",
   "src/lib/portal/public.ts": "states the closing in the organisation's time and judges open or closed from it; writes nothing",
   "src/lib/portal/results.ts": "passes the closing to the public rule that decides whether an awarded exercise is listed; writes nothing",
+  // Phase 4d (My Bids, listed): a signed-in supplier reads the closing of an exercise it may see, to say when it closes and whether the bid has passed it.
+  "src/lib/portal/bids/context-store.ts": "selects the exercise's closing for a supplier's view of it and for the window's phase; writes nothing",
+  "src/lib/portal/bids/list-store.ts": "selects the closing of each exercise a supplier takes part in, to state it and to order the list; writes nothing",
+  "src/app/supplier/bids/[id]/page.tsx": "passes the closing to the rule that says whether the exercise is open, closed or awarded; writes nothing",
 };
 
 describe("X-2: the closing is written nowhere else, by any route (carry a)", () => {

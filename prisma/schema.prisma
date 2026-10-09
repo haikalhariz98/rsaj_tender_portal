@@ -311,6 +311,11 @@ model Organisation {
   addenda               Addendum[]
   addendumRecipients    AddendumRecipient[]
   windowNotices         WindowNotice[]
+  siteEventRegistrations     SiteEventRegistration[]
+  addendumAcknowledgements   AddendumAcknowledgement[]
+  documentRequests           DocumentRequest[]
+  tenderInspectionEvents     TenderInspectionEvent[]
+  nonAwardNotices            NonAwardNotice[]
   bidEnvelopes          BidEnvelope[]
   bidWithdrawals        BidWithdrawal[]
   boxEvents             BoxEvent[]
@@ -544,6 +549,7 @@ model Person {
   publicationsRecorded     PublicationRecord[]      @relation("PublicationRecordedBy")
   documentSalesIssued      DocumentSale[]           @relation("SaleIssuedBy")
   attendanceRecorded       SiteEventAttendance[]    @relation("AttendanceRecordedBy")
+  nonAwardNoticesIssued    NonAwardNotice[]         @relation("NonAwardIssuedBy")
   envelopesReceived        BidEnvelope[]            @relation("EnvelopeReceivedBy")
   withdrawalsReceived      BidWithdrawal[]          @relation("WithdrawalReceivedBy")
   boxEventsRecorded        BoxEvent[]               @relation("BoxEventBy")
@@ -3351,6 +3357,7 @@ model SourcingExercise {
   approvalInstances ApprovalInstance[]
   committeeDecisions CommitteeDecision[]
   awards            Award[]
+  nonAwardNotices   NonAwardNotice[]
   /// Dossier evidence (FR-MTD-009) and the coordination scope document (FR-REQ-013).
   attachments       DocumentAttachment[]
   /// 6.2: the bill of quantities' versions, the specification panel and the company
@@ -3591,6 +3598,12 @@ model AwardPolicy {
   publishAwardedValue           Boolean?
   /// Where that choice came from, apart from the controls' own provenance: a disclosure is its own decision.
   publishAwardedValueProvenance Provenance?
+  /// Phase 4d (FR-AWD-010, policy D7): whether unsuccessful tenderers are sent a notice of the outcome. Null: not decided, and nothing is issued. False: decided not to.
+  nonAwardNotices Boolean?
+  /// Whether the notice carries the reason for non-award the officer states. Null: not decided, and it carries none.
+  debriefIncludesReason Boolean?
+  /// Where D7 came from: a disclosure is its own decision.
+  nonAwardProvenance Provenance?
 
   loaTemplateId          String?
   loaTemplate            DocumentTemplate? @relation("PolicyLoaTemplate", fields: [loaTemplateId], references: [id], onDelete: Restrict)
@@ -3739,6 +3752,8 @@ model Award {
   routingChecks    RoutingCheck[]
   /// 612-C1: its recorded terms corrected after issue.
   termCorrections  AwardTermCorrection[]
+  /// Phase 4d (FR-AWD-010): the notices sent to the tenderers it did not go to.
+  nonAwardNotices  NonAwardNotice[]
 }
 
 /// An issued document, frozen (ADR 0008). Never updated: a reissue is a new version.
@@ -5700,6 +5715,9 @@ model WindowPolicy {
   /// Whether an event may be made mandatory at all (D8, OQ-03). Null: not set, so none is.
   mandatoryAttendancePermitted Boolean?
   attendanceProvenance         Provenance?
+  /// Phase 4d (FR-VND-012): whether the tender documents are released online to a supplier once an officer has recorded the payment receipt. Null: not set, and not set means nothing is released online.
+  electronicDocumentRelease Boolean?
+  electronicReleaseProvenance Provenance?
   noticeTemplateId     String?
   noticeTemplate       DocumentTemplate? @relation("WindowNoticeTemplate", fields: [noticeTemplateId], references: [id], onDelete: Restrict)
   invitationTemplateId String?
@@ -5865,6 +5883,8 @@ model ExerciseWindow {
   sales          DocumentSale[]
   events         SiteEvent[]
   addenda        Addendum[]
+  documentRequests DocumentRequest[]
+  inspections      TenderInspectionEvent[]
 }
 
 /// A line of the fee's cost basis. The amount is written only from src/lib (quantity × unit cost,
@@ -5994,6 +6014,8 @@ model ExerciseParty {
   /// 6.7: the bids it was named on at opening, and the awards naming it as the awardee (C-7).
   openedBids       OpenedBid[]
   awards           Award[]
+  /// Phase 4d (FR-AWD-010): the notice an unsuccessful tenderer was sent.
+  nonAwardNotices  NonAwardNotice[]
 
   @@unique([exerciseId, registrationNo])
   /// 6.15a fix R-12: one register supplier is one party on an exercise (unlinked parties, null, are not compared).
@@ -6110,7 +6132,8 @@ model SiteEvent {
   cancelReason String    @default("")
   createdAt    DateTime  @default(now())
 
-  attendance SiteEventAttendance[]
+  attendance    SiteEventAttendance[]
+  registrations SiteEventRegistration[]
 }
 
 model SiteEventAttendance {
@@ -6153,8 +6176,9 @@ model Addendum {
   voidReason      String         @default("")
   createdAt       DateTime       @default(now())
 
-  recipients  AddendumRecipient[]
-  attachments DocumentAttachment[]
+  recipients       AddendumRecipient[]
+  attachments      DocumentAttachment[]
+  acknowledgements AddendumAcknowledgement[]
 
   @@unique([windowId, number])
 }
@@ -6200,6 +6224,142 @@ model WindowNotice {
 
   @@unique([closingChangeId, partyId])
   @@unique([cancellationId, partyId])
+}
+
+// ------------------------------------------------------------------ Phase 4d: My Bids
+
+/// A supplier's sign-up for a briefing or a site visit, made from its own portal account (FR-VND-013). It says who the supplier will send. It is NOT attendance: the
+/// officer's register of a held event (`SiteEventAttendance`) is what gates a purchase, and a sign-up never satisfies it. Keyed by the supplier, not by `ExerciseParty`:
+/// a party is linked to the register only by an officer's audited act. Ending a sign-up sets `endedAt`; signing up again clears it. Every change is audited.
+model SiteEventRegistration {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  eventId        String
+  event          SiteEvent    @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  /// The person the supplier will send, as the supplier names them.
+  representative String
+  registeredBySupplierAccountId String
+  registeredBy   SupplierAccount @relation("EventRegisteredBySupplier", fields: [registeredBySupplierAccountId], references: [id], onDelete: Restrict)
+  registeredAt   DateTime
+  /// Withdrawn by the supplier before the event. Null: the sign-up stands.
+  endedAt        DateTime?
+  endedBySupplierAccountId String?
+  endedBy        SupplierAccount? @relation("EventRegistrationEndedBySupplier", fields: [endedBySupplierAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([eventId, supplierId])
+  @@index([supplierId])
+}
+
+/// A supplier's acknowledgement that it has read an issued addendum (FR-VND-013), from its own portal account, stamped by the server. Append-only. It is not delivery:
+/// `AddendumRecipient.acknowledgedOn` stays what an officer recorded of a paper copy.
+model AddendumAcknowledgement {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  addendumId     String
+  addendum       Addendum     @relation(fields: [addendumId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier     @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  acknowledgedBySupplierAccountId String
+  acknowledgedBy  SupplierAccount @relation("AddendumAcknowledgedBySupplier", fields: [acknowledgedBySupplierAccountId], references: [id], onDelete: Restrict)
+  /// The organisation's day, stamped by the server. Never typed.
+  acknowledgedOn  DateTime
+  acknowledgedAt  DateTime
+
+  @@unique([addendumId, supplierId])
+  @@index([supplierId])
+}
+
+/// A supplier's request for the tender documents (FR-VND-012), made from its own portal account. It starts nothing by itself: an officer records the sale as today, and the
+/// request is fulfilled when a live sale to the supplier exists. The register's pre-sale checks (FR-ADV-010) are judged when it is made and kept with it, so a request that
+/// is refused carries the reason (`refusedAt`, with the checks). Online payment is not built (INT-10).
+model DocumentRequest {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow @relation(fields: [windowId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  /// The person who will collect the documents, whose proof of authority the officer sights.
+  collectorName  String
+  requestedBySupplierAccountId String
+  requestedBy    SupplierAccount @relation("DocumentRequestedBySupplier", fields: [requestedBySupplierAccountId], references: [id], onDelete: Restrict)
+  requestedAt    DateTime
+  /// The checks as judged when it was made: each condition with its result, in words.
+  checks         Json
+  /// Set when the checks stopped it: the request is kept as a refused attempt with the reason (FR-ADV-010).
+  refusedAt      DateTime?
+  /// Withdrawn by the supplier. Null: it stands.
+  endedAt        DateTime?
+  endedBySupplierAccountId String?
+  endedBy        SupplierAccount? @relation("DocumentRequestEndedBySupplier", fields: [endedBySupplierAccountId], references: [id], onDelete: Restrict)
+
+  @@index([windowId])
+  @@index([supplierId])
+}
+
+/// What the tender documents were opened as, for the inspection log (FR-DOC-010) and the online release (FR-VND-012).
+enum TenderViewKind {
+  TABLE_DOCUMENT
+  PACK
+}
+
+/// Who opened the Tender Table Document, or the released pack, from their portal account, and when (FR-DOC-010: an inspection log records who viewed it). Append-only.
+/// Written before the content is shown: where it cannot be written, nothing is shown.
+model TenderInspectionEvent {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  windowId       String
+  window         ExerciseWindow @relation(fields: [windowId], references: [id], onDelete: Restrict)
+  supplierId     String
+  supplier       Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  kind           TenderViewKind
+  /// The version of the documents that was shown.
+  documentVersion Int
+  viewedBySupplierAccountId String
+  viewedBy       SupplierAccount @relation("TenderInspectedBySupplier", fields: [viewedBySupplierAccountId], references: [id], onDelete: Restrict)
+  viewedAt       DateTime
+
+  @@index([windowId, viewedAt])
+  @@index([supplierId])
+}
+
+/// The notice an unsuccessful tenderer is sent of the outcome (FR-AWD-010), issued by an officer from the award, only where the organisation has decided to (`AwardPolicy.nonAwardNotices`,
+/// policy D7). Its text is frozen when issued. It is shown in the portal and is not sent: email is not connected (INT-09). Append-only. One per tenderer per exercise.
+model NonAwardNotice {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  exerciseId     String
+  exercise       SourcingExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  awardId        String
+  award          Award            @relation(fields: [awardId], references: [id], onDelete: Restrict)
+  /// The tenderer the notice is for, as the exercise's party. Its supplier is the party's link, read when the notice is shown.
+  partyId        String
+  party          ExerciseParty    @relation(fields: [partyId], references: [id], onDelete: Restrict)
+
+  /// The outcome, in the words the product froze at issue.
+  outcomeText    String           @db.Text
+  /// The reason the officer stated. Empty where the organisation's debrief carries none.
+  reasonText     String           @default("") @db.Text
+  /// What the notice was issued under: the D7 setting and the debrief setting, with their provenance.
+  policySnapshot Json
+  issuedOn       DateTime
+  issuedAt       DateTime
+  issuedByPersonId String
+  issuedBy       Person           @relation("NonAwardIssuedBy", fields: [issuedByPersonId], references: [id], onDelete: Restrict)
+
+  @@unique([exerciseId, partyId])
+  @@index([awardId])
 }
 
 // ------------------------------------------------------------------ 6.6 bid receipt
@@ -7721,6 +7881,11 @@ model Supplier {
   /// Phase 4b: its registration while it is being completed, and its bank details (versioned).
   registrationDraft RegistrationDraft?
   creditorProfiles  CreditorProfile[]
+  /// Phase 4d: its own part in exercises it follows (sign-ups, acknowledgements, requests, inspections).
+  eventRegistrations       SiteEventRegistration[]
+  addendumAcknowledgements AddendumAcknowledgement[]
+  documentRequests         DocumentRequest[]
+  tenderInspections        TenderInspectionEvent[]
 
   @@unique([organisationId, reference])
   @@unique([organisationId, registrationNoKey])
@@ -11365,6 +11530,13 @@ model SupplierAccount {
   declarationsSigned      RegistrationDeclaration[] @relation("DeclarationSignedBy")
   sulitAccessEvents       SulitAccessEvent[]        @relation("SulitAccessSupplierActor")
   documentAccessEvents    DocumentAccessEvent[]     @relation("DocumentAccessSupplierActor")
+  /// Phase 4d: what this account signed up for, acknowledged, asked for and inspected.
+  eventsRegistered         SiteEventRegistration[]   @relation("EventRegisteredBySupplier")
+  eventRegistrationsEnded  SiteEventRegistration[]   @relation("EventRegistrationEndedBySupplier")
+  addendaAcknowledged      AddendumAcknowledgement[] @relation("AddendumAcknowledgedBySupplier")
+  documentRequestsMade     DocumentRequest[]         @relation("DocumentRequestedBySupplier")
+  documentRequestsEnded    DocumentRequest[]         @relation("DocumentRequestEndedBySupplier")
+  tenderInspections        TenderInspectionEvent[]   @relation("TenderInspectedBySupplier")
 
   @@index([organisationId])
   @@index([supplierId])

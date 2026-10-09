@@ -88,6 +88,17 @@ export function AddendaSection({ d, c }: { d: Addenda; c: WindowContext }) {
                 </div>
               )}
             </CardBody>
+            {a.status === "Issued" && a.acknowledgedOnline.length > 0 && (
+              <div className="border-t border-line px-5 py-3 sm:px-6">
+                <p className="text-[13px] font-semibold text-ink">Acknowledged online</p>
+                <p className="text-[12.5px] text-ink-3">Suppliers that said they had read it, from their portal accounts. This is not a record of delivery: the line per recipient below is what an officer recorded of each copy.</p>
+                <ul className="mt-2 flex flex-col gap-1 text-[13px] text-ink-2">
+                  {a.acknowledgedOnline.map((x) => (
+                    <li key={`${x.supplier}-${x.at}`}>{x.supplier} <span className="text-ink-3">· {x.at}</span></li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {a.status === "Issued" && (
               a.recipients.length === 0 ? (
                 <p className="border-t border-line px-5 py-3 text-[13px] text-ink-3 sm:px-6">No purchasers to notify: it goes to anyone who buys the documents from now on, with the documents.</p>

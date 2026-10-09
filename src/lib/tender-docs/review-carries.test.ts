@@ -46,8 +46,10 @@ describe("print and route polish (source scan)", () => {
   });
   it("the Tender Table Document has its own title and a link from the tab", () => {
     // The source text itself, placeholder and all, is what this scan looks for.
+    // Changed for Phase 4d: the print view's article is the shared component the supplier portal's inspection also uses (`src/components/tender-document.tsx`), so the title is read there.
     // eslint-disable-next-line no-template-curly-in-string
-    expect(read("src/app/sourcing/[id]/documents/print/page.tsx")).toContain("Tender Table Document: ${v.exercise.title}");
+    expect(read("src/components/tender-document.tsx")).toContain("Tender Table Document: ${v.exercise.title}");
+    expect(read("src/app/sourcing/[id]/documents/print/page.tsx")).toContain("TenderDocumentArticle");
     expect(read("src/app/sourcing/[id]/documents/workspace.tsx")).toContain("?set=table");
   });
   it("the route card's subtitle names the version, and the crumb is 'Tender documents'", () => {

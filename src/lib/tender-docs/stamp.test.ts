@@ -90,7 +90,10 @@ describe("a restricted pack says its uploaded files are not stamped by the porta
     const print = readFileSync(join(process.cwd(), "src/app/sourcing/[id]/documents/print/page.tsx"), "utf8");
     const read = readFileSync(join(process.cwd(), "src/lib/tender-docs/read.ts"), "utf8");
     expect(list).toMatch(/uploadNote/);
-    expect(print).toMatch(/p\.stampNote/);
+    // Changed for Phase 4d: the print view renders its parts through the shared component, which carries the note (`src/components/tender-document.tsx`).
+    const article = readFileSync(join(process.cwd(), "src/components/tender-document.tsx"), "utf8");
+    expect(print).toMatch(/TenderDocumentArticle/);
+    expect(article).toMatch(/p\.stampNote/);
     expect(read.match(/uploadStampNote\(/g)?.length).toBeGreaterThanOrEqual(3);
   });
 });

@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 
-import { FileIcon } from "@/components/icons";
+import { FileIcon, InboxIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Callout } from "@/components/ui/feedback";
+import { REQUEST_STATE_WORDS } from "@/lib/portal/bids/staff-read";
 import type { saleRegister } from "@/lib/window/read";
 
 import { RecordSaleDrawer } from "./editors";
@@ -59,6 +61,27 @@ export function SaleSection({ d, c }: { d: Sales; c: WindowContext }) {
         </CardBody>
         <SaleList exerciseId={c.exerciseId} sales={d.rows} />
       </Card>
+      {d.requests.length > 0 && (
+        <Card className="overflow-hidden">
+          <CardHeader
+            icon={<InboxIcon size={17} />}
+            title="Asked for online"
+            subtitle="Suppliers that asked for the documents from their portal accounts. A request sells nothing and takes no payment: record the sale above, naming the supplier, and the request reads as sold."
+          />
+          <ul className="divide-y divide-line/70">
+            {d.requests.map((r) => (
+              <li key={r.id} className="flex flex-col gap-1.5 px-5 py-3.5 sm:px-6">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold break-words text-ink">{r.supplier}</span>
+                  <Badge tone={r.state === "BOUGHT" ? "ok" : r.state === "WAITING" ? "brand" : r.state === "REFUSED" ? "err" : "neutral"}>{REQUEST_STATE_WORDS[r.state]}</Badge>
+                </div>
+                <p className="text-[12.5px] text-ink-3">Asked {r.at} · to be collected by {r.collector}</p>
+                {r.reasons.length > 0 && <p className="text-[12.5px] text-ink-2">{r.reasons.join(" ")}</p>}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }

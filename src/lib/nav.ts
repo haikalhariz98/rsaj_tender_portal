@@ -97,7 +97,8 @@ export const SUPPLIER_NAV: NavGroup[] = [
     // Each of these needs to know who is asking, so it waits for sign-in and says so on its own page.
     label: "With sign-in",
     items: [
-      { href: "/supplier/bids", label: "My Bids", icon: "inbox" },
+      // Phase 4d: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
+      { href: "/supplier/bids", label: "My Bids", icon: "inbox", built: true },
       { href: "/supplier/projects", label: "My Projects", icon: "tools" },
       // Phase 4c: built. It asks who is signed in, and sends a supplier who is not to the sign-in.
       { href: "/supplier/company", label: "Company", icon: "building", built: true },

@@ -85,6 +85,19 @@ export function BriefingSection({ d, c }: { d: Briefing; c: WindowContext }) {
                 </div>
               )}
             </div>
+            {e.signUps.length > 0 && (
+              <div className="border-b border-line px-5 py-3 sm:px-6">
+                <p className="text-[13px] font-semibold text-ink">Signed up online</p>
+                <p className="text-[12.5px] text-ink-3">Suppliers that told the office who they would send, from their portal accounts. This is not attendance: only the register below counts.</p>
+                <ul className="mt-2 flex flex-col gap-1 text-[13px] text-ink-2">
+                  {e.signUps.map((s) => (
+                    <li key={`${s.supplier}-${s.at}`} className={s.withdrawn ? "text-ink-3 line-through" : undefined}>
+                      {s.supplier}: {s.representative} <span className="text-ink-3">· signed up {s.at}{s.withdrawn ? `, withdrawn ${s.withdrawn}` : ""}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {e.register.length === 0 ? (
               <p className="px-5 py-4 text-[13px] text-ink-3 sm:px-6">{e.held ? "Nobody is recorded as attending." : cancelled ? "No attendance is kept for a cancelled event." : "Attendance is recorded once the event is held."}</p>
             ) : (

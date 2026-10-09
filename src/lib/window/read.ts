@@ -19,6 +19,7 @@ import { loadExercise } from "@/lib/method/repo";
 import { nameRouteLabel, nameRoutesOf, windowChangeRoutesOf } from "@/lib/method/approval";
 import type { Regime } from "@/lib/method/types";
 import { formatMoney, parseSen } from "@/lib/money";
+import { acknowledgementsByAddendum, requestsOfWindow, signUpsByEvent } from "@/lib/portal/bids/staff-read";
 import { leadTimeText } from "@/lib/scope/labels";
 import { loadScopePolicy } from "@/lib/scope/repo";
 import { scopeReadiness } from "@/lib/tender-docs/repo";
@@ -294,6 +295,8 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
   const rowVoid = (f: ReturnType<typeof voidSaleFault>) => (f ? { allowed: false as const, reason: windowFindingText(f), registerWide: voidRefusalIsRegisterWide(f) } : { allowed: true as const });
   const registerVoid = voidSaleFault({ voidedAt: null }, phase, "-");
   // 65-C2: a purchaser holding a bid envelope keeps its sale (an envelope names its party from 6.7's opening on).
+  // Phase 4d (FR-VND-012): what suppliers asked for from their portal accounts, and what became of it.
+  const requests = w ? await requestsOfWindow(db, org.id, w.id, org.timeZone) : [];
   const holders = new Set((await db.bidEnvelope.findMany({ where: { exerciseId, partyId: { not: null }, status: { not: "WITHDRAWN" }, kind: { not: "COMPANY_ESTIMATE" } }, select: { partyId: true } })).map((e) => e.partyId));
   return {
     voidAll: sales.some((s) => !s.voidedAt) && registerVoid && voidRefusalIsRegisterWide(registerVoid) ? windowFindingText(registerVoid) : null,
@@ -303,6 +306,7 @@ export async function saleRegister(organisationId: string, exerciseId: string) {
     open: phase === "OPEN_FOR_PURCHASE" ? { allowed: true as const } : { allowed: false as const, reason: windowFindingText({ code: "SALE_CLOSED", level: "block", data: { phase } }) },
     restricted: ex.restrictedTender === true ? { label: d.tender.restrictionLabel ?? "Restricted", asks: "The original or a certified copy of the purchaser's status certificate, and the day it is valid until." } : null,
     fee: money(w?.feeAmount),
+    requests,
     rows: sales.map((s) => {
       const acked = addenda.filter((a) => a.recipients.some((c) => c.partyId === s.partyId && c.acknowledgedOn)).length;
       return {
@@ -349,6 +353,8 @@ export async function briefingTab(organisationId: string, exerciseId: string) {
   const facts = d.window ? eventFactsOf(d.window) : [];
   // Who recorded each attendance, signed or recorded from paper, is read from its attribution (Phase 2b).
   const attributed = await loadAttributions(db, org.id, [{ entity: "SiteEventAttendance", slot: "recordedBy", ids: events.flatMap((e) => e.attendance.map((a) => a.id)) }]);
+  // Phase 4d: what suppliers signed up for online. It is shown beside the register and is never in it: only an officer's record of who attended counts.
+  const signUps = await signUpsByEvent(db, org.id, events.map((e) => e.id), org.timeZone);
   return {
     pathKey: pathOf(d).path,
     status: ex.status,
@@ -363,6 +369,7 @@ export async function briefingTab(organisationId: string, exerciseId: string) {
       attendance: permitted !== true ? `Not mandatory: mandatory attendance ${!attendance.recorded ? "not recorded with the published window" : permitted == null ? "not set" : "is not permitted"}${attendance.frozen && attendance.recorded ? " when the window was published" : ""}` : e.mandatory == null ? "Not answered" : isMandatory(facts[i], permitted) ? "Mandatory: the documents are sold only to those who attended" : "Not mandatory",
       held: e.heldOn ? day(e.heldOn) : null,
       cancelled: e.cancelledAt ? `Cancelled: ${e.cancelReason}` : null,
+      signUps: signUps.get(e.id) ?? [],
       register: e.attendance.map((a) => ({ contractor: a.party.name, registrationNo: a.party.registrationNo, representative: a.representative, recordedBy: attributed.read({ entity: "SiteEventAttendance", id: a.id, slot: "recordedBy" }, a.recordedBy.name).en, recordedOn: formatOrgDateTime(a.recordedAt, org.timeZone) })),
     })),
   };
@@ -395,6 +402,8 @@ export async function addendaTab(organisationId: string, exerciseId: string) {
   const w = d.window;
   const phase = phaseOf(ex, w, now, org.timeZone).phase;
   const recipients = w ? recipientsFor(w.sales, w.letters.map((l) => ({ partyId: l.partyId }))) : [];
+  // Phase 4d: what suppliers acknowledged online. It is not delivery: the recipients' recorded delivery below is what an officer recorded of a copy.
+  const acknowledged = await acknowledgementsByAddendum(db, org.id, (w?.addenda ?? []).map((a) => a.id), org.timeZone);
   return {
     status: ex.status,
     /// Applied closing changes an addendum may announce (the choice offered on a draft).
@@ -421,6 +430,7 @@ export async function addendaTab(organisationId: string, exerciseId: string) {
         text: a.renderedText,
         notified: a.status === "ISSUED" ? (n.state === "NO_RECIPIENTS" ? NOTIFIED_LABEL.NO_RECIPIENTS : `${n.done} of ${n.of} notified`) : null,
         recipients: a.recipients.map((c) => ({ id: c.id, recipient: c.party.name, given: c.withDocuments ? "With the documents" : null, ...delivery(c) })),
+        acknowledgedOnline: acknowledged.get(a.id) ?? [],
         issue: a.status === "DRAFT" ? (firstBlock(issue) ? { allowed: false as const, reason: words(issue.filter((f) => f.level === "block")).map((f) => f.text).join(" ") } : { allowed: true as const }) : null,
         voidReason: a.status === "VOID" ? a.voidReason : null,
       };

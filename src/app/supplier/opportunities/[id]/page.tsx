@@ -24,6 +24,7 @@ import { loadOpportunity } from "@/lib/portal/repo";
 
 import { NoticeDrawer } from "./notice-drawer";
 import { YourEligibility } from "./your-eligibility";
+import { YourPart } from "./your-part";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
       )}
 
       {o.state === "OPEN" && d && <YourEligibility exerciseId={o.id} />}
+      {d && <YourPart exerciseId={o.id} />}
 
       {d ? <Body o={o} d={d} /> : <Glance o={o} />}
     </>

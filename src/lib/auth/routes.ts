@@ -47,6 +47,17 @@ export const SUPPLIER_COMPANY_POSTS = {
 } as const;
 export const SUPPLIER_COMPANY_POST_PATHS: readonly string[] = Object.values(SUPPLIER_COMPANY_POSTS);
 
+/// The signed-in supplier's My Bids workspace (Phase 4d): its list page, the page of one exercise (an id segment, so it has its own pattern in `surface.ts`), the two pages that open the tender
+/// documents, and the three JSON posts it makes, each a route handler at a literal path. A supplier must be signed in to each (a page redirects to the sign-in, a handler answers 401), and no id of a
+/// supplier is read from any of them: the supplier is the session's. The ids a post names are an exercise's, an event's and an addendum's, which the stores read only as the session's supplier may see them.
+export const SUPPLIER_BIDS_PAGE = "/supplier/bids";
+export const SUPPLIER_BIDS_POSTS = {
+  event: "/supplier/bids/event",
+  acknowledge: "/supplier/bids/acknowledge",
+  request: "/supplier/bids/request",
+} as const;
+export const SUPPLIER_BIDS_POST_PATHS: readonly string[] = Object.values(SUPPLIER_BIDS_POSTS);
+
 /// The two session cookies (ADR 0034 D4). Names only, so the proxy can know them without importing anything that touches the database or `next/headers`.
 /// `__Host-` ties each to one exact host with no Domain. A staff cookie means nothing to the public copy, and a supplier cookie nothing to the staff copy.
 export const STAFF_COOKIE = "__Host-perolehan-staff";
@@ -82,7 +93,7 @@ export const PUBLIC_ENTRY_POINTS: readonly PublicEntry[] = [
     under: "supplier/register",
     reason: "The public registration form and its one POST: served to people with no account, because applying is how a company gets one. The POST passes the Origin guard and a signed form token, and the public copy takes no other write from a stranger but the sign-in posts below.",
   },
-  { under: "supplier/bids", reason: "A placeholder page that says My Bids needs sign-in and holds no data. It is guarded when it is built (Phase 4c)." },
+  // Phase 4d: `supplier/bids` is built, so it is no longer a public entry. Its pages ask `requireSupplier` and its three handlers ask `supplierPost`, first (held by `supplier-reach.test.ts`).
   // Phase 4c: `supplier/company` is built, so it is no longer a public entry. Its page asks `requireSupplier` and its two handlers ask `supplierUploadPost`, first (held by `supplier-reach.test.ts`).
   { under: "supplier/projects", reason: "A placeholder page that says My Projects needs sign-in and holds no data. It is guarded when it is built (Phase 4d)." },
   {

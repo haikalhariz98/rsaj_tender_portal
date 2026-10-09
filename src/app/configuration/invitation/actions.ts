@@ -79,6 +79,9 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
     calendarId: r.optionalText("calendarId"),
     mandatoryAttendancePermitted: tri(r.choice("mandatoryAttendancePermitted", "Mandatory attendance at a briefing", TRI)),
     attendanceProvenance: r.choice("attendanceProvenance", "Where the attendance rule comes from", PROVENANCE),
+    // Phase 4d (FR-VND-012): whether the tender documents are released online to a supplier after an officer records the payment. Unset releases nothing.
+    electronicDocumentRelease: tri(r.choice("electronicDocumentRelease", "Release the documents online after payment", TRI)),
+    electronicReleaseProvenance: r.choice("electronicReleaseProvenance", "Where the release decision comes from", PROVENANCE),
     noticeTemplateId: r.optionalText("noticeTemplateId"),
     invitationTemplateId: r.optionalText("invitationTemplateId"),
     addendumTemplateId: r.optionalText("addendumTemplateId"),
@@ -115,6 +118,8 @@ export async function saveWindowPolicy(_prev: FormState, data: FormData): Promis
             holidayCalendar: calendars.find((c) => c.id === p.calendarId)?.name ?? NOT_SET,
             mandatoryAttendance: p.mandatoryAttendancePermitted == null ? NOT_SET : p.mandatoryAttendancePermitted ? "Permitted" : "Not permitted",
             attendanceFrom: prov(p.attendanceProvenance),
+            onlineRelease: p.electronicDocumentRelease == null ? NOT_SET : p.electronicDocumentRelease ? "Released online after payment" : "Collected at the counter only",
+            onlineReleaseFrom: prov(p.electronicReleaseProvenance),
             noticeTemplate: templates.find((t) => t.id === p.noticeTemplateId)?.nameEn ?? NOT_SET,
             invitationTemplate: templates.find((t) => t.id === p.invitationTemplateId)?.nameEn ?? NOT_SET,
             addendumTemplate: templates.find((t) => t.id === p.addendumTemplateId)?.nameEn ?? NOT_SET,

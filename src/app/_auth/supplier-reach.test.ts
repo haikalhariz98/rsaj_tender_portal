@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
+import { SUPPLIER_AUTH_PAGES, SUPPLIER_AUTH_POSTS, SUPPLIER_BIDS_PAGE, SUPPLIER_BIDS_POST_PATHS, SUPPLIER_BIDS_POSTS, SUPPLIER_COMPANY_PAGE, SUPPLIER_COMPANY_POST_PATHS, SUPPLIER_COMPANY_POSTS, SUPPLIER_POST_PATHS, SUPPLIER_REGISTRATION_GET_PATHS, SUPPLIER_REGISTRATION_GETS, SUPPLIER_REGISTRATION_PAGE, SUPPLIER_REGISTRATION_POST_PATHS, SUPPLIER_REGISTRATION_POSTS } from "@/lib/auth/routes";
 import { lex } from "@/lib/scan/source";
 
 /**
@@ -30,7 +30,10 @@ const read = (f: string) => readFileSync(path.join(SRC, f), "utf8");
 const PORTAL = walk(path.join(SRC, "app", "supplier")).map((f) => ({ file: rel(f), src: readFileSync(f, "utf8") }));
 // Phase 4b: the registration wizard's handlers are held by the section below (`app/supplier/registration/`): six, of which two are reads and one is a multipart upload.
 // Phase 4c: the Company workspace's two uploads are held by the section below (`app/supplier/company/`).
-const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/") && !f.file.startsWith("app/supplier/company/"));
+// Phase 4d: My Bids' three JSON posts are held by the section further down (`app/supplier/bids/`), as the registration's and the Company workspace's are: this first section is for the doors a stranger reaches.
+const HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && !f.file.startsWith("app/supplier/register/") && !f.file.startsWith("app/supplier/registration/") && !f.file.startsWith("app/supplier/company/") && !f.file.startsWith("app/supplier/bids/"));
+const BIDS_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/bids/"));
+const BIDS_PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file) && f.file.startsWith("app/supplier/bids"));
 const COMPANY_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/company/"));
 const REGISTRATION_HANDLERS = PORTAL.filter((f) => /\/route\.ts$/.test(f.file) && f.file.startsWith("app/supplier/registration/"));
 const PAGES = PORTAL.filter((f) => /\/page\.tsx$/.test(f.file));
@@ -246,6 +249,79 @@ describe("the Company workspace's handlers (Phase 4c)", () => {
     const page = read("app/supplier/company/page.tsx");
     expect(page).toMatch(/const actor = await requireSupplier\(\);/);
     expect(page).not.toMatch(/props\.params|params\.supplierId|searchParams\.supplierId/);
+  });
+});
+
+describe("My Bids' handlers and pages (Phase 4d)", () => {
+  const FILE = (f: { file: string }) => `/${f.file.replace(/^app\//, "").replace(/\/route\.ts$/, "")}`;
+  const HTTP = /export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g;
+  const methods = (src: string) => [...src.matchAll(HTTP)].map((m) => m[1]);
+
+  it("are exactly the three literal paths the public copy lists, and the list page is there", () => {
+    expect(BIDS_HANDLERS.map(FILE).sort()).toEqual([...SUPPLIER_BIDS_POST_PATHS].sort());
+    expect(Object.values(SUPPLIER_BIDS_POSTS)).toHaveLength(3);
+    expect(PORTAL.map((f) => `/${f.file.replace(/^app\//, "").replace(/\/page\.tsx$/, "")}`)).toContain(SUPPLIER_BIDS_PAGE);
+  });
+
+  it("each answers a POST and nothing else, and asks the portal's guard before anything else is awaited, returning its refusal as it is", () => {
+    for (const f of BIDS_HANDLERS) {
+      expect(methods(f.src), f.file).toEqual(["POST"]);
+      const body = postBody(f.src);
+      expect(body.slice(body.search(/\bawait\b/)).startsWith("await supplierPost(request, "), f.file).toBe(true);
+      expect(f.src, f.file).toMatch(/await supplierPost\(request, "bids", \{ maxBytes: BIDS_BODY_LIMIT \}\)/);
+      expect(body, f.file).toMatch(/^\{\s*const guard =/);
+      expect(body, f.file).toMatch(/if \(!guard\.ok\) return guard\.response;/);
+      // Nothing is parsed before the guard: the first thing read from the body is `post.fields`, after it.
+      expect(body.indexOf("post.fields"), f.file).toBeGreaterThan(body.indexOf("guard.ok"));
+    }
+  });
+
+  it("no handler, page or store reads a supplier, an organisation, an account, a day or a time from the request", () => {
+    const stores = ["lib/portal/bids/signup-store.ts", "lib/portal/bids/acknowledge-store.ts", "lib/portal/bids/request-store.ts", "lib/portal/bids/inspection-store.ts", "lib/portal/bids/list-store.ts", "lib/portal/bids/workspace-store.ts", "lib/portal/bids/context-store.ts", "lib/portal/bids/sale-facts.ts", "lib/portal/bids/api.ts"].map((file) => ({ file, src: read(file) }));
+    for (const f of [...BIDS_HANDLERS, ...BIDS_PAGES, ...stores]) {
+      const code = lex(f.src, { only: "comments" });
+      expect(code, f.file).not.toMatch(/\.get\(\s*["'](?:supplierId|organisationId|accountId|supplierAccountId|actorId|signedOn|signedAt|acknowledgedOn|requestedAt|viewedAt)["']\s*\)/);
+      expect(code, f.file).not.toMatch(/(?:fields|body|post\.fields|params|searchParams)\??\.\s*(?:supplierId|organisationId|accountId|supplierAccountId|signedOn|signedAt|acknowledgedOn|requestedAt|viewedAt)\b/);
+    }
+    // The parsers read an exercise, an event, an addendum, an action and a name, and nothing else.
+    expect(lex(read("lib/portal/bids/api.ts"), { only: "comments" })).not.toMatch(/\b(?:b|body)\.(?:supplierId|organisationId|accountId|supplierAccountId|acknowledgedOn|requestedAt)\b/);
+  });
+
+  it("hold no server action", () => {
+    for (const f of [...BIDS_HANDLERS, ...BIDS_PAGES]) expect(f.src, f.file).not.toMatch(/^\s*["']use server["']/m);
+  });
+
+  it("every page asks who is signed in first, and reads its supplier from the actor", () => {
+    expect(BIDS_PAGES.length).toBe(4);
+    for (const f of BIDS_PAGES) {
+      expect(f.src, f.file).toMatch(/const actor = await requireSupplier\(\);/);
+      // The id in the address is an exercise's; it is never taken for a supplier's.
+      expect(f.src, f.file).not.toMatch(/params\.supplierId|searchParams\.supplierId|\{\s*supplierId\s*\}\s*=/);
+    }
+  });
+
+  it("the stores take the supplier and the organisation from the actor, lock the exercise side first, and never the supplier row", () => {
+    for (const file of ["lib/portal/bids/signup-store.ts", "lib/portal/bids/acknowledge-store.ts", "lib/portal/bids/request-store.ts"]) {
+      const src = read(file);
+      expect(src, file).toMatch(/SupplierActor/);
+      expect(src, file).toMatch(/actor\.supplierId/);
+      expect(src, file).toMatch(/actor\.organisationId/);
+      // Each takes the exercise (then its window) before it reads or writes anything of the supplier's, and never `lockSupplierRow`: `recordSale` takes the supplier row last.
+      const code = lex(src);
+      expect(code.indexOf("lockExerciseSide("), file).toBeGreaterThan(-1);
+      expect(code.indexOf("lockExerciseSide("), file).toBeLessThan(code.indexOf("loadBidContext("));
+      expect(code, file).not.toMatch(/lockSupplierRow/);
+    }
+    const lock = read("lib/portal/bids/lock.ts");
+    expect(lock.indexOf('FROM "SourcingExercise"')).toBeGreaterThan(-1);
+    expect(lock.indexOf('FROM "ExerciseWindow"')).toBeGreaterThan(lock.indexOf('FROM "SourcingExercise"'));
+  });
+
+  it("the inspection log is written before the documents are returned, and only the approved version is shown", () => {
+    const src = lex(read("lib/portal/bids/inspection-store.ts"));
+    expect(src.indexOf("tenderInspectionEvent.create(")).toBeGreaterThan(src.indexOf("view.watermark != null"));
+    // Nothing returns the view before the log row: the only `open: true` return follows the create.
+    expect(src.indexOf("return { open: true")).toBeGreaterThan(src.indexOf("tenderInspectionEvent.create("));
   });
 });
 

@@ -51,6 +51,8 @@ export function EditWindowPolicy({ values, channels, calendars, templates }: { v
         { kind: "select", name: "calendarId", label: "Holiday calendar", placeholder: "Not set", options: calendars },
         { kind: "select", name: "mandatoryAttendancePermitted", label: RULE_LABEL.mandatoryAttendance, placeholder: "Not set", options: [{ value: "yes", label: "Yes, it may be" }, { value: "no", label: "No, it may not" }, { value: "unset", label: "Not set: no event is mandatory" }] },
         provenance("attendanceProvenance", "Where the attendance rule comes from"),
+        { kind: "select", name: "electronicDocumentRelease", label: "Release the tender documents online after payment", placeholder: "Not set", options: [{ value: "yes", label: "Yes, once an officer records the payment" }, { value: "no", label: "No, collected at the counter only" }, { value: "unset", label: "Not set: nothing is released online" }], hint: "A supplier asks online and an officer records the sale and the payment receipt. Paying online is not available." },
+        provenance("electronicReleaseProvenance", "Where the release decision comes from"),
         { kind: "select", name: "noticeTemplateId", label: "Template for the published notice", placeholder: "Not set", options: templates },
         { kind: "select", name: "invitationTemplateId", label: "Template for a letter of invitation", placeholder: "Not set", options: templates },
         { kind: "select", name: "addendumTemplateId", label: "Template for an addendum", placeholder: "Not set", options: templates },

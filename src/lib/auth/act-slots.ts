@@ -199,6 +199,8 @@ export const ACT_SLOTS: readonly ActSlot[] = [
   slot("PackAssurance", "person", "Confirmed by"),
   slot("PublicationRecord", "recordedBy", "Recorded by"),
   slot("DocumentSale", "issuedBy", "Issued by"),
+  // Phase 4d (FR-AWD-010): the officer who issued an unsuccessful tenderer's notice of the outcome.
+  slot("NonAwardNotice", "issuedBy", "Issued by"),
   slot("SiteEventAttendance", "recordedBy", "Recorded by"),
 
   // ---- bids and opening

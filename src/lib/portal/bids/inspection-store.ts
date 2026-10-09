@@ -1,0 +1,64 @@
+import type { Tx } from "@/lib/audit/record";
+import type { SupplierActor } from "@/lib/auth/types";
+import { db } from "@/lib/db";
+import { printView } from "@/lib/tender-docs/read";
+import { tableDocumentAvailability } from "@/lib/window/phase";
+
+import { loadBidContext, type BidContext } from "./context-store";
+import { inspectionReading } from "./documents";
+import { releaseState, releaseWords, type ReleaseState } from "./release";
+
+/**
+ * A supplier opens the Tender Table Document, or the pack released to it (FR-DOC-010, FR-VND-012, Phase 4d).
+ *
+ * The inspection log is written FIRST and in its own transaction, and the content is read only after it commits: where the row cannot be written, the error propagates and nothing is shown. Only the approved, frozen
+ * version is ever shown (a version still being drafted is the office's working copy). The table document is open to any supplier who may see the exercise while it is available for inspection
+ * (`tableDocumentAvailability`). The pack is shown only when the release rules say so (`releaseState`): the organisation has set that documents are released online, and a sale to this supplier stands with its
+ * payment receipt recorded by an officer. Each answer says in words why it is closed; none is a blank page. Every read names the session's supplier and organisation.
+ */
+
+/// The documents as the print view returns them: the approved, frozen text in print order.
+export type PrintedView = Exclude<NonNullable<Awaited<ReturnType<typeof printView>>>, { none: true }>;
+
+export type OpenResult =
+  | { open: true; ctx: BidContext; view: PrintedView }
+  | { open: false; ctx: BidContext | null; headline: string; detail: string };
+
+/// The supplier's sale that stands on this window, and the organisation's release setting, read together.
+export async function loadReleaseFacts(tx: Tx, actor: Pick<SupplierActor, "supplierId" | "organisationId">, ctx: BidContext): Promise<{ state: ReleaseState; setting: boolean | null; sale: { id: string; soldOn: Date; financeReceiptNo: string | null } | null }> {
+  const window = ctx.ex.window;
+  const partyIds = ctx.parties.map((p) => p.id);
+  const [policy, sale] = await Promise.all([
+    tx.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { electronicDocumentRelease: true } }),
+    window && partyIds.length ? tx.documentSale.findFirst({ where: { windowId: window.id, organisationId: actor.organisationId, partyId: { in: partyIds }, voidedAt: null }, select: { id: true, soldOn: true, financeReceiptNo: true, voidedAt: true } }) : Promise.resolve(null),
+  ]);
+  const setting = policy?.electronicDocumentRelease ?? null;
+  return { state: releaseState({ setting, sale: sale ? { voidedAt: sale.voidedAt, financeReceiptNo: sale.financeReceiptNo } : null, phase: ctx.phase }), setting, sale: sale ? { id: sale.id, soldOn: sale.soldOn, financeReceiptNo: sale.financeReceiptNo } : null };
+}
+
+export async function openForInspection(actor: SupplierActor, i: { exerciseId: string; kind: "TABLE_DOCUMENT" | "PACK" }, now: Date = new Date()): Promise<OpenResult> {
+  const ctx = await loadBidContext(db, actor, i.exerciseId, now);
+  if (!ctx || !ctx.ex.window) return { open: false, ctx: null, headline: "Not found", detail: "That exercise is not one you can open." };
+
+  if (i.kind === "PACK") {
+    const release = await loadReleaseFacts(db, actor, ctx);
+    if (release.state !== "READY") return { open: false, ctx, headline: releaseWords[release.state].short, detail: releaseWords[release.state].detail };
+  } else {
+    const early = inspectionReading(tableDocumentAvailability(ctx.phase), { approved: true });
+    if (!early.open) return { open: false, ctx, headline: early.headline, detail: early.detail };
+  }
+
+  // Read what would be shown, so a version that may not be shown is refused before anything is logged.
+  const view = await printView(actor.organisationId, i.exerciseId, i.kind === "PACK" ? "pack" : "table");
+  if (!view || "none" in view) return { open: false, ctx, headline: "Not available", detail: "The procurement office has no documents for this exercise to show." };
+  if (view.watermark != null) {
+    const reading = inspectionReading("AVAILABLE", { approved: false });
+    return { open: false, ctx, headline: reading.open ? "Not available" : reading.headline, detail: reading.open ? "" : reading.detail };
+  }
+
+  // The log first: where it cannot be written, this throws and nothing below runs.
+  await db.tenderInspectionEvent.create({
+    data: { organisationId: actor.organisationId, windowId: ctx.ex.window.id, supplierId: actor.supplierId, kind: i.kind, documentVersion: view.version, viewedBySupplierAccountId: actor.accountId, viewedAt: now },
+  });
+  return { open: true, ctx, view };
+}

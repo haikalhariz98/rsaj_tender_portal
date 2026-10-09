@@ -1,0 +1,252 @@
+import type { Tx } from "@/lib/audit/record";
+import type { SupplierActor } from "@/lib/auth/types";
+import { dayIn, storedDay } from "@/lib/dates";
+import { formatDate } from "@/lib/format";
+import type { ExerciseStatus } from "@/lib/method/types";
+import { formatMoney, senFromDecimal } from "@/lib/money";
+import { instantText, isIssuedAward } from "@/lib/portal/public";
+import { isMandatory, mandatoryPermittedFor } from "@/lib/window/events";
+import { SITE_EVENT_KIND_LABEL } from "@/lib/window/labels";
+import { tableDocumentAvailability } from "@/lib/window/phase";
+import type { SiteEventKind } from "@/lib/window/types";
+
+import { acknowledgeFaults } from "./acknowledge";
+import { requestState, type PreSaleCheck, type RequestState } from "./checks";
+import { isInvited, type BidContext } from "./context-store";
+import { inspectionReading, type InspectionReading } from "./documents";
+import { loadReleaseFacts } from "./inspection-store";
+import { loadMyNotices } from "./list-store";
+import { awardStands } from "./non-award";
+import { sortNotices, type PortalNotice } from "./notices";
+import { releaseWords, type ReleaseState } from "./release";
+import { loadSaleFacts } from "./sale-facts";
+import { signUpFaults, signUpState, withdrawFaults, type SignUpState } from "./signup";
+import { bidStanding, type BidStanding } from "./standing";
+import { bidFaultText } from "./words";
+
+/**
+ * What each tab of one exercise's My Bids workspace reads (Phase 4d). One loader per tab, so a tab loads only its own slice and never a sibling's. Reads only, in the caller's client. Each takes the
+ * context that `loadBidContext` returned for THIS supplier, so every read is of an exercise it may see and names the session's supplier and organisation.
+ */
+
+type Who = Pick<SupplierActor, "supplierId" | "organisationId">;
+
+const feeText = (fee: { toString(): string } | null) => (fee == null ? null : formatMoney(senFromDecimal(fee)));
+const dayText = (d: Date | null) => (d ? formatDate(storedDay(d)) : null);
+
+// ------------------------------------------------------------------ briefings and site visits
+
+export interface BriefingRow {
+  id: string;
+  kind: SiteEventKind;
+  kindLabel: string;
+  when: string;
+  place: string;
+  /// The notice made attendance mandatory (what it was published under).
+  mandatory: boolean;
+  cancelled: boolean;
+  held: boolean;
+  signUp: SignUpState;
+  representative: string | null;
+  /// Offered, or the reason it is not (in words). Withdrawal likewise.
+  canSignUp: boolean;
+  signUpWhy: string | null;
+  canWithdraw: boolean;
+  /// The officer's register has this supplier as attending (a held event only). A sign-up is not this.
+  attended: boolean;
+}
+
+export async function briefingsTab(client: Tx, actor: Who, ctx: BidContext): Promise<{ rows: BriefingRow[]; mandatoryPermitted: boolean | null }> {
+  const window = ctx.ex.window;
+  if (!window) return { rows: [], mandatoryPermitted: null };
+  const partyIds = ctx.parties.map((p) => p.id);
+  const [events, mine, row, live] = await Promise.all([
+    client.siteEvent.findMany({ where: { windowId: window.id, organisationId: actor.organisationId }, orderBy: { startsAt: "asc" }, select: { id: true, kind: true, startsAt: true, place: true, mandatory: true, heldOn: true, cancelledAt: true, attendance: { select: { partyId: true } } } }),
+    client.siteEventRegistration.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, event: { windowId: window.id } }, select: { eventId: true, representative: true, endedAt: true } }),
+    client.exerciseWindow.findUniqueOrThrow({ where: { id: window.id, organisationId: actor.organisationId }, select: { publishedAt: true, policySnapshot: true } }),
+    client.windowPolicy.findUnique({ where: { organisationId: actor.organisationId }, select: { mandatoryAttendancePermitted: true } }),
+  ]);
+  const permitted = mandatoryPermittedFor(row, live?.mandatoryAttendancePermitted ?? null).permitted;
+  const rows: BriefingRow[] = events.map((e) => {
+    const reg = mine.find((m) => m.eventId === e.id) ?? null;
+    const ev = { startsAt: e.startsAt, cancelled: e.cancelledAt != null, heldOn: e.heldOn ? storedDay(e.heldOn) : null };
+    const state = signUpState(ev, reg ? { endedAt: reg.endedAt } : null, ctx.now);
+    // The reason it is not offered is judged with a name in hand, so the missing name is never what is reported.
+    const offered = signUpFaults({ event: ev, phase: ctx.phase, path: ctx.path, invited: isInvited(ctx), representative: "-", existing: reg ? { endedAt: reg.endedAt } : null, now: ctx.now }).filter((f) => f.level === "block");
+    const why = offered.length > 0 && state !== "SIGNED_UP" ? bidFaultText(offered[0]!).en : null;
+    const withdrawable = reg != null && reg.endedAt == null && withdrawFaults({ event: ev, phase: ctx.phase, existing: { endedAt: null }, now: ctx.now }).length === 0;
+    return {
+      id: e.id,
+      kind: e.kind,
+      kindLabel: SITE_EVENT_KIND_LABEL[e.kind],
+      when: e.startsAt ? instantText(e.startsAt, ctx.org.timeZone) : "No start time yet",
+      place: e.place,
+      mandatory: isMandatory({ mandatory: e.mandatory, cancelled: e.cancelledAt != null }, permitted),
+      cancelled: e.cancelledAt != null,
+      held: e.heldOn != null,
+      signUp: state,
+      representative: reg && reg.endedAt == null ? reg.representative : null,
+      canSignUp: offered.length === 0,
+      signUpWhy: why,
+      canWithdraw: withdrawable,
+      attended: e.heldOn != null && e.attendance.some((a) => partyIds.includes(a.partyId)),
+    };
+  });
+  return { rows, mandatoryPermitted: permitted };
+}
+
+// ------------------------------------------------------------------ addenda and notices
+
+export interface AddendumRow {
+  id: string;
+  number: number | null;
+  title: string;
+  whatChanged: string;
+  issuedOn: string | null;
+  newClosing: string | null;
+  /// One of the supplier's parties holds a copy of it (it bought the documents, or the addendum came with them).
+  holdsCopy: boolean;
+  withDocuments: boolean;
+  acknowledgedOn: string | null;
+  canAcknowledge: boolean;
+  whyNot: string | null;
+}
+
+export async function addendaTab(client: Tx, actor: Who, ctx: BidContext): Promise<{ addenda: AddendumRow[]; notices: PortalNotice[] }> {
+  const window = ctx.ex.window;
+  if (!window) return { addenda: [], notices: [] };
+  const partyIds = ctx.parties.map((p) => p.id);
+  const [addenda, acks, all] = await Promise.all([
+    client.addendum.findMany({
+      where: { windowId: window.id, organisationId: actor.organisationId, status: "ISSUED" },
+      orderBy: { number: "asc" },
+      select: { id: true, number: true, title: true, whatChanged: true, status: true, issuedOn: true, closingChange: { select: { toClosingAt: true, appliedAt: true } }, recipients: { where: { partyId: { in: partyIds } }, select: { withDocuments: true } } },
+    }),
+    client.addendumAcknowledgement.findMany({ where: { organisationId: actor.organisationId, supplierId: actor.supplierId, addendum: { windowId: window.id } }, select: { addendumId: true, acknowledgedOn: true } }),
+    loadMyNotices(client, actor),
+  ]);
+  const rows: AddendumRow[] = addenda.map((a) => {
+    const ack = acks.find((x) => x.addendumId === a.id) ?? null;
+    const faults = acknowledgeFaults({ addendum: a, phase: ctx.phase, holdsCopy: a.recipients.length > 0, alreadyAcknowledged: ack != null }).filter((f) => f.level === "block");
+    return {
+      id: a.id,
+      number: a.number,
+      title: a.title,
+      whatChanged: a.whatChanged,
+      issuedOn: dayText(a.issuedOn),
+      newClosing: a.closingChange?.appliedAt ? instantText(a.closingChange.toClosingAt, ctx.org.timeZone) : null,
+      holdsCopy: a.recipients.length > 0,
+      withDocuments: a.recipients.some((r) => r.withDocuments),
+      acknowledgedOn: ack ? formatDate(storedDay(ack.acknowledgedOn)) : null,
+      canAcknowledge: faults.length === 0,
+      whyNot: faults.length > 0 && !ack ? bidFaultText(faults[0]!).en : null,
+    };
+  });
+  return { addenda: rows, notices: sortNotices(all.filter((n) => n.exerciseId === ctx.ex.id && n.kind !== "ADDENDUM" && n.kind !== "NON_AWARD")) };
+}
+
+// ------------------------------------------------------------------ the documents
+
+export interface DocumentsView {
+  sale: { from: string | null; until: string | null; place: string; fee: string | null; payment: string; inspectionPlace: string; inspectionHours: string };
+  checks: PreSaleCheck[];
+  request: { state: RequestState; requestedOn: string | null; collector: string | null } | null;
+  /// Why the last attempt was refused, where one was and nothing stands since.
+  refused: { on: string; reasons: string[] } | null;
+  bought: { on: string; receiptRecorded: boolean } | null;
+  /// Whether the request is offered now, and the reasons it is not.
+  canRequest: boolean;
+  table: InspectionReading;
+  release: { state: ReleaseState; short: string; detail: string };
+}
+
+export async function documentsTab(client: Tx, actor: Who, ctx: BidContext): Promise<DocumentsView> {
+  const w = ctx.ex.window;
+  const facts = await loadSaleFacts(client, actor, ctx);
+  const release = await loadReleaseFacts(client, actor, ctx);
+  const blocks = facts.checks.filter((c) => c.state === "BLOCK");
+  const bought = facts.sale ? { on: formatDate(facts.sale.soldOn), receiptRecorded: facts.sale.financeReceiptNo != null && facts.sale.financeReceiptNo.trim() !== "" } : null;
+  const request = facts.standing ? { state: requestState({ refusedAt: null, endedAt: null }, bought != null), requestedOn: formatDate(dayIn(facts.standing.requestedAt, ctx.org.timeZone)), collector: facts.standing.collectorName } : null;
+  return {
+    sale: {
+      from: dayText(w?.purchaseFromDay ?? null),
+      until: dayText(w?.purchaseCloseDay ?? null),
+      place: w?.purchasePlace ?? "",
+      fee: feeText(w?.feeAmount ?? null),
+      payment: w?.feePaymentMethods ?? "",
+      inspectionPlace: w?.inspectionPlace ?? "",
+      inspectionHours: w?.inspectionHours ?? "",
+    },
+    checks: facts.checks,
+    request,
+    refused: facts.refused && !facts.standing && bought == null ? { on: formatDate(dayIn(facts.refused.requestedAt, ctx.org.timeZone)), reasons: facts.refused.checks.filter((c) => c.state === "BLOCK").map((c) => c.detail) } : null,
+    bought,
+    canRequest: blocks.length === 0 && facts.standing == null && facts.sale == null && facts.checks.length > 0,
+    table: inspectionReading(tableDocumentAvailability(ctx.phase), { approved: true }),
+    release: { state: release.state, short: releaseWords[release.state].short, detail: releaseWords[release.state].detail },
+  };
+}
+
+// ------------------------------------------------------------------ the outcome
+
+export interface OutcomeView {
+  standing: BidStanding;
+  /// The notice of the outcome issued to this supplier, if one was.
+  notice: { on: string; outcomeText: string; reasonText: string } | null;
+  /// An award was issued and none went to this supplier, so the supplier is told whether a notice was issued to it.
+  awardIssuedElsewhere: boolean;
+}
+
+export async function outcomeTab(client: Tx, actor: Who, ctx: BidContext): Promise<OutcomeView> {
+  const partyIds = ctx.parties.map((p) => p.id);
+  const [opened, awards, notice] = await Promise.all([
+    partyIds.length ? client.openedBid.count({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, partyId: { in: partyIds } } }) : Promise.resolve(0),
+    client.award.findMany({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId }, select: { status: true, awardeePartyId: true } }),
+    partyIds.length ? client.nonAwardNotice.findFirst({ where: { exerciseId: ctx.ex.id, organisationId: actor.organisationId, partyId: { in: partyIds } }, select: { issuedOn: true, outcomeText: true, reasonText: true } }) : Promise.resolve(null),
+  ]);
+  const issued = awards.find((a) => isIssuedAward(a.status));
+  const closed = ctx.ex.closingAt != null && ctx.now.getTime() >= ctx.ex.closingAt.getTime();
+  const standing = bidStanding({
+    status: ctx.ex.status as ExerciseStatus,
+    closed,
+    opened: opened > 0,
+    award: issued ? { issued: awardStands(issued.status), awardeeIsYou: issued.awardeePartyId != null && partyIds.includes(issued.awardeePartyId) } : null,
+  });
+  return { standing, notice: notice ? { on: formatDate(storedDay(notice.issuedOn)), outcomeText: notice.outcomeText, reasonText: notice.reasonText } : null, awardIssuedElsewhere: issued != null && !(issued.awardeePartyId != null && partyIds.includes(issued.awardeePartyId)) };
+}
+
+// ------------------------------------------------------------------ the overview
+
+export interface OverviewView {
+  facts: { closing: string | null; saleFrom: string | null; saleUntil: string | null; submissionPlace: string; via: "PUBLIC" | "LINKED"; parties: string[] };
+  standing: BidStanding;
+  /// What waits for the supplier, in words, most pressing first.
+  todo: string[];
+}
+
+export async function overviewTab(client: Tx, actor: Who, ctx: BidContext): Promise<OverviewView> {
+  const [briefings, addenda, documents, outcome] = await Promise.all([briefingsTab(client, actor, ctx), addendaTab(client, actor, ctx), documentsTab(client, actor, ctx), outcomeTab(client, actor, ctx)]);
+  const todo: string[] = [];
+  const toAck = addenda.addenda.filter((a) => a.canAcknowledge).length;
+  if (toAck > 0) todo.push(toAck === 1 ? "Acknowledge the addendum that came with your documents." : `Acknowledge ${toAck} addenda.`);
+  if (documents.bought) todo.push(documents.release.state === "READY" ? "The documents are released to you here." : documents.bought.receiptRecorded ? "Your documents were sold and the payment is recorded." : "Your documents were sold; the payment receipt is not recorded yet.");
+  else if (documents.request) todo.push("Your request for the documents is waiting for the procurement office.");
+  else if (documents.canRequest) todo.push("Ask for the documents when you are ready to collect them.");
+  else if (documents.refused) todo.push("Your last request for the documents was refused. The reasons are under Documents.");
+  const upcoming = briefings.rows.filter((r) => r.canSignUp && !r.cancelled);
+  if (upcoming.length > 0) todo.push(upcoming.length === 1 ? `Sign up for the ${upcoming[0]!.kindLabel.toLowerCase()} on ${upcoming[0]!.when}.` : `Sign up for the ${upcoming.length} briefings and site visits ahead.`);
+  if (outcome.notice) todo.push("A notice of the outcome has been issued to you. Read it under Outcome.");
+  const w = ctx.ex.window;
+  return {
+    facts: {
+      closing: ctx.ex.closingAt && ctx.ex.status !== "CANCELLED" ? instantText(ctx.ex.closingAt, ctx.org.timeZone) : null,
+      saleFrom: dayText(w?.purchaseFromDay ?? null),
+      saleUntil: dayText(w?.purchaseCloseDay ?? null),
+      submissionPlace: w?.submissionPlace ?? "",
+      via: ctx.seen.via,
+      parties: ctx.parties.map((p) => p.name),
+    },
+    standing: outcome.standing,
+    todo,
+  };
+}
