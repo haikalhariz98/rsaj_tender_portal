@@ -61,15 +61,17 @@ export async function OverviewPanel({ actor }: { actor: SupplierActor }) {
       )}
       {o.request && (
         <Callout
-          tone="warn"
-          title="The procurement office has asked for more"
+          tone={o.attention.waitingForYou === 0 ? "info" : "warn"}
+          title={o.attention.waitingForYou === 0 ? "You have answered the procurement office" : "The procurement office has asked for more"}
           action={
             <ButtonLink href="/supplier/company?tab=documents" variant="secondary" size="sm">
-              Open the request
+              {o.attention.waitingForYou === 0 ? "See what you sent" : "Open the request"}
             </ButtonLink>
           }
         >
-          {o.request.resubmitBy ? `Answer by ${formatDate(o.request.resubmitBy)}; after that day the application is rejected.` : "Answer it below."} {o.attention.waitingForYou} {o.attention.waitingForYou === 1 ? "thing is" : "things are"} waiting for you.
+          {o.attention.waitingForYou === 0
+            ? "You sent a document for everything the office asked for. The office is checking them and decides what happens next. You do not need to do anything more unless it asks again."
+            : `${o.request.resubmitBy ? `Answer by ${formatDate(o.request.resubmitBy)}; after that day the application is rejected.` : "Answer it below."} ${o.attention.waitingForYou} ${o.attention.waitingForYou === 1 ? "thing is" : "things are"} waiting for you.`}
         </Callout>
       )}
       {(o.attention.expired > 0 || o.attention.critical > 0) && (

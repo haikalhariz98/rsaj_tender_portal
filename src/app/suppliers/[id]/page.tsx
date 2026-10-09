@@ -56,7 +56,7 @@ import {
   VERIFICATION_LABEL,
   VERIFICATION_TONE,
 } from "@/lib/suppliers/labels";
-import { documentFacts, loadSupplier, loadSupplierConfig, supplierHistory, type LoadedSupplier, type SupplierConfig } from "@/lib/suppliers/repo";
+import { answeredOnTimeIds, documentFacts, loadSupplier, loadSupplierConfig, supplierHistory, type LoadedSupplier, type SupplierConfig } from "@/lib/suppliers/repo";
 import { applicationKindFaults, decisionFaults, fileFacts, isDecisionSnapshot, isOpen, openApplicationFaults, queueState, submitFaults, type BlacklistInEffect, type CancellationInEffect } from "@/lib/suppliers/review";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 import { PAPER_CHANNELS, APPLICATION_KINDS, blocking, SUPPLIER_REGISTRATION_DOMAIN, type ApplicationKind, type Finding, type SupplierStatus } from "@/lib/suppliers/types";
@@ -109,6 +109,8 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
   const docs = s.documents.map(documentFacts);
   const states = today ? documentStates(cfg.typeFacts, docs, today) : [];
   const open = s.applications.find(isOpen) ?? null;
+  // Phase 4c: the requests the supplier answered online in time (a passed deadline is then not a lapse).
+  const answeredHere = await answeredOnTimeIds(db, org.id, s.applications.map((a) => a.id));
   // a2: where it stands, derived on the organisation's day (OD-7 A), never stored.
   const reading = today ? standing({ status, registeredOn: day(s.registeredOn) }, s.standingEvents.map(standingEventFacts), states.filter((x) => x.mandatory).map((x) => ({ typeLabel: x.type.label, state: x.state })), { autoSuspendOnLapse: cfg.policy?.autoSuspendOnLapse ?? null }, today) : null;
   const linkedCount = s.parties.length + s.awards.filter((a) => !a.awardeePartyId).length;
@@ -144,7 +146,7 @@ export default async function SupplierPage(props: PageProps<"/suppliers/[id]">) 
           <span key="ref" className="font-mono text-[12.5px]">{s.reference}</span>,
           cfg.listName("ENTITY_TYPE", s.entityTypeCode) ?? "An entity type no longer listed",
           cfg.listName("COUNTRY", s.countryCode) ?? "A country no longer listed",
-          open ? `${APPLICATION_KIND_LABEL[open.kind as ApplicationKind].en}: ${QUEUE_STATE_LABEL[queueState({ ...open, resubmitBy: day(open.resubmitBy) }, today)].en.toLowerCase()}` : waitingForApplicant ? "Waiting for the applicant to complete registration online" : "No application open",
+          open ? `${APPLICATION_KIND_LABEL[open.kind as ApplicationKind].en}: ${QUEUE_STATE_LABEL[queueState({ ...open, resubmitBy: day(open.resubmitBy), answeredOnTime: answeredHere.has(open.id) }, today)].en.toLowerCase()}` : waitingForApplicant ? "Waiting for the applicant to complete registration online" : "No application open",
           sentOnline ? `Registration sent ${formatDate(day(sentOnline.receivedOn))}` : null,
           status === "REGISTERED" ? (s.erpVendorCode ? `Vendor code ${s.erpVendorCode}` : ERP_NOT_SYNCED.en) : null,
         ]}
@@ -414,6 +416,8 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
   // Phase 4b (FR-VND-006, BD-613-44): how each came in, the declaration its supplier signed online and whether that stands in for the paper, and whether its bank details were checked.
   const extras = new Map(await Promise.all(s.applications.map(async (a) => [a.id, await reviewFacts(db, l.org.id, s.id, a)] as const)));
   const anyOpen = s.applications.some(isOpen);
+  // Phase 4c: the requests the supplier answered online in time: a passed deadline then reads "answered online", and is not a lapse to record.
+  const answeredIds = await answeredOnTimeIds(db, l.org.id, s.applications.map((a) => a.id));
   // M-1: the kinds this supplier may open, by the act's own rule: a cancelled registration opens only a new one (the way back).
   const kinds = APPLICATION_KINDS.filter((k) => applicationKindFaults(k, s.status as SupplierStatus, cancellation).length === 0).map((k) => ({ value: k, label: APPLICATION_KIND_LABEL[k].en }));
   // FR-TRM-017 (fix S-2): a blacklisting in effect stops a renewal or upgrade, and its approval.
@@ -446,12 +450,12 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
         </Card>
       )}
       {s.applications.map((a) => {
-        const st = queueState({ ...a, resubmitBy: day(a.resubmitBy) }, today);
+        const st = queueState({ ...a, resubmitBy: day(a.resubmitBy), answeredOnTime: answeredIds.has(a.id) }, today);
         const isOpenNow = isOpen(a);
-        const f = today ? fileFacts({ status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((r) => r.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist, kind: a.kind as ApplicationKind, supplierStatus: s.status as SupplierStatus, cancellation, ...extras.get(a.id)! }, cfg.typeFacts, docs, today) : null;
+        const f = today ? fileFacts({ status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), answeredOnTime: answeredIds.has(a.id), routePending: a.routes.some((r) => r.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist, kind: a.kind as ApplicationKind, supplierStatus: s.status as SupplierStatus, cancellation, ...extras.get(a.id)! }, cfg.typeFacts, docs, today) : null;
         const preview = issue && isOpenNow ? supplierRoute(issue.matrix, SUPPLIER_REGISTRATION_DOMAIN, a.kind, { id: "", holds: () => false, ableToAct: () => ({ holderIds: ["someone"], delegateIds: [] }) }, REGISTRATION_MATTER) : null;
         const submitBlocker = !today ? supplierFaultText({ code: "TIME_ZONE_UNSET", level: "block" }) : first(submitFaults(f!, today)) ?? (!issue ? "No approval matrix is in force. Issue one under Configuration › Approval matrix." : preview?.refusal?.en ?? null);
-        const decideBlocker = (outcome: "RESUBMIT" | "REJECT") => first(decisionFaults({ outcome, remarks: "x", resubmitBy: null, items: [{ documentId: null, typeId: null, remarks: "x" }], personActive: true }, { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((r) => r.status === "PENDING") }, { today, documentIds: [], typeIds: [] }).filter((x) => ["TIME_ZONE_UNSET", "DECIDED", "LAPSE_UNRECORDED", "ROUTE_PENDING"].includes(x.code)));
+        const decideBlocker = (outcome: "RESUBMIT" | "REJECT") => first(decisionFaults({ outcome, remarks: "x", resubmitBy: null, items: [{ documentId: null, typeId: null, remarks: "x" }], personActive: true }, { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), answeredOnTime: answeredIds.has(a.id), routePending: a.routes.some((r) => r.status === "PENDING") }, { today, documentIds: [], typeIds: [] }).filter((x) => ["TIME_ZONE_UNSET", "DECIDED", "LAPSE_UNRECORDED", "ROUTE_PENDING"].includes(x.code)));
         const items = [
           ...s.documents.filter((d) => !d.renewedBy).map((d) => ({ name: `item:${d.id}`, label: `${d.typeLabelSnapshot}${d.reference ? ` ${d.reference}` : ""}: remarks` })),
           ...cfg.types.filter((t) => cfg.live(t, today) && !s.documents.some((d) => d.typeId === t.id)).map((t) => ({ name: `type:${t.id}`, label: `${t.nameEn} (not lodged): remarks` })),
@@ -491,6 +495,7 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
               {st === "WITH_APPROVAL" && <p className="text-[12.5px] text-ink-3">With approval: its route, below, decides it. A resubmission or a rejection is recorded once the route has refused it.</p>}
               {isOpenNow && st !== "LAPSED" && st !== "WITH_APPROVAL" && submitBlocker && <p className="text-[12.5px] text-ink-3"><span className="font-semibold text-ink-2">Send for decision:</span> not yet — {submitBlocker}</p>}
               {st === "LAPSED" && <Callout tone="err" title="The resubmission deadline has passed">It was due by {formatDate(day(a.resubmitBy))}. Recording the lapse rejects the application; a notice is shown, not sent.</Callout>}
+              {st === "ANSWERED" && <Callout tone="info" title="The supplier answered in time">The deadline ({formatDate(day(a.resubmitBy))}) has passed, and the supplier sent a document for every item the request asked for by then, so the application has not lapsed and is not rejected for it. Check what was sent, then approve it, ask again or reject it with reasons.</Callout>}
             </CardBody>
             {a.decisions.length > 0 && (
               <div className="border-t border-line">
@@ -509,8 +514,8 @@ async function ApplicationsPanel({ actor, l, cfg, people, blacklist, cancellatio
                           <ul className="list-disc pl-5 text-ink-2">
                             {d.items.map((i) => {
                               // Phase 4c (FR-VND-007): what the supplier sent online in answer to this item, newest first, with the officer's check of it.
-                              const answered = s.documents.filter((x) => x.answersItemId === i.id).sort((x, y) => y.recordedAt.getTime() - x.recordedAt.getTime());
-                              const latest = answered[0];
+                              const replies = s.documents.filter((x) => x.answersItemId === i.id).sort((x, y) => y.recordedAt.getTime() - x.recordedAt.getTime());
+                              const latest = replies[0];
                               return (
                                 <li key={i.id}>
                                   <span className="font-medium">{i.labelSnapshot}</span>: “{i.remarks}”

@@ -78,6 +78,6 @@ export async function verifyCreditorProfile(_prev: FormState, data: FormData): P
     // The office the officer held when they signed: the first the roster lists for them, organisation-wide before a department's (an officer who holds several is not asked which, yet).
     const office = actor.offices.find((o) => o.scope == null) ?? actor.offices[0];
     await act.write(tx, profile.id, { document: { entity: "CreditorProfile", id: profile.id }, roleCode: office?.roleCode });
-    return { ok: true, message: state === "VERIFIED" ? "The bank details are checked and in order. Payments to this supplier go to them." : "The bank details are marked as not in order, with your reasons. The supplier is told on its account page." };
+    return { ok: true, message: state === "VERIFIED" ? "The bank details are checked and in order. Payments to this supplier go to them." : "The bank details are marked as not in order, with your reasons. The supplier is told on its Company page, under Bank details." };
   });
 }

@@ -13,6 +13,7 @@ import { exerciseOrg } from "@/lib/method/repo";
 import type { DocumentFacts, DocumentTypeFacts, Provenance, RegistrationValueKind, SupplierListKind, VerificationState } from "./types";
 import { SUPPLIER_EXPIRY_EVENT } from "./expiry";
 import { REGISTRATION_NO_FORMAT_KEY } from "./types";
+import { isAnsweredOnTime } from "./review";
 import { cancellationEnded } from "./standing";
 import { deeperDisplaced } from "./documents";
 
@@ -322,6 +323,30 @@ export async function listSuppliers(organisationId: string, page = 0, today: str
   const expiring = soonest.map((g) => expiringRows.find((x) => x.id === g.supplierId)!).filter(Boolean);
   const standing = [...new Map([...barred, ...requested, ...lapsed].map((x) => [x.id, x])).values()].sort((a, b) => a.registeredName.localeCompare(b.registeredName) || a.id.localeCompare(b.id));
   return { org, page: at, suppliers, total, registered, unsynced, queue, queueTotal, expiring, expiringTotal, standing, standingTotal, barredCount };
+}
+
+/**
+ * Which of these applications were answered in time (Phase 4c, FR-VND-007 online): each is waiting on a supplier's resubmission, and every item of its latest request has a document the
+ * supplier lodged against it on or before the deadline day. Read for the whole set at once; derived from the documents, never stored (`isAnsweredOnTime` is the rule).
+ */
+export async function answeredOnTimeIds(client: Tx, organisationId: string, applicationIds: readonly string[]): Promise<Set<string>> {
+  if (applicationIds.length === 0) return new Set();
+  const rows = await client.supplierApplication.findMany({
+    where: { id: { in: [...applicationIds] }, organisationId, status: "RESUBMISSION_REQUESTED", resubmitBy: { not: null } },
+    select: { id: true, resubmitBy: true, decisions: { where: { outcome: "RESUBMIT" }, orderBy: { decidedAt: "desc" }, take: 1, select: { items: { select: { id: true, answers: { select: { lodgedOn: true } } } } } } },
+  });
+  return new Set(
+    rows
+      .filter((r) => {
+        const items = r.decisions[0]?.items ?? [];
+        return isAnsweredOnTime(
+          items,
+          items.flatMap((i) => i.answers.map((a) => ({ answersItemId: i.id, lodgedOn: storedDay(a.lodgedOn) }))),
+          r.resubmitBy ? storedDay(r.resubmitBy) : null,
+        );
+      })
+      .map((r) => r.id),
+  );
 }
 
 /// The supplier's History: every audit row on the supplier, its contacts, applications (and their routes and steps), decisions and documents.

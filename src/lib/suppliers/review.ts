@@ -20,12 +20,24 @@ import type { ApplicationChannel, ApplicationKind, ApplicationOutcome, Applicati
 /// Whether an application is still open: received or awaiting a resubmission, and no lapse recorded.
 export const isOpen = (a: { status: ApplicationStatus; lapsedRecordedAt: unknown }) => (a.status === "RECEIVED" || a.status === "RESUBMISSION_REQUESTED") && a.lapsedRecordedAt == null;
 
-export type LapseState = "NO_DEADLINE" | "OPEN" | "LAPSED";
+/// ANSWERED (Phase 4c, FR-VND-007 online): the day after the deadline, with every item of the request answered by a document the supplier lodged online on or before the deadline day. The
+/// supplier did what it was asked in time, so it is not lapsed and is not rejected for it: the office decides on what it sent (it may approve, ask again or reject, with reasons).
+export type LapseState = "NO_DEADLINE" | "OPEN" | "LAPSED" | "ANSWERED";
 
-/// A resubmission deadline on the organisation's day: still open on the day itself, lapsed the day after.
-export function lapseState(a: { status: ApplicationStatus; resubmitBy: string | null }, today: string): LapseState {
+/// A resubmission deadline on the organisation's day: still open on the day itself, lapsed the day after unless the request was answered in time.
+export function lapseState(a: { status: ApplicationStatus; resubmitBy: string | null; answeredOnTime?: boolean }, today: string): LapseState {
   if (a.status !== "RESUBMISSION_REQUESTED" || !a.resubmitBy) return "NO_DEADLINE";
-  return today > a.resubmitBy ? "LAPSED" : "OPEN";
+  if (today <= a.resubmitBy) return "OPEN";
+  return a.answeredOnTime === true ? "ANSWERED" : "LAPSED";
+}
+
+/**
+ * Whether a request was answered in time: it asked for something, and every item has at least one document the supplier lodged against it on or before the deadline day. Whether the office
+ * has checked an answer, or found it in order, is the office's to decide; an answer that was sent is an answer. Derived from the documents, never stored. Pure.
+ */
+export function isAnsweredOnTime(items: readonly { id: string }[], answers: readonly { answersItemId: string | null; lodgedOn: string }[], resubmitBy: string | null): boolean {
+  if (!resubmitBy || items.length === 0) return false;
+  return items.every((it) => answers.some((a) => a.answersItemId === it.id && a.lodgedOn <= resubmitBy));
 }
 
 export type ReviewFault =
@@ -34,6 +46,7 @@ export type ReviewFault =
   | "LAPSED"
   | "LAPSE_UNRECORDED"
   | "NOT_LAPSED"
+  | "ANSWERED_ON_TIME"
   | "ROUTE_PENDING"
   | "DECLARATION_DAY_REQUIRED"
   | "DECLARATION_SCAN_REQUIRED"
@@ -114,6 +127,8 @@ export interface FileFacts {
   /// acknowledgement), by the server's time. Absent: a paper application, as before.
   channel?: ApplicationChannel;
   onlineDeclaration?: { signedAt: string } | null;
+  /// Phase 4c: the supplier answered every item of the office's request online by the deadline, so a passed deadline is not a lapse (`lapseState`). Absent: not answered online.
+  answeredOnTime?: boolean;
   /// `SupplierPolicy.onlineDeclarationReplacesPaper`: whether a PORTAL application's online declaration stands in for the paper day and scan. Null or absent: not set, and the paper is still required.
   onlineDeclarationReplacesPaper?: boolean | null;
   /// Phase 4b (FR-VND-005): whether the supplier's latest sent creditor profile has been checked. NOT_ENTERED: none was sent (a paper application, whose bank details are not captured).
@@ -183,7 +198,7 @@ export interface DecisionInput {
  * so neither is recorded here. Not while a route is open on the file, nor on a lapsed request: that is
  * recorded first.
  */
-export function decisionFaults(i: DecisionInput, f: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy" | "routePending">, ctx: { today: string | null; documentIds: readonly string[]; typeIds: readonly string[] }): Finding<ReviewFault>[] {
+export function decisionFaults(i: DecisionInput, f: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy" | "routePending" | "answeredOnTime">, ctx: { today: string | null; documentIds: readonly string[]; typeIds: readonly string[] }): Finding<ReviewFault>[] {
   if (ctx.today == null) return [{ code: "TIME_ZONE_UNSET", level: "block" }];
   if (!isOpen(f)) return [{ code: "DECIDED", level: "block" }];
   const out: Finding<ReviewFault>[] = [];
@@ -206,10 +221,12 @@ export function decisionFaults(i: DecisionInput, f: Pick<FileFacts, "status" | "
 }
 
 /// Recording the rejection a lapsed deadline means: only on a request whose deadline has passed, once.
-export function lapseFaults(f: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy">, today: string | null): Finding<ReviewFault>[] {
+export function lapseFaults(f: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy" | "answeredOnTime">, today: string | null): Finding<ReviewFault>[] {
   if (today == null) return [{ code: "TIME_ZONE_UNSET", level: "block" }];
   if (!isOpen(f)) return [{ code: "DECIDED", level: "block" }];
-  if (lapseState(f, today) !== "LAPSED") return [{ code: "NOT_LAPSED", level: "block", data: { resubmitBy: f.resubmitBy } }];
+  const state = lapseState(f, today);
+  if (state === "ANSWERED") return [{ code: "ANSWERED_ON_TIME", level: "block", data: { resubmitBy: f.resubmitBy } }];
+  if (state !== "LAPSED") return [{ code: "NOT_LAPSED", level: "block", data: { resubmitBy: f.resubmitBy } }];
   return [];
 }
 
@@ -231,7 +248,7 @@ export function openApplicationFaults(kind: ApplicationKind | null, supplierStat
  * mandatory type's state from the supplier's documents. A retired type is neither required nor asked.
  */
 export function fileFacts(
-  app: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy" | "routePending" | "declarationSignedOn" | "declarationScanned" | "blacklist" | "kind" | "supplierStatus" | "cancellation" | "channel" | "onlineDeclaration" | "onlineDeclarationReplacesPaper" | "creditorProfile">,
+  app: Pick<FileFacts, "status" | "lapsedRecordedAt" | "resubmitBy" | "answeredOnTime" | "routePending" | "declarationSignedOn" | "declarationScanned" | "blacklist" | "kind" | "supplierStatus" | "cancellation" | "channel" | "onlineDeclaration" | "onlineDeclarationReplacesPaper" | "creditorProfile">,
   types: readonly DocumentTypeFacts[],
   docs: readonly DocumentFacts[],
   today: string,
@@ -261,12 +278,15 @@ export const isDecisionSnapshot = (v: unknown): v is DecisionSnapshot => !!v && 
 
 /// Where an application stands for the queue, derived on the organisation's day: a route open on it reads
 /// "with approval"; a request whose deadline passed reads "lapsed" before the lapse is recorded.
-export type QueueState = "RECEIVED" | "WITH_APPROVAL" | "RESUBMISSION_REQUESTED" | "LAPSED" | "APPROVED" | "REJECTED" | "REJECTED_ON_LAPSE";
+export type QueueState = "RECEIVED" | "WITH_APPROVAL" | "RESUBMISSION_REQUESTED" | "LAPSED" | "ANSWERED" | "APPROVED" | "REJECTED" | "REJECTED_ON_LAPSE";
 
-export function queueState(a: { status: ApplicationStatus; resubmitBy: string | null; lapsedRecordedAt: unknown; routes: readonly { status: string }[] }, today: string | null): QueueState {
+export function queueState(a: { status: ApplicationStatus; resubmitBy: string | null; lapsedRecordedAt: unknown; routes: readonly { status: string }[]; answeredOnTime?: boolean }, today: string | null): QueueState {
   if (a.status === "APPROVED") return "APPROVED";
   if (a.status === "REJECTED") return a.lapsedRecordedAt != null ? "REJECTED_ON_LAPSE" : "REJECTED";
   if (a.routes.some((r) => r.status === "PENDING")) return "WITH_APPROVAL";
-  if (a.status === "RESUBMISSION_REQUESTED") return today && lapseState(a, today) === "LAPSED" ? "LAPSED" : "RESUBMISSION_REQUESTED";
+  if (a.status === "RESUBMISSION_REQUESTED") {
+    const lapse = today ? lapseState(a, today) : "OPEN";
+    return lapse === "LAPSED" ? "LAPSED" : lapse === "ANSWERED" ? "ANSWERED" : "RESUBMISSION_REQUESTED";
+  }
   return "RECEIVED";
 }

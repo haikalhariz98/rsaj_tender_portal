@@ -33,7 +33,7 @@ export async function loadRegistrationStatus(actor: SupplierActor): Promise<Regi
           resubmitBy: true,
           decisions: {
             orderBy: { decidedAt: "desc" },
-            select: { id: true, outcome: true, decidedOn: true, remarks: true, resubmitBy: true, items: { select: { labelSnapshot: true, remarks: true } } },
+            select: { id: true, outcome: true, decidedOn: true, remarks: true, resubmitBy: true, items: { select: { labelSnapshot: true, remarks: true, answers: { select: { id: true }, take: 1 } } } },
           },
         },
       },
@@ -49,6 +49,8 @@ export async function loadRegistrationStatus(actor: SupplierActor): Promise<Regi
       status: a.status,
       receivedOn: storedDay(a.receivedOn),
       resubmitBy: a.resubmitBy ? storedDay(a.resubmitBy) : null,
+      // Answered: every item of the latest request has a document the supplier lodged against it.
+      answered: ((r) => r != null && r.items.length > 0 && r.items.every((i) => i.answers.length > 0))(a.decisions.find((d) => d.outcome === "RESUBMIT")),
       decisions: a.decisions.map((d) => ({ id: d.id, outcome: d.outcome, decidedOn: storedDay(d.decidedOn), remarks: d.remarks, resubmitBy: d.resubmitBy ? storedDay(d.resubmitBy) : null, items: d.items.map((i) => ({ label: i.labelSnapshot, remarks: i.remarks })) })),
     })),
   };

@@ -8,7 +8,8 @@ import { db } from "@/lib/db";
 import { UploadRefusal } from "@/lib/documents/service";
 import { sha256Hex } from "@/lib/documents/store";
 import { postgresBlobStore } from "@/lib/documents/store/postgres";
-import { creditorFaults as paymentCreditorFaults } from "@/lib/payment/eligibility";
+import { creditorStanding } from "@/lib/payment/creditor";
+import { creditorFactsOf } from "@/lib/payment/creditor-store";
 import { frozenWording } from "@/lib/portal/registration/declaration";
 import { CREDITOR_FIELDS, EMPTY_CREDITOR } from "@/lib/portal/registration/types";
 import { documentState } from "@/lib/suppliers/documents";
@@ -286,6 +287,32 @@ describe("answering the office's request online (FR-VND-007)", () => {
   });
 });
 
+describe("a request answered on the deadline day is not a lapse the day after (FR-VND-007 online)", () => {
+  it("is named answered in time once every item has a document lodged on or before the deadline day, and not before", async () => {
+    const today = await dayNow();
+    const s = await supplier("APPLICANT");
+    const app = await db.supplierApplication.create({ data: { organisationId, supplierId: s.supplierId, kind: "NEW", receivedOn: D("2026-10-01"), channel: "COUNTER", recordedByPersonId: (await makePerson(organisationId)).id, recordedAt: new Date(), status: "RESUBMISSION_REQUESTED", resubmitBy: D(today) } });
+    const person = await makePerson(organisationId);
+    const decision = await db.applicationDecision.create({
+      data: {
+        organisationId, applicationId: app.id, outcome: "RESUBMIT", remarks: "Send both.", resubmitBy: D(today), decidedByPersonId: person.id, decidedOn: D("2026-10-05"), decidedAt: new Date(),
+        items: { create: [{ organisationId, documentTypeId: typeReg, labelSnapshot: "The registry certificate", remarks: "Not given." }, { organisationId, documentTypeId: typeOther, labelSnapshot: "Another document", remarks: "Not given." }] },
+      },
+      include: { items: true },
+    });
+    const { answeredOnTimeIds } = await import("@/lib/suppliers/repo");
+    expect((await answeredOnTimeIds(db, organisationId, [app.id])).has(app.id)).toBe(false);
+    await replace(s.actor, { kind: "item", itemId: decision.items[0]!.id }, details());
+    expect((await answeredOnTimeIds(db, organisationId, [app.id])).has(app.id)).toBe(false);
+    await replace(s.actor, { kind: "item", itemId: decision.items[1]!.id }, details({ title: "Safety" }));
+    expect((await answeredOnTimeIds(db, organisationId, [app.id])).has(app.id)).toBe(true);
+    // A request that was decided is not waiting on the supplier any more.
+    await db.supplierApplication.update({ where: { id: app.id }, data: { status: "REJECTED" } });
+    expect((await answeredOnTimeIds(db, organisationId, [app.id])).has(app.id)).toBe(false);
+    expect(await answeredOnTimeIds(db, organisationId, [])).toEqual(new Set());
+  });
+});
+
 describe("what is waiting bounds what may be sent (the quota)", () => {
   it("counts the files of documents nobody has checked, and frees them as the office checks", async () => {
     const s = await supplier();
@@ -395,7 +422,8 @@ describe("changing the bank details after registration (the CPD rulings)", () =>
     const state = (await import("./bank")).bankState(rows.map((r) => ({ version: r.version, sent: r.submittedAt != null, verification: r.verification })));
     expect(state.inForce?.version).toBe(1);
     expect(state.waiting?.version).toBe(2);
-    expect(paymentCreditorFaults).toBeTypeOf("function");
+    // What a payment reads (BD-613-44): the version an officer checked is in force, and the new one changes nothing until it is checked.
+    expect(creditorStanding((await creditorFactsOf(db, organisationId, s.supplierId)).versions)).toEqual({ state: "IN_FORCE", version: 1, awaiting: 2 });
   });
 
   it("the trail names the fields entered and never the values", async () => {

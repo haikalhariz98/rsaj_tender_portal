@@ -219,6 +219,85 @@ describe("one officer checks the bank details", () => {
   });
 });
 
+describe("a version the supplier sent after registration is checked by one officer, and only then counts for payment (Phase 4c)", () => {
+  let sid = "";
+  let acc = "";
+  let first = "";
+  /// A fresh supplier, so the versions are counted from one: version 1 sent with a registration application whose route the holder holds, checked; then the changes.
+  beforeAll(async () => {
+    const t = `${run}x`;
+    const sup = await db.supplier.create({ data: { organisationId, reference: `CB/${t}`, registeredName: "Supplier CB", registrationNo: `CB-${t}`, registrationNoKey: `CB-${t}`.toUpperCase(), entityTypeCode: "x", countryCode: "x", registeredAddress: "Somewhere", companyEmail: "cb@x.invalid", status: "REGISTERED", registeredOn: day("2026-01-01") } });
+    sid = sup.id;
+    const c = await db.supplierContact.create({ data: { organisationId, supplierId: sid, name: "Contact B", isPrimary: true } });
+    acc = (await db.supplierAccount.create({ data: { organisationId, contactId: c.id, supplierId: sid, loginName: `cb.${t}`, loginKey: `cb.${t}`, passwordHash: "x", passwordChangedAt: new Date(), status: "ACTIVE" } })).id;
+    const app = await db.supplierApplication.create({ data: { organisationId, supplierId: sid, kind: "NEW", status: "APPROVED", receivedOn: day("2026-01-02"), channel: "COUNTER", recordedByPersonId: p.recorder, recordedAt: new Date("2026-01-02T02:00:00Z") } });
+    const route = await db.approvalInstance.create({ data: { organisationId, matterKind: "SUPPLIER", supplierApplicationId: app.id, domain: "supplier_registration", openedAt: new Date("2026-01-03T02:00:00Z") } });
+    await db.approvalStep.create({ data: { instanceId: route.id, sequence: 1, roleCode: OFFICE, roleLabel: "Approve", act: "A" } });
+    const v1 = await db.creditorProfile.create({ data: { organisationId, supplierId: sid, version: 1, beneficiaryName: "Beneficiary", bankCode: "b", bankAccountNo: "1234567890", bankAccountTypeCode: "c", enteredBySupplierAccountId: acc, submittedAt: new Date("2026-01-05T02:00:00Z") } });
+    first = v1.id;
+    await db.registrationDeclaration.create({ data: { organisationId, applicationId: app.id, creditorProfileId: v1.id, kind: "GIRO_AUTHORISATION", textId: giroTextId, textVersion: 1, textSha256: "0".repeat(64), frozenTextEn: "x", signatoryName: "S", signatoryDesignation: "D", signedOn: day("2026-01-05"), signedAt: new Date("2026-01-05T02:00:00Z"), signedBySupplierAccountId: acc } });
+    await attachStatement(v1.id, "v1");
+  });
+
+  async function attachStatement(profileId: string, tag: string) {
+    const bytes = new TextEncoder().encode(`%PDF-1.4 statement ${run} ${tag}`);
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    await db.blobContent.createMany({ data: [{ organisationId, sha256: sha, byteSize: BigInt(bytes.length), bytes, storedAt: new Date() }], skipDuplicates: true });
+    const cls = await db.documentClass.upsert({ where: { organisationId_code: { organisationId, code: "ca_statement" } }, update: {}, create: { organisationId, code: "ca_statement", nameEn: "Statements", classification: "SULIT" } });
+    const doc = await db.document.create({ data: { organisationId, title: `Statement ${tag} ${run}`, documentClassId: cls.id, classificationSnapshot: "SULIT", retentionSnapshot: {}, status: "FILED", filedAt: new Date() } });
+    const v = await db.documentVersion.create({ data: { organisationId, documentId: doc.id, versionNo: 1, sha256: sha, byteSize: BigInt(bytes.length), mediaType: "application/pdf", originalFilename: "statement.pdf", recordedBySupplierAccountId: acc, storedAt: new Date() } });
+    await db.documentAttachment.create({ data: { organisationId, purpose: "SUPPLIER_BANK_STATEMENT", versionId: v.id, creditorProfileId: profileId } });
+  }
+
+  /// A version sent the way the Company workspace sends one: superseding the highest, its authorisation naming the profile and no application.
+  async function change(version: number, supersedesId: string) {
+    const row = await db.creditorProfile.create({ data: { organisationId, supplierId: sid, version, supersedesId, beneficiaryName: "Beneficiary", bankCode: "b", bankAccountNo: `99887766${version}`, bankAccountTypeCode: "c", enteredBySupplierAccountId: acc, submittedAt: new Date("2026-10-05T02:00:00Z") } });
+    await db.registrationDeclaration.create({ data: { organisationId, applicationId: null, creditorProfileId: row.id, kind: "GIRO_AUTHORISATION", textId: giroTextId, textVersion: 1, textSha256: "0".repeat(64), frozenTextEn: "x", signatoryName: "S", signatoryDesignation: "D", signedOn: day("2026-10-05"), signedAt: new Date("2026-10-05T02:00:00Z"), signedBySupplierAccountId: acc } });
+    await attachStatement(row.id, `v${version}`);
+    return row.id;
+  }
+
+  const standing = async () => {
+    const { creditorFactsOf } = await import("@/lib/payment/creditor-store");
+    const { creditorStanding } = await import("@/lib/payment/creditor");
+    return creditorStanding((await creditorFactsOf(db, organisationId, sid)).versions);
+  };
+
+  it("version 1 is in force while version 2 waits; the officer the registration route names checks version 2 (no application of its own), and payment then goes to it", async () => {
+    expect((await check(first)).ok).toBe(true);
+    expect(await standing()).toEqual({ state: "IN_FORCE", version: 1, awaiting: null });
+    const v2 = await change(2, first);
+    // Waiting: the earlier checked version stays in force, and the later one changes nothing.
+    expect(await standing()).toEqual({ state: "IN_FORCE", version: 1, awaiting: 2 });
+    h.written.length = 0;
+    const res = await check(v2);
+    expect(res.ok).toBe(true);
+    expect(await stored(v2)).toMatchObject({ verification: "VERIFIED", verifiedByPersonId: p.holder });
+    expect(h.written.filter((w) => w.entity === "CreditorProfile")).toHaveLength(1);
+    expect((await events(v2)).map((e) => [e.actorPersonId, e.outcome, e.basis])).toEqual([[p.holder, "GRANTED", "NAMED_ON_RECORD"]]);
+    expect(await standing()).toEqual({ state: "IN_FORCE", version: 2, awaiting: null });
+  });
+
+  it("a version found not in order leaves the version in force in force, and says why", async () => {
+    expect(await standing()).toMatchObject({ state: "IN_FORCE", version: 2 });
+    const v3 = await change(3, (await db.creditorProfile.findFirstOrThrow({ where: { supplierId: sid, version: 2 } })).id);
+    expect(await standing()).toEqual({ state: "IN_FORCE", version: 2, awaiting: 3 });
+    expect((await check(v3, { verification: "NOT_IN_ORDER", verificationNote: "The account number does not match the statement." })).ok).toBe(true);
+    expect(await stored(v3)).toMatchObject({ verification: "NOT_IN_ORDER", verificationNote: "The account number does not match the statement." });
+    expect(await standing()).toEqual({ state: "IN_FORCE", version: 2, awaiting: null });
+  });
+
+  it("someone the registration route does not name, with no grant, may not read or check a later version either, and the refusal is logged", async () => {
+    const v4 = await change(4, (await db.creditorProfile.findFirstOrThrow({ where: { supplierId: sid, version: 3 } })).id);
+    h.who = staff(p.finance);
+    const res = await check(v4);
+    expect(res.ok).toBe(false);
+    expect((await stored(v4)).verification).toBe("NOT_CHECKED");
+    expect((await events(v4)).map((e) => [e.actorPersonId, e.outcome])).toEqual([[p.finance, "WITHHELD"]]);
+    expect(await standing()).toEqual({ state: "IN_FORCE", version: 2, awaiting: 4 });
+  });
+});
+
 describe("an officer checks a document's expiry against the certificate (Phase 4b)", () => {
   let typeId = "";
   /// A document the supplier lodged, expiring on a day it said, with a live scan.

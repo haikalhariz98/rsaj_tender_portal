@@ -16,7 +16,8 @@ import { routeState } from "@/lib/suppliers/blacklist";
 import { documentStates, stateCounts } from "@/lib/suppliers/documents";
 import { expiryBand, reminderDue, startsOn, worstBand, type ExpiryBand } from "@/lib/suppliers/expiry";
 import { APPLICATION_KIND_LABEL, blacklistEndWords, CHANNEL_LABEL, eventReasonWords, renewalUpcomingWords, DOCUMENT_STATE_LABEL, ERP_NOT_SYNCED, EXPIRY_BAND_LABEL, EXPIRY_BAND_TONE, QUEUE_STATE_LABEL, QUEUE_STATE_TONE, REMINDER_NOT_SENT, REQUEST_KIND_LABEL, standingTone, standingWords, SUPPLIER_STATUS_LABEL, SUPPLIER_STATUS_TONE } from "@/lib/suppliers/labels";
-import { documentFacts, listSuppliers, loadSupplierConfig, supplierOrg, SUPPLIERS_PAGE } from "@/lib/suppliers/repo";
+import { db } from "@/lib/db";
+import { answeredOnTimeIds, documentFacts, listSuppliers, loadSupplierConfig, supplierOrg, SUPPLIERS_PAGE } from "@/lib/suppliers/repo";
 import { queueState, type QueueState } from "@/lib/suppliers/review";
 import { standing } from "@/lib/suppliers/standing";
 import { standingEventFacts } from "@/lib/suppliers/standing-repo";
@@ -55,6 +56,8 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   }
   const { suppliers, expiring, standing: standingSuppliers, queue: openApplications } = data;
   const [online, intake] = await Promise.all([loadPortalQueue(org0.id), loadRegistrationForm()]);
+  // Phase 4c: which requests the supplier answered online in time, so a passed deadline reads "answered online" and not "lapsed".
+  const answered = await answeredOnTimeIds(db, org0.id, [...openApplications.map((a) => a.id), ...suppliers.flatMap((s) => s.applications.map((a) => a.id))]);
   const pages = Math.max(1, Math.ceil(data.total / SUPPLIERS_PAGE));
   const typeExpires = new Map(cfg.types.map((t) => [t.id, t.expires]));
 
@@ -100,7 +103,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
         where: {
           kind: "chips",
           items: [
-            ...(open ? [{ text: `${APPLICATION_KIND_LABEL[open.kind as ApplicationKind].en}: ${QUEUE_STATE_LABEL[queueState({ ...open, resubmitBy: day(open.resubmitBy) }, today)].en.toLowerCase()}`, tone: "brand" as const }] : []),
+            ...(open ? [{ text: `${APPLICATION_KIND_LABEL[open.kind as ApplicationKind].en}: ${QUEUE_STATE_LABEL[queueState({ ...open, resubmitBy: day(open.resubmitBy), answeredOnTime: answered.has(open.id) }, today)].en.toLowerCase()}`, tone: "brand" as const }] : []),
             ...(status === "REGISTERED" ? [s.erpVendorCode ? { text: `Vendor code ${s.erpVendorCode}`, tone: "ok" as const } : { text: ERP_NOT_SYNCED.en, tone: "warn" as const }] : []),
           ],
         },
@@ -111,7 +114,7 @@ export default async function SuppliersPage(props: { searchParams: Promise<{ tab
   // ------------------------------------------------------------------ the applications queue
   const queue: Row[] = openApplications.map((a) => {
     const s = a.supplier;
-    const st: QueueState = queueState({ ...a, resubmitBy: day(a.resubmitBy) }, today);
+    const st: QueueState = queueState({ ...a, resubmitBy: day(a.resubmitBy), answeredOnTime: answered.has(a.id) }, today);
     const received = storedDay(a.receivedOn);
     const age = today ? daysBetween(received, today) : null;
     return {

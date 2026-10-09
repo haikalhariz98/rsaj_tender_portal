@@ -97,6 +97,8 @@ export const APPLICATION_STATUS_TONE: Readonly<Record<ApplicationStatus, "ok" | 
 
 /// An application whose resubmission deadline has passed: derived (no scheduler), shown before it is recorded.
 export const LAPSED_LABEL = w("Lapsed: deadline passed", "Luput: tarikh akhir telah berlalu");
+/// The deadline has passed and the supplier answered every item of the request online in time (Phase 4c): the office decides on what it sent.
+export const ANSWERED_LABEL = w("Answered online, with the office", "Dijawab dalam talian, bersama pejabat");
 export const LAPSE_RECORDED_LABEL = w("Rejected on lapse", "Ditolak kerana luput");
 export const IN_DECISION_LABEL = w("With approval", "Dalam kelulusan");
 
@@ -105,11 +107,12 @@ export const QUEUE_STATE_LABEL: Readonly<Record<QueueState, Words>> = {
   WITH_APPROVAL: IN_DECISION_LABEL,
   RESUBMISSION_REQUESTED: w("Resubmission requested", "Penghantaran semula diminta"),
   LAPSED: LAPSED_LABEL,
+  ANSWERED: ANSWERED_LABEL,
   APPROVED: w("Approved", "Diluluskan"),
   REJECTED: w("Rejected", "Ditolak"),
   REJECTED_ON_LAPSE: LAPSE_RECORDED_LABEL,
 };
-export const QUEUE_STATE_TONE: Readonly<Record<QueueState, "ok" | "warn" | "err" | "info" | "neutral">> = { RECEIVED: "info", WITH_APPROVAL: "info", RESUBMISSION_REQUESTED: "warn", LAPSED: "err", APPROVED: "ok", REJECTED: "neutral", REJECTED_ON_LAPSE: "neutral" };
+export const QUEUE_STATE_TONE: Readonly<Record<QueueState, "ok" | "warn" | "err" | "info" | "neutral">> = { RECEIVED: "info", WITH_APPROVAL: "info", RESUBMISSION_REQUESTED: "warn", LAPSED: "err", ANSWERED: "info", APPROVED: "ok", REJECTED: "neutral", REJECTED_ON_LAPSE: "neutral" };
 
 export const OUTCOME_LABEL: Readonly<Record<ApplicationOutcome, Words>> = {
   APPROVE: w("Approved", "Diluluskan"),
@@ -263,6 +266,7 @@ const TEXT: Record<AnyFault, (d: Record<string, string | number | null>) => Word
   DECIDED: () => w("The application is already decided.", "Permohonan sudah diputuskan."),
   LAPSED: (d) => w(`The resubmission deadline (${day(d.resubmitBy)}) has passed. Record the lapse first.`, `Tarikh akhir penghantaran semula (${day(d.resubmitBy)}) telah berlalu. Rekodkan luput dahulu.`),
   LAPSE_UNRECORDED: (d) => w(`The resubmission deadline (${day(d.resubmitBy)}) has passed: record the lapse, which rejects the application.`, `Tarikh akhir penghantaran semula (${day(d.resubmitBy)}) telah berlalu: rekodkan luput, yang menolak permohonan.`),
+  ANSWERED_ON_TIME: (d) => w(`The supplier answered everything the office asked for online by the deadline (${day(d.resubmitBy)}), so the application has not lapsed and is not rejected for it. Decide it on what was sent: approve it, ask again, or reject it with reasons.`, `Pembekal menjawab semua yang diminta pejabat dalam talian sebelum tarikh akhir (${day(d.resubmitBy)}), jadi permohonan tidak luput dan tidak ditolak kerananya. Putuskan berdasarkan apa yang dihantar: luluskan, minta semula, atau tolak dengan sebab.`),
   NOT_LAPSED: (d) => w(d.resubmitBy ? `The deadline (${day(d.resubmitBy)}) has not passed: it lapses the day after.` : "No resubmission deadline stands on it.", d.resubmitBy ? `Tarikh akhir (${day(d.resubmitBy)}) belum berlalu: ia luput sehari selepasnya.` : "Tiada tarikh akhir penghantaran semula padanya."),
   ROUTE_PENDING: () => w("It is with approval: wait for the route's decision.", "Ia dalam kelulusan: tunggu keputusan laluan."),
   DECLARATION_DAY_REQUIRED: () => w("Record the day the paper declaration was signed.", "Rekodkan tarikh akuan bertulis ditandatangani."),

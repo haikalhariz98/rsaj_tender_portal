@@ -25,6 +25,8 @@ export interface StatusApplication {
   receivedOn: string;
   resubmitBy: string | null;
   decisions: readonly StatusDecision[];
+  /// Phase 4c (FR-VND-007 online): the supplier sent something for every item of the office's latest request. Derived from the documents lodged against the items.
+  answered?: boolean;
 }
 
 export interface StatusDecision {
@@ -57,11 +59,12 @@ export const applicationKindWords = (k: StatusApplication["kind"]): Words => KIN
 export const applicationChannelWords = (c: StatusApplication["channel"]): Words => CHANNEL[c];
 
 /// The state of one application, in the supplier's words, and how much it needs the supplier to do.
-export function applicationStatusWords(a: Pick<StatusApplication, "status" | "resubmitBy">, day: (d: string) => string): { title: Words; detail: Words; tone: StatusTone } {
+export function applicationStatusWords(a: Pick<StatusApplication, "status" | "resubmitBy" | "answered">, day: (d: string) => string): { title: Words; detail: Words; tone: StatusTone } {
   switch (a.status) {
     case "RECEIVED":
       return { title: w("With the procurement office", "Bersama pejabat perolehan"), detail: w("It has been received and is waiting for the office to decide it. Nothing more is needed from you unless the office asks.", "Ia telah diterima dan menunggu keputusan pejabat. Anda tidak perlu berbuat apa-apa lagi melainkan pejabat memintanya."), tone: "info" };
     case "RESUBMISSION_REQUESTED":
+      if (a.answered) return { title: w("You have answered the office", "Anda telah menjawab pejabat"), detail: w("You sent a document for everything the office asked for. The office is checking them and decides what happens next. You do not need to do anything more unless it asks again.", "Anda telah menghantar dokumen bagi setiap yang diminta pejabat. Pejabat sedang menyemaknya dan memutuskan langkah seterusnya. Anda tidak perlu berbuat apa-apa lagi melainkan pejabat memintanya semula."), tone: "info" };
       return {
         title: w("The office has asked for more", "Pejabat meminta maklumat tambahan"),
         detail: a.resubmitBy
@@ -90,11 +93,12 @@ export function outcomeWords(o: StatusDecision["outcome"]): Words {
 }
 
 /// Where the supplier stands as a registrant, in one line each way, from its status and its most recent application.
-export function supplierStatusWords(s: StatusSupplier, latest: Pick<StatusApplication, "status"> | null, day: (d: string) => string): { title: Words; detail: Words; tone: StatusTone } {
+export function supplierStatusWords(s: StatusSupplier, latest: Pick<StatusApplication, "status" | "answered"> | null, day: (d: string) => string): { title: Words; detail: Words; tone: StatusTone } {
   if (s.status === "REGISTERED") {
     return { title: w("Registered", "Berdaftar"), detail: s.registeredOn ? w(`On the supplier register since ${day(s.registeredOn)}.`, `Dalam daftar pembekal sejak ${day(s.registeredOn)}.`) : w("On the supplier register.", "Dalam daftar pembekal."), tone: "ok" };
   }
   if (s.status === "REJECTED") return { title: w("Application not accepted", "Permohonan tidak diterima"), detail: w("Your company is not on the register. You can apply again.", "Syarikat anda tidak berada dalam daftar. Anda boleh memohon semula."), tone: "neutral" };
+  if (latest?.status === "RESUBMISSION_REQUESTED" && latest.answered) return { title: w("With the procurement office", "Bersama pejabat perolehan"), detail: w("You have answered what the office asked for, and it is checking it.", "Anda telah menjawab apa yang diminta pejabat, dan ia sedang menyemaknya."), tone: "info" };
   if (latest?.status === "RESUBMISSION_REQUESTED") return { title: w("Waiting for you", "Menunggu anda"), detail: w("The office has asked for more before it can decide.", "Pejabat meminta maklumat tambahan sebelum ia boleh membuat keputusan."), tone: "warn" };
   return { title: w("Application in progress", "Permohonan sedang diproses"), detail: w("Your company is not on the register yet.", "Syarikat anda belum berada dalam daftar."), tone: "info" };
 }

@@ -124,7 +124,7 @@ export function VerifyCreditorDrawer({ profileId, version, today, blocker }: { p
         { kind: "select", name: "verification", label: "Outcome", required: true, placeholder: "Choose", options: [{ value: "VERIFIED", label: "In order" }, { value: "NOT_IN_ORDER", label: "Not in order" }] },
         actorField("CreditorProfile.verifiedBy", { name: "personId", dated: true }),
         { kind: "date", name: "verifiedOn", label: "Checked on", required: true, hint: "Not after today, nor before the supplier sent them." },
-        { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required where they are not in order: the supplier is told on its account page." },
+        { kind: "textarea", name: "verificationNote", label: "Why", hint: "Required where they are not in order: the supplier is told on its Company page, under Bank details." },
       ]}
       values={{ profileId, verifiedOn: today }}
       action={verifyCreditorProfile}

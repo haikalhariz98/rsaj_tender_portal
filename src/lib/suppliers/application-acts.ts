@@ -15,6 +15,7 @@ import { dayToDate, storedDay } from "@/lib/dates";
 import { SUPPLIER_ENTITY } from "./audit-view";
 import { OUTCOME_LABEL, supplierFaultText } from "./labels";
 import { supplierApplicationLabel } from "./lock";
+import { answeredOnTimeIds } from "./repo";
 import { decisionFaults } from "./review";
 import { blocking } from "./types";
 import { activePerson, audit, CHANGED, GONE, label, Refusal, type LockedSupplier } from "./write";
@@ -102,7 +103,7 @@ export async function recordOutcome(tx: Tx, actor: AuditActor, l: LockedSupplier
   const [docs, types] = await Promise.all([tx.supplierDocument.findMany({ where: { supplierId }, select: { id: true, typeLabelSnapshot: true, reference: true } }), tx.supplierDocumentType.findMany({ where: { organisationId: l.org.id }, select: { id: true, nameEn: true } })]);
   const fs = decisionFaults(
     { outcome: outcome === "RESUBMIT" ? "RESUBMIT" : "REJECT", remarks, resubmitBy, items: outcome === "RESUBMIT" ? items : [], personActive: !!person },
-    { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((x) => x.status === "PENDING") },
+    { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((x) => x.status === "PENDING"), answeredOnTime: (await answeredOnTimeIds(tx, l.org.id, [a.id])).has(a.id) },
     { today: l.org.today, documentIds: docs.map((d) => d.id), typeIds: types.map((t) => t.id) },
   );
   if (blocking(fs).length) {

@@ -34,7 +34,7 @@ import { applicationFaults, contactFaults, normaliseRegistrationNo, receiptFault
 import type { DocumentState } from "@/lib/suppliers/documents";
 import { APPLICATION_KIND_LABEL, approvedWords, CHANNEL_LABEL, DOCUMENT_STATE_LABEL, OUTCOME_LABEL, REGISTRATION_MATTER, REGISTRATION_REFUSED_DECIDED_BY, SUPPLIER_DECIDER_TEXT, SUPPLIER_STATUS_LABEL, supplierFaultText, VERIFICATION_LABEL } from "@/lib/suppliers/labels";
 import { supplierApplicationLabel, supplierDocumentLabel, supplierOfApplication, supplierOfDocument } from "@/lib/suppliers/lock";
-import { documentFacts, loadSupplierConfig, supplierOrg, typeFacts } from "@/lib/suppliers/repo";
+import { answeredOnTimeIds, documentFacts, loadSupplierConfig, supplierOrg, typeFacts } from "@/lib/suppliers/repo";
 import { approveFaults, decisionSnapshot, fileFacts, isOpen, lapseFaults, openApplicationFaults, submitFaults, type FileFacts } from "@/lib/suppliers/review";
 import { supplierHolders, supplierRoute } from "@/lib/suppliers/route";
 import { standingOf } from "@/lib/suppliers/standing-repo";
@@ -630,8 +630,10 @@ async function fileOf(tx: Tx, l: LockedSupplier, a: { id: string; channel: Appli
     // Phase 4b (FR-VND-006, BD-613-44): how it came in, the declaration its supplier signed online and whether that stands in for the paper, and whether its bank details were checked.
     reviewFacts(tx, l.org.id, l.supplier.id, a),
   ]);
+  // Phase 4c: a deadline that passed on a request the supplier answered online in time is not a lapse.
+  const answered = (await answeredOnTimeIds(tx, l.org.id, [a.id])).has(a.id);
   const f = fileFacts(
-    { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), routePending: a.routes.some((x) => x.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist: st?.reading.blacklist ?? null, kind: a.kind as ApplicationKind, supplierStatus: l.supplier.status as SupplierStatus, cancellation: st?.reading.cancellation ?? null, ...extras },
+    { status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), answeredOnTime: answered, routePending: a.routes.some((x) => x.status === "PENDING"), declarationSignedOn: day(a.declarationSignedOn), declarationScanned: a.attachments.some((x) => x.purpose === "SUPPLIER_DECLARATION" && isLive(x)), blacklist: st?.reading.blacklist ?? null, kind: a.kind as ApplicationKind, supplierStatus: l.supplier.status as SupplierStatus, cancellation: st?.reading.cancellation ?? null, ...extras },
     types.map(typeFacts),
     docs.map(documentFacts),
     l.org.today ?? "0000-01-01",
@@ -879,7 +881,7 @@ export async function recordLapse(_prev: FormState, data: FormData): Promise<For
     await tx.$queryRaw`SELECT id FROM "SupplierApplication" WHERE id = ${applicationId} FOR UPDATE`;
     const a = await tx.supplierApplication.findFirst({ where: { id: applicationId, supplierId, organisationId: actor.organisationId }, include: appInclude });
     if (!a) return GONE;
-    const fs = lapseFaults({ status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy) }, l.org.today);
+    const fs = lapseFaults({ status: a.status, lapsedRecordedAt: a.lapsedRecordedAt, resubmitBy: day(a.resubmitBy), answeredOnTime: (await answeredOnTimeIds(tx, l.org.id, [a.id])).has(a.id) }, l.org.today);
     if (blocking(fs).length) return refuse(fs, "Not recorded:");
     const today = l.org.today!;
     const remarks = `The resubmission deadline of ${formatDate(day(a.resubmitBy))} passed with the resubmission not received.`;
