@@ -138,9 +138,9 @@ export async function recordCertificateSignature(_prev: FormState, data: FormDat
   }
   const personId = act?.subjectPersonId ?? null;
   const signedOnDay = act ? act.day : signedOn ? storedDay(signedOn) : null;
-  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", (c) =>
-    recordSignature(c, { blockOrder, personId: personId || null, act, name, icNumber, signedOn: signedOnDay, refused: refused === "yes", refusalNote, decision: decision ?? null, decisionCap: cap ? senToDecimalString(parseSen(cap)) : null }),
-  );
+  return inCertificate(actor, toAuditActor(actor), certOf(data), now, "PRE_ISSUE", async (c) => {
+    await recordSignature(c, { blockOrder, personId: personId || null, act, name, icNumber, signedOn: signedOnDay, refused: refused === "yes", refusalNote, decision: decision ?? null, decisionCap: cap ? senToDecimalString(parseSen(cap)) : null });
+  });
 }
 
 export async function overrideCertificateFigure(_prev: FormState, data: FormData): Promise<FormState> {

@@ -51,7 +51,7 @@ export async function overviewTab(client: Tx, actor: Who, ctx: ProjectContext): 
   const today = ctx.org.today;
   const [possession, baselines, assignments, entries, certs, submissions] = await Promise.all([
     client.possession.findUnique({ where: { contractId: ctx.contract.id }, select: { possessionOn: true } }),
-    client.contractBaseline.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, version: { not: null } }, select: { id: true, version: true, recordedOn: true, dateForCompletion: true } }),
+    client.contractBaseline.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, version: { not: null } }, select: { id: true, version: true, reason: true, recordedOn: true, dateForCompletion: true } }),
     client.contractSoAssignment.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId }, select: { id: true, roleCode: true, roleLabel: true, effectiveOn: true, recordedAt: true } }),
     client.siteDiaryEntry.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId }, select: { day: true, agentAttestedOn: true, officerAttestedOn: true, disagreement: true } }),
     client.certificate.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, status: "SIGNING", kind: { in: ["VARIATION", "SUM_ADJUSTMENT"] } }, select: { kind: true, status: true, templateRevision: true, signatures: { select: { blockOrder: true } } } }),
@@ -109,7 +109,7 @@ export async function programmeTab(client: Tx, actor: Who, ctx: ProjectContext):
   const [s, policy, baselines] = await Promise.all([
     loadSupervision(ctx.contract.id, client),
     loadPostAwardPolicy(actor.organisationId, client),
-    client.contractBaseline.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, version: { not: null } }, select: { id: true, version: true, recordedOn: true, dateForCompletion: true } }),
+    client.contractBaseline.findMany({ where: { contractId: ctx.contract.id, organisationId: actor.organisationId, version: { not: null } }, select: { id: true, version: true, reason: true, recordedOn: true, dateForCompletion: true } }),
   ]);
   const revisions = revisionsOf(s);
   const inForce = today ? programmeInForce(revisions, today) : null;
