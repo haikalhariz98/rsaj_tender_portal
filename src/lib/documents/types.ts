@@ -234,11 +234,21 @@ export const PURPOSE_CLASSIFICATION: Readonly<Partial<Record<AttachmentPurpose, 
   SUPPLIER_BANK_STATEMENT: "SULIT",
 };
 
-/// The types the product can tell from a file's own bytes. Office files and ZIP are not
-/// among them: a ZIP signature cannot tell a DOCX from anything else. HTML and SVG never.
-/// CSV (6.2 Q-3, a bill of quantities as received) is told by its bytes being clean UTF-8
-/// text whose first line has a comma (`sniffMediaType`).
-export const KNOWN_MEDIA_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/tiff", "text/csv"] as const;
+/// The types the product can tell from a file's own bytes. A bare ZIP is not among them,
+/// and neither is anything with macros: a ZIP signature alone cannot tell a workbook from
+/// any other archive. HTML and SVG never. CSV (6.2 Q-3, a bill of quantities as received) is
+/// told by its bytes being clean UTF-8 text whose first line has a comma (`sniffMediaType`).
+/// A workbook (.xlsx) and a Word document (.docx) are told by the names their archive lists
+/// (`ooxmlTypeOf`, SR-09 and SR-11: the bill of quantities and the template files are Office files).
+export const KNOWN_MEDIA_TYPES = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/tiff",
+  "text/csv",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+] as const;
 export type KnownMediaType = (typeof KNOWN_MEDIA_TYPES)[number];
 export const isKnownMediaType = (t: string): t is KnownMediaType => (KNOWN_MEDIA_TYPES as readonly string[]).includes(t);
 

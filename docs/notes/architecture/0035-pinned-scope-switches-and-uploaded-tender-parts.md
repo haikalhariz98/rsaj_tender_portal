@@ -50,9 +50,10 @@ for, and an exercise already in flight must not have its gates rewritten by a la
 5. **Optional parts with nothing to issue are recorded "Not issued".** At submission an optional part with no file (and, for a
    merged-text part, no complete merge) is written as omitted with the reason "Not issued", with a History row. A mandatory part with
    nothing to issue still blocks. This reuses the existing omitted state, so no reader changes.
-6. **The bill of quantities, when the on-screen bill is not used, is an uploaded part.** At the start of a pack the part configured as the
-   bill of quantities is snapshotted as an uploaded part, with an audit reason citing SR-09. The freeze by hash then comes from item 4.
-   Nothing about the configured part changes for an exercise that uses the on-screen bill.
+6. **The bill of quantities, when the on-screen bill is not used, is an uploaded part.** The part configured as the bill of quantities
+   (source "the bill, unpriced") is read as an uploaded part on an exercise pinned off: derived from the pin, not rewritten on the pack, so the
+   pack still says what was configured. The freeze by hash then comes from item 4. Nothing about the part changes for an exercise that uses the
+   on-screen bill.
 7. **Scope approval is keyed to the bill's file version** where the bill is not on screen. `CommitteeDecision.scopeFileVersionId` is a
    typed key to the `DocumentVersion` of the bill part's live file, set only on a SCOPE matter and never together with `bqVersionId`
    (CHECK). A replaced file is a new version, so an approval of the old one does not speak for the new: it lapses. A returned pack
@@ -71,6 +72,14 @@ for, and an exercise already in flight must not have its gates rewritten by a la
 10. **Uploads use the existing store and attachment rules.** The purpose is the existing `TENDER_PART`, owned by the pack's part. It was
     accepted only on an `UPLOAD` source; it is now also accepted on a merged-text part and, when the on-screen bill is not used, on the
     bill part. Never on the Appendix, which stays a form because its entries feed the contract baseline (SR-12).
+
+11. **The store recognises a workbook and a Word document.** The store told a file's type from its own bytes and refused every ZIP, because a ZIP
+    signature cannot tell a workbook from any other archive; that left the bill of quantities' Excel, and every template file, unable to be
+    uploaded. A ZIP is now told to be a workbook (.xlsx) or a Word document (.docx) by the names its central directory lists, read from the end
+    of the file and never unpacked: it must hold `[Content_Types].xml` and `xl/workbook.xml` (or `word/document.xml`, not both) and no macro
+    project, no encryption and no ZIP64. Anything else stays refused as an archive. The two types join the known types; whether an organisation
+    accepts them stays its own upload rule (Configuration, Documents), which ships unset. Legacy .xls and .doc are not recognised. This changes
+    the store's contract for staff uploads only; the supplier portal's uploads still read the first bytes alone, and so still refuse a ZIP.
 
 ## Consequences
 

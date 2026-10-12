@@ -9,7 +9,7 @@
 
 import { isKnownMediaType, type Finding, type KnownMediaType, type StorePolicy } from "./types";
 
-/// What a file's opening bytes say it is. The last three are recognised only to be refused.
+/// What a file's opening bytes say it is. A ZIP, HTML and SVG are recognised only to be refused (a ZIP that is a workbook or a Word document is told apart by `ooxmlTypeOf`, from its end).
 export type Sniffed = KnownMediaType | "application/zip" | "text/html" | "image/svg+xml" | null;
 
 /// How many opening bytes `sniffMediaType` looks at.
@@ -62,7 +62,65 @@ function looksLikeCsv(head: Uint8Array): boolean {
   return firstLine.includes(",");
 }
 
+
+// ------------------------------------------------------------------ Office files (SR-09, SR-11)
+
+/// The two Office Open XML types the product tells apart from a ZIP by what the archive holds. Macro-enabled files (.xlsm, .docm) are neither: they are refused as an archive.
+export const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+export const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+/// How many closing bytes of a ZIP file `ooxmlTypeOf` needs: its end record and its central directory, which names every entry. A workbook or document has a few dozen.
+export const ARCHIVE_TAIL_BYTES = 256 * 1024;
+
+const u16 = (b: Uint8Array, at: number) => b[at] | (b[at + 1] << 8);
+const u32 = (b: Uint8Array, at: number) => (b[at] | (b[at + 1] << 8) | (b[at + 2] << 16) | (b[at + 3] << 24)) >>> 0;
+
+/**
+ * What a ZIP file is, told from the names its central directory lists (NFR-SEC-007). A ZIP signature alone cannot tell a workbook from any other archive, but a workbook's
+ * archive holds `[Content_Types].xml` and `xl/workbook.xml`, and a Word document's holds `word/document.xml`. The names are read from the end of the file (`tail`: its last
+ * bytes, `size`: the whole file's length) and nothing is unpacked or run. Null when it is neither, when the archive has a macro project, uses ZIP64 or is encrypted, or when its
+ * directory is not within `tail`: a file that cannot be told is refused as the archive it is.
+ */
+export function ooxmlTypeOf(tail: Uint8Array, size: number): typeof XLSX_TYPE | typeof DOCX_TYPE | null {
+  const start = size - tail.length;
+  // The end-of-central-directory record: 22 bytes, then at most a 65,535-byte comment.
+  let eocd = -1;
+  for (let i = tail.length - 22; i >= Math.max(0, tail.length - 22 - 65535); i--) {
+    if (tail[i] === 0x50 && tail[i + 1] === 0x4b && tail[i + 2] === 0x05 && tail[i + 3] === 0x06) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) return null;
+  const count = u16(tail, eocd + 10);
+  const cdSize = u32(tail, eocd + 12);
+  const cdOffset = u32(tail, eocd + 16);
+  if (count === 0xffff || cdSize === 0xffffffff || cdOffset === 0xffffffff) return null; // ZIP64
+  const from = cdOffset - start;
+  if (from < 0 || from + cdSize > tail.length) return null;
+  const names: string[] = [];
+  let at = from;
+  for (let n = 0; n < count; n++) {
+    if (at + 46 > from + cdSize || u32(tail, at) !== 0x02014b50) return null;
+    const flags = u16(tail, at + 8);
+    const nameLen = u16(tail, at + 28);
+    const extraLen = u16(tail, at + 30);
+    const commentLen = u16(tail, at + 32);
+    if (flags & 1) return null; // encrypted
+    if (at + 46 + nameLen > tail.length) return null;
+    names.push(new TextDecoder("utf-8").decode(tail.subarray(at + 46, at + 46 + nameLen)));
+    at += 46 + nameLen + extraLen + commentLen;
+  }
+  if (!names.includes("[Content_Types].xml")) return null;
+  if (names.some((x) => /(^|\/)vbaProject\.bin$/i.test(x))) return null;
+  if (names.includes("xl/workbook.xml") && !names.includes("word/document.xml")) return XLSX_TYPE;
+  if (names.includes("word/document.xml") && !names.includes("xl/workbook.xml")) return DOCX_TYPE;
+  return null;
+}
+
 const EXTENSION_TYPE: Readonly<Record<string, KnownMediaType>> = {
+  xlsx: XLSX_TYPE,
+  docx: DOCX_TYPE,
   pdf: "application/pdf",
   png: "image/png",
   jpg: "image/jpeg",
@@ -93,6 +151,8 @@ export function typeFromHeader(contentType: string | null | undefined, sniffed: 
   if (!t || t === "application/octet-stream") return null;
   if (t === "image/jpg" || t === "image/pjpeg") return "image/jpeg";
   if (sniffed === "text/csv" && CSV_ALIASES.includes(t)) return "text/csv";
+  // Some browsers on Windows send the older Excel name for a workbook; the bytes say what it is.
+  if (sniffed === XLSX_TYPE && t === "application/vnd.ms-excel") return XLSX_TYPE;
   return t;
 }
 

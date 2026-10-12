@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import ExcelJS from "exceljs";
+
 import { documentFaultText } from "./labels";
-import { mediaFault, sniffMediaType, typeFromHeader, typeFromName, unknownPolicyTypes } from "./media";
+import { ARCHIVE_TAIL_BYTES, DOCX_TYPE, mediaFault, ooxmlTypeOf, sniffMediaType, typeFromHeader, typeFromName, unknownPolicyTypes, XLSX_TYPE } from "./media";
 import type { StorePolicy } from "./types";
 
 const bytes = (...xs: (number | string)[]) => new Uint8Array(xs.flatMap((x) => (typeof x === "string" ? [...Buffer.from(x, "latin1")] : [x])));
@@ -142,5 +144,87 @@ describe("a CSV is told by its bytes (6.2 Q-3, the bill of quantities as receive
   });
   it("a policy may list CSV", () => {
     expect(unknownPolicyTypes(["text/csv"])).toEqual([]);
+  });
+});
+
+/** A ZIP made by hand: stored entries, a central directory and its end record. Enough for the names to be read; nothing here is ever unpacked. */
+function zipOf(names: string[], opts: { flags?: number; comment?: number; zip64?: boolean } = {}): Uint8Array {
+  const parts: number[][] = [];
+  const central: number[][] = [];
+  let offset = 0;
+  const u16 = (n: number) => [n & 255, (n >> 8) & 255];
+  const u32 = (n: number) => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+  for (const name of names) {
+    const nameBytes = [...Buffer.from(name, "utf8")];
+    const local = [...u32(0x04034b50), ...u16(20), ...u16(opts.flags ?? 0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(0), ...u32(0), ...u16(nameBytes.length), ...u16(0), ...nameBytes];
+    parts.push(local);
+    central.push([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(opts.flags ?? 0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(0), ...u32(0), ...u16(nameBytes.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset), ...nameBytes]);
+    offset += local.length;
+  }
+  const cd = central.flat();
+  const eocd = [...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(names.length), ...u16(names.length), ...u32(cd.length), ...u32(opts.zip64 ? 0xffffffff : offset), ...u16(opts.comment ?? 0)];
+  return new Uint8Array([...parts.flat(), ...cd, ...eocd, ...new Array(opts.comment ?? 0).fill(0x20)]);
+}
+const tailOf = (b: Uint8Array) => b.subarray(Math.max(0, b.length - ARCHIVE_TAIL_BYTES));
+
+describe("a workbook or a Word document is told from a ZIP by the names its archive lists (SR-09, SR-11)", () => {
+  const xlsxPolicy: StorePolicy = { ...policy, allowedMediaTypes: [...policy.allowedMediaTypes, XLSX_TYPE, DOCX_TYPE] };
+  async function workbook(): Promise<Uint8Array> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Bill of quantities");
+    ws.addRow(["Section", "Item", "Description", "Unit", "Quantity"]);
+    ws.addRow([1, "1.1", "Preliminaries", "item", 1]);
+    return new Uint8Array(await wb.xlsx.writeBuffer());
+  }
+
+  it("a real workbook is an Excel workbook, though its first bytes are only a ZIP's", async () => {
+    const book = await workbook();
+    expect(sniffMediaType(book.subarray(0, 512))).toBe("application/zip");
+    expect(ooxmlTypeOf(tailOf(book), book.length)).toBe(XLSX_TYPE);
+  });
+  it("a Word document is told by word/document.xml", () => {
+    const docx = zipOf(["[Content_Types].xml", "_rels/.rels", "word/document.xml", "word/styles.xml"]);
+    expect(ooxmlTypeOf(tailOf(docx), docx.length)).toBe(DOCX_TYPE);
+  });
+  it("anything else stays an archive: another ZIP, a macro-enabled workbook, a file that is both, an encrypted one, ZIP64, or no directory at all", () => {
+    const t = (names: string[], opts?: Parameters<typeof zipOf>[1]) => {
+      const z = zipOf(names, opts);
+      return ooxmlTypeOf(tailOf(z), z.length);
+    };
+    expect(t(["notes.txt", "photo.jpg"])).toBeNull();
+    expect(t(["[Content_Types].xml", "xl/workbook.xml", "xl/vbaProject.bin"])).toBeNull();
+    expect(t(["[Content_Types].xml", "word/document.xml", "word/vbaProject.bin"])).toBeNull();
+    expect(t(["[Content_Types].xml", "xl/workbook.xml", "word/document.xml"])).toBeNull();
+    expect(t(["xl/workbook.xml"])).toBeNull();
+    expect(t(["[Content_Types].xml", "xl/workbook.xml"], { flags: 1 })).toBeNull();
+    expect(t(["[Content_Types].xml", "xl/workbook.xml"], { zip64: true })).toBeNull();
+    expect(ooxmlTypeOf(bytes(0x50, 0x4b, 0x03, 0x04, 1, 2, 3), 7)).toBeNull();
+    expect(ooxmlTypeOf(new Uint8Array(0), 0)).toBeNull();
+  });
+  it("a directory that does not fit the bytes given is not guessed at", () => {
+    const z = zipOf(["[Content_Types].xml", "xl/workbook.xml"]);
+    expect(ooxmlTypeOf(z.subarray(z.length - 60), z.length + 10_000)).toBeNull();
+  });
+  it("is stored where the policy lists the type, under a matching name, and refused otherwise", async () => {
+    const book = await workbook();
+    const sniffed = ooxmlTypeOf(tailOf(book), book.length);
+    expect(mediaFault(sniffed, { filename: "BQ-DEMO-0026.xlsx", contentType: XLSX_TYPE }, xlsxPolicy)).toBeNull();
+    // Windows browsers may send the older Excel name for it.
+    expect(mediaFault(sniffed, { filename: "bq.xlsx", contentType: "application/vnd.ms-excel" }, xlsxPolicy)).toBeNull();
+    expect(mediaFault(sniffed, { filename: "bq.xlsx", contentType: "application/octet-stream" }, xlsxPolicy)).toBeNull();
+    // Left out of the policy: refused, naming where the rules are set.
+    const left = mediaFault(sniffed, { filename: "bq.xlsx" }, policy);
+    expect(left).toMatchObject({ code: "TYPE_NOT_ALLOWED" });
+    expect(documentFaultText(left!)).toMatch(/Excel workbook \(\.xlsx\).*Upload rules/);
+    // A workbook called .csv or .pdf is a mismatch, naming both.
+    expect(mediaFault(sniffed, { filename: "bq.csv" }, xlsxPolicy)).toMatchObject({ code: "DECLARED_TYPE_MISMATCH", data: { sniffed: XLSX_TYPE, declared: "text/csv" } });
+    expect(mediaFault(sniffed, { filename: "bq.xls" }, xlsxPolicy)?.code).toBe("NAME_WITHOUT_TYPE");
+    // A bare ZIP is still refused as the archive it is.
+    expect(mediaFault("application/zip", { filename: "bq.xlsx" }, xlsxPolicy)?.code).toBe("ARCHIVE_NOT_ACCEPTED");
+  });
+  it("names and extensions are known", () => {
+    expect(typeFromName("Bill.XLSX")).toBe(XLSX_TYPE);
+    expect(typeFromName("Form.docx")).toBe(DOCX_TYPE);
+    expect(unknownPolicyTypes([XLSX_TYPE, DOCX_TYPE, "application/msword"])).toEqual(["application/msword"]);
   });
 });
