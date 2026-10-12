@@ -227,3 +227,124 @@ Without email, an administrator password reset is the recovery path, and it is a
 - `C:\Users\MohamadHaikalHarizbi\projects\perolehan\prisma\schema.prisma`
 - `C:\Users\MohamadHaikalHarizbi\projects\perolehan\compose.yaml`
 - `C:\Users\MohamadHaikalHarizbi\projects\perolehan\docs\notes\architecture\0020-identity-separate-staff-and-vendor-stores.md`
+
+## G. Sealing online bids (wave 3b, ADR 0036)
+
+- **When:** added 2026-10-12 as the design for SR-13 (rulings 20 and 21). Revised the same day after the product owner's rulings 20a–20q
+  and the wave 3b security review.
+- **What this is:** a review of a design, not of code. Nothing here is built yet.
+- **Numbering:** S1–S20 keep their numbers, because the rulings cite them. New threats start at S21.
+
+### Assets
+
+- **The bid contents:** files, the declared Harga and Tempoh Kerja, and the company estimate's lodged copy.
+- **Who bid**, before the opening.
+- **The integrity of the register:**
+  - every in-time bid was in time;
+  - the bid opened is the one submitted;
+  - a replaced bid stays shut.
+- **The secrets:**
+  - the exercise private key *k*;
+  - each share;
+  - each officer's passphrase;
+  - the deployment's scrypt pepper.
+
+### Trust boundary
+
+- **What sealing defends against:**
+  - the database, a backup or a dump;
+  - database administrators;
+  - product administrators, through the screens;
+  - an application server compromised while nobody is entering a passphrase.
+- **What it does not defend against:**
+  - the running application server while it handles a bid or a passphrase;
+  - the malware scanner while it reads a bid (ruling 12a);
+  - the application database role writing rows. Fabrication is **detected**, not prevented (S8, S11).
+- **Ruling 20's "the server sees shares as typed"** applies here to the passphrases that unlock the shares.
+
+### Threats
+
+| # | Threat | Answer | Left |
+| --- | --- | --- | --- |
+| S1 | A dump or backup is read for bids | Ciphertext only. DEKs are HPKE-sealed to the exercise key or to officers' keys; shares are sealed to per-exercise officer keys wrapped under peppered scrypt. No plain-file hash, filename, media type or declaration hash is stored. | Sizes, times and counts. Identity is plain (S9). Between finalising and the mover, a file's `releasedDek` is plain, after the figures are already public to the capability (ADR 0036 D10). |
+| S2 | Passphrases are guessed offline from a dump | scrypt N=2^17; the passphrase must differ from the sign-in password; a configured minimum, floor 12; **the pepper, held outside the database, is required for LIVE** (Q17). | With the pepper as well (a server compromise), the GCM tag confirms a guess. A lost pepper makes every exercise wrapped under it unopenable (S14). |
+| S3 | An administrator reads a bid through the product | The roster refuses administrators; every sealed entry point refuses them and logs the refusal. | None known. |
+| S4 | An administrator resets an officer's password (F7) | The unseal passphrase is separate and cannot be reset. | The administrator can still deny the opening before the unseal by deactivating the officer (S14). |
+| S5 | The application server or the scanner is compromised at upload | Stated; nothing answers it. Plaintext stays in memory and **may touch the scanner's tmpfs**. The scanner is on the same host, over a local socket, with no quarantine and no copy. Nothing is logged; `BlobContent` and `DocumentVersion` never see plaintext; memory is zeroed best-effort; core dumps and swap are off. | Every bid that arrives while either is compromised. |
+| S6 | The application server is compromised at key creation, an authorisation, a download or finalising | Stated; nothing answers it. *k* or an officer key lives for one request. | The server can keep *k* or passphrases and unseal later, even before the closing, and can misreport what it shows. |
+| S7 | Officers collude before the closing, or one officer abuses a backup | The application refuses an unseal at or before the closing. Every authorisation is attributed and audited. | All named officers together, with a database copy, can decrypt early: no time lock is cryptographic. **Share releases are kept in the database (M1, chosen so the unseal survives restarts and several instances).** With n = 2, a backup taken after officer A authorises and before officer B does lets B alone open later, even if the sitting adjourned and the release was shredded. That is only after the closing, and only after A's recorded consent. |
+| S8 | A database writer moves a sealed price, file or share into another row | AAD binds every ciphertext to its organisation, exercise, key, record and part. The unseal checks each manifest against its row. Ciphertext is immutable by trigger. `OnlineBidPart.fileId` is unique. | **The application role can still fabricate rows that pass the triggers. This is detected (by the manifest check, the opening roll and the receipt digests), not prevented.** The owner role can drop triggers. |
+| S9 | Who bid is learnt before the opening | Received shows no names, and an ordinal in place of the sequence (Q16). `sealedAuditMask` applies. Filenames are sealed. The void register answers the same way for every buyer (S21). | **FR-BID-001's identity clause is NOT met against a privileged query** (20a): `supplierId`, the account links, the audit actor, `ActAttribution` and `SealedAccessEvent` are plain. A scan pins the list. Whether to blind the link is a question for the outside review. The customer's written acceptance names this clause. |
+| S10 | The exercise public key is swapped | `publishedKeyFingerprint` is frozen at publication. A trigger refuses a new or retired key after publication except with a `PublishedKeyChange` row, and refuses any after the closing. Every upload checks the live key against the fingerprint. The opportunity shows the fingerprint and its history, and every receipt shows it. | The owner role, through DDL. Suppliers can compare the fingerprint. |
+| S11 | A bid is forged, or a rival's is swapped (anyone can encrypt to a public key) | A submission needs a SIGNED `ActAttribution`, a spent step-up moment, an audit row and an ONLINE envelope inserted in the same transaction. The **stamp is owned by a trigger on the database clock**, within a bounded skew. `late` and the closing judged are set by the trigger. Status moves after the closing are refused. `startOpening` freezes the opening roll. My Bids tells each supplier whether its receipt digest was the one opened (Q14). | **The application role can fabricate a complete bid inside the skew window before the closing, or move a real one to REPLACED before the closing. This is detected (no matching act by the supplier, or the supplier's receipt is missing from the roll), not prevented.** |
+| S12 | A replaced or withdrawn bid is replayed as the live one | Status moves forward only. The unseal opens only SUBMITTED, in-time rows. The roll and the receipt digests are shown at the opening. | None known. |
+| S13 | A price is brute-forced from a hash | No hash of a plain file or a declaration is stored. | None known. |
+| S14 | Denial of the opening | **Before the unseal:** deactivation lists the exercises at risk and asks a reason; "Check I can still unlock" is offered; re-key while no submission exists. **After the unseal (H3, option a):** every opened bid's declaration, file and estimate DEKs are re-sealed to each named officer, so finalising needs any ONE officer's passphrase. One officer can no longer force a re-tender after the prices are seen. | **Before the unseal, after the first submission:** a lost passphrase, a refusal or a deactivation means re-tender (20f; no escrow). **After the unseal:** deactivating a named officer needs a second approver until finalising (option b). An officer's procedural refusal to sign, or two colluding administrators deactivating one, still blocks finalising, as at a paper opening. One officer can block a supplementary opening, so a late bid admitted by the committee may never be opened. A lost pepper loses every exercise wrapped under it. |
+| S15 | A departing officer keeps the ability to unseal | Substitution seals the departing officer's share to the incoming officer and shreds the old row. | **Substitution transfers the share; it does not revoke it.** A backup taken before the substitution still holds the old row, which the departing officer's passphrase opens. It still needs every other officer, as S7 and M1 describe. |
+| S16 | Malware reaches an officer through a bid | The recogniser and the scan run on plain bytes. **A scan ERROR or THREAT refuses the file in either mode.** NOT_SCANNED is possible only under DEMONSTRATION with no scanner, and is shown at download. LIVE requires a scanner. | The scanner's detection rate. |
+| S17 | A rival is starved near the closing | Submit is a small act stamped before the password check. Bid uploads have a deployment pool, **one upload in flight per supplier**, a body-read deadline and a minimum rate. The caps are per supplier per exercise (20e). Lockout is time-limited. | A deployment-wide flood is the edge's job. |
+| S18 | A supplier account is taken over, and the attacker withdraws or replaces the bid | The password is asked again at submit and at withdraw. My Bids shows every act. | No notice can be sent. R-1 applies to suppliers. |
+| S19 | The append-only tables are filled | Per-account rates; per supplier per exercise caps; part sizes. | None known. |
+| S20 | Plaintext leaks through logs, errors or audit JSON | Bodies are never logged. Audit JSON holds ids, statuses and digests only (scan). Refusals are logged only after the session check, never through `logAccess`, which records the offered filename. | Proxies must not log bodies (must-have 5). Anonymous refusals are not in `SealedAccessEvent` (ADR 0036 Q18). |
+| S21 | The void register shows which buyers have bid (H1) | Before the opening, `voidSaleFault`'s `ENVELOPE_HELD` never reads online bids, matching paper, where envelopes are anonymous. A DB test shows the register answers identically for every buyer. | The unbuilt 17b reversal's "the buyer holds no bid" clause: Q13 (default: the reversal does not read bids; the opening finds NO_LIVE_SALE). |
+| S22 | The sequence reveals replacements and withdrawals | Received shows an ordinal before the opening starts (Q16). | The supplier's own My Bids shows its own sequences, which is its own information. |
+| S23 | The file mover fails or races | A per-file advisory lock; the owner link is unique (`onlineBidFileId`) and is written in the store's transaction; the mover is idempotent; every GCM tag is verified before finalising commits. | `releasedDek` is plain until each file is moved (S1). |
+| S24 | Stamp manipulation within the skew | The trigger bounds `receivedAt` to `[now() − MAX_STAMP_SKEW_SECONDS, now()]`. | An application-role writer can back-date by up to the skew. That is detected as in S11. |
+
+### Must-haves before LIVE
+
+These are in addition to section B, and are each recorded per organisation in `BidSealingPolicy` unless noted.
+
+1. **The outside cryptography review is recorded.** It covers:
+   - ADR 0036 D2 and D3;
+   - these threats;
+   - the recovery options (re-key-and-resubmit, k-of-m);
+   - the blinded supplier link;
+   - signed receipts.
+2. **CPD's SK002/SK003 amendment is recorded.**
+3. **A malware scanner is configured** (12a, NFR-SEC-007), deployed as S5 says.
+4. **The public-copy database role is built**, with no SELECT on any sealed column (founder-reserved, log 1937). It is **attested, and not
+   checked by the portal** (Q17).
+5. **Deployment hardening:** core dumps and swap off, HTTPS, no body logging. **Attested, and not checked by the portal** (Q17).
+6. **The customer's written acceptance of the honest limits** — S5 to S7, S9 (naming FR-BID-001's identity clause), S11 and S14 — recorded
+   as `customerAcceptanceReference` (20o).
+7. **The scrypt pepper is configured**, with its custody and its backup apart from the database (Q17).
+8. **The deployment sets `SEALED_BIDS_LIVE_ALLOWED`** (Q17).
+
+### Tests (wave 3b)
+
+- **Known-answer tests:**
+  - RFC 7748, 5869 and 7914;
+  - the GCM cases with 96-bit IVs only;
+  - RFC 9180 A.1;
+  - the vendored CFRG entry for X25519, HKDF-SHA256 and AES-256-GCM, with a pinned hash. If that entry is absent, the build stops and
+    reports.
+- **Splitting:** reconstruction works for n = 2, 3 and 5. An altered share flips a non-clamped bit and is refused.
+- **Source scans:**
+  - ciphertext and named key material only;
+  - decryption only in `open.ts`;
+  - the identity columns pinned;
+  - FINALISE grants read only by `finaliseOnline`;
+  - no "signed" or "proof" receipt.
+- **Database tests as the application role,** one per trigger:
+  - the stamp skew;
+  - the forced late flag;
+  - a late insert after the opening starts;
+  - status moves after the closing;
+  - the envelope required in the same transaction;
+  - a unique `fileId`;
+  - the fingerprint and key rules;
+  - `releasedDek`;
+  - the parent;
+  - `LODGEMENT_CLOSED`;
+  - delete and truncate.
+- **The void register** answers the same way for every buyer before the opening (S21).
+- **Refusals:** an administrator is refused at every sealed entry point; a non-officer download is refused; each refusal is logged after
+  the session check.
+- **Ordering:**
+  - an unseal at the closing second is refused;
+  - a replaced bid is never opened;
+  - a late bid is not opened at the main unseal;
+  - n = 3 needs the third officer;
+  - finalising with a NULL price is refused;
+  - finalising with a corrupt blob is refused before it commits.

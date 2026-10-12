@@ -1096,3 +1096,204 @@ and says so in words). The document supersedes only what it names. A spec Must t
     - **Code:** none now. In wave 3b:
       - `holdsBidStanding` and the live-sale reading inside the opening's `saleFinding` (not its invitee-list check) are one function, or a test pins them equal;
       - the "Product owner to confirm" comment is replaced with a citation of 17c.
+
+### Wave 3b: ADR 0036 open questions (product owner, for the founder, 2026-10-12)
+
+These rule on the open questions of ADR 0036 (`docs/notes/architecture/0036-online-sealed-bids.md`), its two untaken-question decisions, and
+its pin and switch. Where a ruling corrects the ADR, the ADR is changed to match before step 3 of the wave 3b build plan; the list is at the
+end. Order of authority as above: the document, then the specification, then earlier rulings.
+
+20a. **Q1, identity hidden on every screen but not in the database: accepted for building and for DEMONSTRATION. For LIVE it is a recorded
+    gap against a Must, not a met requirement.**
+    - FR-BID-001 (M) says no user, administrators included, can read "any price, document or identity attribute" before the opening, and
+      its test is that "a privileged database query returns ciphertext". The design meets that for price and documents. It does **not** meet
+      it for identity: `OnlineBid.supplierId`, the file and bid account links, the audit actor, `ActAttribution` and `SealedAccessEvent` are
+      plain.
+    - Why it is not sealed now: the supplier account is the attribution of a signed act (AGENTS.md: every change audited), it is in the
+      access log and in the sessions, and bidders are a subset of the buyers the office already sees on the sale register. Sealing the link
+      alone would hide little and cost the audit trail.
+    - So: the ADR stops saying "accept". It says FR-BID-001's identity clause is **not met against a privileged query**, recorded as
+      deferred with this reason. The customer's written acceptance of the honest limits (threat model §G, must-have 6) names this clause
+      explicitly. The outside review is asked whether a blinded supplier link is worth its cost. No screen says identity is encrypted
+      (D13 already).
+    - A source scan pins the list of plain identity columns on the sealed tables, so it cannot grow unnoticed.
+
+20b. **Q2, until when late online bids are taken: until the main opening is started, not until it is unsealed. This corrects the ADR.**
+    - The paper register already closes at the start of the opening (`exerciseFaults`, `AFTER_OPENING`: "the register is now the
+      opening's"). D12 makes the online envelope part of the same register, so one register keeps one closing rule. The unseal is a second
+      rule with no source.
+    - The online trigger is named: for ONLINE, `openingStarted` reads the main `Opening` row's start (`startOpening`). It does not read the
+      box's `UNLOCKED_FOR_OPENING` event, which an online opening never writes, so without this the online register would never close.
+      `submitFaults` takes that start in place of `unsealedAt`. `LATE_CLOSED` says so in words, and every refusal is a `SealedAccessEvent`.
+    - `startOpening` (through `inOpening`) already locks the exercise and its envelope rows. The online submit must take the same locks (it
+      allocates its envelope sequence under `lockEnvelopeRows`), so a submission is either before the start or refused.
+    - Unchanged: a late bid is accepted, sealed, marked late, counted and sent to the committee (FR-BID-003, FR-CTE-008). A supplier with a
+      live in-time bid may not add a late one (FR-BID-005).
+
+20c. **Q3, who sees bidder names between the unseal and finalising: the named officers only (the ADR's default). Confirmed.**
+    - Ruling 20 is the later and more specific: identity on the schedule is shown on no screen until finalising. Ruling 18's "after the
+      opening is authorised" is read as being for the officers who conduct it, who need the names to work the SR-14 matrix, as the
+      committee reads names aloud at a paper opening.
+    - Everyone else with the capability sees names at finalising. Suppliers never see another bidder (FR-VND-013).
+
+20d. **Q4, officer keys: per exercise (the ADR's default). Confirmed.**
+    - A guessed, stolen or forgotten passphrase then costs one exercise, not every exercise the officer sits on. Substitution and re-key
+      stay local to the exercise. A per-person key can be added later as a wrap, so this is reversible.
+
+20e. **Q5, rate limits and caps: product behaviour, as constants in `limits.ts` with their reasons, on the SEC-2 precedent. Three layers.**
+    - **Rate limits:** per account, product constants (the wave 3a SEC-2 ruling). If a customer needs different numbers, that is a
+      decision to propose.
+    - **Caps** (draft files, submissions): per supplier per exercise, product constants, never a pool shared between suppliers, so one
+      bidder cannot use up another's room (threat S17). A cap never blocks a withdrawal and never removes a standing bid. At the cap the
+      words say that the last submission stands.
+    - **Upload concurrency** (`BID_UPLOAD_MAX_CONCURRENT`): deployment configuration, a memory guard shared across the deployment. Its BUSY
+      answer says in words to retry, and that the submission's own stamp, not the upload's, decides lateness.
+    - The size of each part stays the customer's configuration (`bidMaxBytes`), as D7 has it. The numbers are logged when built.
+
+20f. **Q6, a lost share after a submission: re-tender. Re-keying and asking bidders to resubmit is not adopted. Referred to the founder
+    with the recovery question.**
+    - Ruling 11 already says that, until a reviewed recovery design exists, the exercise must be re-tendered.
+    - Re-key-and-resubmit voids bids that suppliers submitted in good faith with no committee decision (the authority over tenders is the
+      Board's, FR-BID-003). It depends on a notice the product cannot send (threat S18). It would also move the published key fingerprint
+      mid-window.
+    - It is a recovery design, so it goes into the outside-review pack beside the k-of-m threshold, as an option for the founder.
+
+20g. **Q7, re-lodging the company estimate on a re-key: acceptable under FR-EST-007, on four conditions.**
+    - The lead check reads the date of the estimate's current version (`leadTime` on `preparedOn`), never the lodgement date. So a
+      re-lodgement of the **same version** does not trip it. A new version is judged as any amendment is (FR-EST-009).
+    - The re-lodgement is the lodging officer's own act under the existing lodge rules, before the closing, with a reason. It is never
+      done by the server from the retained copy.
+    - A re-key **shreds every share of the retired key** in the same transaction. Otherwise the superseded lodgement stays decryptable
+      while its shares exist, and FR-EST-007's "exactly two controlled copies" is broken. The same shred makes the discarded draft parts
+      unreadable.
+    - A re-key is refused after the closing.
+    - Until it is re-lodged, `ESTIMATE_NOT_LODGED` blocks the opening's start, in words, as it does today.
+
+20h. **Q8, alternatives: no live main bid is needed. This also amends ruling 19 on alternatives that are not permitted.**
+    - FR-BID-006 records each alternative as a separate bid, and the spec gives a bid an "alternative-bid flag and parent". No source makes
+      an alternative depend on a conforming bid. The paper register lets an alternative envelope name a parent, or not.
+    - **The parent link.** An online alternative may name a parent. If it does, the parent must be the same supplier's own live bid on the
+      exercise, or the submission is refused in words. This is the analogue of paper's `PARENT_NOT_A_BID`, and it replaces `NO_MAIN_BID`.
+      - A replace of the parent re-points the link to the replacement.
+      - A withdrawal withdraws only what it names. The screen lists the linked alternatives so the supplier can withdraw them in the same
+        act. An alternative the supplier keeps has its link cleared in the same recorded act, and it stands alone. No link ever points at a
+        REPLACED or WITHDRAWN bid.
+      - The row's current parent is the one the opening uses. The manifest seals the parent as it was at submission, and the unseal's check
+        compares everything else. The ADR names that column as the one that may move, and the trigger allows it to move only by these two
+        acts.
+    - **Amends ruling 19.** Ruling 19's "only where the pack permits one" is changed to FR-BID-006's acceptance criterion: where the
+      documents do not permit alternatives, an alternative is **recorded and marked Not Considered**, not refused. That is the paper
+      behaviour (`alternativeStatus`). The specification ranks above an earlier ruling. The supplier is told before submitting that it will
+      not be considered. `ALTERNATIVES_NOT_PERMITTED` leaves `SubmitFault`.
+    - **Not stated** (`alternativesPermitted` null): publication of an ONLINE exercise refuses until it is stated (`publishSealingFaults`,
+      the unset-refuses pattern). The case never reaches a bidder. The door keeps `ALTERNATIVES_NOT_STATED` as a defensive refusal only.
+
+20i. **Q9, LIVE withdrawn after an incident: it does not stop submission on exercises already published (G1 holds). The incident path is
+    per exercise.**
+    - Withdrawing LIVE refuses new publication of ONLINE exercises. A published exercise keeps its pin.
+    - What an incident does to a published ONLINE exercise uses the existing acts: a closing extension or a cancellation, each with its
+      authority and reason. The switch screen lists the published ONLINE exercises still taking bids, so whoever withdraws LIVE sees what
+      to act on.
+    - **The mode is frozen at publication too**, beside `submissionChannel`. Otherwise turning DEMONSTRATION to LIVE would promote a
+      demonstration exercise, whose receipts say "not for real tenders" and whose files read NOT_SCANNED, into a real one.
+    - The deployment's permission for demonstration (`SEALED_BIDS_DEMONSTRATION_ALLOWED`) is read live, as the payment simulator's is. It
+      is the deployment's guard, not the customer's policy.
+
+20j. **Q10, signed receipts: not now. For the outside-review pack and the backlog.**
+    - The receipt digest lets a bidder check that what was opened is what it submitted. A deployment signature would add evidence against
+      a forged or misreported bid (threats S6, S11), but it brings key custody and rotation that no requirement asks for yet.
+    - Until then, no screen calls the receipt "signed" or "proof". It is "your receipt; it records what the portal told you".
+
+20k. **Q11, a panel above 2: every named officer (n-of-n, n = `Committee.panelSize`). Confirmed. No fixed two.**
+    - "A fixed two of them" needs either a literal 2 (AGENTS.md rule 1) or a new threshold the customer would have to set, and a threshold
+      needs a different split from n-of-n XOR, which the outside review has not seen. n-of-n is the reading of "both" (SR-07, FR-OPN-003,
+      ruling 20) that adds no number.
+    - FR-OPN-002 already makes a size other than 2 a controlled change with recorded authority.
+    - The Opening officers screen says in words that every named officer is needed to open, and that each extra officer is one more who
+      can make the exercise unopenable. k-of-m stays the founder's, with the review.
+    - Noted, not ruled here: paper's `opensTheBox` keeps the literal `=== 2`. That is a separate backlog item.
+
+20l. **Q12, Received showing the late flag before the opening: yes. Confirmed.**
+    - The flag is the server's finding from the stamp and the closing, both of which are already shown, so it adds no information.
+      FR-BID-003 requires late bids to be counted and segregated. Ruling 18's "only" limits what is shown about the **bidder**, and the flag
+      says nothing about who.
+
+20m. **The ADR's untaken question: a non-invitee refused at submission. Confirmed, because it refuses nothing new.**
+    - On the invited path, the online purchase already blocks a non-invitee (`src/lib/portal/bids/checks.ts`, INVITED), and the counter's
+      `recordSale` applies the same test. So a non-invitee cannot hold a live sale, and SR-10 already refuses a bidder with none.
+    - The door's invitee refusal therefore removes no bid that the method's `unpurchasedBidConsequence` would have reported to the Board.
+    - Its words must be the true reason. The live-sale part of the door test is the 17c function (`saleStands`), not
+      `saleFinding` read as LIVE_SALE. The opening still judges `saleFinding` as defence in depth.
+
+20n. **The ADR's untaken question: the passphrase at every download. Confirmed.**
+    - Caching an unwrapped officer key between requests means keeping it in server memory across requests (wider S6, and wrong across
+      instances) or sending it to the browser. Either breaks D3's "one request".
+    - A later download of several files in one request, under one passphrase, is compatible with this ruling. A cached key is not.
+
+20o. **The pin `submissionChannel` (PAPER | ONLINE) and the three-state switch (unset | DEMONSTRATION | LIVE): confirmed, with
+    additions.**
+    - The pin follows G1 and 12e: pinned at creation, taken only while unset, frozen at publication, existing exercises backfilled PAPER.
+      An unset pin refuses publication in words.
+    - The switch is configuration on the two-person path (G2). Unset refuses in words.
+    - **LIVE requires**, in addition to the review reference, the SK002/SK003 amendment reference and a configured scanner, **a reference
+      for the customer's written acceptance of the honest limits** (threat model §G must-have 6, including 20a). That is a recordable fact
+      per organisation, like the other two.
+    - Must-haves 4 (the public-copy database role) and 5 (core dumps, swap, HTTPS, body logging) are deployment facts the portal cannot
+      verify. The switch screen lists them as "not checked by the portal", so issuing LIVE never reads as "every condition met".
+    - Under LIVE, a scanner that is unavailable or fails at upload refuses the file in words. NOT_SCANNED is recorded only under
+      DEMONSTRATION (NFR-SEC-007).
+
+20p. **What ADR 0036 must change to match.** The ADR is the solution-architect's to edit; these rulings change nothing in it directly.
+    - D1: freeze the mode at publication beside the channel (20i). Add the acceptance reference to LIVE, and the "not checked by the portal"
+      list (20o). Under LIVE, a scan failure refuses (20o; also D6).
+    - D7, late bids: "until the main opening is started", with the online `openingStarted` named (20b). `submitFaults` takes the start, not
+      `unsealedAt`.
+    - D7, alternatives: no main bid needed. A not-permitted alternative is recorded and marked Not Considered. Publish refuses ONLINE while
+      alternatives are not stated (20h). Drop `ALTERNATIVES_NOT_PERMITTED` and `NO_MAIN_BID` from `SubmitFault`, and add a fault for a named
+      parent that is not the supplier's own live bid. A withdrawal clears a kept alternative's link. The row's current parent is the one the
+      opening uses, and the manifest holds the parent at submission (20h).
+    - D8: the door uses `saleStands` for the sale, and the invitee check is described as matching the purchase's (20m).
+    - D9: replace "accept" for identity with the recorded FR-BID-001 gap, the scan pinning the plain identity columns, and the review
+      question (20a).
+    - D11, re-key: shred every share of the retired key in the same transaction. Refuse it after the closing. Re-lodge the same estimate
+      version by the lodging officer's act (20g).
+    - D11, re-key after publication: `publishedKeyFingerprint` is frozen, and every upload checks the live key against it (threat S10). The
+      ADR must re-freeze the fingerprint as a recorded publication change, shown on the opportunity with its history. Otherwise a re-key
+      after publication refuses every upload for ever (ruling 13).
+    - D11, "their suppliers are told": no notice can be sent (threat S18). This becomes words on the supplier's own submit page, saying
+      that their draft parts were discarded because the key changed.
+    - D11, a lost share after a submission: re-tender stands. Re-key-and-resubmit is listed only as a recovery option for the review and the
+      founder (20f).
+    - D13: limits are three layers, per account, per supplier per exercise and deployment concurrency, with the BUSY words (20e).
+    - D10: the officer screens say that every named officer is needed (20k).
+    - Receipt words: never "signed" or "proof" (20j).
+    - "Open for the product owner": each question points to its ruling here. The build plan's step 21 says "Q1 to Q10" and should say Q1 to
+      Q12.
+
+20q. **What the wave 3b build plan must change to match.** Step 3 writes the plan's contracts verbatim, so the plan
+    (`docs/notes/plans/wave-3b-build-plan.md`) changes with the ADR, before step 3:
+    - **§1.2:**
+      - `SubmitFault` loses `ALTERNATIVES_NOT_PERMITTED` and `NO_MAIN_BID`, and gains the parent fault (20h);
+      - `LATE_CLOSED`'s comment reads "ends when the main opening is started" (20b).
+    - **§1.3:**
+      - `submitFaults` takes the main opening's start in place of `unsealedAt` (20b);
+      - `liveIssueFaults` gains the acceptance reference (20o);
+      - `rekeyFaults` gains the closing (20g);
+      - `publishSealingFaults` gains `alternativesPermitted` (20h).
+    - **§1.4:**
+      - `BidSealingPolicy` gains the acceptance reference and its date (20o);
+      - `SourcingExercise` gains the frozen mode beside `submissionChannel` (20i);
+      - the share shred is allowed on a re-key as well as on substitution, so the `ExerciseKeyShare` comment changes (20g);
+      - the trigger lets `OnlineBid.parentOnlineBidId` move only by a replace or a withdrawal (20h).
+    - **Step 7:** "LIVE cannot be issued with a reference missing" covers the three references, and the "not checked by the portal" list is
+      shown (20o).
+    - **Step 8:** a re-key after publication re-freezes the published fingerprint as a recorded change, shreds the retired key's shares and
+      is refused after the closing (20g, 20p).
+    - **Step 10's done-when:**
+      - "a late bid after the unseal is refused" becomes "after the main opening is started";
+      - "an alternative is refused where `alternativesPermitted` is not true" becomes "is recorded and marked Not Considered where it is
+        false";
+      - add: a named parent that is not the supplier's own live bid is refused.
+    - **Step 16:** re-lodging is of the same version, by the lodging officer's act (20g).
+    - **Step 21:** "Q1 to Q10" becomes "Q1 to Q12".
+    - **§4:** Q1, Q3 and Q6 are ruled. Q6 and k-of-m are referred to the founder with the outside review (20f, 20k).
